@@ -534,28 +534,6 @@ export const reviewSourceObservations = pgTable(
   ],
 )
 
-export const reviewSourceProvenanceQuarantine = pgTable(
-  'review_source_provenance_quarantine',
-  {
-    reviewId: uuid('review_id').primaryKey(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    reason: text('reason').notNull(),
-    quarantinedAt: timestamp('quarantined_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (t) => [
-    index('review_source_provenance_quarantine_org_idx').on(
-      t.organizationId,
-      t.quarantinedAt,
-    ),
-    check(
-      'review_source_provenance_quarantine_reason_valid',
-      sql`${t.reason} IN ('missing_property', 'cross_tenant_property')`,
-    ),
-  ],
-)
 
 export const reviewAiAnalysisHeads = pgTable(
   'review_ai_analysis_heads',

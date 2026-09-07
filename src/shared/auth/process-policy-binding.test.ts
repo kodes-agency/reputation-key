@@ -81,7 +81,6 @@ function bundle(label: string): ProcessPolicyBundle {
   return Object.freeze({
     executionPolicy: Object.freeze({
       decide: vi.fn(async () => ({ label }) as never),
-      flushAudits: vi.fn(async () => {}),
     }),
     delayedExecutionPolicy: Object.freeze({ decide: vi.fn(async () => ({}) as never) }),
     capabilityPolicyStore: Object.freeze({

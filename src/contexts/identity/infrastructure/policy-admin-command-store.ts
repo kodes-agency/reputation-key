@@ -1,17 +1,13 @@
 // Identity-owned atomic persistence for policy administration.
 //
-// Every method commits the policy/grant mutation, its policy-version change,
-// and the required content-free audit in one PostgreSQL transaction. Cache
-// refresh and cross-context reconciliation deliberately remain post-commit
-// application effects.
+// Every method commits the policy/grant mutation and its policy-version change
+// in one PostgreSQL transaction. Cache refresh and cross-context reconciliation
+// deliberately remain post-commit application effects.
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { Tx } from '#/shared/outbox/commit'
-import type {
-  PolicyAdminAuditEntry,
-  PolicyAdminCommandStore,
-} from '../application/ports/policy-admin-command-store.port'
+import type { PolicyAdminCommandStore } from '../application/ports/policy-admin-command-store.port'
 import {
   addOrganizationCapability,
   addPropertyCapability,
@@ -24,14 +20,6 @@ import {
   grantPropertyAccess,
   revokePropertyAccess,
 } from './repositories/property-access-grant.repository'
-import { writePolicyDecision } from './repositories/policy-decision-audit.repository'
-
-type AuditWriter = (tx: Tx, entry: PolicyAdminAuditEntry) => Promise<void>
-
-export type PolicyAdminCommandStoreOptions = Readonly<{
-  /** Transaction-bound fault seam used by atomicity verification. */
-  writeAudit?: AuditWriter
-}>
 
 async function lockCommand(tx: Tx, key: string): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`)
@@ -111,23 +99,14 @@ async function hasUnrevokedPropertyGrant(
 
 export const createPostgresPolicyAdminCommandStore = (
   db: Database,
-  options: PolicyAdminCommandStoreOptions = {},
 ): PolicyAdminCommandStore => {
-  const writeAudit: AuditWriter =
-    options.writeAudit ?? ((tx, entry) => writePolicyDecision(tx, entry))
-  const commitAudited = async (
-    audit: PolicyAdminAuditEntry,
-    mutate: (tx: Tx) => Promise<void>,
-  ): Promise<void> => {
-    await db.transaction(async (tx) => {
-      await mutate(tx)
-      await writeAudit(tx, audit)
-    })
+  const commit = async (mutate: (tx: Tx) => Promise<void>): Promise<void> => {
+    await db.transaction(mutate)
   }
 
   return {
     setOrganizationCapability: async (command) => {
-      await commitAudited(command.audit, async (tx) => {
+      await commit(async (tx) => {
         await lockCommand(
           tx,
           `policy-admin:org-capability:${command.organizationId}:${command.capability}`,
@@ -155,7 +134,7 @@ export const createPostgresPolicyAdminCommandStore = (
     },
 
     setPropertyCapability: async (command) => {
-      await commitAudited(command.audit, async (tx) => {
+      await commit(async (tx) => {
         await lockCommand(
           tx,
           `policy-admin:property-capability:${command.propertyId}:${command.capability}`,
@@ -184,7 +163,7 @@ export const createPostgresPolicyAdminCommandStore = (
     },
 
     setOrganizationSuspension: async (command) => {
-      await commitAudited(command.audit, async (tx) => {
+      await commit(async (tx) => {
         await lockCommand(tx, `policy-admin:org-suspension:${command.organizationId}`)
         await setOrganizationPolicy(tx, {
           organizationId: command.organizationId,
@@ -195,7 +174,7 @@ export const createPostgresPolicyAdminCommandStore = (
     },
 
     setPropertySuspension: async (command) => {
-      await commitAudited(command.audit, async (tx) => {
+      await commit(async (tx) => {
         await lockCommand(tx, `policy-admin:property-suspension:${command.propertyId}`)
         await requirePropertyInOrganization(
           tx,
@@ -211,7 +190,7 @@ export const createPostgresPolicyAdminCommandStore = (
     },
 
     grantPropertyAccess: async (command) => {
-      await commitAudited(command.audit, async (tx) => {
+      await commit(async (tx) => {
         await lockCommand(
           tx,
           `policy-admin:property-grant:${command.organizationId}:${command.propertyId}:${command.userId}`,
@@ -236,7 +215,7 @@ export const createPostgresPolicyAdminCommandStore = (
     },
 
     revokePropertyAccess: async (command) => {
-      await commitAudited(command.audit, async (tx) => {
+      await commit(async (tx) => {
         await lockCommand(
           tx,
           `policy-admin:property-grant:${command.organizationId}:${command.propertyId}:${command.userId}`,

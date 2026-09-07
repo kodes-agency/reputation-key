@@ -345,7 +345,7 @@ describe('buildIntegrationContext mandatory policy refresh', () => {
       action: 'integration.manage',
       policyVersion: 'beta-local-2',
     }))
-    initExecutionPolicy({ decide, flushAudits: async () => {} })
+    initExecutionPolicy({ decide })
     const ctx = buildIntegrationContext(
       buildDeps({
         googleAuthorizedProviderExecutor:

@@ -234,7 +234,6 @@ describe('Guest Organization lifecycle contributor', () => {
       'guest_response_private_feedback',
       'guest_contact_requests',
       'guest_contact_request_reveal_audits',
-      'guest_response_media',
       'guest_response_session_bindings',
       'guest_network_pressure_records',
     ]) {

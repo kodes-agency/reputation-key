@@ -5,9 +5,8 @@
 // and property identifiers, execution kind, purpose, time, correlation id)
 // returns an allow decision or a typed deny with a stable reason and policy
 // version. Role permissions, PropertyAccessGrant, cohort/allowlist,
-// suspension, capability state, consent, caches, and decision audit are
-// hidden inside — callers never assemble assignedPropertyIds, branch on
-// role, or order capability/authorization helpers themselves.
+// suspension, capability state, consent, and caches are hidden inside —
+// callers never branch on role or order capability/authorization helpers.
 //
 // Decision order (first deny wins):
 //   1. principal/org consistency
@@ -51,7 +50,7 @@ import {
 } from './capability-for-permission'
 import { throwContextError } from './server-errors'
 
-/** Bump when decision semantics change. Recorded on every decision + audit row. */
+/** Bump when decision semantics change. */
 export const EXECUTION_POLICY_VERSION = 'beta-local-2'
 
 export type ExecutionKind =
@@ -161,12 +160,7 @@ export type DecisionRequest = Readonly<{
   consentAssertions?: PublicConsentAssertions
   /** Every named assertion must be true; content/redirect reads omit this. */
   requiredPublicConsents?: ReadonlyArray<PublicConsent>
-  /**
-   * BQC-7.5: operator-supplied justification (or the 'read' label for read
-   * commands). Recorded on the ALLOW audit row, sliced to 200 chars —
-   * content-free, same convention as the policy-admin ops (BQC-2.7). Deny
-   * rows always carry the typed deny reason instead.
-   */
+  /** BQC-7.5: operator-supplied justification for the evaluated command. */
   reason?: string
   now: Date
   correlationId?: string
@@ -184,19 +178,6 @@ export type PublicDecisionRequest = Readonly<{
   correlationId?: string
 }>
 
-export type DecisionAuditEntry = Readonly<{
-  actorType: string
-  actorId: string | null
-  organizationId: string | null
-  propertyId: string | null
-  action: string
-  capability: string | null
-  executionKind: string
-  decision: string
-  reason: string
-  policyVersion: string
-  correlationId: string | null
-}>
 
 export type ExecutionPolicyDeps = Readonly<{
   /** Identity-owned grant lookup (BQC-2.3). Throws → policy_unavailable. */
@@ -213,9 +194,6 @@ export type ExecutionPolicyDeps = Readonly<{
       }
     >,
   ) => Promise<boolean>
-  /** Content-free audit sink (BQC-2.2). Best-effort: errors are reported, never thrown. */
-  writeDecisionAudit?: (entry: DecisionAuditEntry) => Promise<void>
-  onAuditError?: (err: unknown) => void
   /**
    * BQC-7.5: named-operator allowlist predicate (bound from
    * OPS_OPERATOR_IDENTITIES at composition). ABSENT = fail closed: every
@@ -226,87 +204,30 @@ export type ExecutionPolicyDeps = Readonly<{
 
 export type ExecutionPolicy = Readonly<{
   decide(request: DecisionRequest): Promise<ExecutionDecision>
-  /**
-   * Await every audit write issued so far (BQC-7.5). Decision audits are
-   * fire-and-forget by design in the long-lived app process; a short-lived
-   * CLI (operator commands) must flush before exit or the compliance row
-   * races process.exit.
-   */
-  flushAudits(): Promise<void>
 }>
 
-function audit(
-  deps: ExecutionPolicyDeps,
-  pending: Set<Promise<void>>,
-  request: DecisionRequest,
-  capability: Capability | null,
-  decision: ExecutionDecision,
-): void {
-  if (!deps.writeDecisionAudit) return
-  const entry: DecisionAuditEntry = {
-    actorType: request.principal.kind,
-    actorId:
-      request.principal.kind === 'user'
-        ? (request.principal.ctx.userId as string)
-        : 'id' in request.principal
-          ? (request.principal.id ?? null)
-          : null,
-    organizationId:
-      request.organizationId ??
-      (request.principal.kind === 'user'
-        ? (request.principal.ctx.organizationId as string)
-        : null),
-    propertyId: request.propertyId ?? null,
-    action: decision.action,
-    capability,
-    executionKind: request.executionKind,
-    decision: decision.allowed ? 'allow' : 'deny',
-    // Allow rows carry the operator-supplied reason when present (sliced,
-    // content-free — BQC-7.5); deny rows always carry the typed deny reason.
-    reason:
-      decision.allowed && request.reason ? request.reason.slice(0, 200) : decision.reason,
-    policyVersion: decision.policyVersion,
-    correlationId: request.correlationId ?? null,
-  }
-  // Fire-and-forget in the app process (errors reported, never thrown) —
-  // tracked so short-lived CLIs can flushAudits() before exit (BQC-7.5).
-  const tracked = deps.writeDecisionAudit(entry).catch((err) => {
-    deps.onAuditError?.(err)
-  })
-  pending.add(tracked)
-  void tracked.then(() => {
-    pending.delete(tracked)
-  })
-}
 
 function finish(
-  deps: ExecutionPolicyDeps,
-  pending: Set<Promise<void>>,
   request: DecisionRequest,
-  capability: Capability | null | undefined,
   allowed: boolean,
   reason: ExecutionDecision['reason'],
 ): ExecutionDecision {
-  const decision: ExecutionDecision = {
+  return {
     allowed,
     reason,
     action: String(request.action),
     policyVersion: EXECUTION_POLICY_VERSION,
   }
-  audit(deps, pending, request, capability ?? null, decision)
-  return decision
 }
 
 export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolicy {
-  // In-flight audit writes — see flushAudits.
-  const pendingAudits = new Set<Promise<void>>()
   // Decision steps — first non-null deny wins (decision order in the module
   // header). Each returns a finished decision or null to continue.
 
   function orgConsistencyDecision(request: DecisionRequest, ctx: AuthContext) {
     return request.organizationId &&
       request.organizationId !== (ctx.organizationId as string)
-      ? finish(deps, pendingAudits, request, null, false, 'principal_org_mismatch')
+      ? finish(request, false, 'principal_org_mismatch')
       : null
   }
 
@@ -319,30 +240,25 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
     const capDecision = checkBetaCapability(ctx, capability, request.propertyId)
     return capDecision.allowed
       ? null
-      : finish(deps, pendingAudits, request, capability, false, capDecision.reason)
+      : finish(request, false, capDecision.reason)
   }
 
-  function permissionDecision(
-    request: DecisionRequest,
-    ctx: AuthContext,
-    capability: Capability | undefined,
-  ) {
+  function permissionDecision(request: DecisionRequest, ctx: AuthContext) {
     return isPermissionAction(request.action) && !canForContext(ctx, request.action)
-      ? finish(deps, pendingAudits, request, capability, false, 'permission_denied')
+      ? finish(request, false, 'permission_denied')
       : null
   }
 
   async function propertyScopeDecision(
     request: DecisionRequest,
     ctx: AuthContext,
-    capability: Capability | undefined,
   ): Promise<ExecutionDecision | null> {
     // Org-scope roles pass; assigned-scope roles need an ACTIVE GRANT —
     // missing grant data is deny, never organization-wide allow.
     if (!request.propertyId || !isPermissionAction(request.action)) return null
     const scope = scopeForPermission(ctx, request.action)
     if (scope === 'none')
-      return finish(deps, pendingAudits, request, capability, false, 'scope_denied')
+      return finish(request, false, 'scope_denied')
     if (scope !== 'assigned-properties') return null
 
     let ids: ReadonlyArray<string>
@@ -352,17 +268,16 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
         ctx.userId as string,
       )
     } catch {
-      return finish(deps, pendingAudits, request, capability, false, 'policy_unavailable')
+      return finish(request, false, 'policy_unavailable')
     }
     return ids.includes(request.propertyId)
       ? null
-      : finish(deps, pendingAudits, request, capability, false, 'scope_denied')
+      : finish(request, false, 'scope_denied')
   }
 
   async function consentDecision(
     request: DecisionRequest,
     ctx: AuthContext,
-    capability: Capability | undefined,
   ): Promise<ExecutionDecision | null> {
     if (!request.consent) return null
     const organizationId = (request.organizationId ?? ctx.organizationId) as string
@@ -381,7 +296,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
         : false
     return consented
       ? null
-      : finish(deps, pendingAudits, request, capability, false, 'consent_required')
+      : finish(request, false, 'consent_required')
   }
 
   async function decideUser(
@@ -397,10 +312,10 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
     const deny =
       orgConsistencyDecision(request, ctx) ??
       capabilityDecision(request, ctx, capability) ??
-      permissionDecision(request, ctx, capability) ??
-      (await propertyScopeDecision(request, ctx, capability)) ??
-      (await consentDecision(request, ctx, capability))
-    return deny ?? finish(deps, pendingAudits, request, capability, true, 'allowed')
+      permissionDecision(request, ctx) ??
+      (await propertyScopeDecision(request, ctx)) ??
+      (await consentDecision(request, ctx))
+    return deny ?? finish(request, true, 'allowed')
   }
 
   // BQC-7.5 — operator branch (scripts/ops/* commands). Decision order:
@@ -427,7 +342,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
       const globalDecision = checkGlobalCapability(capability)
       return globalDecision.allowed
         ? null
-        : finish(deps, pendingAudits, request, capability, false, globalDecision.reason)
+        : finish(request, false, globalDecision.reason)
     }
     // Synthetic permissionless admin context: the capability/suspension
     // machinery needs an org carrier — operators hold no role or grants, so
@@ -440,7 +355,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
     const capDecision = checkBetaCapability(operatorCtx, capability, request.propertyId)
     return capDecision.allowed
       ? null
-      : finish(deps, pendingAudits, request, capability, false, capDecision.reason)
+      : finish(request, false, capDecision.reason)
   }
 
   async function operatorConsentDecision(
@@ -464,14 +379,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
         : false
     return consented
       ? null
-      : finish(
-          deps,
-          pendingAudits,
-          request,
-          request.capability ?? null,
-          false,
-          'consent_required',
-        )
+      : finish(request, false, 'consent_required')
   }
 
   async function decideOperator(
@@ -479,30 +387,23 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
     operatorId: string,
   ): Promise<ExecutionDecision> {
     if (request.executionKind !== 'operator') {
-      return finish(deps, pendingAudits, request, null, false, 'unsupported_principal')
+      return finish(request, false, 'unsupported_principal')
     }
     if (!deps.isRegisteredOperator?.(operatorId)) {
-      return finish(deps, pendingAudits, request, null, false, 'operator_not_registered')
+      return finish(request, false, 'operator_not_registered')
     }
     const deny =
       operatorCapabilityDecision(request, operatorId) ??
       (await operatorConsentDecision(request))
     return (
       deny ??
-      finish(deps, pendingAudits, request, request.capability ?? null, true, 'allowed')
+      finish(request, true, 'allowed')
     )
   }
 
   async function decidePublic(request: DecisionRequest): Promise<ExecutionDecision> {
     if (request.executionKind !== 'public') {
-      return finish(
-        deps,
-        pendingAudits,
-        request,
-        request.capability ?? null,
-        false,
-        'unsupported_principal',
-      )
+      return finish(request, false, 'unsupported_principal')
     }
     if (request.capability) {
       const capDecision = request.organizationId
@@ -515,14 +416,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
           )
         : checkGlobalCapability(request.capability)
       if (!capDecision.allowed) {
-        return finish(
-          deps,
-          pendingAudits,
-          request,
-          request.capability,
-          false,
-          capDecision.reason,
-        )
+        return finish(request, false, capDecision.reason)
       }
     }
     if (
@@ -530,23 +424,9 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
         (consent) => request.consentAssertions?.[consent] !== true,
       )
     ) {
-      return finish(
-        deps,
-        pendingAudits,
-        request,
-        request.capability ?? null,
-        false,
-        'consent_required',
-      )
+      return finish(request, false, 'consent_required')
     }
-    return finish(
-      deps,
-      pendingAudits,
-      request,
-      request.capability ?? null,
-      true,
-      'allowed',
-    )
+    return finish(request, true, 'allowed')
   }
 
   return {
@@ -562,21 +442,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
         // BQC-2.5 defines the normalized system identity (the delayed
         // contract in system-execution-policy.ts); here it stays fail-closed.
         case 'system':
-          return finish(
-            deps,
-            pendingAudits,
-            request,
-            null,
-            false,
-            'unsupported_principal',
-          )
-      }
-    },
-    async flushAudits() {
-      // Snapshot loop: waits for every audit issued before the flush; new
-      // decisions during the flush start their own tracking.
-      while (pendingAudits.size > 0) {
-        await Promise.allSettled([...pendingAudits])
+          return finish(request, false, 'unsupported_principal')
       }
     },
   }
@@ -618,7 +484,7 @@ let _policy: ExecutionPolicy | undefined
  * ARC-03-T8: production code calls this through ONE owner —
  * shared/auth/process-policy-binding.bindProcessPolicies — so a second
  * container in the same process cannot silently re-point the singleton at its
- * own audit sink. Tests still install directly.
+ * own policy dependencies. Tests still install directly.
  */
 export function initExecutionPolicy(policy: ExecutionPolicy): void {
   _policy = policy

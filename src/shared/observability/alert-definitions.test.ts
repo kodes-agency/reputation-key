@@ -151,7 +151,6 @@ function healthy(): MutableSnapshot {
 
 const AUX: AlertAuxReads = {
   retentionFailedSubjects: [],
-  policyDenialsByReason: {},
   betaFeedbackTriage: {
     monitorAvailable: true,
     deliveredUnresolvedCount: 0,

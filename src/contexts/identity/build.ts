@@ -58,7 +58,6 @@ import {
   MERCHANT_AI_REDACTION_PROFILE_FAMILY,
   MERCHANT_AI_SOURCE_POLICY_ID,
 } from './application/dto/merchant-ai-notice.dto'
-import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 import {
   getMemberRole,
   loadOrgPolicyState,
@@ -70,7 +69,6 @@ import {
   listActiveGrantsForOrg,
 } from './infrastructure/repositories/property-access-grant.repository'
 import { createPropertyGrantHolderLookup } from './infrastructure/adapters/grant-access-lookup.adapter'
-import { writePolicyDecision } from './infrastructure/repositories/policy-decision-audit.repository'
 import { createPostgresPolicyAdminCommandStore } from './infrastructure/policy-admin-command-store'
 import { createOrganizationLifecycle } from './application/use-cases/organization-lifecycle'
 import {
@@ -594,9 +592,9 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     redactionProfileFamily: MERCHANT_AI_REDACTION_PROFILE_FAMILY,
   })
 
-  // BQC-2.7: policy administration operations (least-privilege, audited).
-  // Identity-owned persistence bound here — application layer stays
-  // orchestration-only (boundary rule).
+  // BQC-2.7: least-privilege policy administration operations.
+  // Identity-owned persistence is bound here; the application layer stays
+  // orchestration-only.
   const policyDiagnostic = createPolicyDiagnostic({
     getMemberRole: (orgId, uid) => getMemberRole(deps.db, orgId, uid),
     hasActiveGrant: (input) => hasActiveGrant(deps.db, input),
@@ -611,14 +609,12 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       isCoreCapability: (cap) => isCoreCapability(cap as Capability),
       isBlockedCapability: (cap) => isBlockedCapability(cap as Capability),
       listAllCapabilities,
-      policyVersion: EXECUTION_POLICY_VERSION,
       explainPolicyDecision: (input) => policyDiagnostic(input),
       refreshPolicy: () => policyStore.refresh(),
       commandStore: policyAdminCommandStore,
       loadOrgPolicyState: (orgId) => loadOrgPolicyState(deps.db, orgId),
       reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
       listActiveGrantsForOrg: (orgId, at) => listActiveGrantsForOrg(deps.db, orgId, at),
-      writePolicyDecision: (entry) => writePolicyDecision(deps.db, entry),
     }),
     explainCapabilityRefusal,
   })

@@ -6,9 +6,9 @@
 //   * purge readiness MUTATES NOTHING and fails closed while a Guest
 //     correction is still undelivered, so corrections reach the anonymous
 //     lifetime aggregate BEFORE the source facts are scrubbed;
-//   * purge leaves no recoverable guest text, permitted contact, media key or
-//     session pseudonym anywhere, while the anonymous lifetime aggregate, the
-//     global retention cursor and a second Organization survive untouched.
+//   * purge leaves no recoverable guest text, permitted contact or session
+//     pseudonym anywhere, while the anonymous lifetime aggregate, the global
+//     retention cursor and a second Organization survive untouched.
 
 import { randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -38,7 +38,6 @@ const RECOVERABLE_UNTIL = new Date('2027-02-14T00:00:00.000Z')
 const PRIVATE_TEXT = 'NEVER_SURVIVE_PRIVATE_FEEDBACK_BODY'
 const LEGACY_COMMENT = 'NEVER_SURVIVE_LEGACY_FEEDBACK_COMMENT'
 const CONTACT_CIPHERTEXT = 'NEVER_SURVIVE_CONTACT_CIPHERTEXT'
-const MEDIA_KEY_MARKER = 'NEVER_SURVIVE_MEDIA_KEY'
 const IP_HASH = 'NEVER_SURVIVE_IP_HASH'
 
 const OBSERVED_TABLES = [...GUEST_PURGE_PLAN] as const
@@ -97,7 +96,6 @@ async function seedFixture(): Promise<Fixture> {
   const scanEventId = randomUUID()
   const qualifiedScanId = randomUUID()
   const ratingId = randomUUID()
-  const mediaId = randomUUID()
 
   await q(
     `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
@@ -208,21 +206,6 @@ async function seedFixture(): Promise<Fixture> {
        created_at
      ) VALUES ($1, $2, $3, $4, $5, now() + interval '1 day', now())`,
     [fixture.responseId, ...scope, fixture.sessionId],
-  )
-  await q(
-    `INSERT INTO guest_response_media (
-       id, organization_id, property_id, portal_id, response_id, session_id,
-       object_key, content_type, declared_size_bytes, status, expires_at,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'image/jpeg', 1024, 'issued',
-               now() + interval '1 day', now(), now())`,
-    [
-      mediaId,
-      ...scope,
-      fixture.responseId,
-      fixture.sessionId,
-      `${MEDIA_KEY_MARKER}/${mediaId}`,
-    ],
   )
   await q(
     `INSERT INTO guest_destination_action_receipts (
@@ -426,7 +409,6 @@ const CLEANUP_ORDER = [
   'guest_contact_request_reveal_audits',
   'guest_contact_requests',
   'guest_response_private_feedback',
-  'guest_response_media',
   'guest_response_session_bindings',
   'guest_response_experience_snapshots',
   'guest_response_integrity_decisions',
@@ -453,7 +435,6 @@ async function recoverableSecrets(organizationId: string): Promise<readonly stri
     ['guest_response_private_feedback', 'body'],
     ['feedback', 'comment'],
     ['guest_contact_requests', 'encrypted_contact'],
-    ['guest_response_media', 'object_key'],
     ['ratings', 'ip_hash'],
     ['scan_events', 'ip_hash'],
     ['guest_network_pressure_records', 'pseudonym'],
@@ -619,26 +600,17 @@ describe.sequential('Guest Organization lifecycle contributor', () => {
     const literals = await lease.pool.query(
       `SELECT
          (SELECT COUNT(*)::int FROM guest_response_private_feedback
-          WHERE organization_id = $5 AND body = $1) AS private_text,
+          WHERE organization_id = $4 AND body = $1) AS private_text,
          (SELECT COUNT(*)::int FROM feedback
-          WHERE organization_id = $5 AND comment = $2) AS legacy_comment,
+          WHERE organization_id = $4 AND comment = $2) AS legacy_comment,
          (SELECT COUNT(*)::int FROM guest_contact_requests
-          WHERE organization_id = $5 AND encrypted_contact = $3) AS contact,
-         (SELECT COUNT(*)::int FROM guest_response_media
-          WHERE organization_id = $5 AND object_key LIKE $4) AS media`,
-      [
-        PRIVATE_TEXT,
-        LEGACY_COMMENT,
-        CONTACT_CIPHERTEXT,
-        `${MEDIA_KEY_MARKER}%`,
-        fixture.organizationId,
-      ],
+          WHERE organization_id = $4 AND encrypted_contact = $3) AS contact`,
+      [PRIVATE_TEXT, LEGACY_COMMENT, CONTACT_CIPHERTEXT, fixture.organizationId],
     )
     expect(literals.rows[0]).toEqual({
       private_text: 0,
       legacy_comment: 0,
       contact: 0,
-      media: 0,
     })
 
     // The anonymous lifetime aggregate the metrics depend on is Metric's row

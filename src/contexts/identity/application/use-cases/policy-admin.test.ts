@@ -53,7 +53,6 @@ function policyAdminHarness(
     isCoreCapability: () => false,
     isBlockedCapability: () => false,
     listAllCapabilities: () => ['portal.read'],
-    policyVersion: 'policy-test-v1',
     explainPolicyDecision: async () => {
       throw new Error('not used')
     },
@@ -66,7 +65,6 @@ function policyAdminHarness(
     }),
     reconcileResponsibleManagerEligibility,
     listActiveGrantsForOrg: async () => [],
-    writePolicyDecision: async () => undefined,
   }
   return {
     ops: createPolicyAdminOps(deps),
@@ -77,7 +75,7 @@ function policyAdminHarness(
 }
 
 describe('atomic policy-admin orchestration', () => {
-  it('passes mutation and audit through the command store before refreshing', async () => {
+  it('passes the mutation through the command store before refreshing', async () => {
     const order: string[] = []
     const setOrganizationCapability = vi.fn(async () => {
       order.push('atomic-command')
@@ -107,19 +105,6 @@ describe('atomic policy-admin orchestration', () => {
       capability: 'portal.read',
       enabled: true,
       createdBy: OPERATOR_ID,
-      audit: {
-        actorType: 'operator',
-        actorId: OPERATOR_ID,
-        organizationId: ORG_ID,
-        propertyId: null,
-        action: 'policy.allowlist.set',
-        capability: 'portal.read',
-        executionKind: 'operator',
-        decision: 'allow',
-        reason: 'approved beta access',
-        policyVersion: 'policy-test-v1',
-        correlationId: null,
-      },
     })
   })
 

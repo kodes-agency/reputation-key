@@ -4355,10 +4355,10 @@ BEGIN
 
   -- Operator authority is established before this database boundary by the
   -- sole ops:ai-canary entry point: --operator is byte-matched against the
-  -- trimmed, non-empty OPS_OPERATOR_IDENTITIES allowlist, ExecutionPolicy
-  -- authorizes the global operator action, and the decision audit is flushed
-  -- before its database pool closes. This function stores only that canonical
-  -- ASCII audit identity; it does not reinterpret it as an application user.
+  -- trimmed, non-empty OPS_OPERATOR_IDENTITIES allowlist and ExecutionPolicy
+  -- authorizes the global operator action. This function stores only that
+  -- canonical ASCII operator identity; it does not reinterpret it as an
+  -- application user.
 
   PERFORM pg_advisory_xact_lock(public.ai_advisory_lock_key_v1(
     'canary-release|' || p_release_sha || '|' || p_canary_profile_version

@@ -19,7 +19,7 @@
 //                           live today and its rows are this Property's.
 //   recoverable_archive  -> NOT erased, deliberately. See below.
 //
-// THE THREE DELIBERATE EXCLUSIONS, and why each would be wrong to erase:
+// THE TWO DELIBERATE EXCLUSIONS, and why each would be wrong to erase:
 //
 //   backup_erasure_ledger  is the evidence that an erasure happened. Destroying
 //                          it as part of the erasure it records would remove the
@@ -27,15 +27,12 @@
 //   privacy_requests       records data-subject access/erasure requests. The
 //                          proof that a request was honoured has to outlive the
 //                          data it was about.
-//   policy_decision_audit  is the authorization audit trail — what was decided
-//                          about this Property, and by whom.
 //
-// Those three are `recoverable_archive`, and their retention classes are
+// Both are `recoverable_archive`, and their retention classes are
 // counsel-approved work that is still open (`approvalState: pending_counsel`).
-// Engineering deciding unilaterally to delete audit and data-subject-request
-// evidence during an erasure is exactly the call this program does not let
-// engineering make alone. If counsel later rules that some of them must go, the
-// change belongs in the retention registry and then here — not here first.
+// Engineering deciding unilaterally to delete data-subject-request evidence
+// during an erasure is exactly the call this program does not let engineering
+// make alone.
 //
 // Property-scoped, not Organization-scoped: every statement is bound to ONE
 // property_id, so erasing a Property leaves its siblings byte-identical.

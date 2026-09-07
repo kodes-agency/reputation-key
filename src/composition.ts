@@ -366,7 +366,6 @@ function buildContainer(
     identityAccountAdminAuthority: identity.publicApi.accountAdminAuthority,
     staffApi: staff.publicApi,
     logger,
-    storage: portal.uploads.storage,
     sessionSecret: env.GUEST_SESSION_SALT,
     publicOrigin: new URL(env.BETTER_AUTH_URL).origin,
     secureCookies: env.NODE_ENV === 'production',

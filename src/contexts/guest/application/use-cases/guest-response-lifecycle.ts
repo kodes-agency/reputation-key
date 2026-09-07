@@ -1,17 +1,7 @@
-import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type {
   GuestResponseRepository,
   GuestResponseScope,
 } from '../ports/guest-response.repository'
-import {
-  claimMediaForProcessing,
-  completeMediaProcessing,
-  issueGuestMedia,
-  MAX_GUEST_MEDIA_BYTES,
-  namesIssuedObject,
-  uploadMatchesIssuance,
-  type GuestMedia,
-} from '../../domain/guest-media'
 import {
   correctResponse,
   createResponse,
@@ -219,7 +209,6 @@ function unwrap(result: GuestResponse | ResponseError): GuestResponse {
 export function guestResponseLifecycle(
   deps: Readonly<{
     repo: GuestResponseRepository
-    storage: StoragePort
     clock: () => Date
     idGen: () => string
     commandStore: GuestResponseCommandStore
@@ -232,64 +221,6 @@ export function guestResponseLifecycle(
     return response ? toView(response, now) : null
   }
 
-  const removeObjects = async (
-    scope: GuestResponseScope,
-    objectKeys: ReadonlyArray<string>,
-  ) => {
-    for (const objectKey of objectKeys) {
-      try {
-        await deps.storage.deleteObject(objectKey)
-        await deps.repo.markMediaDeleted(scope, objectKey, deps.clock())
-      } catch {
-        // The durable purge_pending row is intentionally retained for retry.
-      }
-    }
-  }
-
-  /**
-   * Terminal purge for an object that must not be published. The durable
-   * purge_pending row is written before the best-effort object delete, so a
-   * failed delete is retried rather than lost.
-   */
-  const purgeIssuedObject = async (scope: GuestResponseScope, media: GuestMedia) => {
-    await deps.repo.queueMediaPurge(media, deps.clock())
-    await removeObjects(scope, [media.objectKey])
-  }
-
-  /**
-   * Takes the processing lease under both the domain transition and the repo's
-   * compare-and-set. A domain rejection short-circuits the persistence call, so
-   * its specific code (expired, not issued, response not processable) wins over
-   * the generic lost-race code.
-   */
-  const claimForProcessing = async (
-    media: GuestMedia,
-    response: GuestResponse,
-    lease: string,
-  ): Promise<GuestMedia | { code: string }> => {
-    const claimed = claimMediaForProcessing(media, response, lease, deps.clock())
-    if ('code' in claimed) return claimed
-    if (!(await deps.repo.claimMedia(media, lease, deps.clock()))) {
-      return { code: 'media_not_processable' }
-    }
-    return claimed
-  }
-
-  /**
-   * Publishes the stored object only once the store vouches that what landed
-   * matches what was issued. Throws on every unacceptable outcome so the caller
-   * has a single failure path to purge from.
-   */
-  const confirmUploadedObject = async (media: GuestMedia) => {
-    if (!deps.storage.inspectObject) {
-      throw new Error('Object metadata inspection is unavailable')
-    }
-    const metadata = await deps.storage.inspectObject(media.objectKey)
-    if (!uploadMatchesIssuance(metadata, media)) {
-      throw new Error('Object metadata did not match its issuance')
-    }
-    return deps.storage.confirmUpload(media.objectKey)
-  }
 
   // The aggregate submission derives rating and feedback facts from the
   // aggregate's resolved consent flags, never from raw input. submitResponse()
@@ -698,10 +629,9 @@ export function guestResponseLifecycle(
         deleted,
         withdrawalFacts(current),
       )
-      if (committed.outcome !== 'applied') {
+      if (committed !== 'applied') {
         throw new GuestResponseLifecycleError('response_unavailable')
       }
-      await removeObjects(scope, committed.objectKeys)
       return toView(deleted, deps.clock())
     },
 
@@ -723,76 +653,5 @@ export function guestResponseLifecycle(
       return toView(moderated, deps.clock())
     },
 
-    issueMedia: async (
-      scope: GuestResponseScope,
-      sessionId: string,
-      input: Readonly<{ contentType: string; sizeBytes: number }>,
-    ) => {
-      const response = await deps.repo.findForSession(scope, sessionId, deps.clock())
-      if (!response) throw new GuestResponseLifecycleError('response_not_found')
-      const media = issueGuestMedia(
-        response,
-        { id: deps.idGen(), ...input },
-        deps.clock(),
-      )
-      if ('code' in media) throw new GuestResponseLifecycleError(media.code)
-      if (!(await deps.repo.insertMedia(media))) {
-        throw new GuestResponseLifecycleError('media_unavailable')
-      }
-      const { uploadUrl } = await deps.storage.createPresignedUploadUrl(
-        media.objectKey,
-        media.contentType,
-        MAX_GUEST_MEDIA_BYTES,
-      )
-      return {
-        mediaId: media.id,
-        objectKey: media.objectKey,
-        uploadUrl,
-        contentType: media.contentType,
-        maxSizeBytes: MAX_GUEST_MEDIA_BYTES,
-        expiresAt: media.expiresAt.toISOString(),
-      }
-    },
-
-    confirmMedia: async (
-      scope: GuestResponseScope,
-      sessionId: string,
-      input: Readonly<{ mediaId: string; objectKey: string }>,
-    ) => {
-      const media = await deps.repo.findMediaForSession(scope, sessionId, input.mediaId)
-      if (!namesIssuedObject(media, input.objectKey)) {
-        throw new GuestResponseLifecycleError('media_not_found')
-      }
-      const response = await deps.repo.findForSession(scope, sessionId, deps.clock())
-      if (!response) throw new GuestResponseLifecycleError('response_not_found')
-
-      const lease = deps.idGen()
-      const claimed = await claimForProcessing(media, response, lease)
-      if ('code' in claimed) throw new GuestResponseLifecycleError(claimed.code)
-
-      let publicUrl: string
-      try {
-        publicUrl = await confirmUploadedObject(media)
-      } catch {
-        await purgeIssuedObject(scope, media)
-        throw new GuestResponseLifecycleError('media_validation_failed')
-      }
-
-      const completed = completeMediaProcessing(
-        claimed,
-        response,
-        lease,
-        publicUrl,
-        deps.clock(),
-      )
-      if (
-        completed.deleteObject ||
-        !(await deps.repo.completeMedia(completed.media, lease, publicUrl, deps.clock()))
-      ) {
-        await purgeIssuedObject(scope, media)
-        throw new GuestResponseLifecycleError('media_not_processable')
-      }
-      return { mediaId: media.id, status: 'ready' as const }
-    },
   } as const
 }

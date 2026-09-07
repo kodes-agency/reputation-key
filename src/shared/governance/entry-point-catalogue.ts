@@ -3651,9 +3651,8 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   // BQC-7.5: every ops:* command runs through the operator-command harness
   // (scripts/ops/operator-command.ts) — named operator (--operator, matched
   // against OPS_OPERATOR_IDENTITIES) + target scope evaluated through the
-  // ExecutionPolicy operator branch, content-free decision audit for allow
-  // AND deny, dry-run default for mutations, typed --yes confirmation for
-  // destructive commands.
+  // ExecutionPolicy operator branch, dry-run default for mutations, and typed
+  // --yes confirmation for destructive commands.
   ops('scripts/ops/operator-command.ts', 'scripts/ops/operator-command.ts', 'none', {
     notes:
       'BQC-7.5: operator-command harness wiring (boots the policy store + ExecutionPolicy, binds OPS_OPERATOR_IDENTITIES) — the module every ops:* command imports; contract + tests in src/shared/ops/operator-command.ts; not a command itself',
@@ -3875,7 +3874,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'property',
     {
       notes:
-        'ops:suspend-property / ops:restore-property — property processing suspension via policyAdmin.setPropertySuspension (reason+ticket; own audit row + harness row) (BQC-7.5)',
+        'ops:suspend-property / ops:restore-property — property processing suspension via policyAdmin.setPropertySuspension with reason+ticket (BQC-7.5)',
     },
   ),
   ops(
@@ -3884,7 +3883,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'property',
     {
       notes:
-        'ops:property-capabilities — reports and repairs a property capability allowlist against its organization (list/sync, --all for the whole org); the import provisions created properties, this repairs drift; mutation is dry-run by default, harness audit row per invocation (BQC-7.5)',
+        'ops:property-capabilities — reports and repairs a property capability allowlist against its organization (list/sync, --all for the whole org); the import provisions created properties, this repairs drift; mutation is dry-run by default (BQC-7.5)',
     },
   ),
   ops(

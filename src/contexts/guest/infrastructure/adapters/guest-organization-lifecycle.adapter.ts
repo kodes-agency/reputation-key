@@ -30,7 +30,6 @@ import {
   guestQualifiedScans,
   guestResponseExperienceSnapshots,
   guestResponseIntegrityDecisions,
-  guestResponseMedia,
   guestResponsePrivateFeedback,
   guestResponseSessionBindings,
   guestResponses,
@@ -75,7 +74,6 @@ export const GUEST_PURGE_PLAN = Object.freeze([
   'guest_contact_request_reveal_audits',
   'guest_contact_requests',
   'guest_response_private_feedback',
-  'guest_response_media',
   'guest_response_session_bindings',
   'guest_response_experience_snapshots',
   'guest_response_integrity_decisions',
@@ -179,9 +177,6 @@ export const drizzleGuestLifecycleWorkbench: GuestLifecycleWorkbench = Object.fr
     await tx
       .delete(guestResponsePrivateFeedback)
       .where(eq(guestResponsePrivateFeedback.organizationId, organizationId))
-    await tx
-      .delete(guestResponseMedia)
-      .where(eq(guestResponseMedia.organizationId, organizationId))
     // Session pseudonyms and dedupe receipts.
     await tx
       .delete(guestResponseSessionBindings)

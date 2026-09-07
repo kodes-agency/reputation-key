@@ -7,8 +7,6 @@
 //   consistency is enforced by a composite FK to properties(organization_id, id)
 //   (the first explicit DB-level tenant constraint; see migration 0014).
 // policy_consent: generic governed consent state (future AI opt-in; phase §9).
-// policy_decision_audit: content-free decision records (identifiers/enums only;
-//   no FK — audit evidence survives tenant deletion per BQC-1.7).
 // policy_version: global counter bumped by every policy mutation in the same
 //   statement; the snapshot store polls it for cache invalidation (mirrors the
 //   permission_version pattern in dac.schema.ts).
@@ -141,39 +139,6 @@ export const policyConsent = pgTable(
   ],
 )
 
-export const policyDecisionAudit = pgTable(
-  'policy_decision_audit',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    occurredAt: timestamptz('occurred_at').notNull().defaultNow(),
-    actorType: text('actor_type').notNull(),
-    actorId: text('actor_id'),
-    organizationId: text('organization_id'),
-    propertyId: uuid('property_id'),
-    action: text('action').notNull(),
-    capability: text('capability'),
-    executionKind: text('execution_kind').notNull(),
-    decision: text('decision').notNull(),
-    reason: text('reason').notNull(),
-    policyVersion: text('policy_version').notNull(),
-    correlationId: text('correlation_id'),
-  },
-  (t) => [
-    check(
-      'policy_decision_audit_actor_check',
-      sql`${t.actorType} IN ('user', 'system', 'operator', 'public')`,
-    ),
-    check(
-      'policy_decision_audit_execution_check',
-      sql`${t.executionKind} IN ('interactive', 'worker', 'consumer', 'schedule', 'operator', 'public')`,
-    ),
-    check(
-      'policy_decision_audit_decision_check',
-      sql`${t.decision} IN ('allow', 'deny')`,
-    ),
-    index('policy_decision_audit_org_time_idx').on(t.organizationId, t.occurredAt.desc()),
-  ],
-)
 
 export const policyVersion = pgTable('policy_version', {
   scope: text('scope').primaryKey(),

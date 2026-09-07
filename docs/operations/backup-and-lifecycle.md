@@ -276,14 +276,13 @@ restore/erasure proof, and checkpointed cutover in
 | `operational_action_history_records`        | Restricted Operational Action History records + tenant-local sequence head                   | Proposed 365d; **assessment-only pending counsel**. Active legal holds override eligibility.                                                                                        | No destructive sweep/apply exists. Bounded assessment emits only counts/cutoff; identifier redaction is one-way and legal-hold-aware.                                                      |
 | `operational_action_history_legal_holds`    | Operational Action History legal-hold placement/release evidence                             | Active holds retained; released-hold lifecycle pending counsel-approved policy                                                                                                      | No destructive sweep. Append-oriented placement; database permits only the explicit one-time release transition.                                                                           |
 | `gbp_cache.expired`                         | `gbp_cache`                                                                                  | at `expires_at`                                                                                                                                                                     | retention-sweep                                                                                                                                                                            |
-| `policy_decision_audit`                     | `policy_decision_audit`                                                                      | **365d** (beta audit-trail horizon, BQC-7.8)                                                                                                                                        | retention-sweep                                                                                                                                                                            |
 | `audit_logs`                                | `audit_logs`                                                                                 | **365d** (same horizon, BQC-7.8)                                                                                                                                                    | retention-sweep                                                                                                                                                                            |
 | `quarantine.ttl`                            | `quarantine` BullMQ queue                                                                    | `QUARANTINE_TTL_DAYS` (default 30d)                                                                                                                                                 | quarantine-ttl-sweep                                                                                                                                                                       |
 | `retention_runs`                            | `retention_runs`                                                                             | **indefinite-by-design** — the evidence chain FOR deletions; deleting it would erase the proof of erasure. Size monitored via the metrics snapshot; no rule exists by deliberation. | none (monitored)                                                                                                                                                                           |
 
 Version history: v1 (BQC-1.6) initial 9-rule registry + lifecycle purges; v2
-(BQC-7.8) + `policy_decision_audit` / `audit_logs` at 365d, +
-`quarantine.ttl`, Google import lifecycle evidence, and `retention_runs`
+(BQC-7.8) + `audit_logs` at 365d, + `quarantine.ttl`, Google import lifecycle
+evidence, and `retention_runs`
 documented indefinite-by-design; v3 adds independently counted 24-hour Guest
 session-pseudonym and 7-day network-abuse-pseudonym redaction while preserving
 the de-identified managerial facts; v4 adds 90-day terminal notification-digest
@@ -302,9 +301,9 @@ the whole sweep.
 
 ## 6. Evidence retention
 
-- **Deletion evidence** (`retention_runs`) and **decision audit**
-  (`policy_decision_audit`) / **action audit** (`audit_logs`): per the registry
-  above — audit tables at the 365d horizon, `retention_runs` indefinite.
+- **Deletion evidence** (`retention_runs`) and **action audit** (`audit_logs`):
+  per the registry above — action audit at the 365d horizon,
+  `retention_runs` indefinite.
 - **Restricted Operational Action History:** migration 0149 is a distinct
   identifier-only authority. Its proposed 365-day horizon is not part of the
   retention sweep: local code can assess eligibility/holds but cannot delete.

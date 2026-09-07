@@ -45,10 +45,9 @@ Authentication, session management, organization membership, and invitation work
 - Cannot change role of a member with equal or higher role.
 - Cannot assign a role higher than your own.
 - Every policy-admin capability, suspension, or Property-access mutation commits
-  its policy state/version change and required content-free decision audit in one
-  Identity-owned PostgreSQL transaction. The strong policy refresh and any
-  Responsible Manager reconciliation run only after that commit and are safe to
-  retry.
+  its policy state/version change in one Identity-owned PostgreSQL transaction.
+  The strong policy refresh and any Responsible Manager reconciliation run only
+  after that commit and are safe to retry.
 - An Organization closure request is authorized from a transactionally locked exact `owner` membership plus matching active User Organization Binding. It atomically commits lifecycle revision, 30-day recovery deadline, Organization suspension/policy generation, retry receipt, and a content-minimal durable fact.
 - Every new Better Auth Organization is provisioned with an `active` lifecycle authority in the same database transaction; existing Organizations are backfilled without inferring provider state. Database guards require exact revision increments, immutable closure lineage, edge-matched machine reasons, monotonic transition time, and a retained Organization-policy suspension until deliberate reactivation.
 - The bounded coordinator advances `closure_requested → closing`, due `closing → purge_pending`, and `purging → closed` only after exactly one durable, content-free result from each of the 17 owning contexts. A missing, duplicate, mismatched, or failed contributor leaves the lifecycle state unchanged.

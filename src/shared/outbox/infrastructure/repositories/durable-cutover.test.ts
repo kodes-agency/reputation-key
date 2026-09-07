@@ -384,7 +384,6 @@ beforeAll(async () => {
   await pool.query('DELETE FROM replies WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
-  await pool.query('DELETE FROM policy_decision_audit WHERE organization_id = $1', [ORG])
 
   // The production relay claims globally. Remove pending facts before creating
   // this suite's closed-world backlog, without touching published history.
@@ -517,9 +516,6 @@ afterAll(async () => {
     await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
     // Consumer receipts cascade from their source rows.
     await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
-    await pool.query('DELETE FROM policy_decision_audit WHERE organization_id = $1', [
-      ORG,
-    ])
     await pool.query('DELETE FROM properties WHERE id = $1', [PROP])
     await deleteTestOrganizations(pool, [ORG])
     await pool.end()

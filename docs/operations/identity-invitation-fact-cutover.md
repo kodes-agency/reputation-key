@@ -120,8 +120,8 @@ Redis bindings. Never point one invocation at another cell's resources.
 
 8. Resume both queues and verify readiness, quarantine counts, invitation
    creation, and Activity display with a synthetic invitation. Archive the
-   redacted command outputs and policy-decision audit correlation IDs beside
-   the release evidence.
+   redacted command outputs and command correlation IDs beside the release
+   evidence.
 
    ```text
    pnpm ops:queue resume domain-events --operator <id> --reason "invitation fact v2 verified" --apply

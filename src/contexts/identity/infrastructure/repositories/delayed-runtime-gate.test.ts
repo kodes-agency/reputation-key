@@ -8,8 +8,7 @@
 //       worker throws and BullMQ retries (protected work never runs without a
 //       decision);
 //   (c) manual-enqueue initiator — a stamped content-free policy envelope
-//       flows into the decision and the audit row records the named system
-//       principal + correlation.
+//       flows into the returned decision.
 //
 // Setup pattern mirrors delayed-policy-init.test.ts (BQC-2.5 wiring proof).
 
@@ -45,7 +44,6 @@ const EMAIL_DATA = {
 }
 
 beforeAll(async () => {
-  await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`)
   await deleteTestOrganizations(db, [ORG])
   await db.execute(
@@ -69,26 +67,10 @@ afterAll(async () => {
   releaseProcessPolicies()
   resetDelayedExecutionPolicy()
   resetCapabilityPolicyStore()
-  await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`)
   await deleteTestOrganizations(db, [ORG])
 })
 
-async function auditRowsFor(
-  correlationId: string,
-): Promise<Array<Record<string, unknown>>> {
-  let rows: Array<Record<string, unknown>> = []
-  for (let i = 0; i < 20 && rows.length === 0; i++) {
-    const result = await db.execute(
-      sql`SELECT actor_type, actor_id, action, execution_kind, decision, reason, correlation_id
-          FROM policy_decision_audit WHERE correlation_id = ${correlationId}`,
-    )
-    rows = result.rows as Array<Record<string, unknown>>
-    if (rows.length > 0) break
-    await new Promise((r) => setTimeout(r, 50))
-  }
-  return rows
-}
 
 describe('delayed runtime gate (BQC-3.2, real PG)', () => {
   it('(a) revocation-while-queued: allow at enqueue, deny_terminal at dispatch after suspension', async () => {
@@ -155,7 +137,7 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
     )
   })
 
-  it('(c) manual-enqueue initiator: stamped envelope decides; audit records principal + correlation', async () => {
+  it('(c) manual-enqueue initiator: stamped envelope returns its decision', async () => {
     const outcome = await gateJob(
       'digest-notification',
       {
@@ -170,26 +152,11 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
     )
 
     expect(outcome.kind).toBe('allow')
-
-    const rows = await auditRowsFor('corr-manual-enqueue-1')
-    expect(rows.length).toBeGreaterThanOrEqual(1)
-    expect(rows[0]).toMatchObject({
-      actor_type: 'system',
-      actor_id: 'worker:default',
+    expect(outcome.decision).toMatchObject({
+      allowed: true,
+      reason: 'allowed',
       action: 'system:notification.email_digest',
-      execution_kind: 'worker',
-      decision: 'allow',
-      correlation_id: 'corr-manual-enqueue-1',
+      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     })
-    // Content-free: no reply text or reviewer identity in the audit row.
-    expect(Object.keys(rows[0]).sort()).toEqual([
-      'action',
-      'actor_id',
-      'actor_type',
-      'correlation_id',
-      'decision',
-      'execution_kind',
-      'reason',
-    ])
   })
 })

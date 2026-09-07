@@ -51,7 +51,7 @@ export type HealthCheckDeps = Readonly<{
   readQueueDepths?: () => Promise<ReadonlyArray<QueueDepth>>
   /** BQC-7.4: the full operations snapshot read (container-owned reader). */
   readOperationsSnapshot?: () => Promise<OperationsSnapshot>
-  /** BQC-7.4: aux alert reads (retention / policy / routing / feedback triage). */
+  /** BQC-7.4: aux alert reads (retention and feedback triage). */
   readAlertAux?: () => Promise<AlertAuxReads>
   /** BQC-7.4: firing-state store (edge-trigger + 24h re-notify hysteresis). */
   alertState?: AlertStateStore
@@ -82,13 +82,8 @@ async function evaluateAndDispatch(
     deps.readAlertAux(),
   ])
 
-  // The 7.3 per-reason denial split, emitted on the evaluation cadence
-  // (policy.denials — metrics-schema).
   deps.logger.info(
-    {
-      policyDenialsByReason: aux.policyDenialsByReason,
-      betaFeedbackTriage: aux.betaFeedbackTriage,
-    },
+    { betaFeedbackTriage: aux.betaFeedbackTriage },
     '[health-check] content-free auxiliary alert readings',
   )
 

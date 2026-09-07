@@ -24,7 +24,6 @@ const CONTACT_CIPHERTEXT = 'NEVER_EXPORT_CONTACT_CIPHERTEXT'
 const CHILD_TABLES = [
   'guest_contact_request_reveal_audits',
   'guest_contact_requests',
-  'guest_response_media',
   'guest_response_session_bindings',
   'guest_response_private_feedback',
   'guest_response_experience_snapshots',
@@ -57,8 +56,6 @@ type Fixture = Readonly<{
   unmappedFeedbackId: string
   contactRequestId: string
   revealAuditId: string
-  mediaId: string
-  mediaObjectKey: string
   sessionId: string
   destinationSessionId: string
   actorId: string
@@ -77,7 +74,6 @@ async function seedOrganization(): Promise<string> {
 
 async function seedFixture(): Promise<Fixture> {
   const organizationId = await seedOrganization()
-  const mediaId = randomUUID()
   const fixture: Fixture = {
     organizationId,
     propertyId: randomUUID(),
@@ -91,8 +87,6 @@ async function seedFixture(): Promise<Fixture> {
     unmappedFeedbackId: randomUUID(),
     contactRequestId: randomUUID(),
     revealAuditId: randomUUID(),
-    mediaId,
-    mediaObjectKey: `NEVER_EXPORT_MEDIA_KEY/${mediaId}`,
     sessionId: randomUUID(),
     destinationSessionId: randomUUID(),
     actorId: `guest-export-actor-${randomUUID()}`,
@@ -298,21 +292,6 @@ async function seedFixture(): Promise<Fixture> {
     [randomUUID(), ...scope, PSEUDONYM],
   )
   await q(
-    `INSERT INTO guest_response_media (
-       id, organization_id, property_id, portal_id, response_id, session_id,
-       object_key, content_type, declared_size_bytes, status, expires_at,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'image/jpeg', 1024, 'issued',
-               now() + interval '1 day', now(), now())`,
-    [
-      fixture.mediaId,
-      ...scope,
-      fixture.liveTextResponseId,
-      fixture.sessionId,
-      fixture.mediaObjectKey,
-    ],
-  )
-  await q(
     `INSERT INTO guest_contact_requests (
        id, organization_id, property_id, portal_id, response_id,
        publication_snapshot_id, publication_version, publication_digest,
@@ -468,7 +447,6 @@ describe.sequential('Guest Organization Export contributor', () => {
     expect(archiveText).not.toContain(CONTACT_CIPHERTEXT)
     expect(archiveText).not.toContain(fixture.contactRequestId)
     expect(archiveText).not.toContain(fixture.revealAuditId)
-    expect(archiveText).not.toContain(fixture.mediaId)
     expect(archiveText).not.toContain(fixture.sessionId)
     expect(archiveText).not.toContain(fixture.destinationSessionId)
     expect(archiveText).not.toContain(PSEUDONYM)

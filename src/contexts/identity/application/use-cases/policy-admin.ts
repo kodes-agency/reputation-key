@@ -2,9 +2,7 @@
 //
 // Authenticated, least-privilege policy operations (phase BQC-2 §2.7):
 // allowlist, suspension, grant, revocation. Every operation requires a
-// reason (and a ticket/reference where applicable) and writes a content-free
-// audit outcome to policy_decision_audit (actorType/executionKind
-// 'operator'). Validation rules:
+// reason (and a ticket/reference where applicable). Validation rules:
 //   - allowlist: only known, non-core, non-blocked capabilities;
 //   - suspension: reason + ticket/reference required;
 //   - grant: reason + ticket required, org membership required, optional
@@ -14,19 +12,15 @@
 // suspension. The read-only diagnostic lives in shared/auth/policy-diagnostic
 // (decision layer) and is re-exported here via deps.
 //
-// Pure orchestration (boundary rule): capability classification, policy
-// version, diagnostic, and persistence are all injected — the composition
-// root binds them.
+// Pure orchestration (boundary rule): capability classification, diagnostic,
+// and persistence are injected — the composition root binds them.
 
 import type {
   PropertyAccessGrantRecord,
   OrgPolicyState,
   PolicyAdminExplanation,
 } from '../ports/property-access-grant.port'
-import type {
-  PolicyAdminAuditEntry,
-  PolicyAdminCommandStore,
-} from '../ports/policy-admin-command-store.port'
+import type { PolicyAdminCommandStore } from '../ports/policy-admin-command-store.port'
 import type { Permission } from '#/shared/domain/permissions'
 
 // ── Injected persistence + policy surface (bound at composition) ─────
@@ -39,7 +33,6 @@ export type PolicyAdminDeps = Readonly<{
   isCoreCapability: (capability: string) => boolean
   isBlockedCapability: (capability: string) => boolean
   listAllCapabilities: () => ReadonlyArray<string>
-  policyVersion: string
   explainPolicyDecision: (input: {
     organizationId: string
     action: Permission
@@ -49,8 +42,7 @@ export type PolicyAdminDeps = Readonly<{
   }) => Promise<PolicyAdminExplanation>
   /** Strong-read the persisted capability snapshot after tenant policy mutations. */
   refreshPolicy: () => Promise<void>
-  // Identity-owned transaction boundary. Policy/grant state, its version
-  // bump, and the required audit evidence commit together here.
+  // Identity-owned transaction boundary for policy/grant state and its version bump.
   commandStore: PolicyAdminCommandStore
   loadOrgPolicyState: (organizationId: string) => Promise<OrgPolicyState>
   reconcileResponsibleManagerEligibility?: (
@@ -62,10 +54,9 @@ export type PolicyAdminDeps = Readonly<{
     organizationId: string,
     at: Date,
   ) => Promise<ReadonlyArray<PropertyAccessGrantRecord>>
-  writePolicyDecision: (entry: PolicyAdminAuditEntry) => Promise<void>
 }>
 
-// ── Shared validation + audit ────────────────────────────────────────
+// ── Shared validation ────────────────────────────────────────────────
 
 function requireReason(reason: string): void {
   if (reason.trim().length < 3) throw new Error('reason is required (min 3 chars)')
@@ -75,31 +66,6 @@ function requireTicket(ticketRef: string): void {
   if (ticketRef.trim().length < 2) throw new Error('ticket/reference is required')
 }
 
-function auditEntry(
-  deps: PolicyAdminDeps,
-  input: Readonly<{
-    organizationId: string
-    propertyId?: string | null
-    action: string
-    capability?: string | null
-    reason: string
-    actorUserId: string
-  }>,
-): PolicyAdminAuditEntry {
-  return {
-    actorType: 'operator',
-    actorId: input.actorUserId,
-    organizationId: input.organizationId,
-    propertyId: input.propertyId ?? null,
-    action: input.action,
-    capability: input.capability ?? null,
-    executionKind: 'operator',
-    decision: 'allow',
-    reason: input.reason.slice(0, 200),
-    policyVersion: deps.policyVersion,
-    correlationId: null,
-  }
-}
 
 // ── The operations ───────────────────────────────────────────────────
 
@@ -138,13 +104,6 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
       capability: input.capability,
       enabled: input.enabled,
       createdBy: input.actorUserId,
-      audit: auditEntry(deps, {
-        organizationId: input.organizationId,
-        action: input.enabled ? 'policy.allowlist.set' : 'policy.allowlist.clear',
-        capability: input.capability,
-        reason: input.reason,
-        actorUserId: input.actorUserId,
-      }),
     })
     await deps.refreshPolicy()
   }
@@ -176,16 +135,6 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
       capability: input.capability,
       enabled: input.enabled,
       createdBy: input.actorUserId,
-      audit: auditEntry(deps, {
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        action: input.enabled
-          ? 'policy.property.allowlist.set'
-          : 'policy.property.allowlist.clear',
-        capability: input.capability,
-        reason: input.reason,
-        actorUserId: input.actorUserId,
-      }),
     })
     await deps.refreshPolicy()
   }
@@ -206,12 +155,6 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
       organizationId: input.organizationId,
       suspendedAt: input.suspend ? input.now : null,
       suspendedReason: input.suspend ? input.reason : null,
-      audit: auditEntry(deps, {
-        organizationId: input.organizationId,
-        action: input.suspend ? 'policy.org.suspend' : 'policy.org.unsuspend',
-        reason: `${input.reason} (${input.ticketRef})`,
-        actorUserId: input.actorUserId,
-      }),
     })
     await deps.refreshPolicy()
   }
@@ -234,13 +177,6 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
       propertyId: input.propertyId,
       suspendedAt: input.suspend ? input.now : null,
       suspendedReason: input.suspend ? input.reason : null,
-      audit: auditEntry(deps, {
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        action: input.suspend ? 'policy.property.suspend' : 'policy.property.unsuspend',
-        reason: `${input.reason} (${input.ticketRef})`,
-        actorUserId: input.actorUserId,
-      }),
     })
     await deps.refreshPolicy()
   }
@@ -269,13 +205,6 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
       source: 'operator',
       createdBy: input.actorUserId,
       expiresAt: input.expiresAt,
-      audit: auditEntry(deps, {
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        action: 'policy.grant',
-        reason: `${input.reason} (${input.ticketRef})`,
-        actorUserId: input.actorUserId,
-      }),
     })
     await deps.refreshPolicy()
   }
@@ -296,13 +225,6 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
       propertyId: input.propertyId,
       userId: input.userId,
       reason: input.reason,
-      audit: auditEntry(deps, {
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        action: 'policy.revoke',
-        reason: input.reason,
-        actorUserId: input.actorUserId,
-      }),
     })
     await deps.refreshPolicy()
     await deps.reconcileResponsibleManagerEligibility?.(
@@ -333,11 +255,9 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
 // onto the property — the Google import path does it for every property it
 // creates, and the operator command repairs drift after the fact.
 //
-// No extra policy_decision_audit row is written here: the operator command
-// runs through the BQC-7.5 harness, which audits the invocation (action
-// 'system:ops', allow WITH the operator reason), and every granted row keeps
-// its own provenance in property_capability.created_by. The import path's
-// provenance is the initiating user id it passes as createdBy.
+// Every granted row keeps its own provenance in
+// `property_capability.created_by`; the import path records the initiating
+// user id it receives as `createdBy`.
 //
 // Pure orchestration (boundary rule): the reads, the idempotent grant and the
 // snapshot refresh are all injected.

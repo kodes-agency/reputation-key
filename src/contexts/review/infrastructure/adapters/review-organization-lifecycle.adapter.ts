@@ -336,10 +336,6 @@ async function purge(
     tx,
     sql`DELETE FROM review_source_contents WHERE organization_id = ${organizationId}`,
   )
-  const provenanceQuarantine = await countAffected(
-    tx,
-    sql`DELETE FROM review_source_provenance_quarantine WHERE organization_id = ${organizationId}`,
-  )
   const aiAnalysisHeads = await countAffected(
     tx,
     sql`DELETE FROM review_ai_analysis_heads WHERE organization_id = ${organizationId}`,
@@ -445,7 +441,6 @@ async function purge(
     { step: 'publication_attempts_deleted', rows: publicationAttempts },
     { step: 'source_observations_deleted', rows: sourceObservations },
     { step: 'source_contents_deleted', rows: sourceContents },
-    { step: 'provenance_quarantine_deleted', rows: provenanceQuarantine },
     { step: 'ai_analysis_heads_deleted', rows: aiAnalysisHeads },
     { step: 'reputation_snapshot_facts_deleted', rows: reputationFacts },
     { step: 'provider_subjects_deleted', rows: providerSubjects },

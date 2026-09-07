@@ -3,8 +3,8 @@
 // The one fail-closed decision point (phase BQC-2 §3): principal + action +
 // org/property + execution kind + purpose + time + correlation → allow or
 // typed deny with stable reason and policy version. Role permissions,
-// PropertyAccessGrant, allowlist, suspension, capability state, consent,
-// caches, and decision audit are hidden inside.
+// PropertyAccessGrant, allowlist, suspension, capability state, consent, and
+// caches are hidden inside.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
@@ -15,7 +15,6 @@ import {
   registerExecutionPolicyInit,
   resetExecutionPolicy,
   EXECUTION_POLICY_VERSION,
-  type DecisionAuditEntry,
   type DecisionRequest,
   type ExecutionPolicyDeps,
 } from './execution-policy'
@@ -369,30 +368,6 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     expect(decision.reason).toBe('principal_org_mismatch')
   })
 
-  it('writes a content-free decision audit; audit failure never changes the decision', async () => {
-    const writeDecisionAudit = vi.fn(async (_entry: DecisionAuditEntry) => {
-      throw new Error('audit sink down')
-    })
-    const onAuditError = vi.fn()
-    const policy = createExecutionPolicy(deps({ writeDecisionAudit, onAuditError }))
-    const decision = await policy.decide(request({ propertyId: PROP }))
-    expect(decision.allowed).toBe(true)
-    await vi.waitFor(() => expect(writeDecisionAudit).toHaveBeenCalledTimes(1))
-    const entry = writeDecisionAudit.mock.calls[0][0]
-    expect(entry).toMatchObject({
-      actorType: 'user',
-      actorId: USER,
-      organizationId: ORG,
-      propertyId: PROP,
-      action: 'property.read',
-      executionKind: 'interactive',
-      decision: 'allow',
-      reason: 'allowed',
-      policyVersion: EXECUTION_POLICY_VERSION,
-      correlationId: 'corr-test',
-    })
-    await vi.waitFor(() => expect(onAuditError).toHaveBeenCalledTimes(1))
-  })
 })
 
 describe('operator principal (BQC-7.5)', () => {
@@ -408,47 +383,25 @@ describe('operator principal (BQC-7.5)', () => {
     })
   }
 
-  it('allows a registered operator and audits the allow with the operator reason', async () => {
-    const writeDecisionAudit = vi.fn(async (_entry: DecisionAuditEntry) => {})
-    const policy = createExecutionPolicy(
-      deps({ isRegisteredOperator: () => true, writeDecisionAudit }),
-    )
+  it('allows a registered operator', async () => {
+    const policy = createExecutionPolicy(deps({ isRegisteredOperator: () => true }))
     const decision = await policy.decide(operatorRequest({ reason: 'read' }))
-    expect(decision.allowed).toBe(true)
-    expect(decision.reason).toBe('allowed')
-    await vi.waitFor(() => expect(writeDecisionAudit).toHaveBeenCalledTimes(1))
-    expect(writeDecisionAudit.mock.calls[0][0]).toMatchObject({
-      actorType: 'operator',
-      actorId: OPERATOR,
-      organizationId: ORG,
+    expect(decision).toMatchObject({
+      allowed: true,
+      reason: 'allowed',
       action: 'system:ops',
-      executionKind: 'operator',
-      decision: 'allow',
-      reason: 'read',
       policyVersion: EXECUTION_POLICY_VERSION,
-      correlationId: 'corr-test',
     })
   })
 
-  it('denies an unregistered operator BEFORE any capability evaluation', async () => {
-    const writeDecisionAudit = vi.fn(async (_entry: DecisionAuditEntry) => {})
+  it('denies an unregistered operator before capability evaluation', async () => {
     const policy = createExecutionPolicy(
-      deps({
-        isRegisteredOperator: (id) => id === 'someone-else',
-        writeDecisionAudit,
-      }),
+      deps({ isRegisteredOperator: (id) => id === 'someone-else' }),
     )
     // The capability would deny too (blocked) — the identity deny comes first.
     const decision = await policy.decide(operatorRequest({ capability: 'portal.write' }))
     expect(decision.allowed).toBe(false)
     expect(decision.reason).toBe('operator_not_registered')
-    await vi.waitFor(() => expect(writeDecisionAudit).toHaveBeenCalledTimes(1))
-    expect(writeDecisionAudit.mock.calls[0][0]).toMatchObject({
-      actorType: 'operator',
-      actorId: OPERATOR,
-      decision: 'deny',
-      reason: 'operator_not_registered',
-    })
   })
 
   it('fails closed when no operator allowlist dep is bound', async () => {
@@ -499,13 +452,10 @@ describe('operator principal (BQC-7.5)', () => {
     expect(allow.allowed).toBe(true)
   })
 
-  it('deny rows keep the typed deny reason even when the operator supplied one', async () => {
-    const writeDecisionAudit = vi.fn(async (_entry: DecisionAuditEntry) => {})
-    const policy = createExecutionPolicy(deps({ writeDecisionAudit }))
+  it('an operator reason does not override a typed deny', async () => {
+    const policy = createExecutionPolicy(deps())
     const decision = await policy.decide(operatorRequest({ reason: 'cleanup run' }))
     expect(decision.reason).toBe('operator_not_registered')
-    await vi.waitFor(() => expect(writeDecisionAudit).toHaveBeenCalledTimes(1))
-    expect(writeDecisionAudit.mock.calls[0][0].reason).toBe('operator_not_registered')
   })
 
   it('explicit consent declared: active → allow; no reader → consent_required', async () => {
@@ -527,30 +477,6 @@ describe('operator principal (BQC-7.5)', () => {
     expect(deny.reason).toBe('consent_required')
   })
 
-  it('flushAudits awaits pending audit writes (CLI durability, BQC-7.5)', async () => {
-    let resolveSink: () => void = () => {}
-    const writeDecisionAudit = vi.fn(
-      (_entry: DecisionAuditEntry) =>
-        new Promise<void>((resolve) => {
-          resolveSink = resolve
-        }),
-    )
-    const policy = createExecutionPolicy(deps({ writeDecisionAudit }))
-    await policy.decide(operatorRequest({ reason: 'read' }))
-
-    let flushed = false
-    const flush = policy.flushAudits().then(() => {
-      flushed = true
-    })
-    // The sink has not resolved — the flush must still be waiting.
-    await Promise.resolve()
-    expect(flushed).toBe(false)
-
-    resolveSink()
-    await flush
-    expect(flushed).toBe(true)
-    expect(writeDecisionAudit).toHaveBeenCalledTimes(1)
-  })
 
   it('parseOperatorIdentities parses the comma-separated allowlist', () => {
     expect(

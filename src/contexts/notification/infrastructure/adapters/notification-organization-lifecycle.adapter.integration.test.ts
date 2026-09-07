@@ -37,8 +37,6 @@ const OWNED_TABLES = [
   'notification_digest_batch_members',
   'notification_digest_batches',
   'notification_email_queue',
-  'notification_governance_quarantine',
-  'notification_preference_governance_quarantine',
   'notification_preferences',
   'notification_user_settings',
   'notifications',
@@ -298,18 +296,6 @@ async function seedFixture(label: string): Promise<Fixture> {
        id, user_id, organization_id, locale, timezone, created_at, updated_at
      ) VALUES ($1, $2, $3, 'en', 'Europe/Sofia', $4, $4)`,
     [randomUUID(), fixture.userId, fixture.organizationId, REQUESTED_AT],
-  )
-  await lease.pool.query(
-    `INSERT INTO notification_governance_quarantine (
-       notification_id, organization_id, reason, quarantined_at
-     ) VALUES ($1, $2, 'seeded_quarantine', $3)`,
-    [randomUUID(), fixture.organizationId, REQUESTED_AT],
-  )
-  await lease.pool.query(
-    `INSERT INTO notification_preference_governance_quarantine (
-       legacy_preference_id, organization_id, reason, quarantined_at
-     ) VALUES ($1, $2, 'seeded_quarantine', $3)`,
-    [randomUUID(), fixture.organizationId, REQUESTED_AT],
   )
   return fixture
 }
@@ -611,8 +597,7 @@ describe.sequential('Notification Organization lifecycle contributor', () => {
 
     expect(result).toEqual({
       outcome: 'complete',
-      evidenceRef:
-        'notification:purge:notif-5:mail-5:batch-1:member-1:pref-1:setting-1:quarantine-2',
+      evidenceRef: 'notification:purge:notif-5:mail-5:batch-1:member-1:pref-1:setting-1',
     })
     expect(replay).toEqual(result)
     expect(await receiptRows(fixture.organizationId)).toHaveLength(1)
@@ -634,8 +619,7 @@ describe.sequential('Notification Organization lifecycle contributor', () => {
 
     expect(result).toEqual({
       outcome: 'no_data',
-      evidenceRef:
-        'notification:purge:notif-0:mail-0:batch-0:member-0:pref-0:setting-0:quarantine-0',
+      evidenceRef: 'notification:purge:notif-0:mail-0:batch-0:member-0:pref-0:setting-0',
     })
   })
 })

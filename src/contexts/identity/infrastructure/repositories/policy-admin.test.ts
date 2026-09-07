@@ -2,9 +2,8 @@
 //
 // Authenticated, least-privilege policy operations (phase BQC-2 §2.7):
 // allowlist, suspension, grant, revocation — each requiring reason (and a
-// ticket/reference where applicable), each writing an audit outcome. Plus a
-// read-only decision diagnostic that explains decisions without PII or
-// secret configuration.
+// ticket/reference where applicable). Plus a read-only decision diagnostic
+// that explains decisions without PII or secret configuration.
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { sql } from 'drizzle-orm'
@@ -19,7 +18,6 @@ import {
   listAllCapabilities,
   type Capability,
 } from '#/shared/auth/beta-capabilities'
-import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 import {
   getMemberRole,
   loadOrgPolicyState,
@@ -29,7 +27,6 @@ import {
   hasActiveGrant,
   listActiveGrantsForOrg,
 } from './property-access-grant.repository'
-import { writePolicyDecision } from './policy-decision-audit.repository'
 import { createPostgresPolicyAdminCommandStore } from '../policy-admin-command-store'
 
 const db = getDb()
@@ -45,7 +42,6 @@ const ops = createPolicyAdminOps({
   isCoreCapability: (cap) => isCoreCapability(cap as Capability),
   isBlockedCapability: (cap) => isBlockedCapability(cap as Capability),
   listAllCapabilities,
-  policyVersion: EXECUTION_POLICY_VERSION,
   explainPolicyDecision: createPolicyDiagnostic({
     getMemberRole: (orgId, uid) => getMemberRole(db, orgId, uid),
     hasActiveGrant: (input) => hasActiveGrant(db, input),
@@ -55,23 +51,14 @@ const ops = createPolicyAdminOps({
   loadOrgPolicyState: (orgId) => loadOrgPolicyState(db, orgId),
   reconcileResponsibleManagerEligibility,
   listActiveGrantsForOrg: (orgId, at) => listActiveGrantsForOrg(db, orgId, at),
-  writePolicyDecision: (entry) => writePolicyDecision(db, entry),
 })
 
-async function auditRows(): Promise<Array<Record<string, unknown>>> {
-  const rows = await db.execute(
-    sql`SELECT actor_type, actor_id, property_id, action, capability, decision, reason, execution_kind
-        FROM policy_decision_audit WHERE organization_id = ${ORG} ORDER BY occurred_at, id`,
-  )
-  return rows.rows as Array<Record<string, unknown>>
-}
 
 // Teardown DELETEs run with user triggers disabled: the deployed
 // guard_last_owner backstop blocks deleting an org's final owner row,
 // including fixture cleanup (cascades from organization fire it too).
 async function clearOrgFixtures() {
   await executeWithLastOwnerGuardDisabled(db, [
-    sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`,
     sql`DELETE FROM property_access_grant WHERE organization_id = ${ORG}`,
     sql`DELETE FROM policy_consent WHERE organization_id = ${ORG}`,
     sql`DELETE FROM organization_capability WHERE organization_id = ${ORG}`,
@@ -110,46 +97,8 @@ afterAll(async () => {
 })
 
 describe('policy administration (BQC-2.7)', () => {
-  it('rolls the policy row and version back when the required audit write fails', async () => {
-    const before = await loadPolicySnapshot(db)
-    const store = createPostgresPolicyAdminCommandStore(db, {
-      writeAudit: async () => {
-        throw new Error('injected policy audit failure')
-      },
-    })
 
-    await expect(
-      store.setOrganizationCapability({
-        organizationId: ORG,
-        capability: 'portal.read',
-        enabled: true,
-        createdBy: ADMIN,
-        audit: {
-          actorType: 'operator',
-          actorId: ADMIN,
-          organizationId: ORG,
-          propertyId: null,
-          action: 'policy.allowlist.set',
-          capability: 'portal.read',
-          executionKind: 'operator',
-          decision: 'allow',
-          reason: 'fault-injection atomicity proof',
-          policyVersion: EXECUTION_POLICY_VERSION,
-          correlationId: null,
-        },
-      }),
-    ).rejects.toThrow('injected policy audit failure')
-
-    const after = await loadPolicySnapshot(db)
-    expect(after.version).toBe(before.version)
-    expect(
-      after.orgCapabilities.some(
-        (row) => row.organizationId === ORG && row.capability === 'portal.read',
-      ),
-    ).toBe(false)
-  })
-
-  it('allowlist: non-core capability can be enabled/disabled with reason + audit', async () => {
+  it('allowlist: non-core capability can be enabled/disabled with reason', async () => {
     await ops.setOrgCapability({
       organizationId: ORG,
       capability: 'portal.read',
@@ -181,7 +130,7 @@ describe('policy administration (BQC-2.7)', () => {
     ).toBe(false)
   })
 
-  it('allowlist: non-core capability can be enabled/disabled for one tenant Property with audit', async () => {
+  it('allowlist: non-core capability can be enabled/disabled for one tenant Property', async () => {
     await ops.setPropertyCapability({
       organizationId: ORG,
       propertyId: PROP,
@@ -198,15 +147,6 @@ describe('policy administration (BQC-2.7)', () => {
         (c) => c.propertyId === PROP && c.capability === 'property.read_gbp_performance',
       ),
     ).toBe(true)
-    expect(await auditRows()).toContainEqual(
-      expect.objectContaining({
-        actor_id: ADMIN,
-        property_id: PROP,
-        action: 'policy.property.allowlist.set',
-        capability: 'property.read_gbp_performance',
-        reason: 'approved Performance canary',
-      }),
-    )
 
     await ops.setPropertyCapability({
       organizationId: ORG,
@@ -375,8 +315,7 @@ describe('policy administration (BQC-2.7)', () => {
       }),
     ).resolves.toBe(true)
 
-    // A client retry converges on the existing unrevoked grant while still
-    // recording the retried operator decision atomically.
+    // A client retry converges on the existing unrevoked grant.
     await ops.grantPropertyAccessOp({
       organizationId: ORG,
       propertyId: PROP,
@@ -447,21 +386,6 @@ describe('policy administration (BQC-2.7)', () => {
     ).rejects.toThrow(/member/)
   })
 
-  it('every admin action wrote a content-free audit outcome', async () => {
-    const rows = await auditRows()
-    expect(rows.length).toBeGreaterThanOrEqual(6)
-    for (const row of rows) {
-      expect(row.actor_type).toBe('operator')
-      expect(row.execution_kind).toBe('operator')
-      expect(row.decision).toBe('allow')
-    }
-    const actions = rows.map((r) => `${r.action}:${r.reason}`)
-    expect(actions).toContain('policy.allowlist.set:pilot portal evaluation')
-    expect(actions).toContain('policy.org.suspend:billing hold (OPS-100)')
-    expect(actions).toContain('policy.property.suspend:quality review (OPS-101)')
-    expect(actions).toContain('policy.grant:covering for holiday (OPS-200)')
-    expect(actions).toContain('policy.revoke:holiday cover ended')
-  })
 
   it('read-only diagnostic explains a decision without PII or secrets', async () => {
     const explanation = await ops.explainPolicyDecision({

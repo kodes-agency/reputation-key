@@ -16,10 +16,7 @@
 //   (b) RETENTION FAILURE — a real retention_runs row with outcome='failed'
 //       as the subject's latest run: the aux DISTINCT-ON read reports it and
 //       retention.failure dispatches naming the subject.
-//   (c) POLICY DENIAL DRIFT — 51 real policy_decision_audit denials inside
-//       the trailing hour: the aux GROUP-BY read crosses the drift
-//       threshold and policy.denial-drift dispatches.
-//   (d) BETA-FEEDBACK TRIAGE BACKLOG — one delivered, unresolved content-free
+//   (c) BETA-FEEDBACK TRIAGE BACKLOG — one delivered, unresolved content-free
 //       receipt older than 72h: the aux aggregate reports count + oldest age
 //       and beta-feedback.triage-backlog dispatches without report content.
 //
@@ -40,10 +37,7 @@ import {
   createAlertDispatcher,
   type AlertFetchFn,
 } from '#/shared/observability/alert-dispatcher'
-import {
-  BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
-  POLICY_DENIAL_DRIFT_THRESHOLD,
-} from '#/shared/observability/alert-definitions'
+import { BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS } from '#/shared/observability/alert-definitions'
 import { isBannedLogKey } from '#/shared/observability/metrics-schema'
 import type { AlertStateStore } from '#/shared/health/alert-state'
 import type { RedisHeartbeatPort } from '#/shared/health/worker-heartbeat'
@@ -144,9 +138,6 @@ afterEach(async () => {
   await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${MARKER_ORG}`)
   await db.execute(sql`DELETE FROM retention_runs WHERE subject = ${RETENTION_SUBJECT}`)
   await db.execute(
-    sql`DELETE FROM policy_decision_audit WHERE organization_id = ${MARKER_ORG}`,
-  )
-  await db.execute(
     sql`DELETE FROM beta_feedback_triage WHERE reference = ${FEEDBACK_REFERENCE}`,
   )
 })
@@ -236,33 +227,6 @@ describe('BQC-7.4 alert injection — real reads', () => {
     expect(warn.mock.calls.filter((c) => String(c[1]).match(/alert-aux/))).toEqual([])
   })
 
-  it('(c) real policy denials past the drift threshold dispatch policy.denial-drift', async () => {
-    const { handler, fetchFn, warn } = realEvaluationHarness()
-
-    // Seed: threshold + 1 denials inside the trailing hour.
-    await db.execute(sql`
-      INSERT INTO policy_decision_audit
-        (actor_type, action, execution_kind, decision, reason, policy_version, organization_id)
-      SELECT
-        'system', 'test.bqc74', 'worker', 'deny', 'capability_disabled', 'bqc74', ${MARKER_ORG}
-      FROM generate_series(1, ${POLICY_DENIAL_DRIFT_THRESHOLD + 1})
-    `)
-
-    const result = await handler({ id: 'bqc74-c', data: {} } as never)
-
-    expect(result.alerts?.dispatched).toContain('policy.denial-drift')
-    const payloads = dispatchedPayloads(fetchFn)
-    const drift = payloads.find((p) => p.alert === 'policy.denial-drift')
-    expect(drift).toMatchObject({
-      severity: 'P2',
-      runbook: 'runbooks.md §9',
-      threshold: POLICY_DENIAL_DRIFT_THRESHOLD,
-    })
-    expect(Number(drift?.value)).toBeGreaterThan(POLICY_DENIAL_DRIFT_THRESHOLD)
-    expect(String(drift?.detail)).toContain('capability_disabled')
-    expectNoBannedKeys(payloads)
-    expect(warn.mock.calls.filter((c) => String(c[1]).match(/alert-aux/))).toEqual([])
-  })
 
   it('(d) a real content-free feedback receipt dispatches beta-feedback.triage-backlog', async () => {
     const { handler, fetchFn, warn } = realEvaluationHarness()

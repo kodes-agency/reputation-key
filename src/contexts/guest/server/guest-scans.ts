@@ -292,9 +292,9 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
             scope,
             session.sessionId,
           )
-          // The guest capability decisions the form needs up front. Same action
-          // as the read they serve — the audit row's capability distinguishes
-          // them. Resolved only AFTER the public_read deny above has thrown, so
+          // The guest capability decisions the form needs up front. The
+          // capability key distinguishes them even though they serve the same
+          // read action. Resolved only AFTER the public_read deny above has thrown, so
           // a denied portal and a missing one remain indistinguishable (both
           // 404 with the same body); no new non-enumeration surface.
           const responseDecision = await decidePublicExecution({

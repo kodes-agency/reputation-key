@@ -3,8 +3,7 @@
 // The contract's money rule: an external-effect action performs a strong
 // policy read immediately before deciding, so a suspension written NOW
 // denies NOW — not after the 5s polling bound. Proves the composition seam
-// (initDelayedExecutionPolicy via initPersistedCapabilityPolicyStore) and
-// the content-free audit trail for delayed decisions.
+// through initPersistedCapabilityPolicyStore.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
@@ -32,7 +31,6 @@ const POLICY_ENV = {
 } satisfies CapabilityPolicyEnv
 
 beforeAll(async () => {
-  await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`)
   await deleteTestOrganizations(db, [ORG])
   await db.execute(
@@ -56,13 +54,12 @@ afterAll(async () => {
   releaseProcessPolicies()
   resetDelayedExecutionPolicy()
   resetCapabilityPolicyStore()
-  await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`)
   await deleteTestOrganizations(db, [ORG])
 })
 
 describe('delayed policy contract wiring (BQC-2.5)', () => {
-  it('suspension denies immediately via the strong read; audit rows written', async () => {
+  it('suspension denies immediately via the strong read', async () => {
     const policy = getDelayedExecutionPolicy()
     const base = {
       principal: { kind: 'system', id: 'worker:default' } as const,
@@ -90,29 +87,5 @@ describe('delayed policy contract wiring (BQC-2.5)', () => {
     expect(after.reason).toBe('org_suspended')
     expect(after.allowed).toBe(false)
 
-    // Content-free audit rows exist for both decisions.
-    let rows: Array<Record<string, unknown>> = []
-    for (let i = 0; i < 20 && rows.length < 2; i++) {
-      const result = await db.execute(
-        sql`SELECT actor_type, action, execution_kind, decision, reason, policy_version
-            FROM policy_decision_audit WHERE organization_id = ${ORG} ORDER BY occurred_at`,
-      )
-      rows = result.rows as Array<Record<string, unknown>>
-      if (rows.length >= 2) break
-      await new Promise((r) => setTimeout(r, 50))
-    }
-    expect(rows.length).toBeGreaterThanOrEqual(2)
-    expect(rows[0]).toMatchObject({
-      actor_type: 'system',
-      action: 'system:notification.email_digest',
-      execution_kind: 'worker',
-      decision: 'allow',
-      reason: 'allowed',
-      policy_version: EXECUTION_POLICY_VERSION,
-    })
-    expect(rows[rows.length - 1]).toMatchObject({
-      decision: 'deny',
-      reason: 'org_suspended',
-    })
   })
 })

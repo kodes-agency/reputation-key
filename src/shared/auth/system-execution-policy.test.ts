@@ -16,7 +16,6 @@ import {
   capabilityForSystemAction,
   type DelayedPolicyDeps,
 } from './system-execution-policy'
-import type { DecisionAuditEntry } from './execution-policy'
 import { EXECUTION_POLICY_VERSION } from './execution-policy'
 import { DELAYED_CONTRACT_FIXTURES } from './system-execution-policy.fixtures'
 import {
@@ -164,13 +163,9 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
     expect(requiresFreshRead('system:inbox.update')).toBe(false)
   })
 
-  it('writes a content-free audit entry per decision (JobRuntime consumes the result)', async () => {
+  it('returns the complete content-free decision consumed by JobRuntime', async () => {
     initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
-    const writeDecisionAudit = vi.fn(async (_entry: DecisionAuditEntry) => {})
-    const policy = createDelayedExecutionPolicy({
-      refreshPolicy: async () => {},
-      writeDecisionAudit,
-    })
+    const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
     const decision = await policy.decide({
       principal: { kind: 'system', id: 'worker:default' },
       action: 'system:review.reconcile',
@@ -180,17 +175,14 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
       correlationId: 'corr-delayed-1',
       now: new Date(),
     })
-    expect(decision.outcome).toBe('allow')
-    await vi.waitFor(() => expect(writeDecisionAudit).toHaveBeenCalledTimes(1))
-    expect(writeDecisionAudit.mock.calls[0][0]).toMatchObject({
-      actorType: 'system',
-      actorId: 'worker:default',
-      organizationId: 'org-fixture',
+    expect(decision).toEqual({
+      outcome: 'allow',
+      allowed: true,
+      reason: 'allowed',
       action: 'system:review.reconcile',
-      executionKind: 'schedule',
-      decision: 'allow',
       policyVersion: EXECUTION_POLICY_VERSION,
-      correlationId: 'corr-delayed-1',
+      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
+      freshRead: false,
     })
   })
 })

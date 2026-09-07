@@ -49,10 +49,6 @@ const EXCLUDED_RECORD_CLASSES = Object.freeze([
     reasonCode: 'operational_recovery_control',
   },
   {
-    recordClass: 'policy_decision_audit',
-    reasonCode: 'restricted_operational_history',
-  },
-  {
     recordClass: 'organization_export_and_lifecycle_receipts',
     reasonCode: 'content_free_control_plane',
   },

@@ -366,15 +366,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'guest.schema.ts',
-    exportNames: ['guestResponseMedia'],
-    owner: 'guest',
-    disposition: 'quarantined_reconciliation_input',
-    authority: 'SAFE-01/GST-01',
-    exitCriteria:
-      'Guest media stays beta-disabled; inventory and purge orphaned objects, then migrate only through issued capability storage before any future activation.',
-  }),
-  ...rows({
-    schemaFile: 'guest.schema.ts',
     exportNames: ['guestContactRequests', 'guestResponsePrivateFeedback'],
     owner: 'guest',
     disposition: 'erasable_source_content',
@@ -478,17 +469,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'NTF-01',
   }),
   ...rows({
-    schemaFile: 'notification.schema.ts',
-    exportNames: [
-      'notificationGovernanceQuarantine',
-      'notificationPreferenceGovernanceQuarantine',
-    ],
-    owner: 'notification',
-    disposition: 'quarantined_reconciliation_input',
-    authority: 'NTF-01',
-    exitCriteria: RECONCILE_QUARANTINE,
-  }),
-  ...rows({
     schemaFile: 'backup-erasure-ledger.schema.ts',
     exportNames: ['backupErasureLedger', 'backupErasureHoldReleases'],
     owner: 'identity',
@@ -577,14 +557,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     owner: 'identity',
     disposition: 'active_authority',
     authority: 'SAFE-02/PPL-01',
-  }),
-  ...rows({
-    schemaFile: 'policy.schema.ts',
-    exportNames: ['policyDecisionAudit'],
-    owner: 'identity',
-    disposition: 'recoverable_archive',
-    authority: 'SAFE-02/PPL-01',
-    exitCriteria: RETAINED_HISTORY,
   }),
   ...rows({
     schemaFile: 'portal-group.schema.ts',
@@ -716,13 +688,5 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     disposition: 'erasable_source_content',
     authority: 'REV-01/LIF-01',
     exitCriteria: ERASE_WITH_OWNER,
-  }),
-  ...rows({
-    schemaFile: 'review.schema.ts',
-    exportNames: ['reviewSourceProvenanceQuarantine'],
-    owner: 'review',
-    disposition: 'quarantined_reconciliation_input',
-    authority: 'REV-01',
-    exitCriteria: RECONCILE_QUARANTINE,
   }),
 ] satisfies ReadonlyArray<DataFateRow>)

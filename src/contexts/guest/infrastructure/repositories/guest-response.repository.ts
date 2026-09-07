@@ -15,43 +15,14 @@ import type { Database } from '#/shared/db'
 import { escapeLikePattern } from '#/shared/db/like-pattern'
 import {
   guestResponseExperienceSnapshots,
-  guestResponseMedia,
   guestResponsePrivateFeedback,
   guestResponseSessionBindings,
   guestResponses,
 } from '#/shared/db/schema/guest.schema'
 import type { GuestResponseRepository } from '../../application/ports/guest-response.repository'
-import type {
-  GuestMedia,
-  GuestMediaContentType,
-  GuestMediaStatus,
-} from '../../domain/guest-media'
 import { guestResponseFromRow } from '../mappers/guest-response.mapper'
 import type { Clock } from '#/shared/domain/clock'
 
-type MediaRow = typeof guestResponseMedia.$inferSelect
-
-function mediaFromRow(row: MediaRow): GuestMedia {
-  return {
-    id: row.id,
-    organizationId: row.organizationId,
-    propertyId: row.propertyId,
-    portalId: row.portalId,
-    responseId: row.responseId,
-    sessionId: row.sessionId,
-    objectKey: row.objectKey,
-    contentType: row.contentType as GuestMediaContentType,
-    declaredSizeBytes: row.declaredSizeBytes,
-    status: row.status as GuestMediaStatus,
-    expiresAt: row.expiresAt,
-    confirmedAt: row.confirmedAt,
-    processingLease: row.processingLease,
-    processingStartedAt: row.processingStartedAt,
-    publicUrl: row.publicUrl,
-    readyAt: row.readyAt,
-    deletedAt: row.deletedAt,
-  }
-}
 
 export const createGuestResponseRepository = (
   db: Database,
@@ -337,244 +308,28 @@ export const createGuestResponseRepository = (
       return summary
     },
 
-    saveModeration: async (response) =>
-      db.transaction(async (tx) => {
-        const updatedAt = response.moderatedAt ?? clock()
-        const updated = await tx
-          .update(guestResponses)
-          .set({
-            status: response.status,
-            moderatedAt: response.moderatedAt,
-            updatedAt,
-          })
-          .where(
-            and(
-              eq(guestResponses.organizationId, response.organizationId),
-              eq(guestResponses.propertyId, response.propertyId),
-              eq(guestResponses.portalId, response.portalId),
-              eq(guestResponses.id, response.id),
-              inArray(guestResponses.status, ['submitted', 'corrected', 'moderated']),
-              isNull(guestResponses.deletedAt),
-            ),
-          )
-          .returning({ id: guestResponses.id })
-        if (updated.length === 0) return false
-        await tx
-          .update(guestResponseMedia)
-          .set({
-            status: 'quarantined',
-            processingLease: null,
-            publicUrl: null,
-            readyAt: null,
-            updatedAt,
-          })
-          .where(
-            and(
-              eq(guestResponseMedia.organizationId, response.organizationId),
-              eq(guestResponseMedia.propertyId, response.propertyId),
-              eq(guestResponseMedia.portalId, response.portalId),
-              eq(guestResponseMedia.responseId, response.id),
-              inArray(guestResponseMedia.status, ['issued', 'processing', 'ready']),
-            ),
-          )
-        return true
-      }),
-
-    insertMedia: async (media) => {
-      const inserted = await db
-        .insert(guestResponseMedia)
-        .values({
-          id: media.id,
-          organizationId: media.organizationId,
-          propertyId: media.propertyId,
-          portalId: media.portalId,
-          responseId: media.responseId,
-          sessionId: media.sessionId,
-          objectKey: media.objectKey,
-          contentType: media.contentType,
-          declaredSizeBytes: media.declaredSizeBytes,
-          status: media.status,
-          expiresAt: media.expiresAt,
-        })
-        .onConflictDoNothing()
-        .returning({ id: guestResponseMedia.id })
-      return inserted.length === 1
-    },
-
-    findMediaForSession: async (scope, sessionId, mediaId) => {
-      const [row] = await db
-        .select({ media: guestResponseMedia })
-        .from(guestResponseMedia)
-        .innerJoin(
-          guestResponseSessionBindings,
-          and(
-            eq(guestResponseSessionBindings.responseId, guestResponseMedia.responseId),
-            eq(
-              guestResponseSessionBindings.organizationId,
-              guestResponseMedia.organizationId,
-            ),
-            eq(guestResponseSessionBindings.sessionId, sessionId),
-            gt(guestResponseSessionBindings.expiresAt, clock()),
-          ),
-        )
-        .where(
-          and(
-            eq(guestResponseMedia.organizationId, scope.organizationId),
-            eq(guestResponseMedia.propertyId, scope.propertyId),
-            eq(guestResponseMedia.portalId, scope.portalId),
-            eq(guestResponseMedia.sessionId, sessionId),
-            eq(guestResponseMedia.id, mediaId),
-          ),
-        )
-        .limit(1)
-      return row ? mediaFromRow(row.media) : null
-    },
-
-    claimMedia: async (media, lease, now) =>
-      db.transaction(async (tx) => {
-        const [response] = await tx
-          .select({
-            status: guestResponses.status,
-            mediaConsent: guestResponses.mediaConsent,
-          })
-          .from(guestResponses)
-          .innerJoin(
-            guestResponseSessionBindings,
-            and(
-              eq(guestResponseSessionBindings.responseId, guestResponses.id),
-              eq(
-                guestResponseSessionBindings.organizationId,
-                guestResponses.organizationId,
-              ),
-              eq(guestResponseSessionBindings.sessionId, media.sessionId),
-              gt(guestResponseSessionBindings.expiresAt, now),
-            ),
-          )
-          .where(
-            and(
-              eq(guestResponses.organizationId, media.organizationId),
-              eq(guestResponses.id, media.responseId),
-            ),
-          )
-          .for('update')
-        if (
-          !response ||
-          !response.mediaConsent ||
-          !['submitted', 'corrected'].includes(response.status)
-        ) {
-          return false
-        }
-        const claimed = await tx
-          .update(guestResponseMedia)
-          .set({
-            status: 'processing',
-            confirmedAt: now,
-            processingLease: lease,
-            processingStartedAt: now,
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(guestResponseMedia.organizationId, media.organizationId),
-              eq(guestResponseMedia.id, media.id),
-              eq(guestResponseMedia.sessionId, media.sessionId),
-              eq(guestResponseMedia.objectKey, media.objectKey),
-              eq(guestResponseMedia.status, 'issued'),
-            ),
-          )
-          .returning({ id: guestResponseMedia.id })
-        return claimed.length === 1
-      }),
-
-    completeMedia: async (media, lease, publicUrl, now) =>
-      db.transaction(async (tx) => {
-        const [response] = await tx
-          .select({
-            status: guestResponses.status,
-            mediaConsent: guestResponses.mediaConsent,
-          })
-          .from(guestResponses)
-          .innerJoin(
-            guestResponseSessionBindings,
-            and(
-              eq(guestResponseSessionBindings.responseId, guestResponses.id),
-              eq(
-                guestResponseSessionBindings.organizationId,
-                guestResponses.organizationId,
-              ),
-              eq(guestResponseSessionBindings.sessionId, media.sessionId),
-              gt(guestResponseSessionBindings.expiresAt, now),
-            ),
-          )
-          .where(
-            and(
-              eq(guestResponses.organizationId, media.organizationId),
-              eq(guestResponses.id, media.responseId),
-            ),
-          )
-          .for('update')
-        if (
-          !response ||
-          !response.mediaConsent ||
-          !['submitted', 'corrected'].includes(response.status)
-        ) {
-          return false
-        }
-        const completed = await tx
-          .update(guestResponseMedia)
-          .set({
-            status: 'ready',
-            processingLease: null,
-            publicUrl,
-            readyAt: now,
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(guestResponseMedia.organizationId, media.organizationId),
-              eq(guestResponseMedia.id, media.id),
-              eq(guestResponseMedia.sessionId, media.sessionId),
-              eq(guestResponseMedia.objectKey, media.objectKey),
-              eq(guestResponseMedia.status, 'processing'),
-              eq(guestResponseMedia.processingLease, lease),
-            ),
-          )
-          .returning({ id: guestResponseMedia.id })
-        return completed.length === 1
-      }),
-
-    queueMediaPurge: async (media, now) => {
-      await db
-        .update(guestResponseMedia)
+    saveModeration: async (response) => {
+      const updatedAt = response.moderatedAt ?? clock()
+      const updated = await db
+        .update(guestResponses)
         .set({
-          status: 'purge_pending',
-          processingLease: null,
-          publicUrl: null,
-          readyAt: null,
-          deletedAt: now,
-          updatedAt: now,
+          status: response.status,
+          moderatedAt: response.moderatedAt,
+          updatedAt,
         })
         .where(
           and(
-            eq(guestResponseMedia.organizationId, media.organizationId),
-            eq(guestResponseMedia.id, media.id),
+            eq(guestResponses.organizationId, response.organizationId),
+            eq(guestResponses.propertyId, response.propertyId),
+            eq(guestResponses.portalId, response.portalId),
+            eq(guestResponses.id, response.id),
+            inArray(guestResponses.status, ['submitted', 'corrected', 'moderated']),
+            isNull(guestResponses.deletedAt),
           ),
         )
+        .returning({ id: guestResponses.id })
+      return updated.length > 0
     },
 
-    markMediaDeleted: async (scope, objectKey, now) => {
-      await db
-        .update(guestResponseMedia)
-        .set({ status: 'deleted', deletedAt: now, updatedAt: now })
-        .where(
-          and(
-            eq(guestResponseMedia.organizationId, scope.organizationId),
-            eq(guestResponseMedia.propertyId, scope.propertyId),
-            eq(guestResponseMedia.portalId, scope.portalId),
-            eq(guestResponseMedia.objectKey, objectKey),
-            eq(guestResponseMedia.status, 'purge_pending'),
-          ),
-        )
-    },
   }
 }

@@ -420,9 +420,9 @@ pnpm ops:report-organization-lifecycle \
   --org <organization-id>
 ```
 
-The command is read-only apart from the operator harness's content-free policy
-decision audit. It reports state/revision/lineage/deadlines/reactivation fence
-and missing lifecycle/export bindings. It cannot request or cancel closure,
+The command is read-only. It reports state/revision/lineage/deadlines,
+reactivation fence, and missing lifecycle/export bindings. It cannot request
+or cancel closure,
 waive recovery, cross the irreversible boundary, reactivate, generate an
 export, issue a retrieval token, or delete storage.
 

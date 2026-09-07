@@ -24,7 +24,6 @@ const ERASED_TABLES = [
 const EXCLUDED_TABLES = [
   'backup_erasure_ledger',
   'privacy_requests',
-  'policy_decision_audit',
 ] as const
 
 type Rendered = Readonly<{ sql: string; params: readonly unknown[] }>

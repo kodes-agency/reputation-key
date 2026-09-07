@@ -44,26 +44,6 @@ export const QUEUE_NAMES = [
 /** Queue-depth row states (readAllQueueDepths). */
 const QUEUE_DEPTH_STATES = ['waiting', 'active', 'delayed', 'failed', 'paused'] as const
 
-/**
- * Policy denial/suspension reasons — the stable-reason closed set.
- * CapabilityDenyReason (beta-capabilities) + the delayed/system execution
- * reasons (system-execution-policy). Log/audit-sourced today; the per-reason
- * metric split is registered for 7.4.
- */
-const POLICY_DENY_REASONS = [
-  'capability_disabled',
-  'org_not_allowlisted',
-  'property_not_allowlisted',
-  'org_suspended',
-  'property_suspended',
-  'unknown_capability',
-  'missing_policy',
-  'capability_blocked',
-  'missing_scope',
-  'consent_required',
-  'policy_unavailable',
-  'unknown_action',
-] as const
 
 /** Reply publication_state — the DB CHECK constraint set (review.schema). */
 export const PUBLICATION_STATES = [
@@ -753,16 +733,6 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     description: 'Age of the oldest ambiguous row past reconcile_due_at.',
   }),
 
-  // ── policy.* / routing.* — denials by stable reason ──
-  def({
-    name: 'policy.denials',
-    kind: 'counter',
-    unit: 'count',
-    labels: { reason: { values: POLICY_DENY_REASONS } },
-    emitted: true,
-    description:
-      'Policy denials/suspensions by stable reason. Audit-sourced (policy_decision_audit, trailing hour); BQC-7.4 emits the per-reason split on the health-check cadence.',
-  }),
 
   // ── cache.* — tenant-resolution cache ──
   def({

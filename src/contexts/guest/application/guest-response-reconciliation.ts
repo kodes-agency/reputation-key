@@ -54,9 +54,6 @@ export const GUEST_RESPONSE_RECONCILIATION_REASON_CODES = [
   'canonical_integrity_history_conflict',
   'canonical_withdrawal_state_exact',
   'canonical_withdrawal_state_conflict',
-  'canonical_media_state_exact',
-  'canonical_media_active_while_beta_blocked',
-  'canonical_media_terminal_response_conflict',
   'canonical_contact_state_exact',
   'canonical_contact_active_while_beta_blocked',
   'canonical_contact_retention_overdue',
@@ -104,7 +101,6 @@ export type GuestResponseReconciliationDimension =
   | 'feedback_lineage'
   | 'integrity_history'
   | 'withdrawal_state'
-  | 'media_state'
   | 'contact_state'
   | 'inbox_link'
   | 'retention_state'

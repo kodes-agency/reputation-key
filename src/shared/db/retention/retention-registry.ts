@@ -731,23 +731,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({
-    id: 'platform.policy_decision_audit',
-    dataClass: 'operational_action_history',
-    ownerContext: 'shared',
-    ownerRole: 'Compliance owner with Platform operations',
-    sourceKind: 'table',
-    source: 'policy_decision_audit',
-    eligibility: {
-      anchorColumn: 'occurred_at',
-      horizon: { kind: 'days', days: 365 },
-      predicate: null,
-      query: 'Delete policy_decision_audit records older than 365 days.',
-      implementedBoundary: 'Live as the scheduled policy_decision_audit subject.',
-    },
-    evidenceSubject: 'policy_decision_audit',
-    restoreImplication: RESTORE_REPLAYS_DELETION,
-  }),
-  rule({
     id: 'platform.audit_logs',
     dataClass: 'operational_action_history',
     ownerContext: 'shared',
@@ -778,7 +761,7 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
       query:
         'SELECT id FROM operational_action_history_records WHERE occurred_at < :cutoff AND no operational_action_history_legal_holds row covers it. The proposed 365-day horizon is REPORT-ONLY.',
       implementedBoundary:
-        'No destructive lifecycle is armed for this table. The related 365-day audit horizon that IS live applies to policy_decision_audit and audit_logs only.',
+        'No destructive lifecycle is armed for this table. The related 365-day horizon applies to audit_logs only.',
     },
     evidenceSubject: 'operational_action_history_records.expired',
     restoreImplication:
@@ -829,15 +812,14 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     ownerContext: 'guest',
     ownerRole: 'Guest context owner with the Platform storage owner',
     sourceKind: 'object_store',
-    source: 'guest response media objects (capability-issued bucket prefix)',
+    source: 'unclaimed portal upload objects',
     eligibility: {
       anchorColumn: null,
       horizon: { kind: 'counsel_undecided' },
-      predicate: 'the object has no live guest_response_media row',
+      predicate: 'the object has no relational issuance authority',
       query:
-        'Portal upload is a dark capability, so the live population is orphaned objects only. Inventory them; do not purge on a horizon nobody has approved.',
-      implementedBoundary:
-        'No purge runs. guest_response_media is classified quarantined_reconciliation_input and stays beta-disabled.',
+        'Portal upload is disabled, so inventory unclaimed objects; do not purge on a horizon nobody has approved.',
+      implementedBoundary: 'No purge runs while the upload capability is disabled.',
     },
     evidenceSubject: 'object_store.orphan_inventory',
     restoreImplication:

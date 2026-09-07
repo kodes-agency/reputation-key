@@ -44,7 +44,6 @@ import {
 } from './repositories/policy-state.repository'
 import { createGrantAccessLookup } from './adapters/grant-access-lookup.adapter'
 import { getActiveConsent } from './repositories/policy-consent.repository'
-import { writePolicyDecision } from './repositories/policy-decision-audit.repository'
 import { hasActiveMerchantAiConsent } from './repositories/merchant-ai-authorization.repository'
 
 const MERCHANT_AI_PURPOSES = new Set([
@@ -64,8 +63,8 @@ export type PolicyStoreHandle = Readonly<{
   /**
    * ARC-03-T8: the trio is RETURNED, never installed here. Making the process
    * installation a separate, named step (shared/auth/process-policy-binding)
-   * is what stops a second container in the same process from silently
-   * re-pointing the singletons at its own audit sink and consent reader.
+   * stops a second container in the same process from silently re-pointing the
+   * singletons at its own policy state and consent reader.
    */
   capabilityPolicyStore: CapabilityPolicyStore
   executionPolicy: ExecutionPolicy
@@ -106,11 +105,10 @@ export function initPersistedCapabilityPolicyStore(deps: {
     createCompositePolicyStore({ globalStore: envStore, tenantStore: persisted }),
   )
 
-  // BQC-2.4: build the ExecutionPolicy with identity-owned deps — the grant
-  // adapter (property scope), the consent reader (purpose classes), and the
-  // content-free decision-audit writer. Decisions consult whichever capability
-  // store the process bound; binding this handle's trio together (ARC-03-T8)
-  // is what keeps tenant state consistent across both.
+  // BQC-2.4: build the ExecutionPolicy with identity-owned dependencies —
+  // the grant adapter (property scope) and consent reader (purpose classes).
+  // Binding this handle's trio together (ARC-03-T8) keeps tenant state
+  // consistent across interactive and delayed decisions.
   // BQC-7.5: the operator branch's named-operator allowlist binds from
   // OPS_OPERATOR_IDENTITIES (absent/empty = every operator command denies).
   const grantLookup = createGrantAccessLookup(deps.db, deps.clock)
@@ -142,9 +140,6 @@ export function initPersistedCapabilityPolicyStore(deps: {
         return ids.map((id) => id as string)
       },
       hasActiveConsent,
-      writeDecisionAudit: (entry) => writePolicyDecision(deps.db, entry),
-      onAuditError: (err) =>
-        deps.logger.warn({ err }, 'policy decision audit write failed'),
       isRegisteredOperator: (id) => operatorIdentities.has(id),
     }),
   )
@@ -156,9 +151,6 @@ export function initPersistedCapabilityPolicyStore(deps: {
     createDelayedExecutionPolicy({
       refreshPolicy: () => persisted.refresh(),
       hasActiveConsent,
-      writeDecisionAudit: (entry) => writePolicyDecision(deps.db, entry),
-      onAuditError: (err) =>
-        deps.logger.warn({ err }, 'delayed decision audit write failed'),
     }),
   )
 

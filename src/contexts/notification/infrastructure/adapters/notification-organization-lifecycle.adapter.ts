@@ -33,8 +33,6 @@ import {
   notificationDigestBatchMembers,
   notificationDigestBatches,
   notificationEmailQueue,
-  notificationGovernanceQuarantine,
-  notificationPreferenceGovernanceQuarantine,
   notificationPreferences,
   notificationUserSettings,
   notifications,
@@ -85,7 +83,6 @@ export type NotificationLifecyclePurgeCounts = Readonly<{
   digestBatchMembers: number
   preferences: number
   userSettings: number
-  quarantined: number
 }>
 
 const total = (values: readonly number[]): number =>
@@ -139,7 +136,6 @@ export const notificationPurgeEvidenceRef = (
       `member-${counts.digestBatchMembers}`,
       `pref-${counts.preferences}`,
       `setting-${counts.userSettings}`,
-      `quarantine-${counts.quarantined}`,
     ].join(':'),
   )
 
@@ -174,7 +170,6 @@ export const notificationPurgeOutcome = (
       counts.digestBatchMembers,
       counts.preferences,
       counts.userSettings,
-      counts.quarantined,
     ]) === 0
       ? 'no_data'
       : 'complete',
@@ -359,9 +354,6 @@ const verifyPurgeReadiness = async (
  *     tenant content this phase exists to erase.
  *   * `notification_preferences` / `notification_user_settings` — the tenant's
  *     own delivery policy, locale and timezone.
- *   * both governance quarantine tables — operator reconciliation INPUTS that
- *     point at rows this phase just removed. Leaving them would keep dangling
- *     tenant references alive with nothing left to reconcile.
  *
  * Idempotent by construction: a replay matches zero rows. In practice the
  * shared store never re-runs it, because the committed receipt replays first.
@@ -404,15 +396,6 @@ const purge = async (
     .where(eq(notificationUserSettings.organizationId, organization))
     .returning({ id: notificationUserSettings.id })
 
-  const quarantinedNotifications = await tx
-    .delete(notificationGovernanceQuarantine)
-    .where(eq(notificationGovernanceQuarantine.organizationId, organization))
-    .returning({ id: notificationGovernanceQuarantine.notificationId })
-
-  const quarantinedPreferences = await tx
-    .delete(notificationPreferenceGovernanceQuarantine)
-    .where(eq(notificationPreferenceGovernanceQuarantine.organizationId, organization))
-    .returning({ id: notificationPreferenceGovernanceQuarantine.legacyPreferenceId })
 
   return notificationPurgeOutcome({
     notifications: notificationRows.length,
@@ -421,7 +404,6 @@ const purge = async (
     digestBatchMembers: digestBatchMembers.length,
     preferences: preferences.length,
     userSettings: userSettings.length,
-    quarantined: quarantinedNotifications.length + quarantinedPreferences.length,
   })
 }
 

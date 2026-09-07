@@ -54,7 +54,6 @@ const REVIEW_ORG_TABLES = Object.freeze([
   'replies',
   'review_source_observations',
   'review_source_contents',
-  'review_source_provenance_quarantine',
   'review_ai_analysis_heads',
   'review_google_reputation_snapshot_facts',
   'review_provider_subjects',

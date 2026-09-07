@@ -2384,30 +2384,6 @@ CREATE TABLE "guest_response_integrity_decisions" (
 	CONSTRAINT "guest_response_integrity_decisions_source_valid" CHECK ("guest_response_integrity_decisions"."source" IN ('system', 'automatic', 'reviewer', 'migration'))
 );
 --> statement-breakpoint
-CREATE TABLE "guest_response_media" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"portal_id" uuid NOT NULL,
-	"response_id" uuid NOT NULL,
-	"session_id" uuid NOT NULL,
-	"object_key" varchar(700) NOT NULL,
-	"content_type" varchar(40) NOT NULL,
-	"declared_size_bytes" integer NOT NULL,
-	"status" varchar(24) DEFAULT 'issued' NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL,
-	"confirmed_at" timestamp with time zone,
-	"processing_lease" uuid,
-	"processing_started_at" timestamp with time zone,
-	"public_url" varchar(1000),
-	"ready_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"deleted_at" timestamp with time zone,
-	CONSTRAINT "guest_response_media_status_valid" CHECK ("guest_response_media"."status" IN ('issued', 'processing', 'ready', 'purge_pending', 'deleted', 'quarantined', 'expired')),
-	CONSTRAINT "guest_response_media_size_valid" CHECK ("guest_response_media"."declared_size_bytes" > 0 AND "guest_response_media"."declared_size_bytes" <= 10485760)
-);
---> statement-breakpoint
 CREATE TABLE "guest_response_private_feedback" (
 	"response_id" uuid PRIMARY KEY NOT NULL,
 	"organization_id" varchar(255) NOT NULL,
@@ -3680,20 +3656,6 @@ CREATE TABLE "notification_email_queue" (
       ))
 );
 --> statement-breakpoint
-CREATE TABLE "notification_governance_quarantine" (
-	"notification_id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"reason" varchar(64) NOT NULL,
-	"quarantined_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "notification_preference_governance_quarantine" (
-	"legacy_preference_id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"reason" varchar(64) NOT NULL,
-	"quarantined_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "notification_preferences" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" varchar(255) NOT NULL,
@@ -3904,25 +3866,6 @@ CREATE TABLE "policy_consent" (
 	"revoked_at" timestamp with time zone,
 	CONSTRAINT "policy_consent_subject_check" CHECK ("policy_consent"."subject_type" IN ('organization', 'property', 'user')),
 	CONSTRAINT "policy_consent_state_check" CHECK ("policy_consent"."state" IN ('granted', 'revoked'))
-);
---> statement-breakpoint
-CREATE TABLE "policy_decision_audit" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"actor_type" text NOT NULL,
-	"actor_id" text,
-	"organization_id" text,
-	"property_id" uuid,
-	"action" text NOT NULL,
-	"capability" text,
-	"execution_kind" text NOT NULL,
-	"decision" text NOT NULL,
-	"reason" text NOT NULL,
-	"policy_version" text NOT NULL,
-	"correlation_id" text,
-	CONSTRAINT "policy_decision_audit_actor_check" CHECK ("policy_decision_audit"."actor_type" IN ('user', 'system', 'operator', 'public')),
-	CONSTRAINT "policy_decision_audit_execution_check" CHECK ("policy_decision_audit"."execution_kind" IN ('interactive', 'worker', 'consumer', 'schedule', 'operator', 'public')),
-	CONSTRAINT "policy_decision_audit_decision_check" CHECK ("policy_decision_audit"."decision" IN ('allow', 'deny'))
 );
 --> statement-breakpoint
 CREATE TABLE "policy_version" (
@@ -5247,15 +5190,6 @@ CREATE TABLE "review_source_observations" (
       ))
 );
 --> statement-breakpoint
-CREATE TABLE "review_source_provenance_quarantine" (
-	"review_id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"reason" text NOT NULL,
-	"quarantined_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "review_source_provenance_quarantine_reason_valid" CHECK ("review_source_provenance_quarantine"."reason" IN ('missing_property', 'cross_tenant_property'))
-);
---> statement-breakpoint
 CREATE TABLE "reviews" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" varchar(255) NOT NULL,
@@ -5597,8 +5531,6 @@ CREATE INDEX "guest_qualified_scans_scope_time_idx" ON "guest_qualified_scans" U
 --> statement-breakpoint
 CREATE INDEX "guest_response_integrity_decisions_scope_outcome_idx" ON "guest_response_integrity_decisions" USING btree ("organization_id","property_id","portal_id","outcome","decided_at");
 --> statement-breakpoint
-CREATE INDEX "guest_response_media_response_status_idx" ON "guest_response_media" USING btree ("organization_id","response_id","status");
---> statement-breakpoint
 CREATE INDEX "guest_response_private_feedback_expiry_idx" ON "guest_response_private_feedback" USING btree ("expires_at");
 --> statement-breakpoint
 CREATE INDEX "guest_response_session_bindings_expiry_idx" ON "guest_response_session_bindings" USING btree ("expires_at");
@@ -5757,8 +5689,6 @@ CREATE INDEX "staff_user_links_org_participant_idx" ON "staff_user_links" USING 
 --> statement-breakpoint
 CREATE INDEX "staff_user_links_org_user_idx" ON "staff_user_links" USING btree ("organization_id","user_id");
 --> statement-breakpoint
-CREATE INDEX "policy_decision_audit_org_time_idx" ON "policy_decision_audit" USING btree ("organization_id","occurred_at" DESC NULLS LAST);
---> statement-breakpoint
 CREATE INDEX "property_access_grant_user_idx" ON "property_access_grant" USING btree ("organization_id","user_id") WHERE "property_access_grant"."revoked_at" IS NULL;
 --> statement-breakpoint
 CREATE INDEX "merchant_ai_consent_evidence_property_version_idx" ON "merchant_ai_consent_evidence" USING btree ("organization_id","property_id","state_version");
@@ -5840,8 +5770,6 @@ CREATE INDEX "review_source_contents_connection_idx" ON "review_source_contents"
 CREATE INDEX "review_source_observations_digest_idx" ON "review_source_observations" USING btree ("review_id","source_epoch","observation_digest");
 --> statement-breakpoint
 CREATE INDEX "review_source_observations_expiry_idx" ON "review_source_observations" USING btree ("content_state","content_expires_at","review_id","observation_sequence");
---> statement-breakpoint
-CREATE INDEX "review_source_provenance_quarantine_org_idx" ON "review_source_provenance_quarantine" USING btree ("organization_id","quarantined_at");
 --> statement-breakpoint
 CREATE INDEX "reviews_property_idx" ON "reviews" USING btree ("property_id");
 --> statement-breakpoint
@@ -5978,8 +5906,6 @@ CREATE UNIQUE INDEX "guest_qualified_scans_scope_id_key" ON "guest_qualified_sca
 CREATE UNIQUE INDEX "guest_response_experience_snapshots_org_key" ON "guest_response_experience_snapshots" USING btree ("organization_id","response_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "guest_response_integrity_decisions_response_revision_key" ON "guest_response_integrity_decisions" USING btree ("response_id","revision");
---> statement-breakpoint
-CREATE UNIQUE INDEX "guest_response_media_object_key_unique" ON "guest_response_media" USING btree ("object_key");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "guest_response_session_bindings_dedupe" ON "guest_response_session_bindings" USING btree ("organization_id","portal_id","session_id");
 --> statement-breakpoint
@@ -6450,14 +6376,6 @@ ALTER TABLE "guest_response_experience_snapshots" ADD CONSTRAINT "guest_response
 ALTER TABLE "guest_response_experience_snapshots" ADD CONSTRAINT "guest_response_experience_snapshots_publication_scope_fk" FOREIGN KEY ("organization_id","property_id","portal_id","publication_snapshot_id","publication_version","publication_digest") REFERENCES "public"."portal_publication_snapshots"("organization_id","property_id","portal_id","id","version","configuration_digest") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "guest_response_integrity_decisions" ADD CONSTRAINT "guest_response_integrity_decisions_response_scope_fk" FOREIGN KEY ("organization_id","property_id","portal_id","response_id") REFERENCES "public"."guest_responses"("organization_id","property_id","portal_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "guest_response_media" ADD CONSTRAINT "guest_response_media_response_tenant_fk" FOREIGN KEY ("organization_id","response_id") REFERENCES "public"."guest_responses"("organization_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "guest_response_media" ADD CONSTRAINT "guest_response_media_response_property_tenant_fk" FOREIGN KEY ("organization_id","property_id","portal_id","response_id") REFERENCES "public"."guest_responses"("organization_id","property_id","portal_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "guest_response_media" ADD CONSTRAINT "guest_response_media_portal_tenant_fk" FOREIGN KEY ("organization_id","portal_id") REFERENCES "public"."portals"("organization_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "guest_response_media" ADD CONSTRAINT "guest_response_media_portal_property_tenant_fk" FOREIGN KEY ("organization_id","property_id","portal_id") REFERENCES "public"."portals"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "guest_response_private_feedback" ADD CONSTRAINT "guest_response_private_feedback_response_tenant_fk" FOREIGN KEY ("organization_id","response_id") REFERENCES "public"."guest_responses"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint

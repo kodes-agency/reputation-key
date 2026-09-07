@@ -239,26 +239,15 @@ describe('outbox retention — published_at keying + per-run cap (BQC-3.7)', () 
   })
 })
 
-// BQC-7.8 — audit-evidence retention rules (365d horizon) executed against
-// the REAL registry entries + real tables: policy_decision_audit (keyed on
-// occurred_at) and audit_logs (created_at). Marker-scoped counts — the
-// shared scratch DB carries other suites' recent audit rows, which a 365d
-// cutoff must leave untouched.
+// BQC-7.8 — action-audit retention at the 365d horizon, executed against the
+// REAL registry entry and table. Marker-scoped counts leave unrelated rows
+// in the shared scratch database untouched.
 describe('audit-evidence retention rules (BQC-7.8, integration)', () => {
   const MARKER = 'org-bqc78-audit-retention'
   const HORIZON = 365 * DAY
 
-  const policyRule = RETENTION_RULES.find((r) => r.subject === 'policy_decision_audit')!
   const logsRule = RETENTION_RULES.find((r) => r.subject === 'audit_logs')!
 
-  async function seedPolicyRow(occurredAt: Date): Promise<void> {
-    await db.execute(sql`
-      INSERT INTO policy_decision_audit
-        (actor_type, action, execution_kind, decision, reason, policy_version, organization_id, occurred_at)
-      VALUES
-        ('operator', 'test.bqc78', 'operator', 'allow', 'seed', 'bqc78', ${MARKER}, ${occurredAt})
-    `)
-  }
 
   async function seedAuditLog(createdAt: Date): Promise<void> {
     await db.execute(sql`
@@ -277,32 +266,13 @@ describe('audit-evidence retention rules (BQC-7.8, integration)', () => {
   }
 
   beforeEach(async () => {
-    await db.execute(
-      sql`DELETE FROM policy_decision_audit WHERE organization_id = ${MARKER}`,
-    )
     await db.execute(sql`DELETE FROM audit_logs WHERE organization_id = ${MARKER}`)
   })
 
   afterAll(async () => {
-    await db.execute(
-      sql`DELETE FROM policy_decision_audit WHERE organization_id = ${MARKER}`,
-    )
     await db.execute(sql`DELETE FROM audit_logs WHERE organization_id = ${MARKER}`)
   })
 
-  it('policy_decision_audit: deletes rows past the 365d horizon, keeps recent', async () => {
-    await seedPolicyRow(new Date(NOW - 400 * DAY))
-    await seedPolicyRow(new Date(NOW - 400 * DAY))
-    await seedPolicyRow(new Date(NOW - 10 * DAY))
-
-    const result = await executeRetentionRule(db, policyRule, {
-      cutoff: new Date(NOW - HORIZON),
-      batchSize: 500,
-    })
-
-    expect(result.rowsDeleted).toBe(2)
-    expect(await markerCount('policy_decision_audit')).toBe(1)
-  })
 
   it('audit_logs: deletes rows past the 365d horizon, keeps recent', async () => {
     await seedAuditLog(new Date(NOW - 400 * DAY))

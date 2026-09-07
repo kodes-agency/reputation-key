@@ -543,15 +543,8 @@ describe('retention rule registry (BQC-3.7)', () => {
     })
   })
 
-  it('covers the audit-evidence tables at the 365d beta audit horizon (BQC-7.8)', () => {
-    const audit = RETENTION_RULES.find((r) => r.subject === 'policy_decision_audit')
-    expect(audit).toMatchObject({
-      table: 'policy_decision_audit',
-      keyColumns: ['id'],
-      tsColumn: 'occurred_at',
-      olderThanMs: 365 * 24 * 60 * 60 * 1000,
-    })
-    const logs = RETENTION_RULES.find((r) => r.subject === 'audit_logs')
+  it('covers the action-audit table at the 365d beta audit horizon (BQC-7.8)', () => {
+    const logs = RETENTION_RULES.find((rule) => rule.subject === 'audit_logs')
     expect(logs).toMatchObject({
       table: 'audit_logs',
       keyColumns: ['id'],

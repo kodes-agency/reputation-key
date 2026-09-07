@@ -2,22 +2,19 @@
 //
 // fallow-ignore-file boundary-violation
 // Cross-zone proof (BQC-7.8) — deliberate, no expiry. This end-to-end proof
-// BY DESIGN wires the identity-owned policy boot (initPersistedCapability-
-// PolicyStore) + audit table against the review context's report authority
-// and the shared operator-command
-// harness (the same wiring scripts/ops/restore-verify.ts performs); no
-// single context's zone can own it, and the integration project discovers it
-// via the infrastructure/repositories glob. Same posture as
+// BY DESIGN wires the identity-owned policy boot against the review context's
+// report authority and the shared operator-command harness (the same wiring
+// scripts/ops/restore-verify.ts performs); no single context's zone can own it,
+// and the integration project discovers it via the infrastructure/repositories
+// glob. Same posture as
 // operator-command.test.ts (BQC-7.5).
 //
 // Proves the restore-verify chain end to end:
 //   1. --apply --reason --yes ops:restore-verify — evaluated through the REAL
-//      ExecutionPolicy operator branch and audited in policy_decision_audit;
-//      SAFE-03 inspection-only authority refuses before any lifecycle is
-//      invoked, so every Review survives and no false expiry fact or retention
-//      evidence is written;
-//   2. dry-run (no --apply) — reports eligibility, purges nothing, audits
-//      'dry-run';
+//      ExecutionPolicy operator branch; SAFE-03 inspection-only authority
+//      refuses before any lifecycle is invoked, so every Review survives and
+//      no false expiry fact or retention evidence is written;
+//   2. dry-run (no --apply) — reports eligibility and purges nothing;
 //   3. RESTORE_MODE not isolated in the command env — the action REFUSES
 //      before any work (exit 1, nothing purged).
 //
@@ -107,19 +104,6 @@ function memoryIO(): OperatorIO & { outLines: string[]; errLines: string[] } {
   }
 }
 
-async function auditRowsFor(actorId: string, min: number) {
-  let rows: Array<Record<string, unknown>> = []
-  for (let i = 0; i < 20 && rows.length < min; i++) {
-    const result = await db.execute(
-      sql`SELECT actor_type, actor_id, action, execution_kind, decision, reason, policy_version, correlation_id
-          FROM policy_decision_audit WHERE actor_id = ${actorId} ORDER BY occurred_at`,
-    )
-    rows = result.rows as Array<Record<string, unknown>>
-    if (rows.length >= min) break
-    await new Promise((r) => setTimeout(r, 50))
-  }
-  return rows
-}
 
 async function seedReview(id: string, contentExpiresAt: Date): Promise<void> {
   await db.execute(sql`
@@ -267,7 +251,6 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     await db.execute(
       sql`DELETE FROM retention_runs WHERE subject = ${RESTORE_VERIFY_PURGE_SUBJECT}`,
     )
-    await db.execute(sql`DELETE FROM policy_decision_audit WHERE actor_id = ${OPERATOR}`)
     await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
     await deleteTestOrganizations(db, [ORG])
   })
@@ -292,21 +275,19 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     )
 
     expect(result.exitCode).toBe(1)
-    // SAFE-03: expired and live Review identity rows all survive.
+    expect(result.decision).toMatchObject({ allowed: true, reason: 'allowed' })
     expect(await reviewCount()).toBe(3)
     const live = await db.execute(
       sql`SELECT count(*)::int AS c FROM reviews WHERE id = ${REVIEW_LIVE}`,
     )
     expect((live.rows[0] as { c: number }).c).toBe(1)
 
-    // No mutation means no false review.expired facts.
     const facts = await db.execute(
       sql`SELECT count(*)::int AS c FROM outbox_events
           WHERE organization_id = ${ORG} AND event_type = 'review.expired'`,
     )
     expect((facts.rows[0] as { c: number }).c).toBe(0)
 
-    // A quarantined no-op cannot claim deletion evidence.
     const evidence = await db.execute(
       sql`SELECT outcome, rows_deleted FROM retention_runs
           WHERE subject = ${RESTORE_VERIFY_PURGE_SUBJECT}
@@ -314,18 +295,6 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     )
     expect(evidence.rows).toHaveLength(0)
 
-    // Operator decision audit: allow with the operator reason.
-    const audits = await auditRowsFor(OPERATOR, 1)
-    expect(audits).toHaveLength(1)
-    expect(audits[0]).toMatchObject({
-      actor_type: 'operator',
-      action: 'system:ops',
-      execution_kind: 'operator',
-      decision: 'allow',
-      reason: 'restore drill',
-    })
-
-    // The operator sees the restore target but never receives cutover steps.
     const out = io.outLines.join('\n')
     const err = io.errLines.join('\n')
     expect(out).toMatch(/RESTORE MODE ISOLATED/)
@@ -333,7 +302,7 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     expect(out).not.toMatch(/UNSET RESTORE_MODE/)
   })
 
-  it('dry-run: reports eligibility, purges nothing, audits dry-run', async () => {
+  it('dry-run: reports eligibility and purges nothing', async () => {
     await seedReview(REVIEW_DRYRUN, new Date(NOW - 1 * DAY))
     const io = memoryIO()
     const result = await runOperatorCommand(
@@ -346,15 +315,12 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     )
 
     expect(result.exitCode).toBe(0)
-    // The dry-run expired review survived.
+    expect(result.decision).toMatchObject({ allowed: true, reason: 'allowed' })
     const dryRun = await db.execute(
       sql`SELECT count(*)::int AS c FROM reviews WHERE id = ${REVIEW_DRYRUN}`,
     )
     expect((dryRun.rows[0] as { c: number }).c).toBe(1)
     expect(io.outLines.join('\n')).toMatch(/expired-content row\(s\) eligible/)
-
-    const audits = await auditRowsFor(OPERATOR, 2)
-    expect(audits[1]).toMatchObject({ decision: 'allow', reason: 'dry-run' })
   })
 
   it('refuses before any work when RESTORE_MODE is not isolated', async () => {
