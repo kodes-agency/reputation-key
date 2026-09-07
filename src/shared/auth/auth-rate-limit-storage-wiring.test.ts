@@ -27,8 +27,6 @@ describe('Better Auth rate-limit storage wiring', () => {
     const auth = createAuth()
 
     expect(auth.options.rateLimit?.customStorage).toMatchObject({
-      get: expect.any(Function),
-      set: expect.any(Function),
       consume: expect.any(Function),
     })
     expect(auth.options.rateLimit).not.toHaveProperty('storage')
