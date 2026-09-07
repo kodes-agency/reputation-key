@@ -148,21 +148,6 @@ export function createGoogleImportV2Processor(
      * correctness gate, so a failure is logged and the import proceeds.
      */
     subscribeToNotifications?: ManageNotificationsApi['subscribe']
-    /**
-     * BQC-2.7: grants a property the capability allowlist of its organization
-     * (identity-owned, idempotent). A created property starts with an EMPTY
-     * property_capability set, and an empty set denies every non-core
-     * capability — provisioning is what makes an imported property usable.
-     * Optional and best-effort: a failure is logged and repairable with
-     * ops:property-capabilities, never a reason to fail the import effect.
-     */
-    provisionPropertyCapabilities?: (
-      input: Readonly<{
-        organizationId: string
-        propertyId: string
-        createdBy: string
-      }>,
-    ) => Promise<void>
     resolveActor: (organizationId: string, userId: string) => Promise<AuthContext | null>
     clock: () => Date
     newClaimFence: () => string
@@ -458,26 +443,6 @@ export function createGoogleImportV2Processor(
               }),
               now: deps.clock(),
             })
-            if (deps.provisionPropertyCapabilities) {
-              try {
-                await deps.provisionPropertyCapabilities({
-                  organizationId: item.organizationId,
-                  propertyId: item.destinationPropertyId,
-                  createdBy: item.initiatedBy,
-                })
-              } catch (error) {
-                // Same content-free posture as the effect's own failure log:
-                // codes plus the item key, no tenant identifier.
-                deps.logger.warn(
-                  {
-                    itemId: item.itemId,
-                    errorName: error instanceof Error ? error.name : 'unknown',
-                    errorCode: googleImportErrorCode(error),
-                  },
-                  'Google import property capability provisioning failed',
-                )
-              }
-            }
           } else {
             await deps.propertyBindingApi.relink({
               organizationId: organizationId(item.organizationId),

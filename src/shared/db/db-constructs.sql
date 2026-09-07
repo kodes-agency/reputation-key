@@ -958,27 +958,6 @@ BEGIN
     RETURN;
   END IF;
 
-  -- `organization_capability` is keyed by PURPOSE (`ai.generate_reply`), not by
-  -- capability (`reply_drafting`); comparing it to `capability_name` could never
-  -- match, so every AI operation was denied `authorization_changed`.
-  -- `property_policy` rows are written only by setPropertyPolicy (the
-  -- suspend/restore command), so a property that has never been suspended has NO
-  -- row: requiring one to exist denied every such property. Deny only on an actual
-  -- suspension.
-  IF NOT EXISTS (
-    SELECT 1 FROM organization_capability
-    WHERE organization_id = operation_row.organization_id
-      AND capability = operation_profile_row.purpose
-  ) OR EXISTS (
-    SELECT 1 FROM property_policy
-    WHERE property_id = operation_row.property_id
-      AND suspended_at IS NOT NULL
-  )
-  THEN
-    RETURN QUERY SELECT 'denied', 'authorization_changed', NULL::text,
-      NULL::bigint, NULL::bigint, NULL::bigint, NULL::bigint;
-    RETURN;
-  END IF;
 
   IF (
     SELECT count(*) FROM ai_execution_permits
@@ -3239,53 +3218,6 @@ END;
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.guard_identity_invitation_fact_contract_v1()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-  active_version smallint;
-  supplied_email text;
-BEGIN
-  IF NEW."event_type" <> 'identity.member.invited' THEN
-    RETURN NEW;
-  END IF;
-
-  SELECT "issuance_version"
-  INTO active_version
-  FROM "identity_invitation_fact_contract"
-  WHERE "singleton" = true
-  FOR SHARE;
-
-  IF active_version IS NULL THEN
-    RAISE EXCEPTION 'identity invitation fact contract row is missing';
-  END IF;
-  IF jsonb_typeof(NEW."payload") <> 'object' THEN
-    RAISE EXCEPTION 'identity invitation fact payload must be an object';
-  END IF;
-
-  supplied_email := NEW."payload" ->> 'email';
-  IF active_version = 1 THEN
-    NEW."event_version" := 1;
-    NEW."payload" := jsonb_set(
-      NEW."payload" - 'email',
-      '{email}',
-      to_jsonb('[redacted]'::text),
-      true
-    );
-    RETURN NEW;
-  END IF;
-
-  IF supplied_email IS NOT NULL AND supplied_email <> '[redacted]' THEN
-    RAISE EXCEPTION 'legacy identity invitation fact producer is not permitted after v2 cutover';
-  END IF;
-  NEW."event_version" := 2;
-  NEW."payload" := NEW."payload" - 'email';
-  RETURN NEW;
-END;
-$function$
-;
---> statement-breakpoint
 CREATE OR REPLACE FUNCTION public.guard_last_owner()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3697,42 +3629,6 @@ BEGIN
 
   IF NEW."egress_recovery_attempts" < OLD."egress_recovery_attempts" THEN
     RAISE EXCEPTION 'organization export egress recovery evidence cannot be rewound';
-  END IF;
-  RETURN NEW;
-END;
-$function$
-;
---> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.guard_organization_lifecycle_policy_fence_v1()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-  target_organization_id text;
-  attempts_to_clear boolean;
-BEGIN
-  IF TG_OP = 'DELETE' THEN
-    target_organization_id := OLD."organization_id";
-    attempts_to_clear := true;
-  ELSE
-    IF TG_OP = 'UPDATE' AND NEW."organization_id" IS DISTINCT FROM OLD."organization_id" THEN
-      RAISE EXCEPTION 'organization policy cannot change tenant';
-    END IF;
-    target_organization_id := NEW."organization_id";
-    attempts_to_clear := NEW."suspended_at" IS NULL;
-  END IF;
-
-  IF attempts_to_clear AND EXISTS (
-    SELECT 1
-    FROM "organization_lifecycle_authority" AS lifecycle
-    WHERE lifecycle."organization_id" = target_organization_id
-      AND (lifecycle."state" <> 'active' OR lifecycle."reactivation_required" = true)
-  ) THEN
-    RAISE EXCEPTION 'organization lifecycle fence requires explicit reactivation';
-  END IF;
-
-  IF TG_OP = 'DELETE' THEN
-    RETURN OLD;
   END IF;
   RETURN NEW;
 END;
@@ -6618,21 +6514,6 @@ BEGIN
             ON permission.organization_id = permit.organization_id
           WHERE connection.id = permit.connection_id
             AND connection.organization_id = permit.organization_id
-            AND NOT EXISTS (
-              SELECT 1
-              FROM public.organization_policy AS organization_policy
-              WHERE organization_policy.organization_id = permit.organization_id
-                AND organization_policy.suspended_at IS NOT NULL
-            )
-            AND (
-              permit.capability::text IN ('property.connect_gbp', 'property.publish_reply')
-              OR EXISTS (
-                SELECT 1
-                FROM public.organization_capability AS organization_capability
-                WHERE organization_capability.organization_id = permit.organization_id
-                  AND organization_capability.capability = permit.capability::text
-              )
-            )
             AND (
               (
                 permit.capability::text = 'property.import_gbp_v2'
@@ -6830,22 +6711,7 @@ BEGIN
             AND (
               permit.property_id IS NULL
               OR (
-                NOT EXISTS (
-                  SELECT 1
-                  FROM public.property_policy AS property_policy
-                  WHERE property_policy.property_id = permit.property_id
-                    AND property_policy.suspended_at IS NOT NULL
-                )
-                AND (
-                  permit.capability::text IN ('property.connect_gbp', 'property.publish_reply')
-                  OR EXISTS (
-                    SELECT 1
-                    FROM public.property_capability AS property_capability
-                    WHERE property_capability.property_id = permit.property_id
-                      AND property_capability.capability = permit.capability::text
-                  )
-                )
-                AND (
+                (
                   member.role = 'owner'
                   OR permit.capability::text = 'property.connect_gbp'
                   OR permit.capability::text = 'property.publish_reply'
@@ -7053,18 +6919,6 @@ BEGIN
              AND connection.id = permit.connection_id
             WHERE member."organizationId" = permit.organization_id
               AND member."userId" = permit.initiator_user_id
-              AND NOT EXISTS (
-                SELECT 1
-                FROM public.organization_policy AS organization_policy
-                WHERE organization_policy.organization_id = permit.organization_id
-                  AND organization_policy.suspended_at IS NOT NULL
-              )
-              AND EXISTS (
-                SELECT 1
-                FROM public.organization_capability AS organization_capability
-                WHERE organization_capability.organization_id = permit.organization_id
-                  AND organization_capability.capability = permit.capability::text
-              )
               AND member.role = 'owner'
               AND permit.authorization_vector->>'principalKind' = 'user'
               AND permit.authorization_vector->>'role' = 'AccountAdmin'
@@ -8187,11 +8041,7 @@ CREATE TRIGGER organization_export_revision_guard BEFORE UPDATE ON public.organi
 --> statement-breakpoint
 CREATE TRIGGER organization_lifecycle_revision_guard BEFORE UPDATE ON public.organization_lifecycle_authority FOR EACH ROW EXECUTE FUNCTION guard_organization_lifecycle_revision_v1();
 --> statement-breakpoint
-CREATE TRIGGER organization_lifecycle_policy_fence BEFORE INSERT OR DELETE OR UPDATE ON public.organization_policy FOR EACH ROW EXECUTE FUNCTION guard_organization_lifecycle_policy_fence_v1();
---> statement-breakpoint
 CREATE TRIGGER organization_role_policy_perm_ver_iud AFTER INSERT OR DELETE OR UPDATE ON public.organization_role_policy FOR EACH ROW EXECUTE FUNCTION tgr_bump_perm_app();
---> statement-breakpoint
-CREATE TRIGGER identity_invitation_fact_contract_guard BEFORE INSERT OR UPDATE OF event_type, event_version, payload ON public.outbox_events FOR EACH ROW EXECUTE FUNCTION guard_identity_invitation_fact_contract_v1();
 --> statement-breakpoint
 CREATE TRIGGER portal_publication_activations_history_guard BEFORE UPDATE ON public.portal_publication_activations FOR EACH ROW EXECUTE FUNCTION guard_portal_publication_history_v1();
 --> statement-breakpoint

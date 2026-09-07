@@ -1,5 +1,5 @@
 import { and, eq, or, sql } from 'drizzle-orm'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import type { Database } from '#/shared/db'
 import {
   account,
@@ -182,14 +182,8 @@ async function applyRecoveryDecision(
     decision: InvitedRegistrationRecoveryDecision
   }>,
 ): Promise<ReconcileInvitedRegistrationResult> {
-  const {
-    command,
-    verificationId,
-    payload,
-    currentInvitation,
-    userRows,
-    decision,
-  } = input
+  const { command, verificationId, payload, currentInvitation, userRows, decision } =
+    input
 
   if (decision.kind === 'awaiting_provider') {
     await tx
@@ -278,8 +272,7 @@ export const createInvitedRegistrationStore = (
         )
       }
 
-      const identifier =
-        VERIFICATION_IDENTIFIER_PREFIX + (command.invitationId as string)
+      const identifier = VERIFICATION_IDENTIFIER_PREFIX + (command.invitationId as string)
       const existingRows = await tx
         .select({
           id: verification.id,

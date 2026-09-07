@@ -1,23 +1,8 @@
 // LIF-01-T19 — Identity's contribution to a permanent Property Erase.
 //
-// Identity was the one context missing from `PROPERTY_ERASE_CONTEXTS`, which
-// asserted by omission that it holds no rows for a Property. It does:
-// `data-fate-authority.ts` names Identity the owner of SEVEN Property-scoped
-// tables. Without this contributor, a permanent Property Erase left every one
-// of them behind — including `property_access_grants.reason`, a free-text
-// column, and the `user_id` / `granted_by` / `revoked_by` identifiers naming
-// who could reach the Property.
-//
-// WHICH OF THE SEVEN ARE ERASED IS NOT A JUDGEMENT MADE HERE. It follows the
-// disposition each table already carries in `data-fate-authority.ts`:
-//
-//   active_authority     -> erased. Live authority state for the Property:
-//                           property_access_grant, property_capability,
-//                           property_policy.
-//   bounded_contraction  -> erased. property_access_grants is the legacy
-//                           people-access table awaiting contraction, but it is
-//                           live today and its rows are this Property's.
-//   recoverable_archive  -> NOT erased, deliberately. See below.
+// Identity owns two live authority tables scoped to a Property:
+// `property_access_grants` (legacy people access) and
+// `property_access_grant` (current access). Both are erased.
 //
 // THE TWO DELIBERATE EXCLUSIONS, and why each would be wrong to erase:
 //
@@ -34,11 +19,8 @@
 // during an erasure is exactly the call this program does not let engineering
 // make alone.
 //
-// Property-scoped, not Organization-scoped: every statement is bound to ONE
+// Property-scoped, not Organization-scoped: every statement is bound to one
 // property_id, so erasing a Property leaves its siblings byte-identical.
-// `property_capability` and `property_policy` carry no organization_id at all,
-// so they are scoped by property_id alone — which is a UUID primary key
-// elsewhere, and so is not ambiguous across tenants.
 
 import { and, eq, sql } from 'drizzle-orm'
 import type {
@@ -47,11 +29,7 @@ import type {
   PropertyEraseScope,
 } from '#/contexts/property/application/ports/property-erase-contributor.port'
 import { propertyAccessGrants } from '#/shared/db/schema/people-access.schema'
-import {
-  propertyAccessGrant,
-  propertyCapability,
-  propertyPolicy,
-} from '#/shared/db/schema/policy.schema'
+import { propertyAccessGrant } from '#/shared/db/schema/policy.schema'
 import type { Tx } from '#/shared/outbox/commit'
 
 /**
@@ -69,8 +47,6 @@ const IDENTITY_PROPERTY_ERASE_PLAN = Object.freeze([
     organizationScoped: true,
   },
   { table: propertyAccessGrant, name: 'property_access_grant', organizationScoped: true },
-  { table: propertyCapability, name: 'property_capability', organizationScoped: false },
-  { table: propertyPolicy, name: 'property_policy', organizationScoped: false },
 ] as const)
 
 export const createIdentityPropertyEraseContributor = (): PropertyEraseContributor => ({

@@ -1,13 +1,7 @@
-// BQC-2.2 — PropertyAccessGrant persistence integration test (real PostgreSQL).
+// PropertyAccessGrant persistence integration test against real PostgreSQL.
 //
-// Proves the grant table is authoritative-ready (phase BQC-2 §2.2):
-//   - grant/revoke/list/hasActiveGrant semantics incl. expiry;
-//   - DB-level tenant consistency: a grant whose organization_id does not
-//     match the property's organization is rejected by the composite FK;
-//   - one active grant per (org, property, user) — duplicates rejected,
-//     re-grant after revoke allowed;
-//   - every mutation bumps the global policy_version (cache invalidation
-//     contract for the snapshot store).
+// Proves grant/revoke/list/expiry semantics, tenant consistency, and the
+// invariant that one active grant exists per organization/property/user.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
@@ -19,7 +13,6 @@ import {
   listActiveGrantsForUser,
   hasActiveGrant,
 } from './property-access-grant.repository'
-import { getPolicyVersion } from './policy-state.repository'
 
 const db = getDb()
 const ORG_A = 'org-grant-a'
@@ -29,7 +22,6 @@ const HOUR = 60 * 60 * 1000
 
 let propA1: string
 let propA2: string
-let propA3: string
 let propB1: string
 
 async function insertProperty(org: string, slug: string): Promise<string> {
@@ -61,7 +53,6 @@ beforeAll(async () => {
 
   propA1 = await insertProperty(ORG_A, 'grant-prop-a1')
   propA2 = await insertProperty(ORG_A, 'grant-prop-a2')
-  propA3 = await insertProperty(ORG_A, 'grant-prop-a3')
   propB1 = await insertProperty(ORG_B, 'grant-prop-b1')
 })
 
@@ -181,23 +172,4 @@ describe('PropertyAccessGrant persistence (BQC-2.2)', () => {
     ).resolves.toBe(false)
   })
 
-  it('bumps the global policy_version on grant and revoke', async () => {
-    const before = await getPolicyVersion(db)
-    await grantPropertyAccess(db, {
-      organizationId: ORG_A,
-      propertyId: propA3,
-      userId: USER_1,
-      source: 'operator',
-    })
-    const afterGrant = await getPolicyVersion(db)
-    expect(afterGrant).toBeGreaterThan(before)
-
-    await revokePropertyAccess(db, {
-      organizationId: ORG_A,
-      propertyId: propA3,
-      userId: USER_1,
-    })
-    const afterRevoke = await getPolicyVersion(db)
-    expect(afterRevoke).toBeGreaterThan(afterGrant)
-  })
 })

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { isCoreCapability } from '#/shared/auth/beta-capabilities'
+import { checkScopedCapability } from '#/shared/auth/beta-capabilities'
 import type { Database } from '#/shared/db'
 import type {
   GoogleContentAuthorizationCheck,
@@ -27,6 +27,8 @@ import {
   scopeForPermission,
   type Permission,
 } from '#/shared/domain/permissions'
+const POLICY_VERSION = 1
+
 type GoogleContentAuthorizationCheckDeps = Readonly<{
   clock: () => Date
   hasActivePropertyGrant: (
@@ -95,21 +97,9 @@ const REPLY_PUBLICATION_OPERATIONS: Readonly<Record<string, true>> = {
 }
 
 /**
- * Whether policy currently authorizes this Google content capability.
- *
- * CORE capabilities are exempt from the two ALLOWLIST clauses, and only those.
- * `checkScopedCapability` has always treated them that way — a core capability
- * is part of the product rather than something a cohort opts into — and nothing
- * in the product ever writes an `organization_capability` row for one. Requiring
- * those rows here meant `property.connect_gbp` and `property.publish_reply`
- * could never authorize for ANY tenant, so review sync and reply publication
- * were dead everywhere, not just in the test stack. The two gates disagreed and
- * this one was the odd one out.
- *
- * Everything else still applies to core capabilities exactly as before: the
- * global kill switch (`capability_execution_control.denied` and the emergency
- * kill version), organization suspension, property suspension, and the property
- * belonging to the organization and not being deleted.
+ * Whether static capability configuration and the live Google execution
+ * control authorize this scope. Property ownership remains a request-time
+ * database fact; no persisted capability snapshot participates.
  */
 export async function policyAuthorizes(
   tx: Database,
@@ -117,59 +107,36 @@ export async function policyAuthorizes(
   organizationId: string,
   propertyId: string | null,
 ): Promise<Readonly<{ version: number; emergencyKillVersion: number }> | null> {
-  const allowlistExempt = isCoreCapability(capability)
+  const configured = checkScopedCapability(
+    {
+      organizationId,
+      ...(propertyId ? { propertyId } : {}),
+    },
+    capability,
+  )
+  if (!configured.allowed) return null
+
   const result = await tx.execute(sql`
-    SELECT pv.version, pv.emergency_kill_version
-    FROM policy_version pv
-    JOIN capability_execution_control control
-      ON control.capability = ${capability}::google_content_capability
-    WHERE pv.scope = 'global'
+    SELECT control.emergency_kill_version
+    FROM capability_execution_control control
+    WHERE control.capability = ${capability}::google_content_capability
       AND control.denied = false
-      AND control.emergency_kill_version = pv.emergency_kill_version
-      AND NOT EXISTS (
-        SELECT 1 FROM organization_policy policy
-        WHERE policy.organization_id = ${organizationId}
-          AND policy.suspended_at IS NOT NULL
-      )
-      AND (
-        ${allowlistExempt}
-        OR EXISTS (
-          SELECT 1 FROM organization_capability allowed
-          WHERE allowed.organization_id = ${organizationId}
-            AND allowed.capability = ${capability}
-        )
-      )
       AND (
         ${propertyId}::uuid IS NULL
-        OR (
-          EXISTS (
-            SELECT 1 FROM properties property
-            WHERE property.id = ${propertyId}::uuid
-              AND property.organization_id = ${organizationId}
-              AND property.deleted_at IS NULL
-          )
-          AND NOT EXISTS (
-            SELECT 1 FROM property_policy policy
-            WHERE policy.property_id = ${propertyId}::uuid
-              AND policy.suspended_at IS NOT NULL
-          )
-          AND (
-            ${allowlistExempt}
-            OR EXISTS (
-              SELECT 1 FROM property_capability allowed
-              WHERE allowed.property_id = ${propertyId}::uuid
-                AND allowed.capability = ${capability}
-            )
-          )
+        OR EXISTS (
+          SELECT 1 FROM properties property
+          WHERE property.id = ${propertyId}::uuid
+            AND property.organization_id = ${organizationId}
+            AND property.deleted_at IS NULL
         )
       )
     LIMIT 1
   `)
   const row = result.rows[0] as
-    { version: number | string; emergency_kill_version: number | string } | undefined
+    { emergency_kill_version: number | string } | undefined
   return row
     ? {
-        version: Number(row.version),
+        version: POLICY_VERSION,
         emergencyKillVersion: Number(row.emergency_kill_version),
       }
     : null

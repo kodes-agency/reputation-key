@@ -414,67 +414,6 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     )
   })
 
-  test('property suspension and organization capability kill switches stop P1 immediately', async ({
-    page,
-  }) => {
-    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
-    const policyFile = 'src/contexts/identity/server/policy-admin.ts'
-
-    await callServerFn(page, {
-      file: policyFile,
-      exportName: 'setPropertySuspensionFn',
-      data: {
-        propertyId: seed.p1PropertyId,
-        suspend: true,
-        reason: 'E2E property containment probe',
-        ticketRef: 'E2E-PS1',
-      },
-    })
-    try {
-      await page.goto(`/properties/${seed.p1PropertyId}/portals`)
-      // The property is suspended, and the suspension check precedes tenancy.
-      await expectControlledUnavailable(page, 'Portals', 'temporarily_unavailable')
-      await page.goto(`/p/${seed.portalToken}`)
-      await expectPublicUnavailable(page)
-    } finally {
-      await callServerFn(page, {
-        file: policyFile,
-        exportName: 'setPropertySuspensionFn',
-        data: {
-          propertyId: seed.p1PropertyId,
-          suspend: false,
-          reason: 'E2E property containment restored',
-          ticketRef: 'E2E-PS1',
-        },
-      })
-    }
-
-    await callServerFn(page, {
-      file: policyFile,
-      exportName: 'setOrgCapabilityFn',
-      data: {
-        capability: 'portal.public_read',
-        enabled: false,
-        reason: 'E2E public Portal kill-switch probe',
-      },
-    })
-    try {
-      await page.goto(`/p/${seed.portalToken}`)
-      await expectPublicUnavailable(page)
-    } finally {
-      await callServerFn(page, {
-        file: policyFile,
-        exportName: 'setOrgCapabilityFn',
-        data: {
-          capability: 'portal.public_read',
-          enabled: true,
-          reason: 'E2E public Portal kill-switch restored',
-        },
-      })
-    }
-    await page.goto(`/p/${seed.portalToken}`)
-    await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
-  })
 
   test('cross-property Portal and email resources fail closed', async ({ page }) => {
     const log = attachRequestLog(page)

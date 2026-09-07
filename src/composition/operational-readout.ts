@@ -43,9 +43,8 @@ export type OperationalReadoutInput = Readonly<{
   redis: Redis | undefined
   enableJobs: boolean
   infra: Infrastructure
-  /** Identity-owned release and version facts. */
+  /** Identity-owned static policy revision. */
   identity: Readonly<{
-    stopPolicyPolling: () => void
     policyStoreVersion: () => number | null
   }>
   /** Notification-owned health gauges the shared snapshot joins. Typed from
@@ -171,18 +170,9 @@ export function buildOperationalReadout(input: OperationalReadoutInput) {
     domainEventsQueue: opsQueues.domainEvents,
   })
   const jobRuntimeReport = buildJobRuntimeReport(input, opsQueues)
-  // ARC-03-T6: registered in release order. Identity's persisted policy store
-  // starts a POLICY_REFRESH_INTERVAL_MS poller while the container is being
-  // built; without this hook the interval outlives every shutdown path.
-  const containerShutdown: ContainerShutdown = createContainerShutdown(
-    [
-      {
-        label: 'identity-policy-store-poller',
-        release: input.identity.stopPolicyPolling,
-      },
-    ],
-    input.logger,
-  )
+  // No context starts a background policy poller; retain the container-owned
+  // shutdown seam for deployable resources added by other composition slices.
+  const containerShutdown: ContainerShutdown = createContainerShutdown([], input.logger)
 
   return Object.freeze({
     opsQueues,

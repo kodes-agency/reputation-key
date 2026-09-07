@@ -1,6 +1,12 @@
 # ADR 0047 — Persisted policy state
 
-**Status:** Accepted
+**Status:** Superseded (2026-09-07, WP3.3-C) — the persisted policy tables
+(`organization_policy`, `organization_capability`, `property_policy`,
+`property_capability`, `policy_version`) were deleted; capability policy comes
+from `src/shared/governance/capability-fate.ts` plus the env-backed store
+(`BETA_*` variables, `src/shared/auth/beta-capabilities.ts`), and the
+organization closure fence is the `organization_lifecycle_authority` row.
+This file records the design that ran between 2026-07-17 and WP3.3-C.
 **Date:** 2026-07-17
 
 ## Context

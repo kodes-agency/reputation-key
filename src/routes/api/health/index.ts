@@ -9,7 +9,7 @@ import { isDbHealthy } from '#/shared/health/db-probe'
 import { probeHttpStatus } from '#/shared/health/probes'
 import {
   isMigrationJournalMatched,
-  isPolicyStateReadable,
+  isPolicyConfigurationReady,
   runReadiness,
 } from '#/shared/health/readiness'
 
@@ -21,7 +21,7 @@ export const Route = createFileRoute('/api/health/')({
           db: isDbHealthy,
           redis: areRedisDependenciesHealthy,
           migrations: isMigrationJournalMatched,
-          policy: isPolicyStateReadable,
+          policy: isPolicyConfigurationReady,
         })
         return new Response(JSON.stringify(result), {
           status: probeHttpStatus(result.status),

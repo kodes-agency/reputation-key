@@ -130,9 +130,7 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
       await executeWithLastOwnerGuardDisabled(db, [
         sql`DELETE FROM member WHERE "organizationId" = ${organizationId}`,
       ])
-      // The shared cleanup removes the lifecycle authority before deleting the
-      // Organization. Its policy then cascades without tripping the deliberate
-      // lifecycle fence exercised by this suite.
+      // Shared cleanup removes lifecycle authority before the Organization.
       await deleteTestOrganizations(lease.pool, [organizationId])
     }
     for (const userId of users) {
@@ -141,12 +139,9 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
     await lease.release()
   })
 
-  it('co-commits the recoverable lifecycle revision, global suspension, and minimal fact', async () => {
+  it('co-commits the recoverable lifecycle revision and minimal fact', async () => {
     const fixture = await seedFixture()
     const store = createOrganizationLifecycleCommandStore(db)
-    const versionBefore = await lease.pool.query(
-      `SELECT version::int AS version FROM policy_version WHERE scope = 'global'`,
-    )
 
     const result = await store.requestClosure(request(fixture))
 
@@ -158,24 +153,11 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
       lastReasonCode: 'account_admin_request',
     })
     expect(result.recoverableUntil).toEqual(RECOVERABLE_UNTIL)
-    const policy = await lease.pool.query(
-      `SELECT suspended_at, suspended_reason
-       FROM organization_policy WHERE organization_id = $1`,
-      [fixture.organizationId],
-    )
-    expect(policy.rows[0]).toMatchObject({
-      suspended_reason: 'lifecycle:closure_requested',
-    })
-    expect(policy.rows[0]!.suspended_at).toEqual(REQUESTED_AT)
-    const versionAfter = await lease.pool.query(
-      `SELECT version::int AS version FROM policy_version WHERE scope = 'global'`,
-    )
-    expect(versionAfter.rows[0]!.version).toBeGreaterThan(versionBefore.rows[0]!.version)
     expect(await factCount(fixture.organizationId)).toBe(1)
   })
 
   it.each(['after_state_and_fence', 'after_fact'] as const)(
-    'rolls back state, suspension, receipt, and fact when interrupted at %s',
+    'rolls back state, receipt, and fact when interrupted at %s',
     async (faultStage) => {
       const fixture = await seedFixture()
       const store = createOrganizationLifecycleCommandStore(db, {
@@ -193,11 +175,6 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
         revision: 0,
         closure_lineage_id: null,
       })
-      const policy = await lease.pool.query(
-        'SELECT 1 FROM organization_policy WHERE organization_id = $1',
-        [fixture.organizationId],
-      )
-      expect(policy.rowCount).toBe(0)
       expect(await factCount(fixture.organizationId)).toBe(0)
     },
   )
@@ -281,7 +258,7 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
     })
   })
 
-  it('cancels only inside the recoverable window and retains the global suspension', async () => {
+  it('cancels only inside the recoverable window and retains reactivation state', async () => {
     const fixture = await seedFixture()
     const store = createOrganizationLifecycleCommandStore(db)
     await store.requestClosure(request(fixture))
@@ -308,24 +285,6 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
       reactivationRequired: true,
     })
     expect(replay).toEqual(cancelled)
-    const policy = await lease.pool.query(
-      'SELECT suspended_at FROM organization_policy WHERE organization_id = $1',
-      [fixture.organizationId],
-    )
-    expect(policy.rows[0]!.suspended_at).toEqual(REQUESTED_AT)
-    expect(await factCount(fixture.organizationId)).toBe(2)
-
-    await expect(
-      lease.pool.query(
-        'UPDATE organization_policy SET suspended_at = NULL, suspended_reason = NULL WHERE organization_id = $1',
-        [fixture.organizationId],
-      ),
-    ).rejects.toThrow(/requires explicit reactivation/)
-    await expect(
-      lease.pool.query('DELETE FROM organization_policy WHERE organization_id = $1', [
-        fixture.organizationId,
-      ]),
-    ).rejects.toThrow(/requires explicit reactivation/)
   })
 
   it('allows cancellation from Closing while preserving explicit reactivation', async () => {
@@ -450,17 +409,11 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
       /invalid organization lifecycle state transition: active -> active/u,
     )
 
-    // The fence is intact: nothing was partially lifted.
     expect(await state(fixture.organizationId)).toMatchObject({
       state: 'active',
       revision: cancelled.revision,
       reactivation_required: true,
     })
-    const policy = await lease.pool.query(
-      'SELECT suspended_at FROM organization_policy WHERE organization_id = $1',
-      [fixture.organizationId],
-    )
-    expect(policy.rows[0]?.suspended_at).not.toBeNull()
   })
 
   it('advances through a recoverable Purge Pending state before the irreversible boundary', async () => {
@@ -520,7 +473,7 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
     expect(await factCount(fixture.organizationId)).toBe(5)
   })
 
-  it('allows an authorized recovery from Purge Pending while retaining the reactivation fence', async () => {
+  it('allows an authorized recovery from Purge Pending with reactivation required', async () => {
     const fixture = await seedFixture()
     const store = createOrganizationLifecycleCommandStore(db)
     const requested = await store.requestClosure(request(fixture))
@@ -562,11 +515,6 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
       reactivationRequired: true,
     })
     expect(recovered.irreversibleAt).toBeNull()
-    const policy = await lease.pool.query(
-      'SELECT suspended_at FROM organization_policy WHERE organization_id = $1',
-      [fixture.organizationId],
-    )
-    expect(policy.rows[0]!.suspended_at).toEqual(REQUESTED_AT)
     expect(await factCount(fixture.organizationId)).toBe(4)
   })
 

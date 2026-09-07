@@ -70,8 +70,3 @@ INSERT INTO capability_execution_control (capability, denied, emergency_kill_ver
 --> statement-breakpoint
 INSERT INTO capability_execution_control (capability, denied, emergency_kill_version, denied_at, drained_at, cleanup_drained_at, operator_id, reason, updated_at) VALUES ('property.publish_reply', true, 1, '2026-09-05 23:07:05.351486+03', NULL, NULL, 'migration:0124', 'reply_publication_provider_authority_default_deny', '2026-09-05 23:07:05.351486+03');
 --> statement-breakpoint
---> statement-breakpoint
-INSERT INTO identity_invitation_fact_contract (singleton, issuance_version, generation, switched_at, verified_at, operator_id, reason, created_at, updated_at) VALUES (true, 1, 1, NULL, NULL, NULL, NULL, '2026-09-05 23:07:05.351486+03', '2026-09-05 23:07:05.351486+03');
---> statement-breakpoint
-INSERT INTO policy_version (scope, version, updated_at, emergency_kill_version) VALUES ('global', 0, '2026-09-05 23:07:05.116845+03', 1);
---> statement-breakpoint

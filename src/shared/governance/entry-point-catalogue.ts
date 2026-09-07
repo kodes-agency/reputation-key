@@ -734,47 +734,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'organization',
       { externalEffect: true, notes: 'policy-wired in BQC-2.4; S3 verify' },
     ),
-    // ── policy administration (BQC-2.7; owner-only policy.admin gate) ──
-    sf(
-      'getPolicyStateFn',
-      `${IDENTITY}/policy-admin.ts`,
-      'policy.admin',
-      'identity.invite',
-      'organization',
-      { notes: 'read-only org policy state (content-free)' },
-    ),
-    sf(
-      'setOrgCapabilityFn',
-      `${IDENTITY}/policy-admin.ts`,
-      'policy.admin',
-      'identity.invite',
-      'organization',
-      { notes: 'allowlist non-core capability; reason required' },
-    ),
-    sf(
-      'setPropertyCapabilityFn',
-      `${IDENTITY}/policy-admin.ts`,
-      'policy.admin',
-      'identity.invite',
-      'property',
-      { notes: 'allowlist non-core capability for one tenant Property; reason required' },
-    ),
-    sf(
-      'setOrgSuspensionFn',
-      `${IDENTITY}/policy-admin.ts`,
-      'policy.admin',
-      'identity.invite',
-      'organization',
-      { notes: 'org suspension; reason + ticket required' },
-    ),
-    sf(
-      'setPropertySuspensionFn',
-      `${IDENTITY}/policy-admin.ts`,
-      'policy.admin',
-      'identity.invite',
-      'property',
-      { notes: 'property suspension; reason + ticket required' },
-    ),
+    // ── Property access administration (owner-only policy.admin gate) ──
     sf(
       'grantPropertyAccessFn',
       `${IDENTITY}/policy-admin.ts`,
@@ -3860,24 +3820,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
       'ops:purge — content-free static retention-rule report by default; retention apply is destructive and typed-confirmed; Review apply reaches the SAFE-03 no-mutation quarantine handler until REV-01 (BQC-7.5/GST-01)',
   }),
   ops(
-    'scripts/ops/property-suspension.ts',
-    'scripts/ops/property-suspension.ts',
-    'property',
-    {
-      notes:
-        'ops:suspend-property / ops:restore-property — property processing suspension via policyAdmin.setPropertySuspension with reason+ticket (BQC-7.5)',
-    },
-  ),
-  ops(
-    'scripts/ops/property-capabilities.ts',
-    'scripts/ops/property-capabilities.ts',
-    'property',
-    {
-      notes:
-        'ops:property-capabilities — reports and repairs a property capability allowlist against its organization (list/sync, --all for the whole org); the import provisions created properties, this repairs drift; mutation is dry-run by default (BQC-7.5)',
-    },
-  ),
-  ops(
+
     'scripts/ops/reparse-review-translations.ts',
     'scripts/ops/reparse-review-translations.ts',
     'property',
@@ -4196,15 +4139,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:google-admission-role — explicit --apply infrastructure provisioner/rotator; uses the Railway PostgreSQL owner credential to grant one login only the four journaled Google permit operations and no tables or sequences',
-    },
-  ),
-  ops(
-    'scripts/ops/identity-invitation-fact-contract.ts',
-    'scripts/ops/identity-invitation-fact-contract.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:identity-invitation-facts — report-first rolling v1→v2 fact issuance, bounded PostgreSQL/live-queue/quarantine redaction, zero-copy verification, and pre-verification rollback; mutations require quiesced queues and typed confirmation',
     },
   ),
   ops(

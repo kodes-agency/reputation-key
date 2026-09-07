@@ -140,21 +140,6 @@ beforeAll(async () => {
     )
   }
   await pool.query(
-    `INSERT INTO organization_capability (organization_id, capability)
-     VALUES ($1, 'portal.read')`,
-    [ORG],
-  )
-  await pool.query(
-    `INSERT INTO property_capability (property_id, capability)
-     VALUES ($1, 'portal.read')`,
-    [first.propertyId],
-  )
-  await pool.query(
-    `INSERT INTO property_capability (property_id, capability)
-     VALUES ($1, 'goal.use')`,
-    [first.propertyId],
-  )
-  await pool.query(
     `INSERT INTO goal_programs
        (id, organization_id, property_id, name, status, current_version,
         created_by, created_at, updated_at)

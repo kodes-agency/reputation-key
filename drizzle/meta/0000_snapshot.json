@@ -1,5 +1,5 @@
 {
-  "id": "1fa33074-8a48-4db7-a6ff-bd609abd1cd9",
+  "id": "3208c6ba-444d-457a-a5fa-4573bd8335c0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -18298,99 +18298,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.identity_invitation_fact_contract": {
-      "name": "identity_invitation_fact_contract",
-      "schema": "",
-      "columns": {
-        "singleton": {
-          "name": "singleton",
-          "type": "boolean",
-          "primaryKey": true,
-          "notNull": true,
-          "default": true
-        },
-        "issuance_version": {
-          "name": "issuance_version",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "generation": {
-          "name": "generation",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "switched_at": {
-          "name": "switched_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "verified_at": {
-          "name": "verified_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "operator_id": {
-          "name": "operator_id",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reason": {
-          "name": "reason",
-          "type": "varchar(500)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "identity_invitation_fact_contract_singleton": {
-          "name": "identity_invitation_fact_contract_singleton",
-          "value": "\"identity_invitation_fact_contract\".\"singleton\" = true"
-        },
-        "identity_invitation_fact_contract_version_valid": {
-          "name": "identity_invitation_fact_contract_version_valid",
-          "value": "\"identity_invitation_fact_contract\".\"issuance_version\" IN (1, 2)"
-        },
-        "identity_invitation_fact_contract_generation_positive": {
-          "name": "identity_invitation_fact_contract_generation_positive",
-          "value": "\"identity_invitation_fact_contract\".\"generation\" >= 1"
-        },
-        "identity_invitation_fact_contract_switch_shape": {
-          "name": "identity_invitation_fact_contract_switch_shape",
-          "value": "(\"identity_invitation_fact_contract\".\"issuance_version\" = 1 AND \"identity_invitation_fact_contract\".\"switched_at\" IS NULL AND \"identity_invitation_fact_contract\".\"verified_at\" IS NULL)\n          OR (\"identity_invitation_fact_contract\".\"issuance_version\" = 2 AND \"identity_invitation_fact_contract\".\"switched_at\" IS NOT NULL)"
-        },
-        "identity_invitation_fact_contract_operator_shape": {
-          "name": "identity_invitation_fact_contract_operator_shape",
-          "value": "(\"identity_invitation_fact_contract\".\"operator_id\" IS NULL) = (\"identity_invitation_fact_contract\".\"reason\" IS NULL)"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.identity_organization_lifecycle_receipts": {
       "name": "identity_organization_lifecycle_receipts",
       "schema": "",
@@ -23276,6 +23183,10 @@
         "outbox_events_recovery_fence_pair_check": {
           "name": "outbox_events_recovery_fence_pair_check",
           "value": "(\"outbox_events\".\"recovery_fence_run_id\" IS NULL) = (\"outbox_events\".\"recovery_fenced_at\" IS NULL)"
+        },
+        "outbox_events_identity_member_invited_v2_check": {
+          "name": "outbox_events_identity_member_invited_v2_check",
+          "value": "\"outbox_events\".\"event_type\" <> 'identity.member.invited'\n        OR (\n          \"outbox_events\".\"event_version\" = 2\n          AND jsonb_typeof(\"outbox_events\".\"payload\") = 'object'\n          AND NOT (\"outbox_events\".\"payload\" ? 'email')\n        )"
         }
       },
       "isRLSEnabled": false
@@ -24458,125 +24369,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.organization_capability": {
-      "name": "organization_capability",
-      "schema": "",
-      "columns": {
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "capability": {
-          "name": "capability",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "organization_capability_organization_id_organization_id_fk": {
-          "name": "organization_capability_organization_id_organization_id_fk",
-          "tableFrom": "organization_capability",
-          "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "organization_capability_organization_id_capability_pk": {
-          "name": "organization_capability_organization_id_capability_pk",
-          "columns": [
-            "organization_id",
-            "capability"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.organization_policy": {
-      "name": "organization_policy",
-      "schema": "",
-      "columns": {
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "cohort": {
-          "name": "cohort",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'beta'"
-        },
-        "suspended_at": {
-          "name": "suspended_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "suspended_reason": {
-          "name": "suspended_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "organization_policy_organization_id_organization_id_fk": {
-          "name": "organization_policy_organization_id_organization_id_fk",
-          "tableFrom": "organization_policy",
-          "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.policy_consent": {
       "name": "policy_consent",
       "schema": "",
@@ -24709,46 +24501,6 @@
           "value": "\"policy_consent\".\"state\" IN ('granted', 'revoked')"
         }
       },
-      "isRLSEnabled": false
-    },
-    "public.policy_version": {
-      "name": "policy_version",
-      "schema": "",
-      "columns": {
-        "scope": {
-          "name": "scope",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "version": {
-          "name": "version",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "emergency_kill_version": {
-          "name": "emergency_kill_version",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.property_access_grant": {
@@ -24909,118 +24661,6 @@
           "value": "\"property_access_grant\".\"source\" IN ('operator', 'migration', 'invitation')"
         }
       },
-      "isRLSEnabled": false
-    },
-    "public.property_capability": {
-      "name": "property_capability",
-      "schema": "",
-      "columns": {
-        "property_id": {
-          "name": "property_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "capability": {
-          "name": "capability",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "property_capability_property_id_properties_id_fk": {
-          "name": "property_capability_property_id_properties_id_fk",
-          "tableFrom": "property_capability",
-          "tableTo": "properties",
-          "columnsFrom": [
-            "property_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "property_capability_property_id_capability_pk": {
-          "name": "property_capability_property_id_capability_pk",
-          "columns": [
-            "property_id",
-            "capability"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.property_policy": {
-      "name": "property_policy",
-      "schema": "",
-      "columns": {
-        "property_id": {
-          "name": "property_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "suspended_at": {
-          "name": "suspended_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "suspended_reason": {
-          "name": "suspended_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "property_policy_property_id_properties_id_fk": {
-          "name": "property_policy_property_id_properties_id_fk",
-          "tableFrom": "property_policy",
-          "tableTo": "properties",
-          "columnsFrom": [
-            "property_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.merchant_ai_consent_evidence": {

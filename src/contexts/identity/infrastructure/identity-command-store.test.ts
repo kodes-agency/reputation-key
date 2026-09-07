@@ -858,7 +858,9 @@ describe('createAtomicIdentityCommandStore', () => {
       for (const { tag, make } of cases) {
         const row = toOutboxEvent(make())
         expect(row.eventType, tag).toBe(tag)
-        expect(() => validateEventPayload(tag, 1, row.payload), tag).not.toThrow()
+        expect(row.eventVersion, tag).toBeTypeOf('number')
+        const version = row.eventVersion as number
+        expect(() => validateEventPayload(tag, version, row.payload), tag).not.toThrow()
       }
     })
 

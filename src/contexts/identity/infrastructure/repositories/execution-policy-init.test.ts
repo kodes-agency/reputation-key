@@ -1,9 +1,9 @@
 // BQC-2.4 — ExecutionPolicy composition wiring proof (real PostgreSQL).
 //
-// initPersistedCapabilityPolicyStore installs BOTH policies: the composite
-// capability store (BQC-2.2) and the ExecutionPolicy (BQC-2.4) with the
-// identity-owned grant and consent dependencies. Proves the production seam:
-// org-wide allows, assigned-scope without grant denies, and grant allows.
+// initCapabilityPolicyStore builds both policies with process-static capability
+// configuration and the identity-owned live grant and consent dependencies.
+// Proves the production seam: org-wide allows, assigned scope without a grant
+// denies, and a committed grant allows.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
@@ -19,7 +19,7 @@ import {
   bindProcessPolicies,
   releaseProcessPolicies,
 } from '#/shared/auth/process-policy-binding'
-import { initPersistedCapabilityPolicyStore } from '../policy-store-init'
+import { initCapabilityPolicyStore } from '../policy-store-init'
 import { grantPropertyAccess } from './property-access-grant.repository'
 import { organizationId, userId, propertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -70,7 +70,7 @@ beforeAll(async () => {
   // installation is the explicit bind, which is what production entry points
   // now do too.
   bindProcessPolicies(
-    initPersistedCapabilityPolicyStore({
+    initCapabilityPolicyStore({
       db,
       env: {} as CapabilityPolicyEnv,
       clock: () => new Date(),
@@ -109,7 +109,7 @@ describe('ExecutionPolicy composition wiring (BQC-2.4)', () => {
       }),
     ).rejects.toMatchObject({ _tag: 'AuthError', code: 'scope_denied', status: 403 })
 
-    // Grant access — the next decision allows (policy_version-keyed cache).
+    // Grant access — the next live decision observes it.
     await grantPropertyAccess(db, {
       organizationId: ORG,
       propertyId: PROP,

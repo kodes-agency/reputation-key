@@ -53,7 +53,7 @@ const EXPECTED_TABLES = [
   'inbox_items',
   'inbox_notes',
   'inbox_user_views',
-  'identity_invitation_fact_contract',
+
   'metric_readings',
   // Migrations 0046-0054 (AI private-beta control plane and read models)
   'review_ai_analysis_heads',

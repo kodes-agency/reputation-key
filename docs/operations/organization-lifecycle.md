@@ -119,9 +119,7 @@ Database triggers enforce:
   immutable;
 - transition time cannot move backwards;
 - a recovered Organization cannot begin another closure until explicit
-  reactivation clears its fence; and
-- generic `organization_policy` writes cannot clear/delete the suspension
-  while closure or reactivation work remains.
+  reactivation clears its fence.
 
 ## Request and ordinary cancellation
 
@@ -132,10 +130,9 @@ support reference, and exact 30-day deadline.
 
 The transaction co-commits:
 
-1. lifecycle revision and closure lineage;
-2. `organization_policy` suspension and global policy generation;
-3. `identity.organization_lifecycle.changed` in the outbox; and
-4. an exact request/cancel retry receipt.
+1. lifecycle revision and closure lineage (the live closure fence);
+2. `identity.organization_lifecycle.changed` in the outbox; and
+3. an exact request/cancel retry receipt.
 
 An interruption before commit rolls back the entire result. Replaying the same
 operation ID with the same binding returns the recorded result; changing its
@@ -433,7 +430,6 @@ Use exact tenant/request identifiers and read only:
   Identity phase results when reviewed phase work is explicitly bound;
 - `organization_export_retrieval_issuances` for append-only, digest-only
   evidence that every old retrieval authority remains dead;
-- `organization_policy` and `policy_version` for the durable suspension fence;
 - `organization_exports` for content-free generation/retrieval/deletion state;
 - `audit_logs` actions `privacy_request.received`,
   `sensitive_data.exported`, and `sensitive_data.accessed`; and

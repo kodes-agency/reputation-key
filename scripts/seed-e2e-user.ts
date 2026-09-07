@@ -17,10 +17,7 @@ import { hashPassword } from 'better-auth/crypto'
 import { getAuth } from '../src/shared/auth/auth'
 import { getDb } from '../src/shared/db'
 import { account, user, member, organization } from '../src/shared/db/schema/auth'
-import {
-  organizationCapability,
-  propertyCapability,
-} from '../src/shared/db/schema/policy.schema'
+
 import { properties } from '../src/shared/db/schema/property.schema'
 import {
   portals,
@@ -52,17 +49,10 @@ import {
   notificationEmailQueue,
   notificationPreferences,
 } from '../src/shared/db/schema/notification.schema'
-import { LOCAL_BETA_CAPABILITIES } from '../src/shared/config/local-stack-contract'
 import {
   grantPropertyAccess,
   hasActiveGrant,
 } from '../src/contexts/identity/infrastructure/repositories/property-access-grant.repository'
-import {
-  addOrganizationCapability,
-  addPropertyCapability,
-  setOrganizationPolicy,
-  setPropertyPolicy,
-} from '../src/contexts/identity/infrastructure/repositories/policy-state.repository'
 import {
   betterAuthOrganizationSchema,
   parseBetterAuthResponse,
@@ -827,64 +817,6 @@ async function grantAccess(
   }
 }
 
-async function ensurePolicyLandscape(input: {
-  orgAId: string
-  managerUserId: string
-  p1Id: string
-  offPropertyIds: readonly string[]
-}): Promise<void> {
-  const db = getDb()
-  await setOrganizationPolicy(db, {
-    organizationId: input.orgAId,
-    cohort: 'beta-local',
-    suspendedAt: null,
-    suspendedReason: null,
-  })
-  await setPropertyPolicy(db, {
-    propertyId: input.p1Id,
-    suspendedAt: null,
-    suspendedReason: null,
-  })
-
-  const orgRows = await db
-    .select({ capability: organizationCapability.capability })
-    .from(organizationCapability)
-    .where(eq(organizationCapability.organizationId, input.orgAId))
-  const propertyRows = await db
-    .select({ capability: propertyCapability.capability })
-    .from(propertyCapability)
-    .where(eq(propertyCapability.propertyId, input.p1Id))
-  const orgCapabilities = new Set(orgRows.map((row) => row.capability))
-  const p1Capabilities = new Set(propertyRows.map((row) => row.capability))
-  for (const capability of LOCAL_BETA_CAPABILITIES) {
-    if (!orgCapabilities.has(capability)) {
-      await addOrganizationCapability(db, input.orgAId, capability, input.managerUserId)
-    }
-    if (!p1Capabilities.has(capability)) {
-      await addPropertyCapability(db, input.p1Id, capability, input.managerUserId)
-    }
-  }
-
-  for (const propertyId of input.offPropertyIds) {
-    await setPropertyPolicy(db, {
-      propertyId,
-      suspendedAt: null,
-      suspendedReason: null,
-    })
-    await db
-      .delete(propertyCapability)
-      .where(eq(propertyCapability.propertyId, propertyId))
-  }
-  await setOrganizationPolicy(db, {
-    organizationId: LOCKED_ORG_ID,
-    cohort: 'locked',
-    suspendedAt: null,
-    suspendedReason: null,
-  })
-  await db
-    .delete(organizationCapability)
-    .where(eq(organizationCapability.organizationId, LOCKED_ORG_ID))
-}
 
 async function ensurePortalFixtures(
   organizationId: string,
@@ -1456,12 +1388,6 @@ async function main(): Promise<void> {
   await grantAccess(orgAId, p1Id, candidateAUserId)
   await grantAccess(orgAId, p1Id, candidateBUserId)
   await grantAccess(orgAId, p1Id, onePropertyManagerUserId)
-  await ensurePolicyLandscape({
-    orgAId,
-    managerUserId,
-    p1Id,
-    offPropertyIds: [p2Id, p3Id, ...boundedIds],
-  })
 
   const p1Portal = await ensurePortal(orgAId, p1Id, P1_PORTAL_FIXTURE)
   const p2Portal = await ensurePortal(orgAId, p2Id, P2_PORTAL_FIXTURE)

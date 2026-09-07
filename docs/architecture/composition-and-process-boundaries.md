@@ -41,8 +41,7 @@ fails with
 ```
 
 This matters because a container owns process-visible resources: the capability
-policy trio, the durable outbox consumer registry, the identity policy poller,
-and queue connections. A second container would silently install a second set,
+policy trio, the durable outbox consumer registry, and queue connections. A second container would silently install a second set,
 and the process would answer policy questions from whichever one happened to be
 bound.
 

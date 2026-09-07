@@ -1,11 +1,8 @@
 // ARC-03-T6 — the shutdown seam's own contract.
 //
-// src/composition.lifecycle.test.ts proves the INTEGRATION: a built container
-// stops the identity policy poller. What it cannot show is what the seam does
-// when a hook misbehaves — the container registers exactly one hook
-// (operational-readout.ts, 'identity-policy-store-poller') and nothing in that
-// test makes it fail. These are the properties the module's header claims and
-// that the integration test would stay green without:
+// src/composition.lifecycle.test.ts proves the integration ordering. These
+// tests cover the reusable seam's behavior when one of several release hooks
+// fails or concurrent shutdown callers race.
 //
 //   - hooks run in registration order, one after the other (the comment at the
 //     registration site says "registered in release order");

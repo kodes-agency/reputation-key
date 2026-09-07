@@ -30,7 +30,6 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 import type { ExecutionDecision } from '#/shared/auth/execution-policy'
 import { initExecutionPolicy, resetExecutionPolicy } from '#/shared/auth/execution-policy'
-import type { RequiredPolicyRefreshResult } from '#/shared/auth/persisted-policy-store'
 import type { OutboxRepository } from '#/shared/outbox'
 
 /** Query-free guard: any DB access during construction throws. */
@@ -76,7 +75,7 @@ function buildDeps(overrides: {
   googlePerformancePrincipalKeys?: ReturnType<typeof createVersionedHmacKeyring>
   providerAuthorizationLeases?: ProviderAuthorizationLeaseService
   oauthStateHandles?: OAuthStateHandleService
-  refreshPolicyStoreRequired?: () => Promise<RequiredPolicyRefreshResult>
+  refreshPolicyStoreRequired?: () => Promise<void>
   assertDirectCredentialEgressAllowed?: (operation: string) => void
 }) {
   return {
@@ -313,16 +312,9 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
   })
 })
 
-// `persisted-policy-store.ts` on refreshRequired: "Mandatory provider/effect
-// refresh. Failure is explicit and never authorizes from cache." This build is
-// where the import's `decide` dep is assembled, and it used to `await` that
-// refresh and drop the result — so a refresh that reported
-// `{ unavailable: true }` (which leaves the PREVIOUS snapshot in place) still
-// produced a decision, from the very cache the refresh had just failed to
-// renew. A concurrent import item's capability provisioning bumps the global
-// policy_version, which is exactly what makes that refresh fail, and the stale
-// snapshot then denied a sibling item `property_not_allowlisted` and cancelled
-// it permanently.
+// The provider/effect path awaits Identity's policy observation before it
+// executes. Static policy makes this an immediate successful observation, but
+// retaining the ordering prevents composition from bypassing the control seam.
 describe('buildIntegrationContext mandatory policy refresh', () => {
   afterEach(() => {
     resetExecutionPolicy()
@@ -336,9 +328,7 @@ describe('buildIntegrationContext mandatory policy refresh', () => {
   }
   const connectionId = googleConnectionId('11111111-1111-4111-8111-111111111111')
 
-  function discoveryWithRefresh(
-    refreshPolicyStoreRequired: () => Promise<RequiredPolicyRefreshResult>,
-  ) {
+  function discoveryWithRefresh(refreshPolicyStoreRequired: () => Promise<void>) {
     const decide = vi.fn(async (): Promise<ExecutionDecision> => ({
       allowed: true,
       reason: 'allowed',
@@ -365,27 +355,9 @@ describe('buildIntegrationContext mandatory policy refresh', () => {
     return { discovery: discovery!, decide }
   }
 
-  it('never reaches the execution policy when the mandatory refresh is unavailable', async () => {
-    const { discovery, decide } = discoveryWithRefresh(async () => ({
-      unavailable: true,
-    }))
 
-    await expect(discovery.listAccounts({ connectionId }, actor)).rejects.toMatchObject({
-      code: 'unauthorized',
-    })
-
-    // The whole point: no decision is taken at all. Asserting on the outcome
-    // alone would not detect a regression — deciding from the stale snapshot
-    // and then failing on the stubbed connection repository denies with the
-    // same 'unauthorized' code.
-    expect(decide).not.toHaveBeenCalled()
-  })
-
-  it('reaches the execution policy once the mandatory refresh succeeds', async () => {
-    const { discovery, decide } = discoveryWithRefresh(async () => ({
-      version: 7,
-      emergencyKillVersion: 2,
-    }))
+  it('reaches the execution policy after observing the static policy', async () => {
+    const { discovery, decide } = discoveryWithRefresh(async () => {})
 
     await expect(discovery.listAccounts({ connectionId }, actor)).rejects.toMatchObject({
       code: 'unauthorized',

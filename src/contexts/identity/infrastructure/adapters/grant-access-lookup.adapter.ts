@@ -1,44 +1,26 @@
-// BQC-2.3 — grant-backed accessible-property lookup (identity-owned).
+// Grant-backed accessible-property lookup (identity-owned).
 //
-// Reads only property_access_grant (active, unexpired) — ADR 0039: explicit
-// grants are the sole authorization source for property scope. Cache is
-// keyed on the global policy_version (grants bump it in the same statement),
-// so a grant or revoke is visible on the very next call; TTL is only a
-// fallback bound. Mirrors the AC-04 version-keyed pattern that previously
-// cached the staff_assignment-derived set in middleware.ts.
+// Reads property_access_grant live on every decision. Grants are the sole
+// authorization source for property scope, so a committed grant or revocation
+// is visible without a cache-generation side channel.
 
 import type { Database } from '#/shared/db'
-import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
+import type { OrganizationId, UserId } from '#/shared/domain/ids'
 import { propertyId } from '#/shared/domain/ids'
 import {
   listActiveGrantUserIdsForProperty,
   listActiveGrantsForUser,
 } from '../repositories/property-access-grant.repository'
-import { getPolicyVersion } from '../repositories/policy-state.repository'
 import type { AccessiblePropertyLookupPort } from '#/contexts/staff/application/ports/accessible-property-lookup.port'
 
-const CACHE_TTL_MS = 60_000
-const CACHE_MAX_SIZE = 200
 
 export const createGrantAccessLookup = (
   db: Database,
   clock: () => Date,
 ): AccessiblePropertyLookupPort => {
-  const cache = new Map<string, { ids: ReadonlyArray<PropertyId>; ts: number }>()
-
-  return async (orgId: OrganizationId, userId: UserId) => {
-    const now = clock()
-    // Cheap PK read per call — the version IS the invalidation token.
-    const version = await getPolicyVersion(db)
-    const key = `${orgId}:${userId}:${version}`
-    const cached = cache.get(key)
-    if (cached && now.getTime() - cached.ts < CACHE_TTL_MS) return cached.ids
-
-    const grants = await listActiveGrantsForUser(db, orgId, userId, now)
-    const ids = [...new Set(grants.map((g) => propertyId(g.propertyId)))]
-    if (cache.size >= CACHE_MAX_SIZE) cache.clear()
-    cache.set(key, { ids, ts: now.getTime() })
-    return ids
+  return async (orgId: OrganizationId, uid: UserId) => {
+    const grants = await listActiveGrantsForUser(db, orgId, uid, clock())
+    return [...new Set(grants.map((grant) => propertyId(grant.propertyId)))]
   }
 }
 

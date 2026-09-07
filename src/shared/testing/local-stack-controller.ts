@@ -111,20 +111,13 @@ export function createMigrationHeadProof(
 }
 
 export function deterministicFixtureHash(
-  input: Readonly<{
-    seed: string
-    properties: number
-    p1Properties: number
-    capabilities: readonly string[]
-  }>,
+  input: Readonly<{ seed: string; properties: number }>,
 ): string {
   return sha256(
     JSON.stringify({
-      version: 'fleet-local-2',
+      version: 'fleet-local-3',
       seed: input.seed,
       properties: input.properties,
-      p1Properties: input.p1Properties,
-      capabilities: [...input.capabilities].sort(),
     }),
   )
 }

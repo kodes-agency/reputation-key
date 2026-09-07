@@ -1259,7 +1259,6 @@ async function scale(mode: LocalStackMode, preserveArtifacts = false): Promise<s
     runner('seed-fleet', [
       '--seed=beta-local-fleet-v1',
       '--properties=5000',
-      '--p1-ratio=0.5',
       '--artifact=/artifacts/perf/fleet-fixture.json',
     ])
     const scaleEvidencePath = resolve(state.artifacts, 'perf/scale-dataset.json')

@@ -6,7 +6,6 @@ import {
   capabilityExecutionControl,
   credentialRevokePermits,
   googleCredentialSourceOperations,
-  policyVersion,
 } from '#/shared/db/schema'
 import { GOOGLE_CONTENT_CAPABILITIES } from '#/shared/auth/google-content-contract'
 import type {
@@ -15,6 +14,9 @@ import type {
 } from '#/shared/auth/google-content-authority'
 import type { AuthorizationExecutionPermit } from '#/shared/auth/authorization-execution-permit'
 
+
+/** Revision of the static TypeScript capability policy used in permit vectors. */
+const POLICY_VERSION = 1
 const authorizationVectorSchema = z.record(
   z.string(),
   z.union([z.string(), z.number().finite(), z.boolean(), z.null()]),
@@ -25,6 +27,19 @@ const emergencyKillVersionRowSchema = z.object({
 const countRowSchema = z.object({
   value: z.union([z.number(), z.string().regex(/^[0-9]+$/)]),
 })
+
+async function nextEmergencyKillVersion(tx: Database): Promise<number> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended('google-content-emergency-generation', 0))`,
+  )
+  const result = await tx.execute(sql`
+    SELECT COALESCE(MAX(emergency_kill_version), 0) + 1 AS emergency_kill_version
+    FROM capability_execution_control
+  `)
+  return Number(
+    emergencyKillVersionRowSchema.parse(result.rows[0]).emergency_kill_version,
+  )
+}
 
 type PermitRow = typeof authorizationExecutionPermits.$inferSelect
 
@@ -62,28 +77,23 @@ export const createGoogleContentAuthorityRepository = (
     transaction: (run) => db.transaction((tx) => run(tx as unknown as Database)),
 
     loadControl: async (tx) => {
-      const rows = await tx
-        .select({
-          policyVersion: policyVersion.version,
-          emergencyKillVersion: policyVersion.emergencyKillVersion,
-        })
-        .from(policyVersion)
-        .where(eq(policyVersion.scope, 'global'))
-        .limit(1)
       const controls = await tx
         .select({
           capability: capabilityExecutionControl.capability,
           denied: capabilityExecutionControl.denied,
+          emergencyKillVersion: capabilityExecutionControl.emergencyKillVersion,
         })
         .from(capabilityExecutionControl)
-      const explicitlyAllowed = new Set(
-        controls.filter((row) => !row.denied).map((row) => row.capability),
+      const emergencyKillVersion = controls.reduce(
+        (maximum, row) => Math.max(maximum, row.emergencyKillVersion),
+        0,
       )
       return {
-        policyVersion: rows[0]?.policyVersion ?? 0,
-        emergencyKillVersion: rows[0]?.emergencyKillVersion ?? 0,
+        policyVersion: POLICY_VERSION,
+        emergencyKillVersion,
         killedCapabilities: GOOGLE_CONTENT_CAPABILITIES.filter(
-          (capability) => !explicitlyAllowed.has(capability),
+          (capability) =>
+            !controls.some((row) => row.capability === capability && !row.denied),
         ),
       }
     },
@@ -173,16 +183,7 @@ export const createGoogleContentAuthorityRepository = (
     },
 
     denyCapability: async (tx, capability, input) => {
-      const result = await tx.execute(sql`
-        INSERT INTO policy_version (scope, version, emergency_kill_version, updated_at)
-        VALUES ('global', 0, 1, ${input.deniedAt})
-        ON CONFLICT (scope) DO UPDATE
-        SET emergency_kill_version = policy_version.emergency_kill_version + 1,
-            updated_at = EXCLUDED.updated_at
-        RETURNING emergency_kill_version
-      `)
-      const versionRow = emergencyKillVersionRowSchema.parse(result.rows[0])
-      const emergencyKillVersion = Number(versionRow.emergency_kill_version)
+      const emergencyKillVersion = await nextEmergencyKillVersion(tx)
       await tx
         .insert(capabilityExecutionControl)
         .values({
@@ -216,16 +217,7 @@ export const createGoogleContentAuthorityRepository = (
     },
 
     allowCapability: async (tx, capability, input) => {
-      const result = await tx.execute(sql`
-        INSERT INTO policy_version (scope, version, emergency_kill_version, updated_at)
-        VALUES ('global', 0, 1, ${input.changedAt})
-        ON CONFLICT (scope) DO UPDATE
-        SET emergency_kill_version = policy_version.emergency_kill_version + 1,
-            updated_at = EXCLUDED.updated_at
-        RETURNING emergency_kill_version
-      `)
-      const versionRow = emergencyKillVersionRowSchema.parse(result.rows[0])
-      const emergencyKillVersion = Number(versionRow.emergency_kill_version)
+      const emergencyKillVersion = await nextEmergencyKillVersion(tx)
       await tx
         .insert(capabilityExecutionControl)
         .values({

@@ -678,12 +678,7 @@ export async function seedGoogleConnection(input: {
 
 // ── Property / review fixtures ────────────────────────────────────────
 
-/**
- * Mirror of scripts/seed-e2e-user.ts's grantAccess (→ grantPropertyAccess):
- * idempotent over the ACTIVE grant, and it commits the global policy_version
- * bump in the SAME statement as the insert, so a snapshot reader can never
- * observe the grant without its version.
- */
+/** Idempotent mirror of the surviving PropertyAccessGrant authority. */
 async function grantPropertyAccessFixture(input: {
   organizationId: string
   propertyId: string
@@ -699,20 +694,9 @@ async function grantPropertyAccessFixture(input: {
   )
   if (active.length > 0) return
   await dbQuery(
-    `WITH bump AS (
-       INSERT INTO policy_version (scope, version, updated_at)
-       VALUES ('global', 1, now())
-       ON CONFLICT (scope) DO UPDATE
-         SET version = policy_version.version + 1, updated_at = now()
-       RETURNING version
-     ),
-     ins AS (
-       INSERT INTO property_access_grant
-         (organization_id, property_id, user_id, source, created_by)
-       VALUES ($1, $2, $3, 'operator', $3)
-       RETURNING id
-     )
-     SELECT id FROM ins`,
+    `INSERT INTO property_access_grant
+       (organization_id, property_id, user_id, source, created_by)
+     VALUES ($1, $2, $3, 'operator', $3)`,
     [input.organizationId, input.propertyId, input.userId],
   )
 }

@@ -846,14 +846,7 @@ const memberInvitedV2Schema = z.object({
   email: z.never().optional(),
 })
 
-// Rolling expand compatibility: the old v1 dispatcher requires an `email`
-// string. New producers never supply it; the database issuance trigger adds
-// only the structural `[redacted]` sentinel while v1 remains active. Optional
-// lets the new producer validate its pre-trigger payload and lets the new
-// dispatcher consume already-scrubbed v1 rows during cutover.
-const memberInvitedV1Schema = memberInvitedV2Schema.extend({
-  email: z.string().optional(),
-})
+// Invitation facts are emitted only in their content-minimal v2 shape.
 
 const invitationAcceptedSchema = z.object({
   organizationId: z.string(),
@@ -1596,11 +1589,6 @@ export function registerAllEventSchemas(): void {
   })
 
   // Identity events (consumed by activity)
-  registerEventSchema({
-    type: 'identity.member.invited',
-    version: EVENT_VERSION,
-    schema: memberInvitedV1Schema,
-  })
   registerEventSchema({
     type: 'identity.member.invited',
     version: 2,

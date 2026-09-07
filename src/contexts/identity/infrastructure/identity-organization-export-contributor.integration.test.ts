@@ -88,12 +88,6 @@ async function seedFixture(): Promise<Fixture> {
      ) VALUES ($1, 'auditor', 'assigned-properties', $2, $2)`,
     [fixture.organizationId, createdAt],
   )
-  await lease.pool.query(
-    `INSERT INTO organization_capability (
-       organization_id, capability, created_by, created_at
-     ) VALUES ($1, 'portal.read', $2, $3)`,
-    [fixture.organizationId, fixture.userId, createdAt],
-  )
 
   // These rows carry material that Organization Export must never query.
   await lease.pool.query(
@@ -224,7 +218,6 @@ describe.sequential('Identity Organization Export contributor', () => {
       ],
       customRoles: [{ id: fixture.roleId, role: 'auditor' }],
       rolePolicies: [{ role: 'auditor', data_scope: 'assigned-properties' }],
-      organizationCapabilities: [{ capability: 'portal.read' }],
     })
     const archiveText = first.entries
       .map(({ bytes }) => Buffer.from(bytes).toString('utf8'))

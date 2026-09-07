@@ -588,23 +588,6 @@ describe('AI operation store (real PostgreSQL)', () => {
       createdAt: new Date(NOW),
       updatedAt: new Date(NOW),
     })
-    // `organization_capability` is keyed by PURPOSE, which is what
-    // provisionPropertyCapabilities writes in production — not by capability.
-    // This fixture used to insert 'review_analysis'/'reply_drafting'/
-    // 'property_trends', which made admission pass here while denying every real
-    // property with `authorization_changed` (repaired in drizzle/0063).
-    await db.execute(sql`
-      INSERT INTO organization_capability (
-        organization_id, capability, created_by, created_at
-      ) VALUES
-        (${ORGANIZATION_ID}, 'ai.analyze', 'ai-operation-test-actor', ${new Date(NOW)}),
-        (${ORGANIZATION_ID}, 'ai.generate_reply', 'ai-operation-test-actor', ${new Date(NOW)}),
-        (${ORGANIZATION_ID}, 'ai.detect_trends', 'ai-operation-test-actor', ${new Date(NOW)})
-      ON CONFLICT DO NOTHING
-    `)
-    // Deliberately NO property_policy row: rows are written only by
-    // setPropertyPolicy (the suspend/restore command), so a property that has
-    // never been suspended has none. Seeding one here hid the inverted guard.
     const capabilityRuntimeProfileVersions = {
       review_analysis: 'review-analysis-runtime-v1',
       reply_drafting: 'reply-drafting-runtime-v1',

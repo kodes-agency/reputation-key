@@ -36,17 +36,13 @@ import { updateOrganization } from './application/use-cases/update-organization'
 import type { AuthSessionPort } from './application/ports/auth-session.port'
 import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
 import { createInvitedRegistrationStore } from './infrastructure/invited-registration-store'
-import { initPersistedCapabilityPolicyStore } from './infrastructure/policy-store-init'
+import { initCapabilityPolicyStore } from './infrastructure/policy-store-init'
 import { createPolicyAdminOps } from './application/use-cases/policy-admin'
 import { createPolicyDiagnostic } from '#/shared/auth/policy-diagnostic'
 import { createCapabilityRefusalExplainer } from '#/shared/governance/capability-refusal'
 import { createCapabilityRefusalReaders } from './infrastructure/repositories/capability-refusal.repository'
 import {
-  isCoreCapability,
-  isBlockedCapability,
-  listAllCapabilities,
   checkScopedCapability,
-  type Capability,
   type CapabilityPolicyEnv,
 } from '#/shared/auth/beta-capabilities'
 import { createMerchantAiAuthorization } from './application/use-cases/merchant-ai-authorization'
@@ -58,15 +54,11 @@ import {
   MERCHANT_AI_REDACTION_PROFILE_FAMILY,
   MERCHANT_AI_SOURCE_POLICY_ID,
 } from './application/dto/merchant-ai-notice.dto'
-import {
-  getMemberRole,
-  loadOrgPolicyState,
-} from './infrastructure/repositories/policy-state.repository'
+import { getMemberRole } from './infrastructure/repositories/manager-membership.repository'
 import {
   grantPropertyAccess,
   revokeAllPropertyAccessForUser,
   hasActiveGrant,
-  listActiveGrantsForOrg,
 } from './infrastructure/repositories/property-access-grant.repository'
 import { createPropertyGrantHolderLookup } from './infrastructure/adapters/grant-access-lookup.adapter'
 import { createPostgresPolicyAdminCommandStore } from './infrastructure/policy-admin-command-store'
@@ -362,7 +354,7 @@ function deriveLifecycleCompositionReadiness(deps: IdentityContextDeps) {
 function buildOrganizationLifecycleComposition(
   deps: IdentityContextDeps,
   bindings: Readonly<{
-    policyStore: ReturnType<typeof initPersistedCapabilityPolicyStore>
+    policyStore: ReturnType<typeof initCapabilityPolicyStore>
     managerMembershipRepo: ReturnType<typeof createManagerMembershipRepository>
   }>,
 ) {
@@ -374,14 +366,7 @@ function buildOrganizationLifecycleComposition(
     // Thunk: `reactivate` is constructed below, and a closure must not be
     // armable in a deployment that cannot undo it.
     reactivationConfigured: () => reactivate !== null,
-    refreshPolicy: async () => {
-      const result = await policyStore.refreshRequired()
-      if ('unavailable' in result) {
-        // The command is already durable and retry-safe. A caller must retry
-        // the same operation id; do not claim this process observes the fence.
-        throw new Error('Organization closure committed; policy refresh unavailable')
-      }
-    },
+    refreshPolicy: policyStore.refreshRequired,
   })
   const {
     lifecycleContributorReadiness,
@@ -433,14 +418,7 @@ function buildOrganizationLifecycleComposition(
         store: organizationLifecycleStore,
         readiness: createDefaultOrganizationReactivationReadiness(reactivationProbes),
         clock: deps.clock,
-        refreshPolicy: async () => {
-          const result = await policyStore.refreshRequired()
-          if ('unavailable' in result) {
-            // The suspension is already lifted durably. Do not claim this
-            // process observes it; the caller must retry the same operation id.
-            throw new Error('Organization reactivated; policy refresh unavailable')
-          }
-        },
+        refreshPolicy: policyStore.refreshRequired,
       })
     : null
 
@@ -532,12 +510,9 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   }
   const invitedRegistrationStore = createInvitedRegistrationStore(deps.db)
 
-  // BQC-2.2: install the composite capability policy store — env global
-  // posture (kill switch / e2e overrides unchanged) + persisted tenant state
-  // (allowlist/suspension from the 0014 policy tables). The env seed unions
-  // in, so behavior is identical until DB policy rows exist; revocation and
-  // suspension take effect within POLICY_REFRESH_INTERVAL_MS.
-  const policyStore = initPersistedCapabilityPolicyStore({
+  // Capability fate and environment controls are process-static. Tenant
+  // grants, consent, and the execution kill switch retain their live reads.
+  const policyStore = initCapabilityPolicyStore({
     db: deps.db,
     env: deps.policy.env,
     clock: deps.clock,
@@ -592,9 +567,8 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     redactionProfileFamily: MERCHANT_AI_REDACTION_PROFILE_FAMILY,
   })
 
-  // BQC-2.7: least-privilege policy administration operations.
-  // Identity-owned persistence is bound here; the application layer stays
-  // orchestration-only.
+  // PropertyAccessGrant administration. Capability configuration is immutable
+  // for the process and has no table-backed admin mutations.
   const policyDiagnostic = createPolicyDiagnostic({
     getMemberRole: (orgId, uid) => getMemberRole(deps.db, orgId, uid),
     hasActiveGrant: (input) => hasActiveGrant(deps.db, input),
@@ -605,16 +579,11 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   )
   const policyAdmin = Object.freeze({
     ...createPolicyAdminOps({
-      clock: deps.clock,
-      isCoreCapability: (cap) => isCoreCapability(cap as Capability),
-      isBlockedCapability: (cap) => isBlockedCapability(cap as Capability),
-      listAllCapabilities,
+
       explainPolicyDecision: (input) => policyDiagnostic(input),
-      refreshPolicy: () => policyStore.refresh(),
       commandStore: policyAdminCommandStore,
-      loadOrgPolicyState: (orgId) => loadOrgPolicyState(deps.db, orgId),
       reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
-      listActiveGrantsForOrg: (orgId, at) => listActiveGrantsForOrg(deps.db, orgId, at),
+
     }),
     explainCapabilityRefusal,
   })
@@ -806,18 +775,11 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     policy: Object.freeze({
       // BQC-2.7: least-privilege policy administration operations.
       admin: policyAdmin,
-      // BQC-2.2: version-gated strong read of persisted policy state
-      // (readiness contribution — the worker awaits it before starting).
+      // Static policy is already current; these async no-ops preserve the
+      // deployment boot/readiness contract without a background poller.
       refresh: policyStore.refresh,
       refreshRequired: policyStore.refreshRequired,
-      // BQC-7.3 (versions.policy_store): cheap in-memory read of the current
-      // persisted policy_version for the OperationsSnapshot (null when only
-      // the env seed is present — no DB round-trip).
       currentVersion: policyStore.currentVersion,
-      // ARC-03-T6: the poller this build started is released through the
-      // container's shutdown seam. Identity must surface the stop function —
-      // dropping it is what leaked a live interval per container built.
-      stopPolling: policyStore.stopPolling,
       // ARC-03-T8: container-owned policy objects. Building identity no longer
       // installs them process-wide; an entry point binds exactly one set.
       capabilityPolicyStore: policyStore.capabilityPolicyStore,

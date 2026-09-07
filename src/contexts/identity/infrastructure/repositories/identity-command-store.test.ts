@@ -163,16 +163,14 @@ describe.sequential('identityCommandStore (integration)', () => {
       propertyIds: '["prop-a"]',
     })
     const facts = await pool.query(
-      `SELECT id, event_type, payload FROM outbox_events
+      `SELECT id, event_type, event_version, payload FROM outbox_events
        WHERE organization_id = $1 AND event_type = 'identity.member.invited'`,
       [ORG_ID],
     )
     expect(facts.rows).toHaveLength(1)
     expect(facts.rows[0].id).toBe(event.eventId)
-    // Expand-phase v1 compatibility: the database guard supplies only the
-    // structural sentinel required by the old parser. The operator cutover
-    // converts this row to v2 and removes the key after every replica is new.
-    expect(facts.rows[0].payload).toHaveProperty('email', '[redacted]')
+    expect(facts.rows[0].event_version).toBe(2)
+    expect(facts.rows[0].payload).not.toHaveProperty('email')
     expect(JSON.stringify(facts.rows[0].payload)).not.toContain('idcmd-new@test.com')
   })
 

@@ -35,11 +35,10 @@ export const LOCAL_E2E_BOOTSTRAP_CAPABILITIES =
 /**
  * Capabilities `pnpm seed` deliberately withholds from a developer
  * organization. Each one reaches outside the machine or accepts unmoderated
- * anonymous input, so it must be granted per environment — with a reason and a
- * ticket, through `setOrgCapabilityFn` — rather than by running a seed script.
+ * anonymous input, so it must be enabled in the static environment policy and
+ * reviewed through the normal configuration change process.
  *
- * Permanently blocked capabilities are absent from LOCAL_BETA_CAPABILITIES and
- * cannot be restored by a seed or test override.
+ * Permanently blocked capabilities are absent from LOCAL_BETA_CAPABILITIES.
  */
 const SEED_WITHHELD_CAPABILITIES = [
   // Sends real email through the configured provider.

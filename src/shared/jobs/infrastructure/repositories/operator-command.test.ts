@@ -2,12 +2,8 @@
 //
 // fallow-ignore-file boundary-violation
 // Cross-zone proof (BQC-7.5) — deliberate, no expiry. This end-to-end proof
-// BY DESIGN wires the identity-owned policy boot against the shared jobs
-// quarantine contract and the shared operator-command harness (the same
-// wiring scripts/ops performs);
-// no single context's zone can own it, and the integration project discovers
-// it via the infrastructure/repositories glob. Same posture as
-// durable-cutover.test.ts (BQC-3.9).
+// wires the identity-owned static policy boot, jobs quarantine contract, and
+// the shared operator-command harness used by scripts/ops.
 //
 // Proves the operator-command chain end to end, mirroring the ops:quarantine
 // command (scripts/ops/quarantine-redrive.ts):
@@ -18,11 +14,9 @@
 //   3. unregistered operator — denies with operator_not_registered;
 //   4. mutation without --apply — dry-run report, nothing redriven.
 //
-// The policy boot below is the exact wiring scripts/ops/operator-command.ts
-// runs (initPersistedCapabilityPolicyStore + strong read + the installed
-// ExecutionPolicy singleton) — replicated rather than imported because the
-// shim lives outside tsconfig and owns process.exit. The quarantine mechanics
-// themselves are proven by failure-quarantine.integration.test.ts (BQC-3.6);
+// The policy boot below mirrors scripts/ops/operator-command.ts: construct the
+// static policy bundle, bind it once, and observe it before authorization.
+// Quarantine mechanics are proven separately by failure-quarantine integration tests.
 // suite-unique queue names per the Redis lease contract.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
@@ -39,7 +33,7 @@ import {
   bindProcessPolicies,
   releaseProcessPolicies,
 } from '#/shared/auth/process-policy-binding'
-import { initPersistedCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
+import { initCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
 import {
   createRedriveJob,
   listQuarantinedJobs,
@@ -66,7 +60,6 @@ let redisLease: RedisTestLease | undefined
 let redisAvailable = false
 let quarantineQueue: Queue | undefined
 let targetQueue: Queue | undefined
-let stopPolicyPolling: (() => void) | undefined
 let runtime: OperatorRuntime
 
 function memoryIO(): OperatorIO & { outLines: string[]; errLines: string[] } {
@@ -113,11 +106,11 @@ async function seedQuarantined(originalJobId: string): Promise<string> {
 
 
 beforeAll(async () => {
-  // The production operator boot: policy store + both policies + strong read.
+  // The production operator boot: static policy store plus both policies.
   resetCapabilityPolicyStore()
   resetExecutionPolicy()
   resetDelayedExecutionPolicy()
-  const handle = initPersistedCapabilityPolicyStore({
+  const handle = initCapabilityPolicyStore({
     db,
     env: { NODE_ENV: 'test', OPS_OPERATOR_IDENTITIES: OPERATOR },
     clock: () => new Date(),
@@ -127,7 +120,6 @@ beforeAll(async () => {
   // building it installs nothing.
   bindProcessPolicies(handle)
   await handle.refresh()
-  stopPolicyPolling = handle.stopPolling
   runtime = { decide: (request: DecisionRequest) => getExecutionPolicy().decide(request) }
 
   redisLease = await acquireRedisTestLease()
@@ -142,7 +134,6 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  stopPolicyPolling?.()
   releaseProcessPolicies()
   resetExecutionPolicy()
   resetDelayedExecutionPolicy()

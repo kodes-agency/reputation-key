@@ -2871,24 +2871,6 @@ CREATE TABLE "inbox_user_views" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "identity_invitation_fact_contract" (
-	"singleton" boolean PRIMARY KEY DEFAULT true NOT NULL,
-	"issuance_version" smallint DEFAULT 1 NOT NULL,
-	"generation" bigint DEFAULT 1 NOT NULL,
-	"switched_at" timestamp with time zone,
-	"verified_at" timestamp with time zone,
-	"operator_id" varchar(255),
-	"reason" varchar(500),
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "identity_invitation_fact_contract_singleton" CHECK ("identity_invitation_fact_contract"."singleton" = true),
-	CONSTRAINT "identity_invitation_fact_contract_version_valid" CHECK ("identity_invitation_fact_contract"."issuance_version" IN (1, 2)),
-	CONSTRAINT "identity_invitation_fact_contract_generation_positive" CHECK ("identity_invitation_fact_contract"."generation" >= 1),
-	CONSTRAINT "identity_invitation_fact_contract_switch_shape" CHECK (("identity_invitation_fact_contract"."issuance_version" = 1 AND "identity_invitation_fact_contract"."switched_at" IS NULL AND "identity_invitation_fact_contract"."verified_at" IS NULL)
-          OR ("identity_invitation_fact_contract"."issuance_version" = 2 AND "identity_invitation_fact_contract"."switched_at" IS NOT NULL)),
-	CONSTRAINT "identity_invitation_fact_contract_operator_shape" CHECK (("identity_invitation_fact_contract"."operator_id" IS NULL) = ("identity_invitation_fact_contract"."reason" IS NULL))
-);
---> statement-breakpoint
 CREATE TABLE "identity_organization_lifecycle_receipts" (
 	"organization_id" text NOT NULL,
 	"closure_lineage_id" uuid NOT NULL,
@@ -3611,7 +3593,13 @@ CREATE TABLE "outbox_events" (
 	"lease_expires_at" timestamp with time zone,
 	"recovery_fence_run_id" uuid,
 	"recovery_fenced_at" timestamp with time zone,
-	CONSTRAINT "outbox_events_recovery_fence_pair_check" CHECK (("outbox_events"."recovery_fence_run_id" IS NULL) = ("outbox_events"."recovery_fenced_at" IS NULL))
+	CONSTRAINT "outbox_events_recovery_fence_pair_check" CHECK (("outbox_events"."recovery_fence_run_id" IS NULL) = ("outbox_events"."recovery_fenced_at" IS NULL)),
+	CONSTRAINT "outbox_events_identity_member_invited_v2_check" CHECK ("outbox_events"."event_type" <> 'identity.member.invited'
+        OR (
+          "outbox_events"."event_version" = 2
+          AND jsonb_typeof("outbox_events"."payload") = 'object'
+          AND NOT ("outbox_events"."payload" ? 'email')
+        ))
 );
 --> statement-breakpoint
 CREATE TABLE "portal_group_memberships" (
@@ -3701,22 +3689,6 @@ CREATE TABLE "staff_user_links" (
 	CONSTRAINT "staff_user_links_interval_valid" CHECK ("staff_user_links"."effective_to" IS NULL OR "staff_user_links"."effective_to" > "staff_user_links"."effective_from")
 );
 --> statement-breakpoint
-CREATE TABLE "organization_capability" (
-	"organization_id" text NOT NULL,
-	"capability" text NOT NULL,
-	"created_by" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "organization_capability_organization_id_capability_pk" PRIMARY KEY("organization_id","capability")
-);
---> statement-breakpoint
-CREATE TABLE "organization_policy" (
-	"organization_id" text PRIMARY KEY NOT NULL,
-	"cohort" text DEFAULT 'beta' NOT NULL,
-	"suspended_at" timestamp with time zone,
-	"suspended_reason" text,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "policy_consent" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" text NOT NULL,
@@ -3732,13 +3704,6 @@ CREATE TABLE "policy_consent" (
 	CONSTRAINT "policy_consent_state_check" CHECK ("policy_consent"."state" IN ('granted', 'revoked'))
 );
 --> statement-breakpoint
-CREATE TABLE "policy_version" (
-	"scope" text PRIMARY KEY NOT NULL,
-	"version" bigint DEFAULT 0 NOT NULL,
-	"emergency_kill_version" bigint DEFAULT 0 NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "property_access_grant" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" text NOT NULL,
@@ -3751,21 +3716,6 @@ CREATE TABLE "property_access_grant" (
 	"revoked_at" timestamp with time zone,
 	"revoke_reason" text,
 	CONSTRAINT "property_access_grant_source_check" CHECK ("property_access_grant"."source" IN ('operator', 'migration', 'invitation'))
-);
---> statement-breakpoint
-CREATE TABLE "property_capability" (
-	"property_id" uuid NOT NULL,
-	"capability" text NOT NULL,
-	"created_by" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "property_capability_property_id_capability_pk" PRIMARY KEY("property_id","capability")
-);
---> statement-breakpoint
-CREATE TABLE "property_policy" (
-	"property_id" uuid PRIMARY KEY NOT NULL,
-	"suspended_at" timestamp with time zone,
-	"suspended_reason" text,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "merchant_ai_consent_evidence" (
@@ -6341,19 +6291,11 @@ ALTER TABLE "staff_participations" ADD CONSTRAINT "sp_participant_tenant_fk" FOR
 --> statement-breakpoint
 ALTER TABLE "staff_user_links" ADD CONSTRAINT "staff_user_links_participant_tenant_fk" FOREIGN KEY ("organization_id","staff_participant_id") REFERENCES "public"."staff_participants"("organization_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "organization_capability" ADD CONSTRAINT "organization_capability_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "organization_policy" ADD CONSTRAINT "organization_policy_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "policy_consent" ADD CONSTRAINT "policy_consent_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "property_access_grant" ADD CONSTRAINT "property_access_grant_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "property_access_grant" ADD CONSTRAINT "property_access_grant_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "property_capability" ADD CONSTRAINT "property_capability_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "property_policy" ADD CONSTRAINT "property_policy_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "merchant_ai_consent_evidence" ADD CONSTRAINT "merchant_ai_consent_evidence_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint

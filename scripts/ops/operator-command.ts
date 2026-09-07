@@ -2,9 +2,8 @@
 // command imports. Boots the minimal policy runtime against the ambient env
 // (DATABASE_URL required; no dotenv — export env like the other ops scripts):
 //
-//   - the composite capability policy store (env posture + persisted tenant
-//     state) with ONE strong read (refresh) before any decision, so operator
-//     commands see DB truth, not the bootstrap env seed;
+//   - the process-static capability configuration, with tenant grants and
+//     consent read live by the ExecutionPolicy;
 //   - the ExecutionPolicy, which returns every evaluated allow or typed deny;
 //   - the named-operator allowlist from OPS_OPERATOR_IDENTITIES.
 //
@@ -21,7 +20,7 @@ import { getDb } from '../../src/shared/db'
 import { closePool } from '../../src/shared/db/pool'
 import { getEnv } from '../../src/shared/config/env'
 import { getLogger } from '../../src/shared/observability/logger'
-import { initPersistedCapabilityPolicyStore } from '../../src/contexts/identity/infrastructure/policy-store-init'
+import { initCapabilityPolicyStore } from '../../src/contexts/identity/infrastructure/policy-store-init'
 import { createOperatorContainer } from '../../src/composition/deployables'
 import { closeJobQueueConnections } from '../../src/shared/jobs/queue'
 import { OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE } from '../../src/composition/google-provider-authority'
@@ -61,7 +60,7 @@ function refuseProviderDependentApply(
 type OperatorBoot = Readonly<{
   runtime: OperatorRuntime
   container: OperatorContainer
-  /** Release process policy binding and stop the refresh poller. */
+  /** Release the process policy binding. */
   cleanup: () => void
 }>
 
@@ -70,27 +69,22 @@ async function bootOperatorRuntime(): Promise<OperatorBoot> {
   const db = getDb()
   const env = getEnv()
   const logger = getLogger(process.stderr)
-  const handle = initPersistedCapabilityPolicyStore({
+  const handle = initCapabilityPolicyStore({
     db,
     env,
     clock: () => new Date(),
     logger,
   })
-  // ARC-03-T8: this is the ops process's ONE policy installation. The
-  // ExecutionPolicy consults the process capability store, so the composite
-  // store must be bound before any decision — returning the handle without
-  // binding would silently evaluate operator commands against the env-only
-  // fallback store.
+  // This is the ops process's one static policy installation. Tenant grants
+  // and consent remain live through the execution policy's repositories.
   bindProcessPolicies(handle)
   const container = createOperatorContainer()
-  // Strong read: operator decisions see persisted tenant state (suspensions,
-  // allowlists), not just the env seed the bootstrap window runs on.
+  // Preserve the shared boot contract; static policy observation is immediate.
   await handle.refresh()
   return {
     runtime: { decide: (request) => handle.executionPolicy.decide(request) },
     container,
     cleanup: () => {
-      handle.stopPolling()
       releaseProcessPolicies(handle)
     },
   }

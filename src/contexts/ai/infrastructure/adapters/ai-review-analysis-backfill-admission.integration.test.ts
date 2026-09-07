@@ -138,9 +138,7 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
       )`,
       sql`DELETE FROM properties WHERE id = ${PROPERTY_ID}::uuid`,
       sql`DELETE FROM google_connections WHERE organization_id = ${ORGANIZATION_ID}`,
-      sql`DELETE FROM organization_capability WHERE organization_id = ${ORGANIZATION_ID}`,
-      // `guard_last_owner` refuses to remove the org's only owner, so teardown
-      // suspends it the same way the other AI store tests do.
+      // `guard_last_owner` refuses to remove the org's only owner during teardown.
       sql`DELETE FROM member WHERE "organizationId" = ${ORGANIZATION_ID}`,
       sql`DELETE FROM "user" WHERE id = ${CONSENT_ACTOR_ID}`,
     ])
@@ -183,14 +181,6 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
         ${`${CONSENT_ACTOR_ID}-member`}, ${ORGANIZATION_ID},
         ${CONSENT_ACTOR_ID}, 'owner', ${NOW}
       )
-    `)
-    // `organization_capability` is keyed by PURPOSE (`ai.analyze`), which is
-    // what provisionPropertyCapabilities writes — not by capability name.
-    await db.execute(sql`
-      INSERT INTO organization_capability (
-        organization_id, capability, created_by, created_at
-      ) VALUES (${ORGANIZATION_ID}, 'ai.analyze', ${CONSENT_ACTOR_ID}, ${NOW})
-      ON CONFLICT DO NOTHING
     `)
     await db.execute(sql`
       INSERT INTO ai_provider_circuit_states (

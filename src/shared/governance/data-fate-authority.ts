@@ -371,13 +371,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exitCriteria: ERASE_WITH_OWNER,
   }),
   ...rows({
-    schemaFile: 'identity-governance.schema.ts',
-    exportNames: ['identityInvitationFactContract'],
-    owner: 'identity',
-    disposition: 'active_authority',
-    authority: 'SAFE-02/PPL-01',
-  }),
-  ...rows({
     schemaFile: 'inbox.schema.ts',
     exportNames: [
       'inboxAssignmentHistory',
@@ -526,15 +519,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'policy.schema.ts',
-    exportNames: [
-      'organizationCapability',
-      'organizationPolicy',
-      'policyConsent',
-      'policyVersion',
-      'propertyAccessGrant',
-      'propertyCapability',
-      'propertyPolicy',
-    ],
+    exportNames: ['policyConsent', 'propertyAccessGrant'],
     owner: 'identity',
     disposition: 'active_authority',
     authority: 'SAFE-02/PPL-01',

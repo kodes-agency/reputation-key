@@ -24,14 +24,6 @@ const MS_PER_DAY = 86_400_000
 // Job names for time-travel triggering
 import { JOB_NAME as PURGE_JOB } from '../src/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
 import { JOB_NAME as REFRESH_JOB } from '../src/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
-import {
-  addOrganizationCapability,
-  listOrganizationCapabilities,
-  listProvisionablePropertyIds,
-  provisionPropertyCapabilitiesFromOrganization,
-  setOrganizationPolicy,
-} from '../src/contexts/identity/infrastructure/repositories/policy-state.repository'
-import { SEED_BETA_CAPABILITIES } from '../src/shared/config/local-stack-contract'
 
 const args = process.argv.slice(2)
 const orgArg = args.find((a) => a.startsWith('--org='))
@@ -40,12 +32,8 @@ const runInv = args.includes('--invariants')
 async function resolveOrgId(container: Container): Promise<string> {
   if (orgArg) {
     const orgId = orgArg.replace('--org=', '')
-    // An explicit --org is the CI path (`--org=sim-ci-org`) and runs against a
-    // freshly migrated, EMPTY database, so the row this id names may not exist
-    // yet. Everything downstream — the capability allowlist first, then the
-    // scenario — carries an FK to `organization`, so create it here rather
-    // than letting the organization_policy tenant FK fail. Mirrors how
-    // the isolation org is created below. Idempotent for repeat local runs.
+    // CI may run against a freshly migrated empty database, so create an
+    // explicitly requested organization before the scenario writes its facts.
     await container.db
       .insert(organization)
       .values({
@@ -72,75 +60,6 @@ async function resolveOrgId(container: Container): Promise<string> {
   }
 }
 
-/**
- * Grant an organization the beta capability set.
- *
- * Without this a seeded database looks complete but every non-core feature is
- * dark: promoted beta features deny with `org_not_allowlisted` /
- * `property_not_allowlisted`, so a developer can see seeded records in the
- * database yet cannot create them through the product.
- *
- * Runs BEFORE the scenario so properties created through the real use case are
- * provisioned from this allowlist on the way in. Idempotent: already-held
- * capabilities are skipped, because the primary key rejects a duplicate.
- */
-async function grantOrgBetaCapabilities(
-  container: Container,
-  orgId: string,
-): Promise<void> {
-  const db = container.db
-  await setOrganizationPolicy(db, {
-    organizationId: orgId,
-    cohort: 'beta-local',
-    suspendedAt: null,
-    suspendedReason: null,
-  })
-
-  const held = new Set(await listOrganizationCapabilities(db, orgId))
-  let added = 0
-  for (const capability of SEED_BETA_CAPABILITIES) {
-    if (held.has(capability)) continue
-    await addOrganizationCapability(db, orgId, capability, 'seed')
-    added += 1
-  }
-  console.log(
-    `✓ Capabilities: org ${orgId} holds ${SEED_BETA_CAPABILITIES.length} (${added} new)`,
-  )
-}
-
-/**
- * Cascade an organization's allowlist onto every active property it owns.
- *
- * Runs LAST, after every scenario: the scenario builder inserts property rows
- * directly (`builder.server.ts`) rather than through the createProperty use
- * case, so those properties never pass the provisioning step and would stay
- * dark. `ON CONFLICT DO NOTHING` makes this safe over already-provisioned
- * properties, and each write bumps `policy_version` in the same statement, so
- * a running dev server observes the change on its next refresh — no restart.
- */
-async function cascadeCapabilitiesToProperties(
-  container: Container,
-  orgIds: readonly string[],
-): Promise<void> {
-  const db = container.db
-  let granted = 0
-  let total = 0
-  for (const orgId of orgIds) {
-    const propertyIds = await listProvisionablePropertyIds(db, orgId)
-    total += propertyIds.length
-    for (const propertyId of propertyIds) {
-      const added = await provisionPropertyCapabilitiesFromOrganization(db, {
-        organizationId: orgId,
-        propertyId,
-        createdBy: 'seed',
-      })
-      if (added.length > 0) granted += 1
-    }
-  }
-  console.log(
-    `\n✓ Capabilities cascaded: ${granted} of ${total} properties newly provisioned`,
-  )
-}
 
 function defaultScenario(orgId: string): ScenarioSpec {
   return {
@@ -241,9 +160,6 @@ async function main(): Promise<void> {
     await createSimulationContainer()
   const orgId = await resolveOrgId(container)
 
-  // Before the scenario: the org allowlist must exist so every property the
-  // scenario creates is provisioned from it on the way in.
-  await grantOrgBetaCapabilities(container, orgId)
 
   console.log(`Seeding scenario for org: ${orgId}`)
   const spec = defaultScenario(orgId)
@@ -274,10 +190,6 @@ async function main(): Promise<void> {
       createdAt: new Date(),
     })
     .onConflictDoNothing()
-  // The isolation org gets the same posture on purpose: isolation is about
-  // data separation, not capability posture, and a second org that silently
-  // denies every feature reads as a bug rather than as a test fixture.
-  await grantOrgBetaCapabilities(container, org2Id)
   const spec2: ScenarioSpec = {
     organizationId: org2Id,
     properties: [
@@ -295,9 +207,6 @@ async function main(): Promise<void> {
   assertBuiltCounts('Org 2', spec2, result2)
   console.log(`\n✓ Multi-tenant: org 2 created (${result2.reviewsCreated} reviews)`)
 
-  // After every scenario, before anything reads policy: the scenario builder
-  // inserts property rows directly, so those properties have no allowlist yet.
-  await cascadeCapabilitiesToProperties(container, [orgId, org2Id])
 
   if (!runInv) {
     process.exit(0)

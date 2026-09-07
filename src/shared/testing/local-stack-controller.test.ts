@@ -134,21 +134,12 @@ describe('local stack controller', () => {
     ).toBe(false)
   })
 
-  it('hashes the mixed P1/P2 fleet contract independently of capability order', () => {
-    const a = deterministicFixtureHash({
-      seed: 'fleet',
-      properties: 5_000,
-      p1Properties: 2_500,
-      capabilities: ['goal.use', 'portal.read'],
-    })
-    const b = deterministicFixtureHash({
-      seed: 'fleet',
-      properties: 5_000,
-      p1Properties: 2_500,
-      capabilities: ['portal.read', 'goal.use'],
-    })
+  it('hashes the fleet contract from its seed and size alone', () => {
+    const a = deterministicFixtureHash({ seed: 'fleet', properties: 5_000 })
+    const b = deterministicFixtureHash({ seed: 'fleet', properties: 5_000 })
 
     expect(a).toBe(b)
+    expect(deterministicFixtureHash({ seed: 'fleet', properties: 5_001 })).not.toBe(a)
     expect(a).toMatch(/^[a-f0-9]{64}$/)
   })
 })

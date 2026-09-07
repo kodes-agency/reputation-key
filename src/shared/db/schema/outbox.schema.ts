@@ -58,6 +58,15 @@ export const outboxEvents = pgTable(
       'outbox_events_recovery_fence_pair_check',
       sql`(${table.recoveryFenceRunId} IS NULL) = (${table.recoveryFencedAt} IS NULL)`,
     ),
+    check(
+      'outbox_events_identity_member_invited_v2_check',
+      sql`${table.eventType} <> 'identity.member.invited'
+        OR (
+          ${table.eventVersion} = 2
+          AND jsonb_typeof(${table.payload}) = 'object'
+          AND NOT (${table.payload} ? 'email')
+        )`,
+    ),
   ],
 )
 

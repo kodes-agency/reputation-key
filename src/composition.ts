@@ -79,7 +79,6 @@ import { reportAlertToObservability } from './composition/alert-reporter'
 import { composeOrganizationLifecycle } from '#/composition/organization-export-contributors'
 import { buildGoogleProviderAuthority } from './composition/google-provider-authority'
 import { buildIdentityPolicyDeps } from './composition/identity-policy'
-import { bindPropertyCapabilityProvisioning } from './composition/property-capability-provisioning'
 import {
   createDeferredMemberAuthorityLifecycle,
   createMemberAuthorityLifecycle,
@@ -96,7 +95,6 @@ export {
   GOOGLE_PROVIDER_ENDPOINTS,
   type ProviderOverrides,
 } from './composition/provider-runtime'
-export { bindPropertyCapabilityProvisioning } from './composition/property-capability-provisioning'
 
 // fallow-ignore-next-line complexity
 function buildContainer(
@@ -310,15 +308,6 @@ function buildContainer(
   // Property lifecycle; Integration still uses it for governed disconnect.
   const sourceContentPurge = createSourceContentPurge({ db, clock })
 
-  // BQC-2.7: every path that creates a property grants it the capability
-  // allowlist its organization already holds — without it a freshly created
-  // property denies every non-core capability (`property_not_allowlisted`)
-  // until an operator repairs it. Shared by the manual creation path
-  // (property context) and the Google import (integration context).
-  const propertyCapabilityProvisioning = bindPropertyCapabilityProvisioning(
-    db,
-    identity.policy.refresh,
-  )
 
   const property = buildPropertyContext({
     db,
@@ -327,8 +316,6 @@ function buildContainer(
     idGen: randomUUID,
     staffPublicApi: staff.publicApi,
     identityManagerFacts: identity.publicApi.managerFacts,
-    provisionPropertyCapabilities:
-      propertyCapabilityProvisioning.provisionCreatedProperty,
     logger: getLogger(),
   })
 
@@ -393,8 +380,6 @@ function buildContainer(
     jobQueue: infra.jobQueue,
     propertyApi: property.publicApi,
     propertyBindingApi: property.publicApi,
-    provisionPropertyCapabilities:
-      propertyCapabilityProvisioning.provisionCreatedProperty,
     enqueueReviewSync: (data, options) =>
       review.publicApi.syncAdmission.addSyncJob(data, options),
     enqueueTargetedReviewFetch: (data, options) =>
@@ -619,7 +604,6 @@ function buildContainer(
       enableJobs,
       infra,
       identity: {
-        stopPolicyPolling: identity.policy.stopPolling,
         policyStoreVersion: identity.policy.currentVersion,
       },
       notification: {

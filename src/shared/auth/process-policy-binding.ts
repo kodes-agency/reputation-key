@@ -5,8 +5,8 @@
 // that owner is named at a call site rather than acquired as a side effect of
 // constructing something else.
 //
-// WHY: these three were installed from inside initPersistedCapabilityPolicyStore,
-// which runs while a container is being BUILT. Any second container in the
+// WHY: these three were once installed as a side effect of policy-store
+// construction while a container was being built. Any second container in the
 // same process — a simulation, an operator command that calls getContainer()
 // after booting its own policy runtime, a test fixture — silently re-pointed
 // the process singletons at its own objects. The last builder won, invisibly,

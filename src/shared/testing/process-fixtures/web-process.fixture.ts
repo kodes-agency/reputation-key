@@ -31,9 +31,8 @@ async function main(): Promise<void> {
     openHandleNames: openHandleNames(container),
   })
 
-  // Release the container's background work (the identity policy poller keeps
-  // the event loop alive) and exit deliberately, so a hung fixture is a
-  // TIMEOUT the suite reports rather than a silently slow one.
+  // Release the container's background work and exit deliberately, so a hung
+  // fixture is a TIMEOUT the suite reports rather than a silently slow one.
   await container.shutdown.run()
   process.exit(0)
 }

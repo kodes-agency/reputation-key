@@ -12,19 +12,11 @@
 //                         the on-disk journal entry count
 //                         (drizzle/meta/_journal.json). Mismatch = a deploy
 //                         whose migrations have not finished applying.
-//   - policy            — the persisted policy store's loaded state. The store
-//                         DOES expose load state (PersistedPolicyStore.
-//                         currentVersion), but only through the identity
-//                         build's internal handle — not through the
-//                         composition container's readiness surface (which
-//                         exposes refreshPolicyStore only), and reading it
-//                         would couple the probe to container-build timing
-//                         (the first refresh is fire-and-forget). The honest
-//                         check at this seam is BQC-2.2's version-gated strong
-//                         read: `SELECT version FROM policy_version` succeeds
-//                         within budget ⇒ the policy tables exist and are
-//                         readable, which is what serving policy decisions
-//                         requires. Chosen: the strong read.
+//   - policy            — the process-static capability configuration parses
+//                         successfully and retains every hard-blocked
+//                         capability. Tenant grants/consent and the Google
+//                         execution control remain live request-time reads;
+//                         readiness does not query a deleted snapshot table.
 //
 // Both DB checks reuse the SHARED pool handle (getPool) — no per-request
 // client construction (STD-P1-04). The journal path is anchored at
@@ -47,12 +39,14 @@ import { getLogger } from '#/shared/observability/logger'
 import { readyProbe, startupProbe, type ReadyProbe, type StartupProbe } from './probes'
 import { withBudget } from './operations-snapshot'
 import { MIGRATION_COUNT_SQL } from './migration-version'
+import {
+  assertBlockedCapabilitiesContained,
+  createEnvCapabilityPolicyStore,
+} from '#/shared/auth/beta-capabilities'
 
 /** Hard per-probe budget. A probe slower than this reports false. */
 export const READINESS_PROBE_BUDGET_MS = 2000
 
-// BQC-2.2's version-gated strong read (policy-state.repository getPolicyVersion).
-const POLICY_VERSION_SQL = "SELECT version FROM policy_version WHERE scope = 'global'"
 
 /** On-disk migration journal entry count (drizzle/meta/_journal.json). */
 function journalEntryCount(
@@ -75,13 +69,13 @@ export async function isMigrationJournalMatched(): Promise<boolean> {
   }
 }
 
-/** Persisted policy state is readable (policy tables migrated + reachable). */
-export async function isPolicyStateReadable(): Promise<boolean> {
+/** Process-static policy configuration is valid and preserves hard blocks. */
+export async function isPolicyConfigurationReady(): Promise<boolean> {
   try {
-    await getPool().query(POLICY_VERSION_SQL)
+    assertBlockedCapabilitiesContained(createEnvCapabilityPolicyStore(process.env))
     return true
   } catch (err) {
-    getLogger().warn({ err }, '[health] policy state read failed')
+    getLogger().warn({ err }, '[health] static policy configuration check failed')
     return false
   }
 }

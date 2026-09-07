@@ -22,10 +22,6 @@ type IdentityOrganizationExportPayload = Readonly<{
   rolePolicies: readonly ExportRecord[]
   canonicalPropertyAccessGrants: readonly ExportRecord[]
   compatibilityPropertyAccessGrants: readonly ExportRecord[]
-  organizationPolicies: readonly ExportRecord[]
-  organizationCapabilities: readonly ExportRecord[]
-  propertyPolicies: readonly ExportRecord[]
-  propertyCapabilities: readonly ExportRecord[]
   policyConsents: readonly ExportRecord[]
   lifecycleAuthority: readonly ExportRecord[]
   excludedRecordClasses: readonly Readonly<{
@@ -125,10 +121,6 @@ function csvEntry(payload: IdentityOrganizationExportPayload): OrganizationExpor
     ['role_policy', payload.rolePolicies],
     ['property_access_grant', payload.canonicalPropertyAccessGrants],
     ['compatibility_property_access_grant', payload.compatibilityPropertyAccessGrants],
-    ['organization_policy', payload.organizationPolicies],
-    ['organization_capability', payload.organizationCapabilities],
-    ['property_policy', payload.propertyPolicies],
-    ['property_capability', payload.propertyCapabilities],
     ['policy_consent', payload.policyConsents],
     ['lifecycle_authority', payload.lifecycleAuthority],
   ]
@@ -298,47 +290,6 @@ async function readPayload(
             WHERE organization_id = ${organizationId}
             ORDER BY property_id, user_id, granted_at, id`,
       )
-      const organizationPolicies = await readRows(
-        snapshot,
-        sql`SELECT
-              organization_id,
-              cohort,
-              to_char(suspended_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS suspended_at,
-              suspended_reason,
-              to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
-            FROM organization_policy
-            WHERE organization_id = ${organizationId}`,
-      )
-      const organizationCapabilities = await readRows(
-        snapshot,
-        sql`SELECT capability, created_by,
-                   to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
-            FROM organization_capability
-            WHERE organization_id = ${organizationId}
-            ORDER BY capability`,
-      )
-      const propertyPolicies = await readRows(
-        snapshot,
-        sql`SELECT
-              policy.property_id,
-              to_char(policy.suspended_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS suspended_at,
-              policy.suspended_reason,
-              to_char(policy.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
-            FROM property_policy AS policy
-            INNER JOIN properties AS property ON property.id = policy.property_id
-            WHERE property.organization_id = ${organizationId}
-            ORDER BY policy.property_id`,
-      )
-      const propertyCapabilities = await readRows(
-        snapshot,
-        sql`SELECT capability.property_id, capability.capability,
-                   capability.created_by,
-                   to_char(capability.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
-            FROM property_capability AS capability
-            INNER JOIN properties AS property ON property.id = capability.property_id
-            WHERE property.organization_id = ${organizationId}
-            ORDER BY capability.property_id, capability.capability`,
-      )
       const policyConsents = await readRows(
         snapshot,
         sql`SELECT
@@ -384,10 +335,6 @@ async function readPayload(
         rolePolicies,
         canonicalPropertyAccessGrants,
         compatibilityPropertyAccessGrants,
-        organizationPolicies,
-        organizationCapabilities,
-        propertyPolicies,
-        propertyCapabilities,
         policyConsents,
         lifecycleAuthority,
         excludedRecordClasses: EXCLUDED_RECORD_CLASSES,

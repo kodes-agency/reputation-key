@@ -41,7 +41,7 @@ import {
   bindProcessPolicies,
   releaseProcessPolicies,
 } from '#/shared/auth/process-policy-binding'
-import { initPersistedCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
+import { initCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import {
   runOperatorCommand,
@@ -90,7 +90,6 @@ const ZERO_RECOVERY = {
   aiBackfillRunsStalled: 0,
 } as const
 
-let stopPolicyPolling: (() => void) | undefined
 let runtime: OperatorRuntime
 
 function memoryIO(): OperatorIO & { outLines: string[]; errLines: string[] } {
@@ -209,7 +208,7 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     resetCapabilityPolicyStore()
     resetExecutionPolicy()
     resetDelayedExecutionPolicy()
-    const handle = initPersistedCapabilityPolicyStore({
+    const handle = initCapabilityPolicyStore({
       db,
       env: { NODE_ENV: 'test', OPS_OPERATOR_IDENTITIES: OPERATOR },
       clock: () => new Date(),
@@ -219,7 +218,6 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     // building it installs nothing.
     bindProcessPolicies(handle)
     await handle.refresh()
-    stopPolicyPolling = handle.stopPolling
     runtime = {
       decide: (request: DecisionRequest) => getExecutionPolicy().decide(request),
     }
@@ -244,7 +242,6 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
   })
 
   afterAll(async () => {
-    stopPolicyPolling?.()
     releaseProcessPolicies()
     await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`)
     await db.execute(sql`DELETE FROM reviews WHERE organization_id = ${ORG}`)

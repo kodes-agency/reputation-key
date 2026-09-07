@@ -57,7 +57,7 @@ import {
   bindProcessPolicies,
   releaseProcessPolicies,
 } from '#/shared/auth/process-policy-binding'
-import { initPersistedCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
+import { initCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
 import type { PolicyStoreHandle } from '#/contexts/identity/infrastructure/policy-store-init'
 import { reviewCreated } from '#/contexts/review/domain/events'
 import type { Review } from '#/contexts/review/domain/types'
@@ -408,7 +408,7 @@ beforeAll(async () => {
 
   resetCapabilityPolicyStore()
   resetDelayedExecutionPolicy()
-  policyHandle = initPersistedCapabilityPolicyStore({
+  policyHandle = initCapabilityPolicyStore({
     db,
     env: {} as CapabilityPolicyEnv,
     clock: () => new Date(),
@@ -486,7 +486,6 @@ afterAll(async () => {
   }
   await eventsQueue?.close()
   redisLease?.release()
-  policyHandle?.stopPolling()
   releaseProcessPolicies()
   resetDelayedExecutionPolicy()
   resetCapabilityPolicyStore()

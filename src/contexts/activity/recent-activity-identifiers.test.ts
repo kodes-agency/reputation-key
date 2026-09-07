@@ -65,8 +65,6 @@ describe('canonical Recent Activity identifiers', () => {
       'src/contexts/activity/infrastructure/jobs/project-recent-activity.job.ts',
       'src/shared/governance/entry-point-catalogue.ts',
       'src/shared/governance/event-job-catalogue.ts',
-      'src/shared/ops/identity-invitation-fact-contract.ts',
-      'src/shared/outbox/identity-invitation-fact-contract.ts',
     ])
     // `activity_log` was a rollback-compatibility view with no pgTable, so the
     // regenerated baseline does not create it and the register no longer names

@@ -338,8 +338,8 @@ async function main() {
         namedCloseable('domain-events', domainEventsWorker),
       ],
       // ARC-03-T6: the worker built this container, so the worker releases
-      // what it started (identity policy poller) — the process no longer
-      // relies on exit() to clean up background work.
+      // what it started — the process no longer relies on exit() to clean up
+      // background work.
       shutdown: container.shutdown,
       queues: [
         namedCloseable('default', container.jobQueue),

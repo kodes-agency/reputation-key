@@ -1,11 +1,8 @@
-// BQC-2.3 — grant-backed accessible-property lookup (real PostgreSQL).
+// Grant-backed accessible-property lookup against real PostgreSQL.
 //
-// The money tests of the slice (phase BQC-2 §2.3 + ADR 0039):
-//   - a Property without a grant does not authorize;
-//   - active grants authorize independently of any Staff state;
-//   - revoked/expired grants never authorize;
-//   - the version-keyed cache invalidates on policy_version bump (grants
-//     bump it in the same statement) — revocation is visible on the next call.
+// A Property without a grant does not authorize; active grants authorize
+// independently of Staff state; revoked and expired grants never authorize;
+// and each decision observes the current committed grant state.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
@@ -120,29 +117,23 @@ describe('grant-backed access lookup (BQC-2.3)', () => {
     expect(ids).toHaveLength(2)
   })
 
-  it('cache invalidates on policy_version bump (next call sees the grant change)', async () => {
+  it('observes grants and revocations on the next decision', async () => {
     const lookup = createGrantAccessLookup(db, () => new Date())
-    const first = await lookup(ORG_ID, USER_A_ID)
-    expect(first).toEqual([])
+    expect(await lookup(ORG_ID, USER_A_ID)).toEqual([])
 
-    // New grant bumps policy_version in the same statement — the cached empty
-    // set is orphaned and the very next call sees the grant.
     await grantPropertyAccess(db, {
       organizationId: ORG,
       propertyId: propNoGrant,
       userId: USER_A,
       source: 'operator',
     })
-    const second = await lookup(ORG_ID, USER_A_ID)
-    expect(second).toContain(propertyId(propNoGrant))
+    expect(await lookup(ORG_ID, USER_A_ID)).toContain(propertyId(propNoGrant))
 
-    // Revocation bumps again — next call denies.
     await revokePropertyAccess(db, {
       organizationId: ORG,
       propertyId: propNoGrant,
       userId: USER_A,
     })
-    const third = await lookup(ORG_ID, USER_A_ID)
-    expect(third).toEqual([])
+    expect(await lookup(ORG_ID, USER_A_ID)).toEqual([])
   })
 })

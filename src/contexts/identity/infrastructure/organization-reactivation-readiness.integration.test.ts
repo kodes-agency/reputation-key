@@ -151,7 +151,7 @@ describe('Organization reactivation readiness (real PostgreSQL)', () => {
       'schedule_quarantine_cleared',
     ])
 
-    // Nothing resumed: the fence and the suspension are both intact.
+    // Nothing resumed: the lifecycle authority remains fenced.
     const authority = await lease.pool.query(
       'SELECT state, reactivation_required FROM organization_lifecycle_authority WHERE organization_id = $1',
       [organizationId],
@@ -160,11 +160,6 @@ describe('Organization reactivation readiness (real PostgreSQL)', () => {
       state: 'active',
       reactivation_required: true,
     })
-    const policy = await lease.pool.query(
-      'SELECT suspended_reason FROM organization_policy WHERE organization_id = $1',
-      [organizationId],
-    )
-    expect(policy.rows[0]?.suspended_reason).toBe('lifecycle:closure_requested')
   })
 
   it('refuses a PropertyManager before it evaluates any readiness question', async () => {

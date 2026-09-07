@@ -31,7 +31,6 @@ import {
 import { identityOrganizationLifecycleChanged } from '../domain/events'
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
 import { identityError } from '../domain/errors'
-import { setOrganizationPolicy } from './repositories/policy-state.repository'
 
 type ReceiptOperation = 'request' | 'cancel' | 'reactivate'
 type Operation = ReceiptOperation | 'transition'
@@ -234,13 +233,9 @@ export const createOrganizationLifecycleCommandStore = (
         .returning()
       const status = authorityStatus(rows[0]!)
 
-      // Stable machine reason only. This statement also bumps policy_version;
-      // both it and the lifecycle revision remain inside this transaction.
-      await setOrganizationPolicy(tx, {
-        organizationId: command.organizationId,
-        suspendedAt: command.now,
-        suspendedReason: 'lifecycle:closure_requested',
-      })
+      // The lifecycle authority row is the live closure fence. Keep the
+      // interruption point after its durable transition for crash-boundary
+      // verification.
       await options.interrupt?.('after_state_and_fence', 'request')
 
       const event = identityOrganizationLifecycleChanged({
@@ -395,14 +390,8 @@ export const createOrganizationLifecycleCommandStore = (
         .returning()
       const status = authorityStatus(rows[0]!)
 
-      // Same transaction, same generation bump as the request that raised it.
-      // The 0159 policy fence permits this clear only because the authority
-      // row above already left the fenced shape.
-      await setOrganizationPolicy(tx, {
-        organizationId: command.organizationId,
-        suspendedAt: null,
-        suspendedReason: null,
-      })
+      // The authority row above has already lifted the live closure fence.
+      // Keep the interruption point at the same transaction boundary.
       await options.interrupt?.('after_state_and_fence', 'reactivate')
 
       // The lineage and its recovery window describe the closure this

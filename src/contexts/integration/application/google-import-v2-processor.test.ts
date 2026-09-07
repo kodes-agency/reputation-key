@@ -120,7 +120,6 @@ function setup(
     relinkError?: unknown
     enqueueReviewSyncError?: unknown
     subscribeToNotificationsError?: unknown
-    provisionPropertyCapabilitiesError?: unknown
   } = {},
 ) {
   const item = claimedItem()
@@ -209,9 +208,6 @@ function setup(
   const subscribeToNotifications = over.subscribeToNotificationsError
     ? vi.fn().mockRejectedValue(over.subscribeToNotificationsError)
     : vi.fn().mockResolvedValue('subscribed')
-  const provisionPropertyCapabilities = over.provisionPropertyCapabilitiesError
-    ? vi.fn().mockRejectedValue(over.provisionPropertyCapabilitiesError)
-    : vi.fn().mockResolvedValue(undefined)
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -228,7 +224,6 @@ function setup(
     newClaimFence: () => CLAIM_FENCE,
     enqueueReviewSync,
     subscribeToNotifications,
-    provisionPropertyCapabilities,
     logger,
   })
   return {
@@ -248,7 +243,6 @@ function setup(
     resolveActor,
     enqueueReviewSync,
     subscribeToNotifications,
-    provisionPropertyCapabilities,
     logger,
   }
 }
@@ -741,103 +735,6 @@ describe('GoogleImportV2Processor', () => {
     expect(harness.completeClaim).not.toHaveBeenCalled()
   })
 
-  // A created property starts with an EMPTY property_capability set, and an
-  // empty set denies every non-core capability — the import must provision it.
-  it('grants a created property its organization capability allowlist', async () => {
-    const harness = setup({ receipts: [null, null, importedReceipt()] })
-
-    await harness.processor.process({
-      organizationId: ORG_ID,
-      itemId: ITEM_ID,
-      retryRevision: 0,
-      attemptOrdinal: 1,
-    })
-
-    expect(harness.provisionPropertyCapabilities).toHaveBeenCalledWith({
-      organizationId: ORG_ID,
-      propertyId: PROPERTY_ID,
-      createdBy: USER_ID,
-    })
-    expect(harness.createBoundProperty.mock.invocationCallOrder[0]).toBeLessThan(
-      harness.provisionPropertyCapabilities.mock.invocationCallOrder[0]!,
-    )
-  })
-
-  it('does not re-grant capabilities when the item relinks an existing property', async () => {
-    const item = claimedItem({
-      action: 'relink',
-      existingPropertyId: PROPERTY_ID,
-      destinationPropertyId: PROPERTY_ID,
-      expectedSourceEpoch: 7,
-      expectedProfileVersion: 9,
-    })
-    const harness = setup({
-      claim: { kind: 'claimed', item },
-      receipts: [
-        null,
-        null,
-        importedReceipt({ outcome: 'relinked', destinationSourceEpoch: 8 }),
-      ],
-    })
-
-    await harness.processor.process({
-      organizationId: ORG_ID,
-      itemId: ITEM_ID,
-      retryRevision: 0,
-      attemptOrdinal: 1,
-    })
-
-    expect(harness.relink).toHaveBeenCalledOnce()
-    expect(harness.provisionPropertyCapabilities).not.toHaveBeenCalled()
-  })
-
-  // Provisioning is repairable out of band (ops:property-capabilities), so it
-  // never costs the import its committed Property effect.
-  it('imports the property even when capability provisioning fails', async () => {
-    const harness = setup({
-      receipts: [null, null, importedReceipt()],
-      provisionPropertyCapabilitiesError: Object.assign(
-        new Error('policy_version row is locked'),
-        // The error stub plus the process(...) call and the "import still
-        // committed" assertions match the subscribe-failure test below, but the
-        // two prove different isolations: this one that a locked policy_version
-        // row cannot cost the import its committed Property effect, that one
-        // that a GBP outage cannot. Folding them together needs a parameter
-        // naming which dependency was broken, and a red test would no longer
-        // say which isolation regressed. Revisit if a third dependency joins —
-        // three cases are a table, two are a coincidence of shape.
-        // fallow-ignore-next-line code-duplication
-        { code: 'lock_timeout', name: 'PolicyStateError' },
-      ),
-    })
-
-    await harness.processor.process({
-      organizationId: ORG_ID,
-      itemId: ITEM_ID,
-      retryRevision: 0,
-      attemptOrdinal: 1,
-    })
-
-    expect(harness.createBoundProperty).toHaveBeenCalledOnce()
-    expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
-    expect(harness.reconcileFromReceipt).toHaveBeenCalledWith(
-      expect.objectContaining({
-        outcomeCode: 'imported',
-        destinationPropertyId: PROPERTY_ID,
-      }),
-    )
-    expect(harness.logger.warn).toHaveBeenCalledWith(
-      {
-        itemId: ITEM_ID,
-        errorName: 'PolicyStateError',
-        errorCode: 'lock_timeout',
-      },
-      'Google import property capability provisioning failed',
-    )
-    const logged = JSON.stringify(harness.logger.warn.mock.calls)
-    expect(logged).not.toContain('policy_version row is locked')
-    expect(logged).not.toContain(ORG_ID)
-  })
 
   // GBP push activation: the imported/relinked receipt branch is the moment the
   // property is live, so it is where we ask Google to START publishing. Without
