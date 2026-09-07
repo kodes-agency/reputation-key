@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -7,22 +7,6 @@ import { assertLocalToolExecutionIdentity } from '../config/local-tool-execution
 
 const ROOT = process.cwd()
 const temporaryRoots: string[] = []
-
-function projectFile(path: string): string {
-  return readFileSync(join(ROOT, path), 'utf8')
-}
-
-function serviceBlock(compose: string, name: string): string {
-  const marker = new RegExp(`^  ${name}:\\n`, 'mu').exec(compose)
-  if (!marker) throw new Error(`missing Compose service ${name}`)
-  const start = marker.index
-  const tail = compose.slice(start + marker[0].length)
-  const nextService = /\n {2}[a-z0-9][a-z0-9-]*:\n/u.exec(tail)
-  return compose.slice(
-    start,
-    nextService === null ? compose.length : start + marker[0].length + nextService.index,
-  )
-}
 
 function artifactRoot(): string {
   const root = mkdtempSync(join(tmpdir(), 'repkey-production-artifact-'))
@@ -37,30 +21,15 @@ afterEach(() => {
 })
 
 describe('production artifact boundary', () => {
-  it('runs local one-shot services from the isolated local-tools image', () => {
-    const compose = projectFile('compose.local.yml')
-    const seed = serviceBlock(compose, 'seed')
-    const googleAdmissionRole = serviceBlock(compose, 'google-admission-role')
-
-    expect(compose).toContain('x-local-tools-image: &local-tools-image')
-    expect(seed).toContain('*local-tools-image')
-    expect(seed).toContain('dist-local-tools/seed-e2e-user.js')
-    expect(googleAdmissionRole).toContain('*local-tools-image')
-    expect(googleAdmissionRole).toContain(
-      'dist-local-tools/provision-google-admission-role.js',
-    )
-    expect(seed).toContain('LOCAL_TOOL_EXECUTION_IDENTITY: repkey-local-stack-v1')
-  })
-
-  it('fails closed unless the local stack supplies its exact execution identity', () => {
+  it('fails closed unless the host seed supplies its exact execution identity', () => {
     expect(() => assertLocalToolExecutionIdentity({})).toThrow(
-      /local-stack execution identity/u,
+      /e2e host execution identity/u,
     )
     expect(() =>
       assertLocalToolExecutionIdentity({
         LOCAL_TOOL_EXECUTION_IDENTITY: 'production',
       }),
-    ).toThrow(/local-stack execution identity/u)
+    ).toThrow(/e2e host execution identity/u)
     expect(() =>
       assertLocalToolExecutionIdentity({
         LOCAL_TOOL_EXECUTION_IDENTITY: 'repkey-local-stack-v1',
@@ -68,7 +37,7 @@ describe('production artifact boundary', () => {
     ).not.toThrow()
   })
 
-  it('accepts a serving artifact without local-tool content', () => {
+  it('accepts a serving artifact without host-only tooling', () => {
     const root = artifactRoot()
     writeFileSync(join(root, 'index.js'), 'export const service = "worker"\n')
 

@@ -81,9 +81,9 @@ and upgraded consistently without hand-wiring services.
   resource pressure or maintenance.
 - **Queue fallback to Cache Redis in production** — it silently defeats the
   decision during the exact failure where isolation is needed.
-- **Make every environment run two daemons** — hermetic unit tests and basic
-  local development do not need production topology; production-shaped local
-  and staging-cell workflows do.
+- **Make every environment run two daemons** — hermetic tests and local
+  development use the supported non-production fallback. The staging-cell
+  workflow carries the production-shaped topology rehearsal.
 
 ## Required evidence
 
@@ -95,5 +95,8 @@ and upgraded consistently without hand-wiring services.
 - Real-Redis integration proves runtime inspection and bounded queue health.
 - Real-Redis integration issues concurrent consumes through independent client
   connections and proves that Better Auth admits only the shared maximum.
-- The production-shaped local stack proves independent cache and queue faults,
-  clean stores, recovery, and no duplicate external effects.
+- **Withdrawn 2026-09:** the former production-shaped local-stack item was
+  discharged only by a `faults` subcommand that no package script or workflow
+  invoked. The CI E2E stack now proves product behavior on the containerised
+  production build with `NODE_ENV=test`; production Redis isolation remains
+  covered by the runtime guards and staging-cell evidence above.

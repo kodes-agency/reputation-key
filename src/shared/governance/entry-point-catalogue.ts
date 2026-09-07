@@ -4181,20 +4181,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     { notes: 'DIRECT-DB (psql): one published reply per review' },
   ),
-  // ── local beta stack ───────────────────────────────────────────────
-  ops('scripts/local-stack/stack.ts', 'scripts/local-stack/stack.ts', 'tenant_cross', {
-    notes:
-      'Generates revision-bound loopback configuration and orchestrates the isolated Docker acceptance stack',
-  }),
-  ops(
-    'scripts/local-stack/fault-operation.ts',
-    'scripts/local-stack/fault-operation.ts',
-    'tenant_cross',
-    {
-      notes:
-        'Executes one bounded Compose dependency fault/restore probe selected by the beta stack acceptance controller',
-    },
-  ),
   // ── perf ──────────────────────────────────────────────────────────
   ops('scripts/perf/load-test.ts', 'scripts/perf/load-test.ts', 'none', {
     notes:
