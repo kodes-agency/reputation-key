@@ -4,7 +4,7 @@
 
 import type { Database } from '#/shared/db'
 import type { ConsumerRegistry } from '#/shared/outbox'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createRecentActivityRepository } from './infrastructure/recent-activity-repository.drizzle'
 import { getActivityTimeline } from './queries/get-activity-timeline'

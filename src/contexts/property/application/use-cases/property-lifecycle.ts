@@ -1,4 +1,4 @@
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { propertyId } from '#/shared/domain/ids'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'

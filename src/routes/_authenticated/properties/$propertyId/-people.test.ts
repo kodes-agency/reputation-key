@@ -9,7 +9,7 @@ const server = vi.hoisted(() => ({
   listPortals: vi.fn(async () => ({ portals: [] })),
 }))
 
-vi.mock('#/contexts/staff/server/staff-participations', () => ({
+vi.mock('#/contexts/identity/server/staff-participations', () => ({
   archiveStaffParticipation: vi.fn(),
   createStaffParticipation: vi.fn(),
   listStaffParticipations: server.listStaffParticipations,

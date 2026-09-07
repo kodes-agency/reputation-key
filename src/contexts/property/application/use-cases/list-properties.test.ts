@@ -5,7 +5,7 @@ import { listProperties } from './list-properties'
 import { createInMemoryPropertyRepo } from '#/shared/testing/in-memory-property-repo'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
 import type { PropertyId, OrganizationId, UserId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 
 /** Create a staffApi stub that returns null for AccountAdmin, specific IDs otherwise. */
 const createTestStaffApi = (
@@ -72,12 +72,12 @@ describe('listProperties', () => {
     expect(properties.map((p) => p.name).sort()).toEqual(['Hotel A', 'Hotel C'])
   })
 
-  it('filters to assigned properties for Staff', async () => {
+  it('filters to assigned properties for Member', async () => {
     const propertyRepo = createInMemoryPropertyRepo()
     const p1 = buildTestProperty({ id: 'p1' })
     propertyRepo.seed([p1])
 
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
     const userAssignments = new Map([
       [ctx.userId as string, []], // no assignments
     ])

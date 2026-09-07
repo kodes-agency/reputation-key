@@ -16,16 +16,17 @@ export const getSetupChecklistFn = createServerFn({ method: 'GET' }).handler(
       try {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        // dashboard.fleet_read intentionally excludes beta-dark Staff logins.
+        // dashboard.fleet_read intentionally excludes beta-dark Member logins.
         await requireExecutionAllowed({ actor: ctx, action: 'dashboard.read' })
         await requireExecutionAllowed({ actor: ctx, action: 'dashboard.fleet_read' })
 
-        const { dashboardPublicApi, staffPublicApi } = getContainer()
-        const accessiblePropertyIds = await staffPublicApi.getAccessiblePropertyIds(
-          ctx.organizationId,
-          ctx.userId,
-          scopeForPermission(ctx, 'dashboard.fleet_read') === 'organization',
-        )
+        const { dashboardPublicApi, identityPublicApi } = getContainer()
+        const accessiblePropertyIds =
+          await identityPublicApi.people.getAccessiblePropertyIds(
+            ctx.organizationId,
+            ctx.userId,
+            scopeForPermission(ctx, 'dashboard.fleet_read') === 'organization',
+          )
 
         return await dashboardPublicApi.getSetupChecklist({
           organizationId: ctx.organizationId,

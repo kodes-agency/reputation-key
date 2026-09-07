@@ -29,7 +29,7 @@ const event = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent => ({
     organizationId: ORG,
     userId: 'admin-actor',
     memberUserId: 'affected-user',
-    previousRole: 'Staff',
+    previousRole: 'Member',
     newRole: 'PropertyManager',
   },
   organizationId: ORG,

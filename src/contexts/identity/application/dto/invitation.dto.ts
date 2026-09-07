@@ -59,7 +59,7 @@ export const signInInputSchema = z.object({
 export type SignInInput = z.infer<typeof signInInputSchema>
 
 /** Role as returned in API responses */
-const roleSchema = z.enum(['AccountAdmin', 'PropertyManager', 'Staff'] as const)
+const roleSchema = z.enum(['AccountAdmin', 'PropertyManager', 'Member'] as const)
 export type RoleResponse = z.infer<typeof roleSchema>
 
 const _memberResponseSchema = z.object({

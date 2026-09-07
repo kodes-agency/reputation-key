@@ -160,9 +160,9 @@ export const SearchWithNoMatches: Story = {
   },
 }
 
-export const StaffReadOnly: Story = {
+export const MemberReadOnly: Story = {
   args: baseArgs,
-  decorators: [withRole('Staff')],
+  decorators: [withRole('Member')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.queryByRole('button', { name: /add portal/i })).toBeNull()

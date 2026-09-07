@@ -8,7 +8,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import { portalGroupId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
 
 export type GetPortalGroupDeps = Readonly<{

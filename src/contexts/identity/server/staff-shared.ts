@@ -1,4 +1,4 @@
-// Staff context — client-safe shared server utilities.
+// Identity People — client-safe shared server utilities.
 //
 // Loaded by the client module graph (server-fn files import the status mapper
 // from here). MUST NOT import server-only modules — the RPC transform strips
@@ -9,7 +9,7 @@
 
 import { match } from 'ts-pattern'
 import { HTTP_STATUS } from '#/shared/http/status'
-import type { StaffErrorCode } from '../domain/errors'
+import type { StaffErrorCode } from '../domain/people-errors'
 
 export const staffErrorStatus = (code: StaffErrorCode): number =>
   match(code)

@@ -28,7 +28,6 @@ export type DataFateOwner =
   | 'property'
   | 'reporting'
   | 'review'
-  | 'staff'
 
 export type DataFateRow = Readonly<{
   schemaFile: string
@@ -428,7 +427,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'staffParticipations',
       'staffUserLinks',
     ],
-    owner: 'staff',
+    owner: 'identity',
     disposition: 'active_authority',
     authority: 'PPL-01',
   }),

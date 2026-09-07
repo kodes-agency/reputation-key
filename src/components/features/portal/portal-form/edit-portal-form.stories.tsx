@@ -1,5 +1,5 @@
 // Edit portal form — TanStack Form + Zod, mutation as a prop.
-// Uses usePermissions() (AccountAdmin → fields enabled; Staff → disabled), so
+// Uses usePermissions() (AccountAdmin → fields enabled; Member → disabled), so
 // it needs the AuthedRouterDecorator. The form has NO submit button in
 // isolation — submission is driven by the parent's "Save Changes" button via
 // formRef.current.handleSubmit(). Stories render a wrapper that owns the ref
@@ -153,10 +153,10 @@ export const Saving: Story = {
   },
 }
 
-// Staff role — fields disabled (can('portal.update') is false).
-export const StaffDisabled: Story = {
+// Member role — fields disabled (can('portal.update') is false).
+export const MemberDisabled: Story = {
   args: { ...Default.args },
-  decorators: [withRole('Staff')],
+  decorators: [withRole('Member')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByLabelText('Name')).toBeDisabled()

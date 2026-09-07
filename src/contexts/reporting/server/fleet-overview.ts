@@ -34,9 +34,9 @@ export const getFleetOverviewFn = createServerFn({ method: 'GET' })
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
           // §9: the fleet route guard (_authenticated/dashboard.tsx) requires
-          // dashboard.fleet_read (PM+); the server fn must match so Staff
-          // (who hold dashboard.read but not fleet_read) cannot reach the RPC
-          // directly and read cross-property reply-derived aggregates.
+          // dashboard.fleet_read (PM+); the server fn must match so Member
+          // (which holds dashboard.read but not fleet_read) cannot reach the
+          // RPC directly and read cross-property reply-derived aggregates.
           await requireExecutionAllowed({ actor: ctx, action: 'dashboard.read' })
           await requireExecutionAllowed({ actor: ctx, action: 'dashboard.fleet_read' })
 

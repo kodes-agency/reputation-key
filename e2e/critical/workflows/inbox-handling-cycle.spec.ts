@@ -30,7 +30,7 @@ import {
   seedReview,
   seedReviewInboxItemWithCycle,
   seedPrivateFeedbackInboxItem,
-  seedStaffUserWithGrant,
+  seedMemberUserWithGrant,
   withdrawPrivateFeedbackInboxItem,
   closeInboxItemBySourceAuthority,
   reopenInboxItemBySourceAuthority,
@@ -88,10 +88,10 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
       propertyId: seed.propertyId,
       reviewId,
     })
-    // role 'owner', not the fixture's default Staff: assignment authorizes the
-    // ASSIGNEE as its own principal now, and Staff is not a beta-interactive
+    // role 'owner', not the fixture's default Member: assignment authorizes the
+    // ASSIGNEE as its own principal now, and Member is not a beta-interactive
     // role, so the hand-off is refused before any grant is read.
-    const colleague = await seedStaffUserWithGrant({
+    const colleague = await seedMemberUserWithGrant({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       email: `${PREFIX}colleague-${e2eRunId}@example.com`,

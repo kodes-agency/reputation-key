@@ -7,7 +7,7 @@ import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures
 import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
 import type { UpdatePortalCommand } from '../ports/portal-command-store.port'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 
 const NOW = new Date('2026-08-26T12:00:00.000Z')
 const portal = buildTestPortal({ publicationState: 'published' })

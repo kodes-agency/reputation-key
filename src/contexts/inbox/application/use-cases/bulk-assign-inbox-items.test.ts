@@ -12,7 +12,7 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { isInboxError } from '../../domain/errors'
 
 const NOW = new Date('2026-08-27T10:00:00.000Z')
@@ -60,7 +60,7 @@ const item = (
   updatedAt: NOW,
 })
 
-const staffApi = (accessible: readonly ReturnType<typeof propertyId>[] | null) =>
+const peopleApi = (accessible: readonly ReturnType<typeof propertyId>[] | null) =>
   ({
     getAccessiblePropertyIds: async () => accessible,
     getAssignedPortals: async () => [],
@@ -73,7 +73,7 @@ const setup = (accessible: readonly ReturnType<typeof propertyId>[] | null = nul
   const execute = bulkAssignInboxItems({
     repo,
     commandStore,
-    staffPublicApi: staffApi(accessible),
+    staffPublicApi: peopleApi(accessible),
     clock: () => NOW,
     idGen: () => BULK_ID,
   })
@@ -214,7 +214,7 @@ describe('bulkAssignInboxItems', () => {
     await expect(
       execute({ items: commands(current), assignedToUserId: ASSIGNEE }, {
         ...adminCtx,
-        role: 'Staff',
+        role: 'Member',
       } as AuthContext),
     ).rejects.toSatisfy(
       (error: unknown) => isInboxError(error) && error.code === 'forbidden',

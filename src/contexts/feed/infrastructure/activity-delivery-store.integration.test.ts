@@ -31,7 +31,7 @@ const entry = (eventId: string, createdAt: Date): RecentActivityEntry => ({
   actorId: userId('system'),
   actorName: 'System',
   actorAvatarUrl: null,
-  actorRole: 'Staff',
+  actorRole: 'Member',
   action: 'created',
   resourceType: 'property',
   resourceId: '00000000-0000-4000-8000-000000000504',

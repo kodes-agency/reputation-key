@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { getActivityTimeline } from './get-activity-timeline'
 import type { RecentActivityEntry, ResourceType } from '../domain/activity-types'
 import type { RecentActivityRepository } from '../ports/recent-activity-repository.port'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import {
   recentActivityEntryId,
@@ -18,7 +18,7 @@ function makeEntry(overrides: Partial<RecentActivityEntry> = {}): RecentActivity
     actorId: userId('user-1'),
     actorName: 'Test',
     actorAvatarUrl: null,
-    actorRole: 'Staff' as Role,
+    actorRole: 'Member' as Role,
     action: 'created',
     resourceType: 'inbox_item',
     resourceId: 'ii-1',
@@ -84,7 +84,7 @@ describe('getActivityTimeline', () => {
       makeEntry({ id: recentActivityEntryId('al-3'), propertyId: null }),
     ])
     const deps = { repo, staffPublicApi: staffApiLimited(['prop-1']) }
-    const result = await getActivityTimeline(deps)(baseInput, ctxFor('Staff'))
+    const result = await getActivityTimeline(deps)(baseInput, ctxFor('Member'))
     expect(result.map((e) => e.id)).toEqual(['al-1'])
   })
 
@@ -116,7 +116,7 @@ describe('getActivityTimeline', () => {
       makeEntry({ id: recentActivityEntryId('al-2'), propertyId: propertyId('prop-2') }),
     ])
     const deps = { repo, staffPublicApi: staffApiLimited([]) }
-    const result = await getActivityTimeline(deps)(baseInput, ctxFor('Staff'))
+    const result = await getActivityTimeline(deps)(baseInput, ctxFor('Member'))
     expect(result).toHaveLength(0)
   })
 
@@ -133,7 +133,7 @@ describe('getActivityTimeline', () => {
     expect(result).toHaveLength(3)
   })
 
-  it('strips reply-workflow entries from Staff (lacks reply.manage)', async () => {
+  it('strips reply-workflow entries from Member (lacks reply.manage)', async () => {
     const repo = createInMemoryActivityRepo([
       makeEntry({
         id: recentActivityEntryId('al-1'),
@@ -160,9 +160,9 @@ describe('getActivityTimeline', () => {
       }),
     ])
     const deps = { repo, staffPublicApi: staffApiLimited(['prop-1']) }
-    const result = await getActivityTimeline(deps)(baseInput, ctxFor('Staff'))
+    const result = await getActivityTimeline(deps)(baseInput, ctxFor('Member'))
     // Only the inbox_item entry survives; reply rows (incl. rejection reason)
-    // are stripped because Staff lack reply.manage.
+    // are stripped because Member lacks reply.manage.
     expect(result.map((e) => e.id)).toEqual(['al-1'])
   })
 

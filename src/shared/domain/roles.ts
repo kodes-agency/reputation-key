@@ -6,14 +6,14 @@ import { assertNever } from './assert'
 import { domainError } from './errors'
 
 /** Our domain roles — mapped from better-auth organization plugin roles. */
-export type Role = 'AccountAdmin' | 'PropertyManager' | 'Staff'
+export type Role = 'AccountAdmin' | 'PropertyManager' | 'Member'
 
 /** The roles as better-auth understands them. */
 export type BetterAuthRole = 'owner' | 'admin' | 'member'
 
-/** Role hierarchy: AccountAdmin > PropertyManager > Staff */
+/** Role hierarchy: AccountAdmin > PropertyManager > Member */
 export const ROLE_HIERARCHY: Readonly<Record<Role, number>> = {
-  Staff: 0,
+  Member: 0,
   PropertyManager: 1,
   AccountAdmin: 2,
 }
@@ -41,7 +41,7 @@ export function toDomainRole(betterAuthRole: string): Role | null {
     case 'admin':
       return 'PropertyManager'
     case 'member':
-      return 'Staff'
+      return 'Member'
     default:
       return null
   }
@@ -85,7 +85,7 @@ export function toBetterAuthRole(role: Role): BetterAuthRole {
       return 'owner'
     case 'PropertyManager':
       return 'admin'
-    case 'Staff':
+    case 'Member':
       return 'member'
     default:
       return assertNever('toBetterAuthRole', role)

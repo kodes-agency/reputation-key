@@ -18,7 +18,7 @@ import {
   type PropertyId,
 } from '#/shared/domain/ids'
 import { isPortalError } from '../../domain/errors'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
@@ -112,7 +112,7 @@ describe('reorderLinks', () => {
 
   it('rejects users who cannot update', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(
       useCase({ categoryId: 'any', portalId: 'any', items: [] }, ctx),

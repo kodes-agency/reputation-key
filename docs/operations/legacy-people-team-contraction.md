@@ -15,10 +15,10 @@ be inventoried, exported, restored, and deliberately dispositioned:
 - `team_portal_group_scopes` — retired Team-to-Portal-Group scopes.
 
 All five have data-fate disposition `bounded_contraction` and authority
-`PPL-01/CNV-01`. Staff owns the retired assignment and Team rows; Identity owns
-the retired plural access-grant rows. The executable inventory guard proves
-that this list matches the governed contraction authority exactly. Identity's
-singular `property_access_grant` is the active Property-access authority and is
+`PPL-01/CNV-01`. Identity People owns the retired assignment rows; historical
+Team rows remain quarantined. Identity owns the retired plural access-grant rows.
+The executable inventory guard proves that this list matches the governed
+contraction authority exactly. Identity's singular `property_access_grant` is the active Property-access authority and is
 intentionally not part of this contraction set.
 
 Production composition does not construct or expose the retained

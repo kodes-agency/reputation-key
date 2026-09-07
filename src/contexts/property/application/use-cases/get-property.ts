@@ -3,7 +3,7 @@
 import type { PropertyRepository } from '../ports/property.repository'
 import type { Property } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { propertyError } from '../../domain/errors'
 import { propertyId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'

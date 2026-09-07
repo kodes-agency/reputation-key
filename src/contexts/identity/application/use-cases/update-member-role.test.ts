@@ -16,12 +16,12 @@ import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isIdentityError } from '../../domain/errors'
 import type { MemberRecord } from '../ports/identity.port'
 
-const STAFF_MEMBER: MemberRecord = {
-  id: 'member-staff',
-  userId: 'user-staff',
-  email: 'staff@test.com',
-  name: 'Staff User',
-  role: 'Staff',
+const MEMBER_RECORD: MemberRecord = {
+  id: 'member-standard',
+  userId: 'user-member',
+  email: 'member@test.com',
+  name: 'Member User',
+  role: 'Member',
   rawRole: 'member',
   image: null,
   createdAt: new Date('2025-01-01'),
@@ -120,57 +120,57 @@ describe('updateMemberRole', () => {
       attempts += 1
       if (attempts === 1) throw new Error('temporary reconciliation failure')
     })
-    seedMemberBoth(identity, commandStore, STAFF_MEMBER)
+    seedMemberBoth(identity, commandStore, MEMBER_RECORD)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await expect(
-      useCase({ memberId: STAFF_MEMBER.id, role: 'PropertyManager' }, ctx),
+      useCase({ memberId: MEMBER_RECORD.id, role: 'PropertyManager' }, ctx),
     ).rejects.toThrow('temporary reconciliation failure')
     await expect(
-      useCase({ memberId: STAFF_MEMBER.id, role: 'PropertyManager' }, ctx),
+      useCase({ memberId: MEMBER_RECORD.id, role: 'PropertyManager' }, ctx),
     ).resolves.toEqual({ success: true })
     expect(attempts).toBe(2)
   })
 
-  it('allows AccountAdmin to promote Staff to PropertyManager', async () => {
+  it('allows AccountAdmin to promote Member to PropertyManager', async () => {
     const { useCase, identity, outbox, commandStore } = setup()
-    seedMemberBoth(identity, commandStore, STAFF_MEMBER)
+    seedMemberBoth(identity, commandStore, MEMBER_RECORD)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     const result = await useCase(
-      { memberId: 'member-staff', role: 'PropertyManager' },
+      { memberId: 'member-standard', role: 'PropertyManager' },
       ctx,
     )
 
     expect(result.success).toBe(true)
 
     // The member row carries the better-auth role string
-    expect(commandStore.memberById('member-staff')?.role).toBe('admin')
+    expect(commandStore.memberById('member-standard')?.role).toBe('admin')
 
     // Verify the durable fact.
     const facts = outbox.byTag('identity.member.role_changed')
     expect(facts).toHaveLength(1)
-    expect(facts[0].previousRole).toBe('Staff')
+    expect(facts[0].previousRole).toBe('Member')
     expect(facts[0].newRole).toBe('PropertyManager')
   })
 
   it('rejects PropertyManager from changing any member role', async () => {
     const { useCase, identity, commandStore } = setup()
-    seedMemberBoth(identity, commandStore, STAFF_MEMBER)
+    seedMemberBoth(identity, commandStore, MEMBER_RECORD)
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
-      useCase({ memberId: 'member-staff', role: 'PropertyManager' }, ctx),
+      useCase({ memberId: 'member-standard', role: 'PropertyManager' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
   })
 
-  it('rejects Staff from changing any role', async () => {
+  it('rejects Member from changing any role', async () => {
     const { useCase, identity, commandStore } = setup()
-    seedMemberBoth(identity, commandStore, STAFF_MEMBER)
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    seedMemberBoth(identity, commandStore, MEMBER_RECORD)
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(
-      useCase({ memberId: 'member-staff', role: 'PropertyManager' }, ctx),
+      useCase({ memberId: 'member-standard', role: 'PropertyManager' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
   })
 
@@ -186,11 +186,11 @@ describe('updateMemberRole', () => {
 
   it('rejects PropertyManager from assigning AccountAdmin', async () => {
     const { useCase, identity, commandStore } = setup()
-    seedMemberBoth(identity, commandStore, STAFF_MEMBER)
+    seedMemberBoth(identity, commandStore, MEMBER_RECORD)
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
-      useCase({ memberId: 'member-staff', role: 'AccountAdmin' }, ctx),
+      useCase({ memberId: 'member-standard', role: 'AccountAdmin' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
   })
 
@@ -205,17 +205,17 @@ describe('updateMemberRole', () => {
 
   it('records member.role-changed with previous and new role', async () => {
     const { useCase, identity, outbox, commandStore } = setup()
-    seedMemberBoth(identity, commandStore, STAFF_MEMBER)
+    seedMemberBoth(identity, commandStore, MEMBER_RECORD)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    await useCase({ memberId: 'member-staff', role: 'PropertyManager' }, ctx)
+    await useCase({ memberId: 'member-standard', role: 'PropertyManager' }, ctx)
 
     const [event] = outbox.byTag('identity.member.role_changed')
-    expect(event.previousRole).toBe('Staff')
+    expect(event.previousRole).toBe('Member')
     expect(event.newRole).toBe('PropertyManager')
     expect(event.userId).toBe(ctx.userId)
     expect(event.organizationId).toBe(ctx.organizationId)
-    expect(event.memberUserId).toBe('user-staff')
+    expect(event.memberUserId).toBe('user-member')
   })
 
   it('forbids demoting the last AccountAdmin of the organization', async () => {

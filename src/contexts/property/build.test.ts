@@ -11,7 +11,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { buildTestProperty } from '#/shared/testing/fixtures'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => ({

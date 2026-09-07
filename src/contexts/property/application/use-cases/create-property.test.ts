@@ -77,7 +77,7 @@ describe('createProperty', () => {
 
   it('rejects users who cannot create properties', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(
       useCase({ name: 'Test', timezone: 'UTC', countryCode: 'US' }, ctx),

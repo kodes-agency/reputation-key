@@ -182,68 +182,68 @@ describe('admin role (PropertyManager)', () => {
   })
 })
 
-describe('memberRole (Staff)', () => {
+describe('memberRole (Member)', () => {
   it('can only read reviews', () => {
-    expect(can('Staff', 'review.read')).toBe(true)
+    expect(can('Member', 'review.read')).toBe(true)
   })
 
-  it('does not expose manager-facing Goal metrics before a Staff dashboard exists', () => {
-    expect(can('Staff', 'goal.read')).toBe(false)
+  it('does not expose manager-facing Goal metrics before a Member dashboard exists', () => {
+    expect(can('Member', 'goal.read')).toBe(false)
   })
 
   it('cannot create goals', () => {
-    expect(can('Staff', 'goal.create')).toBe(false)
+    expect(can('Member', 'goal.create')).toBe(false)
   })
 
   it('cannot update goals', () => {
-    expect(can('Staff', 'goal.update')).toBe(false)
+    expect(can('Member', 'goal.update')).toBe(false)
   })
 
   it('cannot cancel goals', () => {
-    expect(can('Staff', 'goal.cancel')).toBe(false)
+    expect(can('Member', 'goal.cancel')).toBe(false)
   })
 
   it('cannot manage members', () => {
-    expect(can('Staff', 'member.create')).toBe(false)
-    expect(can('Staff', 'member.update')).toBe(false)
-    expect(can('Staff', 'member.delete')).toBe(false)
+    expect(can('Member', 'member.create')).toBe(false)
+    expect(can('Member', 'member.update')).toBe(false)
+    expect(can('Member', 'member.delete')).toBe(false)
   })
 
   it('cannot manage properties', () => {
-    expect(can('Staff', 'property.create')).toBe(false)
-    expect(can('Staff', 'property.update')).toBe(false)
-    expect(can('Staff', 'property.delete')).toBe(false)
+    expect(can('Member', 'property.create')).toBe(false)
+    expect(can('Member', 'property.update')).toBe(false)
+    expect(can('Member', 'property.delete')).toBe(false)
   })
 
   it('cannot read live GBP Performance or import properties', () => {
-    expect(can('Staff', 'property.read_gbp_performance')).toBe(false)
-    expect(can('Staff', 'property.import_gbp_v2')).toBe(false)
+    expect(can('Member', 'property.read_gbp_performance')).toBe(false)
+    expect(can('Member', 'property.import_gbp_v2')).toBe(false)
   })
 
   it('cannot manage staff participation lifecycle', () => {
-    expect(can('Staff', 'staff.manage')).toBe(false)
-    expect(can('Staff', 'staff.read')).toBe(true)
+    expect(can('Member', 'staff.manage')).toBe(false)
+    expect(can('Member', 'staff.read')).toBe(true)
   })
 
   it('cannot manage organizations', () => {
-    expect(can('Staff', 'organization.update')).toBe(false)
-    expect(can('Staff', 'organization.delete')).toBe(false)
+    expect(can('Member', 'organization.update')).toBe(false)
+    expect(can('Member', 'organization.delete')).toBe(false)
   })
 
   it('cannot manage invitations', () => {
-    expect(can('Staff', 'invitation.create')).toBe(false)
-    expect(can('Staff', 'invitation.list')).toBe(false)
-    expect(can('Staff', 'invitation.cancel')).toBe(false)
+    expect(can('Member', 'invitation.create')).toBe(false)
+    expect(can('Member', 'invitation.list')).toBe(false)
+    expect(can('Member', 'invitation.cancel')).toBe(false)
   })
 
   it('is denied manager-only surface permissions', () => {
-    expect(can('Staff', 'dashboard.fleet_read')).toBe(false)
-    expect(can('Staff', 'property.admin')).toBe(false)
-    expect(can('Staff', 'inbox.manage')).toBe(false)
-    expect(can('Staff', 'feedback.handle')).toBe(false)
-    expect(can('Staff', 'ai.reply.generate')).toBe(false)
-    expect(can('Staff', 'ai.trends.read')).toBe(false)
-    expect(can('Staff', 'ai.manage')).toBe(false)
+    expect(can('Member', 'dashboard.fleet_read')).toBe(false)
+    expect(can('Member', 'property.admin')).toBe(false)
+    expect(can('Member', 'inbox.manage')).toBe(false)
+    expect(can('Member', 'feedback.handle')).toBe(false)
+    expect(can('Member', 'ai.reply.generate')).toBe(false)
+    expect(can('Member', 'ai.trends.read')).toBe(false)
+    expect(can('Member', 'ai.manage')).toBe(false)
   })
 
   it('grants private-feedback handling to manager roles', () => {
@@ -256,7 +256,7 @@ describe('initPermissionTable', () => {
   it('resets the permission table to the default configuration', () => {
     initPermissionTable()
     expect(can('AccountAdmin', 'member.create')).toBe(true)
-    expect(can('Staff', 'review.read')).toBe(true)
+    expect(can('Member', 'review.read')).toBe(true)
   })
 })
 

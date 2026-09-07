@@ -26,8 +26,8 @@ describe('projectRecentActivity', () => {
       lookup: vi.fn().mockResolvedValue({
         name: 'Test User',
         avatarUrl: null,
-        role: 'Staff' as Role,
-        rawRole: 'Staff',
+        role: 'Member' as Role,
+        rawRole: 'Member',
       }),
     } as any // eslint-disable-line @typescript-eslint/no-explicit-any
 

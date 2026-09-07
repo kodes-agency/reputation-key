@@ -84,7 +84,7 @@ describe('disconnectGoogleAccount', () => {
   it('rejects users without integration.manage permission', async () => {
     const { useCase } = setup()
     await expect(
-      useCase({ connectionId: 'any-id' }, buildTestAuthContext({ role: 'Staff' })),
+      useCase({ connectionId: 'any-id' }, buildTestAuthContext({ role: 'Member' })),
     ).rejects.toSatisfy(
       (error: unknown) =>
         isIntegrationError(error) && (error as { code: string }).code === 'forbidden',

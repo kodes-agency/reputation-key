@@ -835,7 +835,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // A DIFFERENT subject from the program the previous journey leaves active:
     // gsa_no_overlapping_subject_metric_intervals permits one open assignment
     // per (subject, metric), and ending that one here would pull the ground out
-    // from under the Staff journey that reads it.
+    // from under the Member journey that reads it.
     const subjects = [{ kind: 'property', propertyId: seed.p1PropertyId }]
     const created = await callServerFn<{ program: { id: string; status: string } }>(
       page,
@@ -935,17 +935,16 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     )
   })
 
-  // No Staff journey. Staff is not a beta-interactive role, so the TENANT
-  // RESOLVER refuses a Staff session before any route or capability is
-  // consulted — a Staff account cannot obtain tenant context at all, which
+  // No Member journey. Member is not a beta-interactive role, so the TENANT
+  // RESOLVER refuses a Member session before any route or capability is
+  // consulted — a Member account cannot obtain tenant context at all, which
   // means it cannot reach a manager Goal surface, or any other one. Signing in
-  // as Staff therefore produces that refusal on the client by design, and a
-  // browser journey could only assert the exclusion by manufacturing the very
-  // console error the error gate exists to catch.
+  // is insufficient; the request dies at the first tenant-aware server fn.
   //
-  // The exclusion is asserted where it is decided instead:
+  // This is not a skipped browser test: a skipped test would assert a dark
+  // capability should work and would be permanently red if enabled.
   // src/shared/auth/tenant-resolver.test.ts covers `beta_role_inactive` for
-  // every non-interactive member role. A Staff journey belongs here again when
+  // every non-interactive member role. A Member journey belongs here again when
   // the role is part of the beta.
 
   test('profile and notification settings persist through reload and restore baseline', async ({
@@ -1064,7 +1063,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await clickWhenReady(page.getByRole('button', { name: /invite member/i }))
     await page.getByPlaceholder('colleague@example.com').fill(inviteEmail)
     // Only the two manager roles are invitable during the closed beta
-    // (isBetaInteractiveRole) — Staff logins are inactive and the selector
+    // (isBetaInteractiveRole) — Member logins are inactive and the selector
     // does not offer them.
     await page.getByRole('combobox', { name: 'Role' }).click()
     await page.getByRole('option', { name: 'Property Manager', exact: true }).click()

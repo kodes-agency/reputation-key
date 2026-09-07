@@ -11,7 +11,7 @@ import {
   buildTestPortal,
   buildTestPortalLinkCategory,
 } from '#/shared/testing/fixtures'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import {
   portalId,
   portalLinkCategoryId,
@@ -113,7 +113,7 @@ describe('reorderCategories', () => {
 
   it('rejects users who cannot update', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(useCase({ portalId: 'any', items: [] }, ctx)).rejects.toSatisfy(
       (e: unknown) => isPortalError(e) && e.code === 'forbidden',

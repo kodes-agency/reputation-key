@@ -40,7 +40,7 @@ import type { ReviewRepository } from '../../application/ports/review.repository
 import type { ReplyCommandStore } from '../../application/ports/reply-command-store.port'
 import type { GoogleReviewApiPort } from '../../application/ports/google-review-api.port'
 import type { GoogleReplyObservationStore } from '../../application/ports/google-reply-observation-store.port'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Reply, Review } from '../../domain/types'
 import { replyId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'

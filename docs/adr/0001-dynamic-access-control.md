@@ -81,5 +81,5 @@ Enable `dynamicAccessControl: { enabled: true }` in the organization plugin. Bet
 - Phase 15C originally added `goal.read`, `goal.create`, `goal.update`, and
   `goal.cancel` for the Goal bounded context. The beta Goal Program contract now
   keeps all four manager-facing: AccountAdmin and PropertyManager receive them,
-  while Staff receives none until a separately approved Staff dashboard exists.
+  while Member receives none until a separately approved Member dashboard exists.
 - `invitation.list` added to the `invitation` resource actions for listing invitations (previously only `create`, `cancel`, `resend` were defined).

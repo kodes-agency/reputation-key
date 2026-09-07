@@ -67,7 +67,7 @@ export const updateMemberRole =
     }
 
     // 3. Check business invariants — role hierarchy with actual current role
-    const authResult = canChangeRole(ctx.role, targetMember.role ?? 'Staff', input.role)
+    const authResult = canChangeRole(ctx.role, targetMember.role ?? 'Member', input.role)
     if (authResult.isErr()) {
       throw identityError(authResult.error.code, authResult.error.message)
     }
@@ -103,7 +103,7 @@ export const updateMemberRole =
       event: identityMemberRoleChanged({
         organizationId: ctx.organizationId,
         memberUserId: toUserId(targetMember.userId),
-        previousRole: targetMember.role ?? 'Staff',
+        previousRole: targetMember.role ?? 'Member',
         newRole: input.role,
         userId: ctx.userId,
         occurredAt: deps.clock(),

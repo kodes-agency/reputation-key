@@ -16,7 +16,7 @@ import {
 } from '../../domain/rules'
 import { propertyError } from '../../domain/errors'
 import { propertyUpdated } from '../../domain/events'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 
 export type UpdatePropertyDeps = Readonly<{

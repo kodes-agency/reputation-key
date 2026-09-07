@@ -547,7 +547,7 @@ describe('authorizeGoogleImportCommand', () => {
     it('still cancels when the actor lost authority in the same window', async () => {
       const frozen = frozenAtApproval()
       const { authorize } = setup({
-        authorizeGoogleContent: async () => atGeneration(12, { role: 'Staff' }),
+        authorizeGoogleContent: async () => atGeneration(12, { role: 'Member' }),
       })
 
       await expect(

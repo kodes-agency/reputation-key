@@ -4,7 +4,7 @@
 // tenant context, checks the review.read permission, and delegates here.
 
 import type { ReviewRepository } from '../ports/review.repository'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import type { PropertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'

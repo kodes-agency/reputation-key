@@ -163,8 +163,8 @@ describe('property.create permission', () => {
     expect(can('PropertyManager', 'property.create')).toBe(true)
   })
 
-  it('rejects Staff', () => {
-    expect(can('Staff', 'property.create')).toBe(false)
+  it('rejects Member', () => {
+    expect(can('Member', 'property.create')).toBe(false)
   })
 })
 
@@ -174,8 +174,8 @@ describe('property.update permission', () => {
     expect(can('PropertyManager', 'property.update')).toBe(true)
   })
 
-  it('rejects Staff', () => {
-    expect(can('Staff', 'property.update')).toBe(false)
+  it('rejects Member', () => {
+    expect(can('Member', 'property.update')).toBe(false)
   })
 })
 
@@ -183,7 +183,7 @@ describe('property.delete permission', () => {
   it('allows only AccountAdmin', () => {
     expect(can('AccountAdmin', 'property.delete')).toBe(true)
     expect(can('PropertyManager', 'property.delete')).toBe(false)
-    expect(can('Staff', 'property.delete')).toBe(false)
+    expect(can('Member', 'property.delete')).toBe(false)
   })
 })
 
@@ -193,7 +193,7 @@ describe('recoverable Property lifecycle permissions', () => {
     (permission) => {
       expect(can('AccountAdmin', permission)).toBe(true)
       expect(can('PropertyManager', permission)).toBe(false)
-      expect(can('Staff', permission)).toBe(false)
+      expect(can('Member', permission)).toBe(false)
     },
   )
 })

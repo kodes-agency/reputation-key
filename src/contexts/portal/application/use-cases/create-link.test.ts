@@ -12,7 +12,7 @@ import {
   buildTestPortalLinkCategory,
 } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { portalId, propertyId, type PropertyId, userId } from '#/shared/domain/ids'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../../domain/approved-destination'
 
@@ -210,7 +210,7 @@ describe('createLink', () => {
 
   it('rejects when role lacks portal.update permission', async () => {
     const { useCase, portalLinkRepo } = setup()
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
     const category = buildTestPortalLinkCategory({})
     portalLinkRepo.seedCategories([category])
 

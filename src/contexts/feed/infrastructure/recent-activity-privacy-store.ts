@@ -82,7 +82,7 @@ export const createRecentActivityPrivacyStore = (
             actorId: SYSTEM_USER_ID as string,
             actorName: REDACTED_RECENT_ACTIVITY_ACTOR_NAME,
             actorAvatarUrl: null,
-            actorRole: 'Staff',
+            actorRole: 'Member',
           })
           .where(
             inArray(

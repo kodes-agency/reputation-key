@@ -26,7 +26,6 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
 import { createTanstackRequestContext } from '#/shared/auth/tanstack-request-context'
 import { createBetterAuthSessionPort } from '#/shared/auth/better-auth-session'
-import { createGrantAccessLookup } from '#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
 import { BetaFeedbackTriageRepository } from '#/contexts/identity/infrastructure/beta-feedback-triage.repository'
 import {
   bindProcessPolicies,
@@ -57,7 +56,6 @@ import {
   type OAuthCallbackQuotaCounter,
 } from '#/contexts/integration/application/oauth-callback-abuse-gate'
 import { createRedisOAuthCallbackQuotaCounter } from '#/contexts/integration/infrastructure/oauth-callback-quota-counter'
-import { buildStaffContext } from '#/contexts/staff/build'
 import { buildPortalContext } from '#/contexts/portal/build'
 import { buildGuestContext } from '#/contexts/guest/build'
 import { buildReviewContext } from '#/contexts/review/build'
@@ -222,16 +220,6 @@ function buildContainer(
   registerAllEventSchemas()
 
   // ── Context builds (dependency order) ──────────────────────────────
-  const staff = buildStaffContext({
-    db,
-    // BQC-2.3: property scope resolves from the identity-owned grant
-    // repository (ADR 0039).
-    accessiblePropertyLookup: createGrantAccessLookup(db, clock),
-    clock,
-    idGen: randomUUID,
-    reconcileResponsibleManagerEligibility:
-      memberAuthorityLifecycle.port.reconcileResponsibleManagerEligibility,
-  })
 
   const identity = buildIdentityContext({
     db,
@@ -314,7 +302,7 @@ function buildContainer(
     repo: createPropertyRepository(db),
     clock,
     idGen: randomUUID,
-    staffPublicApi: staff.publicApi,
+    staffPublicApi: identity.publicApi.people,
     identityManagerFacts: identity.publicApi.managerFacts,
     logger: getLogger(),
   })
@@ -324,7 +312,7 @@ function buildContainer(
     outboxRepo,
     clock,
     propertyApi: property.publicApi,
-    staffPublicApi: staff.publicApi,
+    staffPublicApi: identity.publicApi.people,
     identityManagerFacts: identity.publicApi.managerFacts,
     baseUrl: env.BETTER_AUTH_URL ?? 'http://localhost:3000',
     idGen: () => crypto.randomUUID(),
@@ -351,12 +339,13 @@ function buildContainer(
     portalApi: portal.publicApi.portal,
     identityManagerFacts: identity.publicApi.managerFacts,
     identityAccountAdminAuthority: identity.publicApi.accountAdminAuthority,
-    staffApi: staff.publicApi,
+    staffApi: identity.publicApi.people,
     logger,
     sessionSecret: env.GUEST_SESSION_SALT,
     publicOrigin: new URL(env.BETTER_AUTH_URL).origin,
     secureCookies: env.NODE_ENV === 'production',
-    resolvePrimaryStaffAttribution: staff.publicApi.resolvePrimaryStaffAttribution,
+    resolvePrimaryStaffAttribution:
+      identity.publicApi.people.resolvePrimaryStaffAttribution,
     observationLossRedis: redis,
   })
 
@@ -443,7 +432,7 @@ function buildContainer(
     clock,
     idGen: randomUUID,
     snapshotRunIdGen: randomUUID,
-    staffPublicApi: staff.publicApi,
+    staffPublicApi: identity.publicApi.people,
     publicationActorAuthority: async (tx, authorityInput) =>
       (await identity.authority.decidePublicationActorAuthority(tx, authorityInput))
         .allowed,
@@ -495,11 +484,12 @@ function buildContainer(
     db,
     clock,
     idGen: randomUUID,
-    staffPublicApi: staff.publicApi,
+    staffPublicApi: identity.publicApi.people,
     authorizeCommand: createInboxCommandAuthority({
       decideManagerPropertyAuthorities:
         identity.authority.decideManagerPropertyAuthorities,
-      decideUserParticipationAuthority: staff.authority.decideUserParticipationAuthority,
+      decideUserParticipationAuthority:
+        identity.authority.decideUserParticipationAuthority,
     }),
     // BQC-1.4: review.publicApi IS the governed read interface — it satisfies
     // the inbox ReviewLookupPort and metric ReviewRatingLookupPort directly.
@@ -568,9 +558,9 @@ function buildContainer(
       propertyAccess: identity.authority,
       eligibility: {
         listActiveManagers: identity.publicApi.managerFacts.listActiveManagers,
-        getAccessiblePropertyIds: staff.publicApi.getAccessiblePropertyIds,
+        getAccessiblePropertyIds: identity.publicApi.people.getAccessiblePropertyIds,
         findActiveParticipation: async (organizationIdValue, pid, managerId) =>
-          staff.publicApi.findActiveParticipation?.(
+          identity.publicApi.people.findActiveParticipation?.(
             organizationIdValue,
             pid,
             managerId,
@@ -588,7 +578,6 @@ function buildContainer(
     logger,
     outboxRepo,
     jobQueue: infra.jobQueue,
-    staff,
     property,
     portal,
     guest,
@@ -708,7 +697,6 @@ function buildContainer(
     integrationWebhookRuntime: integration.webhook,
     propertyPublicApi: property.publicApi,
     reviewPublicApi: review.publicApi,
-    staffPublicApi: staff.publicApi,
     identityLifecycleRuntime: identity.lifecycle,
     guestPublicApi: guest.publicApi,
     inboxPublicApi: inbox.publicApi,

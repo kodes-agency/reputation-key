@@ -16,7 +16,7 @@ import {
 } from '#/shared/domain/ids'
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalGroup } from '../../domain/types'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 
@@ -145,9 +145,9 @@ describe('softDeletePortalGroup', () => {
     expect(String(emitted[0].portalGroupId)).toBe(String(GROUP_ID))
   })
 
-  it('rejects forbidden role (Staff lacks portal.delete)', async () => {
+  it('rejects forbidden role (Member lacks portal.delete)', async () => {
     const { useCase } = setup(null)
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(useCase({ portalGroupId: String(GROUP_ID) }, ctx)).rejects.toSatisfy(
       (e: unknown) => isPortalError(e) && e.code === 'forbidden',

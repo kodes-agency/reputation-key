@@ -10,7 +10,7 @@ import {
   buildTestPortalLink,
 } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { propertyId, type PropertyId } from '#/shared/domain/ids'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
@@ -59,7 +59,7 @@ describe('deleteLink', () => {
 
   it('rejects users who cannot delete', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(useCase({ linkId: 'any' }, ctx)).rejects.toSatisfy(
       (e: unknown) => isPortalError(e) && e.code === 'forbidden',

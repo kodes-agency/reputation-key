@@ -1658,10 +1658,7 @@ export default tseslint.config(
   {
     ignores: [
       'src/components/ui/**',
-      'src/components/features/identity/member-directory/invite-member-form.tsx',
-      'src/components/features/identity/member-directory/member-table.tsx',
       'src/components/features/portal/link-tree/link-tree.tsx',
-      'src/components/features/portal/link-tree/sortable-category.tsx',
       'src/components/layout/manager-sidebar.tsx',
       // Story files are fixtures (many variants), not components — not subject to the monolith limit.
       'src/**/*.stories.tsx',

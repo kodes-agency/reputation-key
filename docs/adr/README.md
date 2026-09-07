@@ -17,7 +17,7 @@ never issued; numbers are not reused.
 | [0003](0003-review-bounded-context.md)                                    | Review bounded context                 | Partially superseded by 0030, 0031, and 0055                        |
 | [0004](0004-inbox-bounded-context.md)                                     | Inbox bounded context                  | Partially superseded by 0055                                        |
 | [0005](0005-gbp-review-api-fix.md)                                        | GBP Review API path/error model        | Historical implementation decision                                  |
-| [0006](0006-staff-bounded-context.md)                                     | Staff bounded context                  | Partially superseded by 0052                                        |
+| [0006](0006-staff-bounded-context.md)                                     | Staff bounded context                  | Superseded by WP3.4                                                 |
 | [0007](0007-dashboard-read-only-aggregation.md)                           | Read-only Dashboard aggregation        | Partially superseded by WP3.4; read-only behavior retained          |
 | [0008](0008-cross-context-boundaries.md)                                  | Cross-context data access              | Active                                                              |
 | [0009](0009-permission-model.md)                                          | Permission model                       | Partially superseded by 0033 and 0052                               |

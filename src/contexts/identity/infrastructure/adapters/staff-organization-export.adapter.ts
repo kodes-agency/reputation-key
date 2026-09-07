@@ -1,7 +1,7 @@
 // Staff's Organization Export contribution (LIF-01 work item 6: "people /
 // access / responsibility").
 //
-// Staff owns the people directory — Staff Participants, their optional login
+// Identity People owns the directory — Staff Participants, their optional login
 // link, their per-Property participation, their Portal Responsibility, and the
 // effective-dated Portal Group membership that gives event-time attribution its
 // meaning. Those rows are tenant-visible: the Organization created them and an
@@ -13,7 +13,7 @@
 //      context acceptance matrix (row 1) makes Identity their sole reader.
 //      Duplicating them here would both break that boundary and put two
 //      divergent copies of an authorization record in one archive.
-//   2. Anything belonging to the dark Staff User login. Participation is a
+//   2. Anything belonging to the dark Member login capability. Participation is a
 //      people fact; sign-in material is not, and LIF-01 work item 7 excludes
 //      credentials, sessions, and tokens outright. No such table is queried.
 
@@ -423,12 +423,12 @@ function countRecords(payload: StaffOrganizationExportPayload): number {
 }
 
 /**
- * Staff-owned Organization Export contribution.
+ * Identity-owned People contribution to the Organization Export.
  *
  * `no_data` is returned only when the Organization genuinely holds no people
  * row at all — an affirmative "nothing here", never an omission and never an
- * invented empty CSV. Staff has no reason to omit: everything it owns is
- * tenant-visible, so it never produces an omission code.
+ * invented empty CSV. Identity People has no reason to omit: everything it owns
+ * is tenant-visible, so it never produces an omission code.
  */
 export const createStaffOrganizationExportContributor = (
   db: Database,

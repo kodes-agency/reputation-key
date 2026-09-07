@@ -3,6 +3,7 @@
 // Per ADR-0001.
 
 import type { ManagerMembership } from './ports/identity.port'
+import type { StaffPublicApi } from './people-public-api'
 import type { OutstandingResponsibility } from './ports/member-offboarding.port'
 import type { InviteMember } from './use-cases/invite-member'
 import type { UpdateMemberRole } from './use-cases/update-member-role'
@@ -45,6 +46,12 @@ export type {
   MemberRecord,
   OrganizationRecord,
 } from './ports/identity.port'
+
+export type {
+  StaffPublicApi,
+  StaffParticipation,
+  PortalResponsibility,
+} from './people-public-api'
 
 /** Current manager membership facts. This facade carries no mutation authority. */
 export type IdentityManagerFactsPublicApi = Readonly<{
@@ -100,5 +107,6 @@ export type IdentityPublicApi = Readonly<{
   managerFacts: IdentityManagerFactsPublicApi
   accountAdminAuthority: IdentityAccountAdminAuthorityPublicApi
   offboardingFacts: IdentityOffboardingFactsPublicApi
+  people: StaffPublicApi
   requests: IdentityRequestApi
 }>

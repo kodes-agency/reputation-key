@@ -7,7 +7,7 @@
 // role with portal.update@assigned stays scoped.
 
 import type { PortalRepository } from './ports/portal.repository'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalId, PropertyId } from '#/shared/domain/ids'
 import type { Permission } from '#/shared/domain/permissions'
@@ -20,14 +20,14 @@ import type { Portal } from '../domain/types'
  *  same permission the caller gated on (portal.read/create/update/delete).
  *  Use when propertyId is already resolved (portal/group loaded, or input.propertyId). */
 export async function assertPropertyAccess(
-  staffPublicApi: StaffPublicApi,
+  peopleApi: StaffPublicApi,
   ctx: AuthContext,
   permission: Permission,
   propertyId: PropertyId,
 ): Promise<void> {
   const accessible = await isPropertyAccessibleForPermission(
     (orgId, userId, orgWide) =>
-      staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),
+      peopleApi.getAccessiblePropertyIds(orgId, userId, orgWide),
     ctx,
     permission,
     propertyId,
@@ -42,7 +42,7 @@ export async function assertPropertyAccess(
  *  Use when only a portalId is known (link/category mutations). */
 export async function assertPortalPropertyAccess(
   portalRepo: PortalRepository,
-  staffPublicApi: StaffPublicApi,
+  peopleApi: StaffPublicApi,
   ctx: AuthContext,
   permission: Permission,
   portalId: PortalId,
@@ -51,6 +51,6 @@ export async function assertPortalPropertyAccess(
   if (!portal) {
     throw portalError('portal_not_found', 'portal not found in this organization')
   }
-  await assertPropertyAccess(staffPublicApi, ctx, permission, portal.propertyId)
+  await assertPropertyAccess(peopleApi, ctx, permission, portal.propertyId)
   return portal
 }

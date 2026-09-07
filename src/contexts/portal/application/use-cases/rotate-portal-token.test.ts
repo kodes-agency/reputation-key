@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalTokenCodec } from '../ports/portal-token-codec.port'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'

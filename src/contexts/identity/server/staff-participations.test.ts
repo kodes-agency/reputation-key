@@ -12,12 +12,14 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('#/composition', () => ({
   getContainer: () => ({
-    staffPublicApi: {
-      management: {
-        createStaffParticipation: mocks.create,
-        listStaffParticipations: mocks.list,
-        archiveStaffParticipation: mocks.archive,
-        updatePortalResponsibilities: mocks.responsibilities,
+    identityPublicApi: {
+      people: {
+        management: {
+          createStaffParticipation: mocks.create,
+          listStaffParticipations: mocks.list,
+          archiveStaffParticipation: mocks.archive,
+          updatePortalResponsibilities: mocks.responsibilities,
+        },
       },
     },
   }),

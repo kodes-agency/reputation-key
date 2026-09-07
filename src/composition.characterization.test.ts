@@ -112,7 +112,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   // Container-owned release seam. Static policy starts no background work,
   // while queues and future process resources still share one shutdown path.
   'shutdown',
-  'staffPublicApi',
 ]
 
 const EXPECTED_INBOX_PUBLIC_API_KEYS = [

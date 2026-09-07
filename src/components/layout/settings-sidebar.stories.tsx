@@ -69,18 +69,18 @@ export const AsPropertyManager: Story = {
   },
 }
 
-// Staff lacks organization.update / member.list / ai.manage / integration.manage,
+// Member lacks organization.update / member.list / ai.manage / integration.manage,
 // so the gated entries are absent. Only Profile, Security,
 // Preferences, Notifications render. "Back to app" → /.
-export const AsStaff: Story = {
-  decorators: [withRole('Staff')],
+export const AsMember: Story = {
+  decorators: [withRole('Member')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/^profile$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^security$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^preferences$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^notifications$/i)).toBeInTheDocument()
-    // Gated entries must NOT render for Staff.
+    // Gated entries must NOT render for Member.
     expect(canvas.queryByText(/^organization$/i)).toBeNull()
     expect(canvas.queryByText(/^members$/i)).toBeNull()
     expect(canvas.queryByText(/^recognition$/i)).toBeNull()

@@ -225,7 +225,7 @@
       ]
     },
     {
-      "file": "src/contexts/staff/infrastructure/adapters/staff-organization-lifecycle.adapter.ts",
+      "file": "src/contexts/identity/infrastructure/adapters/staff-organization-lifecycle.adapter.ts",
       "exports": ["STAFF_PURGE_ORDER_NOTE"]
     },
     {

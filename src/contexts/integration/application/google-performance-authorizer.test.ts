@@ -459,7 +459,7 @@ describe('createGooglePerformanceAuthorizer', () => {
   it('denies live Performance when effective authority lacks its dedicated permission', async () => {
     const staff: AuthContext = Object.freeze({
       ...actor,
-      role: 'Staff',
+      role: 'Member',
       effectivePermissions: new Set<Permission>(['property.read']),
     })
     const { authorize, readBinding, getAccessToken } = setup({

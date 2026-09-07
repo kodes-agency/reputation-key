@@ -215,7 +215,7 @@ describe('connectGoogleAccount', () => {
   it('rejects users without integration.manage permission before OAuth exchange', async () => {
     const { useCase, oauth } = setup()
     await expect(
-      useCase(input(), buildTestAuthContext({ role: 'Staff' })),
+      useCase(input(), buildTestAuthContext({ role: 'Member' })),
     ).rejects.toSatisfy(
       (error: unknown) =>
         isIntegrationError(error) && (error as { code: string }).code === 'forbidden',

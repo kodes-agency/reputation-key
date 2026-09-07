@@ -31,7 +31,7 @@ describe('canForContext', () => {
     setPermissionLookup((role, p) => role === 'AccountAdmin' && p === 'property.read')
 
     expect(canForContext(ctx({ role: 'AccountAdmin' }), 'property.read')).toBe(true)
-    expect(canForContext(ctx({ role: 'Staff' }), 'property.read')).toBe(false)
+    expect(canForContext(ctx({ role: 'Member' }), 'property.read')).toBe(false)
   })
 
   it('uses effectivePermissions when present (ignores the role table)', () => {
@@ -39,11 +39,14 @@ describe('canForContext', () => {
     const perms = new Set<Permission>(['property.read'])
 
     expect(
-      canForContext(ctx({ role: 'Staff', effectivePermissions: perms }), 'property.read'),
+      canForContext(
+        ctx({ role: 'Member', effectivePermissions: perms }),
+        'property.read',
+      ),
     ).toBe(true)
     expect(
       canForContext(
-        ctx({ role: 'Staff', effectivePermissions: perms }),
+        ctx({ role: 'Member', effectivePermissions: perms }),
         'property.delete',
       ),
     ).toBe(false)
@@ -58,7 +61,7 @@ describe('scopeForPermission', () => {
     expect(scopeForPermission(ctx({ role: 'PropertyManager' }), 'property.read')).toBe(
       'assigned-properties',
     )
-    expect(scopeForPermission(ctx({ role: 'Staff' }), 'property.read')).toBe(
+    expect(scopeForPermission(ctx({ role: 'Member' }), 'property.read')).toBe(
       'assigned-properties',
     )
   })

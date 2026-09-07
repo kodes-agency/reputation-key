@@ -11,7 +11,7 @@ import {
   listActiveGrantUserIdsForProperty,
   listActiveGrantsForUser,
 } from '../repositories/property-access-grant.repository'
-import type { AccessiblePropertyLookupPort } from '#/contexts/staff/application/ports/accessible-property-lookup.port'
+import type { AccessiblePropertyLookupPort } from '../../application/ports/accessible-property-lookup.port'
 
 export const createGrantAccessLookup = (
   db: Database,

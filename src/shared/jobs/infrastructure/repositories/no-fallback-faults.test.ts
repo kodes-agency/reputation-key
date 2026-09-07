@@ -82,7 +82,7 @@ import {
 } from '#/shared/domain/ids'
 import type { Reply, Review } from '#/contexts/review/domain/types'
 import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PublishReplyJobData } from '#/contexts/review/application/ports/reply-queue.port'
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'

@@ -588,24 +588,24 @@ export async function getUserByEmail(
 }
 
 /**
- * A staff member: better-auth user (credential account) + member row + an
- * ACTIVE property_access_grant with source 'operator' (the operator-allowlist
+ * A Member: Better Auth user (credential account) + member row + an ACTIVE
+ * property_access_grant with source 'operator' (the operator-allowlist
  * provenance). The user id is a UUID so the user is a valid assignment target
- * (assignInboxItemFn validates assignedToUserId as uuid — better-auth's own
+ * (assignInboxItemFn validates assignedToUserId as uuid — Better Auth's own
  * nanoid ids fail it; see the slice report).
  *
- * `role` defaults to 'member' (→ Staff permissions), which is what
+ * `role` defaults to 'member' (→ Member permissions), which is what
  * property-access.spec.ts and dashboard-governance.spec.ts want: a login that
  * is deliberately NOT beta-interactive, so they can assert property scoping.
  *
  * Inbox specs must pass 'owner'. Assignment now authorizes the ASSIGNEE as its
- * own principal, and Staff is not a beta-interactive role, so handing an Inbox
- * item to a Staff user is refused with "Inbox command authority is no longer
+ * own principal, and Member is not a beta-interactive role, so handing an Inbox
+ * item to a Member user is refused with "Inbox command authority is no longer
  * current" before any permission or grant is read. 'admin' (PropertyManager)
- * does not work either without more fixture work — it requires staff
- * participation links this database does not have.
+ * does not work either without more fixture work — it requires Staff
+ * Participation links this database does not have.
  */
-export async function seedStaffUserWithGrant(input: {
+export async function seedMemberUserWithGrant(input: {
   organizationId: string
   propertyId: string
   email: string
@@ -614,12 +614,12 @@ export async function seedStaffUserWithGrant(input: {
   role?: 'owner' | 'admin' | 'member'
 }): Promise<{ userId: string; email: string; password: string }> {
   const userId = randomUUID()
-  const password = input.password ?? 'StaffPass123!'
+  const password = input.password ?? 'MemberPass123!'
   const passwordHash = await hashPassword(password)
 
   await dbQuery(
     'INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") VALUES ($1, $2, $3, true, now(), now())',
-    [userId, input.name ?? 'E2E Staff', input.email],
+    [userId, input.name ?? 'E2E Member', input.email],
   )
   await dbQuery(
     'INSERT INTO account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, now(), now())',

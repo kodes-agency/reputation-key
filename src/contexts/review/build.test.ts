@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Queue } from 'bullmq'
 import { buildReviewContext } from './build'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 
 vi.mock('#/shared/observability/logger', () => ({

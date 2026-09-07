@@ -7,7 +7,7 @@ import {
   staffUserLinks,
 } from '#/shared/db/schema/people-access.schema'
 import { portals } from '#/shared/db/schema/portal.schema'
-import { staffError } from '../../domain/errors'
+import { staffError } from '../../domain/people-errors'
 import type { StaffParticipation } from '../../domain/staff-participation'
 import type { PortalResponsibility } from '../../domain/portal-responsibility'
 import type { StaffParticipationRepository } from '../../application/ports/staff-participation.repository'

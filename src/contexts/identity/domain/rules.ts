@@ -70,7 +70,7 @@ export function canInviteWithRole(
     return err(
       identityError(
         'forbidden',
-        `Cannot invite with role '${targetRole}' — Staff login is not active in beta`,
+        `Cannot invite with role '${targetRole}' — Member login is not active in beta`,
       ),
     )
   }

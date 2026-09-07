@@ -7,7 +7,7 @@ import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { propertyId, type PropertyId } from '#/shared/domain/ids'
 import { isPortalError } from '../../domain/errors'
 
@@ -86,7 +86,7 @@ describe('createLinkCategory', () => {
 
   it('rejects when role lacks portal.update permission', async () => {
     const { useCase, portalRepo } = setup()
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
     const portal = buildTestPortal({})
     portalRepo.seed([portal])
 

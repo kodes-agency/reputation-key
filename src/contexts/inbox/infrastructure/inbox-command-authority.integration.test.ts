@@ -15,7 +15,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { decideCurrentManagerPropertyAuthorities } from '#/contexts/identity/infrastructure/repositories/member-property-authority'
-import { decideCurrentUserParticipationAuthority } from '#/contexts/staff/infrastructure/repositories/current-user-participation-authority'
+import { decideCurrentUserParticipationAuthority } from '#/contexts/identity/infrastructure/repositories/current-user-participation-authority'
 import type { InboxItem } from '../domain/types'
 import { inboxItemAssigned, inboxItemBulkStatusChanged } from '../domain/events'
 import { isInboxError } from '../domain/errors'

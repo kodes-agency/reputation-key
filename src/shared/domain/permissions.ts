@@ -119,7 +119,7 @@ export function can(role: Role, permission: Permission): boolean {
 const BUILT_IN_SCOPE_FOR_ROLE: Readonly<Record<Role, DataScope>> = {
   AccountAdmin: 'organization',
   PropertyManager: 'assigned-properties',
-  Staff: 'assigned-properties',
+  Member: 'assigned-properties',
 }
 
 /**

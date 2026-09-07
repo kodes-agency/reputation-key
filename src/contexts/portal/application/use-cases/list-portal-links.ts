@@ -8,7 +8,7 @@ import { portalError } from '../../domain/errors'
 import { canForContext } from '#/shared/domain/permissions'
 import { portalId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { assertPortalPropertyAccess } from '../assert-property-access'
 
 export type ListPortalLinksInput = Readonly<{

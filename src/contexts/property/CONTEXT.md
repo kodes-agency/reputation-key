@@ -18,7 +18,7 @@ Property management — creation, updates, lifecycle containment, and cross-cont
 - Property ← Portal, StaffParticipation, PortalResponsibility, PropertyAccessGrant, Goal, and Review (all reference `propertyId`).
 - Property ← Integration context (via `PropertyGoogleBindingPublicApi` for canonical binding lifecycle).
 - Property ← Guest context (via slug lookup for public portal resolution).
-- Property context **depends on** `StaffPublicApi` for accessible property filtering and linked participation eligibility.
+- Property context **depends on** Identity's nested `StaffPublicApi` People surface for accessible Property filtering and linked participation eligibility.
 - Property context **depends on** `IdentityPublicApi` for membership, role, and Property access eligibility.
 
 ## Invariants
@@ -85,7 +85,7 @@ property/
 - **`createProperty`** — Create a new property and atomically record `property.created`.
 - **`updateProperty`** — Update property settings and atomically record `property.updated`.
 - **`getProperty`** — Retrieve a single property by ID.
-- **`listProperties`** — List properties for an org, filtered by user's accessible properties (via StaffPublicApi).
+- **`listProperties`** — List properties for an org, filtered by the Identity People surface's accessible Properties.
 - **`deleteProperty`** — Contained legacy entry point (file: `soft-delete-property.ts`). Always refuses before effects. It does not implement Archive/Disconnect or support-mediated erasure.
 - **`archiveProperty`** — AccountAdmin-only recoverable lifecycle transition. Preserves identity/history, opens one fixed 30-day recovery window, fences stale work through `sourceEpoch`, and atomically records `property.archived`.
 - **`restoreProperty`** — AccountAdmin-only explicit recovery for an archived Property before its deadline. Requires an eligible Responsible Manager and returns `ready` or `reconnect_required` for the Google binding.

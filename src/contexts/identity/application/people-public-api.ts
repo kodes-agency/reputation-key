@@ -1,6 +1,6 @@
-// Staff context — public API surface for cross-context consumers.
-// Other contexts consume authoritative StaffParticipation and
-// PortalResponsibility lookups through this boundary.
+// Identity People surface for Staff Participation and Portal attribution facts.
+// Property access is delegated to Identity's grant authority and is never
+// widened by participation or responsibility records.
 
 import type { OrganizationId, PortalId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -37,9 +37,3 @@ export type StaffPublicApi = Readonly<{
 
 export type { StaffParticipation } from '../domain/staff-participation'
 export type { PortalResponsibility } from '../domain/portal-responsibility'
-
-// ── Staff type aliases for cross-context consumers ──────────────────────
-export type StaffPortalEntry = Readonly<{
-  id: PortalId
-  name: string
-}>

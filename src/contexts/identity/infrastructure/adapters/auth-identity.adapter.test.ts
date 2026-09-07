@@ -169,7 +169,7 @@ describe('createBetterAuthIdentityAdapter', () => {
         image: null,
         createdAt,
       })
-      expect(members[1].role).toBe('Staff')
+      expect(members[1].role).toBe('Member')
       expect(members[1].image).toBe('img.png')
     })
     it('tolerates custom and multi roles without throwing (H2)', async () => {
@@ -419,7 +419,7 @@ describe('createBetterAuthIdentityAdapter', () => {
         expiresAt: expires,
         createdAt: now,
       })
-      expect(invitations[1].role).toBe('Staff')
+      expect(invitations[1].role).toBe('Member')
     })
 
     it('throws when response does not match schema', async () => {

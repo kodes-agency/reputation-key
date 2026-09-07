@@ -3,7 +3,7 @@ import type {
   IdentityManagerFactsPublicApi,
 } from '#/contexts/identity/application/public-api'
 import type { PortalContactRequestManagerAuthorityPublicApi } from '#/contexts/portal/application/public-api'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
 import type { ContactRequestManagerAuthorityPort } from '../../application/ports/contact-request-manager-authority.port'
 

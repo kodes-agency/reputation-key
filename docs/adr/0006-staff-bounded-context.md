@@ -1,8 +1,9 @@
 # ADR 0006 — Staff as a Separate Bounded Context
 
-**Status:** Implemented
+**Status:** Superseded
 **Date:** 2026-05-22
 **Context:** Identity, Staff Management Architecture
+**Superseded by:** WP3.4 (2026-09-07), which moved Staff Participation and attribution into Identity People while preserving the model boundaries in ADR 0039.
 
 ## Decision
 

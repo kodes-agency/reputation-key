@@ -1,7 +1,7 @@
 import type { RecentActivityRepository } from '../ports/recent-activity-repository.port'
 import type { RecentActivityEntry } from '../domain/activity-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
 import { filterByPropertyAccess } from './list-recent-activity'
 import type { ResourceType } from '../domain/activity-types'

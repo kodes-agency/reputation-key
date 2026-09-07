@@ -6,7 +6,7 @@
 
 ## Decision
 
-Replace the property-centric sidebar navigation with section-based navigation. Property becomes a scope filter (switcher at top), not a navigation anchor. Staff users get a completely different sidebar from managers/admins.
+Replace the property-centric sidebar navigation with section-based navigation. Property becomes a scope filter (switcher at top), not a navigation anchor. Member users get a completely different sidebar from managers/admins.
 
 ## Context
 
@@ -14,7 +14,7 @@ The initial navigation was property-anchored: a property selector in the sidebar
 
 - Upcoming features (Goals, Leaderboards, AI Insights) don't naturally nest under a property
 - Staff, Teams, and Members are overlapping concepts that confuse users
-- Staff users (the largest user group) see a management interface irrelevant to them
+- Member users (the largest user group) see a management interface irrelevant to them
 - Settings (profile, security, billing, agent config) is orthogonal to properties
 - The org-level `/staff` page and property-level `/properties/$id/staff` page create duplicate navigation
 
@@ -87,7 +87,7 @@ Later additions:
 /insights                     — AI sentiment trends, themes, suggested actions
 ```
 
-### Staff
+### Member
 
 ```
 /home                         — personal summary (badges, goal progress, team rank)
@@ -105,16 +105,16 @@ Later additions:
 - New features slot into the sidebar naturally (Goals, Leaderboard, AI Insights)
 - People section eliminates the confusing Staff/Members/Teams split
 - Settings has room to grow (billing, agent personalization) without crowding the main sidebar
-- Staff mobile experience is focused: 3-4 items, all personal, no management noise
+- Member mobile experience is focused: 3-4 items, all personal, no management noise
 
 ### Negative
 
 - Route restructuring required (current property-centric routes change)
-- Staff sidebar needs its own layout component (not just conditional rendering)
+- Member sidebar needs its own layout component (not just conditional rendering)
 - Property switcher must be prominent and obvious (otherwise users lose scope awareness)
 - Dashboard page needs to be built from scratch (currently just a redirect)
 
 ### Risks
 
 - If property-scoping is wrong for a future feature (e.g., org-wide leaderboards), the section model needs rethinking
-- Staff sidebar may need more items over time, requiring the same category-header treatment as manager sidebar
+- Member sidebar may need more items over time, requiring the same category-header treatment as manager sidebar

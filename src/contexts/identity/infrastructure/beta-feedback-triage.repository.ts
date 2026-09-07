@@ -32,7 +32,7 @@ export type PreparedBetaFeedbackTriage = Readonly<{
     | 'nice_to_have'
   routeKey: BetaFeedbackRouteKey
   viewport: BetaFeedbackViewport
-  reporterRole: 'AccountAdmin' | 'PropertyManager' | 'Staff'
+  reporterRole: 'AccountAdmin' | 'PropertyManager' | 'Member'
   attachmentKind: 'none' | 'masked_layout_v1'
   attachmentCapturedAt: Date | null
   attachmentExpiresAt: Date | null

@@ -1,7 +1,7 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { portalApprovedDestinationId, portalId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
 import { loadPortalOrThrow } from '../load-accessible-portal'

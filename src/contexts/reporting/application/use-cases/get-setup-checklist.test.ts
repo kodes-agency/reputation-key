@@ -158,13 +158,13 @@ describe('getSetupChecklist', () => {
     expect(repo.readAndRecord).not.toHaveBeenCalled()
   })
 
-  it('rejects Staff so the beta-dark role cannot acquire an authenticated setup surface', async () => {
+  it('rejects Member so the beta-dark role cannot acquire an authenticated setup surface', async () => {
     const getChecklist = getSetupChecklist({ repository: repository(facts()) })
 
     await expect(
       getChecklist({
         organizationId: ORG,
-        role: 'Staff',
+        role: 'Member',
         accessiblePropertyIds: [],
         allowedActions: {
           manageGoogle: false,

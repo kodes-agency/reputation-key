@@ -22,7 +22,7 @@ import {
 } from '../domain/activity-types'
 import type { Role } from '#/shared/domain/roles'
 
-const VALID_ROLES = new Set<string>(['Staff', 'PropertyManager', 'AccountAdmin'])
+const VALID_ROLES = new Set<string>(['Member', 'PropertyManager', 'AccountAdmin'])
 
 const activityFromRow = (
   row: typeof recentActivityEntries.$inferSelect,
@@ -31,7 +31,7 @@ const activityFromRow = (
   actorId: toUserId(row.actorId),
   actorName: row.actorName,
   actorAvatarUrl: row.actorAvatarUrl,
-  actorRole: (VALID_ROLES.has(row.actorRole) ? row.actorRole : 'Staff') as Role,
+  actorRole: (VALID_ROLES.has(row.actorRole) ? row.actorRole : 'Member') as Role,
   action: assertLiteral(
     row.action,
     ACTIVITY_ACTIONS,

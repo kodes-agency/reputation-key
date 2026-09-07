@@ -48,7 +48,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('allows application → foreign application/public-api', async () => {
     const messages = await lintSnippet(
-      `import type { StaffPublicApi } from '#/contexts/staff/application/public-api'\nexport type { StaffPublicApi }\n`,
+      `import type { StaffPublicApi } from '#/contexts/identity/application/public-api'\nexport type { StaffPublicApi }\n`,
       'src/contexts/portal/application/use-cases/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
@@ -56,16 +56,16 @@ describe('BQC-5.1: cross-context public-api rule', () => {
 
   it('allows infrastructure/adapters → foreign application/ports (adapter exception)', async () => {
     const messages = await lintSnippet(
-      `import type { AccessiblePropertyLookupPort } from '#/contexts/staff/application/ports/accessible-property-lookup.port'\nexport type { AccessiblePropertyLookupPort }\n`,
-      'src/contexts/identity/infrastructure/adapters/sample.adapter.ts',
+      `import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'\nexport type { SourceContentPurge }\n`,
+      'src/contexts/integration/infrastructure/adapters/sample.adapter.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
   })
 
   it('flags infrastructure outside adapters/ → foreign application/ports', async () => {
     const messages = await lintSnippet(
-      `import type { AccessiblePropertyLookupPort } from '#/contexts/staff/application/ports/accessible-property-lookup.port'\nexport type { AccessiblePropertyLookupPort }\n`,
-      'src/contexts/identity/infrastructure/repositories/sample.ts',
+      `import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'\nexport type { SourceContentPurge }\n`,
+      'src/contexts/integration/infrastructure/repositories/sample.ts',
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
   })

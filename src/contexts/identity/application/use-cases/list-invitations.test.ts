@@ -11,7 +11,7 @@ import type { InvitationRecord } from '../ports/identity.port'
 const PENDING_INVITATION: InvitationRecord = {
   id: 'inv-1',
   email: 'new@test.com',
-  role: 'Staff',
+  role: 'Member',
   rawRole: 'member',
   status: 'pending',
   expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
@@ -62,9 +62,9 @@ describe('listInvitations', () => {
     expect(result.invitations).toHaveLength(1)
   })
 
-  it('rejects Staff from listing invitations', async () => {
+  it('rejects Member from listing invitations', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(useCase(undefined, ctx)).rejects.toSatisfy(
       (e) => isIdentityError(e) && e.code === 'forbidden',

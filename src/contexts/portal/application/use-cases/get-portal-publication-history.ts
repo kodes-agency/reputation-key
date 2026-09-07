@@ -1,7 +1,7 @@
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalRepository } from '../ports/portal.repository'
 import type {
   PortalPublicationActivationRecord,

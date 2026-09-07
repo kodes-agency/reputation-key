@@ -19,7 +19,7 @@ import type { DashboardData } from '../domain/dashboard-types'
 
 import { resolvePropertyPeriod } from './resolve-property-period'
 
-function hideReplyWorkflowForStaff(
+function hideReplyWorkflowWithoutAuthority(
   canManageReplies: boolean,
   dashboard: DashboardData,
 ): DashboardData {
@@ -47,10 +47,14 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
             action: 'dashboard.read',
             propertyId: data.propertyId,
           })
-          const { dashboardPublicApi, clock, staffPublicApi, propertyPublicApi } =
+          const { dashboardPublicApi, clock, identityPublicApi, propertyPublicApi } =
             getContainer()
           // D6-001: non-admin callers may only read their assigned properties.
-          await assertDashboardPropertyAccessible(staffPublicApi, ctx, data.propertyId)
+          await assertDashboardPropertyAccessible(
+            identityPublicApi.people,
+            ctx,
+            data.propertyId,
+          )
           const pid = propertyId(data.propertyId)
           const { startDate, endDate, propertyTimezone } = await resolvePropertyPeriod(
             { propertyFacts: propertyPublicApi, clock },
@@ -72,13 +76,16 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
           })
 
           // §9: reply-derived fields (replyPerformance aggregates + per-review
-          // replyStatus) must not surface to roles lacking reply.manage (Staff).
-          // dashboard.read is granted to Staff, but the Reply glossary restricts
+          // replyStatus) must not surface to roles lacking reply.manage (Member).
+          // dashboard.read is granted to Member, but the Reply glossary restricts
           // reply state to PM+ roles. Zero the reply metrics and hide per-review
-          // reply state so a Staff caller (via direct RPC) learns nothing about
+          // reply state so a Member caller (via direct RPC) learns nothing about
           // the reply workflow. The UI is already gated by property.admin (PM+),
           // so this only affects direct RPC callers.
-          return hideReplyWorkflowForStaff(canForContext(ctx, 'reply.manage'), dashboard)
+          return hideReplyWorkflowWithoutAuthority(
+            canForContext(ctx, 'reply.manage'),
+            dashboard,
+          )
         } catch (e) {
           if (isDashboardError(e))
             throwContextError('DashboardError', e, dashboardErrorStatus(e.code))
@@ -108,9 +115,13 @@ export const getPropertyOverviewFn = createServerFn({ method: 'GET' })
             actor: ctx,
             action: 'dashboard.fleet_read',
           })
-          const { dashboardPublicApi, clock, staffPublicApi, propertyPublicApi } =
+          const { dashboardPublicApi, clock, identityPublicApi, propertyPublicApi } =
             getContainer()
-          await assertDashboardPropertyAccessible(staffPublicApi, ctx, data.propertyId)
+          await assertDashboardPropertyAccessible(
+            identityPublicApi.people,
+            ctx,
+            data.propertyId,
+          )
           const pid = propertyId(data.propertyId)
           const { startDate, endDate, propertyTimezone } = await resolvePropertyPeriod(
             { propertyFacts: propertyPublicApi, clock },
@@ -132,7 +143,7 @@ export const getPropertyOverviewFn = createServerFn({ method: 'GET' })
           })
           return {
             ...overview,
-            dashboard: hideReplyWorkflowForStaff(
+            dashboard: hideReplyWorkflowWithoutAuthority(
               canForContext(ctx, 'reply.manage'),
               overview.dashboard,
             ),

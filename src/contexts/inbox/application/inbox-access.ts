@@ -3,7 +3,7 @@
 // shared/domain only. They must NOT import infrastructure or server modules.
 
 import type { InboxRepository, InboxSourceScope } from './ports/inbox.repository'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { InboxItem } from '../domain/types'
 import type { SourceType } from '../domain/types'
 import type { InboxItemId, OrganizationId, PropertyId } from '#/shared/domain/ids'
@@ -60,7 +60,7 @@ const intersectPropertyScopes = (
  * its owning context permission; omitted source families match no rows.
  */
 export const resolveInboxSourceScopes = async (
-  staffPublicApi: StaffPublicApi,
+  peopleApi: StaffPublicApi,
   ctx: AuthContext,
   kind: InboxSourceAccessKind,
 ): Promise<ReadonlyArray<InboxSourceScope>> => {
@@ -71,7 +71,7 @@ export const resolveInboxSourceScopes = async (
     orgId: OrganizationId,
     userId: AuthContext['userId'],
     orgWide: boolean,
-  ) => staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide)
+  ) => peopleApi.getAccessiblePropertyIds(orgId, userId, orgWide)
   const baseScope = await getAccessiblePropertyIdsForPermission(
     lookup,
     ctx,
@@ -99,7 +99,7 @@ export const resolveInboxSourceScopes = async (
 
 /** Assert both halves of a source-specific property authorization. */
 export const assertInboxSourcePropertyAccessible = async (
-  staffPublicApi: StaffPublicApi,
+  peopleApi: StaffPublicApi,
   ctx: AuthContext,
   kind: InboxSourceAccessKind,
   sourceType: SourceType,
@@ -110,8 +110,8 @@ export const assertInboxSourcePropertyAccessible = async (
     kind === 'read'
       ? SOURCE_READ_PERMISSION[sourceType]
       : SOURCE_HANDLE_PERMISSION[sourceType]
-  await assertPropertyAccessible(staffPublicApi, ctx, basePermission, propertyId)
-  await assertPropertyAccessible(staffPublicApi, ctx, sourcePermission, propertyId)
+  await assertPropertyAccessible(peopleApi, ctx, basePermission, propertyId)
+  await assertPropertyAccessible(peopleApi, ctx, sourcePermission, propertyId)
 }
 
 export const isInboxSourcePropertyWithinScopes = (
@@ -164,13 +164,13 @@ export const assertExpectedCommandRevision = (
  *  assigned for PM — so gating on `can(role,'inbox.manage')` would wrongly
  *  grant PM org-wide access (CONTEXT.md L72). */
 export const assertPropertyAccessible = async (
-  staffPublicApi: StaffPublicApi,
+  peopleApi: StaffPublicApi,
   ctx: AuthContext,
   permission: Permission,
   propertyId: PropertyId,
 ): Promise<void> => {
   const accessible = await isPropertyAccessibleForPermission(
-    (orgId, uId, orgWide) => staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+    (orgId, uId, orgWide) => peopleApi.getAccessiblePropertyIds(orgId, uId, orgWide),
     ctx,
     permission,
     propertyId,

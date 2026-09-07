@@ -16,7 +16,7 @@ const NOW = new Date('2026-07-17T12:00:00Z')
 const CTX = {
   userId: 'user-1',
   organizationId: ORG,
-  role: 'Staff',
+  role: 'Member',
 } as unknown as AuthContext
 
 function makeReview(overrides: Record<string, unknown> = {}): Review {
@@ -36,12 +36,12 @@ function makeDeps(rows: Review[] = [makeReview()]) {
       throw new Error('serving reads must not use findByPropertyId (BQC-1.4)')
     }),
   }
-  const staffPublicApi = {
+  const peopleApi = {
     getAccessiblePropertyIds: vi.fn(async () => [PROP]),
   }
   const useCase = getStaffRecentActivity({
     reviewRepo: reviewRepo as unknown as ReviewRepository,
-    staffPublicApi: staffPublicApi as never,
+    staffPublicApi: peopleApi as never,
     clock: () => NOW,
   })
   return { useCase, reviewRepo }

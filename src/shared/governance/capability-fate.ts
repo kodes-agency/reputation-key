@@ -167,7 +167,7 @@ export const CAPABILITY_FATE = Object.freeze({
   'inbox.use': CORE('Inbox handling is beta core.'),
   'dashboard.use': CORE('Governed manager reporting is beta core.'),
   'staff.use': CORE(
-    'Staff Participants/participation/attribution are core; this does not activate Staff User login.',
+    'Staff Participants/participation/attribution are core; this does not activate Member login.',
   ),
   'integration.use': CORE('Google integration lifecycle is beta core.'),
   'activity.use': CORE('Privacy-aware Recent Activity is beta core.'),

@@ -31,10 +31,14 @@ export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
             action: 'dashboard.read',
             propertyId: data.propertyId,
           })
-          const { dashboardPublicApi, clock, staffPublicApi, propertyPublicApi } =
+          const { dashboardPublicApi, clock, identityPublicApi, propertyPublicApi } =
             getContainer()
           // D6-001: non-admin callers may only read their assigned properties.
-          await assertDashboardPropertyAccessible(staffPublicApi, ctx, data.propertyId)
+          await assertDashboardPropertyAccessible(
+            identityPublicApi.people,
+            ctx,
+            data.propertyId,
+          )
           const pid = propertyId(data.propertyId)
           const { startDate, endDate, propertyTimezone } = await resolvePropertyPeriod(
             { propertyFacts: propertyPublicApi, clock },

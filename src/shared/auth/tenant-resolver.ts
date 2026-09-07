@@ -298,10 +298,10 @@ function buildAuthContext(
   const ctx: AuthContext = {
     userId: userId(rawUserId),
     organizationId: organizationId(activeOrgId),
-    // Custom-only members have no built-in Role; 'Staff' is a lowest-privilege placeholder —
+    // Custom-only members have no built-in Role; 'Member' is a lowest-privilege placeholder —
     // effectivePermissions/scopeByPermission are authoritative (all checks route through
     // canForContext/scopeForPermission, never ctx.role directly).
-    role: authz.domainRole ?? 'Staff',
+    role: authz.domainRole ?? 'Member',
     effectivePermissions: Object.freeze(authz.effectivePermissions),
     scopeByPermission: Object.freeze(authz.scopeByPermission),
   }

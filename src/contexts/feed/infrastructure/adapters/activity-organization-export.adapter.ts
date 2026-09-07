@@ -104,7 +104,7 @@ const REDACTED_ACTOR = Object.freeze({
   actor_id: SYSTEM_USER_ID as string,
   actor_name: REDACTED_RECENT_ACTIVITY_ACTOR_NAME,
   actor_avatar_url: null,
-  actor_role: 'Staff',
+  actor_role: 'Member',
 })
 
 /** UTF-8 byte order — never host-locale collation. */

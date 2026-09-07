@@ -172,7 +172,7 @@ describe('resolveTenant', () => {
     expect(ctx.role).toBe('PropertyManager')
   })
 
-  it('rejects a Staff login because Staff users are inactive in beta', async () => {
+  it('rejects a Member login because Member users are inactive in beta', async () => {
     // Arrange
     mockGetSession.mockResolvedValue({
       session: { id: 'sess-1', activeOrganizationId: 'org-1' },

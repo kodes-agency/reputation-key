@@ -15,7 +15,7 @@ import type {
   PortalPublicApi,
 } from '#/contexts/portal/application/public-api'
 import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { ReviewServingStats } from '#/contexts/review/application/public-api'
 import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
 import type { MetricPublicApi } from './application/public-api'

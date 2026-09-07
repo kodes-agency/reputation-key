@@ -1,4 +1,4 @@
-// Staff context — domain errors
+// Identity People — domain errors.
 
 import { createErrorFactory } from '#/shared/domain/errors'
 

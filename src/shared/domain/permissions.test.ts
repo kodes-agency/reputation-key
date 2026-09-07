@@ -49,7 +49,7 @@ describe('can — delegation', () => {
     setPermissionLookup(lookup)
 
     expect(can('AccountAdmin', 'property.read')).toBe(true)
-    expect(can('Staff', 'property.read')).toBe(false)
+    expect(can('Member', 'property.read')).toBe(false)
     expect(can('AccountAdmin', 'property.delete')).toBe(false)
   })
 })

@@ -14,7 +14,7 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { Role } from '#/shared/domain/roles'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
@@ -34,7 +34,7 @@ const ctxFor = (role: Role, orgId = ORG_ID): AuthContext =>
 const ctxWith = (...permissions: Permission[]): AuthContext => ({
   organizationId: ORG_ID,
   userId: USER_ID,
-  role: 'Staff',
+  role: 'Member',
   effectivePermissions: new Set(permissions),
   scopeByPermission: new Map(
     permissions.map((permission) => [permission, 'assigned-properties' as const]),
@@ -74,11 +74,11 @@ const defaultStaffApi: StaffPublicApi = {
   getAssignedPortals: async () => [],
 }
 
-const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
+const setup = (peopleApi: StaffPublicApi = defaultStaffApi) => {
   const repo = createInMemoryInboxRepo()
   const events = createRecordedOutbox()
   const commandStore = createSequentialInboxCommandStore({ repo, outbox: events })
-  const deps = { repo, commandStore, clock: () => FIXED_TIME, staffPublicApi: staffApi }
+  const deps = { repo, commandStore, clock: () => FIXED_TIME, staffPublicApi: peopleApi }
   const execute = assignInboxItem(deps)
   type CommandInput = Parameters<typeof execute>[0]
   const useCase = (
@@ -131,7 +131,7 @@ describe('assignInboxItem', () => {
     expect(updated.assignedTo).toBe(ASSIGNEE_ID)
   })
 
-  it('rejects Staff role with assignment_not_allowed', async () => {
+  it('rejects Member role with assignment_not_allowed', async () => {
     const { useCase, repo } = setup()
     repo.items.push(seedItem())
 
@@ -141,7 +141,7 @@ describe('assignInboxItem', () => {
           inboxItemId: ITEM_ID,
           assignedToUserId: ASSIGNEE_ID,
         },
-        ctxFor('Staff'),
+        ctxFor('Member'),
       ),
     ).rejects.toSatisfy(
       (e: unknown) => isInboxError(e) && e.code === 'assignment_not_allowed',
@@ -149,11 +149,11 @@ describe('assignInboxItem', () => {
   })
 
   it('allows an eligible user to claim an unassigned item without inbox.manage', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [PROP_1],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedItem())
 
     const updated = await useCase(
@@ -179,11 +179,11 @@ describe('assignInboxItem', () => {
   })
 
   it('requires feedback.handle to claim a private-feedback item', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [PROP_1],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(
       seedItem({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
     )
@@ -199,11 +199,11 @@ describe('assignInboxItem', () => {
   })
 
   it('intersects feedback.handle scope for a self-service claim', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       ...defaultStaffApi,
       getAccessiblePropertyIds: async () => [PROP_OTHER],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(
       seedItem({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
     )
@@ -226,12 +226,12 @@ describe('assignInboxItem', () => {
   })
 
   it('intersects inbox.manage scope when assigning another user', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       ...defaultStaffApi,
       getAccessiblePropertyIds: async (_orgId, candidateUserId) =>
         candidateUserId === ASSIGNEE_ID ? [PROP_1] : [PROP_OTHER],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedItem())
 
     await expect(
@@ -304,14 +304,14 @@ describe('assignInboxItem', () => {
     // PM holds inbox.manage, but per root CONTEXT.md L72 PM only manages
     // ASSIGNED properties. The caller check (assertPropertyAccessible) must
     // enforce the staff_assignment scope for PM, not bypass it.
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       // Caller (USER_ID) lacks PROP_1; assignee (ASSIGNEE_ID) has PROP_1 so
       // the INBOX-04 assignee check would pass — the CALLER check must reject.
       getAccessiblePropertyIds: async (_orgId, uId) =>
         uId === ASSIGNEE_ID ? [PROP_1] : [PROP_OTHER],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedItem())
 
     await expect(
@@ -327,11 +327,11 @@ describe('assignInboxItem', () => {
 
   it('denies access for role without inbox.write permission', async () => {
     // Roles without inbox.write hit the auth gate before validateAssignment
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedItem())
 
     await expect(
@@ -346,11 +346,11 @@ describe('assignInboxItem', () => {
   })
 
   it('allows assignment when user has access to the property', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [PROP_1],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedItem())
 
     const updated = await useCase(
@@ -372,11 +372,11 @@ describe('assignInboxItem', () => {
     const getAccessiblePropertyIds = vi.fn(async (_orgId, uId) =>
       uId === USER_ID ? [PROP_1] : [PROP_OTHER],
     )
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds,
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedItem())
 
     await expect(

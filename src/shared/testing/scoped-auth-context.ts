@@ -17,7 +17,7 @@ export const createScopedAuthContext = (
 ): AuthContext => ({
   organizationId: input.organizationId,
   userId: input.userId,
-  role: input.role ?? 'Staff',
+  role: input.role ?? 'Member',
   effectivePermissions: new Set(input.permissions.map(([permission]) => permission)),
   scopeByPermission: new Map(input.permissions),
 })

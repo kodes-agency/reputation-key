@@ -11,7 +11,7 @@ import {
   type StaffParticipation,
 } from '../../domain/staff-participation'
 import { createStaffParticipant } from '../../domain/staff-participant'
-import { staffError } from '../../domain/errors'
+import { staffError } from '../../domain/people-errors'
 
 export type StaffParticipationDeps = Readonly<{
   repo: StaffParticipationRepository

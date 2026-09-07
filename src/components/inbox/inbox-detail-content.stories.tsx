@@ -268,9 +268,9 @@ export const ReplyToolbarDetectsMissingReviewLanguage: Story = {
   },
 }
 
-// Review item as Staff — reply.manage denied → ReplyEditor is absent.
-export const ReviewAsStaff: Story = {
-  decorators: [withRole('Staff')],
+// Review item as Member — reply.manage denied → ReplyEditor is absent.
+export const ReviewAsMember: Story = {
+  decorators: [withRole('Member')],
   args: {
     currentItem: reviewItem,
     detail: reviewDetail,

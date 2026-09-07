@@ -27,7 +27,9 @@ vi.mock('#/composition', () => ({
         list: mocks.list,
       },
     },
-    staffPublicApi: { getAssignedPortals: mocks.getAssignedPortals },
+    identityPublicApi: {
+      people: { getAssignedPortals: mocks.getAssignedPortals },
+    },
     portalPublicApi: {
       portalGroup: { findGroupIdsByPortalIds: mocks.findGroupIdsByPortalIds },
     },
@@ -48,7 +50,7 @@ import {
   createGoalProgram,
   createGoalProgramSchema,
   changeGoalProgramAssignmentsSchema,
-  scopeGoalProgramsForStaff,
+  scopeGoalProgramsForMember,
   listGoalPrograms,
 } from './goal-programs'
 import type { GoalSubject } from '../domain/goal-program'
@@ -147,7 +149,7 @@ describe('canonical Goal Program server functions', () => {
     vi.clearAllMocks()
     const managerAuthorityUnderStaffLabel = {
       ...actor,
-      role: 'Staff' as const,
+      role: 'Member' as const,
       effectivePermissions: new Set(['goal.read', 'goal.create']),
       scopeByPermission: new Map([
         ['goal.read', 'organization'],
@@ -225,7 +227,7 @@ describe('canonical Goal Program server functions', () => {
     ).toBe(false)
   })
 
-  it('returns only the assignments and results a Staff user may see', () => {
+  it('returns only the assignments and results a Member may see', () => {
     const bundle = (subjects: GoalSubject[]) => ({
       program: { id: JSON.stringify(subjects) },
       assignments: subjects.map((subject, index) => ({
@@ -237,7 +239,7 @@ describe('canonical Goal Program server functions', () => {
         assignmentId: `assignment-${index}`,
       })),
     })
-    const visible = scopeGoalProgramsForStaff(
+    const visible = scopeGoalProgramsForMember(
       [
         bundle([
           { kind: 'property', propertyId: PROPERTY_ID },

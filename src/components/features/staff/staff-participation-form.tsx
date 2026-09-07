@@ -6,7 +6,7 @@ import { SubmitButton } from '#/components/forms/submit-button'
 import { Field, FieldError, FieldGroup, FieldLabel } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
 import type { CreateStaffParticipationMutationInput } from '#/components/features/staff/types'
-import { createStaffParticipationInputSchema } from '#/contexts/staff/application/dto/staff-participation.dto'
+import { createStaffParticipationInputSchema } from '#/contexts/identity/application/dto/staff-participation.dto'
 
 const formSchema = createStaffParticipationInputSchema.omit({ propertyId: true })
 

@@ -84,6 +84,6 @@ boundary controls that keep these rules enforceable rather than aspirational.
 ## 6. Capability posture
 
 Portal upload, Contact Request, Recognition (badge/leaderboard), Team, Bulk
-Close, Staff User login, Billing and MFA remain **dark**. No composition or
+Close, Member login, Billing and MFA remain **dark**. No composition or
 deployable change may make one reachable; the capability posture lives in
 `src/shared/auth/beta-capabilities.ts` and is deliberately frozen.

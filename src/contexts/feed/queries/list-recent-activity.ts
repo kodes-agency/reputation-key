@@ -6,7 +6,7 @@ import type {
 import type { RecentActivityEntry } from '../domain/activity-types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
 
 /** Filter entries to only those within the user's accessible properties.

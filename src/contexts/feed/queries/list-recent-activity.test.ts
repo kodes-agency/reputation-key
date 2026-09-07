@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { listRecentActivity } from './list-recent-activity'
 import type { RecentActivityEntry } from '../domain/activity-types'
 import type { RecentActivityRepository } from '../ports/recent-activity-repository.port'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import {
   recentActivityEntryId,
@@ -18,7 +18,7 @@ function makeEntry(overrides: Partial<RecentActivityEntry> = {}): RecentActivity
     actorId: userId('user-1'),
     actorName: 'Test',
     actorAvatarUrl: null,
-    actorRole: 'Staff' as Role,
+    actorRole: 'Member' as Role,
     action: 'created',
     resourceType: 'inbox_item',
     resourceId: 'ii-1',
@@ -94,7 +94,7 @@ describe('listRecentActivity', () => {
     expect(result.map((e) => e.id).sort()).toEqual(['al-1', 'al-2'])
   })
 
-  it('strips reply-workflow entries from Staff (lacks reply.manage)', async () => {
+  it('strips reply-workflow entries from Member (lacks reply.manage)', async () => {
     const repo = createInMemoryActivityRepo([
       makeEntry({
         id: recentActivityEntryId('al-1'),
@@ -115,8 +115,8 @@ describe('listRecentActivity', () => {
       }),
     ])
     const deps = { repo, staffPublicApi: staffApiLimited(['prop-1']) }
-    const result = await listRecentActivity(deps)({}, ctxFor('Staff'))
-    // The reply row (carrying the rejection reason) must not surface to Staff.
+    const result = await listRecentActivity(deps)({}, ctxFor('Member'))
+    // The reply row (carrying the rejection reason) must not surface to Member.
     expect(result.map((e) => e.id)).toEqual(['al-1'])
   })
 
@@ -190,7 +190,7 @@ describe('listRecentActivity', () => {
     ).resolves.toEqual([])
   })
 
-  it('scopes Staff to accessible properties AND strips replies', async () => {
+  it('scopes Member to accessible properties AND strips replies', async () => {
     const repo = createInMemoryActivityRepo([
       makeEntry({
         id: recentActivityEntryId('al-1'),
@@ -210,17 +210,17 @@ describe('listRecentActivity', () => {
       }),
     ])
     const deps = { repo, staffPublicApi: staffApiLimited(['prop-1']) }
-    const result = await listRecentActivity(deps)({}, ctxFor('Staff'))
+    const result = await listRecentActivity(deps)({}, ctxFor('Member'))
     // prop-1 inbox_item kept; prop-1 reply stripped; prop-2 out of scope.
     expect(result.map((e) => e.id)).toEqual(['al-1'])
   })
 
-  it('returns empty when Staff has no accessible properties', async () => {
+  it('returns empty when Member has no accessible properties', async () => {
     const repo = createInMemoryActivityRepo([
       makeEntry({ id: recentActivityEntryId('al-1'), resourceType: 'inbox_item' }),
     ])
     const deps = { repo, staffPublicApi: staffApiLimited([]) }
-    const result = await listRecentActivity(deps)({}, ctxFor('Staff'))
+    const result = await listRecentActivity(deps)({}, ctxFor('Member'))
     expect(result).toHaveLength(0)
   })
 

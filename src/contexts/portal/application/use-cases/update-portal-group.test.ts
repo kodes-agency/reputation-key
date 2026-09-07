@@ -12,7 +12,7 @@ import {
   propertyId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 
 const FIXED_TIME = new Date('2026-05-30T12:00:00Z')
 const CURRENT_REVISION = new Date('2026-06-01T12:00:00Z')
@@ -101,9 +101,9 @@ describe('updatePortalGroup (use case)', () => {
     }
   })
 
-  it('rejects when Staff lacks portal.update', async () => {
+  it('rejects when Member lacks portal.update', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     try {
       await useCase(
