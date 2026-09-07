@@ -128,13 +128,11 @@ export const DraftSurvivesBackNavigation: Story = {
     const canvas = within(canvasElement)
     const name = canvas.getAllByRole('textbox', { name: /property name/i })[0]!
     await userEvent.clear(name)
-    // `delay: null` types synchronously. The default awaits a macrotask between
-    // keystrokes, and this field is controlled — 22 characters means 22 awaited
-    // re-renders of the whole review form. Under CI load that is what pushed
-    // this story past the 15s budget while the assertion below never changed.
-    // Every keystroke event is still dispatched, which is the part the draft
-    // retention under test actually depends on.
-    await userEvent.type(name, 'Meridian Airport Hotel', { delay: null })
+    // Paste is a real full-field edit but dispatches one input event. Typing 22
+    // separate keystrokes re-renders this controlled review form 22 times and
+    // can consume the entire 15s story budget under suite load; draft retention
+    // depends on the resulting value, not the keyboard's event cadence.
+    await userEvent.paste('Meridian Airport Hotel')
     await userEvent.click(canvas.getByRole('button', { name: /back to locations/i }))
     await userEvent.click(
       canvas.getByRole('button', { name: /return to current review/i }),

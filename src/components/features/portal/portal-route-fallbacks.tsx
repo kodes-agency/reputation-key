@@ -30,7 +30,10 @@ export function CreatePortalLoading() {
 export function CreatePortalError({ error }: Readonly<{ error: Error }>) {
   return (
     <PageShell>
-      <PageHeader title="New Portal" description="Create a public page for this property." />
+      <PageHeader
+        title="New Portal"
+        description="Create a public page for this property."
+      />
       <ErrorState message={error.message || 'The portal editor could not be loaded.'} />
     </PageShell>
   )

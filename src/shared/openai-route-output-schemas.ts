@@ -1,4 +1,5 @@
 import { z } from 'zod/v4'
+import { AI_PRIMARY_CATEGORIES } from './ai-primary-categories'
 import { personalizedReplyDraftOutputSchema } from './ai-personalized-reply-profile'
 
 export const AI_SENTIMENTS = Object.freeze([
@@ -6,18 +7,6 @@ export const AI_SENTIMENTS = Object.freeze([
   'neutral',
   'negative',
   'mixed',
-] as const)
-export const AI_PRIMARY_CATEGORIES = Object.freeze([
-  'service',
-  'staff',
-  'quality',
-  'value',
-  'cleanliness',
-  'wait_time',
-  'atmosphere',
-  'location',
-  'accessibility',
-  'other',
 ] as const)
 export const AI_URGENCY_SIGNALS = Object.freeze([
   'safety',

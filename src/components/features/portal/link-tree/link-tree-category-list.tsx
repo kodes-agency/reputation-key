@@ -1,5 +1,6 @@
 // Category list — owns the category drag context and the loop; each row (and
 // the inline forms that open in it) lives in link-tree-category-row.tsx.
+import { useId } from 'react'
 
 import {
   DndContext,
@@ -101,10 +102,12 @@ export function LinkTreeCategoryList(props: Props) {
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
+  const dndContextId = useId()
   const slices = rowSlices(props, can('portal.update'))
 
   return (
     <DndContext
+      id={dndContextId}
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={props.onDragEnd}

@@ -102,18 +102,12 @@ const config = defineConfig(({ mode }) => {
                     priority: 30,
                     includeDependenciesRecursively: false,
                   },
+                  // Components intentionally use Rolldown's default route-aware
+                  // splitting. A broad `/src/components/` group re-joins eager
+                  // route-validation leaves with their lazy feature trees.
                   {
                     name: 'app-server-fns',
                     test: /[\\/]src[\\/]contexts[\\/][^\\/]+[\\/]server[\\/]/,
-                    priority: 10,
-                    minShareCount: 2,
-                    entriesAwareMergeThreshold: 4 * 1024,
-                    entriesAware: true,
-                    includeDependenciesRecursively: false,
-                  },
-                  {
-                    name: 'app-components',
-                    test: /[\\/]src[\\/]components[\\/]/,
                     priority: 10,
                     minShareCount: 2,
                     entriesAwareMergeThreshold: 4 * 1024,

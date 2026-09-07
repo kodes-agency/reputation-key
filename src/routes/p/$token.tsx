@@ -13,10 +13,7 @@ import {
   withdrawGuestResponseFn,
 } from '#/contexts/guest/server/public'
 import { getPublicPortal, recordScanFn } from '#/contexts/guest/server/guest-scans'
-import {
-  GuestAnalyticsNotice,
-  PublicPortalContent,
-} from '#/components/features/guest'
+import { GuestAnalyticsNotice, PublicPortalContent } from '#/components/features/guest'
 import { PortalUnavailable } from '#/components/features/guest/portal-unavailable'
 import type { PublicPortalLoaderData } from '#/contexts/guest/server/public'
 import { guestKeys } from '#/shared/queries/query-keys'

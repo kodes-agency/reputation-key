@@ -4,7 +4,7 @@
 // via resolveTenantContext(headers), never from client input.
 
 import { z } from 'zod/v4'
-import { AI_PRIMARY_CATEGORIES } from '#/shared/openai-route-output-schemas'
+import { AI_PRIMARY_CATEGORIES } from '#/shared/ai-primary-categories'
 import { SAFE_OPAQUE_IDENTIFIER_PATTERN } from '#/shared/domain/safe-identifier'
 import { PRIVATE_FEEDBACK_HANDLING_OUTCOMES } from '../../domain/feedback-handling'
 

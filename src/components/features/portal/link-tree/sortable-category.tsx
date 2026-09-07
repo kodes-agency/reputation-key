@@ -117,6 +117,7 @@ export function SortableCategory({
 
       <div className="mt-3 flex flex-col gap-2">
         <DndContext
+          id={`portal-links-${category.id}`}
           sensors={linkSensors}
           collisionDetection={closestCenter}
           onDragEnd={handleLinkDragEnd}
