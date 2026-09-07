@@ -2376,7 +2376,7 @@ END;
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v1(p_permit_id uuid, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb, p_release_sha text)
+CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v1(p_permit_id uuid, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb)
  RETURNS TABLE(outcome text)
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -2758,7 +2758,7 @@ END
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v2(p_permit_id uuid, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb, p_release_sha text)
+CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v2(p_permit_id uuid, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb)
  RETURNS TABLE(outcome text)
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -2778,8 +2778,7 @@ BEGIN
       p_route_key,
       p_route_catalog_version,
       p_quota_policy_id,
-      p_authorization_vector,
-      p_release_sha
+      p_authorization_vector
     ) AS legacy;
     RETURN;
   END IF;
@@ -2910,7 +2909,7 @@ END
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v3(p_permit_id uuid, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb, p_release_sha text)
+CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v3(p_permit_id uuid, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb)
  RETURNS TABLE(outcome text)
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -2933,8 +2932,7 @@ BEGIN
       p_route_key,
       p_route_catalog_version,
       p_quota_policy_id,
-      p_authorization_vector,
-      p_release_sha
+      p_authorization_vector
     ) AS delegated;
     RETURN;
   END IF;

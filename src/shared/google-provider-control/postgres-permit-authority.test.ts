@@ -45,7 +45,6 @@ function authorityWith(startOutcome: 'started' | 'changed' | 'expired') {
   const authority = createPostgresGoogleAdmissionPermitAuthority({
     pool: { query } as unknown as Pool,
     gatewayIdentity: 'spiffe://repkey.internal/google-egress-gateway',
-    releaseSha: 'a'.repeat(40),
   })
   return { authority, query }
 }

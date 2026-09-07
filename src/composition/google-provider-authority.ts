@@ -615,11 +615,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
   ) {
     throw new Error('Google egress runtime configuration is incomplete')
   }
-  // Permits are bound to the revision that issued them. The sidecar read
-  // `RELEASE_SHA` from its own environment; in-process it is the same fact the
-  // release identity already resolved, so there is one source rather than two
-  // that can disagree.
-  const releaseRevision = env.RELEASE_SHA ?? env.IMAGE_SOURCE_REVISION
   let googleAuthorizedProviderExecutor =
     options?.providers?.googleAuthorizedProviderExecutor
   // WP2.2 step 3: this fork used to have three outcomes because an approval
@@ -671,9 +666,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
     if (!providerEphemeralRedis) {
       throw new Error('Google egress runtime requires provider-ephemeral Redis')
     }
-    if (!releaseRevision) {
-      throw new Error('Google egress runtime requires a release revision')
-    }
     const [credentialBindingKeys, grantKeys, gatewayIdentity] = configuredGatewayValues
     // One definition. The executor compiles the admission metadata and the
     // gateway compiles the request it actually sends; if these two disagreed
@@ -694,7 +686,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       redis: providerEphemeralRedis,
       nowMs: () => clock().getTime(),
       gatewayIdentity,
-      releaseSha: releaseRevision,
       credentialBindingKeys,
       grantKeys,
       routeTarget,

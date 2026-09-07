@@ -67,7 +67,6 @@ export function createInProcessGoogleEgressRuntime(
     redis: GoogleEgressCoordinationRedis
     nowMs: () => number
     gatewayIdentity: string
-    releaseSha: string
     credentialBindingKeys: string
     grantKeys: string
     routeTarget?: GoogleProviderRouteTarget
@@ -113,7 +112,6 @@ export function createInProcessGoogleEgressRuntime(
     authority: createPostgresGoogleAdmissionPermitAuthority({
       pool: deps.pool,
       gatewayIdentity: deps.gatewayIdentity,
-      releaseSha: deps.releaseSha,
     }),
     quotaForPolicy: (policyId) => quotaCoordinators.get(policyId) ?? null,
     inFlightForPolicy: (policyId) => inFlightCoordinators.get(policyId) ?? null,

@@ -30,7 +30,6 @@ const SUBJECT_GUARD_ID = '8d000000-0000-4000-8000-000000000006'
 const DISCONNECT_ATTEMPT_ID = '8d000000-0000-4000-8000-000000000007'
 const DISCONNECT_PERMIT_ID = '8d000000-0000-4000-8000-000000000008'
 const NOW = new Date()
-const RELEASE_SHA = 'a'.repeat(40)
 const PROJECT_FINGERPRINT = 'b'.repeat(64)
 const bindCredential = (credential: string) =>
   credential === 'access-token' ? 'a'.repeat(64) : 'c'.repeat(64)
@@ -268,7 +267,6 @@ function authority() {
   return createPostgresGoogleAdmissionPermitAuthority({
     pool,
     gatewayIdentity: 'google-egress-runtime-1',
-    releaseSha: RELEASE_SHA,
   })
 }
 
@@ -450,14 +448,13 @@ describe('Postgres Google admission permit authority', () => {
     if (!snapshot) throw new Error('expected permit snapshot')
     const result = await pool.query<{ outcome: string }>(
       `SELECT outcome FROM start_google_execution_permit_v2(
-        $1::uuid, $2::text, $3::text, $4::text, '{}'::jsonb, $5::text
+        $1::uuid, $2::text, $3::text, $4::text, '{}'::jsonb
       )`,
       [
         snapshot.permitId,
         snapshot.routeKey,
         snapshot.routeCatalogueVersion,
         snapshot.expectedAdmission.quotaPolicyId,
-        RELEASE_SHA,
       ],
     )
 
