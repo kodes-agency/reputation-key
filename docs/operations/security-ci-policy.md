@@ -115,15 +115,17 @@ drizzle-kit` — build tooling, reported). Full tree: 11 high, 0 critical —
   source-map uploader), and `@img/sharp-libvips-*` (LGPL-3.0-or-later,
   dev-only sharp binaries). Each carries owner/reason/expiry in
   `security/license-policy.json`.
-- Grype: **none** (`.grype.yaml` is an empty `ignore:` list). Every earlier
-  entry was a Debian 12 bookworm package Debian had marked wont-fix; the base
-  moved to `node:22.23.2-trixie-slim` (Debian 13) on 2026-09-07 and they fell
-  away with the distro. The fixable classes had already been fixed instead of
-  excepted: the npm CLI is stripped from every runtime that does not execute
-  package management, every production runtime stage drops all setuid/setgid
-  bits, and the runtime `node` is built `shared_zlib: false` and links no
-  libz. A new entry needs the finding named (package, CVE, grype's identity
-  line) plus owner/reason/expiry.
+- Grype: 27 won't-fix/not-fixed Debian trixie CVE entries + 2 Go-stdlib
+  package entries in `.grype.yaml` (each with owner/reason/expiry). The base
+  moved to `node:22.23.2-trixie-slim` (Debian 13) on 2026-09-07; the one
+  fixable class it shipped with — OpenSSL 3.5.6 (nine CVEs, two Critical) —
+  is fixed by pinning `libssl3t64`/`openssl-provider-legacy` to
+  `3.5.7-1~deb13u2` in every base stage, not excepted. The families Debian
+  marks won't-fix (perl-base, glibc, util-linux, zlib, gzip, ncurses, libacl,
+  sqlite, pcre2) are the same on trixie as they were on bookworm; their
+  reachable surface stays removed (npm CLI stripped, setuid/setgid bits
+  dropped, runtime `node` built `shared_zlib: false`). A new entry needs the
+  finding named (package, CVE, grype's identity line) plus owner/reason/expiry.
 
 ## Per-gate notes
 

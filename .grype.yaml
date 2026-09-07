@@ -2,13 +2,94 @@
 # `docker` job, anchore/scan-action with fail-build: true,
 # severity-cutoff: high; policy: docs/operations/security-ci-policy.md).
 #
-# Zero exceptions is the target. Every earlier entry here was a Debian 12
-# bookworm package Debian had marked won't-fix; 2026-09-07 the base moved to
-# node:22.23.2-trixie-slim (Debian 13, plan revision R2) and every one of
-# them fell away with the distro. An entry may only be added with the finding
-# named (package, CVE, grype's own identity line), an owner, a reason and an
-# expiresAt, re-justified at the quarterly review and on every base-image bump.
-# grype has no native expiry — the dates are enforced by the documented review
-# cadence, not by the tool.
+# Zero exceptions is the target. Before any entry below is written, every
+# finding WITH a fix is fixed: the base is node:22.23.2-trixie-slim (Debian 13,
+# plan revision R2, 2026-09-07; bookworm was EOL), the npm CLI is stripped from
+# every runtime stage, and OpenSSL is pinned to the patched 3.5.7-1~deb13u2 in
+# every Dockerfile base stage (nine CVEs incl. CVE-2026-63073 / CVE-2026-75803
+# Critical — the only fixable class trixie shipped with). What remains is
+# marked won't-fix / not-fixed by Debian for trixie as well; the base swap did
+# not clear these, it only moved their package versions. Every entry carries
+# owner/reason/expiresAt and is re-justified at the quarterly review and on
+# every base-image bump. grype has no native expiry — the dates are enforced by
+# the documented review cadence, not by the tool. A new entry needs the finding
+# named (package, CVE, grype's own identity line).
 
-ignore: []
+ignore:
+  # ── Debian trixie base packages, perl-base 5.40.1-6 (12 CVEs) ─────────
+  # owner: platform — reason: Debian marks these won't-fix/not-fixed for
+  # trixie (tracker read 2026-09-07 from the CI scan of the trixie image);
+  # perl-base is dpkg infrastructure only — the CMD is node and nothing in the
+  # image executes perl. expiresAt: 2026-12-07
+  - vulnerability: CVE-2026-12087 # not-fixed
+  - vulnerability: CVE-2026-13221 # not-fixed
+  - vulnerability: CVE-2026-42496 # wont-fix
+  - vulnerability: CVE-2026-42497 # wont-fix
+  - vulnerability: CVE-2026-48959 # not-fixed
+  - vulnerability: CVE-2026-48961 # not-fixed (new in the trixie scan)
+  - vulnerability: CVE-2026-48962 # not-fixed
+  - vulnerability: CVE-2026-57432 # not-fixed
+  - vulnerability: CVE-2026-57433 # not-fixed
+  - vulnerability: CVE-2026-7017 # not-fixed
+  - vulnerability: CVE-2026-8376 # wont-fix
+  - vulnerability: CVE-2026-9538 # wont-fix
+
+  # ── Debian trixie base packages, glibc 2.41-12+deb13u3 (3 CVEs) ────────
+  # owner: platform — reason: won't-fix by Debian triage (assessed not
+  # exploitable in practice); no patched trixie package exists.
+  # expiresAt: 2026-12-07
+  - vulnerability: CVE-2026-5450 # wont-fix (critical per NVD, wont-fix per Debian)
+  - vulnerability: CVE-2026-5435 # wont-fix
+  - vulnerability: CVE-2026-5928 # wont-fix
+
+  # ── Debian trixie base packages, misc (7 CVEs) ─────────────────────────
+  # owner: platform — reason: won't-fix by Debian triage; the binaries/libs
+  # are unused by the app runtime (no gzip/ncurses/libacl/sqlite/pcre2 calls
+  # from node — Node bundles its own zlib, has no sqlite, and links no PCRE).
+  # libpcre2 was FIXABLE on bookworm (10.42-1+deb12u1 was pinned there); on
+  # trixie 10.46-1~deb13u1 Debian marks CVE-2026-86145 won't-fix and no newer
+  # package exists. expiresAt: 2026-12-07
+  - vulnerability: CVE-2026-41992 # gzip 1.13-1, wont-fix
+  - vulnerability: CVE-2025-69720 # ncurses 6.5+20250216-2, wont-fix
+  - vulnerability: CVE-2026-54369 # libacl1 2.3.2-2+b1, wont-fix
+  - vulnerability: CVE-2026-54370 # libacl1 2.3.2-2+b1, wont-fix
+  - vulnerability: CVE-2026-11822 # libsqlite3-0 3.46.1-7+deb13u1, wont-fix (new in the trixie scan)
+  - vulnerability: CVE-2026-11824 # libsqlite3-0 3.46.1-7+deb13u1, wont-fix (new in the trixie scan)
+  - vulnerability: CVE-2026-86145 # libpcre2-8-0 10.46-1~deb13u1, wont-fix on trixie
+
+  # ── Go stdlib inside esbuild CLI binaries (prod node_modules) ─────────
+  # owner: platform — reason: the esbuild@0.18.20 (go1.20.7) and
+  # esbuild@0.25.12 (go1.23.12) binaries sit in prod node_modules only
+  # because better-auth declares drizzle-kit as a runtime dependency. Nothing
+  # executes esbuild in the image: the CMD is `node` on pre-built bundles and
+  # migrations run the bundled dist-worker/migrate-deploy.js (drizzle-orm
+  # migrator, not the drizzle-kit CLI). The findings are in an unreachable
+  # binary. Fix-forward: better-auth dropping the drizzle-kit runtime dep
+  # (tracked at the quarterly review). expiresAt: 2026-12-07
+  - package:
+      name: stdlib
+      version: go1.20.7
+      type: go-module
+  - package:
+      name: stdlib
+      version: go1.23.12
+      type: go-module
+
+  # ── Debian trixie base packages, util-linux 2.41.5-0+deb13u1 and zlib1g
+  #    1:1.3.dfsg+really1.3.1-1+b1 (5 CVEs) ───────────────────────────────
+  # owner: platform — reason: won't-fix on trixie as on bookworm (util-linux
+  # is fixed only in unstable; zlib is unfixed upstream). The reachable
+  # surface was removed rather than excepted:
+  #   - the four util-linux CVEs are local escalation through setuid mount
+  #     helpers; every production runtime stage drops every setuid/setgid
+  #     bit (`RUN find / -xdev -perm /6000 -type f -exec chmod ug-s {} +`),
+  #     and the processes run as a non-root user with no CAP_SYS_ADMIN;
+  #   - the zlib CVE is in the system libz `gz_vacate()` path; the runtime
+  #     `node` binary is built with `shared_zlib: false` and does not link
+  #     libz at all, so the application cannot reach it.
+  # expiresAt: 2026-12-07
+  - vulnerability: CVE-2026-76642 # util-linux, no trixie fix
+  - vulnerability: CVE-2026-78408 # util-linux, no trixie fix
+  - vulnerability: CVE-2026-78409 # util-linux, no trixie fix
+  - vulnerability: CVE-2026-78410 # util-linux, no trixie fix
+  - vulnerability: CVE-2026-85091 # zlib1g, unfixed upstream

@@ -68,6 +68,17 @@ ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     HUSKY=0
 RUN corepack enable
+# The one OS package this base ships with a KNOWN FIX, pinned to the exact
+# patched version: OpenSSL 3.5.7-1~deb13u2 closes nine CVEs against the
+# 3.5.6 the image was published with (CVE-2026-63073 / CVE-2026-75803 are
+# Critical). Exact so the build FAILS if the archive stops carrying it
+# rather than silently drifting; every other stage derives `FROM base`, so
+# patching here covers all of them. Everything else the scan reports is
+# won't-fix on trixie and named in .grype.yaml.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libssl3t64=3.5.7-1~deb13u2 openssl-provider-legacy=3.5.7-1~deb13u2 \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 RUN node -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'}; for (const [key,value] of Object.entries(expected)) if (process.versions[key] !== value) throw new Error(key+' runtime drift')"
 
