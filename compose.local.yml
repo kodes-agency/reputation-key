@@ -7,6 +7,7 @@ x-runtime: &runtime
 x-app-environment: &app-environment
   DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
   REDIS_URL: redis://redis:6379
+  RESEND_BASE_URL: http://mail-stub:4101
 x-app-dependencies: &app-dependencies
   postgres: { condition: service_healthy }
   redis: { condition: service_healthy }
@@ -92,7 +93,9 @@ services:
     <<: *app
     command: [node, --import, ./dist-worker/worker-observability-preload.js, dist-worker/index.js]
     environment: { <<: *app-environment, BETTER_AUTH_URL: http://127.0.0.1:3000, REVIEW_PROVIDER_SUBJECT_HMAC_KEYS: "${WORKER_REVIEW_PROVIDER_SUBJECT_HMAC_KEYS}", AI_SUBJECT_HMAC_KEYS: "${WORKER_AI_SUBJECT_HMAC_KEYS}" }
-    # No HTTP surface: readiness is the "BullMQ worker started" log line that scripts/e2e/wait-worker.sh waits for.
+    # The image HEALTHCHECK probes /api/health/live, which the worker does not serve; its readiness is the
+    # "BullMQ worker started" log line that scripts/e2e/wait-worker.sh waits for.
+    healthcheck: { disable: true }
   object-store:
     profiles: [media]
     image: minio/minio@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0
