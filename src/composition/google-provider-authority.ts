@@ -1,17 +1,15 @@
 // Composition — the Google provider trust boundary.
 //
 // ARC-03-T10. One coherent graph used to sit inline in the composition root:
-// provider-ephemeral storage, opaque OAuth state, the HMAC keyrings, the
-// Google Content authorization authority, the per-capability content
-// authorizers, the authorization-lease service and the mTLS egress gateway
-// executor. It is the only place in the system that decides whether a Google
-// provider call may happen at all, so it belongs in one named module with one
-// pinned surface.
+// provider-ephemeral storage, opaque OAuth state, the HMAC keyrings, Google
+// Content authorization checks, the permit issuer, the per-capability content
+// authorizers, the authorization-lease service and the egress executor. It is
+// the only place in the system that decides whether a Google provider call may
+// happen at all, so it belongs in one named module with one pinned surface.
 //
 // Two invariants this module keeps:
-//   * FAIL CLOSED. An absent runtime binding, an absent authority or an absent
-//     keyring yields `unavailableGoogleContentAuthorization`, never a
-//     permissive default.
+//   * FAIL CLOSED. An absent required provider substrate yields
+//     `unavailableGoogleContentAuthorization`, never a permissive default.
 //   * CONSTRUCTION ONLY. Nothing here queries the database or opens a provider
 //     connection while the container is being built.
 //
@@ -24,7 +22,7 @@ import type { Clock } from '#/shared/domain/clock'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Env } from '#/shared/config/env'
 import { createHash, hkdfSync, randomBytes, randomUUID } from 'node:crypto'
-import { GOOGLE_CONTENT_CAPABILITIES } from '#/shared/auth/google-content-contract'
+import { GOOGLE_CONTENT_CAPABILITIES } from '#/shared/domain/google-content-capability'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
@@ -38,12 +36,12 @@ import {
   verifyProviderEphemeralRedisRuntime,
   type ProviderRedisReadiness,
 } from '#/shared/provider-ephemeral/runtime-verification'
-import { createGoogleContentAuthorizationAuthority } from '#/shared/auth/google-content-authority'
+import { createGoogleExecutionPermitIssuer } from '#/shared/auth/google-execution-permit-issuer'
 import { createInProcessGoogleEgressRuntime } from './google-egress-runtime'
 import { createGoogleContentAuthorityRepository } from '#/contexts/identity/infrastructure/repositories/google-content-authority.repository'
 import { createGoogleContentAuthorizationCheck } from '#/contexts/integration/infrastructure/google-content-authorization-check'
 import {
-  authorityAdmissionCode,
+  permitAdmissionCode,
   createGoogleAuthorizedProviderExecutor,
 } from '#/contexts/integration/infrastructure/adapters/google-authorized-provider-executor.adapter'
 import { createDurableGoogleImportReferenceStore } from '#/contexts/integration/infrastructure/durable-import-reference-store'
@@ -86,15 +84,6 @@ export type GoogleProviderAuthorityMode = 'required' | 'refusing'
 
 export const OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE =
   '[COMPOSITION] Google provider calls require a provider-enabled application path with provider-ephemeral Redis and Google keyrings; the substrate-free operator container refuses them'
-// WP2.2 step 3: `GoogleContentAuthorityRuntime` used to live here — a parse of
-// `GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON` into a capability-keyed map of
-// installed approvals, plus the Ed25519 verifier for their role signatures, and
-// a `googleContentCapabilityRefusal` slice so the refusal explainer could say
-// which approval was missing.
-//
-// All of it is gone with the approval bundle. Runtime bindings are now
-// capabilities checked per request against static configuration and the live
-// `capability_execution_control` kill switch.
 
 export type GoogleProviderAuthorityInput = Readonly<{
   db: Database
@@ -108,19 +97,15 @@ export type GoogleProviderAuthorityInput = Readonly<{
   /** Google's approved provider endpoints, already resolved and overridden. */
   providerEndpoints: Readonly<Record<'gbpApiBaseUrl' | string, string>>
   /**
-   * Identity-owned authority facts this trust boundary must consult. Both are
-   * typed from their consumers so the seam cannot drift from what the Google
-   * Content authority actually calls.
+   * Identity-owned facts consulted by the authorization check. The consumer
+   * types pin this seam to the exact query contract.
    */
   identity: Readonly<{
     hasActivePropertyGrant: Parameters<
       typeof createGoogleContentAuthorizationCheck
     >[0]['hasActivePropertyGrant']
   }>
-  /**
-   * Pre-parsed Google Content bindings and the verifier shared with diagnostic
-   * composition. Direct builders may omit this and parse exactly once here.
-   */
+  /** Optional provider substrate overrides for tests and custom runtimes. */
   options?: Readonly<{
     providerEphemeralStore?: ProviderEphemeralStore
     providers?: ProviderOverrides
@@ -302,21 +287,16 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
         })
       : undefined
 
-  // WP2.2 step 3: the authority used to exist only when an installed approval
-  // bundle had been parsed out of the environment, which is why every consumer
-  // below was written defensively against it being undefined. Nothing gates it
-  // now — it is a permit issuer over the live kill switch and the live policy
-  // resolver, both always available — so it is constructed unconditionally.
-  const googleContentAuthorityStore = createGoogleContentAuthorityRepository(db)
-  const googleContentAuthority = createGoogleContentAuthorizationAuthority({
-    store: googleContentAuthorityStore,
+  const googleContentControlStore = createGoogleContentAuthorityRepository(db)
+  const googleContentAuthorizationCheck = createGoogleContentAuthorizationCheck({
+    clock,
+    hasActivePropertyGrant: input.identity.hasActivePropertyGrant,
+  })
+  const issueGoogleExecutionPermit = createGoogleExecutionPermitIssuer({
+    store: googleContentControlStore,
     clock,
     newPermitId: randomUUID,
-    isRegisteredOperator: () => false,
-    authorize: createGoogleContentAuthorizationCheck({
-      clock,
-      hasActivePropertyGrant: input.identity.hasActivePropertyGrant,
-    }),
+    authorize: googleContentAuthorizationCheck,
   })
   const ensureProviderEphemeralReady = providerEphemeralReadiness
     ? async () => {
@@ -334,24 +314,28 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
           randomNonce: () => randomBytes(32).toString('base64url'),
           ensureRuntimeReady: ensureProviderEphemeralReady,
           revalidate: async (record) => {
-            const runtimeBinding = { capability: record.capability } as const
             try {
-              const result = await googleContentAuthority.preauthorize({
-                runtimeBinding,
-                scope: {
-                  organizationId: record.organizationId,
-                  propertyId: record.propertyId,
-                  connectionId: record.connectionId,
-                  initiatorUserId: record.initiatorUserId,
-                },
-                operationKey: `${record.audience}.lease_renewal`,
+              const result = await googleContentControlStore.transaction(async (tx) => {
+                const control = await googleContentControlStore.loadControl(tx)
+                if (control.killedCapabilities.includes(record.capability)) {
+                  return { ok: false as const, code: 'capability_killed' as const }
+                }
+                const decision = await googleContentAuthorizationCheck(tx, {
+                  capability: record.capability,
+                  scope: {
+                    organizationId: record.organizationId,
+                    propertyId: record.propertyId,
+                    connectionId: record.connectionId,
+                    initiatorUserId: record.initiatorUserId,
+                  },
+                  operationKey: `${record.audience}.lease_renewal`,
+                })
+                return decision.allowed
+                  ? { ok: true as const, authorizationVector: decision.vector }
+                  : { ok: false as const, code: 'authorization_denied' as const }
               })
               if (!result.ok) {
-                return {
-                  allowed: false,
-                  approvalBindingId: null,
-                  authorizationFenceSha256: null,
-                }
+                return { allowed: false, authorizationFenceSha256: null }
               }
               const lifecycleVersion =
                 result.authorizationVector.connectionLifecycleVersion
@@ -362,11 +346,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
                 !Number.isSafeInteger(accessVersion) ||
                 !Number.isSafeInteger(credentialGeneration)
               ) {
-                return {
-                  allowed: false,
-                  approvalBindingId: null,
-                  authorizationFenceSha256: null,
-                }
+                return { allowed: false, authorizationFenceSha256: null }
               }
               return {
                 allowed: true,
@@ -377,11 +357,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
                 }),
               }
             } catch {
-              return {
-                allowed: false,
-                approvalBindingId: null,
-                authorizationFenceSha256: null,
-              }
+              return { allowed: false, authorizationFenceSha256: null }
             }
           },
         })
@@ -409,22 +385,9 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
 
   /**
    * Every Google Content refusal goes through here, so it always names the
-   * surface it came from and the code that decided it.
-   *
-   * WHY: only the import authorizer used to log, and on 2026-09-01 that single
-   * line was the only reason a control-plane outage was diagnosable at all — it
-   * said `approval_unavailable`, which pointed straight at a stale route
-   * catalogue in the approval row. The same cause reached three other surfaces
-   * silently: the performance panel returned an empty 200 with nothing logged,
-   * review sync and reply publication reported `runtime_unavailable` with
-   * nothing logged, and the OAuth callback flattened it to `connection_failed`.
-   * One root cause, four symptoms, one log line between them.
-   *
-   * An absent binding is reported too, and is the more insidious case: it
-   * short-circuits before any database access, so a capability with no binding
-   * key — `property.connect_gbp` and `property.publish_reply` have none in this
-   * deployment — refuses every call for the lifetime of the process while
-   * leaving no evidence anywhere that it was ever asked.
+   * surface it came from and the code that decided it. The resolver re-queries
+   * the request scope and operation while the control-store read preserves the
+   * live capability-kill reason.
    */
   type GoogleContentSurface =
     'import' | 'performance' | 'review-sync' | 'reply-publication'
@@ -438,7 +401,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
     code: string,
   ): GoogleContentRefusal => {
     logger.warn(
-      { stage: 'google-content-preauthorize', surface, code },
+      { stage: 'google-content-authorize', surface, code },
       'Google Content authorization denied',
     )
     return code === 'authorization_denied' || code === 'authorization_changed'
@@ -448,78 +411,109 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
   const authorizeGoogleImportContent: GoogleImportContentAuthorizer =
     options?.providers?.authorizeGoogleImportContent ??
     (async (input) => {
-      const binding = { capability: 'property.import_gbp_v2' } as const
-      const result = await googleContentAuthority
-        .preauthorize({
-          runtimeBinding: binding,
-          scope: {
-            organizationId: input.actor.organizationId,
-            propertyId: null,
-            connectionId: input.connectionId,
-            initiatorUserId: input.actor.userId,
-          },
-          operationKey: `import.${input.phase}`,
+      const result = await googleContentControlStore
+        .transaction(async (tx) => {
+          const control = await googleContentControlStore.loadControl(tx)
+          if (control.killedCapabilities.includes('property.import_gbp_v2')) {
+            return { ok: false as const, code: 'capability_killed' as const }
+          }
+          const decision = await googleContentAuthorizationCheck(tx, {
+            capability: 'property.import_gbp_v2',
+            scope: {
+              organizationId: input.actor.organizationId,
+              propertyId: null,
+              connectionId: input.connectionId,
+              initiatorUserId: input.actor.userId,
+            },
+            operationKey: `import.${input.phase}`,
+          })
+          return decision.allowed
+            ? { ok: true as const, authorizationVector: decision.vector }
+            : { ok: false as const, code: 'authorization_denied' as const }
         })
         .catch((err: unknown) => {
-          logger.warn({ err }, 'Google Content preauthorization failed')
+          logger.warn({ err }, 'Google Content authorization failed')
           throw err
         })
-      if (result.ok) return result
-      return refuseDenied('import', result.code)
+      return result.ok ? result : refuseDenied('import', result.code)
     })
   const authorizeGooglePerformanceContent: PerformanceContentAuthorizer =
     options?.providers?.authorizeGooglePerformanceContent ??
     (async (input) => {
-      const binding = { capability: 'property.read_gbp_performance' } as const
-      const result = await googleContentAuthority.preauthorize({
-        runtimeBinding: binding,
-        scope: {
-          organizationId: input.actor.organizationId,
-          propertyId: input.propertyId,
-          connectionId: input.connectionId,
-          initiatorUserId: input.actor.userId,
-        },
-        operationKey: `performance.${input.phase}`,
+      const result = await googleContentControlStore.transaction(async (tx) => {
+        const control = await googleContentControlStore.loadControl(tx)
+        if (control.killedCapabilities.includes('property.read_gbp_performance')) {
+          return { ok: false as const, code: 'capability_killed' as const }
+        }
+        const decision = await googleContentAuthorizationCheck(tx, {
+          capability: 'property.read_gbp_performance',
+          scope: {
+            organizationId: input.actor.organizationId,
+            propertyId: input.propertyId,
+            connectionId: input.connectionId,
+            initiatorUserId: input.actor.userId,
+          },
+          operationKey: `performance.${input.phase}`,
+        })
+        return decision.allowed
+          ? { ok: true as const, authorizationVector: decision.vector }
+          : { ok: false as const, code: 'authorization_denied' as const }
       })
       return result.ok ? result : refuseDenied('performance', result.code)
     })
   const authorizeGoogleReviewSyncContent: GoogleReviewSyncContentAuthorizer =
     options?.providers?.authorizeGoogleReviewSyncContent ??
     (async (input) => {
-      const binding = { capability: 'property.connect_gbp' } as const
-      const result = await googleContentAuthority.preauthorize({
-        runtimeBinding: binding,
-        scope: {
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          connectionId: input.connectionId,
-          initiatorUserId: null,
-        },
-        operationKey: input.operationKey,
+      const result = await googleContentControlStore.transaction(async (tx) => {
+        const control = await googleContentControlStore.loadControl(tx)
+        if (control.killedCapabilities.includes('property.connect_gbp')) {
+          return { ok: false as const, code: 'capability_killed' as const }
+        }
+        const decision = await googleContentAuthorizationCheck(tx, {
+          capability: 'property.connect_gbp',
+          scope: {
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            connectionId: input.connectionId,
+            initiatorUserId: null,
+          },
+          operationKey: input.operationKey,
+        })
+        return decision.allowed
+          ? { ok: true as const, authorizationVector: decision.vector }
+          : { ok: false as const, code: 'authorization_denied' as const }
       })
       return result.ok ? result : refuseDenied('review-sync', result.code)
     })
   const authorizeGoogleReplyPublicationContent: GoogleReplyPublicationContentAuthorizer =
     options?.providers?.authorizeGoogleReplyPublicationContent ??
     (async (input) => {
-      const binding = { capability: 'property.publish_reply' } as const
-      const result = await googleContentAuthority.preauthorize({
-        runtimeBinding: binding,
-        scope: {
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          connectionId: input.connectionId,
-          initiatorUserId: null,
-          publication: {
-            reviewId: input.reviewId,
-            replyId: input.replyId,
-            publicationCycle: input.publicationCycle,
-            attemptNumber: input.attemptNumber,
-            sourceEpoch: input.sourceEpoch,
-            materialReviewRevision: input.materialReviewRevision,
+      const result = await googleContentControlStore.transaction(async (tx) => {
+        const control = await googleContentControlStore.loadControl(tx)
+        if (control.killedCapabilities.includes('property.publish_reply')) {
+          return { ok: false as const, code: 'capability_killed' as const }
+        }
+        const decision = await googleContentAuthorizationCheck(tx, {
+          capability: 'property.publish_reply',
+          scope: {
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            connectionId: input.connectionId,
+            initiatorUserId: null,
+            publication: {
+              reviewId: input.reviewId,
+              replyId: input.replyId,
+              publicationCycle: input.publicationCycle,
+              attemptNumber: input.attemptNumber,
+              sourceEpoch: input.sourceEpoch,
+              materialReviewRevision: input.materialReviewRevision,
+            },
           },
-        },
-        operationKey: input.operationKey,
+          operationKey: input.operationKey,
+        })
+        return decision.allowed
+          ? { ok: true as const, authorizationVector: decision.vector }
+          : { ok: false as const, code: 'authorization_denied' as const }
       })
       return result.ok ? result : refuseDenied('reply-publication', result.code)
     })
@@ -529,29 +523,27 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       if (input.disconnectRevoke && input.operation !== 'oauth.revoke') {
         throw new Error('Google OAuth cleanup authority is inconsistent')
       }
-      // Every denial below is logged with the deciding code before it throws.
-      // The import path already does this (`Google Content authorization
-      // denied`, above) and it is the only reason the 2026-09-01 outage was
-      // diagnosable at all: the log named `approval_unavailable`, which pointed
-      // straight at the approval row. This path threw a bare Error instead, so
-      // the identical root cause surfaced to the operator as nothing but
-      // `connection_failed` in the OAuth callback — a generic, retryable-looking
-      // message for a control-plane condition that no retry can clear. The
-      // thrown Error is deliberately left message-identical and code-free: it
-      // reaches `connectFailureCode` (routes/api/auth/google/callback.ts), which
-      // maps anything but `account_already_connected` to `connection_failed`,
-      // and the user-facing surface must not leak authorization internals.
-      // The operator signal belongs in the log, not in the response.
-      const binding = { capability: 'property.import_gbp_v2' } as const
-      const result = await googleContentAuthority.preauthorize({
-        runtimeBinding: binding,
-        scope: {
-          organizationId: input.organizationId,
-          propertyId: null,
-          connectionId: input.connectionId,
-          initiatorUserId: input.initiatorUserId,
-        },
-        operationKey: input.operation,
+      // Every denial is logged with the deciding code before the content-free
+      // error reaches the OAuth callback, where authorization internals must
+      // remain flattened to `connection_failed`.
+      const result = await googleContentControlStore.transaction(async (tx) => {
+        const control = await googleContentControlStore.loadControl(tx)
+        if (control.killedCapabilities.includes('property.import_gbp_v2')) {
+          return { ok: false as const, code: 'capability_killed' as const }
+        }
+        const decision = await googleContentAuthorizationCheck(tx, {
+          capability: 'property.import_gbp_v2',
+          scope: {
+            organizationId: input.organizationId,
+            propertyId: null,
+            connectionId: input.connectionId,
+            initiatorUserId: input.initiatorUserId,
+          },
+          operationKey: input.operation,
+        })
+        return decision.allowed
+          ? { ok: true as const, authorizationVector: decision.vector }
+          : { ok: false as const, code: 'authorization_denied' as const }
       })
       const credentialGeneration = result.ok
         ? result.authorizationVector.credentialGeneration
@@ -564,10 +556,10 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       ) {
         logger.warn(
           {
-            stage: 'google-oauth-preauthorize',
-            // A denial reports the authority's own code; an ok result that got
-            // this far failed the credential-generation invariant instead, and
-            // saying which keeps the two apart in the log.
+            stage: 'google-oauth-authorize',
+            // A denial reports the authorization check's own code; an ok
+            // result that got this far failed the credential-generation
+            // invariant instead, and saying which keeps the two apart in the log.
             code: result.ok ? 'credential_generation_invalid' : result.code,
             operation: input.operation,
           },
@@ -617,23 +609,10 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
   }
   let googleAuthorizedProviderExecutor =
     options?.providers?.googleAuthorizedProviderExecutor
-  // WP2.2 step 3: this fork used to have three outcomes because an approval
-  // bundle could be absent or expired while the gateway was configured. There
-  // is no bundle now, so `approvalUsable` is permanently true and
-  // `googleApprovalGapDisposition` reduces to "is the gateway configured".
-  //
-  // That is the whole point of the deletion: the 29-day approval window was the
-  // mechanism that turned Google off, and the `disable` posture existed to keep
-  // the rest of the product up when it lapsed. With the window gone, a
-  // configured gateway is a working gateway.
-  // The permit's project identity. It used to be `googleProjectAttestationSha256`
-  // off the signed approval binding — a digest an operator pinned by hand at
-  // approval time. What it has to do is identify the Google project this permit
-  // was issued against, so that a permit cannot be spent under a different one,
-  // and the OAuth client id IS that project's identity. Digested rather than
-  // stored raw because the value lands in an authorization vector that is
-  // persisted and logged, and SQL asserts the vector's `projectFingerprint` is
-  // 64 hex characters.
+  // Bind each permit to the OAuth client id for the Google project under which
+  // it was issued, so it cannot be spent under a different project. Persist
+  // only its digest because the fingerprint is part of a stored authorization
+  // vector.
   // Lazy on purpose. Computing it eagerly broke `constructs without touching the
   // database` — the operator container builds this graph from an environment
   // that has no `GOOGLE_CLIENT_ID`, and a digest of `undefined` throws at
@@ -681,7 +660,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
     const { gateway, bindCredential } = createInProcessGoogleEgressRuntime({
       // `db.$client` IS the pool the composition root opened. Taking it from
       // the Database rather than as a second parameter makes it impossible to
-      // hand the permit authority a pool that is not the one running the
+      // hand the permit store a pool that is not the one running the
       // transactions it is authorizing.
       pool: db.$client,
       redis: egressCoordinationRedis,
@@ -702,10 +681,8 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       admitCredentialExecution: createGoogleProviderCredentialAdmission(db),
       routeTarget,
       admit: async ({ authorization, admission }) => {
-        const binding = { capability: authorization.capability } as const
-        if (!binding) return { ok: false, code: 'runtime_unavailable' }
-        const result = await googleContentAuthority!.admit({
-          runtimeBinding: binding,
+        const result = await issueGoogleExecutionPermit({
+          capability: authorization.capability,
           scope: {
             organizationId: authorization.organizationId,
             propertyId: authorization.propertyId,
@@ -730,7 +707,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
         })
         return result.ok
           ? { ok: true as const, permitId: result.permit.id }
-          : { ok: false as const, code: authorityAdmissionCode(result.code) }
+          : { ok: false as const, code: permitAdmissionCode(result.code) }
       },
       gateway,
       logger,

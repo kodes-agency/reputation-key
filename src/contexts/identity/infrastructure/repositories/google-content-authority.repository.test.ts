@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { getDb, type Database } from '#/shared/db'
-import { createGoogleContentAuthorizationAuthority } from '#/shared/auth/google-content-authority'
+import { createAdmittedExecutionPermit } from '#/shared/auth/authorization-execution-permit'
 import { createGoogleContentAuthorityRepository } from './google-content-authority.repository'
 import { createGoogleContentAuthorizationCheck } from '#/contexts/integration/infrastructure/google-content-authorization-check'
 import { closePool } from '#/shared/db/pool'
@@ -187,67 +187,88 @@ describe('Google Content authority repository', () => {
     ])
   })
 
-  it('atomically admits, fences, increments the kill generation, and drains', async () => {
+  it('atomically persists, fences, increments the kill generation, and drains', async () => {
     const store = createGoogleContentAuthorityRepository(db)
+    const permitId = randomUUID()
 
-    const authority = createGoogleContentAuthorizationAuthority({
-      store,
-      clock: () => now,
-      newPermitId: randomUUID,
-      isRegisteredOperator: () => true,
-      authorize: async () => ({
-        allowed: true,
-        vector: { membershipGeneration: 7, credentialGeneration: 2 },
+    await expect(
+      store.transaction(async (tx) => {
+        const emergencyKillVersion = await store.allowCapability(
+          tx,
+          'property.import_gbp_v2',
+          {
+            operatorId: 'operator-1',
+            reason: 'local rollout',
+            changedAt: now,
+          },
+        )
+        await store.insertPermit(tx, {
+          permit: createAdmittedExecutionPermit(
+            {
+              id: permitId,
+              capability: 'property.import_gbp_v2',
+              organizationId: 'org-1',
+              propertyId: null,
+              connectionId: null,
+              initiatorUserId: 'user-1',
+              operationKey: 'import.start',
+              routeKey: 'google.business-information.locations.list',
+              routeCatalogVersion: 'google-provider-routes-1',
+              quotaPolicyId: 'gbp-business-information-interactive-1',
+            },
+            now,
+          ),
+          authorizationVector: {
+            membershipGeneration: 7,
+            credentialGeneration: 2,
+            requestBindingSha256: 'a'.repeat(64),
+            credentialBinding: 'b'.repeat(64),
+            projectFingerprint: 'c'.repeat(64),
+            requestBodySha256: null,
+            requestBodyBytes: 0,
+          },
+        })
+        return emergencyKillVersion
       }),
-    })
-    await expect(
-      authority.allowCapability(
-        { capability: 'property.import_gbp_v2' },
-        'operator-1',
-        'local rollout',
-      ),
-    ).resolves.toEqual({ ok: true, emergencyKillVersion: 2 })
-    const admitted = await authority.admit({
-      runtimeBinding: { capability: 'property.import_gbp_v2' },
-      scope: {
-        organizationId: 'org-1',
-        propertyId: null,
-        connectionId: null,
-        initiatorUserId: 'user-1',
-      },
-      expectedAuthorizationVector: {
-        membershipGeneration: 7,
-        credentialGeneration: 2,
-      },
-      operationKey: 'import.start',
-      routeKey: 'google.business-information.locations.list',
-      routeCatalogVersion: 'google-provider-routes-1',
-      quotaPolicyId: 'gbp-business-information-interactive-1',
-      providerRequestBinding: {
-        requestBindingSha256: 'a'.repeat(64),
-        credentialBinding: 'b'.repeat(64),
-        projectFingerprint: 'c'.repeat(64),
-        requestBodySha256: null,
-        requestBodyBytes: 0,
-      },
-    })
-    expect(admitted).toMatchObject({ ok: true, permit: { state: 'admitted' } })
+    ).resolves.toBe(2)
 
     await expect(
-      authority.denyCapability('property.import_gbp_v2', 'operator-1', 'incident'),
-    ).resolves.toEqual({ ok: true, emergencyKillVersion: 3, drained: true })
+      store.transaction(async (tx) => {
+        const emergencyKillVersion = await store.denyCapability(
+          tx,
+          'property.import_gbp_v2',
+          {
+            operatorId: 'operator-1',
+            reason: 'incident',
+            deniedAt: now,
+          },
+        )
+        await store.fenceActivePermits(tx, 'property.import_gbp_v2', now)
+        const [workActive, cleanupActive] = await Promise.all([
+          store.hasActiveCapabilityWork(tx, 'property.import_gbp_v2'),
+          store.hasActiveCleanupWork(tx, 'property.import_gbp_v2'),
+        ])
+        await store.markCapabilityDrained(tx, 'property.import_gbp_v2', now, {
+          workDrained: !workActive,
+          cleanupDrained: !cleanupActive,
+        })
+        return {
+          emergencyKillVersion,
+          drained: !workActive && !cleanupActive,
+        }
+      }),
+    ).resolves.toEqual({ emergencyKillVersion: 3, drained: true })
 
     const rows = await db.execute(sql`
       SELECT p.state, c.denied, c.drained_at, c.cleanup_drained_at
       FROM authorization_execution_permits p
       JOIN capability_execution_control c ON c.capability = p.capability
-      WHERE p.capability = 'property.import_gbp_v2'
+      WHERE p.id = ${permitId}::uuid
     `)
     expect(rows.rows).toEqual([
       expect.objectContaining({
         state: 'fenced',
         denied: true,
-
         drained_at: expect.any(String),
         cleanup_drained_at: expect.any(String),
       }),

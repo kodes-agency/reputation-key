@@ -1,7 +1,9 @@
 import { timingSafeEqual } from 'node:crypto'
 import { z } from 'zod/v4'
-import type { GoogleContentCapability } from '#/shared/auth/google-content-contract'
-import { GOOGLE_CONTENT_CAPABILITIES } from '#/shared/auth/google-content-contract'
+import {
+  GOOGLE_CONTENT_CAPABILITIES,
+  type GoogleContentCapability,
+} from '#/shared/domain/google-content-capability'
 import type { ProviderContentLeaseDto } from '#/shared/domain/provider-content-lease'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { ProviderEphemeralStore } from './provider-ephemeral-store'

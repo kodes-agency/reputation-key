@@ -11,7 +11,7 @@ import {
   EXECUTION_PERMIT_START_DEADLINE_SWEEP_BATCH_SIZE,
   type ExecutionPermitStartDeadlineSweepStore,
 } from './execution-permit-start-deadline-sweep'
-import { GOOGLE_CONTENT_CAPABILITIES } from './google-content-contract'
+import { GOOGLE_CONTENT_CAPABILITIES } from '#/shared/domain/google-content-capability'
 
 const ADMITTED_AT = new Date('2026-08-10T10:00:00.000Z')
 /** createAdmittedExecutionPermit sets startDeadlineAt = admittedAt + 10s. */

@@ -1,9 +1,24 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
-import type {
-  CredentialCleanupOutcome,
-  CredentialRevokePermitState,
-  GoogleCredentialSourceOperationState,
-} from './google-content-contract'
+
+export type CredentialRevokePermitState =
+  | 'dormant'
+  | 'active'
+  | 'dispatching'
+  | 'consumed_no_revoke'
+  | 'confirmed_not_sent'
+  | 'confirmed_revoked'
+  | 'cleanup_ambiguous'
+  | 'provider_reset_confirmed'
+
+export type GoogleCredentialSourceOperationState =
+  | 'registered'
+  | 'provider_started'
+  | 'terminal'
+  | 'provider_outcome_ambiguous'
+  | 'provider_reset_terminal'
+
+export type CredentialCleanupOutcome =
+  'confirmed_not_sent' | 'confirmed_revoked' | 'cleanup_ambiguous'
 
 export type CredentialRevokePermitEvent =
   | 'consume_without_revoke'

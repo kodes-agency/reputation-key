@@ -1,17 +1,16 @@
 import { sql } from 'drizzle-orm'
 import { checkScopedCapability } from '#/shared/auth/beta-capabilities'
+import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
 import type { Database } from '#/shared/db'
-import type {
-  GoogleContentAuthorizationCheck,
-  GoogleContentAuthorizationScope,
-  GoogleContentAuthorizationVector,
-} from '#/shared/auth/google-content-authority'
+import type { GoogleContentCapability } from '#/shared/domain/google-content-capability'
 import {
   GOOGLE_CONTENT_EXECUTION_POLICY_VERSION,
-  type GoogleContentCapability,
-} from '#/shared/auth/google-content-contract'
-import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
-import { googleAuthorizationPermissionDigest } from '#/shared/domain/google-content-authorization-vector'
+  googleAuthorizationPermissionDigest,
+  hasGoogleProviderRequestBindingKeys,
+  type GoogleContentAuthorizationCheck,
+  type GoogleContentAuthorizationScope,
+  type GoogleContentAuthorizationVector,
+} from '#/shared/domain/google-content-authorization-vector'
 import {
   GOOGLE_NOTIFICATION_SYSTEM_PERMISSION_DIGEST,
   GOOGLE_NOTIFICATION_SYSTEM_PRINCIPAL,
@@ -602,8 +601,8 @@ export const createGoogleContentAuthorizationCheck = (
       : EMPTY_VECTOR_STAGE
     if (!publicationStage.allowed) return publicationStage
 
-    return {
-      allowed: true,
+    const decision = {
+      allowed: true as const,
       vector: {
         executionPolicyVersion: GOOGLE_CONTENT_EXECUTION_POLICY_VERSION,
         ...principal.value,
@@ -613,5 +612,7 @@ export const createGoogleContentAuthorizationCheck = (
         ...publicationStage.value,
       },
     }
+    if (hasGoogleProviderRequestBindingKeys(decision.vector)) return deny()
+    return decision
   }
 }

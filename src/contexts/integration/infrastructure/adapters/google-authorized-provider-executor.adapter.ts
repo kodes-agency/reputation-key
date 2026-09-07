@@ -12,39 +12,31 @@ import { isGoogleDisconnectRevokeAuthorization } from '../../application/google-
 import type {
   GoogleAuthorizedProviderExecutor,
   GoogleProviderAdmissionCode,
-  GoogleProviderAuthorityAdmissionCode,
+  GoogleProviderPermitAdmissionCode,
   GoogleProviderExecutionResult,
 } from '../../application/ports/google-authorized-provider-executor.port'
-import type { GoogleContentAuthorityDenyCode } from '#/shared/auth/google-content-authority'
+import type { GoogleExecutionPermitAdmissionCode } from '#/shared/auth/google-execution-permit-issuer'
 import type { GoogleDisconnectRevokeDispatchHooks } from '../../application/google-disconnect-revoke'
 
 /**
- * Total map from the content authority's own deny union onto the closed set the
+ * Total map from the permit issuer's deny union onto the closed set the
  * executor seam forwards. Infrastructure owns this narrowing because the
  * application layer may not import `shared/auth`; being total means a new
- * authority code fails the build here instead of silently arriving at the UI as
- * a retryable `upstream_error`.
+ * issuer code fails the build here instead of silently arriving at the UI as a
+ * retryable `upstream_error`.
  */
-const AUTHORITY_ADMISSION_CODES: Readonly<
-  Record<GoogleContentAuthorityDenyCode, GoogleProviderAuthorityAdmissionCode>
+const PERMIT_ADMISSION_CODES: Readonly<
+  Record<GoogleExecutionPermitAdmissionCode, GoogleProviderPermitAdmissionCode>
 > = {
-  runtime_binding_mismatch: 'runtime_binding_mismatch',
   capability_killed: 'capability_killed',
-  operator_not_registered: 'authorization_denied',
-  reason_required: 'authorization_denied',
   authorization_denied: 'authorization_denied',
   authorization_changed: 'authorization_changed',
-  operation_deadline_elapsed: 'operation_deadline_elapsed',
-  permit_unavailable: 'permit_unavailable',
-  permit_state_changed: 'permit_state_changed',
-  start_deadline_elapsed: 'start_deadline_elapsed',
-  state_not_admitted: 'state_not_admitted',
 }
 
-export function authorityAdmissionCode(
-  code: GoogleContentAuthorityDenyCode,
-): GoogleProviderAuthorityAdmissionCode {
-  return AUTHORITY_ADMISSION_CODES[code]
+export function permitAdmissionCode(
+  code: GoogleExecutionPermitAdmissionCode,
+): GoogleProviderPermitAdmissionCode {
+  return PERMIT_ADMISSION_CODES[code]
 }
 
 export type GoogleProviderPermitAdmission = Readonly<{
@@ -53,7 +45,7 @@ export type GoogleProviderPermitAdmission = Readonly<{
 }>
 
 /**
- * The app-side content authority denies with a closed, content-free code set.
+ * The app-side permit issuer denies with a closed, content-free code set.
  * Collapsing it to a bare string erases the difference between an authorization
  * change and a transient outage, so the executor forwards the exact code.
  */

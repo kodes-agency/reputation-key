@@ -23,7 +23,7 @@ import type { Clock } from '#/shared/domain/clock'
 import {
   GOOGLE_CONTENT_CAPABILITIES,
   type GoogleContentCapability,
-} from './google-content-contract'
+} from '#/shared/domain/google-content-capability'
 import {
   fenceElapsedStartDeadlinePermit,
   type AuthorizationExecutionPermit,

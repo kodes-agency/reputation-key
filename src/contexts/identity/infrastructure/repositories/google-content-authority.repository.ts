@@ -7,11 +7,11 @@ import {
   credentialRevokePermits,
   googleCredentialSourceOperations,
 } from '#/shared/db/schema'
-import { GOOGLE_CONTENT_CAPABILITIES } from '#/shared/auth/google-content-contract'
-import type {
-  GoogleContentAuthorityStore,
-  GoogleContentPermitRecord,
-} from '#/shared/auth/google-content-authority'
+import {
+  GOOGLE_CONTENT_CAPABILITIES,
+  type GoogleContentCapability,
+} from '#/shared/domain/google-content-capability'
+import type { GoogleExecutionPermitRecord } from '#/shared/auth/google-execution-permit-issuer'
 import type { AuthorizationExecutionPermit } from '#/shared/auth/authorization-execution-permit'
 
 /** Revision of the static TypeScript capability policy used in permit vectors. */
@@ -42,7 +42,7 @@ async function nextEmergencyKillVersion(tx: Database): Promise<number> {
 
 type PermitRow = typeof authorizationExecutionPermits.$inferSelect
 
-function permitRecordFromRow(row: PermitRow): GoogleContentPermitRecord | null {
+function permitRecordFromRow(row: PermitRow): GoogleExecutionPermitRecord | null {
   const authorizationVector = authorizationVectorSchema.safeParse(row.authorizationVector)
   if (!authorizationVector.success) return null
   const permit: AuthorizationExecutionPermit = {
@@ -67,7 +67,60 @@ function permitRecordFromRow(row: PermitRow): GoogleContentPermitRecord | null {
   return { permit, authorizationVector: authorizationVector.data }
 }
 
-export type GoogleContentAuthorityRepository = GoogleContentAuthorityStore<Database>
+export type GoogleContentControlState = Readonly<{
+  policyVersion: number
+  emergencyKillVersion: number
+  killedCapabilities: ReadonlyArray<GoogleContentCapability>
+}>
+
+export type GoogleContentAuthorityRepository = Readonly<{
+  transaction<T>(run: (tx: Database) => Promise<T>): Promise<T>
+  loadControl(tx: Database): Promise<GoogleContentControlState>
+  insertPermit(tx: Database, record: GoogleExecutionPermitRecord): Promise<void>
+  lockPermit(
+    tx: Database,
+    id: string,
+    organizationId?: string,
+  ): Promise<GoogleExecutionPermitRecord | null>
+  listElapsedAdmittedPermitIds(
+    tx: Database,
+    input: Readonly<{
+      capabilities: readonly GoogleContentCapability[]
+      before: Date
+      limit: number
+    }>,
+  ): Promise<readonly string[]>
+  updatePermit(tx: Database, permit: AuthorizationExecutionPermit): Promise<void>
+  denyCapability(
+    tx: Database,
+    capability: GoogleContentCapability,
+    input: Readonly<{ deniedAt: Date; operatorId: string; reason: string }>,
+  ): Promise<number>
+  allowCapability(
+    tx: Database,
+    capability: GoogleContentCapability,
+    input: Readonly<{ operatorId: string; reason: string; changedAt: Date }>,
+  ): Promise<number>
+  fenceActivePermits(
+    tx: Database,
+    capability: GoogleContentCapability,
+    at: Date,
+  ): Promise<void>
+  hasActiveCapabilityWork(
+    tx: Database,
+    capability: GoogleContentCapability,
+  ): Promise<boolean>
+  hasActiveCleanupWork(
+    tx: Database,
+    capability: GoogleContentCapability,
+  ): Promise<boolean>
+  markCapabilityDrained(
+    tx: Database,
+    capability: GoogleContentCapability,
+    at: Date,
+    input: Readonly<{ workDrained: boolean; cleanupDrained: boolean }>,
+  ): Promise<void>
+}>
 
 export const createGoogleContentAuthorityRepository = (
   db: Database,
