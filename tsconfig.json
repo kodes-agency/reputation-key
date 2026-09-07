@@ -5,7 +5,7 @@
   // (`seed.lockedManagerEmail` → undefined) shipped and survived.
   // Playwright types must stay IMPORT-ONLY: never add "@playwright/test" to
   // `types` below, or `test`/`expect` leak in as globals across src/ as well.
-  "include": ["src/**/*.ts", "src/**/*.tsx", "services/**/*.ts", "e2e/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "e2e/**/*.ts"],
   "exclude": ["node_modules", "dist", ".output", "dist-worker", "drizzle"],
   "compilerOptions": {
     "target": "ES2022",

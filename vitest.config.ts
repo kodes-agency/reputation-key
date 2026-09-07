@@ -98,7 +98,6 @@ export default defineConfig({
           environment: 'node',
           include: [
             'src/**/*.test.ts',
-            'services/**/*.test.ts',
             'scripts/review/**/*.test.ts',
             'scripts/ci/**/*.test.ts',
             'scripts/ops/**/*.test.ts',

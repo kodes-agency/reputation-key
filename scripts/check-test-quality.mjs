@@ -81,10 +81,13 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-// The runtime triple is asserted in both the build and final stages of the
-// application Dockerfile and installed by every ci.yml job (`node-version:
-// 22.23.2`). The fenced AI-language suites execute only on this runtime.
-const PINNED_RUNTIME = { node: '22.23.2', icu: '78.2', unicode: '17.0' }
+// The exact Node version comes from the same .nvmrc every CI job installs.
+// Node bundles ICU, so those two attested runtime values remain explicit.
+const PINNED_RUNTIME = {
+  node: readFileSync(join(ROOT, '.nvmrc'), 'utf8').trim(),
+  icu: '78.2',
+  unicode: '17.0',
+}
 const RUNTIME_DRIFT = Object.entries(PINNED_RUNTIME)
   .filter(([key, want]) => process.versions[key] !== want)
   .map(([key, want]) => `${key} ${process.versions[key]} ≠ ${want}`)
@@ -255,24 +258,17 @@ auditRegister('skip/todo/skipIf/runIf', SKIP_REGISTER, skipHits)
 
 // Rule 5 — the fenced suites must actually be running, everywhere.
 //
-// This used to hard-fail only inside GitHub Actions, on the argument that CI was
-// the only place the runtime could be guaranteed. That is no longer true: the
-// runtime is pinned in .nvmrc, named exactly by engines.node, resolved by every
-// CI job through node-version-file, and asserted by the local-stack
-// orchestrator. Drift is now a fixable local condition, so it fails locally too
-// — with ALLOW_RUNTIME_DRIFT=1 as the explicit, noisy acknowledgement.
+// A drifted runtime fails because .nvmrc is the repository's exact source of
+// truth and every CI job resolves it through node-version-file.
+// ALLOW_RUNTIME_DRIFT=1 remains the explicit, noisy local acknowledgement.
 const fenced = SKIP_REGISTER.filter((r) => r.runtimeFence)
 const fencedTests = fenced.reduce((sum, r) => sum + (r.skippedTests ?? 0), 0)
 if (RUNTIME_DRIFT.length > 0) {
   const detail =
     `${fenced.length} runtime-fenced file(s) (~${fencedTests} tests) do NOT run on this runtime ` +
     `(${RUNTIME_DRIFT.join(', ')})`
-  // Fails everywhere now, not just in GitHub Actions. The runtime is pinned and
-  // enforced (.nvmrc + engines.node + the local-stack assert), so drift is a
-  // fixable local condition rather than an unavoidable fact about contributors'
-  // machines — and the old warn-locally branch is exactly how ~150 governed
-  // AI-language assertions sat silently skipped on a Node 26 workstation while
-  // the suite still exited 0.
+  // The .nvmrc pin is enforceable locally and in CI. The old warning branch
+  // allowed governed AI-language assertions to sit silently skipped.
   if (process.env.ALLOW_RUNTIME_DRIFT === '1') {
     console.warn(
       `[test-quality] NOTE — ${detail}. Skipped by ALLOW_RUNTIME_DRIFT=1; the fenced suites did NOT run.`,
