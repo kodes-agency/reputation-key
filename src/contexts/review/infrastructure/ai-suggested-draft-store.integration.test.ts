@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { deleteAiDraftsForReview } from '#/shared/ai-provider-control/ai-draft-purge'
+import { deleteAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
 import {
   aiExecutionControlHeads,
   aiExecutionControlTransitions,
@@ -361,7 +361,9 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     // Replies deliberately restrict Review deletion; remove test-owned child
     // rows before the Property cascade reaches the stable Review.
     await db.execute(sql`DELETE FROM replies WHERE organization_id = ${ORGANIZATION_ID}`)
-    await db.delete(aiOrganizationCostWindows).where(eq(aiOrganizationCostWindows.organizationId, ORGANIZATION_ID))
+    await db
+      .delete(aiOrganizationCostWindows)
+      .where(eq(aiOrganizationCostWindows.organizationId, ORGANIZATION_ID))
     await db.delete(properties).where(eq(properties.id, PROPERTY_ID))
     await deleteTestOrganizations(db, [ORGANIZATION_ID])
   }

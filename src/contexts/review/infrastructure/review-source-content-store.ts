@@ -11,7 +11,7 @@ import {
 import { unbrand } from '#/shared/domain/ids'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
-import { deleteAiDraftsForReview } from '#/shared/ai-provider-control/ai-draft-purge'
+import { deleteAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
 import type { Review } from '../domain/types'
 
 type ReviewSourceContentWriter = Pick<Database, 'insert'>

@@ -1,15 +1,15 @@
-import { randomUUID } from 'node:crypto'
-import { and, eq, inArray, isNull, lte, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   aiExecutionControlHeads,
   aiOperations,
   aiOrganizationCostWindows,
 } from '#/shared/db/schema'
-import { AI_OPERATION_PROFILES, AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import {
+  AI_OPERATION_PROFILES,
+  AI_PROVIDER_DEPLOYMENT_PROFILE,
+} from '#/shared/ai-operation-profiles'
 import { maximumCostMicros } from '#/shared/ai-openai-provider-profile'
-import { getRedis } from '#/shared/cache/redis'
-import { createRateLimiter, type RateLimiter } from '#/shared/rate-limit/middleware'
 
 export type AiBudgetTx = Parameters<Parameters<Database['transaction']>[0]>[0]
 
@@ -33,18 +33,30 @@ export type AiBudgetControl = Readonly<{
     tx: AiBudgetTx,
     input: AiBudgetAdmissionInput,
   ): Promise<AiBudgetAdmissionResult>
-  settleAiOperation(tx: AiBudgetTx, operationId: string, actualMicros: number): Promise<void>
+  settleAiOperation(
+    tx: AiBudgetTx,
+    operationId: string,
+    actualMicros: number,
+  ): Promise<void>
   reapStaleReservations(tx: AiBudgetTx): Promise<number>
 }>
 
+/** The slice of the shared rate limiter admission needs; composition passes the real one. */
+export type AiAdmissionRateLimiter = Readonly<{
+  check(
+    key: string,
+    options: Readonly<{ maxRequests: number; windowSeconds: number }>,
+  ): Promise<Readonly<{ allowed: boolean }>>
+}>
+
 type AiBudgetDependencies = Readonly<{
-  rateLimiter: RateLimiter
+  rateLimiter: AiAdmissionRateLimiter
   idGen: () => string
   now: () => Date
 }>
 
 const ORGANIZATION_MONTHLY_CAP_MICROS = 50_000_000
-const RESERVATION_TTL_MILLIS = 15 * 60 * 1_000
+const RESERVATION_TTL_INTERVAL = '15 minutes'
 
 function profileForRoute(routeKey: string) {
   return AI_OPERATION_PROFILES.find(
@@ -52,9 +64,8 @@ function profileForRoute(routeKey: string) {
   )
 }
 
-
 async function withinRateLimits(
-  limiter: RateLimiter,
+  limiter: AiAdmissionRateLimiter,
   input: AiBudgetAdmissionInput,
 ): Promise<boolean> {
   for (const [key, maxRequests] of [
@@ -69,11 +80,14 @@ async function withinRateLimits(
   return true
 }
 
-export function createAiBudgetControl(dependencies: AiBudgetDependencies): AiBudgetControl {
+export function createAiBudgetControl(
+  dependencies: AiBudgetDependencies,
+): AiBudgetControl {
   return Object.freeze({
     async admitAiOperation(tx, input) {
       const profile = profileForRoute(input.routeKey)
-      if (!profile || !profile.capability) return { ok: false, code: 'capability_unavailable' }
+      if (!profile || !profile.capability)
+        return { ok: false, code: 'capability_unavailable' }
       if (
         !Number.isSafeInteger(input.providerPayloadBytes) ||
         input.providerPayloadBytes < 0 ||
@@ -132,7 +146,8 @@ export function createAiBudgetControl(dependencies: AiBudgetDependencies): AiBud
         controls.length !== controlKeys.length ||
         controls.some(
           (control) =>
-            control.executionState !== 'enabled' || control.admissionState !== 'accepting',
+            control.executionState !== 'enabled' ||
+            control.admissionState !== 'accepting',
         )
       ) {
         return { ok: false, code: 'kill_switch' }
@@ -237,85 +252,61 @@ export function createAiBudgetControl(dependencies: AiBudgetDependencies): AiBud
       await tx
         .update(aiOperations)
         .set({ actualMicros, budgetSettledAt: now, updatedAt: now })
-        .where(and(eq(aiOperations.id, operationId), isNull(aiOperations.budgetSettledAt)))
-    },
-
-    async reapStaleReservations(tx) {
-      const now = dependencies.now()
-      const staleBefore = new Date(now.getTime() - RESERVATION_TTL_MILLIS)
-      const operations = await tx
-        .select({
-          id: aiOperations.id,
-          costWindowId: aiOperations.costWindowId,
-          reservedMicros: aiOperations.reservedMicros,
-        })
-        .from(aiOperations)
         .where(
-          and(
-            isNull(aiOperations.budgetSettledAt),
-            lte(aiOperations.budgetReservedAt, staleBefore),
-            sql`${aiOperations.reservedMicros} > 0`,
-          ),
+          and(eq(aiOperations.id, operationId), isNull(aiOperations.budgetSettledAt)),
         )
-        .for('update', { skipLocked: true })
-
-      for (const operation of operations) {
-        if (!operation.costWindowId) continue
-        const [released] = await tx
-          .update(aiOrganizationCostWindows)
-          .set({
-            reservedMicros: sql`${aiOrganizationCostWindows.reservedMicros} - ${operation.reservedMicros}`,
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(aiOrganizationCostWindows.id, operation.costWindowId),
-              sql`${aiOrganizationCostWindows.reservedMicros} >= ${operation.reservedMicros}`,
-            ),
-          )
-          .returning({ id: aiOrganizationCostWindows.id })
-        if (!released) throw new Error('AI stale reservation window is inconsistent')
-        await tx
-          .update(aiOperations)
-          .set({ actualMicros: 0, budgetSettledAt: now, updatedAt: now })
-          .where(and(eq(aiOperations.id, operation.id), isNull(aiOperations.budgetSettledAt)))
-      }
-      return operations.length
     },
+
+    reapStaleReservations: reapStaleAiReservations,
   })
 }
 
-let defaultControl: AiBudgetControl | undefined
+/**
+ * Release reservations whose operation never settled within the TTL. Reads the
+ * database clock so the recovery fence, which ages rows with `clock_timestamp()`
+ * before calling this, and the reaper job agree on what "stale" means.
+ */
+export async function reapStaleAiReservations(tx: AiBudgetTx): Promise<number> {
+  const operations = await tx
+    .select({
+      id: aiOperations.id,
+      costWindowId: aiOperations.costWindowId,
+      reservedMicros: aiOperations.reservedMicros,
+    })
+    .from(aiOperations)
+    .where(
+      and(
+        isNull(aiOperations.budgetSettledAt),
+        sql`${aiOperations.budgetReservedAt} <= clock_timestamp() - ${RESERVATION_TTL_INTERVAL}::interval`,
+        sql`${aiOperations.reservedMicros} > 0`,
+      ),
+    )
+    .for('update', { skipLocked: true })
 
-function getDefaultControl(): AiBudgetControl {
-  defaultControl ??= createAiBudgetControl({
-    rateLimiter: createRateLimiter(getRedis(), {
-      keyPrefix: 'ai',
-      maxRequests: 16,
-      windowSeconds: 60,
-      failClosed: true,
-    }),
-    idGen: randomUUID,
-    now: () => new Date(),
-  })
-  return defaultControl
-}
-
-export function admitAiOperation(
-  tx: AiBudgetTx,
-  input: AiBudgetAdmissionInput,
-): Promise<AiBudgetAdmissionResult> {
-  return getDefaultControl().admitAiOperation(tx, input)
-}
-
-export function settleAiOperation(
-  tx: AiBudgetTx,
-  operationId: string,
-  actualMicros: number,
-): Promise<void> {
-  return getDefaultControl().settleAiOperation(tx, operationId, actualMicros)
-}
-
-export function reapStaleReservations(tx: AiBudgetTx): Promise<number> {
-  return getDefaultControl().reapStaleReservations(tx)
+  for (const operation of operations) {
+    if (!operation.costWindowId) continue
+    const [released] = await tx
+      .update(aiOrganizationCostWindows)
+      .set({
+        reservedMicros: sql`${aiOrganizationCostWindows.reservedMicros} - ${operation.reservedMicros}`,
+        updatedAt: sql`clock_timestamp()`,
+      })
+      .where(
+        and(
+          eq(aiOrganizationCostWindows.id, operation.costWindowId),
+          sql`${aiOrganizationCostWindows.reservedMicros} >= ${operation.reservedMicros}`,
+        ),
+      )
+      .returning({ id: aiOrganizationCostWindows.id })
+    if (!released) throw new Error('AI stale reservation window is inconsistent')
+    await tx
+      .update(aiOperations)
+      .set({
+        actualMicros: 0,
+        budgetSettledAt: sql`clock_timestamp()`,
+        updatedAt: sql`clock_timestamp()`,
+      })
+      .where(and(eq(aiOperations.id, operation.id), isNull(aiOperations.budgetSettledAt)))
+  }
+  return operations.length
 }

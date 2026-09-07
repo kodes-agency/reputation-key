@@ -17,6 +17,7 @@ import { getDb } from '#/shared/db'
 import { getPool } from '#/shared/db/pool'
 import { getLogger } from '#/shared/observability/logger'
 import { getRedis } from '#/shared/cache/redis'
+import { createRateLimiter } from '#/shared/rate-limit/middleware'
 import { closeJobQueueConnections } from '#/shared/jobs/queue'
 import { createAlertDispatcher } from '#/shared/observability/alert-dispatcher'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
@@ -426,6 +427,13 @@ function buildContainer(
     runtimeEnvironment: options?.runtimeEnvironment ?? process.env,
     enableJobs,
     pool,
+    admissionRateLimiter: createRateLimiter(redis, {
+      keyPrefix: 'ai',
+      maxRequests: 16,
+      windowSeconds: 60,
+      failClosed: true,
+    }),
+    clock,
     inferenceOverride: options?.providers?.aiInference,
     subjectHmacOverride: options?.providers?.aiSubjectHmac,
   })

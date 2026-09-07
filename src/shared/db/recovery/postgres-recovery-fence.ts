@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { RecoveryFenceCounts } from '#/shared/db/schema/recovery.schema'
-import { reapStaleReservations } from '#/shared/ai-provider-control/ai-budget'
+import { reapStaleAiReservations } from '../ai/ai-budget'
 import {
   validateRecoveryFenceInput,
   type RecoveryFenceInput,
@@ -188,7 +188,6 @@ export async function applyRecoveryFence(
     if (existingRows.length > 0 && (!existingRow || existingRows.length > 1)) {
       throw new Error('recovery run identity, generation, or source binding conflicts')
     }
-
 
     const runId = input.runId
     if (existingRow) {
@@ -437,7 +436,7 @@ export async function applyRecoveryFence(
         AND reserved_micros > 0
         AND state IN ('pending', 'executing', 'succeeded_pending_delivery')
     `)
-    const aiReservationsReleased = await reapStaleReservations(tx)
+    const aiReservationsReleased = await reapStaleAiReservations(tx)
     const activeAiOperationsFenced = await tx.execute(sql`
       UPDATE ai_operations
       SET state = 'cancelled',

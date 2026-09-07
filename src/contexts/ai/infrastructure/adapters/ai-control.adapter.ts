@@ -1,7 +1,7 @@
 import { inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiExecutionControlHeads } from '#/shared/db/schema'
-import { deleteAiDraftsForControl } from '#/shared/ai-provider-control/ai-draft-purge'
+import { deleteAiDraftsForControl } from '#/shared/db/ai/ai-draft-purge'
 import type {
   AiControlHead,
   AiControlPort,
@@ -103,7 +103,9 @@ export const createAiControlAdapter = (db: Database): AiControlPort => {
         const generation =
           typeof row.generation === 'string' ? Number(row.generation) : row.generation
         const updatedAt =
-          row.updated_at instanceof Date ? row.updated_at : new Date(String(row.updated_at))
+          row.updated_at instanceof Date
+            ? row.updated_at
+            : new Date(String(row.updated_at))
         if (
           row.scope_key !== key ||
           row.control_id !== input.expectedControlId ||

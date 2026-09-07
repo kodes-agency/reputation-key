@@ -12,7 +12,7 @@
 
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { deleteAiDraftsForOrganization } from '#/shared/ai-provider-control/ai-draft-purge'
+import { deleteAiDraftsForOrganization } from '#/shared/db/ai/ai-draft-purge'
 import {
   createOrganizationLifecycleContributorScaffold,
   validateContentFreeEvidenceRef,

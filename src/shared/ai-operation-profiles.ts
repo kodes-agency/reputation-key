@@ -346,14 +346,3 @@ export const AI_OPERATION_PROFILES: ReadonlyArray<AiOperationProfile> = Object.f
     executionLeaseMs: 120_000,
   }),
 ])
-
-export function getAiOperationProfile(
-  profileVersion: AiOperationProfile['profileVersion'],
-): AiOperationProfile {
-  const profile = AI_OPERATION_PROFILES.find(
-    (candidate) => candidate.profileVersion === profileVersion,
-  )
-  if (!profile)
-    throw new Error(`AI operation profile is not registered: ${profileVersion}`)
-  return profile
-}

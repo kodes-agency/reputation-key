@@ -1,7 +1,7 @@
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiPropertyProcessingProfiles, properties } from '#/shared/db/schema'
-import { deleteAiDraftsForProfile } from '#/shared/ai-provider-control/ai-draft-purge'
+import { deleteAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import type { AiPropertyProfileResult } from '../../domain/types'
 import { resolveAiProcessingCell } from '../../domain/rules'
@@ -194,7 +194,8 @@ export const createPropertyProcessingProfileAdapter = (
             timezone: property.timezone,
             processingRegion: cell.processingRegion,
             routingPolicyVersion: cell.routingPolicyVersion,
-            providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
+            providerDeploymentProfileVersion:
+              AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
             sourceEpoch: property.sourceEpoch,
             profileVersion,
             lifecycleState: 'active',
@@ -208,7 +209,8 @@ export const createPropertyProcessingProfileAdapter = (
               timezone: property.timezone,
               processingRegion: cell.processingRegion,
               routingPolicyVersion: cell.routingPolicyVersion,
-              providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
+              providerDeploymentProfileVersion:
+                AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
               sourceEpoch: property.sourceEpoch,
               profileVersion,
               lifecycleState: 'active',

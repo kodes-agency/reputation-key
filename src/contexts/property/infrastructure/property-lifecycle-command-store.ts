@@ -3,7 +3,7 @@ import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
-import { deleteAiDraftsForProperty } from '#/shared/ai-provider-control/ai-draft-purge'
+import { deleteAiDraftsForProperty } from '#/shared/db/ai/ai-draft-purge'
 import { propertyError } from '../domain/errors'
 import { assertValidTransition } from '../domain/property-lifecycle'
 import type {

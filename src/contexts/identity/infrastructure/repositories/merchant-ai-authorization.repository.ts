@@ -14,7 +14,7 @@ import { createAiAdvisoryScope } from '#/shared/ai-lock-order-v1'
 import type { Database } from '#/shared/db'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { organizationId } from '#/shared/domain/ids'
-import { deleteAiDraftsForAuthorization } from '#/shared/ai-provider-control/ai-draft-purge'
+import { deleteAiDraftsForAuthorization } from '#/shared/db/ai/ai-draft-purge'
 import { identityMerchantAiChanged } from '../../domain/events'
 import { decideMemberPropertyAuthority } from './member-property-authority'
 import type {
@@ -512,7 +512,11 @@ export const createMerchantAiAuthorizationStore = (
           )
         }
 
-        const runtimeProfiles = resolveAiRuntimeCapabilitySet(input.capabilities)
+        // A revoke carries no capabilities; the resolver refuses an empty set.
+        const runtimeProfiles: Readonly<Partial<Record<MerchantAiCapability, string>>> =
+          input.capabilities.length > 0
+            ? resolveAiRuntimeCapabilitySet(input.capabilities)
+            : Object.freeze({})
 
         const authorizedSourceEpoch =
           input.operation === 'revoke' && current

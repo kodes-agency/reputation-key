@@ -7,17 +7,17 @@ import { aiOperations } from '#/shared/db/schema'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import { settledCostMicros } from '#/shared/ai-openai-provider-profile'
 import type { AiSettlementRequestV1 } from '#/shared/ai-internal-transport-contract'
-import {
-  createAiBudgetControl,
-  type AiBudgetControl,
-} from './ai-budget'
 import type {
   AiAdmissionDatabaseAuthority,
   AiAdmissionDenialCode,
   AiSettlementDenialCode,
-} from './admission-service'
-import { createRateLimiter } from '#/shared/rate-limit/middleware'
-import { getRedis } from '#/shared/cache/redis'
+} from '#/shared/ai-provider-control/admission-service'
+import {
+  createAiBudgetControl,
+  reapStaleAiReservations,
+  type AiAdmissionRateLimiter,
+  type AiBudgetControl,
+} from './ai-budget'
 
 const KEY_ID = /^[a-z][a-z0-9_-]{0,31}$/
 
@@ -29,6 +29,8 @@ type PropertyDenial = Exclude<
 type Dependencies = Readonly<{
   pool: Pool
   signingKid: string
+  /** Ignored when `budgetControl` is supplied. */
+  rateLimiter: AiAdmissionRateLimiter
   budgetControl?: AiBudgetControl
   now?: () => Date
   nonce?: () => string
@@ -73,16 +75,7 @@ export function createPostgresAiAdmissionAuthority(
   const now = input.now ?? (() => new Date())
   const budget =
     input.budgetControl ??
-    createAiBudgetControl({
-      rateLimiter: createRateLimiter(getRedis(), {
-        keyPrefix: 'ai',
-        maxRequests: 16,
-        windowSeconds: 60,
-        failClosed: true,
-      }),
-      idGen: randomUUID,
-      now,
-    })
+    createAiBudgetControl({ rateLimiter: input.rateLimiter, idGen: randomUUID, now })
   const nonce = input.nonce ?? (() => randomBytes(18).toString('base64url'))
 
   return Object.freeze({
@@ -223,7 +216,10 @@ export function createPostgresAiAdmissionAuthority(
           .limit(1)
           .for('update')
         if (!operation) {
-          return { status: 'denied' as const, code: 'permit_unknown' as AiSettlementDenialCode }
+          return {
+            status: 'denied' as const,
+            code: 'permit_unknown' as AiSettlementDenialCode,
+          }
         }
         if (
           operation.executionPermitId !== request.permitId ||
@@ -235,9 +231,7 @@ export function createPostgresAiAdmissionAuthority(
           return { status: 'denied' as const, code: 'permit_mismatch' as const }
         }
         const cost =
-          request.disposition === 'no_dispatch'
-            ? 0
-            : Number(settledCostMicros(request))
+          request.disposition === 'no_dispatch' ? 0 : Number(settledCostMicros(request))
         if (!Number.isSafeInteger(cost) || cost > operation.reservedMicros) {
           return { status: 'denied' as const, code: 'settlement_conflict' as const }
         }
@@ -269,7 +263,7 @@ export function createPostgresAiAdmissionAuthority(
       if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1_000) {
         throw new Error('AI admission reap limit is invalid')
       }
-      return db.transaction((tx) => budget.reapStaleReservations(tx))
+      return db.transaction(reapStaleAiReservations)
     },
 
     readiness: async () => {

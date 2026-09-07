@@ -19,6 +19,7 @@ import type { AiInferencePort } from '#/contexts/ai/application/ports/ai-inferen
 import type { AiSubjectHmacPort } from '#/contexts/ai/application/ports/ai-subject-hmac.port'
 import { createAiInProcessInference } from '#/contexts/ai/infrastructure/adapters/ai-inprocess.adapter'
 import { createAiEgressRuntime } from './ai-egress-runtime'
+import type { AiAdmissionRateLimiter } from '#/shared/db/ai/ai-budget'
 import { createAiSubjectHmacAdapter } from '#/contexts/ai/infrastructure/adapters/ai-subject-hmac.adapter'
 import { loadNamedEd25519PublicKeyring } from '#/shared/ed25519-key-material'
 import {
@@ -180,6 +181,9 @@ export function createAiRuntimeProviders(
     enableJobs: boolean
     /** The application's own pool — the admission authority runs on it now. */
     pool: Pool
+    /** Admission throttling; Redis-backed in production, fail-closed. */
+    admissionRateLimiter: AiAdmissionRateLimiter
+    clock: () => Date
     inferenceOverride?: AiInferencePort
     subjectHmacOverride?: AiSubjectHmacPort
   }>,
@@ -202,6 +206,8 @@ export function createAiRuntimeProviders(
     const runtime = createAiEgressRuntime({
       env: input.env,
       pool: input.pool,
+      admissionRateLimiter: input.admissionRateLimiter,
+      clock: input.clock,
       runtimeEnvironment: input.runtimeEnvironment,
     })
     inference = createAiInProcessInference({

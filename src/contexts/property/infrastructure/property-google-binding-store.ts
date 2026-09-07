@@ -5,7 +5,7 @@ import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { propertyOperationReceipts } from '#/shared/db/schema/property-operation-receipt.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
-import { deleteAiDraftsForProperty } from '#/shared/ai-provider-control/ai-draft-purge'
+import { deleteAiDraftsForProperty } from '#/shared/db/ai/ai-draft-purge'
 import {
   googleConnectionId,
   organizationId,

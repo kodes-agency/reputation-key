@@ -47,13 +47,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts',
-    symbol: 'duplicateResult',
-    reason:
-      'The globally unique event-envelope receipt is the idempotency authority and discovers the already-persisted lifecycle and enrollment rows for a replay.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/goal/infrastructure/repositories/goal-program.repository.ts',
     symbol: 'hydrateBundles',
     reason:
