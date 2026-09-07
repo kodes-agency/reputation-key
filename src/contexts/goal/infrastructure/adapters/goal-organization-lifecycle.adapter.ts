@@ -37,25 +37,18 @@ export const GOAL_PURGE_TABLES = Object.freeze([
 ] as const)
 
 /**
- * Append-only guards that must be disabled transactionally for tenant purge.
+ * The monthly-result validation guard rejects deletion alongside enforcing its
+ * status and revision transitions, so irreversible tenant purge disables it
+ * transactionally. Program versions and result revisions are append-only
+ * through their repository write surfaces and need no database trigger.
  *
- * They exist so product code can never rewrite Goal history. A purge is not
- * product code: it is the reviewed irreversible boundary, and the row must
- * physically go. `ALTER TABLE ... DISABLE TRIGGER` is transactional in
- * PostgreSQL, so these are restored by the same commit that carries the
- * receipt — and automatically by a rollback if the phase fails. Deliberately
- * NOT `session_replication_role = 'replica'`, which would also suppress the
- * system triggers implementing foreign keys and silently orphan rows.
+ * `ALTER TABLE ... DISABLE TRIGGER` is transactional in PostgreSQL, so the
+ * guard is restored by the same commit that carries the receipt — and
+ * automatically by a rollback if the phase fails. Deliberately NOT
+ * `session_replication_role = 'replica'`, which would also suppress the system
+ * triggers implementing foreign keys and silently orphan rows.
  */
-const APPEND_ONLY_GUARDS = Object.freeze([
-  Object.freeze({
-    table: 'goal_program_versions',
-    trigger: 'goal_program_versions_append_only',
-  }),
-  Object.freeze({
-    table: 'goal_result_revisions',
-    trigger: 'goal_result_revisions_append_only',
-  }),
+const PURGE_GUARDS = Object.freeze([
   Object.freeze({ table: 'goal_monthly_results', trigger: 'goal_monthly_results_guard' }),
 ] as const)
 
@@ -247,7 +240,7 @@ const purge = async (
     }
   }
 
-  for (const guard of APPEND_ONLY_GUARDS) {
+  for (const guard of PURGE_GUARDS) {
     await tx.execute(
       sql`ALTER TABLE ${sql.identifier(guard.table)} DISABLE TRIGGER ${sql.identifier(guard.trigger)}`,
     )
@@ -268,7 +261,7 @@ const purge = async (
       sql`DELETE FROM goal_programs WHERE organization_id = ${organization}`,
     )
   } finally {
-    for (const guard of APPEND_ONLY_GUARDS) {
+    for (const guard of PURGE_GUARDS) {
       await tx.execute(
         sql`ALTER TABLE ${sql.identifier(guard.table)} ENABLE TRIGGER ${sql.identifier(guard.trigger)}`,
       )

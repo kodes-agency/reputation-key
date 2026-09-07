@@ -4,7 +4,6 @@ import { randomUUID } from 'node:crypto'
 import { getEnv } from '#/shared/config/env'
 import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import { getDb } from '#/shared/db'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -912,11 +911,9 @@ describe('Postgres Google admission permit authority', () => {
         'DELETE FROM reply_publication_attempts WHERE organization_id = $1',
         [ORGANIZATION_ID],
       )
-      await withPublicationAuthorizationFixtureMutation(() =>
-        pool.query(
-          'DELETE FROM reply_publication_authorizations WHERE organization_id = $1',
-          [ORGANIZATION_ID],
-        ),
+      await pool.query(
+        'DELETE FROM reply_publication_authorizations WHERE organization_id = $1',
+        [ORGANIZATION_ID],
       )
       await pool.query('DELETE FROM replies WHERE organization_id = $1', [
         ORGANIZATION_ID,

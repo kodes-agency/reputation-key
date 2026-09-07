@@ -42,7 +42,6 @@ import { createReviewRepository } from './review.repository'
 import { createReplyRepository } from './reply.repository'
 import { createAtomicReplyCommandStore } from '../reply-command-store'
 import type { PublicationAttemptStart } from '../../application/ports/reply-command-store.port'
-import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
 
 const ORG_A = organizationId('org-pub-state-bbbb-2222222222222222')
 const PROP_A = propertyId('3c000000-0000-0000-0000-000000000001')
@@ -90,10 +89,9 @@ async function truncateAll(p: Pool) {
   await p.query('DELETE FROM reply_publication_attempts WHERE organization_id = $1', [
     ORG_A,
   ])
-  await withPublicationAuthorizationFixtureMutation(() =>
-    p.query('DELETE FROM reply_publication_authorizations WHERE organization_id = $1', [
-      ORG_A,
-    ]),
+  await p.query(
+    'DELETE FROM reply_publication_authorizations WHERE organization_id = $1',
+    [ORG_A],
   )
   await p.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_A])
   await p.query('DELETE FROM replies WHERE organization_id = $1', [ORG_A])

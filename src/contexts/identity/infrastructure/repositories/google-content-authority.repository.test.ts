@@ -8,7 +8,6 @@ import { createGoogleContentAuthorizationCheck } from '#/contexts/integration/in
 import { closePool } from '#/shared/db/pool'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
-import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
 import {
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
@@ -55,62 +54,60 @@ afterEach(async () => {
   const fixture = dynamicAuthorizationFixture
   dynamicAuthorizationFixture = undefined
   if (!fixture) return
-  await withPublicationAuthorizationFixtureMutation(() =>
-    db.transaction(async (tx) => {
-      await tx.execute(sql`
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`
         DELETE FROM credential_revoke_permits AS revoke_permit
         USING google_credential_source_operations AS source_operation
         WHERE revoke_permit.source_operation_id = source_operation.id
           AND source_operation.organization_id = ${fixture.organization}
       `)
-      await tx.execute(sql`
+    await tx.execute(sql`
         DELETE FROM credential_revoke_permits AS revoke_permit
         USING authorization_execution_permits AS execution_permit
         WHERE revoke_permit.cleanup_work_permit_id = execution_permit.id
           AND execution_permit.organization_id = ${fixture.organization}
       `)
-      await tx.execute(sql`
+    await tx.execute(sql`
         DELETE FROM google_credential_source_operations
         WHERE organization_id = ${fixture.organization}
       `)
-      await tx.execute(sql`
+    await tx.execute(sql`
         DELETE FROM authorization_execution_permits
         WHERE organization_id = ${fixture.organization}
       `)
-      await tx.execute(sql`
+    await tx.execute(sql`
         DELETE FROM reply_publication_attempts
         WHERE organization_id = ${fixture.organization}
       `)
-      await tx.execute(sql`
+    await tx.execute(sql`
         DELETE FROM reply_publication_authorizations
         WHERE organization_id = ${fixture.organization}
       `)
-      await tx.execute(sql`
+    await tx.execute(sql`
         DELETE FROM replies
         WHERE organization_id = ${fixture.organization}
       `)
-      await tx.execute(sql`
+    await tx.execute(sql`
         DELETE FROM material_review_revisions
         WHERE organization_id = ${fixture.organization}
       `)
-      await tx.execute(sql`
+    await tx.execute(sql`
         DELETE FROM reviews
         WHERE organization_id = ${fixture.organization}
       `)
-      await tx.execute(sql`
+    await tx.execute(sql`
         DELETE FROM properties
         WHERE organization_id = ${fixture.organization}
       `)
-      await tx.execute(sql`
+    await tx.execute(sql`
         DELETE FROM google_connections
         WHERE organization_id = ${fixture.organization}
       `)
-      await tx.execute(sql`
+    await tx.execute(sql`
         DELETE FROM permission_version
         WHERE organization_id = ${fixture.organization}
       `)
-    }),
-  )
+  })
 })
 
 afterAll(async () => {

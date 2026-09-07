@@ -131,16 +131,8 @@ async function advanceAuthorityTo(
   return contribution()
 }
 
-/**
- * Publication authorizations and lifecycle receipts are guarded by ALWAYS
- * triggers in production. Fixture teardown lifts both for the duration of a
- * delete; no runtime path does this, which is precisely why the adapter has to
- * scrub those rows instead of removing them.
- */
-async function withGuardsDisabled(work: () => Promise<void>): Promise<void> {
-  await pool.query(
-    'ALTER TABLE reply_publication_authorizations DISABLE TRIGGER reply_publication_authorizations_immutable',
-  )
+/** Lifecycle events retain their ALWAYS append-only guard in production. */
+async function withLifecycleEventGuardDisabled(work: () => Promise<void>): Promise<void> {
   await pool.query(
     'ALTER TABLE organization_lifecycle_events DISABLE TRIGGER organization_lifecycle_events_append_only',
   )
@@ -150,14 +142,11 @@ async function withGuardsDisabled(work: () => Promise<void>): Promise<void> {
     await pool.query(
       'ALTER TABLE organization_lifecycle_events ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only',
     )
-    await pool.query(
-      'ALTER TABLE reply_publication_authorizations ENABLE ALWAYS TRIGGER reply_publication_authorizations_immutable',
-    )
   }
 }
 
 async function clean(): Promise<void> {
-  await withGuardsDisabled(async () => {
+  await withLifecycleEventGuardDisabled(async () => {
     for (const org of [ORG_ID, OTHER_ORG_ID]) {
       await pool.query(
         'DELETE FROM organization_lifecycle_events WHERE organization_id = $1',
@@ -521,7 +510,7 @@ async function armedSyncSchedules(organizationId: string): Promise<number> {
  * why it is the only way to prove the statements are idempotent.
  */
 async function forgetReviewReceipt(): Promise<void> {
-  await withGuardsDisabled(async () => {
+  await withLifecycleEventGuardDisabled(async () => {
     await pool.query(
       `DELETE FROM organization_lifecycle_events
        WHERE organization_id = $1 AND context = 'review'

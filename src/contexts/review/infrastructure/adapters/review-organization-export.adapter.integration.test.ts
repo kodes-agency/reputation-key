@@ -4,7 +4,6 @@ import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
 import { createReviewOrganizationExportContributor } from './review-organization-export.adapter'
 
 const ORG_ID = 'org-review-export-000000000000001'
@@ -48,11 +47,9 @@ async function clean(): Promise<void> {
       'DELETE FROM reply_publication_attempts WHERE organization_id = $1',
       [org],
     )
-    await withPublicationAuthorizationFixtureMutation(() =>
-      pool.query(
-        'DELETE FROM reply_publication_authorizations WHERE organization_id = $1',
-        [org],
-      ),
+    await pool.query(
+      'DELETE FROM reply_publication_authorizations WHERE organization_id = $1',
+      [org],
     )
     await pool.query('DELETE FROM google_reply_observations WHERE organization_id = $1', [
       org,

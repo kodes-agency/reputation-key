@@ -16,10 +16,8 @@ const QUALIFIED_SCAN_VERSION = '11111111-1111-4111-8111-111111111301'
 const RATING_AVERAGE_DEFINITION = '11111111-1111-4111-8111-111111110303'
 const RATING_AVERAGE_VERSION = '11111111-1111-4111-8111-111111111303'
 
-const APPEND_ONLY_GUARDS = [
-  { table: 'goal_result_revisions', name: 'goal_result_revisions_append_only' },
+const PURGE_GUARDS = [
   { table: 'goal_monthly_results', name: 'goal_monthly_results_guard' },
-  { table: 'goal_program_versions', name: 'goal_program_versions_append_only' },
 ] as const
 
 const organizations = new Set<string>()
@@ -265,9 +263,8 @@ describe.sequential('Goal Organization Export contributor', () => {
 
   afterEach(async () => {
     const ids = [...organizations]
-    // Production append-only/immutability guards are exactly what a fixture
-    // cleanup has to step around; they stay enabled for every insert above.
-    for (const guard of APPEND_ONLY_GUARDS) {
+    // The monthly-result validation guard rejects fixture cleanup deletes.
+    for (const guard of PURGE_GUARDS) {
       await lease.pool.query(`ALTER TABLE ${guard.table} DISABLE TRIGGER ${guard.name}`)
     }
     for (const table of [
@@ -285,7 +282,7 @@ describe.sequential('Goal Organization Export contributor', () => {
       ])
     }
     await deleteTestOrganizations(lease.pool, ids)
-    for (const guard of APPEND_ONLY_GUARDS) {
+    for (const guard of PURGE_GUARDS) {
       await lease.pool.query(`ALTER TABLE ${guard.table} ENABLE TRIGGER ${guard.name}`)
     }
     organizations.clear()

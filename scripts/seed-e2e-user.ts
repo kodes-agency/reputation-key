@@ -605,12 +605,10 @@ async function publishPortalSnapshot(input: {
     },
   })
 
-  // Snapshots are append-only in both directions: a database trigger refuses
-  // any UPDATE ("portal publication snapshots are immutable"), and guest
-  // responses hold a foreign key to the snapshot they were served under, so a
-  // DELETE fails on any stack that has been exercised. A reseed therefore
-  // PUBLISHES AGAIN rather than editing in place — which is also what the
-  // product does when a Portal's content changes.
+  // The production write surface only inserts publication snapshots; it never
+  // rewrites them. Guest responses also hold a foreign key to the snapshot
+  // they were served under, so a reseed publishes again rather than editing
+  // in place — the same path used when a Portal's content changes.
   const [existing] = await db
     .select({
       id: portalPublicationSnapshots.id,

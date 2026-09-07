@@ -4,7 +4,7 @@
 // this file proves only what Goal itself decides: that Closing fences the
 // active programs without deleting a row, that readiness fails closed on live
 // work and never mutates, that purge deletes exactly the reviewed
-// tenant-scoped tables and always restores the append-only guards, and that
+// tenant-scoped tables and always restores the retained purge guard, and that
 // every receipt is content-free and deterministic.
 
 import { describe, expect, it } from 'vitest'
@@ -197,7 +197,7 @@ describe('goal organization lifecycle phases', () => {
     }
   })
 
-  it('purge disables each append-only guard and restores every one of them', async () => {
+  it('purge disables the retained validation guard and restores it', async () => {
     const { tx, statements } = createFakeTx({ tenantRows: 9 })
     await GOAL_ORGANIZATION_LIFECYCLE_PHASES.purge(tx, REQUEST)
 
@@ -219,7 +219,7 @@ describe('goal organization lifecycle phases', () => {
     expect(statements.some((s) => /\bDROP\b|\bTRUNCATE\b/i.test(s.text))).toBe(false)
   })
 
-  it('purge restores the append-only guards even when a delete fails', async () => {
+  it('purge restores the retained validation guard even when a delete fails', async () => {
     const { tx, statements } = createFakeTx({ tenantRows: 9 })
     const failing = {
       execute: async (statement: unknown) => {

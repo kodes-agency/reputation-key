@@ -9,8 +9,8 @@ them, not appended to. Three owned tracks make up the deployed schema:
 
 1. **Drizzle journal track** — exactly three migrations, all generated:
    `drizzle/0000_baseline.sql` (every application table, derived from the
-   migratable barrel — 225 tables today), `drizzle/0001_db_constructs.sql`
-   (a copy of `db-constructs.sql`: 114 functions, 140 triggers and 7 btree_gist
+   migratable barrel — 136 tables today), `drizzle/0001_db_constructs.sql`
+   (a copy of `db-constructs.sql`: 58 functions, 49 triggers and 5 btree_gist
    exclusion constraints drizzle-orm has no DSL for) and
    `drizzle/0002_db_seed.sql` (a copy of `db-seed.sql`: 63 control-plane rows —
    the AI operation/routing catalogues, the metric definition registry and the

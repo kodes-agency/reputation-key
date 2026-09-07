@@ -687,40 +687,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     })
   })
 
-  it('refuses a direct UPDATE, DELETE or TRUNCATE against escalation history', async () => {
-    await seedReviewRevisionOne()
-    const store = createAtomicInboxCommandStore(db)
-    const item = makeItem()
-    await store.createItem(item, null, { materialReviewRevision: 1 })
-    await store.escalate(
-      item,
-      { escalatedBy: USER_A },
-      inboxItemEscalated({
-        inboxItemId: item.id,
-        organizationId: item.organizationId,
-        propertyId: item.propertyId,
-        userId: USER_A,
-        occurredAt: NOW,
-      }),
-      NOW,
-    )
-
-    await expect(
-      pool.query(
-        `UPDATE inbox_escalation_history SET kind = 'resolved' WHERE inbox_item_id = $1`,
-        [item.id],
-      ),
-    ).rejects.toThrow(/inbox escalation history is immutable/u)
-    await expect(
-      pool.query('DELETE FROM inbox_escalation_history WHERE inbox_item_id = $1', [
-        item.id,
-      ]),
-    ).rejects.toThrow(/inbox escalation history is immutable/u)
-    await expect(pool.query('TRUNCATE inbox_escalation_history')).rejects.toThrow(
-      /inbox escalation history is immutable/u,
-    )
-  })
-
   it('lets exactly one concurrent governed Review reopen advance the canonical head', async () => {
     const reviewRepo = createReviewRepository(db, () => new Date())
     await reviewRepo.upsert(

@@ -183,21 +183,6 @@ describe.sequential('Review Handling Cycle store (PostgreSQL)', () => {
         supersedesCycleNumber: null,
       }),
     ])
-
-    await expect(
-      pool.query(
-        `UPDATE inbox_handling_cycles SET material_review_revision = 2
-         WHERE inbox_item_id = $1 AND cycle_number = 1`,
-        [ITEM_ID],
-      ),
-    ).rejects.toThrow('immutable')
-    await expect(store.listCycles(ITEM_ID, ORG_ID)).resolves.toEqual([
-      expect.objectContaining({
-        cycleNumber: 1,
-        materialReviewRevision: 1,
-        openedReason: 'review_observed',
-      }),
-    ])
   })
 
   it('rejects manual reopen rows without a governed reason at the database fence', async () => {

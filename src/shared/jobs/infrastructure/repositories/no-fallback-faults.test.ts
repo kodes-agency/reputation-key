@@ -54,7 +54,6 @@ import {
 } from '#/shared/testing/redis-test-lease'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import { createGatedJobHandler } from '#/shared/jobs/delayed-execution-gate'
@@ -413,10 +412,8 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
     await db.execute(
       sql`DELETE FROM reply_publication_attempts WHERE organization_id = ${ORG_C}`,
     )
-    await withPublicationAuthorizationFixtureMutation(() =>
-      db.execute(
-        sql`DELETE FROM reply_publication_authorizations WHERE organization_id = ${ORG_C}`,
-      ),
+    await db.execute(
+      sql`DELETE FROM reply_publication_authorizations WHERE organization_id = ${ORG_C}`,
     )
     await db.execute(sql`DELETE FROM replies WHERE organization_id = ${ORG_C}`)
     await db.execute(sql`DELETE FROM reviews WHERE organization_id = ${ORG_C}`)
@@ -465,10 +462,8 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
     await db.execute(
       sql`DELETE FROM reply_publication_attempts WHERE organization_id = ${ORG_C}`,
     )
-    await withPublicationAuthorizationFixtureMutation(() =>
-      db.execute(
-        sql`DELETE FROM reply_publication_authorizations WHERE organization_id = ${ORG_C}`,
-      ),
+    await db.execute(
+      sql`DELETE FROM reply_publication_authorizations WHERE organization_id = ${ORG_C}`,
     )
     await db.execute(sql`DELETE FROM replies WHERE organization_id = ${ORG_C}`)
     await db.execute(sql`DELETE FROM reviews WHERE organization_id = ${ORG_C}`)

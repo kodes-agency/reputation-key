@@ -63,7 +63,6 @@ import { reviewCreated } from '#/contexts/review/domain/events'
 import type { Review } from '#/contexts/review/domain/types'
 import { createAtomicReviewCommandStore } from '#/contexts/review/infrastructure/review-command-store'
 import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
-import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
 import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
 import { createReviewSourceTransitionAuthority } from '#/contexts/review/infrastructure/source-transition-authority'
 import { createReviewResponseTargetAuthority } from '#/contexts/review/infrastructure/response-target-authority'
@@ -375,11 +374,9 @@ beforeAll(async () => {
   await pool.query('DELETE FROM reply_publication_attempts WHERE organization_id = $1', [
     ORG,
   ])
-  await withPublicationAuthorizationFixtureMutation(() =>
-    pool.query(
-      'DELETE FROM reply_publication_authorizations WHERE organization_id = $1',
-      [ORG],
-    ),
+  await pool.query(
+    'DELETE FROM reply_publication_authorizations WHERE organization_id = $1',
+    [ORG],
   )
   await pool.query('DELETE FROM replies WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
@@ -505,11 +502,9 @@ afterAll(async () => {
       'DELETE FROM reply_publication_attempts WHERE organization_id = $1',
       [ORG],
     )
-    await withPublicationAuthorizationFixtureMutation(() =>
-      pool.query(
-        'DELETE FROM reply_publication_authorizations WHERE organization_id = $1',
-        [ORG],
-      ),
+    await pool.query(
+      'DELETE FROM reply_publication_authorizations WHERE organization_id = $1',
+      [ORG],
     )
     await pool.query('DELETE FROM replies WHERE organization_id = $1', [ORG])
     await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])

@@ -3,9 +3,9 @@
 // The unit test proves the decision logic. Only a real schema can prove what
 // an operator relies on: the Closing fence really is accepted by the
 // `goal_programs_transition_guard` trigger and deletes nothing, readiness
-// mutates nothing and fails closed on live work, and purge gets past the
-// append-only guards, restores every one of them, empties this tenant and
-// leaves every other tenant byte-identical.
+// mutates nothing and fails closed on live work, and purge temporarily lifts
+// the monthly-result validation guard, empties this tenant, restores the guard,
+// and leaves every other tenant byte-identical.
 
 import { randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -26,12 +26,8 @@ import {
 const RATING_COUNT_DEFINITION = METRIC_DEFINITION_IDS.portalRatingCount
 const RATING_COUNT_GOAL_VERSION = METRIC_VERSION_IDS.portalRatingCountGoal
 
-/** The append-only guards the fixtures have to step around, exactly as purge does. */
-const APPEND_ONLY_GUARDS = [
-  ['goal_program_versions', 'goal_program_versions_append_only'],
-  ['goal_result_revisions', 'goal_result_revisions_append_only'],
-  ['goal_monthly_results', 'goal_monthly_results_guard'],
-] as const
+/** The retained validation guard fixture cleanup must step around, exactly as purge does. */
+const PURGE_GUARDS = [['goal_monthly_results', 'goal_monthly_results_guard']] as const
 
 const organizations = new Set<string>()
 let lease: TestLease
@@ -256,7 +252,7 @@ async function deleteFixtures(organizationIds: readonly string[]): Promise<void>
   const client = await lease.pool.connect()
   try {
     await client.query('BEGIN')
-    for (const [table, trigger] of APPEND_ONLY_GUARDS) {
+    for (const [table, trigger] of PURGE_GUARDS) {
       await client.query(`ALTER TABLE ${table} DISABLE TRIGGER ${trigger}`)
     }
     await client.query(
@@ -281,7 +277,7 @@ async function deleteFixtures(organizationIds: readonly string[]): Promise<void>
     await client.query(`DELETE FROM properties WHERE organization_id = ANY($1::text[])`, [
       organizationIds,
     ])
-    for (const [table, trigger] of APPEND_ONLY_GUARDS) {
+    for (const [table, trigger] of PURGE_GUARDS) {
       await client.query(`ALTER TABLE ${table} ENABLE TRIGGER ${trigger}`)
     }
     await client.query(
@@ -404,7 +400,7 @@ describe.sequential('goal Organization lifecycle contributor', () => {
     expect(await tableCounts(fixture.organizationId)).toEqual(before)
   })
 
-  it('purge empties this tenant only, is idempotent, and restores every guard', async () => {
+  it('purge empties this tenant only, is idempotent, and restores its guard', async () => {
     const fixture = await seedTenantRows('goal-lifecycle-org', 'paused')
     const bystander = await seedTenantRows('goal-lifecycle-bystander', 'paused')
     await requestClosure(fixture)
@@ -427,15 +423,7 @@ describe.sequential('goal Organization lifecycle contributor', () => {
     // No tenant-cross deletion.
     expect(await tableCounts(bystander.organizationId)).toEqual(bystanderBefore)
 
-    // The append-only guards are back on: product code still cannot rewrite
-    // another tenant's Goal history.
-    await expect(
-      lease.pool.query(
-        `UPDATE goal_result_revisions SET change_reason = 'tampered'
-         WHERE organization_id = $1`,
-        [bystander.organizationId],
-      ),
-    ).rejects.toThrow(/append-only/u)
+    // The retained monthly-result validation guard is back on after purge.
     await expect(
       lease.pool.query('DELETE FROM goal_monthly_results WHERE organization_id = $1', [
         bystander.organizationId,

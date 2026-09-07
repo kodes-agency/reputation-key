@@ -1615,37 +1615,14 @@ export async function cleanupE2eData(input: {
      DELETE FROM reply_publication_attempts WHERE review_id IN (${FIXTURE_REVIEWS})`,
     args,
   )
-  // reply_publication_authorizations is NOT deleted: a trigger refuses it
-  // ("reply publication authorizations are immutable"), which is the product's
-  // deliberate posture for a record of what a manager authorised. A review that
-  // still carries one therefore cannot be removed either, so both are left in
-  // place. That is safe because every fixture identity is scoped by e2eRunId --
-  // the rows accumulate but never collide with a later run.
-  // Only reviews with no immutable authorization behind them can go, and the
-  // replies must go with them.
-  // A reply that an authorization still names cannot go, so it is skipped and
-  // its review is skipped with it. Reviews are then removed only once nothing
-  // references them at all.
   await dbQuery(
-    `DELETE FROM replies reply
-     WHERE reply.review_id IN (${FIXTURE_REVIEWS})
-       AND NOT EXISTS (
-         SELECT 1 FROM reply_publication_authorizations authorization_record
-         WHERE authorization_record.reply_id = reply.id
-       )`,
+    `DELETE FROM reply_publication_authorizations
+     WHERE review_id IN (${FIXTURE_REVIEWS})`,
     args,
   )
-  await dbQuery(
-    `DELETE FROM reviews review
-     WHERE review.id IN (${FIXTURE_REVIEWS})
-       AND NOT EXISTS (SELECT 1 FROM replies reply WHERE reply.review_id = review.id)
-       AND NOT EXISTS (
-         SELECT 1 FROM reply_publication_authorizations authorization_record
-         WHERE authorization_record.review_id = review.id
-       )`,
-    args,
-  )
-  // grants for prefix-matched users and properties (RESTRICT FK), then both
+  await dbQuery(`DELETE FROM replies WHERE review_id IN (${FIXTURE_REVIEWS})`, args)
+  await dbQuery(`DELETE FROM reviews WHERE id IN (${FIXTURE_REVIEWS})`, args)
+  // Remove grants for prefix-matched users and properties before their RESTRICT parents.
   await dbQuery(
     `DELETE FROM property_access_grant WHERE organization_id = $1 AND (
        user_id IN (SELECT id FROM "user" WHERE email LIKE $2) OR
@@ -1670,11 +1647,9 @@ export async function cleanupE2eData(input: {
     [input.organizationId, like],
   )
   await dbQuery(
-    // A Property whose Reviews cannot be removed cannot be removed either: the
-    // cascade would reach a Reply that a reply_publication_authorization still
-    // names, and that record is immutable by design. Skipping such a Property
-    // leaves it behind rather than aborting the whole cleanup, which is what
-    // used to poison the database for every later run of that spec.
+    // Delete a fixture Property only after its Reviews are gone. The
+    // defensive NOT EXISTS keeps unexpected retained Review data from being
+    // removed by cascade or aborting the rest of cleanup.
     `DELETE FROM properties
      WHERE organization_id = $1 AND id IN (
        SELECT p.id

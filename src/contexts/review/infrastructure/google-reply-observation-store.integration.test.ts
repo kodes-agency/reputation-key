@@ -28,7 +28,6 @@ import { createGoogleReplyObservationStore } from './google-reply-observation-st
 import { eraseReviewSourceContent } from './review-source-content-store'
 import type { RecordGoogleReplyObservation } from '../application/ports/google-reply-observation-store.port'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 
 const ORG = organizationId('org-rpl-observation-integration')
@@ -126,10 +125,8 @@ function makeReply(
 
 async function resetFixture(): Promise<void> {
   nextReadGeneration = 0
-  await withPublicationAuthorizationFixtureMutation(() =>
-    pool.query(
-      'TRUNCATE google_reply_observation_heads, google_reply_observations, reply_publication_attempts, reply_publication_authorizations CASCADE',
-    ),
+  await pool.query(
+    'TRUNCATE google_reply_observation_heads, google_reply_observations, reply_publication_attempts, reply_publication_authorizations CASCADE',
   )
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM replies WHERE organization_id = $1', [ORG])
@@ -634,11 +631,9 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     await pool.query('DELETE FROM reply_publication_attempts WHERE reply_id = $1', [
       REPLY_A,
     ])
-    await withPublicationAuthorizationFixtureMutation(() =>
-      pool.query('DELETE FROM reply_publication_authorizations WHERE reply_id = $1', [
-        REPLY_A,
-      ]),
-    )
+    await pool.query('DELETE FROM reply_publication_authorizations WHERE reply_id = $1', [
+      REPLY_A,
+    ])
     await pool.query(
       `UPDATE replies
        SET status = 'publish_failed', publication_state = 'ambiguous',
@@ -702,11 +697,9 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     await pool.query('DELETE FROM reply_publication_attempts WHERE reply_id = $1', [
       REPLY_A,
     ])
-    await withPublicationAuthorizationFixtureMutation(() =>
-      pool.query('DELETE FROM reply_publication_authorizations WHERE reply_id = $1', [
-        REPLY_A,
-      ]),
-    )
+    await pool.query('DELETE FROM reply_publication_authorizations WHERE reply_id = $1', [
+      REPLY_A,
+    ])
     await pool.query(
       `UPDATE replies
        SET status = 'publish_failed', publication_state = 'ambiguous',

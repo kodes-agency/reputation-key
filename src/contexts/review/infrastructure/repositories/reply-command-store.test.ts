@@ -42,7 +42,6 @@ import {
   ON_REPLY_PUBLICATION_REQUESTED_CONSUMER,
 } from '../outbox-consumers'
 import { decideCurrentMemberPropertyAuthority } from '#/contexts/identity/infrastructure/repositories/member-property-authority'
-import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
 
 const ORG_A = organizationId('org-reply-cmd-aaaa-1111111111111111')
 const PROP_A = propertyId('2b000000-0000-0000-0000-000000000001')
@@ -88,10 +87,9 @@ async function truncateAll(p: Pool) {
   await p.query('DELETE FROM reply_publication_attempts WHERE organization_id = $1', [
     ORG_A,
   ])
-  await withPublicationAuthorizationFixtureMutation(() =>
-    p.query('DELETE FROM reply_publication_authorizations WHERE organization_id = $1', [
-      ORG_A,
-    ]),
+  await p.query(
+    'DELETE FROM reply_publication_authorizations WHERE organization_id = $1',
+    [ORG_A],
   )
   await p.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_A])
   await p.query('DELETE FROM replies WHERE organization_id = $1', [ORG_A])
@@ -290,73 +288,6 @@ describe.sequential('replyCommandStore (integration)', () => {
         ON_REPLY_PUBLICATION_REQUESTED_CONSUMER,
       ),
     ).resolves.toBe(true)
-  })
-
-  it('keeps committed publication authority append-only at the database boundary', async () => {
-    const db = getDb()
-    const reviewRepo = createReviewRepository(db, () => new Date())
-    const replyRepo = createReplyRepository(db, () => new Date())
-    const store = createAtomicReplyCommandStore(
-      db,
-      () => new Date(),
-      async () => true,
-    )
-
-    await reviewRepo.upsert(makeReview())
-    const pending = makeReply({ status: 'pending_approval', submittedAt: NOW })
-    await replyRepo.upsert(pending)
-    const publicationIntent = reviewReplyPublicationRequested({
-      replyId: REPLY_A,
-      reviewId: REVIEW_A,
-      propertyId: PROP_A,
-      organizationId: ORG_A,
-      userId: USER_A,
-      publicationCycle: 1,
-      sourceEpoch: 0,
-      materialReviewRevision: 1,
-      baseObservationRevision: 0,
-      occurredAt: NOW,
-    })
-    await store.markPublicationAuthorized(
-      pending,
-      { status: 'approved', approvedBy: USER_A, approvedAt: NOW },
-      {
-        lifecycleEvent: reviewReplyApproved({
-          replyId: REPLY_A,
-          reviewId: REVIEW_A,
-          propertyId: PROP_A,
-          organizationId: ORG_A,
-          userId: USER_A,
-          authorId: USER_A,
-          occurredAt: NOW,
-        }),
-        publicationIntent,
-      },
-      NOW,
-    )
-
-    for (const statement of [
-      `UPDATE reply_publication_authorizations
-       SET authorized_by_user_id = 'different-manager'
-       WHERE reply_id = '${REPLY_A}'`,
-      `DELETE FROM reply_publication_authorizations WHERE reply_id = '${REPLY_A}'`,
-      'TRUNCATE reply_publication_authorizations CASCADE',
-    ]) {
-      await expect(pool.query(statement)).rejects.toMatchObject({ code: '55000' })
-    }
-
-    const retained = await pool.query(
-      `SELECT authorized_by_user_id, expected_reply_digest
-       FROM reply_publication_authorizations
-       WHERE reply_id = $1 AND publication_cycle = 1`,
-      [REPLY_A],
-    )
-    expect(retained.rows).toEqual([
-      {
-        authorized_by_user_id: USER_A,
-        expected_reply_digest: expect.stringMatching(/^[0-9a-f]{64}$/),
-      },
-    ])
   })
 
   it('cancels a queued cycle when its named PropertyManager grant is revoked before claim', async () => {

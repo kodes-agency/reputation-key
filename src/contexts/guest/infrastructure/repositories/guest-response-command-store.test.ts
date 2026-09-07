@@ -324,14 +324,6 @@ describe.sequential('atomic Guest response submission', () => {
         },
       })
     }
-
-    await expect(
-      db.execute(sql`
-        UPDATE guest_responses
-        SET attributed_staff_participant_id = ${STAFF_PARTICIPANT_REPLACEMENT}::uuid
-        WHERE id = ${RESPONSE}
-      `),
-    ).rejects.toMatchObject({ cause: { code: '23514' } })
   })
 
   it('commits the response and both content-free facts together', async () => {

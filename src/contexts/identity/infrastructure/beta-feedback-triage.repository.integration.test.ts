@@ -43,30 +43,14 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (references.size > 0) {
-    const client = await lease.pool.connect()
-    try {
-      await client.query('BEGIN')
-      await client.query(
-        'ALTER TABLE beta_feedback_triage_transitions DISABLE TRIGGER beta_feedback_triage_transition_update_guard',
-      )
-      await client.query(
-        'DELETE FROM beta_feedback_triage_transitions WHERE feedback_reference = ANY($1::uuid[])',
-        [[...references]],
-      )
-      await client.query(
-        'DELETE FROM beta_feedback_triage WHERE reference = ANY($1::uuid[])',
-        [[...references]],
-      )
-      await client.query(
-        'ALTER TABLE beta_feedback_triage_transitions ENABLE TRIGGER beta_feedback_triage_transition_update_guard',
-      )
-      await client.query('COMMIT')
-    } catch (error) {
-      await client.query('ROLLBACK')
-      throw error
-    } finally {
-      client.release()
-    }
+    await lease.pool.query(
+      'DELETE FROM beta_feedback_triage_transitions WHERE feedback_reference = ANY($1::uuid[])',
+      [[...references]],
+    )
+    await lease.pool.query(
+      'DELETE FROM beta_feedback_triage WHERE reference = ANY($1::uuid[])',
+      [[...references]],
+    )
   }
   await lease.release()
 })

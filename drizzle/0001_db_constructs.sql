@@ -861,16 +861,6 @@ END;
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.guard_beta_feedback_triage_transition_immutable_v1()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-BEGIN
-  RAISE EXCEPTION 'beta feedback triage transitions are append-only';
-END;
-$function$
-;
---> statement-breakpoint
 CREATE OR REPLACE FUNCTION public.guard_goal_monthly_result_v1()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -1476,66 +1466,6 @@ BEGIN
 
   RETURN NEW;
 END;
-$function$
-;
---> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.guard_portal_publication_history_v1()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-BEGIN
-  IF TG_TABLE_NAME = 'portal_publication_snapshots' THEN
-    RAISE EXCEPTION USING
-      ERRCODE = '55000',
-      MESSAGE = 'portal publication snapshots are immutable';
-  END IF;
-
-  IF OLD.deactivated_at IS NOT NULL
-     OR NEW.id IS DISTINCT FROM OLD.id
-     OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
-     OR NEW.property_id IS DISTINCT FROM OLD.property_id
-     OR NEW.portal_id IS DISTINCT FROM OLD.portal_id
-     OR NEW.snapshot_id IS DISTINCT FROM OLD.snapshot_id
-     OR NEW.activation_sequence IS DISTINCT FROM OLD.activation_sequence
-     OR NEW.kind IS DISTINCT FROM OLD.kind
-     OR NEW.activated_by IS DISTINCT FROM OLD.activated_by
-     OR NEW.activated_at IS DISTINCT FROM OLD.activated_at
-     OR NEW.deactivated_at IS NULL
-     OR NEW.deactivation_reason IS NULL THEN
-    RAISE EXCEPTION USING
-      ERRCODE = '55000',
-      MESSAGE = 'portal publication activation history is append-only';
-  END IF;
-
-  RETURN NEW;
-END;
-$function$
-;
---> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.guard_primary_staff_attribution_immutable_v1()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-BEGIN
-  IF ROW(
-    NEW.attributed_staff_participant_id,
-    NEW.attributed_staff_participation_id,
-    NEW.attribution_responsibility_id,
-    NEW.staff_attribution_effective_from,
-    NEW.staff_attribution_effective_to
-  ) IS DISTINCT FROM ROW(
-    OLD.attributed_staff_participant_id,
-    OLD.attributed_staff_participation_id,
-    OLD.attribution_responsibility_id,
-    OLD.staff_attribution_effective_from,
-    OLD.staff_attribution_effective_to
-  ) THEN
-    RAISE EXCEPTION USING
-      ERRCODE = '23514',
-      MESSAGE = 'event-time Primary Staff attribution is immutable';
-  END IF;
-  RETURN NEW;
-END
 $function$
 ;
 --> statement-breakpoint
@@ -2184,27 +2114,6 @@ END;
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.reject_canonical_goal_append_only_mutation_v1()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-BEGIN
-  IF TG_TABLE_NAME = 'goal_program_versions' AND TG_OP = 'UPDATE' THEN
-    IF OLD."effective_to" IS NULL
-      AND NEW."effective_to" IS NOT NULL
-      AND NEW."effective_to" >= OLD."effective_from"
-      AND (to_jsonb(NEW) - 'effective_to') = (to_jsonb(OLD) - 'effective_to')
-    THEN
-      RETURN NEW;
-    END IF;
-  END IF;
-
-  RAISE EXCEPTION '% is append-only; % is forbidden', TG_TABLE_NAME, TG_OP
-    USING ERRCODE = '55000';
-END;
-$function$
-;
---> statement-breakpoint
 CREATE OR REPLACE FUNCTION public.reject_organization_lifecycle_event_mutation_v1()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -2227,87 +2136,6 @@ BEGIN
   RAISE EXCEPTION USING
     ERRCODE = '55000',
     MESSAGE = TG_TABLE_NAME || ' is append-only';
-END;
-$function$
-;
---> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.reject_inbox_assignment_history_mutation_v1()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-BEGIN
-  IF TG_OP = 'DELETE'
-     AND pg_trigger_depth() > 1
-     AND NOT EXISTS (
-       SELECT 1 FROM public.inbox_items WHERE id = OLD.inbox_item_id
-     ) THEN
-    RETURN OLD;
-  END IF;
-  RAISE EXCEPTION USING
-    ERRCODE = '55000',
-    MESSAGE = 'inbox assignment history is immutable';
-END;
-$function$
-;
---> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.reject_inbox_escalation_history_mutation_v1()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-BEGIN
-  IF TG_OP = 'DELETE'
-     AND pg_trigger_depth() > 1
-     AND NOT EXISTS (
-       SELECT 1 FROM public.inbox_items WHERE id = OLD.inbox_item_id
-     ) THEN
-    RETURN OLD;
-  END IF;
-  RAISE EXCEPTION USING
-    ERRCODE = '55000',
-    MESSAGE = 'inbox escalation history is immutable';
-END;
-$function$
-;
---> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.reject_inbox_feedback_handling_outcome_mutation_v1()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-BEGIN
-  IF TG_OP = 'DELETE'
-     AND pg_trigger_depth() > 1
-     AND NOT EXISTS (
-       SELECT 1 FROM public.inbox_items WHERE id = OLD.inbox_item_id
-     ) THEN
-    RETURN OLD;
-  END IF;
-  RAISE EXCEPTION USING
-    ERRCODE = '55000',
-    MESSAGE = 'private-feedback handling outcome history is immutable';
-END;
-$function$
-;
---> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.reject_inbox_handling_cycle_update_v1()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-BEGIN
-  RAISE EXCEPTION 'inbox Handling Cycle opening facts are immutable';
-END;
-$function$
-;
---> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.reject_inbox_response_target_truncate_v1()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-BEGIN
-  RAISE EXCEPTION USING ERRCODE = '55000', MESSAGE = 'Response Target history cannot be truncated';
 END;
 $function$
 ;
@@ -2416,19 +2244,6 @@ BEGIN
   END IF;
 
   RETURN NEW;
-END;
-$function$
-;
---> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.reject_reply_publication_authorization_mutation_v1()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-BEGIN
-  RAISE EXCEPTION USING
-    ERRCODE = '55000',
-    MESSAGE = 'reply publication authorizations are immutable';
 END;
 $function$
 ;
@@ -3704,51 +3519,21 @@ CREATE TRIGGER backup_erasure_ledger_update_delete_guard BEFORE DELETE OR UPDATE
 --> statement-breakpoint
 CREATE TRIGGER beta_feedback_triage_revision_guard BEFORE UPDATE ON public.beta_feedback_triage FOR EACH ROW EXECUTE FUNCTION guard_beta_feedback_triage_revision_v1();
 --> statement-breakpoint
-CREATE TRIGGER beta_feedback_triage_transition_truncate_guard BEFORE TRUNCATE ON public.beta_feedback_triage_transitions FOR EACH STATEMENT EXECUTE FUNCTION guard_beta_feedback_triage_transition_immutable_v1();
---> statement-breakpoint
-CREATE TRIGGER beta_feedback_triage_transition_update_guard BEFORE DELETE OR UPDATE ON public.beta_feedback_triage_transitions FOR EACH ROW EXECUTE FUNCTION guard_beta_feedback_triage_transition_immutable_v1();
---> statement-breakpoint
 CREATE TRIGGER goal_monthly_results_guard BEFORE INSERT OR DELETE OR UPDATE ON public.goal_monthly_results FOR EACH ROW EXECUTE FUNCTION guard_goal_monthly_result_v1();
---> statement-breakpoint
-CREATE TRIGGER goal_program_versions_append_only BEFORE DELETE OR UPDATE ON public.goal_program_versions FOR EACH ROW EXECUTE FUNCTION reject_canonical_goal_append_only_mutation_v1();
 --> statement-breakpoint
 CREATE TRIGGER goal_programs_transition_guard BEFORE UPDATE ON public.goal_programs FOR EACH ROW EXECUTE FUNCTION guard_goal_program_transition_v1();
 --> statement-breakpoint
-CREATE TRIGGER goal_result_revisions_append_only BEFORE DELETE OR UPDATE ON public.goal_result_revisions FOR EACH ROW EXECUTE FUNCTION reject_canonical_goal_append_only_mutation_v1();
---> statement-breakpoint
 CREATE TRIGGER goal_result_revisions_insert_guard BEFORE INSERT ON public.goal_result_revisions FOR EACH ROW EXECUTE FUNCTION validate_goal_result_revision_v1();
---> statement-breakpoint
-CREATE TRIGGER guest_qualified_scans_staff_attribution_immutable BEFORE UPDATE OF attributed_staff_participant_id, attributed_staff_participation_id, attribution_responsibility_id, staff_attribution_effective_from, staff_attribution_effective_to ON public.guest_qualified_scans FOR EACH ROW EXECUTE FUNCTION guard_primary_staff_attribution_immutable_v1();
 --> statement-breakpoint
 CREATE TRIGGER guest_responses_retire_contact_request AFTER UPDATE OF status, deleted_at, feedback_withdrawn_at ON public.guest_responses FOR EACH ROW WHEN ((((old.status)::text IS DISTINCT FROM (new.status)::text) OR (old.deleted_at IS DISTINCT FROM new.deleted_at) OR (old.feedback_withdrawn_at IS DISTINCT FROM new.feedback_withdrawn_at))) EXECUTE FUNCTION retire_guest_contact_on_response_terminal_v1();
 --> statement-breakpoint
-CREATE TRIGGER guest_responses_staff_attribution_immutable BEFORE UPDATE OF attributed_staff_participant_id, attributed_staff_participation_id, attribution_responsibility_id, staff_attribution_effective_from, staff_attribution_effective_to ON public.guest_responses FOR EACH ROW EXECUTE FUNCTION guard_primary_staff_attribution_immutable_v1();
---> statement-breakpoint
-CREATE TRIGGER inbox_assignment_history_immutable BEFORE DELETE OR UPDATE ON public.inbox_assignment_history FOR EACH ROW EXECUTE FUNCTION reject_inbox_assignment_history_mutation_v1();
---> statement-breakpoint
-CREATE TRIGGER inbox_assignment_history_truncate_guard BEFORE TRUNCATE ON public.inbox_assignment_history FOR EACH STATEMENT EXECUTE FUNCTION reject_inbox_assignment_history_mutation_v1();
---> statement-breakpoint
-CREATE TRIGGER inbox_escalation_history_immutable BEFORE DELETE OR UPDATE ON public.inbox_escalation_history FOR EACH ROW EXECUTE FUNCTION reject_inbox_escalation_history_mutation_v1();
---> statement-breakpoint
-CREATE TRIGGER inbox_escalation_history_truncate_guard BEFORE TRUNCATE ON public.inbox_escalation_history FOR EACH STATEMENT EXECUTE FUNCTION reject_inbox_escalation_history_mutation_v1();
---> statement-breakpoint
 CREATE TRIGGER inbox_feedback_handling_outcomes_append_guard BEFORE INSERT ON public.inbox_feedback_handling_outcomes FOR EACH ROW EXECUTE FUNCTION enforce_inbox_feedback_handling_outcome_append_v1();
 --> statement-breakpoint
-CREATE TRIGGER inbox_feedback_handling_outcomes_immutable BEFORE DELETE OR UPDATE ON public.inbox_feedback_handling_outcomes FOR EACH ROW EXECUTE FUNCTION reject_inbox_feedback_handling_outcome_mutation_v1();
---> statement-breakpoint
-CREATE TRIGGER inbox_feedback_handling_outcomes_truncate_guard BEFORE TRUNCATE ON public.inbox_feedback_handling_outcomes FOR EACH STATEMENT EXECUTE FUNCTION reject_inbox_feedback_handling_outcome_mutation_v1();
---> statement-breakpoint
 CREATE TRIGGER inbox_handling_cycle_response_targets_terminal_guard BEFORE DELETE OR UPDATE ON public.inbox_handling_cycle_response_targets FOR EACH ROW EXECUTE FUNCTION enforce_inbox_response_target_terminal_v1();
---> statement-breakpoint
-CREATE TRIGGER inbox_handling_cycle_response_targets_truncate_guard BEFORE TRUNCATE ON public.inbox_handling_cycle_response_targets FOR EACH STATEMENT EXECUTE FUNCTION reject_inbox_response_target_truncate_v1();
---> statement-breakpoint
-CREATE TRIGGER inbox_handling_cycles_immutable BEFORE UPDATE ON public.inbox_handling_cycles FOR EACH ROW EXECUTE FUNCTION reject_inbox_handling_cycle_update_v1();
 --> statement-breakpoint
 CREATE TRIGGER inbox_response_target_reminders_schedule_guard BEFORE INSERT ON public.inbox_response_target_reminders FOR EACH ROW EXECUTE FUNCTION validate_inbox_response_target_reminder_schedule_v1();
 --> statement-breakpoint
 CREATE TRIGGER inbox_response_target_reminders_terminal_guard BEFORE DELETE OR UPDATE ON public.inbox_response_target_reminders FOR EACH ROW EXECUTE FUNCTION enforce_inbox_response_target_reminder_terminal_v1();
---> statement-breakpoint
-CREATE TRIGGER inbox_response_target_reminders_truncate_guard BEFORE TRUNCATE ON public.inbox_response_target_reminders FOR EACH STATEMENT EXECUTE FUNCTION reject_inbox_response_target_truncate_v1();
 --> statement-breakpoint
 CREATE TRIGGER member_fence_google_connector_departure BEFORE DELETE OR UPDATE OF role ON public.member FOR EACH ROW EXECUTE FUNCTION fence_google_connector_departure_v1();
 --> statement-breakpoint
@@ -3769,10 +3554,6 @@ CREATE TRIGGER merchant_ai_consent_evidence_truncate_guard BEFORE TRUNCATE ON pu
 CREATE TRIGGER merchant_ai_enablement_transition_guard BEFORE INSERT OR DELETE OR UPDATE ON public.merchant_ai_enablement FOR EACH ROW EXECUTE FUNCTION guard_merchant_ai_enablement_v1();
 --> statement-breakpoint
 CREATE TRIGGER merchant_ai_enablement_truncate_guard BEFORE TRUNCATE ON public.merchant_ai_enablement FOR EACH STATEMENT EXECUTE FUNCTION guard_merchant_ai_enablement_v1();
---> statement-breakpoint
-CREATE TRIGGER metric_corrections_staff_attribution_immutable BEFORE UPDATE OF attributed_staff_participant_id, attributed_staff_participation_id, attribution_responsibility_id, staff_attribution_effective_from, staff_attribution_effective_to ON public.metric_corrections FOR EACH ROW EXECUTE FUNCTION guard_primary_staff_attribution_immutable_v1();
---> statement-breakpoint
-CREATE TRIGGER metric_readings_staff_attribution_immutable BEFORE UPDATE OF attributed_staff_participant_id, attributed_staff_participation_id, attribution_responsibility_id, staff_attribution_effective_from, staff_attribution_effective_to ON public.metric_readings FOR EACH ROW EXECUTE FUNCTION guard_primary_staff_attribution_immutable_v1();
 --> statement-breakpoint
 CREATE TRIGGER notifications_normalize_source_content BEFORE INSERT OR UPDATE OF payload, title, body, type ON public.notifications FOR EACH ROW EXECUTE FUNCTION normalize_notification_source_content_v1();
 --> statement-breakpoint
@@ -3808,10 +3589,6 @@ CREATE TRIGGER organization_lifecycle_revision_guard BEFORE UPDATE ON public.org
 --> statement-breakpoint
 CREATE TRIGGER organization_role_policy_perm_ver_iud AFTER INSERT OR DELETE OR UPDATE ON public.organization_role_policy FOR EACH ROW EXECUTE FUNCTION tgr_bump_perm_app();
 --> statement-breakpoint
-CREATE TRIGGER portal_publication_activations_history_guard BEFORE UPDATE ON public.portal_publication_activations FOR EACH ROW EXECUTE FUNCTION guard_portal_publication_history_v1();
---> statement-breakpoint
-CREATE TRIGGER portal_publication_snapshots_immutable BEFORE UPDATE ON public.portal_publication_snapshots FOR EACH ROW EXECUTE FUNCTION guard_portal_publication_history_v1();
---> statement-breakpoint
 CREATE TRIGGER privacy_requests_transition_guard BEFORE DELETE OR UPDATE ON public.privacy_requests FOR EACH ROW EXECUTE FUNCTION reject_privacy_request_mutation_v1();
 --> statement-breakpoint
 CREATE TRIGGER privacy_requests_truncate_guard BEFORE TRUNCATE ON public.privacy_requests FOR EACH STATEMENT EXECUTE FUNCTION reject_privacy_request_mutation_v1();
@@ -3827,10 +3604,6 @@ CREATE TRIGGER replies_advance_state_revision_on_delete BEFORE DELETE ON public.
 CREATE TRIGGER replies_increment_state_revision BEFORE INSERT OR UPDATE ON public.replies FOR EACH ROW EXECUTE FUNCTION increment_reply_state_revision();
 --> statement-breakpoint
 CREATE TRIGGER replies_invalidate_ai_adoption AFTER DELETE OR UPDATE ON public.replies FOR EACH ROW EXECUTE FUNCTION invalidate_ai_reply_adoption_v1();
---> statement-breakpoint
-CREATE TRIGGER reply_publication_authorizations_immutable BEFORE DELETE OR UPDATE ON public.reply_publication_authorizations FOR EACH ROW EXECUTE FUNCTION reject_reply_publication_authorization_mutation_v1();
---> statement-breakpoint
-CREATE TRIGGER reply_publication_authorizations_truncate_guard BEFORE TRUNCATE ON public.reply_publication_authorizations FOR EACH STATEMENT EXECUTE FUNCTION reject_reply_publication_authorization_mutation_v1();
 --> statement-breakpoint
 CREATE TRIGGER review_lifecycle_recovery_executions_mutation_guard BEFORE DELETE OR UPDATE ON public.review_lifecycle_recovery_executions FOR EACH ROW EXECUTE FUNCTION guard_review_lifecycle_recovery_execution_v1();
 --> statement-breakpoint
