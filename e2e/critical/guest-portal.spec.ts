@@ -424,7 +424,21 @@ test.describe('Critical: public Portal basics', () => {
         )[0]?.n ?? '0',
       )
 
-    const before = await countScans()
+    // Scans reach `metric_readings` through the outbox, so a reading from an
+    // earlier test in this file can land after this one has started (main run
+    // for d911d146: expected 6, received 7 after the reload). A count only
+    // means something once it has held still for two relay ticks.
+    const settledScanCount = async () => {
+      let last = await countScans()
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        await page.waitForTimeout(2_000)
+        const next = await countScans()
+        if (next === last) return next
+        last = next
+      }
+      throw new Error('portal.scan readings did not settle within 20s')
+    }
+    const before = await settledScanCount()
 
     // One visit records exactly one, and a reload does not add another: the
     // guard is storage-backed plus a use-case dedupe on the signed session, so
@@ -433,12 +447,12 @@ test.describe('Critical: public Portal basics', () => {
     await settleGuestConsent(page)
     await expect(page.getByRole('radio', { name: '1 star' })).toBeVisible()
     // Main run 33685556953 exhausted 10s (expected 8, received 7), then passed
-    // on retry: the durable path includes a 5s relay tick plus cold BullMQ startup.
+    // on retry: the durable path includes the relay tick plus cold BullMQ startup.
     await expect.poll(countScans, { timeout: 20_000 }).toBe(before + 1)
 
     await page.reload()
     await expect(page.getByRole('radio', { name: '1 star' })).toBeVisible()
-    expect(await countScans()).toBe(before + 1)
+    expect(await settledScanCount()).toBe(before + 1)
 
     // A DIFFERENT guest counts again, which is what proves the dedupe is
     // scoped to the session rather than to the portal. The reset has to be a
