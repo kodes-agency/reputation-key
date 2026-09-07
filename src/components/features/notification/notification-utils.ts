@@ -6,6 +6,7 @@
 // This module holds the two things that are genuinely view concerns: which
 // icon a type gets, and how a timestamp reads in the user's own locale.
 
+import { formatDateTime } from '#/lib/format-date-time'
 import {
   Bell,
   MessageSquare,
@@ -104,11 +105,7 @@ export function formatAbsoluteTime(
   format: NotificationFormat = DEFAULT_NOTIFICATION_FORMAT,
 ): string {
   const then = typeof date === 'string' ? new Date(date) : date
-  return new Intl.DateTimeFormat(format.locale, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    timeZone: format.timeZone,
-  }).format(then)
+  return formatDateTime(then, { locale: format.locale, timeZone: format.timeZone })
 }
 
 // ── Icon by notification type ───────────────────────────────────────

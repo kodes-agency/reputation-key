@@ -1,5 +1,6 @@
 import { match } from 'ts-pattern'
 import type { MetricAvailabilityState } from '#/contexts/reporting/application/public-api'
+import { formatDateTime } from '#/lib/format-date-time'
 
 export type MetricEvidenceLineInput = Readonly<{
   basis?: 'governed_period' | 'anonymous_lifetime'
@@ -30,17 +31,7 @@ export function formatEvidenceTime(
   timeZone = 'UTC',
 ): string {
   if (value === null) return '—'
-  // Explicit components, not dateStyle/timeStyle: ECMA-402 forbids combining
-  // those with timeZoneName.
-  return value.toLocaleString(locale, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone,
-    timeZoneName: 'short',
-  })
+  return formatDateTime(value, { locale, timeZone, timeZoneName: true })
 }
 
 export function metricAvailabilityDetail(reason: string | null): string {
