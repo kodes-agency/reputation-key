@@ -5,6 +5,7 @@
 // under test: it is the only thing that makes a second build legal.
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { clearTestContainerEnv } from '#/shared/testing/clear-container-env'
 import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
 import { closeContainer, createContainer, getContainer } from '#/composition'
@@ -93,6 +94,8 @@ async function release(container: ProjectedContainer | undefined): Promise<void>
 beforeEach(() => {
   clearEventSchemas()
 })
+
+beforeEach(clearTestContainerEnv)
 
 describe('per-deployable container surfaces', () => {
   let container: ProjectedContainer | undefined
