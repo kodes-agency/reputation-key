@@ -114,6 +114,12 @@ export function createAuth() {
         // Better Auth commits. Outside that request-scoped override this
         // preserves Better Auth's normal alphanumeric ID generation.
         generateId: generateBetterAuthDatabaseId,
+        // Better Auth 1.7 re-reads information_schema on the first request to
+        // check its tables. The schema is proven before deploy instead
+        // (migrate-deploy's Better Auth track, check:schema-drift, the auth
+        // bootstrap compatibility test), and an anonymous request must not
+        // cost a database round-trip to learn it has no session.
+        validateSchema: false,
       },
       defaultCookieAttributes: {
         secure: new URL(env.BETTER_AUTH_URL).protocol === 'https:',
