@@ -35,7 +35,8 @@ function SuccessView() {
 function AutoAcceptView({
   error,
   loading,
-}: Readonly<{ error: unknown; loading: boolean }>) {
+  joiningNotice,
+}: Readonly<{ error: unknown; loading: boolean; joiningNotice: React.ReactNode }>) {
   return (
     <AuthCard title="Accepting invitation…" description="">
       <FormErrorBanner error={error} />
@@ -44,6 +45,7 @@ function AutoAcceptView({
           <Skeleton className="h-4 w-48" />
         </div>
       )}
+      {joiningNotice}
     </AuthCard>
   )
 }
@@ -54,12 +56,14 @@ type Props = Readonly<{
   invitationId?: string
   invitations: ReadonlyArray<PendingInvitation>
   acceptInvitation: (input: { data: { invitationId: string } }) => Promise<void>
+  joiningNotice: React.ReactNode
 }>
 
 export function AcceptInvitationPage({
   invitationId,
   invitations,
   acceptInvitation,
+  joiningNotice,
 }: Props) {
   const [accepted, setAccepted] = useState(false)
   // Dedupes React StrictMode's double-invocation of the auto-accept effect in
@@ -93,7 +97,13 @@ export function AcceptInvitationPage({
 
   if (accepted) return <SuccessView />
   if (invitationId) {
-    return <AutoAcceptView error={accept.error} loading={accept.isPending} />
+    return (
+      <AutoAcceptView
+        error={accept.error}
+        loading={accept.isPending}
+        joiningNotice={joiningNotice}
+      />
+    )
   }
 
   return (
@@ -103,6 +113,7 @@ export function AcceptInvitationPage({
         error={accept.error}
         onAccept={handleAccept}
         accepting={accept.isPending}
+        joiningNotice={joiningNotice}
       />
       <AuthFooterLink message="" linkText="Back to dashboard" to="/dashboard" />
     </>

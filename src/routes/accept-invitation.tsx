@@ -1,7 +1,7 @@
 // Accept invitation route — thin route wrapping AcceptInvitationPage
 // Fixed: auto-accept now uses useEffect instead of side-effect-in-render
 
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { getSession } from '#/shared/auth/auth.functions'
 import { identityKeys } from '#/shared/queries/query-keys'
@@ -67,6 +67,25 @@ function AcceptInvitationRoute() {
       invitationId={search.id}
       invitations={invitations}
       acceptInvitation={acceptInvitationFn}
+      joiningNotice={
+        <p className="mt-4 text-center text-xs leading-relaxed text-muted-foreground">
+          By joining you accept the{' '}
+          <Link
+            to="/privacy/beta-agreement"
+            className="font-medium text-link underline underline-offset-4"
+          >
+            Beta Agreement
+          </Link>{' '}
+          and the{' '}
+          <Link
+            to="/privacy"
+            className="font-medium text-link underline underline-offset-4"
+          >
+            Privacy Notice
+          </Link>
+          .
+        </p>
+      }
     />
   )
 }

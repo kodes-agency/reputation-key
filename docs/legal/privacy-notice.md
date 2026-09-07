@@ -123,13 +123,13 @@ separately from application telemetry.
 
 The Service uses the following providers:
 
-| Provider | Purpose | Processing location and retention or use controls |
-| --- | --- | --- |
-| Railway | Hosting, PostgreSQL, Redis, and object storage | United States, US West |
-| OpenAI | AI inference | Global API endpoint with no residency commitment; prompt cache up to 24 hours; ordinary abuse-monitoring retention generally no more than 30 days, subject to documented legal or safety exceptions; API data is not used for training unless Reputation Key's OpenAI organization opts in |
-| Google | Business Profile APIs and OAuth | Independent controller of Business Profile data |
-| Resend | Transactional email | United States |
-| Sentry | Error monitoring | United States; used only when a DSN is configured, and no DSN is configured today |
+| Provider | Purpose                                        | Processing location and retention or use controls                                                                                                                                                                                                                                          |
+| -------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Railway  | Hosting, PostgreSQL, Redis, and object storage | United States, US West                                                                                                                                                                                                                                                                     |
+| OpenAI   | AI inference                                   | Global API endpoint with no residency commitment; prompt cache up to 24 hours; ordinary abuse-monitoring retention generally no more than 30 days, subject to documented legal or safety exceptions; API data is not used for training unless Reputation Key's OpenAI organization opts in |
+| Google   | Business Profile APIs and OAuth                | Independent controller of Business Profile data                                                                                                                                                                                                                                            |
+| Resend   | Transactional email                            | United States                                                                                                                                                                                                                                                                              |
+| Sentry   | Error monitoring                               | United States; used only when a DSN is configured, and no DSN is configured today                                                                                                                                                                                                          |
 
 ## 3. Why information is used
 

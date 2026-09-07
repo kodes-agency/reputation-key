@@ -22,6 +22,7 @@ import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authen
 import { Route as AuthenticatedProgressRouteImport } from './routes/_authenticated/progress'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as PTokenRouteImport } from './routes/p/$token'
+import { Route as PrivacyBetaAgreementRouteImport } from './routes/privacy_.beta-agreement'
 import { Route as PrivacyGoogleAccessDisclosureRouteImport } from './routes/privacy_.google-access-disclosure'
 import { Route as AuthenticatedInboxIndexRouteImport } from './routes/_authenticated/inbox/index'
 import { Route as AuthenticatedPropertiesIndexRouteImport } from './routes/_authenticated/properties/index'
@@ -123,6 +124,11 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
 const PTokenRoute = PTokenRouteImport.update({
   id: '/p/$token',
   path: '/p/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyBetaAgreementRoute = PrivacyBetaAgreementRouteImport.update({
+  id: '/privacy_/beta-agreement',
+  path: '/privacy/beta-agreement',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyGoogleAccessDisclosureRoute =
@@ -351,6 +357,7 @@ export interface FileRoutesByFullPath {
   '/progress': typeof AuthenticatedProgressRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/p/$token': typeof PTokenRoute
+  '/privacy/beta-agreement': typeof PrivacyBetaAgreementRoute
   '/privacy/google-access-disclosure': typeof PrivacyGoogleAccessDisclosureRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/settings/ai': typeof AuthenticatedSettingsAiRoute
@@ -401,6 +408,7 @@ export interface FileRoutesByTo {
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/progress': typeof AuthenticatedProgressRoute
   '/p/$token': typeof PTokenRoute
+  '/privacy/beta-agreement': typeof PrivacyBetaAgreementRoute
   '/privacy/google-access-disclosure': typeof PrivacyGoogleAccessDisclosureRoute
   '/settings/ai': typeof AuthenticatedSettingsAiRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
@@ -452,6 +460,7 @@ export interface FileRoutesById {
   '/_authenticated/progress': typeof AuthenticatedProgressRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/p/$token': typeof PTokenRoute
+  '/privacy_/beta-agreement': typeof PrivacyBetaAgreementRoute
   '/privacy_/google-access-disclosure': typeof PrivacyGoogleAccessDisclosureRoute
   '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/_authenticated/settings/ai': typeof AuthenticatedSettingsAiRoute
@@ -505,6 +514,7 @@ export interface FileRouteTypes {
     | '/progress'
     | '/settings'
     | '/p/$token'
+    | '/privacy/beta-agreement'
     | '/privacy/google-access-disclosure'
     | '/properties/$propertyId'
     | '/settings/ai'
@@ -555,6 +565,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/progress'
     | '/p/$token'
+    | '/privacy/beta-agreement'
     | '/privacy/google-access-disclosure'
     | '/settings/ai'
     | '/settings/integrations'
@@ -605,6 +616,7 @@ export interface FileRouteTypes {
     | '/_authenticated/progress'
     | '/_authenticated/settings'
     | '/p/$token'
+    | '/privacy_/beta-agreement'
     | '/privacy_/google-access-disclosure'
     | '/_authenticated/properties/$propertyId'
     | '/_authenticated/settings/ai'
@@ -654,6 +666,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   UnavailableRoute: typeof UnavailableRoute
   PTokenRoute: typeof PTokenRoute
+  PrivacyBetaAgreementRoute: typeof PrivacyBetaAgreementRoute
   PrivacyGoogleAccessDisclosureRoute: typeof PrivacyGoogleAccessDisclosureRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiHealthLiveRoute: typeof ApiHealthLiveRoute
@@ -759,6 +772,13 @@ declare module '@tanstack/react-router' {
       path: '/p/$token'
       fullPath: '/p/$token'
       preLoaderRoute: typeof PTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy_/beta-agreement': {
+      id: '/privacy_/beta-agreement'
+      path: '/privacy/beta-agreement'
+      fullPath: '/privacy/beta-agreement'
+      preLoaderRoute: typeof PrivacyBetaAgreementRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy_/google-access-disclosure': {
@@ -1153,6 +1173,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   UnavailableRoute: UnavailableRoute,
   PTokenRoute: PTokenRoute,
+  PrivacyBetaAgreementRoute: PrivacyBetaAgreementRoute,
   PrivacyGoogleAccessDisclosureRoute: PrivacyGoogleAccessDisclosureRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiHealthLiveRoute: ApiHealthLiveRoute,
