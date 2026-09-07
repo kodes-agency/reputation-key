@@ -56,20 +56,6 @@ function buildInput(
 }
 
 describe('buildGoogleProviderAuthority', () => {
-  // WP2.2 step 3: ten tests lived here asserting the "no Google Content runtime
-  // binding" refusal path — four capability closures failing closed, four
-  // logging which capability was unbound, and two for the OAuth call refusing
-  // when the authority was unavailable.
-  //
-  // That path no longer exists and cannot be reconstructed. A runtime binding
-  // was an installed approval parsed out of the environment, so it could be
-  // absent; it is now just a capability, and the authority is constructed
-  // unconditionally. Refusing on a missing binding was never a product rule —
-  // it was the failure mode of the approval bundle expiring.
-  //
-  // What replaced it is covered elsewhere and per request: `policyAuthorizes`
-  // re-queries organization and property capability grants on every decision,
-  // and `capability_killed` is the live operational refusal.
 
   it('constructs without touching the database', () => {
     expect(() => buildGoogleProviderAuthority(buildInput())).not.toThrow()

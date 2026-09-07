@@ -609,23 +609,10 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
   }
   let googleAuthorizedProviderExecutor =
     options?.providers?.googleAuthorizedProviderExecutor
-  // WP2.2 step 3: this fork used to have three outcomes because an approval
-  // bundle could be absent or expired while the gateway was configured. There
-  // is no bundle now, so `approvalUsable` is permanently true and
-  // `googleApprovalGapDisposition` reduces to "is the gateway configured".
-  //
-  // That is the whole point of the deletion: the 29-day approval window was the
-  // mechanism that turned Google off, and the `disable` posture existed to keep
-  // the rest of the product up when it lapsed. With the window gone, a
-  // configured gateway is a working gateway.
-  // The permit's project identity. It used to be `googleProjectAttestationSha256`
-  // off the signed approval binding — a digest an operator pinned by hand at
-  // approval time. What it has to do is identify the Google project this permit
-  // was issued against, so that a permit cannot be spent under a different one,
-  // and the OAuth client id IS that project's identity. Digested rather than
-  // stored raw because the value lands in an authorization vector that is
-  // persisted and logged, and SQL asserts the vector's `projectFingerprint` is
-  // 64 hex characters.
+  // Bind each permit to the OAuth client id for the Google project under which
+  // it was issued, so it cannot be spent under a different project. Persist
+  // only its digest because the fingerprint is part of a stored authorization
+  // vector.
   // Lazy on purpose. Computing it eagerly broke `constructs without touching the
   // database` — the operator container builds this graph from an environment
   // that has no `GOOGLE_CLIENT_ID`, and a digest of `undefined` throws at
