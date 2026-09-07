@@ -446,10 +446,10 @@ export async function decideCurrentManagerPropertyAuthority(
  * No in-transaction retry is needed: denying a changed generation is bounded,
  * fail-closed, and the caller can start a fresh command from current state.
  *
- * A missing version row is denied. The registered Identity SQL sidecar
- * backfills existing Organizations and every later membership/grant mutation
- * creates or bumps the row; accepting an unversioned decision would reopen a
- * revocation race during an incomplete deployment.
+ * A missing version row is denied. The DB-constructs journal migration
+ * installs the membership/grant triggers, and every later mutation creates or
+ * bumps the row; accepting an unversioned decision would reopen a revocation
+ * race during an incomplete deployment.
  */
 export async function decideCurrentMemberPropertyAuthority(
   db: MemberPropertyAuthorityDatabase,

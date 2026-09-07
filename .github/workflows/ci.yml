@@ -163,13 +163,11 @@ jobs:
           GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        # BQC-5.4: deploy apply order — auth track, Drizzle track, the
-        # autocommit concurrent-index gate, then the registered SQL sidecar —
-        # so the tested DB matches deploy state (see src/shared/db/CONTEXT.md).
+        # BQC-5.4: deploy apply order — Better Auth, then the three-entry
+        # Drizzle journal — so the tested DB matches deploy state.
         run: |
           pnpm auth:migrate
           pnpm db:migrate
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/migrations/2026-07-06-permission-version-triggers.sql
 
       # BQC-7.1: predeploy migration parity — the deploy runner
       # (scripts/migrate-deploy.ts, the Railway preDeployCommand) must

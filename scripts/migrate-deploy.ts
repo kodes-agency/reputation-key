@@ -1,24 +1,14 @@
 // Predeploy migration runner (BQC-7.1) — Railway's `preDeployCommand`,
-// configured in `railway.json`. Runs the deploy migration trio as ONE
-// serialized, self-verifying step before the new web container starts serving.
+// configured in `railway.json`. Runs both schema tracks and provider-subject
+// initialization as ONE serialized, self-verifying step before serving.
 //
 // Apply order (the documented deploy order — src/shared/db/CONTEXT.md,
 // drizzle.config.ts, mirrored by the ci.yml "Run migrations" step):
 //   1. Better Auth track — getMigrations() from better-auth (the same code
 //      `pnpm auth:migrate` wraps through the repository-pinned schema runner).
 //      Idempotent: creates only missing tables/columns.
-//   2. Staged Drizzle journal track — apply through immutable migration 0033,
-//      commit, autocommit cleanup_required, then apply 0034 onward. PostgreSQL
-//      forbids using a new enum label in the transaction that added it.
-//      `pnpm db:migrate` uses the same staged runner and journal bookkeeping.
-//      Idempotent: applied journal entries and the enum label are skipped.
-//   3. Google Property binding unique-index sidecar — duplicate-audited,
-//      advisory-locked CREATE UNIQUE INDEX CONCURRENTLY outside Drizzle's
-//      transactions.
-//   4. Registered deploy SQL sidecar — scripts/migrations/
-//      2026-07-06-permission-version-triggers.sql (idempotent by design;
-//      plain SQL, no psql meta-commands, applied in-process via pg — the
-//      same mechanism as src/shared/testing/test-db-setup.ts).
+//   2. Drizzle journal track — applies the baseline, DB-only constructs, and
+//      control-plane seed. `pnpm db:migrate` uses the same journal bookkeeping.
 //
 // SINGLE EXECUTION: a PostgreSQL session-level advisory lock
 // (pg_advisory_lock, key = sha256('repkey-migrate-deploy')[:8]) serializes
@@ -28,8 +18,8 @@
 // FORWARD-RECOVERY POLICY: on ANY failure the script logs the failing step
 // plus the reachable journal state and exits non-zero, so Railway blocks the
 // deploy and keeps serving the previous container. Never roll the schema
-// back mid-flight: fix the offending migration/sidecar SQL forward and
-// redeploy — the trio's idempotency makes the rerun converge (runbooks.md
+// back mid-flight: fix the offending migration forward and redeploy — both
+// tracks are idempotent, so the rerun converges (runbooks.md
 // §8). The only rollback path is PITR for data loss (runbooks.md §8).
 //
 // GUARD: Railway runs prove their exact built-in project, environment, and
@@ -61,11 +51,6 @@ import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../s
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const JOURNAL_PATH = join(ROOT, 'drizzle/meta/_journal.json')
 const MIGRATIONS_FOLDER = join(ROOT, 'drizzle')
-const SIDECAR_PATH = join(
-  ROOT,
-  'scripts/migrations/2026-07-06-permission-version-triggers.sql',
-)
-const SIDECAR_MARKER_FUNCTION = 'bump_permission_version'
 
 /** Stable signed int64 advisory-lock key derived from a constant string. */
 function advisoryLockKey(): bigint {
@@ -128,18 +113,10 @@ async function main(): Promise<void> {
       await authMigrations.runMigrations()
       log('auth track applied')
 
-      // 2. Apply the Drizzle journal. Two entries now: the regenerated
-      // baseline and the DB-only constructs. The staged migrator existed only
-      // to replay 182 historical migrations onto a populated database — a tag
-      // cutoff at 0033, three enum preflights between batches and a
-      // review-source backfill. None of that has meaning against a baseline,
-      // and every environment starts empty.
+      // 2. Apply the three-entry Drizzle journal: baseline, DB-only constructs,
+      // and control-plane seed.
       await migrate(migrationDb, { migrationsFolder: MIGRATIONS_FOLDER })
       log('drizzle track applied')
-
-      // 4. Registered deploy SQL sidecar
-      await client.query(readFileSync(SIDECAR_PATH, 'utf8'))
-      log('sidecar applied', { file: SIDECAR_PATH.split('/').pop() })
 
       await initializeReviewProviderSubjectKeyInventoryFromEnvironment({
         db: migrationDb,
@@ -155,8 +132,6 @@ async function main(): Promise<void> {
             WHERE table_schema = 'public') AS table_count,
           (SELECT EXISTS (SELECT 1 FROM information_schema.tables
             WHERE table_schema = 'public' AND table_name = 'user')) AS has_auth,
-          (SELECT EXISTS (SELECT 1 FROM pg_proc
-            WHERE proname = '${SIDECAR_MARKER_FUNCTION}')) AS has_sidecar,
           (SELECT count(*) = 1
             FROM review_provider_subject_hmac_key_versions
             WHERE state = 'active') AS has_provider_subject_key
@@ -165,12 +140,10 @@ async function main(): Promise<void> {
       const row = state.rows[0] as {
         table_count: number
         has_auth: boolean
-        has_sidecar: boolean
         has_provider_subject_key: boolean
       }
       const complete =
         row.has_auth &&
-        row.has_sidecar &&
         row.has_provider_subject_key &&
         journal.applied === expectedJournalCount()
       log('migration state', {
@@ -178,12 +151,11 @@ async function main(): Promise<void> {
         journalApplied: journal.applied,
         journalExpected: expectedJournalCount(),
         hasAuthTables: row.has_auth,
-        hasSidecar: row.has_sidecar,
         hasProviderSubjectKey: row.has_provider_subject_key,
       })
       if (!complete) {
         throw new Error(
-          'Migration state incomplete after the trio — see the state line above. ' +
+          'Migration state incomplete after the schema tracks — see the state line above. ' +
             'Fix forward and redeploy; the rerun converges.',
         )
       }
@@ -199,7 +171,7 @@ async function main(): Promise<void> {
     console.error('[migrate-deploy] FAILED', err)
     console.error('[migrate-deploy] journal state at failure:', JSON.stringify(journal))
     console.error(
-      '[migrate-deploy] Forward recovery: fix the failing migration/sidecar SQL ' +
+      '[migrate-deploy] Forward recovery: fix the failing migration SQL ' +
         'and redeploy — every step is idempotent, the rerun converges. ' +
         'Do NOT hand-roll partial schema state (runbooks.md §8).',
     )

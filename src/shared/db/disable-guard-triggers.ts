@@ -1,7 +1,7 @@
 // Fixture-teardown escape hatch for the last-owner backstop (BQC-5.4).
 //
-// The registered deploy sidecar (scripts/migrations/2026-07-06-permission-version-triggers.sql)
-// installs the member_last_owner_del / member_last_owner_upd triggers, which
+// The DB-constructs journal migration installs the member_last_owner_del /
+// member_last_owner_upd triggers, which
 // block deleting an org's final owner row — including fixture teardown that
 // wipes member/organization rows (FK cascades from organization fire row
 // triggers too). Test cleanup therefore disables ONLY those two guard

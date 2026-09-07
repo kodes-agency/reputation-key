@@ -28,21 +28,15 @@ export default defineConfig({
     url: databaseUrl,
   },
   tablesFilter: managedTables,
-  // Schema authority (BQC-5.4): the migration SQL track (this journal +
-  // better-auth CLI + registered deploy sidecars) is authoritative; the
-  // Drizzle model is verified semantically against the migrated metadata by
+  // Schema authority (BQC-5.4): Better Auth owns its tables; this journal owns
+  // application tables, DB-only constructs, and control-plane seed data. The
+  // Drizzle model is verified semantically against migrated metadata by
   // src/shared/db/migration-verification.test.ts. Migrate-based workflow:
-  // edit schema -> `pnpm db:generate` -> commit drizzle/ -> `pnpm db:migrate`
-  // (staged journal runner + deploy). Do NOT use db:push — it bypasses the
-  // journal and caused the prior schema drift. Deploy apply order:
-  //   `pnpm auth:migrate` -> `pnpm db:migrate` (0033 commit boundary + journal) -> registered raw-SQL sidecars
-  // (currently scripts/migrations/2026-07-06-permission-version-triggers.sql
-  // — functions/triggers/BA-table index that Drizzle cannot express; see
-  // src/shared/db/schema/db-only-constructs.ts and src/shared/db/CONTEXT.md).
-  // BQC-7.1: at deploy time this trio runs inside the Railway
-  // preDeployCommand via scripts/migrate-deploy.ts (advisory-locked,
-  // idempotent, forward-recovery) — the better-auth track runs through
-  // better-auth's getMigrations and the same staged Drizzle journal runner
-  // used by `pnpm db:migrate`; CI's "Predeploy migration parity" step proves
-  // end-state equivalence.
+  // edit schema -> `pnpm db:baseline` -> commit drizzle/ -> `pnpm db:migrate`.
+  // Do NOT use db:push — it bypasses the journal and concealed prior drift.
+  // Deploy order is `pnpm auth:migrate` -> `pnpm db:migrate`, so constructs
+  // targeting Better Auth tables resolve. BQC-7.1 runs both tracks inside the
+  // Railway preDeployCommand via scripts/migrate-deploy.ts (advisory-locked,
+  // idempotent, forward-recovery); CI's "Predeploy migration parity" step
+  // proves end-state equivalence.
 })

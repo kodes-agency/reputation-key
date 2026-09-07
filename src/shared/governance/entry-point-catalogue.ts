@@ -4124,54 +4124,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     { notes: 'audit:auth-schema — read-only better-auth column casing check' },
   ),
-  // ── migrations (DIRECT-DB) ────────────────────────────────────────
-  ops(
-    'scripts/migrations/null-inbox-source-copies.ts',
-    'scripts/migrations/null-inbox-source-copies.ts',
-    'tenant_cross',
-    { notes: 'DIRECT-DB: BQC-1.2 null-backfill of inbox raw copies; resumable batches' },
-  ),
-  ops(
-    'scripts/migrations/0000-auth-tables-bootstrap.sql',
-    'scripts/migrations/0000-auth-tables-bootstrap.sql',
-    'tenant_cross',
-    {
-      notes:
-        'RECOVERY-ONLY DIRECT-DB (psql): db:bootstrap-auth — compatibility provisioning for 8 Better Auth baseline tables; normal deploy uses db:migrate-deploy',
-    },
-  ),
-  ops(
-    'scripts/migrations/2026-07-06-permission-version-triggers.sql',
-    'scripts/migrations/2026-07-06-permission-version-triggers.sql',
-    'tenant_cross',
-    { notes: 'DIRECT-DB (psql): DAC permission-version triggers + last-owner guard' },
-  ),
-  ops(
-    'scripts/migrations/verify-existing-emails.sql',
-    'scripts/migrations/verify-existing-emails.sql',
-    'tenant_cross',
-    { notes: 'DIRECT-DB (psql): marks all existing users email-verified' },
-  ),
-  ops(
-    'scripts/migrations/denormalize-inbox-reviewer-name.sql',
-    'scripts/migrations/denormalize-inbox-reviewer-name.sql',
-    'tenant_cross',
-    {
-      notes: 'DIRECT-DB (psql): legacy inbox reviewer_name copy (writes stopped BQC-1.2)',
-    },
-  ),
-  ops(
-    'scripts/migrations/fix-portal-schema-sync.sql',
-    'scripts/migrations/fix-portal-schema-sync.sql',
-    'tenant_cross',
-    { notes: 'DIRECT-DB (psql): portal sort_key + group-members table' },
-  ),
-  ops(
-    'scripts/migrations/add-reply-unique-index.sql',
-    'scripts/migrations/add-reply-unique-index.sql',
-    'tenant_cross',
-    { notes: 'DIRECT-DB (psql): one published reply per review' },
-  ),
   // ── perf ──────────────────────────────────────────────────────────
   ops('scripts/perf/load-test.ts', 'scripts/perf/load-test.ts', 'none', {
     notes:

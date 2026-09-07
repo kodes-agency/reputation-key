@@ -8,7 +8,7 @@
 //   pnpm perf:cell -- status
 //   pnpm perf:cell -- env          — print export lines for perf:run/perf:seed-scale
 //
-// The cell: dedicated repkey_bqc8_cell database (ci.yml migration trio),
+// The cell: dedicated repkey_bqc8_cell database (ci.yml migration sequence),
 // isolated redis logical db 9, GBP + mail sandbox stubs, production web +
 // worker builds with deterministic non-placeholder secrets, readiness gates,
 // PID state file (test-results/perf-cell/cell-state.json). It never touches

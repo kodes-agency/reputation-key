@@ -1,7 +1,7 @@
 // Integration project globalSetup (BQC-6.1) — creates + migrates the isolated
 // scratch database before any integration test file loads, so a clean clone
 // goes green without manual DB prep. Idempotent: fast-skips when the deploy
-// migration state (journal + auth tables + sidecar) is already present.
+// migration state (journal + auth tables + required indexes) is already present.
 // Wired in vitest.config.ts (integration project only).
 
 import { ensureTestDatabase } from './test-db-setup'
