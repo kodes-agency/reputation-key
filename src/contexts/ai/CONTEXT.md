@@ -41,8 +41,7 @@ operation state, not BullMQ delivery or in-process callbacks, are recovery
 authority. Reply Draft provider output remains session-ephemeral until an explicit,
 atomically revalidated adoption creates Review-owned draft content.
 
-Property Trends compare the latest 30 complete Property-local days with the prior
-30. Readiness requires at least 20 analyzed text Reviews, at least 90% coverage,
+Property Trends compare the latest 30 complete Property-local days with the prior 30. Readiness requires at least 20 analyzed text Reviews, at least 90% coverage,
 and a caught-up enrollment; incomplete or sequence-gapped work reports
 `preparing`/`Updating` rather than a fabricated zero.
 
