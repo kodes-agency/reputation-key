@@ -101,10 +101,15 @@ export function getLogger(destination?: pino.DestinationStream): pino.Logger {
         // enriched after logger creation (e.g. after resolveTenantContext)
         // still appear.
         mixin: () => getSpanAttrs(),
+        // The resolved path, not the bare name: pino resolves a bare target
+        // from its callers' stack files, and under the Vite dev module runner
+        // those are `eval` frames when the first logger is created inside a
+        // request handler — every request then fails with "unable to
+        // determine transport target".
         ...(usePretty
           ? {
               transport: {
-                target: 'pino-pretty',
+                target: resolveFromLoggerModule('pino-pretty'),
                 options: { colorize: true },
               },
             }

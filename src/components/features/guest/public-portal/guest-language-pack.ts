@@ -3,6 +3,7 @@ import type {
   GuestPortalLanguagePackVersion,
   GuestPortalLocale,
 } from './guest-language-pack-types'
+import { formatDateTime } from '#/lib/format-date-time'
 
 export type {
   GuestPortalCopy,
@@ -22,11 +23,10 @@ export type {
  * (see components/inbox/utils.ts).
  */
 const formatDate = (value: string, locale: GuestPortalLocale): string =>
-  new Intl.DateTimeFormat(locale === 'bg' ? 'bg-BG' : 'en', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
+  formatDateTime(new Date(value), {
+    locale: locale === 'bg' ? 'bg-BG' : 'en',
     timeZone: 'UTC',
-  }).format(new Date(value))
+  })
 
 const EN: GuestPortalCopy = {
   locale: 'en',
