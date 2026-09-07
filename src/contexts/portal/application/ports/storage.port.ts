@@ -18,4 +18,3 @@ export type StoragePort = Readonly<{
   /** Upload a buffer directly (server-side, no presigned URL). */
   putObject: (key: string, body: Buffer, contentType: string) => Promise<void>
 }>
-

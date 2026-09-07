@@ -42,4 +42,3 @@ describe('buildS3ClientConfigs', () => {
     expect(result.presign.endpoint).toBe('http://object-store:9000')
   })
 })
-
