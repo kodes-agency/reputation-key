@@ -6,7 +6,7 @@ import {
   startExecutionPermit,
   type AuthorizationExecutionPermit,
 } from './authorization-execution-permit'
-import type { GoogleContentCapability } from './google-content-contract'
+import type { GoogleContentCapability } from '#/shared/domain/google-content-capability'
 
 /**
  * What the runtime needs to name a Google capability.

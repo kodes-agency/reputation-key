@@ -49,7 +49,7 @@ import {
   createExecutionPermitStartDeadlineSweeper,
   EXECUTION_PERMIT_START_DEADLINE_SWEEP_BATCH_SIZE,
 } from '../../src/shared/auth/execution-permit-start-deadline-sweep'
-import { GOOGLE_CONTENT_CAPABILITIES } from '../../src/shared/auth/google-content-contract'
+import { GOOGLE_CONTENT_CAPABILITIES } from '../../src/shared/domain/google-content-capability'
 import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:permit-start-deadline-fence'

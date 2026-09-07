@@ -7,7 +7,7 @@ import {
   credentialRevokePermits,
   googleCredentialSourceOperations,
 } from '#/shared/db/schema'
-import { GOOGLE_CONTENT_CAPABILITIES } from '#/shared/auth/google-content-contract'
+import { GOOGLE_CONTENT_CAPABILITIES } from '#/shared/domain/google-content-capability'
 import type {
   GoogleContentAuthorityStore,
   GoogleContentPermitRecord,

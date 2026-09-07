@@ -60,7 +60,7 @@ import {
 import { createPortalTokenCodec } from '../src/contexts/portal/infrastructure/adapters/portal-token-codec'
 import { assertLocalToolExecutionIdentity } from '../src/shared/config/local-tool-execution'
 import { LOCAL_E2E_ORGANIZATION_ID } from '../src/shared/config/local-stack-contract'
-import { GOOGLE_CONTENT_CAPABILITIES } from '../src/shared/auth/google-content-contract'
+import { GOOGLE_CONTENT_CAPABILITIES } from '../src/shared/domain/google-content-capability'
 import { createGoogleContentAuthorityRepository } from '../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
 
 import { randomUUID } from 'node:crypto'

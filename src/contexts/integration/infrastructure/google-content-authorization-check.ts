@@ -6,12 +6,11 @@ import type {
   GoogleContentAuthorizationScope,
   GoogleContentAuthorizationVector,
 } from '#/shared/auth/google-content-authority'
+import type { GoogleContentCapability } from '#/shared/domain/google-content-capability'
 import {
   GOOGLE_CONTENT_EXECUTION_POLICY_VERSION,
-  type GoogleContentCapability,
-} from '#/shared/auth/google-content-contract'
-import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
-import { googleAuthorizationPermissionDigest } from '#/shared/domain/google-content-authorization-vector'
+  googleAuthorizationPermissionDigest,
+} from '#/shared/domain/google-content-authorization-vector'
 import {
   GOOGLE_NOTIFICATION_SYSTEM_PERMISSION_DIGEST,
   GOOGLE_NOTIFICATION_SYSTEM_PRINCIPAL,

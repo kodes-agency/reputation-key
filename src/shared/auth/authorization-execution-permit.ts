@@ -1,4 +1,4 @@
-import type { GoogleContentCapability } from './google-content-contract'
+import type { GoogleContentCapability } from '#/shared/domain/google-content-capability'
 
 export type AuthorizationExecutionPermitState =
   'admitted' | 'started' | 'completed' | 'fenced'

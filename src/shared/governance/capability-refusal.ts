@@ -27,7 +27,7 @@ import {
 import {
   isGoogleContentCapability,
   type GoogleContentCapability,
-} from '#/shared/auth/google-content-contract'
+} from '#/shared/domain/google-content-capability'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Role } from '#/shared/domain/roles'
 import {

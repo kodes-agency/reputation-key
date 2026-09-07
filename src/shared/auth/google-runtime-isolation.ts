@@ -1,11 +1,47 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
-import {
-  GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION,
-  GOOGLE_RUNTIME_ROLES,
-  type GoogleContentRuntimeIsolationProfile,
-  type GoogleRuntimeRole,
-} from './google-content-contract'
+export const GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION =
+  'google-content-egress-1' as const
+
+export const GOOGLE_RUNTIME_ROLES = [
+  'web',
+  'worker',
+  'execution_admission',
+  'egress_gateway',
+  'provider_redis',
+] as const
+
+export type GoogleRuntimeRole = (typeof GOOGLE_RUNTIME_ROLES)[number]
+
+export type GoogleContentRuntimeIsolationProfile = Readonly<{
+  version: typeof GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION
+  enforcementPlane: 'infrastructure-control-plane'
+  targetEnvironment: 'local_sandbox' | 'production'
+  destinationEnforcement:
+    | 'namespace_firewall'
+    | 'cni_network_policy'
+    | 'cloud_egress_firewall'
+  imageDigests: Readonly<Record<GoogleRuntimeRole, string>>
+  protectedReplicas: readonly Readonly<{
+    replicaId: string
+    role: GoogleRuntimeRole
+    workloadIdentity: string
+    networkNamespaceIdentity: string
+    imageSha256: string
+    networkPolicyId: string
+  }>[]
+  ipv4EgressDefault: 'deny'
+  ipv6EgressDefault: 'deny'
+  dnsResolverIdentity: string
+  allowedInternalTuples: readonly Readonly<{
+    sourceIdentity: string
+    destinationIdentity: string
+    protocol: 'tcp' | 'udp'
+    port: number
+  }>[]
+  allowedGoogleOrigins: readonly string[]
+  controlPlanePolicyGeneration: string
+}>
 
 /**
  * Deterministic key-sorted JSON, kept local on purpose.
