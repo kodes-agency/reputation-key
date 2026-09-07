@@ -42,6 +42,22 @@ application roles cannot prove.
    text, reply bodies, tokens, credentials, presigned URLs, raw network
    identifiers, or other prohibited content.
 
+## Merged from ADR 0010
+
+Source-context transactional outbox facts consumed by
+`activity.recent-activity` are the recovery authority. That consumer atomically
+commits the projection, shared delivery receipt, and Activity-owned content-free
+replay fact. The replay authority follows the 90-day feed lifetime and is
+independent of the shared outbox's shorter retention. Redis/BullMQ alone is
+never described as loss-proof.
+
+## Merged from ADR 0045
+
+Neither activity nor audit copies review text, guest text/media, email body,
+tokens, cookies, presigned URLs, raw network identifiers, or secrets into
+payloads. Activity stores resource IDs and minimal reason/status; authorized
+detail is fetched at view time.
+
 ## Supersession
 
 This ADR supersedes ADR 0045 rule 5 and any documentation that treats

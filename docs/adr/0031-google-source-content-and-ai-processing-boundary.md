@@ -1,5 +1,6 @@
 ---
-status: proposed
+status: accepted
+date: 2026-07-15
 ---
 
 # 0031 — Google source content and AI processing boundary
@@ -33,8 +34,8 @@ The initial external-AI candidate is the exact, currently unapproved
 deployment with redaction profile
 [`gbp-review-en-v1`](../archive/2026-09-lean/product-readiness-program-2026-07/ai-governance/pii-redaction-specification.md).
 The [AI release-evidence index](../archive/2026-09-lean/product-readiness-program-2026-07/ai-governance/ai-release-evidence-index.md)
-is authoritative for promotion. Neither candidate is accepted by this proposed
-ADR; missing or expired evidence keeps all AI capabilities dark.
+is authoritative for promotion. Accepting this boundary does not approve either
+candidate; missing or expired evidence keeps every AI capability dark.
 
 ### Canonical synthetic provider fixture
 

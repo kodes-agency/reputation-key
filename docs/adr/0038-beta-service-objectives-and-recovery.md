@@ -1,70 +1,42 @@
 ---
-status: proposed
+status: accepted
+date: 2026-07-15
 ---
 
-# 0038 — Beta service objectives and recovery
+# 0038 — Beta recovery objectives and stop conditions
 
-> **Supersession note (2026-08-28).** The 2026-08-22 closed-beta deferral was
-> superseded by REG-04 and Gate E of the comprehensive beta implementation
-> program: backup/PITR, external monitoring, and the timed `cell-us`
-> restore/fresh-Redis/cutover/rollback drill now block customer beta data. The
-> targets below remain internal operating/release objectives, never a customer
-> SLA. This ADR stays `status: proposed` until the final deployed evidence and
-> independent architecture approval are attached; proposed status cannot be
-> used to waive the newer release gate. The beta stop conditions remain active.
-
-Initial service-level objectives for the internal beta. These are operating objectives for the engineering team, not customer-facing SLAs. BETA-3 proves them against target-scale load and fault injection.
-
-## Service objectives
-
-| Signal                                  | Objective        | Measurement                            |
-| --------------------------------------- | ---------------- | -------------------------------------- |
-| Authenticated page/API availability     | ≥ 99.5% monthly  | Synthetic probe + uptime monitoring    |
-| GBP notification → review committed     | p95 ≤ 60s        | Outbox relay lag under healthy deps    |
-| Review committed → inbox visible        | p99 ≤ 30s        | Dispatcher throughput                  |
-| Reply publish → terminal status visible | p95 ≤ 10s        | BullMQ job duration                    |
-| Common property/inbox response          | p95 ≤ 750ms      | Server timing at pilot data volume     |
-| Dashboard query (rollup)                | p95 ≤ 500ms warm | Query timing via rollup tables         |
-| Data loss from committed source         | Zero             | Fault injection: no orphan outbox rows |
-| Duplicate externally visible reply      | Zero             | Fault injection: receipt dedup proof   |
+These are internal engineering objectives, never a customer SLA. They become
+operational when a production database exists and are verified by provider
+backup state plus a timed restore drill.
 
 ## Recovery objectives
 
-| Objective            | Target       | Verification                                  |
-| -------------------- | ------------ | --------------------------------------------- |
-| RPO (recovery point) | ≤ 15 minutes | PITR backup interval + restore drill          |
-| RTO (recovery time)  | ≤ 4 hours    | Full restore from backup to operational state |
-
-## Alert severity
-
-| Severity | Response                | Examples                                                           |
-| -------- | ----------------------- | ------------------------------------------------------------------ |
-| P0       | Immediate, page on-call | Data loss, tenant isolation breach, auth bypass, Google token leak |
-| P1       | Same working day        | Reply publish failure, sync backlog > 1hr, dashboard unavailable   |
-| P2       | Next working day        | Performance budget exceeded, notification delivery degraded        |
-| P3       | Backlog                 | Non-critical feature degradation                                   |
-
-Every alert links to a runbook with diagnostic steps, mitigation, escalation contacts, and rollback procedure.
+| Objective | Target       | Verification                                  |
+| --------- | ------------ | --------------------------------------------- |
+| RPO       | ≤ 15 minutes | PITR backup interval plus restore drill       |
+| RTO       | ≤ 4 hours    | Full restore from backup to operational state |
 
 ## Beta stop conditions
 
-Automatic stop (halt all external effects, preserve data):
+Any one condition stops all external effects while preserving canonical data:
 
-1. Tenant isolation breach detected
-2. Unauthorized Google action observed
-3. Unexplained data loss from committed state
-4. Duplicate externally visible reply/email
-5. Leaked token or secret in logs/responses
-6. Inability to restore from backup within RTO
-7. Privacy/policy violation (raw content persists past TTL, cross-property AI, etc.)
+1. Tenant isolation breach detected.
+2. Unauthorized Google action observed.
+3. Unexplained data loss from committed state.
+4. Duplicate externally visible reply or email.
+5. Leaked token or secret in logs or responses.
+6. Inability to restore from backup within the RTO.
+7. Privacy or policy violation, including content retained past its deadline or
+   prohibited cross-Property AI processing.
 
-Stop procedure: disable capabilities via `BETA_CAPABILITIES_OFF`, stop schedulers, preserve canonical data, drain or quarantine queues, follow the incident runbook.
+Set `BETA_CAPABILITIES_OFF`, stop schedulers, preserve canonical data, and drain
+or quarantine queued work. Recovery follows the incident runbook; no capability
+is restored before the violated boundary is reconciled and verified.
 
-## Exception process
+## Consequences
 
-Every deviation from these objectives requires a signed exception containing: reachability, mitigation, owner, expiry date, and upgrade/remediation issue. Exceptions auto-expire and require re-review.
-
-## Considered options
-
-- **Tighter objectives.** Rejected — beta scale (5K properties, 500K reviews/month) doesn't warrant stricter SLOs than the operating objectives above.
-- **Looser objectives.** Rejected — a 15-minute RPO is achievable with standard PITR and is the maximum acceptable for review data.
+- Repository tests can prove the stop mechanism, not a live backup or restore.
+- RPO and RTO evidence records the exact release, migration head, source,
+  target, elapsed time, and operator decision without tenant content.
+- Availability, latency, severity taxonomy, and exception ceremonies are
+  operating details rather than architectural decisions.

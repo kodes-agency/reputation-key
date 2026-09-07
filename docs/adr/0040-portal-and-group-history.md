@@ -1,8 +1,10 @@
-# ADR 0040 — Portal and Group History Use Event-Time Attribution
+---
+status: accepted
+date: 2026-07-15
+supersedes: 0013
+---
 
-**Status:** Accepted
-**Date:** 2026-07-15
-**Supersedes:** ADR 0013's live-membership/retroactive-history clause only (the portal-group-as-reporting-scope decision stands)
+# 0040 — Portal and Group History Use Event-Time Attribution
 
 ## Context
 

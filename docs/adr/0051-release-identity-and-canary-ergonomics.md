@@ -76,6 +76,10 @@ heads remained `enabled`/`accepting` and a real `reply` operation settled
    provider/catalogue digests. Those caught three real supply-chain and
    deployment defects on 2026-08-21 and remain first-deny.
 
+6. **Production promotion uses immutable images.** Promote only an exact
+   registry `@sha256` digest. `railway up` is a source deploy and is never a
+   production promotion path.
+
 ## Consequences
 
 - Deploy procedures are rewritten to set both revision variables per service.

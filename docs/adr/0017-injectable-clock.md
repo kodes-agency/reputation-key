@@ -1,8 +1,9 @@
-# ADR 0017: Injectable Clock
+---
+status: accepted
+date: 2026-06-20
+---
 
-## Status
-
-Accepted
+# 0017 — Injectable Clock
 
 ## Context
 

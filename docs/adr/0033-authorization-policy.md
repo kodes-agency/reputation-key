@@ -1,52 +1,30 @@
 ---
 status: accepted
+date: 2026-07-15
 ---
 
 # 0033 — Authorization policy
 
-Identity owns action/resource/property-scope decisions and owner invariants through a stable authorization policy. Contexts do not infer permission from role strings or branch on `role === 'owner'`.
-
 ## Decision
 
-Authorization is a single decision path (BQR-4.1 production seam):
+`ExecutionPolicy` is the single authorization path. One normalized request
+returns an allow or a typed denial with a stable reason and policy version,
+covering principal, Organization membership, Property scope, capability state,
+suspension, consent, and the operation's resource.
 
-```text
-requireAuthorized({ actor, action, capability?, propertyId?, assignedPropertyIds? })
-  → checkBetaCapability(capability)
-  → canForContext(actor, action)
-  → optional property-scope check
-```
+Interactive entry points call `requireExecutionAllowed`. Delayed work is
+re-authorized at execution through the delayed-execution gate. Contexts do not
+infer permission from role strings, Team membership, attribution, or assignment,
+and a capability allowlist never grants access.
 
-- **Server functions** call `requireAuthorized` (throws serializable `AuthError` / 403).
-- **Unit / pure paths** may call `authorize` / `checkAuthorization` directly.
-- **Capability** defaults from `capabilityForPermission(action)` when omitted.
+The last AccountAdmin cannot be removed or demoted. Sensitive role, lifecycle,
+connection, publication, and destructive operations require their explicit
+action and scope; an unavailable or unknown policy input fails closed.
 
-Invariants enforced:
+## Consequences
 
-1. **Organization membership**: actor must belong to the same organization as the resource (repository tenant filters + auth context).
-2. **Property scope**: when `propertyId` + `assignedPropertyIds` are provided, assigned-scope roles must include the property.
-3. **Built-in / custom roles**: `canForContext` uses effective permissions; custom roles require policy resolution.
-4. **Last-owner protection**: last owner cannot be removed or demoted (identity use cases).
-5. **Sensitive operations**: role-change, property-delete, connection-disconnect require elevated permissions.
-6. **Suspension / capability state**: suspended orgs or disabled/blocked capabilities deny before role evaluation.
-7. **Dark contexts**: non-core capabilities fail closed unless allowlisted (BQR-0).
-
-## Implementation
-
-- `src/shared/auth/authorization-policy.ts` — `authorize`, `requireAuthorized`, `capabilityForPermission`
-- `src/shared/auth/beta-capabilities.ts` — capability layer
-- `src/shared/domain/permissions.ts` — permission catalogue + `canForContext`
-- `src/shared/architecture/authorize-server-boundary.test.ts` — locks server-side seam usage
-
-## Migration path
-
-BQR-4.1 migrated server entry points from bare `canForContext` to `requireAuthorized`. Use cases may re-assert for defense-in-depth; the **server boundary is authoritative** for interactive paths.
-
-## Superseded (BQC-2.4/2.6)
-
-The `ExecutionPolicy` (`src/shared/auth/execution-policy.ts`, BQC-2.4) now implements this decision: one normalized request returns allow or typed deny with a stable reason and policy version, hiding role permissions, PropertyAccessGrant, allowlist, suspension, capability state, consent, and caches. Interactive entry points use `requireExecutionAllowed`; the permission→capability mapping lives in `src/shared/auth/capability-for-permission.ts`. After the dark-context migration (BQC-2.6) left zero production callers, `authorization-policy.ts` (`requireAuthorized`/`authorize`/`checkAuthorization`) was deleted. This ADR's single-decision-path intent stands; the seam name changed.
-
-## Considered options
-
-- **Per-context role branching.** Rejected — inconsistent and misses capability gates.
-- **CASL or OSO.** Deferred — catalogue is small and stable at beta scale.
+- The deleted `requireAuthorized`, `authorize`, and `checkAuthorization` seams
+  are not compatibility APIs.
+- Permission-to-capability mapping lives in
+  `src/shared/auth/capability-for-permission.ts`.
+- New entry points must name one execution-policy action and resource scope.

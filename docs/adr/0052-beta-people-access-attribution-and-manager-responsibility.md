@@ -83,6 +83,13 @@ invitation, and dashboard affordances are deferred. Legitimate existing account
 records are retained and receive an explicit migration/support outcome rather than
 being deleted or silently admitted to an undefined shell.
 
+## Merged from ADR 0039
+
+Authorization **never** derives from team membership, lead status, or portal
+responsibility. Removing property access does not erase participation or
+history. Time intervals are half-open: `[effective_from, effective_to)`;
+`effective_to = null` means active.
+
 ## Supersession
 
 This ADR supersedes:

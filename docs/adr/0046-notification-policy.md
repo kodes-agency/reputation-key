@@ -1,7 +1,9 @@
-# ADR 0046 — Notification Policy: Categories, Channels, and Preferences
+---
+status: accepted
+date: 2026-07-15
+---
 
-**Status:** Accepted
-**Date:** 2026-07-15
+# 0046 — Notification Policy: Categories, Channels, and Preferences
 
 ## Context
 
@@ -35,6 +37,26 @@ Configurable Property notifications have explicit **category × channel × prope
 6. Delivery state: `pending → accepted → delivered|delayed|bounced|complained|failed|suppressed|cancelled`.
 7. No marketing content in operational mail. Every non-mandatory email links to preferences.
 8. Content uses property/resource/status metadata; omits review text, guest text, media, sensitive scores, and other employees' data.
+
+## Merged from ADR 0011
+
+The original draft specified a dedicated `notification-insert` queue. In
+practice, notification jobs are short DB inserts (`insert-notification`) or a
+single email send (`urgent-email`), all bounded by BullMQ's existing concurrency
+and rate limiting on the shared `default` queue.
+
+## Merged from ADR 0022
+
+Every action-oriented notification resolves to its **inbox item at creation
+time** and stores `resourceType: 'inbox_item'` /
+`resourceId: <inboxItemId>`, uniformly. Reviews achieve this by subscribing the
+review notification to `inbox.inbox_item.created` (which carries the
+`inboxItemId` and fires _after_ the item exists — no race), enriched with
+`rating`/`snippet` so the body derives fully. Replies resolve
+`reviewId → inboxItemId` through a new `InboxItemLookupPort` (the inbox item
+always exists by reply time). `getNotificationUrl` collapses to one branch:
+`/inbox?itemId=<id>`. Notifications whose inbox item cannot be resolved
+(hard-deleted) are skipped.
 
 ## Consequences
 

@@ -1,15 +1,17 @@
-# ADR 0041 — Governed Metric Registry
+---
+status: accepted
+date: 2026-07-15
+---
 
-**Status:** Accepted
-**Date:** 2026-07-15
+# 0041 — Governed Metric Registry
 
 ## Context
 
-The current `metric_readings` table stores a string key and `real` value without a definition version or source event ID. There is no provenance, privacy class, retention, or consumer eligibility. Any recorded fact can accidentally fan out to goals, badges, or leaderboards. Metric handlers use in-memory delivery and may swallow errors, meaning a committed source fact can be permanently missing from measurement.
+The current `metric_readings` table stores a string key and `real` value without a definition version or source event ID. There is no provenance, privacy class, retention, or consumer eligibility. Any recorded fact can accidentally reach an ineligible report or Goal. Metric handlers use durable outbox delivery so a committed source fact can be reconciled.
 
 ## Decision
 
-A centralized **governed metric registry** is the only route from source facts to goals, badges, leaderboards, and governed dashboard metrics.
+A centralized **governed metric registry** is the only route from source facts to Goal Programs and governed reporting.
 
 ### Structure
 
@@ -26,9 +28,9 @@ A centralized **governed metric registry** is the only route from source facts t
 
 ## Consequences
 
-- Goals, badges, leaderboards, and dashboards consume versioned definitions — never raw SQL or ad-hoc joins.
-- Google-derived property analytics appear in the dashboard only when ADR 0031 and the metric-definition version permit; they never enter goals/badges/leaderboards.
-- Review-solicitation analytics (link clicks, scans) are never goal/badge/leaderboard inputs.
+- Goal Programs and dashboards consume versioned definitions — never raw SQL or ad-hoc joins.
+- Google-derived Property analytics appear in reporting only when ADR 0031 and the metric-definition version permit; they never enter a Goal unless that exact version allows it.
+- Review-solicitation analytics are never Goal inputs.
 - Existing `metric_readings` require migration to add definition version, source event ID, and attribution quality.
 
 ## Rejected Alternatives

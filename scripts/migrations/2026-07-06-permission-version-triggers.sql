@@ -1,5 +1,5 @@
 -- DAC Stage 2 — permission-version triggers + organizationRole index + last-owner.
--- ADR 0001 / docs/adr/0001-dynamic-access-control.md
+-- Historical DAC Stage 2 implementation; current capability authority is ADR 0032.
 --
 -- The permission_version + organization_role_policy TABLES are Drizzle-managed
 -- (src/shared/db/schema/dac.schema.ts, in drizzle.config tablesFilter) and created

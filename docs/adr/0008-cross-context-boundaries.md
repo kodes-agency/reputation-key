@@ -1,8 +1,9 @@
-# ADR 0008 — Cross-Context Data Access Rules
+---
+status: accepted
+date: 2026-05-23
+---
 
-**Status:** Accepted
-**Date:** 2026-05-23
-**Context:** Architecture, Bounded Context Boundaries
+# 0008 — Cross-Context Data Access Rules
 
 ## Context
 

@@ -1,4 +1,4 @@
-// Production preflight for DAC Stage 2 enablement (ADR 0001).
+// Production preflight for the beta custom-role prohibition (ADR 0032).
 //
 // Audits every member.role value and exits non-zero if any member carries a
 // non-built-in role (anything other than owner/admin/member). Run before flipping
@@ -11,7 +11,7 @@
 // services — the raw better-auth endpoints are permanently blocked at the HTTP
 // boundary (src/routes/api/auth/$.ts), so the only legitimate write path is the
 // app-owned service layer. Remediate by reassigning affected members to a built-in
-// role (owner/admin/member) before proceeding. See docs/adr/0001-dynamic-access-control.md.
+// role (owner/admin/member) before proceeding. See docs/BETA.md §4.
 import 'dotenv/config'
 import { getPool } from '../src/shared/db/pool.js'
 

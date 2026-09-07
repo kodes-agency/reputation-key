@@ -16,8 +16,8 @@ against the RPO/RTO targets.
 Related: [runbooks.md](runbooks.md) §7/§8,
 [bqr6-recovery-rehearsal.md](bqr6-recovery-rehearsal.md) (procedure + targets),
 [ADR 0038](../adr/0038-beta-service-objectives-and-recovery.md) (RPO ≤ 15 min,
-RTO ≤ 4 h), [ADR 0057](../adr/0057-single-us-beta-data-cell.md) (current
-single-US beta posture).
+RTO ≤ 4 h), and [`docs/BETA.md`](../BETA.md) §1 (the current single-deployment
+posture).
 
 ---
 
