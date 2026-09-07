@@ -178,7 +178,10 @@ export default tseslint.config(
         { category: 'generated-router', pattern: 'src/routeTree.gen.ts' },
         { category: 'ambient-types', pattern: 'src/vite-env.d.ts' },
         { category: 'api-route', pattern: 'src/routes/api/**' },
-        { category: 'deployable-containers', pattern: 'src/composition/deployables.ts' },
+        {
+          category: 'deployable-containers',
+          pattern: 'src/composition/operator-container.ts',
+        },
         { category: 'stylesheet', pattern: 'src/**/*.css' },
         {
           category: 'story-file',
@@ -436,10 +439,6 @@ export default tseslint.config(
               disallow: { to: fileCategory('shared-outbox-runtime') },
             },
             { disallow: { to: fileCategory('deployable-containers') } },
-            {
-              from: elementTypes('top-level', 'test-helpers'),
-              allow: { to: fileCategory('deployable-containers') },
-            },
             {
               from: elementType('script-operator'),
               allow: { to: fileCategory('deployable-containers') },
