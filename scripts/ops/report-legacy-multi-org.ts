@@ -11,7 +11,7 @@
 // losing row would destroy the evidence that decision needs.
 //
 // Usage:
-//   pnpm ops:report-legacy-multi-org --operator <id> --as-of <ISO-8601>
+//   pnpm ops report-legacy-multi-org --operator <id> --as-of <ISO-8601>
 
 import { getDb } from '../../src/shared/db'
 import { canonicalReconciliationReport } from '../../src/shared/db/retention/reconciliation-report'

@@ -123,10 +123,10 @@ wiring existed never told Google to publish, so they need a one-off backfill —
 
 ```bash
 # dry run: lists the candidate connections and their statuses, calls Google zero times
-pnpm ops:gbp-subscribe --operator <your-user-id> --org <organization-id>
+pnpm ops gbp-subscribe --operator <your-user-id> --org <organization-id>
 
 # execute
-pnpm ops:gbp-subscribe --operator <your-user-id> --org <organization-id> \
+pnpm ops gbp-subscribe --operator <your-user-id> --org <organization-id> \
   --reason "enable GBP push" --apply
 ```
 

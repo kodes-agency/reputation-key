@@ -4,9 +4,9 @@
 // retained effective Metric facts; it cannot reset the retention checkpoint.
 //
 // Usage:
-//   pnpm ops:rebuild-metric-projection <portalId> --operator <id>
+//   pnpm ops rebuild-metric-projection <portalId> --operator <id>
 //     --org <id> --property <id>
-//   pnpm ops:rebuild-metric-projection <portalId> --operator <id>
+//   pnpm ops rebuild-metric-projection <portalId> --operator <id>
 //     --org <id> --property <id> --reason <text> --apply
 
 import { organizationId, portalId, propertyId } from '../../src/shared/domain/ids'
@@ -14,7 +14,7 @@ import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:rebuild-metric-projection'
 const USAGE =
-  'pnpm ops:rebuild-metric-projection <portalId> --operator <id> --org <id> --property <id> [--reason <text> --apply]'
+  'pnpm ops rebuild-metric-projection <portalId> --operator <id> --org <id> --property <id> [--reason <text> --apply]'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 async function main(): Promise<void> {

@@ -10,15 +10,15 @@
 // INDEPENDENT support authorization reference may authorize.
 //
 // Usage (report-only by default — mutations need --apply):
-//   pnpm ops:property-erase report  --operator <id> --org <id> --property <id>
-//   pnpm ops:property-erase request --operator <id> --org <id> --property <id> \
+//   pnpm ops property-erase report  --operator <id> --org <id> --property <id>
+//   pnpm ops property-erase request --operator <id> --org <id> --property <id> \
 //     requested-by=<user-id> identity-verification=<ref> support-authorization=<ref> \
 //     --reason <text> --ticket <ref> --apply --yes ops:property-erase
-//   pnpm ops:property-erase preview authority=<id> ... --apply --yes ops:property-erase
-//   pnpm ops:property-erase confirm authority=<id> inventory-revision=<n> \
+//   pnpm ops property-erase preview authority=<id> ... --apply --yes ops:property-erase
+//   pnpm ops property-erase confirm authority=<id> inventory-revision=<n> \
 //     'typed-confirmation=ERASE PROPERTY <property-id>' ... --apply --yes ops:property-erase
-//   pnpm ops:property-erase cancel  authority=<id> reason-code=<code> ... --apply
-//   pnpm ops:property-erase advance --operator <id> --org <id> --property <id> --apply
+//   pnpm ops property-erase cancel  authority=<id> reason-code=<code> ... --apply
+//   pnpm ops property-erase advance --operator <id> --org <id> --property <id> --apply
 //
 // Requires DATABASE_URL. The command contract and its tests live in
 // src/shared/ops/property-erase-command.ts — scripts/ sits outside the unit

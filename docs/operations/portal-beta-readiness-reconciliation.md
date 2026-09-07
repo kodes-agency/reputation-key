@@ -8,7 +8,7 @@ approval, or provenance inference command.
 ## Run
 
 ```sh
-pnpm ops:report-portal-beta-readiness \
+pnpm ops report-portal-beta-readiness \
   --operator <registered-operator> \
   --as-of <ISO-8601> \
   [--org <organization-id> ...]

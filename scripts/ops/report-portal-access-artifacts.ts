@@ -2,7 +2,7 @@
 // markers. Exact observation time makes unchanged reruns byte-for-byte stable.
 //
 // Usage:
-//   pnpm ops:report-portal-artifacts --operator <id> --as-of <ISO-8601>
+//   pnpm ops report-portal-artifacts --operator <id> --as-of <ISO-8601>
 //     [--org <id> ...]
 
 import { getDb } from '../../src/shared/db'
@@ -11,7 +11,7 @@ import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:report-portal-artifacts'
 const USAGE =
-  'pnpm ops:report-portal-artifacts --operator <id> --as-of <ISO-8601> [--org <id> ...]'
+  'pnpm ops report-portal-artifacts --operator <id> --as-of <ISO-8601> [--org <id> ...]'
 
 function flagValue(args: readonly string[], name: string): string | undefined {
   const inline = args.find((arg) => arg.startsWith(`${name}=`))

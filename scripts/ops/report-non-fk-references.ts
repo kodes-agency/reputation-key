@@ -9,7 +9,7 @@
 // identifier value. There is no apply mode.
 //
 // Usage:
-//   pnpm ops:report-non-fk-references --operator <id> --as-of <ISO-8601> [--table <name>]...
+//   pnpm ops report-non-fk-references --operator <id> --as-of <ISO-8601> [--table <name>]...
 //
 // With no --table flag the scan covers every contraction candidate, which is
 // the slowest form: the jsonb probes are substring searches over whole
@@ -23,7 +23,7 @@ import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:report-non-fk-references'
 const USAGE =
-  'pnpm ops:report-non-fk-references --operator <id> --as-of <ISO-8601> [--table <name>]...'
+  'pnpm ops report-non-fk-references --operator <id> --as-of <ISO-8601> [--table <name>]...'
 
 function flagValue(args: readonly string[], name: string): string | undefined {
   const inline = args.find((arg) => arg.startsWith(`${name}=`))

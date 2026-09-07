@@ -34,7 +34,7 @@ export const propertyEraseCommandSpec: OperatorCommandSpec = Object.freeze({
   requiresTicket: true,
   extraFlags: ['confirm-erase'],
   usage:
-    'pnpm ops:property-erase (report|request|preview|confirm|cancel|advance) --operator <id> --org <id> --property <id> ' +
+    'pnpm ops property-erase (report|request|preview|confirm|cancel|advance) --operator <id> --org <id> --property <id> ' +
     '[--support-authorization <ref> --identity-verification <ref> --requested-by <user-id> ' +
     '--typed-confirmation "ERASE PROPERTY <property-id>" --inventory-revision <n> ' +
     '--reason <text> --ticket <ref> --apply --yes ops:property-erase]',

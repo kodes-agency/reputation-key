@@ -15,7 +15,7 @@
 // node:crypto (ADR 0017), so the operator edge supplies the real SHA-256.
 //
 // Usage:
-//   pnpm ops:report-inbox-handling-cutover --operator <id> --org <id>
+//   pnpm ops report-inbox-handling-cutover --operator <id> --org <id>
 //     --observed-at <ISO-8601>
 
 import { createHash } from 'node:crypto'
@@ -27,7 +27,7 @@ import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:report-inbox-handling-cutover'
 const USAGE =
-  'pnpm ops:report-inbox-handling-cutover --operator <id> --org <id> --observed-at <ISO-8601>'
+  'pnpm ops report-inbox-handling-cutover --operator <id> --org <id> --observed-at <ISO-8601>'
 
 const EVIDENCE_VERSION = 'inbox-handling-cutover-evidence/v1'
 

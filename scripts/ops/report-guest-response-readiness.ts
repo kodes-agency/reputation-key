@@ -3,7 +3,7 @@
 // comparable; output is identifier-only and has no apply path.
 //
 // Usage:
-//   pnpm ops:report-guest-response-readiness --operator <id>
+//   pnpm ops report-guest-response-readiness --operator <id>
 //     --observed-at <ISO-8601> [--org <id> ...]
 
 import { canonicalGuestResponseReconciliationReport } from '../../src/contexts/guest/application/guest-response-reconciliation'
@@ -13,7 +13,7 @@ import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:report-guest-response-readiness'
 const USAGE =
-  'pnpm ops:report-guest-response-readiness --operator <id> --observed-at <ISO-8601> [--org <id> ...]'
+  'pnpm ops report-guest-response-readiness --operator <id> --observed-at <ISO-8601> [--org <id> ...]'
 
 function flagValue(args: readonly string[], name: string): string | undefined {
   const inline = args.find((arg) => arg.startsWith(`${name}=`))

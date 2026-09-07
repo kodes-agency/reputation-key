@@ -10,7 +10,7 @@ rows can be inventoried, exported, restored, and deliberately dispositioned.
 Run the report with an explicit observation time:
 
 ```text
-pnpm ops:report-legacy-recognition \
+pnpm ops report-legacy-recognition \
   --operator <registered-operator> \
   --as-of <ISO-8601>
 ```

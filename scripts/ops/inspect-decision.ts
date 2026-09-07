@@ -1,7 +1,7 @@
 // Operator CLI (BQC-7.5): inspect a policy decision (read-only).
 //
 // Usage:
-//   pnpm ops:inspect policy <permission> <userId> --operator <id> --org <id> [--property <id>]
+//   pnpm ops inspect policy <permission> <userId> --operator <id> --org <id> [--property <id>]
 //     — explain the ExecutionPolicy decision for a user action (capability /
 //       permission / scope breakdown)
 //
@@ -15,7 +15,7 @@ import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { runOperatorCommand } from './operator-command'
 
 const USAGE =
-  'pnpm ops:inspect policy <permission> <userId> --org <id> [--property <id>] --operator <id>'
+  'pnpm ops inspect policy <permission> <userId> --org <id> [--property <id>] --operator <id>'
 
 function usage(): never {
   console.error(`Usage: ${USAGE}`)

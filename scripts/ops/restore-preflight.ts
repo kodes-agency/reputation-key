@@ -13,7 +13,7 @@
 //      the platform's retention window (Railway console) BEFORE starting.
 //
 // Usage:
-//   pnpm ops:restore-preflight --operator <id>
+//   pnpm ops restore-preflight --operator <id>
 //
 // Requires DATABASE_URL (pointed at the ISOLATED restore target). Read-only;
 // policy-evaluated + audited like every operator command. Runbook §8:
@@ -27,7 +27,7 @@ import { getEnv } from '../../src/shared/config/env'
 import { isIsolatedRestoreTarget } from '../../src/shared/config/restore-mode'
 import { runOperatorCommand } from './operator-command'
 
-const USAGE = 'pnpm ops:restore-preflight --operator <id>'
+const USAGE = 'pnpm ops restore-preflight --operator <id>'
 
 async function main(): Promise<void> {
   const result = await runOperatorCommand(
@@ -75,7 +75,7 @@ async function main(): Promise<void> {
         '  3. Boot ISOLATED: RESTORE_MODE=isolated (worker refuses to boot; web capabilities deny fail-closed)',
       )
       io.out(
-        '  4. Run pnpm ops:restore-verify --operator <id>; independently review/sign its exact Review report request',
+        '  4. Run pnpm ops restore-verify --operator <id>; independently review/sign its exact Review report request',
       )
       io.out(
         '  5. Configure the one-shot approval only on the isolated verifier, then run the typed --apply command',

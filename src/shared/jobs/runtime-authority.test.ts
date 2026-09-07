@@ -29,7 +29,7 @@ function scheduledContract(
     schedule: 'every:300000',
     lastSuccessObjectiveMs: 10 * 60_000,
     maximumQueueAgeMs: 5 * 60_000,
-    repairCommand: 'pnpm ops:review-lifecycle report',
+    repairCommand: 'pnpm ops review-lifecycle report',
     runbook: 'docs/operations/review-lifecycle.md',
     ...overrides,
   }

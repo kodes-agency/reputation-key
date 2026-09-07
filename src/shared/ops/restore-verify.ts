@@ -44,7 +44,7 @@ import type {
 export const RESTORE_VERIFY_PURGE_SUBJECT = 'reviews.purge' as const
 
 const RESTORE_VERIFY_USAGE =
-  'pnpm ops:restore-verify --operator <id> [--reason <text> --apply --yes ops:restore-verify]'
+  'pnpm ops restore-verify --operator <id> [--reason <text> --apply --yes ops:restore-verify]'
 
 /**
  * The harness spec. Deliberately declares NO capability: in restore-isolated

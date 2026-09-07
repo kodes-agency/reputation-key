@@ -16,8 +16,8 @@
 // carry one exact digest-pinned, Ed25519-signed approval bundle.
 //
 // Usage:
-//   pnpm ops:restore-verify --operator <id>            — dry-run report
-//   pnpm ops:restore-verify --operator <id> --reason <text> --apply --yes ops:restore-verify
+//   pnpm ops restore-verify --operator <id>            — dry-run report
+//   pnpm ops restore-verify --operator <id> --reason <text> --apply --yes ops:restore-verify
 //
 // Requires DATABASE_URL (pointed at the ISOLATED restore target) and
 // RESTORE_MODE=isolated. Policy-evaluated + audited like every operator

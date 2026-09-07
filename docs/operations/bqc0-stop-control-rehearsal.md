@@ -10,9 +10,9 @@
 | #   | Control                                  | Mechanism                                                                                                                                       | Class                                   |
 | --- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
 | 1   | Disable Google sync / import / publish   | `BETA_CAPABILITIES_OFF=property.connect_gbp,property.publish_reply` + restart                                                                   | boot-time env, per-capability kill list |
-| 2   | Stop delivery / schedules                | `pnpm ops:queue pause domain-events` (facts keep recording; nothing dispatches until `resume`); dark schedules gated + no-op handlers           | boot-time env + capability gates        |
+| 2   | Stop delivery / schedules                | `pnpm ops queue pause domain-events` (facts keep recording; nothing dispatches until `resume`); dark schedules gated + no-op handlers           | boot-time env + capability gates        |
 | 3   | Deny new property activation             | `BETA_CAPABILITIES_OFF=property.create`                                                                                                         | boot-time env, per-capability kill list |
-| 4   | Quarantine a queue without deleting jobs | `pnpm ops:queue pause <default\|background\|domain-events>` (`resume` to restore)                                                               | operator CLI (BullMQ pause/resume)      |
+| 4   | Quarantine a queue without deleting jobs | `pnpm ops queue pause <default\|background\|domain-events>` (`resume` to restore)                                                               | operator CLI (BullMQ pause/resume)      |
 | 5   | Deny all Phase 17/18 (AI) work           | `ai.*` non-core (default deny) + blocked AI-adjacent caps + boot assertion (BQC-0.3); no AI implementation exists to gate                       | capability policy (default deny)        |
 | 6   | Preserve evidence and canonical state    | outbox append-only (purge fns have no callers); quarantine = pause, never obliterate; destructive cleanup scripts prohibited during containment | design + procedure                      |
 
@@ -34,7 +34,7 @@
 
 ### 2. Delivery / schedules stop
 
-- **Procedure:** `pnpm ops:queue pause domain-events`. The relay and dispatcher are unconditional in the worker (a worker without them refuses to boot), so the stop control is the queue pause: facts keep committing as outbox rows and dispatch when the queue resumes — nothing is lost and nothing runs meanwhile.
+- **Procedure:** `pnpm ops queue pause domain-events`. The relay and dispatcher are unconditional in the worker (a worker without them refuses to boot), so the stop control is the queue pause: facts keep committing as outbox rows and dispatch when the queue resumes — nothing is lost and nothing runs meanwhile.
 - **Schedules:** blocked/dark schedules are gated by `isCapabilityJobEnabled`, receive no executable handler, and are reconciled out of BullMQ (`bootstrap.ts`, `worker/index.ts`). Any already-queued remnant fails unknown-job admission and moves to the governed quarantine instead of being acknowledged. Retained schedules still authorize at dispatch. To stop processing entirely without deleting jobs, pause the `background` queue (control 4).
 - **Proof:** worker boot log lines (captured during the control-1 smoke); dark-job gating covered by `dark-capability-enforcement.test.ts` (27 tests).
 
@@ -46,7 +46,7 @@
 
 ### 4. Queue quarantine without deleting jobs
 
-- **Procedure:** `pnpm ops:queue pause default` → workers stop picking up work; every waiting/active/failed job stays in Redis. `pnpm ops:queue resume default` restores. `status` is read-only. Unknown queue names fail closed (`unknown queue "defualt" — expected one of: default, background, domain-events`).
+- **Procedure:** `pnpm ops queue pause default` → workers stop picking up work; every waiting/active/failed job stays in Redis. `pnpm ops queue resume default` restores. `status` is read-only. Unknown queue names fail closed (`unknown queue "defualt" — expected one of: default, background, domain-events`).
 - **Proof (unit):** `queue-quarantine.test.ts` — pause/resume/status; job counts identical before/after pause (no deletion). 4/4 green.
 - **Proof (CLI smoke):** no-args → usage + exit 1; unknown queue → named error + exit 1; missing `QUEUE_REDIS_URL` → clean refusal + exit 1.
 - **Not executed locally:** a live Redis pause/resume cycle (no local Redis). Staging steps below.
@@ -70,7 +70,7 @@
 Executed against staging web+worker with real Redis:
 
 1. Set the kill list, restart, trigger sync + publish → expect skip logs and zero Google calls; remove list, restart, confirm backlog drains.
-2. `pnpm ops:queue pause default` under load → confirm zero in-flight losses and identical job counts; `resume` → backlog drains.
-3. `pnpm ops:queue pause domain-events` in the staging worker under load, then `resume` → confirm the backlog drains with no duplicate side effects (receipts).
+2. `pnpm ops queue pause default` under load → confirm zero in-flight losses and identical job counts; `resume` → backlog drains.
+3. `pnpm ops queue pause domain-events` in the staging worker under load, then `resume` → confirm the backlog drains with no duplicate side effects (receipts).
 
 **Owner:** engineering. **When:** BQC-0.5 baseline window. Results to be appended here with the release identity they ran against.

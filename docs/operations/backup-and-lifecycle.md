@@ -101,13 +101,13 @@ cutover mechanism. This procedure uses the PITR sibling described by
 4. Export `RESTORE_MODE=isolated`, `RESTORE_POINT_AT`,
    `RESTORE_DATABASE_SERVICE_NAME`, `RELEASE_SHA`, and `RELEASE_MANIFEST_SHA256`
    in the verifier process only. Never make restore variables shared variables. Run
-   `pnpm ops:restore-preflight --operator <id>`; it proves target admission and
+   `pnpm ops restore-preflight --operator <id>`; it proves target admission and
    migration-journal readability before any mutation.
 5. Apply the current release's deploy migration trio to the sibling
    (`pnpm db:migrate-deploy`, advisory-locked and idempotent). Re-run preflight
    and schema parity. If the migration is not forward-safe, stop; do not repair
    the production source or reverse DDL from this workflow.
-6. Run `pnpm ops:restore-verify --operator <id>` first as a dry run. Review and
+6. Run `pnpm ops restore-verify --operator <id>` first as a dry run. Review and
    retain its canonical aggregate Review report and exact approval request,
    together with the content-free retention, Google-import, and
    external-effect-authority inventories. Follow
@@ -119,7 +119,7 @@ cutover mechanism. This procedure uses the PITR sibling described by
    and policy. Missing, denied, stale, changed, replayed, or untrusted authority
    refuses before mutation. With the independently reviewed bundle configured
    only on the isolated verifier, run
-   `pnpm ops:restore-verify --operator <id> --reason <change-ref> --apply --yes
+   `pnpm ops restore-verify --operator <id> --reason <change-ref> --apply --yes
 ops:restore-verify`. The authorized command, in process and without BullMQ,
    applies all overdue retention rules; reconciles Google import retention;
    invalidates restored sessions and verification tokens; cancels pending
@@ -291,7 +291,7 @@ authority, private-feedback text, and de-identified
 Guest Response facts into independently expiring stores; v6 adds canonical
 seven-day Guest network-pressure deletion; v7 adds retired-generation AI
 derivative erasure; v8 adds scheduled, bounded Contact Request encrypted-material
-expiry evidence without activating Contact Request. `pnpm ops:purge
+expiry evidence without activating Contact Request. `pnpm ops purge
 retention --operator <id>` reports content-free per-rule counts and exact
 cutoffs without requiring Redis or changing business rows; `--apply` remains a
 separately confirmed bounded enqueue. The report identifies Google import
@@ -424,7 +424,7 @@ correctly report `verified: false`.
 `src/shared/governance/capability-fate.ts` and is a member of
 `BLOCKED_CAPABILITIES` in `src/shared/auth/beta-capabilities.ts`. **It stays
 blocked as a tenant capability.** The only entry point is
-`pnpm ops:property-erase`. There is no route, no server function and no tenant
+`pnpm ops property-erase`. There is no route, no server function and no tenant
 capability check that reaches the erase use case — asserted by a negative test
 in `src/contexts/property/application/use-cases/erase-property.test.ts`.
 

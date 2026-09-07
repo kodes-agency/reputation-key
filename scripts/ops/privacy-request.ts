@@ -8,13 +8,13 @@
 // anything happens.
 //
 // Usage (report-only by default — mutations need --apply):
-//   pnpm ops:privacy-request report --operator <id> --org <id> --property <id>
-//   pnpm ops:privacy-request receive --operator <id> --org <id> --property <id> \
+//   pnpm ops privacy-request report --operator <id> --org <id> --property <id>
+//   pnpm ops privacy-request receive --operator <id> --org <id> --property <id> \
 //     kind=access subject-type=guest subject-ref=<sha256> \
 //     --reason <text> --ticket <ref> --apply --yes ops:privacy-request
-//   pnpm ops:privacy-request verify request=<id> verification=<ref> ... --apply
-//   pnpm ops:privacy-request fulfil request=<id> ... --apply
-//   pnpm ops:privacy-request refuse request=<id> reason-code=<code> ... --apply
+//   pnpm ops privacy-request verify request=<id> verification=<ref> ... --apply
+//   pnpm ops privacy-request fulfil request=<id> ... --apply
+//   pnpm ops privacy-request refuse request=<id> reason-code=<code> ... --apply
 //
 // Requires DATABASE_URL. The command contract and its tests live in
 // src/shared/ops/privacy/privacy-request-command.ts — scripts/ sits outside the

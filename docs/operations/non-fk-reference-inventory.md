@@ -43,7 +43,7 @@ in neither list fails the coverage test.
 ## Running the scan
 
 ```sh
-pnpm ops:report-non-fk-references \
+pnpm ops report-non-fk-references \
   --operator <approved-operator-id> \
   --as-of 2026-08-28T00:00:00.000Z \
   --table teams

@@ -337,7 +337,7 @@ surface dark); network-level restriction of the ops surface is platform-owned
 
 **Trigger:** Operator needs to suspend, disconnect, archive, or purge a property.
 **Impact:** Varies — P2 for archive, P1 for disconnect, P0 for purge (irreversible).
-**Diagnostics:** Check property `lifecycle_state`; use `ops:google-import-lifecycle inspect-request <importJobId> --org <id>` for identifier-only import state. Check for active sync jobs, pending publications, inbox items. Before a general retention apply, run `pnpm ops:purge retention --operator <id>` and attach its content-free per-rule backlog/cutoff report.
+**Diagnostics:** Check property `lifecycle_state`; use `ops:google-import-lifecycle inspect-request <importJobId> --org <id>` for identifier-only import state. Check for active sync jobs, pending publications, inbox items. Before a general retention apply, run `pnpm ops purge retention --operator <id>` and attach its content-free per-rule backlog/cutoff report.
 **Containment:** Suspend → `ops:suspend-property --org <id> --property <id> --reason <text> --ticket <ref> --apply` (blocks new processing via the capability store; restore with `ops:restore-property`). Disconnect → `ops:disconnect-connection <connectionId> --org <id>` (fences import work, revokes Google tokens, and sets connection `disconnected`). A stuck request may be fenced with `ops:google-import-lifecycle cancel-request <importJobId> --org <id> --reason <text> --apply --yes ops:google-import-lifecycle`.
 **Recovery:** Archive → data preserved, can restore to `active`. General retention purge → irreversible, confirm via typed property name and re-run with `ops:purge retention --reason <text> --apply --yes ops:purge`. Review expiry purge is unavailable while SAFE-03 quarantine is active; escalation cannot bypass it with configuration. Property/member/connection/org removal fences matching import parents/items and invalidates provider references before authority disappears.
 **Verification:** Lifecycle state correct. `ops:google-import-lifecycle inspect` reports zero overdue/release backlog; scoped inspection reports no outstanding authority. Purge evidence includes `integration.google_import_v2.lifecycle`.
@@ -593,7 +593,7 @@ pseudonymization, validation, rendering, and provider-delivery boundary.
 Use the content-free operator queue first:
 
 ```text
-pnpm ops:triage-beta-feedback --operator <registered-operator>
+pnpm ops triage-beta-feedback --operator <registered-operator>
 ```
 
 Apply changes to exactly one local reference with the 14 reviewed positional
@@ -686,11 +686,11 @@ no tenant or payload content.
    identity and capability policy with the row's processor/capability/schedule.
    A dark/quarantined family with a handler, scheduler, queued item, or
    post-boot execution is a containment failure; do not redrive it. Review the
-   entry, then dry-run `pnpm ops:quarantine discard <id> --operator
+   entry, then dry-run `pnpm ops quarantine discard <id> --operator
 <registered-operator>` before applying it with `--reason <incident-reason>
 --apply`.
 3. For missed objectives, stalled work, repair-required state, or dead letters,
-   inspect the original queue and run `pnpm ops:quarantine list --operator
+   inspect the original queue and run `pnpm ops quarantine list --operator
 <registered-operator>` before applying the row's exact repair command.
 
 **Remediate:** repair configuration/handler/scheduler drift by promoting a

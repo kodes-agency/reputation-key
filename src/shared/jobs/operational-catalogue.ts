@@ -21,7 +21,7 @@ import type { JobSchedulerRegistration } from './job-schedulers'
 
 const DEFAULT_MAXIMUM_QUEUE_AGE_MS = 15 * 60_000
 const GENERIC_REPAIR_COMMAND =
-  'pnpm ops:quarantine redrive <quarantineJobId> --operator <registered-operator> --reason <incident-reason> --apply'
+  'pnpm ops quarantine redrive <quarantineJobId> --operator <registered-operator> --reason <incident-reason> --apply'
 const GENERIC_RUNBOOK = 'docs/operations/runbooks.md'
 
 /**

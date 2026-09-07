@@ -4,9 +4,9 @@
 // publishes.
 //
 // Usage:
-//   pnpm ops:reconcile-publication <replyId> --operator <id> --org <id> [--reason <text> --apply]
-//   pnpm ops:reconcile-publication --all-ambiguous --operator <id> [--batch-size <n>] [--reason <text> --apply]
-//   pnpm ops:reconcile-publication --all-ambiguous --resume <token> --operator <id> [--reason <text> --apply]
+//   pnpm ops reconcile-publication <replyId> --operator <id> --org <id> [--reason <text> --apply]
+//   pnpm ops reconcile-publication --all-ambiguous --operator <id> [--batch-size <n>] [--reason <text> --apply]
+//   pnpm ops reconcile-publication --all-ambiguous --resume <token> --operator <id> [--reason <text> --apply]
 //
 // Bounded: a single reply, or ONE keyset page of due ambiguous rows per
 // invocation (default 100, max 500). A full page reports partial and returns
@@ -27,7 +27,7 @@ import type {
 import { runOperatorCommand } from './operator-command'
 
 const USAGE =
-  'pnpm ops:reconcile-publication [<replyId> --org <id> | --all-ambiguous [--resume <token>]] --operator <id> [--batch-size <n>] [--reason <text> --apply]'
+  'pnpm ops reconcile-publication [<replyId> --org <id> | --all-ambiguous [--resume <token>]] --operator <id> [--batch-size <n>] [--reason <text> --apply]'
 
 const RESUME_VERSION = 1 as const
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu

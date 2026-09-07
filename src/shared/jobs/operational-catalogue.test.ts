@@ -113,7 +113,7 @@ describe('job operational catalogue', () => {
     for (const contract of JOB_OPERATIONAL_CONTRACTS.filter(
       ({ posture }) => posture === 'active',
     )) {
-      expect(contract.repairCommand).toContain('ops:quarantine redrive')
+      expect(contract.repairCommand).toContain('pnpm ops quarantine redrive')
       expect(contract.repairCommand).toContain('--apply')
       expect(contract.repairCommand).not.toContain('quarantine list')
     }

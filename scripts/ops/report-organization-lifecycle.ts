@@ -5,7 +5,7 @@
 import { runOperatorCommand } from './operator-command'
 
 const USAGE =
-  'pnpm ops:report-organization-lifecycle --operator <id> --org <organization-id>'
+  'pnpm ops report-organization-lifecycle --operator <id> --org <organization-id>'
 
 async function main(): Promise<void> {
   const result = await runOperatorCommand(

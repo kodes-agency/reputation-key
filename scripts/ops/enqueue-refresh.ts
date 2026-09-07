@@ -4,8 +4,8 @@
 // Handlers are never invoked directly.
 //
 // Usage:
-//   pnpm ops:refresh <target> --operator <id>                          — dry-run report
-//   pnpm ops:refresh <target> --operator <id> --reason <text> --apply  — enqueue one run
+//   pnpm ops refresh <target> --operator <id>                          — dry-run report
+//   pnpm ops refresh <target> --operator <id> --reason <text> --apply  — enqueue one run
 //
 // Target (background queue, bounded internally by the sweep):
 //   reviews — refresh-expiring-reviews (hourly sweep, cursor-bounded)
@@ -24,7 +24,7 @@ const TARGETS = {
 
 type Target = keyof typeof TARGETS
 
-const USAGE = `pnpm ops:refresh <${Object.keys(TARGETS).join('|')}> --operator <id> [--reason <text> --apply]`
+const USAGE = `pnpm ops refresh <${Object.keys(TARGETS).join('|')}> --operator <id> [--reason <text> --apply]`
 
 function usage(): never {
   console.error(`Usage: ${USAGE}`)

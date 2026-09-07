@@ -35,7 +35,7 @@ snapshot; those rows are never presented as source-event provenance.
 1. Capture an explicit UTC observation time and read readiness.
 2. If state is `Updating`, allow the normal durable consumer up to the five-minute
    visibility target before intervening.
-3. Run `pnpm ops:recover-recent-activity --operator <id> --batch-size 100
+3. Run `pnpm ops recover-recent-activity --operator <id> --batch-size 100
 --apply --reason <text> <observed-at>`. Save its returned cursor.
 4. Repeat with the emitted `<after-occurred-at> <after-replay-key>` positional
    cursor while `complete=false` and `failed=0`.

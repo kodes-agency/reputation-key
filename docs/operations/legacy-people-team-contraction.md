@@ -31,7 +31,7 @@ rollback analysis; their continued presence is not runtime reachability.
 Run the report with an explicit observation time:
 
 ```text
-pnpm ops:report-legacy-people-team \
+pnpm ops report-legacy-people-team \
   --operator <registered-operator> \
   --as-of <ISO-8601>
 ```

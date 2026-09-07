@@ -12,7 +12,7 @@
 // surviving evidence of what access was intended, so nothing here removes it.
 //
 // Usage:
-//   pnpm ops:report-legacy-custom-roles --operator <id> --as-of <ISO-8601>
+//   pnpm ops report-legacy-custom-roles --operator <id> --as-of <ISO-8601>
 
 import { getDb } from '../../src/shared/db'
 import { canonicalReconciliationReport } from '../../src/shared/db/retention/reconciliation-report'

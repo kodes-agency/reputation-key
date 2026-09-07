@@ -481,7 +481,7 @@ async function assembleSnapshot() {
             oldestWaitingAt: null,
             deadLetterCount: 0,
             repairCommand:
-              'pnpm ops:quarantine redrive <quarantineJobId> --operator <registered-operator> --reason <incident-reason> --apply',
+              'pnpm ops quarantine redrive <quarantineJobId> --operator <registered-operator> --reason <incident-reason> --apply',
             runbook: 'docs/operations/runbooks.md',
           },
         ],

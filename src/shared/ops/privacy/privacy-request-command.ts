@@ -32,7 +32,7 @@ export const privacyRequestCommandSpec: OperatorCommandSpec = Object.freeze({
   destructive: true,
   requiresTicket: true,
   usage:
-    'pnpm ops:privacy-request (report|receive|verify|fulfil|refuse) --operator <id> --org <id> --property <id> ' +
+    'pnpm ops privacy-request (report|receive|verify|fulfil|refuse) --operator <id> --org <id> --property <id> ' +
     'kind=(access|correction|withdrawal|erasure) subject-type=(guest|participant) subject-ref=<sha256> ' +
     '[request=<id> verification=<ref> field=<name> reason-code=<code> --reason <text> --ticket <ref> ' +
     '--apply --yes ops:privacy-request]',
