@@ -3545,33 +3545,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/ops/report-portal-access-artifacts.ts',
-    'scripts/ops/report-portal-access-artifacts.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:report-portal-artifacts — read-only, explicit-time inventory of reachable legacy QR/NFC addresses that lack a published Qualified Scan Access Artifact; stable content-free replacement list',
-    },
-  ),
-  ops(
-    'scripts/ops/report-portal-beta-readiness.ts',
-    'scripts/ops/report-portal-beta-readiness.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:report-portal-beta-readiness — read-only POR-01 legacy Portal inventory with an explicit cutoff and optional Organization set; canonical identifier/reason/count output only, with no apply or provenance-inference path',
-    },
-  ),
-  ops(
-    'scripts/ops/report-guest-response-readiness.ts',
-    'scripts/ops/report-guest-response-readiness.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:report-guest-response-readiness — read-only GST-01 legacy Rating/Feedback and canonical Guest Response reconciliation at an explicit observation time; identifier-only classifications, star distributions, and source/correction/retraction identities; no apply or inferred-provenance path',
-    },
-  ),
-  ops(
     'scripts/ops/report-organization-lifecycle.ts',
     'scripts/ops/report-organization-lifecycle.ts',
     'organization',
@@ -3598,15 +3571,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
         'ops:recover-recent-activity — explicit-time readiness plus audited, bounded, cursor-resumable repair from Activity-owned replay facts; dry-run is read-only and --apply requires a reason',
     },
   ),
-  ops(
-    'scripts/ops/reconcile-recent-activity-vocabulary.ts',
-    'scripts/ops/reconcile-recent-activity-vocabulary.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:reconcile-recent-activity-vocabulary — Organization-scoped content-free report and one-pair exact-fingerprint compatibility repair; apply is ticketed, operation-idempotent, typed-confirmed, transactionally receipted, and never infers unmappable vocabulary',
-    },
-  ),
   ops('scripts/ops/property-erase.ts', 'scripts/ops/property-erase.ts', 'property', {
     notes:
       'ops:property-erase — LIF-01-T19 support-mediated permanent Property Erase. Report-only by default; the destructive path additionally requires --apply, the typed confirmation, an operator id, a ticket, and an INDEPENDENT support authorization reference. It declares no capability on purpose: property.erase stays in BLOCKED_CAPABILITIES, so this operator command is the only entry point and no tenant-facing authorization path exists',
@@ -3622,60 +3586,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:repair-partial-offboarding — LIF-01-T21 recovery for a membership removal that transferred some responsibilities and then failed. Reports the outstanding transfers by default and completes them only under --apply',
-    },
-  ),
-  ops(
-    'scripts/ops/report-legacy-custom-roles.ts',
-    'scripts/ops/report-legacy-custom-roles.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:report-legacy-custom-roles — read-only bullet-12 inventory of retained custom-role rows that must be reconciled or archived before migration; content-free counts at an explicit --as-of, no apply path',
-    },
-  ),
-  ops(
-    'scripts/ops/report-legacy-multi-org.ts',
-    'scripts/ops/report-legacy-multi-org.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:report-legacy-multi-org — read-only bullet-12 inventory of users holding more than one Organization binding, which the singular-binding model must reconcile without erasing the evidence needed to resolve the conflict; no apply path',
-    },
-  ),
-  ops(
-    'scripts/ops/report-legacy-guest-compatibility.ts',
-    'scripts/ops/report-legacy-guest-compatibility.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:report-legacy-guest-compatibility — read-only bullet-12 inventory of the legacy Guest compatibility rows. It is a reference scan, not a table inventory: the compatibility mirrors it reads are already claimed by ops:report-compatibility-read-surfaces, and claiming them twice would break the one-tool-per-table registry',
-    },
-  ),
-  ops(
-    'scripts/ops/report-inbox-handling-cutover.ts',
-    'scripts/ops/report-inbox-handling-cutover.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:report-inbox-handling-cutover — read-only IBX-01 legacy cutover and parity evidence over one Organization: opens a single REPEATABLE READ, READ ONLY snapshot at a mandatory --observed-at, classifies each relationship exact/mappable/ambiguous/orphan, and prints one content-free canonical report with its digest; no apply path and no inferred handling outcome',
-    },
-  ),
-  ops(
-    'scripts/ops/report-compatibility-read-surfaces.ts',
-    'scripts/ops/report-compatibility-read-surfaces.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:report-compatibility-read-surfaces — read-only inventory of all seven compatibility_read mirrors plus the Integration-owned physical-to-Drizzle name mapping, carrying an active reader count per mirror so a mirror with live readers can never be presented as a contraction candidate; no apply path',
-    },
-  ),
-  ops(
-    'scripts/ops/report-non-fk-references.ts',
-    'scripts/ops/report-non-fk-references.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:report-non-fk-references — read-only non-foreign-key reference scan for contraction candidates covering uuid columns without a declared reference, resource_type/resource_id pairs, textual aggregate identifiers and jsonb documents; content-free counts at an explicit --as-of with no apply path',
     },
   ),
   ops(
@@ -4029,15 +3939,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:google-admission-role — explicit --apply infrastructure provisioner/rotator; uses the Railway PostgreSQL owner credential to grant one login only the four journaled Google permit operations and no tables or sequences',
-    },
-  ),
-  ops(
-    'scripts/ops/identity-invitation-fact-contract.ts',
-    'scripts/ops/identity-invitation-fact-contract.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:identity-invitation-facts — report-first rolling v1→v2 fact issuance, bounded PostgreSQL/live-queue/quarantine redaction, zero-copy verification, and pre-verification rollback; mutations require quiesced queues and typed confirmation',
     },
   ),
   ops(

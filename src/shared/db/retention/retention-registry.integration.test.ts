@@ -14,12 +14,10 @@ import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { contractionCandidateTableNames } from '#/shared/governance/contraction-inventory-registry'
 import { buildRetentionRegistryReport } from './report-retention-registry'
 import {
   assertRetentionRegistryApplyAllowed,
   RETENTION_REGISTRY,
-  retentionRegistryContractionViolations,
 } from './retention-registry'
 
 let lease: TestLease
@@ -230,14 +228,5 @@ describe('retention registry report-only mode', () => {
         /pending_counsel/,
       )
     }
-  })
-
-  it('never names a contraction candidate beyond the exact redaction allowlist', () => {
-    expect(
-      retentionRegistryContractionViolations(
-        RETENTION_REGISTRY,
-        contractionCandidateTableNames(),
-      ),
-    ).toEqual([])
   })
 })

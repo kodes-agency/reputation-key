@@ -16,9 +16,9 @@ timeline, manager-facing updates, provider/support cases, and the final
 resolution notice. At incident opening, record the person filling each role;
 delegation must be explicit and never implies authority to bypass a gate.
 
-Command syntax and report contracts live in [Operator commands](operator-commands.md)
-and [Operator reports](operator-reports.md). Alert definitions and security
-controls live in [Alerts and security posture](alerts-and-security-posture.md).
+Command syntax lives in [Operator commands](operator-commands.md). Alert
+definitions and security controls live in
+[Alerts and security posture](alerts-and-security-posture.md).
 
 ---
 

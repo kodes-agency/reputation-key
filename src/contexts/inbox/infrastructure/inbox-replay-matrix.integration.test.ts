@@ -40,7 +40,6 @@ import {
 import { createReviewResponseTargetAuthority } from '#/contexts/review/infrastructure/response-target-authority'
 import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
 import { createReviewSourceTransitionAuthority } from '#/contexts/review/infrastructure/source-transition-authority'
-import { readInboxHandlingCutoverScan } from './repositories/inbox-handling-cutover.repository'
 import { createReviewResponseTargetAuthorityAdapter } from './adapters/review-response-target-authority.adapter'
 import { createReplyObservationAuthorityAdapter } from './adapters/reply-observation-authority.adapter'
 import { createSourceTransitionAuthorityAdapter } from './adapters/source-transition-authority.adapter'
@@ -934,29 +933,5 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
         ORG,
       ),
     ).resolves.toMatchObject({ closeReason: 'guest_withdrawn', currentOutcome: null })
-  })
-
-  it('classifies every freshly replayed row as exact — no ambiguous, no orphan', async () => {
-    await cleanProjection()
-    await drain<InboxReplayReviewDelivery>(
-      INBOX_REPLAY_REVIEW_ORDERS[0]!.deliveries,
-      deliverReview,
-    )
-    await handleInboxGuestFeedbackSubmitted(
-      guestDeps(SCOPE.feedbackItemId, () => true),
-      guestEnvelope(
-        'guest.feedback.submitted',
-        'guest.feedback.submitted',
-        guestFeedbackPayload(SCOPE.feedbackId),
-      ),
-    )
-
-    const scan = await readInboxHandlingCutoverScan(getDb(), {
-      organizationId: ORG,
-      observedAt: AT.observedAt,
-    })
-    expect(scan.totals).toMatchObject({ ambiguous: 0, orphan: 0 })
-    expect(scan.totals.total).toBe(scan.totals.exact + scan.totals.mappable)
-    expect(scan.totals.total).toBeGreaterThan(0)
   })
 })

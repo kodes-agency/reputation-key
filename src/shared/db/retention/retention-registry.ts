@@ -810,14 +810,10 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
 ] satisfies ReadonlyArray<RetentionRegistryRule>)
 
 /**
- * Pseudonym redactions that still run against pre-beta compatibility mirrors.
+ * Row-preserving pseudonym redactions against the pre-beta Guest mirrors.
  *
- * They are represented in the registry as row-preserving `redact` operations.
- * The pseudonyms disappear, every row stays, and the contraction inventory
- * still counts exactly what it counted before.
- *
- * The invariant the test enforces is that these are the ONLY sweep rules
- * touching a contraction candidate, and that every one of them is `redact`.
+ * These entries align the executable sweep subjects with their counsel-facing
+ * registry rules. The pseudonyms disappear while every source row remains.
  */
 export const LEGACY_MIRROR_PSEUDONYM_REDACTIONS = Object.freeze(
   (['scan_events', 'ratings', 'feedback'] as const).flatMap((table) => [
@@ -876,45 +872,6 @@ export function assertRetentionRegistryApplyAllowed(rule: RetentionRegistryRule)
   throw new Error(
     `retention rule '${rule.id}' is pending_counsel and cannot run in apply mode`,
   )
-}
-
-export type RetentionRegistryContractionViolation = Readonly<{
-  ruleId: string
-  source: string
-}>
-
-/**
- * A deleting retention rule over a compatibility mirror or bounded-contraction
- * table would perform contraction before the one verified release plus restore
- * proof that gates it, erasing the inventory the decision rests on. Exact
- * row-preserving redactions remain allowed.
- */
-export function retentionRegistryContractionViolations(
-  registry: ReadonlyArray<RetentionRegistryRule>,
-  contractionCandidateTables: ReadonlyArray<string>,
-): ReadonlyArray<RetentionRegistryContractionViolation> {
-  const candidates = new Set(contractionCandidateTables)
-  const allowedRedactions = new Set(
-    LEGACY_MIRROR_PSEUDONYM_REDACTIONS.map(
-      ({ registryRuleId, table, redactedColumn }) =>
-        `${registryRuleId}:${table}:${redactedColumn}`,
-    ),
-  )
-  // Matched on the source name alone, NOT on sourceKind: relabelling a mirror
-  // as an object store would otherwise walk straight through this guard.
-  return registry
-    .filter((rule) => {
-      if (!candidates.has(rule.source)) return false
-      const redactedColumn =
-        rule.redactColumns?.length === 1 ? rule.redactColumns[0] : null
-      const exactAllowedRedaction =
-        rule.sourceKind === 'table' &&
-        rule.operation === 'redact' &&
-        redactedColumn !== null &&
-        allowedRedactions.has(`${rule.id}:${rule.source}:${redactedColumn}`)
-      return !exactAllowedRedaction
-    })
-    .map(({ id, source }) => Object.freeze({ ruleId: id, source }))
 }
 
 export type RetentionRegistryDeadlineViolation = Readonly<{

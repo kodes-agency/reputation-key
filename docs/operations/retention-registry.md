@@ -66,38 +66,20 @@ to prevent.
 
 ---
 
-## 3. Compatibility mirrors may never be a retention source
+## 3. Compatibility mirrors remain row-preserving
 
-**No registry rule may name a `compatibility_read` or `bounded_contraction`
-table.** This is asserted against the live authority
-(`contractionCandidateTableNames()`), not against a hand-written list.
+The live `scan_events`, `ratings` and `feedback` compatibility tables are not
+deleted by the retention sweep. The migration that called for one-off
+contraction inventories was struck, so retention governance no longer depends
+on a dedicated inventory command. The tables and their retention rules remain.
 
-The reason is not tidiness. Those tables are contraction candidates blocked
-until **one verified release plus a restore proof**. The evidence a future
-contraction decision rests on is the row and foreign-key inventory produced by
-`ops:report-compatibility-read-surfaces`. A retention rule that deleted their
-rows would drain that inventory, the report would read "already empty", and the
-contraction would have happened quietly and early — with neither the release nor
-the restore proof it is gated on. Those compatibility rows therefore have no
-approved retention horizon.
+### The declared redactions
 
-### What was removed
-
-The scheduled sweep previously carried `gbp_cache.expired`, deleting expired
-rows from `gbp_cache` — the `legacyGbpCache` compatibility mirror, superseded by
-`google-import-v2` and written by nothing in production. That rule has been
-removed. The class is carried report-only in the registry with a
-`counsel_undecided` horizon.
-
-### The one declared exception
-
-Six sweep rules still touch a contraction candidate: the `ip_hash` and
-`session_id` pseudonym redactions on `scan_events`, `ratings` and `feedback`.
-They are `redact`, never `delete`. Every row survives, so the inventory count is
-unchanged, and the §3.3.10 seven-day pseudonym default still reaches the
-mirrors. The exception is locked to exactly those six subjects by
-`LEGACY_MIRROR_PSEUDONYM_REDACTIONS`; a seventh, or a change from `redact` to
-`delete`, fails the test.
+Six sweep rules touch those three mirrors: the `ip_hash` and `session_id`
+pseudonym redactions on each table. They are `redact`, never `delete`. Every row
+survives, while the §3.3.10 seven-day pseudonym default still reaches the
+mirrors. `LEGACY_MIRROR_PSEUDONYM_REDACTIONS` aligns those executable sweep
+subjects with the counsel-facing registry horizons.
 
 ---
 
@@ -163,80 +145,19 @@ builder is callable and covered by the report-only integration path.
 
 ---
 
-## 7. Bullet 12 — legacy reconciliation reports
+## 7. Bullet 12 — no operator report
 
-Bullet 12 requires the existing custom-role, multi-Organization, Team and
-legacy-Guest data to be reconciled or archived before migration **without
-erasing the evidence needed to fix the conflicts**. The retired Better Auth
-billing compatibility columns no longer exist. Every remaining command in
-this family is read-only because its source rows are the evidence.
-
-| Data               | Command                                 | Status       |
-| ------------------ | --------------------------------------- | ------------ |
-| Team               | `ops:report-legacy-people-team`         | Pre-existing |
-| Custom roles       | `ops:report-legacy-custom-roles`        | **New**      |
-| Multi-Organization | `ops:report-legacy-multi-org`           | **New**      |
-| Legacy Guest       | `ops:report-legacy-guest-compatibility` | **New**      |
-
-All three new commands are read-only, have no apply flag and no write path, and
-emit counts, severities and a state fingerprint only.
-
-```bash
-pnpm ops report-legacy-custom-roles         --operator <id> --as-of <ISO-8601>
-pnpm ops report-legacy-multi-org            --operator <id> --as-of <ISO-8601>
-pnpm ops report-legacy-guest-compatibility  --operator <id> --as-of <ISO-8601>
-```
-
-The fingerprint covers observed state — subject, version and every finding
-id/severity/count — but deliberately **not** `asOf`. Two runs an hour apart over
-unchanged data fingerprint identically, so the fingerprint can be used to prove
-nothing moved. A reclassified severity changes it, so downgrading a blocker
-cannot hide behind an unchanged hash.
-
-### Severity
-
-- `blocks_migration` — migration cannot proceed correctly while the count is
-  non-zero.
-- `needs_review` — someone must look; the migration is not wrong without it.
-- `informational` — context that makes the other numbers interpretable.
-
-Dormant custom role **definitions** are `informational`: §3.1.3 explicitly
-allows the dormant schema to remain. A member or a pending invitation actually
-**holding** a custom role is `blocks_migration`, because its effective
-permissions come from a definition beta does not evaluate at runtime.
-
-Nothing in the legacy-Guest report is `blocks_migration`. The mirrors cannot be
-contracted before one verified release plus a restore proof, so no finding there
-can legitimately block a migration — it can only require a recorded decision.
-
-### The legacy-Guest deadline
-
-`ops:report-legacy-guest-compatibility` is **not** a contraction inventory;
-`ops:report-compatibility-read-surfaces` owns that and this command does not
-restate it. It asks a different question: how much of the legacy population can
-still be reconciled to the canonical Guest Response model.
-
-`session_id` + `portal_id` is the only handle that can tie a legacy row to a
-canonical Guest Response. The session binding expires 24 hours after submission
-and the sweep redacts the mirror `session_id` on the same clock. So
-`ratings_without_canonical_response` can only ever shrink, and every row it
-loses moves into `ratings_without_correlatable_session` — countable and
-archivable, permanently unreconcilable.
-
-Do not attempt to re-derive a redacted pseudonym. That is re-identification, not
-reconciliation.
+The custom-role, multi-Organization and legacy Guest rows still exist. The
+program struck the migration that called for one-off reconciliation
+inventories, so no dedicated operator report or apply path remains. Removing
+those reports does not migrate, archive or delete their source rows.
 
 ---
 
 ## 8. Known gaps in this change
 
-1. **The three new bullet-12 scripts are not registered.** Each needs an
-   `entry-point-catalogue.ts` row and a classifier entry.
-2. **`data-fate-authority.ts` does not yet cross-reference the registry.** The
-   registry reads the authority; the authority does not know a retention class
-   exists for a table.
-3. **The lifetime-aggregate ordering constraint is documented, not enforced**
+1. **The lifetime-aggregate ordering constraint is documented, not enforced**
    (§5).
-4. **`docs/operations/runbooks.md` and
+2. **`docs/operations/runbooks.md` and
    `docs/operations/backup-and-lifecycle.md` still list `gbp_cache.expired`** as
    a live retention subject. That table row is now stale.
