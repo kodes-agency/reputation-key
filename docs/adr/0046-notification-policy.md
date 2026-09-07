@@ -1,105 +1,70 @@
-# ADR 0046 — Notification Policy: Categories, Channels, and Preferences
+---
+status: accepted
+date: 2026-07-15
+---
 
-**Status:** Accepted
-**Date:** 2026-07-15
+# 0046 — Notification Policy: Categories, Channels, and Preferences
 
 ## Context
 
-The notification context has schema/docs mismatches: docs describe one unread resource item while schema uniqueness includes event ID, making dedupe/coalescing inconsistent. Missing preferences enable both in-app and email by default. Digests follow property timezone, causing multi-property users to receive duplicate or inconvenient delivery. Email provider idempotency is shorter than the product retry horizon.
+Notification preferences, coalescing, delivery timing, and durable routing need
+one policy. The old schema mixed event identity with unread-resource identity
+and treated missing preferences as approval for both channels.
 
 ## Decision
 
-Configurable Property notifications have explicit **category × channel × property** preferences with versioned defaults, user timezone, quiet hours, and coalescing semantics. Genuinely mandatory service/security/account notices are Organization-scoped policy and do not create preference rows.
+The four categories are `mandatory`, `urgent_operational`,
+`workflow_collaboration`, and `recognition`. A daily digest is an optional
+cadence, not a fifth category. Mandatory account/security/legal notices are
+Organization policy and never create Property preference rows.
 
-### Categories
+| Category               | In-app              | Email                                      |
+| ---------------------- | ------------------- | ------------------------------------------ |
+| Mandatory              | Required            | Required when the notice requires it       |
+| Urgent operational     | Responsible users   | Explicitly responsible; bounded quiet-hour |
+| Workflow collaboration | Default on          | Opt-in                                     |
+| Recognition            | Private, default on | Opt-in                                     |
 
-`mandatory` (account/security/legal), `urgent_operational`, `workflow_collaboration`, `digest_summary`, `recognition` (with the implementation correction below retiring `digest_summary` as a category).
+Rules:
 
-### Default policy
+1. Missing rows resolve through versioned defaults, never “both on.”
+2. Coalesce one unread item per `(user, type, resource)` while retaining
+   delivery/event evidence; event ID is not the uniqueness key.
+3. Use the user IANA timezone with Organization fallback and test DST.
+4. A multi-Property user receives one digest in their chosen timezone.
+5. Application idempotency outlives the provider's 24-hour dedupe window.
+6. Delivery moves through `pending → accepted →
+delivered|delayed|bounced|complained|failed|suppressed|cancelled`.
+7. Optional mail links to preferences; operational mail has no marketing.
+8. Payload parsing admits only Property/resource/status metadata and excludes
+   Review text, Guest text/media, sensitive scores, and other employees' data.
 
-| Category               | In-app                                       | Email                                                      |
-| ---------------------- | -------------------------------------------- | ---------------------------------------------------------- |
-| Mandatory              | On, non-disableable when genuinely mandatory | On as required                                             |
-| Urgent operational     | On for responsible users                     | On for explicitly responsible; bounded quiet-hour override |
-| Workflow/collaboration | On                                           | Off unless user opts in                                    |
-| Digest                 | Off                                          | Off; user opts in                                          |
-| Recognition            | On privately                                 | Off; user opts in                                          |
+The unsubscribe guard takes `MailClass = 'mandatory' | 'optional'`; a digest is
+always optional. Copy renders from `type` plus the closed payload at read time,
+so template corrections reach every channel and historical row.
 
-### Rules
+## Merged from ADR 0011
 
-1. Missing preference rows resolve through code/versioned default policy, not "both on."
-2. Coalescing: at most one unread item per `(user, type, resource)` may bump count/latest while preserving delivery/event evidence. Do not rely on event ID in the uniqueness key.
-3. Recipient timezone uses user IANA timezone with organization fallback; DST tested.
-4. Multi-property users receive one digest in their chosen timezone, not one per property timezone.
-5. Application idempotency key persists beyond the provider's 24-hour dedupe window.
-6. Delivery state: `pending → accepted → delivered|delayed|bounced|complained|failed|suppressed|cancelled`.
-7. No marketing content in operational mail. Every non-mandatory email links to preferences.
-8. Content uses property/resource/status metadata; omits review text, guest text, media, sensitive scores, and other employees' data.
+Notification jobs are bounded inserts (`insert-notification`) or single sends
+(`urgent-email`) on the shared `default` BullMQ queue. They use its concurrency,
+rate limiting, retry, and durable outbox authority; no dedicated queue exists.
+
+## Merged from ADR 0022
+
+Every action notification resolves to its Inbox item at creation and stores
+`resourceType: 'inbox_item'` / `resourceId: <inboxItemId>`. Review notification
+subscribes to `inbox.inbox_item.created`, after the item exists. Reply routing
+resolves `reviewId → inboxItemId` through `InboxItemLookupPort`. The only action
+URL is `/inbox?itemId=<id>`; a hard-deleted unresolved item is skipped.
 
 ## Consequences
 
-- Schema uniqueness changes from event-ID-based to resource-coalescing.
-- Missing preferences no longer default to "both on."
-- Application-level idempotency key prevents duplicate delivery after provider dedupe expiry.
-- Recognition email requires explicit user opt-in.
+- Missing preferences cannot silently enable email.
+- Resource coalescing and durable idempotency prevent duplicate delivery.
+- Recognition email requires explicit opt-in.
+- Provider/capability admission remains the outbound activation authority.
 
-## Implementation notes (2026-08-21)
+## Rejected alternatives
 
-Recorded when the policy was actually built out. Both items are deliberate
-deviations from the text above; the intent of every rule is preserved.
-
-### `digest_summary` is retired as a category
-
-The Decision lists five categories including `digest_summary`. The
-implementation has four: `mandatory`, `urgent_operational`,
-`workflow_collaboration`, `recognition`. A daily digest is expressed **only** as
-`cadence = 'daily'`, which is the axis the digest worker already dispatched on.
-
-Why: `digest_summary` duplicated the cadence axis, and the duplication was
-load-bearing in the wrong direction. Its default policy was
-`{in_app: false, email: false}` and `goal.completed` was its only member, so in
-any tenant without an explicit preference row the goal-completed notification
-was dropped at insert and never persisted at all — the category silently
-deleted its own contents. `goal.completed` is now `recognition`, which is what
-it always was.
-
-As of the 2026-08-28 readiness slice, `mandatory` maps only three exact durable
-Identity facts: invitation accepted, member role changed, and member removed.
-The affected user is derived from the schema-validated fact, and the resulting
-notification is Organization-scoped (`property_id = null`) with in-app and
-immediate email required. It is absent from Property settings and preference
-APIs because a disabled switch would incorrectly present Organization policy
-as a Property preference. Persistence rejects mandatory preference rows and
-daily mandatory email. Filters still include the class because it now governs
-real notification history.
-
-This is repository-local activation readiness, not provider activation. The
-existing execution/capability admission still controls outbound delivery; no
-provider, allowlist, route, schedule, or deployment default is opened here.
-
-### Rule 7 keys on mail class, not on category
-
-The unsubscribe guard decides "may this recipient unsubscribe from this
-message". That is a property of the message, not of a notification taxonomy. It
-therefore takes an explicit `MailClass = 'mandatory' | 'optional'`.
-
-Keying it on `NotificationCategory` forced the aggregate digest — which batches
-notifications of several categories into one email — to invent a category for
-its own envelope, which is what `digest_summary` was doing in
-`digest-assembly.ts`. With `MailClass`, a digest passes `'optional'` because an
-aggregate digest is never legally-required mail, and nothing has to be derived.
-
-### Rule 8 is enforced by a parser, not by convention
-
-Copy is rendered at read time from `type` + a `payload` column
-(`domain/notification-templates.ts`), rather than frozen into a string at
-enqueue time. `parseNotificationPayload` is the only way a payload enters the
-domain and it drops every key outside the allowlist, so rule 8 is mechanical
-rather than a reviewer's responsibility. Consequences: fixing a sentence fixes
-every channel and every historical row at once, and `notifications.payload` is
-registered in the protected-field registry.
-
-## Rejected Alternatives
-
-- **Default-on email for all categories** — sends recognition/workflow email without deliberate policy.
-- **Event-ID in coalescing key** — prevents resource-level dedupe; every event creates a new unread item.
+- Default-on optional email sends without deliberate consent.
+- Event-ID uniqueness defeats resource-level coalescing.

@@ -5,7 +5,7 @@
 -- the baseline directly and is the normal deploy authority. Keep this
 -- idempotent empty-database bootstrap byte-compatible with that authority for
 -- constrained recovery environments that cannot run the application runner.
--- See docs/ba-fresh-db-provisioning.md.
+-- See docs/archive/2026-09-lean/ba-fresh-db-provisioning.md.
 --
 -- APPLY ORDER (fresh DB):
 --   1. psql -f scripts/migrations/0000-auth-tables-bootstrap.sql   (this file)

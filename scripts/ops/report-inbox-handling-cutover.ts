@@ -2,8 +2,8 @@
 // classifies every legacy `inbox_items` row against the Handling Cycle tables
 // (exact | mappable | ambiguous | orphan), reconciles head coverage, the
 // compatibility status mirror, and Response Target lineage, and prints ONE
-// canonical JSON envelope for the signed runbook at
-// docs/operations/inbox-handling-cycle-cutover.md.
+// canonical JSON envelope for the Inbox Handling Cycle report in
+// docs/operations/operator-reports.md.
 //
 // It is a read: there is no --apply path, the repository refuses to write, and
 // `mappable` in the output is a finding, never permission to migrate. The

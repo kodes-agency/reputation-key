@@ -18,7 +18,6 @@ The existing capability policy already has organization/property persistence, ro
 3. Public Portal requests resolve the opaque token to minimal organization/property scope before one authoritative `ExecutionPolicy` decision. Public content and stored redirects remain available when optional analytics or response dependencies are denied; external side effects and private submissions fail closed.
 4. `beta-local-1` is the release evidence profile. Required gates are `security-privacy`, `local-scale-recovery`, `source-lifecycle`, `runtime-fault-matrix`, `migration-upgrade`, `product-journeys`, and `release-bundle`. Hosted capacity/PITR, region-fault, live-provider, real-property, and 14-day pilot observations are explicitly post-beta and remain unmeasured until executed.
 5. BQC-8 runs the existing deterministic 100-organization/5,000-property/500,000-review catalogue locally, plus a separate one-organization authorized 5,000-property fleet fixture. BQC-9 is the local product journey matrix across Inbox, Dashboard, Portal, Goals, Leadership, and Settings. The application runs from production-profile Docker images; host Playwright owns only the browser.
-6. Evidence is digest-keyed, content-minimized, immutable, and non-overwritable. Five approvals bind reviewer identity, role, time, release revision, migration heads, image digests, and the manifest digest. Historical BQC evidence retains its original schema and is never rewritten.
 
 ## Consequences
 
@@ -33,7 +32,6 @@ The existing capability policy already has organization/property persistence, ro
 - Clean-install and pre-cutover-upgrade migration runs with quarantine/reconciliation reports.
 - Policy, delayed job, tenant-isolation, metric-eligibility, goal-timezone, guest-withdrawal/media-race, dashboard-query-bound, and accessibility results.
 - Production-profile Docker image identity, health/readiness, dependency-fault, restart/drain, and teardown logs.
-- Exclusive engineering/runtime, product/property, security/privacy, Google-project/integration (sandbox boundary), and operations/on-call approval records.
 
 ## Supersession
 

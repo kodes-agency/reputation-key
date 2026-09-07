@@ -1,12 +1,14 @@
-# ADR 0015: TanStack Start Import Protection — Server-Only Code Leak
+---
+status: accepted
+date: 2026-06-15
+supersedes: 0012
+---
 
-**Status:** Accepted
-**Date:** 2026-06-15
-**Context:** Dev tooling, Vite config, TanStack Start, hydration
+# 0015 — TanStack Start Import Protection: Server-Only Code Leak
 
 ## Context
 
-Symptom: pages render server-side (SSR returns 200) but **no interactive element works** — buttons, inputs, and links are dead. The client never hydrates. This is the same observable failure as [ADR 0012](./0012-nitro-dev-mode-exclusion.md) ("pages load but nothing works"), but with a different root cause.
+Symptom: pages render server-side (SSR returns 200) but **no interactive element works** — buttons, inputs, and links are dead. The client never hydrates. ADR 0012 recorded the same observable failure from a different root cause and is merged below.
 
 ### Root cause
 
@@ -54,6 +56,20 @@ Server-function modules (`src/contexts/*/server/**`) are **deliberately not deni
 
 Additionally, the one helper that mixes a Node builtin with a plain export (`hashIp`) was extracted into `hash-ip.server.ts` so the `*.server.*` convention covers it explicitly, and `request-context.ts` carries the `'@tanstack/react-start/server-only'` marker as a file-level declaration.
 
+## Merged from ADR 0012
+
+During development, Nitro 3 beta creates a custom Vite SSR environment and adds a `dispatchFetch` method to it. TanStack Start's Vite dev server plugin detects this via `"dispatchFetch" in serverEnv` and **skips installing its own middleware** — it assumes the environment already has a fetch handler.
+
+Without TanStack's middleware:
+
+- `/_serverFn/*` routes fall through to Nitro's catch-all → returns HTML 404
+- Client hydration never initializes (no router state injected)
+- Pages render server-side but are non-interactive
+
+Load the `nitro()` Vite plugin **only during production builds** (`mode === 'production'`). During dev mode, omit it entirely.
+
+**Validation:** After any Vite config change, verify that `/_serverFn/` returns JSON (not HTML) in dev mode.
+
 ## Consequences
 
 **Positive:**
@@ -71,5 +87,4 @@ Additionally, the one helper that mixes a Node builtin with a plain export (`has
 
 ## Related
 
-- [ADR 0012 — Nitro Dev-Mode Exclusion](./0012-nitro-dev-mode-exclusion.md) (same symptom, different cause)
 - TanStack Start docs → "Import Protection"

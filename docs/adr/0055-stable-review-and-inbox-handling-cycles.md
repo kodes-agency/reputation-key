@@ -70,6 +70,17 @@ the required Google, retention, reply-publication, or private-feedback behavior.
     on a process-local event or retain provider/private content without their own
     authorized lifecycle.
 
+## Merged from ADR 0003
+
+Introduce a new `review` bounded context for external platform reviews,
+separate from the existing `integration` context.
+
+## Merged from ADR 0004
+
+Introduce a new `inbox` bounded context that provides a unified triage surface
+for reviews and private feedback. It is not a mere read-model — it has
+write-side domain logic.
+
 ## Supersession
 
 This ADR supersedes ADR 0003 decisions 2–9 where they prescribe push-only sync,

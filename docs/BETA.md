@@ -6,7 +6,7 @@ Authority for the closed beta. If this page and a document disagree, this page w
 
 - Organizations and Properties are operator-provisioned; no count is fixed. Self-service is off — `identity.register` and `organization.create` are `beta_disabled`, so growth is an operator action, not a signup.
 - A user holds exactly one active Better Auth Organization membership. A conflicting invitation raises `organization_membership_conflict` and pauses for support rather than creating a second membership (`src/shared/auth/tenant-resolver.ts`).
-- One deployment serves everywhere: Railway `us-west2`, object bucket `sjc`, every supported country routed to it. There is no per-region deployment and no customer-visible region choice.
+- One deployment serves everywhere: Railway `us-west2`, object bucket `sjc`, every supported country routed to it. There is no per-region deployment and no customer-visible region choice. Physical placement, country, and logical routing are distinct facts and are not encoded in one mutable Property field. Country and timezone remain editable business facts and do not move existing data.
 - No contractual uptime SLA, no service credits, no 24/7 support. Support terms — hours, service levels, warranties, disclaimers — are **not agreed yet**; the participation agreement carrying them is a candidate draft marked do-not-accept (`docs/legal/internal-beta-agreement.md:201`). Do not quote support hours as a commitment until it is accepted.
 - No MFA, and the product no longer says otherwise. The security settings page used to ship a "Two-factor authentication … Coming soon" card that did nothing while no TOTP existed anywhere in `src/`; WP1.7 deleted the card rather than implementing the feature.
 
@@ -58,7 +58,7 @@ Written commitments to Google (2026-07-14 response) and to users. Not changeable
 
 - `src/shared/governance/capability-fate.ts` is the single table: 37 capabilities, each with a `fate`, an `authority` (why) and an `activation` (what would change it). It closes with `satisfies Readonly<Record<Capability, CapabilityFateRecord>>`, so a new capability cannot compile without an explicit fate.
 - Counts today: `core` 12, `controlled_beta` 12, `beta_disabled` 6, `safety_blocked` 2, `legacy_blocked` 2, `permanently_denied` 3. Blocked at runtime = 13.
-- The runtime does **not** derive its sets from the table yet: `CORE_CAPABILITIES` and `BLOCKED_CAPABILITIES` are two hand-written sets in `beta-capabilities.ts`, and `capability-fate.test.ts:42-57` proves them equal to the table in both directions for all 37 keys. WP1.6 replaces them with derivation. Decision order in `checkScopedCapability`: blocked → kill switch → org suspended → property suspended → globally enabled → org allowlist → property allowlist. `RESTORE_MODE=isolated` denies everything ahead of any store.
+- The runtime derives `CORE_CAPABILITIES` and `BLOCKED_CAPABILITIES` from the fate table with `listCapabilitiesByFate`; there is no second hand-maintained list. Decision order in `checkScopedCapability`: blocked → kill switch → org suspended → property suspended → globally enabled → org allowlist → property allowlist. `RESTORE_MODE=isolated` denies everything ahead of any store.
 - Fate is not flattened at the gate: `safety_blocked` shows _temporarily unavailable_, every other blocked fate shows _not in beta_ (`capability-refusal-category.ts:15-19`).
 
 ## 5. Enforced architecture rules
@@ -85,7 +85,7 @@ Written commitments to Google (2026-07-14 response) and to users. Not changeable
 
 ## 7. Operating commitments
 
-Internal engineering objectives, never a customer SLA. ADR 0038 is still `status: proposed`, and while the application is stopped and the database is disposable these targets are dormant — they take effect when a production database exists again.
+Internal engineering objectives, never a customer SLA. ADR 0038 is accepted, and while the application is stopped and the database is disposable these targets are dormant — they take effect when a production database exists again.
 
 - **RPO ≤ 15 minutes**, verified by PITR interval plus restore drill. **RTO ≤ 4 hours**, verified by full restore to operational state.
 - Zero data loss from a committed source and zero duplicate externally visible replies, both proven by fault injection.
@@ -112,3 +112,4 @@ External obligations (§2) → this page → ADRs → `docs/standards.md` → co
 ## 10. Change log
 
 - 2026-09: replaces the 42-package program as authority.
+- **2026-08-11:** Initial legal registry created from the final EU beta legal copy pack and the consent/privacy engineering specification.

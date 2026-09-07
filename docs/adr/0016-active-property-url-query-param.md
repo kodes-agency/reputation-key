@@ -1,8 +1,9 @@
-# ADR 0016: Active Property as URL Query-Param Context
+---
+status: accepted
+date: 2026-06-16
+---
 
-**Status:** Accepted
-**Date:** 2026-06-16
-**Context:** Navigation, Property Selection, TanStack Router
+# 0016 — Active Property as URL Query-Param Context
 
 ## Context
 
@@ -49,6 +50,5 @@ Carry the active property as a **URL query parameter (`?propertyId=X`)** on cros
 
 ## Related
 
-- [ADR 0002 — Section-Based Navigation](./0002-section-based-navigation.md)
 - `src/routes/CONTEXT.md` (data-loading + `validateSearch` conventions)
 - `src/components/hooks/use-property-id.ts` (the hook this extends)

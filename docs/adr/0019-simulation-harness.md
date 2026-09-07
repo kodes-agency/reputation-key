@@ -1,10 +1,14 @@
-# ADR 0019: Simulation Harness & Deterministic Backends
+---
+status: accepted
+date: 2026-06-20
+supersedes: 0018
+---
 
-## Status
+# 0019 — Simulation Harness & Deterministic Backends
 
-Accepted. Amended 2026-09-07 (WP3.1): there is no in-process event bus; the
-simulation container delivers recorded outbox facts to the container's durable
-consumers through `drainOutbox()` (real relay + real dispatcher, inline).
+WP3.1 removed the in-process event bus. The simulation container now delivers
+recorded outbox facts to its durable consumers through `drainOutbox()` (the real
+relay and dispatcher, run inline).
 
 ## Context
 
@@ -44,7 +48,7 @@ queue).
 - `email?: typeof sendInvitationEmail` — swap the email sender (defaults to
   Resend). Simulations use `createInMemoryEmailSender`.
 
-### 3. Simulation container factory (`shared/testing/simulation-container.ts`)
+### 3. Simulation container factory (`shared/testing/simulation-container.server.ts`)
 
 `createSimulationContainer({ clock, db, redis, identityPort, email })`
 builds a container with deterministic backends:
@@ -61,6 +65,24 @@ then connects the in-memory queue to the registry for inline processing.
 ### 4. In-memory email sender (`shared/testing/in-memory-email-sender.ts`)
 
 Records emails as `InvitationEmailParams[]` for assertion.
+
+## Merged from ADR 0018
+
+Widen `createContainer` to accept optional overrides for every backend:
+
+```ts
+createContainer(options?: {
+  enableJobs?: boolean
+  db?: Database           // default: getDb()
+  redis?: Redis           // default: getRedis()
+  env?: ReturnType<typeof getEnv>  // default: getEnv()
+  clock?: Clock           // default: () => new Date()  (ADR 0017)
+})
+```
+
+Every override defaults to the existing module-singleton call. When called with
+no options (the prod path via `getContainer()`), behavior is identical to
+before.
 
 ## Consequences
 

@@ -1,55 +1,44 @@
 ---
 status: accepted
+date: 2026-07-15
 ---
 
 # 0032 — Beta capability and cohort controls
 
-A server-side `BetaCapabilities` policy decides whether a user, organization, property, route, command, event consumer, and scheduled job may use a capability. This replaces hidden-navigation gating with an auditable, fail-closed decision point that the UI, API, workers, and schedulers share.
+## Context
+
+Navigation and role checks cannot decide whether a capability belongs in the
+closed beta. Interactive requests, public routes, operator commands, outbox
+consumers, and scheduled jobs need one fail-closed capability decision.
 
 ## Decision
 
-Capabilities are categorized into three sets (aligned with [BQR master plan §4](../archive/product-readiness-program-2026-07/beta-quality-remediation-2026-07/master-plan.md) and BQR-0/BQR-4 code):
+`src/shared/governance/capability-fate.ts` is the authority for every
+capability's product fate, rationale, and activation condition. Runtime policy
+is derived from that table and the environment-backed store in
+`src/shared/auth/beta-capabilities.ts`; a second prose list is not authority.
 
-1. **Core** — on by default for authenticated users (subject to global kill switch / suspension):
-   - `identity.invite`
-   - `property.create`, `property.connect_gbp`, `property.publish_reply`
-   - `review.use`, `inbox.use`, `dashboard.use`, `staff.use`, `integration.use`
-   - `activity.use`, `notification.in_app`, `metric.internal`
-2. **Non-core** — off by default, allowlistable per organization:
-   - `goal.use`
-   - `portal.read` (**not** core — BQR-0 removed portal from core; portal and guest are default-deny, promotable through persisted policy)
-   - `ai.analyze`, `ai.generate_reply`, `ai.detect_trends`
-3. **Blocked** — always off, cannot be allowlisted:
-   - `identity.register`, `organization.create`, `team.use`
-   - legacy `badge.use` and `leaderboard.use`; the future non-competitive
-     Healthy Guest Gateway requires a new capability and activation decision
-   - `property.erase` until LIF-01 supplies recoverable Archive/Disconnect and a distinct, verified support-mediated permanent-erasure workflow
-   - `portal.upload` until the issuance-bound upload implementation and adversarial evidence are complete
-   - `gbp.reply.auto_publish`, `gbp.ai.cross_property_summary`, `gbp.review_solicitation_gamification`
+`BETA_CAPABILITIES_OFF` is the emergency kill switch. An unknown capability,
+blocked fate, suspended Organization or Property, unavailable policy, or
+isolated-restore mode denies before an effect. Delayed work rechecks policy at
+execution rather than relying on enqueue-time permission.
 
-Public registration, self-service secondary Organization creation, Team, and destructive Property deletion are beta-disabled product decisions and cannot be reopened by an environment allowlist. The legacy `property.delete` permission maps to blocked `property.erase`, and its server and use-case boundaries independently refuse before effects. `notification.send_email`, `portal.write`, and the approved Portal/Guest capabilities remain non-core and require persisted policy; `portal.upload` remains temporarily blocked by the public-edge safety gate.
+Organization and Property allowlists are explicit operator inputs. They may
+enable only a `controlled_beta` capability and can never reopen
+`beta_disabled`, `safety_blocked`, `legacy_blocked`, or `permanently_denied`
+work.
 
-The decision function consumes authenticated user, organization, property, environment cohort, and operator overrides. It returns a typed `CapabilityDecision` with a stable reason code.
+## Merged from ADR 0047
 
-Mutations and external side effects fail closed: unknown capability, missing policy, unsupported region, unavailable policy store, or suspended organization all deny.
+The persisted capability-policy tables introduced by ADR 0047 were removed.
+Capability policy now comes from `capability-fate.ts` plus the env-backed store;
+the Organization lifecycle authority owns the closure fence. An allowlist is a
+capability input, never an inferred access grant.
 
-Emergency kill switches (`BETA_CAPABILITIES_OFF` env var) stop new effects immediately while preserving canonical data. Queued jobs re-check capability before side-effect execution so a kill switch affects already-enqueued work.
+## Consequences
 
-**Supersedes** any prior listing of `portal.read` as core and the earlier
-allowlistable posture for public registration, self-service Organization
-creation, Team, Badge, or Leaderboard. The 2026-08-25 comprehensive beta product
-contract is the approving authority for this amendment.
-
-## Implementation
-
-- `src/shared/auth/beta-capabilities.ts` — decision function, capability registry, core/blocked sets
-- `BETA_ALLOWLIST_ORGS` / `BETA_SUSPENDED_ORGS` / `BETA_E2E_GLOBAL_CAPABILITIES` — operator env vars
-- `assertBetaCapability()` / `assertGlobalCapability()` — throw on deny
-- `requireExecutionAllowed()` maps permission → capability (BQR-4.1)
-- Registration route checks `identity.register` before rendering
-
-## Considered options
-
-- **Feature flags only.** Rejected — flags don't enforce at the data/event/worker level.
-- **Role-based gating.** Rejected — roles describe who, not what's enabled in the beta cohort.
-- **Per-tenant database table.** Deferred — env vars suffice for internal beta; a table is warranted at external beta scale.
+- UI affordances may explain a refusal but cannot bypass it.
+- Core, controlled-beta, and blocked membership is changed in the fate table,
+  not copied into this ADR.
+- Capability and authorization remain separate decisions: enabled work still
+  requires the correct principal and tenant scope.

@@ -51,7 +51,7 @@ them lazily when terms or decisions actually get resolved.
 ├── CONTEXT.md                         ← the map: architecture, layer guides, glossary
 ├── docs/adr/                          ← system-wide decisions
 │   ├── README.md                      ← navigation authority + dispositions
-│   ├── 0001-dynamic-access-control.md
+│   ├── 0007-dashboard-read-only-aggregation.md
 │   └── …additional numbered decision records
 └── src/
     ├── components/CONTEXT.md

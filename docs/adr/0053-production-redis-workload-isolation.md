@@ -3,100 +3,49 @@ status: accepted
 date: 2026-08-26
 ---
 
-# 0053 — Production Redis workload isolation
+# 0053 — Production Redis workload posture
 
 ## Context
 
-RepKey used one Redis endpoint for cache/rate-limit state and BullMQ. Those
-workloads have incompatible operational contracts. BullMQ requires
-`maxmemory-policy=noeviction`, durable delivery is recovered from PostgreSQL's
-outbox, and worker blocking connections must tolerate transient disconnects.
-HTTP producers must instead fail within a bounded request budget. Cache and
-rate-limit state have independent capacity, failure, and recovery concerns.
-
-A logical database number, a different credential, or separate client objects on
-one Redis server do not isolate memory pressure, eviction policy, maintenance, or
-failure. They also make a regional queue outage indistinguishable from a cache
-outage. Every Railway Data Cell therefore needs a topology that can be declared
-and upgraded consistently without hand-wiring services.
+BullMQ, cache, and rate-limit state may share one managed Redis during the
+single-tenant closed beta, but they have different failure semantics. BullMQ
+requires `maxmemory-policy=noeviction`; cache and rate-limit keys must be
+bounded by TTL; HTTP producers cannot wait indefinitely for Redis.
 
 ## Decision
 
-1. Every production Data Cell has two physically distinct managed resources:
-   `Cache Redis` and `Queue Redis`. `REDIS_URL` names cache/rate-limit state;
-   `QUEUE_REDIS_URL` names BullMQ state. Web and worker receive references to
-   both resources in their own cell and never fall back to another cell.
-2. Production web and worker refuse boot when either URL is absent, malformed,
-   or resolves to the same host and port. Database numbers and credentials do
-   not count as physical isolation. Development and tests may omit
-   `QUEUE_REDIS_URL` and use `REDIS_URL` for both to keep lightweight workflows
-   available.
-3. Before constructing any BullMQ client, both production processes inspect the
-   queue runtime. Redis 6.2 or newer, `GETDEL`, and
-   `maxmemory-policy=noeviction` are mandatory. Ambiguous or denied inspection
-   fails closed with a content- and credential-free reason code.
-4. Queue producers use a bounded connect/command budget and one retry. Worker
-   blocking connections use BullMQ's required `maxRetriesPerRequest=null` and
-   are bounded by the process's explicit shutdown policy.
-5. Readiness requires both Redis resources. The public response retains the
-   existing aggregate `redis` field for compatibility; internal probes test the
-   resources independently. Liveness remains dependency-free.
-6. Neither Redis resource is the recovery authority. PostgreSQL and its outbox
-   hold durable application facts. Recovery provisions fresh cache and queue
-   resources, restores PostgreSQL under the Data Cell procedure, then lets the
-   relay rebuild queue work. Local AOF is restart-test evidence, not backup
-   authority.
-7. The typed Railway graph owns both resources, regional placement, and service
-   references. Applying that graph remains a separately reviewed operator
-   action; repository validation never mutates Railway.
-8. Better Auth's native endpoint limiter uses an atomic custom storage on
-   `REDIS_URL`; it never uses process memory when cache Redis is configured.
-   The stored bucket key is an audience-separated HMAC of Better Auth's client
-   and route key, and the record expires with the active window. Redis command
-   failure propagates through Better Auth and fails the auth request closed.
-   This custom storage is rate-limit-only: Better Auth `secondaryStorage` is
-   not configured, so sessions and verification records remain in Postgres.
+1. One production Redis may serve BullMQ, cache, and rate-limit state.
+   `REDIS_URL` and `QUEUE_REDIS_URL` may name the same managed resource; there
+   is no same-host boot refusal.
+2. Before constructing BullMQ, production verifies Redis 6.2 or newer,
+   `GETDEL`, and `maxmemory-policy=noeviction`. Missing or ambiguous runtime
+   facts fail closed with a content- and credential-free reason.
+3. Every cache and rate-limit key has a bounded TTL. Producers use a bounded
+   connect/command budget and one retry; worker blocking connections use
+   BullMQ's required `maxRetriesPerRequest=null` and bounded process shutdown.
+4. PostgreSQL and its transactional outbox are the recovery authority. Redis
+   contains disposable delivery and acceleration state; no AOF or Redis backup
+   is required for accepted application facts.
+5. Better Auth's shared limiter uses atomic Redis storage and keeps sessions
+   and verification records in PostgreSQL. Redis failure propagates and fails a
+   production auth request closed.
+6. Add a second managed Redis only after measured traffic or an actual cache
+   outage shows that shared-resource blast radius is worth the operational
+   cost.
 
 ## Consequences
 
-- A cache outage and a queue outage are separately observable and can be
-  rehearsed independently.
-- Each production cell incurs one additional managed Redis resource in exchange
-  for genuine failure and policy isolation.
-- Web readiness degrades when either resource is unavailable, while the durable
-  outbox prevents accepted database facts from being lost during a queue outage.
-- Provider-ephemeral Redis remains a third, stricter trust boundary and must be
-  distinct from both general application resources.
-- Web replica count no longer multiplies Better Auth's native login/recovery
-  allowance. Rotating `BETTER_AUTH_SECRET` intentionally abandons the prior
-  short-lived HMAC bucket namespace along with revoking existing sessions.
-- ADR 0050's phrase “general BullMQ/quota Redis” is historical shorthand. Quota
-  and BullMQ state are no longer permitted to share one production endpoint.
+- A Redis outage delays queued effects while accepted outbox facts remain
+  recoverable.
+- `noeviction`, TTLs, producer deadlines, and queue age are monitored on the
+  shared resource.
+- Recovery provisions clean Redis state, restores PostgreSQL when necessary,
+  and lets the outbox relay rebuild work.
 
 ## Rejected alternatives
 
-- **Separate Redis database numbers** — they share process failure, memory, and
-  eviction configuration.
-- **One resource with separate ACL users** — credentials isolate commands, not
-  resource pressure or maintenance.
-- **Queue fallback to Cache Redis in production** — it silently defeats the
-  decision during the exact failure where isolation is needed.
-- **Make every environment run two daemons** — hermetic tests and local
-  development use the supported non-production fallback. The staging-cell
-  workflow carries the production-shaped topology rehearsal.
-
-## Required evidence
-
-- The active `cell-us` beta graph contains `Cache Redis` and `Queue Redis` in
-  US West and wires exact, distinct references into web and worker. Any future
-  cell must independently pass the same evidence before activation.
-- Production topology and runtime guards reject absent, shared, unsupported, or
-  eviction-enabled queue configurations before client construction.
-- Real-Redis integration proves runtime inspection and bounded queue health.
-- Real-Redis integration issues concurrent consumes through independent client
-  connections and proves that Better Auth admits only the shared maximum.
-- **Withdrawn 2026-09:** the former production-shaped local-stack item was
-  discharged only by a `faults` subcommand that no package script or workflow
-  invoked. The CI E2E stack now proves product behavior on the containerised
-  production build with `NODE_ENV=test`; production Redis isolation remains
-  covered by the runtime guards and staging-cell evidence above.
+- **Mandatory cache/queue separation from day one** — duplicates a managed
+  service and its incident surface before one beta tenant has measured the need.
+- **Eviction-capable BullMQ storage** — can silently lose queue metadata.
+- **Process-memory rate limiting in production** — replica-local allowance is
+  neither shared nor fail-closed.
