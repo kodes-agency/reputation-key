@@ -248,10 +248,10 @@ function ciBuildViolations(
   steps: readonly WorkflowStep[],
 ): readonly string[] {
   const build = steps.find(({ name }) => name === 'Build grouped images')
+  // The action must be SHA-pinned (check:action-pins owns which SHA); pinning
+  // one digest here made every Dependabot bump of buildx fail this policy.
   const buildsFromMatrix =
-    workflow.includes(
-      'uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c',
-    ) &&
+    /uses: docker\/setup-buildx-action@[0-9a-f]{40}\b/.test(workflow) &&
     build?.content.includes('docker buildx build') === true &&
     build.content.includes('--load') &&
     build.content.includes('--cache-from "type=gha,scope=ci-image-${name}"') &&
