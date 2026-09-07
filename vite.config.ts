@@ -80,6 +80,12 @@ const config = defineConfig(({ mode }) => {
                     includeDependenciesRecursively: false,
                   },
                   {
+                    name: 'vendor-sentry',
+                    test: /node_modules[\\/]@sentry[\\/]/,
+                    priority: 35,
+                    includeDependenciesRecursively: false,
+                  },
+                  {
                     // `includeDependenciesRecursively` MUST stay false: with it
                     // on, recharts' transitive deps (clsx,
                     // use-sync-external-store, redux, es-toolkit) join this
@@ -97,8 +103,17 @@ const config = defineConfig(({ mode }) => {
                     includeDependenciesRecursively: false,
                   },
                   {
-                    name: 'app-shared',
-                    test: /[\\/]src[\\/](?:components|contexts)[\\/]/,
+                    name: 'app-server-fns',
+                    test: /[\\/]src[\\/]contexts[\\/][^\\/]+[\\/]server[\\/]/,
+                    priority: 10,
+                    minShareCount: 2,
+                    entriesAwareMergeThreshold: 4 * 1024,
+                    entriesAware: true,
+                    includeDependenciesRecursively: false,
+                  },
+                  {
+                    name: 'app-components',
+                    test: /[\\/]src[\\/]components[\\/]/,
                     priority: 10,
                     minShareCount: 2,
                     entriesAwareMergeThreshold: 4 * 1024,
