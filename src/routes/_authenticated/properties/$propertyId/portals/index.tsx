@@ -13,12 +13,13 @@ import {
   updatePortalGroup,
 } from '#/contexts/portal/server/portal-groups'
 import { PortalListPage } from '#/components/features/portal/portal-list-page'
+import {
+  PortalListError,
+  PortalListLoading,
+} from '#/components/features/portal/portal-route-fallbacks'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
-import { PageShell } from '#/components/layout/page-shell'
-import { PageHeader } from '#/components/layout/page-header'
-import { ErrorState, LoadingState } from '#/components/layout/page-states'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { portalGroupCachePolicy } from '#/components/features/portal/portal-group-cache-policy'
 
@@ -59,23 +60,6 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/por
   errorComponent: PortalListError,
   component: PortalListRoute,
 })
-
-function PortalListLoading() {
-  return (
-    <PageShell>
-      <LoadingState label="Loading portals and portal groups" />
-    </PageShell>
-  )
-}
-
-function PortalListError({ error }: { error: Error }) {
-  return (
-    <PageShell>
-      <PageHeader title="Portals" description="Manage this property’s public pages." />
-      <ErrorState message={error.message || 'Portals could not be loaded.'} />
-    </PageShell>
-  )
-}
 
 function PortalListRoute() {
   const { propertyId } = Route.useParams()

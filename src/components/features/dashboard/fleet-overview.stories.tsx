@@ -18,9 +18,11 @@ import {
 import {
   FleetOverview,
   FleetOverviewEmpty,
+} from './fleet-overview'
+import {
   FleetOverviewError,
   FleetOverviewLoading,
-} from './fleet-overview'
+} from './fleet-overview-fallbacks'
 import { entries, populatedData } from './fleet-overview.stories.fixtures'
 import { can } from '#/shared/domain/permissions'
 import type { Role } from '#/shared/domain/roles'

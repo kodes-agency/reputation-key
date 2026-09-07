@@ -8,9 +8,12 @@ import {
   PORTAL_DETAIL_TABS,
   type PortalDetailTab,
 } from '#/components/features/portal/portal-detail/portal-detail-rules'
+import {
+  PortalDetailError,
+  PortalDetailLoading,
+} from '#/components/features/portal/portal-route-fallbacks'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import { ErrorState, LoadingState } from '#/components/layout/page-states'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Button } from '#/components/ui/button'
 import { AlertCircle } from 'lucide-react'
@@ -118,23 +121,6 @@ function PortalNoLongerAvailable() {
           </Link>
         </Button>
       </EmptyState>
-    </PageShell>
-  )
-}
-
-function PortalDetailLoading() {
-  return (
-    <PageShell>
-      <LoadingState label="Loading portal details" />
-    </PageShell>
-  )
-}
-
-function PortalDetailError({ error }: { error: Error }) {
-  return (
-    <PageShell>
-      <PageHeader title="Portal" description="Manage this property’s public page." />
-      <ErrorState message={error.message || 'This portal could not be loaded.'} />
     </PageShell>
   )
 }

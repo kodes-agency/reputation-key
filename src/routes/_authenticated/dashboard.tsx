@@ -24,9 +24,11 @@ import type { AuthRouteContext } from '#/routes/_authenticated'
 import {
   FleetOverview,
   FleetOverviewEmpty,
+} from '#/components/features/dashboard/fleet-overview'
+import {
   FleetOverviewError,
   FleetOverviewLoading,
-} from '#/components/features/dashboard/fleet-overview'
+} from '#/components/features/dashboard/fleet-overview-fallbacks'
 import {
   SetupChecklistLanding,
   SetupChecklistPanel,
