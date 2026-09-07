@@ -1,196 +1,79 @@
 # Routes — Context
 
-**Audience:** AI agents and developers working in `src/routes/`.
+**Audience:** Developers and agents working in `src/routes/`.
 
-## Structure
+## Responsibility
 
-TanStack Router file-based routing. Layout routes use underscore prefix.
+TanStack Router file routes own navigation, loader orchestration, search parsing,
+route-level availability affordances, and HTTP entry adapters. They do not own
+business rules or persistence.
 
-```
-routes/
-  __root.tsx                          root layout (providers, global styles)
-  _authenticated.tsx                  auth guard + app shell (sidebar, top bar)
-  _authenticated/
-    dashboard.tsx
-    inbox/
-      index.tsx                       unified inbox (reviews + feedback)
-    settings.tsx                      settings layout
-    settings/index.tsx, profile.tsx, preferences.tsx, organization.tsx, security.tsx
-    properties/
-      index.tsx                       property list
-      import/                         GBP property import
-        index.tsx, $importId.tsx
-      new.tsx                         create property
-      $propertyId.tsx                 property layout (loads property data)
-      $propertyId/
-        index.tsx                     property detail
-        metrics.tsx
-        reviews.tsx
-        people.tsx
-        goals/
-          index.tsx, new.tsx, $goalId.tsx
-        portals/
-          index.tsx, new.tsx, $portalId.tsx
-    progress.tsx
-  login.tsx                           unauthenticated
-  reset-password.tsx                  password reset
-  join.tsx                            member invitation acceptance
-  accept-invitation.tsx               invitation flow
-  p/$propertySlug/$portalSlug.tsx     guest portal (public, no auth)
-  api/
-    auth/google/callback.ts           Google OAuth callback
-    health/index.ts                   health check
-    notifications/unsubscribe.ts     RFC 8058 signed one-click opt-out
-    portals/$id/qr.ts                 QR code generation
-    public/click/$linkId.ts           public link click tracking
-    webhooks/gbp/notifications.ts     Google Pub/Sub webhook
-```
+- `__root.tsx` supplies the root layout and providers.
+- `_authenticated.tsx` resolves session, Organization, role, and the app shell.
+- `_authenticated/` contains manager dashboard, inbox, Property, import, settings,
+  notification, and progress routes.
+- `p/$token.tsx` is the public rating-first Portal route.
+- `api/` contains auth, health, notification unsubscribe, public click, and
+  authenticated provider-webhook edges.
 
-## Authenticated layout (`_authenticated.tsx`)
+## Authenticated layout
 
-This is the app shell. It:
+`_authenticated.tsx` calls the server `getSession()` in `beforeLoad`; a browser
+`authClient` call cannot forward SSR cookies. Missing sessions redirect to login.
+Missing Organization access or role resolves to the appropriate unavailable state.
+Never synthesize a fallback role or run tenant loaders before both bindings exist.
 
-1. **`beforeLoad`** — calls `getSession()` (server function, not `authClient` — SSR can't forward cookies otherwise). Redirects to `/login` if no session. Resolves role and active organization. Returns `AuthRouteContext` with `{ user, role, activeOrganization }`.
+Route `beforeLoad` checks improve navigation and availability copy; they are not
+the mutation authority. Server functions and owning contexts re-resolve current
+tenant, permission, capability, and Property scope for every protected operation.
 
-   A signed-in account without an active Organization redirects to the
-   `workspace_access` unavailable state before the authenticated loader runs.
-   An Organization binding without a resolved role redirects to the `Workspace`
-   unavailable state. Never synthesize a fallback role: tenant-scoped loaders
-   must not run until both bindings are present.
+## Data loading
 
-2. **`loader`** — loads organizations and properties in parallel (`Promise.allSettled`). Sets `staleTime: 5 * 60 * 1000` (5 min — structural data rarely changes).
+SSR-critical loaders call `context.queryClient.ensureQueryData(options)`. Components
+read the same `queryOptions` with `useSuspenseQuery`, so hydration reuses the primed
+cache. Parent Property queries live in `-queries/route-queries.ts`; derived values
+needed by `head()` may also be returned by the loader.
 
-3. **Component** — renders `SidebarProvider` with `SettingsSidebar` for `/settings` routes, `ManagerSidebar` for PropertyManager+ non-inbox routes, and no sidebar for inbox or lower-privilege roles.
+Interactive or action-triggered reads may use `useQuery`; cursor lists use
+`useInfiniteQuery`. Query keys come from `src/shared/queries/query-keys.ts`.
+Invalidate the narrow parent key whose descendants changed—never the whole router.
 
-## Data loading pattern
+## Server-function bundles and mutations
 
-### Route loaders — the single source of truth
+Routes are the sanctioned delivery layer for importing context server functions.
+When several contexts power one component, expose a lazy getter bundle from a
+route-local `-*-fns.ts` module and pass it as a prop. The getters preserve the
+server-function wrappers without eagerly touching unrelated runtime modules.
 
-```tsx
-export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
-  loader: async ({ params: { propertyId } }) => {
-    const { property } = await getProperty({ data: { propertyId } })
-    return { property }
-  },
-  component: PropertyPage,
-})
-```
+Create mutations with `useActionMutation`, provide targeted `invalidateKeys`, and
+pass the resulting `Action` to forms/components. Silent fire-and-forget work uses
+`useAction`. Components may use type-only server imports to spell bundle/action
+props; runtime imports follow the component exception policy.
 
-- **Route `loader` primes the shared TanStack Query cache** via `context.queryClient.ensureQueryData(opts)` (runs on SSR) and still returns the data for `head()`/cutover safety.
-- **Components read via `useSuspenseQuery(opts)`** — the SAME `queryOptions` the loader used, so it resolves from the primed cache with zero extra fetch. Route data no longer flows through `Route.useLoaderData()` (only loader-computed derived values like `allowedRoles` still do).
+## Boundaries
 
-### Reading parent layout data
+Routes may import context `server/` functions, components, route-local helpers, and
+shared browser/server-safe contracts. They must not import context infrastructure,
+repositories, business-rule modules, database runtime, worker containers, or
+ambient configuration. API routes resolve only the narrow runtime operation they
+serve.
 
-Parent layout data (properties and property detail) lives in the shared Query cache via cross-cutting query options in `src/routes/-queries/route-queries.ts` (`propertiesQuery`, `propertyQuery(propertyId)`). The beta shell intentionally does not query or expose an Organization switcher. Parent loaders `ensureQueryData` these property queries (SSR prime); every consumer reads the same options — no `getRouteApi().useLoaderData()`:
+Route import, database, deployable-container, and runtime-config boundaries are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-controls.mjs`.
 
-```tsx
-import { propertyQuery } from '#/routes/-queries/route-queries'
-const { data } = useSuspenseQuery(propertyQuery(propertyId))
-const property = data.property
-```
+## Public and webhook edges
 
-### StaleTime strategy
+Login, join, invitation acceptance, password reset, the token Portal, and signed
+notification unsubscribe are outside the authenticated layout. Each public edge
+owns its exact bearer/origin/session and cache/referrer policy.
 
-| Data type         | staleTime            | Why                             |
-| ----------------- | -------------------- | ------------------------------- |
-| Properties        | 5 min (layout level) | Structural data, rarely changes |
-| Property detail   | 60s                  | Moderate freshness needed       |
-| Active sub-routes | 30s                  | Most dynamic                    |
+Webhook routes verify signatures or tokens, parse bounded identifiers, resolve one
+narrow container operation, and return protocol-appropriate responses. They may
+use shared authentication helpers and the application container, but must not
+construct repositories, context use cases, or Queue instances.
 
-### TanStack Query (client server-state cache)
+## Verification
 
-TanStack Query is wired app-wide (`QueryClient` in `router.tsx` via `setupRouterSsrQueryIntegration`, exposed through the router context + auto-`<QueryClientProvider>`). It owns fetch/cache/dedupe/refetch/invalidation so components don't hand-roll `useState`+`useEffect` fetch lifecycles.
-
-| Data class                                                | Pattern                                                                                                                                        |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Route data** (SSR-critical)                             | `loader: ({ context }) => context.queryClient.ensureQueryData(opts)` + component reads `useSuspenseQuery(opts)` (suspends; streams during SSR) |
-| **Interactive / component data** (fetched on user action) | `useQuery({ queryKey, queryFn })` directly in the component                                                                                    |
-
-- **Query keys** live in `src/shared/queries/query-keys.ts` as hierarchical factories (parent keys are prefixes of children), so `invalidateQueries(parentKey)` refreshes all descendants — **targeted**, never `router.invalidate()`.
-- **Mutations** use `useActionMutation` (`src/components/hooks/use-action-mutation.ts`) with `invalidateKeys: QueryKey[]` for targeted invalidation. Never the whole-app `router.invalidate()` sledgehammer.
-- **SSR:** `useSuspenseQuery` runs on the server and streams; `useQuery` runs client-side only.
-- **Reference implementations:** inbox detail (`src/components/inbox/use-inbox-detail.ts` — `useQuery`) + inbox list (`src/components/inbox/use-inbox-state.ts` — `useInfiniteQuery` for cursor pagination, debounced filter key, `setQueryData` for optimistic updates). Other features migrate opportunistically.
-
-> Replaces the old "never `useQuery`" rule. Manual `useState`+`useEffect` fetching and whole-app `router.invalidate()` are anti-patterns — use Query's cache + targeted invalidation.
-
-## Mutation pattern
-
-### `useActionMutation` — the Query-native hook
-
-```tsx
-const deleteAction = useActionMutation(deleteProperty, {
-  successMessage: 'Property deleted',
-  invalidateKeys: [propertyKeys.list()],
-})
-```
-
-Wraps `useMutation` and returns the SAME `Action<TInput, TOutput>` shape form components already consume (callable + `isPending`/`error`/`data`). Invalidation is **targeted Query keys** (`invalidateKeys`), never `router.invalidate()`. The callable is `mutateAsync`, so `await action({ data })` and `.then()` chains work.
-
-Options (`src/components/hooks/use-action-mutation.ts`):
-
-- `successMessage` — auto-toasts on success (omit for a silent mutation, the old `useMutationActionSilent`)
-- `invalidateKeys` — Query keys to invalidate on success (targeted; never `router.invalidate()`)
-- `onSuccess(output, input)` — runs after invalidation + toast
-- `navigateTo` — `{ to, params?: (output) => Record<string, string> }` navigate after success
-
-### For forms — pass action as prop
-
-The `useActionMutation` instance is defined in the **route file** and passed to the form component as a prop. Components never import server functions directly.
-
-```tsx
-// route file
-const createAction = useActionMutation(createPortal, {
-  successMessage: 'Portal created',
-  invalidateKeys: [portalKeys.all],
-})
-
-return <CreatePortalForm action={createAction} propertyId={propertyId} />
-```
-
-## Route guards (authorization)
-
-Use `can()` from `shared/domain/permissions` in `beforeLoad`:
-
-```tsx
-beforeLoad: ({ context }) => {
-  const role = (context as AuthRouteContext).role
-  if (!can(role, 'property.create')) {
-    throw redirect({ to: '/properties' })
-  }
-}
-```
-
-## Dependency rules
-
-Routes may import from:
-
-- `contexts/<ctx>/server/` (server functions only — never domain, application, infrastructure)
-- `components/`
-- `shared/`
-
-Routes must **never**:
-
-- Import values from `domain/`, `application/`, `infrastructure/` — `type`-only imports from `application/dto/` are allowed for loader return types
-- Access the database directly
-- Contain business logic
-
-## Public routes
-
-Login (`/login`), join (`/join`), accept-invitation — these are outside `_authenticated` and have no auth guard. Guest portal routes resolve org from URL slug, not from session. `/api/notifications/unsubscribe` is also unauthenticated by design: the HMAC bearer capability in a delivered optional email resolves only its retained queue row or immutable digest batch, and the exact RFC 8058 form POST can only disable those represented optional email scopes.
-
-### Webhook route exception
-
-Webhook routes (`routes/api/webhooks/`) are exempt from the standard API route rules. Allowed:
-
-- `getDb()` + Drizzle schema table imports + `drizzle-orm` helpers for resource resolution
-- `getContainer()` for queue access (to enqueue background jobs)
-- `shared/auth/` imports for token/JWT verification
-- Direct `Response` construction (no server fn wrapping needed)
-
-NOT allowed:
-
-- Importing context use cases, infrastructure, repositories, or domain logic directly;
-  route callbacks resolve only the narrow runtime operation exposed by `getContainer()`
-- Creating new Queue instances (use container's singleton)
-
-**Pattern:** Verify the request signature/token, extract the relevant identifiers from the payload, look up the local resource, enqueue a job for processing, return 200 OK immediately.
+Colocated route tests cover auth redirects, search normalization, server-function
+bundle laziness, unavailable states, public failures, webhook authentication, and
+HTTP contracts. Browser behavior that depends on SSR/hydration is verified against
+the running app rather than inferred from loader code.

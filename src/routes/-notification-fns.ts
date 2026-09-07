@@ -1,5 +1,5 @@
 // Constructs the NotificationServerFns bundle from raw server fn references.
-// Routes are the sanctioned site for importing server fns (CONTEXT.md:55);
+// Routes are the sanctioned import site; see src/routes/CONTEXT.md "Server-function bundles and mutations".
 // components receive this bundle as a prop and never value-import server/.
 //
 // WHY GETTERS AND NOT AN OBJECT LITERAL. See `_authenticated/-inbox-fns.ts` for

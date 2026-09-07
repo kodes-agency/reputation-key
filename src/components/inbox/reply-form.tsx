@@ -1,4 +1,4 @@
-// Server import exception per CONTEXT.md:48 — 7 mutations (draft/submit/
+// Server import exception per src/components/CONTEXT.md "Server-function boundary" — 7 mutations (draft/submit/
 // approve/reject/delete/retryPublish/editPublishedReply), above the ≥5
 // threshold. Value-imports from #/contexts/review/server/reply are deliberate
 // to avoid prop drilling.

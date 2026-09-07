@@ -1,130 +1,77 @@
 # Components — Context
 
-**Audience:** AI agents and developers working in `src/components/`.
+**Audience:** Developers and agents working in `src/components/`.
 
-## Folder structure
+## Responsibility
 
-```
-components/
-  ui/              shadcn primitives (alert-dialog, button, card, dialog, input, select, etc.)
-  forms/           shared form building blocks (submit-button, form-text-field, form-textarea, form-error-banner)
-  layout/          app shell pieces (header, footer, manager-sidebar, settings-sidebar, app-top-bar, auth-layout, theme-toggle)
-  hooks/           shared React hooks used across features
-  features/
-    guest/         public-portal/
-    identity/      login/, registration/, reset-password/, member-directory/, shared/
-    organization/  (flat — too few files for sub-folders)
-    portal/        link-tree/, portal-analytics/, portal-detail/, portal-form/, portal-preview/, portal-settings/, portal-share/
-    property/      property-detail/, property-form/
-    staff/         (flat)
-    integration/   (flat — Google connection management)
-    settings/      (flat — preferences, profile, security, organization)
-```
+Components own reusable UI primitives, forms, layouts, hooks, and feature-facing
+presentation. Business state and effects remain in bounded contexts; route loaders
+and actions supply server state.
 
-**Also adjacent:** `src/hooks/` (lower-level utility hooks: `use-as-ref`, `use-isomorphic-layout-effect`, `use-lazy-ref`) and `src/lib/` (shared utilities: `utils.ts`, `compose-refs`, `lookups`). These are not component-specific.
+- `ui/` contains vendored shadcn primitives.
+- `forms/` contains shared TanStack Form fields, submission, and error UI.
+- `layout/` contains app-shell and navigation pieces.
+- `hooks/` contains cross-feature React behavior and action wrappers.
+- `inbox/` and `goals/` contain large cohesive manager experiences.
+- `features/<feature>/` contains feature presentation grouped by user concept;
+  `shared/` inside one feature is not a cross-feature dumping ground.
 
-## Rules
+Use named exports. Export page-level feature components from the feature barrel;
+keep concept-specific children internal.
 
-1. **Kebab-case filenames** — all `.tsx` and `.ts` files. Co-located unit tests (`*.test.ts`) and stories (`*.stories.tsx`) are allowed. Enforced by `scripts/check-filenames.mjs` on `pnpm lint`.
-2. **Named exports only** — no default exports.
-3. **Barrel re-exports** — each feature has `index.ts` exporting only page-level components. Sub-components stay internal. ESLint `no-restricted-imports` blocks deep imports into feature internals.
-4. **Max 300 lines per file** (blank lines and comments not counted, enforced by `max-lines` in `eslint.config.js`) — if a component exceeds this it is genuinely doing too much; extract sub-components into the same concept folder. Do not split a page to satisfy the number: a sub-component with one caller and no independent meaning is fragmentation, not structure. **Exempt:** `ui/` (vendored shadcn code).
-5. **Props typing** — `type Props = Readonly<{ ... }>` for all components. **Exempt:** `ui/` (shadcn components use library defaults).
-6. **One concept per folder** — each sub-folder is a single user-facing concept (list, detail, form, widget).
-7. **Feature `shared/`** — components used across multiple concept folders within that feature. Not for cross-feature sharing (those go in `forms/` or `ui/`).
-8. **shadcn surface kept whole (BQC-5.8)** — `ui/` primitives are vendored shadcn/ui. Their full export surface is retained for upgrade fidelity, so fallow's `unused-exports`/`unused-types` rules are disabled for `src/components/ui/**` via one `overrides` entry in `.fallowrc.json` (no per-file suppression comments). New vendored primitives fall under the same policy automatically.
+Filename, feature-barrel, dependency, and 300-counted-line limits are enforced by `scripts/check-filenames.mjs` and `eslint.config.js`.
 
-## Dependency rules
+## Server-function boundary
 
-Components may import from:
+Routes are the normal runtime import site for context server functions. A route
+creates an `Action` with `useActionMutation` or `useAction`, then passes it to the
+component. Type-only server imports are allowed to spell those props.
 
-- Other `components/` directories
-- `shared/` (hooks, utilities, domain types for display)
-- `contexts/<ctx>/application/public-api.ts` (the context's supported cross-boundary contracts and framework-free behavior)
-- `contexts/<ctx>/application/dto/` (to derive form schemas only)
+A component with five or more closely related mutations may value-import its
+server functions when prop drilling would obscure one cohesive workflow. Document
+the exception in the component and add it to the checker allowlist; do not widen
+the exception to its whole feature without the same mutation density.
 
-Components must **never** import from:
+Component/server value-import rules and their allowlist are enforced by `scripts/check-component-boundaries.mjs`; database and context-layer boundaries are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-controls.mjs`.
 
-- `domain/`, non-public `application/` modules (except DTO schemas for forms), or `infrastructure/`
-- Direct DB access or Drizzle
+## Forms
 
-**Exception:** Components with 5+ server function mutations (e.g., `link-tree.tsx`) may import from `server/` to avoid excessive prop drilling. This is a deliberate trade-off — document it with a comment when used.
+Use TanStack Form, Zod v4 DTO schemas, and shadcn fields. The owning context's
+`application/dto/` schema is the source; derive a form shape with `.required()`,
+`.extend()`, or `.omit()` rather than copying validation.
 
-## Form patterns
+Validate on submit unless the interaction has a specific live-validation need.
+Drive pending/error/result UI from the sanctioned `Action`; do not call a server
+function directly or hand-roll submission state. Shared building blocks include
+`SubmitButton`, `FormErrorBanner`, `FormTextField`, and `FormTextarea`.
 
-All forms use **TanStack Form + Zod v4 + shadcn/ui**. No React Hook Form, Formik, or plain `useState` forms.
+## Queries and actions
 
-1. **Schema source** — Zod schemas live in `contexts/<ctx>/application/dto/`. Forms derive their schema using `.required()`, `.extend()`, `.omit()`, or use the DTO directly. Never duplicate validation rules.
-2. **Submission** — every form goes through a sanctioned action hook. The route defines the mutation with `useActionMutation` (`components/hooks/use-action-mutation.ts`) and passes the resulting `Action` to the form component as a prop; fire-and-forget (non-form) actions use `useAction` (`components/hooks/use-action.ts`). Never call a server function directly from a component without that wrapping.
-3. **Validation trigger** — `validators.onSubmit` (not `onChange`). TanStack Form v1 handles Zod schemas natively — pass the schema directly, no adapter needed.
-4. **State** — `useServerFn` state (`isPending`, `error`, `status`) drives submit button and error display. Never manage `isSubmitting` manually.
+SSR-critical route data is primed by the route and read with the same
+`useSuspenseQuery` options. Interactive reads use `useQuery`; cursor lists use
+`useInfiniteQuery`. Use key factories from `src/shared/queries/query-keys.ts` and
+invalidate the narrow parent key rather than the router.
 
-### Form building blocks (`components/forms/`)
+`use-action-mutation` wraps `useMutation` with the shared `Action` shape, success
+toasts, and targeted invalidation. `use-action` covers non-form fire-and-forget
+work. `use-hydrated` provides an SSR-safe client signal;
+`use-page-visible-and-focused` pauses sensitive polling; `use-property-id` reads
+Property route scope; `use-theme-mode` owns persisted theme state.
 
-- `SubmitButton` — wraps shadcn `Button`, shows spinner when pending
-- `FormErrorBanner` — displays top-level action errors (translates tagged errors)
-- `FormTextField` / `FormTextarea` — standard field wrappers wired with TanStack Form
+## Presentation
 
-## Shared hooks (`components/hooks/`)
+Use `src/components/ui/chart.tsx` for Recharts composition. Define a `ChartConfig`,
+wrap the chart in `ChartContainer`, and use generated `--color-*` variables. Choose
+bar, area, or pie geometry from the data relationship, not decoration.
 
-| Hook                           | Purpose                                                                                                                                                                                                |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `use-action`                   | Wraps `useServerFn` for fire-and-forget actions (non-form mutations)                                                                                                                                   |
-| `use-action-mutation`          | Query-native mutation hook (`useMutation` + `Action` shape). Toasts on success + targeted Query-key invalidation (`invalidateKeys`). Replaces the old `useMutationAction` / `useMutationActionSilent`. |
-| `use-hydrated`                 | SSR-safe hydration signal implemented with `useSyncExternalStore`; use when a client-only query must remain disabled during SSR.                                                                       |
-| `use-page-visible-and-focused` | Shared browser visibility/focus external store for pausing sensitive provider polling while a page is hidden or unfocused.                                                                             |
-| `use-property-id`              | Extracts `propertyId` from route params. Use in any property-scoped component.                                                                                                                         |
-| `use-mobile`                   | Responsive breakpoint hook                                                                                                                                                                             |
-| `use-theme-mode`               | Shared persisted light/dark/system theme state and DOM synchronization for every theme control.                                                                                                        |
+Use `usePermissions()` for presentation affordances rather than threading
+`canEdit` flags. These affordances never replace server authorization. Prefer one
+cohesive component over one-caller fragments; extract only independently meaningful
+UI or behavior.
 
-## Charts
+## Verification
 
-All charts use **shadcn charts** (`src/components/ui/chart.tsx`), built on Recharts. Import from `#/components/ui/chart`.
-
-### Components
-
-| Component             | Purpose                                                         |
-| --------------------- | --------------------------------------------------------------- |
-| `ChartContainer`      | Wraps chart + provides config context + CSS variable theming    |
-| `ChartTooltip`        | Recharts Tooltip — use with `content={<ChartTooltipContent />}` |
-| `ChartTooltipContent` | Styled tooltip with label, indicators                           |
-| `ChartLegend`         | Recharts Legend — use with `content={<ChartLegendContent />}`   |
-| `ChartLegendContent`  | Styled legend with color dots                                   |
-
-### Pattern
-
-1. Define a `ChartConfig` (maps data keys → labels + colors)
-2. Wrap the Recharts chart in `<ChartContainer config={config}>`
-3. Use `var(--color-{key})` for `fill`/`stroke` (auto-generated from config)
-4. Use `var(--chart-1)` through `var(--chart-5)` for chart colors (oklch values, NOT `hsl(var(--chart-N))`)
-
-### Chart types by data shape
-
-| Data shape             | Chart type           | Recharts component                   |
-| ---------------------- | -------------------- | ------------------------------------ |
-| Distribution (buckets) | Vertical bar chart   | `BarChart` + `Bar`                   |
-| Funnel (stages)        | Horizontal bar chart | `BarChart` layout="vertical" + `Bar` |
-| Time series            | Area chart           | `AreaChart` + `Area`                 |
-| Proportions            | Pie chart            | `PieChart` + `Pie`                   |
-
-### Example
-
-```tsx
-const config = { count: { label: 'Count', color: 'var(--chart-1)' } } satisfies ChartConfig
-
-<ChartContainer config={config} className="min-h-[200px] w-full">
-  <BarChart data={data}>
-    <XAxis dataKey="label" />
-    <ChartTooltip content={<ChartTooltipContent />} />
-    <Bar dataKey="count" fill="var(--color-count)" radius={[4, 4, 0, 0]} />
-  </BarChart>
-</ChartContainer>
-```
-
-## Anti-patterns
-
-- Passing `canEdit`/`canCreate` booleans as props — use `usePermissions()` in the component
-- Fetching **route** data with `useQuery` instead of a route loader (`prefetchQuery` + `useSuspenseQuery`) — see `routes/CONTEXT.md`. For interactive/component data, `useQuery` with a query-key factory (`src/shared/queries/query-keys.ts`) is the correct pattern.
-- Hand-rolled `useState`+`useEffect` fetch lifecycles — use TanStack Query (`useQuery`/`useSuspenseQuery`) instead; it handles cache/dedupe/invalidation.
-- Calling server functions directly without `useServerFn`
-- Defining server function hooks inside components — dependency rules forbid importing `server/` from `components/` (except for high-mutation components, see dependency rules above)
+Keep behavior-focused unit tests and stories beside components. Verify forms across
+success, tagged error, pending, and disabled states; verify query transitions and
+cache preservation at observable boundaries. Use a running browser for layout,
+hydration, keyboard, responsive, and visual behavior.
