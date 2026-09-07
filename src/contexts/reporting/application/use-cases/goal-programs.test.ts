@@ -6,11 +6,12 @@ import type {
   GoalProgramRepository,
   GoalResultRevision,
 } from '../ports/goal-program.repository'
-import type { GoalActor, GoalExecutionPolicy } from '../ports/goal-execution-policy'
 import {
   createGoalProgramService,
   GoalProgramError,
   MAX_GOAL_ASSIGNMENT_SELECTIONS,
+  type GoalActor,
+  type GoalExecutionPolicy,
   type GoalMetricReadPort,
   type GoalProgramSubjectReader,
 } from './goal-programs'

@@ -9,14 +9,15 @@ import {
 import type { AiInferencePort } from './application/ports/ai-inference.port'
 import type { AiQuotaPort } from './application/ports/ai-quota.port'
 import type { AiSubjectHmacPort } from './application/ports/ai-subject-hmac.port'
-import type { PropertyReplyLanguagePort } from './application/ports/property-reply-language.port'
 import { createAnalyzeReviewEvent } from './application/use-cases/analyze-review-event'
 import { createAdvanceReviewAnalysisEnrollments } from './application/use-cases/advance-review-analysis-enrollments'
 import { createApplyAiAuthorizationLifecycle } from './application/use-cases/apply-ai-authorization-lifecycle'
 import { createApproveReviewAnalysisEnrollment } from './application/use-cases/approve-review-analysis-enrollment'
 import type { AiOutputStorePort } from './application/ports/ai-output-store.port'
-import { createGenerateReplySuggestion } from './application/use-cases/generate-reply-suggestion'
-import type { GenerateReplySuggestionDependencies } from './application/use-cases/generate-reply-suggestion'
+import {
+  createGenerateReplySuggestion,
+  type GenerateReplySuggestionDependencies,
+} from './application/use-cases/generate-reply-suggestion'
 import { createGeneratePropertyTrend } from './application/use-cases/generate-property-trend'
 import { createSchedulePropertyTrends } from './application/use-cases/schedule-property-trends'
 import {
@@ -84,7 +85,7 @@ export type AiContextBuildInput = Readonly<{
   outboxRepo: OutboxRepository
   redis: Redis | undefined
   reviewSources: AiReviewSourcePort
-  propertyReplyLanguages: PropertyReplyLanguagePort
+  propertyReplyLanguages: GenerateReplySuggestionDependencies['propertyReplyLanguages']
   replyBrandProfiles: PortalAiReplyBrandProfilePublicApi
   inference?: AiInferencePort
   quota?: AiQuotaPort

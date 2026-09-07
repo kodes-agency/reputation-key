@@ -7,6 +7,7 @@ import {
   type PropertyId,
   type UserId,
 } from '#/shared/domain/ids'
+import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { UserLookupPort } from './ports/notification-user-lookup.port'
 import type { ResponsibleManagerLookupPort } from './ports/responsible-manager-lookup.port'
 import type { InboxItemLookupPort } from './ports/notification-inbox-item-lookup.port'
@@ -18,7 +19,6 @@ import {
 } from './responsible-recipients'
 import { resolveEscalationResolutionRecipients } from './escalation-resolution-recipients'
 import { resolveResponseTargetReminderRecipients } from './response-target-reminder-recipients'
-import type { PortalHealthLookupPort } from './ports/portal-health-lookup.port'
 import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
 import {
   ORGANIZATION_ACCOUNT_NOTIFICATION_EVENT_TYPES,
@@ -359,7 +359,7 @@ type Deps = Readonly<{
     | 'findResponseTargetReminderNotificationFacts'
   >
   escalationResolutions: EscalationResolutionLookupPort
-  portalHealthLookup: PortalHealthLookupPort
+  portalHealthLookup: Pick<PortalPublicApi, 'findPortalHealthNotificationFacts'>
   monthlyResultFacts: MonthlyResultNotificationFactsLookup
   organizationAccountAuthority: OrganizationAccountNotificationAuthorityPort
 }>

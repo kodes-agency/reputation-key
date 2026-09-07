@@ -4,16 +4,15 @@
 // ARC-03-T9. This adapter is the ONE place that knows a departing member holds
 // four independent authorities. It consumes named context capabilities
 // (Property/Portal responsibility runtimes, the Inbox assignment runtime,
-// Identity's grant revocation) — never a repository — and satisfies the
-// Identity-owned MemberAuthorityLifecyclePort.
+// Identity's grant revocation) — never a repository — and provides the two
+// member-authority lifecycle callbacks consumed by Identity.
 //
 // WHY a deferred binding still exists: Identity is constructed before the three
 // downstream contexts, so the adapter cannot be built at the moment Identity
-// needs the port. The difference from the previous `let x = throwing` pattern
+// needs the callbacks. The difference from the previous `let x = throwing` pattern
 // is that the deferral is now a named, single-assignment seam whose unresolved
 // state is a documented error rather than a mutable module-order accident.
 
-import type { MemberAuthorityLifecyclePort } from '#/contexts/identity/application/ports/member-authority-lifecycle.port'
 import type { PropertyResponsibilityRuntime } from '#/contexts/property/application/property-responsibility-runtime'
 import type { PortalResponsibilityRuntime } from '#/contexts/portal/application/portal-responsibility-runtime'
 import type { InboxAssignmentRuntime } from '#/contexts/inbox/application/inbox-assignment-runtime'
@@ -23,6 +22,19 @@ import {
   isEligibleResponsibleManager,
   type ResponsibleManagerEligibilityDeps,
 } from '#/shared/responsible-manager-eligibility'
+
+type MemberAuthorityLifecycle = Readonly<{
+  releaseMemberAuthorities: (
+    organizationId: string,
+    userId: string,
+    actorId: string | null,
+  ) => Promise<void>
+  reconcileResponsibleManagerEligibility: (
+    organizationId: string,
+    userId: string,
+    actorId: string,
+  ) => Promise<void>
+}>
 
 /** Identity's own authority over a member's property access grants. */
 export type MemberPropertyAccessRevocation = Readonly<{
@@ -43,7 +55,7 @@ export type MemberAuthorityLifecycleDeps = Readonly<{
 
 export function createMemberAuthorityLifecycle(
   deps: MemberAuthorityLifecycleDeps,
-): MemberAuthorityLifecyclePort {
+): MemberAuthorityLifecycle {
   const releaseMemberAuthorities = async (
     orgId: string,
     memberId: string,
@@ -157,13 +169,13 @@ export function createMemberAuthorityLifecycle(
  * never end up with two competing member-authority lifecycles.
  */
 export type DeferredMemberAuthorityLifecycle = Readonly<{
-  port: MemberAuthorityLifecyclePort
-  provide: (implementation: MemberAuthorityLifecyclePort) => void
+  port: MemberAuthorityLifecycle
+  provide: (implementation: MemberAuthorityLifecycle) => void
 }>
 
 export function createDeferredMemberAuthorityLifecycle(): DeferredMemberAuthorityLifecycle {
-  const bound: { implementation?: MemberAuthorityLifecyclePort } = {}
-  const resolve = (): MemberAuthorityLifecyclePort => {
+  const bound: { implementation?: MemberAuthorityLifecycle } = {}
+  const resolve = (): MemberAuthorityLifecycle => {
     if (!bound.implementation) {
       throw new Error(
         '[COMPOSITION] member authority lifecycle seam is not bound yet — the container is still composing',

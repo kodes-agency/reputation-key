@@ -41,7 +41,6 @@ import type { AiOperationStorePort } from '../ports/ai-operation-store.port'
 import type { AiOutputStorePort } from '../ports/ai-output-store.port'
 import type { AiQuotaPort } from '../ports/ai-quota.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
-import type { PropertyReplyLanguagePort } from '../ports/property-reply-language.port'
 import type { AiExecutionBinding, AiOperationIdentity } from '../../domain/types'
 import {
   aiRequestFingerprint,
@@ -120,7 +119,14 @@ export type GenerateReplySuggestionDependencies = Readonly<{
   quota: AiQuotaPort
   reviewSources: AiReviewSourcePort
   processingProfiles: PropertyProcessingProfilePort
-  propertyReplyLanguages: PropertyReplyLanguagePort
+  propertyReplyLanguages: Readonly<{
+    readDefaultReplyLanguage(
+      input: Readonly<{
+        organizationId: OrganizationId
+        propertyId: PropertyId
+      }>,
+    ): Promise<string | null>
+  }>
   replyBrandProfiles: Pick<
     PortalAiReplyBrandProfilePublicApi,
     'readCurrentAiReplyBrandProfile'

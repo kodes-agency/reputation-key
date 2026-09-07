@@ -6,11 +6,12 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
-import type {
-  GoalActor,
-  GoalExecutionPolicy,
-} from '../application/ports/goal-execution-policy'
-import { GoalProgramError } from '../application/use-cases/goal-programs'
+import {
+  GoalProgramError,
+  type GoalActor,
+  type GoalExecutionPolicy,
+  type GoalProgramRequestApi,
+} from '../application/use-cases/goal-programs'
 import {
   changeGoalProgramAssignmentsSchema,
   changeGoalProgramStatusSchema,
@@ -24,7 +25,6 @@ export {
   createGoalProgramSchema,
 } from '../application/dto/goal-program.dto'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
-import type { GoalProgramRequestApi } from '../application/use-cases/goal-programs'
 import type { GoalSubject } from '../domain/goal-program'
 import { canForContext } from '#/shared/domain/permissions'
 

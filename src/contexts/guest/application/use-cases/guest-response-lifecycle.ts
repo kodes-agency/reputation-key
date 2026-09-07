@@ -43,8 +43,20 @@ import {
   portalId,
   propertyId,
   ratingId,
+  type OrganizationId,
+  type PortalId,
+  type PropertyId,
 } from '#/shared/domain/ids'
-import type { PrimaryStaffAttributionResolver } from '../ports/primary-staff-attribution.port'
+import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
+
+export type ResolvePrimaryStaffAttribution = (
+  input: Readonly<{
+    organizationId: OrganizationId
+    propertyId: PropertyId
+    portalId: PortalId
+    observedAt: Date
+  }>,
+) => Promise<PrimaryStaffAttributionSnapshot | null>
 
 export type GuestResponseInput = Readonly<{
   rating?: number | null
@@ -212,7 +224,7 @@ export function guestResponseLifecycle(
     clock: () => Date
     idGen: () => string
     commandStore: GuestResponseCommandStore
-    resolvePrimaryStaffAttribution: PrimaryStaffAttributionResolver
+    resolvePrimaryStaffAttribution: ResolvePrimaryStaffAttribution
   }>,
 ) {
   const getState = async (scope: GuestResponseScope, sessionId: string) => {

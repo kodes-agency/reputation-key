@@ -8,11 +8,12 @@ import {
   userId as toUserId,
 } from '#/shared/domain/ids'
 import type { MemberRecord } from '../ports/identity.port'
-import type {
-  MemberOffboardingPort,
-  OutstandingResponsibility,
-} from '../ports/member-offboarding.port'
-import { OutstandingResponsibilitiesError, leaveOrganization } from './leave-organization'
+import {
+  OutstandingResponsibilitiesError,
+  leaveOrganization,
+  type MemberOffboarding,
+  type OutstandingResponsibility,
+} from './leave-organization'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const ORG = 'org-00000000-0000-0000-0000-000000000001'
@@ -76,7 +77,7 @@ function setup(
   const outstanding = input.outstanding ?? []
   let reads = 0
   const transfer = vi.fn(async () => {})
-  const offboarding: MemberOffboardingPort = {
+  const offboarding: MemberOffboarding = {
     listOutstanding: async () => {
       reads += 1
       return reads === 1 ? outstanding : (input.afterTransfer ?? [])

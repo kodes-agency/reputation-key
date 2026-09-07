@@ -9,14 +9,14 @@ import type {
   PortalKPIs,
 } from '../../domain/dashboard-types'
 import type {
-  PortalMetricEvidenceRead as SourceMetricEvidence,
-  PortalMetricsPort,
+  MetricPortalMetricEvidence as SourceMetricEvidence,
+  PortalAnalyticsRepository,
   PortalMetricSumRow,
-} from '../ports/portal-metrics.port'
+} from '../ports/portal-analytics.repository'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
 import { computeTrend, priorPeriodDates, ratingComparison } from '../utils'
-import type { PortalResponseIntegrityPort } from '../ports/portal-response-integrity.port'
-import type { PortalLifetimeMetricsPort } from '../ports/portal-lifetime-metrics.port'
+import type { PortalLifetimeAggregatePort } from '../ports/portal-lifetime-aggregate.port'
+import type { PortalResponseIntegritySummary } from '#/contexts/guest/application/public-api'
 import { portalLifetimeAnalyticsData } from './portal-lifetime-analytics'
 
 function roundedRating(value: number): number {
@@ -53,9 +53,19 @@ export type GetPortalAnalyticsInput = Readonly<{
 }>
 
 export type GetPortalAnalyticsDeps = Readonly<{
-  portalMetrics: PortalMetricsPort
-  portalLifetime: PortalLifetimeMetricsPort
-  responseIntegrity: PortalResponseIntegrityPort
+  portalMetrics: PortalAnalyticsRepository
+  portalLifetime: Pick<PortalLifetimeAggregatePort, 'get'>
+  responseIntegrity: Readonly<{
+    getPortalResponseIntegritySummary(
+      input: Readonly<{
+        organizationId: OrganizationId
+        propertyId: PropertyId
+        portalId: PortalId
+        startAt: Date
+        endAt: Date
+      }>,
+    ): Promise<PortalResponseIntegritySummary>
+  }>
 }>
 export type GetPortalAnalytics = ReturnType<typeof getPortalAnalytics>
 

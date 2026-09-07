@@ -59,7 +59,6 @@ export type MetricPublicApi = Readonly<{
 }>
 
 // Goal contracts.
-export type { GoalExecutionPolicy } from './ports/goal-execution-policy'
 export type { GoalProgram, GoalSubjectAssignment } from './ports/goal-program.repository'
 export type {
   MonthlyResultNotificationFactsLookup,

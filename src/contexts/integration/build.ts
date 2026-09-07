@@ -46,10 +46,10 @@ import {
   getGoogleAuthUrl,
   manageNotifications,
   handleGbpNotification,
+  type HandleGbpNotification,
   createGbpSubscribeBackfill,
   prepareGoogleConnectorDeparture,
 } from './application/use-cases'
-import type { HandleGbpNotification } from './application/use-cases'
 import { createGoogleConnectionRepository } from './infrastructure/repositories/google-connection.repository'
 import { createGoogleImportV2Store } from './infrastructure/google-import-v2-store'
 import { createAtomicIntegrationCommandStore } from './infrastructure/integration-command-store'
@@ -103,10 +103,10 @@ import {
 import { createGooglePerformanceAdapter } from './infrastructure/adapters/google-performance.adapter'
 import { getExecutionPolicy, type DecisionRequest } from '#/shared/auth/execution-policy'
 import { createActiveMemberAuthResolver } from './infrastructure/active-member-auth.adapter'
-import type { PropertyLookupPort } from './application/ports/property-lookup.port'
 import { parseGbpNotificationSubscriptionConfig } from './application/notification-subscription-config'
 import type { SourceContentPurge } from '#/contexts/review/application/public-api'
 import { googleConnectionId, propertyId } from '#/shared/domain/ids'
+import type { HandleGbpNotificationDeps } from './application/use-cases/handle-gbp-notification'
 import { createProviderAuthorizationInvalidationFanout } from '#/shared/provider-ephemeral/authorization-invalidation'
 
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
@@ -1093,7 +1093,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   // ── Review-facing adapter + webhook binder (BQC-5.2) ────────────
   // The JWT-verified GBP webhook may resolve the canonical location ID without
   // an organization ID. The lookup still delegates through the Property public API.
-  const propertyLookup: PropertyLookupPort = {
+  const propertyLookup: HandleGbpNotificationDeps['propertyLookup'] = {
     findByGbpLocationId: deps.propertyApi.findByGbpLocationId,
   }
 

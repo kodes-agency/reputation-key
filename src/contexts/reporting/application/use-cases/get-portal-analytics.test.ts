@@ -1,9 +1,15 @@
 // Dashboard context — getPortalAnalytics use case unit tests
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { getPortalAnalytics } from './get-portal-analytics'
-import type { PortalMetricsPort } from '../ports/portal-metrics.port'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
 import type { PortalAnalyticsData } from '../../domain/dashboard-types'
+import type {
+  MetricPortalMetricEvidenceSet,
+  MetricPortalRatingTrendPoint,
+  PortalAnalyticsRepository,
+  PortalMetricSumRow,
+  PortalRatingBucket,
+} from '../ports/portal-analytics.repository'
 
 // Fixed time to prevent midnight-boundary flakiness in date range calculations
 beforeEach(() => vi.setSystemTime(new Date('2025-06-15T12:00:00Z')))
@@ -14,21 +20,11 @@ const PROP = propertyId('a0000000-0000-0000-0000-000000000001')
 const PORT = portalId('b0000000-0000-0000-0000-000000000001')
 
 function createFakePortalMetrics(overrides?: {
-  kpiSums?: ReturnType<PortalMetricsPort['getPortalKpiSums']> extends Promise<infer T>
-    ? T
-    : never
-  ratingDistribution?: ReturnType<
-    PortalMetricsPort['getPortalRatingDistribution']
-  > extends Promise<infer T>
-    ? T
-    : never
-  ratingTrend?: ReturnType<PortalMetricsPort['getPortalRatingTrend']> extends Promise<
-    infer T
-  >
-    ? T
-    : never
-  evidence?: Awaited<ReturnType<PortalMetricsPort['getPortalMetricEvidence']>>
-}): PortalMetricsPort & { calls: string[] } {
+  kpiSums?: readonly PortalMetricSumRow[]
+  ratingDistribution?: readonly PortalRatingBucket[]
+  ratingTrend?: readonly MetricPortalRatingTrendPoint[]
+  evidence?: MetricPortalMetricEvidenceSet
+}): PortalAnalyticsRepository & { calls: string[] } {
   const calls: string[] = []
   return {
     calls,
@@ -230,8 +226,8 @@ describe('getPortalAnalytics (use case)', () => {
   it('computes trends when prior period has different values', async () => {
     let callCount = 0
     const metrics = createFakePortalMetrics()
-    // Build dynamic metrics port that returns different values based on call count
-    const dynamicMetrics: PortalMetricsPort & { calls: string[] } = {
+    // Return different values based on call count.
+    const dynamicMetrics: PortalAnalyticsRepository & { calls: string[] } = {
       ...metrics,
       async getPortalKpiSums() {
         metrics.calls.push('getPortalKpiSums')

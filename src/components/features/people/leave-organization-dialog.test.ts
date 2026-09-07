@@ -1,6 +1,6 @@
 // A worklist nobody could read must not read as a worklist that is clear.
 //
-// The identity container installs a fail-closed MemberOffboardingPort until
+// The identity container installs a fail-closed offboarding dependency until
 // the responsibility facts are composed: `listOutstanding` THROWS rather than
 // returning an empty list, because reporting "nothing outstanding" would let
 // someone walk out leaving Portals and Properties with no Responsible Manager.

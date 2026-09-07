@@ -70,10 +70,27 @@ function patchReply(
     old ? { ...old, reply } : old,
   )
 }
+/**
+ * Command snapshots deliberately omit list/detail enrichments. They are
+ * authoritative for every other field, including explicit nulls.
+ */
+export function mergeInboxCommandItem(cached: InboxItem, command: InboxItem): InboxItem {
+  return {
+    ...cached,
+    ...command,
+    rating: cached.rating,
+    snippet: cached.snippet,
+    reviewerName: cached.reviewerName,
+    propertyName: cached.propertyName,
+    contentAvailability: cached.contentAvailability,
+    reviewLanguageCode: cached.reviewLanguageCode,
+    attention: cached.attention,
+  }
+}
 
 function patchItem(qc: QueryClient, item: InboxItem): void {
   qc.setQueryData<InboxItemDetailResult>(inboxKeys.detail(item.id), (old) =>
-    old ? { ...old, item } : old,
+    old ? { ...old, item: mergeInboxCommandItem(old.item, item) } : old,
   )
 }
 
@@ -115,7 +132,7 @@ export const inboxCachePolicy = {
       old
         ? {
             ...old,
-            item: result.item,
+            item: mergeInboxCommandItem(old.item, result.item),
             feedbackHandling: result.feedbackHandling,
           }
         : old,

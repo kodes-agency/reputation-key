@@ -12,7 +12,7 @@ import type { InboxServerFns } from './types'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import { INBOX_BULK_LIMIT } from '#/contexts/inbox/application/public-api'
 import { toggleInboxSelection } from './inbox-selection'
-import { inboxCachePolicy } from './inbox-cache-policy'
+import { inboxCachePolicy, mergeInboxCommandItem } from './inbox-cache-policy'
 
 export type InboxPageNav = (o: {
   to: '.'
@@ -121,7 +121,15 @@ export function useInboxPage(
   // Optimistic list sync after a detail status change (mark-read / escalate /
   // archive): delegates to useInboxState.patchItem, which patches the cached
   // infinite-query pages (update status in-place, or drop if it leaves the filter).
-  const handleItemStatusChanged = useCallback((u: InboxItem) => patchItem(u), [patchItem])
+  const handleItemStatusChanged = useCallback(
+    (commandItem: InboxItem) =>
+      patchItem(
+        selectedItem?.id === commandItem.id
+          ? mergeInboxCommandItem(selectedItem, commandItem)
+          : commandItem,
+      ),
+    [patchItem, selectedItem],
+  )
 
   const detailState = useInboxDetail(selectedItem, !!selectedItem, inboxFns, {
     onItemStatusChanged: handleItemStatusChanged,

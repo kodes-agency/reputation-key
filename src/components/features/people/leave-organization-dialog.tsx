@@ -35,7 +35,7 @@ import type { AnyAction } from '#/components/hooks/use-action'
 import type {
   OffboardingResponsibilityKind,
   OutstandingResponsibility,
-} from '#/contexts/identity/application/ports/member-offboarding.port'
+} from '#/contexts/identity/application/public-api'
 
 const KIND_LABEL: Readonly<Record<OffboardingResponsibilityKind, string>> = {
   portal_responsibility: 'Portal responsibility',
@@ -51,7 +51,7 @@ export type LeaveOrganizationDialogProps = Readonly<{
    * read.
    *
    * `null` is not "nothing outstanding" — it is "we do not know". The identity
-   * container installs a fail-closed MemberOffboardingPort until the
+   * container installs a fail-closed offboarding dependency until the
    * responsibility facts are composed, and refusing to answer is the correct
    * answer there: reporting an empty worklist would let someone walk out
    * leaving Portals and Properties with no Responsible Manager. The dialog
@@ -75,7 +75,7 @@ const keyOf = (item: OutstandingResponsibility): string =>
  * Exported because the null case is the whole point and a closed Radix dialog
  * renders none of its content, so this decision cannot be asserted through the
  * markup. `outstanding: null` means the worklist could not be READ — the
- * identity container installs a fail-closed MemberOffboardingPort until the
+ * identity container installs a fail-closed offboarding dependency until the
  * responsibility facts are composed — and treating that as an empty worklist
  * would turn a fail-closed default into a fail-open one.
  */

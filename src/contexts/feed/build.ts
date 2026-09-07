@@ -5,6 +5,7 @@
 import type { Database } from '#/shared/db'
 import type { ConsumerRegistry } from '#/shared/outbox'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createRecentActivityRepository } from './infrastructure/recent-activity-repository.drizzle'
 import { getActivityTimeline } from './queries/get-activity-timeline'
@@ -109,7 +110,6 @@ import { withBetaOutboxNotificationDelivery } from './infrastructure/outbox-noti
 import { createNotificationDeliverySettlement } from './infrastructure/repositories/notification-delivery-settlement.repository'
 import { createNotificationDeliveryLagRepository } from './infrastructure/repositories/notification-delivery-lag.repository'
 import { MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT } from './application/ports/notification-delivery-lag.repository'
-import type { PortalHealthLookupPort } from './application/ports/portal-health-lookup.port'
 import { registerPortalHealthNotificationConsumer } from './infrastructure/portal-health-outbox-consumers'
 import { createOrganizationAccountNotificationAuthority } from './infrastructure/adapters/organization-account-notification-authority.adapter'
 import {
@@ -291,7 +291,7 @@ type NotificationBuildInput = Readonly<{
   /** Goal-owned exact closed-and-achieved result lookup. */
   monthlyResultFacts: MonthlyResultNotificationFactsLookup
   /** Portal-owned exact current Health state fence for delayed delivery. */
-  portalHealthLookup: PortalHealthLookupPort
+  portalHealthLookup: Pick<PortalPublicApi, 'findPortalHealthNotificationFacts'>
 }>
 
 const buildNotificationFeed = (input: NotificationBuildInput) => {
