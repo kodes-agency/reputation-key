@@ -27,9 +27,7 @@ export type GoogleProviderGatewayAdmissionCode =
  * is a type error rather than a silent `upstream_error`.
  */
 export type GoogleProviderPermitAdmissionCode =
-  | 'capability_killed'
-  | 'authorization_denied'
-  | 'authorization_changed'
+  'capability_killed' | 'authorization_denied' | 'authorization_changed'
 
 /**
  * Every content-free admission denial reason, from either admission side: the

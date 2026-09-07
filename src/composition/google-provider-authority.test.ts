@@ -56,7 +56,6 @@ function buildInput(
 }
 
 describe('buildGoogleProviderAuthority', () => {
-
   it('constructs without touching the database', () => {
     expect(() => buildGoogleProviderAuthority(buildInput())).not.toThrow()
   })

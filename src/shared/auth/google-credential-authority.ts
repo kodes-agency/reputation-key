@@ -18,9 +18,7 @@ export type GoogleCredentialSourceOperationState =
   | 'provider_reset_terminal'
 
 export type CredentialCleanupOutcome =
-  | 'confirmed_not_sent'
-  | 'confirmed_revoked'
-  | 'cleanup_ambiguous'
+  'confirmed_not_sent' | 'confirmed_revoked' | 'cleanup_ambiguous'
 
 export type CredentialRevokePermitEvent =
   | 'consume_without_revoke'

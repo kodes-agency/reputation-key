@@ -45,9 +45,7 @@ export type GoogleExecutionPermitAdmissionInput = Readonly<{
 }>
 
 export type GoogleExecutionPermitAdmissionCode =
-  | 'capability_killed'
-  | 'authorization_denied'
-  | 'authorization_changed'
+  'capability_killed' | 'authorization_denied' | 'authorization_changed'
 
 export type GoogleExecutionPermitAdmissionResult =
   | Readonly<{ ok: true; permit: AuthorizationExecutionPermit }>
@@ -74,7 +72,9 @@ export function createGoogleExecutionPermitIssuer<Tx>(
     newPermitId: () => string
     authorize: GoogleContentAuthorizationCheck<Tx>
   }>,
-): (input: GoogleExecutionPermitAdmissionInput) => Promise<GoogleExecutionPermitAdmissionResult> {
+): (
+  input: GoogleExecutionPermitAdmissionInput,
+) => Promise<GoogleExecutionPermitAdmissionResult> {
   return (input) =>
     deps.store.transaction(async (tx) => {
       const admittedAt = deps.clock()

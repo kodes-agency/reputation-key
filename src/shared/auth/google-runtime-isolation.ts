@@ -18,9 +18,7 @@ export type GoogleContentRuntimeIsolationProfile = Readonly<{
   enforcementPlane: 'infrastructure-control-plane'
   targetEnvironment: 'local_sandbox' | 'production'
   destinationEnforcement:
-    | 'namespace_firewall'
-    | 'cni_network_policy'
-    | 'cloud_egress_firewall'
+    'namespace_firewall' | 'cni_network_policy' | 'cloud_egress_firewall'
   imageDigests: Readonly<Record<GoogleRuntimeRole, string>>
   protectedReplicas: readonly Readonly<{
     replicaId: string
