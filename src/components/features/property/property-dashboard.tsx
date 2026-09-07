@@ -1,6 +1,5 @@
 import { useId } from 'react'
 import { Link } from '@tanstack/react-router'
-import { MessageSquare, Star, ScanLine, MessageCircle } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import type {
   AttentionSignals,
@@ -10,15 +9,16 @@ import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashb
 import type { PropertyPerformancePreset } from '#/shared/google-performance-report-contract'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import { KPICard, RatingKPICard } from './property-dashboard-helpers'
+import { formatTrend, TrendIndicator } from './property-dashboard-helpers'
 import { RatingDistributionChart } from '#/components/features/shared/rating-distribution-chart'
-import { StatGrid } from './property-stat-grid'
+import { StatCard } from '#/components/features/shared/stat-card'
 import { PropertyReputationTrendChart } from './property-reputation-trend-chart'
 import { ReviewRow } from './property-dashboard-review-row'
 import { AttentionBand } from './attention-band'
 import { GooglePerformanceSection } from './google-performance-section'
 import type { GooglePerformanceServerFns } from './use-google-performance'
 import { TimeRangePicker } from '#/components/features/dashboard/time-range-picker'
+import { ratingPresentation } from '#/components/features/dashboard/rating-presentation'
 import {
   PropertyAiTrendSection,
   type PropertyAiTrendServerFn,
@@ -67,6 +67,7 @@ export function PropertyDashboard({
     replyPerformance,
     engagementFunnel,
   } = dashboard
+  const rating = ratingPresentation(kpis.avgRating, timeRange)
 
   return (
     <PageShell tier="dashboard">
@@ -84,15 +85,75 @@ export function PropertyDashboard({
       <AttentionBand signals={signals} propertyId={propertyId} />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <KPICard label="Reviews" kpi={kpis.reviews} icon={MessageSquare} />
-        <RatingKPICard
-          label="Avg Rating"
-          kpi={kpis.avgRating}
-          icon={Star}
-          timeRange={timeRange}
+        <StatCard
+          label="Reviews"
+          value={String(kpis.reviews.value)}
+          hint={
+            <span className="flex items-center gap-0.5">
+              <TrendIndicator trend={kpis.reviews.trend} />
+              {formatTrend(kpis.reviews.trend)}
+            </span>
+          }
+          availability={{ state: 'ready', dataThrough: null, reason: null }}
         />
-        <KPICard label="Scans" kpi={kpis.scans} icon={ScanLine} />
-        <KPICard label="Feedback" kpi={kpis.feedback} icon={MessageCircle} />
+        <StatCard
+          label="Avg Rating"
+          value={rating.value}
+          hint={
+            <>
+              <span className="flex items-center gap-0.5">
+                <TrendIndicator trend={kpis.avgRating.comparison} />
+                {kpis.avgRating.comparison === null
+                  ? rating.comparison
+                  : `${rating.comparison} stars`}
+              </span>
+              {kpis.avgRating.evidence.state === 'ready' ? (
+                <span className="block">{rating.evidence}</span>
+              ) : null}
+            </>
+          }
+          availability={{
+            state: kpis.avgRating.evidence.state,
+            dataThrough: kpis.avgRating.evidence.verifiedThrough,
+            reason: kpis.avgRating.evidence.availabilityReason,
+          }}
+        />
+        <StatCard
+          label="Scans"
+          value={kpis.scans.value === null ? '—' : String(kpis.scans.value)}
+          hint={
+            kpis.scans.evidence.current.state === 'ready' &&
+            kpis.scans.value !== null ? (
+              <span className="flex items-center gap-0.5">
+                <TrendIndicator trend={kpis.scans.trend} />
+                {formatTrend(kpis.scans.trend)}
+              </span>
+            ) : undefined
+          }
+          availability={{
+            state: kpis.scans.evidence.current.state,
+            dataThrough: null,
+            reason: null,
+          }}
+        />
+        <StatCard
+          label="Feedback"
+          value={kpis.feedback.value === null ? '—' : String(kpis.feedback.value)}
+          hint={
+            kpis.feedback.evidence.current.state === 'ready' &&
+            kpis.feedback.value !== null ? (
+              <span className="flex items-center gap-0.5">
+                <TrendIndicator trend={kpis.feedback.trend} />
+                {formatTrend(kpis.feedback.trend)}
+              </span>
+            ) : undefined
+          }
+          availability={{
+            state: kpis.feedback.evidence.current.state,
+            dataThrough: null,
+            reason: null,
+          }}
+        />
       </div>
 
       <GooglePerformanceSection
@@ -109,14 +170,23 @@ export function PropertyDashboard({
       />
 
       {engagementFunnel && (
-        <StatGrid
-          heading="Engagement Funnel"
-          items={[
-            { value: String(engagementFunnel.scans), label: 'Scans' },
-            { value: String(engagementFunnel.ratings), label: 'Ratings' },
-            { value: String(engagementFunnel.reviewLinkClicks), label: 'Review Clicks' },
-          ]}
-        />
+        <div>
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Engagement Funnel
+          </h2>
+          <div className="mt-3 grid grid-cols-3 gap-4">
+            {[
+              { value: String(engagementFunnel.scans), label: 'Scans' },
+              { value: String(engagementFunnel.ratings), label: 'Ratings' },
+              {
+                value: String(engagementFunnel.reviewLinkClicks),
+                label: 'Review Clicks',
+              },
+            ].map((item) => (
+              <StatCard key={item.label} label={item.label} value={item.value} />
+            ))}
+          </div>
+        </div>
       )}
 
       <div className="min-w-0">
@@ -146,19 +216,22 @@ export function PropertyDashboard({
         </div>
       </div>
 
-      <StatGrid
-        heading="Reply Performance"
-        items={[
-          { value: `${replyPerformance.replyRate}%`, label: 'Reply Rate' },
-          {
-            value:
+      <div>
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+          Reply Performance
+        </h2>
+        <div className="mt-3 grid grid-cols-2 gap-4">
+          <StatCard label="Reply Rate" value={`${replyPerformance.replyRate}%`} />
+          <StatCard
+            label="Avg Reply Time"
+            value={
               replyPerformance.avgReplyHours === null
                 ? '—'
-                : `${Math.round(replyPerformance.avgReplyHours)}h`,
-            label: 'Avg Reply Time',
-          },
-        ]}
-      />
+                : `${Math.round(replyPerformance.avgReplyHours)}h`
+            }
+          />
+        </div>
+      </div>
 
       <div>
         <div className="flex items-center justify-between">

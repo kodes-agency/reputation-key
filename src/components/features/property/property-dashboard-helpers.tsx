@@ -1,16 +1,6 @@
-import type { ComponentType } from 'react'
 import { Star, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
-import type {
-  DashboardReplyStatus,
-  KPIValue,
-  MetricAvailabilityState,
-  MetricKPIValue,
-  RatingKPIValue,
-} from '#/contexts/reporting/application/public-api'
-import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
-import { AvailabilityLine } from '#/components/features/dashboard/availability-line'
-import { ratingPresentation } from '#/components/features/dashboard/rating-presentation'
+import type { DashboardReplyStatus } from '#/contexts/reporting/application/public-api'
 
 export function formatTrend(trend: number | null): string {
   if (trend === null) return '—'
@@ -43,101 +33,4 @@ export function ReplyStatusBadge({ status }: { status: DashboardReplyStatus }) {
   const label =
     status === 'none' ? 'No reply' : status === 'draft' ? 'Draft' : 'Published'
   return <Badge variant={variant}>{label}</Badge>
-}
-
-export function KPICard({
-  label,
-  kpi,
-  icon: Icon,
-  formatValue,
-}: Readonly<{
-  label: string
-  kpi: KPIValue | MetricKPIValue
-  icon: ComponentType<{ className?: string }>
-  formatValue?: (value: number) => string
-}>) {
-  const state: MetricAvailabilityState =
-    'evidence' in kpi ? kpi.evidence.current.state : 'ready'
-  const value =
-    kpi.value === null ? '—' : formatValue ? formatValue(kpi.value) : String(kpi.value)
-  const showTrend = state === 'ready' && kpi.value !== null
-
-  return (
-    <div className="rounded-lg border p-4">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Icon className="size-4" />
-        <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
-      </div>
-      <div className="mt-2 flex items-baseline gap-2">
-        <p className="text-2xl font-semibold tabular-nums">{value}</p>
-        {showTrend ? (
-          <span className="flex items-center gap-0.5 text-xs tabular-nums text-muted-foreground">
-            <TrendIndicator trend={kpi.trend} />
-            {formatTrend(kpi.trend)}
-          </span>
-        ) : null}
-      </div>
-      <div className="mt-1">
-        <AvailabilityLine state={state} dataThrough={null} reason={null} />
-      </div>
-    </div>
-  )
-}
-
-export function RatingKPICard({
-  label,
-  kpi,
-  icon: Icon,
-  timeRange,
-}: Readonly<{
-  label: string
-  kpi: RatingKPIValue
-  icon: ComponentType<{ className?: string }>
-  timeRange: TimeRangePreset
-}>) {
-  const presentation = ratingPresentation(kpi, timeRange)
-  const ComparisonIcon =
-    presentation.direction === 'up'
-      ? ArrowUpRight
-      : presentation.direction === 'down'
-        ? ArrowDownRight
-        : Minus
-  // 12px text needs 4.5:1: emerald/red-500 measure 2.3:1 on the light surface,
-  // so each direction pairs a light-mode and a dark-mode ramp step.
-  const comparisonClass =
-    presentation.direction === 'up'
-      ? 'text-emerald-700 dark:text-emerald-400'
-      : presentation.direction === 'down'
-        ? 'text-red-700 dark:text-red-400'
-        : 'text-muted-foreground'
-
-  return (
-    <div className="rounded-lg border p-4">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Icon className="size-4" />
-        <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
-      </div>
-      <div className="mt-2 flex items-baseline gap-2">
-        <p className="text-2xl font-semibold tabular-nums">{presentation.value}</p>
-        <span
-          className={`flex items-center gap-0.5 text-xs tabular-nums ${comparisonClass}`}
-        >
-          <ComparisonIcon className="size-3" />
-          {kpi.comparison === null
-            ? presentation.comparison
-            : `${presentation.comparison} stars`}
-        </span>
-      </div>
-      {kpi.evidence.state === 'ready' ? (
-        <p className="mt-1 text-xs text-muted-foreground">{presentation.evidence}</p>
-      ) : null}
-      <div className="mt-1">
-        <AvailabilityLine
-          state={kpi.evidence.state}
-          dataThrough={kpi.evidence.verifiedThrough}
-          reason={kpi.evidence.availabilityReason}
-        />
-      </div>
-    </div>
-  )
 }

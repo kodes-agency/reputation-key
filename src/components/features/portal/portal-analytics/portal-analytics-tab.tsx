@@ -10,12 +10,12 @@ import {
 } from '#/contexts/reporting/application/dto/dashboard.dto'
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import { TimeRangePicker } from '#/components/features/dashboard/time-range-picker'
-import { BarChart3, MessageCircle, MousePointerClick, ScanLine } from 'lucide-react'
+import { BarChart3 } from 'lucide-react'
 import { ChartCard, RatingTrendChart } from './portal-analytics-charts'
 import { RatingDistributionChart } from '#/components/features/shared/rating-distribution-chart'
 import { EngagementFunnelChart } from './portal-analytics-funnel-chart'
-import { PortalRatingCard } from './portal-rating-card'
-import { PortalCountCard } from './portal-count-card'
+import { StatCard } from '#/components/features/shared/stat-card'
+import { ratingPresentation } from '#/components/features/dashboard/rating-presentation'
 import { PortalMetricEvidenceSummary } from './portal-metric-evidence-summary'
 import { PortalResponseIntegritySummary } from './portal-response-integrity-summary'
 import { PortalLifetimeReconciliationSummary } from './portal-lifetime-reconciliation-summary'
@@ -43,6 +43,12 @@ function readStoredTimeRange(): TimeRangePreset {
     return 'all'
   }
 }
+function trendHint(trend: number | null): string {
+  if (trend === null) return '—'
+  const direction = trend > 0 ? '↑' : trend < 0 ? '↓' : '—'
+  return `${direction} ${Math.abs(trend)}%`
+}
+
 
 export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }: Props) {
   const [timeRange, setTimeRange] = useState<TimeRangePreset>(readStoredTimeRange)
@@ -117,6 +123,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
     data.kpis.reviewLinkClicks.evidence.state,
   ].some((state) => state === 'updating' || state === 'temporarily_unavailable')
   const engagementFunnel = data.engagementFunnel
+  const rating = ratingPresentation(data.kpis.avgRating, timeRange)
 
   if (!hasData && !hasPendingState) {
     return (
@@ -151,28 +158,68 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
       {/* The All Time range has no prior window. Cards render that missing
           comparison as an em dash instead of fabricating a 0% trend. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <PortalCountCard
+        <StatCard
           label="Scans"
-          kpi={data.kpis.scans}
-          icon={ScanLine}
-          timeZone={propertyTimezone}
+          value={
+            data.kpis.scans.value === null
+              ? '—'
+              : data.kpis.scans.value.toLocaleString()
+          }
+          hint={trendHint(data.kpis.scans.trend)}
+          availability={{
+            state: data.kpis.scans.evidence.state,
+            dataThrough: data.kpis.scans.evidence.verifiedThrough,
+            reason: data.kpis.scans.evidence.availabilityReason,
+            timeZone: propertyTimezone,
+          }}
         />
-        <PortalRatingCard
-          rating={data.kpis.avgRating}
-          timeRange={timeRange}
-          timeZone={propertyTimezone}
+        <StatCard
+          label="Private rating avg"
+          value={rating.value}
+          hint={
+            <>
+              <span>{rating.comparison}</span>
+              {data.kpis.avgRating.evidence.state === 'ready' ? (
+                <span className="block">{rating.evidence}</span>
+              ) : null}
+            </>
+          }
+          availability={{
+            state: data.kpis.avgRating.evidence.state,
+            dataThrough: data.kpis.avgRating.evidence.verifiedThrough,
+            reason: data.kpis.avgRating.evidence.availabilityReason,
+            timeZone: propertyTimezone,
+          }}
         />
-        <PortalCountCard
+        <StatCard
           label="Feedback"
-          kpi={data.kpis.feedback}
-          icon={MessageCircle}
-          timeZone={propertyTimezone}
+          value={
+            data.kpis.feedback.value === null
+              ? '—'
+              : data.kpis.feedback.value.toLocaleString()
+          }
+          hint={trendHint(data.kpis.feedback.trend)}
+          availability={{
+            state: data.kpis.feedback.evidence.state,
+            dataThrough: data.kpis.feedback.evidence.verifiedThrough,
+            reason: data.kpis.feedback.evidence.availabilityReason,
+            timeZone: propertyTimezone,
+          }}
         />
-        <PortalCountCard
+        <StatCard
           label="Review Clicks"
-          kpi={data.kpis.reviewLinkClicks}
-          icon={MousePointerClick}
-          timeZone={propertyTimezone}
+          value={
+            data.kpis.reviewLinkClicks.value === null
+              ? '—'
+              : data.kpis.reviewLinkClicks.value.toLocaleString()
+          }
+          hint={trendHint(data.kpis.reviewLinkClicks.trend)}
+          availability={{
+            state: data.kpis.reviewLinkClicks.evidence.state,
+            dataThrough: data.kpis.reviewLinkClicks.evidence.verifiedThrough,
+            reason: data.kpis.reviewLinkClicks.evidence.availabilityReason,
+            timeZone: propertyTimezone,
+          }}
         />
       </div>
       {data.lifetimeReconciliation === null && (

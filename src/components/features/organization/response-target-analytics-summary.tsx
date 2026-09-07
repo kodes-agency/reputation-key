@@ -2,6 +2,7 @@ import type {
   GoogleReviewTargetAnalytics,
   PrivateFeedbackTargetAnalytics,
 } from '#/contexts/inbox/application/public-api'
+import { StatCard } from '#/components/features/shared/stat-card'
 
 function formatAverage(minutes: number | null): string {
   if (minutes === null) return 'Not enough measured data'
@@ -15,10 +16,7 @@ function AnalyticsGrid({
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {rows.map(([label, value]) => (
-        <div key={label} className="rounded-lg bg-muted/45 p-3">
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <p className="mt-1 font-medium tabular-nums">{value}</p>
-        </div>
+        <StatCard key={label} label={label} value={value} />
       ))}
     </div>
   )
