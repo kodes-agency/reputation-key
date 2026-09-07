@@ -16,36 +16,40 @@ export function parseLocalStackEnvFile(path: string): Record<string, string> {
   return Object.fromEntries(
     readFileSync(path, 'utf8')
       .split('\n')
-      .filter(Boolean)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith('#'))
       .map((line) => {
         const separator = line.indexOf('=')
         if (separator <= 0)
           throw new Error(`Invalid local stack environment line: ${line}`)
-        return [line.slice(0, separator), JSON.parse(line.slice(separator + 1)) as string]
+        const encoded = line
+          .slice(separator + 1)
+          .replace(/\s+#\s*gitleaks:allow\s*$/u, '')
+        return [line.slice(0, separator), JSON.parse(encoded) as string]
       }),
   )
 }
 
 export function localStackPlaywrightEnv(path: string): Record<string, string> {
-  const generated = parseLocalStackEnvFile(path)
+  const stack = parseLocalStackEnvFile(path)
   for (const key of REQUIRED_STACK_ENV_KEYS) {
-    if (!generated[key])
-      throw new Error(`Generated local stack environment is missing ${key}`)
+    if (!stack[key]) throw new Error(`Local stack environment is missing ${key}`)
   }
 
   return {
-    ...generated,
-    TEST_DATABASE_URL: `postgresql://${encodeURIComponent(generated.POSTGRES_USER!)}:${encodeURIComponent(generated.POSTGRES_PASSWORD!)}@127.0.0.1:${generated.POSTGRES_HOST_PORT}/${encodeURIComponent(generated.POSTGRES_DB!)}`,
-    REDIS_URL: `redis://127.0.0.1:${generated.REDIS_HOST_PORT}`,
-    QUEUE_REDIS_URL: `redis://127.0.0.1:${generated.QUEUE_REDIS_HOST_PORT}`,
+    ...stack,
+    TEST_DATABASE_URL: `postgresql://${encodeURIComponent(stack.POSTGRES_USER!)}:${encodeURIComponent(stack.POSTGRES_PASSWORD!)}@127.0.0.1:${stack.POSTGRES_HOST_PORT}/${encodeURIComponent(stack.POSTGRES_DB!)}`,
+    REDIS_URL: `redis://127.0.0.1:${stack.REDIS_HOST_PORT}`,
+    // The non-production BullMQ fallback deliberately shares the one Redis.
+    QUEUE_REDIS_URL: `redis://127.0.0.1:${stack.QUEUE_REDIS_HOST_PORT}`,
     CI: '1',
     E2E_EXTERNAL_STACK: '1',
     E2E_BASE_URL: 'http://127.0.0.1:3000',
     E2E_LOCKED_BASE_URL: 'http://127.0.0.1:3001',
     GBP_STUB_BASE_URL: 'http://127.0.0.1:4100',
     MAIL_STUB_BASE_URL: 'http://127.0.0.1:4101',
-    OPS_METRICS_TOKEN: generated.OPS_METRICS_TOKEN!,
-    E2E_TEST_EMAIL: generated.E2E_TEST_EMAIL!,
-    E2E_TEST_PASSWORD: generated.E2E_TEST_PASSWORD!,
+    OPS_METRICS_TOKEN: stack.OPS_METRICS_TOKEN!,
+    E2E_TEST_EMAIL: stack.E2E_TEST_EMAIL!,
+    E2E_TEST_PASSWORD: stack.E2E_TEST_PASSWORD!,
   }
 }

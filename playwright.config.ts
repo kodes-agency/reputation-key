@@ -1,5 +1,4 @@
 import { defineConfig, devices } from '@playwright/test'
-import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { localStackPlaywrightEnv } from './src/shared/testing/local-stack-playwright-env'
 import { COMPATIBILITY_PROJECTS } from './e2e/helpers/compatibility-projects'
@@ -30,35 +29,25 @@ import { DEPLOYED_CRITICAL_PLAYWRIGHT_PROJECT } from './e2e/deployed/deployed-ta
 // CI uploads the directory before the next suite starts, so a successful retry
 // cannot erase the evidence that made the run flaky.
 //
-// BETA-LOCAL — Playwright is a pure browser client. The Docker application
-// stack owns both production-profile web processes, the worker, migrations,
-// seed, object store, and provider sandboxes. `pnpm test:e2e:local` is the
-// lifecycle entry point; direct `pnpm test:e2e` consumes E2E_BASE_URL and
-// E2E_LOCKED_BASE_URL from an already-smoked stack.
+// Playwright is a pure browser client. Compose owns the containerised
+// production build, worker and provider sandboxes; NODE_ENV=test activates the
+// supported one-Redis topology. Direct `pnpm test:e2e` consumes an already
+// seeded stack at E2E_BASE_URL and E2E_LOCKED_BASE_URL.
 
 const isCi = !!process.env.CI
 
-// `pnpm e2e:stack:up` GENERATES per-run credentials and host ports into
-// .local-stack/e2e/stack.env and passes them to the containers. A host Playwright
-// process that does not read that file falls back to defaults, which is why every
-// sign-in returned 401 (wrong password) and every fixture helper failed to connect
-// (no TEST_DATABASE_URL). `pnpm test:e2e:local` routes through the runner that
-// applies it; a bare `pnpm test:e2e` did not. Applied here so both entry points
-// behave the same. Values already present in the environment always win, so an
-// explicit override still works against a hand-seeded database.
-const generatedStackEnv = resolve(process.cwd(), '.local-stack/e2e/stack.env')
-if (existsSync(generatedStackEnv)) {
-  for (const [key, value] of Object.entries(localStackPlaywrightEnv(generatedStackEnv))) {
-    process.env[key] ??= value
-  }
+// The committed stack environment is shared by Compose, migration/seed host
+// commands, and Playwright. Explicit process values still win so the same
+// project can target an independently managed stack.
+const stackEnv = resolve(process.cwd(), 'e2e/stack.env')
+for (const [key, value] of Object.entries(localStackPlaywrightEnv(stackEnv))) {
+  process.env[key] ??= value
 }
 
 export default defineConfig({
   // No globalSetup/teardown and no webServer: host Playwright owns no
-  // application process. The stack controller always tears down containers.
-  // The one precondition the host DOES own — e2e/.seed-state.json — is the
-  // `setup` project below, so it reports as a named test rather than a
-  // load-time throw and applies to single-file invocations too.
+  // application process. The one precondition it owns — e2e/.seed-state.json —
+  // is the `setup` project below, so it reports as a named test.
   testDir: './e2e',
   timeout: 30_000,
   expect: { timeout: 10_000 },

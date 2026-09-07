@@ -36,7 +36,6 @@ RUN pnpm exec tsup \
       scripts/perf/seed-scale.ts \
       scripts/perf/seed-fleet.ts \
       scripts/perf/write-scale-evidence.ts \
-      scripts/local-stack/fault-operation.ts \
       --format esm \
       --platform node \
       --target node22 \

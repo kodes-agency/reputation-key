@@ -2,11 +2,24 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { Pool, type PoolClient, type QueryResult } from 'pg'
-import { deterministicFixtureHash } from '../../src/shared/testing/local-stack-controller'
 import { deleteTestOrganizations } from '../../src/shared/testing/integration-helpers'
 
 const VERSION = 'fleet-local-3'
 const DEFAULT_PROPERTIES = 5_000
+
+function deterministicFixtureHash(
+  input: Readonly<{ seed: string; properties: number }>,
+): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        version: VERSION,
+        seed: input.seed,
+        properties: input.properties,
+      }),
+    )
+    .digest('hex')
+}
 
 type InstrumentedQuery = Readonly<{
   ordinal: number

@@ -9,9 +9,7 @@ A reputation management platform built with TanStack Start, Better Auth, Drizzle
 ```bash
 # 0. Use the pinned Node runtime — 22.23.2, exactly (.nvmrc)
 fnm use            # or: nvm use
-# Not a floor: the local stack fails ENOBUFS mid-boot on another major, and the
-# ICU-fenced AI-language suites (~150 assertions) skip themselves. Check with:
-pnpm local:doctor  # runtime, docker daemon, stack ports, stale containers
+pnpm local:doctor  # Docker, published stack ports, stale containers, VM headroom
 
 # 1. Install dependencies
 pnpm install
@@ -63,7 +61,7 @@ CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migratio
 | Command             | Description                                                       |
 | ------------------- | ----------------------------------------------------------------- |
 | `pnpm dev`          | Start dev server on :3000                                         |
-| `pnpm build`        | Build web, worker, migration, and isolated local-tool bundles     |
+| `pnpm build`        | Build the web, worker, and migration bundles                      |
 | `pnpm start`        | Run built web server                                              |
 | `pnpm start:worker` | Run built worker                                                  |
 | `pnpm test`         | Run unit tests                                                    |
@@ -72,6 +70,24 @@ CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migratio
 | `pnpm lint`         | ESLint + filename/component-boundary checks                       |
 | `pnpm lint:ci`      | `lint` + test-quality + Google/AI artifact gates                  |
 | `pnpm format`       | Prettier format                                                   |
+
+### Local E2E stack
+
+The local E2E stack runs the containerised production build with `NODE_ENV=test`
+and one Redis. Compose, host migration/seed commands, and Playwright share the
+committed `e2e/stack.env`.
+
+```bash
+pnpm e2e:stack:up
+pnpm test:e2e --project=critical
+pnpm e2e:stack:down
+```
+
+Use a fresh volume and image lifecycle on every pass when reproducing a flake:
+
+```bash
+for i in 1 2 3; do pnpm e2e:stack:down && pnpm e2e:stack:up && pnpm test:e2e --project=critical; done
+```
 
 ### Git hooks
 

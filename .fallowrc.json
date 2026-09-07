@@ -233,10 +233,6 @@
       "exports": ["propertyEraseAuthorities"]
     },
     {
-      "file": "src/shared/config/local-stack-contract.ts",
-      "exports": ["SEED_BETA_CAPABILITIES"]
-    },
-    {
       "file": "src/routes/api/auth/$.ts",
       "exports": ["handleAuthRequest"]
     },

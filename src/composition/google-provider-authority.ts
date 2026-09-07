@@ -658,12 +658,13 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       'Google provider not configured — no egress gateway in this environment',
     )
   }
+  const egressCoordinationRedis =
+    providerEphemeralRedis ?? (env.NODE_ENV === 'production' ? undefined : redis)
   if (!googleAuthorizedProviderExecutor && gatewayConfigured) {
-    // Fail closed, and say which prerequisite is missing. Quota and in-flight
-    // coordination are shared with the other process, so a runtime without the
-    // coordination Redis would silently drop the only limit Google actually
-    // enforces; a runtime without a revision cannot bind a permit to one.
-    if (!providerEphemeralRedis) {
+    // Production keeps its dedicated coordination Redis contract. Local/test
+    // stacks deliberately share their single Redis for cache, BullMQ and
+    // provider admission; the production topology guard remains fail-closed.
+    if (!egressCoordinationRedis) {
       throw new Error('Google egress runtime requires provider-ephemeral Redis')
     }
     const [credentialBindingKeys, grantKeys, gatewayIdentity] = configuredGatewayValues
@@ -683,7 +684,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       // hand the permit authority a pool that is not the one running the
       // transactions it is authorizing.
       pool: db.$client,
-      redis: providerEphemeralRedis,
+      redis: egressCoordinationRedis,
       nowMs: () => clock().getTime(),
       gatewayIdentity,
       credentialBindingKeys,

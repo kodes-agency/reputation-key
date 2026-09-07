@@ -63,7 +63,6 @@ export default tseslint.config(
       '**/dist/**',
       '**/.output/**',
       '**/dist-worker/**',
-      '**/dist-local-tools/**',
       '**/.tmp-storybook-build/**',
       '**/storybook-static/**',
       '**/node_modules/**',

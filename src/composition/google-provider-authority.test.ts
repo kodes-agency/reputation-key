@@ -201,6 +201,23 @@ describe('buildGoogleProviderAuthority', () => {
     ).toBeUndefined()
   })
 
+  it('shares the general Redis connection for local egress coordination', () => {
+    const authority = buildGoogleProviderAuthority(
+      buildInput({
+        db: { $client: {} } as unknown as Database,
+        redis: {} as NonNullable<GoogleProviderAuthorityInput['redis']>,
+        env: envWith({
+          GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: `local:${'11'.repeat(32)}`,
+          GOOGLE_ADMISSION_GRANT_HMAC_KEYS: `local:${'22'.repeat(32)}`,
+          GOOGLE_EGRESS_GATEWAY_IDENTITY: 'local-google-provider-runtime-v1',
+        }),
+      }),
+    )
+
+    expect(authority.providerEphemeralRedis).toBeUndefined()
+    expect(authority.googleAuthorizedProviderExecutor).toBeDefined()
+  })
+
   it('refuses a partially configured egress runtime instead of degrading', () => {
     // The runtime signs grants with one secret, binds credentials with another
     // and stamps permits with an identity. Any one of the three alone is a

@@ -302,10 +302,8 @@ jobs:
       - name: Bundle budget
         run: pnpm check:bundles
 
-      # WP2.5 folded the worker build into `pnpm build`: three tsup configs
-      # became one `defineConfig([...])`, so the single build emits the web
-      # preload, the worker and the local tools together. There is no separate
-      # `build:worker` script to invoke any more.
+      # The worker build is part of `pnpm build`; the single tsup invocation
+      # emits the web preload and worker/migration bundles.
 
       - name: Production artifact boundary
         run: >-
@@ -438,7 +436,6 @@ jobs:
               done
               test "$(docker image inspect repkey-web:ci --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "final"
               test "$(docker image inspect repkey-web:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "serving-final"
-              docker run --rm --entrypoint test repkey-web:ci ! -e /app/dist-local-tools
               docker run --rm --entrypoint sh repkey-web:ci -c \
                 "! find /app/.output /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/.output /app/dist-worker 2>/dev/null"
               ;;
@@ -460,7 +457,6 @@ jobs:
               done
               test "$(docker image inspect repkey-worker:ci --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "final"
               test "$(docker image inspect repkey-worker:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "serving-final"
-              docker run --rm --entrypoint test repkey-worker:ci ! -e /app/dist-local-tools
               docker run --rm --entrypoint sh repkey-worker:ci -c \
                 "! find /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/dist-worker 2>/dev/null"
               ;;
@@ -484,7 +480,7 @@ jobs:
               docker run --rm --entrypoint test repkey-perf-runner:ci ! -e /usr/local/bin/npm
               docker run --rm --entrypoint test repkey-perf-runner:ci -e /app/node_modules/pg
               docker run --rm --entrypoint node repkey-perf-runner:ci -e "const p=require('/app/package.json');process.exit('scripts' in p?1:0)"
-              for entry in perf/load-test.js perf/seed-scale.js perf/seed-fleet.js perf/write-scale-evidence.js local-stack/fault-operation.js; do
+              for entry in perf/load-test.js perf/seed-scale.js perf/seed-fleet.js perf/write-scale-evidence.js; do
                 docker run --rm --entrypoint test repkey-perf-runner:ci -e "/app/dist-perf-runner/$entry"
               done
               ;;

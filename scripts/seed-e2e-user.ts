@@ -54,12 +54,12 @@ import {
   hasActiveGrant,
 } from '../src/contexts/identity/infrastructure/repositories/property-access-grant.repository'
 import {
-  betterAuthOrganizationSchema,
   parseBetterAuthResponse,
   signUpResponseSchema,
 } from '../src/contexts/identity/infrastructure/adapters/better-auth-schemas'
 import { createPortalTokenCodec } from '../src/contexts/portal/infrastructure/adapters/portal-token-codec'
 import { assertLocalToolExecutionIdentity } from '../src/shared/config/local-tool-execution'
+import { LOCAL_E2E_ORGANIZATION_ID } from '../src/shared/config/local-stack-contract'
 import { GOOGLE_CONTENT_CAPABILITIES } from '../src/shared/auth/google-content-contract'
 import { createGoogleContentAuthorityRepository } from '../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
 
@@ -163,14 +163,6 @@ function writeSeedState(state: E2eSeedState) {
   console.log(`E2E seed state written: ${seedStatePath}`)
 }
 
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 48)
-}
-
 async function ensureCredentialUser(input: {
   email: string
   password: string
@@ -210,39 +202,30 @@ async function ensureCredentialUser(input: {
   return userId
 }
 
-async function resolveOrgIdForUser(userId: string): Promise<string | null> {
-  const db = getDb()
-  const [row] = await db
-    .select({ orgId: organization.id })
-    .from(member)
-    .innerJoin(organization, eq(member.organizationId, organization.id))
-    .where(eq(member.userId, userId))
-    .limit(1)
-  return row?.orgId ?? null
-}
-
 async function ensureOrgA(managerUserId: string): Promise<string> {
-  const existing = await resolveOrgIdForUser(managerUserId)
-  if (existing) {
-    await getDb()
-      .update(organization)
-      .set({ name: organizationName })
-      .where(eq(organization.id, existing))
-    return existing
-  }
-  const org = await getAuth().api.createOrganization({
-    body: {
+  const db = getDb()
+  await db
+    .insert(organization)
+    .values({
+      id: LOCAL_E2E_ORGANIZATION_ID,
       name: organizationName,
-      slug: `${slugify(organizationName)}-local-beta`,
-      userId: managerUserId,
-    },
+      slug: 'e2e-test-organization-local-beta',
+      createdAt: FIXTURE_AT,
+    })
+    .onConflictDoUpdate({
+      target: organization.id,
+      set: {
+        name: organizationName,
+        slug: 'e2e-test-organization-local-beta',
+      },
+    })
+  await ensureMembership({
+    id: 'e2e-org-a-manager-owner',
+    userId: managerUserId,
+    organizationId: LOCAL_E2E_ORGANIZATION_ID,
+    role: 'owner',
   })
-  return parseBetterAuthResponse(
-    betterAuthOrganizationSchema,
-    org,
-    'org_setup_failed',
-    'Invalid organization response from auth provider',
-  ).id
+  return LOCAL_E2E_ORGANIZATION_ID
 }
 
 async function ensureLockedOrg(): Promise<void> {

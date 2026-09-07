@@ -3,7 +3,6 @@ node_modules
 dist
 dist-ssr
 dist-worker
-dist-local-tools
 storybook-static
 /test-results/
 /playwright-report/
@@ -74,8 +73,6 @@ docs/reviews/
 # Playwright E2E seed state (written by scripts/seed-e2e-user.ts)
 e2e/.seed-state.json
 
-# Generated Docker Compose stack environments (mode 0600; removed on teardown)
-/.local-stack/
 
 # Operator-held approval role keystore and generated approval bundles
 .secrets/

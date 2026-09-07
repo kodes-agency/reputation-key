@@ -36,9 +36,12 @@ Take the values from the failing run's log and artifacts (the e2e job uploads
 `e2e-local-stack-evidence`). Reproduce locally with:
 
 ```bash
-pnpm local:doctor                      # runtime, docker, ports, stale containers
-pnpm e2e:stack:up
-for i in 1 2 3 4 5; do pnpm e2e:stack:reseed && pnpm test:e2e --project=critical -g "<title>"; done
+pnpm local:doctor # docker, ports, stale containers, VM headroom
+for i in 1 2 3 4 5; do
+  pnpm e2e:stack:down
+  pnpm e2e:stack:up
+  pnpm test:e2e --project=critical -g "<title>"
+done
 pnpm e2e:stack:down
 ```
 
@@ -46,8 +49,8 @@ Use `pnpm test:e2e:compatibility` for the bounded four-project browser/device
 matrix. The retained JSON report identifies the exact project and browser for
 every result.
 
-`reseed` matters: most critical specs assume first-run state, so repeating one
-against a stack it already mutated produces failures that are not the flake.
+Fresh volumes matter: most critical specs assume first-run state, so repeating
+one against a stack it already mutated produces failures that are not the flake.
 
 ## Register
 
@@ -64,9 +67,9 @@ Failures that look intermittent but are environmental, so a rerun "fixes" them
 and the register would fill with noise:
 
 - **Repeated critical runs against one stack.** `guest-portal.spec.ts:52/:114`,
-  `beta-product-journeys.spec.ts:402` and `accessibility.spec.ts:181` fail on the
-  second and later runs because they assume first-run seed state. Use
-  `pnpm e2e:stack:reseed` between runs.
+  `beta-product-journeys.spec.ts:402` and `accessibility.spec.ts:181` assume
+  first-run seed state. Run `e2e:stack:down` then `e2e:stack:up` before each
+  repetition.
 - **Local reply-lifecycle `(a)`/`(b)` timeouts were NOT a flake** — they were the
   first symptom of a real amplification bug, found 2026-08-23. A
   `quota_exhausted` admission denial surfaced as `provider_rate_limited`, the
@@ -84,5 +87,3 @@ and the register would fill with noise:
   publishing ever times out again, count `quota_exhausted` in the worker log
   FIRST: a storm there means the backoff chain regressed, not that the test is
   slow.
-- **Wrong Node major.** The stack fails `ENOBUFS` mid-boot and the ICU-fenced
-  suites skip themselves. `pnpm local:doctor` catches it.

@@ -13,7 +13,6 @@ const NON_SOURCE_DIRECTORIES = new Set([
   '.codex',
   '.fallow',
   '.git',
-  '.local-stack',
   '.od-skills',
   '.omp',
   '.output',
