@@ -386,11 +386,18 @@ describe('fleet overview projection integration', () => {
       },
       totalAttention: 4,
     })
+    // Portal read is an organization-wide capability (WP3.3-C): the second
+    // property's scans are visible, its unseeded feedback stays empty.
     expect(firstPage.entries[1]).toMatchObject({
-      scanCount: 0,
+      scanCount: 9,
       feedbackCount: 0,
-      scanEvidence: null,
-      feedbackEvidence: null,
+      scanEvidence: expect.objectContaining({
+        definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
+      }),
+      feedbackEvidence: expect.objectContaining({
+        freshness: 'insufficient_data',
+        completeness: 0,
+      }),
     })
   }, 30_000)
 

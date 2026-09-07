@@ -46,7 +46,6 @@ export const RETENTION_DATA_CLASSES = Object.freeze([
   'logs_sentry_replay_screenshots',
   'ai_derivatives',
   'uploads',
-  'quarantine',
   'provider_tokens',
   'exports',
   'backups',

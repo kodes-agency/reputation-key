@@ -211,8 +211,8 @@ export const createFleetOverviewProjectionAdapter = (
             FROM scoped_properties
           ), policy AS MATERIALIZED (
             SELECT scoped.property_id,
-              ${input.portalReadEnabled} AS portal_enabled,
-              ${input.goalReadEnabled} AS goal_enabled
+              ${input.portalReadEnabled}::boolean AS portal_enabled,
+              ${input.goalReadEnabled}::boolean AS goal_enabled
             FROM scoped
           ), candidate_readings AS MATERIALIZED (
             SELECT metric_readings.*

@@ -221,7 +221,6 @@ describe('retention registry report-only mode', () => {
       'platform.logs_sentry_replay_screenshots': 'no counsel-approved horizon exists',
       'ai.local_derivatives': 'no counsel-approved horizon exists',
       'platform.uploads': 'no counsel-approved horizon exists',
-      'platform.quarantine': 'no counsel-approved horizon exists',
       'lifecycle.organization_exports':
         'object_store sources are not countable from PostgreSQL',
       'platform.backups': 'no counsel-approved horizon exists',
