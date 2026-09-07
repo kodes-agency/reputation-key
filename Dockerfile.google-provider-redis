@@ -7,7 +7,7 @@
 # 2026-01-28) because grype began failing this image at HIGH: the seven-month-old
 # build sat eight Alpine packages behind, openssl/libcrypto3 3.3.6 among them.
 # 7.4.11 is the newest 7.4.x build (2026-08-18) and carries the patched set.
-FROM redis:7.4.11-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+FROM redis:8.10.1-alpine@sha256:becdda6c7f4b3fb42e42fd7f120bbf5c54c4caaaf16f26da24e4563d2c1f0576
 
 ARG SOURCE_REVISION
 ENV IMAGE_SOURCE_REVISION=$SOURCE_REVISION
