@@ -73,7 +73,7 @@ successful fetch, with refresh due before expiry. Production erasure and
 restore-boundary evidence remains a release gate. This notice does not treat a
 repository test as proof of live deletion.
 
-See the separate [Google Business Profile Access Disclosure](google-access-disclosure.md).
+See the separate [Google Business Profile Access Disclosure](/privacy/google-access-disclosure).
 
 ### Portal and Guest information
 
