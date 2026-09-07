@@ -76,8 +76,6 @@ const CONTRACT_AFTER_EXPORT =
 const ERASE_WITH_OWNER =
   'The owning lifecycle command must hide, erase, or expire the content with content-free completion evidence and restore-boundary verification.'
 
-const RECONCILE_QUARANTINE =
-  'Resolve every row to an accepted canonical record or a reviewed terminal disposition; quarantine rows never become product truth directly.'
 
 const RETAINED_HISTORY =
   'Retain as immutable history while its owning aggregate is active or archived; include it in scoped export, restore, retention, and erasure evidence.'
@@ -374,7 +372,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'identity-governance.schema.ts',
-    exportNames: ['identityInvitationFactContract', 'userOrganizationBindings'],
+    exportNames: ['identityInvitationFactContract'],
     owner: 'identity',
     disposition: 'active_authority',
     authority: 'SAFE-02/PPL-01',
@@ -408,13 +406,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     disposition: 'recoverable_archive',
     authority: 'IBX-01',
     exitCriteria: RETAINED_HISTORY,
-  }),
-  ...rows({
-    schemaFile: 'invited-registration.schema.ts',
-    exportNames: ['invitedRegistrationAttempts'],
-    owner: 'identity',
-    disposition: 'active_authority',
-    authority: 'SAFE-02/PPL-01',
   }),
   ...rows({
     schemaFile: 'merchant-ai-authorization.schema.ts',

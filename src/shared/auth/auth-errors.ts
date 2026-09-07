@@ -10,7 +10,7 @@ export type AuthErrorCode =
   | 'session_expired'
   | 'forbidden'
   | 'no_active_org'
-  | 'organization_binding_conflict'
+  | 'organization_membership_conflict'
   | 'beta_role_inactive'
   | 'authorization_unavailable'
 
@@ -25,7 +25,7 @@ const authErrorStatus = (code: AuthErrorCode): number =>
     .with('unauthorized', 'session_expired', () => 401)
     .with('forbidden', 'beta_role_inactive', () => 403)
     .with('no_active_org', () => 400)
-    .with('organization_binding_conflict', () => 409)
+    .with('organization_membership_conflict', () => 409)
     .with('authorization_unavailable', () => 503)
     .exhaustive()
 

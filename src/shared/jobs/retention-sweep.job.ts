@@ -178,16 +178,6 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     olderThanMs: 0,
   },
   {
-    // Prepared rows remain recoverable and manual-review rows remain visible
-    // to support. Only settled, content-free saga fences age out.
-    subject: 'invited_registration_attempts.settled',
-    table: 'invited_registration_attempts',
-    keyColumns: ['id'],
-    tsColumn: 'updated_at',
-    olderThanMs: 90 * DAY_MS,
-    extraWhere: "state IN ('accepted', 'compensated')",
-  },
-  {
     subject: 'notifications',
     table: 'notifications',
     keyColumns: ['id'],

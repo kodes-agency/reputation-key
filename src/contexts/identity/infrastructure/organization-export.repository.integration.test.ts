@@ -69,12 +69,6 @@ async function requestInput() {
      VALUES ($1, $2, $3, 'owner', $4)`,
     [`member-${id}`, requestedBy, organizationId, NOW],
   )
-  await lease.pool.query(
-    `INSERT INTO user_organization_bindings (
-       user_id, organization_id, state, source, version, created_at, updated_at
-     ) VALUES ($1, $2, 'active', 'operator', 1, $3, $3)`,
-    [requestedBy, organizationId, NOW],
-  )
   return {
     id,
     organizationId,
@@ -82,6 +76,21 @@ async function requestInput() {
     asOf: NOW,
     objectExpiresAt: new Date(NOW.getTime() + 7 * 24 * 60 * 60 * 1000),
   }
+}
+
+async function addBackupOwner(organizationId: string): Promise<void> {
+  const userId = `backup-owner-${randomUUID()}`
+  users.add(userId)
+  await lease.pool.query(
+    `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+     VALUES ($1, 'Backup export owner', $2, true, $3, $3)`,
+    [userId, `${userId}@example.test`, NOW],
+  )
+  await lease.pool.query(
+    `INSERT INTO member (id, "userId", "organizationId", role, "createdAt")
+     VALUES ($1, $2, $3, 'owner', $4)`,
+    [`member-${randomUUID()}`, userId, organizationId, NOW],
+  )
 }
 
 const COVERAGE_SHA = 'a'.repeat(64)
@@ -151,10 +160,6 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
     }
     await deleteExportFixtures([...requests])
     for (const organizationId of organizations) {
-      await lease.pool.query(
-        'DELETE FROM user_organization_bindings WHERE organization_id = $1',
-        [organizationId],
-      )
       await executeWithLastOwnerGuardDisabled(db, [
         sql`DELETE FROM member WHERE "organizationId" = ${organizationId}`,
       ])
@@ -703,7 +708,9 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
 
   it('rechecks current AccountAdmin authority in the same transaction as request and retrieval access', async () => {
     const deniedRequest = await requestInput()
-    await lease.pool.query('DELETE FROM user_organization_bindings WHERE user_id = $1', [
+    await addBackupOwner(deniedRequest.organizationId)
+    await lease.pool.query('UPDATE member SET role = $1 WHERE "userId" = $2', [
+      'admin',
       deniedRequest.requestedBy,
     ])
     await expect(repository.request(deniedRequest)).rejects.toThrow(
@@ -727,7 +734,9 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
       expiresAt: new Date(NOW.getTime() + 24 * 60 * 60 * 1000),
       now: NOW,
     })
-    await lease.pool.query('DELETE FROM user_organization_bindings WHERE user_id = $1', [
+    await addBackupOwner(input.organizationId)
+    await lease.pool.query('UPDATE member SET role = $1 WHERE "userId" = $2', [
+      'admin',
       input.requestedBy,
     ])
     await expect(

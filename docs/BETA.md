@@ -5,7 +5,7 @@ Authority for the closed beta. If this page and a document disagree, this page w
 ## 1. What the beta is
 
 - Organizations and Properties are operator-provisioned; no count is fixed. Self-service is off — `identity.register` and `organization.create` are `beta_disabled`, so growth is an operator action, not a signup.
-- A user holds exactly one active Organization Membership. A conflicting invitation raises `organization_binding_conflict` and pauses for support rather than creating a second membership (`src/shared/auth/tenant-resolver.ts`).
+- A user holds exactly one active Better Auth Organization membership. A conflicting invitation raises `organization_membership_conflict` and pauses for support rather than creating a second membership (`src/shared/auth/tenant-resolver.ts`).
 - One deployment serves everywhere: Railway `us-west2`, object bucket `sjc`, every supported country routed to it. There is no per-region deployment and no customer-visible region choice.
 - No contractual uptime SLA, no service credits, no 24/7 support. Support terms — hours, service levels, warranties, disclaimers — are **not agreed yet**; the participation agreement carrying them is a candidate draft marked do-not-accept (`docs/legal/internal-beta-agreement.md:201`). Do not quote support hours as a commitment until it is accepted.
 - No MFA, and the product no longer says otherwise. The security settings page used to ship a "Two-factor authentication … Coming soon" card that did nothing while no TOTP existed anywhere in `src/`; WP1.7 deleted the card rather than implementing the feature.

@@ -37,12 +37,11 @@ describe('recover invited registrations job', () => {
 
   it('runs one bounded recovery pass and logs counts only', async () => {
     const recover = vi.fn().mockResolvedValue({
-      claimed: 4,
+      claimed: 3,
       accepted: 1,
       awaitingProvider: 1,
       compensated: 1,
       manualReview: 0,
-      claimsLost: 1,
       failures: 0,
     })
 
@@ -54,12 +53,11 @@ describe('recover invited registrations job', () => {
     expect(mockLogger.info).toHaveBeenCalledWith(
       {
         job: JOB_NAME,
-        claimed: 4,
+        claimed: 3,
         accepted: 1,
         awaitingProvider: 1,
         compensated: 1,
         manualReview: 0,
-        claimsLost: 1,
         failures: 0,
       },
       'Invited registration recovery completed',
@@ -73,7 +71,6 @@ describe('recover invited registrations job', () => {
       awaitingProvider: 0,
       compensated: 0,
       manualReview: 0,
-      claimsLost: 0,
       failures: 1,
     })
 
@@ -81,6 +78,6 @@ describe('recover invited registrations job', () => {
       createRecoverInvitedRegistrationsHandler({ recover, logger: mockLogger })(
         {} as never,
       ),
-    ).rejects.toThrow('Invited registration recovery left 1 attempt unresolved')
+    ).rejects.toThrow('Invited registration recovery left 1 verification record unresolved')
   })
 })

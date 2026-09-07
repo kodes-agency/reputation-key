@@ -20,7 +20,6 @@ type IdentityOrganizationExportPayload = Readonly<{
   invitations: readonly ExportRecord[]
   customRoles: readonly ExportRecord[]
   rolePolicies: readonly ExportRecord[]
-  userBindings: readonly ExportRecord[]
   canonicalPropertyAccessGrants: readonly ExportRecord[]
   compatibilityPropertyAccessGrants: readonly ExportRecord[]
   organizationPolicies: readonly ExportRecord[]
@@ -44,10 +43,6 @@ const EXCLUDED_RECORD_CLASSES = Object.freeze([
   },
   { recordClass: 'sessions', reasonCode: 'security_session_material' },
   { recordClass: 'verification_challenges', reasonCode: 'security_secret_material' },
-  {
-    recordClass: 'invited_registration_recovery_authority',
-    reasonCode: 'operational_recovery_control',
-  },
   {
     recordClass: 'organization_export_and_lifecycle_receipts',
     reasonCode: 'content_free_control_plane',
@@ -128,7 +123,6 @@ function csvEntry(payload: IdentityOrganizationExportPayload): OrganizationExpor
     ['invitation', payload.invitations],
     ['custom_role', payload.customRoles],
     ['role_policy', payload.rolePolicies],
-    ['user_binding', payload.userBindings],
     ['property_access_grant', payload.canonicalPropertyAccessGrants],
     ['compatibility_property_access_grant', payload.compatibilityPropertyAccessGrants],
     ['organization_policy', payload.organizationPolicies],
@@ -206,11 +200,6 @@ async function readPayload(
               logo,
               metadata,
               "contactEmail" AS contact_email,
-              "billingCompanyName" AS billing_company_name,
-              "billingAddress" AS billing_address,
-              "billingCity" AS billing_city,
-              "billingPostalCode" AS billing_postal_code,
-              "billingCountry" AS billing_country,
               to_char("createdAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
             FROM organization
             WHERE id = ${organizationId}`,
@@ -275,22 +264,6 @@ async function readPayload(
             FROM organization_role_policy
             WHERE organization_id = ${organizationId}
             ORDER BY role, id`,
-      )
-      const userBindings = await readRows(
-        snapshot,
-        sql`SELECT
-              user_id,
-              state,
-              source,
-              invitation_id,
-              version,
-              resolution_reason,
-              to_char(released_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS released_at,
-              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
-              to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
-            FROM user_organization_bindings
-            WHERE organization_id = ${organizationId}
-            ORDER BY user_id`,
       )
       const canonicalPropertyAccessGrants = await readRows(
         snapshot,
@@ -409,7 +382,6 @@ async function readPayload(
         invitations,
         customRoles,
         rolePolicies,
-        userBindings,
         canonicalPropertyAccessGrants,
         compatibilityPropertyAccessGrants,
         organizationPolicies,

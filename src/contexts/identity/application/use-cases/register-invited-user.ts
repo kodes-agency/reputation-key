@@ -44,8 +44,8 @@ export type RegisterInvitedUser = ReturnType<typeof registerInvitedUser>
 
 /**
  * Acceptance is already authoritative when this runs. A derivative
- * property-assignment hook must never undo the account, membership, binding,
- * or invitation, so its failure is observed and swallowed.
+ * property-assignment hook must never undo the account, membership, or
+ * invitation, so its failure is observed and swallowed.
  */
 async function runPostAcceptHook(
   deps: RegisterInvitedUserDeps,
@@ -66,6 +66,23 @@ async function runPostAcceptHook(
   }
 }
 
+async function completeRegistrationVerification(
+  deps: RegisterInvitedUserDeps,
+  verificationId: string,
+): Promise<void> {
+  try {
+    await deps.registrationStore.complete(verificationId)
+  } catch (error) {
+    // Acceptance already committed. The expiring verification is safe to
+    // retry through recovery, while surfacing an error here would lie to the
+    // user about the account that now exists.
+    deps.logger.error(
+      { err: error, registrationVerificationId: verificationId },
+      '[identity] invited registration verification cleanup failed',
+    )
+  }
+}
+
 type SignUpRecovery =
   | Readonly<{
       kind: 'resume'
@@ -76,9 +93,9 @@ type SignUpRecovery =
   | Readonly<{ kind: 'accepted'; organizationId: OrganizationId }>
 
 /**
- * Reconcile a failed sign-up against the fence. Either the provider committed
- * exactly the preallocated records and the saga resumes, or the invitation was
- * already accepted, or the original failure surfaces as a registration error.
+ * Reconcile a failed sign-up against the verification record. Either the
+ * provider committed exactly the preallocated records and the saga resumes,
+ * or the invitation was already accepted, or the original failure surfaces.
  */
 async function recoverFromSignUpFailure(
   deps: RegisterInvitedUserDeps,
@@ -89,7 +106,7 @@ async function recoverFromSignUpFailure(
   const recoveryNow = deps.clock()
   try {
     const recovery = await deps.registrationStore.reconcile({
-      attemptId: prepared.id,
+      verificationId: prepared.verificationId,
       now: recoveryNow,
       nextRecoveryAt: new Date(recoveryNow.getTime() + 5 * 60 * 1_000),
     })
@@ -121,9 +138,9 @@ async function recoverFromSignUpFailure(
 }
 
 /**
- * Reconcile a failed acceptance. Returns the settled result when the fence
- * shows acceptance already committed, and null when the caller must surface
- * the original failure.
+ * Reconcile a failed acceptance. Returns the settled result when direct
+ * Better Auth authority shows acceptance committed, and null when the caller
+ * must surface the original failure.
  */
 async function recoverFromAcceptanceFailure(
   deps: RegisterInvitedUserDeps,
@@ -133,7 +150,7 @@ async function recoverFromAcceptanceFailure(
 ): Promise<RegisterInvitedUserResult | null> {
   try {
     const recovery = await deps.registrationStore.reconcile({
-      attemptId: activeRegistration.id,
+      verificationId: activeRegistration.verificationId,
       now: acceptanceNow,
       nextRecoveryAt: new Date(acceptanceNow.getTime() + 5 * 60 * 1_000),
     })
@@ -149,7 +166,7 @@ async function recoverFromAcceptanceFailure(
   } catch (reconciliationError) {
     deps.logger.error(
       {
-        registrationAttemptId: activeRegistration.id,
+        registrationVerificationId: activeRegistration.verificationId,
         err: reconciliationError,
       },
       '[identity] invited registration reconciliation failed',
@@ -161,23 +178,23 @@ async function recoverFromAcceptanceFailure(
 /**
  * Invitation-bound account creation saga.
  *
- * A content-free recovery fence is committed before Better Auth runs;
- * acceptance then locks and revalidates the invitation after sign-up. Any
- * interrupted boundary is reconciled only against the exact preallocated
- * provider IDs, so recovery can resume, safely compensate, or stop for review.
+ * A short-lived Better Auth verification row is committed before sign-up;
+ * acceptance then locks and revalidates the invitation. Any interrupted
+ * boundary is reconciled only against the exact preallocated provider IDs,
+ * so recovery can resume, safely compensate, or stop for review.
  */
 export const registerInvitedUser =
   (deps: RegisterInvitedUserDeps) =>
   async (input: RegisterInvitedUserInput): Promise<RegisterInvitedUserResult> => {
     const preflightNow = deps.clock()
-    const proposedAttemptId = deps.idGen()
+    const proposedVerificationId = deps.idGen()
     const proposedAuthIds: RegistrationAuthIds = {
       userId: deps.idGen(),
       credentialAccountId: deps.idGen(),
       initialSessionId: deps.idGen(),
     }
     const prepared = await deps.registrationStore.prepare({
-      proposedAttemptId,
+      proposedVerificationId,
       invitationId: input.invitationId,
       email: input.email,
       proposedAuthIds,
@@ -223,7 +240,6 @@ export const registerInvitedUser =
     try {
       accepted = await deps.commandStore.acceptInvitation({
         invitationId: input.invitationId,
-        registrationAttemptId: activeRegistration.id,
         acceptorEmail,
         acceptorUserId: acceptedUserId,
         now: acceptanceNow,
@@ -248,6 +264,10 @@ export const registerInvitedUser =
       throw identityError('registration_failed', 'Invitation registration failed')
     }
 
+    await completeRegistrationVerification(
+      deps,
+      activeRegistration.verificationId,
+    )
     await runPostAcceptHook(deps, {
       userId: createdUserId,
       organizationId: accepted.organizationId as string,

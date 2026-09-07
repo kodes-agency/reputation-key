@@ -21,7 +21,6 @@ import {
   organizationCapability,
   propertyCapability,
 } from '../src/shared/db/schema/policy.schema'
-import { userOrganizationBindings } from '../src/shared/db/schema/identity-governance.schema'
 import { properties } from '../src/shared/db/schema/property.schema'
 import {
   portals,
@@ -284,56 +283,6 @@ async function ensureMembership(input: {
     .onConflictDoUpdate({ target: member.id, set: { role: input.role } })
 }
 
-/**
- * Give every seeded member the Organization binding the tenant resolver
- * requires.
- *
- * `c2477288 fix(identity): enforce one beta organization binding` made
- * `user_organization_bindings` a precondition for resolving tenant context:
- * with no row, `checkUserOrganizationBinding` denies with
- * `organization_binding_missing` and every authenticated request 500s. The
- * seed predates that commit and was never updated, which is why the whole
- * critical e2e suite failed on "This account needs Organization access
- * assistance" while the stack itself was healthy.
- *
- * Derived from `member` rather than written at each ensureMembership call
- * site, so a membership added later cannot silently skip its binding. The
- * table holds ONE row per user by primary key — two simultaneous active
- * bindings are deliberately unrepresentable — so a user who is a member of
- * two Organizations keeps the first binding written and the seed says so
- * rather than failing the insert.
- *
- * `source: 'backfill'` is the honest classification of the three the schema
- * permits: these memberships already exist and the binding is being
- * reconstructed for them, which is what backfill means.
- */
-async function ensureOrganizationBindings(): Promise<void> {
-  const db = getDb()
-  const memberships = await db
-    .select({ userId: member.userId, organizationId: member.organizationId })
-    .from(member)
-  const firstByUser = new Map<string, string>()
-  for (const row of memberships) {
-    if (!firstByUser.has(row.userId)) firstByUser.set(row.userId, row.organizationId)
-  }
-  for (const [userId, organizationId] of firstByUser) {
-    await db
-      .insert(userOrganizationBindings)
-      .values({
-        userId,
-        organizationId,
-        state: 'active',
-        source: 'backfill',
-        version: 1,
-        createdAt: FIXTURE_AT,
-        updatedAt: FIXTURE_AT,
-      })
-      .onConflictDoUpdate({
-        target: userOrganizationBindings.userId,
-        set: { organizationId, state: 'active', updatedAt: FIXTURE_AT },
-      })
-  }
-}
 
 async function ensureProperty(
   organizationId: string,
@@ -1479,8 +1428,6 @@ async function main(): Promise<void> {
     organizationId: LOCKED_ORG_ID,
     role: 'owner',
   })
-  // Bindings AFTER every membership exists, so the derivation sees them all.
-  await ensureOrganizationBindings()
 
   const p1Id = await ensureProperty(orgAId, {
     id: IDS.p1,

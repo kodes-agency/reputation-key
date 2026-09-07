@@ -132,7 +132,6 @@ describe('Staff Organization lifecycle contribution', () => {
       'user',
       'member',
       'session',
-      'user_organization_bindings',
     ]) {
       expect(STAFF_LIFECYCLE_TABLES).not.toContain(foreign)
     }

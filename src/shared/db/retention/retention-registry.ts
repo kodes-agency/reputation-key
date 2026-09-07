@@ -712,25 +712,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({
-    id: 'identity.invited_registration_attempts',
-    dataClass: 'operational_action_history',
-    ownerContext: 'identity',
-    ownerRole: 'Identity context owner',
-    sourceKind: 'table',
-    source: 'invited_registration_attempts',
-    eligibility: {
-      anchorColumn: 'updated_at',
-      horizon: { kind: 'days', days: 90 },
-      predicate: "state IN ('accepted', 'compensated')",
-      query:
-        'Delete invited_registration_attempts older than 90 days only after they reach accepted or compensated state.',
-      implementedBoundary:
-        'Live as the scheduled invited_registration_attempts.settled subject; prepared and manual-review attempts remain recoverable.',
-    },
-    evidenceSubject: 'invited_registration_attempts.settled',
-    restoreImplication: RESTORE_REPLAYS_DELETION,
-  }),
-  rule({
     id: 'platform.audit_logs',
     dataClass: 'operational_action_history',
     ownerContext: 'shared',

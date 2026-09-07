@@ -126,10 +126,9 @@ Database triggers enforce:
 ## Request and ordinary cancellation
 
 A closure request locks and rechecks the concrete Better Auth `owner`
-membership and matching active User Organization Binding in the same
-transaction as the command. It requires a caller-provided UUID operation ID,
-closed request reason, bounded content-free support reference, and exact
-30-day deadline.
+membership in the same transaction as the command. It requires a
+caller-provided UUID operation ID, closed request reason, bounded content-free
+support reference, and exact 30-day deadline.
 
 The transaction co-commits:
 
@@ -331,8 +330,7 @@ Before the Identity command, composition fences Google connector/import work
 and releases current Property/Portal/Inbox manager authorities and Property
 access grants. The Identity transaction then locks the exact membership,
 verifies the durable fact names that same user, deletes all Better Auth sessions
-for the departing user, changes the matching active User Organization Binding
-to `released` with a new version, deletes membership, and appends
+for the departing user, deletes membership, and appends
 `identity.member.removed`.
 
 ### Transfer-first leave (LIF-01-T21)

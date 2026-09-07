@@ -88,16 +88,6 @@ export const organization = pgTable('organization', {
   metadata: text('metadata'),
   // Additional fields from org-schema.ts (managed by Better Auth)
   contactEmail: text('contactEmail'),
-  billingCompanyName: text('billingCompanyName'),
-  billingAddress: text('billingAddress'),
-  billingCity: text('billingCity'),
-  billingPostalCode: text('billingPostalCode'),
-  billingCountry: text('billingCountry'),
-  // `responseSlaHours` was retired with the legacy Response SLA authority (S5).
-  // Better Auth owns this table's DDL from org-schema.ts additionalFields.
-  // Removing the field there keeps fresh databases clean; journaled migration
-  // 0180_drop_organization_response_sla_hours contracts already-migrated
-  // databases after the verified CNV-01 release.
 })
 
 // Custom role definitions (Better Auth organizationRole). Read-only Drizzle mirror —

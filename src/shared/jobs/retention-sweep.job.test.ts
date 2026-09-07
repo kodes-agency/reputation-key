@@ -507,20 +507,6 @@ describe('retention rule registry (BQC-3.7)', () => {
     })
   })
 
-  it('removes only settled invitation-registration fences after 90 days', () => {
-    expect(
-      RETENTION_RULES.find(
-        (rule) => rule.subject === 'invited_registration_attempts.settled',
-      ),
-    ).toEqual({
-      subject: 'invited_registration_attempts.settled',
-      table: 'invited_registration_attempts',
-      keyColumns: ['id'],
-      tsColumn: 'updated_at',
-      olderThanMs: 90 * 24 * 60 * 60 * 1000,
-      extraWhere: "state IN ('accepted', 'compensated')",
-    })
-  })
 
   it('retains open digest batches and purges only terminal evidence after 90 days', () => {
     expect(

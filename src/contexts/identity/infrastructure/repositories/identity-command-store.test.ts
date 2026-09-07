@@ -68,12 +68,6 @@ async function truncateAll(p: Pool) {
   // Triggers disabled: guard_last_owner (deployed last-owner backstop) blocks
   // deleting an org's final owner row, including fixture teardown.
   await withLastOwnerGuardDisabled(p, async (client) => {
-    await client.query(
-      `DELETE FROM user_organization_bindings
-        WHERE user_id IN ($1, $2)
-           OR organization_id LIKE 'org-idcmd-%'`,
-      [INVITER_ID, ACCEPTOR_ID],
-    )
     await client.query('DELETE FROM session WHERE "userId" IN ($1, $2)', [
       INVITER_ID,
       ACCEPTOR_ID,
@@ -242,18 +236,21 @@ describe.sequential('identityCommandStore (integration)', () => {
     expect(facts.rows).toHaveLength(0)
   })
 
-  it('inviteMember rejects an existing user binding before an email is sent', async () => {
+  it('inviteMember rejects an existing membership in another Organization', async () => {
     const store = createAtomicIdentityCommandStore(db)
     await pool.query(
-      `INSERT INTO user_organization_bindings
-         (user_id, organization_id, state, source, version, created_at, updated_at)
-       VALUES ($1, 'org-idcmd-other-binding', 'active', 'operator', 1, NOW(), NOW())`,
+      `INSERT INTO organization (id, name, slug, "createdAt")
+       VALUES ('org-idcmd-other-membership', 'Other membership', 'idcmd-other-membership', NOW())`,
+    )
+    await pool.query(
+      `INSERT INTO member (id, "userId", "organizationId", role, "createdAt")
+       VALUES ('member-idcmd-other-membership', $1, 'org-idcmd-other-membership', 'admin', NOW())`,
       [ACCEPTOR_ID],
     )
 
     await expect(
       store.inviteMember({
-        invitationId: invitationId('inv-idcmd-binding-conflict'),
+        invitationId: invitationId('inv-idcmd-membership-conflict'),
         organizationId: ORG_ID,
         email: 'idcmd-acceptor@test.com',
         role: 'admin',
@@ -261,7 +258,7 @@ describe.sequential('identityCommandStore (integration)', () => {
         propertyIds: [],
         now: NOW,
         expiresAt: new Date('2026-06-08T12:00:00.000Z'),
-        event: invitedEvent('inv-idcmd-binding-conflict'),
+        event: invitedEvent('inv-idcmd-membership-conflict'),
       }),
     ).rejects.toSatisfy(
       (error: unknown) =>
@@ -385,21 +382,6 @@ describe.sequential('identityCommandStore (integration)', () => {
       [ORG_ID],
     )
     expect(facts.rows).toHaveLength(1)
-    const bindings = await pool.query(
-      `SELECT organization_id, state, source, invitation_id, version
-         FROM user_organization_bindings
-        WHERE user_id = $1`,
-      [ACCEPTOR_ID],
-    )
-    expect(bindings.rows).toEqual([
-      {
-        organization_id: ORG_ID,
-        state: 'active',
-        source: 'invitation',
-        invitation_id: 'inv-idcmd-accept',
-        version: 1,
-      },
-    ])
   })
 
   it('rejects and consumes no authority for a legacy Staff-user invitation', async () => {
@@ -433,18 +415,13 @@ describe.sequential('identityCommandStore (integration)', () => {
       `SELECT status FROM invitation WHERE id = 'inv-idcmd-staff-beta'`,
     )
     expect(invitationState.rows).toEqual([{ status: 'rejected' }])
-    const bindings = await pool.query(
-      `SELECT user_id FROM user_organization_bindings WHERE user_id = $1`,
-      [ACCEPTOR_ID],
-    )
-    expect(bindings.rows).toHaveLength(0)
     const memberships = await pool.query(`SELECT id FROM member WHERE "userId" = $1`, [
       ACCEPTOR_ID,
     ])
     expect(memberships.rows).toHaveLength(0)
   })
 
-  it('rejects a legacy membership in another Organization even without a binding', async () => {
+  it('rejects an existing membership in another Organization', async () => {
     const store = createAtomicIdentityCommandStore(db)
     const otherOrg = organizationId('org-idcmd-0000-0000-0000-000000000004')
     await pool.query(
@@ -487,14 +464,9 @@ describe.sequential('identityCommandStore (integration)', () => {
       `SELECT status FROM invitation WHERE id = 'inv-idcmd-legacy-other'`,
     )
     expect(invitationState.rows).toEqual([{ status: 'pending' }])
-    const binding = await pool.query(
-      `SELECT user_id FROM user_organization_bindings WHERE user_id = $1`,
-      [ACCEPTOR_ID],
-    )
-    expect(binding.rows).toHaveLength(0)
   })
 
-  it('serializes competing invitations and permits only one Organization binding', async () => {
+  it('serializes competing invitations and permits only one Organization membership', async () => {
     const store = createAtomicIdentityCommandStore(db)
     const otherOrg = organizationId('org-idcmd-0000-0000-0000-000000000002')
     await pool.query(
@@ -537,18 +509,12 @@ describe.sequential('identityCommandStore (integration)', () => {
         isIdentityError(outcome.reason) &&
         outcome.reason.code === 'organization_conflict',
     )
-    const binding = await pool.query(
-      `SELECT organization_id, state FROM user_organization_bindings WHERE user_id = $1`,
-      [ACCEPTOR_ID],
-    )
-    expect(binding.rows).toHaveLength(1)
-    expect(binding.rows[0].state).toBe('active')
     const members = await pool.query(
       `SELECT "organizationId" FROM member WHERE "userId" = $1`,
       [ACCEPTOR_ID],
     )
     expect(members.rows).toHaveLength(1)
-    expect(members.rows[0].organizationId).toBe(binding.rows[0].organization_id)
+    expect(members.rows[0].organizationId).toMatch(/^org-idcmd-/u)
     const invitations = await pool.query(
       `SELECT status FROM invitation WHERE id IN ('inv-idcmd-race-a', 'inv-idcmd-race-b') ORDER BY id`,
     )
@@ -602,19 +568,13 @@ describe.sequential('identityCommandStore (integration)', () => {
     )
   })
 
-  it('removeMember revokes sessions and releases the Organization binding atomically', async () => {
+  it('removeMember revokes sessions and membership atomically', async () => {
     const store = createAtomicIdentityCommandStore(db)
     await pool.query(
       `INSERT INTO member (id, "organizationId", "userId", role, "createdAt")
        VALUES ('member-idcmd-owner', $1, $2, 'owner', NOW()),
               ('member-idcmd-staff', $1, $3, 'member', NOW())`,
       [ORG_ID, INVITER_ID, ACCEPTOR_ID],
-    )
-    await pool.query(
-      `INSERT INTO user_organization_bindings
-         (user_id, organization_id, state, source, version, created_at, updated_at)
-       VALUES ($1, $2, 'active', 'operator', 1, $3, $3)`,
-      [ACCEPTOR_ID, ORG_ID, NOW],
     )
     await pool.query(
       `INSERT INTO session
@@ -643,18 +603,6 @@ describe.sequential('identityCommandStore (integration)', () => {
       ACCEPTOR_ID,
     ])
     expect(sessions.rows).toEqual([])
-    const binding = await pool.query(
-      `SELECT organization_id, state, version, resolution_reason, released_at
-       FROM user_organization_bindings WHERE user_id = $1`,
-      [ACCEPTOR_ID],
-    )
-    expect(binding.rows[0]).toMatchObject({
-      organization_id: ORG_ID,
-      state: 'released',
-      version: 2,
-      resolution_reason: 'member_removed',
-      released_at: NOW,
-    })
     const facts = await pool.query(
       `SELECT event_type FROM outbox_events
        WHERE organization_id = $1 AND event_type = 'identity.member.removed'`,
@@ -766,15 +714,6 @@ describe.sequential('identityCommandStore (integration)', () => {
       [event.eventId],
     )
     expect(facts.rows).toHaveLength(1)
-    const binding = await pool.query(
-      `SELECT organization_id, state, source
-         FROM user_organization_bindings
-        WHERE user_id = $1`,
-      [INVITER_ID],
-    )
-    expect(binding.rows).toEqual([
-      { organization_id: newOrgId, state: 'active', source: 'operator' },
-    ])
 
     // Forced outbox failure: neither the org nor the member row survives.
     const ghostOrgId = organizationId('org-idcmd-ghost-00000000000001')
@@ -811,10 +750,5 @@ describe.sequential('identityCommandStore (integration)', () => {
       [ghostOrgId],
     )
     expect(ghostMembers.rows).toHaveLength(0)
-    const ghostBindings = await pool.query(
-      `SELECT user_id FROM user_organization_bindings WHERE user_id = $1`,
-      [ACCEPTOR_ID],
-    )
-    expect(ghostBindings.rows).toHaveLength(0)
   })
 })

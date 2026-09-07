@@ -91,19 +91,16 @@ async function requireCurrentAccountAdmin(
   tx: Tx,
   input: Readonly<{ organizationId: string; actorUserId: string }>,
 ): Promise<void> {
-  // Both current membership and the app-owned single-Organization binding are
-  // locked. A concurrent demotion/removal/release therefore linearizes before
-  // or after this command instead of leaving session authority in charge.
+  // The current Better Auth membership is locked in the same transaction as
+  // the lifecycle mutation. A concurrent demotion or removal therefore
+  // linearizes before or after this command instead of leaving session state
+  // in charge.
   const rows = await tx.execute(sql`
     SELECT m.role
     FROM member AS m
-    INNER JOIN user_organization_bindings AS binding
-      ON binding.user_id = m."userId"
-     AND binding.organization_id = m."organizationId"
-     AND binding.state = 'active'
     WHERE m."organizationId" = ${input.organizationId}
       AND m."userId" = ${input.actorUserId}
-    FOR UPDATE OF m, binding
+    FOR UPDATE OF m
   `)
   const row = rows.rows[0] as { role: string } | undefined
   if (!row || row.role !== 'owner') {

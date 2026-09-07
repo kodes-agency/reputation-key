@@ -200,7 +200,6 @@ describe('retention registry report-only mode', () => {
       'activity.actor_label_redactions',
       'platform.published_outbox_events',
       'platform.event_consumer_receipts',
-      'identity.invited_registration_attempts',
       'platform.audit_logs',
       'integration.provider_tokens',
     ])

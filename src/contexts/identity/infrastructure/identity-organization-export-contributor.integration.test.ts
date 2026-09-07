@@ -63,12 +63,6 @@ async function seedFixture(): Promise<Fixture> {
     [fixture.memberId, fixture.userId, fixture.organizationId, createdAt],
   )
   await lease.pool.query(
-    `INSERT INTO user_organization_bindings (
-       user_id, organization_id, state, source, version, created_at, updated_at
-     ) VALUES ($1, $2, 'active', 'operator', 1, $3, $3)`,
-    [fixture.userId, fixture.organizationId, createdAt],
-  )
-  await lease.pool.query(
     `INSERT INTO invitation (
        id, "organizationId", email, role, status, "expiresAt", "propertyIds",
        "inviterId", "createdAt"
@@ -163,10 +157,6 @@ describe.sequential('Identity Organization Export contributor', () => {
       )
       await lease.pool.query(
         'DELETE FROM "organizationRole" WHERE "organizationId" = $1',
-        [organizationId],
-      )
-      await lease.pool.query(
-        'DELETE FROM user_organization_bindings WHERE organization_id = $1',
         [organizationId],
       )
       await executeWithLastOwnerGuardDisabled(db, [

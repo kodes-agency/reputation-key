@@ -10,8 +10,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const mockGetSession = vi.fn()
 const mockGetActiveMember = vi.fn()
 const mockDbSelect = vi.fn()
-const { mockAuthorizeBinding } = vi.hoisted(() => ({
-  mockAuthorizeBinding: vi.fn(),
+const { mockAuthorizeMembership } = vi.hoisted(() => ({
+  mockAuthorizeMembership: vi.fn(),
 }))
 
 vi.mock('./auth', () => ({
@@ -27,8 +27,8 @@ vi.mock('#/shared/db', () => ({
   getDb: () => ({ select: mockDbSelect }),
 }))
 
-vi.mock('./user-organization-binding-authority', () => ({
-  checkUserOrganizationBinding: mockAuthorizeBinding,
+vi.mock('./user-organization-membership-authority', () => ({
+  checkUserOrganizationMembership: mockAuthorizeMembership,
 }))
 
 import {
@@ -68,13 +68,8 @@ beforeEach(() => {
   mockGetSession.mockReset()
   mockGetActiveMember.mockReset()
   mockDbSelect.mockReset()
-  mockAuthorizeBinding.mockReset()
-  mockAuthorizeBinding.mockImplementation(
-    async (_db: unknown, _userId: string, _activeOrganizationId: string) => ({
-      kind: 'allow' as const,
-      version: 1,
-    }),
-  )
+  mockAuthorizeMembership.mockReset()
+  mockAuthorizeMembership.mockResolvedValue({ kind: 'allow' })
   resetTenantResolutionCache()
 })
 
@@ -243,14 +238,14 @@ describe('resolveTenant', () => {
     )
   })
 
-  it('rejects a session whose active Organization differs from its beta binding', async () => {
+  it('rejects a session whose active Organization differs from its sole membership', async () => {
     mockGetSession.mockResolvedValue({
       session: { id: 'sess-1', activeOrganizationId: 'org-2' },
       user: { id: 'u1' },
     })
-    mockAuthorizeBinding.mockResolvedValue({
+    mockAuthorizeMembership.mockResolvedValue({
       kind: 'deny',
-      reason: 'organization_binding_mismatch',
+      reason: 'organization_membership_mismatch',
     })
 
     await expect(resolveTenant(makeHeaders())).rejects.toSatisfy(
@@ -258,7 +253,7 @@ describe('resolveTenant', () => {
         e instanceof Error &&
         e.name === 'AuthError' &&
         (e as unknown as Record<string, unknown>).code ===
-          'organization_binding_conflict' &&
+          'organization_membership_conflict' &&
         (e as unknown as Record<string, unknown>).status === 409,
     )
     expect(mockGetActiveMember).not.toHaveBeenCalled()

@@ -45,12 +45,6 @@ async function seedFixture(role = 'owner'): Promise<Fixture> {
      VALUES ($1, $2, $3, $4, $5)`,
     [`${PREFIX}member-${suffix}`, actorUserId, organizationId, role, REQUESTED_AT],
   )
-  await lease.pool.query(
-    `INSERT INTO user_organization_bindings (
-       user_id, organization_id, state, source, version, created_at, updated_at
-     ) VALUES ($1, $2, 'active', 'operator', 1, $3, $3)`,
-    [actorUserId, organizationId, REQUESTED_AT],
-  )
   // The database provisions the lifecycle authority in the exact Better Auth
   // Organization insert transaction. A fixture must exercise that same path.
   return { organizationId, actorUserId }
@@ -131,10 +125,6 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
       ])
       await lease.pool.query(
         'DELETE FROM organization_lifecycle_command_receipts WHERE organization_id = $1',
-        [organizationId],
-      )
-      await lease.pool.query(
-        'DELETE FROM user_organization_bindings WHERE organization_id = $1',
         [organizationId],
       )
       await executeWithLastOwnerGuardDisabled(db, [

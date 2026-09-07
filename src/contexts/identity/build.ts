@@ -742,7 +742,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       commandStore,
       registrationStore: invitedRegistrationStore,
       runOnAccepted: deps.identityPort.runOnAcceptInvitation,
-      idGen: deps.idGen,
       clock: deps.clock,
       logger: deps.logger,
     }),

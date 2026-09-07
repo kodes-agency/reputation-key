@@ -10,7 +10,7 @@ import { getLogger } from '#/shared/observability/logger'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { catchUntagged } from './server-errors'
 import { getDb } from '#/shared/db'
-import { readUserOrganizationBinding } from '#/shared/db/user-organization-binding'
+import { readUserOrganizationMemberships } from '#/shared/db/user-organization-membership'
 
 /** Get the current session using server-side request headers. */
 export const getSession = createServerFn({ method: 'GET' }).handler(
@@ -40,18 +40,29 @@ export const ensureActiveOrg = createServerFn({ method: 'POST' }).handler(
         const session = await auth.api.getSession({ headers })
         if (!session) return
 
-        const binding = await readUserOrganizationBinding(getDb(), session.user.id)
-        if (binding?.state === 'active' && binding.organizationId) {
-          if (session.session.activeOrganizationId === binding.organizationId) return
+        const membershipOrganizationIds = await readUserOrganizationMemberships(
+          getDb(),
+          session.user.id,
+        )
+        let organization: string | undefined
+        let ambiguous = false
+        for (const organizationId of membershipOrganizationIds) {
+          if (organization === undefined) organization = organizationId
+          else if (organizationId !== organization) {
+            ambiguous = true
+            break
+          }
+        }
+        if (!ambiguous && organization) {
+          if (session.session.activeOrganizationId === organization) return
           await auth.api.setActiveOrganization({
             headers,
-            body: { organizationId: binding.organizationId },
+            body: { organizationId: organization },
           })
         } else {
-          const logger = getLogger()
-          logger.warn(
-            { bindingState: binding?.state ?? 'missing' },
-            'User has no active beta Organization binding — cannot set active org',
+          getLogger().warn(
+            { membershipCount: membershipOrganizationIds.length },
+            'User needs exactly one Better Auth Organization membership — cannot set active org',
           )
         }
       } catch (e) {

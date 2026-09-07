@@ -110,7 +110,7 @@ describe('parseBetterAuthResponse', () => {
     expect(result.propertyIds).toBe('["prop-1"]')
   })
 
-  it('strips dormant billing metadata from the organization read boundary', () => {
+  it('parses the active organization contact surface', () => {
     const result = parseBetterAuthResponse(
       betterAuthOrganizationSchema,
       {
@@ -119,11 +119,6 @@ describe('parseBetterAuthResponse', () => {
         slug: 'test-org',
         createdAt: new Date('2026-01-01'),
         contactEmail: 'ops@example.test',
-        billingCompanyName: 'Dormant Ltd',
-        billingAddress: '100 Market Street',
-        billingCity: 'Sofia',
-        billingPostalCode: '1000',
-        billingCountry: 'BG',
       },
       'org_setup_failed',
       'bad',

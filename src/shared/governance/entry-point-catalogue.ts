@@ -2953,7 +2953,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'bounded recovery of content-free invitation registration fences; exact preallocated provider identities only, with safe compensation or manual-review terminal state',
+        'bounded recovery of Better Auth verification records; exact preallocated provider identities only, with safe compensation or fail-closed manual review',
     },
   ),
   job(
@@ -3614,7 +3614,7 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'every 60s; the database lease prevents duplicate workers and the five-minute due time avoids racing an active foreground provider request',
+        'every 60s; atomic updatedAt claims prevent duplicate workers and the five-minute due time avoids racing an active foreground provider request',
     },
   ),
   schedule(
@@ -3664,15 +3664,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:queue — pause/resume/status BullMQ queues; jobs preserved (BQC-0.5); pause/resume report-first + --reason/--apply (BQC-7.5)',
-    },
-  ),
-  ops(
-    'scripts/ops/manage-dormant-billing-data.ts',
-    'scripts/ops/manage-dormant-billing-data.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:manage-dormant-billing-data — EXP-01 content-free report plus destructive exact-fingerprint apply for all five dormant Better Auth Billing compatibility fields; serializable row locks, typed confirmation, ticket/reason audit, atomic nulling, and empty-state verification; columns remain intact',
     },
   ),
   ops(
@@ -3924,15 +3915,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   ops('scripts/audit-member-roles.ts', 'scripts/audit-member-roles.ts', 'tenant_cross', {
     notes: 'audit:member-roles — read-only role audit (raw pg)',
   }),
-  ops(
-    'scripts/audit-user-organization-bindings.ts',
-    'scripts/audit-user-organization-bindings.ts',
-    'tenant_cross',
-    {
-      notes:
-        'audit:user-organization-bindings — read-only SAFE-02 reconciliation report; classifies exact/mappable/conflict/orphan without guessing or mutation',
-    },
-  ),
   ops('scripts/check-db.ts', 'scripts/check-db.ts', 'tenant_cross', {
     notes: 'read-only diagnostics; identifiers + clocks only (BQC-1.6)',
   }),

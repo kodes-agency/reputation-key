@@ -51,7 +51,7 @@ const WRITE_KEYWORDS = [
 
 const inventories = [
   ['custom roles', readLegacyCustomRoleInventory, 5],
-  ['multi-organization', readLegacyMultiOrganizationInventory, 6],
+  ['multi-organization', readLegacyMultiOrganizationInventory, 2],
   ['legacy guest compatibility', readLegacyGuestCompatibilityInventory, 9],
 ] as const
 
@@ -120,15 +120,13 @@ describe('legacy reconciliation inventories', () => {
     ).toBe('informational')
   })
 
-  it('blocks migration on a binding that disagrees with its memberships', async () => {
-    // Order: users_with_multiple_memberships, binding_disagrees_with_membership,
-    // members_without_binding, bindings_awaiting_support_resolution,
-    // pending_invitations_to_bound_users, released_bindings.
-    const { db } = recordingDb([0, 2, 0, 0, 0, 7])
+  it('blocks migration when a user has multiple Better Auth memberships', async () => {
+    // Order: users_with_multiple_memberships, then conflicting invitations.
+    const { db } = recordingDb([2, 0])
 
     const report = await readLegacyMultiOrganizationInventory(db, AS_OF)
 
-    expect(report.blockingFindingIds).toEqual(['binding_disagrees_with_membership'])
+    expect(report.blockingFindingIds).toEqual(['users_with_multiple_memberships'])
   })
 
   it('treats every legacy Guest finding as reconcilable rather than blocking', async () => {

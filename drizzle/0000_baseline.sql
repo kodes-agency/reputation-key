@@ -2889,27 +2889,6 @@ CREATE TABLE "identity_invitation_fact_contract" (
 	CONSTRAINT "identity_invitation_fact_contract_operator_shape" CHECK (("identity_invitation_fact_contract"."operator_id" IS NULL) = ("identity_invitation_fact_contract"."reason" IS NULL))
 );
 --> statement-breakpoint
-CREATE TABLE "user_organization_bindings" (
-	"user_id" text PRIMARY KEY NOT NULL,
-	"organization_id" text,
-	"state" text DEFAULT 'active' NOT NULL,
-	"source" text NOT NULL,
-	"invitation_id" text,
-	"version" integer DEFAULT 1 NOT NULL,
-	"resolution_reason" text,
-	"released_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "user_organization_bindings_state_valid" CHECK ("user_organization_bindings"."state" IN ('active', 'support_resolution', 'released')),
-	CONSTRAINT "user_organization_bindings_source_valid" CHECK ("user_organization_bindings"."source" IN ('invitation', 'operator', 'backfill')),
-	CONSTRAINT "user_organization_bindings_version_positive" CHECK ("user_organization_bindings"."version" > 0),
-	CONSTRAINT "user_organization_bindings_state_shape" CHECK ((
-        ("user_organization_bindings"."state" = 'active' AND "user_organization_bindings"."organization_id" IS NOT NULL AND "user_organization_bindings"."released_at" IS NULL)
-        OR ("user_organization_bindings"."state" = 'support_resolution' AND "user_organization_bindings"."released_at" IS NULL)
-        OR ("user_organization_bindings"."state" = 'released' AND "user_organization_bindings"."released_at" IS NOT NULL)
-      ))
-);
---> statement-breakpoint
 CREATE TABLE "identity_organization_lifecycle_receipts" (
 	"organization_id" text NOT NULL,
 	"closure_lineage_id" uuid NOT NULL,
@@ -3339,60 +3318,6 @@ CREATE TABLE "privacy_requests" (
         OR ("privacy_requests"."request_kind" = 'access' AND "privacy_requests"."package_expires_at" IS NOT NULL
           AND "privacy_requests"."package_expires_at" > "privacy_requests"."received_at")),
 	CONSTRAINT "privacy_requests_target_field_valid" CHECK ("privacy_requests"."target_field" IS NULL OR "privacy_requests"."request_kind" IN ('correction', 'withdrawal'))
-);
---> statement-breakpoint
-CREATE TABLE "invited_registration_attempts" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"invitation_id" text NOT NULL,
-	"organization_id" text NOT NULL,
-	"expected_user_id" text NOT NULL,
-	"expected_credential_account_id" text NOT NULL,
-	"expected_initial_session_id" text NOT NULL,
-	"attempt_ordinal" integer NOT NULL,
-	"state" text DEFAULT 'prepared' NOT NULL,
-	"request_count" integer DEFAULT 1 NOT NULL,
-	"provider_observed_at" timestamp with time zone,
-	"accepted_at" timestamp with time zone,
-	"compensated_at" timestamp with time zone,
-	"manual_review_at" timestamp with time zone,
-	"next_recovery_at" timestamp with time zone,
-	"lease_owner" varchar(128),
-	"lease_expires_at" timestamp with time zone,
-	"last_failure_code" varchar(64),
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "invited_registration_state_valid" CHECK ("invited_registration_attempts"."state" IN ('prepared', 'accepted', 'compensated', 'manual_review')),
-	CONSTRAINT "invited_registration_attempt_ordinal_positive" CHECK ("invited_registration_attempts"."attempt_ordinal" > 0),
-	CONSTRAINT "invited_registration_request_count_positive" CHECK ("invited_registration_attempts"."request_count" > 0),
-	CONSTRAINT "invited_registration_lease_pair" CHECK (("invited_registration_attempts"."lease_owner" IS NULL) = ("invited_registration_attempts"."lease_expires_at" IS NULL)),
-	CONSTRAINT "invited_registration_terminal_shape" CHECK ((
-        "invited_registration_attempts"."state" = 'prepared'
-        AND "invited_registration_attempts"."accepted_at" IS NULL
-        AND "invited_registration_attempts"."compensated_at" IS NULL
-        AND "invited_registration_attempts"."manual_review_at" IS NULL
-        AND "invited_registration_attempts"."next_recovery_at" IS NOT NULL
-      ) OR (
-        "invited_registration_attempts"."state" = 'accepted'
-        AND "invited_registration_attempts"."accepted_at" IS NOT NULL
-        AND "invited_registration_attempts"."compensated_at" IS NULL
-        AND "invited_registration_attempts"."manual_review_at" IS NULL
-        AND "invited_registration_attempts"."next_recovery_at" IS NULL
-        AND "invited_registration_attempts"."lease_owner" IS NULL
-      ) OR (
-        "invited_registration_attempts"."state" = 'compensated'
-        AND "invited_registration_attempts"."accepted_at" IS NULL
-        AND "invited_registration_attempts"."compensated_at" IS NOT NULL
-        AND "invited_registration_attempts"."manual_review_at" IS NULL
-        AND "invited_registration_attempts"."next_recovery_at" IS NULL
-        AND "invited_registration_attempts"."lease_owner" IS NULL
-      ) OR (
-        "invited_registration_attempts"."state" = 'manual_review'
-        AND "invited_registration_attempts"."accepted_at" IS NULL
-        AND "invited_registration_attempts"."compensated_at" IS NULL
-        AND "invited_registration_attempts"."manual_review_at" IS NOT NULL
-        AND "invited_registration_attempts"."next_recovery_at" IS NULL
-        AND "invited_registration_attempts"."lease_owner" IS NULL
-      ))
 );
 --> statement-breakpoint
 CREATE TABLE "metric_corrections" (
@@ -5528,8 +5453,6 @@ CREATE INDEX "inbox_notes_item_idx" ON "inbox_notes" USING btree ("inbox_item_id
 --> statement-breakpoint
 CREATE INDEX "inbox_response_target_reminders_due_idx" ON "inbox_response_target_reminders" USING btree ("scheduled_for","inbox_item_id","cycle_number","reminder_kind") WHERE "inbox_response_target_reminders"."delivered_at" IS NULL AND "inbox_response_target_reminders"."cancelled_at" IS NULL;
 --> statement-breakpoint
-CREATE INDEX "user_organization_bindings_org_state_idx" ON "user_organization_bindings" USING btree ("organization_id","state");
---> statement-breakpoint
 CREATE INDEX "identity_organization_lifecycle_receipts_org_time_idx" ON "identity_organization_lifecycle_receipts" USING btree ("organization_id","occurred_at" desc);
 --> statement-breakpoint
 CREATE INDEX "organization_export_retrieval_issuances_org_time_idx" ON "organization_export_retrieval_issuances" USING btree ("organization_id","issued_at" desc);
@@ -5565,8 +5488,6 @@ CREATE INDEX "privacy_request_transitions_request_idx" ON "privacy_request_trans
 CREATE INDEX "privacy_requests_scope_idx" ON "privacy_requests" USING btree ("organization_id","property_id","state");
 --> statement-breakpoint
 CREATE INDEX "privacy_requests_subject_idx" ON "privacy_requests" USING btree ("subject_ref","received_at");
---> statement-breakpoint
-CREATE INDEX "invited_registration_recovery_due_idx" ON "invited_registration_attempts" USING btree ("next_recovery_at","created_at") WHERE "invited_registration_attempts"."state" = 'prepared';
 --> statement-breakpoint
 CREATE INDEX "metric_corrections_reading_idx" ON "metric_corrections" USING btree ("reading_id","recorded_at");
 --> statement-breakpoint
@@ -5877,16 +5798,6 @@ CREATE UNIQUE INDEX "organization_exports_one_open_per_org_idx" ON "organization
 CREATE UNIQUE INDEX "backup_erasure_ledger_lineage_unique" ON "backup_erasure_ledger" USING btree ("subject_class","closure_lineage_id","lifecycle_revision","context");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "property_erase_authorities_live_unique" ON "property_erase_authorities" USING btree ("property_id") WHERE state NOT IN ('purged', 'cancelled');
---> statement-breakpoint
-CREATE UNIQUE INDEX "invited_registration_expected_user_unique" ON "invited_registration_attempts" USING btree ("expected_user_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "invited_registration_expected_account_unique" ON "invited_registration_attempts" USING btree ("expected_credential_account_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "invited_registration_expected_session_unique" ON "invited_registration_attempts" USING btree ("expected_initial_session_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "invited_registration_invitation_ordinal_unique" ON "invited_registration_attempts" USING btree ("invitation_id","attempt_ordinal");
---> statement-breakpoint
-CREATE UNIQUE INDEX "invited_registration_one_unresolved_per_invitation" ON "invited_registration_attempts" USING btree ("invitation_id") WHERE "invited_registration_attempts"."state" IN ('prepared', 'manual_review');
 --> statement-breakpoint
 CREATE UNIQUE INDEX "metric_corrections_source_unique" ON "metric_corrections" USING btree ("source_event_id");
 --> statement-breakpoint
