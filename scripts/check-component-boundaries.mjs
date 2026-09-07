@@ -2,11 +2,11 @@
 // Enforces the component/server boundary from src/components/CONTEXT.md.
 // Under src/components/**, a file MUST NOT hold a runtime (value) import from
 // #/contexts/*/server/**, UNLESS the file is on the allowlist below (the
-// sanctioned 5+-mutation exception from CONTEXT.md:48).
+// sanctioned 5+-mutation exception under src/components/CONTEXT.md "Server-function boundary".
 //
 // `import type { ... }` from contexts/*/server is ALLOWED (typeof prop typing).
 // Components receive server fns as props from routes and wrap them with
-// useServerFn/useAction/useMutationAction — that wrapping is NOT a violation;
+// useServerFn/useAction/useActionMutation — that wrapping is NOT a violation;
 // only value-importing a server module is. The value-import check is the
 // authoritative detector: any component coupled to a server module must
 // value-import it.
@@ -20,7 +20,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const componentsDir = join(__dirname, '..', 'src', 'components')
 
 // Files allowed to value-import from contexts/*/server.
-// - inbox/reply-form.tsx: 6 mutations (CONTEXT.md:48 documented exception).
+// - inbox/reply-form.tsx: 7 mutations (documented under src/components/CONTEXT.md "Server-function boundary").
 // - features/portal/link-tree/**: the link-tree bundle (8 mutations, documented).
 const ALLOWLIST = new Set([
   'inbox/reply-form.tsx',
@@ -134,16 +134,16 @@ if (violations.length > 0) {
     for (const r of v.reasons) console.error(`      — ${r}`)
   }
   console.error(`\nTotal: ${violations.length} files.`)
-  console.error(
-    'Components must receive server fns as props from routes (CONTEXT.md:55) and must',
-  )
+  console.error('Components must receive server fns as props from routes and must')
   console.error(
     'not value-import from contexts/*/server. Use `import type` for typeof prop typing.',
   )
   console.error(
-    'The only exception is 5+ server-fn mutations in one file (CONTEXT.md:48),',
+    'The only exception is 5+ server-fn mutations in one file, documented under',
   )
-  console.error('documented with a comment and added to the allowlist.')
+  console.error(
+    'src/components/CONTEXT.md "Server-function boundary" and added to the allowlist.',
+  )
   process.exit(1)
 }
 

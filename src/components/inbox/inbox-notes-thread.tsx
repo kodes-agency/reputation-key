@@ -4,7 +4,7 @@ import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { FormTextarea, type BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-// Receives addInboxNote server fn as a prop per src/components/CONTEXT.md:55.
+// Receives addInboxNote server fn as a prop per src/components/CONTEXT.md "Server-function boundary".
 import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
 import { Send, Clock, User } from 'lucide-react'
 import type {

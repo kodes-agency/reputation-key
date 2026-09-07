@@ -1,5 +1,5 @@
 // Inbox list state — cursor-paginated list backed by TanStack Query.
-// Receives the getInboxItems server fn as a param per src/components/CONTEXT.md:55.
+// Receives the getInboxItems server fn as a param per src/components/CONTEXT.md "Server-function boundary".
 // useInfiniteQuery owns fetch/cache/race-cancellation; filter changes are debounced
 // into the query key (300ms) so typing doesn't refetch per keystroke. Optimistic
 // status updates + bulk reload use setQueryData / invalidateQueries (targeted,
