@@ -12,7 +12,7 @@ import { aiOperations, aiOrganizationCostWindows } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import { maximumCostMicros } from '#/shared/ai-openai-provider-profile'
-import { createAiBudgetReservationReaperHandler } from '#/shared/jobs/ai-budget-reservation-reaper.job'
+import { createAiOperationExecutionReaperHandler } from '#/shared/jobs/ai-operation-execution-reaper.job'
 import {
   AI_REPLY_OPERATION_PROFILE,
   installAiOperationFixture,
@@ -171,9 +171,24 @@ describe.sequential('AI budget ledger (real PostgreSQL)', () => {
       .set({ budgetReservedAt: sql`clock_timestamp() - interval '16 minutes'` })
       .where(eq(aiOperations.id, stale))
     const fresh = await fixture.seedOperation()
-    // The window has room for exactly one live reservation; the job frees it.
-    const reaperJob = createAiBudgetReservationReaperHandler(db)
-    await expect(reaperJob({} as Job)).resolves.toBe(1)
+    // The window has room for exactly one live reservation; the reaper job's
+    // tick frees it alongside the abandoned-execution sweep.
+    const released: number[] = []
+    const reaperTick = createAiOperationExecutionReaperHandler({
+      reap: async () => ({
+        abandonedVisited: 0,
+        operationsFenced: 0,
+        operationsRaced: 0,
+        batchFull: false,
+      }),
+      releaseStaleReservations: async () => {
+        const count = await db.transaction(reapStaleAiReservations)
+        released.push(count)
+        return count
+      },
+    })
+    await reaperTick({} as Job)
+    expect(released).toEqual([1])
     await expect(
       db.transaction((tx) => budget.admitAiOperation(tx, admission(fresh))),
     ).resolves.toMatchObject({ ok: true })

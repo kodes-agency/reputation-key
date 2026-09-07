@@ -48,10 +48,7 @@ import {
   createAiOperationExecutionReaperHandler,
   JOB_NAME as AI_EXECUTION_REAPER_JOB_NAME,
 } from '#/shared/jobs/ai-operation-execution-reaper.job'
-import {
-  AI_BUDGET_RESERVATION_REAPER_JOB_NAME,
-  createAiBudgetReservationReaperHandler,
-} from '#/shared/jobs/ai-budget-reservation-reaper.job'
+import { reapStaleAiReservations } from '#/shared/db/ai/ai-budget'
 import {
   createAiReviewAnalysisEnrollmentSweepHandler,
   JOB_NAME as AI_ENROLLMENT_SWEEP_JOB_NAME,
@@ -410,15 +407,6 @@ export async function bootstrap(
     'registered canonical Goal Program maintenance job handler',
   )
 
-  container.jobRegistry.register(
-    AI_BUDGET_RESERVATION_REAPER_JOB_NAME,
-    createAiBudgetReservationReaperHandler(container.db),
-  )
-  logger.info(
-    { job: AI_BUDGET_RESERVATION_REAPER_JOB_NAME },
-    'registered AI budget reservation reaper job handler',
-  )
-
   // ── Retention sweep (BQC-1.6: bounded, evidence-backed, daily) ──────
   const { createRetentionSweepHandler, JOB_NAME: RETENTION_SWEEP_JOB_NAME } =
     await import('#/shared/jobs/retention-sweep.job')
@@ -524,6 +512,7 @@ export async function bootstrap(
         store: createAiOperationStoreAdapter(container.db, () => crypto.randomUUID()),
         nowEpochMillis: () => container.clock().getTime(),
       }),
+      releaseStaleReservations: () => container.db.transaction(reapStaleAiReservations),
     }),
   )
   logger.info(

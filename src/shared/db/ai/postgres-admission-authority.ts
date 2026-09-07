@@ -14,7 +14,6 @@ import type {
 } from '#/shared/ai-provider-control/admission-service'
 import {
   createAiBudgetControl,
-  reapStaleAiReservations,
   type AiAdmissionRateLimiter,
   type AiBudgetControl,
 } from './ai-budget'
@@ -257,13 +256,6 @@ export function createPostgresAiAdmissionAuthority(
           settlementState: settlementState(request.disposition),
         }
       })
-    },
-
-    reapExpired: async (limit) => {
-      if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1_000) {
-        throw new Error('AI admission reap limit is invalid')
-      }
-      return db.transaction(reapStaleAiReservations)
     },
 
     readiness: async () => {

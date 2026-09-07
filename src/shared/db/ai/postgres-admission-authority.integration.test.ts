@@ -4,7 +4,7 @@
 // (a different binding does not), and a settlement is priced from usage once.
 
 import { randomUUID } from 'node:crypto'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { getPool } from '#/shared/db/pool'
@@ -273,18 +273,5 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
         'grant-v2',
       ),
     ).rejects.toThrow(/key ID/)
-  })
-
-  it('reaps an unsettled grant once its reservation is stale', async () => {
-    const subject = await executingOperation()
-    const granted = await authority.authorizeProperty(descriptor(subject), BINDING)
-    if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
-    await expect(authority.reapExpired(10)).resolves.toBe(0)
-    await db
-      .update(aiOperations)
-      .set({ budgetReservedAt: sql`clock_timestamp() - interval '16 minutes'` })
-      .where(eq(aiOperations.id, subject.operationId))
-    await expect(authority.reapExpired(10)).resolves.toBe(1)
-    await expect(authority.reapExpired(0)).rejects.toThrow(/limit/)
   })
 })
