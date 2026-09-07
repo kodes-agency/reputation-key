@@ -34,6 +34,7 @@ const EXPECTED_TABLES = [
   'permission_version',
   'organization_role_policy',
   'audit_logs',
+  'organization_lifecycle_events',
   'portals',
   'portal_groups',
   'portal_link_categories',

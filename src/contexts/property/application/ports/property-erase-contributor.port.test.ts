@@ -8,11 +8,9 @@
 
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { getTableConfig } from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
 import { ORGANIZATION_LIFECYCLE_CONTEXTS } from '#/contexts/identity/domain/organization-lifecycle'
 import { createGuestPropertyEraseContributor } from '#/contexts/guest/infrastructure/adapters/guest-property-erase.adapter'
-import { propertyEraseContextReceipts } from '#/shared/db/schema/property-erase.schema'
 import { createPropertyPropertyEraseContributor } from '../../infrastructure/adapters/property-property-erase.adapter'
 import { PROPERTY_ERASE_CONTEXTS } from './property-erase-contributor.port'
 
@@ -23,18 +21,6 @@ const boundedContextDirectories = (): readonly string[] =>
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort()
-
-/** The declared width of `property_erase_context_receipts.context`. */
-const receiptContextColumnLength = (): number => {
-  const column = getTableConfig(propertyEraseContextReceipts).columns.find(
-    (candidate) => candidate.name === 'context',
-  )
-  const length = (column as unknown as { length?: number } | undefined)?.length
-  if (length === undefined) {
-    throw new Error('property_erase_context_receipts.context has no declared width')
-  }
-  return length
-}
 
 describe('PROPERTY_ERASE_CONTEXTS', () => {
   it('registers every bounded context', () => {
@@ -73,11 +59,8 @@ describe('PROPERTY_ERASE_CONTEXTS', () => {
     expect(registered).toHaveLength(14)
   })
 
-  it('fits every context into the receipt column, so each receipt is writable', () => {
-    const width = receiptContextColumnLength()
-
+  it('uses stable context keys in lifecycle events', () => {
     for (const context of registered) {
-      expect(context.length).toBeLessThanOrEqual(width)
       expect(context).toMatch(/^[a-z][a-z_]*$/u)
     }
   })

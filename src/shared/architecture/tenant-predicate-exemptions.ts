@@ -173,13 +173,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/integration/infrastructure/repositories/google-oauth-exchange-recovery.repository.ts',
-    symbol: 'expire',
-    reason:
-      'The bounded OAuth recovery sweep intentionally expires abandoned exchange attempts across tenants under the global recovery authority.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/notification/infrastructure/repositories/notification-gap.repository.ts',
     symbol: 'countItemsMissingNotifications',
     reason:
@@ -233,20 +226,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     symbol: 'nextAdvanceable',
     reason:
       'The globally serialized erase worker intentionally claims exactly one advanceable authority across tenants and returns its complete tenant identity.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/property/infrastructure/property-google-binding-store.ts',
-    symbol: 'countUnreleasedExpired',
-    reason:
-      'The bounded retention gauge intentionally counts expired unreleased operation receipts across tenants without returning tenant-owned content.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/property/infrastructure/property-google-binding-store.ts',
-    symbol: 'sweepReleasedExpired',
-    reason:
-      'The bounded retention sweep intentionally removes released expired operation receipts across tenants after their retention authority is released.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {

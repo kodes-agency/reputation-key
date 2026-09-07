@@ -1,40 +1,21 @@
-// Shared, transaction-bound Organization lifecycle receipt store (LIF-01).
+// Shared, transaction-bound Organization lifecycle event store (LIF-01).
 //
-// `identity-organization-lifecycle-contributor.ts` established the semantics a
-// lifecycle contributor must honour: re-read the live authority under a row
-// lock, refuse when the phase's required state / revision / lineage /
-// recovery deadline no longer matches, serialize concurrent first attempts on
-// an advisory transaction lock, and co-commit the phase mutation with one
-// content-free receipt. Sixteen more copies of that reasoning would be
-// unreviewable, so it lives here exactly once and is parameterized by context.
-//
-// Three properties this file exists to preserve:
-//   1. Idempotence — replaying the same (context, lineage, revision, phase)
-//      returns the recorded outcome WITHOUT re-running the phase work.
-//   2. Authority binding — a receipt can only be written while the live
-//      authority still says this phase is the work to do.
-//   3. Affirmative absence — `no_data` is a real answer that is persisted.
-//      An omitted contributor would make a partial purge look complete.
+// Every lifecycle receipt is appended here. Context contributors, Identity
+// commands, Property erasure, and backup hold releases share one durable table
+// while retaining their former idempotency keys in a namespaced `kind` value.
 
 import { and, eq, sql } from 'drizzle-orm'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
+import { backupErasureLedger } from '#/shared/db/schema/backup-erasure-ledger.schema'
 import {
-  contextOrganizationLifecycleReceipts,
-  type ContextLifecycleReceiptContext,
-  type ContextLifecycleReceiptOutcome,
-  type ContextLifecycleReceiptPhase,
-} from '#/shared/db/schema/context-organization-lifecycle-receipts.schema'
-import { organizationLifecycleAuthority } from '#/shared/db/schema/organization-lifecycle.schema'
+  organizationLifecycleAuthority,
+  organizationLifecycleEvents,
+  type OrganizationLifecycleEventContext,
+} from '#/shared/db/schema/organization-lifecycle.schema'
+import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import { sha256Hex } from '#/shared/domain/sha256'
 import type { Tx } from '#/shared/outbox/commit'
 
-/**
- * Structurally identical to Identity's
- * `OrganizationLifecycleContributionInput`. It is redeclared because
- * `shared/**` may not import a context's application layer; an adapter in a
- * context's `infrastructure/adapters/**` binds the two by structural typing.
- */
 export type OrganizationLifecycleContributionRequest = Readonly<{
   organizationId: string
   closureLineageId: string
@@ -43,26 +24,23 @@ export type OrganizationLifecycleContributionRequest = Readonly<{
   occurredAt: Date
 }>
 
+export type OrganizationLifecycleReceiptPhase = 'closing' | 'purge_readiness' | 'purge'
+export type OrganizationLifecycleReceiptOutcome = 'complete' | 'no_data'
+
 export type OrganizationLifecyclePhaseOutcome = Readonly<{
-  outcome: ContextLifecycleReceiptOutcome
+  outcome: OrganizationLifecycleReceiptOutcome
   evidenceRef: string
 }>
 
-/**
- * The reviewed, context-local mutation for one phase.
- *
- * It receives the SAME transaction that will carry the receipt, so a thrown
- * phase leaves neither a receipt nor a mutated business row.
- */
 export type OrganizationLifecyclePhaseWork = (
   tx: Tx,
   request: OrganizationLifecycleContributionRequest,
 ) => Promise<OrganizationLifecyclePhaseOutcome>
 
 export type OrganizationLifecycleReceiptStore = Readonly<{
-  context: ContextLifecycleReceiptContext
+  context: OrganizationLifecycleEventContext
   run(
-    phase: ContextLifecycleReceiptPhase,
+    phase: OrganizationLifecycleReceiptPhase,
     work: OrganizationLifecyclePhaseWork,
     request: OrganizationLifecycleContributionRequest,
   ): Promise<OrganizationLifecyclePhaseOutcome>
@@ -70,10 +48,9 @@ export type OrganizationLifecycleReceiptStore = Readonly<{
 
 export type OrganizationLifecycleReceiptStoreDeps = Readonly<{
   db: Database
-  context: ContextLifecycleReceiptContext
+  context: OrganizationLifecycleEventContext
 }>
 
-/** Each phase is only legal while the authority sits in exactly this state. */
 const AUTHORITY_STATE_BY_PHASE = Object.freeze({
   closing: 'closure_requested',
   purge_readiness: 'closing',
@@ -82,17 +59,95 @@ const AUTHORITY_STATE_BY_PHASE = Object.freeze({
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 const CONTENT_FREE_EVIDENCE_REF = /^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$/u
-
 const LIFECYCLE_AUTHORITY_CHANGED = 'lifecycle contribution authority changed'
+const CONTRIBUTION_KIND_PREFIX = 'organization_lifecycle_contribution'
+const COMMAND_KIND_PREFIX = 'organization_lifecycle_command'
+const PROPERTY_ERASE_KIND_PREFIX = 'property_erase'
+const BACKUP_HOLD_RELEASE_KIND_PREFIX = 'backup_erasure_hold_release'
 
-/**
- * The fingerprint pins the receipt to the exact request that produced it.
- * A replay whose lineage, revision or recovery deadline differs is a DIFFERENT
- * request wearing the same key, and must not inherit the recorded outcome.
- */
+const contributionKind = (closureLineageId: string, lifecycleRevision: number): string =>
+  `${CONTRIBUTION_KIND_PREFIX}:${closureLineageId}:r${lifecycleRevision}`
+const commandKind = (operationId: string): string =>
+  `${COMMAND_KIND_PREFIX}:${operationId}`
+const propertyEraseKind = (authorityId: string): string =>
+  `${PROPERTY_ERASE_KIND_PREFIX}:${authorityId}`
+const backupHoldReleaseKind = (ledgerEntryId: string): string =>
+  `${BACKUP_HOLD_RELEASE_KIND_PREFIX}:${ledgerEntryId}`
+
+function objectPayload(value: unknown, subject: string): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(`${subject} payload is invalid`)
+  }
+  return value as Record<string, unknown>
+}
+
+function requiredString(
+  payload: Record<string, unknown>,
+  key: string,
+  subject: string,
+): string {
+  const value = payload[key]
+  if (typeof value !== 'string') throw new Error(`${subject} payload is invalid`)
+  return value
+}
+
+function nullableString(
+  payload: Record<string, unknown>,
+  key: string,
+  subject: string,
+): string | null {
+  const value = payload[key]
+  if (value === null) return null
+  if (typeof value !== 'string') throw new Error(`${subject} payload is invalid`)
+  return value
+}
+
+function requiredInteger(
+  payload: Record<string, unknown>,
+  key: string,
+  subject: string,
+): number {
+  const value = payload[key]
+  if (!Number.isSafeInteger(value)) throw new Error(`${subject} payload is invalid`)
+  return value as number
+}
+
+function requiredBoolean(
+  payload: Record<string, unknown>,
+  key: string,
+  subject: string,
+): boolean {
+  const value = payload[key]
+  if (typeof value !== 'boolean') throw new Error(`${subject} payload is invalid`)
+  return value
+}
+
+function requiredDate(
+  payload: Record<string, unknown>,
+  key: string,
+  subject: string,
+): Date {
+  const value = requiredString(payload, key, subject)
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) throw new Error(`${subject} payload is invalid`)
+  return date
+}
+
+function nullableDate(
+  payload: Record<string, unknown>,
+  key: string,
+  subject: string,
+): Date | null {
+  const value = nullableString(payload, key, subject)
+  if (value === null) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) throw new Error(`${subject} payload is invalid`)
+  return date
+}
+
 export function lifecycleRequestFingerprint(
-  context: ContextLifecycleReceiptContext,
-  phase: ContextLifecycleReceiptPhase,
+  context: OrganizationLifecycleEventContext,
+  phase: OrganizationLifecycleReceiptPhase,
   request: OrganizationLifecycleContributionRequest,
 ): string {
   return sha256Hex(
@@ -144,29 +199,43 @@ function validateOutcome(
   }
 }
 
-/**
- * Build the shared receipt store for one context.
- *
- * No destructive default work is supplied: each context passes its own
- * reviewed phase implementations, and composition must still supply every
- * context plus independent support authorization before a purge can run.
- */
+function contributionFromPayload(
+  value: unknown,
+): OrganizationLifecyclePhaseOutcome & Readonly<{ requestFingerprint: string }> {
+  const payload = objectPayload(value, 'Organization lifecycle contribution')
+  const outcome = requiredString(
+    payload,
+    'outcome',
+    'Organization lifecycle contribution',
+  )
+  return {
+    requestFingerprint: requiredString(
+      payload,
+      'requestFingerprint',
+      'Organization lifecycle contribution',
+    ),
+    ...validateOutcome({
+      outcome: outcome as OrganizationLifecycleReceiptOutcome,
+      evidenceRef: requiredString(
+        payload,
+        'evidenceRef',
+        'Organization lifecycle contribution',
+      ),
+    }),
+  }
+}
+
 export const createOrganizationLifecycleReceiptStore = (
   deps: OrganizationLifecycleReceiptStoreDeps,
 ): OrganizationLifecycleReceiptStore => {
-  // `async` so an invalid request REJECTS instead of throwing synchronously:
-  // every caller of a contributor treats a phase as a promise.
   const run = async (
-    phase: ContextLifecycleReceiptPhase,
+    phase: OrganizationLifecycleReceiptPhase,
     work: OrganizationLifecyclePhaseWork,
     request: OrganizationLifecycleContributionRequest,
   ): Promise<OrganizationLifecyclePhaseOutcome> => {
     validateRequest(request)
     const fingerprint = lifecycleRequestFingerprint(deps.context, phase, request)
-    // Two first attempts for the same key would otherwise both pass the
-    // existence check and both run the mutation before either could insert
-    // its receipt. The lock is transaction-scoped, so it is released by the
-    // same commit that makes the receipt visible.
+    const kind = contributionKind(request.closureLineageId, request.lifecycleRevision)
     const lockKey = [
       'repkey',
       'context-organization-lifecycle',
@@ -179,32 +248,29 @@ export const createOrganizationLifecycleReceiptStore = (
     return deps.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`)
       const existing = await tx
-        .select()
-        .from(contextOrganizationLifecycleReceipts)
+        .select({
+          organizationId: organizationLifecycleEvents.organizationId,
+          payload: organizationLifecycleEvents.payload,
+        })
+        .from(organizationLifecycleEvents)
         .where(
           and(
-            eq(contextOrganizationLifecycleReceipts.context, deps.context),
-            eq(
-              contextOrganizationLifecycleReceipts.closureLineageId,
-              request.closureLineageId,
-            ),
-            eq(
-              contextOrganizationLifecycleReceipts.lifecycleRevision,
-              request.lifecycleRevision,
-            ),
-            eq(contextOrganizationLifecycleReceipts.phase, phase),
+            eq(organizationLifecycleEvents.context, deps.context),
+            eq(organizationLifecycleEvents.phase, phase),
+            eq(organizationLifecycleEvents.kind, kind),
           ),
         )
         .limit(1)
 
       if (existing[0]) {
-        if (existing[0].requestFingerprint !== fingerprint) {
+        const recorded = contributionFromPayload(existing[0].payload)
+        if (
+          existing[0].organizationId !== request.organizationId ||
+          recorded.requestFingerprint !== fingerprint
+        ) {
           throw new Error(LIFECYCLE_AUTHORITY_CHANGED)
         }
-        return validateOutcome({
-          outcome: existing[0].outcome as ContextLifecycleReceiptOutcome,
-          evidenceRef: existing[0].evidenceRef,
-        })
+        return { outcome: recorded.outcome, evidenceRef: recorded.evidenceRef }
       }
 
       const authorities = await tx
@@ -232,18 +298,20 @@ export const createOrganizationLifecycleReceiptStore = (
       }
 
       const result = validateOutcome(await work(tx, request))
-      await tx.insert(contextOrganizationLifecycleReceipts).values({
-        context: deps.context,
+      await tx.insert(organizationLifecycleEvents).values({
         organizationId: request.organizationId,
-        closureLineageId: request.closureLineageId,
-        lifecycleRevision: request.lifecycleRevision,
+        context: deps.context,
         phase,
-        requestFingerprint: fingerprint,
-        outcome: result.outcome,
-        evidenceRef: result.evidenceRef,
-        recoverableUntil: request.recoverableUntil,
-        occurredAt: request.occurredAt,
-        createdAt: request.occurredAt,
+        kind,
+        payload: {
+          closureLineageId: request.closureLineageId,
+          lifecycleRevision: request.lifecycleRevision,
+          requestFingerprint: fingerprint,
+          outcome: result.outcome,
+          evidenceRef: result.evidenceRef,
+          recoverableUntil: request.recoverableUntil.toISOString(),
+        },
+        recordedAt: request.occurredAt,
       })
       return result
     })
@@ -258,15 +326,6 @@ export type OrganizationLifecyclePhaseWorkSet = Readonly<{
   purge: OrganizationLifecyclePhaseWork
 }>
 
-/**
- * The scaffold Wave 5's sixteen contributors are built on.
- *
- * The returned object is structurally an Identity
- * `OrganizationLifecycleContributor`, so a context adapter can hand it
- * straight to the coordinator without importing Identity's domain layer.
- * Every context therefore gets the same authority, lock and fingerprint
- * semantics for free, and a reviewer only has to read its three phase bodies.
- */
 export const createOrganizationLifecycleContributorScaffold = (
   deps: OrganizationLifecycleReceiptStoreDeps & OrganizationLifecyclePhaseWorkSet,
 ) => {
@@ -282,5 +341,259 @@ export const createOrganizationLifecycleContributorScaffold = (
       store.run('purge_readiness', deps.verifyPurgeReadiness, request),
     purge: (request: OrganizationLifecycleContributionRequest) =>
       store.run('purge', deps.purge, request),
+  })
+}
+
+export type OrganizationLifecycleCommandEventOperation =
+  'request' | 'cancel' | 'reactivate'
+
+export type OrganizationLifecycleCommandEventStatus = Readonly<{
+  organizationId: string
+  state: string
+  revision: number
+  closureLineageId: string | null
+  closureRequestedAt: Date | null
+  recoverableUntil: Date | null
+  irreversibleAt: Date | null
+  closedAt: Date | null
+  reactivationRequired: boolean
+  lastTransitionAt: Date
+  lastActorId: string
+  lastReasonCode: string
+  lastSupportEvidenceRef: string
+}>
+
+export type OrganizationLifecycleCommandEvent = Readonly<{
+  operationId: string
+  operation: OrganizationLifecycleCommandEventOperation
+  status: OrganizationLifecycleCommandEventStatus
+}>
+
+export async function readOrganizationLifecycleCommandEvent(
+  tx: Tx,
+  operationId: string,
+): Promise<OrganizationLifecycleCommandEvent | null> {
+  const rows = await tx
+    .select({
+      organizationId: organizationLifecycleEvents.organizationId,
+      payload: organizationLifecycleEvents.payload,
+    })
+    .from(organizationLifecycleEvents)
+    .where(
+      and(
+        eq(organizationLifecycleEvents.context, 'identity'),
+        eq(organizationLifecycleEvents.phase, 'command'),
+        eq(organizationLifecycleEvents.kind, commandKind(operationId)),
+      ),
+    )
+    .limit(1)
+  const row = rows[0]
+  if (!row) return null
+
+  const subject = 'Organization lifecycle command'
+  const payload = objectPayload(row.payload, subject)
+  const operation = requiredString(payload, 'operation', subject)
+  if (operation !== 'request' && operation !== 'cancel' && operation !== 'reactivate') {
+    throw new Error(`${subject} payload is invalid`)
+  }
+  return {
+    operationId,
+    operation,
+    status: {
+      organizationId: row.organizationId,
+      state: requiredString(payload, 'resultState', subject),
+      revision: requiredInteger(payload, 'resultRevision', subject),
+      closureLineageId: nullableString(payload, 'closureLineageId', subject),
+      closureRequestedAt: nullableDate(payload, 'closureRequestedAt', subject),
+      recoverableUntil: nullableDate(payload, 'recoverableUntil', subject),
+      irreversibleAt: nullableDate(payload, 'irreversibleAt', subject),
+      closedAt: nullableDate(payload, 'closedAt', subject),
+      reactivationRequired: requiredBoolean(payload, 'reactivationRequired', subject),
+      lastTransitionAt: requiredDate(payload, 'lastTransitionAt', subject),
+      lastActorId: requiredString(payload, 'lastActorId', subject),
+      lastReasonCode: requiredString(payload, 'lastReasonCode', subject),
+      lastSupportEvidenceRef: requiredString(payload, 'lastSupportEvidenceRef', subject),
+    },
+  }
+}
+
+export async function appendOrganizationLifecycleCommandEvent(
+  tx: Tx,
+  event: OrganizationLifecycleCommandEvent,
+): Promise<void> {
+  await tx.insert(organizationLifecycleEvents).values({
+    organizationId: event.status.organizationId,
+    context: 'identity',
+    phase: 'command',
+    kind: commandKind(event.operationId),
+    payload: {
+      operationId: event.operationId,
+      operation: event.operation,
+      resultState: event.status.state,
+      resultRevision: event.status.revision,
+      closureLineageId: event.status.closureLineageId,
+      closureRequestedAt: event.status.closureRequestedAt?.toISOString() ?? null,
+      recoverableUntil: event.status.recoverableUntil?.toISOString() ?? null,
+      irreversibleAt: event.status.irreversibleAt?.toISOString() ?? null,
+      closedAt: event.status.closedAt?.toISOString() ?? null,
+      reactivationRequired: event.status.reactivationRequired,
+      lastTransitionAt: event.status.lastTransitionAt.toISOString(),
+      lastActorId: event.status.lastActorId,
+      lastReasonCode: event.status.lastReasonCode,
+      lastSupportEvidenceRef: event.status.lastSupportEvidenceRef,
+    },
+    recordedAt: event.status.lastTransitionAt,
+  })
+}
+
+export type PropertyEraseContextEvent = Readonly<{
+  organizationId: string
+  authorityId: string
+  context: OrganizationLifecycleEventContext
+  phase: 'inventory' | 'purge'
+  outcome: OrganizationLifecycleReceiptOutcome
+  erasedRowCount: number
+  evidenceRef: string
+  recordedAt: Date
+}>
+
+export async function appendPropertyEraseContextEvent(
+  tx: Tx,
+  event: PropertyEraseContextEvent,
+): Promise<void> {
+  await tx
+    .insert(organizationLifecycleEvents)
+    .values({
+      organizationId: event.organizationId,
+      context: event.context,
+      phase: event.phase,
+      kind: propertyEraseKind(event.authorityId),
+      payload: {
+        authorityId: event.authorityId,
+        outcome: event.outcome,
+        erasedRowCount: event.erasedRowCount,
+        evidenceRef: event.evidenceRef,
+      },
+      recordedAt: event.recordedAt,
+    })
+    .onConflictDoNothing({
+      target: [
+        organizationLifecycleEvents.context,
+        organizationLifecycleEvents.phase,
+        organizationLifecycleEvents.kind,
+      ],
+    })
+}
+
+export async function readPropertyEraseContextEvents(
+  tx: Tx,
+  input: Readonly<{ authorityId: string; phase: 'inventory' | 'purge' }>,
+): Promise<readonly PropertyEraseContextEvent[]> {
+  const rows = await tx
+    .select({
+      organizationId: organizationLifecycleEvents.organizationId,
+      context: organizationLifecycleEvents.context,
+      payload: organizationLifecycleEvents.payload,
+      recordedAt: organizationLifecycleEvents.recordedAt,
+    })
+    .from(organizationLifecycleEvents)
+    .where(
+      and(
+        eq(organizationLifecycleEvents.phase, input.phase),
+        eq(organizationLifecycleEvents.kind, propertyEraseKind(input.authorityId)),
+      ),
+    )
+    .orderBy(organizationLifecycleEvents.context)
+
+  return rows.map((row) => {
+    const subject = 'Property erase context event'
+    const payload = objectPayload(row.payload, subject)
+    const outcome = requiredString(payload, 'outcome', subject)
+    if (outcome !== 'complete' && outcome !== 'no_data') {
+      throw new Error(`${subject} payload is invalid`)
+    }
+    return {
+      organizationId: row.organizationId,
+      authorityId: input.authorityId,
+      context: row.context,
+      phase: input.phase,
+      outcome,
+      erasedRowCount: requiredInteger(payload, 'erasedRowCount', subject),
+      evidenceRef: requiredString(payload, 'evidenceRef', subject),
+      recordedAt: row.recordedAt,
+    }
+  })
+}
+
+export type BackupErasureHoldReleaseEvent = Readonly<{
+  ledgerEntryId: string
+  holdReference: string
+  authorityRef: string
+  releasedAt: Date
+}>
+
+export async function appendBackupErasureHoldReleaseEvent(
+  tx: Tx,
+  release: BackupErasureHoldReleaseEvent,
+): Promise<void> {
+  const ledgers = await tx
+    .select({
+      organizationId: backupErasureLedger.organizationId,
+      context: backupErasureLedger.context,
+    })
+    .from(backupErasureLedger)
+    .where(eq(backupErasureLedger.id, release.ledgerEntryId))
+    .limit(1)
+  const ledger = ledgers[0]
+  if (!ledger) throw new Error('backup erasure ledger entry does not exist')
+
+  await tx
+    .insert(organizationLifecycleEvents)
+    .values({
+      organizationId: ledger.organizationId,
+      context: ledger.context,
+      phase: 'hold_release',
+      kind: backupHoldReleaseKind(release.ledgerEntryId),
+      payload: {
+        ledgerEntryId: release.ledgerEntryId,
+        holdReference: release.holdReference,
+        authorityRef: release.authorityRef,
+      },
+      recordedAt: release.releasedAt,
+    })
+    .onConflictDoNothing({
+      target: [
+        organizationLifecycleEvents.context,
+        organizationLifecycleEvents.phase,
+        organizationLifecycleEvents.kind,
+      ],
+    })
+}
+
+export async function readBackupErasureHoldReleaseEvents(
+  tx: Tx,
+): Promise<readonly BackupErasureHoldReleaseEvent[]> {
+  const rows = await tx
+    .select({
+      payload: organizationLifecycleEvents.payload,
+      releasedAt: organizationLifecycleEvents.recordedAt,
+    })
+    .from(organizationLifecycleEvents)
+    .where(
+      and(
+        eq(organizationLifecycleEvents.phase, 'hold_release'),
+        sql`${organizationLifecycleEvents.kind} LIKE ${`${BACKUP_HOLD_RELEASE_KIND_PREFIX}:%`}`,
+      ),
+    )
+
+  return rows.map((row) => {
+    const subject = 'Backup erasure hold release event'
+    const payload = objectPayload(row.payload, subject)
+    return {
+      ledgerEntryId: requiredString(payload, 'ledgerEntryId', subject),
+      holdReference: requiredString(payload, 'holdReference', subject),
+      authorityRef: requiredString(payload, 'authorityRef', subject),
+      releasedAt: row.releasedAt,
+    }
   })
 }

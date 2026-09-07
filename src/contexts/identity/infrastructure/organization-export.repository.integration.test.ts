@@ -6,6 +6,7 @@ import type { Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { OrganizationExportRepository } from '../application/ports/organization-export.port'
 import { createOrganizationExportRepository } from './organization-export.repository'
 
@@ -163,15 +164,7 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
       await executeWithLastOwnerGuardDisabled(db, [
         sql`DELETE FROM member WHERE "organizationId" = ${organizationId}`,
       ])
-      await lease.pool.query(
-        'DELETE FROM organization_lifecycle_command_receipts WHERE organization_id = $1',
-        [organizationId],
-      )
-      await lease.pool.query(
-        'DELETE FROM organization_lifecycle_authority WHERE organization_id = $1',
-        [organizationId],
-      )
-      await lease.pool.query('DELETE FROM organization WHERE id = $1', [organizationId])
+      await deleteTestOrganizations(lease.pool, [organizationId])
     }
     for (const userId of users) {
       await lease.pool.query('DELETE FROM "user" WHERE id = $1', [userId])

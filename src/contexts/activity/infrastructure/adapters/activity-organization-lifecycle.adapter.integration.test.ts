@@ -101,10 +101,13 @@ async function receiptRows(
   organizationId: string,
 ): Promise<readonly Record<string, unknown>[]> {
   const result = await lease.pool.query(
-    `SELECT context, phase, outcome, evidence_ref, lifecycle_revision
-       FROM context_organization_lifecycle_receipts
+    `SELECT context, phase, payload->>'outcome' AS outcome,
+            payload->>'evidenceRef' AS evidence_ref,
+            (payload->>'lifecycleRevision')::integer AS lifecycle_revision
+       FROM organization_lifecycle_events
       WHERE organization_id = $1
-      ORDER BY phase, lifecycle_revision`,
+        AND kind LIKE 'organization_lifecycle_contribution:%'
+      ORDER BY phase, (payload->>'lifecycleRevision')::integer`,
     [organizationId],
   )
   return result.rows
@@ -308,8 +311,8 @@ async function deleteGuardedFixtures(organizationIds: readonly string[]): Promis
       await client.query(`ALTER TABLE ${table} DISABLE TRIGGER ${trigger}`)
     }
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       DISABLE TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       DISABLE TRIGGER organization_lifecycle_events_append_only`,
     )
     for (const [table] of HISTORY_GUARD_TRIGGERS) {
       await client.query(`DELETE FROM ${table} WHERE organization_id = ANY($1::text[])`, [
@@ -317,7 +320,7 @@ async function deleteGuardedFixtures(organizationIds: readonly string[]): Promis
       ])
     }
     await client.query(
-      `DELETE FROM context_organization_lifecycle_receipts
+      `DELETE FROM organization_lifecycle_events
        WHERE organization_id = ANY($1::text[])`,
       [organizationIds],
     )
@@ -325,8 +328,8 @@ async function deleteGuardedFixtures(organizationIds: readonly string[]): Promis
       await client.query(`ALTER TABLE ${table} ENABLE TRIGGER ${trigger}`)
     }
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       ENABLE ALWAYS TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query('COMMIT')
   } catch (error) {

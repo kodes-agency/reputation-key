@@ -1962,25 +1962,6 @@ CREATE TABLE "inbox_user_views" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "identity_organization_lifecycle_receipts" (
-	"organization_id" text NOT NULL,
-	"closure_lineage_id" uuid NOT NULL,
-	"lifecycle_revision" integer NOT NULL,
-	"phase" text NOT NULL,
-	"request_fingerprint" char(64) NOT NULL,
-	"outcome" text NOT NULL,
-	"evidence_ref" varchar(200) NOT NULL,
-	"recoverable_until" timestamp with time zone NOT NULL,
-	"occurred_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "identity_organization_lifecycle_receipts_pk" PRIMARY KEY("closure_lineage_id","lifecycle_revision","phase"),
-	CONSTRAINT "identity_organization_lifecycle_receipts_revision_positive" CHECK ("identity_organization_lifecycle_receipts"."lifecycle_revision" > 0),
-	CONSTRAINT "identity_organization_lifecycle_receipts_phase_valid" CHECK ("identity_organization_lifecycle_receipts"."phase" IN ('closing', 'purge_readiness', 'purge')),
-	CONSTRAINT "identity_organization_lifecycle_receipts_outcome_valid" CHECK ("identity_organization_lifecycle_receipts"."outcome" IN ('complete', 'no_data')),
-	CONSTRAINT "identity_organization_lifecycle_receipts_fingerprint_valid" CHECK ("identity_organization_lifecycle_receipts"."request_fingerprint" ~ '^[a-f0-9]{64}$'),
-	CONSTRAINT "identity_organization_lifecycle_receipts_evidence_valid" CHECK ("identity_organization_lifecycle_receipts"."evidence_ref" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$')
-);
---> statement-breakpoint
 CREATE TABLE "organization_export_retrieval_issuances" (
 	"export_id" uuid NOT NULL,
 	"organization_id" text NOT NULL,
@@ -2198,56 +2179,18 @@ CREATE TABLE "organization_lifecycle_authority" (
       ))
 );
 --> statement-breakpoint
-CREATE TABLE "organization_lifecycle_command_receipts" (
-	"operation_id" uuid PRIMARY KEY NOT NULL,
+CREATE TABLE "organization_lifecycle_events" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" text NOT NULL,
-	"operation" text NOT NULL,
-	"result_state" text NOT NULL,
-	"result_revision" integer NOT NULL,
-	"closure_lineage_id" uuid,
-	"closure_requested_at" timestamp with time zone,
-	"recoverable_until" timestamp with time zone,
-	"irreversible_at" timestamp with time zone,
-	"closed_at" timestamp with time zone,
-	"reactivation_required" boolean NOT NULL,
-	"last_transition_at" timestamp with time zone NOT NULL,
-	"last_actor_id" varchar(255) NOT NULL,
-	"last_reason_code" varchar(64) NOT NULL,
-	"last_support_evidence_ref" varchar(200) NOT NULL,
-	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "organization_lifecycle_receipt_operation_valid" CHECK ("organization_lifecycle_command_receipts"."operation" IN ('request', 'cancel')),
-	CONSTRAINT "organization_lifecycle_receipt_state_valid" CHECK ("organization_lifecycle_command_receipts"."result_state" IN ('active', 'closure_requested', 'closing', 'purge_pending', 'purging', 'closed')),
-	CONSTRAINT "organization_lifecycle_receipt_revision_positive" CHECK ("organization_lifecycle_command_receipts"."result_revision" > 0)
-);
---> statement-breakpoint
-CREATE TABLE "context_organization_lifecycle_receipts" (
 	"context" text NOT NULL,
-	"organization_id" text NOT NULL,
-	"closure_lineage_id" uuid NOT NULL,
-	"lifecycle_revision" integer NOT NULL,
 	"phase" text NOT NULL,
-	"request_fingerprint" char(64) NOT NULL,
-	"outcome" text NOT NULL,
-	"evidence_ref" varchar(200) NOT NULL,
-	"recoverable_until" timestamp with time zone NOT NULL,
-	"occurred_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "context_organization_lifecycle_receipts_pk" PRIMARY KEY("context","closure_lineage_id","lifecycle_revision","phase"),
-	CONSTRAINT "context_organization_lifecycle_receipts_revision_positive" CHECK ("context_organization_lifecycle_receipts"."lifecycle_revision" > 0),
-	CONSTRAINT "context_organization_lifecycle_receipts_context_valid" CHECK ("context_organization_lifecycle_receipts"."context" IN ('activity', 'ai', 'dashboard', 'goal', 'guest', 'identity', 'inbox', 'integration', 'metric', 'notification', 'portal', 'property', 'review', 'staff')),
-	CONSTRAINT "context_organization_lifecycle_receipts_phase_valid" CHECK ("context_organization_lifecycle_receipts"."phase" IN ('closing', 'purge_readiness', 'purge')),
-	CONSTRAINT "context_organization_lifecycle_receipts_outcome_valid" CHECK ("context_organization_lifecycle_receipts"."outcome" IN ('complete', 'no_data')),
-	CONSTRAINT "context_organization_lifecycle_receipts_fingerprint_valid" CHECK ("context_organization_lifecycle_receipts"."request_fingerprint" ~ '^[a-f0-9]{64}$'),
-	CONSTRAINT "context_organization_lifecycle_receipts_evidence_valid" CHECK ("context_organization_lifecycle_receipts"."evidence_ref" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$')
-);
---> statement-breakpoint
-CREATE TABLE "backup_erasure_hold_releases" (
-	"ledger_entry_id" uuid PRIMARY KEY NOT NULL,
-	"hold_reference" varchar(200) NOT NULL,
-	"authority_ref" varchar(200) NOT NULL,
-	"released_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "backup_erasure_hold_releases_refs_valid" CHECK ("backup_erasure_hold_releases"."hold_reference" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$' AND "backup_erasure_hold_releases"."authority_ref" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$')
+	"kind" text NOT NULL,
+	"payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "organization_lifecycle_events_identity_valid" CHECK ("organization_lifecycle_events"."context" IN ('activity', 'ai', 'dashboard', 'goal', 'guest', 'identity', 'inbox', 'integration', 'metric', 'notification', 'portal', 'property', 'review', 'staff')
+          AND length("organization_lifecycle_events"."phase") BETWEEN 1 AND 32
+          AND length("organization_lifecycle_events"."kind") BETWEEN 1 AND 160),
+	CONSTRAINT "organization_lifecycle_events_payload_object" CHECK (jsonb_typeof("organization_lifecycle_events"."payload") = 'object')
 );
 --> statement-breakpoint
 CREATE TABLE "backup_erasure_ledger" (
@@ -2318,37 +2261,6 @@ CREATE TABLE "property_erase_authorities" (
 	CONSTRAINT "property_erase_authorities_terminal_valid" CHECK (("property_erase_authorities"."state" = 'purged') = ("property_erase_authorities"."purged_at" IS NOT NULL)
         AND ("property_erase_authorities"."state" = 'cancelled') = ("property_erase_authorities"."cancelled_at" IS NOT NULL)
         AND ("property_erase_authorities"."state" NOT IN ('purging', 'purged') OR "property_erase_authorities"."purge_started_at" IS NOT NULL))
-);
---> statement-breakpoint
-CREATE TABLE "property_erase_context_receipts" (
-	"authority_id" uuid NOT NULL,
-	"context" varchar(32) NOT NULL,
-	"phase" varchar(24) NOT NULL,
-	"outcome" varchar(16) NOT NULL,
-	"erased_row_count" integer NOT NULL,
-	"evidence_ref" varchar(200) NOT NULL,
-	"occurred_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "property_erase_context_receipts_pk" PRIMARY KEY("authority_id","context","phase"),
-	CONSTRAINT "property_erase_context_receipts_phase_valid" CHECK ("property_erase_context_receipts"."phase" IN ('inventory', 'purge')),
-	CONSTRAINT "property_erase_context_receipts_outcome_valid" CHECK ("property_erase_context_receipts"."outcome" IN ('complete', 'no_data')),
-	CONSTRAINT "property_erase_context_receipts_count_valid" CHECK ("property_erase_context_receipts"."erased_row_count" >= 0),
-	CONSTRAINT "property_erase_context_receipts_evidence_valid" CHECK ("property_erase_context_receipts"."evidence_ref" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$')
-);
---> statement-breakpoint
-CREATE TABLE "privacy_request_transitions" (
-	"request_id" uuid NOT NULL,
-	"to_state" varchar(24) NOT NULL,
-	"from_state" varchar(24) NOT NULL,
-	"actor_type" varchar(24) NOT NULL,
-	"actor_ref" varchar(255) NOT NULL,
-	"evidence_ref" varchar(200) NOT NULL,
-	"occurred_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "privacy_request_transitions_pk" PRIMARY KEY("request_id","to_state"),
-	CONSTRAINT "privacy_request_transitions_states_valid" CHECK ("privacy_request_transitions"."to_state" IN ('received', 'verified', 'in_progress', 'fulfilled', 'refused') AND "privacy_request_transitions"."from_state" IN ('received', 'verified', 'in_progress', 'fulfilled', 'refused')),
-	CONSTRAINT "privacy_request_transitions_actor_valid" CHECK ("privacy_request_transitions"."actor_type" IN ('subject', 'operator', 'system')),
-	CONSTRAINT "privacy_request_transitions_evidence_valid" CHECK ("privacy_request_transitions"."evidence_ref" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$')
 );
 --> statement-breakpoint
 CREATE TABLE "privacy_requests" (
@@ -4413,8 +4325,6 @@ CREATE INDEX "inbox_notes_item_idx" ON "inbox_notes" USING btree ("inbox_item_id
 --> statement-breakpoint
 CREATE INDEX "inbox_response_target_reminders_due_idx" ON "inbox_response_target_reminders" USING btree ("scheduled_for","inbox_item_id","cycle_number","reminder_kind") WHERE "inbox_response_target_reminders"."delivered_at" IS NULL AND "inbox_response_target_reminders"."cancelled_at" IS NULL;
 --> statement-breakpoint
-CREATE INDEX "identity_organization_lifecycle_receipts_org_time_idx" ON "identity_organization_lifecycle_receipts" USING btree ("organization_id","occurred_at" desc);
---> statement-breakpoint
 CREATE INDEX "organization_export_retrieval_issuances_org_time_idx" ON "organization_export_retrieval_issuances" USING btree ("organization_id","issued_at" desc);
 --> statement-breakpoint
 CREATE INDEX "organization_exports_generation_idx" ON "organization_exports" USING btree ("state","generation_lease_expires_at","created_at");
@@ -4427,11 +4337,7 @@ CREATE INDEX "organization_lifecycle_state_deadline_idx" ON "organization_lifecy
 --> statement-breakpoint
 CREATE INDEX "organization_lifecycle_transition_idx" ON "organization_lifecycle_authority" USING btree ("last_transition_at" desc);
 --> statement-breakpoint
-CREATE INDEX "organization_lifecycle_receipt_org_time_idx" ON "organization_lifecycle_command_receipts" USING btree ("organization_id","occurred_at" desc);
---> statement-breakpoint
-CREATE INDEX "context_organization_lifecycle_receipts_org_time_idx" ON "context_organization_lifecycle_receipts" USING btree ("organization_id","occurred_at" desc);
---> statement-breakpoint
-CREATE INDEX "context_organization_lifecycle_receipts_lineage_idx" ON "context_organization_lifecycle_receipts" USING btree ("closure_lineage_id","lifecycle_revision","phase");
+CREATE INDEX "organization_lifecycle_events_org_time_idx" ON "organization_lifecycle_events" USING btree ("organization_id","recorded_at" desc);
 --> statement-breakpoint
 CREATE INDEX "backup_erasure_ledger_replay_idx" ON "backup_erasure_ledger" USING btree ("effective_erasure_at");
 --> statement-breakpoint
@@ -4440,10 +4346,6 @@ CREATE INDEX "backup_erasure_ledger_org_idx" ON "backup_erasure_ledger" USING bt
 CREATE INDEX "property_erase_authorities_state_idx" ON "property_erase_authorities" USING btree ("state","state_changed_at");
 --> statement-breakpoint
 CREATE INDEX "property_erase_authorities_org_idx" ON "property_erase_authorities" USING btree ("organization_id","property_id");
---> statement-breakpoint
-CREATE INDEX "property_erase_context_receipts_authority_idx" ON "property_erase_context_receipts" USING btree ("authority_id","phase");
---> statement-breakpoint
-CREATE INDEX "privacy_request_transitions_request_idx" ON "privacy_request_transitions" USING btree ("request_id","occurred_at");
 --> statement-breakpoint
 CREATE INDEX "privacy_requests_scope_idx" ON "privacy_requests" USING btree ("organization_id","property_id","state");
 --> statement-breakpoint
@@ -4720,6 +4622,8 @@ CREATE UNIQUE INDEX "organization_export_retrieval_issuances_operation_idx" ON "
 CREATE UNIQUE INDEX "organization_export_retrieval_issuances_digest_idx" ON "organization_export_retrieval_issuances" USING btree ("export_id","token_digest");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "organization_exports_one_open_per_org_idx" ON "organization_exports" USING btree ("organization_id") WHERE "organization_exports"."state" IN ('requested', 'generating', 'egress_pending', 'ready', 'retrieval_issued');
+--> statement-breakpoint
+CREATE UNIQUE INDEX "organization_lifecycle_events_idempotency_unique" ON "organization_lifecycle_events" USING btree ("context","phase","kind");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "backup_erasure_ledger_lineage_unique" ON "backup_erasure_ledger" USING btree ("subject_class","closure_lineage_id","lifecycle_revision","context");
 --> statement-breakpoint
@@ -5088,12 +4992,6 @@ ALTER TABLE "inbox_private_feedback_target_property_overrides" ADD CONSTRAINT "i
 ALTER TABLE "inbox_response_target_reminders" ADD CONSTRAINT "inbox_response_target_reminders_target_scope_fk" FOREIGN KEY ("inbox_item_id","cycle_number","organization_id","property_id","target_kind") REFERENCES "public"."inbox_handling_cycle_response_targets"("inbox_item_id","cycle_number","organization_id","property_id","target_kind") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "organization_export_retrieval_issuances" ADD CONSTRAINT "organization_export_retrieval_issuances_export_id_organization_exports_id_fk" FOREIGN KEY ("export_id") REFERENCES "public"."organization_exports"("id") ON DELETE no action ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "backup_erasure_hold_releases" ADD CONSTRAINT "backup_erasure_hold_releases_ledger_entry_id_backup_erasure_ledger_id_fk" FOREIGN KEY ("ledger_entry_id") REFERENCES "public"."backup_erasure_ledger"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "property_erase_context_receipts" ADD CONSTRAINT "property_erase_context_receipts_authority_id_property_erase_authorities_id_fk" FOREIGN KEY ("authority_id") REFERENCES "public"."property_erase_authorities"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "privacy_request_transitions" ADD CONSTRAINT "privacy_request_transitions_request_id_privacy_requests_id_fk" FOREIGN KEY ("request_id") REFERENCES "public"."privacy_requests"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "metric_corrections" ADD CONSTRAINT "metric_corrections_reading_id_metric_readings_id_fk" FOREIGN KEY ("reading_id") REFERENCES "public"."metric_readings"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint

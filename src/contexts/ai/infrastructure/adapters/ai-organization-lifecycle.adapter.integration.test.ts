@@ -520,17 +520,17 @@ async function deleteReceipts(organizationIds: readonly string[]): Promise<void>
   try {
     await client.query('BEGIN')
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       DISABLE TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       DISABLE TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query(
-      `DELETE FROM context_organization_lifecycle_receipts
+      `DELETE FROM organization_lifecycle_events
        WHERE organization_id = ANY($1::text[])`,
       [organizationIds],
     )
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       ENABLE ALWAYS TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query('COMMIT')
   } catch (error) {
@@ -608,9 +608,11 @@ describe.sequential('AI Organization lifecycle contributor', () => {
     })
 
     const receipt = await lease.pool.query(
-      `SELECT context, phase, outcome, evidence_ref
-       FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1`,
+      `SELECT context, phase, payload->>'outcome' AS outcome,
+              payload->>'evidenceRef' AS evidence_ref
+       FROM organization_lifecycle_events
+       WHERE organization_id = $1
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [fixture.organizationId],
     )
     expect(receipt.rows[0]).toMatchObject({
@@ -640,8 +642,9 @@ describe.sequential('AI Organization lifecycle contributor', () => {
     expect(await contributor.prepareClosing(request)).toEqual(first)
 
     const receipts = await lease.pool.query(
-      `SELECT count(*)::int AS count FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1 AND phase = 'closing'`,
+      `SELECT count(*)::int AS count FROM organization_lifecycle_events
+       WHERE organization_id = $1 AND phase = 'closing'
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [fixture.organizationId],
     )
     expect(receipts.rows[0]).toEqual({ count: 1 })
@@ -658,8 +661,9 @@ describe.sequential('AI Organization lifecycle contributor', () => {
 
     expect(result.outcome).toBe('no_data')
     const receipt = await lease.pool.query(
-      `SELECT outcome FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1 AND context = 'ai'`,
+      `SELECT payload->>'outcome' AS outcome FROM organization_lifecycle_events
+       WHERE organization_id = $1 AND context = 'ai'
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [organizationId],
     )
     // Affirmative absence is recorded; an omitted contributor would make a
@@ -687,8 +691,9 @@ describe.sequential('AI Organization lifecycle contributor', () => {
     // Read only: the full contents of every AI-owned table are unchanged.
     expect(await tableSnapshot(fixture.organizationId)).toEqual(before)
     const receipts = await lease.pool.query(
-      `SELECT count(*)::int AS count FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1`,
+      `SELECT count(*)::int AS count FROM organization_lifecycle_events
+       WHERE organization_id = $1
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [fixture.organizationId],
     )
     expect(receipts.rows[0]).toEqual({ count: 0 })
@@ -763,8 +768,9 @@ describe.sequential('AI Organization lifecycle contributor', () => {
     expect(await contributor.purge(request)).toEqual(result)
     expect(await tableCounts(fixture.organizationId)).toEqual(counts)
     const receipts = await lease.pool.query(
-      `SELECT count(*)::int AS count FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1 AND phase = 'purge'`,
+      `SELECT count(*)::int AS count FROM organization_lifecycle_events
+       WHERE organization_id = $1 AND phase = 'purge'
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [fixture.organizationId],
     )
     expect(receipts.rows[0]).toEqual({ count: 1 })

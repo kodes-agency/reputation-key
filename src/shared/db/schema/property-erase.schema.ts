@@ -21,7 +21,6 @@ import {
   index,
   integer,
   pgTable,
-  primaryKey,
   timestamp,
   uniqueIndex,
   uuid,
@@ -156,50 +155,3 @@ export const propertyEraseAuthorities = pgTable(
 )
 
 export type PropertyEraseAuthorityRow = typeof propertyEraseAuthorities.$inferSelect
-
-/**
- * One append-only receipt per owning context, per erase authority.
- *
- * This is the replay ledger: an interrupted purge resumes from the receipts
- * already written rather than re-running contexts that already answered. A
- * `no_data` receipt is still evidence — an omitted contributor would make a
- * partial erasure look complete.
- */
-export const propertyEraseContextReceipts = pgTable(
-  'property_erase_context_receipts',
-  {
-    authorityId: uuid('authority_id')
-      .notNull()
-      .references(() => propertyEraseAuthorities.id, { onDelete: 'restrict' }),
-    context: varchar('context', { length: 32 }).notNull(),
-    phase: varchar('phase', { length: 24 }).notNull(),
-    outcome: varchar('outcome', { length: 16 }).notNull(),
-    erasedRowCount: integer('erased_row_count').notNull(),
-    evidenceRef: varchar('evidence_ref', { length: 200 }).notNull(),
-    occurredAt: timestamptz('occurred_at').notNull(),
-    createdAt: timestamptz('created_at').notNull().defaultNow(),
-  },
-  (t) => [
-    primaryKey({
-      columns: [t.authorityId, t.context, t.phase],
-      name: 'property_erase_context_receipts_pk',
-    }),
-    index('property_erase_context_receipts_authority_idx').on(t.authorityId, t.phase),
-    check(
-      'property_erase_context_receipts_phase_valid',
-      sql`${t.phase} IN ('inventory', 'purge')`,
-    ),
-    check(
-      'property_erase_context_receipts_outcome_valid',
-      sql`${t.outcome} IN ('complete', 'no_data')`,
-    ),
-    check('property_erase_context_receipts_count_valid', sql`${t.erasedRowCount} >= 0`),
-    check(
-      'property_erase_context_receipts_evidence_valid',
-      sql`${t.evidenceRef} ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'`,
-    ),
-  ],
-)
-
-export type PropertyEraseContextReceiptRow =
-  typeof propertyEraseContextReceipts.$inferSelect

@@ -8,9 +8,11 @@
 import { and, asc, eq, inArray, lte, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
-  organizationLifecycleAuthority,
-  organizationLifecycleCommandReceipts,
-} from '#/shared/db/schema/organization-lifecycle.schema'
+  appendOrganizationLifecycleCommandEvent,
+  readOrganizationLifecycleCommandEvent,
+  type OrganizationLifecycleCommandEventStatus,
+} from '#/shared/db/lifecycle/organization-lifecycle-receipt-store'
+import { organizationLifecycleAuthority } from '#/shared/db/schema/organization-lifecycle.schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import type {
   CancelOrganizationClosureCommand,
@@ -41,7 +43,7 @@ export type OrganizationLifecycleCommandStoreOptions = Readonly<{
   interrupt?: (stage: FaultStage, operation: Operation) => Promise<void>
 }>
 
-type Receipt = typeof organizationLifecycleCommandReceipts.$inferSelect
+type ReceiptStatus = OrganizationLifecycleCommandEventStatus
 type Authority = typeof organizationLifecycleAuthority.$inferSelect
 
 function authorityStatus(row: Authority): OrganizationLifecycleStatus {
@@ -62,11 +64,11 @@ function authorityStatus(row: Authority): OrganizationLifecycleStatus {
   }
 }
 
-function receiptStatus(row: Receipt): OrganizationLifecycleStatus {
+function receiptStatus(row: ReceiptStatus): OrganizationLifecycleStatus {
   return {
     organizationId: row.organizationId,
-    state: row.resultState as OrganizationLifecycleStatus['state'],
-    revision: row.resultRevision,
+    state: row.state as OrganizationLifecycleStatus['state'],
+    revision: row.revision,
     closureLineageId: row.closureLineageId,
     closureRequestedAt: row.closureRequestedAt,
     recoverableUntil: row.recoverableUntil,
@@ -141,26 +143,21 @@ async function replayReceipt(
     supportEvidenceRef: string
   }>,
 ): Promise<OrganizationLifecycleStatus | null> {
-  const rows = await tx
-    .select()
-    .from(organizationLifecycleCommandReceipts)
-    .where(eq(organizationLifecycleCommandReceipts.operationId, input.operationId))
-    .limit(1)
-  const receipt = rows[0]
+  const receipt = await readOrganizationLifecycleCommandEvent(tx, input.operationId)
   if (!receipt) return null
   if (
-    receipt.organizationId !== input.organizationId ||
+    receipt.status.organizationId !== input.organizationId ||
     receipt.operation !== input.operation ||
-    receipt.lastActorId !== input.actorUserId ||
-    receipt.lastReasonCode !== input.reasonCode ||
-    receipt.lastSupportEvidenceRef !== input.supportEvidenceRef
+    receipt.status.lastActorId !== input.actorUserId ||
+    receipt.status.lastReasonCode !== input.reasonCode ||
+    receipt.status.lastSupportEvidenceRef !== input.supportEvidenceRef
   ) {
     throw identityError(
       'organization_conflict',
       'Organization lifecycle operation identifier is already bound',
     )
   }
-  return receiptStatus(receipt)
+  return receiptStatus(receipt.status)
 }
 
 async function writeReceipt(
@@ -169,23 +166,10 @@ async function writeReceipt(
   operation: ReceiptOperation,
   status: OrganizationLifecycleStatus,
 ): Promise<void> {
-  await tx.insert(organizationLifecycleCommandReceipts).values({
+  await appendOrganizationLifecycleCommandEvent(tx, {
     operationId,
-    organizationId: status.organizationId,
     operation,
-    resultState: status.state,
-    resultRevision: status.revision,
-    closureLineageId: status.closureLineageId,
-    closureRequestedAt: status.closureRequestedAt,
-    recoverableUntil: status.recoverableUntil,
-    irreversibleAt: status.irreversibleAt,
-    closedAt: status.closedAt,
-    reactivationRequired: status.reactivationRequired,
-    lastTransitionAt: status.lastTransitionAt,
-    lastActorId: status.lastActorId,
-    lastReasonCode: status.lastReasonCode,
-    lastSupportEvidenceRef: status.lastSupportEvidenceRef,
-    occurredAt: status.lastTransitionAt,
+    status,
   })
 }
 
@@ -319,16 +303,9 @@ export const createOrganizationLifecycleCommandStore = (
    * the caller's obligation (see `reactivateOrganization`); the only decisions
    * here are authority, the state precondition and the compare-and-set.
    *
-   * Migration reservation note: migration 0159 shipped BEFORE this command
-   * existed, and two of its constructs still fence it —
-   *   1. `guard_organization_lifecycle_revision_v1` allows no `active ->
-   *      active` edge, and
-   *   2. `organization_lifecycle_receipt_operation_valid` allows only
-   *      'request' and 'cancel'.
-   * Both belong to the migration integrator (see the wiring note in the task
-   * report). Until that migration lands this method fails closed at the
-   * database rather than silently half-lifting the fence, which is the safe
-   * direction: an Organization that cannot prove reactivation stays fenced.
+   * The shared lifecycle event ledger accepts `reactivate` as an explicit
+   * command kind, so the lifted authority, durable fact, and retry result
+   * remain one transaction.
    */
   async function reactivate(
     command: ReactivateOrganizationCommand,

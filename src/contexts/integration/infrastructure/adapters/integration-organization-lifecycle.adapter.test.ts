@@ -7,8 +7,10 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
-import { contextOrganizationLifecycleReceipts } from '#/shared/db/schema/context-organization-lifecycle-receipts.schema'
-import { organizationLifecycleAuthority } from '#/shared/db/schema/organization-lifecycle.schema'
+import {
+  organizationLifecycleAuthority,
+  organizationLifecycleEvents,
+} from '#/shared/db/schema/organization-lifecycle.schema'
 import type { Tx } from '#/shared/outbox/commit'
 import type { GoogleOrganizationClosureProviderPort } from '../../application/ports/google-organization-closure.port'
 import {
@@ -82,7 +84,7 @@ function createFakeDb(options: {
       })),
       insert: vi.fn((table: unknown) => ({
         values: vi.fn(async (row: Record<string, unknown>) => {
-          if (table === contextOrganizationLifecycleReceipts) receipts.push(row)
+          if (table === organizationLifecycleEvents) receipts.push(row)
         }),
       })),
     }
@@ -240,9 +242,12 @@ describe('Integration Organization lifecycle contributor', () => {
         rowsFor: noRows,
         receipts: [
           {
-            requestFingerprint: undefined,
-            outcome: 'complete',
-            evidenceRef: `integration:closing:${LINEAGE}:r3:n1:n1:n1:n0`,
+            organizationId: ORGANIZATION_ID,
+            payload: {
+              requestFingerprint: 'f'.repeat(64),
+              outcome: 'complete',
+              evidenceRef: `integration:closing:${LINEAGE}:r3:n1:n1:n1:n0`,
+            },
           },
         ],
       })

@@ -2205,7 +2205,7 @@ END;
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.reject_context_lifecycle_receipt_mutation_v1()
+CREATE OR REPLACE FUNCTION public.reject_organization_lifecycle_event_mutation_v1()
  RETURNS trigger
  LANGUAGE plpgsql
  SET search_path TO 'pg_catalog', 'public'
@@ -2213,7 +2213,7 @@ AS $function$
 BEGIN
   RAISE EXCEPTION USING
     ERRCODE = '55000',
-    MESSAGE = TG_TABLE_NAME || ' is append-only';
+    MESSAGE = 'organization_lifecycle_events is append-only';
 END;
 $function$
 ;
@@ -2328,10 +2328,6 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = '55000',
       MESSAGE = TG_TABLE_NAME || ' evidence cannot be deleted';
   END IF;
-  IF TG_TABLE_NAME = 'privacy_request_transitions' THEN
-    RAISE EXCEPTION USING ERRCODE = '55000',
-      MESSAGE = 'privacy_request_transitions is append-only';
-  END IF;
 
   IF NEW.id <> OLD.id
      OR NEW.organization_id <> OLD.organization_id
@@ -2382,10 +2378,6 @@ BEGIN
       MESSAGE = TG_TABLE_NAME || ' evidence cannot be deleted';
   END IF;
 
-  IF TG_TABLE_NAME = 'property_erase_context_receipts' THEN
-    RAISE EXCEPTION USING ERRCODE = '55000',
-      MESSAGE = 'property_erase_context_receipts is append-only';
-  END IF;
 
   IF NEW.id <> OLD.id
      OR NEW.organization_id <> OLD.organization_id
@@ -3706,10 +3698,6 @@ $function$
 --> statement-breakpoint
 CREATE TRIGGER ai_execution_control_heads_transition_guard BEFORE DELETE OR UPDATE ON public.ai_execution_control_heads FOR EACH ROW EXECUTE FUNCTION reject_ai_execution_control_head_mutation_v1();
 --> statement-breakpoint
-CREATE TRIGGER backup_erasure_hold_releases_truncate_guard BEFORE TRUNCATE ON public.backup_erasure_hold_releases FOR EACH STATEMENT EXECUTE FUNCTION reject_backup_erasure_ledger_mutation_v1();
---> statement-breakpoint
-CREATE TRIGGER backup_erasure_hold_releases_update_delete_guard BEFORE DELETE OR UPDATE ON public.backup_erasure_hold_releases FOR EACH ROW EXECUTE FUNCTION reject_backup_erasure_ledger_mutation_v1();
---> statement-breakpoint
 CREATE TRIGGER backup_erasure_ledger_truncate_guard BEFORE TRUNCATE ON public.backup_erasure_ledger FOR EACH STATEMENT EXECUTE FUNCTION reject_backup_erasure_ledger_mutation_v1();
 --> statement-breakpoint
 CREATE TRIGGER backup_erasure_ledger_update_delete_guard BEFORE DELETE OR UPDATE ON public.backup_erasure_ledger FOR EACH ROW EXECUTE FUNCTION reject_backup_erasure_ledger_mutation_v1();
@@ -3719,10 +3707,6 @@ CREATE TRIGGER beta_feedback_triage_revision_guard BEFORE UPDATE ON public.beta_
 CREATE TRIGGER beta_feedback_triage_transition_truncate_guard BEFORE TRUNCATE ON public.beta_feedback_triage_transitions FOR EACH STATEMENT EXECUTE FUNCTION guard_beta_feedback_triage_transition_immutable_v1();
 --> statement-breakpoint
 CREATE TRIGGER beta_feedback_triage_transition_update_guard BEFORE DELETE OR UPDATE ON public.beta_feedback_triage_transitions FOR EACH ROW EXECUTE FUNCTION guard_beta_feedback_triage_transition_immutable_v1();
---> statement-breakpoint
-CREATE TRIGGER context_organization_lifecycle_receipts_truncate_guard BEFORE TRUNCATE ON public.context_organization_lifecycle_receipts FOR EACH STATEMENT EXECUTE FUNCTION reject_context_lifecycle_receipt_mutation_v1();
---> statement-breakpoint
-CREATE TRIGGER context_organization_lifecycle_receipts_update_delete_guard BEFORE DELETE OR UPDATE ON public.context_organization_lifecycle_receipts FOR EACH ROW EXECUTE FUNCTION reject_context_lifecycle_receipt_mutation_v1();
 --> statement-breakpoint
 CREATE TRIGGER goal_monthly_results_guard BEFORE INSERT OR DELETE OR UPDATE ON public.goal_monthly_results FOR EACH ROW EXECUTE FUNCTION guard_goal_monthly_result_v1();
 --> statement-breakpoint
@@ -3739,10 +3723,6 @@ CREATE TRIGGER guest_qualified_scans_staff_attribution_immutable BEFORE UPDATE O
 CREATE TRIGGER guest_responses_retire_contact_request AFTER UPDATE OF status, deleted_at, feedback_withdrawn_at ON public.guest_responses FOR EACH ROW WHEN ((((old.status)::text IS DISTINCT FROM (new.status)::text) OR (old.deleted_at IS DISTINCT FROM new.deleted_at) OR (old.feedback_withdrawn_at IS DISTINCT FROM new.feedback_withdrawn_at))) EXECUTE FUNCTION retire_guest_contact_on_response_terminal_v1();
 --> statement-breakpoint
 CREATE TRIGGER guest_responses_staff_attribution_immutable BEFORE UPDATE OF attributed_staff_participant_id, attributed_staff_participation_id, attribution_responsibility_id, staff_attribution_effective_from, staff_attribution_effective_to ON public.guest_responses FOR EACH ROW EXECUTE FUNCTION guard_primary_staff_attribution_immutable_v1();
---> statement-breakpoint
-CREATE TRIGGER identity_organization_lifecycle_receipts_truncate_guard BEFORE TRUNCATE ON public.identity_organization_lifecycle_receipts FOR EACH STATEMENT EXECUTE FUNCTION reject_identity_lifecycle_evidence_mutation_v1();
---> statement-breakpoint
-CREATE TRIGGER identity_organization_lifecycle_receipts_update_delete_guard BEFORE DELETE OR UPDATE ON public.identity_organization_lifecycle_receipts FOR EACH ROW EXECUTE FUNCTION reject_identity_lifecycle_evidence_mutation_v1();
 --> statement-breakpoint
 CREATE TRIGGER inbox_assignment_history_immutable BEFORE DELETE OR UPDATE ON public.inbox_assignment_history FOR EACH ROW EXECUTE FUNCTION reject_inbox_assignment_history_mutation_v1();
 --> statement-breakpoint
@@ -3810,6 +3790,8 @@ CREATE TRIGGER operational_action_history_records_truncate_guard BEFORE TRUNCATE
 --> statement-breakpoint
 CREATE TRIGGER organization_lifecycle_authority_provision AFTER INSERT ON public.organization FOR EACH ROW EXECUTE FUNCTION provision_organization_lifecycle_authority_v1();
 --> statement-breakpoint
+CREATE TRIGGER organization_lifecycle_events_append_only BEFORE DELETE OR TRUNCATE OR UPDATE ON public.organization_lifecycle_events FOR EACH STATEMENT EXECUTE FUNCTION reject_organization_lifecycle_event_mutation_v1();
+--> statement-breakpoint
 CREATE TRIGGER organization_role_perm_ver_iud AFTER INSERT OR DELETE OR UPDATE ON public."organizationRole" FOR EACH ROW EXECUTE FUNCTION tgr_bump_perm_ba();
 --> statement-breakpoint
 CREATE CONSTRAINT TRIGGER organization_export_retrieval_issuance_commit_guard AFTER INSERT ON public.organization_export_retrieval_issuances DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION verify_organization_export_retrieval_issuance_v1();
@@ -3830,10 +3812,6 @@ CREATE TRIGGER portal_publication_activations_history_guard BEFORE UPDATE ON pub
 --> statement-breakpoint
 CREATE TRIGGER portal_publication_snapshots_immutable BEFORE UPDATE ON public.portal_publication_snapshots FOR EACH ROW EXECUTE FUNCTION guard_portal_publication_history_v1();
 --> statement-breakpoint
-CREATE TRIGGER privacy_request_transitions_mutation_guard BEFORE DELETE OR UPDATE ON public.privacy_request_transitions FOR EACH ROW EXECUTE FUNCTION reject_privacy_request_mutation_v1();
---> statement-breakpoint
-CREATE TRIGGER privacy_request_transitions_truncate_guard BEFORE TRUNCATE ON public.privacy_request_transitions FOR EACH STATEMENT EXECUTE FUNCTION reject_privacy_request_mutation_v1();
---> statement-breakpoint
 CREATE TRIGGER privacy_requests_transition_guard BEFORE DELETE OR UPDATE ON public.privacy_requests FOR EACH ROW EXECUTE FUNCTION reject_privacy_request_mutation_v1();
 --> statement-breakpoint
 CREATE TRIGGER privacy_requests_truncate_guard BEFORE TRUNCATE ON public.privacy_requests FOR EACH STATEMENT EXECUTE FUNCTION reject_privacy_request_mutation_v1();
@@ -3843,10 +3821,6 @@ CREATE TRIGGER property_access_grant_perm_ver_iud AFTER INSERT OR DELETE OR UPDA
 CREATE TRIGGER property_erase_authorities_transition_guard BEFORE DELETE OR UPDATE ON public.property_erase_authorities FOR EACH ROW EXECUTE FUNCTION reject_property_erase_authority_mutation_v1();
 --> statement-breakpoint
 CREATE TRIGGER property_erase_authorities_truncate_guard BEFORE TRUNCATE ON public.property_erase_authorities FOR EACH STATEMENT EXECUTE FUNCTION reject_property_erase_authority_mutation_v1();
---> statement-breakpoint
-CREATE TRIGGER property_erase_context_receipts_mutation_guard BEFORE DELETE OR UPDATE ON public.property_erase_context_receipts FOR EACH ROW EXECUTE FUNCTION reject_property_erase_authority_mutation_v1();
---> statement-breakpoint
-CREATE TRIGGER property_erase_context_receipts_truncate_guard BEFORE TRUNCATE ON public.property_erase_context_receipts FOR EACH STATEMENT EXECUTE FUNCTION reject_property_erase_authority_mutation_v1();
 --> statement-breakpoint
 CREATE TRIGGER replies_advance_state_revision_on_delete BEFORE DELETE ON public.replies FOR EACH ROW EXECUTE FUNCTION advance_review_reply_state_revision_on_delete_v1();
 --> statement-breakpoint

@@ -425,9 +425,9 @@ Use exact tenant/request identifiers and read only:
 
 - `organization_lifecycle_authority` for state, revision, deadline, lineage,
   irreversible time, and reactivation marker;
-- `organization_lifecycle_command_receipts` for request/cancel retry results;
-- `identity_organization_lifecycle_receipts` for co-committed, content-free
-  Identity phase results when reviewed phase work is explicitly bound;
+- `organization_lifecycle_events` for append-only request/cancel retry results,
+  transaction-bound context phase results, Property erase receipts, privacy
+  transitions, and backup legal-hold releases;
 - `organization_export_retrieval_issuances` for append-only, digest-only
   evidence that every old retrieval authority remains dead;
 - `organization_exports` for content-free generation/retrieval/deletion state;

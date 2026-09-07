@@ -123,10 +123,6 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
       await lease.pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [
         organizationId,
       ])
-      await lease.pool.query(
-        'DELETE FROM organization_lifecycle_command_receipts WHERE organization_id = $1',
-        [organizationId],
-      )
       await executeWithLastOwnerGuardDisabled(db, [
         sql`DELETE FROM member WHERE "organizationId" = ${organizationId}`,
       ])

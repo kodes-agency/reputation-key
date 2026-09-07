@@ -8,7 +8,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
-import { contextOrganizationLifecycleReceipts } from '#/shared/db/schema/context-organization-lifecycle-receipts.schema'
+import { organizationLifecycleEvents } from '#/shared/db/schema/organization-lifecycle.schema'
 import { organizationLifecycleAuthority } from '#/shared/db/schema/organization-lifecycle.schema'
 import type { Tx } from '#/shared/outbox/commit'
 import {
@@ -83,7 +83,7 @@ function createFakeDb(options: {
       })),
       insert: vi.fn((table: unknown) => ({
         values: vi.fn(async (row: Record<string, unknown>) => {
-          if (table === contextOrganizationLifecycleReceipts) receipts.push(row)
+          if (table === organizationLifecycleEvents) receipts.push(row)
         }),
       })),
     }

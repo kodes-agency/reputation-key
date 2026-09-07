@@ -189,17 +189,17 @@ async function deleteReceiptFixtures(organizationIds: readonly string[]): Promis
   try {
     await client.query('BEGIN')
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       DISABLE TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       DISABLE TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query(
-      `DELETE FROM context_organization_lifecycle_receipts
+      `DELETE FROM organization_lifecycle_events
        WHERE organization_id = ANY($1::text[])`,
       [organizationIds],
     )
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       ENABLE ALWAYS TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query('COMMIT')
   } catch (error) {
@@ -285,8 +285,11 @@ describe.sequential('Property Organization lifecycle contributor', () => {
     })
 
     const receipt = await lease.pool.query(
-      `SELECT context, phase, outcome, evidence_ref
-       FROM context_organization_lifecycle_receipts WHERE organization_id = $1`,
+      `SELECT context, phase, payload->>'outcome' AS outcome,
+              payload->>'evidenceRef' AS evidence_ref
+       FROM organization_lifecycle_events
+       WHERE organization_id = $1
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [fixture.organizationId],
     )
     expect(receipt.rows).toEqual([
@@ -327,8 +330,9 @@ describe.sequential('Property Organization lifecycle contributor', () => {
 
     expect(await counts(fixture.organizationId)).toEqual(before)
     const receipts = await lease.pool.query(
-      `SELECT COUNT(*)::int AS count FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1`,
+      `SELECT COUNT(*)::int AS count FROM organization_lifecycle_events
+       WHERE organization_id = $1
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [fixture.organizationId],
     )
     expect(Number(receipts.rows[0]?.count)).toBe(0)
@@ -439,8 +443,9 @@ describe.sequential('Property Organization lifecycle contributor', () => {
             AND payload->>'organizationId' = $1) AS receipts,
          (SELECT COUNT(*)::int FROM property_responsible_managers
           WHERE organization_id = $1) AS managers,
-         (SELECT COUNT(*)::int FROM context_organization_lifecycle_receipts
-          WHERE organization_id = $1) AS lifecycle_receipts`,
+         (SELECT COUNT(*)::int FROM organization_lifecycle_events
+          WHERE organization_id = $1
+            AND kind LIKE 'organization_lifecycle_contribution:%') AS lifecycle_receipts`,
       [fixture.organizationId],
     )
     expect(state.rows[0]).toEqual({

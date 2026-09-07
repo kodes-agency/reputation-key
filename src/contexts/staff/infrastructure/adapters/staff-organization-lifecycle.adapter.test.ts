@@ -9,7 +9,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { contextOrganizationLifecycleReceipts } from '#/shared/db/schema/context-organization-lifecycle-receipts.schema'
+import { organizationLifecycleEvents } from '#/shared/db/schema/organization-lifecycle.schema'
 import { organizationLifecycleAuthority } from '#/shared/db/schema/organization-lifecycle.schema'
 import { validateContentFreeEvidenceRef } from '#/shared/db/lifecycle/organization-lifecycle-receipt-store'
 import type { OrganizationLifecycleContributionRequest } from '#/shared/db/lifecycle/organization-lifecycle-receipt-store'
@@ -105,7 +105,7 @@ const createFakeDb = (options: {
       })),
       insert: vi.fn((table: unknown) => ({
         values: vi.fn(async (row: Record<string, unknown>) => {
-          if (table === contextOrganizationLifecycleReceipts) receipts.push(row)
+          if (table === organizationLifecycleEvents) receipts.push(row)
         }),
       })),
     }
@@ -233,27 +233,33 @@ describe('Staff Organization lifecycle contribution', () => {
     expect(receipt).toMatchObject({
       context: 'staff',
       phase: 'closing',
-      outcome: 'complete',
-      evidenceRef: 'staff:closing:complete:5',
       organizationId: ORGANIZATION_ID,
-      closureLineageId: LINEAGE,
-      lifecycleRevision: 2,
+      payload: {
+        closureLineageId: LINEAGE,
+        lifecycleRevision: 2,
+        outcome: 'complete',
+        evidenceRef: 'staff:closing:complete:5',
+      },
     })
-    expect(validateContentFreeEvidenceRef(String(receipt.evidenceRef))).toBe(
+    const payload = receipt.payload as Record<string, unknown>
+    expect(validateContentFreeEvidenceRef(String(payload.evidenceRef))).toBe(
       'staff:closing:complete:5',
     )
-    // The receipt columns are identifiers, enums, counts and timestamps only —
-    // no display name, no email, no free text.
+    // The generic envelope is fixed; the payload is identifiers, enums and
+    // timestamps only — no display name, email, or free text.
     expect(Object.keys(receipt).sort()).toEqual([
-      'closureLineageId',
       'context',
-      'createdAt',
+      'kind',
+      'organizationId',
+      'payload',
+      'phase',
+      'recordedAt',
+    ])
+    expect(Object.keys(payload).sort()).toEqual([
+      'closureLineageId',
       'evidenceRef',
       'lifecycleRevision',
-      'occurredAt',
-      'organizationId',
       'outcome',
-      'phase',
       'recoverableUntil',
       'requestFingerprint',
     ])

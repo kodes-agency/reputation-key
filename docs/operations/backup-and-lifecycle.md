@@ -388,8 +388,8 @@ classifies every entry against the restore point:
   restore undid it. A registered replayer re-applies it.
 - `held` — the entry carries a documented delayed-erasure / legal-hold policy
   reference and no counsel-authorised release. It is deferred, reported, and
-  **not** re-applied until a release is appended to
-  `backup_erasure_hold_releases` (itself append-only, for the same reason).
+  **not** re-applied until a `backup_erasure_hold_release:*` event is appended
+  to `organization_lifecycle_events` (itself append-only).
 
 **Fail-closed.** `verified` is false whenever any entry could not be re-applied
 — typically because no replayer is registered for its `(context, subjectClass)`.

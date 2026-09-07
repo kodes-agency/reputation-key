@@ -113,13 +113,13 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'Content-free triage transition evidence is retained through support response, incident/privacy handling, scoped export/restore, and the counsel-approved support retention horizon; no destructive lifecycle is active before approval.',
   }),
   ...rows({
-    schemaFile: 'context-organization-lifecycle-receipts.schema.ts',
-    exportNames: ['contextOrganizationLifecycleReceipts'],
+    schemaFile: 'organization-lifecycle.schema.ts',
+    exportNames: ['organizationLifecycleEvents'],
     owner: 'platform',
     disposition: 'recoverable_archive',
     authority: 'LIF-01',
     exitCriteria:
-      'Content-free per-context closure outcomes are retained through closure retry/recovery and the explicit reactivation horizon; contract only after approved evidence retention, scoped export/restore proof, and zero retry dependence. No destructive receipt lifecycle is active.',
+      'Content-free Organization lifecycle, command, Property erase, privacy-transition, and backup hold-release events are retained through retry/recovery and the applicable legal evidence horizon. No destructive event lifecycle is active.',
   }),
   ...rows({
     schemaFile: 'activity.schema.ts',
@@ -374,7 +374,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'backup-erasure-ledger.schema.ts',
-    exportNames: ['backupErasureLedger', 'backupErasureHoldReleases'],
+    exportNames: ['backupErasureLedger'],
     owner: 'identity',
     disposition: 'recoverable_archive',
     authority: 'LIF-01',
@@ -383,21 +383,21 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'property-erase.schema.ts',
-    exportNames: ['propertyEraseAuthorities', 'propertyEraseContextReceipts'],
+    exportNames: ['propertyEraseAuthorities'],
     owner: 'property',
     disposition: 'recoverable_archive',
     authority: 'LIF-01',
     exitCriteria:
-      'Content-free authority and per-context receipts for an irreversible erase. They are the only proof that the erase was independently authorized and that every owning context reported, so they outlive the erased Property. Contract only after counsel approves an evidence retention horizon.',
+      'Content-free authority for an irreversible erase is the proof that the erase was independently authorized, so it outlives the erased Property. Contract only after counsel approves an evidence retention horizon.',
   }),
   ...rows({
     schemaFile: 'privacy-request.schema.ts',
-    exportNames: ['privacyRequests', 'privacyRequestTransitions'],
+    exportNames: ['privacyRequests'],
     owner: 'identity',
     disposition: 'recoverable_archive',
     authority: 'LIF-01',
     exitCriteria:
-      'Content-free privacy-request audit: the subject is named only by the SHA-256 of a verified identifier, never in the clear, so the record proves a request was handled without re-storing what it was about. Retained until counsel approves a data-subject-request evidence horizon.',
+      'Content-free privacy-request authority names the subject only by the SHA-256 of a verified identifier, never in the clear. Retained until counsel approves a data-subject-request evidence horizon.',
   }),
   ...rows({
     schemaFile: 'organization-lifecycle.schema.ts',
@@ -408,16 +408,12 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'organization-lifecycle.schema.ts',
-    exportNames: [
-      'identityOrganizationLifecycleReceipts',
-      'organizationExportRetrievalIssuances',
-      'organizationLifecycleCommandReceipts',
-    ],
+    exportNames: ['organizationExportRetrievalIssuances'],
     owner: 'identity',
     disposition: 'recoverable_archive',
     authority: 'LIF-01',
     exitCriteria:
-      'Content-free idempotency outcomes are retained through closure retry/recovery and the explicit reactivation horizon; contract only after approved evidence retention, scoped export/restore proof, and zero retry dependence. No destructive receipt lifecycle is active.',
+      'Digest-only export retrieval issuances permanently retire old token authorities through retry/recovery and the approved evidence horizon. No destructive issuance lifecycle is active.',
   }),
   ...rows({
     schemaFile: 'outbox.schema.ts',

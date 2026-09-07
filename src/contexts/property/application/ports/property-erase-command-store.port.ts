@@ -73,6 +73,7 @@ export type PropertyEraseTransitionInput = Readonly<{
 
 export type PropertyEraseContextReceipt = Readonly<{
   authorityId: string
+  organizationId: string
   context: PropertyEraseContext
   phase: 'inventory' | 'purge'
   outcome: 'complete' | 'no_data'

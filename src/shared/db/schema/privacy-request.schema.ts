@@ -23,7 +23,6 @@ import {
   check,
   index,
   pgTable,
-  primaryKey,
   timestamp,
   uuid,
   varchar,
@@ -174,43 +173,3 @@ export const privacyRequests = pgTable(
 )
 
 export type PrivacyRequestRow = typeof privacyRequests.$inferSelect
-
-/** Append-only transition evidence: who moved a request, when, and on what. */
-export const privacyRequestTransitions = pgTable(
-  'privacy_request_transitions',
-  {
-    requestId: uuid('request_id')
-      .notNull()
-      .references(() => privacyRequests.id, { onDelete: 'restrict' }),
-    toState: varchar('to_state', { length: 24 }).notNull(),
-    fromState: varchar('from_state', { length: 24 }).notNull(),
-    actorType: varchar('actor_type', { length: 24 }).notNull(),
-    actorRef: varchar('actor_ref', { length: 255 }).notNull(),
-    evidenceRef: varchar('evidence_ref', { length: 200 }).notNull(),
-    occurredAt: timestamptz('occurred_at').notNull(),
-    createdAt: timestamptz('created_at').notNull().defaultNow(),
-  },
-  (t) => [
-    primaryKey({
-      columns: [t.requestId, t.toState],
-      name: 'privacy_request_transitions_pk',
-    }),
-    index('privacy_request_transitions_request_idx').on(t.requestId, t.occurredAt),
-    check(
-      'privacy_request_transitions_states_valid',
-      sql.raw(
-        `"privacy_request_transitions"."to_state" IN (${list(PRIVACY_REQUEST_STATES)}) AND "privacy_request_transitions"."from_state" IN (${list(PRIVACY_REQUEST_STATES)})`,
-      ),
-    ),
-    check(
-      'privacy_request_transitions_actor_valid',
-      sql`${t.actorType} IN ('subject', 'operator', 'system')`,
-    ),
-    check(
-      'privacy_request_transitions_evidence_valid',
-      sql`${t.evidenceRef} ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'`,
-    ),
-  ],
-)
-
-export type PrivacyRequestTransitionRow = typeof privacyRequestTransitions.$inferSelect

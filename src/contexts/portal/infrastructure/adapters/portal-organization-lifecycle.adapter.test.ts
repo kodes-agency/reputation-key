@@ -12,7 +12,7 @@ import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import { CAPABILITY_FATE } from '#/shared/governance/capability-fate'
-import { contextOrganizationLifecycleReceipts } from '#/shared/db/schema/context-organization-lifecycle-receipts.schema'
+import { organizationLifecycleEvents } from '#/shared/db/schema/organization-lifecycle.schema'
 import { organizationLifecycleAuthority } from '#/shared/db/schema/organization-lifecycle.schema'
 import { validateContentFreeEvidenceRef } from '#/shared/db/lifecycle/organization-lifecycle-receipt-store'
 import type { OrganizationLifecycleContributionInput } from '#/contexts/identity/application/ports/organization-lifecycle-contributor.port'
@@ -89,7 +89,7 @@ function createFakeDb(phase: Phase, revision = 2) {
       })),
       insert: vi.fn((table: unknown) => ({
         values: vi.fn(async (row: Record<string, unknown>) => {
-          if (table === contextOrganizationLifecycleReceipts) receipts.push(row)
+          if (table === organizationLifecycleEvents) receipts.push(row)
         }),
       })),
     }
@@ -222,7 +222,11 @@ describe('Portal Organization lifecycle contributor', () => {
         )
         // No Portal name, slug, link URL, token material or count.
         expect(result.evidenceRef).not.toMatch(/\b7\b/)
-        expect(receipts[0]).toMatchObject({ context: 'portal', phase, outcome })
+        expect(receipts[0]).toMatchObject({
+          context: 'portal',
+          phase,
+          payload: { outcome },
+        })
       }
     }
   })

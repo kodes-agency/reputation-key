@@ -1,5 +1,5 @@
 {
-  "id": "3d5e3f3e-3a9b-4218-8c28-d197452fd476",
+  "id": "cb29f4fa-083c-459a-8718-416a48a74537",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -13247,132 +13247,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.identity_organization_lifecycle_receipts": {
-      "name": "identity_organization_lifecycle_receipts",
-      "schema": "",
-      "columns": {
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "closure_lineage_id": {
-          "name": "closure_lineage_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "lifecycle_revision": {
-          "name": "lifecycle_revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "phase": {
-          "name": "phase",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "request_fingerprint": {
-          "name": "request_fingerprint",
-          "type": "char(64)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "outcome": {
-          "name": "outcome",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "evidence_ref": {
-          "name": "evidence_ref",
-          "type": "varchar(200)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "recoverable_until": {
-          "name": "recoverable_until",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "occurred_at": {
-          "name": "occurred_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "identity_organization_lifecycle_receipts_org_time_idx": {
-          "name": "identity_organization_lifecycle_receipts_org_time_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "\"occurred_at\" desc",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "identity_organization_lifecycle_receipts_pk": {
-          "name": "identity_organization_lifecycle_receipts_pk",
-          "columns": [
-            "closure_lineage_id",
-            "lifecycle_revision",
-            "phase"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "identity_organization_lifecycle_receipts_revision_positive": {
-          "name": "identity_organization_lifecycle_receipts_revision_positive",
-          "value": "\"identity_organization_lifecycle_receipts\".\"lifecycle_revision\" > 0"
-        },
-        "identity_organization_lifecycle_receipts_phase_valid": {
-          "name": "identity_organization_lifecycle_receipts_phase_valid",
-          "value": "\"identity_organization_lifecycle_receipts\".\"phase\" IN ('closing', 'purge_readiness', 'purge')"
-        },
-        "identity_organization_lifecycle_receipts_outcome_valid": {
-          "name": "identity_organization_lifecycle_receipts_outcome_valid",
-          "value": "\"identity_organization_lifecycle_receipts\".\"outcome\" IN ('complete', 'no_data')"
-        },
-        "identity_organization_lifecycle_receipts_fingerprint_valid": {
-          "name": "identity_organization_lifecycle_receipts_fingerprint_valid",
-          "value": "\"identity_organization_lifecycle_receipts\".\"request_fingerprint\" ~ '^[a-f0-9]{64}$'"
-        },
-        "identity_organization_lifecycle_receipts_evidence_valid": {
-          "name": "identity_organization_lifecycle_receipts_evidence_valid",
-          "value": "\"identity_organization_lifecycle_receipts\".\"evidence_ref\" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.organization_export_retrieval_issuances": {
       "name": "organization_export_retrieval_issuances",
       "schema": "",
@@ -14015,15 +13889,16 @@
       },
       "isRLSEnabled": false
     },
-    "public.organization_lifecycle_command_receipts": {
-      "name": "organization_lifecycle_command_receipts",
+    "public.organization_lifecycle_events": {
+      "name": "organization_lifecycle_events",
       "schema": "",
       "columns": {
-        "operation_id": {
-          "name": "operation_id",
+        "id": {
+          "name": "id",
           "type": "uuid",
           "primaryKey": true,
-          "notNull": true
+          "notNull": true,
+          "default": "gen_random_uuid()"
         },
         "organization_id": {
           "name": "organization_id",
@@ -14031,160 +13906,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "operation": {
-          "name": "operation",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "result_state": {
-          "name": "result_state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "result_revision": {
-          "name": "result_revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "closure_lineage_id": {
-          "name": "closure_lineage_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "closure_requested_at": {
-          "name": "closure_requested_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "recoverable_until": {
-          "name": "recoverable_until",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "irreversible_at": {
-          "name": "irreversible_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "closed_at": {
-          "name": "closed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reactivation_required": {
-          "name": "reactivation_required",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "last_transition_at": {
-          "name": "last_transition_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "last_actor_id": {
-          "name": "last_actor_id",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "last_reason_code": {
-          "name": "last_reason_code",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "last_support_evidence_ref": {
-          "name": "last_support_evidence_ref",
-          "type": "varchar(200)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "occurred_at": {
-          "name": "occurred_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "organization_lifecycle_receipt_org_time_idx": {
-          "name": "organization_lifecycle_receipt_org_time_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "\"occurred_at\" desc",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "organization_lifecycle_receipt_operation_valid": {
-          "name": "organization_lifecycle_receipt_operation_valid",
-          "value": "\"organization_lifecycle_command_receipts\".\"operation\" IN ('request', 'cancel')"
-        },
-        "organization_lifecycle_receipt_state_valid": {
-          "name": "organization_lifecycle_receipt_state_valid",
-          "value": "\"organization_lifecycle_command_receipts\".\"result_state\" IN ('active', 'closure_requested', 'closing', 'purge_pending', 'purging', 'closed')"
-        },
-        "organization_lifecycle_receipt_revision_positive": {
-          "name": "organization_lifecycle_receipt_revision_positive",
-          "value": "\"organization_lifecycle_command_receipts\".\"result_revision\" > 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.context_organization_lifecycle_receipts": {
-      "name": "context_organization_lifecycle_receipts",
-      "schema": "",
-      "columns": {
         "context": {
           "name": "context",
           "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "closure_lineage_id": {
-          "name": "closure_lineage_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "lifecycle_revision": {
-          "name": "lifecycle_revision",
-          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -14194,38 +13918,21 @@
           "primaryKey": false,
           "notNull": true
         },
-        "request_fingerprint": {
-          "name": "request_fingerprint",
-          "type": "char(64)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "outcome": {
-          "name": "outcome",
+        "kind": {
+          "name": "kind",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "evidence_ref": {
-          "name": "evidence_ref",
-          "type": "varchar(200)",
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "'{}'::jsonb"
         },
-        "recoverable_until": {
-          "name": "recoverable_until",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "occurred_at": {
-          "name": "occurred_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
+        "recorded_at": {
+          "name": "recorded_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
@@ -14233,38 +13940,11 @@
         }
       },
       "indexes": {
-        "context_organization_lifecycle_receipts_org_time_idx": {
-          "name": "context_organization_lifecycle_receipts_org_time_idx",
+        "organization_lifecycle_events_idempotency_unique": {
+          "name": "organization_lifecycle_events_idempotency_unique",
           "columns": [
             {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "\"occurred_at\" desc",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "context_organization_lifecycle_receipts_lineage_idx": {
-          "name": "context_organization_lifecycle_receipts_lineage_idx",
-          "columns": [
-            {
-              "expression": "closure_lineage_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "lifecycle_revision",
+              "expression": "context",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -14273,6 +13953,33 @@
               "expression": "phase",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "organization_lifecycle_events_org_time_idx": {
+          "name": "organization_lifecycle_events_org_time_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "\"recorded_at\" desc",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -14283,106 +13990,17 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "context_organization_lifecycle_receipts_pk": {
-          "name": "context_organization_lifecycle_receipts_pk",
-          "columns": [
-            "context",
-            "closure_lineage_id",
-            "lifecycle_revision",
-            "phase"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "context_organization_lifecycle_receipts_revision_positive": {
-          "name": "context_organization_lifecycle_receipts_revision_positive",
-          "value": "\"context_organization_lifecycle_receipts\".\"lifecycle_revision\" > 0"
-        },
-        "context_organization_lifecycle_receipts_context_valid": {
-          "name": "context_organization_lifecycle_receipts_context_valid",
-          "value": "\"context_organization_lifecycle_receipts\".\"context\" IN ('activity', 'ai', 'dashboard', 'goal', 'guest', 'identity', 'inbox', 'integration', 'metric', 'notification', 'portal', 'property', 'review', 'staff')"
-        },
-        "context_organization_lifecycle_receipts_phase_valid": {
-          "name": "context_organization_lifecycle_receipts_phase_valid",
-          "value": "\"context_organization_lifecycle_receipts\".\"phase\" IN ('closing', 'purge_readiness', 'purge')"
-        },
-        "context_organization_lifecycle_receipts_outcome_valid": {
-          "name": "context_organization_lifecycle_receipts_outcome_valid",
-          "value": "\"context_organization_lifecycle_receipts\".\"outcome\" IN ('complete', 'no_data')"
-        },
-        "context_organization_lifecycle_receipts_fingerprint_valid": {
-          "name": "context_organization_lifecycle_receipts_fingerprint_valid",
-          "value": "\"context_organization_lifecycle_receipts\".\"request_fingerprint\" ~ '^[a-f0-9]{64}$'"
-        },
-        "context_organization_lifecycle_receipts_evidence_valid": {
-          "name": "context_organization_lifecycle_receipts_evidence_valid",
-          "value": "\"context_organization_lifecycle_receipts\".\"evidence_ref\" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.backup_erasure_hold_releases": {
-      "name": "backup_erasure_hold_releases",
-      "schema": "",
-      "columns": {
-        "ledger_entry_id": {
-          "name": "ledger_entry_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "hold_reference": {
-          "name": "hold_reference",
-          "type": "varchar(200)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "authority_ref": {
-          "name": "authority_ref",
-          "type": "varchar(200)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "released_at": {
-          "name": "released_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "backup_erasure_hold_releases_ledger_entry_id_backup_erasure_ledger_id_fk": {
-          "name": "backup_erasure_hold_releases_ledger_entry_id_backup_erasure_ledger_id_fk",
-          "tableFrom": "backup_erasure_hold_releases",
-          "tableTo": "backup_erasure_ledger",
-          "columnsFrom": [
-            "ledger_entry_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "backup_erasure_hold_releases_refs_valid": {
-          "name": "backup_erasure_hold_releases_refs_valid",
-          "value": "\"backup_erasure_hold_releases\".\"hold_reference\" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$' AND \"backup_erasure_hold_releases\".\"authority_ref\" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'"
+        "organization_lifecycle_events_identity_valid": {
+          "name": "organization_lifecycle_events_identity_valid",
+          "value": "\"organization_lifecycle_events\".\"context\" IN ('activity', 'ai', 'dashboard', 'goal', 'guest', 'identity', 'inbox', 'integration', 'metric', 'notification', 'portal', 'property', 'review', 'staff')\n          AND length(\"organization_lifecycle_events\".\"phase\") BETWEEN 1 AND 32\n          AND length(\"organization_lifecycle_events\".\"kind\") BETWEEN 1 AND 160"
+        },
+        "organization_lifecycle_events_payload_object": {
+          "name": "organization_lifecycle_events_payload_object",
+          "value": "jsonb_typeof(\"organization_lifecycle_events\".\"payload\") = 'object'"
         }
       },
       "isRLSEnabled": false
@@ -14830,249 +14448,6 @@
         "property_erase_authorities_terminal_valid": {
           "name": "property_erase_authorities_terminal_valid",
           "value": "(\"property_erase_authorities\".\"state\" = 'purged') = (\"property_erase_authorities\".\"purged_at\" IS NOT NULL)\n        AND (\"property_erase_authorities\".\"state\" = 'cancelled') = (\"property_erase_authorities\".\"cancelled_at\" IS NOT NULL)\n        AND (\"property_erase_authorities\".\"state\" NOT IN ('purging', 'purged') OR \"property_erase_authorities\".\"purge_started_at\" IS NOT NULL)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.property_erase_context_receipts": {
-      "name": "property_erase_context_receipts",
-      "schema": "",
-      "columns": {
-        "authority_id": {
-          "name": "authority_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "context": {
-          "name": "context",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "phase": {
-          "name": "phase",
-          "type": "varchar(24)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "outcome": {
-          "name": "outcome",
-          "type": "varchar(16)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "erased_row_count": {
-          "name": "erased_row_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "evidence_ref": {
-          "name": "evidence_ref",
-          "type": "varchar(200)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "occurred_at": {
-          "name": "occurred_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "property_erase_context_receipts_authority_idx": {
-          "name": "property_erase_context_receipts_authority_idx",
-          "columns": [
-            {
-              "expression": "authority_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "phase",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "property_erase_context_receipts_authority_id_property_erase_authorities_id_fk": {
-          "name": "property_erase_context_receipts_authority_id_property_erase_authorities_id_fk",
-          "tableFrom": "property_erase_context_receipts",
-          "tableTo": "property_erase_authorities",
-          "columnsFrom": [
-            "authority_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "property_erase_context_receipts_pk": {
-          "name": "property_erase_context_receipts_pk",
-          "columns": [
-            "authority_id",
-            "context",
-            "phase"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "property_erase_context_receipts_phase_valid": {
-          "name": "property_erase_context_receipts_phase_valid",
-          "value": "\"property_erase_context_receipts\".\"phase\" IN ('inventory', 'purge')"
-        },
-        "property_erase_context_receipts_outcome_valid": {
-          "name": "property_erase_context_receipts_outcome_valid",
-          "value": "\"property_erase_context_receipts\".\"outcome\" IN ('complete', 'no_data')"
-        },
-        "property_erase_context_receipts_count_valid": {
-          "name": "property_erase_context_receipts_count_valid",
-          "value": "\"property_erase_context_receipts\".\"erased_row_count\" >= 0"
-        },
-        "property_erase_context_receipts_evidence_valid": {
-          "name": "property_erase_context_receipts_evidence_valid",
-          "value": "\"property_erase_context_receipts\".\"evidence_ref\" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.privacy_request_transitions": {
-      "name": "privacy_request_transitions",
-      "schema": "",
-      "columns": {
-        "request_id": {
-          "name": "request_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "to_state": {
-          "name": "to_state",
-          "type": "varchar(24)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "from_state": {
-          "name": "from_state",
-          "type": "varchar(24)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_type": {
-          "name": "actor_type",
-          "type": "varchar(24)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_ref": {
-          "name": "actor_ref",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "evidence_ref": {
-          "name": "evidence_ref",
-          "type": "varchar(200)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "occurred_at": {
-          "name": "occurred_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "privacy_request_transitions_request_idx": {
-          "name": "privacy_request_transitions_request_idx",
-          "columns": [
-            {
-              "expression": "request_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "occurred_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "privacy_request_transitions_request_id_privacy_requests_id_fk": {
-          "name": "privacy_request_transitions_request_id_privacy_requests_id_fk",
-          "tableFrom": "privacy_request_transitions",
-          "tableTo": "privacy_requests",
-          "columnsFrom": [
-            "request_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "privacy_request_transitions_pk": {
-          "name": "privacy_request_transitions_pk",
-          "columns": [
-            "request_id",
-            "to_state"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "privacy_request_transitions_states_valid": {
-          "name": "privacy_request_transitions_states_valid",
-          "value": "\"privacy_request_transitions\".\"to_state\" IN ('received', 'verified', 'in_progress', 'fulfilled', 'refused') AND \"privacy_request_transitions\".\"from_state\" IN ('received', 'verified', 'in_progress', 'fulfilled', 'refused')"
-        },
-        "privacy_request_transitions_actor_valid": {
-          "name": "privacy_request_transitions_actor_valid",
-          "value": "\"privacy_request_transitions\".\"actor_type\" IN ('subject', 'operator', 'system')"
-        },
-        "privacy_request_transitions_evidence_valid": {
-          "name": "privacy_request_transitions_evidence_valid",
-          "value": "\"privacy_request_transitions\".\"evidence_ref\" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'"
         }
       },
       "isRLSEnabled": false
