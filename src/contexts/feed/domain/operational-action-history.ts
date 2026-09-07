@@ -25,7 +25,6 @@ export const OPERATIONAL_ACTION_KINDS = Object.freeze([
   { action: 'google_connection.disconnected', resourceType: 'google_connection' },
   { action: 'google_reply.published', resourceType: 'reply' },
   { action: 'guest_feedback.moderated', resourceType: 'feedback' },
-  { action: 'portal_upload.validated', resourceType: 'upload' },
   { action: 'privacy_request.received', resourceType: 'privacy_request' },
   { action: 'privacy_request.fulfilled', resourceType: 'privacy_request' },
   { action: 'property.archived', resourceType: 'property' },

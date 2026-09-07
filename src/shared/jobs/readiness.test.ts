@@ -107,11 +107,6 @@ describe('assertJobReadiness (BQC-3.6)', () => {
       })),
     ).toEqual([
       {
-        jobName: 'process-image',
-        capability: 'portal.upload',
-        registration: 'blocked_capability',
-      },
-      {
         jobName: 'expire-review-provider-source',
         capability: 'none',
         registration: 'quarantined',

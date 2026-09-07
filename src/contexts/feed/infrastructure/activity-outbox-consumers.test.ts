@@ -411,24 +411,6 @@ describe('Activity durable Recent Activity consumer', () => {
       resourceId: '00000000-0000-4000-8000-000000000662',
     },
     {
-      eventType: 'portal.hero_image.published',
-      eventVersion: 1,
-      payload: {
-        organizationId: 'org-1',
-        propertyId: '00000000-0000-4000-8000-000000000671',
-        portalId: '00000000-0000-4000-8000-000000000672',
-        uploadId: '00000000-0000-4000-8000-000000000673',
-        sourceAggregateVersion: '2026-08-28T08:55:00.000Z',
-        occurredAt: '2026-08-28T08:56:00.000Z',
-      },
-      propertyId: '00000000-0000-4000-8000-000000000671',
-      actorType: 'system',
-      actorId: null,
-      action: 'portal_upload.validated',
-      resourceType: 'upload',
-      resourceId: '00000000-0000-4000-8000-000000000673',
-    },
-    {
       eventType: 'property.deleted',
       eventVersion: 1,
       payload: {
@@ -800,7 +782,6 @@ describe('Activity durable Recent Activity consumer', () => {
         'integration.google_account.disconnected',
         'portal.archived',
         'portal.approved_destination.updated',
-        'portal.hero_image.published',
         'portal.publication.published',
         'property.archived',
         'property.deleted',

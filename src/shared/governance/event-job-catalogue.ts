@@ -329,7 +329,6 @@ const INBOX_EVENTS = 'src/contexts/inbox/domain/events.ts'
 const IDENTITY_EVENTS = 'src/contexts/identity/domain/events.ts'
 const PROPERTY_EVENTS = 'src/contexts/property/domain/events.ts'
 const PORTAL_EVENTS = 'src/contexts/portal/domain/events.ts'
-const PORTAL_OUTBOX = 'src/contexts/portal/infrastructure/outbox-consumers.ts'
 const PORTAL_HEALTH_OUTBOX =
   'src/contexts/portal/infrastructure/portal-health-outbox-consumers.ts'
 const GUEST_EVENTS = 'src/contexts/guest/domain/events.ts'
@@ -1387,40 +1386,6 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
   ),
   ev(
-    'portal.hero_image.processing_requested',
-    PORTAL_EVENTS,
-    {
-      stateOwner: 'portal',
-      capability: 'portal.upload',
-      action: 'system:image.process',
-      schemaRegistered: true,
-      recordedInOutbox: true,
-      consumers: [durable('portal.process-issued-hero-image', PORTAL_OUTBOX)],
-      disposition: 'denied_dark',
-    },
-    {
-      notes:
-        'atomic issuance-consumption hand-off; content-free payload binds image reads to the exact verified source ETag',
-    },
-  ),
-  ev(
-    'portal.hero_image.published',
-    PORTAL_EVENTS,
-    {
-      stateOwner: 'portal',
-      capability: 'portal.upload',
-      action: 'none',
-      schemaRegistered: true,
-      recordedInOutbox: true,
-      consumers: [durable('activity.operational-action-history', ACTIVITY_OUTBOX)],
-      disposition: 'denied_dark',
-    },
-    {
-      notes:
-        'identifier-only completion fact committed with the hero URL and issuance finalization; replay uses the issuance id as the event id',
-    },
-  ),
-  ev(
     'portal.responsibility_became_needed',
     PORTAL_EVENTS,
     {
@@ -2173,21 +2138,6 @@ export const EVENT_FAMILY_ROWS: ReadonlyArray<EventFamilyRow> = [
 
 const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
   job(
-    'process-image',
-    'src/contexts/portal/infrastructure/jobs/process-image.job.ts',
-    {
-      queue: 'default',
-      capability: 'portal.upload',
-      action: 'system:image.process',
-      schedule: 'none',
-      registration: 'blocked_capability',
-    },
-    {
-      notes:
-        'Issuance-only private read and derived writes; stale-fenced; always registered and capability-scoped at dispatch/execution',
-    },
-  ),
-  job(
     'import-gbp-property-item-v2',
     'src/contexts/integration/infrastructure/jobs/import-gbp-property-item-v2.job.ts',
     {
@@ -2372,22 +2322,6 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       timeoutMs: 300_000,
       notes:
         'bounded 100-row sweep of destinations last validated at least fifteen minutes ago; every Property is independently authorized, every DNS answer and redirect hop is rechecked, and later-unsafe destinations are quarantined without disabling the review gateway',
-    },
-  ),
-  job(
-    'portal-upload-source-cleanup',
-    'src/contexts/portal/infrastructure/jobs/cleanup-upload-sources.job.ts',
-    {
-      queue: 'background',
-      capability: 'none',
-      action: 'system:image.cleanup',
-      schedule: 'every:3600000',
-      registration: 'enabled',
-    },
-    {
-      timeoutMs: 300_000,
-      notes:
-        'bounded 100-row cleanup of issuance-derived private upload sources; terminal state and idempotent object deletion make retries convergent, and the ungated schedule prevents capability shutdown from stranding private objects',
     },
   ),
   job(

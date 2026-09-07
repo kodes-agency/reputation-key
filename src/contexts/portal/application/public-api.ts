@@ -2,7 +2,7 @@
  * Public API for external consumers (components, routes, other contexts).
  * Re-exports ports for cross-context dependency injection.
  */
-export type { StoragePort, PortalStoragePort } from './ports/storage.port'
+export type { StoragePort } from './ports/storage.port'
 
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events.
 export type {

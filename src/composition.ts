@@ -653,8 +653,6 @@ function buildContainer(
      * Portal media. The name exposes the port's purpose, not its adapter. */
     assetStorage: portal.uploads.storage,
     portalWorkerRuntime: Object.freeze({
-      storage: portal.uploads.storage,
-      uploadStore: portal.uploads.uploadStore,
       revalidateApprovedDestinations: portal.worker.revalidateApprovedDestinations,
     }),
     /** Operator-only Review repair and lifecycle authority. */

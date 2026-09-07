@@ -1115,19 +1115,6 @@ const portalApprovedDestinationUpdatedSchema = portalPropertyFactSchema.extend({
   approvalState: z.enum(['pending', 'approved', 'disabled', 'quarantined']),
 })
 
-const portalHeroImageProcessingRequestedSchema = z.object({
-  uploadId: z.uuid(),
-  portalId: z.uuid(),
-  organizationId: z.string().min(1),
-  propertyId: z.uuid(),
-  sourceETag: z.string().regex(/^[A-Za-z0-9"'-]{1,200}$/),
-  occurredAt: z.iso.datetime(),
-})
-
-const portalHeroImagePublishedSchema = portalLifecycleFactSchema.extend({
-  uploadId: z.uuid(),
-})
-
 const portalTokenIssuedSchema = z.object({
   portalId: z.string(),
   organizationId: z.string(),
@@ -1742,16 +1729,6 @@ export function registerAllEventSchemas(): void {
     type: 'portal.approved_destination.updated',
     version: EVENT_VERSION,
     schema: portalApprovedDestinationUpdatedSchema,
-  })
-  registerEventSchema({
-    type: 'portal.hero_image.processing_requested',
-    version: EVENT_VERSION,
-    schema: portalHeroImageProcessingRequestedSchema,
-  })
-  registerEventSchema({
-    type: 'portal.hero_image.published',
-    version: EVENT_VERSION,
-    schema: portalHeroImagePublishedSchema,
   })
   registerEventSchema({
     type: 'portal.content_review.completed',

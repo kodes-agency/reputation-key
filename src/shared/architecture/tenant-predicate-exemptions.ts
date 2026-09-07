@@ -194,13 +194,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/portal/infrastructure/portal-upload-issuance-store.ts',
-    symbol: 'listSourceCleanupCandidates',
-    reason:
-      'The bounded source-cleanup scheduler intentionally enumerates expired upload issuances across tenants and retains their owning scope for cleanup.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/portal/infrastructure/repositories/link-resolver.repository.ts',
     symbol: 'resolveLinkById',
     reason:

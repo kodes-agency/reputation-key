@@ -45,7 +45,6 @@ export type {
   PortalLocalizedOverrideUpdated,
   PortalLocaleSetUpdated,
   PortalApprovedDestinationUpdated,
-  PortalHeroImageProcessingRequested,
   PortalGroupCreated,
   PortalGroupUpdated,
   PortalGroupDeleted,

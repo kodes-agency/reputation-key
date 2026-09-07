@@ -14,10 +14,6 @@ import { createRedisAlertStateStore } from '#/shared/health/alert-state'
 import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
 import { readAllQueueDepths } from '#/shared/health/queue-depth'
 import { isCapabilityJobEnabled, type Capability } from '#/shared/auth/beta-capabilities'
-import {
-  createProcessImageJob,
-  JOB_NAME as PROCESS_IMAGE_JOB_NAME,
-} from '#/contexts/portal/infrastructure/jobs/process-image.job'
 import { createGoogleImportV2ItemJobHandler } from '#/contexts/integration/infrastructure/jobs/import-gbp-property-item-v2.job'
 import { GOOGLE_PROPERTY_IMPORT_ITEM_JOB } from '#/contexts/integration/application/google-import-v2-contract'
 import {
@@ -72,10 +68,6 @@ import {
   createRevalidateApprovedDestinationsHandler,
   JOB_NAME as PORTAL_DESTINATION_REVALIDATION_JOB,
 } from '#/contexts/portal/infrastructure/jobs/revalidate-approved-destinations.job'
-import {
-  createCleanupPortalUploadSourcesHandler,
-  JOB_NAME as PORTAL_UPLOAD_SOURCE_CLEANUP_JOB,
-} from '#/contexts/portal/infrastructure/jobs/cleanup-upload-sources.job'
 import {
   createReleaseResponseTargetRemindersHandler,
   JOB_NAME as RELEASE_RESPONSE_TARGET_REMINDERS_JOB,
@@ -265,37 +257,6 @@ export async function bootstrap(
         container.identityLifecycleRuntime.organizationExport.readiness.configured,
     },
     'registered quarantined Organization lifecycle safety handlers',
-  )
-
-  // ── Portal image processing job (portal dark / portal.upload blocked) ──
-  const processImageHandler = createProcessImageJob({
-    storage: container.portalWorkerRuntime.storage,
-    uploadStore: container.portalWorkerRuntime.uploadStore,
-    clock: container.clock,
-    logger: container.logger,
-  })
-  registerCapabilityGatedJob(PROCESS_IMAGE_JOB_NAME, 'portal.upload', async (job) => {
-    await processImageHandler(
-      job as import('bullmq').Job<
-        import('#/contexts/portal/infrastructure/jobs/process-image.job').ProcessImageJobData
-      >,
-    )
-  })
-
-  // Cleanup remains active while uploads are dark. Capability shutdown must
-  // stop new processing without stranding expired/rejected private sources.
-  container.jobRegistry.register(
-    PORTAL_UPLOAD_SOURCE_CLEANUP_JOB,
-    createCleanupPortalUploadSourcesHandler({
-      storage: container.portalWorkerRuntime.storage,
-      uploadStore: container.portalWorkerRuntime.uploadStore,
-      clock: container.clock,
-      logger: container.logger,
-    }),
-  )
-  logger.info(
-    { job: PORTAL_UPLOAD_SOURCE_CLEANUP_JOB },
-    'registered Portal private upload source cleanup job handler',
   )
 
   const processGoogleImportV2Item = container.integrationWorkerRuntime.processImportItem

@@ -81,7 +81,6 @@ export const DURABLE_OPERATIONAL_ACTION_HISTORY_EVENT_TYPES = Object.freeze([
   'integration.google_account.disconnected',
   'portal.archived',
   'portal.approved_destination.updated',
-  'portal.hero_image.published',
   'portal.publication.published',
   'property.archived',
   'property.deleted',
@@ -690,14 +689,6 @@ const operationalActionProjection = (
         action: 'policy.changed',
         resourceType: 'policy',
         resourceId: stringValue(payload, 'approvedDestinationId'),
-      }
-    case 'portal.hero_image.published':
-      return {
-        actorType: 'system',
-        actorId: null,
-        action: 'portal_upload.validated',
-        resourceType: 'upload',
-        resourceId: stringValue(payload, 'uploadId'),
       }
     case 'property.archived':
     case 'property.restored':
