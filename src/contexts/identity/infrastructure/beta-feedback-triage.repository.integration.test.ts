@@ -7,7 +7,6 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { BetaFeedbackTriageRepository } from './beta-feedback-triage.repository'
 
 const NOW = new Date('2026-08-28T08:00:00.000Z')
-const EXPIRES = new Date('2026-09-27T08:00:00.000Z')
 const HASH_A = 'a'.repeat(64)
 const HASH_B = 'b'.repeat(64)
 const HASH_C = 'c'.repeat(64)
@@ -28,9 +27,9 @@ function prepare(reference = randomUUID()) {
     routeKey: 'dashboard',
     viewport: 'wide' as const,
     reporterRole: 'PropertyManager' as const,
-    attachmentKind: 'masked_layout_v1' as const,
-    attachmentCapturedAt: NOW,
-    attachmentExpiresAt: EXPIRES,
+    attachmentKind: 'none' as const,
+    attachmentCapturedAt: null,
+    attachmentExpiresAt: null,
     now: NOW,
   } as const
 }
@@ -65,7 +64,7 @@ describe('beta feedback triage repository (real PostgreSQL)', () => {
       revision: 0,
       organizationPseudonym: HASH_A,
       actorPseudonym: HASH_B,
-      attachmentExpiresAt: EXPIRES,
+      attachmentExpiresAt: null,
     })
 
     await repository.markDelivered({
@@ -245,8 +244,6 @@ describe('beta feedback triage repository (real PostgreSQL)', () => {
     const newer = {
       ...prepare(),
       now: new Date(NOW.getTime() + 60_000),
-      attachmentCapturedAt: new Date(NOW.getTime() + 60_000),
-      attachmentExpiresAt: new Date(EXPIRES.getTime() + 60_000),
     }
     await repository.prepare(oldest)
     await repository.prepare(newer)

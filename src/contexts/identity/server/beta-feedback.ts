@@ -4,7 +4,6 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import {
-  BETA_FEEDBACK_ATTACHMENT_RETENTION_DAYS,
   type BetaFeedbackInput,
   betaFeedbackInputSchema,
   classifyBetaFeedbackRoute,
@@ -43,13 +42,6 @@ export const submitBetaFeedbackHandler = createServerOnlyFn(
 
       const now = clock()
       const reference = idGen()
-      const attachmentExpiresAt =
-        data.type === 'bug' && data.attachment
-          ? new Date(
-              now.getTime() +
-                BETA_FEEDBACK_ATTACHMENT_RETENTION_DAYS * 24 * 60 * 60 * 1_000,
-            )
-          : null
       await triage.prepare({
         reference,
         organizationPseudonym: betaFeedbackPseudonym(
@@ -58,15 +50,14 @@ export const submitBetaFeedbackHandler = createServerOnlyFn(
           actor.organizationId,
         ),
         actorPseudonym: betaFeedbackPseudonym(secret, 'telemetry-actor', actor.userId),
-        feedbackType: data.type,
-        impactCode: data.type === 'bug' ? data.impact : data.importance,
+        feedbackType: data.kind,
+        impactCode: data.kind === 'bug' ? 'small_issue' : 'helpful',
         routeKey: classifyBetaFeedbackRoute(data.routePath),
         viewport: data.viewport,
         reporterRole: actor.role,
-        attachmentKind:
-          data.type === 'bug' && data.attachment ? 'masked_layout_v1' : 'none',
-        attachmentCapturedAt: attachmentExpiresAt ? now : null,
-        attachmentExpiresAt,
+        attachmentKind: 'none',
+        attachmentCapturedAt: null,
+        attachmentExpiresAt: null,
         now,
       })
 
@@ -75,8 +66,6 @@ export const submitBetaFeedbackHandler = createServerOnlyFn(
         actor,
         hmacSecret: secret,
         reference,
-        capturedAt: now,
-        attachmentExpiresAt,
       })
       if (delivery.status === 'failed') {
         await triage.markFailed({

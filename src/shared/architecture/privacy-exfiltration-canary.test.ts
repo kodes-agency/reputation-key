@@ -2,7 +2,7 @@
 // observability/fact boundary. This does not replace the deployed Sentry
 // acceptance drill; it proves the repository-owned denials cannot silently
 // drift independently between logs, traces, metrics, durable facts, and beta
-// feedback attachments.
+// feedback.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ZodError } from 'zod/v4'
@@ -11,10 +11,6 @@ import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { betaFeedbackInputSchema } from '#/shared/beta-feedback-contract'
-import {
-  buildMaskedLayoutSnapshot,
-  renderMaskedLayoutSvg,
-} from '#/shared/masked-layout-snapshot'
 import {
   METRIC_DEFINITIONS,
   labelValueAllowed,
@@ -126,41 +122,17 @@ describe('OBS-01 synthetic privacy exfiltration canary', () => {
     expect(row.payload).not.toHaveProperty('password')
   })
 
-  it('rejects pixel/replay material and permits only a content-free masked layout', () => {
+  it('rejects pixel, replay, and attachment material from beta feedback', () => {
     expect(() =>
       betaFeedbackInputSchema.parse({
-        type: 'bug',
-        title: 'A reproducible problem',
-        expected: 'The action should finish.',
-        actual: 'The action remains pending.',
-        impact: 'small_issue',
+        kind: 'bug',
+        message: 'A reproducible problem.',
         routePath: '/dashboard',
         viewport: 'regular',
         screenshot: `data:image/png;base64,${SECRET}`,
         replay: { reviewText: REVIEW, contact: CONTACT },
+        attachment: { content: SECRET },
       }),
     ).toThrow(ZodError)
-
-    const attachment = buildMaskedLayoutSnapshot(
-      [
-        { kind: 'text', left: 0, top: 0, right: 300, bottom: 30 },
-        { kind: 'input', left: 0, top: 40, right: 300, bottom: 80 },
-      ],
-      { width: 1_000, height: 800 },
-    )
-    const parsed = betaFeedbackInputSchema.parse({
-      type: 'bug',
-      title: 'A reproducible problem',
-      expected: 'The action should finish.',
-      actual: 'The action remains pending.',
-      impact: 'small_issue',
-      routePath: '/dashboard',
-      viewport: 'regular',
-      attachment,
-    })
-    expect(parsed).toMatchObject({ type: 'bug', attachment })
-    if (parsed.type !== 'bug') throw new Error('expected Bug feedback fixture')
-    expectNoMarkers(parsed.attachment)
-    expectNoMarkers(renderMaskedLayoutSvg(parsed.attachment!))
   })
 })

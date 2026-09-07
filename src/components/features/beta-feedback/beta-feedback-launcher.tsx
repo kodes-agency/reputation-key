@@ -1,11 +1,5 @@
 import { useState } from 'react'
-import {
-  Bug,
-  CheckCircle2,
-  Lightbulb,
-  MessageSquarePlus,
-  ShieldCheck,
-} from 'lucide-react'
+import { CheckCircle2, MessageSquarePlus, ShieldCheck } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
   Dialog,
@@ -17,10 +11,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '#/components/ui/dialog'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import { type SubmitBetaFeedback } from './beta-feedback-form-context'
-import { BugFeedbackForm } from './beta-feedback-forms'
-import { SuggestionFeedbackForm } from './suggestion-feedback-form'
+import { BetaFeedbackForm } from './beta-feedback-form'
 
 type Props = Readonly<{
   submitFeedback: SubmitBetaFeedback
@@ -33,12 +25,11 @@ function PrivacyNotice() {
       <div className="space-y-1 text-muted-foreground">
         <p>
           Only the text you enter, controlled diagnostic categories, and an opaque receipt
-          are sent. Suggestions are always text-only. A Bug can include a text-free masked
-          layout only after you explicitly create, preview, and keep it.
+          are sent.
         </p>
         <p>
           Please don&apos;t include guest names, review text, contact details, passwords,
-          or access codes. RepKey never records a replay or ordinary pixel screenshot.
+          or access codes. RepKey never records a replay or screenshot.
         </p>
       </div>
     </div>
@@ -81,27 +72,7 @@ function FeedbackDialogBody({ submitFeedback }: Props) {
   return (
     <>
       <PrivacyNotice />
-      <Tabs defaultValue="bug">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="bug">
-            <Bug />
-            Report a bug
-          </TabsTrigger>
-          <TabsTrigger value="suggestion">
-            <Lightbulb />
-            Make a suggestion
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="bug" className="mt-3">
-          <BugFeedbackForm submitFeedback={submitFeedback} onSubmitted={setReference} />
-        </TabsContent>
-        <TabsContent value="suggestion" className="mt-3">
-          <SuggestionFeedbackForm
-            submitFeedback={submitFeedback}
-            onSubmitted={setReference}
-          />
-        </TabsContent>
-      </Tabs>
+      <BetaFeedbackForm submitFeedback={submitFeedback} onSubmitted={setReference} />
     </>
   )
 }

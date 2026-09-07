@@ -3636,7 +3636,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'ops:triage-beta-feedback — content-free support queue report by default; apply changes exactly one delivered feedback receipt with optimistic concurrency, a named pseudonymous owner, ticketed reason, and an append-only transition in the same transaction; report text and masked attachments remain restricted provider content and engineering issues are linked only by an explicit later operator decision',
+        'ops:triage-beta-feedback — content-free support queue report by default; apply changes exactly one delivered feedback receipt with optimistic concurrency, a named pseudonymous owner, ticketed reason, and an append-only transition in the same transaction; report text remains restricted provider content and engineering issues are linked only by an explicit later operator decision',
     },
   ),
   ops(

@@ -1,115 +1,41 @@
 import { describe, expect, it } from 'vitest'
 import { ZodError } from 'zod/v4'
 import {
-  BETA_FEEDBACK_ATTACHMENT_RETENTION_DAYS,
   betaFeedbackInputSchema,
   classifyBetaFeedbackRoute,
   classifyBetaFeedbackViewport,
-  isBetaFeedbackAttachmentAllowed,
   formatBetaFeedbackMessage,
-  maskedLayoutSnapshotSchema,
 } from './beta-feedback-contract'
 
 describe('beta feedback contract', () => {
-  it('accepts the two intentionally distinct report shapes', () => {
+  it.each(['bug', 'suggestion'] as const)('accepts text-only %s feedback', (kind) => {
     expect(
       betaFeedbackInputSchema.parse({
-        type: 'bug',
-        title: 'Reviews page did not load',
-        expected: 'The reviews list should appear.',
-        actual: 'The loading state remained on screen.',
-        steps: 'Open a property and select Reviews.',
-        impact: 'workaround_available',
-        routePath: '/properties/property-1/reviews',
-        viewport: 'wide',
+        kind,
+        message: 'The workflow could be clearer.',
+        routePath: '/dashboard',
+        viewport: 'regular',
       }),
-    ).toMatchObject({ type: 'bug', impact: 'workaround_available' })
-
-    expect(
-      betaFeedbackInputSchema.parse({
-        type: 'suggestion',
-        title: 'Keep the selected property visible',
-        desiredOutcome: 'Show the selected property while moving between pages.',
-        currentFriction: 'I need to check the property name again.',
-        importance: 'helpful',
-        routePath: '/inbox',
-        viewport: 'compact',
-      }),
-    ).toMatchObject({ type: 'suggestion', importance: 'helpful' })
+    ).toEqual({
+      kind,
+      message: 'The workflow could be clearer.',
+      routePath: '/dashboard',
+      viewport: 'regular',
+    })
   })
 
-  it('accepts only a bounded, content-free masked layout on Bug reports', () => {
-    const attachment = {
-      profile: 'masked-layout-v1',
-      consented: true,
-      gridWidth: 64,
-      gridHeight: 40,
-      blocks: [
-        { kind: 'surface', x: 0, y: 0, width: 64, height: 40 },
-        { kind: 'input', x: 8, y: 12, width: 32, height: 4 },
-      ],
-    } as const
-
-    expect(maskedLayoutSnapshotSchema.parse(attachment)).toEqual(attachment)
-    expect(
-      betaFeedbackInputSchema.parse({
-        type: 'bug',
-        title: 'A reproducible problem',
-        expected: 'The action should finish.',
-        actual: 'The action remains pending.',
-        impact: 'small_issue',
-        routePath: '/dashboard',
-        viewport: 'regular',
-        attachment,
-      }),
-    ).toMatchObject({ type: 'bug', attachment })
-
-    expect(() =>
-      betaFeedbackInputSchema.parse({
-        type: 'suggestion',
-        title: 'A useful improvement',
-        desiredOutcome: 'Make this workflow clearer for managers.',
-        importance: 'helpful',
-        routePath: '/dashboard',
-        viewport: 'regular',
-        attachment,
-      }),
-    ).toThrow(ZodError)
-    expect(() =>
-      betaFeedbackInputSchema.parse({
-        type: 'bug',
-        title: 'A reproducible problem',
-        expected: 'The action should finish.',
-        actual: 'The action remains pending.',
-        impact: 'small_issue',
-        routePath: '/dashboard',
-        viewport: 'regular',
-        replayId: 'private-replay',
-      }),
-    ).toThrow(ZodError)
-    expect(() =>
-      maskedLayoutSnapshotSchema.parse({
-        ...attachment,
-        blocks: [{ kind: 'text', x: 0, y: 0, width: 65, height: 1 }],
-      }),
-    ).toThrow(ZodError)
-    expect(JSON.stringify(attachment)).not.toContain('private')
-    expect(BETA_FEEDBACK_ATTACHMENT_RETENTION_DAYS).toBe(30)
-  })
-
-  it.each([
-    ['/dashboard', true],
-    ['/inbox', false],
-    ['/properties/import-google', false],
-    ['/properties/private-property-id/reviews', false],
-    ['/settings/integrations', false],
-    ['/settings/profile', false],
-    ['/settings/security', false],
-    ['/not-a-known-route/private-value', false],
-  ] as const)(
-    'applies the sensitive-route attachment denylist to %s',
-    (path, allowed) => {
-      expect(isBetaFeedbackAttachmentAllowed(path)).toBe(allowed)
+  it.each(['attachment', 'screenshot', 'replayId'] as const)(
+    'rejects the removed %s capture field',
+    (field) => {
+      expect(() =>
+        betaFeedbackInputSchema.parse({
+          kind: 'bug',
+          message: 'The workflow did not complete.',
+          routePath: '/dashboard',
+          viewport: 'regular',
+          [field]: 'private-capture',
+        }),
+      ).toThrow(ZodError)
     },
   )
 
@@ -134,18 +60,13 @@ describe('beta feedback contract', () => {
   it('formats bounded, labelled messages without placing the raw route in them', () => {
     const marker = 'private-property-id'
     const message = formatBetaFeedbackMessage({
-      type: 'bug',
-      title: 'Reviews page did not load',
-      expected: 'The reviews list should appear.',
-      actual: 'The loading state remained on screen.',
-      steps: 'Open Reviews. '.repeat(600),
-      impact: 'cannot_complete',
+      kind: 'bug',
+      message: 'The reviews page did not load. '.repeat(300),
       routePath: `/properties/${marker}/reviews`,
       viewport: 'wide',
     })
 
     expect(message).toContain('Type: Bug')
-    expect(message).toContain('Expected: The reviews list should appear.')
     expect(message).toContain('Route: properties.property.reviews')
     expect(message).not.toContain(marker)
     expect(message.length).toBeLessThanOrEqual(6_000)
