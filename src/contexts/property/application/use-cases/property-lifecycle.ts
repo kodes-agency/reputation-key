@@ -1,6 +1,6 @@
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { propertyId } from '#/shared/domain/ids'
+import { propertyId, type OrganizationId, type PropertyId } from '#/shared/domain/ids'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { canForContext } from '#/shared/domain/permissions'
 import { propertyError } from '../../domain/errors'
@@ -10,7 +10,6 @@ import {
   assertValidTransition,
 } from '../../domain/property-lifecycle'
 import type { PropertyLifecycleCommandStore } from '../ports/property-lifecycle-command-store.port'
-import type { PropertyLifecycleReadiness } from '../ports/property-lifecycle-readiness.port'
 import type { PropertyRepository } from '../ports/property.repository'
 import {
   PropertyGoogleBindingError,
@@ -121,7 +120,14 @@ export type ArchiveProperty = ReturnType<typeof archiveProperty>
 export type RestorePropertyInput = Readonly<{ propertyId: string }>
 
 type RestorePropertyDeps = LifecycleCommandDeps &
-  Readonly<{ readiness: PropertyLifecycleReadiness }>
+  Readonly<{
+    readiness: Readonly<{
+      hasEligibleResponsibleManager: (
+        organizationId: OrganizationId,
+        propertyId: PropertyId,
+      ) => Promise<boolean>
+    }>
+  }>
 
 export type PropertyGoogleBindingReadiness = 'ready' | 'reconnect_required'
 

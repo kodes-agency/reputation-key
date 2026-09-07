@@ -4,11 +4,13 @@
 
 import type { ManagerMembership } from './ports/identity.port'
 import type { StaffPublicApi } from './people-public-api'
-import type { OutstandingResponsibility } from './ports/member-offboarding.port'
+import type {
+  LeaveOrganization,
+  OutstandingResponsibility,
+} from './use-cases/leave-organization'
 import type { InviteMember } from './use-cases/invite-member'
 import type { UpdateMemberRole } from './use-cases/update-member-role'
 import type { RemoveMember } from './use-cases/remove-member'
-import type { LeaveOrganization } from './use-cases/leave-organization'
 import type { ListInvitations } from './use-cases/list-invitations'
 import type { ResendInvitation } from './use-cases/resend-invitation'
 import type { AcceptInvitation } from './use-cases/accept-invitation'
@@ -52,6 +54,11 @@ export type {
   StaffParticipation,
   PortalResponsibility,
 } from './people-public-api'
+export type {
+  OffboardingResponsibilityKind,
+  OutstandingResponsibility,
+  ResponsibilityTransfer,
+} from './use-cases/leave-organization'
 
 /** Current manager membership facts. This facade carries no mutation authority. */
 export type IdentityManagerFactsPublicApi = Readonly<{

@@ -16,7 +16,7 @@ import type { Env } from '#/shared/config/env'
 import type { Clock } from '#/shared/domain/clock'
 import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
 import type { RequestContextPort } from '#/contexts/identity/application/ports/request-context.port'
-import type { AuthSessionPort } from '#/contexts/identity/application/ports/auth-session.port'
+import type { AuthSessionOperations } from '#/shared/auth/better-auth-session'
 import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
 import type { sendInvitationEmail } from '#/shared/auth/emails'
 import type { IdentityOrganizationLifecycleComposition } from '#/contexts/identity/build'
@@ -60,7 +60,7 @@ export type CreateContainerOptions = {
    * processes have no server request; simulations inject fixed headers). */
   requestContext?: RequestContextPort
   /** ARC-03-T13: override the authenticated session provider. */
-  authSession?: AuthSessionPort
+  authSession?: AuthSessionOperations
   /** Dedicated non-persistent provider store override for simulations/tests. */
   providerEphemeralStore?: ProviderEphemeralStore
   /** Override the email sender (simulations capture emails instead of sending). */

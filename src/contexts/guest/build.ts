@@ -10,9 +10,10 @@ import type {
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Clock } from '#/shared/domain/clock'
-import type { GuestSnippetReadPort } from './application/ports/guest-snippet-read.port'
 import { createGuestInteractionRepository } from './infrastructure/repositories/guest-interaction.repository'
 import { createGuestResponseRepository } from './infrastructure/repositories/guest-response.repository'
+import type { GuestResponseContentFilter } from './application/ports/guest-response.repository'
+import type { LegacyFeedbackContentFilter } from './application/ports/guest-interaction.repository'
 import { createAtomicGuestResponseCommandStore } from './infrastructure/guest-response-command-store'
 import { createAtomicGuestObservationStore } from './infrastructure/guest-observation-store'
 import { createPortalContextResolver } from './infrastructure/resolvers/portal-context-resolver'
@@ -22,12 +23,19 @@ import { trackReviewLinkClick } from './application/use-cases/track-review-link-
 import { resolveLinkAndTrack } from './application/use-cases/resolve-link-and-track'
 import { resolvePortalContext } from './application/use-cases/resolve-portal-context'
 import { getPublicPortal } from './application/use-cases/get-public-portal'
-import { guestResponseLifecycle } from './application/use-cases/guest-response-lifecycle'
+import {
+  guestResponseLifecycle,
+  type ResolvePrimaryStaffAttribution,
+} from './application/use-cases/guest-response-lifecycle'
 import { createGuestSessionManager } from './server/guest-session'
-import { qualifiedScanId, scanEventId } from '#/shared/domain/ids'
+import {
+  qualifiedScanId,
+  scanEventId,
+  type FeedbackId,
+  type OrganizationId,
+} from '#/shared/domain/ids'
 import { createFeedbackPortalAttributionLookup } from './infrastructure/feedback-portal-attribution'
 import { getPortalResponseIntegritySummary } from './application/use-cases/get-portal-response-integrity-summary'
-import type { PrimaryStaffAttributionResolver } from './application/ports/primary-staff-attribution.port'
 import { createGuestNetworkPressureStore } from './infrastructure/guest-network-pressure.store'
 import { consumeGuestNetworkPressure } from './application/use-cases/consume-guest-network-pressure'
 import {
@@ -56,7 +64,7 @@ type GuestContextDeps = Readonly<{
   sessionSecret: string
   publicOrigin: string
   secureCookies: boolean
-  resolvePrimaryStaffAttribution: PrimaryStaffAttributionResolver
+  resolvePrimaryStaffAttribution: ResolvePrimaryStaffAttribution
   observationLossRedis?: GuestObservationLossRedisPort
 }>
 
@@ -170,15 +178,21 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
 
   // ARC-03-T11: the two named Guest capabilities the composition root consumes.
   // Both used to be Guest repository reach-throughs from the root.
-  const snippets: GuestSnippetReadPort = Object.freeze({
-    findResponseSnippetsByIds: (ids, organizationId) =>
+  const snippets = Object.freeze({
+    findResponseSnippetsByIds: (ids: ReadonlyArray<string>, organizationId: string) =>
       guestResponseRepo.findSnippetsForOrg(organizationId, ids),
-    findEligibleResponseIds: (organizationId, filter) =>
-      guestResponseRepo.findEligibleSnippetIdsForOrg(organizationId, filter),
-    findLegacyFeedbackSnippetsByIds: (ids, organizationId) =>
-      guestRepo.findFeedbackSnippetsByIds(ids, organizationId),
-    findEligibleLegacyFeedbackIds: (organizationId, filter) =>
-      guestRepo.findEligibleFeedbackIds(organizationId, filter),
+    findEligibleResponseIds: (
+      organizationId: string,
+      filter: GuestResponseContentFilter,
+    ) => guestResponseRepo.findEligibleSnippetIdsForOrg(organizationId, filter),
+    findLegacyFeedbackSnippetsByIds: (
+      ids: ReadonlyArray<FeedbackId>,
+      organizationId: OrganizationId,
+    ) => guestRepo.findFeedbackSnippetsByIds(ids, organizationId),
+    findEligibleLegacyFeedbackIds: (
+      organizationId: OrganizationId,
+      filter: LegacyFeedbackContentFilter,
+    ) => guestRepo.findEligibleFeedbackIds(organizationId, filter),
   })
 
   return {

@@ -28,8 +28,10 @@ import { updateCustomRole } from './application/use-cases/update-custom-role'
 import { deleteCustomRole } from './application/use-cases/delete-custom-role'
 import { updateMemberRole } from './application/use-cases/update-member-role'
 import { removeMember } from './application/use-cases/remove-member'
-import { leaveOrganization } from './application/use-cases/leave-organization'
-import type { MemberOffboardingPort } from './application/ports/member-offboarding.port'
+import {
+  leaveOrganization,
+  type MemberOffboarding,
+} from './application/use-cases/leave-organization'
 import { identityError } from './domain/errors'
 import { listInvitations } from './application/use-cases/list-invitations'
 import { resendInvitation } from './application/use-cases/resend-invitation'
@@ -39,7 +41,6 @@ import { registerUser } from './application/use-cases/register-user'
 import { registerInvitedUser } from './application/use-cases/register-invited-user'
 import { recoverInvitedRegistrations } from './application/use-cases/recover-invited-registrations'
 import { updateOrganization } from './application/use-cases/update-organization'
-import type { AuthSessionPort } from './application/ports/auth-session.port'
 import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
 import { createInvitedRegistrationStore } from './infrastructure/invited-registration-store'
 import { buildCapabilityPolicyHandle } from './infrastructure/policy-store-init'
@@ -171,18 +172,27 @@ export type IdentityOrganizationLifecycleComposition = Readonly<{
   }>
 }>
 
+type AuthSession = Readonly<{
+  setActiveOrganization: (organizationId: string) => Promise<void>
+  updateOrganization: (data: Record<string, unknown>) => Promise<void>
+  currentOrganizationName: () => Promise<string | null>
+  verifyPassword: (
+    input: Readonly<{ headers: Headers; password: string }>,
+  ) => Promise<boolean>
+}>
+
 type IdentityContextDeps = Readonly<{
   db: Database
   identityPort: IdentityPort
   clock: Clock
   idGen: () => string
   /**
-   * ARC-03-T13: the authenticated session, injected as a port. The four
-   * operations the root used to perform inline against the better-auth process
-   * singleton (set active org, update org, read org name, verify password) are
-   * now one Identity-owned contract.
+   * ARC-03-T13: the authenticated session dependency. The four operations the
+   * root used to perform inline against the better-auth process singleton
+   * (set active org, update org, read org name, verify password) remain one
+   * Identity-owned structural contract.
    */
-  authSession: AuthSessionPort
+  authSession: AuthSession
   /** Send an invitation email. */
   sendEmail: (params: {
     email: string
@@ -233,7 +243,7 @@ type IdentityContextDeps = Readonly<{
    * silently strand every responsibility on it. AccountAdmin-initiated
    * `removeMember` is unaffected — it releases rather than transfers.
    */
-  memberOffboarding?: MemberOffboardingPort
+  memberOffboarding?: MemberOffboarding
   organizationLifecycle?: IdentityOrganizationLifecycleComposition
 }>
 
@@ -614,7 +624,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
    * answer: reporting an empty worklist would let a member walk out leaving
    * Portals and Properties with no Responsible Manager.
    */
-  const memberOffboarding: MemberOffboardingPort = deps.memberOffboarding ?? {
+  const memberOffboarding: MemberOffboarding = deps.memberOffboarding ?? {
     listOutstanding: async () => {
       throw identityError(
         'forbidden',

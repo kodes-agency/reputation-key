@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GoalExecutionPolicy } from '../application/ports/goal-execution-policy'
+import type { GoalExecutionPolicy } from '../application/use-cases/goal-programs'
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),

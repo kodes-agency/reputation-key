@@ -67,10 +67,7 @@ import {
   createSchedulePropertyTrendsJobHandler,
   SCHEDULE_PROPERTY_TRENDS_JOB_NAME,
 } from '#/contexts/ai/infrastructure/jobs/schedule-property-trends.job'
-import {
-  GoalProgramError,
-  type GoalExecutionPolicy,
-} from '#/contexts/reporting/application/public-api'
+import { GoalProgramError } from '#/contexts/reporting/application/public-api'
 import {
   createRevalidateApprovedDestinationsHandler,
   JOB_NAME as PORTAL_DESTINATION_REVALIDATION_JOB,
@@ -386,7 +383,8 @@ export async function bootstrap(
   // then re-authorizes every discovered property immediately before reading
   // its governed Metric source or mutating its Goal Program lifecycle.
   const authorizeGoalProgramScope = createScheduledScopeAuthorizer('system:goal.maintain')
-  const goalProgramPolicy: GoalExecutionPolicy = {
+  const goalProgramMaintenance = container.goalWorkerRuntime.programMaintenance
+  const goalProgramPolicy: Parameters<typeof goalProgramMaintenance.createHandler>[0] = {
     authorize: async (request) => {
       if (request.actor !== 'system') throw new GoalProgramError('forbidden')
       const allowed = await authorizeGoalProgramScope(
@@ -396,7 +394,6 @@ export async function bootstrap(
       if (!allowed) throw new GoalProgramError('forbidden')
     },
   }
-  const goalProgramMaintenance = container.goalWorkerRuntime.programMaintenance
   const goalProgramMaintenanceHandler =
     goalProgramMaintenance.createHandler(goalProgramPolicy)
   registerCapabilityGatedJob(goalProgramMaintenance.jobName, 'goal.use', async (job) => {

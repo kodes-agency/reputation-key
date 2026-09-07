@@ -1,4 +1,4 @@
-// Shared auth — the better-auth implementation of Identity's AuthSessionPort.
+// Shared auth — the better-auth implementation of Identity's session dependency.
 //
 // ARC-03-T13: the composition root used to call `getAuth()` inline four times.
 // The provider now lives behind one named adapter at the composition boundary,
@@ -7,11 +7,7 @@
 import { getAuth } from './auth'
 import type { RequestHeadersProvider } from './tanstack-request-context'
 
-/**
- * Named here rather than imported from the Identity context, for the reason in
- * tanstack-request-context.ts: shared may not depend on a context. Identity's
- * AuthSessionPort declares the same shape and the composition root joins them.
- */
+/** Shared owns this provider-facing shape; Identity consumes it structurally. */
 export type AuthSessionOperations = Readonly<{
   setActiveOrganization: (organizationId: string) => Promise<void>
   updateOrganization: (data: Record<string, unknown>) => Promise<void>

@@ -31,11 +31,45 @@ import { identityError } from '../../domain/errors'
 import { identityMemberRemoved } from '../../domain/events'
 import type { IdentityPort } from '../ports/identity.port'
 import type { IdentityCommandStore } from '../ports/identity-command-store.port'
-import type {
-  MemberOffboardingPort,
-  OutstandingResponsibility,
-  ResponsibilityTransfer,
-} from '../ports/member-offboarding.port'
+
+export const OFFBOARDING_RESPONSIBILITY_KINDS = [
+  'portal_responsibility',
+  'property_responsibility',
+  'inbox_assignment',
+] as const
+
+export type OffboardingResponsibilityKind =
+  (typeof OFFBOARDING_RESPONSIBILITY_KINDS)[number]
+
+export type OutstandingResponsibility = Readonly<{
+  kind: OffboardingResponsibilityKind
+  resourceId: string
+}>
+
+export type ResponsibilityTransfer = Readonly<{
+  kind: OffboardingResponsibilityKind
+  resourceId: string
+  toUserId: string
+}>
+
+export type MemberOffboarding = Readonly<{
+  listOutstanding(
+    organizationId: string,
+    userId: string,
+  ): Promise<readonly OutstandingResponsibility[]>
+  isEligibleRecipient(input: {
+    organizationId: string
+    userId: string
+    kind: OffboardingResponsibilityKind
+    resourceId: string
+  }): Promise<boolean>
+  transfer(input: {
+    organizationId: string
+    fromUserId: string
+    actorUserId: string
+    transfer: ResponsibilityTransfer
+  }): Promise<void>
+}>
 
 export type LeaveOrganizationInput = Readonly<{
   /**
@@ -53,7 +87,7 @@ export type LeaveOrganizationOutput = Readonly<{
 export type LeaveOrganizationDeps = Readonly<{
   identity: IdentityPort
   commandStore: IdentityCommandStore
-  offboarding: MemberOffboardingPort
+  offboarding: MemberOffboarding
   clock: () => Date
   /** Fail-closed import lifecycle fence, run before the Identity commit. */
   cancelGoogleImportsForUser?: (

@@ -4,9 +4,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { QueryClient } from '@tanstack/react-query'
 import {
-  inboxCachePolicy,
-  replyRefetchInterval,
   BULLMQ_ACTIVITY_LAG_MS,
+  inboxCachePolicy,
+  mergeInboxCommandItem,
+  replyRefetchInterval,
   REPLY_POLL_INTERVAL_MS,
 } from './inbox-cache-policy'
 import { inboxKeys } from '#/shared/queries/query-keys'
@@ -59,7 +60,40 @@ describe('inbox key topology (pinned)', () => {
 // ── onStatusChanged ─────────────────────────────────────────────
 
 describe('inboxCachePolicy.onItemStatusChanged', () => {
-  const updated = { id: ID, status: 'closed' } as unknown as InboxItem
+  const updated = {
+    id: ID,
+    status: 'closed',
+    commandRevision: 3,
+    rating: null,
+    snippet: null,
+    reviewerName: null,
+    propertyName: null,
+    contentAvailability: undefined,
+    reviewLanguageCode: undefined,
+    attention: undefined,
+  } as unknown as InboxItem
+
+  it('keeps cached header enrichments while applying a command patch', () => {
+    const cached = {
+      id: ID,
+      status: 'open',
+      commandRevision: 2,
+      propertyName: 'Acme Hotel',
+      reviewerName: 'Dana',
+    } as unknown as InboxItem
+    const command = {
+      id: ID,
+      status: 'closed',
+      commandRevision: 3,
+    } as unknown as InboxItem
+
+    expect(mergeInboxCommandItem(cached, command)).toMatchObject({
+      propertyName: 'Acme Hotel',
+      reviewerName: 'Dana',
+      status: 'closed',
+      commandRevision: 3,
+    })
+  })
 
   it('patches the selected detail and invalidates only folder data immediately', () => {
     const { qc, invalidated, setDataCalls } = makeFakeQc()
@@ -68,8 +102,35 @@ describe('inboxCachePolicy.onItemStatusChanged', () => {
 
     expect(setDataCalls).toHaveLength(1)
     expect(setDataCalls[0].key).toEqual(inboxKeys.detail(ID))
-    const old = { item: { id: ID, status: 'open' }, reply: null }
-    expect(setDataCalls[0].updater(old)).toEqual({ ...old, item: updated })
+    const old = {
+      item: {
+        id: ID,
+        status: 'open',
+        commandRevision: 2,
+        rating: 5,
+        snippet: 'Wonderful stay',
+        reviewerName: 'Dana',
+        propertyName: 'Acme Hotel',
+        contentAvailability: 'text',
+        reviewLanguageCode: 'en',
+        attention: 'high',
+      },
+      reply: null,
+    } as unknown as InboxItemDetailResult
+    expect(setDataCalls[0].updater(old)).toEqual({
+      ...old,
+      item: {
+        ...old.item,
+        ...updated,
+        rating: 5,
+        snippet: 'Wonderful stay',
+        reviewerName: 'Dana',
+        propertyName: 'Acme Hotel',
+        contentAvailability: 'text',
+        reviewLanguageCode: 'en',
+        attention: 'high',
+      },
+    })
     expect(invalidated).not.toContainEqual(inboxKeys.detail(ID))
     expect(invalidated).not.toContainEqual(inboxKeys.notes(ID))
     expect(invalidated).toContainEqual(inboxKeys.lists())
@@ -93,7 +154,18 @@ describe('inboxCachePolicy.onFeedbackHandlingChanged', () => {
   it('patches item and outcome history, moving folders only when status changed', () => {
     const { qc, invalidated, setDataCalls } = makeFakeQc()
     const result = {
-      item: { id: ID, status: 'closed', commandRevision: 2 },
+      item: {
+        id: ID,
+        status: 'closed',
+        commandRevision: 2,
+        rating: null,
+        snippet: null,
+        reviewerName: null,
+        propertyName: null,
+        contentAvailability: undefined,
+        reviewLanguageCode: undefined,
+        attention: undefined,
+      },
       feedbackHandling: {
         cycleNumber: 1,
         sourceRevision: 1,
@@ -107,10 +179,33 @@ describe('inboxCachePolicy.onFeedbackHandlingChanged', () => {
     inboxCachePolicy.onFeedbackHandlingChanged(qc, result, true)
 
     expect(setDataCalls).toHaveLength(1)
-    const old = { item: { id: ID, status: 'open' }, feedbackHandling: null }
+    const old = {
+      item: {
+        id: ID,
+        status: 'open',
+        rating: 4,
+        snippet: 'Helpful feedback',
+        reviewerName: 'Dana',
+        propertyName: 'Acme Hotel',
+        contentAvailability: 'text',
+        reviewLanguageCode: 'en',
+        attention: 'medium',
+      },
+      feedbackHandling: null,
+    } as unknown as InboxItemDetailResult
     expect(setDataCalls[0]!.updater(old)).toEqual({
       ...old,
-      item: result.item,
+      item: {
+        ...old.item,
+        ...result.item,
+        rating: 4,
+        snippet: 'Helpful feedback',
+        reviewerName: 'Dana',
+        propertyName: 'Acme Hotel',
+        contentAvailability: 'text',
+        reviewLanguageCode: 'en',
+        attention: 'medium',
+      },
       feedbackHandling: result.feedbackHandling,
     })
     expect(invalidated).toContainEqual(inboxKeys.lists())

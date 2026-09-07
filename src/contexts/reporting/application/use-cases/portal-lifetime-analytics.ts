@@ -4,7 +4,7 @@ import type {
   PortalResponseIntegritySummary,
 } from '../../domain/dashboard-types'
 import type { GetPortalAnalyticsInput } from './get-portal-analytics'
-import type { PortalLifetimeMetricAggregate } from '../ports/portal-lifetime-metrics.port'
+import type { PortalLifetimeAggregate } from '../ports/portal-lifetime-aggregate.port'
 
 function roundedRating(value: number): number {
   return Math.round(value * 10) / 10
@@ -13,7 +13,7 @@ function roundedRating(value: number): number {
 function lifetimeEvidence(
   definitionVersionId: string,
   sampleCount: number,
-  aggregate: PortalLifetimeMetricAggregate,
+  aggregate: PortalLifetimeAggregate,
   computedAt: Date,
   insufficientWhenEmpty = false,
 ): PortalMetricEvidence {
@@ -57,7 +57,7 @@ function missingEvidence(computedAt: Date): PortalMetricEvidence {
 
 export function portalLifetimeAnalyticsData(
   input: GetPortalAnalyticsInput,
-  aggregate: PortalLifetimeMetricAggregate | null,
+  aggregate: PortalLifetimeAggregate | null,
   responseIntegrity: PortalResponseIntegritySummary,
 ): PortalAnalyticsData {
   if (aggregate === null) {

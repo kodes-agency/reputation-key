@@ -11,7 +11,7 @@ import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import { guestQualifiedScanRecorded, guestScanRecorded } from '../../domain/events'
 import { buildScanEvent } from '../../domain/constructors'
 import { classifyQualifiedScanRequest } from '../../domain/qualified-scan'
-import type { PrimaryStaffAttributionResolver } from '../ports/primary-staff-attribution.port'
+import type { ResolvePrimaryStaffAttribution } from './guest-response-lifecycle'
 import type { GuestObservationLossReporter } from '../ports/guest-observation-loss-monitor.port'
 
 export type RecordScanDeps = Readonly<{
@@ -20,7 +20,7 @@ export type RecordScanDeps = Readonly<{
   idGen: () => ScanEventId
   qualifiedScanIdGen: () => QualifiedScanId
   clock: () => Date
-  resolvePrimaryStaffAttribution: PrimaryStaffAttributionResolver
+  resolvePrimaryStaffAttribution: ResolvePrimaryStaffAttribution
   reportObservationLoss: GuestObservationLossReporter
 }>
 

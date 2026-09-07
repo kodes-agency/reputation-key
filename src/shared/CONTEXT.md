@@ -100,7 +100,7 @@ Shared code is **used by 2+ modules** across the codebase. If only one context u
 - **`permissions.ts`** — `Permission` type, `can(role, permission)` sync check. Use in server functions and route guards.
 - **`auth-context.ts`** — `AuthContext` type (`{ userId, organizationId, role }`)
 - **`errors.ts`** — base error types
-- **`result.ts`** — neverthrow `Result` re-exports
+- **`result.ts`** — local synchronous `Result` primitive
 - **`brand.ts`** — branded type helpers for nominal typing
 - **`timezones.ts`** — timezone list and utilities
 - **`property-calendar.ts`** — deterministic IANA wall-clock resolution and Property-local day shifting shared by Dashboard windows and Goal recurrence. DST folds choose the earlier instant; gaps advance to the first representable local minute.

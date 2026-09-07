@@ -1,4 +1,5 @@
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
+import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
 import {
@@ -7,7 +8,17 @@ import {
 } from '../../domain/events'
 import type { GbpReviewPushReceiptStore } from '../ports/gbp-review-push-receipt.port'
 import type { GoogleReviewPushReferenceStore } from '../ports/google-review-push-reference.port'
-import type { PropertyLookupPort } from '../ports/property-lookup.port'
+
+export type PropertyLookup = Readonly<{
+  id: string
+  organizationId: string
+  googleConnectionId: string | null
+  gbpAccountId: string | null
+  gbpLocationId: string | null
+  googleBindingState:
+    'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
+  sourceEpoch: number
+}>
 
 export type HandleGbpNotificationInput = Readonly<{
   topic: string
@@ -26,7 +37,7 @@ export type HandleGbpNotificationResult = Readonly<{
 }>
 
 export type HandleGbpNotificationDeps = Readonly<{
-  propertyLookup: PropertyLookupPort
+  propertyLookup: Pick<PropertyPublicApi, 'findByGbpLocationId'>
   references: GoogleReviewPushReferenceStore
   receipts: GbpReviewPushReceiptStore
   clock: () => Date

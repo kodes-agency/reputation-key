@@ -12,7 +12,6 @@ import {
   portalId as toPortalId,
   propertyId as toPropertyId,
 } from '#/shared/domain/ids'
-import type { GoalActor, GoalExecutionPolicy } from '../ports/goal-execution-policy'
 import type {
   GoalMonthlyResult,
   GoalProgramBundle,
@@ -34,6 +33,24 @@ import {
   type GoalProgramStatus,
   type GoalSubject,
 } from '../../domain/goal-program'
+import type { PermissionAuthorityContext } from '#/shared/domain/permissions'
+
+export type GoalActor = Readonly<{
+  organizationId: string
+  userId: string
+}> &
+  PermissionAuthorityContext
+
+export type GoalExecutionPolicy = Readonly<{
+  authorize(
+    input: Readonly<{
+      actor: GoalActor | 'system'
+      organizationId: string
+      propertyId: string
+      action: 'goal.read' | 'goal.create' | 'goal.update' | 'goal.cancel'
+    }>,
+  ): Promise<void>
+}>
 
 export type GoalMetricReadPort = Readonly<{
   queryGoalMetric: (query: GovernedGoalMetricQuery) => Promise<GovernedGoalMetricResult>

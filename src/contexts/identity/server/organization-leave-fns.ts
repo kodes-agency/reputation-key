@@ -22,8 +22,10 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.errors.server'
-import { OFFBOARDING_RESPONSIBILITY_KINDS } from '../application/ports/member-offboarding.port'
-import { OutstandingResponsibilitiesError } from '../application/use-cases/leave-organization'
+import {
+  OFFBOARDING_RESPONSIBILITY_KINDS,
+  OutstandingResponsibilitiesError,
+} from '../application/use-cases/leave-organization'
 
 const leaveOrganizationInputSchema = z.object({
   transfers: z

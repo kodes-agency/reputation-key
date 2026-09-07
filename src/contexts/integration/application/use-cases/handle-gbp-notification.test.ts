@@ -5,10 +5,9 @@ import {
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import type { PropertyLookup } from '../ports/property-lookup.port'
+import { handleGbpNotification, type PropertyLookup } from './handle-gbp-notification'
 import type { GoogleReviewPushReferenceStore } from '../ports/google-review-push-reference.port'
 import type { GbpReviewPushReceiptStore } from '../ports/gbp-review-push-receipt.port'
-import { handleGbpNotification } from './handle-gbp-notification'
 
 const ORGANIZATION_ID = 'org-google-push'
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000001'

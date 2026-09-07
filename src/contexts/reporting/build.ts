@@ -47,10 +47,13 @@ import { registerCurrentGoogleReputationConsumer } from './infrastructure/curren
 import { createMetricOrganizationExportAdapter } from './infrastructure/adapters/metric-organization-export.adapter'
 import { createMetricOrganizationLifecycleAdapter } from './infrastructure/adapters/metric-organization-lifecycle.adapter'
 
-import type { GoalExecutionPolicy } from './application/ports/goal-execution-policy'
 import { createGoalProgramSubjectReader } from './infrastructure/adapters/goal-program-subject-reader'
 import { createGoalProgramRepository } from './infrastructure/repositories/goal-program.repository'
-import { createGoalProgramService } from './application/use-cases/goal-programs'
+import {
+  createGoalProgramService,
+  type GoalExecutionPolicy,
+  type GoalProgramRequestApi,
+} from './application/use-cases/goal-programs'
 import type { GoalProgramRepository } from './application/ports/goal-program.repository'
 import { createMonthlyResultNotificationFactsLookup } from './infrastructure/adapters/monthly-result-notification-facts.lookup'
 import { reconcileMetricCorrection } from './application/use-cases/reconcile-metric-correction'
@@ -61,7 +64,6 @@ import {
 } from './infrastructure/jobs/goal-program-maintenance.job'
 import { createGoalOrganizationExportAdapter } from './infrastructure/adapters/goal-organization-export.adapter'
 import { createGoalOrganizationLifecycleAdapter } from './infrastructure/adapters/goal-organization-lifecycle.adapter'
-import type { GoalProgramRequestApi } from './application/use-cases/goal-programs'
 
 import { createDashboardRepository } from './infrastructure/repositories/dashboard.repository'
 import { createMetricStatsAdapter } from './infrastructure/adapters/metric-stats.adapter'
@@ -69,7 +71,10 @@ import { createAttentionSignalsAdapter } from './infrastructure/adapters/attenti
 import { createFleetOverviewProjectionAdapter } from './infrastructure/adapters/fleet-overview-projection.adapter'
 import { createStaffPortalResolverAdapter } from './infrastructure/adapters/staff-portal-resolver.adapter'
 import { getDashboardData } from './application/use-cases/get-dashboard-data'
-import { getPortalAnalytics } from './application/use-cases/get-portal-analytics'
+import {
+  getPortalAnalytics,
+  type GetPortalAnalyticsDeps,
+} from './application/use-cases/get-portal-analytics'
 import { getStaffDashboardData } from './application/use-cases/get-staff-dashboard-data'
 import {
   getAttentionSignals,
@@ -83,9 +88,6 @@ import {
   getFleetOverview,
   type GetFleetOverview,
 } from './application/use-cases/get-fleet-overview'
-import type { PortalResponseIntegrityPort } from './application/ports/portal-response-integrity.port'
-import type { PortalMetricsPort } from './application/ports/portal-metrics.port'
-import type { PortalLifetimeMetricsPort } from './application/ports/portal-lifetime-metrics.port'
 import { createDashboardOrganizationExportAdapter } from './infrastructure/adapters/dashboard-organization-export.adapter'
 import { createDashboardOrganizationLifecycleAdapter } from './infrastructure/adapters/dashboard-organization-lifecycle.adapter'
 import { createSetupChecklistRepository } from './infrastructure/repositories/setup-checklist.repository'
@@ -106,7 +108,7 @@ export type ReportingContextBuildInput = Readonly<{
   staffPublicApi: StaffPublicApi
   reviewServingStats: ReviewServingStats
   inboxTargets: Pick<InboxPublicApi, 'getGoogleReviewTargetCountsByProperty'>
-  guestResponseIntegrity: PortalResponseIntegrityPort
+  guestResponseIntegrity: GetPortalAnalyticsDeps['responseIntegrity']
 }>
 
 function buildMetricModule(input: ReportingContextBuildInput) {
@@ -314,8 +316,8 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
 
 function buildDashboardModule(
   input: ReportingContextBuildInput,
-  portalMetrics: PortalMetricsPort,
-  portalLifetime: PortalLifetimeMetricsPort,
+  portalMetrics: GetPortalAnalyticsDeps['portalMetrics'],
+  portalLifetime: GetPortalAnalyticsDeps['portalLifetime'],
 ) {
   const metricStats = createMetricStatsAdapter(input.db)
   const attentionSignals = createAttentionSignalsAdapter(input.db, input.clock)

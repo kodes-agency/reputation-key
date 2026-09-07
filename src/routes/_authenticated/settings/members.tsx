@@ -126,8 +126,8 @@ function MembersSettingsRoute() {
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
   // NOT useSuspenseQuery. The identity container installs a fail-closed
-  // MemberOffboardingPort until the responsibility facts are composed, so this
-  // read THROWS by design. Suspending the route on it meant one deliberately
+  // offboarding dependency until the responsibility facts are composed, so
+  // this read THROWS by design. Suspending the route on it meant one deliberately
   // fenced capability took down the whole members page — the directory,
   // invitations and role management with it — which is what the accessibility
   // and shell suites caught on /settings/members.
