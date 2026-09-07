@@ -16,6 +16,12 @@ const meta: Meta<typeof BetaFeedbackLauncher> = {
 export default meta
 type Story = StoryObj<typeof BetaFeedbackLauncher>
 
+async function openFeedbackDialog(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  await userEvent.click(canvas.getByRole('button', { name: /send beta feedback/i }))
+  return within(within(document.body).getByRole('dialog'))
+}
+
 export const Default: Story = {
   args: { submitFeedback: successfulSubmission },
 }
@@ -24,10 +30,7 @@ export const PrivacyAndValidation: Story = {
   args: { submitFeedback: successfulSubmission },
   play: async ({ canvasElement }) => {
     window.history.replaceState({}, '', '/dashboard')
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /send beta feedback/i }))
-    const dialog = within(document.body).getByRole('dialog')
-    const view = within(dialog)
+    const view = await openFeedbackDialog(canvasElement)
 
     expect(view.getByText(/only the text you enter/i)).toBeInTheDocument()
     expect(view.queryByRole('tab')).toBeNull()
@@ -48,10 +51,7 @@ export const SuggestionReceipt: Story = {
   play: async ({ canvasElement }) => {
     window.history.replaceState({}, '', '/dashboard')
     feedbackSpy.mockClear()
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /send beta feedback/i }))
-    const dialog = within(document.body).getByRole('dialog')
-    const view = within(dialog)
+    const view = await openFeedbackDialog(canvasElement)
 
     await userEvent.click(view.getByRole('combobox', { name: /feedback type/i }))
     await userEvent.click(
