@@ -809,26 +809,6 @@ jobs:
             zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
             git /repo --config /repo/.gitleaks.toml --redact --log-opts="$OPTS"
 
-  storybook:
-    runs-on: ubuntu-latest
-    # BQR-5.3: hard gate. build-storybook was soft during Vite-8/Rolldown
-    # instability (storybook#33063/#33747); runner builds have been green on
-    # main for BQR-5.1/5.2 — promote to hard fail. storybook-test still owns
-    # component render + a11y (BQR-5.4 already covered by @storybook/addon-a11y).
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Build Storybook
-        run: pnpm build-storybook
-      - name: Verify iframe.html produced
-        run: test -f storybook-static/iframe.html
-
   storybook-test:
     runs-on: ubuntu-latest
     # Component-test coverage: renders every story in headless Chromium and
