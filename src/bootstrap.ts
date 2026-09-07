@@ -508,7 +508,6 @@ export async function bootstrap(
     'registered permit start-deadline sweep job handler',
   )
 
-
   // ── AI operation abandoned-execution reaper ───────────────────────
   // `claimExecution` moves an operation to `executing` and only the request
   // path writes a terminal state after it. Anything that kills that path in
@@ -531,7 +530,6 @@ export async function bootstrap(
     { job: AI_EXECUTION_REAPER_JOB_NAME },
     'registered AI operation abandoned-execution reaper job handler',
   )
-
 
   // ── AI first-enablement enrollment recovery ───────────────────────
   // Enrollment intent is durable, but capturing it does not activate provider

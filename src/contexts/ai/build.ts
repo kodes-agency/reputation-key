@@ -253,7 +253,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       repos: Object.freeze({}),
       useCases: Object.freeze({
         analyzeReviewEvent,
-          advanceReviewAnalysisEnrollments,
+        advanceReviewAnalysisEnrollments,
         approveReviewAnalysisEnrollment,
         readReviewAnalysisEnrollmentReadiness,
         generatePropertyTrend,

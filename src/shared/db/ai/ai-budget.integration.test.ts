@@ -4,20 +4,20 @@
 // database can prove the row-level locking and the check constraints agree.
 
 import { randomUUID } from 'node:crypto'
+import type { Job } from 'bullmq'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
-import {
-  aiExecutionControlHeads,
-  aiExecutionControlTransitions,
-  aiOperations,
-  aiOrganizationCostWindows,
-  properties,
-} from '#/shared/db/schema'
+import { aiOperations, aiOrganizationCostWindows } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import { maximumCostMicros } from '#/shared/ai-openai-provider-profile'
-import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { createAiBudgetReservationReaperHandler } from '#/shared/jobs/ai-budget-reservation-reaper.job'
+import {
+  AI_REPLY_OPERATION_PROFILE,
+  installAiOperationFixture,
+  type AiOperationFixture,
+} from '#/shared/db/testing/ai-operation-fixture'
 import {
   createAiBudgetControl,
   reapStaleAiReservations,
@@ -28,18 +28,18 @@ import {
 const NOW = new Date(Date.now() - 60_000)
 const ORGANIZATION_ID = organizationId('ai-budget-test-org')
 const PROPERTY_ID = propertyId('75000000-0000-4000-8000-000000000001')
-const ROUTE_KEY = 'reply-suggestion'
+const ROUTE_KEY = AI_REPLY_OPERATION_PROFILE.routeKey
 const PAYLOAD_BYTES = 512
 
 const profile = AI_OPERATION_PROFILES.find(
   (candidate) => candidate.sourceRoute === ROUTE_KEY,
 )
-if (!profile?.capability) throw new Error('reply-suggestion profile is not registered')
-const CAPABILITY = profile.capability
+if (!profile) throw new Error('reply-suggestion profile is not registered')
 const RESERVED = maximumCostMicros(profile, PAYLOAD_BYTES)
 
 describe.sequential('AI budget ledger (real PostgreSQL)', () => {
   const db = getDb()
+  let fixture: AiOperationFixture
   let limiterAllows = true
   const budget = createAiBudgetControl({
     rateLimiter: { check: async () => ({ allowed: limiterAllows }) },
@@ -54,62 +54,6 @@ describe.sequential('AI budget ledger (real PostgreSQL)', () => {
     routeKey: ROUTE_KEY,
     providerPayloadBytes: PAYLOAD_BYTES,
   })
-
-  const seedOperation = async (): Promise<string> => {
-    const heads = await db
-      .select({
-        scopeKey: aiExecutionControlHeads.scopeKey,
-        controlId: aiExecutionControlHeads.controlId,
-        generation: aiExecutionControlHeads.generation,
-      })
-      .from(aiExecutionControlHeads)
-    const head = (scopeKey: string) => {
-      const found = heads.find((candidate) => candidate.scopeKey === scopeKey)
-      if (!found) throw new Error(`AI execution control ${scopeKey} is not seeded`)
-      return found
-    }
-    const global = head('global')
-    const provider = head(`provider:${profile.providerDeploymentProfileVersion}`)
-    const capability = head(`capability:${CAPABILITY}`)
-    const id = randomUUID()
-    await db.insert(aiOperations).values({
-      id,
-      idempotencyScope: `reply:${id}`,
-      idempotencyKey: id,
-      requestFingerprint: 'f'.repeat(64),
-      sourceDigest: 'e'.repeat(64),
-      sourceByteCount: 20,
-      command: profile.command,
-      capability: CAPABILITY,
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-      actorUserId: 'ai-budget-test-user',
-      systemPrincipal: null,
-      reviewId: '75000000-0000-4000-8000-000000000002',
-      sourceEpoch: 1,
-      sourceRevision: 1,
-      reviewedAtEpochMillis: NOW.getTime(),
-      tone: 'professional',
-      baseReplyStateRevision: 0,
-      propertyProfileVersion: 1,
-      providerDeploymentProfileVersion: profile.providerDeploymentProfileVersion,
-      operationProfileVersion: profile.profileVersion,
-      capabilityRuntimeProfileVersion: profile.capabilityRuntimeProfileVersion,
-      globalControlId: global.controlId,
-      globalControlGeneration: global.generation,
-      providerControlId: provider.controlId,
-      providerControlGeneration: provider.generation,
-      capabilityControlId: capability.controlId,
-      capabilityControlGeneration: capability.generation,
-      capabilityFences: {},
-      state: 'pending',
-      executionAttempt: 0,
-      createdAt: NOW,
-      updatedAt: NOW,
-      expiresAt: new Date(NOW.getTime() + 60 * 60_000),
-    })
-    return id
-  }
 
   const window = async () => {
     const [row] = await db
@@ -137,110 +81,13 @@ describe.sequential('AI budget ledger (real PostgreSQL)', () => {
     return row
   }
 
-  // The seed leaves every capability killed and draining (fail closed). The
-  // ledger reads the heads inside the admission transaction, so open this one
-  // for the run and put it back afterwards.
-  type ControlPosture = Readonly<{
-    executionState: 'enabled' | 'killed'
-    admissionState: 'accepting' | 'draining'
-  }>
-  let initialPosture: ControlPosture | undefined
-  const capabilityScopeKey = `capability:${CAPABILITY}`
-  const transitionCapabilityControl = async (posture: ControlPosture) => {
-    const [head] = await db
-      .select()
-      .from(aiExecutionControlHeads)
-      .where(eq(aiExecutionControlHeads.scopeKey, capabilityScopeKey))
-      .limit(1)
-    if (!head) throw new Error(`AI execution control ${capabilityScopeKey} is not seeded`)
-    if (
-      head.executionState === posture.executionState &&
-      head.admissionState === posture.admissionState
-    ) {
-      return
-    }
-    const generation = head.generation + 1
-    // The head guard refuses an update stamped before the previous one; use the
-    // wall clock here so consecutive runs (and other suites) stay monotonic.
-    const occurredAt = new Date()
-    await db.transaction(async (tx) => {
-      await tx.insert(aiExecutionControlTransitions).values({
-        controlId: head.controlId,
-        generation,
-        predecessorGeneration: head.generation,
-        scopeKey: head.scopeKey,
-        scopeKind: head.scopeKind,
-        scopeValue: head.scopeValue,
-        executionState: posture.executionState,
-        admissionState: posture.admissionState,
-        reasonCode: 'integration_test_transition',
-        actorUserId: 'ai-budget-test-user',
-        ticketReference: `ai-budget-${generation}`,
-        candidateReleaseSha: null,
-        occurredAt,
-      })
-      await tx
-        .update(aiExecutionControlHeads)
-        .set({
-          generation,
-          executionState: posture.executionState,
-          admissionState: posture.admissionState,
-          updatedAt: occurredAt,
-        })
-        .where(
-          sql`${aiExecutionControlHeads.scopeKey} = ${capabilityScopeKey}
-            AND ${aiExecutionControlHeads.generation} = ${head.generation}`,
-        )
-    })
-  }
-
-  const clear = async () => {
-    await db.delete(aiOperations).where(eq(aiOperations.organizationId, ORGANIZATION_ID))
-    await db
-      .delete(aiOrganizationCostWindows)
-      .where(eq(aiOrganizationCostWindows.organizationId, ORGANIZATION_ID))
-    await db.delete(properties).where(eq(properties.id, PROPERTY_ID))
-    await deleteTestOrganizations(db, [ORGANIZATION_ID])
-  }
-
   beforeAll(async () => {
-    await clear()
-    const [head] = await db
-      .select({
-        executionState: aiExecutionControlHeads.executionState,
-        admissionState: aiExecutionControlHeads.admissionState,
-      })
-      .from(aiExecutionControlHeads)
-      .where(eq(aiExecutionControlHeads.scopeKey, capabilityScopeKey))
-      .limit(1)
-    if (
-      !head ||
-      (head.executionState !== 'enabled' && head.executionState !== 'killed') ||
-      (head.admissionState !== 'accepting' && head.admissionState !== 'draining')
-    ) {
-      throw new Error(`AI execution control ${capabilityScopeKey} has an invalid state`)
-    }
-    initialPosture = {
-      executionState: head.executionState,
-      admissionState: head.admissionState,
-    }
-    await transitionCapabilityControl({
-      executionState: 'enabled',
-      admissionState: 'accepting',
-    })
-    await db.execute(sql`
-      INSERT INTO organization (id, name, slug, "createdAt")
-      VALUES (${ORGANIZATION_ID}, 'AI budget test', ${ORGANIZATION_ID}, ${NOW})
-    `)
-    await db.insert(properties).values({
-      id: PROPERTY_ID,
+    fixture = await installAiOperationFixture({
+      db,
       organizationId: ORGANIZATION_ID,
-      name: 'AI budget property',
-      slug: 'ai-budget-property',
-      timezone: 'America/New_York',
-      countryCode: 'US',
-      profileVersion: 1,
-      sourceEpoch: 1,
+      propertyId: PROPERTY_ID,
+      actorUserId: 'ai-budget-test-user',
+      now: NOW,
     })
     // Room for one reservation, not two: settlement must free headroom.
     await db.insert(aiOrganizationCostWindows).values({
@@ -255,13 +102,12 @@ describe.sequential('AI budget ledger (real PostgreSQL)', () => {
   })
 
   afterAll(async () => {
-    await clear()
-    if (initialPosture) await transitionCapabilityControl(initialPosture)
+    await fixture.remove()
   })
 
   it('reserves the profile maximum once, denies past the cap, and frees headroom on settlement', async () => {
-    const first = await seedOperation()
-    const second = await seedOperation()
+    const first = await fixture.seedOperation()
+    const second = await fixture.seedOperation()
 
     await expect(
       db.transaction((tx) => budget.admitAiOperation(tx, admission(first))),
@@ -302,15 +148,12 @@ describe.sequential('AI budget ledger (real PostgreSQL)', () => {
   })
 
   it('refuses a throttled admission before touching the window', async () => {
-    const id = await seedOperation()
+    const id = await fixture.seedOperation()
     limiterAllows = false
     try {
       await expect(
         db.transaction((tx) => budget.admitAiOperation(tx, admission(id))),
-      ).resolves.toEqual({
-        ok: false,
-        code: 'rate_limited',
-      })
+      ).resolves.toEqual({ ok: false, code: 'rate_limited' })
     } finally {
       limiterAllows = true
     }
@@ -318,7 +161,7 @@ describe.sequential('AI budget ledger (real PostgreSQL)', () => {
   })
 
   it('reaps only reservations older than the TTL and gives their micros back to the window', async () => {
-    const stale = await seedOperation()
+    const stale = await fixture.seedOperation()
     await expect(
       db.transaction((tx) => budget.admitAiOperation(tx, admission(stale))),
     ).resolves.toMatchObject({ ok: true })
@@ -327,9 +170,10 @@ describe.sequential('AI budget ledger (real PostgreSQL)', () => {
       .update(aiOperations)
       .set({ budgetReservedAt: sql`clock_timestamp() - interval '16 minutes'` })
       .where(eq(aiOperations.id, stale))
-    const fresh = await seedOperation()
-    // The window has room for exactly one live reservation; the reap frees it.
-    await expect(db.transaction((tx) => reapStaleAiReservations(tx))).resolves.toBe(1)
+    const fresh = await fixture.seedOperation()
+    // The window has room for exactly one live reservation; the job frees it.
+    const reaperJob = createAiBudgetReservationReaperHandler(db)
+    await expect(reaperJob({} as Job)).resolves.toBe(1)
     await expect(
       db.transaction((tx) => budget.admitAiOperation(tx, admission(fresh))),
     ).resolves.toMatchObject({ ok: true })

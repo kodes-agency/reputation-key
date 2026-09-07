@@ -195,7 +195,6 @@ export const createAiSuggestedDraftStore = (
           .limit(1)
           .for('update')
 
-
         if (
           !operation ||
           operation.command !== 'reply' ||

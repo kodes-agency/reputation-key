@@ -107,16 +107,13 @@ const makeTrendBinding = (): Record<string, unknown> => ({
   aiSubjectHmacKeyVersion: null,
 })
 
-const recordAt = (
-  value: Record<string, unknown>,
-  key: string,
-): Record<string, unknown> => value[key] as Record<string, unknown>
+const recordAt = (value: Record<string, unknown>, key: string): Record<string, unknown> =>
+  value[key] as Record<string, unknown>
 
 const rowsAt = (
   value: Record<string, unknown>,
   key: string,
-): Array<Record<string, unknown>> =>
-  value[key] as Array<Record<string, unknown>>
+): Array<Record<string, unknown>> => value[key] as Array<Record<string, unknown>>
 
 describe('AI private-beta policy', () => {
   it('accepts the sole closed and reference-complete policy source', () => {
@@ -271,8 +268,6 @@ describe('AI execution binding and operation identity', () => {
       command: 'trend',
     } as never)
     expect(crossWired.isErr() && crossWired.error.message).toMatch(/trend identity/i)
-
-
   })
 })
 
@@ -924,8 +919,6 @@ describe('AI operation identity fail-closed validation', () => {
     terminalAnalysisSequence: 0,
     aggregateRevision: 0,
   })
-
-
 
   it.each([
     ['analysis', makeAnalysisIdentity, 'review_analysis'],

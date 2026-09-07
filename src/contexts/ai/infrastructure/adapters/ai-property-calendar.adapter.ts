@@ -12,7 +12,9 @@ export const createAiPropertyCalendarAdapter = (db: Database): AiPropertyCalenda
     },
 
     async resolveLocalDate(input) {
-      if (input.calendarProfileVersion !== AI_PROPERTY_CALENDAR_PROFILE_V1.profileVersion) {
+      if (
+        input.calendarProfileVersion !== AI_PROPERTY_CALENDAR_PROFILE_V1.profileVersion
+      ) {
         return null
       }
       const result = await db.execute(sql<{ local_date: string | null }>`

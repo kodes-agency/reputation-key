@@ -1,9 +1,6 @@
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
-import type {
-  AiOperationId,
-  ReviewAnalysisReadV1,
-} from '../../domain/types'
+import type { AiOperationId, ReviewAnalysisReadV1 } from '../../domain/types'
 
 export type AiAnalysisDerivative = Readonly<{
   sentiment: 'positive' | 'neutral' | 'negative' | 'mixed'

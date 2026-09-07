@@ -192,12 +192,20 @@ export const aiOperations = pgTable(
     concreteReplyLanguageTag: varchar('concrete_reply_language_tag', { length: 35 }),
     concreteReplyTemplateGroup: varchar('concrete_reply_template_group', { length: 64 }),
     languageCatalogueDigest: varchar('language_catalogue_digest', { length: 64 }),
-    replyLanguageVerifierDigest: varchar('reply_language_verifier_digest', { length: 64 }),
-    languageScriptConsistencyDigest: varchar('language_script_consistency_digest', { length: 64 }),
-    zhOrthographyVerifierDigest: varchar('zh_orthography_verifier_digest', { length: 64 }),
+    replyLanguageVerifierDigest: varchar('reply_language_verifier_digest', {
+      length: 64,
+    }),
+    languageScriptConsistencyDigest: varchar('language_script_consistency_digest', {
+      length: 64,
+    }),
+    zhOrthographyVerifierDigest: varchar('zh_orthography_verifier_digest', {
+      length: 64,
+    }),
     propertyProfileVersion: integer('property_profile_version'),
     replyBrandProfileVersion: integer('reply_brand_profile_version'),
-    replyBrandDisplayNameDigest: varchar('reply_brand_display_name_digest', { length: 64 }),
+    replyBrandDisplayNameDigest: varchar('reply_brand_display_name_digest', {
+      length: 64,
+    }),
     routingPolicyVersion: integer('routing_policy_version'),
     providerDeploymentProfileVersion: varchar('provider_deployment_profile_version', {
       length: 100,
@@ -211,10 +219,16 @@ export const aiOperations = pgTable(
     sourcePolicyId: varchar('source_policy_id', { length: 150 }),
     sourceCanonicalizerDigest: varchar('source_canonicalizer_digest', { length: 64 }),
     redactionProfileVersion: varchar('redaction_profile_version', { length: 100 }),
-    outputLeakageProfileVersion: varchar('output_leakage_profile_version', { length: 100 }),
+    outputLeakageProfileVersion: varchar('output_leakage_profile_version', {
+      length: 100,
+    }),
     outputLeakageProfileDigest: varchar('output_leakage_profile_digest', { length: 64 }),
-    replyTemplateCatalogueVersion: varchar('reply_template_catalogue_version', { length: 100 }),
-    replyTemplateCatalogueDigest: varchar('reply_template_catalogue_digest', { length: 64 }),
+    replyTemplateCatalogueVersion: varchar('reply_template_catalogue_version', {
+      length: 100,
+    }),
+    replyTemplateCatalogueDigest: varchar('reply_template_catalogue_digest', {
+      length: 64,
+    }),
     globalControlId: uuid('global_control_id').notNull(),
     globalControlGeneration: integer('global_control_generation').notNull(),
     providerControlId: uuid('provider_control_id').notNull(),
@@ -250,7 +264,10 @@ export const aiOperations = pgTable(
     }),
   },
   (t) => [
-    uniqueIndex('ai_operations_idempotency_unique').on(t.idempotencyScope, t.idempotencyKey),
+    uniqueIndex('ai_operations_idempotency_unique').on(
+      t.idempotencyScope,
+      t.idempotencyKey,
+    ),
     uniqueIndex('ai_operations_execution_permit_unique')
       .on(t.executionPermitId)
       .where(sql`${t.executionPermitId} IS NOT NULL`),
@@ -283,7 +300,10 @@ export const aiOperations = pgTable(
       ],
       name: 'ai_operations_capability_control_fk',
     }).onDelete('restrict'),
-    check('ai_operations_fingerprint_valid', sql`${t.requestFingerprint} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'ai_operations_fingerprint_valid',
+      sql`${t.requestFingerprint} ~ '^[0-9a-f]{64}$'`,
+    ),
     check(
       'ai_operations_source_provenance_valid',
       sql`${t.sourceDigest} ~ '^[0-9a-f]{64}$' AND ${t.sourceByteCount} BETWEEN 1 AND 131072`,
@@ -343,7 +363,11 @@ export const aiOperations = pgTable(
         AND ${t.capabilityControlGeneration} >= 1 AND jsonb_typeof(${t.capabilityFences}) = 'object'`,
     ),
     index('ai_operations_due_idx').on(t.state, t.nextAttemptAt),
-    index('ai_operations_property_idx').on(t.organizationId, t.propertyId, t.createdAt.desc()),
+    index('ai_operations_property_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.createdAt.desc(),
+    ),
     index('ai_operations_expiry_idx').on(t.expiresAt),
     index('ai_operations_stale_reservation_idx')
       .on(t.budgetReservedAt)
@@ -393,7 +417,9 @@ export const aiReviewAnalyses = pgTable(
     authorizationLineageId: uuid('authorization_lineage_id').notNull(),
     reviewAnalysisEpoch: integer('review_analysis_epoch').notNull(),
     propertyProfileVersion: integer('property_profile_version').notNull(),
-    analysisProfileVersion: varchar('analysis_profile_version', { length: 100 }).notNull(),
+    analysisProfileVersion: varchar('analysis_profile_version', {
+      length: 100,
+    }).notNull(),
     status: varchar('status', { length: 20 }).notNull(),
     unavailableReason: varchar('unavailable_reason', { length: 40 }),
     sentiment: varchar('sentiment', { length: 20 }),
@@ -1044,4 +1070,3 @@ export const aiReviewAnalysisEnrollments = pgTable(
     ),
   ],
 )
-

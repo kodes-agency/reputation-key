@@ -10,10 +10,7 @@ import {
 } from '#/shared/ai-property-trend-contract'
 import type { AiMerchantAuthorizationSnapshot } from '../ports/ai-authorization.port'
 import type { AiOutputStorePort, AiTrendReportRead } from '../ports/ai-output-store.port'
-import type {
-  AiPropertyProfileResult,
-  ReviewAnalysisReadV1,
-} from '../../domain/types'
+import type { AiPropertyProfileResult, ReviewAnalysisReadV1 } from '../../domain/types'
 import type { ReadAiInsightsDependencies } from './read-ai-insights'
 import { createReadPropertyTrend, createReadReviewAnalysis } from './read-ai-insights'
 

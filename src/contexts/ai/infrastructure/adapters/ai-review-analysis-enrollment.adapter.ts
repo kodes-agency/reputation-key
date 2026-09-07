@@ -1,9 +1,6 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import {
-  aiReviewAnalysisEnrollments,
-  eventConsumerReceipts,
-} from '#/shared/db/schema'
+import { aiReviewAnalysisEnrollments, eventConsumerReceipts } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import {
   MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
@@ -20,9 +17,7 @@ import type {
   ReviewAnalysisEnrollmentReconcileResult,
   ReviewAnalysisEnrollmentStorePort,
 } from '../../application/ports/ai-review-analysis-enrollment.port'
-import {
-  AI_REVIEW_ANALYSIS_ENROLLMENT_SAFETY_CEILING,
-} from '../../application/ports/ai-review-analysis-enrollment.port'
+import { AI_REVIEW_ANALYSIS_ENROLLMENT_SAFETY_CEILING } from '../../application/ports/ai-review-analysis-enrollment.port'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Row = Readonly<Record<string, unknown>>
@@ -78,12 +73,22 @@ function fenceFromRow(row: Row): ReviewAnalysisEnrollmentFence {
       1,
     ),
     sourceEpoch: safeInteger(row.source_epoch, 'source epoch'),
-    reviewAnalysisEpoch: safeInteger(row.review_analysis_epoch, 'Review Analysis epoch', 1),
-    analysisStartSequence: safeInteger(row.analysis_start_sequence, 'analysis start sequence'),
+    reviewAnalysisEpoch: safeInteger(
+      row.review_analysis_epoch,
+      'Review Analysis epoch',
+      1,
+    ),
+    analysisStartSequence: safeInteger(
+      row.analysis_start_sequence,
+      'analysis start sequence',
+    ),
   }
 }
 
-function sameFence(left: ReviewAnalysisEnrollmentFence, right: ReviewAnalysisEnrollmentFence) {
+function sameFence(
+  left: ReviewAnalysisEnrollmentFence,
+  right: ReviewAnalysisEnrollmentFence,
+) {
   return (
     left.authorizationLineageId === right.authorizationLineageId &&
     left.authorizationStateVersion === right.authorizationStateVersion &&
@@ -102,7 +107,10 @@ function mapEvidence(row: Row): ReviewAnalysisEnrollmentEvidence {
     fence: fenceFromRow(row),
     state: state(row.state),
     triggerEventEnvelopeId: String(row.trigger_event_envelope_id),
-    snapshotRevisionCount: safeInteger(row.snapshot_revision_count, 'snapshot revision count'),
+    snapshotRevisionCount: safeInteger(
+      row.snapshot_revision_count,
+      'snapshot revision count',
+    ),
     snapshotRevisionSetDigest: String(row.snapshot_revision_set_digest),
     snapshotCapturedAtEpochMillis: epochMillis(
       row.snapshot_captured_at,
@@ -118,7 +126,10 @@ function mapEvidence(row: Row): ReviewAnalysisEnrollmentEvidence {
           correlationId: String(row.assisted_approval_correlation_id),
         }
       : null,
-    enrolledRevisionCount: safeInteger(row.enrolled_revision_count, 'enrolled revision count'),
+    enrolledRevisionCount: safeInteger(
+      row.enrolled_revision_count,
+      'enrolled revision count',
+    ),
     caughtUpEligibleRevisionCount: nullableInteger(
       row.caught_up_eligible_revision_count,
       'caught-up eligible revision count',
@@ -212,8 +223,7 @@ async function eraseRetiredDerivatives(
 ) {
   const reviewEnabled =
     input.authorizationState === 'enabled' && capabilities.includes('review_analysis')
-  const trendsEnabled =
-    reviewEnabled && capabilities.includes('property_trends')
+  const trendsEnabled = reviewEnabled && capabilities.includes('property_trends')
   const sourceEpoch = reviewEnabled ? input.fence.sourceEpoch : -1
   const reviewEpoch = reviewEnabled ? input.fence.reviewAnalysisEpoch : -1
   const trendEpoch = trendsEnabled ? input.fence.propertyTrendsEpoch : -1
@@ -277,10 +287,15 @@ function obsoleteReason(
     return 'authorization_lineage_changed'
   }
   if (String(row.state) !== input.authorizationState) return 'authorization_state_changed'
-  if (safeInteger(row.state_version, 'state version', 1) !== input.fence.authorizationStateVersion) {
+  if (
+    safeInteger(row.state_version, 'state version', 1) !==
+    input.fence.authorizationStateVersion
+  ) {
     return 'authorization_state_version_changed'
   }
-  if (safeInteger(row.authorized_source_epoch, 'source epoch') !== input.fence.sourceEpoch) {
+  if (
+    safeInteger(row.authorized_source_epoch, 'source epoch') !== input.fence.sourceEpoch
+  ) {
     return 'source_epoch_changed'
   }
   if (
@@ -310,7 +325,8 @@ function obsoleteReason(
   if (
     row.deleted_at !== null ||
     row.lifecycle_state !== 'active' ||
-    safeInteger(row.property_source_epoch, 'Property source epoch') !== input.fence.sourceEpoch
+    safeInteger(row.property_source_epoch, 'Property source epoch') !==
+      input.fence.sourceEpoch
   ) {
     return 'property_inactive'
   }
@@ -323,7 +339,10 @@ async function catchUp(
   occurredAt: Date,
 ): Promise<Extract<ReviewAnalysisEnrollmentReconcileResult, { status: 'caught_up' }>> {
   const caughtUpAt = new Date(
-    Math.max(occurredAt.getTime(), epochMillis(row.snapshot_captured_at, 'snapshot capture time')),
+    Math.max(
+      occurredAt.getTime(),
+      epochMillis(row.snapshot_captured_at, 'snapshot capture time'),
+    ),
   )
   const headResult = await tx.execute(sql`
     SELECT COALESCE(head_sequence, 0)::bigint AS head_sequence
@@ -559,7 +578,10 @@ export const createReviewAnalysisEnrollmentAdapter = (
       if (enrollmentState === 'awaiting_assisted_approval') {
         return {
           status: 'awaiting_assisted_approval',
-          eligibleRevisionCount: safeInteger(row.snapshot_revision_count, 'snapshot count'),
+          eligibleRevisionCount: safeInteger(
+            row.snapshot_revision_count,
+            'snapshot count',
+          ),
           safetyCeiling: safeInteger(row.safety_ceiling, 'safety ceiling', 1),
         }
       }
@@ -593,7 +615,8 @@ export const createReviewAnalysisEnrollmentAdapter = (
         analysisStartSequence: storedFence.analysisStartSequence,
       })
       if (
-        expectedSnapshot.count !== safeInteger(row.snapshot_revision_count, 'snapshot count') ||
+        expectedSnapshot.count !==
+          safeInteger(row.snapshot_revision_count, 'snapshot count') ||
         expectedSnapshot.digest !== String(row.snapshot_revision_set_digest)
       ) {
         const terminalAt = new Date(
@@ -641,7 +664,11 @@ export const createReviewAnalysisEnrollmentAdapter = (
           1,
         )
         const reviewId = String(candidate.id)
-        const sourceRevision = safeInteger(candidate.source_revision, 'source revision', 1)
+        const sourceRevision = safeInteger(
+          candidate.source_revision,
+          'source revision',
+          1,
+        )
         const updated = await tx.execute(sql`
           UPDATE reviews
           SET analysis_sequence = ${sequence}
@@ -660,7 +687,9 @@ export const createReviewAnalysisEnrollmentAdapter = (
           aiReviewAnalysisBackfillRequested({
             organizationId: organizationId(String(row.organization_id)),
             propertyId: propertyId(String(row.property_id)),
-            reviewId: reviewId as Parameters<typeof aiReviewAnalysisBackfillRequested>[0]['reviewId'],
+            reviewId: reviewId as Parameters<
+              typeof aiReviewAnalysisBackfillRequested
+            >[0]['reviewId'],
             sourceEpoch: storedFence.sourceEpoch,
             sourceRevision,
             analysisSequence: sequence,
@@ -675,7 +704,11 @@ export const createReviewAnalysisEnrollmentAdapter = (
       )
       await tx
         .update(aiReviewAnalysisEnrollments)
-        .set({ state: 'running', enrolledRevisionCount: candidates.rows.length, updatedAt })
+        .set({
+          state: 'running',
+          enrolledRevisionCount: candidates.rows.length,
+          updatedAt,
+        })
         .where(eq(aiReviewAnalysisEnrollments.id, input.enrollmentId))
       return {
         status: 'replay_started',

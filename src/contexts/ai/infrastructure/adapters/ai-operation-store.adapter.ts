@@ -2,13 +2,14 @@ import { createHash } from 'node:crypto'
 import { and, eq, gt, isNull, lte, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiOperations } from '#/shared/db/schema'
-import { AI_OPERATION_PROFILES, AI_PROVIDER_DEPLOYMENT_PROFILE, AI_ROUTING_POLICY } from '#/shared/ai-operation-profiles'
+import {
+  AI_OPERATION_PROFILES,
+  AI_PROVIDER_DEPLOYMENT_PROFILE,
+  AI_ROUTING_POLICY,
+} from '#/shared/ai-operation-profiles'
 import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import type { AiErrorCode } from '../../domain/errors'
-import {
-  createAiOperationIdentity,
-  parseAiExecutionBinding,
-} from '../../domain/rules'
+import { createAiOperationIdentity, parseAiExecutionBinding } from '../../domain/rules'
 import type {
   AiOperationBinding,
   AiOperationId,
@@ -156,7 +157,10 @@ function parseIdentity(row: OperationRow): AiOperationIdentity {
   return parsed.value
 }
 
-function parseBinding(row: OperationRow, identity: AiOperationIdentity): AiOperationBinding {
+function parseBinding(
+  row: OperationRow,
+  identity: AiOperationIdentity,
+): AiOperationBinding {
   const concreteReplyLanguage =
     row.concreteReplyLanguageTag === null && row.concreteReplyTemplateGroup === null
       ? null
@@ -206,9 +210,8 @@ function parseBinding(row: OperationRow, identity: AiOperationIdentity): AiOpera
     replyTemplateCatalogueDigest: row.replyTemplateCatalogueDigest,
     providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
     operationProfileVersion: operationProfile(identity.command).profileVersion,
-    capabilityRuntimeProfileVersion: getAiRuntimeCapability(
-      identity.capability,
-    ).runtimeProfileVersion,
+    capabilityRuntimeProfileVersion: getAiRuntimeCapability(identity.capability)
+      .runtimeProfileVersion,
     aiSubjectHmacKeyVersion: row.subjectHmacKeyVersion,
     stopFence: {
       globalControlId: row.globalControlId,
@@ -255,7 +258,8 @@ function mapOperation(row: OperationRow): AiOperationRecord {
 function assertAligned(identity: AiOperationIdentity, binding: AiOperationBinding): void {
   if (
     identity.sourceEpoch !== binding.sourceEpoch ||
-    ('sourceRevision' in identity && identity.sourceRevision !== binding.sourceRevision) ||
+    ('sourceRevision' in identity &&
+      identity.sourceRevision !== binding.sourceRevision) ||
     ('reviewedAtEpochMillis' in identity &&
       identity.reviewedAtEpochMillis !== binding.reviewedAtEpochMillis) ||
     identity.capability !== binding.capabilityFence.capability
@@ -294,13 +298,17 @@ function assertSourceProvenance(
 
 function operationProfile(command: AiOperationIdentity['command']) {
   const profile = AI_OPERATION_PROFILES.find((candidate) => candidate.command === command)
-  if (!profile || profile.capability === null) failCorrupt('operation profile is unavailable')
+  if (!profile || profile.capability === null)
+    failCorrupt('operation profile is unavailable')
   return profile
 }
 
 function scopeDigest(identity: AiOperationIdentity): string {
   return createHash('sha256')
-    .update([identity.organizationId, identity.propertyId, identity.command].join('\0'), 'utf8')
+    .update(
+      [identity.organizationId, identity.propertyId, identity.command].join('\0'),
+      'utf8',
+    )
     .digest('hex')
 }
 

@@ -321,7 +321,8 @@ async function isCurrentAuthorizedEffect(
       state: merchantAiEnablement.state,
       authorizationLineageId: merchantAiEnablement.authorizationLineageId,
       capabilities: merchantAiEnablement.capabilities,
-      capabilityRuntimeProfileVersions: merchantAiEnablement.capabilityRuntimeProfileVersions,
+      capabilityRuntimeProfileVersions:
+        merchantAiEnablement.capabilityRuntimeProfileVersions,
       reviewAnalysisEpoch: merchantAiEnablement.reviewAnalysisEpoch,
       replyDraftingEpoch: merchantAiEnablement.replyDraftingEpoch,
       propertyTrendsEpoch: merchantAiEnablement.propertyTrendsEpoch,
@@ -329,7 +330,8 @@ async function isCurrentAuthorizedEffect(
       noticeVersion: merchantAiEnablement.noticeVersion,
       noticeDigest: merchantAiEnablement.noticeDigest,
       sourcePolicyId: merchantAiEnablement.sourcePolicyId,
-      providerDeploymentProfileVersion: merchantAiEnablement.providerDeploymentProfileVersion,
+      providerDeploymentProfileVersion:
+        merchantAiEnablement.providerDeploymentProfileVersion,
       redactionProfileFamily: merchantAiEnablement.redactionProfileFamily,
     })
     .from(merchantAiEnablement)
@@ -346,12 +348,14 @@ async function isCurrentAuthorizedEffect(
     authorization.state !== 'enabled' ||
     authorization.authorizationLineageId !== operation.authorizationLineageId ||
     !authorization.capabilities.includes(input.capability) ||
-    authorization.capabilityRuntimeProfileVersions[input.capability] !== runtime.runtimeProfileVersion ||
+    authorization.capabilityRuntimeProfileVersions[input.capability] !==
+      runtime.runtimeProfileVersion ||
     authorization.authorizedSourceEpoch !== operation.sourceEpoch ||
     authorization.noticeVersion !== operation.noticeVersion ||
     authorization.noticeDigest !== operation.noticeDigest ||
     authorization.sourcePolicyId !== operation.sourcePolicyId ||
-    authorization.providerDeploymentProfileVersion !== AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion ||
+    authorization.providerDeploymentProfileVersion !==
+      AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion ||
     authorization.redactionProfileFamily !== operation.redactionProfileVersion ||
     (input.capability !== 'reply_drafting' &&
       authorization.reviewAnalysisEpoch !== input.capabilityFence.reviewAnalysisEpoch) ||
@@ -418,7 +422,11 @@ async function isCurrentAuthorizedEffect(
   }
   return (
     matches('global', operation.globalControlId, operation.globalControlGeneration) &&
-    matches(providerScope, operation.providerControlId, operation.providerControlGeneration) &&
+    matches(
+      providerScope,
+      operation.providerControlId,
+      operation.providerControlGeneration,
+    ) &&
     matches(
       `capability:${input.capability}`,
       operation.capabilityControlId,
@@ -624,7 +632,6 @@ export const createAiOutputStoreAdapter = (
         ) {
           return false
         }
-
 
         const [inserted] = await tx
           .insert(aiReviewAnalyses)
@@ -1441,7 +1448,8 @@ export const createAiOutputStoreAdapter = (
         ) => {
           const isCurrent =
             caughtUp &&
-            complete.terminalAnalysisSequence === aggregateHead?.terminalAnalysisSequence &&
+            complete.terminalAnalysisSequence ===
+              aggregateHead?.terminalAnalysisSequence &&
             complete.aggregateRevision === aggregateHead?.aggregateRevision
           const candidateIsNewer =
             candidate !== undefined &&

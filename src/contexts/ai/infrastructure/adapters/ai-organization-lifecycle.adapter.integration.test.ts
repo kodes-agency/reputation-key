@@ -607,7 +607,6 @@ describe.sequential('AI Organization lifecycle contributor', () => {
       terminal_reason: 'organization_closing',
     })
 
-
     const receipt = await lease.pool.query(
       `SELECT context, phase, outcome, evidence_ref
        FROM context_organization_lifecycle_receipts

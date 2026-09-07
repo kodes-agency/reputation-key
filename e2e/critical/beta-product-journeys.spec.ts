@@ -914,7 +914,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         subjects: [{ kind: 'property', propertyId: seed.p3PropertyId }],
       },
     })
-    expect(denied.message ?? denied.code ?? '').toMatch(/error|denied|forbidden|not.?found/i)
+    expect(denied.message ?? denied.code ?? '').toMatch(
+      /error|denied|forbidden|not.?found/i,
+    )
 
     // A target the metric's own rule refuses: counts must be positive integers.
     const invalidTarget = await callServerFnExpectError(page, {

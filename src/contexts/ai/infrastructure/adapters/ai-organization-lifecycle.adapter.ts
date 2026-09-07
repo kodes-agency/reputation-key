@@ -139,7 +139,6 @@ const prepareClosing = async (
     RETURNING id
   `)
 
-
   return {
     outcome: 'complete',
     evidenceRef: evidenceRef('closing', request, [enrollments.rows.length]),
@@ -235,7 +234,6 @@ const purge = async (
   // Probed BEFORE the deletes and inclusive of the retained consent evidence,
   // so a replay after a rolled-back attempt reports the same outcome.
   const footprint = await aiFootprint(tx, request.organizationId)
-
 
   let deleted = 0
   for (const table of PURGE_DELETE_TABLES) {

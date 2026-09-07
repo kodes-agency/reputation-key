@@ -61,7 +61,6 @@ function safeSequence(value: unknown): number | null {
     : null
 }
 
-
 function counterColumn<T extends Readonly<Record<string, keyof DailyRow>>>(
   mapping: T,
   value: string,
@@ -247,12 +246,18 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(aiPropertyAggregateContributions.reviewId, input.reviewId),
               eq(aiPropertyAggregateContributions.sourceEpoch, input.sourceEpoch),
               eq(aiPropertyAggregateContributions.sourceRevision, input.sourceRevision),
-              eq(aiPropertyAggregateContributions.analysisSequence, input.analysisSequence),
+              eq(
+                aiPropertyAggregateContributions.analysisSequence,
+                input.analysisSequence,
+              ),
             ),
           )
           .limit(1)
         if (replayed) {
-          return { status: 'replayed', aggregateRevision: replayed.appliedAggregateRevision }
+          return {
+            status: 'replayed',
+            aggregateRevision: replayed.appliedAggregateRevision,
+          }
         }
 
         const [analysis] = await tx
@@ -286,10 +291,16 @@ export const createAiPropertyAggregateStoreAdapter = (
           .innerJoin(
             aiPropertyProcessingProfiles,
             and(
-              eq(aiPropertyProcessingProfiles.organizationId, aiReviewAnalyses.organizationId),
+              eq(
+                aiPropertyProcessingProfiles.organizationId,
+                aiReviewAnalyses.organizationId,
+              ),
               eq(aiPropertyProcessingProfiles.propertyId, aiReviewAnalyses.propertyId),
               eq(aiPropertyProcessingProfiles.sourceEpoch, input.sourceEpoch),
-              eq(aiPropertyProcessingProfiles.profileVersion, input.propertyProfileVersion),
+              eq(
+                aiPropertyProcessingProfiles.profileVersion,
+                input.propertyProfileVersion,
+              ),
               eq(aiPropertyProcessingProfiles.lifecycleState, 'active'),
             ),
           )
@@ -336,7 +347,10 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(aiPropertyAggregateHeads.propertyId, input.propertyId),
               eq(aiPropertyAggregateHeads.sourceEpoch, input.sourceEpoch),
               eq(aiPropertyAggregateHeads.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(aiPropertyAggregateHeads.propertyProfileVersion, input.propertyProfileVersion),
+              eq(
+                aiPropertyAggregateHeads.propertyProfileVersion,
+                input.propertyProfileVersion,
+              ),
             ),
           )
           .limit(1)
@@ -357,8 +371,14 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(aiPropertyAggregateContributions.propertyId, input.propertyId),
               eq(aiPropertyAggregateContributions.reviewId, input.reviewId),
               eq(aiPropertyAggregateContributions.sourceEpoch, input.sourceEpoch),
-              eq(aiPropertyAggregateContributions.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(aiPropertyAggregateContributions.propertyProfileVersion, input.propertyProfileVersion),
+              eq(
+                aiPropertyAggregateContributions.reviewAnalysisEpoch,
+                input.reviewAnalysisEpoch,
+              ),
+              eq(
+                aiPropertyAggregateContributions.propertyProfileVersion,
+                input.propertyProfileVersion,
+              ),
             ),
           )
           .orderBy(desc(aiPropertyAggregateContributions.analysisSequence))
@@ -387,7 +407,9 @@ export const createAiPropertyAggregateStoreAdapter = (
             appliedAt,
           })
           .onConflictDoNothing()
-          .returning({ analysisSequence: aiPropertyAggregateContributions.analysisSequence })
+          .returning({
+            analysisSequence: aiPropertyAggregateContributions.analysisSequence,
+          })
         if (!inserted) throw new Error('Property aggregate contribution conflict')
 
         const dates = Array.from(
@@ -423,18 +445,27 @@ export const createAiPropertyAggregateStoreAdapter = (
                 eq(aiPropertyDailyAggregates.organizationId, input.organizationId),
                 eq(aiPropertyDailyAggregates.propertyId, input.propertyId),
                 eq(aiPropertyDailyAggregates.sourceEpoch, input.sourceEpoch),
-                eq(aiPropertyDailyAggregates.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-                eq(aiPropertyDailyAggregates.propertyProfileVersion, input.propertyProfileVersion),
+                eq(
+                  aiPropertyDailyAggregates.reviewAnalysisEpoch,
+                  input.reviewAnalysisEpoch,
+                ),
+                eq(
+                  aiPropertyDailyAggregates.propertyProfileVersion,
+                  input.propertyProfileVersion,
+                ),
                 inArray(aiPropertyDailyAggregates.localDate, dates),
               ),
             )
             .orderBy(aiPropertyDailyAggregates.localDate)
             .for('update')
-          if (rows.length !== dates.length) throw new Error('Property daily aggregate is missing')
+          if (rows.length !== dates.length)
+            throw new Error('Property daily aggregate is missing')
           for (const row of rows) {
             let next = row
-            if (previous?.localDate === row.localDate) next = adjustDaily(next, previous, -1)
-            if (analysis.localDate === row.localDate) next = adjustDaily(next, analysis, 1)
+            if (previous?.localDate === row.localDate)
+              next = adjustDaily(next, previous, -1)
+            if (analysis.localDate === row.localDate)
+              next = adjustDaily(next, analysis, 1)
             if (next.reviewCount < 0 || next.ratingSum < 0) {
               throw new Error('Property daily aggregate would become negative')
             }
@@ -452,8 +483,14 @@ export const createAiPropertyAggregateStoreAdapter = (
                   eq(aiPropertyDailyAggregates.propertyId, input.propertyId),
                   eq(aiPropertyDailyAggregates.localDate, row.localDate),
                   eq(aiPropertyDailyAggregates.sourceEpoch, input.sourceEpoch),
-                  eq(aiPropertyDailyAggregates.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-                  eq(aiPropertyDailyAggregates.propertyProfileVersion, input.propertyProfileVersion),
+                  eq(
+                    aiPropertyDailyAggregates.reviewAnalysisEpoch,
+                    input.reviewAnalysisEpoch,
+                  ),
+                  eq(
+                    aiPropertyDailyAggregates.propertyProfileVersion,
+                    input.propertyProfileVersion,
+                  ),
                 ),
               )
           }
@@ -472,7 +509,10 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(aiPropertyAggregateHeads.propertyId, input.propertyId),
               eq(aiPropertyAggregateHeads.sourceEpoch, input.sourceEpoch),
               eq(aiPropertyAggregateHeads.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(aiPropertyAggregateHeads.propertyProfileVersion, input.propertyProfileVersion),
+              eq(
+                aiPropertyAggregateHeads.propertyProfileVersion,
+                input.propertyProfileVersion,
+              ),
               eq(aiPropertyAggregateHeads.aggregateRevision, head.aggregateRevision),
             ),
           )
@@ -513,7 +553,10 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(aiPropertyAggregateHeads.propertyId, input.propertyId),
               eq(aiPropertyAggregateHeads.sourceEpoch, input.sourceEpoch),
               eq(aiPropertyAggregateHeads.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(aiPropertyAggregateHeads.propertyProfileVersion, input.propertyProfileVersion),
+              eq(
+                aiPropertyAggregateHeads.propertyProfileVersion,
+                input.propertyProfileVersion,
+              ),
             ),
           )
           .limit(1)
@@ -540,7 +583,10 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(aiPropertyAggregateHeads.propertyId, input.propertyId),
               eq(aiPropertyAggregateHeads.sourceEpoch, input.sourceEpoch),
               eq(aiPropertyAggregateHeads.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(aiPropertyAggregateHeads.propertyProfileVersion, input.propertyProfileVersion),
+              eq(
+                aiPropertyAggregateHeads.propertyProfileVersion,
+                input.propertyProfileVersion,
+              ),
               eq(aiPropertyAggregateHeads.aggregateRevision, head.aggregateRevision),
             ),
           )
@@ -575,12 +621,19 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(aiPropertyAggregateHeads.propertyId, input.propertyId),
               eq(aiPropertyAggregateHeads.sourceEpoch, input.sourceEpoch),
               eq(aiPropertyAggregateHeads.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(aiPropertyAggregateHeads.propertyProfileVersion, input.propertyProfileVersion),
+              eq(
+                aiPropertyAggregateHeads.propertyProfileVersion,
+                input.propertyProfileVersion,
+              ),
             ),
           )
           .limit(1)
           .for('share')
-        if (!reviewHead || !head || reviewHead.headSequence !== head.terminalAnalysisSequence) {
+        if (
+          !reviewHead ||
+          !head ||
+          reviewHead.headSequence !== head.terminalAnalysisSequence
+        ) {
           return null
         }
         const days = await tx
@@ -591,8 +644,14 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(aiPropertyDailyAggregates.organizationId, input.organizationId),
               eq(aiPropertyDailyAggregates.propertyId, input.propertyId),
               eq(aiPropertyDailyAggregates.sourceEpoch, input.sourceEpoch),
-              eq(aiPropertyDailyAggregates.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(aiPropertyDailyAggregates.propertyProfileVersion, input.propertyProfileVersion),
+              eq(
+                aiPropertyDailyAggregates.reviewAnalysisEpoch,
+                input.reviewAnalysisEpoch,
+              ),
+              eq(
+                aiPropertyDailyAggregates.propertyProfileVersion,
+                input.propertyProfileVersion,
+              ),
               gte(aiPropertyDailyAggregates.localDate, input.startLocalDate),
               lte(aiPropertyDailyAggregates.localDate, input.endLocalDate),
             ),
