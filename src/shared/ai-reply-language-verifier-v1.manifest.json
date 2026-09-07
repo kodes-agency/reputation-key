@@ -1,5 +1,5 @@
 {
-  "attestationDigest": "d62f52f214a4488577e7a66b6f5234dcc7505cac03ace131c602b4f3f7e8219a",
+  "attestationDigest": "d42770c86fcae33d9ea1b0e12b66ad4515fae4bbe19803c3ac5e8a92880e151c",
   "constants": {
     "minimumLetters": 24,
     "minimumProbability": 0.85,
@@ -8,7 +8,7 @@
   "dependencies": {
     "languageCatalogueDigest": "d117b9f16e90bec59f007861e86cd73ebe84b20497f004ecfc3b0ef86f12501a",
     "languageScriptConsistencyDigest": "16be4d6ec7e2bf13a4f059bc6249de7972fcb543e7989543b18903791fcb65fa",
-    "zhOrthographyDigest": "e9f945b7c0b8e6982de737a63819640263e14aad9c97e837056f5e1a952b729d"
+    "zhOrthographyDigest": "5b9434548d3766edc36f3cc2b2627908e5265b1b5b8218259f6f615e42a53cc2"
   },
   "embeddedWasmRuntime": {
     "path": "node_modules/cld3-asm/dist/cjs/lib/node/cld3.js",

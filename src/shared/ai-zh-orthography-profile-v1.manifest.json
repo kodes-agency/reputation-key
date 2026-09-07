@@ -1,5 +1,5 @@
 {
-  "attestationDigest": "e9f945b7c0b8e6982de737a63819640263e14aad9c97e837056f5e1a952b729d",
+  "attestationDigest": "5b9434548d3766edc36f3cc2b2627908e5265b1b5b8218259f6f615e42a53cc2",
   "constants": {
     "minimumDecisiveLetters": 4,
     "ratioDenominator": 5,
@@ -7,23 +7,23 @@
   },
   "generator": {
     "path": "scripts/generate-ai-zh-orthography-table.ts",
-    "sha256": "82ce440dcf288fc5ca57eb140a5400b71a281cbaa1041bb7f44f7880459aeed0"
+    "sha256": "7fcbec350b7724d5dd5a29aa9c65d069fbac61445b1028019a021cbd8f870af8"
   },
   "icuVersion": "78.2",
   "importedMembers": [
     {
       "path": "dist/esm/cn2t.js",
-      "sha256": "bd8511eaf9fb88fb47b0ff52965d352658c2c389af2ac09912d0d6eb5acaf3ad"
+      "sha256": "f11354bf1dc5fdc4a53a5cfbf8808fe832bc27640a69d96fb60e547090010214"
     },
     {
       "path": "dist/esm/t2cn.js",
-      "sha256": "69fa82bbe93d05746ba5ab96e9c85864ca4f91c984d198abf85a098b43451a86"
+      "sha256": "b78e83f940e73a022d8d996333e924edf07aa5b6133b8cddd46fbbff1ac339b6"
     }
   ],
   "package": {
-    "integrity": "sha512-2lPLcrg7cnh1ATSduOxhnk/jq6KlR6w+5Ihl4wF7Z5e5Rva4vxTyugV5rZ7EiUCOZl+EDOLetIix+BhgYDCC+A==",
+    "integrity": "sha512-EdcspgdROiCCZDM+jZR6Pa670xW+EW2QhctPBQ8gRjg6lrx4IHEl+2s+kt5izk/TkxVRgdWuFgaGkaEdIUfdaw==",
     "name": "opencc-js",
-    "version": "1.4.1"
+    "version": "1.4.2"
   },
   "table": {
     "path": "src/shared/generated/ai-zh-orthography-v1.ts",
