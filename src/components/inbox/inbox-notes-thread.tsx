@@ -7,21 +7,24 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 // Receives addInboxNote server fn as a prop per src/components/CONTEXT.md:55.
 import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
 import { Send, Clock, User } from 'lucide-react'
-import type { InboxNoteView } from '#/contexts/inbox/application/public-api'
+import type {
+  InboxNote,
+  InboxNoteView,
+  InboxRevisionConflictResult,
+} from '#/contexts/inbox/application/public-api'
 import { addInboxNoteFormDto } from '#/contexts/inbox/application/dto/inbox.dto'
+
+type AddInboxNote = (
+  input: Parameters<typeof addInboxNoteFn>[0],
+) => Promise<InboxNote | InboxRevisionConflictResult>
 
 type Props = Readonly<{
   notes: ReadonlyArray<InboxNoteView>
   inboxItemId: string
   expectedCommandRevision: number
-  /** Domain-owned mutation recovery; see withFreshCommandRevision. */
-  recoverConflict: <TInput extends { data: { expectedCommandRevision: number } }>(
-    input: TInput,
-    error: unknown,
-  ) => Promise<TInput | null>
   currentUserId?: string
   onNoteAdded: (resultingCommandRevision: number) => void
-  addInboxNote: typeof addInboxNoteFn
+  addInboxNote: AddInboxNote
   canAdd?: boolean
 }>
 
@@ -59,20 +62,16 @@ export function InboxNotesThread({
   notes,
   inboxItemId,
   expectedCommandRevision,
-  recoverConflict,
   currentUserId,
   onNoteAdded,
   addInboxNote,
   canAdd = true,
 }: Props) {
-  // The success callback advances the cached command fence synchronously and
-  // refreshes notes/activity through the Inbox cache policy.
   const addNote = useActionMutation(addInboxNote, {
     successMessage: 'Note added',
     onSuccess: (_note, input) => {
       onNoteAdded(input.data.expectedCommandRevision + 1)
     },
-    recover: recoverConflict,
   })
 
   const form = useForm({

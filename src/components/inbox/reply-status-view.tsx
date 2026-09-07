@@ -12,7 +12,7 @@ import type { ReplyLanguageTarget } from './reply-language-options'
 
 export type ReplyData = Awaited<ReturnType<typeof getReplyFn>>
 
-/** Which read-only/compose view a reply renders as (keeps ReplyEditorInner under the complexity budget). */
+/** Which read-only/compose view a reply renders as (keeps ReplyEditor under budget). */
 type ResolvedReplyView =
   | Readonly<{ kind: 'compose'; reply: ReplyData | null }>
   | Readonly<{ kind: 'pending'; reply: NonNullable<ReplyData> }>

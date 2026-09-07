@@ -4,6 +4,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Action } from './use-action'
 import { useActionMutation, type ActionMutationOptions } from './use-action-mutation'
+import { inboxKeys } from '#/shared/queries/query-keys'
+import type {
+  InboxItemDetailResult,
+  InboxRevisionConflictResult,
+} from '#/contexts/inbox/application/public-api'
+import { withFreshCommandRevision } from '../inbox/use-inbox-detail'
 
 vi.mock('@tanstack/react-router', () => ({
   useRouter: () => ({ navigate: vi.fn() }),
@@ -77,39 +83,22 @@ describe('useActionMutation recovery', () => {
     expect(fn).toHaveBeenNthCalledWith(2, rebuiltInput)
   })
 
-  it('keeps resubmitting while the recovery rebuilds, then stops at the bound', async () => {
-    // The Inbox read model converges on the outbox relay's own tick, so a
-    // manager action can lose the revision race more than once in a row.
+  it('never resubmits a recovered mutation more than once', async () => {
     const rejection = { code: 'revision_conflict' }
     const input = (revision: number): MutationInput => ({
       data: { inboxItemId: 'item-1', expectedCommandRevision: revision },
     })
-    const output: MutationOutput = { commandRevision: 9 }
-    const recovering = vi
-      .fn<(input: MutationInput) => Promise<MutationOutput>>()
-      .mockRejectedValueOnce(rejection)
-      .mockRejectedValueOnce(rejection)
-      .mockResolvedValueOnce(output)
-    let revision = 1
-    const rebuild = vi.fn(async (): Promise<MutationInput | null> => input(++revision))
+    const fn = vi.fn(async (_input: MutationInput): Promise<MutationOutput> => {
+      throw rejection
+    })
+    const recover = vi.fn(async (): Promise<MutationInput | null> => input(2))
 
-    await expect(renderAction(recovering, { recover: rebuild })(input(1))).resolves.toBe(
-      output,
-    )
-    expect(recovering).toHaveBeenCalledTimes(3)
-    expect(recovering).toHaveBeenNthCalledWith(3, input(3))
+    await expect(renderAction(fn, { recover })(input(1))).rejects.toBe(rejection)
 
-    const alwaysRejecting = vi.fn(
-      async (_input: MutationInput): Promise<MutationOutput> => {
-        throw rejection
-      },
-    )
-    revision = 1
-    await expect(
-      renderAction(alwaysRejecting, { recover: rebuild })(input(1)),
-    ).rejects.toBe(rejection)
-    // Four attempts: the original plus RECOVERY_LIMIT resubmissions.
-    expect(alwaysRejecting).toHaveBeenCalledTimes(4)
+    expect(fn).toHaveBeenCalledTimes(2)
+    expect(fn).toHaveBeenNthCalledWith(1, input(1))
+    expect(fn).toHaveBeenNthCalledWith(2, input(2))
+    expect(recover).toHaveBeenCalledOnce()
   })
 
   it('lets the rejection stand when the recovery declines', async () => {
@@ -143,5 +132,41 @@ describe('useActionMutation recovery', () => {
 
     await expect(renderAction(fn)(input)).rejects.toBe(rejection)
     expect(fn).toHaveBeenCalledOnce()
+  })
+})
+
+describe('Inbox revision conflict recovery', () => {
+  it('patches the authoritative revision and resubmits immediately once', async () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(inboxKeys.detail('item-1'), {
+      item: { id: 'item-1', commandRevision: 1, status: 'open' },
+      reply: null,
+    } as unknown as InboxItemDetailResult)
+    const conflict: InboxRevisionConflictResult = {
+      ok: false,
+      code: 'revision_conflict',
+      currentCommandRevision: 2,
+      currentStatus: 'closed',
+    }
+    const output: MutationOutput = { commandRevision: 3 }
+    const command = vi
+      .fn<
+        (input: MutationInput) => Promise<MutationOutput | InboxRevisionConflictResult>
+      >()
+      .mockResolvedValueOnce(conflict)
+      .mockResolvedValueOnce(output)
+
+    const action = withFreshCommandRevision(queryClient, 'item-1', command)
+    await expect(
+      action({
+        data: { inboxItemId: 'item-1', expectedCommandRevision: 1 },
+      }),
+    ).resolves.toBe(output)
+
+    expect(command).toHaveBeenCalledTimes(2)
+    expect(command.mock.calls[1]?.[0].data.expectedCommandRevision).toBe(2)
+    expect(
+      queryClient.getQueryData<InboxItemDetailResult>(inboxKeys.detail('item-1'))?.item,
+    ).toMatchObject({ commandRevision: 2, status: 'closed' })
   })
 })

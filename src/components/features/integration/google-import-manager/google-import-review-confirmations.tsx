@@ -2,7 +2,7 @@ import { Checkbox } from '#/components/ui/checkbox'
 import { FieldError } from '#/components/ui/field'
 import type { ImportReviewItem } from './google-import-review-model'
 import { reviewControlId } from './google-import-review-model'
-import type { GoogleImportReviewFormApi } from './use-google-import-review-form'
+import type { GoogleImportReviewFormApi } from './google-import-manager-contract'
 
 type Props = Readonly<{
   form: GoogleImportReviewFormApi

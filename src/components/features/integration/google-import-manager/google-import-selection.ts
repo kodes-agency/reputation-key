@@ -1,4 +1,116 @@
-import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
+import type {
+  GoogleConnectionDto,
+  ImportCandidateDto,
+} from '#/contexts/integration/application/public-api'
+import type { GoogleImportStep } from './google-import-manager-contract'
+import type { ImportReviewDraft } from './google-import-review-model'
+
+export function activeGoogleImportConnectionId(
+  connections: readonly GoogleConnectionDto[],
+  preferredId?: string,
+): string | null {
+  return (
+    connections.find(
+      (connection) => connection.id === preferredId && connection.status === 'active',
+    )?.id ??
+    connections.find((connection) => connection.status === 'active')?.id ??
+    null
+  )
+}
+
+export type GoogleImportDiscoveryState = Readonly<{
+  step: GoogleImportStep
+  connectionId: string | null
+  contentActive: boolean
+  accountRef: string | null
+  selectedIds: ReadonlySet<string>
+  search: string
+  selectAllPending: boolean
+  selectAllError: string | null
+  reviewDraft: ImportReviewDraft | null
+  reviewCandidates: readonly ImportCandidateDto[]
+}>
+
+export type GoogleImportDiscoveryAction =
+  | Readonly<{ type: 'clear' }>
+  | Readonly<{ type: 'set_step'; step: GoogleImportStep }>
+  | Readonly<{ type: 'set_connection'; connectionId: string | null; active: boolean }>
+  | Readonly<{ type: 'resume' }>
+  | Readonly<{ type: 'select_account'; accountRef: string }>
+  | Readonly<{ type: 'set_search'; search: string }>
+  | Readonly<{ type: 'set_selection'; selectedIds: ReadonlySet<string> }>
+  | Readonly<{ type: 'select_all_pending'; pending: boolean }>
+  | Readonly<{ type: 'select_all_error'; error: string | null }>
+  | Readonly<{
+      type: 'review'
+      draft: ImportReviewDraft
+      candidates: readonly ImportCandidateDto[]
+    }>
+
+export function createGoogleImportDiscoveryState(
+  connectionId: string | null,
+  hasInitialProgress: boolean,
+  recoveringRequest: boolean,
+): GoogleImportDiscoveryState {
+  return {
+    step: hasInitialProgress ? 'progress' : 'discover',
+    connectionId,
+    contentActive: connectionId !== null && !recoveringRequest,
+    accountRef: null,
+    selectedIds: new Set(),
+    search: '',
+    selectAllPending: false,
+    selectAllError: null,
+    reviewDraft: null,
+    reviewCandidates: [],
+  }
+}
+
+export function reduceGoogleImportDiscoveryState(
+  state: GoogleImportDiscoveryState,
+  action: GoogleImportDiscoveryAction,
+): GoogleImportDiscoveryState {
+  switch (action.type) {
+    case 'clear':
+      return {
+        ...createGoogleImportDiscoveryState(state.connectionId, false, true),
+        connectionId: state.connectionId,
+      }
+    case 'set_step':
+      return { ...state, step: action.step }
+    case 'set_connection':
+      return {
+        ...state,
+        connectionId: action.connectionId,
+        contentActive: action.active,
+      }
+    case 'resume':
+      return state.connectionId === null ? state : { ...state, contentActive: true }
+    case 'select_account':
+      return {
+        ...state,
+        accountRef: action.accountRef,
+        selectedIds: new Set(),
+        search: '',
+        selectAllError: null,
+      }
+    case 'set_search':
+      return { ...state, search: action.search }
+    case 'set_selection':
+      return { ...state, selectedIds: action.selectedIds }
+    case 'select_all_pending':
+      return { ...state, selectAllPending: action.pending }
+    case 'select_all_error':
+      return { ...state, selectAllError: action.error }
+    case 'review':
+      return {
+        ...state,
+        step: 'review',
+        reviewDraft: action.draft,
+        reviewCandidates: action.candidates,
+      }
+  }
+}
 
 type SelectionResult = Readonly<{
   selectedIds: readonly string[]
@@ -32,6 +144,36 @@ export async function selectAllEligibleCandidates(
   return snapshot.candidates
     .filter(isSelectableImportCandidate)
     .map((candidate) => candidate.candidateId)
+}
+
+type CandidateQuery = Readonly<{
+  hasNextPage: boolean
+  fetchNextPage: () => Promise<
+    Readonly<{
+      error: unknown
+      data?: Readonly<{
+        pages: readonly Readonly<{ items: readonly ImportCandidateDto[] }>[]
+      }>
+      hasNextPage: boolean
+    }>
+  >
+}>
+
+export function selectAllEligibleFromQuery(
+  candidates: readonly ImportCandidateDto[],
+  query: CandidateQuery,
+): Promise<readonly string[]> {
+  return selectAllEligibleCandidates(
+    { candidates, hasNextPage: query.hasNextPage },
+    async () => {
+      const result = await query.fetchNextPage()
+      if (result.error) throw result.error
+      return {
+        candidates: result.data?.pages.flatMap((page) => page.items) ?? [],
+        hasNextPage: result.hasNextPage,
+      }
+    },
+  )
 }
 
 export function toggleSelectedCandidate(

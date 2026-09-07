@@ -3,7 +3,7 @@
 // ReplyCompose takes plain callbacks (not Action objects), so stories inject
 // fn() spies. isSaving and the over-limit counter are DIRECT props here — these
 // are the authoritative coverage for the pending + validation surfaces that
-// ReplyEditorInner derives internally.
+// ReplyEditor derives internally.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test'
 import { ReplyCompose, type ReplySuggestionResult } from './reply-editor-compose'

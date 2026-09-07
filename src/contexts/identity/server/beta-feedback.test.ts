@@ -59,7 +59,6 @@ import {
   type CapabilityPolicyStore,
 } from '#/shared/auth/beta-capabilities'
 import { initPermissionTable } from '#/shared/auth/permissions'
-import type { MaskedLayoutSnapshot } from '#/shared/beta-feedback-contract'
 
 const START_KEY = Symbol.for('tanstack-start:start-storage-context')
 function withStartContext<T>(fn: () => Promise<T>): Promise<T> {
@@ -75,12 +74,8 @@ const actor = {
 } as const
 
 const bug = {
-  type: 'bug',
-  title: 'Reviews page did not load',
-  expected: 'The reviews list should appear.',
-  actual: 'The loading state remained on screen.',
-  steps: 'Open a property and select Reviews.',
-  impact: 'workaround_available',
+  kind: 'bug',
+  message: 'The reviews page did not load.',
   routePath: '/properties/private-property-id/reviews',
   viewport: 'wide',
 } as const
@@ -136,7 +131,7 @@ describe('submit beta feedback server function', () => {
       organizationPseudonym: 'safe-telemetry-organization',
       actorPseudonym: 'safe-telemetry-actor',
       feedbackType: 'bug',
-      impactCode: 'workaround_available',
+      impactCode: 'small_issue',
       routeKey: 'properties.property.reviews',
       viewport: 'wide',
       reporterRole: 'PropertyManager',
@@ -146,11 +141,11 @@ describe('submit beta feedback server function', () => {
       now: NOW,
     })
     expect(mocks.captureFeedback).toHaveBeenCalledWith({
-      message: expect.stringContaining('Title: Reviews page did not load'),
+      message: expect.stringContaining('Message: The reviews page did not load.'),
       source: 'repkey-native-beta-feedback',
       tags: {
         feedback_type: 'bug',
-        feedback_impact: 'workaround_available',
+        feedback_impact: 'small_issue',
         feedback_route: 'properties.property.reviews',
         feedback_actor: 'safe-telemetry-actor',
         feedback_organization: 'safe-telemetry-organization',
@@ -183,46 +178,6 @@ describe('submit beta feedback server function', () => {
       now: NOW,
     })
     expect(result).toEqual({ reference: FEEDBACK_REFERENCE })
-  })
-
-  it('prepares and delivers a consented masked Bug layout with an exact 30-day expiry', async () => {
-    const attachment: MaskedLayoutSnapshot = {
-      profile: 'masked-layout-v1',
-      consented: true,
-      gridWidth: 64,
-      gridHeight: 40,
-      blocks: [{ kind: 'input', x: 4, y: 5, width: 20, height: 2 }],
-    }
-
-    await expect(
-      withStartContext(() =>
-        submitBetaFeedbackHandler({
-          data: { ...bug, routePath: '/dashboard', attachment },
-        }),
-      ),
-    ).resolves.toEqual({ reference: FEEDBACK_REFERENCE })
-
-    expect(mocks.prepareTriage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        attachmentKind: 'masked_layout_v1',
-        attachmentCapturedAt: NOW,
-        attachmentExpiresAt: new Date('2026-09-27T08:00:00.000Z'),
-      }),
-    )
-    expect(mocks.captureFeedback).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tags: expect.objectContaining({
-          feedback_attachment: 'masked_layout_v1',
-          feedback_attachment_retention: '30d_max',
-        }),
-        maskedLayoutAttachment: {
-          capturedAt: NOW.toISOString(),
-          expiresAt: '2026-09-27T08:00:00.000Z',
-          snapshot: attachment,
-        },
-      }),
-    )
-    expect(JSON.stringify(mocks.captureFeedback.mock.calls)).not.toContain('data:image')
   })
 
   it('rejects Member before consuming a feedback budget', async () => {

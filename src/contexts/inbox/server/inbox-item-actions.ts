@@ -7,6 +7,7 @@ import {
   inboxErrorStatus,
   inboxItemId,
   toUserId,
+  toInboxRevisionConflictResult,
 } from './inbox-shared'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
@@ -42,8 +43,11 @@ export const assignInboxItemFn = createServerFn({ method: 'POST' })
             ctx,
           )
         } catch (e) {
-          if (isInboxError(e))
+          if (isInboxError(e)) {
+            const conflict = toInboxRevisionConflictResult(e)
+            if (conflict) return conflict
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
+          }
           throw catchUntagged(e)
         }
       },
@@ -106,8 +110,11 @@ export const addInboxNoteFn = createServerFn({ method: 'POST' })
             ctx,
           )
         } catch (e) {
-          if (isInboxError(e))
+          if (isInboxError(e)) {
+            const conflict = toInboxRevisionConflictResult(e)
+            if (conflict) return conflict
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
+          }
           throw catchUntagged(e)
         }
       },

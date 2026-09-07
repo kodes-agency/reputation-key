@@ -5,7 +5,7 @@ import type { ImportCandidateDto } from '#/contexts/integration/application/publ
 import { Button } from '#/components/ui/button'
 import { GoogleImportReviewForm } from './google-import-review-form'
 import { createImportReviewDraft } from './google-import-review-model'
-import { useGoogleImportReviewForm } from './use-google-import-review-form'
+import { useGoogleImportReviewForm } from './use-google-import'
 
 const candidates: readonly ImportCandidateDto[] = [
   {

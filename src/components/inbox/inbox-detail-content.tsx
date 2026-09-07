@@ -6,12 +6,11 @@ import { InboxActivityTimeline } from './inbox-activity-timeline'
 import { InboxDetailSourceContent } from './inbox-detail-source-content'
 import { InboxNotesThread } from './inbox-notes-thread'
 import { InboxReviewAnalysisPanel } from './inbox-review-analysis'
-import { ReplyEditor } from './reply-editor'
+import { ReplyEditor } from './reply-form'
 import { ReplyToolbarProvider, ReplyToolbarSlot } from './reply-toolbar-slot'
 import { FeedbackHandlingCard } from './feedback-handling-card'
 import { ResponseTargetCard } from './response-target-card'
-import type { InboxDetailState } from './use-inbox-detail'
-import { withFreshCommandRevision } from './use-inbox-detail-queries'
+import { withFreshCommandRevision, type InboxDetailState } from './use-inbox-detail'
 import type { InboxReplyCacheChange } from './inbox-cache-policy'
 import type { InboxDetailFns } from './types'
 import type {
@@ -52,13 +51,12 @@ export function InboxDetailContent({
       notes={notes}
       inboxItemId={currentItem.id}
       expectedCommandRevision={currentItem.commandRevision}
-      recoverConflict={withFreshCommandRevision(
+      onNoteAdded={onNoteAdded}
+      addInboxNote={withFreshCommandRevision(
         queryClient,
         currentItem.id,
-        detailFns.getInboxItemDetail,
+        detailFns.addInboxNote,
       )}
-      onNoteAdded={onNoteAdded}
-      addInboxNote={detailFns.addInboxNote}
       canAdd={canAddNotes}
       currentUserId={currentUserId}
     />
@@ -117,7 +115,7 @@ export function InboxDetailContent({
                 key={currentItem.id}
                 propertyId={currentItem.propertyId}
                 reviewId={currentItem.sourceId}
-                initialReply={detail?.reply ?? null}
+                reply={detail?.reply ?? null}
                 loading={!detail}
                 propertyDefaultReplyLanguage={
                   detail?.propertyDefaultReplyLanguage ?? null

@@ -1,26 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useServerFn } from '@tanstack/react-start'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { integrationKeys } from '#/shared/queries/query-keys'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
-import {
-  getGoogleAuthUrl,
-  listGoogleConnections,
-} from '#/contexts/integration/server/google-connections'
-import {
-  cancelPropertyImportV2,
-  getPropertyImportV2Status,
-  listImportAccounts,
-  listImportCandidates,
-  recoverPropertyImportV2,
-  renewImportAuthorizationLease,
-  retryPropertyImportItem,
-  startPropertyImportV2,
-} from '#/contexts/integration/server/gbp-import'
+import { importFns } from './-import-fns'
 import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
-import { useAction } from '#/components/hooks/use-action'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { requireGoogleImportRole } from './-route-access'
@@ -36,7 +21,7 @@ const importSearchSchema = z.object({
 
 const connectionsQuery = queryOptions({
   queryKey: integrationKeys.connections(),
-  queryFn: () => listGoogleConnections(),
+  queryFn: () => importFns.listGoogleConnections(),
   staleTime: 60_000,
 })
 
@@ -63,7 +48,6 @@ function ImportPage() {
   const search = Route.useSearch()
   const { data } = useSuspenseQuery(connectionsQuery)
   const { activeOrganization } = Route.useRouteContext()
-  const getAuthUrl = useAction(useServerFn(getGoogleAuthUrl))
 
   return (
     <PageShell>
@@ -100,15 +84,7 @@ function ImportPage() {
         initialConnectionId={search.connectionId}
         initialRequestId={search.requestId}
         initialError={search.error}
-        getAuthUrl={getAuthUrl}
-        listAccounts={listImportAccounts}
-        listCandidates={listImportCandidates}
-        renewAuthorizationLease={renewImportAuthorizationLease}
-        startImport={startPropertyImportV2}
-        recoverImport={recoverPropertyImportV2}
-        getImportStatus={getPropertyImportV2Status}
-        retryImportItem={retryPropertyImportItem}
-        cancelImport={cancelPropertyImportV2}
+        importFns={importFns}
       />
     </PageShell>
   )

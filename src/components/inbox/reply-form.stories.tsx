@@ -1,6 +1,6 @@
 // Reply editor orchestrator stories.
 //
-// ReplyEditorInner routes on `reply.status` across 6 reply states. It builds its
+// ReplyEditor routes on `reply.status` across 6 reply states. It builds its
 // 6 mutations (draft/submit/approve/reject/delete/retry) internally via
 // useMutationAction over the stubbed server fns (.storybook/stubs/
 // review-reply-server.ts), so — unlike LoginForm — it takes NO Action prop.
@@ -13,7 +13,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
-import { ReplyEditorInner } from './reply-form'
+import { ReplyEditor } from './reply-form'
 import type { ReplyData } from './reply-form'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 
@@ -55,9 +55,9 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
 // passed as the `onReplyChanged` prop via meta.args).
 const onReplyChanged = fn(() => {})
 
-const meta: Meta<typeof ReplyEditorInner> = {
+const meta: Meta<typeof ReplyEditor> = {
   title: 'Inbox/ReplyForm',
-  component: ReplyEditorInner,
+  component: ReplyEditor,
   tags: ['autodocs'],
   decorators: [withRole('PropertyManager')],
   parameters: { layout: 'centered' },
@@ -72,7 +72,7 @@ const meta: Meta<typeof ReplyEditorInner> = {
   },
 }
 export default meta
-type Story = StoryObj<typeof ReplyEditorInner>
+type Story = StoryObj<typeof ReplyEditor>
 
 // loading=true → the "Loading reply..." placeholder (getReply has not resolved).
 export const Loading: Story = {

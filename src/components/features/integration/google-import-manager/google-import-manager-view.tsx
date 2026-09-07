@@ -14,10 +14,12 @@ import {
 import { Field, FieldLabel } from '#/components/ui/field'
 import { GoogleImportManagerBody } from './google-import-manager-body'
 import { GoogleImportManagerBreadcrumbs } from './google-import-manager-breadcrumbs'
-import type { GoogleImportGetAuthUrl } from './google-import-manager-contract'
+import type {
+  GoogleImportDiscoveryController,
+  GoogleImportGetAuthUrl,
+} from './google-import-manager-contract'
 import type { ImportReviewDraft } from './google-import-review-model'
-import type { GoogleImportDiscoveryController } from './use-google-import-discovery-controller'
-import { useGoogleImportReviewForm } from './use-google-import-review-form'
+import { useGoogleImportReviewForm } from './use-google-import'
 
 type Props = Readonly<{
   connections: readonly GoogleConnectionDto[]

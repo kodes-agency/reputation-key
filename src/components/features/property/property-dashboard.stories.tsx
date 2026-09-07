@@ -1,9 +1,9 @@
 // Property dashboard — a property's KPI strip, rating distribution, reply
 // performance, engagement funnel and recent reviews. Pure data-display surface:
 // all data arrives via props (DashboardData + AttentionSignals), no server/RPC.
-// The rating distribution is CSS bars (property-dashboard-helpers); the
-// reputation-over-time chart is recharts via the shadcn ChartContainer, so the
-// trend stories wait for the series to mount before asserting.
+// Rating distribution and reputation-over-time both use the shared shadcn
+// chart surface, so chart stories wait for the Recharts series to mount before
+// asserting.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import { PropertyDashboard } from './property-dashboard'
@@ -138,7 +138,7 @@ export const Default: Story = {
     expect(canvas.getByText('+0.2 stars')).toBeVisible()
     expect(canvas.getByText('Overdue')).toBeVisible()
     expect(canvas.getByText(/items to triage/i)).toBeVisible()
-    expect(canvas.getByText('5★')).toBeVisible()
+    expect(canvas.getByRole('img', { name: /rating distribution/i })).toBeVisible()
     expect(canvas.getByText('78%')).toBeVisible()
     expect(await canvas.findByText('Review signals improved')).toBeVisible()
     // The basis-point field is a change magnitude, never a confidence score.

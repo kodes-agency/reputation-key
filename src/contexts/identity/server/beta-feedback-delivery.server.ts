@@ -16,8 +16,6 @@ type Input = Readonly<{
   }>
   hmacSecret: string
   reference: string
-  capturedAt: Date
-  attachmentExpiresAt: Date | null
 }>
 
 export type BetaFeedbackDeliveryResult =
@@ -33,9 +31,8 @@ export function deliverBetaFeedback(input: Input): BetaFeedbackDeliveryResult {
     message: formatBetaFeedbackMessage(input.data),
     source: 'repkey-native-beta-feedback',
     tags: {
-      feedback_type: input.data.type,
-      feedback_impact:
-        input.data.type === 'bug' ? input.data.impact : input.data.importance,
+      feedback_type: input.data.kind,
+      feedback_impact: input.data.kind === 'bug' ? 'small_issue' : 'helpful',
       feedback_route: classifyBetaFeedbackRoute(input.data.routePath),
       feedback_actor: betaFeedbackPseudonym(
         input.hmacSecret,
@@ -50,11 +47,8 @@ export function deliverBetaFeedback(input: Input): BetaFeedbackDeliveryResult {
       feedback_viewport: input.data.viewport,
       feedback_role: input.actor.role,
       feedback_reference: input.reference,
-      feedback_attachment:
-        input.data.type === 'bug' && input.data.attachment ? 'masked_layout_v1' : 'none',
-      feedback_attachment_retention: input.attachmentExpiresAt
-        ? '30d_max'
-        : 'not_applicable',
+      feedback_attachment: 'none',
+      feedback_attachment_retention: 'not_applicable',
       feedback_triage_state: 'new',
       feedback_triage_owner: 'beta_support',
       feedback_triage_severity: 'unclassified',
@@ -64,15 +58,6 @@ export function deliverBetaFeedback(input: Input): BetaFeedbackDeliveryResult {
       feedback_triage_dedupe: 'pending',
       feedback_customer_response: 'pending',
     },
-    ...(input.data.type === 'bug' && input.data.attachment && input.attachmentExpiresAt
-      ? {
-          maskedLayoutAttachment: {
-            capturedAt: input.capturedAt.toISOString(),
-            expiresAt: input.attachmentExpiresAt.toISOString(),
-            snapshot: input.data.attachment,
-          },
-        }
-      : {}),
   })
   if (!providerReference) {
     return { status: 'failed', failureCode: 'monitoring_unavailable' }

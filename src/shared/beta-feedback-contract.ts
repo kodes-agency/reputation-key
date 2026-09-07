@@ -1,119 +1,24 @@
 import { z } from 'zod/v4'
 
-const titleSchema = z
-  .string()
-  .trim()
-  .min(3, 'Add a short title (at least 3 characters).')
-  .max(120, 'Keep the title to 120 characters or fewer.')
-const detailSchema = z
+const messageSchema = z
   .string()
   .trim()
   .min(3, 'Please add at least 3 characters.')
-  .max(1_500, 'Keep this response to 1,500 characters or fewer.')
-const optionalDetailSchema = z
-  .string()
-  .trim()
-  .max(1_500, 'Keep this response to 1,500 characters or fewer.')
-  .transform((value) => value || undefined)
-  .optional()
+  .max(6_000, 'Keep your feedback to 6,000 characters or fewer.')
 const routePathSchema = z.string().min(1).max(2_048)
 const viewportSchema = z.enum(['compact', 'regular', 'wide'])
 
-export const BETA_FEEDBACK_ATTACHMENT_RETENTION_DAYS = 30
-export const MASKED_LAYOUT_GRID_WIDTH = 64
-export const MASKED_LAYOUT_MAX_BLOCKS = 96
-
-const maskedLayoutBlockSchema = z
+export const betaFeedbackInputSchema = z
   .object({
-    kind: z.enum(['surface', 'text', 'input', 'image', 'media']),
-    x: z
-      .int()
-      .min(0)
-      .max(MASKED_LAYOUT_GRID_WIDTH - 1),
-    y: z
-      .int()
-      .min(0)
-      .max(MASKED_LAYOUT_GRID_WIDTH - 1),
-    width: z.int().min(1).max(MASKED_LAYOUT_GRID_WIDTH),
-    height: z.int().min(1).max(MASKED_LAYOUT_GRID_WIDTH),
+    kind: z.enum(['bug', 'suggestion']),
+    message: messageSchema,
+    routePath: routePathSchema,
+    viewport: viewportSchema,
   })
   .strict()
-
-/**
- * A visual wireframe, never a pixel screenshot. The browser reports only
- * quantized rectangle geometry and a closed semantic kind; the server owns
- * rendering, so text, input values, images, and media cannot be smuggled in.
- */
-export const maskedLayoutSnapshotSchema = z
-  .object({
-    profile: z.literal('masked-layout-v1'),
-    consented: z.literal(true),
-    gridWidth: z.literal(MASKED_LAYOUT_GRID_WIDTH),
-    gridHeight: z.int().min(24).max(MASKED_LAYOUT_GRID_WIDTH),
-    blocks: z.array(maskedLayoutBlockSchema).min(1).max(MASKED_LAYOUT_MAX_BLOCKS),
-  })
-  .strict()
-  .superRefine((snapshot, ctx) => {
-    for (const [index, block] of snapshot.blocks.entries()) {
-      if (
-        block.x + block.width > snapshot.gridWidth ||
-        block.y + block.height > snapshot.gridHeight
-      ) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'Masked layout block must fit inside the declared grid.',
-          path: ['blocks', index],
-        })
-      }
-    }
-  })
-
-export type MaskedLayoutSnapshot = z.infer<typeof maskedLayoutSnapshotSchema>
-
-const sharedFields = {
-  title: titleSchema,
-  routePath: routePathSchema,
-  viewport: viewportSchema,
-} as const
-
-export const bugBetaFeedbackInputSchema = z
-  .object({
-    type: z.literal('bug'),
-    ...sharedFields,
-    expected: detailSchema,
-    actual: detailSchema,
-    steps: optionalDetailSchema,
-    impact: z.enum(['cannot_complete', 'workaround_available', 'small_issue']),
-    attachment: maskedLayoutSnapshotSchema.optional(),
-  })
-  .strict()
-  .superRefine((input, ctx) => {
-    if (input.attachment && !isBetaFeedbackAttachmentAllowed(input.routePath)) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'A masked layout preview is unavailable on this page.',
-        path: ['attachment'],
-      })
-    }
-  })
-
-export const suggestionBetaFeedbackInputSchema = z
-  .object({
-    type: z.literal('suggestion'),
-    ...sharedFields,
-    desiredOutcome: detailSchema,
-    currentFriction: optionalDetailSchema,
-    importance: z.enum(['important', 'helpful', 'nice_to_have']),
-  })
-  .strict()
-
-export const betaFeedbackInputSchema = z.discriminatedUnion('type', [
-  bugBetaFeedbackInputSchema,
-  suggestionBetaFeedbackInputSchema,
-])
 
 export type BetaFeedbackInput = z.infer<typeof betaFeedbackInputSchema>
-export type BetaFeedbackType = BetaFeedbackInput['type']
+export type BetaFeedbackType = BetaFeedbackInput['kind']
 
 export type BetaFeedbackRouteKey =
   | 'dashboard'
@@ -202,56 +107,11 @@ export function classifyBetaFeedbackViewport(width: number): BetaFeedbackViewpor
   return 'wide'
 }
 
-const ATTACHMENT_ALLOWED_ROUTES: ReadonlySet<BetaFeedbackRouteKey> = new Set([
-  'dashboard',
-  'progress',
-  'properties.list',
-  'properties.property.overview',
-  'properties.property.goals.list',
-  'properties.property.goals.new',
-  'properties.property.goals.detail',
-  'properties.property.portals.list',
-  'settings.overview',
-  'settings.ai',
-  'settings.members',
-  'settings.notifications',
-  'settings.organization',
-  'settings.preferences',
-])
-
-/**
- * Defence in depth around the content-free renderer. Provider content,
- * inbox/private feedback, credentials, uploads, and unknown routes remain
- * ineligible even though the snapshot itself contains no pixels or text.
- */
-export function isBetaFeedbackAttachmentAllowed(path: string): boolean {
-  return ATTACHMENT_ALLOWED_ROUTES.has(classifyBetaFeedbackRoute(path))
-}
-
 /** Build the sole free-text payload sent to the feedback provider. */
 export function formatBetaFeedbackMessage(input: BetaFeedbackInput): string {
   const route = classifyBetaFeedbackRoute(input.routePath)
-  const sections =
-    input.type === 'bug'
-      ? [
-          'Type: Bug',
-          `Title: ${input.title}`,
-          `Route: ${route}`,
-          `Impact: ${input.impact}`,
-          `Expected: ${input.expected}`,
-          `What happened: ${input.actual}`,
-          ...(input.steps ? [`Steps: ${input.steps}`] : []),
-        ]
-      : [
-          'Type: Suggestion',
-          `Title: ${input.title}`,
-          `Route: ${route}`,
-          `Importance: ${input.importance}`,
-          `Desired outcome: ${input.desiredOutcome}`,
-          ...(input.currentFriction
-            ? [`Current friction: ${input.currentFriction}`]
-            : []),
-        ]
-
-  return sections.join('\n\n').slice(0, 6_000)
+  const kind = input.kind === 'bug' ? 'Bug' : 'Suggestion'
+  return [`Type: ${kind}`, `Route: ${route}`, `Message: ${input.message}`]
+    .join('\n\n')
+    .slice(0, 6_000)
 }

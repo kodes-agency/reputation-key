@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { AlertCircle, CheckCircle2, Clock3, Link2, RefreshCcw } from 'lucide-react'
+import { AlertCircle, Clock3, RefreshCcw } from 'lucide-react'
 import type {
   ImportProgressDto,
   ImportProgressItemDto,
@@ -7,7 +7,7 @@ import type {
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
-import { Card, CardContent } from '#/components/ui/card'
+import { StatCard } from '#/components/features/shared/stat-card'
 import { GoogleImportProgressItems } from './google-import-progress-items'
 import {
   importProgressPercent,
@@ -119,42 +119,10 @@ export function GoogleImportProgressView({
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="gap-0 py-4">
-          <CardContent className="flex items-center gap-3 px-4">
-            <CheckCircle2 className="size-5 text-emerald-600" aria-hidden="true" />
-            <div>
-              <p className="text-2xl font-semibold">{summary.completed}</p>
-              <p className="text-xs text-muted-foreground">Imported or linked</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="gap-0 py-4">
-          <CardContent className="flex items-center gap-3 px-4">
-            <Link2 className="size-5 text-sky-600" aria-hidden="true" />
-            <div>
-              <p className="text-2xl font-semibold">{summary.alreadyLinked}</p>
-              <p className="text-xs text-muted-foreground">Already linked</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="gap-0 py-4">
-          <CardContent className="flex items-center gap-3 px-4">
-            <AlertCircle className="size-5 text-amber-600" aria-hidden="true" />
-            <div>
-              <p className="text-2xl font-semibold">{summary.issues}</p>
-              <p className="text-xs text-muted-foreground">Need attention</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="gap-0 py-4">
-          <CardContent className="flex items-center gap-3 px-4">
-            <Clock3 className="size-5 text-muted-foreground" aria-hidden="true" />
-            <div>
-              <p className="text-2xl font-semibold">{summary.remaining}</p>
-              <p className="text-xs text-muted-foreground">Remaining</p>
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard label="Imported or linked" value={summary.completed} />
+        <StatCard label="Already linked" value={summary.alreadyLinked} />
+        <StatCard label="Need attention" value={summary.issues} />
+        <StatCard label="Remaining" value={summary.remaining} />
       </div>
 
       <GoogleImportProgressItems

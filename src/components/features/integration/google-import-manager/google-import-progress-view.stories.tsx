@@ -142,7 +142,7 @@ export const AllAlreadyLinked: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const figure = (label: RegExp) =>
-      canvas.getByText(label).parentElement?.querySelector('p')?.textContent
+      canvas.getByText(label).nextElementSibling?.textContent
 
     await expect(figure(/^Already linked$/)).toBe('3')
     await expect(figure(/^Imported or linked$/)).toBe('0')

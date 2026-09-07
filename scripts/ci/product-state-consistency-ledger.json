@@ -209,30 +209,6 @@
       "policy": "Seed from the user image and update from the finalized upload or removal interaction; the Profile route keys the page by user id and image, so a refreshed session image remounts the local snapshot."
     },
     {
-      "id": "src/components/features/integration/google-import-manager/use-google-import-discovery-controller.ts:useState(step)",
-      "classification": "local_runtime",
-      "owner": "Google import discovery controller",
-      "policy": "The initial progress prop chooses the first client workflow step; later transitions are owned by the controller state machine."
-    },
-    {
-      "id": "src/components/features/integration/google-import-manager/use-google-import-discovery-controller.ts:useState(connectionId)",
-      "classification": "local_runtime",
-      "owner": "Google import discovery controller",
-      "policy": "The server-provided connection list selects an initial UI choice; the controller reconciles revoked connections in its effect."
-    },
-    {
-      "id": "src/components/features/integration/google-import-manager/use-google-import-discovery-controller.ts:useState(contentActive)",
-      "classification": "local_runtime",
-      "owner": "Google import discovery controller",
-      "policy": "This is a client fetch-lifecycle switch derived once from bootstrap inputs and explicitly changed by controller transitions."
-    },
-    {
-      "id": "src/components/features/integration/google-import-manager/use-google-import-discovery-controller.ts:useState(selectedIds)",
-      "classification": "local_runtime",
-      "owner": "Google import discovery selection",
-      "policy": "The Set is client-only selection state and is cleared by the controller lifecycle; it does not mirror server authority."
-    },
-    {
       "id": "src/components/features/notification/notification-announcer.tsx:useState(announcement)",
       "classification": "local_runtime",
       "owner": "Notification accessibility announcer",
@@ -347,7 +323,7 @@
       "policy": "A route callback error seeds one dismissible client banner; recovery and new discovery actions explicitly clear or replace it."
     },
     {
-      "id": "src/components/features/integration/google-import-manager/use-google-import-content.ts:useState(lifecycle)",
+      "id": "src/components/features/integration/google-import-manager/use-google-import.ts:useState(lifecycle)",
       "classification": "local_runtime",
       "owner": "Google import content lifecycle",
       "policy": "The lazy initializer constructs one client coordinator per hook lifetime; it owns cache teardown callbacks and is not server state."

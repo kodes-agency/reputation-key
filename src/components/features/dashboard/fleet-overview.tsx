@@ -7,8 +7,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { dashboardKeys } from '#/shared/queries/query-keys'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { FleetLoadMore } from './fleet-load-more'
-import { StripStat } from './fleet-totals-strip'
-import { Building2, AlertCircle, Star } from 'lucide-react'
+import { StatCard } from '#/components/features/shared/stat-card'
 import { Button } from '#/components/ui/button'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
@@ -93,19 +92,16 @@ export function FleetOverview({
         — WCAG 1.4.10), sm+ keeps the original 3-up layout.
       */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <StripStat
-          icon={Building2}
-          label="Properties"
-          value={String(totals.propertyCount)}
-        />
-        <StripStat
-          icon={AlertCircle}
+        <StatCard label="Properties" value={String(totals.propertyCount)} />
+        <StatCard
           label="Needs attention"
-          value={String(totals.totalAttention)}
-          destructive={totals.totalAttention > 0}
+          value={
+            <span className={totals.totalAttention > 0 ? 'text-destructive' : undefined}>
+              {totals.totalAttention}
+            </span>
+          }
         />
-        <StripStat
-          icon={Star}
+        <StatCard
           label="Avg rating"
           value={formatRating(totals.overallAvgRating)}
           hint={`${totals.ratingSampleCount} eligible reviews`}

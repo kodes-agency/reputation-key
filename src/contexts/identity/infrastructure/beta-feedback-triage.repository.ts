@@ -33,9 +33,9 @@ export type PreparedBetaFeedbackTriage = Readonly<{
   routeKey: BetaFeedbackRouteKey
   viewport: BetaFeedbackViewport
   reporterRole: 'AccountAdmin' | 'PropertyManager' | 'Member'
-  attachmentKind: 'none' | 'masked_layout_v1'
-  attachmentCapturedAt: Date | null
-  attachmentExpiresAt: Date | null
+  attachmentKind: 'none'
+  attachmentCapturedAt: null
+  attachmentExpiresAt: null
   now: Date
 }>
 
@@ -50,7 +50,7 @@ export type BetaFeedbackTriageRecord = BetaFeedbackTriageSnapshot &
     reporterRole: PreparedBetaFeedbackTriage['reporterRole']
     deliveryFailureCode: string | null
     providerReference: string | null
-    attachmentKind: PreparedBetaFeedbackTriage['attachmentKind']
+    attachmentKind: 'none' | 'masked_layout_v1'
     attachmentCapturedAt: Date | null
     attachmentExpiresAt: Date | null
     createdAt: Date

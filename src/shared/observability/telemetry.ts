@@ -14,11 +14,6 @@
 import * as Sentry from '@sentry/node'
 import { z } from 'zod/v4'
 import {
-  BETA_FEEDBACK_ATTACHMENT_RETENTION_DAYS,
-  type MaskedLayoutSnapshot,
-} from '#/shared/beta-feedback-contract'
-import { renderMaskedLayoutSvg } from '#/shared/masked-layout-snapshot'
-import {
   filterAndScrubSentryTransaction,
   scrubSentryBreadcrumb,
   scrubSentryEvent,
@@ -117,20 +112,10 @@ export interface FeedbackCaptureParams {
   readonly message: string
   readonly source: 'repkey-native-beta-feedback'
   readonly tags: Readonly<Record<string, string>>
-  readonly maskedLayoutAttachment?: Readonly<{
-    readonly capturedAt: string
-    readonly expiresAt: string
-    readonly snapshot: MaskedLayoutSnapshot
-  }>
 }
 
 export interface FeedbackCaptureHint {
   readonly includeReplay: false
-  readonly attachments?: ReadonlyArray<{
-    readonly data: Uint8Array
-    readonly filename: 'repkey-masked-layout.svg'
-    readonly contentType: 'image/svg+xml'
-  }>
 }
 
 export interface ErrorMonitor {
@@ -195,39 +180,6 @@ const MACHINE_TAG_VALUE = /^[a-z0-9][a-z0-9_.:-]{0,79}$/u
 function machineTag(value: string | undefined): string | undefined {
   if (value === undefined) return undefined
   return MACHINE_TAG_VALUE.test(value) ? value : 'unknown'
-}
-
-const ATTACHMENT_RETENTION_MS =
-  BETA_FEEDBACK_ATTACHMENT_RETENTION_DAYS * 24 * 60 * 60 * 1_000
-
-function maskedLayoutHint(
-  attachment: FeedbackCaptureParams['maskedLayoutAttachment'],
-): FeedbackCaptureHint {
-  if (!attachment) return { includeReplay: false }
-  const capturedAt = Date.parse(attachment.capturedAt)
-  const expiresAt = Date.parse(attachment.expiresAt)
-  if (
-    !Number.isFinite(capturedAt) ||
-    !Number.isFinite(expiresAt) ||
-    expiresAt <= capturedAt ||
-    expiresAt - capturedAt > ATTACHMENT_RETENTION_MS
-  ) {
-    throw new Error('Masked layout attachment has an invalid retention window')
-  }
-  const data = new TextEncoder().encode(renderMaskedLayoutSvg(attachment.snapshot))
-  if (data.byteLength > 32_000) {
-    throw new Error('Masked layout attachment exceeds the fixed byte budget')
-  }
-  return {
-    includeReplay: false,
-    attachments: [
-      {
-        data,
-        filename: 'repkey-masked-layout.svg',
-        contentType: 'image/svg+xml',
-      },
-    ],
-  }
 }
 
 export function createErrorMonitor(deps: {
@@ -365,7 +317,7 @@ export function createErrorMonitor(deps: {
           source: 'repkey-native-beta-feedback',
           tags: safeTags,
         }
-        const safeHint = maskedLayoutHint(params.maskedLayoutAttachment)
+        const safeHint: FeedbackCaptureHint = { includeReplay: false }
 
         // Sentry 10.71 does not pass `type: "feedback"` events through the
         // ordinary `beforeSend` callback. Clear both inherited scopes so

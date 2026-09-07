@@ -4,8 +4,10 @@ import { Button } from '#/components/ui/button'
 import { GoogleImportDiscoveryPanel } from './google-import-discovery-panel'
 import { discoveryErrorMessage } from './google-import-error-messages'
 import { GoogleImportReviewForm } from './google-import-review-form'
-import type { GoogleImportDiscoveryController } from './use-google-import-discovery-controller'
-import type { GoogleImportReviewFormApi } from './use-google-import-review-form'
+import type {
+  GoogleImportDiscoveryController,
+  GoogleImportReviewFormApi,
+} from './google-import-manager-contract'
 
 type Props = Readonly<{
   connections: readonly GoogleConnectionDto[]

@@ -1,14 +1,19 @@
-// Shared desktop/mobile Inbox detail hook. Query owns cache, dedup, and
-// cancellation; InboxCachePolicy owns invalidation and polling decisions.
 import { useCallback, useEffect, useState } from 'react'
-import { useQueryClient, type QueryClient } from '@tanstack/react-query'
+import {
+  queryOptions,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import type { Action } from '#/components/hooks/use-action'
-import { inboxCachePolicy, type InboxReplyCacheChange } from './inbox-cache-policy'
+import { inboxKeys } from '#/shared/queries/query-keys'
 import {
-  useInboxDetailQueries,
-  withFreshCommandRevision,
-} from './use-inbox-detail-queries'
+  inboxCachePolicy,
+  replyRefetchInterval,
+  type InboxReplyCacheChange,
+} from './inbox-cache-policy'
+import { useTargetDeadlineRefresh } from './response-target-deadline-refresh'
 import {
   createInboxItemStatusObserver,
   type InboxItemStatusObserver,
@@ -22,56 +27,115 @@ import type {
   correctFeedbackHandlingOutcomeFn,
 } from '#/contexts/inbox/server/inbox'
 import type { InboxServerFns } from './types'
-import type {
-  InboxItem,
-  InboxItemDetailResult,
-  InboxNoteView,
+import {
+  isInboxRevisionConflictResult,
+  type InboxItem,
+  type FeedbackHandlingCommandResult,
+  type InboxItemDetailResult,
+  type InboxNoteView,
+  type InboxRevisionConflictResult,
 } from '#/contexts/inbox/application/public-api'
+
+type RevisionedCommandInput = Readonly<{
+  data: Readonly<{ expectedCommandRevision: number }>
+}>
+
+type SuccessfulCommandResult<T> = Exclude<Awaited<T>, InboxRevisionConflictResult>
+
+const inboxDetailQueryOptions = (
+  id: string,
+  getInboxItemDetail: InboxServerFns['getInboxItemDetail'],
+) =>
+  queryOptions({
+    queryKey: inboxKeys.detail(id),
+    queryFn: () => getInboxItemDetail({ data: { inboxItemId: id } }),
+    staleTime: 0,
+  })
+
+function applyRevisionConflict(
+  qc: QueryClient,
+  id: string,
+  conflict: InboxRevisionConflictResult,
+): void {
+  qc.setQueryData<InboxItemDetailResult>(inboxKeys.detail(id), (current) =>
+    current
+      ? {
+          ...current,
+          item: {
+            ...current.item,
+            commandRevision: conflict.currentCommandRevision,
+            status: conflict.currentStatus,
+          },
+        }
+      : current,
+  )
+}
+
+/**
+ * Runs a revision-fenced command against the authoritative revision returned
+ * by the command store. A second conflict is surfaced; this never polls or
+ * retries more than once.
+ */
+export function withFreshCommandRevision<TInput extends RevisionedCommandInput, TResult>(
+  qc: QueryClient,
+  id: string,
+  command: (input: TInput) => Promise<TResult>,
+): (input: TInput) => Promise<SuccessfulCommandResult<TResult>> {
+  return async (input) => {
+    const result = await command(input)
+    if (!isInboxRevisionConflictResult(result)) {
+      return result as SuccessfulCommandResult<TResult>
+    }
+
+    applyRevisionConflict(qc, id, result)
+    const retryInput = {
+      ...input,
+      data: {
+        ...input.data,
+        expectedCommandRevision: result.currentCommandRevision,
+      },
+    } as TInput
+    const retried = await command(retryInput)
+    if (!isInboxRevisionConflictResult(retried)) {
+      return retried as SuccessfulCommandResult<TResult>
+    }
+
+    applyRevisionConflict(qc, id, retried)
+    throw Object.assign(
+      new Error('This item changed again while you were working. Please try again.'),
+      retried,
+    )
+  }
+}
 
 export type UseInboxDetailOptions = Readonly<{
   autoMarkRead?: boolean
-  /** Called with the updated item after a status change (mark-read / escalate /
-   *  archive). The inbox page wires it to the optimistic list sync (instant UI
-   *  update + drop-from-filter), replacing the old statusVersion effect. */
   onItemStatusChanged?: (updated: InboxItem) => void
 }>
 
 export type InboxDetailState = Readonly<{
   detail: InboxItemDetailResult | null
-  /** Retry on error — refetches detail + notes via Query. */
   refetch: () => void
   notes: ReadonlyArray<InboxNoteView>
   isLoading: boolean
   currentItem: InboxItem | null
-  updateStatus: Action<
-    Parameters<typeof updateInboxStatusFn>[0],
-    Awaited<ReturnType<typeof updateInboxStatusFn>>
-  >
-  escalate: Action<
-    Parameters<typeof escalateInboxItemFn>[0],
-    Awaited<ReturnType<typeof escalateInboxItemFn>>
-  >
-  resolveEscalation: Action<
-    Parameters<typeof resolveEscalationFn>[0],
-    Awaited<ReturnType<typeof resolveEscalationFn>>
-  >
+  updateStatus: Action<Parameters<typeof updateInboxStatusFn>[0], InboxItem>
+  escalate: Action<Parameters<typeof escalateInboxItemFn>[0], InboxItem>
+  resolveEscalation: Action<Parameters<typeof resolveEscalationFn>[0], InboxItem>
   markFeedbackHandled: Action<
     Parameters<typeof markFeedbackHandledFn>[0],
-    Awaited<ReturnType<typeof markFeedbackHandledFn>>
+    FeedbackHandlingCommandResult
   >
   correctFeedbackHandlingOutcome: Action<
     Parameters<typeof correctFeedbackHandlingOutcomeFn>[0],
-    Awaited<ReturnType<typeof correctFeedbackHandlingOutcomeFn>>
+    FeedbackHandlingCommandResult
   >
-  /** Called after a note is added — refreshes notes + activity. */
   onNoteAdded: (resultingCommandRevision: number) => void
-  /** Called after a classified reply change — patches only this item's reply. */
   onReplyMutated: (change: InboxReplyCacheChange) => void
   error: string | null
   lastMarkedId: string | null
 }>
 
-/** Detect a server-side status transition (auto-close during reply-publish polling). */
 function useInboxAutoCloseDetection(
   qc: QueryClient,
   id: string,
@@ -89,15 +153,13 @@ function useInboxAutoCloseDetection(
 function useInboxStatusMutations(
   inboxFns: Pick<
     InboxServerFns,
-    'getInboxItemDetail' | 'updateInboxStatus' | 'escalateInboxItem' | 'resolveEscalation'
+    'updateInboxStatus' | 'escalateInboxItem' | 'resolveEscalation'
   >,
   id: string,
   qc: QueryClient,
   statusObserver: InboxItemStatusObserver,
   onItemStatusChanged?: (updated: InboxItem) => void,
 ) {
-  // Notify the policy about the status change, then the list for the
-  // optimistic sync (instant UI update + drop-from-filter).
   const handleStatusChanged = useCallback(
     (updated: InboxItem) => {
       statusObserver.accept({ itemId: updated.id, status: updated.status })
@@ -106,23 +168,62 @@ function useInboxStatusMutations(
     },
     [qc, statusObserver, onItemStatusChanged],
   )
-  const recover = withFreshCommandRevision(qc, id, inboxFns.getInboxItemDetail)
-  const updateStatus = useActionMutation(inboxFns.updateInboxStatus, {
-    successMessage: 'Status updated',
-    onSuccess: handleStatusChanged,
-    recover,
-  })
-  const escalate = useActionMutation(inboxFns.escalateInboxItem, {
-    successMessage: 'Escalated',
-    onSuccess: handleStatusChanged,
-    recover,
-  })
-  const resolveEscalation = useActionMutation(inboxFns.resolveEscalation, {
-    successMessage: 'Escalation resolved',
-    onSuccess: handleStatusChanged,
-    recover,
-  })
+  const updateStatus = useActionMutation(
+    withFreshCommandRevision(qc, id, inboxFns.updateInboxStatus),
+    {
+      successMessage: 'Status updated',
+      onSuccess: handleStatusChanged,
+    },
+  )
+  const escalate = useActionMutation(
+    withFreshCommandRevision(qc, id, inboxFns.escalateInboxItem),
+    {
+      successMessage: 'Escalated',
+      onSuccess: handleStatusChanged,
+    },
+  )
+  const resolveEscalation = useActionMutation(
+    withFreshCommandRevision(qc, id, inboxFns.resolveEscalation),
+    {
+      successMessage: 'Escalation resolved',
+      onSuccess: handleStatusChanged,
+    },
+  )
   return { updateStatus, escalate, resolveEscalation }
+}
+
+function useInboxDetailQueries(
+  inboxFns: Pick<InboxServerFns, 'getInboxItemDetail' | 'getInboxNotes'>,
+  id: string,
+  enabled: boolean,
+  fallbackItem: InboxItem | null,
+) {
+  const detailQuery = useQuery({
+    ...inboxDetailQueryOptions(id, inboxFns.getInboxItemDetail),
+    enabled,
+    refetchInterval: (query) => replyRefetchInterval(query.state.data?.reply),
+  })
+  const notesQuery = useQuery({
+    queryKey: inboxKeys.notes(id),
+    queryFn: () => inboxFns.getInboxNotes({ data: { inboxItemId: id } }),
+    enabled,
+    staleTime: 0,
+  })
+  useTargetDeadlineRefresh(enabled, detailQuery.data?.responseTarget, detailQuery.refetch)
+
+  const detail = detailQuery.data ?? null
+  return {
+    detail,
+    notes: notesQuery.data ?? [],
+    isLoading: detailQuery.isLoading || notesQuery.isLoading,
+    currentItem: detail?.item ?? fallbackItem,
+    error: detailQuery.error ? 'Failed to load detail. Try again.' : null,
+    refetch: () => {
+      void detailQuery.refetch()
+      void notesQuery.refetch()
+    },
+    polledStatus: detailQuery.data?.item.status,
+  }
 }
 
 export function useInboxDetail(
@@ -162,8 +263,6 @@ export function useInboxDetail(
     onItemStatusChanged,
   )
 
-  // Reply draft saves and workflow changes are classified before they reach
-  // the policy. Neither moves an Inbox item between folders by itself.
   const onReplyMutated = useCallback(
     (change: InboxReplyCacheChange) => {
       inboxCachePolicy.onReplyChanged(qc, id, change)
