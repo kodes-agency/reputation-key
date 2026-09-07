@@ -33,7 +33,6 @@ import {
   portalPublicationSnapshots,
   portalResponsibleManagers,
   portalTokens,
-  portalUploadIssuances,
   portals,
   propertyPortalBrandContents,
   propertyPortalBrandProfiles,
@@ -64,7 +63,6 @@ const CLOSING_DEACTIVATION_REASON = 'disabled'
  */
 export const PORTAL_PURGE_PLAN = Object.freeze([
   'portal_access_artifacts',
-  'portal_upload_issuances',
   'portal_pending_content_changes',
   'portal_publication_activations',
   'portal_publication_snapshots',
@@ -170,9 +168,6 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
     await tx
       .delete(portalAccessArtifacts)
       .where(eq(portalAccessArtifacts.organizationId, organizationId))
-    await tx
-      .delete(portalUploadIssuances)
-      .where(eq(portalUploadIssuances.organizationId, organizationId))
     await tx
       .delete(portalPendingContentChanges)
       .where(eq(portalPendingContentChanges.organizationId, organizationId))

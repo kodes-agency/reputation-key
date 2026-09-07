@@ -51,18 +51,11 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  *   That is credential material; the tenant-visible fact — that a published QR
  *   or NFC artifact exists — is exported from `portal_access_artifacts`
  *   instead, without the token id that joins back to the secret.
- * - `portal_upload_issuances` is Portal upload, which is `safety_blocked`.
- *   Exporting its object keys would give the dark capability an observable
- *   product surface, so it stays out until the SAFE-01 activation record.
  * - Goals reference Portals but are owned and exported by the Goal
  *   contributor; a second copy would let one archive disagree with itself.
  */
 const EXCLUDED_RECORD_CLASSES = Object.freeze([
   { recordClass: 'portal_address_tokens', reasonCode: 'security_secret_material' },
-  {
-    recordClass: 'portal_upload_issuances_and_object_keys',
-    reasonCode: 'dark_capability_not_activated',
-  },
   {
     recordClass: 'portal_workflow_outbox_facts',
     reasonCode: 'content_free_control_plane',
@@ -421,8 +414,8 @@ async function readPayload(
  *
  * Exports the manager-authored Portal configuration and its immutable
  * publication history — the record of what a guest was actually shown. Address
- * tokens, upload issuances, and Guest Responses are not queried at all. An
- * Organization with no Portal rows answers `no_data` rather than shipping a
+ * tokens and Guest Responses are not queried at all. An Organization with no
+ * Portal rows answers `no_data` rather than shipping a
  * header-only CSV.
  */
 export const createPortalOrganizationExportContributor = (

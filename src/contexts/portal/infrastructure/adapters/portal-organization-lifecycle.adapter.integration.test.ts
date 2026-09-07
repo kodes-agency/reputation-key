@@ -183,16 +183,6 @@ async function seedFixture(): Promise<Fixture> {
      VALUES ($1, $2, $3, $4, $5, 'qr', 'published', now())`,
     [randomUUID(), ...scope, fixture.tokenId],
   )
-  const issuanceId = randomUUID()
-  await q(
-    `INSERT INTO portal_upload_issuances (
-       id, organization_id, property_id, portal_id, purpose, object_key, content_type,
-       declared_size_bytes, max_size_bytes, state, issued_at, expires_at,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 'hero_image', $5, 'image/jpeg',
-               1024, 10485760, 'issued', now(), now() + interval '1 hour', now(), now())`,
-    [issuanceId, ...scope, `private/portal-uploads/${issuanceId}/source.jpg`],
-  )
   await q(
     `INSERT INTO portal_publication_snapshots (
        id, organization_id, property_id, portal_id, version, configuration_digest,
@@ -338,7 +328,6 @@ async function deleteReceiptFixtures(organizationIds: readonly string[]): Promis
 
 const CLEANUP_ORDER = [
   'portal_access_artifacts',
-  'portal_upload_issuances',
   'portal_pending_content_changes',
   'portal_publication_activations',
   'portal_publication_snapshots',
