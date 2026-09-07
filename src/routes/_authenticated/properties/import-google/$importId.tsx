@@ -1,25 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
-import { useServerFn } from '@tanstack/react-start'
-import {
-  cancelPropertyImportV2,
-  getPropertyImportV2Status,
-  listImportAccounts,
-  listImportCandidates,
-  recoverPropertyImportV2,
-  renewImportAuthorizationLease,
-  retryPropertyImportItem,
-  startPropertyImportV2,
-} from '#/contexts/integration/server/gbp-import'
-import {
-  getGoogleAuthUrl,
-  listGoogleConnections,
-} from '#/contexts/integration/server/google-connections'
+import { importFns } from './-import-fns'
 import {
   GoogleImportManager,
   googleImportStatusQuery,
 } from '#/components/features/integration/google-import-manager'
-import { useAction } from '#/components/hooks/use-action'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { integrationKeys } from '#/shared/queries/query-keys'
 import { PageShell } from '#/components/layout/page-shell'
@@ -29,7 +14,7 @@ import { requireGoogleImportRole } from './-route-access'
 
 const connectionsQuery = queryOptions({
   queryKey: integrationKeys.connections(),
-  queryFn: () => listGoogleConnections(),
+  queryFn: () => importFns.listGoogleConnections(),
   staleTime: 60_000,
 })
 
@@ -50,7 +35,7 @@ export const Route = createFileRoute(
   loader: async ({ context, params: { importId } }) => {
     await Promise.all([
       context.queryClient.ensureQueryData(
-        googleImportStatusQuery(importId, getPropertyImportV2Status),
+        googleImportStatusQuery(importId, importFns.getPropertyImportV2Status),
       ),
       context.queryClient.ensureQueryData(connectionsQuery),
     ])
@@ -62,10 +47,9 @@ function ImportProgressPage() {
   const { importId } = Route.useParams()
   const { activeOrganization } = Route.useRouteContext()
   const { data: progress } = useSuspenseQuery(
-    googleImportStatusQuery(importId, getPropertyImportV2Status),
+    googleImportStatusQuery(importId, importFns.getPropertyImportV2Status),
   )
   const { data: connectionData } = useSuspenseQuery(connectionsQuery)
-  const getAuthUrl = useAction(useServerFn(getGoogleAuthUrl))
 
   return (
     <PageShell>
@@ -85,15 +69,7 @@ function ImportProgressPage() {
         organizationId={activeOrganization?.id ?? 'no-active-organization'}
         connections={connectionData.connections}
         initialProgress={progress}
-        getAuthUrl={getAuthUrl}
-        listAccounts={listImportAccounts}
-        listCandidates={listImportCandidates}
-        renewAuthorizationLease={renewImportAuthorizationLease}
-        startImport={startPropertyImportV2}
-        recoverImport={recoverPropertyImportV2}
-        getImportStatus={getPropertyImportV2Status}
-        retryImportItem={retryPropertyImportItem}
-        cancelImport={cancelPropertyImportV2}
+        importFns={importFns}
       />
     </PageShell>
   )

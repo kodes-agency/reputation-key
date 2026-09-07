@@ -10,8 +10,8 @@ import {
 } from './google-import-error-messages'
 import { buildConfirmedImportItems } from './google-import-review-model'
 import type { ImportReviewDraft } from './google-import-review-model'
-import { useGoogleImportDiscoveryController } from './use-google-import-discovery-controller'
-import { useGoogleImportProgressController } from './use-google-import-progress-controller'
+import { useGoogleImport } from './use-google-import'
+import { useGoogleImportProgress } from './use-google-import-progress'
 
 const IMPORT_RECOVERY_DELAYS_MS = [0, 250, 750] as const
 
@@ -22,15 +22,7 @@ export function GoogleImportManager({
   initialProgress = null,
   initialRequestId,
   initialError,
-  getAuthUrl,
-  listAccounts,
-  listCandidates,
-  renewAuthorizationLease,
-  startImport,
-  recoverImport,
-  getImportStatus,
-  retryImportItem,
-  cancelImport,
+  importFns,
 }: GoogleImportManagerProps) {
   const navigate = useNavigate()
   const mounted = useRef(true)
@@ -44,22 +36,18 @@ export function GoogleImportManager({
   )
   const [isRecoveringRequest, setIsRecoveringRequest] = useState(false)
   const clearStartError = useCallback(() => setStartError(null), [])
-  const discovery = useGoogleImportDiscoveryController({
+  const discovery = useGoogleImport({
     organizationId,
     connections,
     initialConnectionId,
     initialProgress,
     initialRequestId,
-    listAccounts,
-    listCandidates,
-    renewAuthorizationLease,
+    importFns,
     onClearStartError: clearStartError,
   })
-  const progress = useGoogleImportProgressController({
+  const progress = useGoogleImportProgress({
     initialProgress,
-    getImportStatus,
-    retryImportItem,
-    cancelImport,
+    importFns,
     step: discovery.step,
     setStep: discovery.setStep,
   })
@@ -81,7 +69,9 @@ export function GoogleImportManager({
         }
         if (!mounted.current) return null
         try {
-          const recovered = await recoverImport({ data: { requestId } })
+          const recovered = await importFns.recoverPropertyImportV2({
+            data: { requestId },
+          })
           if (recovered.requestId === requestId) return recovered.importJobId
         } catch {
           // Retry the same tenant-scoped receipt while a reloaded start commits.
@@ -89,7 +79,7 @@ export function GoogleImportManager({
       }
       return null
     },
-    [recoverImport],
+    [importFns],
   )
   const openProgress = useCallback(
     async (importJobId: string) => {
@@ -147,7 +137,7 @@ export function GoogleImportManager({
         search: { requestId },
         replace: true,
       })
-      const result = await startImport({
+      const result = await importFns.startPropertyImportV2({
         data: {
           requestId,
           items: submittedItems,
@@ -199,7 +189,7 @@ export function GoogleImportManager({
   return (
     <GoogleImportManagerView
       connections={connections}
-      getAuthUrl={getAuthUrl}
+      getAuthUrl={importFns.getGoogleAuthUrl}
       discovery={discovery}
       startPending={startPending}
       startError={startError}

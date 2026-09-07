@@ -1,8 +1,15 @@
+import type { ReactFormExtendedApi } from '@tanstack/react-form'
 import type {
-  GoogleAuthUrlInput,
   GoogleConnectionDto,
+  ImportAccountDto,
+  ImportCandidateDto,
   ImportProgressDto,
 } from '#/contexts/integration/application/public-api'
+import type {
+  googleImportReviewDraftSchema,
+  GoogleImportReviewDraftInput,
+} from '#/contexts/integration/application/dto/google-import-v2.dto'
+import type { ImportReviewDraft } from './google-import-review-model'
 import type {
   cancelPropertyImportV2,
   getPropertyImportV2Status,
@@ -13,11 +20,79 @@ import type {
   retryPropertyImportItem,
   startPropertyImportV2,
 } from '#/contexts/integration/server/gbp-import'
+import type {
+  getGoogleAuthUrl,
+  listGoogleConnections,
+} from '#/contexts/integration/server/google-connections'
 
 export type GoogleImportStep = 'discover' | 'review' | 'progress'
-export type GoogleImportGetAuthUrl = (opts: {
-  data: GoogleAuthUrlInput
-}) => Promise<{ url: string }>
+export type GoogleImportGetAuthUrl = typeof getGoogleAuthUrl
+
+export type GoogleImportFns = Readonly<{
+  getGoogleAuthUrl: typeof getGoogleAuthUrl
+  listGoogleConnections: typeof listGoogleConnections
+  listImportAccounts: typeof listImportAccounts
+  listImportCandidates: typeof listImportCandidates
+  renewImportAuthorizationLease: typeof renewImportAuthorizationLease
+  startPropertyImportV2: typeof startPropertyImportV2
+  recoverPropertyImportV2: typeof recoverPropertyImportV2
+  getPropertyImportV2Status: typeof getPropertyImportV2Status
+  retryPropertyImportItem: typeof retryPropertyImportItem
+  cancelPropertyImportV2: typeof cancelPropertyImportV2
+}>
+
+export type GoogleImportReviewFormApi = ReactFormExtendedApi<
+  GoogleImportReviewDraftInput,
+  undefined,
+  undefined,
+  undefined,
+  undefined,
+  undefined,
+  typeof googleImportReviewDraftSchema,
+  undefined,
+  undefined,
+  undefined,
+  undefined,
+  never
+>
+
+type GoogleImportPageQueryState = Readonly<{
+  isPending: boolean
+  isFetchingNextPage: boolean
+  hasNextPage: boolean
+  error: Error | null
+  fetchNextPage: () => Promise<unknown>
+}>
+
+export type GoogleImportDiscoveryController = Readonly<{
+  accounts: readonly ImportAccountDto[]
+  accountsQuery: GoogleImportPageQueryState
+  candidatesQuery: GoogleImportPageQueryState
+  lifecycle: Readonly<{
+    clear: (reason: 'route_left') => Promise<void>
+    epoch: () => number
+  }>
+  step: GoogleImportStep
+  setStep: (step: GoogleImportStep) => void
+  connectionId: string | null
+  contentActive: boolean
+  accountRef: string | null
+  selectedIds: ReadonlySet<string>
+  search: string
+  selectAllPending: boolean
+  selectAllError: string | null
+  setSearch: (value: string) => void
+  visibleCandidates: readonly ImportCandidateDto[]
+  reviewDraft: ImportReviewDraft | null
+  reviewCandidates: readonly ImportCandidateDto[]
+  changeConnection: (connectionId: string) => Promise<void>
+  resumeDiscovery: () => void
+  selectAccount: (accountRef: string) => void
+  toggleCandidate: (candidate: ImportCandidateDto, checked: boolean) => void
+  toggleLoaded: (checked: boolean) => void
+  selectAllEligible: () => Promise<void>
+  review: () => void
+}>
 
 export type GoogleImportManagerProps = Readonly<{
   organizationId: string
@@ -26,13 +101,34 @@ export type GoogleImportManagerProps = Readonly<{
   initialProgress?: ImportProgressDto | null
   initialRequestId?: string
   initialError?: 'connection_failed' | 'denied' | 'account_already_connected'
-  getAuthUrl: GoogleImportGetAuthUrl
-  listAccounts: typeof listImportAccounts
-  listCandidates: typeof listImportCandidates
-  renewAuthorizationLease: typeof renewImportAuthorizationLease
-  startImport: typeof startPropertyImportV2
-  recoverImport: typeof recoverPropertyImportV2
-  getImportStatus: typeof getPropertyImportV2Status
-  retryImportItem: typeof retryPropertyImportItem
-  cancelImport: typeof cancelPropertyImportV2
+  importFns: GoogleImportFns
+}>
+
+export type GoogleImportReviewOptions = Readonly<{
+  initialDraft: GoogleImportReviewDraftInput | null
+  onSubmit: (draft: GoogleImportReviewDraftInput) => void | Promise<void>
+}>
+
+export type GoogleImportDiscoveryOptions = Pick<
+  GoogleImportManagerProps,
+  | 'organizationId'
+  | 'connections'
+  | 'initialConnectionId'
+  | 'initialProgress'
+  | 'initialRequestId'
+  | 'importFns'
+> &
+  Readonly<{ onClearStartError: () => void }>
+
+export type GoogleImportContentOptions = Readonly<{
+  organizationId: string
+  connectionId: string | null
+  accountRef: string | null
+  step: GoogleImportStep
+  enabled: boolean
+  importFns: Pick<
+    GoogleImportFns,
+    'listImportAccounts' | 'listImportCandidates' | 'renewImportAuthorizationLease'
+  >
+  clearProviderState: () => void
 }>

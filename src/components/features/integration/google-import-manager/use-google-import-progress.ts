@@ -1,6 +1,6 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type {
   ImportProgressDto,
@@ -8,20 +8,32 @@ import type {
 } from '#/contexts/integration/application/public-api'
 import { propertyKeys } from '#/shared/queries/query-keys'
 import type {
+  GoogleImportFns,
   GoogleImportManagerProps,
   GoogleImportStep,
 } from './google-import-manager-contract'
-import { googleImportStatusQuery } from './google-import-progress-query'
-import { isImportParentTerminal } from './google-import-progress-model'
 import {
-  useGoogleImportProgressQuery,
-  useTerminalImportInvalidation,
-} from './use-google-import-progress-query'
+  googleImportProgressPollInterval,
+  googleImportStatusQuery,
+} from './google-import-queries'
+import { isImportParentTerminal } from './google-import-progress-model'
 
 type RetryRequest = Readonly<{
   retryRevision: number
   retryRequestId: string
 }>
+
+type Props = Pick<GoogleImportManagerProps, 'initialProgress'> &
+  Readonly<{
+    importFns: Pick<
+      GoogleImportFns,
+      | 'getPropertyImportV2Status'
+      | 'retryPropertyImportItem'
+      | 'cancelPropertyImportV2'
+    >
+    step: GoogleImportStep
+    setStep: (step: GoogleImportStep) => void
+  }>
 
 export function getRetryRequest(
   requests: Map<string, RetryRequest>,
@@ -44,32 +56,53 @@ export async function sendRetryWithOneReplay<T>(send: () => Promise<T>): Promise
   }
 }
 
-type Props = Pick<
-  GoogleImportManagerProps,
-  'initialProgress' | 'getImportStatus' | 'retryImportItem' | 'cancelImport'
-> &
-  Readonly<{
-    step: GoogleImportStep
-    setStep: (step: GoogleImportStep) => void
-  }>
+function terminalImportRevision(progress: ImportProgressDto | undefined): string | null {
+  if (!progress || !isImportParentTerminal(progress.status)) return null
+  return `${progress.importJobId}:${progress.updatedAt}`
+}
 
-export function useGoogleImportProgressController({
+function useTerminalImportInvalidation(
+  progress: ImportProgressDto | undefined,
+  onTerminal: () => Promise<void>,
+): void {
+  const invalidatedRevision = useRef<string | null>(null)
+  useEffect(() => {
+    const revision = terminalImportRevision(progress)
+    if (revision === null || invalidatedRevision.current === revision) return
+    invalidatedRevision.current = revision
+    void onTerminal()
+  }, [onTerminal, progress])
+}
+
+export function useGoogleImportProgress({
   initialProgress,
-  getImportStatus,
-  retryImportItem,
-  cancelImport,
+  importFns,
   step,
   setStep,
 }: Props) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const retryRequests = useRef(new Map<string, RetryRequest>())
-  const { activeImportId, progressQuery, setLoadedImportId } =
-    useGoogleImportProgressQuery({ initialProgress, getImportStatus, step })
+  const [loadedImportId, setLoadedImportId] = useState<string | null>(null)
+  const activeImportId = initialProgress?.importJobId ?? loadedImportId
+  const getImportStatus = importFns.getPropertyImportV2Status
+  const progressQuery = useQuery({
+    ...googleImportStatusQuery(
+      activeImportId ?? 'inactive-google-import',
+      getImportStatus,
+    ),
+    enabled: activeImportId !== null && step === 'progress',
+    initialData:
+      initialProgress?.importJobId === activeImportId ? initialProgress : undefined,
+    refetchInterval: (query) =>
+      googleImportProgressPollInterval(query.state.data, step === 'progress'),
+    refetchIntervalInBackground: false,
+  })
 
   const invalidateCompletedImport = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: propertyKeys.list() })
   }, [queryClient])
+  useTerminalImportInvalidation(progressQuery.data, invalidateCompletedImport)
 
   const loadProgress = useCallback(
     async (importJobId: string) => {
@@ -81,10 +114,7 @@ export function useGoogleImportProgressController({
         params: { importId: importJobId },
       })
     },
-    // `setLoadedImportId` is the `useState` setter returned by
-    // `useGoogleImportProgressQuery` — stable for the hook's lifetime, but it
-    // arrives through a custom hook so the lint rule cannot infer that.
-    [getImportStatus, navigate, queryClient, setLoadedImportId, setStep],
+    [getImportStatus, navigate, queryClient, setStep],
   )
 
   const refresh = useCallback(async (): Promise<ImportProgressDto | null> => {
@@ -104,8 +134,7 @@ export function useGoogleImportProgressController({
     variables: retryVariables,
   } = useMutation({
     mutationFn: async (item: ImportProgressItemDto) => {
-      const progress = progressQuery.data
-      if (!progress) return
+      if (!progressQuery.data) return
       const request = getRetryRequest(
         retryRequests.current,
         item.itemId,
@@ -113,7 +142,7 @@ export function useGoogleImportProgressController({
         () => crypto.randomUUID(),
       )
       const send = () =>
-        retryImportItem({
+        importFns.retryPropertyImportItem({
           data: {
             itemId: item.itemId,
             retryRequestId: request.retryRequestId,
@@ -138,11 +167,11 @@ export function useGoogleImportProgressController({
     },
   })
 
-  const { mutate: cancelImportRequest, isPending: isCancelling } = useMutation({
+  const { mutate: cancelImport, isPending: isCancelling } = useMutation({
     mutationFn: async () => {
       if (!activeImportId) return
       try {
-        const cancelled = await cancelImport({
+        const cancelled = await importFns.cancelPropertyImportV2({
           data: { importJobId: activeImportId },
         })
         queryClient.setQueryData(
@@ -160,20 +189,15 @@ export function useGoogleImportProgressController({
     },
   })
 
-  useTerminalImportInvalidation(progressQuery.data, invalidateCompletedImport)
-
   const retry = useCallback(
     (item: ImportProgressItemDto) => {
-      if (retryPending) return
-      retryItem(item)
+      if (!retryPending) retryItem(item)
     },
     [retryItem, retryPending],
   )
-
   const cancel = useCallback(() => {
-    if (isCancelling || !activeImportId) return
-    cancelImportRequest()
-  }, [activeImportId, cancelImportRequest, isCancelling])
+    if (!isCancelling && activeImportId) cancelImport()
+  }, [activeImportId, cancelImport, isCancelling])
 
   return {
     progress: progressQuery.data ?? null,

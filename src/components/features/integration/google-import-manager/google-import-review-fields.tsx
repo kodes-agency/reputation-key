@@ -14,7 +14,7 @@ import {
   IMPORT_COUNTRY_OPTIONS,
   IMPORT_TIMEZONE_OPTIONS,
 } from './google-import-review-options'
-import type { GoogleImportReviewFormApi } from './use-google-import-review-form'
+import type { GoogleImportReviewFormApi } from './google-import-manager-contract'
 
 type Props = Readonly<{
   form: GoogleImportReviewFormApi

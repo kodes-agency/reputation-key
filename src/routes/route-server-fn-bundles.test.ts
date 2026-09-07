@@ -48,8 +48,8 @@ const bundles = findBundles(ROUTES).map((full) => ({
   source: readFileSync(full, 'utf8'),
 }))
 
-/** `  name: someFn,` — a value property, captured when the module evaluates. */
-const EAGER_MEMBER = /^ {2}([a-zA-Z][a-zA-Z0-9]*):\s*[a-zA-Z][a-zA-Z0-9]*Fn,?$/gmu
+/** `  name: serverFunction,` — a value captured when the module evaluates. */
+const EAGER_MEMBER = /^ {2}([a-zA-Z][a-zA-Z0-9]*):\s*[a-zA-Z][a-zA-Z0-9]*,?$/gmu
 
 /** `  get name() {` — resolved when the property is read. */
 const LAZY_MEMBER = /^ {2}get\s+([a-zA-Z][a-zA-Z0-9]*)\(\)\s*\{$/gmu
@@ -60,6 +60,16 @@ describe('route server-fn bundles', () => {
     const files = bundles.map(({ file }) => file)
     expect(files).toContain(join('src', 'routes', '_authenticated', '-inbox-fns.ts'))
     expect(files).toContain(join('src', 'routes', '-notification-fns.ts'))
+    expect(files).toContain(
+      join(
+        'src',
+        'routes',
+        '_authenticated',
+        'properties',
+        'import-google',
+        '-import-fns.ts',
+      ),
+    )
   })
 
   it('captures no server fn eagerly', () => {

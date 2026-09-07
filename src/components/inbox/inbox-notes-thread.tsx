@@ -7,8 +7,16 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 // Receives addInboxNote server fn as a prop per src/components/CONTEXT.md:55.
 import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
 import { Send, Clock, User } from 'lucide-react'
-import type { InboxNoteView } from '#/contexts/inbox/application/public-api'
+import type {
+  InboxNote,
+  InboxNoteView,
+  InboxRevisionConflictResult,
+} from '#/contexts/inbox/application/public-api'
 import { addInboxNoteFormDto } from '#/contexts/inbox/application/dto/inbox.dto'
+
+type AddInboxNote = (
+  input: Parameters<typeof addInboxNoteFn>[0],
+) => Promise<InboxNote | InboxRevisionConflictResult>
 
 type Props = Readonly<{
   notes: ReadonlyArray<InboxNoteView>
@@ -16,7 +24,7 @@ type Props = Readonly<{
   expectedCommandRevision: number
   currentUserId?: string
   onNoteAdded: (resultingCommandRevision: number) => void
-  addInboxNote: typeof addInboxNoteFn
+  addInboxNote: AddInboxNote
   canAdd?: boolean
 }>
 

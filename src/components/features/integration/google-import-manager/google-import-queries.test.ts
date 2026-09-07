@@ -5,7 +5,7 @@ import { integrationKeys } from '#/shared/queries/query-keys'
 import {
   googleImportProgressPollInterval,
   googleImportStatusQuery,
-} from './google-import-progress-query'
+} from './google-import-queries'
 
 const processing: ImportProgressDto = {
   contractVersion: 3,

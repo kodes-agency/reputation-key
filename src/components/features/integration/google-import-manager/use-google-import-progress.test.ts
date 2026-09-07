@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   getRetryRequest,
   sendRetryWithOneReplay,
-} from './use-google-import-progress-controller'
+} from './use-google-import-progress'
 
 describe('Google import retry request recovery', () => {
   it('reuses one request ID for the same item revision and rotates after revision advance', () => {
