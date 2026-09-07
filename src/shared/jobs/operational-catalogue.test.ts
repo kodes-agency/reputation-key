@@ -63,18 +63,18 @@ describe('job operational catalogue', () => {
     )
   })
 
-  it('retains a removal tombstone for the retired Leaderboard scheduler', () => {
+  it.each([
+    'leaderboard.reconcile',
+    'ai-authorization-derivative-erasure',
+    'ai-review-analysis-backfill-advance',
+  ])('retains a removal tombstone for the retired %s scheduler', (jobName) => {
     const plan = createOperationalSchedulerPlan()
 
     expect(
-      JOB_OPERATIONAL_CONTRACTS.find(
-        (contract) => contract.jobName === 'leaderboard.reconcile',
-      ),
+      JOB_OPERATIONAL_CONTRACTS.find((contract) => contract.jobName === jobName),
     ).toBeUndefined()
-    expect(plan.managedJobNames).toContain('leaderboard.reconcile')
-    expect(plan.desired.map((schedule) => schedule.jobName)).not.toContain(
-      'leaderboard.reconcile',
-    )
+    expect(plan.managedJobNames).toContain(jobName)
+    expect(plan.desired.map((schedule) => schedule.jobName)).not.toContain(jobName)
   })
 
   it('preserves exact interval offsets and cron patterns from governance', () => {

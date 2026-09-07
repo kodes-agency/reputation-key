@@ -31,6 +31,11 @@ const GENERIC_RUNBOOK = 'docs/operations/runbooks.md'
  */
 export const RETIRED_SCHEDULER_JOB_NAMES = Object.freeze([
   'leaderboard.reconcile',
+  // WP3.3-B deleted the AI enrollment/backfill and derivative-erasure families;
+  // both had five-minute background schedulers that a surviving Redis keeps
+  // firing into a worker with no handler.
+  'ai-authorization-derivative-erasure',
+  'ai-review-analysis-backfill-advance',
 ] as const)
 
 /**
