@@ -3,8 +3,6 @@ import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   aiPropertyProcessingProfiles,
-  aiExecutionPermits,
-  aiExecutionPermitSettlements,
   aiOperations,
   merchantAiEnablement,
   properties,
@@ -20,7 +18,9 @@ import type {
   AiSuggestedDraftStore,
 } from '../application/ports/ai-suggested-draft-store.port'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import { replyFromRow } from './mappers/reply.mapper'
+import { assertCurrentAiDraftBinding } from './ai-draft-binding'
 
 const REPLY_DRAFTING_RUNTIME_PROFILE = 'reply-drafting-runtime-v1'
 
@@ -195,31 +195,6 @@ export const createAiSuggestedDraftStore = (
           .where(eq(aiOperations.id, provenance.operationId))
           .limit(1)
           .for('update')
-        const permit = operation
-          ? (
-              await tx
-                .select()
-                .from(aiExecutionPermits)
-                .where(
-                  and(
-                    eq(aiExecutionPermits.operationId, operation.id),
-                    eq(aiExecutionPermits.executionAttempt, operation.executionAttempt),
-                  ),
-                )
-                .limit(1)
-                .for('update')
-            )[0]
-          : undefined
-        const settlement = permit
-          ? (
-              await tx
-                .select()
-                .from(aiExecutionPermitSettlements)
-                .where(eq(aiExecutionPermitSettlements.permitId, permit.id))
-                .limit(1)
-                .for('share')
-            )[0]
-          : undefined
 
         if (
           !operation ||
@@ -233,10 +208,9 @@ export const createAiSuggestedDraftStore = (
           operation.sourceRevision !== provenance.sourceRevision ||
           operation.baseReplyStateRevision !== provenance.baseReplyStateRevision ||
           operation.propertyProfileVersion !== provenance.propertyProfileVersion ||
-          operation.providerDeploymentProfileVersion !==
-            provenance.providerDeploymentProfileVersion ||
-          operation.operationProfileVersion !== provenance.operationProfileVersion ||
-          operation.capabilityRuntimeProfileVersion !== REPLY_DRAFTING_RUNTIME_PROFILE ||
+          provenance.providerDeploymentProfileVersion !==
+            AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion ||
+          provenance.operationProfileVersion !== 'reply-suggestion-v1' ||
           operation.outputLeakageProfileVersion !==
             provenance.outputLeakageProfileVersion ||
           operation.outputLeakageProfileDigest !==
@@ -264,17 +238,10 @@ export const createAiSuggestedDraftStore = (
           operation.deliveredAt === null ||
           operation.expiresAt <= databaseNow ||
           operation.executionAttempt < 1 ||
-          !permit ||
-          permit.route !== 'reply-suggestion' ||
-          permit.state !== 'settled' ||
-          permit.expiresAt <= databaseNow ||
-          !constantEqual(permit.requestBindingHmac, provenance.requestBindingHmac) ||
-          !settlement ||
-          settlement.terminalState !== 'completed' ||
-          settlement.disposition !== 'success' ||
-          settlement.reportedDisposition !== 'success' ||
-          settlement.settlementState !== 'settled' ||
-          !constantEqual(settlement.requestBindingHmac, provenance.requestBindingHmac)
+          operation.executionPermitId === null ||
+          operation.budgetSettledAt === null ||
+          operation.actualMicros === null ||
+          !constantEqual(operation.requestBindingHmac, provenance.requestBindingHmac)
         ) {
           return { status: 'rejected', reason: 'invalid' } as const
         }
@@ -322,8 +289,6 @@ export const createAiSuggestedDraftStore = (
           profile.lifecycleState !== 'active' ||
           profile.sourceEpoch !== provenance.sourceEpoch ||
           profile.profileVersion !== provenance.propertyProfileVersion ||
-          profile.providerDeploymentProfileVersion !==
-            provenance.providerDeploymentProfileVersion ||
           !authorization ||
           authorization.state !== 'enabled' ||
           authorization.authorizationLineageId !== operation.authorizationLineageId ||
@@ -334,7 +299,7 @@ export const createAiSuggestedDraftStore = (
           authorization.sourcePolicyId !== operation.sourcePolicyId ||
           authorization.redactionProfileFamily !== operation.redactionProfileVersion ||
           authorization.providerDeploymentProfileVersion !==
-            provenance.providerDeploymentProfileVersion ||
+            AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion ||
           !authorization.capabilities.includes('reply_drafting') ||
           authorization.capabilityRuntimeProfileVersions.reply_drafting !==
             REPLY_DRAFTING_RUNTIME_PROFILE ||
@@ -509,17 +474,7 @@ export const createAiSuggestedDraftStore = (
       })
     },
     async assertCurrentBinding(input) {
-      const result = await db.execute(
-        sql`SELECT assert_current_ai_draft_binding_v1(
-          ${input.organizationId},
-          ${input.replyId}
-        ) AS "status"`,
-      )
-      const status = result.rows[0]?.status
-      if (status === 'current' || status === 'not_ai' || status === 'stale') {
-        return status
-      }
-      throw new Error('AI reply binding assertion returned an invalid status')
+      return db.transaction((tx) => assertCurrentAiDraftBinding(tx, input))
     },
   }
 }

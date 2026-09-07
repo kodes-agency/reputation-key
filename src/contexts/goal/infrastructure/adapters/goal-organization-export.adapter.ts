@@ -35,105 +35,12 @@ const EXPORT_PAYLOAD_VERSION = 'goal-organization-export/v1' as const
 const SNAPSHOT_BOUND = 'repeatable_read_within_15m_of_request' as const
 
 /**
- * LIF-01 bullet 7, decided per record class. The two receipt tables are
- * idempotency control plane: they record that a timezone change or a refresh
- * event was already consumed, and carry no Goal fact the tenant does not
- * already receive as a period, evaluation, result, or revision.
- */
-const EXCLUDED_RECORD_CLASSES = Object.freeze([
-  {
-    recordClass: 'goal_refresh_receipts',
-    reasonCode: 'content_free_control_plane',
-  },
-  {
-    recordClass: 'goal_timezone_event_receipts',
-    reasonCode: 'content_free_control_plane',
-  },
-  {
-    recordClass: 'evaluation_idempotency_and_source_event_keys',
-    reasonCode: 'content_free_control_plane',
-  },
-])
-
-/**
  * GOA-01: a Goal subject is a Property, a Portal Group, or a Portal. Person-
  * and Team-scoped goals are prohibited, so the export refuses to widen even if
  * a future row were to appear — the archive must not be the place a prohibited
  * scope first becomes visible.
  */
 const EXPORTABLE_SUBJECT_KINDS = sql`('property', 'portal_group', 'portal')`
-
-const GOAL_COLUMNS = [
-  'id',
-  'property_id',
-  'portal_id',
-  'portal_group_id',
-  'name',
-  'description',
-  'goal_type',
-  'aggregation_function',
-  'metric_key',
-  'target_value',
-  'status',
-  'period_start',
-  'period_end',
-  'recurrence_rule',
-  'rolling_window_days',
-  'parent_goal_id',
-  'completed_at',
-  'created_by',
-  'created_at',
-  'updated_at',
-] as const
-
-const GOAL_PROGRESS_COLUMNS = [
-  'goal_id',
-  'current_value',
-  'current_sum',
-  'current_count',
-  'last_computed_at',
-  'computed_source',
-] as const
-
-const DEFINITION_COLUMNS = [
-  'id',
-  'property_id',
-  'scope_kind',
-  'portal_group_id',
-  'name',
-  'description',
-  'status',
-  'status_reason',
-  'current_version',
-  'created_by',
-  'created_at',
-  'updated_at',
-] as const
-
-const DEFINITION_VERSION_COLUMNS = [
-  'id',
-  'definition_id',
-  'property_id',
-  'version',
-  'metric_definition_id',
-  'metric_definition_version_id',
-  'metric_key',
-  'metric_value_kind',
-  'metric_minimum_sample',
-  'metric_allowed_scopes',
-  'metric_permitted_consumers',
-  'metric_employment_decision_eligible',
-  'measure_kind',
-  'target_value',
-  'source_policy',
-  'property_timezone',
-  'recurrence_rule',
-  'effective_from',
-  'effective_to',
-  'change_reason',
-  'created_by',
-  'created_at',
-] as const
 
 const PROGRAM_COLUMNS = [
   'id',
@@ -178,43 +85,6 @@ const SUBJECT_ASSIGNMENT_COLUMNS = [
   'portal_id',
   'effective_from',
   'effective_to',
-  'created_by',
-  'created_at',
-] as const
-
-const PERIOD_COLUMNS = [
-  'id',
-  'definition_id',
-  'definition_version_id',
-  'property_id',
-  'period_start',
-  'period_end',
-  'property_timezone',
-  'status',
-  'status_reason',
-  'evaluation_watermark',
-  'closed_at',
-  'created_at',
-  'updated_at',
-] as const
-
-const EVALUATION_COLUMNS = [
-  'id',
-  'period_id',
-  'definition_id',
-  'definition_version_id',
-  'property_id',
-  'metric_reading_id',
-  'correction_reading_id',
-  'state',
-  'reason',
-  'value',
-  'numerator',
-  'denominator',
-  'sample_count',
-  'achieved',
-  'evaluation_watermark',
-  'supersedes_evaluation_id',
   'created_by',
   'created_at',
 ] as const
@@ -353,7 +223,6 @@ function jsonEntry(family: ExportFamily, asOf: Date): OrganizationExportEntry {
             collection.records,
           ]),
         ),
-        excludedRecordClasses: EXCLUDED_RECORD_CLASSES,
       })}\n`,
       'utf8',
     ),
@@ -391,98 +260,6 @@ async function readFamilies(
   return db.transaction(
     async (snapshot) => {
       await assertBoundedSnapshot(snapshot, asOf)
-
-      // Legacy pre-beta Goal family. It is still tenant-authored configuration
-      // and stays in the archive until CNV-01 retires the rows themselves.
-      const goals = await readRows(
-        snapshot,
-        sql`SELECT
-              id,
-              property_id,
-              portal_id,
-              portal_group_id,
-              name,
-              description,
-              goal_type,
-              aggregation_function,
-              metric_key,
-              target_value,
-              status,
-              to_char(period_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS period_start,
-              to_char(period_end AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS period_end,
-              recurrence_rule::text AS recurrence_rule,
-              rolling_window_days,
-              parent_goal_id,
-              to_char(completed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS completed_at,
-              created_by,
-              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
-              to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
-            FROM goals
-            WHERE organization_id = ${organizationId}
-            ORDER BY property_id, created_at, id`,
-      )
-      const goalProgress = await readRows(
-        snapshot,
-        sql`SELECT
-              goal_id,
-              current_value,
-              current_sum,
-              current_count,
-              to_char(last_computed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS last_computed_at,
-              computed_source
-            FROM goal_progress
-            WHERE organization_id = ${organizationId}
-            ORDER BY goal_id`,
-      )
-
-      const definitions = await readRows(
-        snapshot,
-        sql`SELECT
-              id,
-              property_id,
-              scope_kind,
-              portal_group_id,
-              name,
-              description,
-              status,
-              status_reason,
-              current_version,
-              created_by,
-              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
-              to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
-            FROM goal_definitions
-            WHERE organization_id = ${organizationId}
-            ORDER BY property_id, created_at, id`,
-      )
-      const definitionVersions = await readRows(
-        snapshot,
-        sql`SELECT
-              id,
-              definition_id,
-              property_id,
-              version,
-              metric_definition_id,
-              metric_definition_version_id,
-              metric_key,
-              metric_value_kind,
-              metric_minimum_sample,
-              metric_allowed_scopes::text AS metric_allowed_scopes,
-              metric_permitted_consumers::text AS metric_permitted_consumers,
-              metric_employment_decision_eligible,
-              measure_kind,
-              target_value,
-              source_policy,
-              property_timezone,
-              recurrence_rule::text AS recurrence_rule,
-              to_char(effective_from AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS effective_from,
-              to_char(effective_to AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS effective_to,
-              change_reason,
-              created_by,
-              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
-            FROM goal_definition_versions
-            WHERE organization_id = ${organizationId}
-            ORDER BY definition_id, version`,
-      )
 
       // Canonical beta family: the Program, its immutable version intervals,
       // and the three governed measures (qualified scans, rating count,
@@ -552,55 +329,6 @@ async function readFamilies(
             ORDER BY program_id, program_version_id, effective_from, id`,
       )
 
-      const periods = await readRows(
-        snapshot,
-        sql`SELECT
-              id,
-              definition_id,
-              definition_version_id,
-              property_id,
-              to_char(period_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS period_start,
-              to_char(period_end AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS period_end,
-              property_timezone,
-              status,
-              status_reason,
-              to_char(evaluation_watermark AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS evaluation_watermark,
-              to_char(closed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS closed_at,
-              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
-              to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
-            FROM goal_periods
-            WHERE organization_id = ${organizationId}
-            ORDER BY definition_id, period_start, id`,
-      )
-      // `metric_reading_id` and `correction_reading_id` are kept: they bind an
-      // evaluation to the reading exported under metric/readings.*, which is
-      // the lineage that makes a result checkable rather than asserted.
-      const evaluations = await readRows(
-        snapshot,
-        sql`SELECT
-              id,
-              period_id,
-              definition_id,
-              definition_version_id,
-              property_id,
-              metric_reading_id,
-              correction_reading_id,
-              state,
-              reason,
-              value,
-              numerator,
-              denominator,
-              sample_count,
-              achieved,
-              to_char(evaluation_watermark AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS evaluation_watermark,
-              supersedes_evaluation_id,
-              created_by,
-              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
-            FROM goal_evaluations
-            WHERE organization_id = ${organizationId}
-            ORDER BY period_id, created_at, id`,
-      )
-
       const monthlyResults = await readRows(
         snapshot,
         sql`SELECT
@@ -654,51 +382,6 @@ async function readFamilies(
       // with the archive's UTF-8 byte ordering.
       return [
         {
-          name: 'definitions',
-          collections: [
-            {
-              recordType: 'goal_definition',
-              columns: DEFINITION_COLUMNS,
-              records: projectRows(definitions, DEFINITION_COLUMNS),
-            },
-            {
-              recordType: 'goal_definition_version',
-              columns: DEFINITION_VERSION_COLUMNS,
-              records: projectRows(definitionVersions, DEFINITION_VERSION_COLUMNS),
-            },
-          ],
-        },
-        {
-          name: 'goals',
-          collections: [
-            {
-              recordType: 'goal',
-              columns: GOAL_COLUMNS,
-              records: projectRows(goals, GOAL_COLUMNS),
-            },
-            {
-              recordType: 'goal_progress',
-              columns: GOAL_PROGRESS_COLUMNS,
-              records: projectRows(goalProgress, GOAL_PROGRESS_COLUMNS),
-            },
-          ],
-        },
-        {
-          name: 'periods',
-          collections: [
-            {
-              recordType: 'goal_period',
-              columns: PERIOD_COLUMNS,
-              records: projectRows(periods, PERIOD_COLUMNS),
-            },
-            {
-              recordType: 'goal_evaluation',
-              columns: EVALUATION_COLUMNS,
-              records: projectRows(evaluations, EVALUATION_COLUMNS),
-            },
-          ],
-        },
-        {
           name: 'programs',
           collections: [
             {
@@ -747,14 +430,13 @@ async function readFamilies(
 /**
  * Goal's Organization Export contribution.
  *
- * Exports the three governed measures — qualified scans, rating count, rating
- * average — at Property, Portal Group, and Portal subject scope, with the
- * Program/definition version intervals that make a target and a period
- * boundary reconstructible, plus every monthly result and its revision chain.
+ * Exports each Goal Program and its immutable version intervals, Property,
+ * Portal Group, and Portal subject assignments, and every monthly result with
+ * its revision chain.
  *
- * It reads no metric table: a Goal result already carries its own value,
- * sample count, state, and the reading id it was computed from, so Metric
- * stays the single owner of metric rows.
+ * It reads no metric table: a Goal result carries its own value, sample count,
+ * state, and completeness evidence, while Metric stays the single owner of
+ * metric rows.
  */
 export const createGoalOrganizationExportAdapter = (
   db: Database,

@@ -127,9 +127,8 @@ Worked examples:
   — keying on the fetch would let RepKey hold provider text for as long as it
   keeps looking at it.
 
-The `updated_at` anchors that do exist in the sweep
-(`invited_registration_attempts.settled`, `notification_digest_batches`) are
-operational saga state clocks on content-free rows, not content deadlines. Only
+The `updated_at` anchor on `notification_digest_batches` is an operational saga
+state clock on content-free rows, not a content deadline. Only
 `CONTENT_DEADLINE_CLASSES` is subject to this rule.
 
 ---
@@ -166,19 +165,18 @@ builder is callable and covered by the report-only integration path.
 
 ## 7. Bullet 12 — legacy reconciliation reports
 
-Bullet 12 requires the existing billing, custom-role, multi-Organization, Team
-and legacy-Guest data to be reconciled or archived before migration **without
-erasing the evidence needed to fix the conflicts**. That second clause is why
-every command in this family is read-only: the rows that make a conflict fixable
-are exactly the rows an eager cleanup would delete.
+Bullet 12 requires the existing custom-role, multi-Organization, Team and
+legacy-Guest data to be reconciled or archived before migration **without
+erasing the evidence needed to fix the conflicts**. The retired Better Auth
+billing compatibility columns no longer exist. Every remaining command in
+this family is read-only because its source rows are the evidence.
 
-| Data               | Command                                 | Status                                                           |
-| ------------------ | --------------------------------------- | ---------------------------------------------------------------- |
-| Billing            | `ops:manage-dormant-billing-data`       | Pre-existing (report-first, apply behind a reviewed fingerprint) |
-| Team               | `ops:report-legacy-people-team`         | Pre-existing                                                     |
-| Custom roles       | `ops:report-legacy-custom-roles`        | **New**                                                          |
-| Multi-Organization | `ops:report-legacy-multi-org`           | **New**                                                          |
-| Legacy Guest       | `ops:report-legacy-guest-compatibility` | **New**                                                          |
+| Data               | Command                                 | Status       |
+| ------------------ | --------------------------------------- | ------------ |
+| Team               | `ops:report-legacy-people-team`         | Pre-existing |
+| Custom roles       | `ops:report-legacy-custom-roles`        | **New**      |
+| Multi-Organization | `ops:report-legacy-multi-org`           | **New**      |
+| Legacy Guest       | `ops:report-legacy-guest-compatibility` | **New**      |
 
 All three new commands are read-only, have no apply flag and no write path, and
 emit counts, severities and a state fingerprint only.

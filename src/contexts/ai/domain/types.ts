@@ -5,7 +5,6 @@ import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capabilit
 export type AiOperationId = Brand<string, 'AiOperationId'>
 export type InternalAiSubjectId = Brand<string, 'InternalAiSubjectId'>
 export type InternalActorId = UserId
-export type AiReadDeliveryLease = Brand<unknown, 'AiReadDeliveryLease'>
 
 export type AiProcessingCellResult =
   | Readonly<{
@@ -103,41 +102,9 @@ export type AiExecutionBinding = Readonly<{
   stopFence: AiExecutionStopFence
 }>
 
-export type AiCanaryExecutionBinding = Readonly<{
-  canaryAuthorizationId: string
-  canaryAuthorizationGeneration: number
-  releaseSha: string
-  canaryProfileVersion: string
-  safetyIdentifierProfileVersion: 'synthetic-canary-safety-v1'
-  providerDeploymentProfileVersion: string
-  operationProfileVersion: string
-  stopFence: Readonly<{
-    globalControlId: string
-    globalGeneration: number
-    providerControlId: string
-    providerGeneration: number
-    allCapabilityStopFences: readonly [
-      Readonly<{
-        capability: 'review_analysis'
-        capabilityControlId: string
-        capabilityGeneration: number
-      }>,
-      Readonly<{
-        capability: 'reply_drafting'
-        capabilityControlId: string
-        capabilityGeneration: number
-      }>,
-      Readonly<{
-        capability: 'property_trends'
-        capabilityControlId: string
-        capabilityGeneration: number
-      }>,
-    ]
-  }>
-}>
-export type AiOperationBinding = AiExecutionBinding | AiCanaryExecutionBinding
+export type AiOperationBinding = AiExecutionBinding
 
-export type AiOperationCommand = 'analysis' | 'reply' | 'trend' | 'synthetic_canary'
+export type AiOperationCommand = 'analysis' | 'reply' | 'trend'
 
 export type AiOperationIdentity =
   | Readonly<{
@@ -184,17 +151,6 @@ export type AiOperationIdentity =
       dueLocalDate: string
       terminalAnalysisSequence: number
       aggregateRevision: number
-    }>
-  | Readonly<{
-      subjectKind: 'synthetic_canary'
-      command: 'synthetic_canary'
-      capability: null
-      actorId: null
-      systemPrincipal: 'release_canary'
-      releaseSha: string
-      canaryAuthorizationId: string
-      canaryAuthorizationGeneration: number
-      canaryProfileVersion: string
     }>
 
 export type ReviewAnalysisCurrentnessV1 = Readonly<{

@@ -257,12 +257,10 @@ const verifyPurgeReadiness = async (
  *     append-only guards reject DELETE and TRUNCATE, so this is enforced by the
  *     database and not merely by this file; its retention horizon remains
  *     report-only pending counsel.
- *   * `recent_activity_vocabulary_reconciliations` — content-minimal receipts
- *     (codes, counts, a target fingerprint, the authorizing operator and an
- *     evidence reference) proving an operator was authorized to rewrite
- *     historical vocabulary. They carry no row identifier and no payload, and
- *     their governed exit criteria require export/restore and erasure proof
- *     before any contraction.
+ *   * `activity_vocabulary_reconciliation` idempotency receipts — minimal
+ *     operator authorization records for a historical vocabulary rewrite.
+ *     They are retained here and leave only through the shared 30-day receipt
+ *     sweep.
  *   * `audit_logs` — classified to Activity but written by Identity and Goal,
  *     and named by the lifecycle runbook as the retained privacy-request and
  *     sensitive-data-export trail. Activity does not erase another context's

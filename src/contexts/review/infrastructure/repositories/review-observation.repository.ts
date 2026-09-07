@@ -14,6 +14,7 @@ import {
 } from '#/shared/domain/ids'
 import { sha256Hex } from '#/shared/domain/sha256'
 import type { Tx } from '#/shared/outbox/commit'
+import { deleteAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
 import type {
   MaterialReviewRevision,
   ReviewObservationComparison,
@@ -484,6 +485,12 @@ async function writeObservedReviewRow(
   const persistedRow = persistedRows[0]
   if (!persistedRow) {
     throw reviewError('repo_upsert_failed', 'Review observation returned no row')
+  }
+  if (existing !== null) {
+    await deleteAiDraftsForReview(tx, {
+      organizationId: existing.organizationId,
+      reviewId: existing.id,
+    })
   }
   return persistedRow
 }

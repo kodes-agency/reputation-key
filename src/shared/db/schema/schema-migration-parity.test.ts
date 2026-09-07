@@ -10,11 +10,7 @@ import { describe, it, expect } from 'vitest'
 import { getTableColumns, getTableName } from 'drizzle-orm'
 import { properties } from './property.schema'
 import { reviews } from './review.schema'
-import {
-  reviewSyncState,
-  reviewSyncRuns,
-  inboundWebhookReceipts,
-} from './review-sync.schema'
+import { reviewSyncState, reviewSyncRuns } from './review-sync.schema'
 
 function columnNames(table: Parameters<typeof getTableColumns>[0]): string[] {
   return Object.values(getTableColumns(table)).map((c) => c.name)
@@ -79,14 +75,6 @@ describe('BQR-1.1: schema parity with migrations 0006–0007 and later additions
       expect(cols.has('mode')).toBe(true)
       expect(cols.has('started_at')).toBe(true)
       expect(cols.has('result')).toBe(true)
-    })
-
-    it('registers inbound_webhook_receipts', () => {
-      expect(getTableName(inboundWebhookReceipts)).toBe('inbound_webhook_receipts')
-      const cols = new Set(columnNames(inboundWebhookReceipts))
-      expect(cols.has('provider')).toBe(true)
-      expect(cols.has('topic')).toBe(true)
-      expect(cols.has('message_id')).toBe(true)
     })
   })
 })

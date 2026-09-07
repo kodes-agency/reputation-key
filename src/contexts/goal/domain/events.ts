@@ -2,38 +2,7 @@
 
 import { newEventId } from '#/shared/domain/event-id'
 import { assert } from '#/shared/domain/assert'
-import type {
-  GoalId,
-  OrganizationId,
-  PropertyId,
-  PortalId,
-  PortalGroupId,
-  UserId,
-} from '#/shared/domain/ids'
-import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
-import type { GoalType } from './types'
 import type { GoalMetricEvaluation } from './goal-program'
-import { goalError } from './errors'
-
-export type GoalCompleted = Readonly<{
-  _tag: 'goal.completed'
-  eventId: string
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  portalId: PortalId | null
-  portalGroupId: PortalGroupId | null
-  goalId: GoalId
-  goalType: GoalType
-  aggregationFunction: AggregationFunction
-  metricKey: MetricKey
-  targetValue: number
-  completedValue: number
-  completedAt: Date
-  parentGoalId: GoalId | null
-  userId: UserId
-  occurredAt: Date
-  correlationId: string | null
-}>
 
 type GoalMonthlyResultEventArgs = Readonly<{
   organizationId: string
@@ -110,30 +79,7 @@ export type GoalMonthlyResultRevised = Readonly<{
 }>
 
 export type GoalEvent =
-  | GoalCompleted
-  | GoalMonthlyResultClosed
-  | GoalMonthlyResultReconciled
-  | GoalMonthlyResultRevised
-
-export const goalCompleted = (
-  args: Omit<GoalCompleted, '_tag' | 'eventId' | 'correlationId'> &
-    Readonly<{ correlationId?: string | null }>,
-): GoalCompleted => {
-  assert(args.completedAt instanceof Date, 'completedAt must be Date')
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  if (typeof args.targetValue !== 'number' || isNaN(args.targetValue)) {
-    throw goalError('validation_error', 'targetValue must be a valid number')
-  }
-  if (typeof args.completedValue !== 'number' || isNaN(args.completedValue)) {
-    throw goalError('validation_error', 'completedValue must be a valid number')
-  }
-  return {
-    _tag: 'goal.completed',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
+  GoalMonthlyResultClosed | GoalMonthlyResultReconciled | GoalMonthlyResultRevised
 
 function validateMonthlyResultEvent(
   args: GoalMonthlyResultEventArgs,

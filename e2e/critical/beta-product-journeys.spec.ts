@@ -348,16 +348,22 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByRole('heading', { name: guestTitle })).toBeVisible()
   })
 
-  test('P2 and cross-tenant P3 deny promoted routes and public tokens', async ({
+  test('cross-tenant P3 denies promoted routes; unpublished public tokens stay dark', async ({
     page,
   }) => {
     const log = attachRequestLog(page)
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
 
+    // Capability policy is organization-wide (WP3.3-C): P2 is an ordinary
+    // property of the allowlisted org, so its promoted route serves.
     await page.goto(`/properties/${seed.p2PropertyId}/portals`)
-    await expectControlledUnavailable(page, 'Portals', 'needs_admin_enablement')
+    await expect(page).not.toHaveURL(/\/unavailable/)
+    await expect(page.getByRole('heading', { name: /portals/i }).first()).toBeVisible()
+    // Cross-tenant P3 is invisible to org A: tenant isolation answers with the
+    // not-found surface, never with a capability hint or P3 content.
     await page.goto(`/properties/${seed.p3PropertyId}/portals`)
-    await expectControlledUnavailable(page, 'Portals', 'needs_admin_enablement')
+    await expect(page.getByText(/doesn't exist|not found/i).first()).toBeVisible()
+    await expect(page.getByText('E2E Guest Portal P3')).toHaveCount(0)
     await page.goto(`/p/${seed.p2PortalToken}`)
     await expectPublicUnavailable(page)
     await expect(page.getByText('E2E Guest Portal P2')).toHaveCount(0)
@@ -410,68 +416,6 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     )
   })
 
-  test('property suspension and organization capability kill switches stop P1 immediately', async ({
-    page,
-  }) => {
-    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
-    const policyFile = 'src/contexts/identity/server/policy-admin.ts'
-
-    await callServerFn(page, {
-      file: policyFile,
-      exportName: 'setPropertySuspensionFn',
-      data: {
-        propertyId: seed.p1PropertyId,
-        suspend: true,
-        reason: 'E2E property containment probe',
-        ticketRef: 'E2E-PS1',
-      },
-    })
-    try {
-      await page.goto(`/properties/${seed.p1PropertyId}/portals`)
-      // The property is suspended, and the suspension check precedes tenancy.
-      await expectControlledUnavailable(page, 'Portals', 'temporarily_unavailable')
-      await page.goto(`/p/${seed.portalToken}`)
-      await expectPublicUnavailable(page)
-    } finally {
-      await callServerFn(page, {
-        file: policyFile,
-        exportName: 'setPropertySuspensionFn',
-        data: {
-          propertyId: seed.p1PropertyId,
-          suspend: false,
-          reason: 'E2E property containment restored',
-          ticketRef: 'E2E-PS1',
-        },
-      })
-    }
-
-    await callServerFn(page, {
-      file: policyFile,
-      exportName: 'setOrgCapabilityFn',
-      data: {
-        capability: 'portal.public_read',
-        enabled: false,
-        reason: 'E2E public Portal kill-switch probe',
-      },
-    })
-    try {
-      await page.goto(`/p/${seed.portalToken}`)
-      await expectPublicUnavailable(page)
-    } finally {
-      await callServerFn(page, {
-        file: policyFile,
-        exportName: 'setOrgCapabilityFn',
-        data: {
-          capability: 'portal.public_read',
-          enabled: true,
-          reason: 'E2E public Portal kill-switch restored',
-        },
-      })
-    }
-    await page.goto(`/p/${seed.portalToken}`)
-    await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
-  })
-
   test('cross-property Portal and email resources fail closed', async ({ page }) => {
     const log = attachRequestLog(page)
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
@@ -491,10 +435,13 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByText('E2E Guest Portal P1')).toHaveCount(0)
     await expect(page.getByText('E2E Guest Portal P2')).toHaveCount(0)
 
+    // The tenant boundary is P3 (locked Org B). P2 is an ordinary property of
+    // this organization since capability policy became organization-wide
+    // (WP3.3-C), so its portal reads and mutations are legitimately in scope.
     const portalDenial = await callServerFnGetExpectError(page, {
       file: 'src/contexts/portal/server/portals.ts',
       exportName: 'getPortal',
-      data: { portalId: seed.p2PortalId },
+      data: { portalId: seed.p3PortalId },
     })
     expect(portalDenial.message ?? portalDenial.code ?? '').toMatch(
       /error|denied|forbidden|not found/i,
@@ -503,15 +450,15 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       file: 'src/contexts/portal/server/portals.ts',
       exportName: 'updatePortal',
       data: {
-        portalId: seed.p2PortalId,
-        description: 'This cross-property mutation must remain inert.',
+        portalId: seed.p3PortalId,
+        description: 'This cross-tenant mutation must remain inert.',
       },
     })
     expect(portalMutationDenial.message ?? portalMutationDenial.code ?? '').toMatch(
       /error|denied|forbidden|not found/i,
     )
 
-    for (const propertyId of [seed.p2PropertyId, seed.p3PropertyId]) {
+    for (const propertyId of [seed.p3PropertyId]) {
       const emailPreferenceDenial = await callServerFnExpectError(page, {
         file: 'src/contexts/notification/server/notifications.ts',
         exportName: 'updateNotificationPreferenceFn',
@@ -534,7 +481,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     log.assertNoExternalHosts([BASE_HOST])
   })
 
-  test('qualified guest scans project into an evaluated governed P1 goal while P2 direct navigation is denied', async ({
+  test('qualified guest scans project into an evaluated governed P1 goal that P2 and P3 never see', async ({
     page,
     context,
   }) => {
@@ -631,13 +578,15 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     expect(projectedScans).toHaveLength(qualifiedScanCount)
 
     /*
-     * Goal Programs only evaluate complete property-local months. A browser
-     * test cannot wait until October, so place these newly produced facts in
-     * the previous complete month and give the real create command a matching
-     * temporal version/result head. No metric value or result is seeded: the
-     * queued production maintenance job must still derive both from the real
-     * guest facts and their metric projections.
+     * Goal Programs only evaluate completed catalogue intervals. A browser test
+     * cannot wait for a newly created program, so place these newly produced
+     * facts in the first completed interval governed by the frozen metric
+     * version and give the real create command a matching temporal result head.
+     * No metric value or result is seeded: the queued production maintenance
+     * job must still derive both from the real guest facts and their metric
+     * projections.
      */
+
     const [period] = await dbQuery<{
       period_start: Date
       period_end: Date
@@ -801,86 +750,56 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     )
     expect(temporalized).toEqual([{ id: created.program.id }])
 
-    const metricVersionId = '11111111-1111-4111-8111-111111111301'
-    const [metricVersion] = await dbQuery<{ effective_from: Date }>(
-      `SELECT effective_from
-       FROM metric_definition_versions
-       WHERE id = $1::uuid`,
-      [metricVersionId],
-    )
-    expect(metricVersion).toBeTruthy()
-    if (!metricVersion) throw new Error('Qualified scan metric version is missing')
-
-    let evaluated: {
-      evaluation_state: string
-      value: string | null
-      sample_count: number
-    }
-    await dbQuery(
-      `UPDATE metric_definition_versions
-       SET effective_from = $2::timestamptz
-       WHERE id = $1::uuid`,
-      [metricVersionId, period.period_start],
-    )
-    try {
-      await enqueueGoalProgramMaintenance({
-        organizationId: seed.organizationId,
-        propertyId: seed.p1PropertyId,
-      })
-      evaluated = await waitFor(
-        async () => {
-          const [result] = await dbQuery<{
-            evaluation_state: string
-            value: string | null
-            sample_count: number
-          }>(
-            `SELECT evaluation_state, value::text, sample_count
+    await enqueueGoalProgramMaintenance({
+      organizationId: seed.organizationId,
+      propertyId: seed.p1PropertyId,
+    })
+    const evaluated = await waitFor(
+      async () => {
+        const [result] = await dbQuery<{
+          evaluation_state: string
+          value: string | null
+          sample_count: number
+        }>(
+          `SELECT evaluation_state, value::text, sample_count
+           FROM goal_monthly_results
+           WHERE organization_id = $1 AND property_id = $2::uuid
+             AND program_id = $3::uuid
+             AND period_start = $4::timestamptz
+             AND period_end = $5::timestamptz`,
+          [
+            seed.organizationId,
+            seed.p1PropertyId,
+            created.program.id,
+            period.period_start,
+            period.period_end,
+          ],
+        )
+        return result?.evaluation_state === 'eligible' &&
+          Number(result.value) === qualifiedScanCount &&
+          result.sample_count === qualifiedScanCount
+          ? result
+          : null
+      },
+      {
+        description: 'goal maintenance evaluates the projected qualified scans',
+        diagnose: async () => ({
+          results: await dbQuery(
+            `SELECT status, evaluation_state, value, sample_count, reason
              FROM goal_monthly_results
-             WHERE organization_id = $1 AND property_id = $2::uuid
-               AND program_id = $3::uuid
-               AND period_start = $4::timestamptz
-               AND period_end = $5::timestamptz`,
-            [
-              seed.organizationId,
-              seed.p1PropertyId,
-              created.program.id,
-              period.period_start,
-              period.period_end,
-            ],
-          )
-          return result?.evaluation_state === 'eligible' &&
-            Number(result.value) === qualifiedScanCount &&
-            result.sample_count === qualifiedScanCount
-            ? result
-            : null
-        },
-        {
-          description: 'goal maintenance evaluates the projected qualified scans',
-          diagnose: async () => ({
-            results: await dbQuery(
-              `SELECT status, evaluation_state, value, sample_count, reason
-               FROM goal_monthly_results
-               WHERE program_id = $1::uuid`,
-              [created.program.id],
-            ),
-            backgroundJobs: await dbQuery(
-              `SELECT event_type, published_at
-               FROM outbox_events
-               WHERE source_aggregate_id = $1
-               ORDER BY created_at, id`,
-              [created.program.id],
-            ),
-          }),
-        },
-      )
-    } finally {
-      await dbQuery(
-        `UPDATE metric_definition_versions
-         SET effective_from = $2::timestamptz
-         WHERE id = $1::uuid`,
-        [metricVersionId, metricVersion.effective_from],
-      )
-    }
+             WHERE program_id = $1::uuid`,
+            [created.program.id],
+          ),
+          backgroundJobs: await dbQuery(
+            `SELECT event_type, published_at
+             FROM outbox_events
+             WHERE source_aggregate_id = $1
+             ORDER BY created_at, id`,
+            [created.program.id],
+          ),
+        }),
+      },
+    )
     expect(Number(evaluated.value)).toBe(qualifiedScanCount)
     expect(evaluated.sample_count).toBe(qualifiedScanCount)
 
@@ -897,10 +816,15 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await page.reload()
     await expect(resultRow).toHaveCount(1)
 
+    // P2 is an ordinary property of the allowlisted org (WP3.3-C): its goals
+    // surface serves and carries none of P1's program. Cross-tenant P3 answers
+    // not-found without leaking the program.
     await page.goto(`/properties/${seed.p2PropertyId}/goals`)
-    await expectControlledUnavailable(page, 'Goals', 'needs_admin_enablement')
+    await expect(page).not.toHaveURL(/\/unavailable/)
+    await expect(page.getByText(activeGoalName)).toHaveCount(0)
     await page.goto(`/properties/${seed.p3PropertyId}/goals/${governedGoalDefinitionId}`)
-    await expectControlledUnavailable(page, 'Goals', 'needs_admin_enablement')
+    await expect(page.getByText(/doesn't exist|not found/i).first()).toBeVisible()
+    await expect(page.getByText(activeGoalName)).toHaveCount(0)
   })
 
   test('manager creates, revises, pauses, resumes, and cancels a governed P1 group Goal', async ({
@@ -977,19 +901,22 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       ]),
     )
 
-    // P2 has the capability switched off, so the same command is refused there.
+    // P3 belongs to locked Org B, so the same command is refused across the
+    // tenant boundary (P2 is in-org since capability policy is organization-wide).
     const denied = await callServerFnExpectError(page, {
       file: 'src/contexts/goal/server/goal-programs.ts',
       exportName: 'createGoalProgram',
       data: {
-        propertyId: seed.p2PropertyId,
+        propertyId: seed.p3PropertyId,
         name: `Denied ${goalName}`,
         metric: 'qualified_scans',
         targetValue: 1,
-        subjects: [{ kind: 'property', propertyId: seed.p2PropertyId }],
+        subjects: [{ kind: 'property', propertyId: seed.p3PropertyId }],
       },
     })
-    expect(denied.message ?? denied.code ?? '').toMatch(/error|denied|forbidden/i)
+    expect(denied.message ?? denied.code ?? '').toMatch(
+      /error|denied|forbidden|not.?found/i,
+    )
 
     // A target the metric's own rule refuses: counts must be positive integers.
     const invalidTarget = await callServerFnExpectError(page, {

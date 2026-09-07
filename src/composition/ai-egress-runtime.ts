@@ -31,11 +31,9 @@
 // signing — survives this collapse untouched and is still the only path to the
 // provider.
 //
-// WHAT DOES NOT CHANGE. The admission decision is still a Postgres state
-// machine (`admit_ai_property_v1`), so at-most-once per grant still holds across
-// web and worker; it simply runs on this process's own pool instead of a second
-// connection as a second role. The settlement receipt is still signed and
-// verified — it stops being load-bearing once no reply crosses a wire, but
+// Admission now runs in process against live kill-switch and monthly budget rows.
+// At-most-once per grant still holds across web and worker through the operation
+// idempotency key. The settlement receipt remains signed and verified — it
 // removing it touches both service bodies and their orchestration tests, so it
 // is a separate step rather than a passenger on this one.
 
@@ -58,7 +56,8 @@ import {
   createAiExecutionAdmissionService,
   type AiExecutionAdmissionService,
 } from '#/shared/ai-provider-control/admission-service'
-import { createPostgresAiAdmissionAuthority } from '#/shared/ai-provider-control/postgres-admission-authority'
+import { createPostgresAiAdmissionAuthority } from '#/shared/db/ai/postgres-admission-authority'
+import type { AiAdmissionRateLimiter } from '#/shared/db/ai/ai-budget'
 import { createAiGatewayRoutePreparer } from '#/shared/ai-provider-control/route-preparer'
 import { createOpenAiConnector } from '#/shared/ai-provider-control/openai-connector'
 import { createLocalAiProviderFetch } from '#/shared/ai-provider-control/local-provider-fetch'
@@ -154,6 +153,8 @@ export function createAiEgressRuntime(
   input: Readonly<{
     env: Env
     pool: Pool
+    admissionRateLimiter: AiAdmissionRateLimiter
+    clock: () => Date
     runtimeEnvironment: Readonly<Record<string, string | undefined>>
   }>,
 ): AiEgressRuntime {
@@ -222,6 +223,8 @@ export function createAiEgressRuntime(
         database: createPostgresAiAdmissionAuthority({
           pool: input.pool,
           signingKid: admissionKid,
+          rateLimiter: input.admissionRateLimiter,
+          now: input.clock,
         }),
       }),
     )

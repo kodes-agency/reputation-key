@@ -33,40 +33,6 @@ export const organizationSchema = {
         input: true,
         required: false,
       },
-      // Compatibility storage only. Better Auth must retain these columns in
-      // its schema authority while excluding them from every API input and
-      // response. Removal waits for the separately approved erase/contraction
-      // lifecycle; dormant data is not a beta product surface.
-      billingCompanyName: {
-        type: 'string' as const,
-        input: false,
-        returned: false,
-        required: false,
-      },
-      billingAddress: {
-        type: 'string' as const,
-        input: false,
-        returned: false,
-        required: false,
-      },
-      billingCity: {
-        type: 'string' as const,
-        input: false,
-        returned: false,
-        required: false,
-      },
-      billingPostalCode: {
-        type: 'string' as const,
-        input: false,
-        returned: false,
-        required: false,
-      },
-      billingCountry: {
-        type: 'string' as const,
-        input: false,
-        returned: false,
-        required: false,
-      },
     },
   },
 } as const

@@ -23,7 +23,7 @@ import {
 } from './activity-organization-lifecycle.adapter'
 import type { Database } from '#/shared/db'
 
-/** The exact grammar `context_organization_lifecycle_receipts` enforces. */
+/** The content-free evidence grammar stored in lifecycle event payloads. */
 const CONTENT_FREE = /^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$/u
 
 function sourceFiles(directory: string): string[] {

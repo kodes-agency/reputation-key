@@ -383,58 +383,6 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
     ).resolves.toBeNull()
   })
 
-  it('prevents snapshot rewrites and permits only one-time activation closure', async () => {
-    const published = snapshot(
-      1,
-      'Published immutable name',
-      'f5000000-0000-4000-8000-000000000001',
-    )
-    await getDb().insert(portalPublicationSnapshots).values(snapshotRow(published))
-    await getDb().insert(portalPublicationActivations).values({
-      id: 'f5100000-0000-4000-8000-000000000001',
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
-      snapshotId: published.id,
-      activationSequence: 1,
-      kind: 'publish',
-      activatedBy: 'manager-publication-1',
-      activatedAt: published.createdAt,
-    })
-
-    await expect(
-      getPool().query(
-        `UPDATE portal_publication_snapshots
-         SET configuration = jsonb_set(configuration, '{portal,name}', '"rewritten"')
-         WHERE id = $1`,
-        [published.id],
-      ),
-    ).rejects.toMatchObject({ code: '55000' })
-    await expect(
-      getPool().query(
-        `UPDATE portal_publication_activations SET kind = 'rollback' WHERE id = $1`,
-        ['f5100000-0000-4000-8000-000000000001'],
-      ),
-    ).rejects.toMatchObject({ code: '55000' })
-
-    const closedAt = new Date(NOW.getTime() + 1_000)
-    await expect(
-      getPool().query(
-        `UPDATE portal_publication_activations
-         SET deactivated_at = $1, deactivation_reason = 'disabled'
-         WHERE id = $2`,
-        [closedAt, 'f5100000-0000-4000-8000-000000000001'],
-      ),
-    ).resolves.toMatchObject({ rowCount: 1 })
-    await expect(
-      getPool().query(
-        `UPDATE portal_publication_activations
-         SET deactivated_at = $1 WHERE id = $2`,
-        [new Date(closedAt.getTime() + 1_000), 'f5100000-0000-4000-8000-000000000001'],
-      ),
-    ).rejects.toMatchObject({ code: '55000' })
-  })
-
   it('rejects guest evidence that names the right snapshot with the wrong version', async () => {
     const published = snapshot(
       1,

@@ -14,6 +14,7 @@ import {
 } from '#/shared/domain/ids'
 import { replyFromRow, replyToRow } from '../mappers/reply.mapper'
 import { buildReplySetClause } from '../reply-set-clause'
+import { assertCurrentAiDraftBinding } from '../ai-draft-binding'
 import { reviewError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
 
@@ -227,13 +228,11 @@ export const createReplyRepository = (
     return trace('reply.conditionalUpdate', async () => {
       const updatedAt = now ?? clock()
       return db.transaction(async (tx) => {
-        const assertion = await tx.execute(
-          sql`SELECT assert_current_ai_draft_binding_v1(
-            ${organizationId},
-            ${id}
-          ) AS "status"`,
-        )
-        if (assertion.rows[0]?.status === 'stale') return null
+        const binding = await assertCurrentAiDraftBinding(tx, {
+          organizationId,
+          replyId: id,
+        })
+        if (binding === 'stale') return null
 
         const result = await tx
           .update(replies)

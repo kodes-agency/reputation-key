@@ -48,7 +48,7 @@ const GOVERNED_TABLES: ReadonlyArray<string> = [
   'outbox_events',
   'event_consumer_receipts',
   'review_sync_state',
-  'inbound_webhook_receipts',
+  'idempotency_receipts',
   'feedback',
   'ratings',
   'scan_events',

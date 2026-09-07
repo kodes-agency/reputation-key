@@ -135,8 +135,7 @@ async function recordPortalMetrics<E extends PortalMetricEvent>(
   if (
     results.some(
       (result) =>
-        result.status === 'quarantined' &&
-        result.reason === 'superseded_reading_not_found',
+        result.status === 'rejected' && result.reason === 'superseded_reading_not_found',
     )
   ) {
     // Ordered retry must converge before the delivery receipt is accepted.

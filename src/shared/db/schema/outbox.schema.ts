@@ -58,6 +58,15 @@ export const outboxEvents = pgTable(
       'outbox_events_recovery_fence_pair_check',
       sql`(${table.recoveryFenceRunId} IS NULL) = (${table.recoveryFencedAt} IS NULL)`,
     ),
+    check(
+      'outbox_events_identity_member_invited_v2_check',
+      sql`${table.eventType} <> 'identity.member.invited'
+        OR (
+          ${table.eventVersion} = 2
+          AND jsonb_typeof(${table.payload}) = 'object'
+          AND NOT (${table.payload} ? 'email')
+        )`,
+    ),
   ],
 )
 
@@ -78,6 +87,28 @@ export const eventConsumerReceipts = pgTable(
     check(
       'event_consumer_receipts_status_check',
       sql`${table.status} IN ('applied', 'duplicate', 'obsolete')`,
+    ),
+  ],
+)
+// ── idempotency_receipts ───────────────────────────────────────────
+
+export const idempotencyReceipts = pgTable(
+  'idempotency_receipts',
+  {
+    scope: text('scope').notNull(),
+    key: text('key').notNull(),
+    payload: jsonb('payload')
+      .$type<Readonly<Record<string, unknown>>>()
+      .notNull()
+      .default({}),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.scope, table.key] }),
+    index('idempotency_receipts_recorded_at_idx').on(
+      table.recordedAt,
+      table.scope,
+      table.key,
     ),
   ],
 )

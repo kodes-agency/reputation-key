@@ -258,23 +258,6 @@ describe.sequential('private-feedback handling store (PostgreSQL)', () => {
       ),
     ).rejects.toThrow('must preserve and directly supersede completion facts')
 
-    await expect(
-      pool.query(
-        `UPDATE inbox_feedback_handling_outcomes
-         SET internal_note = 'rewritten' WHERE inbox_item_id = $1`,
-        [ITEM],
-      ),
-    ).rejects.toThrow('immutable')
-    await expect(
-      pool.query(
-        'DELETE FROM inbox_feedback_handling_outcomes WHERE inbox_item_id = $1',
-        [ITEM],
-      ),
-    ).rejects.toThrow('immutable')
-    await expect(
-      pool.query('TRUNCATE TABLE inbox_feedback_handling_outcomes'),
-    ).rejects.toThrow('immutable')
-
     await pool.query('DELETE FROM inbox_items WHERE id = $1', [ITEM])
     const cascade = await pool.query(
       'SELECT count(*)::int AS count FROM inbox_feedback_handling_outcomes WHERE inbox_item_id = $1',

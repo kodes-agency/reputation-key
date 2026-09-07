@@ -19,9 +19,8 @@
 //     BQC-7.7 disposition in runbooks.md §9). Their phase-doc injection
 //     requirement is satisfied by that external evidence, not app dispatch.
 //   - "Multi-window/burn-rate where traffic supports it": beta traffic does
-//     not support burn-rate math. Windows here are the honest impact proxies
-//     (age thresholds, a 1h denial window, sustained-waiting pool pressure)
-//     — no alert pages on a raw count without an impact reading.
+//     not support burn-rate math. Windows here are honest impact proxies
+//     rather than pages on raw counts.
 //
 // Thresholds are named exported constants so the injection suite pins the
 // exact contract.
@@ -63,8 +62,6 @@ export type AlertEvent = Readonly<{
 export type AlertAuxReads = Readonly<{
   /** retention_runs subjects whose LATEST run failed (subject names only). */
   retentionFailedSubjects: readonly string[]
-  /** policy_decision_audit denials in the trailing drift window, by reason. */
-  policyDenialsByReason: Readonly<Record<string, number>>
   /** Content-free age/count of delivered native feedback awaiting resolution. */
   betaFeedbackTriage: Readonly<{
     /** false means the PostgreSQL observation failed and must alert fail-visible. */
@@ -173,15 +170,6 @@ export const SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS = 2 * 24 * 60 * 60
 export const REPLY_AMBIGUOUS_ALERT_MS = 15 * 60 * 1000
 
 /**
- * Deployment-drift signal: denials in the trailing hour above this count
- * indicate a mis-deployed policy/config, not organic traffic. STARTING POINT
- * — tune with real beta traffic (the 1h window + threshold is the impact
- * proxy; the phase doc forbids paging on raw counts without impact).
- */
-export const POLICY_DENIAL_DRIFT_THRESHOLD = 50
-export const POLICY_DENIAL_DRIFT_WINDOW_MS = 60 * 60 * 1000
-
-/**
  * A delivered native-feedback report unresolved for three days is an
  * operational backlog. The support target remains a next-business-day
  * expectation rather than an SLA; 72h avoids a permanent weekend page while
@@ -243,16 +231,6 @@ function registered(
   }>,
 ): AlertDefinition {
   return { ...def, owner: OWNER, implemented: false, evaluate: null }
-}
-
-function sumReasons(byReason: Readonly<Record<string, number>>): number {
-  return Object.values(byReason).reduce((a, b) => a + b, 0)
-}
-
-function reasonSplit(byReason: Readonly<Record<string, number>>): string {
-  return Object.entries(byReason)
-    .map(([reason, count]) => `${reason}=${count}`)
-    .join(', ')
 }
 
 // ── Definitions ────────────────────────────────────────────────────
@@ -720,23 +698,6 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       return {
         value: oldestAmbiguousAgeMs,
         detail: `oldest ambiguous reply publication is ${oldestAmbiguousAgeMs}ms past reconcile_due — the 30-min reconcile sweep is not keeping up`,
-      }
-    },
-  }),
-
-  // ── repeated policy/config denial indicating deployment drift ──
-  define({
-    name: 'policy.denial-drift',
-    severity: 'P2',
-    runbook: 'runbooks.md §9',
-    windowMs: POLICY_DENIAL_DRIFT_WINDOW_MS,
-    threshold: POLICY_DENIAL_DRIFT_THRESHOLD,
-    read: (_snapshot, aux) => {
-      const total = sumReasons(aux.policyDenialsByReason)
-      if (total <= POLICY_DENIAL_DRIFT_THRESHOLD) return null
-      return {
-        value: total,
-        detail: `${total} policy denials in the last hour (threshold ${POLICY_DENIAL_DRIFT_THRESHOLD}) — possible deployment drift (${reasonSplit(aux.policyDenialsByReason)})`,
       }
     },
   }),

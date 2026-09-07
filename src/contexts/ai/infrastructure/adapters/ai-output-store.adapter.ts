@@ -10,9 +10,7 @@ import {
   CLOSED_TREND_SIGNAL_IDS,
 } from '#/shared/ai-property-trend-contract'
 import {
-  aiOperationAttempts,
   aiOperations,
-  aiProductVolumeConsumptions,
   aiExecutionControlHeads,
   aiPropertyAggregateHeads,
   aiPropertyProcessingProfiles,
@@ -20,12 +18,13 @@ import {
   aiPropertyTrendSchedules,
   aiReviewAnalyses,
   aiReviewAnalysisEnrollments,
-  aiReviewEventCursors,
   merchantAiEnablement,
   reviews,
   reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import type {
   AiOutputStorePort,
   AiTrendEvidence,
@@ -35,10 +34,6 @@ import type {
   ReviewAnalysisCurrentnessV1,
   ReviewAnalysisReadV1,
 } from '../../domain/types'
-import {
-  acquireAiReadDeliveryLease,
-  assertAiReadDeliveryLease,
-} from './ai-read-barrier.adapter'
 import { addDays } from '../../application/local-date'
 
 function currentness(
@@ -283,24 +278,21 @@ type AiOutputCapability = 'review_analysis' | 'reply_drafting' | 'property_trend
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 
 type AuthorizedEffectOperation = Readonly<{
-  organizationId: string | null
-  propertyId: string | null
+  organizationId: string
+  propertyId: string
   sourceEpoch: number | null
   authorizationLineageId: string | null
   noticeVersion: string | null
   noticeDigest: string | null
   propertyProfileVersion: number | null
-  routingPolicyVersion: number | null
   sourcePolicyId: string | null
   redactionProfileVersion: string | null
-  providerDeploymentProfileVersion: string
-  capabilityRuntimeProfileVersion: string | null
   globalControlId: string
   globalControlGeneration: number
   providerControlId: string
   providerControlGeneration: number
-  capabilityControlId: string | null
-  capabilityControlGeneration: number | null
+  capabilityControlId: string
+  capabilityControlGeneration: number
 }>
 
 async function isCurrentAuthorizedEffect(
@@ -313,23 +305,17 @@ async function isCurrentAuthorizedEffect(
 ): Promise<boolean> {
   const operation = input.operation
   if (
-    operation.organizationId === null ||
-    operation.propertyId === null ||
     operation.sourceEpoch === null ||
     operation.authorizationLineageId === null ||
     operation.noticeVersion === null ||
     operation.noticeDigest === null ||
     operation.propertyProfileVersion === null ||
-    operation.routingPolicyVersion === null ||
     operation.sourcePolicyId === null ||
-    operation.redactionProfileVersion === null ||
-    operation.capabilityRuntimeProfileVersion === null ||
-    operation.capabilityControlId === null ||
-    operation.capabilityControlGeneration === null
+    operation.redactionProfileVersion === null
   ) {
     return false
   }
-
+  const runtime = getAiRuntimeCapability(input.capability)
   const [authorization] = await tx
     .select({
       state: merchantAiEnablement.state,
@@ -344,7 +330,6 @@ async function isCurrentAuthorizedEffect(
       noticeVersion: merchantAiEnablement.noticeVersion,
       noticeDigest: merchantAiEnablement.noticeDigest,
       sourcePolicyId: merchantAiEnablement.sourcePolicyId,
-      routingPolicyVersion: merchantAiEnablement.routingPolicyVersion,
       providerDeploymentProfileVersion:
         merchantAiEnablement.providerDeploymentProfileVersion,
       redactionProfileFamily: merchantAiEnablement.redactionProfileFamily,
@@ -364,14 +349,13 @@ async function isCurrentAuthorizedEffect(
     authorization.authorizationLineageId !== operation.authorizationLineageId ||
     !authorization.capabilities.includes(input.capability) ||
     authorization.capabilityRuntimeProfileVersions[input.capability] !==
-      operation.capabilityRuntimeProfileVersion ||
+      runtime.runtimeProfileVersion ||
     authorization.authorizedSourceEpoch !== operation.sourceEpoch ||
     authorization.noticeVersion !== operation.noticeVersion ||
     authorization.noticeDigest !== operation.noticeDigest ||
     authorization.sourcePolicyId !== operation.sourcePolicyId ||
-    authorization.routingPolicyVersion !== operation.routingPolicyVersion ||
     authorization.providerDeploymentProfileVersion !==
-      operation.providerDeploymentProfileVersion ||
+      AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion ||
     authorization.redactionProfileFamily !== operation.redactionProfileVersion ||
     (input.capability !== 'reply_drafting' &&
       authorization.reviewAnalysisEpoch !== input.capabilityFence.reviewAnalysisEpoch) ||
@@ -388,9 +372,6 @@ async function isCurrentAuthorizedEffect(
       lifecycleState: aiPropertyProcessingProfiles.lifecycleState,
       sourceEpoch: aiPropertyProcessingProfiles.sourceEpoch,
       profileVersion: aiPropertyProcessingProfiles.profileVersion,
-      routingPolicyVersion: aiPropertyProcessingProfiles.routingPolicyVersion,
-      providerDeploymentProfileVersion:
-        aiPropertyProcessingProfiles.providerDeploymentProfileVersion,
     })
     .from(aiPropertyProcessingProfiles)
     .where(
@@ -405,14 +386,12 @@ async function isCurrentAuthorizedEffect(
     !profile ||
     profile.lifecycleState !== 'active' ||
     profile.sourceEpoch !== operation.sourceEpoch ||
-    profile.profileVersion !== operation.propertyProfileVersion ||
-    profile.routingPolicyVersion !== operation.routingPolicyVersion ||
-    profile.providerDeploymentProfileVersion !==
-      operation.providerDeploymentProfileVersion
+    profile.profileVersion !== operation.propertyProfileVersion
   ) {
     return false
   }
 
+  const providerScope = `provider:${AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion}`
   const controls = await tx
     .select({
       scopeKey: aiExecutionControlHeads.scopeKey,
@@ -425,7 +404,7 @@ async function isCurrentAuthorizedEffect(
     .where(
       inArray(aiExecutionControlHeads.scopeKey, [
         'global',
-        `provider:${operation.providerDeploymentProfileVersion}`,
+        providerScope,
         `capability:${input.capability}`,
       ]),
     )
@@ -444,7 +423,7 @@ async function isCurrentAuthorizedEffect(
   return (
     matches('global', operation.globalControlId, operation.globalControlGeneration) &&
     matches(
-      `provider:${operation.providerDeploymentProfileVersion}`,
+      providerScope,
       operation.providerControlId,
       operation.providerControlGeneration,
     ) &&
@@ -504,7 +483,6 @@ function findCurrentAnalysisReviewIds(
       aiPropertyProcessingProfiles.profileVersion,
     ),
     eq(aiReviewAnalyses.sourceEpoch, aiPropertyProcessingProfiles.sourceEpoch),
-    eq(aiReviewAnalyses.analysisProfileVersion, 'review-analysis-v1'),
   ]
   if (input.propertyIds) {
     conditions.push(inArray(aiReviewAnalyses.propertyId, [...input.propertyIds]))
@@ -569,13 +547,8 @@ export const createAiOutputStoreAdapter = (
             noticeVersion: aiOperations.noticeVersion,
             noticeDigest: aiOperations.noticeDigest,
             propertyProfileVersion: aiOperations.propertyProfileVersion,
-            routingPolicyVersion: aiOperations.routingPolicyVersion,
             sourcePolicyId: aiOperations.sourcePolicyId,
             redactionProfileVersion: aiOperations.redactionProfileVersion,
-            operationProfileVersion: aiOperations.operationProfileVersion,
-            providerDeploymentProfileVersion:
-              aiOperations.providerDeploymentProfileVersion,
-            capabilityRuntimeProfileVersion: aiOperations.capabilityRuntimeProfileVersion,
             capabilityFences: aiOperations.capabilityFences,
             globalControlId: aiOperations.globalControlId,
             globalControlGeneration: aiOperations.globalControlGeneration,
@@ -602,8 +575,7 @@ export const createAiOutputStoreAdapter = (
           operation.analysisSequence !== input.analysisSequence ||
           operation.authorizationLineageId !== input.authorizationLineageId ||
           operation.propertyProfileVersion !== input.propertyProfileVersion ||
-          operation.operationProfileVersion !== input.analysisProfileVersion ||
-          operation.capabilityRuntimeProfileVersion !== 'review-analysis-runtime-v1' ||
+          input.analysisProfileVersion !== 'review-analysis-v1' ||
           fence?.capability !== 'review_analysis' ||
           fence.reviewAnalysisEpoch !== input.reviewAnalysisEpoch
         ) {
@@ -660,39 +632,6 @@ export const createAiOutputStoreAdapter = (
         ) {
           return false
         }
-        const [attempt] = await tx
-          .select({ attempt: aiOperationAttempts.attempt })
-          .from(aiOperationAttempts)
-          .where(
-            and(
-              eq(aiOperationAttempts.operationId, input.operationId),
-              eq(aiOperationAttempts.attempt, operation.executionAttempt),
-              eq(aiOperationAttempts.state, 'executing'),
-            ),
-          )
-          .limit(1)
-        if (!attempt) return false
-
-        const settledAttempts = await tx
-          .update(aiOperationAttempts)
-          .set({
-            state: 'completed',
-            modelSnapshot: input.providerCompletion.modelSnapshot,
-            inputTokens: input.providerCompletion.inputTokens,
-            outputTokens: input.providerCompletion.outputTokens,
-            settledAt: completedAt,
-          })
-          .where(
-            and(
-              eq(aiOperationAttempts.operationId, input.operationId),
-              eq(aiOperationAttempts.attempt, operation.executionAttempt),
-              eq(aiOperationAttempts.state, 'executing'),
-            ),
-          )
-          .returning({ attempt: aiOperationAttempts.attempt })
-        if (settledAttempts.length !== 1) {
-          throw new Error('AI analysis provider completion commit conflict')
-        }
 
         const [inserted] = await tx
           .insert(aiReviewAnalyses)
@@ -725,19 +664,6 @@ export const createAiOutputStoreAdapter = (
           .onConflictDoNothing()
           .returning({ operationId: aiReviewAnalyses.operationId })
         if (!inserted) return false
-        await tx.insert(aiProductVolumeConsumptions).values({
-          operationId: input.operationId,
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          capability: 'review_analysis',
-          providerDeploymentProfileVersion: operation.providerDeploymentProfileVersion,
-          modelSnapshot: input.providerCompletion.modelSnapshot,
-          inputTokens: input.providerCompletion.inputTokens,
-          outputTokens: input.providerCompletion.outputTokens,
-          totalTokens:
-            input.providerCompletion.inputTokens + input.providerCompletion.outputTokens,
-          completedAt,
-        })
         const completed = await tx
           .update(aiOperations)
           .set({ state: 'succeeded_pending_delivery', updatedAt: completedAt })
@@ -776,13 +702,8 @@ export const createAiOutputStoreAdapter = (
             propertyProfileVersion: aiOperations.propertyProfileVersion,
             replyBrandProfileVersion: aiOperations.replyBrandProfileVersion,
             replyBrandDisplayNameDigest: aiOperations.replyBrandDisplayNameDigest,
-            routingPolicyVersion: aiOperations.routingPolicyVersion,
             sourcePolicyId: aiOperations.sourcePolicyId,
             redactionProfileVersion: aiOperations.redactionProfileVersion,
-            operationProfileVersion: aiOperations.operationProfileVersion,
-            providerDeploymentProfileVersion:
-              aiOperations.providerDeploymentProfileVersion,
-            capabilityRuntimeProfileVersion: aiOperations.capabilityRuntimeProfileVersion,
             capabilityFences: aiOperations.capabilityFences,
             globalControlId: aiOperations.globalControlId,
             globalControlGeneration: aiOperations.globalControlGeneration,
@@ -814,9 +735,8 @@ export const createAiOutputStoreAdapter = (
             (input.replyBrandProfileVersion ?? null) ||
           operation.replyBrandDisplayNameDigest !==
             (input.replyBrandDisplayNameDigest ?? null) ||
-          operation.operationProfileVersion !== input.operationProfileVersion ||
+          input.operationProfileVersion !== 'reply-suggestion-v1' ||
           input.replyProfileVersion !== AI_PERSONALIZED_REPLY_PROFILE_VERSION ||
-          operation.capabilityRuntimeProfileVersion !== 'reply-drafting-runtime-v1' ||
           fence?.capability !== 'reply_drafting' ||
           fence.replyDraftingEpoch !== input.replyDraftingEpoch
         ) {
@@ -876,39 +796,6 @@ export const createAiOutputStoreAdapter = (
         ) {
           return false
         }
-        const settledAttempts = await tx
-          .update(aiOperationAttempts)
-          .set({
-            state: 'completed',
-            modelSnapshot: input.providerCompletion.modelSnapshot,
-            inputTokens: input.providerCompletion.inputTokens,
-            outputTokens: input.providerCompletion.outputTokens,
-            settledAt: completedAt,
-          })
-          .where(
-            and(
-              eq(aiOperationAttempts.operationId, input.operationId),
-              eq(aiOperationAttempts.attempt, input.providerCompletion.expectedAttempt),
-              eq(aiOperationAttempts.state, 'executing'),
-            ),
-          )
-          .returning({ attempt: aiOperationAttempts.attempt })
-        if (settledAttempts.length !== 1) {
-          throw new Error('AI reply provider completion commit conflict')
-        }
-        await tx.insert(aiProductVolumeConsumptions).values({
-          operationId: input.operationId,
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          capability: 'reply_drafting',
-          providerDeploymentProfileVersion: operation.providerDeploymentProfileVersion,
-          modelSnapshot: input.providerCompletion.modelSnapshot,
-          inputTokens: input.providerCompletion.inputTokens,
-          outputTokens: input.providerCompletion.outputTokens,
-          totalTokens:
-            input.providerCompletion.inputTokens + input.providerCompletion.outputTokens,
-          completedAt,
-        })
         const completed = await tx
           .update(aiOperations)
           .set({ state: 'succeeded_pending_delivery', updatedAt: completedAt })
@@ -959,13 +846,8 @@ export const createAiOutputStoreAdapter = (
             noticeVersion: aiOperations.noticeVersion,
             noticeDigest: aiOperations.noticeDigest,
             propertyProfileVersion: aiOperations.propertyProfileVersion,
-            routingPolicyVersion: aiOperations.routingPolicyVersion,
             sourcePolicyId: aiOperations.sourcePolicyId,
             redactionProfileVersion: aiOperations.redactionProfileVersion,
-            operationProfileVersion: aiOperations.operationProfileVersion,
-            capabilityRuntimeProfileVersion: aiOperations.capabilityRuntimeProfileVersion,
-            providerDeploymentProfileVersion:
-              aiOperations.providerDeploymentProfileVersion,
             capabilityFences: aiOperations.capabilityFences,
             globalControlId: aiOperations.globalControlId,
             globalControlGeneration: aiOperations.globalControlGeneration,
@@ -989,7 +871,6 @@ export const createAiOutputStoreAdapter = (
             propertyProfileVersion: aiPropertyTrendSchedules.propertyProfileVersion,
             terminalAnalysisSequence: aiPropertyTrendSchedules.terminalAnalysisSequence,
             aggregateRevision: aiPropertyTrendSchedules.aggregateRevision,
-            reportProfileVersion: aiPropertyTrendSchedules.reportProfileVersion,
           })
           .from(aiPropertyTrendSchedules)
           .where(eq(aiPropertyTrendSchedules.id, input.scheduleId))
@@ -1008,8 +889,7 @@ export const createAiOutputStoreAdapter = (
           operation.terminalAnalysisSequence !== input.terminalAnalysisSequence ||
           operation.aggregateRevision !== input.aggregateRevision ||
           operation.propertyProfileVersion !== input.propertyProfileVersion ||
-          operation.operationProfileVersion !== input.reportProfileVersion ||
-          operation.capabilityRuntimeProfileVersion !== 'property-trends-runtime-v1' ||
+          input.reportProfileVersion !== 'property-trend-v1' ||
           !schedule ||
           schedule.organizationId !== input.organizationId ||
           schedule.propertyId !== input.propertyId ||
@@ -1020,7 +900,6 @@ export const createAiOutputStoreAdapter = (
           schedule.propertyProfileVersion !== input.propertyProfileVersion ||
           schedule.terminalAnalysisSequence !== input.terminalAnalysisSequence ||
           schedule.aggregateRevision !== input.aggregateRevision ||
-          schedule.reportProfileVersion !== input.reportProfileVersion ||
           input.report.headline === undefined ||
           input.report.sentences === undefined ||
           input.report.summary === undefined ||
@@ -1051,23 +930,6 @@ export const createAiOutputStoreAdapter = (
           )
           .limit(1)
           .for('share')
-        const [cursor] = await tx
-          .select({
-            consumedSequence: aiReviewEventCursors.consumedSequence,
-            terminalAnalysisSequence: aiReviewEventCursors.terminalAnalysisSequence,
-            aggregateRevision: aiReviewEventCursors.aggregateRevision,
-          })
-          .from(aiReviewEventCursors)
-          .where(
-            and(
-              eq(aiReviewEventCursors.organizationId, input.organizationId),
-              eq(aiReviewEventCursors.propertyId, input.propertyId),
-              eq(aiReviewEventCursors.sourceEpoch, input.sourceEpoch),
-              eq(aiReviewEventCursors.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-            ),
-          )
-          .limit(1)
-          .for('share')
         const [aggregateHead] = await tx
           .select({
             terminalAnalysisSequence: aiPropertyAggregateHeads.terminalAnalysisSequence,
@@ -1090,50 +952,14 @@ export const createAiOutputStoreAdapter = (
           .for('share')
         if (
           !reviewHead ||
-          !cursor ||
           !aggregateHead ||
           reviewHead.headSequence !== input.terminalAnalysisSequence ||
-          cursor.consumedSequence !== input.terminalAnalysisSequence ||
-          cursor.terminalAnalysisSequence !== input.terminalAnalysisSequence ||
-          cursor.aggregateRevision !== input.aggregateRevision ||
           aggregateHead.terminalAnalysisSequence !== input.terminalAnalysisSequence ||
           aggregateHead.aggregateRevision !== input.aggregateRevision
         ) {
           return false
         }
-        const [attempt] = await tx
-          .select({ attempt: aiOperationAttempts.attempt })
-          .from(aiOperationAttempts)
-          .where(
-            and(
-              eq(aiOperationAttempts.operationId, input.operationId),
-              eq(aiOperationAttempts.attempt, operation.executionAttempt),
-              eq(aiOperationAttempts.state, 'executing'),
-            ),
-          )
-          .limit(1)
-        if (!attempt) return false
         const completedAt = new Date(input.providerCompletion.completedAtEpochMillis)
-        const settledAttempts = await tx
-          .update(aiOperationAttempts)
-          .set({
-            state: 'completed',
-            modelSnapshot: input.providerCompletion.modelSnapshot,
-            inputTokens: input.providerCompletion.inputTokens,
-            outputTokens: input.providerCompletion.outputTokens,
-            settledAt: completedAt,
-          })
-          .where(
-            and(
-              eq(aiOperationAttempts.operationId, input.operationId),
-              eq(aiOperationAttempts.attempt, operation.executionAttempt),
-              eq(aiOperationAttempts.state, 'executing'),
-            ),
-          )
-          .returning({ attempt: aiOperationAttempts.attempt })
-        if (settledAttempts.length !== 1) {
-          throw new Error('AI trend provider completion commit conflict')
-        }
 
         const [inserted] = await tx
           .insert(aiPropertyTrendOutcomes)
@@ -1160,19 +986,6 @@ export const createAiOutputStoreAdapter = (
           .onConflictDoNothing()
           .returning({ operationId: aiPropertyTrendOutcomes.operationId })
         if (!inserted) return false
-        await tx.insert(aiProductVolumeConsumptions).values({
-          operationId: input.operationId,
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          capability: 'property_trends',
-          providerDeploymentProfileVersion: operation.providerDeploymentProfileVersion,
-          modelSnapshot: input.providerCompletion.modelSnapshot,
-          inputTokens: input.providerCompletion.inputTokens,
-          outputTokens: input.providerCompletion.outputTokens,
-          totalTokens:
-            input.providerCompletion.inputTokens + input.providerCompletion.outputTokens,
-          completedAt,
-        })
         const completed = await tx
           .update(aiOperations)
           .set({ state: 'succeeded_pending_delivery', updatedAt: completedAt })
@@ -1191,21 +1004,7 @@ export const createAiOutputStoreAdapter = (
 
     async readAnalysisForDelivery(input, deliver) {
       return db.transaction(async (tx) => {
-        const lease = await acquireAiReadDeliveryLease(tx, input)
-        if (!lease) throw new Error('AI read delivery is closing')
-        const deliverCurrent = async (result: ReviewAnalysisReadV1) => {
-          if (
-            !(await assertAiReadDeliveryLease(tx, {
-              organizationId: input.organizationId,
-              propertyId: input.propertyId,
-              actorUserId: input.actorUserId,
-              lease,
-            }))
-          ) {
-            throw new Error('AI read delivery lease is stale')
-          }
-          return deliver(lease, result)
-        }
+        const deliverCurrent = (result: ReviewAnalysisReadV1) => deliver(result)
         const [authorization] = await tx
           .select({
             state: merchantAiEnablement.state,
@@ -1250,9 +1049,6 @@ export const createAiOutputStoreAdapter = (
             profileVersion: aiPropertyProcessingProfiles.profileVersion,
             sourceEpoch: aiPropertyProcessingProfiles.sourceEpoch,
             lifecycleState: aiPropertyProcessingProfiles.lifecycleState,
-            routingPolicyVersion: aiPropertyProcessingProfiles.routingPolicyVersion,
-            providerDeploymentProfileVersion:
-              aiPropertyProcessingProfiles.providerDeploymentProfileVersion,
           })
           .from(aiPropertyProcessingProfiles)
           .where(
@@ -1323,15 +1119,9 @@ export const createAiOutputStoreAdapter = (
             operationAnalysisSequence: aiOperations.analysisSequence,
             operationAuthorizationLineageId: aiOperations.authorizationLineageId,
             operationPropertyProfileVersion: aiOperations.propertyProfileVersion,
-            operationProfileVersion: aiOperations.operationProfileVersion,
-            operationCapabilityRuntimeProfileVersion:
-              aiOperations.capabilityRuntimeProfileVersion,
             operationNoticeVersion: aiOperations.noticeVersion,
             operationNoticeDigest: aiOperations.noticeDigest,
             operationSourcePolicyId: aiOperations.sourcePolicyId,
-            operationRoutingPolicyVersion: aiOperations.routingPolicyVersion,
-            operationProviderDeploymentProfileVersion:
-              aiOperations.providerDeploymentProfileVersion,
             operationRedactionProfileVersion: aiOperations.redactionProfileVersion,
             operationCapabilityFences: aiOperations.capabilityFences,
           })
@@ -1348,7 +1138,6 @@ export const createAiOutputStoreAdapter = (
               eq(aiReviewAnalyses.authorizationLineageId, input.authorizationLineageId),
               eq(aiReviewAnalyses.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
               eq(aiReviewAnalyses.propertyProfileVersion, input.propertyProfileVersion),
-              eq(aiReviewAnalyses.analysisProfileVersion, input.analysisProfileVersion),
               gt(aiReviewAnalyses.expiresAt, now),
             ),
           )
@@ -1370,18 +1159,9 @@ export const createAiOutputStoreAdapter = (
           analysis.operationAnalysisSequence === input.analysisSequence &&
           analysis.operationAuthorizationLineageId === input.authorizationLineageId &&
           analysis.operationPropertyProfileVersion === input.propertyProfileVersion &&
-          analysis.operationProfileVersion === input.analysisProfileVersion &&
-          analysis.operationCapabilityRuntimeProfileVersion ===
-            authorization.capabilityRuntimeProfileVersions.review_analysis &&
           analysis.operationNoticeVersion === authorization.noticeVersion &&
           analysis.operationNoticeDigest === authorization.noticeDigest &&
           analysis.operationSourcePolicyId === authorization.sourcePolicyId &&
-          analysis.operationRoutingPolicyVersion === authorization.routingPolicyVersion &&
-          analysis.operationRoutingPolicyVersion === profile.routingPolicyVersion &&
-          analysis.operationProviderDeploymentProfileVersion ===
-            authorization.providerDeploymentProfileVersion &&
-          analysis.operationProviderDeploymentProfileVersion ===
-            profile.providerDeploymentProfileVersion &&
           analysis.operationRedactionProfileVersion ===
             authorization.redactionProfileFamily &&
           analysisFence?.capability === 'review_analysis' &&
@@ -1422,21 +1202,7 @@ export const createAiOutputStoreAdapter = (
 
     async readTrendReportForDelivery(input, deliver) {
       return db.transaction(async (tx) => {
-        const lease = await acquireAiReadDeliveryLease(tx, input)
-        if (!lease) throw new Error('AI read delivery is closing')
-        const deliverCurrent = async (result: AiTrendReportRead) => {
-          if (
-            !(await assertAiReadDeliveryLease(tx, {
-              organizationId: input.organizationId,
-              propertyId: input.propertyId,
-              actorUserId: input.actorUserId,
-              lease,
-            }))
-          ) {
-            throw new Error('AI read delivery lease is stale')
-          }
-          return deliver(lease, result)
-        }
+        const deliverCurrent = (result: AiTrendReportRead) => deliver(result)
         const preparing = (): AiTrendReportRead => ({
           status: 'preparing',
           sourceEpoch: input.sourceEpoch,
@@ -1550,23 +1316,6 @@ export const createAiOutputStoreAdapter = (
           )
           .limit(1)
           .for('share')
-        const [cursor] = await tx
-          .select({
-            consumedSequence: aiReviewEventCursors.consumedSequence,
-            terminalAnalysisSequence: aiReviewEventCursors.terminalAnalysisSequence,
-            aggregateRevision: aiReviewEventCursors.aggregateRevision,
-          })
-          .from(aiReviewEventCursors)
-          .where(
-            and(
-              eq(aiReviewEventCursors.organizationId, input.organizationId),
-              eq(aiReviewEventCursors.propertyId, input.propertyId),
-              eq(aiReviewEventCursors.sourceEpoch, input.sourceEpoch),
-              eq(aiReviewEventCursors.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-            ),
-          )
-          .limit(1)
-          .for('share')
         const [aggregateHead] = await tx
           .select({
             terminalAnalysisSequence: aiPropertyAggregateHeads.terminalAnalysisSequence,
@@ -1594,12 +1343,8 @@ export const createAiOutputStoreAdapter = (
          */
         const analysisIsCaughtUp = () =>
           reviewHead !== undefined &&
-          cursor !== undefined &&
           aggregateHead !== undefined &&
-          reviewHead.headSequence === cursor.consumedSequence &&
-          cursor.consumedSequence === cursor.terminalAnalysisSequence &&
-          aggregateHead.terminalAnalysisSequence === cursor.terminalAnalysisSequence &&
-          aggregateHead.aggregateRevision === cursor.aggregateRevision
+          reviewHead.headSequence === aggregateHead.terminalAnalysisSequence
         const caughtUp = analysisIsCaughtUp()
 
         const now = new Date(input.nowEpochMillis)
@@ -1641,10 +1386,6 @@ export const createAiOutputStoreAdapter = (
               eq(
                 aiPropertyTrendSchedules.propertyProfileVersion,
                 input.propertyProfileVersion,
-              ),
-              eq(
-                aiPropertyTrendSchedules.reportProfileVersion,
-                input.reportProfileVersion,
               ),
               eq(
                 aiPropertyTrendOutcomes.definitionVersion,
@@ -1707,8 +1448,9 @@ export const createAiOutputStoreAdapter = (
         ) => {
           const isCurrent =
             caughtUp &&
-            complete.terminalAnalysisSequence === cursor?.terminalAnalysisSequence &&
-            complete.aggregateRevision === cursor?.aggregateRevision
+            complete.terminalAnalysisSequence ===
+              aggregateHead?.terminalAnalysisSequence &&
+            complete.aggregateRevision === aggregateHead?.aggregateRevision
           const candidateIsNewer =
             candidate !== undefined &&
             (candidate.dueLocalDate > complete.dueLocalDate ||

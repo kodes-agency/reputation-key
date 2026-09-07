@@ -103,7 +103,6 @@ function caughtUpEvidenceIsSound(
     facts.caughtUpAtEpochMillis >= 0 &&
     Number.isSafeInteger(evidence.snapshotCapturedAtEpochMillis) &&
     evidence.snapshotCapturedAtEpochMillis >= 0 &&
-    evidence.activeRunId === null &&
     evidence.terminalReason === 'eligible_revision_set_caught_up' &&
     evidence.snapshotCapturedAtEpochMillis <= facts.caughtUpAtEpochMillis &&
     facts.caughtUpAnalysisSequence >= fence.analysisStartSequence &&

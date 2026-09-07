@@ -2,11 +2,11 @@ import { and, asc, eq, inArray, isNotNull, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
 import {
-  gbpImportItemRetryReceipts,
   gbpImportRequestItems,
   gbpImportRequests,
   gbpImportSagas,
 } from '#/shared/db/schema/google-import-v2.schema'
+import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { organizationId } from '#/shared/domain/ids'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import {
@@ -819,19 +819,23 @@ export const createGoogleImportV2Store = (
           return { kind: 'rejected', reason: 'effect_expired' } as const
         }
 
+        const retryReceiptKey = JSON.stringify([
+          input.organizationId,
+          input.initiatingUserId,
+          input.itemId,
+          input.retryRequestId,
+        ])
         const [receipt] = await tx
           .select({
-            requestDigestKeyVersion: gbpImportItemRetryReceipts.requestDigestKeyVersion,
-            requestDigest: gbpImportItemRetryReceipts.requestDigest,
-            acceptedRetryRevision: gbpImportItemRetryReceipts.acceptedRetryRevision,
+            requestDigestKeyVersion: sql<string>`${idempotencyReceipts.payload}->>'requestDigestKeyVersion'`,
+            requestDigest: sql<string>`${idempotencyReceipts.payload}->>'requestDigest'`,
+            acceptedRetryRevision: sql<number>`(${idempotencyReceipts.payload}->>'acceptedRetryRevision')::integer`,
           })
-          .from(gbpImportItemRetryReceipts)
+          .from(idempotencyReceipts)
           .where(
             and(
-              eq(gbpImportItemRetryReceipts.organizationId, input.organizationId),
-              eq(gbpImportItemRetryReceipts.initiatingUserId, input.initiatingUserId),
-              eq(gbpImportItemRetryReceipts.itemId, input.itemId),
-              eq(gbpImportItemRetryReceipts.retryRequestId, input.retryRequestId),
+              eq(idempotencyReceipts.scope, 'gbp_import_item_retry'),
+              eq(idempotencyReceipts.key, retryReceiptKey),
             ),
           )
           .limit(1)
@@ -890,15 +894,19 @@ export const createGoogleImportV2Store = (
         }
 
         const retryRevision = row.retryRevision + 1
-        await tx.insert(gbpImportItemRetryReceipts).values({
-          organizationId: input.organizationId,
-          initiatingUserId: input.initiatingUserId,
-          itemId: input.itemId,
-          retryRequestId: input.retryRequestId,
-          requestDigestKeyVersion: input.requestDigest.keyVersion,
-          requestDigest: input.requestDigest.digest,
-          acceptedRetryRevision: retryRevision,
-          createdAt: input.now,
+        await tx.insert(idempotencyReceipts).values({
+          scope: 'gbp_import_item_retry',
+          key: retryReceiptKey,
+          payload: {
+            organizationId: input.organizationId,
+            initiatingUserId: input.initiatingUserId,
+            itemId: input.itemId,
+            retryRequestId: input.retryRequestId,
+            requestDigestKeyVersion: input.requestDigest.keyVersion,
+            requestDigest: input.requestDigest.digest,
+            acceptedRetryRevision: retryRevision,
+          },
+          recordedAt: input.now,
         })
         const [updated] = await tx
           .update(gbpImportRequestItems)
@@ -1669,6 +1677,15 @@ export const createGoogleImportV2Store = (
           }),
           { recordedAt: input.now },
         )
+        await tx
+          .delete(idempotencyReceipts)
+          .where(
+            and(
+              eq(idempotencyReceipts.scope, 'gbp_import_item_retry'),
+              sql`${idempotencyReceipts.payload}->>'organizationId' = ${input.organizationId}`,
+              inArray(sql<string>`${idempotencyReceipts.payload}->>'itemId'`, itemIds),
+            ),
+          )
         const [deleted] = await tx
           .delete(gbpImportRequests)
           .where(

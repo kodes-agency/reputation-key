@@ -51,12 +51,9 @@ export type GuestResponseCommandStore = Readonly<{
     response: GuestResponse,
     fact: GuestFeedbackRetracted,
   ): Promise<'applied' | 'conflict'>
-  /** Withdraw content, queue media purge, and retract every effective fact atomically. */
+  /** Withdraw content and retract every effective fact atomically. */
   commitWithdrawn(
     response: GuestResponse,
     facts: ReadonlyArray<GuestMutationFact>,
-  ): Promise<
-    | Readonly<{ outcome: 'applied'; objectKeys: readonly string[] }>
-    | Readonly<{ outcome: 'conflict'; objectKeys: readonly [] }>
-  >
+  ): Promise<'applied' | 'conflict'>
 }>

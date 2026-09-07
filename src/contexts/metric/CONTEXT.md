@@ -29,8 +29,7 @@ test discovers table reads from source and fails when a new reader has no
 reviewed authority row.
 
 - Active Goal Programs use `MetricPublicApi.queryGoalMetric` and the exact
-  correction-impact lookup; the retained `queryAggregate` Goal job is not
-  registered in the beta runtime.
+  correction-impact lookup.
 - Dashboard Portal analytics and All Time reads use the Metric public API.
   Dashboard retains exactly two named optimized projections: the legacy KPI
   projection and the constant-query Fleet projection. Both pin immutable

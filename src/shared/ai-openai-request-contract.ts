@@ -43,8 +43,7 @@ export const OPENAI_PROMPT_VERSIONS = Object.freeze({
 
 /**
  * The reasoning ladder this deployment governs. Mirrored EXACTLY by the
- * `ai_operation_profiles_reasoning_effort_valid` CHECK, so a value that typechecks
- * is always storable — widening this set means widening that constraint too.
+ * frozen operation profiles, so widening this set requires regenerating those profiles.
  *
  * Excluded on purpose:
  * - `minimal`: the pinned model snapshot rejects it with 400 `Unsupported value`.

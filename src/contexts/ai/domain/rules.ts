@@ -3,7 +3,6 @@ import { isIsoCountryCode } from '#/shared/domain/iso-country-codes'
 import { isValidIanaTimezone } from '#/shared/domain/timezones'
 import { aiError, type AiError } from './errors'
 import type {
-  AiCanaryExecutionBinding,
   AiExecutionBinding,
   AiOperationIdentity,
   AiPrivateBetaPolicy,
@@ -12,7 +11,6 @@ import type {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const SHA256 = /^[0-9a-f]{64}$/
-const RELEASE_SHA = /^[0-9a-f]{40}$/
 const TOKEN = /^[a-z][a-z0-9._/-]{0,149}$/
 const LOCAL_DATE = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/
 
@@ -518,63 +516,6 @@ export function parseAiExecutionBinding(
   return ok(value as AiExecutionBinding)
 }
 
-export function parseAiCanaryExecutionBinding(
-  value: unknown,
-): Result<AiCanaryExecutionBinding, AiError> {
-  if (
-    !isRecord(value) ||
-    !exactKeys(value, [
-      'canaryAuthorizationId',
-      'canaryAuthorizationGeneration',
-      'releaseSha',
-      'canaryProfileVersion',
-      'safetyIdentifierProfileVersion',
-      'providerDeploymentProfileVersion',
-      'operationProfileVersion',
-      'stopFence',
-    ]) ||
-    !UUID.test(String(value.canaryAuthorizationId)) ||
-    !isPositiveSafeInteger(value.canaryAuthorizationGeneration) ||
-    value.canaryAuthorizationGeneration > 3 ||
-    typeof value.releaseSha !== 'string' ||
-    !RELEASE_SHA.test(value.releaseSha) ||
-    value.canaryProfileVersion !== 'synthetic-canary-v1' ||
-    value.safetyIdentifierProfileVersion !== 'synthetic-canary-safety-v1' ||
-    value.providerDeploymentProfileVersion !== 'private-beta-global-v1' ||
-    value.operationProfileVersion !== 'synthetic-canary-v1' ||
-    !isRecord(value.stopFence) ||
-    !exactKeys(value.stopFence, [
-      'globalControlId',
-      'globalGeneration',
-      'providerControlId',
-      'providerGeneration',
-      'allCapabilityStopFences',
-    ]) ||
-    !UUID.test(String(value.stopFence.globalControlId)) ||
-    !isPositiveSafeInteger(value.stopFence.globalGeneration) ||
-    !UUID.test(String(value.stopFence.providerControlId)) ||
-    !isPositiveSafeInteger(value.stopFence.providerGeneration) ||
-    !Array.isArray(value.stopFence.allCapabilityStopFences) ||
-    value.stopFence.allCapabilityStopFences.length !== 3
-  ) {
-    return invalid('synthetic canary binding is invalid')
-  }
-  const capabilities = ['review_analysis', 'reply_drafting', 'property_trends'] as const
-  for (const [index, capability] of capabilities.entries()) {
-    const fence = value.stopFence.allCapabilityStopFences[index]
-    if (
-      !isRecord(fence) ||
-      !exactKeys(fence, ['capability', 'capabilityControlId', 'capabilityGeneration']) ||
-      fence.capability !== capability ||
-      !UUID.test(String(fence.capabilityControlId)) ||
-      !isPositiveSafeInteger(fence.capabilityGeneration)
-    ) {
-      return invalid('synthetic canary capability fences are invalid or reordered')
-    }
-  }
-  return ok(value as AiCanaryExecutionBinding)
-}
-
 const OPERATION_KEYS = {
   analysis: [
     'command',
@@ -614,15 +555,6 @@ const OPERATION_KEYS = {
     'dueLocalDate',
     'terminalAnalysisSequence',
     'aggregateRevision',
-  ],
-  synthetic_canary: [
-    'command',
-    'actorId',
-    'systemPrincipal',
-    'releaseSha',
-    'canaryAuthorizationId',
-    'canaryAuthorizationGeneration',
-    'canaryProfileVersion',
   ],
 } as const
 
@@ -742,27 +674,5 @@ export function createAiOperationIdentity(
     })
   }
 
-  if (
-    value.actorId !== null ||
-    value.systemPrincipal !== 'release_canary' ||
-    typeof value.releaseSha !== 'string' ||
-    !RELEASE_SHA.test(value.releaseSha) ||
-    !UUID.test(String(value.canaryAuthorizationId)) ||
-    !isPositiveSafeInteger(value.canaryAuthorizationGeneration) ||
-    value.canaryAuthorizationGeneration > 3 ||
-    !nonEmptyString(value.canaryProfileVersion, 100)
-  ) {
-    return invalid('synthetic_canary identity is invalid')
-  }
-  return ok({
-    subjectKind: 'synthetic_canary',
-    command: 'synthetic_canary',
-    capability: null,
-    actorId: null,
-    systemPrincipal: 'release_canary',
-    releaseSha: value.releaseSha,
-    canaryAuthorizationId: value.canaryAuthorizationId as string,
-    canaryAuthorizationGeneration: value.canaryAuthorizationGeneration,
-    canaryProfileVersion: value.canaryProfileVersion,
-  })
+  return invalid('operation command is not supported')
 }

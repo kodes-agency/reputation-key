@@ -91,8 +91,6 @@ export function createJobQueue(name: string): Queue | undefined {
  * because a client command timer expired: ioredis cannot cancel an already
  * queued command. This connection retries indefinitely and has no command
  * timeout; the worker drain budget remains the outer process stop-control.
- * Invitation fields are independently sanitized before add, so privacy remains
- * safe even if a suspended process loses its BullMQ lock.
  */
 export function createWorkerBarrierQueue(name: string): Queue | undefined {
   const env = getEnv()

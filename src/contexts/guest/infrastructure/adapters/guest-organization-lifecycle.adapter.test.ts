@@ -12,7 +12,7 @@ import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import { CAPABILITY_FATE } from '#/shared/governance/capability-fate'
-import { contextOrganizationLifecycleReceipts } from '#/shared/db/schema/context-organization-lifecycle-receipts.schema'
+import { organizationLifecycleEvents } from '#/shared/db/schema/organization-lifecycle.schema'
 import { organizationLifecycleAuthority } from '#/shared/db/schema/organization-lifecycle.schema'
 import { validateContentFreeEvidenceRef } from '#/shared/db/lifecycle/organization-lifecycle-receipt-store'
 import type { OrganizationLifecycleContributionInput } from '#/contexts/identity/application/ports/organization-lifecycle-contributor.port'
@@ -89,7 +89,7 @@ function createFakeDb(phase: Phase, revision = 4) {
       })),
       insert: vi.fn((table: unknown) => ({
         values: vi.fn(async (row: Record<string, unknown>) => {
-          if (table === contextOrganizationLifecycleReceipts) receipts.push(row)
+          if (table === organizationLifecycleEvents) receipts.push(row)
         }),
       })),
     }
@@ -223,7 +223,11 @@ describe('Guest Organization lifecycle contributor', () => {
         )
         // No rating, feedback text, contact value, pseudonym or row count.
         expect(result.evidenceRef).not.toMatch(/\b11\b/)
-        expect(receipts[0]).toMatchObject({ context: 'guest', phase, outcome })
+        expect(receipts[0]).toMatchObject({
+          context: 'guest',
+          phase,
+          payload: { outcome },
+        })
       }
     }
   })
@@ -234,7 +238,6 @@ describe('Guest Organization lifecycle contributor', () => {
       'guest_response_private_feedback',
       'guest_contact_requests',
       'guest_contact_request_reveal_audits',
-      'guest_response_media',
       'guest_response_session_bindings',
       'guest_network_pressure_records',
     ]) {
@@ -249,8 +252,10 @@ describe('Guest Organization lifecycle contributor', () => {
     }
     // The anonymous lifetime aggregate the metrics depend on is Metric's row.
     expect(GUEST_PURGE_PLAN).not.toContain('portal_metric_lifetime_aggregates')
-    // The global 30-day retention cursor has no organization scope at all.
-    expect(GUEST_PURGE_PLAN).not.toContain('guest_contact_request_purge_checkpoints')
+    // The global retention cursor is stored under a shared, non-tenant scope.
+    expect(
+      GUEST_PURGE_PLAN.filter((table) => table === 'idempotency_receipts'),
+    ).toHaveLength(1)
     // Identities and other owners' rows stay with their owners.
     for (const foreign of ['user', 'member', 'portals', 'properties']) {
       expect(GUEST_PURGE_PLAN).not.toContain(foreign)

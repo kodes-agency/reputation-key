@@ -364,27 +364,3 @@ export const notificationUserSettings = pgTable(
     uniqueIndex('notification_user_settings_scope_unique').on(t.userId, t.organizationId),
   ],
 )
-
-export const notificationGovernanceQuarantine = pgTable(
-  'notification_governance_quarantine',
-  {
-    notificationId: uuid('notification_id').primaryKey(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    reason: varchar('reason', { length: 64 }).notNull(),
-    quarantinedAt: timestamp('quarantined_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-)
-
-export const notificationPreferenceGovernanceQuarantine = pgTable(
-  'notification_preference_governance_quarantine',
-  {
-    legacyPreferenceId: uuid('legacy_preference_id').primaryKey(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    reason: varchar('reason', { length: 64 }).notNull(),
-    quarantinedAt: timestamp('quarantined_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-)

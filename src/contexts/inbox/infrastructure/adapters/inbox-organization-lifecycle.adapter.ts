@@ -204,8 +204,8 @@ async function verifyPurgeReadiness(
  *
  * Handling history is TENANT data — it is the Organization's own record of how
  * it triaged its reviews and feedback — not independently retained evidence, so
- * it goes with the items. The content-free lifecycle receipts, which live in
- * `context_organization_lifecycle_receipts`, are the evidence that survives.
+ * it goes with the items. The content-free lifecycle event payloads are the
+ * evidence that survives.
  *
  * The three remaining statements cover the Inbox rows that are NOT children of
  * an item: the Organization's Response Target policy, its per-Property private

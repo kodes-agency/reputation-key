@@ -89,18 +89,19 @@ export const createRecentActivityVocabularyReconciliationStore = (
         `)
 
       const prior = await transaction.execute(sql`
-          SELECT organization_id,
-                 source_action,
-                 source_resource_type,
-                 target_action,
-                 target_resource_type,
-                 target_fingerprint_sha256,
-                 target_count,
-                 updated_count,
-                 authorized_by,
-                 authorization_evidence_ref
-          FROM recent_activity_vocabulary_reconciliations
-          WHERE operation_id = ${command.operationId}::uuid
+          SELECT payload->>'organizationId' AS organization_id,
+                 payload->>'sourceAction' AS source_action,
+                 payload->>'sourceResourceType' AS source_resource_type,
+                 payload->>'targetAction' AS target_action,
+                 payload->>'targetResourceType' AS target_resource_type,
+                 payload->>'targetFingerprintSha256' AS target_fingerprint_sha256,
+                 payload->>'targetCount' AS target_count,
+                 payload->>'updatedCount' AS updated_count,
+                 payload->>'authorizedBy' AS authorized_by,
+                 payload->>'authorizationEvidenceRef' AS authorization_evidence_ref
+          FROM idempotency_receipts
+          WHERE scope = 'activity_vocabulary_reconciliation'
+            AND key = ${command.operationId}
           FOR UPDATE
         `)
       if (prior.rows.length > 0) {
@@ -163,31 +164,22 @@ export const createRecentActivityVocabularyReconciliationStore = (
       await faults.afterUpdateBeforeReceipt?.()
 
       await transaction.execute(sql`
-          INSERT INTO recent_activity_vocabulary_reconciliations (
-            operation_id,
-            organization_id,
-            source_action,
-            source_resource_type,
-            target_action,
-            target_resource_type,
-            target_fingerprint_sha256,
-            target_count,
-            updated_count,
-            authorized_by,
-            authorization_evidence_ref,
-            applied_at
-          ) VALUES (
-            ${command.operationId}::uuid,
-            ${command.organizationId as string},
-            ${command.source.action},
-            ${command.source.resourceType},
-            ${command.target.action},
-            ${command.target.resourceType},
-            ${command.expectedTargetFingerprintSha256},
-            ${command.expectedTargetCount},
-            ${updated.rows.length},
-            ${command.authorizedBy},
-            ${command.authorizationEvidenceRef},
+          INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+          VALUES (
+            'activity_vocabulary_reconciliation',
+            ${command.operationId},
+            jsonb_build_object(
+              'organizationId', ${command.organizationId as string}::text,
+              'sourceAction', ${command.source.action}::text,
+              'sourceResourceType', ${command.source.resourceType}::text,
+              'targetAction', ${command.target.action}::text,
+              'targetResourceType', ${command.target.resourceType}::text,
+              'targetFingerprintSha256', ${command.expectedTargetFingerprintSha256}::text,
+              'targetCount', ${command.expectedTargetCount}::integer,
+              'updatedCount', ${updated.rows.length}::integer,
+              'authorizedBy', ${command.authorizedBy}::text,
+              'authorizationEvidenceRef', ${command.authorizationEvidenceRef}::text
+            ),
             ${command.appliedAt}
           )
         `)

@@ -32,17 +32,17 @@ async function deleteReceiptFixtures(organizationIds: readonly string[]): Promis
   try {
     await client.query('BEGIN')
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       DISABLE TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       DISABLE TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query(
-      `DELETE FROM context_organization_lifecycle_receipts
+      `DELETE FROM organization_lifecycle_events
        WHERE organization_id = ANY($1::text[])`,
       [organizationIds],
     )
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       ENABLE ALWAYS TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query('COMMIT')
   } catch (error) {
@@ -119,7 +119,7 @@ async function insertMarker(
   })
 }
 
-describe.sequential('shared context Organization lifecycle receipts', () => {
+describe.sequential('shared Organization lifecycle events', () => {
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL, 2)
     db = drizzle(lease.pool) as Database
@@ -166,9 +166,11 @@ describe.sequential('shared context Organization lifecycle receipts', () => {
     expect(concurrent).toEqual(first)
     expect(work).toHaveBeenCalledTimes(1)
     const receipts = await lease.pool.query(
-      `SELECT context, phase, outcome, evidence_ref
-       FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1`,
+      `SELECT context, phase, payload->>'outcome' AS outcome,
+              payload->>'evidenceRef' AS evidence_ref
+       FROM organization_lifecycle_events
+       WHERE organization_id = $1
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [current.organizationId],
     )
     expect(receipts.rows).toEqual([
@@ -198,20 +200,20 @@ describe.sequential('shared context Organization lifecycle receipts', () => {
 
     await expect(
       lease.pool.query(
-        `UPDATE context_organization_lifecycle_receipts
-         SET evidence_ref = 'metric:tampered'
+        `UPDATE organization_lifecycle_events
+         SET payload = jsonb_set(payload, '{evidenceRef}', '"metric:tampered"')
          WHERE organization_id = $1`,
         [current.organizationId],
       ),
     ).rejects.toThrow(/append-only/u)
     await expect(
       lease.pool.query(
-        'DELETE FROM context_organization_lifecycle_receipts WHERE organization_id = $1',
+        'DELETE FROM organization_lifecycle_events WHERE organization_id = $1',
         [current.organizationId],
       ),
     ).rejects.toThrow(/append-only/u)
     await expect(
-      lease.pool.query('TRUNCATE context_organization_lifecycle_receipts'),
+      lease.pool.query('TRUNCATE organization_lifecycle_events'),
     ).rejects.toThrow(/append-only/u)
   })
 
@@ -236,8 +238,9 @@ describe.sequential('shared context Organization lifecycle receipts', () => {
       `SELECT
          (SELECT count(*)::int FROM audit_logs WHERE id = $1) AS markers,
          (SELECT count(*)::int
-          FROM context_organization_lifecycle_receipts
-          WHERE organization_id = $2) AS receipts`,
+          FROM organization_lifecycle_events
+          WHERE organization_id = $2
+            AND kind LIKE 'organization_lifecycle_contribution:%') AS receipts`,
       [markerId, current.organizationId],
     )
     expect(counts.rows[0]).toEqual({ markers: 0, receipts: 0 })
@@ -264,8 +267,9 @@ describe.sequential('shared context Organization lifecycle receipts', () => {
       `SELECT
          (SELECT count(*)::int FROM audit_logs WHERE id = $1) AS markers,
          (SELECT count(*)::int
-          FROM context_organization_lifecycle_receipts
-          WHERE organization_id = $2) AS receipts`,
+          FROM organization_lifecycle_events
+          WHERE organization_id = $2
+            AND kind LIKE 'organization_lifecycle_contribution:%') AS receipts`,
       [markerId, current.organizationId],
     )
     expect(counts.rows[0]).toEqual({ markers: 0, receipts: 0 })
@@ -298,8 +302,9 @@ describe.sequential('shared context Organization lifecycle receipts', () => {
     }
 
     const rows = await lease.pool.query(
-      `SELECT context FROM context_organization_lifecycle_receipts
+      `SELECT context FROM organization_lifecycle_events
        WHERE organization_id = $1 AND phase = 'closing'
+         AND kind LIKE 'organization_lifecycle_contribution:%'
        ORDER BY context`,
       [current.organizationId],
     )

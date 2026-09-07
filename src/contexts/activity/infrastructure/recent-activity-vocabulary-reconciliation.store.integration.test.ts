@@ -18,8 +18,9 @@ const IDS = [
 
 const cleanup = async (): Promise<void> => {
   await db.execute(sql`
-    DELETE FROM recent_activity_vocabulary_reconciliations
-    WHERE organization_id IN (${ORG_A as string}, ${ORG_B as string})
+    DELETE FROM idempotency_receipts
+    WHERE scope = 'activity_vocabulary_reconciliation'
+      AND payload->>'organizationId' IN (${ORG_A as string}, ${ORG_B as string})
   `)
   await db.execute(sql`
     DELETE FROM recent_activity_entries
@@ -130,8 +131,9 @@ describe('Recent Activity vocabulary reconciliation store (real PostgreSQL)', ()
       SELECT
         (SELECT count(*)::integer FROM recent_activity_entries
          WHERE organization_id = ${ORG_A as string} AND action = 'approved') AS source_count,
-        (SELECT count(*)::integer FROM recent_activity_vocabulary_reconciliations
-         WHERE operation_id = 'f5000000-0000-4000-8000-000000000002'::uuid) AS receipt_count
+        (SELECT count(*)::integer FROM idempotency_receipts
+         WHERE scope = 'activity_vocabulary_reconciliation'
+           AND key = 'f5000000-0000-4000-8000-000000000002') AS receipt_count
     `)
     expect(evidence.rows[0]).toEqual({ source_count: 3, receipt_count: 0 })
   })

@@ -21,8 +21,6 @@ type Fixture = Readonly<{
   userSettingsId: string
   emailId: string
   batchId: string
-  quarantinedNotificationId: string
-  quarantinedPreferenceId: string
   createdAt: Date
 }>
 
@@ -40,8 +38,6 @@ async function seedFixture(): Promise<Fixture> {
     userSettingsId: randomUUID(),
     emailId: randomUUID(),
     batchId: randomUUID(),
-    quarantinedNotificationId: randomUUID(),
-    quarantinedPreferenceId: randomUUID(),
     createdAt,
   }
   organizations.add(fixture.organizationId)
@@ -136,18 +132,6 @@ async function seedFixture(): Promise<Fixture> {
      ) VALUES ($1, $2, $3, $4, 0, $5)`,
     [fixture.batchId, fixture.organizationId, fixture.userId, fixture.emailId, createdAt],
   )
-  await lease.pool.query(
-    `INSERT INTO notification_governance_quarantine (
-       notification_id, organization_id, reason, quarantined_at
-     ) VALUES ($1, $2, 'NEVER_EXPORT_QUARANTINE', $3)`,
-    [fixture.quarantinedNotificationId, fixture.organizationId, createdAt],
-  )
-  await lease.pool.query(
-    `INSERT INTO notification_preference_governance_quarantine (
-       legacy_preference_id, organization_id, reason, quarantined_at
-     ) VALUES ($1, $2, 'NEVER_EXPORT_PREFERENCE_QUARANTINE', $3)`,
-    [fixture.quarantinedPreferenceId, fixture.organizationId, createdAt],
-  )
   return fixture
 }
 
@@ -167,8 +151,6 @@ describe.sequential('Notification Organization Export contributor', () => {
       'notification_digest_batch_members',
       'notification_digest_batches',
       'notification_email_queue',
-      'notification_governance_quarantine',
-      'notification_preference_governance_quarantine',
       'notifications',
       'notification_preferences',
       'notification_user_settings',
@@ -259,8 +241,6 @@ describe.sequential('Notification Organization Export contributor', () => {
     expect(archive).not.toContain('NEVER_EXPORT_')
     expect(archive).not.toContain(fixture.emailId)
     expect(archive).not.toContain(fixture.batchId)
-    expect(archive).not.toContain(fixture.quarantinedNotificationId)
-    expect(archive).not.toContain(fixture.quarantinedPreferenceId)
 
     const bundle = await buildOrganizationExportBundle({
       organizationId: fixture.organizationId,

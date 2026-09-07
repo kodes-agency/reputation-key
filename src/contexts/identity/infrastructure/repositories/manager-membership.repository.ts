@@ -17,6 +17,20 @@ const roleFromRaw = (role: string): ManagerMembership['role'] | null => {
   return null
 }
 
+/** The member's raw Better Auth role for content-free policy diagnostics. */
+export async function getMemberRole(
+  db: Database,
+  organizationId: string,
+  userId: string,
+): Promise<string | null> {
+  const rows = await db
+    .select({ role: member.role })
+    .from(member)
+    .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
+    .limit(1)
+  return rows[0]?.role ?? null
+}
+
 export const createManagerMembershipRepository = (
   db: Database,
   resolvePropertyAuthority: ManagerPropertyAuthorityResolver,

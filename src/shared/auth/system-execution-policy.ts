@@ -19,9 +19,6 @@
 //   5. Role permissions and grants do NOT apply to system principals (they
 //      were checked at the interactive enqueue boundary); capability,
 //      suspension, and consent are re-checked here.
-//
-// Every decision writes a content-free audit entry — the result JobRuntime
-// consumes (BQC-3).
 
 import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
 import {
@@ -29,11 +26,7 @@ import {
   type Capability,
   type CapabilityDenyReason,
 } from './beta-capabilities'
-import {
-  EXECUTION_POLICY_VERSION,
-  type ConsentSelector,
-  type DecisionAuditEntry,
-} from './execution-policy'
+import { EXECUTION_POLICY_VERSION, type ConsentSelector } from './execution-policy'
 import { organizationId, userId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -127,8 +120,6 @@ export type DelayedPolicyDeps = Readonly<{
       }
     >,
   ) => Promise<boolean>
-  writeDecisionAudit?: (entry: DecisionAuditEntry) => Promise<void>
-  onAuditError?: (err: unknown) => void
 }>
 
 export type DelayedExecutionPolicy = Readonly<{
@@ -140,7 +131,6 @@ export function createDelayedExecutionPolicy(
 ): DelayedExecutionPolicy {
   function finish(
     request: DelayedDecisionRequest,
-    capability: Capability | 'none',
     allowed: boolean,
     reason: DelayedDecision['reason'],
     freshRead: boolean,
@@ -157,23 +147,6 @@ export function createDelayedExecutionPolicy(
       policyVersionAtEnqueue: request.policyVersionAtEnqueue,
       freshRead,
     }
-    if (deps.writeDecisionAudit) {
-      void deps
-        .writeDecisionAudit({
-          actorType: 'system',
-          actorId: request.principal.id,
-          organizationId: request.organizationId || null,
-          propertyId: request.propertyId ?? null,
-          action: request.action,
-          capability: capability === 'none' ? null : capability,
-          executionKind: request.executionKind,
-          decision: allowed ? 'allow' : 'deny',
-          reason,
-          policyVersion: EXECUTION_POLICY_VERSION,
-          correlationId: request.correlationId ?? null,
-        })
-        .catch((err) => deps.onAuditError?.(err))
-    }
     return decision
   }
 
@@ -183,7 +156,7 @@ export function createDelayedExecutionPolicy(
 
       // Unknown actions fail closed — the catalogue is the contract surface.
       if (!CAPABILITY_BY_ACTION.has(request.action)) {
-        return finish(request, 'none', false, 'unknown_action', freshRead)
+        return finish(request, false, 'unknown_action', freshRead)
       }
 
       // Rule 2: strong read for external-effect actions, before deciding.
@@ -191,16 +164,16 @@ export function createDelayedExecutionPolicy(
         try {
           await deps.refreshPolicy()
         } catch {
-          return finish(request, 'none', false, 'policy_unavailable', true)
+          return finish(request, false, 'policy_unavailable', true)
         }
       }
 
       // Rule 3: catalogue-driven scope validation.
       if (!request.organizationId) {
-        return finish(request, 'none', false, 'missing_scope', freshRead)
+        return finish(request, false, 'missing_scope', freshRead)
       }
       if (PROPERTY_SCOPED_ACTIONS.has(request.action) && !request.propertyId) {
-        return finish(request, 'none', false, 'missing_scope', freshRead)
+        return finish(request, false, 'missing_scope', freshRead)
       }
 
       const capability = capabilityForSystemAction(request.action)
@@ -208,7 +181,7 @@ export function createDelayedExecutionPolicy(
         request.capabilityAtEnqueue !== undefined &&
         request.capabilityAtEnqueue !== capability
       ) {
-        return finish(request, capability, false, 'capability_mismatch', freshRead)
+        return finish(request, false, 'capability_mismatch', freshRead)
       }
 
       // A tenant-cross schedule is only the enumeration boundary. It may
@@ -220,7 +193,7 @@ export function createDelayedExecutionPolicy(
         request.organizationId === 'tenant-cross' &&
         TENANT_CROSS_ACTIONS.has(request.action)
       ) {
-        return finish(request, capability, true, 'allowed', freshRead)
+        return finish(request, true, 'allowed', freshRead)
       }
 
       // Rule 5: capability + suspension re-check against CURRENT policy.
@@ -232,7 +205,7 @@ export function createDelayedExecutionPolicy(
         }
         const capDecision = checkBetaCapability(systemCtx, capability, request.propertyId)
         if (!capDecision.allowed) {
-          return finish(request, capability, false, capDecision.reason, freshRead)
+          return finish(request, false, capDecision.reason, freshRead)
         }
       }
 
@@ -256,11 +229,11 @@ export function createDelayedExecutionPolicy(
               })
             : false
         if (!consented) {
-          return finish(request, capability, false, 'consent_required', freshRead)
+          return finish(request, false, 'consent_required', freshRead)
         }
       }
 
-      return finish(request, capability, true, 'allowed', freshRead)
+      return finish(request, true, 'allowed', freshRead)
     },
   }
 }

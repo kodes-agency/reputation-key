@@ -131,16 +131,16 @@ async function advanceAuthorityTo(
 }
 
 /**
- * Drops this context's receipt so the SAME phase re-executes its SQL instead
- * of replaying the recorded outcome. Production cannot do this — the receipt
- * table is guarded by an ALWAYS trigger — which is exactly why it is the only
- * way to prove the statements themselves are idempotent.
+ * Drops this context's event so the SAME phase re-executes its SQL instead of
+ * replaying the recorded outcome. Production cannot do this because the
+ * append-only event trigger refuses mutation.
  */
 async function forgetInboxReceipt(): Promise<void> {
   await withGuardsDisabled(async () => {
     await pool.query(
-      `DELETE FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1 AND context = 'inbox'`,
+      `DELETE FROM organization_lifecycle_events
+       WHERE organization_id = $1 AND context = 'inbox'
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [ORG_ID],
     )
   })
@@ -156,13 +156,13 @@ async function withGuardsDisabled(work: () => Promise<void>): Promise<void> {
     'ALTER TABLE inbox_response_target_reminders DISABLE TRIGGER "inbox_response_target_reminders_terminal_guard"',
   )
   await pool.query(
-    'ALTER TABLE context_organization_lifecycle_receipts DISABLE TRIGGER context_organization_lifecycle_receipts_update_delete_guard',
+    'ALTER TABLE organization_lifecycle_events DISABLE TRIGGER organization_lifecycle_events_append_only',
   )
   try {
     await work()
   } finally {
     await pool.query(
-      'ALTER TABLE context_organization_lifecycle_receipts ENABLE ALWAYS TRIGGER context_organization_lifecycle_receipts_update_delete_guard',
+      'ALTER TABLE organization_lifecycle_events ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only',
     )
     await pool.query(
       'ALTER TABLE inbox_response_target_reminders ENABLE ALWAYS TRIGGER "inbox_response_target_reminders_terminal_guard"',
@@ -174,7 +174,7 @@ async function clean(): Promise<void> {
   await withGuardsDisabled(async () => {
     for (const org of [ORG_ID, OTHER_ORG_ID]) {
       await pool.query(
-        'DELETE FROM context_organization_lifecycle_receipts WHERE organization_id = $1',
+        'DELETE FROM organization_lifecycle_events WHERE organization_id = $1',
         [org],
       )
       for (const table of INBOX_TABLES) {
@@ -480,9 +480,12 @@ describe.sequential('Inbox Organization lifecycle contributor (PostgreSQL)', () 
     await createInboxOrganizationLifecycleContributor(db).prepareClosing(request)
 
     const receipts = await pool.query(
-      `SELECT context, phase, outcome, evidence_ref, lifecycle_revision
-       FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1 AND closure_lineage_id = $2`,
+      `SELECT context, phase, payload->>'outcome' AS outcome,
+              payload->>'evidenceRef' AS evidence_ref,
+              (payload->>'lifecycleRevision')::integer AS lifecycle_revision
+       FROM organization_lifecycle_events
+       WHERE organization_id = $1 AND payload->>'closureLineageId' = $2
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [ORG_ID, request.closureLineageId],
     )
     expect(receipts.rows).toEqual([
@@ -527,8 +530,9 @@ describe.sequential('Inbox Organization lifecycle contributor (PostgreSQL)', () 
     // A blocked readiness records no receipt, so the coordinator cannot
     // mistake it for a phase that completed.
     const receipts = await pool.query(
-      `SELECT 1 FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1 AND context = 'inbox'`,
+      `SELECT 1 FROM organization_lifecycle_events
+       WHERE organization_id = $1 AND context = 'inbox'
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [ORG_ID],
     )
     expect(receipts.rowCount).toBe(0)
@@ -549,8 +553,9 @@ describe.sequential('Inbox Organization lifecycle contributor (PostgreSQL)', () 
     expect(await rowCounts(OTHER_ORG_ID)).toEqual(otherBefore)
     // The content-free receipt is the evidence that survives the scrub.
     const receipts = await pool.query(
-      `SELECT phase FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1 AND context = 'inbox'`,
+      `SELECT phase FROM organization_lifecycle_events
+       WHERE organization_id = $1 AND context = 'inbox'
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [ORG_ID],
     )
     expect(receipts.rows).toEqual([{ phase: 'purge' }])
@@ -582,8 +587,9 @@ describe.sequential('Inbox Organization lifecycle contributor (PostgreSQL)', () 
 
     expect(result.outcome).toBe('no_data')
     const receipts = await pool.query(
-      `SELECT outcome FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1 AND context = 'inbox'`,
+      `SELECT payload->>'outcome' AS outcome FROM organization_lifecycle_events
+       WHERE organization_id = $1 AND context = 'inbox'
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [ORG_ID],
     )
     // Affirmative absence, never an omitted contributor.

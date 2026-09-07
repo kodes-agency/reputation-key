@@ -1,11 +1,7 @@
-import { and, eq, gt, isNotNull, isNull, lte, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import {
-  guestDestinationActionReceipts,
-  guestQualifiedScanReceipts,
-  guestQualifiedScans,
-  scanEvents,
-} from '#/shared/db/schema/guest.schema'
+import { guestQualifiedScans, scanEvents } from '#/shared/db/schema/guest.schema'
+import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import type { GuestObservationStore } from '../application/ports/guest-observation-store.port'
@@ -96,29 +92,29 @@ export const createAtomicGuestObservationStore = (
           throw new Error('Qualified Scan does not match its durable fact')
         }
         const outcome = await db.transaction(async (tx) => {
-          const anchor = `qualified-scan:${scan.organizationId}:${scan.portalId}:${sessionId}`
+          const key = JSON.stringify([scan.organizationId, scan.portalId, sessionId])
+          const anchor = `qualified-scan:${key}`
           await tx.execute(
             sql`SELECT pg_advisory_xact_lock(hashtextextended(${anchor}, 0))`,
           )
+          const cutoff = new Date(scan.occurredAt.getTime() - 24 * 60 * 60 * 1000)
           await tx
-            .delete(guestQualifiedScanReceipts)
+            .delete(idempotencyReceipts)
             .where(
               and(
-                eq(guestQualifiedScanReceipts.organizationId, scan.organizationId),
-                eq(guestQualifiedScanReceipts.portalId, scan.portalId),
-                eq(guestQualifiedScanReceipts.sessionId, sessionId),
-                lte(guestQualifiedScanReceipts.expiresAt, scan.occurredAt),
+                eq(idempotencyReceipts.scope, 'guest_qualified_scan'),
+                eq(idempotencyReceipts.key, key),
+                lte(idempotencyReceipts.recordedAt, cutoff),
               ),
             )
           const [existing] = await tx
-            .select({ id: guestQualifiedScanReceipts.id })
-            .from(guestQualifiedScanReceipts)
+            .select({ key: idempotencyReceipts.key })
+            .from(idempotencyReceipts)
             .where(
               and(
-                eq(guestQualifiedScanReceipts.organizationId, scan.organizationId),
-                eq(guestQualifiedScanReceipts.portalId, scan.portalId),
-                eq(guestQualifiedScanReceipts.sessionId, sessionId),
-                gt(guestQualifiedScanReceipts.expiresAt, scan.occurredAt),
+                eq(idempotencyReceipts.scope, 'guest_qualified_scan'),
+                eq(idempotencyReceipts.key, key),
+                sql`${idempotencyReceipts.recordedAt} > ${scan.occurredAt}::timestamptz - interval '24 hours'`,
               ),
             )
             .limit(1)
@@ -141,14 +137,17 @@ export const createAtomicGuestObservationStore = (
             staffAttributionEffectiveFrom: scan.staffAttribution?.effectiveFrom ?? null,
             staffAttributionEffectiveTo: scan.staffAttribution?.effectiveTo ?? null,
           })
-          await tx.insert(guestQualifiedScanReceipts).values({
-            organizationId: scan.organizationId,
-            propertyId: scan.propertyId,
-            portalId: scan.portalId,
-            sessionId,
-            qualifiedScanId: scan.id,
-            createdAt: scan.occurredAt,
-            expiresAt: new Date(scan.occurredAt.getTime() + 24 * 60 * 60 * 1000),
+          await tx.insert(idempotencyReceipts).values({
+            scope: 'guest_qualified_scan',
+            key,
+            payload: {
+              organizationId: scan.organizationId,
+              propertyId: scan.propertyId,
+              portalId: scan.portalId,
+              sessionId,
+              qualifiedScanId: scan.id,
+            },
+            recordedAt: scan.occurredAt,
           })
           await insertOutboxRow(tx, fact, { recordedAt: scan.occurredAt })
           return 'applied' as const
@@ -219,28 +218,40 @@ export const createAtomicGuestObservationStore = (
           throw new Error('qualified destination action does not match its fact')
         }
         const outcome = await db.transaction(async (tx) => {
+          const key = JSON.stringify([
+            action.organizationId,
+            action.portalId,
+            action.sessionId,
+            action.destinationKind,
+            action.destinationId,
+          ])
+          await tx
+            .delete(idempotencyReceipts)
+            .where(
+              and(
+                eq(idempotencyReceipts.scope, 'guest_destination_action'),
+                eq(idempotencyReceipts.key, key),
+                sql`(${idempotencyReceipts.payload}->>'expiresAt')::timestamptz <= ${action.occurredAt}`,
+              ),
+            )
           const inserted = await tx
-            .insert(guestDestinationActionReceipts)
+            .insert(idempotencyReceipts)
             .values({
-              organizationId: action.organizationId,
-              propertyId: action.propertyId,
-              portalId: action.portalId,
-              sessionId: action.sessionId,
-              destinationId: action.destinationId,
-              destinationKind: action.destinationKind,
-              expiresAt: action.expiresAt,
-              createdAt: action.occurredAt,
+              scope: 'guest_destination_action',
+              key,
+              payload: {
+                organizationId: action.organizationId,
+                propertyId: action.propertyId,
+                portalId: action.portalId,
+                sessionId: action.sessionId,
+                destinationId: action.destinationId,
+                destinationKind: action.destinationKind,
+                expiresAt: action.expiresAt.toISOString(),
+              },
+              recordedAt: action.occurredAt,
             })
-            .onConflictDoNothing({
-              target: [
-                guestDestinationActionReceipts.organizationId,
-                guestDestinationActionReceipts.portalId,
-                guestDestinationActionReceipts.sessionId,
-                guestDestinationActionReceipts.destinationKind,
-                guestDestinationActionReceipts.destinationId,
-              ],
-            })
-            .returning({ id: guestDestinationActionReceipts.id })
+            .onConflictDoNothing()
+            .returning({ key: idempotencyReceipts.key })
           if (inserted.length === 0) return 'duplicate' as const
           await insertOutboxRow(tx, fact, { recordedAt: action.occurredAt })
           return 'applied' as const

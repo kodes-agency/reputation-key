@@ -52,7 +52,6 @@ function harness(result: AnalyzeReviewEventResult) {
   const analyzeReviewEvent = vi.fn(async () => result)
   const enqueuePropertyTrend = vi.fn(async () => {})
   const insertReceipt = vi.fn(async () => {})
-  const advanceReviewAnalysisBackfill = vi.fn(async () => 'idle' as const)
   const applyAiAuthorizationLifecycle = vi.fn<
     NonNullable<RegisterAiConsumersInput['applyAiAuthorizationLifecycle']>
   >(async () => ({
@@ -88,7 +87,6 @@ function harness(result: AnalyzeReviewEventResult) {
   const dependencies = {
     analyzeReviewEvent,
     enqueuePropertyTrend,
-    advanceReviewAnalysisBackfill,
     applyAiAuthorizationLifecycle,
     receipts: { insertReceipt } as unknown as OutboxRepository,
   } satisfies RegisterAiConsumersInput
@@ -96,7 +94,6 @@ function harness(result: AnalyzeReviewEventResult) {
     dependencies,
     analyzeReviewEvent,
     enqueuePropertyTrend,
-    advanceReviewAnalysisBackfill,
     applyAiAuthorizationLifecycle,
     insertReceipt,
   }
@@ -387,7 +384,6 @@ describe('AI authorization lifecycle consumer', () => {
     const test = harness({ status: 'completed' })
     test.applyAiAuthorizationLifecycle.mockResolvedValueOnce({
       status: 'duplicate',
-      lifecycleId: '71000000-0000-4000-8000-000000000207',
       enrollmentId: '71000000-0000-4000-8000-000000000205',
     })
 

@@ -53,9 +53,8 @@ most 100 scanned rows, and permit only the forward
    wrong target identity, or unreviewed policy/version change. Do not edit the
    request by hand and do not infer a missing value.
 
-Preparation reads the restore database and writes only the normal operator
-policy-decision audit. It creates no recovery receipt and applies no lifecycle
-page or recovery fence.
+Preparation only reads the restore database. It creates no recovery receipt
+and applies no lifecycle page or recovery fence.
 
 ## Independent approval bundle
 

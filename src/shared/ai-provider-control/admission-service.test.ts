@@ -119,7 +119,6 @@ function database(): AiAdmissionDatabaseAuthority {
       settledAtEpochMillis: 1_780_000_010_000,
       settlementState: 'settled' as const,
     })),
-    reapExpired: vi.fn(async () => 2),
     readiness: vi.fn(async () => true),
   }
 }

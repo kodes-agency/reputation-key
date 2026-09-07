@@ -22,19 +22,9 @@ const ALL_CONTEXTS = Object.keys(
   CLASSIFICATIONS_BY_CONTEXT,
 ) as readonly OrganizationLifecycleContext[]
 
-/**
- * Values seeded into the operation, attempt, permit and reservation planes that
- * bullet 7 excludes. `ai_governance_policies` and `ai_provider_deployment_profiles`
- * are immutable global catalogues — seeding them would leak a row into every
- * concurrently running test — so their fixed published values are asserted absent
- * instead of being re-seeded.
- */
+/** Values that must never appear in the derivative-only export. */
 const MARKERS = Object.freeze({
   operationIdempotencyKey: 'NEVER_EXPORT_OPERATION_IDEMPOTENCY',
-  attemptModelSnapshot: 'NEVER_EXPORT_MODEL_SNAPSHOT',
-  reservationCostMicros: '987654321',
-  providerDeploymentProfile: 'private-beta-global-v1',
-  governancePolicyVersion: 'ai-private-beta-policy-v1',
   reviewText: 'NEVER_EXPORT_GUEST_REVIEW_TEXT',
   reviewerName: 'NEVER_EXPORT_REVIEWER_NAME',
   reviewExternalId: 'NEVER_EXPORT_GOOGLE_REVIEW_ID',
@@ -55,7 +45,6 @@ type Fixture = Readonly<{
   currentOperationId: string
   retiredOperationId: string
   expiredOperationId: string
-  permitId: string
   currentScheduleId: string
   retiredScheduleId: string
 }>
@@ -107,8 +96,8 @@ async function seedOperation(
        property_id, system_principal, review_id, origin_event_id, subject_hmac,
        subject_hmac_key_version, source_epoch, source_revision,
        reviewed_at_epoch_millis, analysis_sequence, authorization_lineage_id,
-       provider_deployment_profile_version, operation_profile_version,
-       capability_runtime_profile_version, global_control_id,
+       routing_policy_version, provider_deployment_profile_version,
+       operation_profile_version, capability_runtime_profile_version, global_control_id,
        global_control_generation, provider_control_id,
        provider_control_generation, capability_control_id,
        capability_control_generation, capability_fences, state,
@@ -116,7 +105,7 @@ async function seedOperation(
      ) VALUES (
        $1, 'ai-export-test', $2, $3, $4, 20, 'analysis', 'review_analysis',
        $5, $6, 'review_event_consumer', $7, $8, $9, 'test-v1', 0, 1, $10, $11,
-       $12, 'private-beta-global-v1', 'review-analysis-v1',
+       $12, 1, 'private-beta-global-v1', 'review-analysis-v1',
        'review-analysis-runtime-v1', $13, $14, $15, $16, $17, $18,
        '{"capability":"review_analysis","reviewAnalysisEpoch":"1"}'::jsonb,
        'succeeded', 1, $19, $19, $20
@@ -229,7 +218,6 @@ async function seedFixture(): Promise<Fixture> {
     currentOperationId: randomUUID(),
     retiredOperationId: randomUUID(),
     expiredOperationId: randomUUID(),
-    permitId: randomUUID(),
     currentScheduleId: randomUUID(),
     retiredScheduleId: randomUUID(),
   }
@@ -435,59 +423,6 @@ async function seedFixture(): Promise<Fixture> {
     )
   }
 
-  // The admission plane the export must never open.
-  await lease.pool.query(
-    `INSERT INTO ai_operation_attempts (
-       operation_id, attempt, state, started_at, settled_at, model_snapshot,
-       input_tokens, output_tokens
-     ) VALUES ($1, 1, 'completed', $2, $2, $3, 10, 20)`,
-    [fixture.currentOperationId, new Date(ANALYZED_AT), MARKERS.attemptModelSnapshot],
-  )
-  const heads = await controlHeads()
-  await lease.pool.query(
-    `INSERT INTO ai_execution_permits (
-       id, operation_id, execution_attempt, global_control_id,
-       global_control_generation, provider_control_id,
-       provider_control_generation, admitted_at, expires_at, route, state
-     ) VALUES ($1, $2, 1, $3, $4, $5, $6, $7, $8, 'review-analysis', 'issued')`,
-    [
-      fixture.permitId,
-      fixture.currentOperationId,
-      heads.global!.controlId,
-      heads.global!.generation,
-      heads['provider:private-beta-global-v1']!.controlId,
-      heads['provider:private-beta-global-v1']!.generation,
-      new Date(ANALYZED_AT),
-      new Date(new Date(ANALYZED_AT).getTime() + 60_000),
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO ai_property_quota_windows (
-       property_id, organization_id, generation, property_profile_version,
-       timezone, local_date, starts_at, ends_at, updated_at
-     ) VALUES ($1, $2, 1, 1, 'UTC', $3, $4, $5, $4)`,
-    [
-      fixture.propertyId,
-      fixture.organizationId,
-      LOCAL_DATE,
-      new Date(`${LOCAL_DATE}T00:00:00.000Z`),
-      new Date(`${LOCAL_DATE}T23:59:59.000Z`),
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO ai_admission_cost_reservations (
-       permit_id, organization_id, property_id, property_window_generation,
-       organization_utc_date, maximum_cost_micros, state, created_at
-     ) VALUES ($1, $2, $3, 1, $4, $5, 'reserved', $6)`,
-    [
-      fixture.permitId,
-      fixture.organizationId,
-      fixture.propertyId,
-      LOCAL_DATE,
-      Number(MARKERS.reservationCostMicros),
-      new Date(ANALYZED_AT),
-    ],
-  )
   return fixture
 }
 
@@ -643,7 +578,6 @@ describe.sequential('AI Organization Export contributor', () => {
       )
     }
     expect(archive).not.toContain(fixture.currentOperationId)
-    expect(archive).not.toContain(fixture.permitId)
     expect(archive).not.toMatch(
       /operation_id|subject_hmac|request_fingerprint|source_digest|maximum_cost_micros/u,
     )

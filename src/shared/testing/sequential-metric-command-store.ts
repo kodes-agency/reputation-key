@@ -3,7 +3,6 @@ import type { MetricReading } from '#/contexts/metric/domain/metric-reading'
 import type {
   MetricCommandStore,
   MetricSourceReceipt,
-  QuarantineMetricCommand,
   RecordMetricCommand,
   RecordMetricsCommand,
   RetractMetricCommand,
@@ -11,7 +10,6 @@ import type {
 
 export function createSequentialMetricCommandStore(deps: {
   insertReading: (reading: MetricReading) => Promise<MetricReading>
-  quarantine?: (command: QuarantineMetricCommand) => Promise<void>
   outbox?: RecordedOutbox
   recordReceipt?: (receipt: MetricSourceReceipt) => Promise<void>
 }): MetricCommandStore {
@@ -47,9 +45,6 @@ export function createSequentialMetricCommandStore(deps: {
       const [result] = await retractMetrics([command])
       if (!result) throw new Error('Sequential metric retraction produced no result')
       return result
-    },
-    quarantine: async (command) => {
-      await deps.quarantine?.(command)
     },
   }
 }

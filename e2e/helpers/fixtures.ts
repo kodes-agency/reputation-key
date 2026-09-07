@@ -629,19 +629,6 @@ export async function seedStaffUserWithGrant(input: {
     'INSERT INTO member (id, "organizationId", "userId", role, "createdAt") VALUES ($1, $2, $3, $4, now())',
     [`e2e-${randomUUID()}`, input.organizationId, userId, input.role ?? 'member'],
   )
-  // A membership alone is not enough to resolve tenant context. The tenant
-  // resolver requires a user_organization_bindings row and denies with
-  // organization_binding_missing without one, so a fixture user created here
-  // could sign in and then 500 on every authenticated request. The seed does
-  // the same for its own members; this is the runtime half of it.
-  await dbQuery(
-    `INSERT INTO user_organization_bindings
-       (user_id, organization_id, state, source, version, created_at, updated_at)
-     VALUES ($1, $2, 'active', 'backfill', 1, now(), now())
-     ON CONFLICT (user_id) DO UPDATE
-       SET organization_id = EXCLUDED.organization_id, state = 'active', updated_at = now()`,
-    [userId, input.organizationId],
-  )
   await dbQuery(
     `INSERT INTO property_access_grant (organization_id, property_id, user_id, source, created_by)
      VALUES ($1, $2, $3, 'operator', 'e2e-fixture')`,
@@ -691,12 +678,7 @@ export async function seedGoogleConnection(input: {
 
 // ── Property / review fixtures ────────────────────────────────────────
 
-/**
- * Mirror of scripts/seed-e2e-user.ts's grantAccess (→ grantPropertyAccess):
- * idempotent over the ACTIVE grant, and it commits the global policy_version
- * bump in the SAME statement as the insert, so a snapshot reader can never
- * observe the grant without its version.
- */
+/** Idempotent mirror of the surviving PropertyAccessGrant authority. */
 async function grantPropertyAccessFixture(input: {
   organizationId: string
   propertyId: string
@@ -712,20 +694,9 @@ async function grantPropertyAccessFixture(input: {
   )
   if (active.length > 0) return
   await dbQuery(
-    `WITH bump AS (
-       INSERT INTO policy_version (scope, version, updated_at)
-       VALUES ('global', 1, now())
-       ON CONFLICT (scope) DO UPDATE
-         SET version = policy_version.version + 1, updated_at = now()
-       RETURNING version
-     ),
-     ins AS (
-       INSERT INTO property_access_grant
-         (organization_id, property_id, user_id, source, created_by)
-       VALUES ($1, $2, $3, 'operator', $3)
-       RETURNING id
-     )
-     SELECT id FROM ins`,
+    `INSERT INTO property_access_grant
+       (organization_id, property_id, user_id, source, created_by)
+     VALUES ($1, $2, $3, 'operator', $3)`,
     [input.organizationId, input.propertyId, input.userId],
   )
 }
@@ -1644,37 +1615,14 @@ export async function cleanupE2eData(input: {
      DELETE FROM reply_publication_attempts WHERE review_id IN (${FIXTURE_REVIEWS})`,
     args,
   )
-  // reply_publication_authorizations is NOT deleted: a trigger refuses it
-  // ("reply publication authorizations are immutable"), which is the product's
-  // deliberate posture for a record of what a manager authorised. A review that
-  // still carries one therefore cannot be removed either, so both are left in
-  // place. That is safe because every fixture identity is scoped by e2eRunId --
-  // the rows accumulate but never collide with a later run.
-  // Only reviews with no immutable authorization behind them can go, and the
-  // replies must go with them.
-  // A reply that an authorization still names cannot go, so it is skipped and
-  // its review is skipped with it. Reviews are then removed only once nothing
-  // references them at all.
   await dbQuery(
-    `DELETE FROM replies reply
-     WHERE reply.review_id IN (${FIXTURE_REVIEWS})
-       AND NOT EXISTS (
-         SELECT 1 FROM reply_publication_authorizations authorization_record
-         WHERE authorization_record.reply_id = reply.id
-       )`,
+    `DELETE FROM reply_publication_authorizations
+     WHERE review_id IN (${FIXTURE_REVIEWS})`,
     args,
   )
-  await dbQuery(
-    `DELETE FROM reviews review
-     WHERE review.id IN (${FIXTURE_REVIEWS})
-       AND NOT EXISTS (SELECT 1 FROM replies reply WHERE reply.review_id = review.id)
-       AND NOT EXISTS (
-         SELECT 1 FROM reply_publication_authorizations authorization_record
-         WHERE authorization_record.review_id = review.id
-       )`,
-    args,
-  )
-  // grants for prefix-matched users and properties (RESTRICT FK), then both
+  await dbQuery(`DELETE FROM replies WHERE review_id IN (${FIXTURE_REVIEWS})`, args)
+  await dbQuery(`DELETE FROM reviews WHERE id IN (${FIXTURE_REVIEWS})`, args)
+  // Remove grants for prefix-matched users and properties before their RESTRICT parents.
   await dbQuery(
     `DELETE FROM property_access_grant WHERE organization_id = $1 AND (
        user_id IN (SELECT id FROM "user" WHERE email LIKE $2) OR
@@ -1685,28 +1633,23 @@ export async function cleanupE2eData(input: {
     'DELETE FROM notifications WHERE user_id IN (SELECT id FROM "user" WHERE email LIKE $1)',
     [like],
   )
-  await dbQuery(
-    `DELETE FROM user_organization_bindings
-      WHERE user_id IN (SELECT id FROM "user" WHERE email LIKE $1)`,
-    [like],
-  )
   await dbQuery('DELETE FROM invitation WHERE email LIKE $1', [like])
   await dbQuery(
-    `DELETE FROM property_operation_receipts
-     WHERE organization_id = $1 AND destination_property_id IN (
-       SELECT p.id
-       FROM properties p
-       LEFT JOIN google_connections gc ON gc.id = p.google_connection_id
-       WHERE p.organization_id = $1
-         AND (p.slug LIKE $2 OR gc.google_subject LIKE $2))`,
+    `DELETE FROM idempotency_receipts
+     WHERE scope = 'property_operation'
+       AND payload->>'organizationId' = $1
+       AND payload->>'destinationPropertyId' IN (
+         SELECT p.id::text
+         FROM properties p
+         LEFT JOIN google_connections gc ON gc.id = p.google_connection_id
+         WHERE p.organization_id = $1
+           AND (p.slug LIKE $2 OR gc.google_subject LIKE $2))`,
     [input.organizationId, like],
   )
   await dbQuery(
-    // A Property whose Reviews cannot be removed cannot be removed either: the
-    // cascade would reach a Reply that a reply_publication_authorization still
-    // names, and that record is immutable by design. Skipping such a Property
-    // leaves it behind rather than aborting the whole cleanup, which is what
-    // used to poison the database for every later run of that spec.
+    // Delete a fixture Property only after its Reviews are gone. The
+    // defensive NOT EXISTS keeps unexpected retained Review data from being
+    // removed by cascade or aborting the rest of cleanup.
     `DELETE FROM properties
      WHERE organization_id = $1 AND id IN (
        SELECT p.id

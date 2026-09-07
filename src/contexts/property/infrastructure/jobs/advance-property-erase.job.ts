@@ -136,6 +136,7 @@ async function purgeContexts(
     const erased = await contributor.erase(tx, scope)
     await store.recordContextReceipt({
       authorityId: authority.id,
+      organizationId: authority.organizationId,
       context: contributor.context,
       phase: 'purge',
       // `no_data` is still an answer: a context with nothing to erase must be

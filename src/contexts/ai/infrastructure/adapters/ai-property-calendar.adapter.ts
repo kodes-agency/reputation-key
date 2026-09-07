@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm'
+import { AI_PROPERTY_CALENDAR_PROFILE_V1 } from '#/shared/ai-property-calendar-profile'
 import type { Database } from '#/shared/db'
 import type { AiPropertyCalendarPort } from '../../application/ports/ai-property-calendar.port'
 
@@ -7,20 +8,19 @@ const LOCAL_DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/
 export const createAiPropertyCalendarAdapter = (db: Database): AiPropertyCalendarPort => {
   return Object.freeze({
     async assertComplete() {
-      const result = await db.execute(
-        sql<{
-          complete: boolean
-        }>`SELECT assert_ai_property_calendar_authority_v1() AS complete`,
-      )
-      return result.rows.length === 1 && result.rows[0]?.complete === true
+      return AI_PROPERTY_CALENDAR_PROFILE_V1.profileVersion === 'property-calendar-v1'
     },
 
     async resolveLocalDate(input) {
+      if (
+        input.calendarProfileVersion !== AI_PROPERTY_CALENDAR_PROFILE_V1.profileVersion
+      ) {
+        return null
+      }
       const result = await db.execute(sql<{ local_date: string | null }>`
-        SELECT resolve_ai_property_local_date_v1(
+        SELECT ai_property_local_date_v1(
           to_timestamp(${input.reviewedAtEpochMillis}::numeric / 1000),
-          ${input.timezone},
-          ${input.calendarProfileVersion}
+          ${input.timezone}
         )::text AS local_date
       `)
       const localDate = result.rows[0]?.local_date

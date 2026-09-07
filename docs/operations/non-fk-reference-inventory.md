@@ -1,8 +1,7 @@
 # Non-foreign-key reference inventory
 
-`docs/operations/legacy-goal-contraction.md` states the gap this inventory
-closes: "The inventory deliberately does not claim a complete non-foreign-key
-dependency graph."
+This inventory closes the gap between PostgreSQL-enforced foreign keys and
+application-level identifiers before any contraction slice removes a row.
 
 A foreign key is the only reference PostgreSQL defends. Everything else — a
 uuid column declared without `.references()`, a `(resource_type, resource_id)`
@@ -28,26 +27,18 @@ found by schema inspection, with the schema fact that makes it a surface:
 | `outbox_events.payload`                            | `payload`                                             | unconstrained jsonb                                                                       |
 | `notifications.payload`                            | `payload`                                             | nullable jsonb rendered snapshot                                                          |
 
-The Recent Activity vocabulary `ACTIVITY_RESOURCE_TYPES`
-(`src/contexts/activity/domain/types.ts:33`) still contains `team`,
-`staff_assignment` and `goal` — exactly the resource kinds whose rows are
-contraction candidates. A test reads that vocabulary from source and fails if a
-token maps to a candidate table without a declared referent.
+Recent Activity resource tokens map to contraction candidates explicitly in
+`ACTIVITY_RESOURCE_REFERENTS`. A candidate is never inferred from a vocabulary
+token; adding such a mapping is a reviewed contraction decision.
 
 ## Coverage rule
 
 Every table classified `bounded_contraction` or `compatibility_read` must be
 either reachable by a declared probe or recorded in
-`NON_FK_UNREFERENCEABLE_CANDIDATES` with a reason. One candidate is recorded as
-having no non-FK referent because it has no surrogate row identifier anything
-else could hold:
-
-- `legacy_import_control` — keyed by environment name; its only reference is
-  the validated `legacy_import_effect_leases_control_fk` foreign key.
-
-The remaining 28 candidates are listed explicitly as surrogate-identified. Both
-lists are explicit rather than derived, so a new contraction candidate joins one
-of them by decision. A candidate in neither list fails the coverage test.
+`NON_FK_UNREFERENCEABLE_CANDIDATES` with a schema-based reason. Both the
+surrogate-identified list and any exemptions are explicit rather than derived,
+so a new contraction candidate must join one of them by decision. A candidate
+in neither list fails the coverage test.
 
 ## Running the scan
 

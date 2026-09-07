@@ -2,9 +2,6 @@
 // Other contexts consume these types to query goal data and interpret durable facts.
 // Per architecture: contexts must not import from another context's internal layers.
 
-// ── DTO re-exports (schemas + inferred types) ─────────────────────────
-export type { Goal } from './dto/goal.dto'
-
 // ── Port types ────────────────────────────────────────────────────────
 export type { GoalExecutionPolicy } from './ports/goal-execution-policy'
 
@@ -26,7 +23,6 @@ export { GoalProgramError } from './use-cases/goal-programs'
 
 // ── Event re-exports — cross-context consumers must import event types from public-api, not domain/events
 export type {
-  GoalCompleted,
   GoalMonthlyResultClosed,
   GoalMonthlyResultReconciled,
   GoalEvent,

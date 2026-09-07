@@ -1,22 +1,17 @@
 /**
  * CNV-01 non-foreign-key reference authority.
  *
- * `docs/operations/legacy-goal-contraction.md` admits the gap this module
- * closes: "The inventory deliberately does not claim a complete
- * non-foreign-key dependency graph." A foreign key is the only reference
- * PostgreSQL will defend. Everything else — a uuid column declared without
- * `.references()`, a `(resource_type, resource_id)` pair, an aggregate id in
- * `outbox_events`, an identifier embedded in a jsonb document — survives the
- * row it names and turns into a dangling reference the moment a contraction
- * slice runs.
+ * A foreign key is the only reference PostgreSQL will defend. Everything
+ * else — a uuid column declared without `.references()`, a
+ * `(resource_type, resource_id)` pair, an aggregate id in `outbox_events`, or
+ * an identifier embedded in a jsonb document — survives the row it names and
+ * can become a dangling reference when a contraction slice runs.
  *
  * The surfaces below were found by schema inspection, not by guessing:
  *
- * - `recent_activity_entries.resource_type` / `.resource_id` are varchar with
- *   no constraint, and the `ACTIVITY_RESOURCE_TYPES` vocabulary still contains
- *   `goal` — a resource kind whose rows are contraction candidates;
- * - `recent_activity_replay_facts` repeats that pair and adds a textual
- *   `source_aggregate_id`;
+ * - `recent_activity_entries.resource_type` / `.resource_id` are
+ *   unconstrained varchar, and `recent_activity_replay_facts` repeats that
+ *   pair while adding a textual `source_aggregate_id`;
  * - `outbox_events` carries `source_context`, `source_aggregate_id` and
  *   `event_type` as free text plus a jsonb `payload`;
  * - `notifications.payload` is jsonb.
@@ -64,9 +59,9 @@ const nonFkSurface = <const Definition extends NonFkReferenceSurface>(
 ) => Object.freeze(definition)
 
 /** Recent Activity resource tokens whose rows are contraction candidates. */
-export const ACTIVITY_RESOURCE_REFERENTS = Object.freeze([
-  Object.freeze({ token: 'goal', tableName: 'goals' }),
-] as const)
+export const ACTIVITY_RESOURCE_REFERENTS: ReadonlyArray<
+  Readonly<{ token: string; tableName: string }>
+> = Object.freeze([])
 
 /**
  * Declaration order is the probe order an operator sees, so it runs from the
@@ -83,7 +78,7 @@ export const NON_FK_REFERENCE_SURFACES = Object.freeze([
     discriminatorColumn: 'resource_type',
     referentScope: 'activity_vocabulary',
     reason:
-      'Both columns are varchar with no constraint, and the ACTIVITY_RESOURCE_TYPES vocabulary still contains team, staff_assignment and goal, so the projection can name a contracted row forever.',
+      'The unconstrained resource pair requires an explicit token-to-table mapping before a matching contraction candidate can be removed.',
   }),
   nonFkSurface({
     id: 'recent_activity_replay_facts.resource',
@@ -199,8 +194,6 @@ export const NON_FK_UNREFERENCEABLE_CANDIDATES = Object.freeze(
  */
 export const NON_FK_SURROGATE_IDENTIFIED_CANDIDATES = Object.freeze([
   'feedback',
-  'goal_progress',
-  'goals',
   'portal_group_members',
   'property_access_grants',
   'ratings',

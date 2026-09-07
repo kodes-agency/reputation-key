@@ -43,9 +43,9 @@ type LifecyclePhase = 'closing' | 'purge_readiness' | 'purge'
 type PhaseStep = Readonly<{ step: string; rows: number }>
 
 /**
- * `review_sync_state`, `review_sync_runs` and `inbound_webhook_receipts` are
- * keyed by Property, not by Organization, so the tenant scope has to be
- * resolved. It is the UNION of two sources on purpose:
+ * `review_sync_state`, `review_sync_runs` and the `gbp_webhook` idempotency
+ * receipts are keyed by Property, not by Organization, so the tenant scope has
+ * to be resolved. It is the UNION of two sources on purpose:
  *
  *   - `properties` covers a connected Property that has not produced a Review
  *     yet — exactly the one whose import is most important to fence;
@@ -336,10 +336,6 @@ async function purge(
     tx,
     sql`DELETE FROM review_source_contents WHERE organization_id = ${organizationId}`,
   )
-  const provenanceQuarantine = await countAffected(
-    tx,
-    sql`DELETE FROM review_source_provenance_quarantine WHERE organization_id = ${organizationId}`,
-  )
   const aiAnalysisHeads = await countAffected(
     tx,
     sql`DELETE FROM review_ai_analysis_heads WHERE organization_id = ${organizationId}`,
@@ -424,8 +420,9 @@ async function purge(
   // Provider notification message identifiers for this tenant's Properties.
   const webhookReceipts = await countAffected(
     tx,
-    sql`DELETE FROM inbound_webhook_receipts
-        WHERE resolved_property_id IN (SELECT property_id FROM ${propertyScope(organizationId)} AS scope)`,
+    sql`DELETE FROM idempotency_receipts
+        WHERE scope = 'gbp_webhook'
+          AND payload->>'resolvedPropertyId' IN (SELECT property_id FROM ${propertyScope(organizationId)} AS scope)`,
   )
   const syncRuns = await countAffected(
     tx,
@@ -445,7 +442,6 @@ async function purge(
     { step: 'publication_attempts_deleted', rows: publicationAttempts },
     { step: 'source_observations_deleted', rows: sourceObservations },
     { step: 'source_contents_deleted', rows: sourceContents },
-    { step: 'provenance_quarantine_deleted', rows: provenanceQuarantine },
     { step: 'ai_analysis_heads_deleted', rows: aiAnalysisHeads },
     { step: 'reputation_snapshot_facts_deleted', rows: reputationFacts },
     { step: 'provider_subjects_deleted', rows: providerSubjects },

@@ -11,7 +11,6 @@ import {
   callServerFn,
   callServerFnGet,
   cleanupE2eData,
-  dbQuery,
   e2eRunId,
   getUserByEmail,
   seedGoogleConnection,
@@ -129,21 +128,8 @@ async function seedPerformanceProperty(): Promise<{ propertyId: string }> {
       locationId: LOCATION_ID,
     },
   })
-  await dbQuery(
-    `INSERT INTO property_capability (property_id, capability, created_by)
-     VALUES ($1, 'property.read_gbp_performance', $2)
-     ON CONFLICT (property_id, capability) DO NOTHING`,
-    [propertyId, admin!.id],
-  )
-  await dbQuery(
-    `UPDATE policy_version
-     SET version = version + 1,
-         updated_at = now()
-     WHERE scope = 'global'`,
-  )
   return { propertyId }
 }
-
 function assertNoProviderIdentifiers(value: unknown): void {
   const serialized = JSON.stringify(value)
   expect(serialized).not.toContain('accounts/')
@@ -252,7 +238,7 @@ test.describe('Critical workflow: live Google Performance', () => {
     await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
   })
 
-  test('fails provider faults closed, preserves zero/partial semantics, and rechecks revocation', async ({
+  test('fails provider faults closed and preserves zero/partial semantics', async ({
     page,
   }) => {
     const { propertyId } = await seedPerformanceProperty()
@@ -313,49 +299,6 @@ test.describe('Critical workflow: live Google Performance', () => {
       errorCode: 'malformed_provider_response',
       retryable: false,
       retryAfterSeconds: null,
-    })
-
-    await gbpStubControl.setPerformanceBehavior(LOCATION_NAME, {
-      mode: 'delay',
-      delayMs: 1_000,
-    })
-    const callsBeforeRace = (
-      await gbpStubControl.calls({
-        method: 'GET',
-        pathPrefix: `v1/locations/${LOCATION_ID}:fetchMultiDailyMetricsTimeSeries`,
-      })
-    ).length
-    const pending = getPerformance(page, propertyId)
-    await waitFor(
-      async () => {
-        const calls = await gbpStubControl.calls({
-          method: 'GET',
-          pathPrefix: `v1/locations/${LOCATION_ID}:fetchMultiDailyMetricsTimeSeries`,
-        })
-        return calls.length > callsBeforeRace ? true : null
-      },
-      {
-        timeoutMs: 5_000,
-        intervalMs: 25,
-        description: 'delayed Performance provider call',
-      },
-    )
-    await dbQuery(
-      `DELETE FROM property_capability
-       WHERE property_id = $1 AND capability = 'property.read_gbp_performance'`,
-      [propertyId],
-    )
-    await dbQuery(
-      `UPDATE policy_version
-       SET version = version + 1,
-           updated_at = now()
-       WHERE scope = 'global'`,
-    )
-
-    await expect(pending).resolves.toEqual({
-      status: 'unavailable',
-      reason: 'policy_disabled',
-      action: null,
     })
   })
 })

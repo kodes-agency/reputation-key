@@ -5,14 +5,12 @@ import { Pool, type PoolClient, type QueryResult } from 'pg'
 import { deterministicFixtureHash } from '../../src/shared/testing/local-stack-controller'
 import { deleteTestOrganizations } from '../../src/shared/testing/integration-helpers'
 
-const VERSION = 'fleet-local-2'
+const VERSION = 'fleet-local-3'
 const DEFAULT_PROPERTIES = 5_000
-const DEFAULT_P1_RATIO = 0.5
-const CAPABILITIES = ['portal.read', 'portal.public_read', 'goal.use'] as const
 
 type InstrumentedQuery = Readonly<{
   ordinal: number
-  name: 'scope' | 'summary' | 'page' | 'capability-overlay'
+  name: 'scope' | 'summary' | 'page'
   rowCount: number
 }>
 
@@ -27,16 +25,6 @@ function positiveInteger(name: string, fallback: number): number {
   const parsed = Number(raw)
   if (!Number.isSafeInteger(parsed) || parsed < 1) {
     throw new Error(`${name} must be a positive integer`)
-  }
-  return parsed
-}
-
-function ratioArgument(): number {
-  const raw = argument('--p1-ratio')
-  if (raw == null) return DEFAULT_P1_RATIO
-  const parsed = Number(raw)
-  if (!Number.isFinite(parsed) || parsed <= 0 || parsed >= 1) {
-    throw new Error('--p1-ratio must be greater than 0 and less than 1')
   }
   return parsed
 }
@@ -64,20 +52,13 @@ async function main(): Promise<void> {
 
   const seed = argument('--seed') ?? 'beta-local-fleet-v1'
   const propertyCount = positiveInteger('--properties', DEFAULT_PROPERTIES)
-  const p1Ratio = ratioArgument()
-  const p1Properties = Math.floor(propertyCount * p1Ratio)
   const artifactPath = resolve(
     process.cwd(),
     argument('--artifact') ??
       process.env.PERF_FLEET_ARTIFACT ??
       '/artifacts/perf/fleet-fixture.json',
   )
-  const fixtureHash = deterministicFixtureHash({
-    seed,
-    properties: propertyCount,
-    p1Properties,
-    capabilities: CAPABILITIES,
-  })
+  const fixtureHash = deterministicFixtureHash({ seed, properties: propertyCount })
   const organizationId = `local-fleet-${fixtureHash.slice(0, 20)}`
   const organizationSlug = `local-fleet-${fixtureHash.slice(0, 12)}`
   const memberId = `local-fleet-member-${fixtureHash.slice(0, 20)}`
@@ -110,16 +91,6 @@ async function main(): Promise<void> {
        VALUES ($1, $2, $3, 'AccountAdmin', now())`,
       [memberId, userId, organizationId],
     )
-    await client.query(
-      `INSERT INTO organization_policy (organization_id, cohort, suspended_at, suspended_reason)
-       VALUES ($1, 'beta-local', NULL, NULL)`,
-      [organizationId],
-    )
-    await client.query(
-      `INSERT INTO organization_capability (organization_id, capability, created_by)
-       SELECT $1, capability, $2 FROM unnest($3::text[]) capability`,
-      [organizationId, userId, CAPABILITIES],
-    )
 
     const ids = Array.from({ length: propertyCount }, (_, index) =>
       deterministicId(seed, index + 1),
@@ -136,30 +107,12 @@ async function main(): Promise<void> {
       [organizationId, ids],
     )
     await client.query(
-      `INSERT INTO property_policy (property_id, suspended_at, suspended_reason)
-       SELECT id, NULL, NULL FROM properties WHERE organization_id = $1`,
-      [organizationId],
-    )
-    await client.query(
       `INSERT INTO property_access_grant (
          organization_id, property_id, user_id, source, created_by
        )
        SELECT $1, id, $2, 'operator', $2
        FROM properties WHERE organization_id = $1`,
       [organizationId, userId],
-    )
-    await client.query(
-      `INSERT INTO property_capability (property_id, capability, created_by)
-       SELECT selected.id, capability, $2
-       FROM (
-         SELECT id FROM properties WHERE organization_id = $1 ORDER BY lower(name), id LIMIT $3
-       ) selected
-       CROSS JOIN unnest($4::text[]) capability`,
-      [organizationId, userId, p1Properties, CAPABILITIES],
-    )
-    await client.query(
-      `UPDATE policy_version SET version = version + 1, updated_at = now()
-       WHERE scope = 'global'`,
     )
     await client.query('COMMIT')
 
@@ -193,25 +146,13 @@ async function main(): Promise<void> {
        ORDER BY lower(name), id LIMIT 50`,
       [organizationId],
     )
-    const overlay = await instrumentedQuery<{ enabled: string }>(
-      client,
-      queries,
-      'capability-overlay',
-      `SELECT count(DISTINCT pc.property_id)::text AS enabled
-       FROM property_capability pc
-       JOIN properties p ON p.id = pc.property_id
-       WHERE p.organization_id = $1 AND pc.capability = 'portal.read'`,
-      [organizationId],
-    )
 
     const observedProperties = Number(scope.rows[0]?.property_count ?? -1)
     const totalProperties = Number(summary.rows[0]?.total ?? -1)
-    const observedP1 = Number(overlay.rows[0]?.enabled ?? -1)
     const assertions = {
       exactFixture:
         observedProperties === propertyCount && totalProperties === propertyCount,
-      mixedPolicy: observedP1 === p1Properties && observedP1 < propertyCount,
-      boundedStatements: queries.length <= 4,
+      boundedStatements: queries.length <= 3,
       boundedPage: page.rows.length <= 50,
       stableCursorOrder: page.rows.every(
         (row, index, rows) =>
@@ -233,9 +174,6 @@ async function main(): Promise<void> {
       organizationId,
       userId,
       properties: propertyCount,
-      p1Properties,
-      p2Properties: propertyCount - p1Properties,
-      capabilities: CAPABILITIES,
       dashboardInstrumentation: {
         statementCount: queries.length,
         pageRows: page.rows.length,

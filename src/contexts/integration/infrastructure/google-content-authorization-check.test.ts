@@ -1,9 +1,11 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
+import { createGoogleContentAuthorizationCheck } from './google-content-authorization-check'
 import {
-  createGoogleContentAuthorizationCheck,
-  policyAuthorizes,
-} from './google-content-authorization-check'
+  createEnvCapabilityPolicyStore,
+  initCapabilityPolicyStore,
+  resetCapabilityPolicyStore,
+} from '#/shared/auth/beta-capabilities'
 
 const baseInput = {
   capability: 'property.import_gbp_v2' as const,
@@ -33,6 +35,16 @@ function checkWithRows(rows: readonly (readonly Record<string, unknown>[])[]) {
 
 const member = [{ role: 'owner', permission_version: 7 }]
 const policy = [{ version: 11, emergency_kill_version: 3 }]
+beforeEach(() => {
+  resetCapabilityPolicyStore()
+  initCapabilityPolicyStore(
+    createEnvCapabilityPolicyStore({
+      BETA_E2E_GLOBAL_CAPABILITIES: 'property.import_gbp_v2',
+    }),
+  )
+})
+
+afterEach(() => resetCapabilityPolicyStore())
 
 describe('Google OAuth content authorization', () => {
   it('authorizes a connectionless first exchange on this deployment', async () => {
@@ -92,42 +104,5 @@ describe('Google OAuth content authorization', () => {
         credentialUseState: 'none',
       },
     })
-  })
-})
-
-// The two capability gates used to disagree, and this one was the odd one out.
-// `checkScopedCapability` has always exempted CORE capabilities from the org and
-// property allowlists, and nothing in the product ever writes an
-// `organization_capability` row for one — so requiring those rows here meant
-// property.connect_gbp and property.publish_reply could never authorize for any
-// tenant. Review sync and reply publication were dead everywhere, and the
-// refusal surfaced three layers away as a bare `provider_failure`.
-describe('policyAuthorizes allowlist exemption', () => {
-  const capturedFlags = async (capability: Parameters<typeof policyAuthorizes>[1]) => {
-    const execute = vi.fn().mockResolvedValue({ rows: [] })
-    await policyAuthorizes(
-      { execute } as unknown as Database,
-      capability,
-      'org-1',
-      '00000000-0000-4000-8000-000000000001',
-    )
-    const query = execute.mock.calls[0]?.[0] as {
-      queryChunks?: readonly unknown[]
-    }
-    // Bound parameters sit between the SQL fragments as bare values.
-    return (query.queryChunks ?? []).filter((chunk) => typeof chunk === 'boolean')
-  }
-
-  it('exempts a CORE capability from both allowlists', async () => {
-    // Both occurrences — organization and property — are bound true.
-    expect(await capturedFlags('property.connect_gbp')).toEqual([true, true])
-    expect(await capturedFlags('property.publish_reply')).toEqual([true, true])
-  })
-
-  it('still requires the allowlists for a cohort capability', async () => {
-    // The exemption must not leak: an opt-in capability keeps both EXISTS
-    // clauses, which is the whole point of the cohort allowlist.
-    expect(await capturedFlags('property.import_gbp_v2')).toEqual([false, false])
-    expect(await capturedFlags('property.read_gbp_performance')).toEqual([false, false])
   })
 })

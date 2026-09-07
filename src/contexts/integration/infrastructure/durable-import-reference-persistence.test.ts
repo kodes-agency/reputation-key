@@ -14,10 +14,8 @@ import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
 import type { Database } from '#/shared/db'
-import {
-  googleImportDiscoveryInvalidations,
-  googleImportDiscoveryRecords,
-} from '#/shared/db/schema/google-import-discovery.schema'
+import { googleImportDiscoveryRecords } from '#/shared/db/schema/google-import-discovery.schema'
+import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { ImportDiscoveryAuthorization } from '../application/ports/google-import-reference-store.port'
 import {
@@ -97,7 +95,7 @@ const createFakeDatabase = (rows: FakeRows = {}) => {
         where: (where: SQL) => ({
           limit: async (limit: number) => {
             statements.push({ op: 'select', table, where, limit })
-            return table === googleImportDiscoveryInvalidations
+            return table === idempotencyReceipts
               ? (rows.invalidations ?? [])
               : (rows.records ?? [])
           },
@@ -268,15 +266,16 @@ describe('durable import checkpoint writes', () => {
 
     await insertDurableImportRecords(db, keys, [record()], [CONNECTION_SCOPE], NOW)
 
-    const [sweep] = only(statements, 'delete', googleImportDiscoveryInvalidations)
-    const [probe] = only(statements, 'select', googleImportDiscoveryInvalidations)
+    const [sweep] = only(statements, 'delete', idempotencyReceipts)
+    const [probe] = only(statements, 'select', idempotencyReceipts)
     const sweepQuery = compile(sweep!.where)
     const probeQuery = compile(probe!.where)
 
-    expect(sweepQuery.params).toEqual([...digests, NOW.toISOString()])
-    expect(sweepQuery.sql).toContain('"expires_at" <=')
-    expect(probeQuery.params).toEqual([...digests, NOW.toISOString()])
-    expect(probeQuery.sql).toContain('"expires_at" >')
+    expect(sweepQuery.params).toEqual(['google_import_discovery', ...digests, NOW])
+    expect(sweepQuery.sql).toContain("->>'expiresAt'")
+    expect(sweepQuery.sql).toContain('::timestamptz <=')
+    expect(probeQuery.params).toEqual(['google_import_discovery', ...digests, NOW])
+    expect(probeQuery.sql).toContain('::timestamptz >')
     expect(probe!.limit).toBe(1)
   })
 
@@ -303,7 +302,7 @@ describe('durable import checkpoint writes', () => {
 
     await insertDurableImportRecords(db, keys, [], [CONNECTION_SCOPE], NOW)
 
-    expect(only(statements, 'select', googleImportDiscoveryInvalidations)).toHaveLength(1)
+    expect(only(statements, 'select', idempotencyReceipts)).toHaveLength(1)
     expect(only(statements, 'insert')).toEqual([])
   })
 

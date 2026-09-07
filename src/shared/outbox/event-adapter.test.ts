@@ -547,7 +547,7 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
     ).toMatchObject({ occurredAt: NOW.toISOString() })
   })
 
-  it('supports the invitation v1 sentinel and rejects the retired key from v2', () => {
+  it('registers only the content-minimal invitation v2 shape', () => {
     clearEventSchemas()
     registerAllEventSchemas()
     const base = {
@@ -555,12 +555,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
       organizationId: 'org-1',
       role: 'PropertyManager',
     }
-    expect(
-      validateEventPayload('identity.member.invited', 1, {
-        ...base,
-        email: '[redacted]',
-      }),
-    ).toMatchObject({ email: '[redacted]' })
     expect(validateEventPayload('identity.member.invited', 2, base)).toEqual(base)
     expect(() =>
       validateEventPayload('identity.member.invited', 2, {

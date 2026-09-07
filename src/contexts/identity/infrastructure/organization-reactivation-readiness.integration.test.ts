@@ -69,12 +69,6 @@ async function seedCancelledClosure() {
      VALUES ($1, $2, $3, 'owner', $4)`,
     [`${PREFIX}member-${suffix}`, actorUserId, organizationId, REQUESTED_AT],
   )
-  await lease.pool.query(
-    `INSERT INTO user_organization_bindings (
-       user_id, organization_id, state, source, version, created_at, updated_at
-     ) VALUES ($1, $2, 'active', 'operator', 1, $3, $3)`,
-    [actorUserId, organizationId, REQUESTED_AT],
-  )
 
   const store = createOrganizationLifecycleCommandStore(db)
   await store.requestClosure({
@@ -109,14 +103,6 @@ describe('Organization reactivation readiness (real PostgreSQL)', () => {
       await lease.pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [
         organizationId,
       ])
-      await lease.pool.query(
-        'DELETE FROM organization_lifecycle_command_receipts WHERE organization_id = $1',
-        [organizationId],
-      )
-      await lease.pool.query(
-        'DELETE FROM user_organization_bindings WHERE organization_id = $1',
-        [organizationId],
-      )
       await executeWithLastOwnerGuardDisabled(db, [
         sql`DELETE FROM member WHERE "organizationId" = ${organizationId}`,
       ])
@@ -161,7 +147,7 @@ describe('Organization reactivation readiness (real PostgreSQL)', () => {
       'schedule_quarantine_cleared',
     ])
 
-    // Nothing resumed: the fence and the suspension are both intact.
+    // Nothing resumed: the lifecycle authority remains fenced.
     const authority = await lease.pool.query(
       'SELECT state, reactivation_required FROM organization_lifecycle_authority WHERE organization_id = $1',
       [organizationId],
@@ -170,11 +156,6 @@ describe('Organization reactivation readiness (real PostgreSQL)', () => {
       state: 'active',
       reactivation_required: true,
     })
-    const policy = await lease.pool.query(
-      'SELECT suspended_reason FROM organization_policy WHERE organization_id = $1',
-      [organizationId],
-    )
-    expect(policy.rows[0]?.suspended_reason).toBe('lifecycle:closure_requested')
   })
 
   it('refuses a PropertyManager before it evaluates any readiness question', async () => {

@@ -174,13 +174,10 @@ describe('retention registry report-only mode', () => {
       .map(({ ruleId }) => ruleId)
     expect(countable).toEqual([
       'google.import_discovery',
-      'google.import_discovery_invalidations',
+      'platform.idempotency_receipts',
       'review.sync_runs',
       'review.refresh_runs',
-      'integration.inbound_webhook_receipts',
       'guest.session_pseudonym',
-      'guest.destination_action_session_pseudonym',
-      'guest.qualified_scan_session_pseudonym',
       'guest.abuse_pseudonym',
       'guest.network_pseudonym',
       'guest.legacy_scan_events.abuse_pseudonym',
@@ -200,8 +197,6 @@ describe('retention registry report-only mode', () => {
       'activity.actor_label_redactions',
       'platform.published_outbox_events',
       'platform.event_consumer_receipts',
-      'identity.invited_registration_attempts',
-      'platform.policy_decision_audit',
       'platform.audit_logs',
       'integration.provider_tokens',
     ])
@@ -223,7 +218,6 @@ describe('retention registry report-only mode', () => {
       'platform.logs_sentry_replay_screenshots': 'no counsel-approved horizon exists',
       'ai.local_derivatives': 'no counsel-approved horizon exists',
       'platform.uploads': 'no counsel-approved horizon exists',
-      'platform.quarantine': 'no counsel-approved horizon exists',
       'lifecycle.organization_exports':
         'object_store sources are not countable from PostgreSQL',
       'platform.backups': 'no counsel-approved horizon exists',

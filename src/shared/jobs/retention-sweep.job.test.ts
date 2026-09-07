@@ -389,29 +389,14 @@ describe('retention rule registry (BQC-3.7)', () => {
     })
   })
 
-  it('deletes destination-action session receipts at their exact expiry', () => {
+  it('retains shared idempotency receipts for 30 days', () => {
     expect(
-      RETENTION_RULES.find(
-        (rule) => rule.subject === 'guest_destination_action_receipts.expired',
-      ),
+      RETENTION_RULES.find((rule) => rule.subject === 'idempotency_receipts'),
     ).toMatchObject({
-      table: 'guest_destination_action_receipts',
-      keyColumns: ['id'],
-      tsColumn: 'expires_at',
-      olderThanMs: 0,
-    })
-  })
-
-  it('deletes Qualified Scan session receipts at their exact expiry', () => {
-    expect(
-      RETENTION_RULES.find(
-        (rule) => rule.subject === 'guest_qualified_scan_receipts.expired',
-      ),
-    ).toMatchObject({
-      table: 'guest_qualified_scan_receipts',
-      keyColumns: ['id'],
-      tsColumn: 'expires_at',
-      olderThanMs: 0,
+      table: 'idempotency_receipts',
+      keyColumns: ['scope', 'key'],
+      tsColumn: 'recorded_at',
+      olderThanMs: 30 * 24 * 60 * 60 * 1000,
     })
   })
 
@@ -495,31 +480,6 @@ describe('retention rule registry (BQC-3.7)', () => {
       tsColumn: 'expires_at',
       olderThanMs: 0,
     })
-    expect(
-      RETENTION_RULES.find(
-        (rule) => rule.subject === 'google_import_discovery_invalidations.expired',
-      ),
-    ).toMatchObject({
-      table: 'google_import_discovery_invalidations',
-      keyColumns: ['invalidation_key'],
-      tsColumn: 'expires_at',
-      olderThanMs: 0,
-    })
-  })
-
-  it('removes only settled invitation-registration fences after 90 days', () => {
-    expect(
-      RETENTION_RULES.find(
-        (rule) => rule.subject === 'invited_registration_attempts.settled',
-      ),
-    ).toEqual({
-      subject: 'invited_registration_attempts.settled',
-      table: 'invited_registration_attempts',
-      keyColumns: ['id'],
-      tsColumn: 'updated_at',
-      olderThanMs: 90 * 24 * 60 * 60 * 1000,
-      extraWhere: "state IN ('accepted', 'compensated')",
-    })
   })
 
   it('retains open digest batches and purges only terminal evidence after 90 days', () => {
@@ -543,15 +503,8 @@ describe('retention rule registry (BQC-3.7)', () => {
     })
   })
 
-  it('covers the audit-evidence tables at the 365d beta audit horizon (BQC-7.8)', () => {
-    const audit = RETENTION_RULES.find((r) => r.subject === 'policy_decision_audit')
-    expect(audit).toMatchObject({
-      table: 'policy_decision_audit',
-      keyColumns: ['id'],
-      tsColumn: 'occurred_at',
-      olderThanMs: 365 * 24 * 60 * 60 * 1000,
-    })
-    const logs = RETENTION_RULES.find((r) => r.subject === 'audit_logs')
+  it('covers the action-audit table at the 365d beta audit horizon (BQC-7.8)', () => {
+    const logs = RETENTION_RULES.find((rule) => rule.subject === 'audit_logs')
     expect(logs).toMatchObject({
       table: 'audit_logs',
       keyColumns: ['id'],

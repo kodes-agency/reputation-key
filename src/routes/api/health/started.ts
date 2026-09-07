@@ -14,7 +14,7 @@ import { getContainer } from '#/composition'
 import { probeHttpStatus } from '#/shared/health/probes'
 import {
   isMigrationJournalMatched,
-  isPolicyStateReadable,
+  isPolicyConfigurationReady,
   runStartup,
 } from '#/shared/health/readiness'
 
@@ -28,7 +28,7 @@ export const Route = createFileRoute('/api/health/started')({
             return true
           },
           migrations: isMigrationJournalMatched,
-          policy: isPolicyStateReadable,
+          policy: isPolicyConfigurationReady,
         })
         return new Response(JSON.stringify(result), {
           status: probeHttpStatus(result.status),

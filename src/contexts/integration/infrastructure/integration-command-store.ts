@@ -8,7 +8,7 @@ import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
-import { googleOauthExchangeAttempts } from '#/shared/db/schema/google-content-control.schema'
+import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { integrationError } from '../domain/errors'
@@ -78,26 +78,29 @@ async function completeOAuthExchangeAttempt(
 ): Promise<void> {
   if (!input.attemptId) return
   const rows = await tx
-    .update(googleOauthExchangeAttempts)
+    .update(idempotencyReceipts)
     .set({
-      state: 'completed',
-      encryptedResult: null,
-      responseExpiresAt: null,
-      applyLeaseExpiresAt: null,
-      terminalAt: input.now,
-      outcomeCode: 'connection_committed',
-      updatedAt: input.now,
+      payload: sql`${idempotencyReceipts.payload} || jsonb_build_object(
+        'state', 'completed',
+        'encryptedResult', NULL,
+        'responseExpiresAt', NULL,
+        'applyLeaseExpiresAt', NULL,
+        'terminalAt', ${input.now.toISOString()}::timestamptz,
+        'outcomeCode', 'connection_committed',
+        'updatedAt', ${input.now.toISOString()}::timestamptz
+      )`,
     })
     .where(
       and(
-        eq(googleOauthExchangeAttempts.id, input.attemptId),
-        eq(googleOauthExchangeAttempts.organizationId, input.organizationId),
-        eq(googleOauthExchangeAttempts.connectionId, input.connectionId),
-        eq(googleOauthExchangeAttempts.initiatorUserId, input.initiatorUserId),
-        eq(googleOauthExchangeAttempts.state, 'applying'),
+        eq(idempotencyReceipts.scope, 'google_oauth_exchange'),
+        eq(idempotencyReceipts.key, input.attemptId),
+        sql`${idempotencyReceipts.payload}->>'organizationId' = ${input.organizationId}`,
+        sql`${idempotencyReceipts.payload}->>'connectionId' = ${input.connectionId}`,
+        sql`${idempotencyReceipts.payload}->>'initiatorUserId' = ${input.initiatorUserId}`,
+        sql`${idempotencyReceipts.payload}->>'state' = 'applying'`,
       ),
     )
-    .returning({ id: googleOauthExchangeAttempts.id })
+    .returning({ key: idempotencyReceipts.key })
   if (!rows[0]) {
     throw integrationError('oauth_failed', 'Google OAuth recovery state changed')
   }

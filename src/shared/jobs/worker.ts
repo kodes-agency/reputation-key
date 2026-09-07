@@ -125,10 +125,8 @@ export function createJobWorker<T>(
   })
 
   // Await the terminal-attempt dead-letter write while this process retains
-  // the BullMQ lock. A suspended process can outlive that lock, so invitation
-  // privacy does not rely on `active: 0`: the quarantine builder sanitizes the
-  // payload and failure reason before add. The copy remains non-redrivable
-  // until the `failed` event (or proof-based operator reconciliation).
+  // the BullMQ lock. The staged copy remains non-redrivable until the `failed`
+  // event (or proof-based operator reconciliation).
   const handlerWithQuarantineBarrier: JobHandler<T> = async (job) => {
     const jobId = job.id ?? generateRequestId()
     return runWithContext(
@@ -147,9 +145,8 @@ export function createJobWorker<T>(
                 )
               }
             } catch (quarantineErr: unknown) {
-              // The original failure still proceeds. A transport rejection may be
-              // ambiguous, but every invitation field was sanitized before add,
-              // so a late command cannot reopen the privacy guarantee.
+              // The original failure still proceeds; report the independent
+              // dead-letter transport failure without changing job semantics.
               logger.error(
                 { err: quarantineErr, queue: name, jobName: job.name },
                 'failed to quarantine exhausted job',

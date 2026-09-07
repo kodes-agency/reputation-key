@@ -136,16 +136,17 @@ source-context facts and projects rebuildable Recent Activity rows.
   assessment-only (`report_only_pending_counsel`). The repository has no
   destructive apply path; counsel approval, deployed least-privilege evidence,
   and restore/export verification are still required before one may be added.
-- The legacy `audit_logs` table remains a separate recoverable archive used by
-  legacy Goal code. It is not backfilled into or treated as canonical
-  Operational Action History because its provenance/content cannot be inferred.
+- The `audit_logs` table remains a separate recoverable compliance archive.
+  It is not backfilled into or treated as canonical Operational Action History
+  because its provenance and content cannot be inferred.
 - Activity contributes to the Identity-orchestrated Organization Export
   (`infrastructure/adapters/activity-organization-export.adapter.ts`) as
   `tenant_visible` data. It reads `recent_activity_entries` and nothing else:
   LIF-01 bullet 6 asks for Recent Activity and bullet 7 restricts Operational
   Action History, so the export respects the separation this context already
   makes. `operational_action_history_records`/`_heads`/`_legal_holds`,
-  `recent_activity_replay_facts`, `recent_activity_vocabulary_reconciliations`,
+  `recent_activity_replay_facts`, the `activity_vocabulary_reconciliation`
+  scope in `idempotency_receipts`,
   `audit_logs`, and the projected `event_id` correlation key are excluded and
   named in the export's `excludedRecordClasses`.
   `recent_activity_actor_label_redactions` is read only as a fence — an entry

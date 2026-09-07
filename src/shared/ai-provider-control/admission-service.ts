@@ -80,7 +80,6 @@ export type AiAdmissionDatabaseAuthority = Readonly<{
     input: AiSettlementRequestV1,
     receiptKid: string,
   ): Promise<DatabaseSettlementResult>
-  reapExpired(limit: number): Promise<number>
   readiness(): Promise<boolean>
 }>
 
@@ -97,7 +96,6 @@ export type AiExecutionAdmissionService = Readonly<{
     | Readonly<{ ok: true; receipt: AiSettlementReceiptV1 }>
     | Readonly<{ ok: false; code: AiSettlementDenialCode }>
   >
-  reapExpired(limit: number): Promise<number>
   readiness(): Promise<boolean>
 }>
 
@@ -244,17 +242,6 @@ export function createAiExecutionAdmissionService(
             dependencies.signingPrivateKey,
           ),
         }
-      } catch {
-        throw unavailable()
-      }
-    },
-
-    reapExpired: async (limit) => {
-      if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
-        throw new TypeError('AI admission reap limit is invalid')
-      }
-      try {
-        return await dependencies.database.reapExpired(limit)
       } catch {
         throw unavailable()
       }

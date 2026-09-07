@@ -1,17 +1,23 @@
 # ADR 0047 — Persisted policy state
 
-**Status:** Accepted
+**Status:** Superseded (2026-09-07, WP3.3-C) — the persisted policy tables
+(`organization_policy`, `organization_capability`, `property_policy`,
+`property_capability`, `policy_version`) were deleted; capability policy comes
+from `src/shared/governance/capability-fate.ts` plus the env-backed store
+(`BETA_*` variables, `src/shared/auth/beta-capabilities.ts`), and the
+organization closure fence is the `organization_lifecycle_authority` row.
+This file records the design that ran between 2026-07-17 and WP3.3-C.
 **Date:** 2026-07-17
 
 ## Context
 
-ADR 0032 deferred per-tenant policy tables ("env vars suffice for internal beta"). Phase BQC-2 §2.2 requires authoritative persistence for organization cohort, enabled non-core capabilities, property allowlist and suspension, `PropertyAccessGrant`, policy/consent records, policy version, and content-free decision audit — with explicit constraints and a measured revocation bound. The existing `CapabilityPolicyStore` port (`beta-capabilities.ts`) is synchronous and env-backed; the web process initializes it lazily and the worker initializes it from env at boot.
+ADR 0032 deferred per-tenant policy tables ("env vars suffice for internal beta"). Phase BQC-2 §2.2 requires authoritative persistence for organization cohort, enabled non-core capabilities, property allowlist and suspension, `PropertyAccessGrant`, policy/consent records, and policy version — with explicit constraints and a measured revocation bound. The existing `CapabilityPolicyStore` port (`beta-capabilities.ts`) is synchronous and env-backed; the web process initializes it lazily and the worker initializes it from env at boot.
 
 Tenant consistency has never been enforced at the database level anywhere in the schema (deliberate "logical join" pattern, `dac.schema.ts`); phase §2.2 explicitly requires constraints for the new policy tables.
 
 ## Decision
 
-**Schema (migration 0014).** New app-owned tables in `policy.schema.ts`: `organization_policy` (cohort + suspension), `organization_capability`, `property_policy`, `property_capability`, `property_access_grant` (scope/source/lifecycle), `policy_consent` (generic governed consent; AI opt-in later — phase §9), `policy_decision_audit` (identifiers/enums only, no tenant FKs — audit evidence survives tenant deletion per BQC-1.7), and `policy_version` (global counter). `property_access_grant` carries the schema's first composite foreign key — `(organization_id, property_id) → properties(organization_id, id)` via a new `properties_org_id_key` unique index — making cross-tenant grants unrepresentable. Uniqueness uses partial indexes: one active grant per (org, property, user), one active consent per (org, subject, purpose).
+**Schema (migration 0014).** New app-owned tables in `policy.schema.ts`: `organization_policy` (cohort + suspension), `organization_capability`, `property_policy`, `property_capability`, `property_access_grant` (scope/source/lifecycle), `policy_consent` (generic governed consent; AI opt-in later — phase §9), and `policy_version` (global counter). `property_access_grant` carries the schema's first composite foreign key — `(organization_id, property_id) → properties(organization_id, id)` via a new `properties_org_id_key` unique index — making cross-tenant grants unrepresentable. Uniqueness uses partial indexes: one active grant per (org, property, user), one consent per (subject, purpose).
 
 **Version-gated snapshot store.** `createPersistedPolicyStore` (`shared/auth/persisted-policy-store.ts`) serves the synchronous `CapabilityPolicyStore` port from an in-memory snapshot. Every policy mutation bumps `policy_version` in the same SQL statement (data-modifying CTE), so a committed mutation is never visible without its version bump. Refresh compares versions and reloads only on change; the stale window is bounded by `POLICY_REFRESH_INTERVAL_MS` (5s). A store that never refreshed and has no env seed fails closed (everything suspended, nothing allowlisted).
 
@@ -24,4 +30,4 @@ Tenant consistency has never been enforced at the database level anywhere in the
 - `BETA_ALLOWLIST_ORGS` / `BETA_SUSPENDED_ORGS` keep working (union seed); new allowlists/suspensions are DB rows managed by operator workflows (BQC-2.7).
 - The drizzle meta chain remains broken (STD-P2-02): migration 0014 is hand-written + journal entry, no snapshot.
 - Supersedes ADR 0032's "per-tenant database table deferred" note.
-- Decision audit writes begin with the ExecutionPolicy (BQC-2.3+); the table and writer land now so the engine has no schema work left.
+- Authorization decisions remain typed return values at the execution boundary; no duplicate decision-history store is maintained.

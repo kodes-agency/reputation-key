@@ -7,7 +7,7 @@ const progressSearch = z.object({
   propertyId: z.uuid().optional(),
 })
 
-/** Retained URL compatibility; Staff Goal metrics are not a beta surface. */
+/** Retained URL compatibility; redirects to the canonical Property Goal list. */
 export const Route = createFileRoute('/_authenticated/progress')({
   validateSearch: progressSearch,
   beforeLoad: ({ context, search }) => {

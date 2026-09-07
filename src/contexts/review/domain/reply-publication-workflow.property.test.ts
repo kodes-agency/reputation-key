@@ -84,8 +84,7 @@ const arbBogusState = fc
 // the module header promises. The transition is still DENIED — no illegal
 // transition is ever allowed — only the error tagging breaks, and only for
 // untyped input (typed code cannot produce these keys). Recommended follow-up:
-// Object.hasOwn-guard the lookup (same pattern in review/domain/rules.ts,
-// inbox/domain/rules.ts, goal/domain/goal-type-rules.ts).
+// Object.hasOwn-guard the lookup before indexing the transition map.
 const PROTOTYPE_KEYS = new Set(Object.getOwnPropertyNames(Object.prototype))
 
 describe('reply publication saga machine (property)', () => {

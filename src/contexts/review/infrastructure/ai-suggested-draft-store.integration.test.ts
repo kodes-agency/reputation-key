@@ -4,13 +4,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { deleteAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
 import {
   aiExecutionControlHeads,
   aiExecutionControlTransitions,
-  aiExecutionPermits,
-  aiExecutionPermitSettlements,
-  aiOperationAttempts,
   aiOperations,
+  aiOrganizationCostWindows,
   merchantAiConsentEvidence,
   merchantAiEnablement,
   properties,
@@ -34,9 +33,9 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { createAiRuntimeCatalogueAdapter } from '#/contexts/ai/infrastructure/adapters/ai-runtime-catalogue.adapter'
 import { createPropertyProcessingProfileAdapter } from '#/contexts/ai/infrastructure/adapters/property-processing-profile.adapter'
 import { createReviewRepository } from './repositories/review.repository'
+import { createReplyRepository } from './repositories/reply.repository'
 import { createAiSuggestedDraftStore } from './ai-suggested-draft-store'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
@@ -280,6 +279,18 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     }
     const createdAt = new Date(NOW.getTime() - 60_000)
     const expiresAt = new Date(NOW.getTime() + 60 * 60_000)
+    await db
+      .insert(aiOrganizationCostWindows)
+      .values({
+        id: input.permitId,
+        organizationId: ORGANIZATION_ID,
+        windowStart: sql`date_trunc('month', now())`,
+        reservedMicros: 0,
+        settledMicros: 42,
+        capMicros: 50_000_000,
+        updatedAt: sql`now()`,
+      })
+      .onConflictDoNothing()
     await db.insert(aiOperations).values({
       id: input.operationId,
       idempotencyScope: `reply:${input.operationId}`,
@@ -303,15 +314,16 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       noticeVersion: MERCHANT_AI_NOTICE_VERSION,
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       propertyProfileVersion: 1,
+      routingPolicyVersion: 1,
+      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      operationProfileVersion: 'reply-suggestion-v1',
+      capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
       replyBrandProfileVersion: input.replyBrandProfileVersion ?? null,
       replyBrandDisplayNameDigest: input.replyBrandDisplayNameDigest ?? null,
       sourcePolicyId: 'google-business-profile-source-policy-v1',
       redactionProfileVersion: 'gbp-review-global-v1',
-      operationProfileVersion: 'reply-suggestion-v1',
       concreteReplyLanguageTag: 'en-Latn-US',
       concreteReplyTemplateGroup: 'en-Latn',
-      providerDeploymentProfileVersion: 'private-beta-global-v1',
-      capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
       outputLeakageProfileVersion: 'ai-output-leakage-v1',
       outputLeakageProfileDigest: 'a'.repeat(64),
       replyTemplateCatalogueVersion: 'gbp-reply-template-catalogue-v1',
@@ -327,6 +339,17 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       providerControlGeneration: providerControl.generation,
       capabilityControlId: capabilityControl.controlId,
       capabilityControlGeneration: capabilityControl.generation,
+      routeKey: 'reply-suggestion',
+      executionPermitId: input.permitId,
+      admissionNonce: `nonce-${input.operationId}`,
+      requestBindingKeyId: 'binding-v1',
+      requestBindingHmac: REQUEST_BINDING_HMAC,
+      grantKid: 'grant-v1',
+      costWindowId: input.permitId,
+      reservedMicros: 50_000,
+      actualMicros: 42,
+      budgetReservedAt: createdAt,
+      budgetSettledAt: NOW,
       state: 'succeeded',
       executionAttempt: 1,
       createdAt,
@@ -334,62 +357,14 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       expiresAt,
       deliveredAt: NOW,
     })
-    await db.insert(aiOperationAttempts).values({
-      operationId: input.operationId,
-      attempt: 1,
-      state: 'completed',
-      modelSnapshot: 'gpt-5.4-mini-2026-03-17',
-      inputTokens: 10,
-      outputTokens: 5,
-      startedAt: createdAt,
-      settledAt: NOW,
-    })
-    await db.insert(aiExecutionPermits).values({
-      id: input.permitId,
-      operationId: input.operationId,
-      executionAttempt: 1,
-      globalControlId: globalControl.controlId,
-      globalControlGeneration: globalControl.generation,
-      providerControlId: providerControl.controlId,
-      providerControlGeneration: providerControl.generation,
-      capabilityControlId: capabilityControl.controlId,
-      capabilityControlGeneration: capabilityControl.generation,
-      route: 'reply-suggestion',
-      requestBindingKeyId: 'binding-v1',
-      requestBindingHmac: REQUEST_BINDING_HMAC,
-      grantKid: 'grant-v1',
-      nonce: `nonce-${input.operationId}`,
-      state: 'settled',
-      admittedAt: createdAt,
-      consumedAt: createdAt,
-      concurrencyExpiresAt: new Date(NOW.getTime() + 5 * 60_000),
-      expiresAt,
-      maximumCostMicros: 50_000,
-    })
-    await db.insert(aiExecutionPermitSettlements).values({
-      permitId: input.permitId,
-      terminalState: 'completed',
-      grantKid: 'grant-v1',
-      requestBindingHmac: REQUEST_BINDING_HMAC,
-      nonce: `nonce-${input.operationId}`,
-      disposition: 'success',
-      reportedDisposition: 'success',
-      usageKnown: true,
-      providerRetryable: false,
-      inputTokens: 10,
-      cachedInputTokens: 0,
-      outputTokens: 5,
-      reasoningTokens: 0,
-      retryAfterSeconds: null,
-      costMicros: 42,
-      settlementState: 'settled',
-      settledAt: NOW,
-    })
   }
   const clear = async () => {
     // Replies deliberately restrict Review deletion; remove test-owned child
     // rows before the Property cascade reaches the stable Review.
     await db.execute(sql`DELETE FROM replies WHERE organization_id = ${ORGANIZATION_ID}`)
+    await db
+      .delete(aiOrganizationCostWindows)
+      .where(eq(aiOrganizationCostWindows.organizationId, ORGANIZATION_ID))
     await db.delete(properties).where(eq(properties.id, PROPERTY_ID))
     await deleteTestOrganizations(db, [ORGANIZATION_ID])
   }
@@ -440,11 +415,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       createdAt: NOW,
       updatedAt: NOW,
     })
-    const profiles = createPropertyProcessingProfileAdapter(
-      db,
-      createAiRuntimeCatalogueAdapter(db),
-      () => NOW,
-    )
+    const profiles = createPropertyProcessingProfileAdapter(db, () => NOW)
     await expect(
       profiles.refreshForAi({
         organizationId: ORGANIZATION_ID,
@@ -888,21 +859,68 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         .where(eq(aiOperations.id, '74000000-0000-4000-8000-000000000008'))
         .limit(1),
     ).resolves.toEqual([{ disposition: 'adopted' }])
+
+    // The repository's guarded write runs the same binding check inside its
+    // own transaction: the adopted draft advances, an expired one is refused
+    // without a row change.
+    const replyRepository = createReplyRepository(db, () => new Date())
+    await expect(
+      replyRepository.conditionalUpdate(
+        accepted.reply.id,
+        ORGANIZATION_ID,
+        ['draft'],
+        { status: 'pending_approval', submittedAt: new Date() },
+        new Date(),
+      ),
+    ).resolves.toMatchObject({ id: accepted.reply.id, status: 'pending_approval' })
+    await db
+      .update(replies)
+      .set({ aiDraftExpiresAt: new Date(NOW.getTime() - 1) })
+      .where(eq(replies.id, accepted.reply.id))
+    await expect(
+      replyRepository.conditionalUpdate(
+        accepted.reply.id,
+        ORGANIZATION_ID,
+        ['pending_approval'],
+        { status: 'approved', approvedBy: ACTOR_USER_ID, approvedAt: new Date() },
+        new Date(),
+      ),
+    ).resolves.toBeNull()
+    await expect(
+      db
+        .select({ status: replies.status })
+        .from(replies)
+        .where(eq(replies.id, accepted.reply.id))
+        .limit(1),
+    ).resolves.toEqual([{ status: 'pending_approval' }])
     brandProfileCurrent = true
   })
 
   it('purges an AI draft on source change and advances human-draft heads only for material changes', async () => {
-    await db
-      .update(reviews)
-      .set({ sourceRevision: SOURCE_REVISION + 1 })
+    const [before] = await db
+      .select({ replyStateRevision: reviews.replyStateRevision })
+      .from(reviews)
       .where(eq(reviews.id, REVIEW_ID))
+      .limit(1)
+    if (!before) throw new Error('review missing')
+    const base = before.replyStateRevision
+    await db.transaction(async (tx) => {
+      await tx
+        .update(reviews)
+        .set({ sourceRevision: SOURCE_REVISION + 1 })
+        .where(eq(reviews.id, REVIEW_ID))
+      await deleteAiDraftsForReview(tx, {
+        organizationId: ORGANIZATION_ID,
+        reviewId: REVIEW_ID,
+      })
+    })
     await expect(
       db
         .select({ replyStateRevision: reviews.replyStateRevision })
         .from(reviews)
         .where(eq(reviews.id, REVIEW_ID))
         .limit(1),
-    ).resolves.toEqual([{ replyStateRevision: 4 }])
+    ).resolves.toEqual([{ replyStateRevision: base + 1 }])
     await expect(
       db
         .select({
@@ -954,7 +972,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         .innerJoin(reviews, eq(reviews.id, replies.reviewId))
         .where(eq(replies.id, created!.id))
         .limit(1),
-    ).resolves.toEqual([{ stateRevision: 1, replyStateRevision: 5 }])
+    ).resolves.toEqual([{ stateRevision: 1, replyStateRevision: base + 2 }])
 
     await db
       .update(replies)
@@ -975,7 +993,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       {
         text: 'A revised manual draft',
         stateRevision: 2,
-        replyStateRevision: 6,
+        replyStateRevision: base + 3,
       },
     ])
   })

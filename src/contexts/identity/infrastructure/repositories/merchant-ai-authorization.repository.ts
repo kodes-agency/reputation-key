@@ -14,6 +14,7 @@ import { createAiAdvisoryScope } from '#/shared/ai-lock-order-v1'
 import type { Database } from '#/shared/db'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { organizationId } from '#/shared/domain/ids'
+import { deleteAiDraftsForAuthorization } from '#/shared/db/ai/ai-draft-purge'
 import { identityMerchantAiChanged } from '../../domain/events'
 import { decideMemberPropertyAuthority } from './member-property-authority'
 import type {
@@ -511,27 +512,11 @@ export const createMerchantAiAuthorizationStore = (
           )
         }
 
-        let runtimeProfiles: Readonly<Partial<Record<MerchantAiCapability, string>>> =
-          Object.freeze({})
-        if (input.capabilities.length > 0) {
-          const runtimeResult = await tx.execute(sql`
-            SELECT assert_ai_capability_set_executable_v1(
-              ${capabilityArray},
-              ${input.noticeVersion},
-              ${input.noticeDigest},
-              ${input.providerDeploymentProfileVersion}
-            ) AS runtime_profiles
-          `)
-          const mappedProfiles = runtimeResult.rows[0]?.runtime_profiles as
-            Readonly<Record<MerchantAiCapability, string>> | undefined
-          if (!mappedProfiles) {
-            throw new MerchantAiAuthorizationStoreError(
-              'invalid_record',
-              'Merchant AI runtime profile mapping was not returned',
-            )
-          }
-          runtimeProfiles = mappedProfiles
-        }
+        // A revoke carries no capabilities; the resolver refuses an empty set.
+        const runtimeProfiles: Readonly<Partial<Record<MerchantAiCapability, string>>> =
+          input.capabilities.length > 0
+            ? resolveAiRuntimeCapabilitySet(input.capabilities)
+            : Object.freeze({})
 
         const authorizedSourceEpoch =
           input.operation === 'revoke' && current
@@ -672,6 +657,10 @@ export const createMerchantAiAuthorizationStore = (
         `)
         const evidence = evidenceResult.rows[0] as SnapshotRow
 
+        await deleteAiDraftsForAuthorization(tx, {
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+        })
         const snapshot = mapSnapshot(evidence)
         const event = identityMerchantAiChanged({
           organizationId: organizationId(input.organizationId),
@@ -817,6 +806,10 @@ export const createMerchantAiAuthorizationStore = (
           ).*
         `)
         const evidence = evidenceResult.rows[0] as SnapshotRow
+        await deleteAiDraftsForAuthorization(tx, {
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+        })
 
         const snapshot = mapSnapshot(evidence)
         const event = identityMerchantAiChanged({

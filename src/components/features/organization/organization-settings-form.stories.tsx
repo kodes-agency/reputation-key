@@ -29,11 +29,6 @@ export const Default: Story = {
     isPending: false,
     error: null,
   },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(canvas.queryByText(/^billing$/i)).toBeNull()
-    expect(canvas.queryByLabelText(/billing|postal/i)).toBeNull()
-  },
 }
 
 // Slug-change warning — editing the slug warns that guest portal URLs will break.

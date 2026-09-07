@@ -527,33 +527,6 @@ describe('Activity durable Recent Activity consumer', () => {
     },
   )
 
-  it('keeps retained invitation compatibility content out of the projection', async () => {
-    const { deps, applyOnce } = dependencies()
-    const source = event('identity.member.invited', {
-      invitationId: 'invitation-1',
-      organizationId: 'org-1',
-      role: 'PropertyManager',
-      email: '[redacted]',
-    })
-
-    await handleRecentActivityFact(deps, source)
-
-    expect(applyOnce).toHaveBeenCalledWith(
-      expect.objectContaining({
-        entry: expect.objectContaining({
-          actorName: 'System',
-          payload: {
-            subject: 'member',
-            from: null,
-            to: 'PropertyManager',
-            detail: null,
-          },
-        }),
-      }),
-    )
-    expect(JSON.stringify(applyOnce.mock.calls)).not.toContain('[redacted]')
-  })
-
   it.each([
     {
       eventType: 'portal.publication.published',

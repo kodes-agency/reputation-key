@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
+import {
+  METRIC_DEFINITION_IDS,
+  METRIC_VERSION_IDS,
+} from '#/contexts/metric/application/public-api'
 
 type ProgramFixture = Readonly<{
   organizationId: string
@@ -24,14 +27,7 @@ describe('canonical Goal Program database guards', () => {
     const portalId = randomUUID()
     const programId = randomUUID()
     const programVersionId = randomUUID()
-    const metric = await lease.pool.query<{ definition_id: string }>(
-      `SELECT definition_id
-       FROM metric_definition_versions
-       WHERE id = $1`,
-      [METRIC_VERSION_IDS.portalRatingCountGoal],
-    )
-    const metricDefinitionId = metric.rows[0]?.definition_id
-    if (!metricDefinitionId) throw new Error('seeded Goal metric version is missing')
+    const metricDefinitionId = METRIC_DEFINITION_IDS.portalRatingCount
 
     await lease.pool.query(
       `INSERT INTO properties

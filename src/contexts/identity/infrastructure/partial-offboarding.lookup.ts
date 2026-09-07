@@ -1,25 +1,21 @@
 // LIF-01-T21 — the read behind `repairPartialOffboarding`.
 //
-// Every column read here is Identity-owned: `member`, `property_access_grant`
-// and `user_organization_bindings`. The output carries identifiers, counts and
-// one enum — no name, email or resource title — so an operator can act on a
-// report without the report itself becoming tenant content.
+// Every column read here is Identity-owned: `member` and
+// `property_access_grant`. The output carries identifiers and counts — no
+// name, email or resource title — so an operator can act on a report without
+// the report itself becoming tenant content.
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   PARTIAL_OFFBOARDING_GRANT_REASON,
   type PartialOffboardingLookup,
-  type PartialOffboardingObservation,
 } from '../application/use-cases/repair-partial-offboarding'
 
 const countOf = (value: unknown): number => {
   const parsed = Number(value ?? 0)
   return Number.isFinite(parsed) ? parsed : 0
 }
-
-const bindingStateOf = (value: unknown): PartialOffboardingObservation['bindingState'] =>
-  value === 'active' || value === 'released' ? value : 'absent'
 
 export const createPartialOffboardingLookup = (db: Database): PartialOffboardingLookup =>
   Object.freeze({
@@ -44,14 +40,7 @@ export const createPartialOffboardingLookup = (db: Database): PartialOffboarding
               AND g.user_id = ${input.userId}
               AND g.revoked_at IS NOT NULL
               AND g.revoke_reason = ${PARTIAL_OFFBOARDING_GRANT_REASON}
-          ) AS offboarded_grants,
-          (
-            SELECT b.state FROM user_organization_bindings AS b
-            WHERE b.organization_id = ${input.organizationId}
-              AND b.user_id = ${input.userId}
-            ORDER BY b.version DESC
-            LIMIT 1
-          ) AS binding_state
+          ) AS offboarded_grants
       `)
       const row = (rows.rows[0] ?? {}) as Record<string, unknown>
       return {
@@ -60,7 +49,6 @@ export const createPartialOffboardingLookup = (db: Database): PartialOffboarding
         memberId: typeof row.member_id === 'string' ? row.member_id : null,
         activeGrantCount: countOf(row.active_grants),
         offboardedGrantCount: countOf(row.offboarded_grants),
-        bindingState: bindingStateOf(row.binding_state),
       }
     },
 

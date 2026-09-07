@@ -98,40 +98,6 @@ describe('buildConsumerEvent', () => {
     expect(envelope.commandId).toBe('evt-uuid-001')
     expect(envelope.causationId).toBe('evt-uuid-001')
   })
-
-  it('never relays a retained invitee address while the v1 parser is supported', () => {
-    const envelope = buildConsumerEvent({
-      ...unpublished,
-      eventType: 'identity.member.invited',
-      eventVersion: 1,
-      payload: {
-        invitationId: 'invitation-1',
-        organizationId: 'org-1',
-        role: 'PropertyManager',
-        email: 'synthetic-secret@example.test',
-      },
-    })
-
-    expect(envelope.payload).toMatchObject({ email: '[redacted]' })
-    expect(JSON.stringify(envelope)).not.toContain('synthetic-secret@example.test')
-  })
-
-  it('removes the compatibility email key from v2 queue envelopes', () => {
-    const envelope = buildConsumerEvent({
-      ...unpublished,
-      eventType: 'identity.member.invited',
-      eventVersion: 2,
-      payload: {
-        invitationId: 'invitation-1',
-        organizationId: 'org-1',
-        role: 'PropertyManager',
-        email: 'synthetic-secret@example.test',
-      },
-    })
-
-    expect(envelope.payload).not.toHaveProperty('email')
-    expect(JSON.stringify(envelope)).not.toContain('synthetic-secret@example.test')
-  })
 })
 
 describe('parseConsumerEvent', () => {

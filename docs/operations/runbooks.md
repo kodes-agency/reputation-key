@@ -26,9 +26,8 @@ Every `ops:*` command runs through the operator-command harness
 - `--operator <id>` — REQUIRED named operator; must be registered in
   `OPS_OPERATOR_IDENTITIES` (unregistered → `operator_not_registered` deny).
 - Every invocation (reads included) is evaluated through the ExecutionPolicy
-  operator branch and lands in `policy_decision_audit` (allow AND deny —
-  content-free: actor/action/scope/decision/reason + correlation id, printed
-  on every run).
+  operator branch. Its typed allow/deny decision and correlation id are printed
+  on every run.
 - Mutations are DRY-RUN by default; `--apply` executes and requires
   `--reason <text>` (`--ticket <ref>` where the op needs one). Destructive
   commands additionally require the typed confirmation `--yes <command>`.
@@ -252,7 +251,7 @@ surface dark); network-level restriction of the ops surface is platform-owned
 
 **Trigger:** Notification backlog growing, messages in dead-letter queue.
 **Impact:** P1 — delayed review visibility.
-**Diagnostics:** Check queue depth via `HealthSnapshot.syncMetrics`. Check `inbound_webhook_receipts` for duplicate/missing messages.
+**Diagnostics:** Check queue depth via `HealthSnapshot.syncMetrics`. Check the `gbp_webhook` scope in `idempotency_receipts` for duplicate/missing messages.
 **Containment:** Increase worker concurrency temporarily. Pause non-urgent jobs to free capacity.
 **Recovery:** Process backlog. Redrive dead-lettered messages via `ops:quarantine redrive <id> --reason <text> --apply` (list first with `ops:quarantine list`). Reconcile any gaps via bounded reconciliation (`ops:refresh reviews`).
 **Verification:** Queue depth returns to normal. `review_sync_state.watermark_updated_at` advances.
@@ -942,7 +941,6 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 | `retention.failure`                           | P1  | latest retention run failed for any subject                                                                                     | §8      |
 | `reply.ambiguous-aging`                       | P2  | oldest ambiguous publication > 15min past reconcile_due                                                                         | §6      |
 | `routing.region-attempts`                     | P2  | any quarantined wrong/unresolved/denied-region attempt                                                                          | §12     |
-| `policy.denial-drift`                         | P2  | > 50 policy denials in the trailing hour (starting point — tune with real traffic; §11 for containment if drift confirms)       | §9      |
 | `db.pool-exhaustion`                          | P1  | any connection request queued behind a saturated pool                                                                           | §8      |
 | `notification.in-app-delivery-lag`            | P1  | oldest incomplete active-family delivery is over 60s from its durable source clock                                              | §15     |
 | `notification.immediate-email-acceptance-lag` | P2  | source-to-provider acceptance exceeds 5min, or source linkage/bounded evidence is unevaluable                                   | §15     |

@@ -68,7 +68,7 @@ export type OperationsSnapshotDeps = Readonly<{
     capabilityPolicy: string
     /** EXECUTION_POLICY_VERSION (authorization semantics). */
     executionPolicy: string
-    /** Persisted policy_version reader (null when only the env seed exists). */
+    /** Process-static capability configuration revision. */
     policyStore: () => number | null
     /** SourceContentPolicy.policyVersion. */
     sourceContentPolicy: number

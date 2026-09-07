@@ -1,12 +1,9 @@
 // LIF-01 bullet 12 — read-only audit of the multi-Organization membership
 // records spec §3.1.4 requires to be reconciled before migration.
 //
-// A beta user has one active Organization Membership total. The binding table
-// makes a second simultaneous active binding unrepresentable, so this report
-// looks where the invariant cannot reach: legacy `member` rows the binding
-// never captured, active bindings that disagree with the memberships they
-// summarize, and pending invitations that would recreate the conflict on
-// accept.
+// A beta user has one Better Auth Organization membership total. This report
+// finds legacy users with memberships in multiple Organizations and pending
+// invitations that would preserve the conflict if accepted.
 //
 // Content-free: counts, severities and a state fingerprint. No user id, email
 // or organization id is selected. There is no apply flag and no write path —

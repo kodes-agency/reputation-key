@@ -165,9 +165,9 @@ describe('property erase operator command spec (LIF-01-T19)', () => {
     expect(validateOperatorArgs(propertyEraseCommandSpec, complete)).toBeNull()
   })
 
-  it('writes a content-free policy decision audit row for the invocation', async () => {
+  it('passes a content-free authorization request for the invocation', async () => {
     const decide = vi.fn(async (_request: DecisionRequest) => ALLOW)
-    const runtime: OperatorRuntime = { decide, newCorrelationId: () => 'corr-audit' }
+    const runtime: OperatorRuntime = { decide, newCorrelationId: () => 'corr-decision' }
     const io = memoryIO()
     const result = await runOperatorCommand(
       propertyEraseCommandSpec,
@@ -177,15 +177,14 @@ describe('property erase operator command spec (LIF-01-T19)', () => {
       io,
     )
     expect(result.exitCode).toBe(0)
-    const request = decide.mock.calls[0]?.[0] as unknown as Record<string, unknown>
+    const request = decide.mock.calls[0]?.[0]
     expect(request).toMatchObject({
       principal: { kind: 'operator', id: 'ops-erase' },
       action: OPERATOR_ACTION,
       executionKind: 'operator',
       organizationId: ORG,
       propertyId: PROPERTY,
-      correlationId: 'corr-audit',
-      // The report mode audits its reason as 'dry-run', never as tenant content.
+      correlationId: 'corr-decision',
       reason: 'dry-run',
     })
     expect(io.outLines[0]).toContain('mode=dry-run')

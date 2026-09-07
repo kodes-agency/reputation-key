@@ -37,8 +37,6 @@ const OWNED_TABLES = [
   'notification_digest_batch_members',
   'notification_digest_batches',
   'notification_email_queue',
-  'notification_governance_quarantine',
-  'notification_preference_governance_quarantine',
   'notification_preferences',
   'notification_user_settings',
   'notifications',
@@ -125,10 +123,13 @@ async function receiptRows(
   organizationId: string,
 ): Promise<readonly Record<string, unknown>[]> {
   const result = await lease.pool.query(
-    `SELECT context, phase, outcome, evidence_ref, lifecycle_revision
-       FROM context_organization_lifecycle_receipts
+    `SELECT context, phase, payload->>'outcome' AS outcome,
+            payload->>'evidenceRef' AS evidence_ref,
+            (payload->>'lifecycleRevision')::integer AS lifecycle_revision
+       FROM organization_lifecycle_events
       WHERE organization_id = $1
-      ORDER BY phase, lifecycle_revision`,
+        AND kind LIKE 'organization_lifecycle_contribution:%'
+      ORDER BY phase, (payload->>'lifecycleRevision')::integer`,
     [organizationId],
   )
   return result.rows
@@ -299,18 +300,6 @@ async function seedFixture(label: string): Promise<Fixture> {
      ) VALUES ($1, $2, $3, 'en', 'Europe/Sofia', $4, $4)`,
     [randomUUID(), fixture.userId, fixture.organizationId, REQUESTED_AT],
   )
-  await lease.pool.query(
-    `INSERT INTO notification_governance_quarantine (
-       notification_id, organization_id, reason, quarantined_at
-     ) VALUES ($1, $2, 'seeded_quarantine', $3)`,
-    [randomUUID(), fixture.organizationId, REQUESTED_AT],
-  )
-  await lease.pool.query(
-    `INSERT INTO notification_preference_governance_quarantine (
-       legacy_preference_id, organization_id, reason, quarantined_at
-     ) VALUES ($1, $2, 'seeded_quarantine', $3)`,
-    [randomUUID(), fixture.organizationId, REQUESTED_AT],
-  )
   return fixture
 }
 
@@ -396,17 +385,17 @@ async function deleteReceiptFixtures(organizationIds: readonly string[]): Promis
   try {
     await client.query('BEGIN')
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       DISABLE TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       DISABLE TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query(
-      `DELETE FROM context_organization_lifecycle_receipts
+      `DELETE FROM organization_lifecycle_events
        WHERE organization_id = ANY($1::text[])`,
       [organizationIds],
     )
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       ENABLE ALWAYS TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query('COMMIT')
   } catch (error) {
@@ -611,8 +600,7 @@ describe.sequential('Notification Organization lifecycle contributor', () => {
 
     expect(result).toEqual({
       outcome: 'complete',
-      evidenceRef:
-        'notification:purge:notif-5:mail-5:batch-1:member-1:pref-1:setting-1:quarantine-2',
+      evidenceRef: 'notification:purge:notif-5:mail-5:batch-1:member-1:pref-1:setting-1',
     })
     expect(replay).toEqual(result)
     expect(await receiptRows(fixture.organizationId)).toHaveLength(1)
@@ -634,8 +622,7 @@ describe.sequential('Notification Organization lifecycle contributor', () => {
 
     expect(result).toEqual({
       outcome: 'no_data',
-      evidenceRef:
-        'notification:purge:notif-0:mail-0:batch-0:member-0:pref-0:setting-0:quarantine-0',
+      evidenceRef: 'notification:purge:notif-0:mail-0:batch-0:member-0:pref-0:setting-0',
     })
   })
 })

@@ -124,12 +124,14 @@ It reads, from one bounded read-only repeatable-read snapshot:
 sync/status timestamps), `gbp_import_sagas`, `gbp_import_requests` (status and
 counts), `gbp_import_request_items` **aggregated to counts by
 state/action/outcome**, and
-`google_disconnect_revoke_attempts` (state, outcome, timings).
+the `google_disconnect_revoke` scope in `idempotency_receipts` (state, outcome,
+and timings).
 
 It deliberately withholds encrypted access/refresh tokens, token expiry, the
 encryption key id, the Google OIDC subject, granted scopes, provider account and
 location suffixes, the Google review URI, import replay digests, the disconnect
-credential binding and cleanup permit, `google_oauth_exchange_attempts`,
+credential binding and cleanup permit, the `google_oauth_exchange` scope in
+`idempotency_receipts`,
 `credential_revoke_permits`, `authorization_execution_permits`,
 `google_import_discovery_records`, and live Business Profile Performance
 payloads. Every
@@ -165,10 +167,10 @@ an explicitly reviewed composition.
   expired.
 - **purge** is irreversible, idempotent and content-free. It deletes this
   tenant's import work and discovery/OAuth-exchange records.
-  `google_connections`, `google_disconnect_revoke_attempts` and
-  `authorization_execution_permits` are scrubbed in place instead of deleted:
-  the disconnect attempt is independently retained content-free evidence and
-  references the other two with ON DELETE RESTRICT.
+  `google_connections`, the `google_disconnect_revoke` receipts in
+  `idempotency_receipts`, and `authorization_execution_permits` are scrubbed in
+  place instead of deleted: the disconnect receipt is independently retained
+  content-free evidence and references the other two by identifier.
 
 An Organization that never connected Google answers `no_data` — affirmative
 evidence, never an omitted contributor.

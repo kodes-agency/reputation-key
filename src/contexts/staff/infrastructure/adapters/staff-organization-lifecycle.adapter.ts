@@ -60,10 +60,10 @@ const byOrganization =
  *   * `property_access_grants` / `property_access_grant` — the property-access
  *     authority is Identity's (ADR 0039, context acceptance matrix row 1).
  *     Staff never reads or writes an authorization record.
- *   * `user`, `member`, `session`, `user_organization_bindings` — a Staff
- *     Participant may be a human who is also a member of ANOTHER Organization.
- *     Program bullet 5 keeps user identities that belong elsewhere, so Staff
- *     drops its participation rows and leaves every identity row to Identity.
+ *   * `user`, `member`, `session` — a Staff Participant may be a human who is
+ *     also a member of ANOTHER Organization. Program bullet 5 keeps user
+ *     identities that belong elsewhere, so Staff drops its participation rows
+ *     and leaves every identity row to Identity.
  */
 const STAFF_TENANT_TABLES: readonly StaffLifecycleTable[] = Object.freeze([
   // Effective-dated responsibility for a Portal; references staff_participations.

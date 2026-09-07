@@ -7,7 +7,7 @@
 // process policy trio, so the first policy-gated read inside an event handler
 // fell through to the WEB cold-boot fallback — which builds a second container
 // from ambient environment. Where the ambient build succeeded the simulation
-// silently decided against a different container's audit sink; where it failed
+// silently decided against a different container's policy state; where it failed
 // (CI, which sets only the variables the job declares) every event handler
 // threw and the projections they own were never made. Neither outcome was
 // visible from inside a shared vitest worker, because there the policy trio is

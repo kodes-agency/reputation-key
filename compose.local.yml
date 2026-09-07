@@ -456,6 +456,7 @@ services:
       NITRO_PORT: '3000'
       BETA_E2E_GLOBAL_CAPABILITIES: ${E2E_WEB_CAPABILITY_OVERRIDE}
       BETA_E2E_EXECUTION_IDENTITY: ${E2E_WEB_EXECUTION_IDENTITY}
+      BETA_ALLOWLIST_ORGS: ${E2E_BETA_ALLOWLIST_ORGS:-}
       # Review §5.1: the auth rate-limit hatch lives HERE and nowhere else —
       # do NOT hoist it into x-app-environment. It disables BOTH auth
       # brute-force layers, so it is only granted to the one service that
@@ -590,6 +591,7 @@ services:
       BETTER_AUTH_URL: http://127.0.0.1:3000
       BETA_E2E_GLOBAL_CAPABILITIES: ''
       BETA_E2E_EXECUTION_IDENTITY: ''
+      BETA_ALLOWLIST_ORGS: ${E2E_BETA_ALLOWLIST_ORGS:-}
       GOOGLE_EGRESS_GATEWAY_IDENTITY: ${GOOGLE_EGRESS_GATEWAY_IDENTITY}
       GOOGLE_ADMISSION_GRANT_HMAC_KEYS: ${GOOGLE_ADMISSION_GRANT_HMAC_KEYS}
       GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: ${GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS}

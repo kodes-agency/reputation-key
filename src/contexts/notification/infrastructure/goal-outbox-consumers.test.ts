@@ -137,7 +137,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
     clearEventSchemas()
   })
 
-  it('registers closed and revised results, never reconciled or legacy goal.completed', () => {
+  it('registers closed and revised results, never reconciled or a notification type', () => {
     registerGoalNotificationConsumer(consumerRegistry, makeDeps())
     expect(consumerRegistry.list()).toEqual(
       expect.arrayContaining([

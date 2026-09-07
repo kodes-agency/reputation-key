@@ -4,12 +4,10 @@ import { ORGANIZATION_LIFECYCLE_CONTEXTS } from '#/contexts/identity/domain/orga
 import {
   BACKUP_ERASURE_LEDGER_CONTEXTS,
   BACKUP_ERASURE_SUBJECT_CLASSES,
-  backupErasureHoldReleases,
   backupErasureLedger,
 } from './backup-erasure-ledger.schema'
 
 const config = getTableConfig(backupErasureLedger)
-const releases = getTableConfig(backupErasureHoldReleases)
 
 function checkExpression(name: string): string {
   const found = config.checks.find((candidate) => candidate.name === name)
@@ -108,18 +106,5 @@ describe('backup erasure ledger schema (LIF-01-T15)', () => {
         'name' in column ? column.name : String(column),
       ),
     ).toEqual(['subject_class', 'closure_lineage_id', 'lifecycle_revision', 'context'])
-  })
-
-  it('records a hold release as its own append-only fact', () => {
-    // The ledger is append-only, so a release cannot be an UPDATE of the entry.
-    expect(releases.name).toBe('backup_erasure_hold_releases')
-    expect(releases.columns.map((column) => column.name)).toEqual([
-      'ledger_entry_id',
-      'hold_reference',
-      'authority_ref',
-      'released_at',
-      'created_at',
-    ])
-    expect(releases.foreignKeys).toHaveLength(1)
   })
 })

@@ -19,7 +19,6 @@ const partial: PartialOffboardingObservation = {
   memberId: MEMBER_ID,
   activeGrantCount: 0,
   offboardedGrantCount: 3,
-  bindingState: 'active',
 }
 
 function setup(observations: readonly PartialOffboardingObservation[]) {
@@ -117,7 +116,7 @@ describe('repairPartialOffboarding', () => {
   it('is idempotent on retry: the second run finds nothing left to repair', async () => {
     const { command, commandStore, outbox } = setup([
       partial,
-      { ...partial, memberId: null, bindingState: 'released' },
+      { ...partial, memberId: null },
     ])
 
     const first = await command.inspect({

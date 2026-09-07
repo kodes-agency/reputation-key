@@ -122,7 +122,7 @@ describe('canonical Goal Program server functions', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
   })
 
-  it('returns the canonical bundle list without adapting it to a legacy Goal', async () => {
+  it('returns the canonical Goal Program bundle list unchanged', async () => {
     const programs = [{ program: { id: 'program-1' } }]
     mocks.list.mockResolvedValue(programs)
 

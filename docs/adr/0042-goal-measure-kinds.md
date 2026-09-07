@@ -1,8 +1,8 @@
 # ADR 0042 — Goal Measure Kinds: Progress, Level, and Ratio
 
-**Status:** Accepted
+**Status:** Superseded by WP3.3-A
 **Date:** 2026-07-15
-**Extends:** ADR 0020
+**Superseded:** 2026-09-07
 
 ## Context
 
@@ -33,12 +33,13 @@ Three goal measure kinds, each with distinct evaluation rules:
 5. A correction after close appends a new evaluation and may change visible outcome to `invalidated`/`superseded`.
 6. A property dashboard rating is a separately sourced/versioned `level` definition under ADR 0031 — never a goal/badge/leaderboard input.
 
-## Consequences
+## Supersession
 
-- ADR 0020's progress-only limitation is lifted; level and ratio goals are now supported.
-- Existing goals migrate to progress definitions/periods.
-- Sidecar SQL for recurring uniqueness moves to the authoritative Drizzle schema.
-- Goal evaluation, period outcome, activity, notification, and badge trigger are atomic with the source event.
+The intermediate definition/period/evaluation model described here was never
+composed into the product. WP3.3-A removed it rather than preserving a second
+authority. The live Goal Program model remains the only Goal authority:
+versioned metric targets, subject assignments, monthly results, and append-only
+result revisions.
 
 ## Rejected Alternatives
 

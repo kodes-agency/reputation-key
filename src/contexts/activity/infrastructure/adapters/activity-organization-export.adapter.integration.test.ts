@@ -120,13 +120,13 @@ async function seedFixture(): Promise<Fixture> {
     ],
   )
   await lease.pool.query(
-    `INSERT INTO recent_activity_vocabulary_reconciliations (
-       operation_id, organization_id, source_action, source_resource_type,
-       target_action, target_resource_type, target_fingerprint_sha256,
-       target_count, updated_count, authorized_by, authorization_evidence_ref,
-       applied_at
-     ) VALUES ($1, $2, 'updated', 'reply', 'changed', 'reply', $3, 1, 1,
-               $4, $5, $6)`,
+    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+     VALUES ('activity_vocabulary_reconciliation', $1, jsonb_build_object(
+       'organizationId', $2::text,
+       'targetFingerprintSha256', $3::text,
+       'authorizedBy', $4::text,
+       'authorizationEvidenceRef', $5::text
+     ), $6::timestamptz)`,
     [
       randomUUID(),
       fixture.organizationId,
@@ -199,11 +199,16 @@ describe.sequential('Activity Organization Export contributor', () => {
 
   afterEach(async () => {
     const ids = [...organizations]
+    await lease.pool.query(
+      `DELETE FROM idempotency_receipts
+       WHERE scope = 'activity_vocabulary_reconciliation'
+         AND payload->>'organizationId' = ANY($1::text[])`,
+      [ids],
+    )
     for (const table of [
       'recent_activity_entries',
       'recent_activity_replay_facts',
       'recent_activity_actor_label_redactions',
-      'recent_activity_vocabulary_reconciliations',
       'audit_logs',
     ]) {
       await lease.pool.query(

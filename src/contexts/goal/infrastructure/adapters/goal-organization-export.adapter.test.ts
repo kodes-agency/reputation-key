@@ -22,14 +22,8 @@ const TABLE_MARKERS = [
   'goal_result_revisions',
   'goal_monthly_results',
   'goal_subject_assignments',
-  'goal_definition_versions',
-  'goal_definitions',
   'goal_program_versions',
   'goal_programs',
-  'goal_evaluations',
-  'goal_periods',
-  'goal_progress',
-  'goals',
 ] as const
 
 function queryText(query: SQL): string {

@@ -28,6 +28,10 @@ import {
   type BackupErasureLedgerContext,
   type BackupErasureSubjectClass,
 } from '#/shared/db/schema/backup-erasure-ledger.schema'
+import {
+  appendBackupErasureHoldReleaseEvent,
+  readBackupErasureHoldReleaseEvents,
+} from './organization-lifecycle-receipt-store'
 import type { Tx } from '#/shared/outbox/commit'
 
 export type { BackupErasureLedgerContext, BackupErasureSubjectClass }
@@ -192,15 +196,7 @@ export async function releaseBackupErasureHold(
 ): Promise<void> {
   assertContentFreeRef(release.holdReference, 'holdReference')
   assertContentFreeRef(release.authorityRef, 'authorityRef')
-  await tx.execute(sql`
-    INSERT INTO backup_erasure_hold_releases (
-      ledger_entry_id, hold_reference, authority_ref, released_at
-    ) VALUES (
-      ${release.ledgerEntryId}::uuid, ${release.holdReference},
-      ${release.authorityRef}, ${release.releasedAt.toISOString()}::timestamptz
-    )
-    ON CONFLICT (ledger_entry_id) DO NOTHING
-  `)
+  await appendBackupErasureHoldReleaseEvent(tx, release)
 }
 
 type LedgerRow = Readonly<{
@@ -216,10 +212,12 @@ type LedgerRow = Readonly<{
   erased_row_count: number
   evidence_ref: string
   hold_reference: string | null
-  hold_released_at: string | Date | null
 }>
 
-function entryFromRow(row: LedgerRow): BackupErasureLedgerEntry {
+function entryFromRow(
+  row: LedgerRow,
+  holdReleasedAt: Date | undefined,
+): BackupErasureLedgerEntry {
   return {
     id: row.id,
     subjectClass: row.subject_class,
@@ -233,7 +231,7 @@ function entryFromRow(row: LedgerRow): BackupErasureLedgerEntry {
     erasedRowCount: Number(row.erased_row_count),
     evidenceRef: row.evidence_ref,
     ...(row.hold_reference ? { holdReference: row.hold_reference } : {}),
-    ...(row.hold_released_at ? { holdReleasedAt: new Date(row.hold_released_at) } : {}),
+    ...(holdReleasedAt ? { holdReleasedAt } : {}),
   }
 }
 
@@ -241,13 +239,18 @@ function entryFromRow(row: LedgerRow): BackupErasureLedgerEntry {
 export async function readBackupErasureLedger(
   tx: Tx,
 ): Promise<readonly BackupErasureLedgerEntry[]> {
+  const releases = await readBackupErasureHoldReleaseEvents(tx)
+  const releasedAtByEntryId = new Map(
+    releases.map((release) => [release.ledgerEntryId, release.releasedAt]),
+  )
   const result = await tx.execute(sql`
-    SELECT l.*, r.released_at AS hold_released_at
+    SELECT l.*
     FROM backup_erasure_ledger l
-    LEFT JOIN backup_erasure_hold_releases r ON r.ledger_entry_id = l.id
     ORDER BY l.effective_erasure_at ASC, l.id ASC
   `)
-  return (result.rows as unknown as LedgerRow[]).map(entryFromRow)
+  return (result.rows as unknown as LedgerRow[]).map((row) =>
+    entryFromRow(row, releasedAtByEntryId.get(row.id)),
+  )
 }
 
 // ── The restore resurrection fence ───────────────────────────────────

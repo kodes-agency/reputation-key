@@ -310,12 +310,14 @@ const verifyPurgeReadiness = async (
       (SELECT count(*)::int FROM gbp_import_request_items
         WHERE organization_id = ${request.organizationId}
           AND status IN ('pending', 'processing')) AS in_flight_import_items,
-      (SELECT count(*)::int FROM google_disconnect_revoke_attempts
-        WHERE organization_id = ${request.organizationId}
-          AND terminal_at IS NULL) AS pending_revoke_attempts,
-      (SELECT count(*)::int FROM google_oauth_exchange_attempts
-        WHERE organization_id = ${request.organizationId}
-          AND terminal_at IS NULL) AS pending_exchange_attempts,
+      (SELECT count(*)::int FROM idempotency_receipts
+        WHERE scope = 'google_disconnect_revoke'
+          AND payload->>'organizationId' = ${request.organizationId}
+          AND payload->>'terminalAt' IS NULL) AS pending_revoke_attempts,
+      (SELECT count(*)::int FROM idempotency_receipts
+        WHERE scope = 'google_oauth_exchange'
+          AND payload->>'organizationId' = ${request.organizationId}
+          AND payload->>'terminalAt' IS NULL) AS pending_exchange_attempts,
       (SELECT count(*)::int FROM google_credential_source_operations
         WHERE organization_id = ${request.organizationId}
           AND terminal_at IS NULL) AS pending_source_operations,
@@ -357,30 +359,25 @@ const verifyPurgeReadiness = async (
  */
 const PURGE_DELETE_TABLES = Object.freeze([
   // Import work, children before parents.
-  'gbp_import_item_retry_receipts',
   'gbp_import_request_items',
   'gbp_import_requests',
   'gbp_import_sagas',
   // Pre-confirmation provider candidate pages behind HMAC handles.
   'google_import_discovery_records',
-  // The crash boundary that can hold an application-encrypted token response.
-  'google_oauth_exchange_attempts',
 ] as const)
 
 /**
  * Phase 3 — irreversible, idempotent, content-free.
  *
- * Two rows are deliberately KEPT and scrubbed in place rather than deleted:
+ * Provider credentials and lifecycle facts are handled separately:
  *
- * - `google_connections` is referenced with ON DELETE RESTRICT by
- *   `google_disconnect_revoke_attempts`,
- *   which the data-fate authority classifies `recoverable_archive`: the
- *   content-free permit and outcome fact is independently retained evidence
- *   and this phase may not erase it. Deleting the connection would therefore
- *   either fail or force deleting that evidence, so the connection is reduced
- *   to a content-free lifecycle fact instead.
- * - `authorization_execution_permits` is the control plane those same attempts
- *   point at. Only its tenant-linked fields are cleared.
+ * - OAuth exchange, import-retry and discovery invalidation receipts are
+ *   transient idempotency boundaries and are deleted with the tenant.
+ * - Google connections survive as content-free lifecycle facts.
+ * - Disconnect-revoke receipts survive until the shared 30-day sweep, but
+ *   their credential binding and initiator are scrubbed here.
+ * - `authorization_execution_permits` is the control plane those disconnect
+ *   receipts point at. Only its tenant-linked fields are cleared.
  *
  * `merchant_ai_enablement`-style cross-context rows are not touched here, and
  * neither is anything Review, Property or Identity owns.
@@ -404,6 +401,13 @@ const purge = async (
     )
     deleted += result.rows.length
   }
+  const deletedReceipts = await tx.execute(sql`
+    DELETE FROM idempotency_receipts
+    WHERE scope IN ('google_oauth_exchange', 'gbp_import_item_retry', 'google_import_discovery')
+      AND payload->>'organizationId' = ${request.organizationId}
+    RETURNING key
+  `)
+  deleted += deletedReceipts.rows.length
 
   // Content-free scrub of the retained provider lifecycle facts. `connected_by`
   // is NOT NULL, so it becomes a fixed non-identifying literal rather than a
@@ -437,13 +441,19 @@ const purge = async (
   `)
 
   const scrubbedAttempts = await tx.execute(sql`
-    UPDATE google_disconnect_revoke_attempts
-    SET credential_binding = NULL,
-        initiator_user_id = 'purged',
-        updated_at = ${request.occurredAt}
-    WHERE organization_id = ${request.organizationId}
-      AND (credential_binding IS NOT NULL OR initiator_user_id <> 'purged')
-    RETURNING id
+    UPDATE idempotency_receipts
+    SET payload = payload || jsonb_build_object(
+          'credentialBinding', NULL,
+          'initiatorUserId', 'purged',
+          'updatedAt', ${request.occurredAt.toISOString()}::timestamptz
+        )
+    WHERE scope = 'google_disconnect_revoke'
+      AND payload->>'organizationId' = ${request.organizationId}
+      AND (
+        payload->>'credentialBinding' IS NOT NULL
+        OR payload->>'initiatorUserId' <> 'purged'
+      )
+    RETURNING key
   `)
 
   const scrubbedPermits = await tx.execute(sql`

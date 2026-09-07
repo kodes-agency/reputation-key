@@ -1,5 +1,5 @@
 import type { Database } from '#/shared/db'
-import { inboundWebhookReceipts } from '#/shared/db/schema/review-sync.schema'
+import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import type { GbpReviewPushReceiptStore } from '../application/ports/gbp-review-push-receipt.port'
 
@@ -13,20 +13,25 @@ export const createGbpReviewPushReceiptStore = (
   return Object.freeze({
     record: async (input) =>
       db.transaction(async (tx) => {
+        const key = JSON.stringify(['google', input.topic, input.messageId])
         const inserted = await tx
-          .insert(inboundWebhookReceipts)
+          .insert(idempotencyReceipts)
           .values({
-            provider: 'google',
-            topic: input.topic,
-            messageId: input.messageId,
-            receivedAt: input.receivedAt,
-            acceptedAt: input.acceptedAt,
-            notificationKind: input.notificationKind,
-            resolvedPropertyId: input.resolvedPropertyId,
-            outcome: input.outcome,
+            scope: 'gbp_webhook',
+            key,
+            payload: {
+              provider: 'google',
+              topic: input.topic,
+              messageId: input.messageId,
+              acceptedAt: input.acceptedAt?.toISOString() ?? null,
+              notificationKind: input.notificationKind,
+              resolvedPropertyId: input.resolvedPropertyId,
+              outcome: input.outcome,
+            },
+            recordedAt: input.receivedAt,
           })
           .onConflictDoNothing()
-          .returning({ messageId: inboundWebhookReceipts.messageId })
+          .returning({ key: idempotencyReceipts.key })
         if (inserted.length === 0) return { status: 'duplicate' } as const
         if (input.event) await insertOutboxRow(tx, input.event)
         return { status: 'recorded' } as const

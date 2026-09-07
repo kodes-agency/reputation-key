@@ -439,18 +439,13 @@ describe('authorizeGoogleImportCommand', () => {
     expect(denied.decide).toHaveBeenCalledTimes(3)
   })
 
-  // One import job mixing a create with a relink. Both items freeze the SAME
+  // One import job mixing a create with a relink. Both items freeze the same
   // authorization at approval time, then run as separate delayed effects. The
-  // create item's `provisionPropertyCapabilities` grants the newly created
-  // property its organization's capabilities, and that INSERT carries
-  // BUMP_POLICY_VERSION_SQL — so the single global policy_version row moves
-  // while the relink item is still in flight. Nothing about the relink item's
-  // own authorization changed; only a sibling wrote to an unrelated property.
-  //
-  // Measured window in the diagnosis: 11.15 ms. These tests remove the window
-  // entirely by forcing the worst interleaving — the bump lands BEFORE the
-  // relink item authorizes — and asserting it is no longer fatal.
-  describe('a sibling item bumping the global policy generation', () => {
+  // content authority reports the live execution-control generation. A sibling
+  // may advance that generation while this item's own authorization remains
+  // unchanged, so authorization is re-proved instead of comparing a global
+  // generation snapshot.
+  describe('a sibling item advancing the execution-control generation', () => {
     const relinkProperties = [
       {
         propertyId: destinationId,
@@ -489,7 +484,7 @@ describe('authorizeGoogleImportCommand', () => {
       },
     })
 
-    /** What the content authority reports once the global row has moved. */
+    /** What the content authority reports once the control generation moves. */
     const atGeneration = (
       generation: number,
       overrides: Partial<{ role: string }> = {},
@@ -505,11 +500,11 @@ describe('authorizeGoogleImportCommand', () => {
       }
     }
 
-    it('no longer cancels the relink item', async () => {
+    it('does not cancel the relink when only the control generation moves', async () => {
       let globalPolicyGeneration = 11
       const frozen = frozenAtApproval()
 
-      // The create sibling commits its provisioning INSERT + version bump.
+      // An unrelated sibling advances the live control generation.
       globalPolicyGeneration += 1
 
       const { authorize, decide } = setup({
@@ -567,11 +562,9 @@ describe('authorizeGoogleImportCommand', () => {
       ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
     })
 
-    it('still denies when the bump REMOVED this property from the allowlist', async () => {
-      // The counter cannot tell an additive bump from a revoking one — which is
-      // exactly why tolerating it would be unsafe on its own. What makes it
-      // safe is that the property-scoped decision is re-proved freshly, so a
-      // revocation that rode along with the bump still denies.
+    it('still denies when the fresh property-scoped decision refuses access', async () => {
+      // A generation counter cannot prove that this property's decision stayed
+      // valid. The property-scoped decision is therefore re-proved freshly.
       let calls = 0
       const { authorize } = setup({
         authorizeGoogleContent: async () => atGeneration(12),

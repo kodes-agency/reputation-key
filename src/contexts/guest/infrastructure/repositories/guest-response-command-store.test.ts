@@ -324,14 +324,6 @@ describe.sequential('atomic Guest response submission', () => {
         },
       })
     }
-
-    await expect(
-      db.execute(sql`
-        UPDATE guest_responses
-        SET attributed_staff_participant_id = ${STAFF_PARTICIPANT_REPLACEMENT}::uuid
-        WHERE id = ${RESPONSE}
-      `),
-    ).rejects.toMatchObject({ cause: { code: '23514' } })
   })
 
   it('commits the response and both content-free facts together', async () => {
@@ -1128,9 +1120,9 @@ describe.sequential('atomic Guest response submission', () => {
       occurredAt: deletedAt,
     })
 
-    await expect(
-      store.commitWithdrawn(staleWithdrawal, [staleRetraction]),
-    ).resolves.toEqual({ outcome: 'conflict', objectKeys: [] })
+    await expect(store.commitWithdrawn(staleWithdrawal, [staleRetraction])).resolves.toBe(
+      'conflict',
+    )
     const rows = await db.execute(sql`
       SELECT status, rating, correction_count, rating_source_event_id
       FROM guest_responses WHERE id = ${RESPONSE}
@@ -1186,7 +1178,7 @@ describe.sequential('atomic Guest response submission', () => {
 
     await expect(
       store.commitWithdrawn(withdrawn, [ratingRetraction, feedbackRetraction]),
-    ).resolves.toEqual({ outcome: 'applied', objectKeys: [] })
+    ).resolves.toBe('applied')
     const rows = await db.execute(sql`
       SELECT r.status, r.rating, f.body AS response_text,
              r.rating_source_event_id, r.feedback_source_event_id

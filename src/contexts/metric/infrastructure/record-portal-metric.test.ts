@@ -49,7 +49,7 @@ describe('durable Portal metric recording', () => {
   it('keeps an out-of-order replacement retryable until its original reading exists', async () => {
     const recordMetrics = vi.fn().mockResolvedValue([
       {
-        status: 'quarantined',
+        status: 'rejected',
         reason: 'superseded_reading_not_found',
         sourceEventId: event.eventId,
       },
@@ -64,10 +64,10 @@ describe('durable Portal metric recording', () => {
     ).rejects.toThrow('superseded metric source reading is not available')
   })
 
-  it('accepts an intentional governed quarantine that cannot be repaired by ordering', async () => {
+  it('accepts an explicit policy rejection that cannot be repaired by ordering', async () => {
     const recordMetrics = vi.fn().mockResolvedValue([
       {
-        status: 'quarantined',
+        status: 'rejected',
         reason: 'source_policy_not_allowed',
         sourceEventId: event.eventId,
       },

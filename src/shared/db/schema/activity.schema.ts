@@ -56,60 +56,6 @@ export const recentActivityEntries = pgTable(
 )
 
 /**
- * Content-minimal receipts for explicitly authorized historical vocabulary
- * reconciliation. A receipt binds the exact tenant/source target set to its
- * reviewed canonical destination; it contains no row identifiers or payloads.
- */
-export const recentActivityVocabularyReconciliations = pgTable(
-  'recent_activity_vocabulary_reconciliations',
-  {
-    operationId: uuid('operation_id').primaryKey(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    sourceAction: varchar('source_action', { length: 50 }).notNull(),
-    sourceResourceType: varchar('source_resource_type', { length: 50 }).notNull(),
-    targetAction: varchar('target_action', { length: 50 }).notNull(),
-    targetResourceType: varchar('target_resource_type', { length: 50 }).notNull(),
-    targetFingerprintSha256: varchar('target_fingerprint_sha256', {
-      length: 64,
-    }).notNull(),
-    targetCount: integer('target_count').notNull(),
-    updatedCount: integer('updated_count').notNull(),
-    authorizedBy: varchar('authorized_by', { length: 255 }).notNull(),
-    authorizationEvidenceRef: varchar('authorization_evidence_ref', {
-      length: 200,
-    }).notNull(),
-    appliedAt: timestamp('applied_at', { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    index('recent_activity_vocabulary_reconciliations_org_time_idx').on(
-      table.organizationId,
-      table.appliedAt.desc(),
-      table.operationId,
-    ),
-    check(
-      'recent_activity_vocabulary_reconciliations_codes_valid',
-      sql`${table.sourceAction} ~ '^[a-z][a-z0-9_]{0,49}$' AND ${table.sourceResourceType} ~ '^[a-z][a-z0-9_]{0,49}$' AND ${table.targetAction} ~ '^[a-z][a-z0-9_]{0,49}$' AND ${table.targetResourceType} ~ '^[a-z][a-z0-9_]{0,49}$'`,
-    ),
-    check(
-      'recent_activity_vocabulary_reconciliations_fingerprint_valid',
-      sql`${table.targetFingerprintSha256} ~ '^[0-9a-f]{64}$'`,
-    ),
-    check(
-      'recent_activity_vocabulary_reconciliations_counts_valid',
-      sql`${table.targetCount} >= 1 AND ${table.updatedCount} = ${table.targetCount}`,
-    ),
-    check(
-      'recent_activity_vocabulary_reconciliations_evidence_ref_valid',
-      sql`${table.authorizationEvidenceRef} ~ '^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,199}$'`,
-    ),
-    check(
-      'recent_activity_vocabulary_reconciliations_changes_kind',
-      sql`${table.sourceAction} <> ${table.targetAction} OR ${table.sourceResourceType} <> ${table.targetResourceType}`,
-    ),
-  ],
-)
-
-/**
  * Activity-owned, content-free reconstruction authority for the 90-day
  * Recent Activity projection. It is deliberately independent from the shared
  * outbox FK lifecycle because published outbox rows expire after 30 days.

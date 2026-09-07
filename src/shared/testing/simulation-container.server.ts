@@ -75,9 +75,9 @@ export type SimulationHandle = Readonly<{
  * the first policy-gated read inside an event handler fell through to the WEB
  * cold-boot fallback, which builds a SECOND container from ambient env:
  *
- *   - in a process with a full `.env` that quietly succeeded, and every gated
- *     handler decision was then answered by a different container's audit sink
- *     and consent reader than the one the simulation was exercising;
+ *   - in a process with a full `.env` that quietly succeeded, every gated
+ *     handler decision used a different container's policy state and consent
+ *     reader than the simulation was exercising;
  *   - in a process without one (CI, which sets only the eight vars the job
  *     declares) the ambient build threw, so EVERY event handler threw and the
  *     projections they own — Inbox items above all — were simply never made.

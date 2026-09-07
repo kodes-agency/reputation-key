@@ -25,17 +25,17 @@ async function deleteLifecycleReceiptFixtures(
   try {
     await client.query('BEGIN')
     await client.query(
-      `ALTER TABLE identity_organization_lifecycle_receipts
-       DISABLE TRIGGER identity_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       DISABLE TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query(
-      `DELETE FROM identity_organization_lifecycle_receipts
+      `DELETE FROM organization_lifecycle_events
        WHERE organization_id = ANY($1::text[])`,
       [organizationIds],
     )
     await client.query(
-      `ALTER TABLE identity_organization_lifecycle_receipts
-       ENABLE ALWAYS TRIGGER identity_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query('COMMIT')
   } catch (error) {
@@ -214,9 +214,13 @@ describe.sequential('Identity Organization lifecycle contributor receipts', () =
     expect(replay).toEqual(first)
     expect(work).toHaveBeenCalledTimes(1)
     const receipt = await lease.pool.query(
-      `SELECT outcome, evidence_ref, occurred_at
-       FROM identity_organization_lifecycle_receipts
-       WHERE organization_id = $1`,
+      `SELECT payload->>'outcome' AS outcome,
+              payload->>'evidenceRef' AS evidence_ref,
+              recorded_at AS occurred_at
+       FROM organization_lifecycle_events
+       WHERE organization_id = $1
+         AND context = 'identity'
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [contributionInput.organizationId],
     )
     expect(receipt.rows).toEqual([
@@ -234,20 +238,20 @@ describe.sequential('Identity Organization lifecycle contributor receipts', () =
 
     await expect(
       lease.pool.query(
-        `UPDATE identity_organization_lifecycle_receipts
-         SET evidence_ref = 'identity:tampered'
+        `UPDATE organization_lifecycle_events
+         SET payload = jsonb_set(payload, '{evidenceRef}', '"identity:tampered"')
          WHERE organization_id = $1`,
         [contributionInput.organizationId],
       ),
     ).rejects.toThrow(/append-only/)
     await expect(
       lease.pool.query(
-        'DELETE FROM identity_organization_lifecycle_receipts WHERE organization_id = $1',
+        'DELETE FROM organization_lifecycle_events WHERE organization_id = $1',
         [contributionInput.organizationId],
       ),
     ).rejects.toThrow(/append-only/)
     await expect(
-      lease.pool.query('TRUNCATE identity_organization_lifecycle_receipts'),
+      lease.pool.query('TRUNCATE organization_lifecycle_events'),
     ).rejects.toThrow(/append-only/)
   })
 
@@ -267,8 +271,9 @@ describe.sequential('Identity Organization lifecycle contributor receipts', () =
       `SELECT
          (SELECT count(*)::int FROM audit_logs WHERE id = $1) AS markers,
          (SELECT count(*)::int
-          FROM identity_organization_lifecycle_receipts
-          WHERE organization_id = $2) AS receipts`,
+          FROM organization_lifecycle_events
+          WHERE organization_id = $2
+            AND kind LIKE 'organization_lifecycle_contribution:%') AS receipts`,
       [markerId, contributionInput.organizationId],
     )
     expect(counts.rows[0]).toEqual({ markers: 0, receipts: 0 })

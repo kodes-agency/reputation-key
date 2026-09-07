@@ -138,14 +138,23 @@ describe('restore recovery fence (REG-04, integration)', () => {
           ) AS item(item_id, destination_id, location_suffix, property_name)
         `)
         await transaction.execute(sql`
-          INSERT INTO property_operation_receipts (
-            organization_id, idempotency_key, destination_property_id, outcome,
-            destination_source_epoch, destination_profile_version, tombstone,
-            expires_at, created_at, updated_at
-          ) VALUES (
-            'org-recovery-proof', ${IMPORT_V2_COMMITTED_ITEM_ID}::uuid,
-            ${IMPORT_V2_PROPERTY_ID}::uuid, 'imported', 0, 1, false,
-            clock_timestamp() + interval '7 days', clock_timestamp(), clock_timestamp()
+          INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+          VALUES (
+            'property_operation',
+            ${IMPORT_V2_COMMITTED_ITEM_ID}::text,
+            jsonb_build_object(
+              'organizationId', 'org-recovery-proof',
+              'idempotencyKey', ${IMPORT_V2_COMMITTED_ITEM_ID}::text,
+              'destinationPropertyId', ${IMPORT_V2_PROPERTY_ID}::text,
+              'outcome', 'imported',
+              'destinationSourceEpoch', 0,
+              'destinationProfileVersion', 1,
+              'tombstone', false,
+              'expiresAt', clock_timestamp() + interval '7 days',
+              'retentionReleasedAt', NULL,
+              'updatedAt', clock_timestamp()
+            ),
+            clock_timestamp()
           )
         `)
         const inserted = await transaction.execute(sql`

@@ -1,8 +1,10 @@
 import {
+  appendFileSync,
   chmodSync,
   copyFileSync,
   existsSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -1075,8 +1077,29 @@ function sanitationEvidence(
   return evidence
 }
 
+/**
+ * Capability policy is env-backed (WP3.3-C): the seeded organization's id is
+ * only known once `seed` has run, so it is appended to the generated env file
+ * between the seed and the application boot that reads it.
+ */
+function allowlistSeededOrganization(state: StackPaths): void {
+  const generated = resolve(state.e2eArtifacts, '.seed-state.json')
+  if (!existsSync(generated)) throw new Error(`seed did not write ${generated}`)
+  const seedState = JSON.parse(readFileSync(generated, 'utf8')) as {
+    organizationId?: unknown
+  }
+  if (typeof seedState.organizationId !== 'string' || !seedState.organizationId) {
+    throw new Error('seed state names no organization to allowlist')
+  }
+  appendFileSync(
+    state.env,
+    serializeEnv({ E2E_BETA_ALLOWLIST_ORGS: seedState.organizationId }),
+  )
+}
+
 async function startApplications(mode: LocalStackMode, state: StackPaths): Promise<void> {
   oneShot(mode, state, 'seed')
+  allowlistSeededOrganization(state)
   dockerCompose(mode, state, [
     'up',
     '--no-deps',
@@ -1259,7 +1282,6 @@ async function scale(mode: LocalStackMode, preserveArtifacts = false): Promise<s
     runner('seed-fleet', [
       '--seed=beta-local-fleet-v1',
       '--properties=5000',
-      '--p1-ratio=0.5',
       '--artifact=/artifacts/perf/fleet-fixture.json',
     ])
     const scaleEvidencePath = resolve(state.artifacts, 'perf/scale-dataset.json')

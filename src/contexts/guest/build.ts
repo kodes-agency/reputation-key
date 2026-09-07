@@ -24,7 +24,6 @@ import { resolvePortalContext } from './application/use-cases/resolve-portal-con
 import { getPublicPortal } from './application/use-cases/get-public-portal'
 import { guestResponseLifecycle } from './application/use-cases/guest-response-lifecycle'
 import { createGuestSessionManager } from './server/guest-session'
-import type { StoragePort } from '#/contexts/portal/application/public-api'
 import { qualifiedScanId, scanEventId } from '#/shared/domain/ids'
 import { createFeedbackPortalAttributionLookup } from './infrastructure/feedback-portal-attribution'
 import { getPortalResponseIntegritySummary } from './application/use-cases/get-portal-response-integrity-summary'
@@ -54,7 +53,6 @@ type GuestContextDeps = Readonly<{
   identityAccountAdminAuthority: IdentityAccountAdminAuthorityPublicApi
   staffApi: Pick<StaffPublicApi, 'getAccessiblePropertyIds'>
   logger: LoggerPort
-  storage: StoragePort
   sessionSecret: string
   publicOrigin: string
   secureCookies: boolean
@@ -108,7 +106,6 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
   })
   const responseLifecycle = guestResponseLifecycle({
     repo: guestResponseRepo,
-    storage: deps.storage,
     clock: deps.clock,
     idGen: deps.idGen,
     commandStore: guestResponseCommandStore,

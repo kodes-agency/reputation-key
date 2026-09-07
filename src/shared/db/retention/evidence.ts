@@ -7,8 +7,8 @@ import type { Database } from '#/shared/db'
 /**
  * Retention policy version stamped on every evidence row.
  *   1 (BQC-1.6): initial 9-rule registry + reviews.purge lifecycle purges.
- *   2 (BQC-7.8): + policy_decision_audit / audit_logs at the 365d audit
- *      horizon; + quarantine.ttl sweep subject; retention_runs documented
+ *   2 (BQC-7.8): + audit_logs at the 365d audit horizon;
+ *      + quarantine.ttl sweep subject; retention_runs documented
  *      indefinite-by-design (docs/operations/backup-and-lifecycle.md).
  *   3: + separately counted, seven-day guest abuse-pseudonym redaction.
  *   4: + 90-day terminal notification-digest batch evidence.

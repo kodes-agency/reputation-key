@@ -36,6 +36,10 @@ import {
   type PublicationStateEvent,
 } from '../domain/reply-publication-workflow'
 import { replyFromRow, replyToRow } from './mappers/reply.mapper'
+import {
+  assertCurrentAiDraftBinding,
+  type AiDraftBindingStatus,
+} from './ai-draft-binding'
 import { buildReplySetClause } from './reply-set-clause'
 import type {
   ConditionalReplyUpdate,
@@ -67,22 +71,12 @@ const missingPublicationActorAuthority: ReplyPublicationActorAuthority = async (
   throw reviewError('build_config_error', 'Reply publication actor authority is required')
 }
 
-async function assertAiDraftBinding(
-  tx: Tx,
-  reply: Reply,
-): Promise<'current' | 'not_ai' | 'stale'> {
-  if (!reply.aiGenerated) return 'not_ai'
-  const result = await tx.execute(
-    sql`SELECT assert_current_ai_draft_binding_v1(
-      ${reply.organizationId},
-      ${reply.id}
-    ) AS "status"`,
-  )
-  const status = result.rows[0]?.status
-  if (status === 'current' || status === 'not_ai' || status === 'stale') {
-    return status
-  }
-  throw new Error('AI reply binding assertion returned an invalid status')
+function assertAiDraftBinding(tx: Tx, reply: Reply): Promise<AiDraftBindingStatus> {
+  if (!reply.aiGenerated) return Promise.resolve('not_ai')
+  return assertCurrentAiDraftBinding(tx, {
+    organizationId: reply.organizationId,
+    replyId: reply.id,
+  })
 }
 
 /**

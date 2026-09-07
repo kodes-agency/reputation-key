@@ -11,10 +11,10 @@
 //   never recorded at all).
 // - A successful commit makes the durable fact available to the outbox relay.
 
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
-import { propertyOperationReceipts } from '#/shared/db/schema/property-operation-receipt.schema'
+import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { propertyError } from '../domain/errors'
@@ -146,25 +146,21 @@ export const createAtomicPropertyCommandStore = (db: Database): PropertyCommandS
             )
           }
           await tx
-            .update(propertyOperationReceipts)
+            .update(idempotencyReceipts)
             .set({
-              destinationPropertyId: null,
-              outcome: 'property_deleted',
-              tombstone: true,
-              destinationSourceEpoch: current.sourceEpoch + 1,
-              destinationProfileVersion: current.profileVersion,
-              updatedAt: command.event.occurredAt,
+              payload: sql`${idempotencyReceipts.payload} || jsonb_build_object(
+                'destinationPropertyId', NULL,
+                'outcome', 'property_deleted',
+                'tombstone', true,
+                'destinationSourceEpoch', ${current.sourceEpoch + 1}::integer,
+                'destinationProfileVersion', ${current.profileVersion}::integer
+              )`,
             })
             .where(
               and(
-                eq(
-                  propertyOperationReceipts.organizationId,
-                  command.organizationId as string,
-                ),
-                eq(
-                  propertyOperationReceipts.destinationPropertyId,
-                  command.propertyId as string,
-                ),
+                eq(idempotencyReceipts.scope, 'property_operation'),
+                sql`${idempotencyReceipts.payload}->>'organizationId' = ${command.organizationId as string}`,
+                sql`${idempotencyReceipts.payload}->>'destinationPropertyId' = ${command.propertyId as string}`,
               ),
             )
           await tx

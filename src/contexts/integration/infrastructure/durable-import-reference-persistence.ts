@@ -1,9 +1,7 @@
-import { and, eq, gt, inArray, lte, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import {
-  googleImportDiscoveryInvalidations,
-  googleImportDiscoveryRecords,
-} from '#/shared/db/schema/google-import-discovery.schema'
+import { googleImportDiscoveryRecords } from '#/shared/db/schema/google-import-discovery.schema'
+import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import type { ImportDiscoveryAuthorization } from '../application/ports/google-import-reference-store.port'
 import type {
   DurableImportInvalidationScope,
@@ -101,20 +99,22 @@ export const insertDurableImportRecords = async (
     if (invalidationKeys.length > 0) {
       const digests = invalidationKeys.map((item) => item.key)
       await tx
-        .delete(googleImportDiscoveryInvalidations)
+        .delete(idempotencyReceipts)
         .where(
           and(
-            inArray(googleImportDiscoveryInvalidations.invalidationKey, digests),
-            lte(googleImportDiscoveryInvalidations.expiresAt, now),
+            eq(idempotencyReceipts.scope, 'google_import_discovery'),
+            inArray(idempotencyReceipts.key, digests),
+            sql`(${idempotencyReceipts.payload}->>'expiresAt')::timestamptz <= ${now}`,
           ),
         )
       const active = await tx
-        .select({ key: googleImportDiscoveryInvalidations.invalidationKey })
-        .from(googleImportDiscoveryInvalidations)
+        .select({ key: idempotencyReceipts.key })
+        .from(idempotencyReceipts)
         .where(
           and(
-            inArray(googleImportDiscoveryInvalidations.invalidationKey, digests),
-            gt(googleImportDiscoveryInvalidations.expiresAt, now),
+            eq(idempotencyReceipts.scope, 'google_import_discovery'),
+            inArray(idempotencyReceipts.key, digests),
+            sql`(${idempotencyReceipts.payload}->>'expiresAt')::timestamptz > ${now}`,
           ),
         )
         .limit(1)

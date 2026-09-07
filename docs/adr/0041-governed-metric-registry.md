@@ -13,15 +13,13 @@ A centralized **governed metric registry** is the only route from source facts t
 
 ### Structure
 
-`metric_definitions`: stable ID/key, name, value kind (`counter`/`duration`/`level`/`ratio`/`average`), worker-data flag, privacy class, retention class, lifecycle status, approval owner.
-
-`metric_definition_versions`: immutable version with exact formula (numerator, denominator, exclusions, unit, precision, aggregation), allowed scopes, attribution rule, calendar/timezone semantics, minimum sample/insufficient-data behavior, source-policy allowlist, permitted consumers, correction behavior, `employment_decision_eligible = false` (fixed for v1).
+`METRIC_DEFINITIONS` in `src/contexts/metric/domain/metric-registry.ts` is the frozen, code-reviewed catalogue. Each entry carries its stable ID/key, name, entity/value kind, privacy and retention classes, lifecycle/approval facts, plus immutable versions with exact formula, effective dates, scopes, attribution, minimum-sample behavior, source-policy allowlist, permitted consumers, correction behavior, and `employmentDecisionEligible = false`.
 
 ### Rules
 
 1. Application code references a version ID, not an ad-hoc formula.
 2. Material rule changes create a new version with an effective date; they never mutate historical meaning.
-3. The registry **fails closed**: an unknown source/version or unavailable policy service produces no reading. Invalid events are quarantined, not silently recorded.
+3. The registry **fails closed**: an unknown source/version produces no reading. Invalid events are rejected explicitly, not silently recorded.
 4. Every reading carries a stable `source_event_id` for idempotency and a `definition_version_id` for provenance.
 5. Corrections are append-only; they never overwrite the original fact.
 6. `employment_decision_eligible` is permanently `false` in post-beta v1.

@@ -187,9 +187,8 @@ export async function handleNotificationGoalMonthlyResultClosed(
   const organization = organizationId(payload.organizationId)
   const property = propertyId(payload.propertyId)
   const scope = scopeFromFacts(facts.subject)
-  // Canonical v1 monthly-result closure is a system evaluation and carries no
-  // synchronous human actor. Do not substitute the legacy Goal creator as an
-  // actor; current responsible recipients are the only audience authority.
+  // Monthly-result closure is a system evaluation and carries no synchronous
+  // human actor; current responsible recipients are the audience authority.
   const recipients = await resolveResponsibleRecipients(deps, organization, scope)
 
   await Promise.all(

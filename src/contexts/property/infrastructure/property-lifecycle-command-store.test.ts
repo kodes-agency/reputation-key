@@ -65,6 +65,10 @@ describe('createPropertyLifecycleCommandStore', () => {
           }),
         }
       }),
+      // The AI draft purge is raw SQL in the same transaction.
+      execute: vi.fn(async () => {
+        order.push('purge')
+      }),
     }
     const db = {
       transaction: vi.fn(async (run: (value: typeof tx) => Promise<unknown>) => {
@@ -124,7 +128,7 @@ describe('createPropertyLifecycleCommandStore', () => {
       organizationId: property.organizationId,
       propertyId: property.id,
     })
-    expect(order).toEqual(['begin', 'state', 'fact', 'commit'])
+    expect(order).toEqual(['begin', 'state', 'purge', 'fact', 'commit'])
     expect(tx).not.toHaveProperty('delete')
   })
 
@@ -168,6 +172,7 @@ describe('createPropertyLifecycleCommandStore', () => {
           facts.push(row)
         }),
       })),
+      execute: vi.fn(async () => undefined),
     }
     const db = {
       transaction: vi.fn((run: (value: typeof tx) => Promise<unknown>) => run(tx)),

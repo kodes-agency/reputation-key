@@ -20,13 +20,8 @@ type IdentityOrganizationExportPayload = Readonly<{
   invitations: readonly ExportRecord[]
   customRoles: readonly ExportRecord[]
   rolePolicies: readonly ExportRecord[]
-  userBindings: readonly ExportRecord[]
   canonicalPropertyAccessGrants: readonly ExportRecord[]
   compatibilityPropertyAccessGrants: readonly ExportRecord[]
-  organizationPolicies: readonly ExportRecord[]
-  organizationCapabilities: readonly ExportRecord[]
-  propertyPolicies: readonly ExportRecord[]
-  propertyCapabilities: readonly ExportRecord[]
   policyConsents: readonly ExportRecord[]
   lifecycleAuthority: readonly ExportRecord[]
   excludedRecordClasses: readonly Readonly<{
@@ -44,14 +39,6 @@ const EXCLUDED_RECORD_CLASSES = Object.freeze([
   },
   { recordClass: 'sessions', reasonCode: 'security_session_material' },
   { recordClass: 'verification_challenges', reasonCode: 'security_secret_material' },
-  {
-    recordClass: 'invited_registration_recovery_authority',
-    reasonCode: 'operational_recovery_control',
-  },
-  {
-    recordClass: 'policy_decision_audit',
-    reasonCode: 'restricted_operational_history',
-  },
   {
     recordClass: 'organization_export_and_lifecycle_receipts',
     reasonCode: 'content_free_control_plane',
@@ -132,13 +119,8 @@ function csvEntry(payload: IdentityOrganizationExportPayload): OrganizationExpor
     ['invitation', payload.invitations],
     ['custom_role', payload.customRoles],
     ['role_policy', payload.rolePolicies],
-    ['user_binding', payload.userBindings],
     ['property_access_grant', payload.canonicalPropertyAccessGrants],
     ['compatibility_property_access_grant', payload.compatibilityPropertyAccessGrants],
-    ['organization_policy', payload.organizationPolicies],
-    ['organization_capability', payload.organizationCapabilities],
-    ['property_policy', payload.propertyPolicies],
-    ['property_capability', payload.propertyCapabilities],
     ['policy_consent', payload.policyConsents],
     ['lifecycle_authority', payload.lifecycleAuthority],
   ]
@@ -210,11 +192,6 @@ async function readPayload(
               logo,
               metadata,
               "contactEmail" AS contact_email,
-              "billingCompanyName" AS billing_company_name,
-              "billingAddress" AS billing_address,
-              "billingCity" AS billing_city,
-              "billingPostalCode" AS billing_postal_code,
-              "billingCountry" AS billing_country,
               to_char("createdAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
             FROM organization
             WHERE id = ${organizationId}`,
@@ -280,22 +257,6 @@ async function readPayload(
             WHERE organization_id = ${organizationId}
             ORDER BY role, id`,
       )
-      const userBindings = await readRows(
-        snapshot,
-        sql`SELECT
-              user_id,
-              state,
-              source,
-              invitation_id,
-              version,
-              resolution_reason,
-              to_char(released_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS released_at,
-              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
-              to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
-            FROM user_organization_bindings
-            WHERE organization_id = ${organizationId}
-            ORDER BY user_id`,
-      )
       const canonicalPropertyAccessGrants = await readRows(
         snapshot,
         sql`SELECT
@@ -328,47 +289,6 @@ async function readPayload(
             FROM property_access_grants
             WHERE organization_id = ${organizationId}
             ORDER BY property_id, user_id, granted_at, id`,
-      )
-      const organizationPolicies = await readRows(
-        snapshot,
-        sql`SELECT
-              organization_id,
-              cohort,
-              to_char(suspended_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS suspended_at,
-              suspended_reason,
-              to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
-            FROM organization_policy
-            WHERE organization_id = ${organizationId}`,
-      )
-      const organizationCapabilities = await readRows(
-        snapshot,
-        sql`SELECT capability, created_by,
-                   to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
-            FROM organization_capability
-            WHERE organization_id = ${organizationId}
-            ORDER BY capability`,
-      )
-      const propertyPolicies = await readRows(
-        snapshot,
-        sql`SELECT
-              policy.property_id,
-              to_char(policy.suspended_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS suspended_at,
-              policy.suspended_reason,
-              to_char(policy.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
-            FROM property_policy AS policy
-            INNER JOIN properties AS property ON property.id = policy.property_id
-            WHERE property.organization_id = ${organizationId}
-            ORDER BY policy.property_id`,
-      )
-      const propertyCapabilities = await readRows(
-        snapshot,
-        sql`SELECT capability.property_id, capability.capability,
-                   capability.created_by,
-                   to_char(capability.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
-            FROM property_capability AS capability
-            INNER JOIN properties AS property ON property.id = capability.property_id
-            WHERE property.organization_id = ${organizationId}
-            ORDER BY capability.property_id, capability.capability`,
       )
       const policyConsents = await readRows(
         snapshot,
@@ -413,13 +333,8 @@ async function readPayload(
         invitations,
         customRoles,
         rolePolicies,
-        userBindings,
         canonicalPropertyAccessGrants,
         compatibilityPropertyAccessGrants,
-        organizationPolicies,
-        organizationCapabilities,
-        propertyPolicies,
-        propertyCapabilities,
         policyConsents,
         lifecycleAuthority,
         excludedRecordClasses: EXCLUDED_RECORD_CLASSES,

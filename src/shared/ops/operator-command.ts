@@ -20,11 +20,8 @@
 //
 // Every parsed invocation — reads included — is evaluated through the
 // installed ExecutionPolicy with the named operator principal, the command
-// scope, and a per-invocation correlation id. The policy writes the
-// content-free decision audit row for BOTH allow and deny (actorType
-// 'operator', executionKind 'operator', action 'system:ops' — the catalogue
-// assignment); allow rows carry the operator reason (or 'read' / 'dry-run'),
-// deny rows the typed deny reason. Denies exit 1 with the typed reason.
+// scope, and a per-invocation correlation id. The typed decision is returned
+// and printed with that correlation id. Denies exit 1 with the typed reason.
 //
 // Capability gates: a command spec MAY declare the capability its work
 // depends on (e.g. inbox.use for a projection rebuild) — the policy then

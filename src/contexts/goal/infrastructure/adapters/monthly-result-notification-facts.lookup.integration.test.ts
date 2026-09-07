@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
+import {
+  METRIC_DEFINITION_IDS,
+  METRIC_VERSION_IDS,
+} from '#/contexts/metric/application/public-api'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
@@ -10,18 +13,11 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
   let lease: TestLease
   let organizationId: string
   let propertyId: string
-  let metricDefinitionId: string
 
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL)
     organizationId = `goal-notification-facts-${randomUUID()}`
     propertyId = randomUUID()
-    const metric = await lease.pool.query<{ definition_id: string }>(
-      `SELECT definition_id FROM metric_definition_versions WHERE id = $1`,
-      [METRIC_VERSION_IDS.portalRatingCountGoal],
-    )
-    metricDefinitionId = metric.rows[0]?.definition_id ?? ''
-    if (!metricDefinitionId) throw new Error('seeded Goal metric version is missing')
   })
 
   beforeEach(async () => {
@@ -74,7 +70,7 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
         programId,
         organizationId,
         propertyId,
-        metricDefinitionId,
+        METRIC_DEFINITION_IDS.portalRatingCount,
         METRIC_VERSION_IDS.portalRatingCountGoal,
         effectiveFrom,
       ],

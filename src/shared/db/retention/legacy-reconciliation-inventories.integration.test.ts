@@ -122,7 +122,6 @@ describe('legacy reconciliation inventories against PostgreSQL', () => {
     expect(
       findingCount(report, 'users_with_multiple_memberships'),
     ).toBeGreaterThanOrEqual(1)
-    expect(findingCount(report, 'members_without_binding')).toBeGreaterThanOrEqual(1)
     expect(report.blocksMigration).toBe(true)
   })
 
@@ -144,7 +143,6 @@ describe('legacy reconciliation inventories against PostgreSQL', () => {
       'member',
       'organizationRole',
       'organization_role_policy',
-      'user_organization_bindings',
       'invitation',
       'ratings',
       'feedback',

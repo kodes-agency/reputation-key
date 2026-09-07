@@ -65,14 +65,13 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  *   `google_review_uri`: provider-controlled identifiers and a Google-owned
  *   destination URI. A per-item file would put a location id in the archive,
  *   which this context may never do.
- * - `google_oauth_exchange_attempts` is the crash boundary that briefly holds an
- *   application-encrypted provider token response.
+ * - `google_oauth_exchange` idempotency receipts are the crash boundary that
+ *   briefly holds an application-encrypted provider token response.
  * - `credential_revoke_permits`, `authorization_execution_permits` and
  *   `capability_*` control rows are admission/permit internals.
- * - `google_disconnect_revoke_attempts.credential_binding` is a keyed digest of
- *   the exact token being revoked, and `cleanup_work_permit_id` points at the
- *   permit plane; the attempt's state, outcome and timings are exported without
- *   them.
+ * - `google_disconnect_revoke` receipt payloads include a keyed digest of the
+ *   exact token being revoked and the cleanup permit identifier; the attempt's
+ *   state, outcome and timings are exported without them.
  * - `gbp_import_sagas` / `gbp_import_requests` replay key versions and digests
  *   are keyed idempotency material, not lifecycle status.
  * - `google_import_discovery_records` are pre-confirmation provider candidate
@@ -89,7 +88,7 @@ const EXCLUDED_RECORD_CLASSES = Object.freeze([
     reasonCode: 'provider_grant_identity',
   },
   {
-    recordClass: 'google_oauth_exchange_attempts',
+    recordClass: 'google_oauth_exchange_receipts',
     reasonCode: 'security_secret_material',
   },
   {
@@ -404,22 +403,23 @@ async function readPayload(
       const disconnectCleanupAttempts = await readRows(
         snapshot,
         sql`SELECT
-              attempt.id::text AS id,
-              attempt.connection_id::text AS connection_id,
-              attempt.initiator_user_id,
-              attempt.state::text AS state,
-              attempt.outcome_code,
-              attempt.expected_lifecycle_version,
-              attempt.expected_access_version,
-              attempt.expected_credential_generation,
-              to_char(attempt.activated_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS activated_at,
-              to_char(attempt.cleanup_deadline_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS cleanup_deadline_at,
-              to_char(attempt.dispatching_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS dispatching_at,
-              to_char(attempt.terminal_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS terminal_at,
-              to_char(attempt.created_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS created_at,
-              to_char(attempt.updated_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS updated_at
-            FROM google_disconnect_revoke_attempts AS attempt
-            WHERE attempt.organization_id = ${organizationId}`,
+              receipt.key AS id,
+              receipt.payload->>'connectionId' AS connection_id,
+              receipt.payload->>'initiatorUserId' AS initiator_user_id,
+              receipt.payload->>'state' AS state,
+              receipt.payload->>'outcomeCode' AS outcome_code,
+              (receipt.payload->>'expectedLifecycleVersion')::bigint AS expected_lifecycle_version,
+              (receipt.payload->>'expectedAccessVersion')::bigint AS expected_access_version,
+              (receipt.payload->>'expectedCredentialGeneration')::bigint AS expected_credential_generation,
+              to_char((receipt.payload->>'activatedAt')::timestamptz AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS activated_at,
+              to_char((receipt.payload->>'cleanupDeadlineAt')::timestamptz AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS cleanup_deadline_at,
+              to_char((receipt.payload->>'dispatchingAt')::timestamptz AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS dispatching_at,
+              to_char((receipt.payload->>'terminalAt')::timestamptz AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS terminal_at,
+              to_char(receipt.recorded_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS created_at,
+              to_char((receipt.payload->>'updatedAt')::timestamptz AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS updated_at
+            FROM idempotency_receipts AS receipt
+            WHERE receipt.scope = 'google_disconnect_revoke'
+              AND receipt.payload->>'organizationId' = ${organizationId}`,
         (record) => [record.activated_at, record.id],
       )
 

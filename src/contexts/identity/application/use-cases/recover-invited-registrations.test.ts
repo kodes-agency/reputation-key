@@ -5,17 +5,17 @@ import type { IdentityCommandStore } from '../ports/identity-command-store.port'
 import { recoverInvitedRegistrations } from './recover-invited-registrations'
 
 const NOW = new Date('2026-08-27T12:00:00.000Z')
-const ATTEMPT_ID = '10000000-0000-4000-8000-000000000001'
-const LEASE_OWNER = '10000000-0000-4000-8000-000000000002'
+const VERIFICATION_ID = '10000000-0000-4000-8000-000000000001'
 const INVITATION_ID = invitationId('invitation-recovery-1')
 const ORGANIZATION_ID = organizationId('organization-recovery-1')
 
 function setup(
   results: ReadonlyArray<Awaited<ReturnType<InvitedRegistrationStore['reconcile']>>>,
 ) {
-  const claimDue = vi.fn().mockResolvedValue([{ id: ATTEMPT_ID }])
+  const claimDue = vi.fn().mockResolvedValue([{ verificationId: VERIFICATION_ID }])
   const reconcile = vi.fn()
   for (const result of results) reconcile.mockResolvedValueOnce(result)
+  const complete = vi.fn().mockResolvedValue(undefined)
   const acceptInvitation = vi.fn().mockResolvedValue({
     organizationId: ORGANIZATION_ID,
     propertyIds: ['property-1'],
@@ -27,11 +27,11 @@ function setup(
       prepare: vi.fn(),
       claimDue,
       reconcile,
+      complete,
     },
     commandStore: { acceptInvitation } as unknown as IdentityCommandStore,
     runOnAccepted,
     clock: () => NOW,
-    idGen: () => LEASE_OWNER,
     logger,
   })
   return {
@@ -39,18 +39,19 @@ function setup(
     claimDue,
     reconcile,
     acceptInvitation,
+    complete,
     runOnAccepted,
     logger,
   }
 }
 
 describe('recoverInvitedRegistrations', () => {
-  it('claims a bounded lease and completes the exact fenced registration', async () => {
+  it('claims a bounded verification record and completes the exact registration', async () => {
     const fixture = setup([
       {
         kind: 'ready_to_accept',
         registration: {
-          id: ATTEMPT_ID,
+          verificationId: VERIFICATION_ID,
           invitationId: INVITATION_ID,
           organizationId: ORGANIZATION_ID,
           authIds: {
@@ -69,29 +70,26 @@ describe('recoverInvitedRegistrations', () => {
       awaitingProvider: 0,
       compensated: 0,
       manualReview: 0,
-      claimsLost: 0,
       failures: 0,
     })
     expect(fixture.claimDue).toHaveBeenCalledWith({
       now: NOW,
-      leaseOwner: LEASE_OWNER,
-      leaseExpiresAt: new Date('2026-08-27T12:01:00.000Z'),
+      claimExpiresAt: new Date('2026-08-27T12:01:00.000Z'),
       limit: 100,
     })
     expect(fixture.reconcile).toHaveBeenCalledWith({
-      attemptId: ATTEMPT_ID,
+      verificationId: VERIFICATION_ID,
       now: NOW,
       nextRecoveryAt: new Date('2026-08-27T12:05:00.000Z'),
-      leaseOwner: LEASE_OWNER,
     })
     expect(fixture.acceptInvitation).toHaveBeenCalledWith(
       expect.objectContaining({
         invitationId: INVITATION_ID,
-        registrationAttemptId: ATTEMPT_ID,
         acceptorEmail: 'manager@example.com',
         acceptorUserId: 'user-recovery-1',
       }),
     )
+    expect(fixture.complete).toHaveBeenCalledWith(VERIFICATION_ID)
     expect(fixture.runOnAccepted).toHaveBeenCalledWith({
       userId: 'user-recovery-1',
       organizationId: ORGANIZATION_ID,
@@ -104,7 +102,7 @@ describe('recoverInvitedRegistrations', () => {
       {
         kind: 'ready_to_accept',
         registration: {
-          id: ATTEMPT_ID,
+          verificationId: VERIFICATION_ID,
           invitationId: INVITATION_ID,
           organizationId: ORGANIZATION_ID,
           authIds: {
@@ -126,7 +124,6 @@ describe('recoverInvitedRegistrations', () => {
 
     await expect(fixture.run()).resolves.toMatchObject({ accepted: 1, failures: 0 })
     expect(fixture.reconcile).toHaveBeenCalledTimes(2)
-    expect(fixture.reconcile.mock.calls[1]?.[0]).not.toHaveProperty('leaseOwner')
     expect(fixture.runOnAccepted).toHaveBeenCalledOnce()
   })
 
@@ -134,7 +131,6 @@ describe('recoverInvitedRegistrations', () => {
     ['awaiting_provider', 'awaitingProvider'],
     ['compensated', 'compensated'],
     ['manual_review', 'manualReview'],
-    ['claim_lost', 'claimsLost'],
   ] as const)('settles %s without trying to accept again', async (kind, countKey) => {
     const fixture = setup([{ kind }])
 
@@ -145,17 +141,20 @@ describe('recoverInvitedRegistrations', () => {
     expect(fixture.runOnAccepted).not.toHaveBeenCalled()
   })
 
-  it('continues the bounded batch after one attempt fails', async () => {
-    const fixture = setup([{ kind: 'claim_lost' }])
-    fixture.claimDue.mockResolvedValueOnce([{ id: 'attempt-broken' }, { id: ATTEMPT_ID }])
+  it('continues the bounded batch after one verification fails', async () => {
+    const fixture = setup([{ kind: 'compensated' }])
+    fixture.claimDue.mockResolvedValueOnce([
+      { verificationId: 'verification-broken' },
+      { verificationId: VERIFICATION_ID },
+    ])
     fixture.reconcile
       .mockReset()
       .mockRejectedValueOnce(new Error('database interruption'))
-      .mockResolvedValueOnce({ kind: 'claim_lost' })
+      .mockResolvedValueOnce({ kind: 'compensated' })
 
     await expect(fixture.run()).resolves.toMatchObject({
       claimed: 2,
-      claimsLost: 1,
+      compensated: 1,
       failures: 1,
     })
     expect(fixture.logger.error).toHaveBeenCalledOnce()

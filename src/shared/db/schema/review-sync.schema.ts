@@ -1,6 +1,6 @@
 // Review sync operational tables (migration 0007 / PRE17B).
-// Canonical Drizzle model for review_sync_state, review_sync_runs,
-// and inbound_webhook_receipts. BQR-1.1: schema parity with migrated DB.
+// Canonical Drizzle model for review_sync_state and review_sync_runs.
+// BQR-1.1: schema parity with migrated DB.
 
 import {
   pgTable,
@@ -145,20 +145,4 @@ export const retentionRuns = pgTable(
     policyVersion: integer('policy_version').notNull().default(1),
   },
   (t) => [index('retention_runs_subject_started_idx').on(t.subject, t.startedAt)],
-)
-
-/** Dedup receipts for Google Pub/Sub (and future inbound webhooks). */
-export const inboundWebhookReceipts = pgTable(
-  'inbound_webhook_receipts',
-  {
-    provider: text('provider').notNull().default('google'),
-    topic: text('topic').notNull(),
-    messageId: text('message_id').notNull(),
-    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
-    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
-    notificationKind: text('notification_kind'),
-    resolvedPropertyId: varchar('resolved_property_id', { length: 255 }),
-    outcome: text('outcome'),
-  },
-  (t) => [primaryKey({ columns: [t.provider, t.topic, t.messageId] })],
 )

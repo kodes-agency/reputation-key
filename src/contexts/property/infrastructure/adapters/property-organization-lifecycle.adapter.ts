@@ -12,6 +12,7 @@
 
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { deleteAiDraftsForOrganization } from '#/shared/db/ai/ai-draft-purge'
 import {
   createOrganizationLifecycleContributorScaffold,
   validateContentFreeEvidenceRef,
@@ -22,7 +23,7 @@ import {
   properties,
   propertyResponsibleManagers,
 } from '#/shared/db/schema/property.schema'
-import { propertyOperationReceipts } from '#/shared/db/schema/property-operation-receipt.schema'
+import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import type { Tx } from '#/shared/outbox/commit'
 
 /**
@@ -77,7 +78,7 @@ const ADMITTING_LIFECYCLE_STATES = ['active', 'disconnecting'] as const
  * expand/backfill/contract decision and is not a lifecycle phase.
  */
 export const PROPERTY_PURGE_PLAN = Object.freeze([
-  'property_operation_receipts',
+  'idempotency_receipts',
   'property_responsible_managers',
   'properties',
 ] as const)
@@ -121,6 +122,7 @@ const drizzlePropertyLifecycleWorkbench: PropertyLifecycleWorkbench = Object.fre
         ),
       )
       .returning({ id: properties.id })
+    await deleteAiDraftsForOrganization(tx, request.organizationId)
     return fenced.length
   },
 
@@ -149,19 +151,24 @@ const drizzlePropertyLifecycleWorkbench: PropertyLifecycleWorkbench = Object.fre
             WHERE ${propertyResponsibleManagers.organizationId} = ${organizationId}
           )
           + (
-            SELECT COUNT(*)::int FROM ${propertyOperationReceipts}
-            WHERE ${propertyOperationReceipts.organizationId} = ${organizationId}
+            SELECT COUNT(*)::int FROM ${idempotencyReceipts}
+            WHERE ${idempotencyReceipts.scope} = 'property_operation'
+              AND ${idempotencyReceipts.payload}->>'organizationId' = ${organizationId}
           ) AS "rows"
       `)
     return count(result.rows[0], 'rows')
   },
 
   scrubTenantRows: async (tx, organizationId) => {
-    // Receipts first: they hold a RESTRICT reference to the destination
-    // Property, so the Property row cannot go while a receipt still names it.
+    // Operation idempotency receipts must go before their destination Property.
     await tx
-      .delete(propertyOperationReceipts)
-      .where(eq(propertyOperationReceipts.organizationId, organizationId))
+      .delete(idempotencyReceipts)
+      .where(
+        and(
+          eq(idempotencyReceipts.scope, 'property_operation'),
+          sql`${idempotencyReceipts.payload}->>'organizationId' = ${organizationId}`,
+        ),
+      )
     await tx
       .delete(propertyResponsibleManagers)
       .where(eq(propertyResponsibleManagers.organizationId, organizationId))

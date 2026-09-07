@@ -11,6 +11,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -21,6 +22,29 @@ import {
 } from 'drizzle-orm/pg-core'
 
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true })
+export const ORGANIZATION_LIFECYCLE_EVENT_CONTEXTS = [
+  'activity',
+  'ai',
+  'dashboard',
+  'goal',
+  'guest',
+  'identity',
+  'inbox',
+  'integration',
+  'metric',
+  'notification',
+  'portal',
+  'property',
+  'review',
+  'staff',
+] as const
+
+export type OrganizationLifecycleEventContext =
+  (typeof ORGANIZATION_LIFECYCLE_EVENT_CONTEXTS)[number]
+
+const lifecycleEventContextList = ORGANIZATION_LIFECYCLE_EVENT_CONTEXTS.map(
+  (context) => `'${context}'`,
+).join(', ')
 
 export const organizationLifecycleAuthority = pgTable(
   'organization_lifecycle_authority',
@@ -116,99 +140,49 @@ export const organizationLifecycleAuthority = pgTable(
   ],
 )
 
-export const organizationLifecycleCommandReceipts = pgTable(
-  'organization_lifecycle_command_receipts',
-  {
-    operationId: uuid('operation_id').primaryKey(),
-    organizationId: text('organization_id').notNull(),
-    operation: text('operation').notNull(),
-    resultState: text('result_state').notNull(),
-    resultRevision: integer('result_revision').notNull(),
-    closureLineageId: uuid('closure_lineage_id'),
-    closureRequestedAt: timestamptz('closure_requested_at'),
-    recoverableUntil: timestamptz('recoverable_until'),
-    irreversibleAt: timestamptz('irreversible_at'),
-    closedAt: timestamptz('closed_at'),
-    reactivationRequired: boolean('reactivation_required').notNull(),
-    lastTransitionAt: timestamptz('last_transition_at').notNull(),
-    lastActorId: varchar('last_actor_id', { length: 255 }).notNull(),
-    lastReasonCode: varchar('last_reason_code', { length: 64 }).notNull(),
-    lastSupportEvidenceRef: varchar('last_support_evidence_ref', {
-      length: 200,
-    }).notNull(),
-    occurredAt: timestamptz('occurred_at').notNull().defaultNow(),
-  },
-  (t) => [
-    check(
-      'organization_lifecycle_receipt_operation_valid',
-      sql`${t.operation} IN ('request', 'cancel')`,
-    ),
-    check(
-      'organization_lifecycle_receipt_state_valid',
-      sql`${t.resultState} IN ('active', 'closure_requested', 'closing', 'purge_pending', 'purging', 'closed')`,
-    ),
-    check(
-      'organization_lifecycle_receipt_revision_positive',
-      sql`${t.resultRevision} > 0`,
-    ),
-    index('organization_lifecycle_receipt_org_time_idx').on(
-      t.organizationId,
-      desc(t.occurredAt),
-    ),
-  ],
-)
-
 /**
- * Identity-owned phase receipts for context-local lifecycle work.
+ * Every content-free lifecycle receipt shares one append-only event ledger.
  *
- * The coordinator's transition digest is not proof that a context mutation
- * committed. This table lets an Identity contributor co-commit its mutation
- * and a content-free, replayable result for the exact lineage/revision/phase.
- * It intentionally has no Organization foreign key so closure evidence can
- * survive removal of the Better Auth Organization row.
+ * `kind` is a namespaced idempotency identity derived from the former
+ * receipt's primary key. The unique index therefore preserves at-most-once
+ * behavior across retries without coupling durable evidence to a row that may
+ * later be erased.
  */
-export const identityOrganizationLifecycleReceipts = pgTable(
-  'identity_organization_lifecycle_receipts',
+export const organizationLifecycleEvents = pgTable(
+  'organization_lifecycle_events',
   {
+    id: uuid('id').primaryKey().defaultRandom(),
     organizationId: text('organization_id').notNull(),
-    closureLineageId: uuid('closure_lineage_id').notNull(),
-    lifecycleRevision: integer('lifecycle_revision').notNull(),
+    context: text('context').$type<OrganizationLifecycleEventContext>().notNull(),
     phase: text('phase').notNull(),
-    requestFingerprint: char('request_fingerprint', { length: 64 }).notNull(),
-    outcome: text('outcome').notNull(),
-    evidenceRef: varchar('evidence_ref', { length: 200 }).notNull(),
-    recoverableUntil: timestamptz('recoverable_until').notNull(),
-    occurredAt: timestamptz('occurred_at').notNull(),
-    createdAt: timestamptz('created_at').notNull().defaultNow(),
+    kind: text('kind').notNull(),
+    payload: jsonb('payload')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    recordedAt: timestamptz('recorded_at').notNull().defaultNow(),
   },
   (t) => [
-    primaryKey({
-      columns: [t.closureLineageId, t.lifecycleRevision, t.phase],
-      name: 'identity_organization_lifecycle_receipts_pk',
-    }),
-    check(
-      'identity_organization_lifecycle_receipts_revision_positive',
-      sql`${t.lifecycleRevision} > 0`,
+    uniqueIndex('organization_lifecycle_events_idempotency_unique').on(
+      t.context,
+      t.phase,
+      t.kind,
     ),
-    check(
-      'identity_organization_lifecycle_receipts_phase_valid',
-      sql`${t.phase} IN ('closing', 'purge_readiness', 'purge')`,
-    ),
-    check(
-      'identity_organization_lifecycle_receipts_outcome_valid',
-      sql`${t.outcome} IN ('complete', 'no_data')`,
-    ),
-    check(
-      'identity_organization_lifecycle_receipts_fingerprint_valid',
-      sql`${t.requestFingerprint} ~ '^[a-f0-9]{64}$'`,
-    ),
-    check(
-      'identity_organization_lifecycle_receipts_evidence_valid',
-      sql`${t.evidenceRef} ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'`,
-    ),
-    index('identity_organization_lifecycle_receipts_org_time_idx').on(
+    index('organization_lifecycle_events_org_time_idx').on(
       t.organizationId,
-      desc(t.occurredAt),
+      desc(t.recordedAt),
+    ),
+    check(
+      'organization_lifecycle_events_identity_valid',
+      sql.raw(
+        `"organization_lifecycle_events"."context" IN (${lifecycleEventContextList})
+          AND length("organization_lifecycle_events"."phase") BETWEEN 1 AND 32
+          AND length("organization_lifecycle_events"."kind") BETWEEN 1 AND 160`,
+      ),
+    ),
+    check(
+      'organization_lifecycle_events_payload_object',
+      sql`jsonb_typeof(${t.payload}) = 'object'`,
     ),
   ],
 )

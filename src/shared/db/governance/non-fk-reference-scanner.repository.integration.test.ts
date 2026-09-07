@@ -17,7 +17,8 @@ const AS_OF = new Date('2026-08-28T00:00:00.000Z')
 
 const ORGANIZATION = `org-non-fk-${randomUUID().slice(0, 8)}`
 const PROPERTY_ID = randomUUID()
-const GOAL_ID = randomUUID()
+const PORTAL_ID = randomUUID()
+const RATING_ID = randomUUID()
 
 type TransactionConfig = Readonly<{ isolationLevel?: string; accessMode?: string }>
 
@@ -61,30 +62,40 @@ async function seedTenant(): Promise<void> {
     VALUES (${PROPERTY_ID}, ${ORGANIZATION}, 'Non-FK Property', ${ORGANIZATION}, 'UTC', NOW(), NOW())
     ON CONFLICT (id) DO NOTHING
   `)
+  await db.execute(sql`
+    INSERT INTO portals
+      (id, organization_id, property_id, entity_type, entity_id, name, slug,
+       created_at, updated_at)
+    VALUES (
+      ${PORTAL_ID}, ${ORGANIZATION}, ${PROPERTY_ID}, 'property', ${PROPERTY_ID},
+      'Non-FK Portal', ${PORTAL_ID}, NOW(), NOW()
+    )
+    ON CONFLICT (id) DO NOTHING
+  `)
 }
 
 async function seedReferences(): Promise<void> {
   await db.execute(sql`
-    INSERT INTO goals
-      (id, organization_id, property_id, name, created_by, goal_type,
-       aggregation_function, metric_key, target_value)
-    VALUES (${GOAL_ID}, ${ORGANIZATION}, ${PROPERTY_ID}, 'Non-FK Goal',
-            'actor-non-fk', 'property', 'sum', 'qualified_scans', 1)
+    INSERT INTO ratings (id, organization_id, portal_id, property_id, value, source)
+    VALUES (${RATING_ID}, ${ORGANIZATION}, ${PORTAL_ID}, ${PROPERTY_ID}, 5, 'widget')
   `)
   await db.execute(sql`
     INSERT INTO recent_activity_entries
       (actor_id, actor_name, actor_role, action, resource_type, resource_id, organization_id, payload)
-    VALUES ('actor-non-fk', 'Actor', 'owner', 'created', 'goal', ${GOAL_ID}, ${ORGANIZATION}, '{}'::jsonb)
+    VALUES (
+      'actor-non-fk', 'Actor', 'owner', 'changed', 'review', ${RATING_ID},
+      ${ORGANIZATION}, jsonb_build_object('ratingId', ${RATING_ID}::text)
+    )
   `)
   await db.execute(sql`
     INSERT INTO outbox_events
       (event_type, payload, organization_id, source_context, source_aggregate_id)
     VALUES (
-      'goal.created',
-      jsonb_build_object('goalId', ${GOAL_ID}::text),
+      'guest.rating.submitted',
+      jsonb_build_object('ratingId', ${RATING_ID}::text),
       ${ORGANIZATION},
-      'goal',
-      ${GOAL_ID}
+      'guest',
+      ${RATING_ID}
     )
   `)
 }
@@ -94,7 +105,7 @@ async function removeReferences(): Promise<void> {
   await db.execute(
     sql`DELETE FROM recent_activity_entries WHERE organization_id = ${ORGANIZATION}`,
   )
-  await db.execute(sql`DELETE FROM goals WHERE organization_id = ${ORGANIZATION}`)
+  await db.execute(sql`DELETE FROM ratings WHERE organization_id = ${ORGANIZATION}`)
 }
 
 beforeAll(async () => {
@@ -106,6 +117,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (db) {
     await removeReferences()
+    await db.execute(sql`DELETE FROM portals WHERE id = ${PORTAL_ID}`)
     await db.execute(sql`DELETE FROM properties WHERE id = ${PROPERTY_ID}`)
     await deleteTestOrganizations(lease.pool, [ORGANIZATION])
   }
@@ -119,7 +131,7 @@ describe('non-FK reference scanner (real PostgreSQL)', () => {
     const scan = () =>
       scanNonFkReferences(observed, {
         evaluatedAt: AS_OF,
-        referentTables: ['goals'],
+        referentTables: ['ratings'],
         candidateTables: CANDIDATES,
       })
 
@@ -127,12 +139,11 @@ describe('non-FK reference scanner (real PostgreSQL)', () => {
     await seedReferences()
     const after = await scan()
 
-    // The activity entry names the goal through (resource_type, resource_id);
-    // the outbox row embeds the same id inside its jsonb payload and in its
-    // textual aggregate id. None of those is a foreign key.
+    // The activity and outbox documents embed the rating id, while the outbox
+    // row also carries it as a textual aggregate id. None is a foreign key.
     expect(
-      countFor(after, 'recent_activity_entries.resource') -
-        countFor(before, 'recent_activity_entries.resource'),
+      countFor(after, 'recent_activity_entries.payload') -
+        countFor(before, 'recent_activity_entries.payload'),
     ).toBe(1)
     expect(
       countFor(after, 'outbox_events.payload') -
@@ -170,15 +181,14 @@ describe('non-FK reference scanner (real PostgreSQL)', () => {
     try {
       const report = await scanNonFkReferences(db, {
         evaluatedAt: AS_OF,
-        referentTables: ['goals'],
+        referentTables: ['ratings'],
         candidateTables: CANDIDATES,
       })
       const serialized = JSON.stringify(report)
 
-      expect(serialized).not.toContain(GOAL_ID)
+      expect(serialized).not.toContain(RATING_ID)
       expect(serialized).not.toContain(ORGANIZATION)
       expect(serialized).not.toContain(PROPERTY_ID)
-      expect(serialized).toContain('resource_type')
       expect(serialized).toContain('payload')
       expect(
         report.tables[0]?.probes.every(({ referenceCount }) => referenceCount >= 0),
@@ -193,11 +203,11 @@ describe('non-FK reference scanner (real PostgreSQL)', () => {
       db.transaction(
         async (snapshot) => {
           await snapshot.execute(
-            sql`INSERT INTO goals
-                  (id, organization_id, property_id, name, created_by, goal_type,
-                   aggregation_function, metric_key, target_value)
-                VALUES (${randomUUID()}, ${ORGANIZATION}, ${PROPERTY_ID}, 'blocked',
-                        'actor-non-fk', 'property', 'sum', 'qualified_scans', 1)`,
+            sql`INSERT INTO ratings
+                  (id, organization_id, portal_id, property_id, value, source)
+                VALUES (
+                  ${randomUUID()}, ${ORGANIZATION}, ${PORTAL_ID}, ${PROPERTY_ID}, 5, 'widget'
+                )`,
           )
         },
         { isolationLevel: 'repeatable read', accessMode: 'read only' },

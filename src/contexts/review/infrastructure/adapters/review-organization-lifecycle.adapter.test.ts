@@ -11,7 +11,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
-import { contextOrganizationLifecycleReceipts } from '#/shared/db/schema/context-organization-lifecycle-receipts.schema'
+import { organizationLifecycleEvents } from '#/shared/db/schema/organization-lifecycle.schema'
 import { organizationLifecycleAuthority } from '#/shared/db/schema/organization-lifecycle.schema'
 import type { Tx } from '#/shared/outbox/commit'
 import type { OrganizationLifecycleContributionInput } from '#/contexts/identity/application/ports/organization-lifecycle-contributor.port'
@@ -133,7 +133,7 @@ function createFakeDb(options: FakeOptions) {
       })),
       insert: vi.fn((table: unknown) => ({
         values: vi.fn(async (row: Record<string, unknown>) => {
-          if (table === contextOrganizationLifecycleReceipts) receipts.push(row)
+          if (table === organizationLifecycleEvents) receipts.push(row)
         }),
       })),
     }
@@ -229,23 +229,28 @@ describe('Review Organization lifecycle contributor', () => {
       expect(receipt).toMatchObject({
         context: 'review',
         organizationId: ORGANIZATION_ID,
-        closureLineageId: LINEAGE,
-        lifecycleRevision: 4,
         phase,
-        outcome: 'complete',
+        payload: {
+          closureLineageId: LINEAGE,
+          lifecycleRevision: 4,
+          outcome: 'complete',
+        },
       })
-      // Identifiers, enums, timestamps and one digest — nothing else can be
-      // stored, so no provider or manager text can ride along on the receipt.
+      // The generic envelope is fixed; its payload remains content-free
+      // identifiers, enums, timestamps and one digest.
       expect(Object.keys(receipt).sort()).toEqual([
-        'closureLineageId',
         'context',
-        'createdAt',
+        'kind',
+        'organizationId',
+        'payload',
+        'phase',
+        'recordedAt',
+      ])
+      expect(Object.keys(receipt.payload as Record<string, unknown>).sort()).toEqual([
+        'closureLineageId',
         'evidenceRef',
         'lifecycleRevision',
-        'occurredAt',
-        'organizationId',
         'outcome',
-        'phase',
         'recoverableUntil',
         'requestFingerprint',
       ])
@@ -349,7 +354,7 @@ describe('Review Organization lifecycle contributor', () => {
       'google_reply_observations',
       'reply_publication_attempts',
       'review_provider_subjects',
-      'inbound_webhook_receipts',
+      'idempotency_receipts',
       'review_sync_state',
     ]) {
       expect(statements.some((text) => text.startsWith(`DELETE FROM ${removed} `))).toBe(

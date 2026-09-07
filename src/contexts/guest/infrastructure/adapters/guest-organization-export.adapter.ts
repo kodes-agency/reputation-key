@@ -60,7 +60,6 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  *   fact itself is content-free control plane and stays out with them.
  * - Network-pressure records are abuse controls; bullet 7 excludes rate-limit
  *   and abuse internals.
- * - Guest media is beta-disabled with no public issuance surface.
  * - Legacy `session_id`/`ip_hash` columns are pseudonym linkage, so the legacy
  *   collections carry the rating/click facts without them.
  */
@@ -74,15 +73,10 @@ const EXCLUDED_RECORD_CLASSES = Object.freeze([
     reasonCode: 'security_session_material',
   },
   {
-    recordClass: 'guest_qualified_scan_receipts',
-    reasonCode: 'security_session_material',
-  },
-  {
-    recordClass: 'guest_destination_action_receipts',
+    recordClass: 'guest_idempotency_receipts',
     reasonCode: 'security_session_material',
   },
   { recordClass: 'guest_network_pressure_records', reasonCode: 'abuse_control_internal' },
-  { recordClass: 'guest_response_media', reasonCode: 'dark_capability_not_activated' },
   {
     recordClass: 'legacy_session_and_network_pseudonyms',
     reasonCode: 'pseudonym_linkage',

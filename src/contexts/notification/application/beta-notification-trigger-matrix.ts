@@ -244,8 +244,8 @@ type BetaNotificationReadinessRequirement = Readonly<{
  * Active beta families that are not yet represented by a complete durable
  * trigger/recipient row. This is executable debt, not a dark-feature list.
  *
- * Canonical Goal Programs close `goal.monthly_result.closed:v1`; the legacy
- * `goal.completed` producer is compatibility-only and must never be revived.
+ * Canonical Goal Programs close `goal.monthly_result.closed:v1`; the
+ * `goal.completed` name is the resulting notification type, not an event tag.
  */
 const BETA_NOTIFICATION_READINESS_REQUIREMENTS = [
   {

@@ -1,13 +1,10 @@
 import { and, eq, gte, inArray, isNotNull, lt, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import {
-  metricCorrections,
-  metricDefinitionVersions,
-  metricReadings,
-} from '#/shared/db/schema/metric.schema'
+import { metricCorrections, metricReadings } from '#/shared/db/schema/metric.schema'
 import type { MetricRepository } from '../../application/ports/metric.repository'
 import { unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
+import { findMetricDefinition } from '../../domain/metric-registry'
 
 /** Aggregate columns come back as driver-typed values; an absent row reads as zero. */
 function numberOrZero(value: unknown): number {
@@ -29,6 +26,26 @@ export const createMetricRepository = (
 ): MetricRepository => ({
   queryAggregate: async (query) =>
     trace('metric.queryAggregate', async () => {
+      const registryEntry = findMetricDefinition(query.metricKey)
+      const permittedVersions =
+        registryEntry?.versions.filter((version) =>
+          version.permittedConsumers.includes(query.consumer),
+        ) ?? []
+      if (permittedVersions.length === 0) {
+        return {
+          sum: 0,
+          count: 0,
+          max: 0,
+          available: false,
+          sampleCount: 0,
+          minimumSample: 1,
+        }
+      }
+      const permittedVersionIds = permittedVersions.map(({ id }) => id)
+      const minimumSample = Math.max(
+        ...permittedVersions.map((version) => version.minimumSample),
+      )
+
       const correctionTips = db
         .select({
           readingId: metricCorrections.readingId,
@@ -53,11 +70,8 @@ export const createMetricRepository = (
         eq(metricReadings.metricKey, query.metricKey),
         isNotNull(metricReadings.definitionVersionId),
         isNotNull(metricReadings.exactValue),
-        sql`${metricDefinitionVersions.permittedConsumers} @> ${JSON.stringify([
-          query.consumer,
-        ])}::jsonb`,
+        inArray(metricReadings.definitionVersionId, permittedVersionIds),
       ]
-
       if (query.portalId) {
         conditions.push(eq(metricReadings.portalId, unbrand(query.portalId)))
       }
@@ -96,13 +110,8 @@ export const createMetricRepository = (
           count: sql<number>`CAST(COUNT(${effectiveValue}) AS INTEGER)`,
           max: sql<number>`COALESCE(MAX(${effectiveValue}), 0)`,
           sampleCount: sql<number>`COALESCE(SUM(${effectiveSampleCount}), 0)`,
-          minimumSample: sql<number>`COALESCE(MAX(${metricDefinitionVersions.minimumSample}), 1)`,
         })
         .from(metricReadings)
-        .innerJoin(
-          metricDefinitionVersions,
-          eq(metricDefinitionVersions.id, metricReadings.definitionVersionId),
-        )
         .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
         .where(and(...conditions))
 
@@ -110,7 +119,6 @@ export const createMetricRepository = (
       const count = numberOrZero(rows[0]?.count)
       const max = numberOrZero(rows[0]?.max)
       const sampleCount = numberOrZero(rows[0]?.sampleCount)
-      const minimumSample = Number(rows[0]?.minimumSample ?? 1)
       const available = sampleCount >= minimumSample
 
       return {

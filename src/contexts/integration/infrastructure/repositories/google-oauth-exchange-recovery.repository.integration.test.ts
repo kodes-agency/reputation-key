@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
-import { googleOauthExchangeAttempts } from '#/shared/db/schema'
+import { idempotencyReceipts } from '#/shared/db/schema'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createTokenEncryptionAdapter } from '../adapters/token-encryption.adapter'
 import { createGoogleOAuthExchangeRecoveryRepository } from './google-oauth-exchange-recovery.repository'
@@ -37,20 +37,35 @@ describe('PostgreSQL Google OAuth exchange recovery repository', () => {
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL)
     await db
-      .delete(googleOauthExchangeAttempts)
-      .where(eq(googleOauthExchangeAttempts.organizationId, ORGANIZATION_ID))
+      .delete(idempotencyReceipts)
+      .where(
+        and(
+          eq(idempotencyReceipts.scope, 'google_oauth_exchange'),
+          sql`${idempotencyReceipts.payload}->>'organizationId' = ${ORGANIZATION_ID}`,
+        ),
+      )
   })
 
   beforeEach(async () => {
     await db
-      .delete(googleOauthExchangeAttempts)
-      .where(eq(googleOauthExchangeAttempts.organizationId, ORGANIZATION_ID))
+      .delete(idempotencyReceipts)
+      .where(
+        and(
+          eq(idempotencyReceipts.scope, 'google_oauth_exchange'),
+          sql`${idempotencyReceipts.payload}->>'organizationId' = ${ORGANIZATION_ID}`,
+        ),
+      )
   })
 
   afterAll(async () => {
     await db
-      .delete(googleOauthExchangeAttempts)
-      .where(eq(googleOauthExchangeAttempts.organizationId, ORGANIZATION_ID))
+      .delete(idempotencyReceipts)
+      .where(
+        and(
+          eq(idempotencyReceipts.scope, 'google_oauth_exchange'),
+          sql`${idempotencyReceipts.payload}->>'organizationId' = ${ORGANIZATION_ID}`,
+        ),
+      )
     await lease?.release()
   })
 
@@ -100,14 +115,18 @@ describe('PostgreSQL Google OAuth exchange recovery repository', () => {
     ).resolves.toMatchObject({ ok: true })
 
     const [persisted] = await db
-      .select({ encryptedResult: googleOauthExchangeAttempts.encryptedResult })
-      .from(googleOauthExchangeAttempts)
-      .where(eq(googleOauthExchangeAttempts.id, attempt.id))
+      .select({ payload: idempotencyReceipts.payload })
+      .from(idempotencyReceipts)
+      .where(
+        and(
+          eq(idempotencyReceipts.scope, 'google_oauth_exchange'),
+          eq(idempotencyReceipts.key, attempt.id),
+        ),
+      )
       .limit(1)
-    expect(persisted?.encryptedResult).toBe(encryptedResult)
-    expect(persisted?.encryptedResult).not.toContain('provider-access-plaintext')
-    expect(persisted?.encryptedResult).not.toContain('provider-refresh-plaintext')
-
+    expect(persisted?.payload).toMatchObject({ encryptedResult })
+    expect(JSON.stringify(persisted?.payload)).not.toContain('provider-access-plaintext')
+    expect(JSON.stringify(persisted?.payload)).not.toContain('provider-refresh-plaintext')
     const claims = await Promise.all([
       store.claimPreservedResult({
         id: attempt.id,
@@ -175,11 +194,16 @@ describe('PostgreSQL Google OAuth exchange recovery repository', () => {
       store.expire({ now: new Date(NOW.getTime() + 10 * 60_000 + 1), limit: 100 }),
     ).resolves.toEqual({ expired: 1 })
     const [row] = await db
-      .select()
-      .from(googleOauthExchangeAttempts)
-      .where(eq(googleOauthExchangeAttempts.id, ambiguous.id))
+      .select({ payload: idempotencyReceipts.payload })
+      .from(idempotencyReceipts)
+      .where(
+        and(
+          eq(idempotencyReceipts.scope, 'google_oauth_exchange'),
+          eq(idempotencyReceipts.key, ambiguous.id),
+        ),
+      )
       .limit(1)
-    expect(row).toMatchObject({
+    expect(row?.payload).toMatchObject({
       state: 'provider_outcome_ambiguous',
       encryptedResult: null,
       responseExpiresAt: null,
@@ -210,17 +234,24 @@ describe('PostgreSQL Google OAuth exchange recovery repository', () => {
       now: NOW,
     })
     await db
-      .update(googleOauthExchangeAttempts)
+      .update(idempotencyReceipts)
       .set({
-        state: 'completed',
-        encryptedResult: null,
-        responseExpiresAt: null,
-        applyLeaseExpiresAt: null,
-        terminalAt: NOW,
-        outcomeCode: 'connection_committed',
-        updatedAt: NOW,
+        payload: sql`${idempotencyReceipts.payload} || jsonb_build_object(
+          'state', 'completed',
+          'encryptedResult', NULL,
+          'responseExpiresAt', NULL,
+          'applyLeaseExpiresAt', NULL,
+          'terminalAt', ${NOW.toISOString()}::timestamptz,
+          'outcomeCode', 'connection_committed',
+          'updatedAt', ${NOW.toISOString()}::timestamptz
+        )`,
       })
-      .where(eq(googleOauthExchangeAttempts.id, attempt.id))
+      .where(
+        and(
+          eq(idempotencyReceipts.scope, 'google_oauth_exchange'),
+          eq(idempotencyReceipts.key, attempt.id),
+        ),
+      )
 
     await expect(
       store.loadCompletedAttempt({

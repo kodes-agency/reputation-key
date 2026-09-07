@@ -7,7 +7,6 @@
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { BUMP_POLICY_VERSION_SQL } from './policy-version-sql'
 
 export type ConsentSubjectType = 'organization' | 'property' | 'user'
 export type ConsentState = 'granted' | 'revoked'
@@ -60,21 +59,17 @@ export async function recordPolicyConsent(
   input: RecordPolicyConsentInput,
 ): Promise<PolicyConsentRecord> {
   const rows = await db.execute(sql`
-    WITH ${BUMP_POLICY_VERSION_SQL},
-    ins AS (
-      INSERT INTO policy_consent
-        (organization_id, subject_type, subject_id, purpose, recorded_by, expires_at)
-      VALUES (
-        ${input.organizationId},
-        ${input.subjectType},
-        ${input.subjectId},
-        ${input.purpose},
-        ${input.recordedBy ?? null},
-        ${input.expiresAt ?? null}
-      )
-      RETURNING *
+    INSERT INTO policy_consent
+      (organization_id, subject_type, subject_id, purpose, recorded_by, expires_at)
+    VALUES (
+      ${input.organizationId},
+      ${input.subjectType},
+      ${input.subjectId},
+      ${input.purpose},
+      ${input.recordedBy ?? null},
+      ${input.expiresAt ?? null}
     )
-    SELECT * FROM ins
+    RETURNING *
   `)
   return mapConsent(rows.rows[0] as Record<string, unknown>)
 }
@@ -89,18 +84,14 @@ export async function revokePolicyConsent(
   }>,
 ): Promise<boolean> {
   const rows = await db.execute(sql`
-    WITH ${BUMP_POLICY_VERSION_SQL},
-    upd AS (
-      UPDATE policy_consent
-      SET state = 'revoked', revoked_at = now()
-      WHERE organization_id = ${input.organizationId}
-        AND subject_type = ${input.subjectType}
-        AND subject_id = ${input.subjectId}
-        AND purpose = ${input.purpose}
-        AND state = 'granted'
-      RETURNING id
-    )
-    SELECT id FROM upd
+    UPDATE policy_consent
+    SET state = 'revoked', revoked_at = now()
+    WHERE organization_id = ${input.organizationId}
+      AND subject_type = ${input.subjectType}
+      AND subject_id = ${input.subjectId}
+      AND purpose = ${input.purpose}
+      AND state = 'granted'
+    RETURNING id
   `)
   return rows.rows.length > 0
 }

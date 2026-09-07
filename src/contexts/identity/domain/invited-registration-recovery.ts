@@ -1,6 +1,5 @@
 export type InvitedRegistrationRecoveryInput = Readonly<{
   expected: Readonly<{
-    attemptId: string
     invitationId: string
     organizationId: string
     userId: string
@@ -26,7 +25,6 @@ export type InvitedRegistrationRecoveryInput = Readonly<{
   >
   sessions: ReadonlyArray<Readonly<{ id: string; userId: string }>>
   memberships: ReadonlyArray<Readonly<{ organizationId: string }>>
-  binding: Readonly<{ organizationId: string | null; state: string }> | null
 }>
 
 export type InvitedRegistrationRecoveryDecision =
@@ -106,12 +104,10 @@ function observeProviderArtifacts(
 
 function observeAuthority(input: InvitedRegistrationRecoveryInput): AuthorityObservation {
   return {
-    isAbsent: input.memberships.length === 0 && !input.binding,
+    isAbsent: input.memberships.length === 0,
     matchesAttempt:
       input.memberships.length === 1 &&
-      input.memberships[0]?.organizationId === input.expected.organizationId &&
-      input.binding?.state === 'active' &&
-      input.binding.organizationId === input.expected.organizationId,
+      input.memberships[0]?.organizationId === input.expected.organizationId,
   }
 }
 
@@ -138,8 +134,9 @@ function classifyAttemptWithoutArtifacts(
 }
 
 /**
- * Attempts whose provider user matches the fence. Returns null when the observed records
- * do not match any settled shape so the caller can fall back to manual review.
+ * Attempts whose provider user matches the verification record. Returns null
+ * when the observed records do not match a settled shape so the caller can
+ * fall back to manual review.
  */
 function classifyAttemptWithExpectedUser(
   invitation: InvitationObservation,

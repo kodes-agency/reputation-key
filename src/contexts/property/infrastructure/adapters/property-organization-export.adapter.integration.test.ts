@@ -85,15 +85,16 @@ async function seedFixture(): Promise<Fixture> {
     ],
   )
 
-  // This content-free receipt does not belong in a tenant archive.
+  // This internal idempotency receipt does not belong in a tenant archive.
   await lease.pool.query(
-    `INSERT INTO property_operation_receipts (
-       id, organization_id, idempotency_key, destination_property_id, outcome,
-       destination_source_epoch, destination_profile_version, tombstone,
-       expires_at, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 'imported', 0, 1, false, now() + interval '1 day',
-               now(), now())`,
-    [fixture.receiptId, organizationId, randomUUID(), fixture.propertyId],
+    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+     VALUES ('property_operation', $1, jsonb_build_object(
+       'organizationId', $2::text,
+       'destinationPropertyId', $3::text,
+       'outcome', 'imported',
+       'tombstone', false
+     ), now())`,
+    [fixture.receiptId, organizationId, fixture.propertyId],
   )
   return fixture
 }
@@ -111,7 +112,8 @@ describe.sequential('Property Organization Export contributor', () => {
   afterEach(async () => {
     for (const organizationId of organizations) {
       await lease.pool.query(
-        'DELETE FROM property_operation_receipts WHERE organization_id = $1',
+        `DELETE FROM idempotency_receipts
+         WHERE scope = 'property_operation' AND payload->>'organizationId' = $1`,
         [organizationId],
       )
       await lease.pool.query(

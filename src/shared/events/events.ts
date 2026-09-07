@@ -107,7 +107,6 @@ export type {
 // Goal context events
 export type {
   GoalEvent,
-  GoalCompleted,
   GoalMonthlyResultClosed,
   GoalMonthlyResultReconciled,
 } from '#/contexts/goal/domain/events'

@@ -1,6 +1,7 @@
 import { inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiExecutionControlHeads } from '#/shared/db/schema'
+import { deleteAiDraftsForControl } from '#/shared/db/ai/ai-draft-purge'
 import type {
   AiControlHead,
   AiControlPort,
@@ -69,57 +70,70 @@ export const createAiControlAdapter = (db: Database): AiControlPort => {
     },
 
     async transition(input) {
-      const key = scopeKey(input.scope)
-      const providerDeploymentProfileVersion =
-        input.scope.kind === 'provider_deployment_profile'
-          ? input.scope.providerDeploymentProfileVersion
-          : input.providerDeploymentProfileVersion
-      if (
-        input.scope.kind === 'provider_deployment_profile' &&
-        input.providerDeploymentProfileVersion !== null &&
-        input.providerDeploymentProfileVersion !== providerDeploymentProfileVersion
-      ) {
-        return null
-      }
-      const result = await db.execute(sql`
-        SELECT *
-        FROM transition_ai_execution_control_v1(
-          ${key},
-          ${providerDeploymentProfileVersion},
-          ${input.expectedControlId}::uuid,
-          ${input.expectedGeneration},
-          ${input.executionState},
-          ${input.admissionState},
-          ${input.reasonCode},
-          ${input.actorUserId},
-          ${input.ticketReference},
-          ${input.candidateReleaseSha}
+      return db.transaction(async (tx) => {
+        const key = scopeKey(input.scope)
+        const providerDeploymentProfileVersion =
+          input.scope.kind === 'provider_deployment_profile'
+            ? input.scope.providerDeploymentProfileVersion
+            : input.providerDeploymentProfileVersion
+        if (
+          input.scope.kind === 'provider_deployment_profile' &&
+          input.providerDeploymentProfileVersion !== null &&
+          input.providerDeploymentProfileVersion !== providerDeploymentProfileVersion
+        ) {
+          return null
+        }
+        const result = await tx.execute(sql`
+          SELECT *
+          FROM transition_ai_execution_control_v1(
+            ${key},
+            ${providerDeploymentProfileVersion},
+            ${input.expectedControlId}::uuid,
+            ${input.expectedGeneration},
+            ${input.executionState},
+            ${input.admissionState},
+            ${input.reasonCode},
+            ${input.actorUserId},
+            ${input.ticketReference},
+            ${input.candidateReleaseSha}
+          )
+        `)
+        if (result.rows.length !== 1) return null
+        const row = result.rows[0] as Readonly<Record<string, unknown>>
+        const generation =
+          typeof row.generation === 'string' ? Number(row.generation) : row.generation
+        const updatedAt =
+          row.updated_at instanceof Date
+            ? row.updated_at
+            : new Date(String(row.updated_at))
+        if (
+          row.scope_key !== key ||
+          row.control_id !== input.expectedControlId ||
+          !Number.isSafeInteger(generation) ||
+          (generation as number) < 1 ||
+          row.execution_state !== input.executionState ||
+          row.admission_state !== input.admissionState ||
+          !Number.isFinite(updatedAt.getTime())
+        ) {
+          return null
+        }
+        await deleteAiDraftsForControl(
+          tx,
+          input.scope.kind,
+          input.scope.kind === 'global'
+            ? null
+            : input.scope.kind === 'capability'
+              ? input.scope.capability
+              : input.scope.providerDeploymentProfileVersion,
         )
-      `)
-      if (result.rows.length !== 1) return null
-      const row = result.rows[0] as Readonly<Record<string, unknown>>
-      const generation =
-        typeof row.generation === 'string' ? Number(row.generation) : row.generation
-      const updatedAt =
-        row.updated_at instanceof Date ? row.updated_at : new Date(String(row.updated_at))
-      if (
-        row.scope_key !== key ||
-        row.control_id !== input.expectedControlId ||
-        !Number.isSafeInteger(generation) ||
-        (generation as number) < 1 ||
-        row.execution_state !== input.executionState ||
-        row.admission_state !== input.admissionState ||
-        !Number.isFinite(updatedAt.getTime())
-      ) {
-        return null
-      }
-      return Object.freeze({
-        scope: input.scope,
-        controlId: row.control_id as string,
-        generation: generation as number,
-        executionState: input.executionState,
-        admissionState: input.admissionState,
-        updatedAtEpochMillis: updatedAt.getTime(),
+        return Object.freeze({
+          scope: input.scope,
+          controlId: row.control_id as string,
+          generation: generation as number,
+          executionState: input.executionState,
+          admissionState: input.admissionState,
+          updatedAtEpochMillis: updatedAt.getTime(),
+        })
       })
     },
   }

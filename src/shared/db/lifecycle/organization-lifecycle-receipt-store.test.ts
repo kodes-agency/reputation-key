@@ -8,8 +8,10 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
-import { contextOrganizationLifecycleReceipts } from '#/shared/db/schema/context-organization-lifecycle-receipts.schema'
-import { organizationLifecycleAuthority } from '#/shared/db/schema/organization-lifecycle.schema'
+import {
+  organizationLifecycleAuthority,
+  organizationLifecycleEvents,
+} from '#/shared/db/schema/organization-lifecycle.schema'
 import type { Tx } from '#/shared/outbox/commit'
 import {
   createOrganizationLifecycleContributorScaffold,
@@ -95,7 +97,7 @@ function createFakeDb(options: {
       })),
       insert: vi.fn((table: unknown) => ({
         values: vi.fn(async (row: Record<string, unknown>) => {
-          if (table === contextOrganizationLifecycleReceipts) receipts.push(row)
+          if (table === organizationLifecycleEvents) receipts.push(row)
         }),
       })),
     }
@@ -136,7 +138,11 @@ describe('shared Organization lifecycle receipt store', () => {
       )
       expect(result).toEqual({ outcome: 'no_data', evidenceRef: `inbox:${phase}:none` })
       expect(receipts).toHaveLength(1)
-      expect(receipts[0]).toMatchObject({ context: 'inbox', phase, outcome: 'no_data' })
+      expect(receipts[0]).toMatchObject({
+        context: 'inbox',
+        phase,
+        payload: { outcome: 'no_data' },
+      })
     }
   })
 
@@ -210,13 +216,12 @@ describe('shared Organization lifecycle receipt store', () => {
       authorityRow: authority({ state: 'purging' }),
       receipts: [
         {
-          context: 'goal',
-          closureLineageId: LINEAGE,
-          lifecycleRevision: 2,
-          phase: 'purge',
-          requestFingerprint: 'f'.repeat(64),
-          outcome: 'complete',
-          evidenceRef: 'goal:purge:1',
+          organizationId: ORGANIZATION_ID,
+          payload: {
+            requestFingerprint: 'f'.repeat(64),
+            outcome: 'complete',
+            evidenceRef: 'goal:purge:1',
+          },
         },
       ],
     })
@@ -240,7 +245,10 @@ describe('shared Organization lifecycle receipt store', () => {
 
     expect(result.outcome).toBe('no_data')
     expect(receipts).toHaveLength(1)
-    expect(receipts[0]).toMatchObject({ context: 'staff', outcome: 'no_data' })
+    expect(receipts[0]).toMatchObject({
+      context: 'staff',
+      payload: { outcome: 'no_data' },
+    })
   })
 
   it('rejects an outcome or evidence reference that is not content-free', async () => {

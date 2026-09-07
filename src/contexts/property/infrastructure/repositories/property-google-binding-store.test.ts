@@ -79,9 +79,11 @@ function makeActiveProperty(idSuffix: string, locationId: string): Property {
 }
 
 async function cleanup(): Promise<void> {
-  await pool.query('DELETE FROM property_operation_receipts WHERE organization_id = $1', [
-    ORG_ID,
-  ])
+  await pool.query(
+    `DELETE FROM idempotency_receipts
+     WHERE scope = 'property_operation' AND payload->>'organizationId' = $1`,
+    [ORG_ID],
+  )
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG_ID])
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_ID])
 }
@@ -551,7 +553,9 @@ describe.sequential('Property Google binding store', () => {
     ).toBe(1)
 
     const receiptRows = await pool.query(
-      'SELECT idempotency_key FROM property_operation_receipts WHERE organization_id = $1',
+      `SELECT payload->>'idempotencyKey' AS idempotency_key
+       FROM idempotency_receipts
+       WHERE scope = 'property_operation' AND payload->>'organizationId' = $1`,
       [ORG_ID],
     )
     expect(receiptRows.rows).toEqual([{ idempotency_key: retainedKey }])

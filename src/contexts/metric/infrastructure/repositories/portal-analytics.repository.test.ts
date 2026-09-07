@@ -140,7 +140,6 @@ beforeAll(async () => {
   registerAllEventSchemas()
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
-  await pool.query('DELETE FROM metric_quarantine WHERE organization_id = $1', [ORG])
   await pool.query(
     `DELETE FROM metric_corrections
      WHERE reading_id IN (
@@ -221,12 +220,9 @@ beforeAll(async () => {
          sample_count, attribution_quality, recorded_at, event_at,
          property_local_date, data_quality, retention_class
        )
-       SELECT $1, $2, $3, metric_definitions.metric_key, $4::real, $5, $6,
+       VALUES ($1, $2, $3, 'portal.rating', $4::real, $5, $6,
          'first_party_guest_private', $4::numeric, 1, 'exact',
-         $7, $8, $9, 'exact', 'standard'
-       FROM metric_definition_versions
-       JOIN metric_definitions ON metric_definitions.id = metric_definition_versions.definition_id
-       WHERE metric_definition_versions.id = $5`,
+         $7, $8, $9, 'exact', 'standard')`,
       [
         ORG,
         PROP,
@@ -266,7 +262,6 @@ afterAll(async () => {
     [ORG],
   )
   await pool.query('DELETE FROM metric_readings WHERE organization_id = $1', [ORG])
-  await pool.query('DELETE FROM metric_quarantine WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM portals WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
@@ -374,7 +369,7 @@ describe('governed Portal analytics repository (integration)', () => {
   it('marks scan evidence ready after one atomic consumer delivery', async () => {
     const project = recordMetrics({
       commandStore: createAtomicMetricCommandStore(db, randomUUID),
-      registry: createMetricRegistryRepository(db),
+      registry: createMetricRegistryRepository(),
       clock: () => ATOMIC_COMPUTED_AT,
       idGen: () => metricReadingId(randomUUID()),
       resolvePropertyLocalDate: createPropertyLocalDateResolver(db),

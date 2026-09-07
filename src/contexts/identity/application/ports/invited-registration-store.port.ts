@@ -2,14 +2,14 @@ import type { InvitationId, OrganizationId } from '#/shared/domain/ids'
 import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
 
 export type PreparedInvitedRegistration = Readonly<{
-  id: string
+  verificationId: string
   invitationId: InvitationId
   organizationId: OrganizationId
   authIds: RegistrationAuthIds
 }>
 
 export type PrepareInvitedRegistration = Readonly<{
-  proposedAttemptId: string
+  proposedVerificationId: string
   invitationId: InvitationId
   email: string
   proposedAuthIds: RegistrationAuthIds
@@ -18,9 +18,7 @@ export type PrepareInvitedRegistration = Readonly<{
 }>
 
 export type ReconcileInvitedRegistrationResult =
-  | Readonly<{
-      kind: 'awaiting_provider' | 'claim_lost' | 'compensated' | 'manual_review'
-    }>
+  | Readonly<{ kind: 'awaiting_provider' | 'compensated' | 'manual_review' }>
   | Readonly<{
       kind: 'ready_to_accept'
       registration: PreparedInvitedRegistration
@@ -33,24 +31,22 @@ export type ReconcileInvitedRegistrationResult =
       userId: string
     }>
 
-/** Durable authority written before Better Auth begins creating records. */
+/** Recovery authority stored in Better Auth's short-lived verification table. */
 export type InvitedRegistrationStore = Readonly<{
   prepare(command: PrepareInvitedRegistration): Promise<PreparedInvitedRegistration>
   claimDue(
     command: Readonly<{
       now: Date
-      leaseOwner: string
-      leaseExpiresAt: Date
+      claimExpiresAt: Date
       limit: number
     }>,
-  ): Promise<ReadonlyArray<Readonly<{ id: string }>>>
+  ): Promise<ReadonlyArray<Readonly<{ verificationId: string }>>>
+  complete(verificationId: string): Promise<void>
   reconcile(
     command: Readonly<{
-      attemptId: string
+      verificationId: string
       now: Date
       nextRecoveryAt: Date
-      /** Required for a worker claim; omitted by the foreground request path. */
-      leaseOwner?: string
     }>,
   ): Promise<ReconcileInvitedRegistrationResult>
 }>

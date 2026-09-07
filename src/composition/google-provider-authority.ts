@@ -92,11 +92,9 @@ export const OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE =
 // a `googleContentCapabilityRefusal` slice so the refusal explainer could say
 // which approval was missing.
 //
-// All of it is gone with the approval bundle. A runtime binding is now just a
-// capability, so the map carried no information: every enablement decision that
-// anyone actually exercises is made per-request against live tables, by
-// `organization_capability`/`property_capability` grants and the
-// `killedCapabilities` kill switch.
+// All of it is gone with the approval bundle. Runtime bindings are now
+// capabilities checked per request against static configuration and the live
+// `capability_execution_control` kill switch.
 
 export type GoogleProviderAuthorityInput = Readonly<{
   db: Database

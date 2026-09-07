@@ -18,9 +18,9 @@
 //   1. NO foreign key to `organization` or `properties`. The whole point of an
 //      entry is that its subject no longer exists; a referential dependency
 //      would delete the very evidence that stops resurrection.
-//   2. The ledger is strictly append-only, so a legal hold cannot be recorded
-//      by UPDATE-ing an entry. A hold RELEASE is therefore its own append-only
-//      fact in `backup_erasure_hold_releases`, keyed by the entry it releases.
+//   2. The ledger is strictly append-only, so a legal-hold release is appended
+//      to the shared `organization_lifecycle_events` ledger rather than
+//      rewriting the erasure entry.
 
 import { sql } from 'drizzle-orm'
 import {
@@ -53,13 +53,11 @@ export const BACKUP_ERASURE_SUBJECT_CLASSES = [
 export type BackupErasureSubjectClass = (typeof BACKUP_ERASURE_SUBJECT_CLASSES)[number]
 
 /**
- * The 17 lifecycle-owning contexts, in the same order as Identity's
- * `ORGANIZATION_LIFECYCLE_CONTEXTS`.
+ * The 14 lifecycle-owning contexts, in the same order as the shared
+ * Organization lifecycle events table.
  *
- * Duplicated rather than imported for the same reason
- * `context-organization-lifecycle-receipts.schema.ts` duplicates it: `shared/**`
- * may not depend on a context's domain layer. The schema test pins the two
- * lists together so the duplicate cannot drift.
+ * Kept local so this schema has no dependency on another schema module. The
+ * schema test pins the lists together so the duplicate cannot drift.
  */
 export const BACKUP_ERASURE_LEDGER_CONTEXTS = [
   'activity',
@@ -103,7 +101,9 @@ export const backupErasureLedger = pgTable(
      * point is that the ledger survives the data it describes.
      */
     subjectRef: char('subject_ref', { length: 64 }),
-    context: varchar('context', { length: 32 }).notNull(),
+    context: varchar('context', { length: 32 })
+      .$type<BackupErasureLedgerContext>()
+      .notNull(),
     /**
      * The closure/erase/request lineage this erasure belongs to: an
      * Organization closure lineage, a Property erase authority, or a privacy
@@ -177,32 +177,3 @@ export const backupErasureLedger = pgTable(
 )
 
 export type BackupErasureLedgerRow = typeof backupErasureLedger.$inferSelect
-
-/**
- * Release of a documented delayed-erasure / legal hold.
- *
- * A separate table because the ledger is append-only: recording a release by
- * UPDATE-ing the entry would require a mutable ledger, and a mutable ledger is
- * a ledger an operator can quietly rewrite after a bad restore.
- */
-export const backupErasureHoldReleases = pgTable(
-  'backup_erasure_hold_releases',
-  {
-    ledgerEntryId: uuid('ledger_entry_id')
-      .primaryKey()
-      .references(() => backupErasureLedger.id, { onDelete: 'restrict' }),
-    holdReference: varchar('hold_reference', { length: 200 }).notNull(),
-    /** Counsel/policy authority that released the hold. Opaque token. */
-    authorityRef: varchar('authority_ref', { length: 200 }).notNull(),
-    releasedAt: timestamptz('released_at').notNull(),
-    createdAt: timestamptz('created_at').notNull().defaultNow(),
-  },
-  (t) => [
-    check(
-      'backup_erasure_hold_releases_refs_valid',
-      sql`${t.holdReference} ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$' AND ${t.authorityRef} ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'`,
-    ),
-  ],
-)
-
-export type BackupErasureHoldReleaseRow = typeof backupErasureHoldReleases.$inferSelect

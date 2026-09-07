@@ -24,14 +24,13 @@ export const createRecoverInvitedRegistrationsHandler =
           awaitingProvider: result.awaitingProvider,
           compensated: result.compensated,
           manualReview: result.manualReview,
-          claimsLost: result.claimsLost,
           failures: result.failures,
         },
         'Invited registration recovery completed',
       )
       if (result.failures > 0) {
         throw new Error(
-          `Invited registration recovery left ${result.failures} attempt unresolved`,
+          `Invited registration recovery left ${result.failures} verification ${result.failures === 1 ? 'record' : 'records'} unresolved`,
         )
       }
     })

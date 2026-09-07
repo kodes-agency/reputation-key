@@ -38,16 +38,12 @@ const PROJECTION_TABLES = [
 ] as const
 
 /**
- * Independently retained evidence, deliberately NOT purged with the tenant.
- * `operational_action_history_*` is program bullet 5 evidence with append-only
- * database guards; `recent_activity_vocabulary_reconciliations` is the
- * content-minimal operator authorization receipt for a historical rewrite.
+ * Independently retained evidence enforced by append-only database guards.
  */
 const RETAINED_TABLES = [
   'operational_action_history_heads',
   'operational_action_history_legal_holds',
   'operational_action_history_records',
-  'recent_activity_vocabulary_reconciliations',
 ] as const
 
 const HISTORY_GUARD_TRIGGERS = [
@@ -105,10 +101,13 @@ async function receiptRows(
   organizationId: string,
 ): Promise<readonly Record<string, unknown>[]> {
   const result = await lease.pool.query(
-    `SELECT context, phase, outcome, evidence_ref, lifecycle_revision
-       FROM context_organization_lifecycle_receipts
+    `SELECT context, phase, payload->>'outcome' AS outcome,
+            payload->>'evidenceRef' AS evidence_ref,
+            (payload->>'lifecycleRevision')::integer AS lifecycle_revision
+       FROM organization_lifecycle_events
       WHERE organization_id = $1
-      ORDER BY phase, lifecycle_revision`,
+        AND kind LIKE 'organization_lifecycle_contribution:%'
+      ORDER BY phase, (payload->>'lifecycleRevision')::integer`,
     [organizationId],
   )
   return result.rows
@@ -204,15 +203,6 @@ async function seedFixture(
       `command-${suffix}`,
       REQUESTED_AT,
     ],
-  )
-  await lease.pool.query(
-    `INSERT INTO recent_activity_vocabulary_reconciliations (
-       operation_id, organization_id, source_action, source_resource_type,
-       target_action, target_resource_type, target_fingerprint_sha256, target_count,
-       updated_count, authorized_by, authorization_evidence_ref, applied_at
-     ) VALUES ($1, $2, 'invited', 'member', 'member_invited', 'member', $3, 1, 1,
-               'operator:seed', 'ticket:seed-1', $4)`,
-    [randomUUID(), fixture.organizationId, 'b'.repeat(64), REQUESTED_AT],
   )
 
   if (options.legalHold) {
@@ -321,8 +311,8 @@ async function deleteGuardedFixtures(organizationIds: readonly string[]): Promis
       await client.query(`ALTER TABLE ${table} DISABLE TRIGGER ${trigger}`)
     }
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       DISABLE TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       DISABLE TRIGGER organization_lifecycle_events_append_only`,
     )
     for (const [table] of HISTORY_GUARD_TRIGGERS) {
       await client.query(`DELETE FROM ${table} WHERE organization_id = ANY($1::text[])`, [
@@ -330,7 +320,7 @@ async function deleteGuardedFixtures(organizationIds: readonly string[]): Promis
       ])
     }
     await client.query(
-      `DELETE FROM context_organization_lifecycle_receipts
+      `DELETE FROM organization_lifecycle_events
        WHERE organization_id = ANY($1::text[])`,
       [organizationIds],
     )
@@ -338,8 +328,8 @@ async function deleteGuardedFixtures(organizationIds: readonly string[]): Promis
       await client.query(`ALTER TABLE ${table} ENABLE TRIGGER ${trigger}`)
     }
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       ENABLE ALWAYS TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query('COMMIT')
   } catch (error) {
@@ -362,10 +352,7 @@ describe.sequential('Activity Organization lifecycle contributor', () => {
 
   afterEach(async () => {
     const ids = [...organizations]
-    for (const table of [
-      ...PROJECTION_TABLES,
-      'recent_activity_vocabulary_reconciliations',
-    ]) {
+    for (const table of PROJECTION_TABLES) {
       await lease.pool.query(
         `DELETE FROM ${table} WHERE organization_id = ANY($1::text[])`,
         [ids],

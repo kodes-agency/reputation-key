@@ -79,7 +79,6 @@ const DIMENSIONS = new Set<GuestResponseReconciliationDimension>([
   'feedback_lineage',
   'integrity_history',
   'withdrawal_state',
-  'media_state',
   'contact_state',
   'inbox_link',
   'retention_state',
@@ -382,9 +381,6 @@ async function readRows(
              COALESCE(binding_stats.invalid_window_count, 0)
                AS invalid_binding_window_count,
              COALESCE(binding_stats.binding_ids, ARRAY[]::text[]) AS binding_ids,
-             COALESCE(media_stats.active_count, 0) AS active_media_count,
-             COALESCE(media_stats.nonterminal_count, 0) AS nonterminal_media_count,
-             COALESCE(media_stats.media_ids, ARRAY[]::text[]) AS media_ids,
              COALESCE(contact_stats.active_count, 0) AS active_contact_count,
              COALESCE(contact_stats.overdue_count, 0) AS overdue_contact_count,
              COALESCE(contact_stats.contact_ids, ARRAY[]::text[]) AS contact_ids,
@@ -562,23 +558,6 @@ async function readRows(
           AND binding.organization_id = r.organization_id
           AND binding.created_at <= ${observedAt}
       ) binding_stats ON TRUE
-      LEFT JOIN LATERAL (
-        SELECT count(*) FILTER (
-                 WHERE media.deleted_at IS NULL
-                   AND media.status IN ('issued', 'processing', 'ready')
-               )::integer AS active_count,
-               count(*) FILTER (
-                 WHERE media.deleted_at IS NULL
-                   AND media.status NOT IN (
-                     'purge_pending', 'deleted', 'quarantined', 'expired'
-                   )
-               )::integer AS nonterminal_count,
-               array_agg(media.id::text ORDER BY media.id)::text[] AS media_ids
-        FROM guest_response_media media
-        WHERE media.response_id = r.id
-          AND media.organization_id = r.organization_id
-          AND media.created_at <= ${observedAt}
-      ) media_stats ON TRUE
       LEFT JOIN LATERAL (
         SELECT count(*) FILTER (
                  WHERE contact.status = 'active' AND contact.expires_at > ${observedAt}
@@ -1087,7 +1066,6 @@ async function readRows(
                       OR r.rating_source_event_id IS NOT NULL
                       OR r.feedback_source_event_id IS NOT NULL
                       OR r.content_count > 0 OR r.active_contact_count > 0
-                      OR r.nonterminal_media_count > 0
                     )
                   ) OR (
                     r.feedback_withdrawn_at IS NOT NULL AND (
@@ -1103,7 +1081,6 @@ async function readRows(
                       OR r.rating_source_event_id IS NOT NULL
                       OR r.feedback_source_event_id IS NOT NULL
                       OR r.content_count > 0 OR r.active_contact_count > 0
-                      OR r.nonterminal_media_count > 0
                     )
                   ) OR (
                     r.feedback_withdrawn_at IS NOT NULL AND (
@@ -1112,23 +1089,7 @@ async function readRows(
                     )
                   ) THEN 'canonical_withdrawal_state_conflict'
                   ELSE 'canonical_withdrawal_state_exact' END,
-             (r.content_ids || r.media_ids || r.contact_ids)::text[]
-      FROM response_evidence r
-
-      UNION ALL
-
-      SELECT 'guest_response', r.id::text, 'media_state',
-             CASE WHEN r.deleted_at IS NOT NULL AND r.nonterminal_media_count > 0
-                    THEN 'conflict'
-                  WHEN r.active_media_count > 0 THEN 'unsafe'
-                  ELSE 'exact' END,
-             r.organization_id, r.property_id::text, r.portal_id::text,
-             CASE WHEN r.deleted_at IS NOT NULL AND r.nonterminal_media_count > 0
-                    THEN 'canonical_media_terminal_response_conflict'
-                  WHEN r.active_media_count > 0
-                    THEN 'canonical_media_active_while_beta_blocked'
-                  ELSE 'canonical_media_state_exact' END,
-             r.media_ids
+             (r.content_ids || r.contact_ids)::text[]
       FROM response_evidence r
 
       UNION ALL

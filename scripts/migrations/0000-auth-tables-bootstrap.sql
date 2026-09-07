@@ -40,11 +40,6 @@ CREATE TABLE IF NOT EXISTS "organization" (
     "createdAt" timestamptz NOT NULL,
     metadata text,
     "contactEmail" text,
-    "billingCompanyName" text,
-    "billingAddress" text,
-    "billingCity" text,
-    "billingPostalCode" text,
-    "billingCountry" text,
     CONSTRAINT organization_pkey PRIMARY KEY (id),
     CONSTRAINT organization_slug_key UNIQUE (slug)
 );

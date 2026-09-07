@@ -33,8 +33,6 @@ import {
   WORKER_HEARTBEAT_STALE_ALERT_MS,
   SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS,
   REPLY_AMBIGUOUS_ALERT_MS,
-  POLICY_DENIAL_DRIFT_THRESHOLD,
-  POLICY_DENIAL_DRIFT_WINDOW_MS,
   type AlertAuxReads,
   type AlertEvent,
 } from '#/shared/observability/alert-definitions'
@@ -199,7 +197,6 @@ function healthySnapshot(): MutableSnapshot {
 function healthyAux(): MutableAux {
   return {
     retentionFailedSubjects: [],
-    policyDenialsByReason: {},
     betaFeedbackTriage: {
       monitorAvailable: true,
       deliveredUnresolvedCount: 0,
@@ -221,7 +218,6 @@ describe('alert registry contract (BQC-7.4)', () => {
       'notification.immediate-email-acceptance-lag',
       'notification.in-app-delivery-lag',
       'notification.missing-for-inbox-item',
-      'policy.denial-drift',
       'queue.oldest-age',
       'queue.quarantine-growth',
       'queue.quarantine-nonempty',
@@ -527,17 +523,6 @@ const BREACHES: readonly Breach[] = [
     },
   },
   {
-    name: 'policy.denial-drift',
-    severity: 'P2',
-    runbook: 'runbooks.md §9',
-    threshold: POLICY_DENIAL_DRIFT_THRESHOLD,
-    windowMs: POLICY_DENIAL_DRIFT_WINDOW_MS,
-    value: 60,
-    apply: (_s, aux) => {
-      aux.policyDenialsByReason = { capability_disabled: 45, org_suspended: 15 }
-    },
-  },
-  {
     name: 'db.pool-exhaustion',
     severity: 'P1',
     runbook: 'runbooks.md §8',
@@ -650,12 +635,6 @@ describe('threshold boundaries', () => {
     const snapshot = healthySnapshot()
     snapshot.quarantine = { count: 3, oldestAgeMs: 60 * 1000 }
     expect(at('queue.quarantine-growth').evaluate!(snapshot, healthyAux())).toBeNull()
-  })
-
-  it('policy.denial-drift fires only ABOVE the threshold (== does not fire)', () => {
-    const aux = healthyAux()
-    aux.policyDenialsByReason = { capability_disabled: POLICY_DENIAL_DRIFT_THRESHOLD }
-    expect(at('policy.denial-drift').evaluate!(healthySnapshot(), aux)).toBeNull()
   })
 
   it('reply.ambiguous-aging needs an aged ambiguous row (count alone does not fire)', () => {

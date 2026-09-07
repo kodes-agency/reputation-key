@@ -46,7 +46,6 @@ export const RETENTION_DATA_CLASSES = Object.freeze([
   'logs_sentry_replay_screenshots',
   'ai_derivatives',
   'uploads',
-  'quarantine',
   'provider_tokens',
   'exports',
   'backups',
@@ -215,22 +214,20 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({
-    id: 'google.import_discovery_invalidations',
-    dataClass: 'google_source_content',
-    ownerContext: 'integration',
-    ownerRole: 'Integration context owner',
+    id: 'platform.idempotency_receipts',
+    dataClass: 'operational_action_history',
+    ownerContext: 'platform',
+    ownerRole: 'Platform data owner',
     sourceKind: 'table',
-    source: 'google_import_discovery_invalidations',
+    source: 'idempotency_receipts',
     eligibility: {
-      anchorColumn: 'expires_at',
-      horizon: { kind: 'row_deadline' },
+      anchorColumn: 'recorded_at',
+      horizon: { kind: 'days', days: 30 },
       predicate: null,
-      query:
-        'Delete google_import_discovery_invalidations after their stamped expires_at deadline.',
-      implementedBoundary:
-        'Live as the scheduled google_import_discovery_invalidations.expired subject.',
+      query: 'Delete idempotency receipts recorded more than 30 days ago.',
+      implementedBoundary: 'Live as the scheduled idempotency_receipts subject.',
     },
-    evidenceSubject: 'google_import_discovery_invalidations.expired',
+    evidenceSubject: 'idempotency_receipts',
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({
@@ -268,24 +265,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({
-    id: 'integration.inbound_webhook_receipts',
-    dataClass: 'operational_action_history',
-    ownerContext: 'integration',
-    ownerRole: 'Integration context owner',
-    sourceKind: 'table',
-    source: 'inbound_webhook_receipts',
-    eligibility: {
-      anchorColumn: 'received_at',
-      horizon: { kind: 'days', days: 30 },
-      predicate: null,
-      query:
-        'Delete inbound_webhook_receipts whose provider message was received more than 30 days ago.',
-      implementedBoundary: 'Live as the scheduled inbound_webhook_receipts subject.',
-    },
-    evidenceSubject: 'inbound_webhook_receipts',
-    restoreImplication: RESTORE_REPLAYS_DELETION,
-  }),
-  rule({
     id: 'guest.session_pseudonym',
     dataClass: 'guest_session_pseudonym',
     ownerContext: 'guest',
@@ -302,44 +281,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
         'Stricter than the §3.3.10 seven-day default: the binding expires 24 hours after submission, and the mirror session_id redactions run at 24 hours. Counsel approves the seven-day default; operators are held to the 24-hour boundary.',
     },
     evidenceSubject: 'guest_response_session_bindings.expired',
-    restoreImplication: RESTORE_REPLAYS_DELETION,
-  }),
-  rule({
-    id: 'guest.destination_action_session_pseudonym',
-    dataClass: 'guest_session_pseudonym',
-    ownerContext: 'guest',
-    ownerRole: 'Guest context owner',
-    sourceKind: 'table',
-    source: 'guest_destination_action_receipts',
-    eligibility: {
-      anchorColumn: 'expires_at',
-      horizon: { kind: 'row_deadline' },
-      predicate: null,
-      query:
-        'SELECT id FROM guest_destination_action_receipts WHERE expires_at < now(). The deadline is stamped when the first qualified destination action commits.',
-      implementedBoundary:
-        'Live: the scheduled subject guest_destination_action_receipts.expired deletes the signed-session dedupe receipt at its absolute deadline.',
-    },
-    evidenceSubject: 'guest_destination_action_receipts.expired',
-    restoreImplication: RESTORE_REPLAYS_DELETION,
-  }),
-  rule({
-    id: 'guest.qualified_scan_session_pseudonym',
-    dataClass: 'guest_session_pseudonym',
-    ownerContext: 'guest',
-    ownerRole: 'Guest context owner',
-    sourceKind: 'table',
-    source: 'guest_qualified_scan_receipts',
-    eligibility: {
-      anchorColumn: 'expires_at',
-      horizon: { kind: 'row_deadline' },
-      predicate: null,
-      query:
-        'SELECT id FROM guest_qualified_scan_receipts WHERE expires_at < now(). The database fixes the deadline at 24 hours after receipt creation.',
-      implementedBoundary:
-        'Live: the scheduled subject guest_qualified_scan_receipts.expired deletes the signed-session dedupe receipt at its absolute deadline.',
-    },
-    evidenceSubject: 'guest_qualified_scan_receipts.expired',
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({
@@ -712,42 +653,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({
-    id: 'identity.invited_registration_attempts',
-    dataClass: 'operational_action_history',
-    ownerContext: 'identity',
-    ownerRole: 'Identity context owner',
-    sourceKind: 'table',
-    source: 'invited_registration_attempts',
-    eligibility: {
-      anchorColumn: 'updated_at',
-      horizon: { kind: 'days', days: 90 },
-      predicate: "state IN ('accepted', 'compensated')",
-      query:
-        'Delete invited_registration_attempts older than 90 days only after they reach accepted or compensated state.',
-      implementedBoundary:
-        'Live as the scheduled invited_registration_attempts.settled subject; prepared and manual-review attempts remain recoverable.',
-    },
-    evidenceSubject: 'invited_registration_attempts.settled',
-    restoreImplication: RESTORE_REPLAYS_DELETION,
-  }),
-  rule({
-    id: 'platform.policy_decision_audit',
-    dataClass: 'operational_action_history',
-    ownerContext: 'shared',
-    ownerRole: 'Compliance owner with Platform operations',
-    sourceKind: 'table',
-    source: 'policy_decision_audit',
-    eligibility: {
-      anchorColumn: 'occurred_at',
-      horizon: { kind: 'days', days: 365 },
-      predicate: null,
-      query: 'Delete policy_decision_audit records older than 365 days.',
-      implementedBoundary: 'Live as the scheduled policy_decision_audit subject.',
-    },
-    evidenceSubject: 'policy_decision_audit',
-    restoreImplication: RESTORE_REPLAYS_DELETION,
-  }),
-  rule({
     id: 'platform.audit_logs',
     dataClass: 'operational_action_history',
     ownerContext: 'shared',
@@ -778,7 +683,7 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
       query:
         'SELECT id FROM operational_action_history_records WHERE occurred_at < :cutoff AND no operational_action_history_legal_holds row covers it. The proposed 365-day horizon is REPORT-ONLY.',
       implementedBoundary:
-        'No destructive lifecycle is armed for this table. The related 365-day audit horizon that IS live applies to policy_decision_audit and audit_logs only.',
+        'No destructive lifecycle is armed for this table. The related 365-day horizon applies to audit_logs only.',
     },
     evidenceSubject: 'operational_action_history_records.expired',
     restoreImplication:
@@ -815,13 +720,13 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
       horizon: { kind: 'counsel_undecided' },
       predicate: 'the owning authorization is withdrawn or the generation is retired',
       query:
-        'Erasure is driven by AccountAdmin-requested erasure and generation retirement within 24 hours, not by an age cutoff. generated_at/expires_at bound freshness reuse, not retention.',
+        'Erasure is driven by AccountAdmin-requested erasure and generation retirement, not by an age cutoff. generated_at/expires_at bound freshness reuse, not retention.',
       implementedBoundary:
-        'Live: exact retired-generation local derivative erasure with content-free evidence. There is no age-based purge and none is proposed.',
+        'Live: the durable merchant authorization-change consumer deletes retired generations in the same transaction that records its event-consumer receipt.',
     },
-    evidenceSubject: 'ai.authorization_erasure',
+    evidenceSubject: 'ai.enroll-review-analysis',
     restoreImplication:
-      'A restore can resurrect derivatives whose authorization was withdrawn. The erasure ledger must be replayed after restore before any AI output is readable again.',
+      'A restore replays merchant authorization-change outbox events before AI output is readable, reapplying exact-generation deletion.',
   }),
   rule({
     id: 'platform.uploads',
@@ -829,39 +734,18 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     ownerContext: 'guest',
     ownerRole: 'Guest context owner with the Platform storage owner',
     sourceKind: 'object_store',
-    source: 'guest response media objects (capability-issued bucket prefix)',
+    source: 'unclaimed portal upload objects',
     eligibility: {
       anchorColumn: null,
       horizon: { kind: 'counsel_undecided' },
-      predicate: 'the object has no live guest_response_media row',
+      predicate: 'the object has no relational issuance authority',
       query:
-        'Portal upload is a dark capability, so the live population is orphaned objects only. Inventory them; do not purge on a horizon nobody has approved.',
-      implementedBoundary:
-        'No purge runs. guest_response_media is classified quarantined_reconciliation_input and stays beta-disabled.',
+        'Portal upload is disabled, so inventory unclaimed objects; do not purge on a horizon nobody has approved.',
+      implementedBoundary: 'No purge runs while the upload capability is disabled.',
     },
     evidenceSubject: 'object_store.orphan_inventory',
     restoreImplication:
       'Object storage and PostgreSQL restore independently. An object restored without its row is invisible to every deletion path, so the orphan inventory must be re-run after any restore.',
-  }),
-  rule({
-    id: 'platform.quarantine',
-    dataClass: 'quarantine',
-    ownerContext: 'metric',
-    ownerRole: 'Metric context owner with Platform operations',
-    sourceKind: 'table',
-    source: 'metric_quarantine',
-    eligibility: {
-      anchorColumn: 'quarantined_at',
-      horizon: { kind: 'counsel_undecided' },
-      predicate: 'resolved_at IS NOT NULL',
-      query:
-        'Quarantine rows are reconciliation input. Eligibility is a reviewed terminal disposition (resolved_at IS NOT NULL), never age alone; an age cutoff would discard unreconciled evidence a metric correction still depends on.',
-      implementedBoundary:
-        'No age-based purge runs against metric_quarantine. The separate quarantine.ttl subject bounds the job-queue quarantine, which holds no tenant content.',
-    },
-    evidenceSubject: 'metric_quarantine.resolved',
-    restoreImplication:
-      'Restoring quarantine rows after reconciliation replays already-resolved conflicts. Reconcile against the current canonical set rather than re-applying past dispositions.',
   }),
   rule({
     id: 'integration.provider_tokens',
@@ -869,17 +753,17 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     ownerContext: 'integration',
     ownerRole: 'Integration context owner',
     sourceKind: 'table',
-    source: 'google_oauth_exchange_attempts',
+    source: 'idempotency_receipts',
     eligibility: {
-      anchorColumn: 'response_expires_at',
+      anchorColumn: 'recorded_at',
       horizon: { kind: 'row_deadline' },
-      predicate: null,
+      predicate: "scope = 'google_oauth_exchange'",
       query:
-        'The application-encrypted provider response is one-use and erased on connection commit, deterministic rejection, ambiguous terminalization, or its database-recorded ten-minute expiry — whichever comes first. Only content-free outcome facts survive.',
+        'OAuth exchange receipt payloads erase the one-use encrypted provider response on commit, rejection, ambiguous terminalization, or the ten-minute application deadline.',
       implementedBoundary:
-        'Live and enforced by the owning connection saga, not by the retention sweep. Long-lived credentials themselves are never written to this table.',
+        'Live and enforced by the owning connection saga; the shared 30-day sweep removes the content-free receipt.',
     },
-    evidenceSubject: 'google_oauth_exchange_attempts.erased',
+    evidenceSubject: 'google_oauth_exchange.response_erased',
     restoreImplication:
       'A restore can reinstate credential material that was deliberately erased. Provider credentials must be treated as compromised after any restore and reauthorized, never reused.',
   }),

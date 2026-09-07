@@ -1,12 +1,13 @@
 import type { SQL } from 'drizzle-orm'
 import { getTableConfig, type PgTable } from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
+import { ORGANIZATION_LIFECYCLE_CONTEXTS } from '#/contexts/identity/domain/organization-lifecycle'
 import {
-  identityOrganizationLifecycleReceipts,
+  ORGANIZATION_LIFECYCLE_EVENT_CONTEXTS,
   organizationExportRetrievalIssuances,
   organizationExports,
   organizationLifecycleAuthority,
-  organizationLifecycleCommandReceipts,
+  organizationLifecycleEvents,
 } from './organization-lifecycle.schema'
 
 /**
@@ -130,43 +131,38 @@ describe('Organization lifecycle schema', () => {
     expect(sqlText(openIndex!.config.where!)).toContain("'egress_pending'")
   })
 
-  it('retains content-free command receipts for retry-safe transitions', () => {
-    expect(Object.keys(organizationLifecycleCommandReceipts)).toEqual(
-      expect.arrayContaining([
-        'operationId',
-        'organizationId',
-        'operation',
-        'resultState',
-        'resultRevision',
-        'closureLineageId',
-      ]),
-    )
-    expect(Object.keys(organizationLifecycleCommandReceipts)).not.toEqual(
-      expect.arrayContaining(['reason', 'description', 'note', 'content', 'email']),
-    )
-  })
-
-  it('binds Identity context work to one content-free receipt per phase revision', () => {
-    expect(Object.keys(identityOrganizationLifecycleReceipts)).toEqual(
-      expect.arrayContaining([
-        'organizationId',
-        'closureLineageId',
-        'lifecycleRevision',
-        'phase',
-        'requestFingerprint',
-        'outcome',
-        'evidenceRef',
-        'recoverableUntil',
-        'occurredAt',
-      ]),
-    )
-    expect(Object.keys(identityOrganizationLifecycleReceipts)).not.toEqual(
-      expect.arrayContaining(['payload', 'content', 'email', 'note', 'reason']),
-    )
-    const config = getTableConfig(identityOrganizationLifecycleReceipts)
-    expect(config.primaryKeys.map((candidate) => candidate.getName())).toEqual([
-      'identity_organization_lifecycle_receipts_pk',
+  it('consolidates retry evidence into one append-only event shape', () => {
+    const config = getTableConfig(organizationLifecycleEvents)
+    expect(config.name).toBe('organization_lifecycle_events')
+    expect(config.columns.map((column) => column.name)).toEqual([
+      'id',
+      'organization_id',
+      'context',
+      'phase',
+      'kind',
+      'payload',
+      'recorded_at',
     ])
+    expect(config.foreignKeys).toEqual([])
+    expect([...ORGANIZATION_LIFECYCLE_EVENT_CONTEXTS]).toEqual([
+      ...ORGANIZATION_LIFECYCLE_CONTEXTS,
+    ])
+    const unique = config.indexes.find(
+      (candidate) =>
+        candidate.config.name === 'organization_lifecycle_events_idempotency_unique',
+    )
+    expect(unique?.config.unique).toBe(true)
+    expect(
+      unique?.config.columns.map((column) =>
+        'name' in column ? column.name : String(column),
+      ),
+    ).toEqual(['context', 'phase', 'kind'])
+    expect(
+      checkExpression(
+        organizationLifecycleEvents,
+        'organization_lifecycle_events_payload_object',
+      ),
+    ).toContain("= 'object'")
   })
 
   it('retains each digest-only retrieval authority so an expired token cannot return', () => {

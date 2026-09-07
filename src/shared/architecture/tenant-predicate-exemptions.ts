@@ -33,34 +33,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-authorization-erasure.adapter.ts',
-    symbol: 'claimNext',
-    reason:
-      'The bounded authorization-erasure worker claims the next lifecycle obligation globally; tenant identifiers remain inside the claimed repository transaction.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-authorization-erasure.adapter.ts',
-    symbol: 'failActiveGenerationConflict',
-    reason:
-      'The erasure lifecycle transition is a lease-owner and attempt-fenced CAS over a globally claimed obligation, with tenant identifiers intentionally retained inside the transaction.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-authorization-erasure.adapter.ts',
-    symbol: 'readBacklog',
-    reason:
-      'The operations health probe intentionally returns only aggregate authorization-erasure lifecycle counts across all tenants.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-authorization-erasure.adapter.ts',
-    symbol: 'recordClaimFailure',
-    reason:
-      'Failure recording is a lease-owner and attempt-fenced CAS over a globally claimed erasure obligation; tenant identifiers never leave the repository transaction.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts',
     symbol: 'claim',
     reason:
@@ -75,13 +47,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts',
-    symbol: 'duplicateResult',
-    reason:
-      'The globally unique event-envelope receipt is the idempotency authority and discovers the already-persisted lifecycle and enrollment rows for a replay.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/goal/infrastructure/repositories/goal-program.repository.ts',
     symbol: 'hydrateBundles',
     reason:
@@ -93,20 +58,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     symbol: 'listDueResults',
     reason:
       'The bounded goal-maintenance scheduler intentionally enumerates due result records across all tenants before tenant-preserving maintenance work.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/goal/infrastructure/repositories/goal.repository.ts',
-    symbol: 'findAllActiveGlobal',
-    reason:
-      'This explicitly global scheduler read enumerates active goals across tenants and returns each record with its owning organization identity.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/goal/infrastructure/repositories/goal.repository.ts',
-    symbol: 'findAllActiveRecurring',
-    reason:
-      'This explicitly global scheduler read enumerates active recurring root goals across tenants and preserves tenant identity on every result.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
@@ -222,13 +173,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/integration/infrastructure/repositories/google-oauth-exchange-recovery.repository.ts',
-    symbol: 'expire',
-    reason:
-      'The bounded OAuth recovery sweep intentionally expires abandoned exchange attempts across tenants under the global recovery authority.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/notification/infrastructure/repositories/notification-gap.repository.ts',
     symbol: 'countItemsMissingNotifications',
     reason:
@@ -282,20 +226,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     symbol: 'nextAdvanceable',
     reason:
       'The globally serialized erase worker intentionally claims exactly one advanceable authority across tenants and returns its complete tenant identity.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/property/infrastructure/property-google-binding-store.ts',
-    symbol: 'countUnreleasedExpired',
-    reason:
-      'The bounded retention gauge intentionally counts expired unreleased operation receipts across tenants without returning tenant-owned content.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/property/infrastructure/property-google-binding-store.ts',
-    symbol: 'sweepReleasedExpired',
-    reason:
-      'The bounded retention sweep intentionally removes released expired operation receipts across tenants after their retention authority is released.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {

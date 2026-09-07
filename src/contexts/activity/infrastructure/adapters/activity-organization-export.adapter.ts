@@ -60,8 +60,8 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  * - `recent_activity_actor_label_redactions` is a content-free privacy fence.
  *   It is *read* below to honour redaction, but it is never exported: the fence
  *   would otherwise re-identify the very actor it anonymized.
- * - `recent_activity_vocabulary_reconciliations` are operator governance
- *   receipts with authorization evidence references.
+ * - `activity_vocabulary_reconciliation` idempotency receipts are operator
+ *   governance records with authorization evidence references.
  * - `audit_logs` is the legacy unattributed archive CONTEXT.md refuses to treat
  *   as canonical history; its provenance cannot be inferred, so it cannot be
  *   honestly classified as tenant-visible.
@@ -84,7 +84,7 @@ const EXCLUDED_RECORD_CLASSES = Object.freeze([
     reasonCode: 'privacy_fence_control_plane',
   },
   {
-    recordClass: 'recent_activity_vocabulary_reconciliations',
+    recordClass: 'activity_vocabulary_reconciliation_receipts',
     reasonCode: 'operator_governance_receipts',
   },
   { recordClass: 'legacy_audit_logs', reasonCode: 'unattributed_legacy_archive' },

@@ -135,7 +135,8 @@ describe('durable Google import discovery checkpoint', () => {
       [ORGANIZATION_ID],
     )
     await lease.pool.query(
-      'DELETE FROM google_import_discovery_invalidations WHERE invalidation_key = ANY($1::text[])',
+      `DELETE FROM idempotency_receipts
+       WHERE scope = 'google_import_discovery' AND key = ANY($1::text[])`,
       [invalidationKeys.map((item) => item.key)],
     )
   })
@@ -145,7 +146,8 @@ describe('durable Google import discovery checkpoint', () => {
       ORGANIZATION_ID,
     ])
     await lease?.pool.query(
-      'DELETE FROM google_import_discovery_invalidations WHERE invalidation_key = ANY($1::text[])',
+      `DELETE FROM idempotency_receipts
+       WHERE scope = 'google_import_discovery' AND key = ANY($1::text[])`,
       [invalidationKeys.map((item) => item.key)],
     )
     await lease?.release()

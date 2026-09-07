@@ -8,7 +8,6 @@
 // ORM instead of widening the import rule for it.
 
 import { getTableName, isTable } from 'drizzle-orm'
-import * as goalSchema from './schema/goal.schema'
 import * as guestSchema from './schema/guest.schema'
 import * as peopleAccessSchema from './schema/people-access.schema'
 import * as portalSchema from './schema/portal.schema'
@@ -22,7 +21,6 @@ export type SchemaModuleMap = Readonly<Record<string, Readonly<Record<string, un
  * drop the table from the coverage arithmetic.
  */
 export const CONTRACTION_SCHEMA_MODULES: SchemaModuleMap = Object.freeze({
-  'goal.schema.ts': goalSchema,
   'guest.schema.ts': guestSchema,
   'people-access.schema.ts': peopleAccessSchema,
   'portal.schema.ts': portalSchema,

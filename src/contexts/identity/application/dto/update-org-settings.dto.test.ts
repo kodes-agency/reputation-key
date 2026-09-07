@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { ZodError } from 'zod/v4'
 import { updateOrgSettingsSchema } from './update-org-settings.dto'
 
 const identityUpdate = {
@@ -11,14 +10,5 @@ const identityUpdate = {
 describe('updateOrgSettingsSchema beta contract', () => {
   it('accepts organization identity fields', () => {
     expect(updateOrgSettingsSchema.parse(identityUpdate)).toEqual(identityUpdate)
-  })
-
-  it('rejects dormant billing fields instead of silently stripping them', () => {
-    expect(() =>
-      updateOrgSettingsSchema.parse({
-        ...identityUpdate,
-        billingCompanyName: 'Meridian Holdings',
-      }),
-    ).toThrow(ZodError)
   })
 })

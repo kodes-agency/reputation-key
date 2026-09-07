@@ -19,7 +19,6 @@ const OLD_RATING = 'cf000000-0000-4000-8000-000000000008'
 const RESPONSE = 'cf000000-0000-4000-8000-000000000009'
 const RATING_EVENT = 'cf000000-0000-4000-8000-000000000010'
 const FEEDBACK_EVENT = 'cf000000-0000-4000-8000-000000000011'
-const MEDIA = 'cf000000-0000-4000-8000-000000000012'
 const PUBLICATION = 'cf000000-0000-4000-8000-000000000013'
 const CONTACT_RESPONSE = 'cf000000-0000-4000-8000-000000000014'
 const CONTACT_RATING_EVENT = 'cf000000-0000-4000-8000-000000000015'
@@ -43,7 +42,6 @@ async function removeFixtures(): Promise<void> {
   for (const table of [
     'guest_contact_request_reveal_audits',
     'guest_contact_requests',
-    'guest_response_media',
     'guest_response_private_feedback',
     'guest_response_session_bindings',
     'guest_response_experience_snapshots',
@@ -287,17 +285,6 @@ beforeAll(async () => {
     ],
   )
   await pool.query(
-    `INSERT INTO guest_response_media
-       (id, organization_id, property_id, portal_id, response_id, session_id,
-        object_key, content_type, declared_size_bytes, status, expires_at,
-        created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, 'private/do-not-report.jpg',
-             'image/jpeg', 100, 'issued',
-             $7::timestamptz + INTERVAL '1 hour', $7::timestamptz,
-             $7::timestamptz)`,
-    [MEDIA, ORG, PROPERTY, PORTAL, RESPONSE, SESSION, RECENT],
-  )
-  await pool.query(
     `INSERT INTO guest_contact_requests
        (id, organization_id, property_id, portal_id, response_id,
         publication_snapshot_id, publication_version, publication_digest,
@@ -355,7 +342,6 @@ describe.sequential('Guest Response reconciliation repository', () => {
       canonical_integrity_history_missing: 1,
       canonical_rating_source_conflict: 1,
       canonical_feedback_correction_identity_missing: 1,
-      canonical_media_active_while_beta_blocked: 1,
       canonical_contact_active_while_beta_blocked: 1,
       canonical_inbox_link_missing: 1,
       legacy_inbox_link_missing: 2,

@@ -46,19 +46,6 @@ type PropertyContextDeps = Readonly<{
   idGen: () => string
   staffPublicApi: StaffPublicApi
   identityManagerFacts: IdentityManagerFactsPublicApi
-  /**
-   * BQC-2.7 parity for the manual creation path: grant a newly created
-   * property the capability allowlist its organization already holds. Without
-   * it a new property denies every non-core capability
-   * (`property_not_allowlisted`) until an operator repairs it.
-   */
-  provisionPropertyCapabilities?: (
-    input: Readonly<{
-      organizationId: string
-      propertyId: string
-      createdBy: string
-    }>,
-  ) => Promise<void>
   logger: Pick<LoggerPort, 'info' | 'warn'>
 }>
 
@@ -99,8 +86,6 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       commandStore,
       idGen,
       clock: deps.clock,
-      provisionCapabilities: deps.provisionPropertyCapabilities,
-      logger: deps.logger,
     }),
     updateProperty: updateProperty({
       propertyRepo: deps.repo,
