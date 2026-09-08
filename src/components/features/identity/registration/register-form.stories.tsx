@@ -33,6 +33,11 @@ const resolvingAction = makeAction(async () => ({ ok: true }))
 export const RegisterIdle: Story = {
   name: 'Register (idle)',
   args: { mode: 'register', mutation: resolvingAction },
+  // Before hydration the browser submits this form natively; `method="post"`
+  // keeps the password out of the URL, history, and request logs.
+  play: async ({ canvasElement }) => {
+    await expect(canvasElement.querySelector('form')).toHaveAttribute('method', 'post')
+  },
 }
 
 export const JoinIdle: Story = {

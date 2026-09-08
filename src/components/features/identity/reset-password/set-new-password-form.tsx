@@ -29,6 +29,7 @@ export function SetNewPasswordForm({ mutation }: Props) {
 
   return (
     <form
+      method="post"
       onSubmit={(event) => {
         event.preventDefault()
         event.stopPropagation()

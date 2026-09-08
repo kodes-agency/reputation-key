@@ -35,6 +35,7 @@ export function LoginForm({ mutation }: Props) {
 
   return (
     <form
+      method="post"
       onSubmit={(e) => {
         e.preventDefault()
         e.stopPropagation()

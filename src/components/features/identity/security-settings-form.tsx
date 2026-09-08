@@ -43,7 +43,7 @@ export function SecuritySettingsForm({ changePassword }: Props) {
 
   return (
     <div className="space-y-6">
-      <form onSubmit={submitHandler(form)} className="space-y-6">
+      <form method="post" onSubmit={submitHandler(form)} className="space-y-6">
         <FormErrorBanner error={changePassword.error} />
         <Card>
           <CardHeader>
