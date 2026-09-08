@@ -21,6 +21,7 @@ import {
   type AiOperationFixture,
 } from '#/shared/db/testing/ai-operation-fixture'
 import { createPostgresAiAdmissionAuthority } from './postgres-admission-authority'
+import { AI_REPLY_ADOPTION_WINDOW_MILLIS } from '#/shared/ai-reply-provenance'
 
 type PropertyDescriptor = Extract<AiAdmissionDescriptorV1, { subjectKind: 'property' }>
 
@@ -215,6 +216,48 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
         .from(aiOperations)
         .where(eq(aiOperations.id, subject.operationId)),
     ).resolves.toEqual([{ grantKid: SIGNING_KID, reservedMicros: expect.any(Number) }])
+  })
+
+  // Reproduced live: the browser could not adopt a suggestion it had held for
+  // 100 seconds, because the signed adoption token expired with the provider
+  // *request* deadline (`callerDeadlineEpochMillis`, 70 s, most of it spent on
+  // inference). The reading window is a human one and must outlive the call.
+  it('issues a reply adoption window that outlives the provider request deadline', async () => {
+    const subject = await executingOperation()
+
+    const granted = await authority.authorizeProperty(descriptor(subject), BINDING)
+    if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
+
+    expect(granted.expiresAtEpochMillis).toBe(NOW.getTime() + 70_000)
+    expect(granted.replyTokenExpiresAtEpochMillis).toBe(
+      NOW.getTime() + AI_REPLY_ADOPTION_WINDOW_MILLIS,
+    )
+    expect(granted.replyDraftExpiresAtEpochMillis).toBe(
+      granted.replyTokenExpiresAtEpochMillis,
+    )
+  })
+
+  // The accepting transaction also refuses an operation past its own
+  // `expires_at`, so the window may never promise adoption time the operation
+  // row cannot honour.
+  it('never issues an adoption window past the operation row expiry', async () => {
+    const permitId = randomUUID()
+    const operationId = await fixture.seedOperation({
+      state: 'executing',
+      executionAttempt: 1,
+      executionPermitId: permitId,
+      sourceDigest: SOURCE_DIGEST,
+      sourceByteCount: SOURCE_BYTES,
+      expiresAt: new Date(NOW.getTime() + 90_000),
+    })
+
+    const granted = await authority.authorizeProperty(
+      descriptor({ operationId, permitId }),
+      BINDING,
+    )
+    if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
+
+    expect(granted.replyTokenExpiresAtEpochMillis).toBe(NOW.getTime() + 90_000)
   })
 
   it('refuses an operation that is not executing', async () => {
