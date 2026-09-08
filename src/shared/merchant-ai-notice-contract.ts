@@ -10,7 +10,7 @@ export { canonicalizeRfc8785 } from './canonical-json'
 // consent stays recorded at its own version — see the known-version set in the
 // enablement/evidence CHECKs (merchant-ai-authorization.schema.ts). The 08-19
 // bump before this one widened the review-language catalogue to bg-Cyrl.
-export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-09-06.v1' as const
+export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-09-08.v1' as const
 
 const capabilitySchema = z
   .object({
@@ -126,7 +126,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       title: 'Human control and AI limitations',
       body: Object.freeze([
         'AI output can be inaccurate. Review analysis and trend summaries are decision support, not facts or professional advice.',
-        'Private-beta reply AI selects one fixed application-owned localized template rather than authoring response prose. Suggestions remain editable and are never published without the existing separate human submit, approve, and publish workflow.',
+        "A reply suggestion is drafted by the AI provider from the review text and the Property's public display name, grounded in exact excerpts of the review and verified for language before it is shown; when the provider cannot produce a valid draft, a fixed application-owned localized starting point is offered instead. Suggestions remain editable and are never published without the existing separate human submit, approve, and publish workflow.",
       ]),
       links: Object.freeze([]),
     }),
@@ -140,7 +140,8 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
     Object.freeze({
       id: 'reply_drafting',
       title: 'Reply drafting',
-      description: 'Select an editable localized reply suggestion when a manager asks.',
+      description:
+        'Draft an editable, grounded reply suggestion from the review when a manager asks.',
     }),
     Object.freeze({
       id: 'property_trends',
@@ -178,7 +179,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
 noticePayloadSchema.parse(MERCHANT_AI_NOTICE_PAYLOAD)
 
 export const MERCHANT_AI_NOTICE_DIGEST =
-  '7bb8d9bddbec630d90f546ba4d0f308076840e25786389a19e1c651dd21434a8' as const
+  'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865' as const
 function isLowercaseSha256(value: string): boolean {
   if (value.length !== 64) return false
   for (let index = 0; index < value.length; index += 1) {

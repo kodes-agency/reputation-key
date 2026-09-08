@@ -2758,6 +2758,8 @@ CREATE TABLE "merchant_ai_consent_evidence" (
             AND "merchant_ai_consent_evidence"."notice_digest" = 'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31')
           OR ("merchant_ai_consent_evidence"."notice_version" = 'merchant-ai-notice-2026-09-06.v1'
             AND "merchant_ai_consent_evidence"."notice_digest" = '7bb8d9bddbec630d90f546ba4d0f308076840e25786389a19e1c651dd21434a8')
+          OR ("merchant_ai_consent_evidence"."notice_version" = 'merchant-ai-notice-2026-09-08.v1'
+            AND "merchant_ai_consent_evidence"."notice_digest" = 'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865')
         )
         AND "merchant_ai_consent_evidence"."source_policy_id" = 'google-business-profile-source-policy-v1'
         AND "merchant_ai_consent_evidence"."routing_policy_version" = 1
@@ -2822,6 +2824,8 @@ CREATE TABLE "merchant_ai_enablement" (
             AND "merchant_ai_enablement"."notice_digest" = 'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31')
           OR ("merchant_ai_enablement"."notice_version" = 'merchant-ai-notice-2026-09-06.v1'
             AND "merchant_ai_enablement"."notice_digest" = '7bb8d9bddbec630d90f546ba4d0f308076840e25786389a19e1c651dd21434a8')
+          OR ("merchant_ai_enablement"."notice_version" = 'merchant-ai-notice-2026-09-08.v1'
+            AND "merchant_ai_enablement"."notice_digest" = 'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865')
         )
         AND "merchant_ai_enablement"."source_policy_id" = 'google-business-profile-source-policy-v1'
         AND "merchant_ai_enablement"."routing_policy_version" = 1
