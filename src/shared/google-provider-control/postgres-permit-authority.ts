@@ -150,7 +150,7 @@ export function createPostgresGoogleAdmissionPermitAuthority(
     },
     start: async (permit) => {
       const result = await deps.pool.query<{ outcome: string }>(
-        `SELECT outcome FROM start_google_execution_permit_v3(
+        `SELECT outcome FROM start_google_execution_permit(
           $1::uuid, $2::text, $3::text, $4::text, $5::jsonb
         )`,
         [
@@ -255,7 +255,7 @@ export function createPostgresGoogleAdmissionPermitAuthority(
             WHERE other_procedure.pronamespace = 'public'::regnamespace
               AND other_procedure.oid NOT IN (
                 'public.load_google_execution_permit_v1(uuid)'::regprocedure,
-                'public.start_google_execution_permit_v3(uuid,text,text,text,jsonb)'::regprocedure,
+                'public.start_google_execution_permit(uuid,text,text,text,jsonb)'::regprocedure,
                 'public.fail_google_execution_permit_v1(uuid,text,text,text,text)'::regprocedure,
                 'public.complete_google_execution_permit_v1(uuid,text,text,integer)'::regprocedure
               )
@@ -268,7 +268,7 @@ export function createPostgresGoogleAdmissionPermitAuthority(
         FROM pg_proc AS procedure
         WHERE procedure.oid IN (
           'public.load_google_execution_permit_v1(uuid)'::regprocedure,
-          'public.start_google_execution_permit_v3(uuid,text,text,text,jsonb)'::regprocedure,
+          'public.start_google_execution_permit(uuid,text,text,text,jsonb)'::regprocedure,
           'public.fail_google_execution_permit_v1(uuid,text,text,text,text)'::regprocedure,
           'public.complete_google_execution_permit_v1(uuid,text,text,integer)'::regprocedure
           )

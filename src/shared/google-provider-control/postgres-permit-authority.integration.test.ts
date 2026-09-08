@@ -472,7 +472,7 @@ describe('Postgres Google admission permit authority', () => {
     const snapshot = await adapter.load(PERMIT_ID)
     if (!snapshot) throw new Error('expected permit snapshot')
     const result = await pool.query<{ outcome: string }>(
-      `SELECT outcome FROM start_google_execution_permit_v2(
+      `SELECT outcome FROM start_google_execution_permit(
         $1::uuid, $2::text, $3::text, $4::text, '{}'::jsonb
       )`,
       [

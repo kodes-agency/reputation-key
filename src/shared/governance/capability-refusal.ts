@@ -236,7 +236,7 @@ export function createCapabilityRefusalExplainer(deps: CapabilityRefusalDeps) {
         {
           name: 'why',
           observed:
-            'start_google_execution_permit_v3 mutates (UPDATE ... RETURNING); asking it starts or fences a permit',
+            'start_google_execution_permit mutates (UPDATE ... RETURNING); asking it starts or fences a permit',
         },
       ]),
     )
