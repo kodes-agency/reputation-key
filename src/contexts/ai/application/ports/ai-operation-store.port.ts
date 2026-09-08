@@ -1,4 +1,4 @@
-import type { OrganizationId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { AiError } from '../../domain/errors'
 import type {
   AiOperationBinding,
@@ -36,6 +36,46 @@ export type AiOperationClaim =
   | Readonly<{ status: 'replayed'; operation: AiOperationRecord }>
   | Readonly<{ status: 'conflict' }>
 
+export type AiOperationRecoveryCandidate = Readonly<{
+  operationId: AiOperationId
+  organizationId: string | null
+  attempt: number
+  state: 'pending' | 'executing' | 'failed'
+  failureCode: AiError['code'] | null
+  createdAtEpochMillis: number
+  updatedAtEpochMillis: number
+  analysis: Readonly<{
+    eventEnvelopeId: string
+    organizationId: OrganizationId
+    propertyId: PropertyId
+    sourceEpoch: number
+    analysisSequence: number
+    reviewAnalysisEpoch: number
+    propertyProfileVersion: number
+  }> | null
+}>
+
+export type AiOperationFailureInput = Readonly<{
+  operationId: AiOperationId
+  organizationId: string | null
+  expectedAttempt: number
+  failureCode: AiError['code']
+  retryAtEpochMillis: number | null
+  failedAtEpochMillis: number
+}> &
+  (
+    | Readonly<{
+        /** Existing provider-attempt path; `claimExecution` cleared the code. */
+        expectedState?: 'executing'
+        expectedFailureCode?: null
+      }>
+    | Readonly<{
+        /** Recovery path for a retry whose dispatch owner disappeared. */
+        expectedState: 'pending'
+        expectedFailureCode: AiError['code'] | null
+      }>
+  )
+
 export type AiOperationStorePort = Readonly<{
   claim(
     input: Readonly<{
@@ -58,57 +98,33 @@ export type AiOperationStorePort = Readonly<{
     }>,
   ): Promise<AiOperationRecord | null>
 
-  recordFailure(
-    input: Readonly<{
-      operationId: AiOperationId
-      organizationId: string | null
-      expectedAttempt: number
-      failureCode: AiError['code']
-      retryAtEpochMillis: number | null
-      failedAtEpochMillis: number
-    }>,
-  ): Promise<boolean>
+  recordFailure(input: AiOperationFailureInput): Promise<boolean>
 
   /**
-   * Abandoned executions, oldest first, at most `limit` rows.
+   * Abandoned work, ordered deterministically, at most `limit` rows.
    *
-   * An abandoned execution is one whose OPEN ATTEMPT has outlived
-   * `executionHorizonMillis` — not one whose operation has outlived its own
-   * `expires_at`. The distinction is the whole point. `expires_at` is the
-   * operation's idempotency lifetime (24h for review analysis), while the
-   * attempt is bounded by the domain's 15-minute operation horizon, so keying
-   * recovery on `expires_at` hid every abandoned execution for a day. That is
-   * exactly what the closed beta saw: four operations sat `executing` with
-   * settled `success` permits while the reaper reported `abandonedVisited=0`
-   * on every run, because their `expires_at` was 24 hours away.
+   * Executing operations are candidates once their open attempt has outlived
+   * `executionHorizonMillis`, or once the operation expires. Review Analysis
+   * operations still `pending` after their operation horizon are candidates
+   * too: their finite outbox dispatch may already be gone, so no request owner
+   * remains to claim the scheduled retry.
    *
-   * `expires_at` still selects on its own, for the operations whose horizon
-   * cannot be read from an attempt row at all.
+   * A reaper-failed Review Analysis operation remains a candidate until its
+   * originating event has a consumer receipt. That makes the operation row the
+   * durable recovery fact if the process dies after fencing the provider call
+   * but before advancing the strict aggregate sequence and writing the receipt.
    *
-   * Candidate selection only: nothing here decides the outcome. An attempt that
-   * dies between `claimExecution` and its terminal write — a crashed process, a
-   * killed request, a rejected settlement write — leaves the row `executing`
-   * with nobody left to finish it, and `claim` already refuses expired rows, so
-   * it can never be picked up again either. Without this the row stays
-   * `executing` forever and every count of in-flight AI work is permanently
-   * wrong.
+   * Candidate selection is lock-free and may be stale. `recordFailure` performs
+   * the exact state, attempt, and prior-failure-code CAS before a pending or
+   * executing operation can be terminalized.
    */
   listExpiredExecutions(
     input: Readonly<{
       nowEpochMillis: number
-      /** How long an open attempt may run before it is abandoned. */
       executionHorizonMillis: number
       limit: number
     }>,
-  ): Promise<
-    ReadonlyArray<
-      Readonly<{
-        operationId: AiOperationId
-        attempt: number
-        organizationId: string | null
-      }>
-    >
-  >
+  ): Promise<ReadonlyArray<AiOperationRecoveryCandidate>>
 
   markDelivered(
     input: Readonly<{

@@ -10,6 +10,7 @@ import type { AiInferencePort } from './application/ports/ai-inference.port'
 import type { AiQuotaPort } from './application/ports/ai-quota.port'
 import type { AiSubjectHmacPort } from './application/ports/ai-subject-hmac.port'
 import { createAnalyzeReviewEvent } from './application/use-cases/analyze-review-event'
+import { createAiOperationExecutionReaper } from './application/ai-operation-execution-reaper'
 import { createAdvanceReviewAnalysisEnrollments } from './application/use-cases/advance-review-analysis-enrollments'
 import { createApplyAiAuthorizationLifecycle } from './application/use-cases/apply-ai-authorization-lifecycle'
 import { createApproveReviewAnalysisEnrollment } from './application/use-cases/approve-review-analysis-enrollment'
@@ -40,6 +41,7 @@ import { createAiOrganizationExportContributor } from './infrastructure/adapters
 import { createAiOrganizationLifecycleContributor } from './infrastructure/adapters/ai-organization-lifecycle.adapter'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import {
+  AI_REVIEW_ANALYSIS_CONSUMER,
   registerAiConsumers,
   type RegisterAiConsumersInput,
 } from './infrastructure/outbox-consumers'
@@ -125,6 +127,18 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     reviewSources: input.reviewSources,
     processingProfiles,
     subjectHmac: input.subjectHmac ?? unavailableSubjectHmac,
+    nowEpochMillis,
+  })
+  const reapAiOperations = createAiOperationExecutionReaper({
+    store: operations,
+    reviewEvents,
+    aggregates,
+    recordAnalysisReceipt: (eventEnvelopeId, status) =>
+      input.outboxRepo.insertReceipt(
+        eventEnvelopeId,
+        AI_REVIEW_ANALYSIS_CONSUMER,
+        status,
+      ),
     nowEpochMillis,
   })
   const advanceReviewAnalysisEnrollments = createAdvanceReviewAnalysisEnrollments({
@@ -249,6 +263,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       generatePropertyTrend,
       schedulePropertyTrends,
       advanceReviewAnalysisEnrollments,
+      reapAiOperations,
     }),
     internal: Object.freeze({
       repos: Object.freeze({}),
