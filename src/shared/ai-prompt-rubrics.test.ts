@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { AI_OPERATION_PROFILES } from './ai-operation-profiles'
 import {
   AI_ANALYSIS_OUTPUT_SCHEMA,
-  AI_PRIMARY_CATEGORIES,
   AI_REPLY_TEMPLATE_IDS,
   AI_SENTIMENTS,
   CONCRETE_REPLY_LANGUAGE_PATTERN,
 } from './openai-route-output-schemas'
+import { AI_PRIMARY_CATEGORIES } from './ai-primary-categories'
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from './ai-personalized-reply-contract'
 
 type Vector = Readonly<{

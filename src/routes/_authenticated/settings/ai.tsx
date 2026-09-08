@@ -11,7 +11,6 @@ import {
   revokeMerchantAiFn,
 } from '#/contexts/identity/server/merchant-ai'
 import { updateProperty } from '#/contexts/property/server/properties'
-import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import { can } from '#/shared/domain/permissions'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
@@ -34,8 +33,9 @@ export const Route = createFileRoute('/_authenticated/settings/ai')({
       ? properties.find((candidate) => candidate.id === deps.propertyId)
       : undefined
     if (deps.propertyId && !property) throw redirect({ to: '/settings/ai', search: {} })
-    if (!deps.propertyId) return { authorization: null, notice: MERCHANT_AI_NOTICE }
-    return getMerchantAiAuthorizationFn({ data: { propertyId: deps.propertyId } })
+    return getMerchantAiAuthorizationFn({
+      data: deps.propertyId ? { propertyId: deps.propertyId } : {},
+    })
   },
   component: MerchantAiSettingsRoute,
 })

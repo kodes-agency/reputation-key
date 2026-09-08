@@ -80,6 +80,12 @@ const config = defineConfig(({ mode }) => {
                     includeDependenciesRecursively: false,
                   },
                   {
+                    name: 'vendor-sentry',
+                    test: /node_modules[\\/]@sentry[\\/]/,
+                    priority: 35,
+                    includeDependenciesRecursively: false,
+                  },
+                  {
                     // `includeDependenciesRecursively` MUST stay false: with it
                     // on, recharts' transitive deps (clsx,
                     // use-sync-external-store, redux, es-toolkit) join this
@@ -96,9 +102,12 @@ const config = defineConfig(({ mode }) => {
                     priority: 30,
                     includeDependenciesRecursively: false,
                   },
+                  // Components intentionally use Rolldown's default route-aware
+                  // splitting. A broad `/src/components/` group re-joins eager
+                  // route-validation leaves with their lazy feature trees.
                   {
-                    name: 'app-shared',
-                    test: /[\\/]src[\\/](?:components|contexts)[\\/]/,
+                    name: 'app-server-fns',
+                    test: /[\\/]src[\\/]contexts[\\/][^\\/]+[\\/]server[\\/]/,
                     priority: 10,
                     minShareCount: 2,
                     entriesAwareMergeThreshold: 4 * 1024,

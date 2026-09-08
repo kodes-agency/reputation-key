@@ -13,6 +13,7 @@ import {
 import { MERCHANT_AI_NOTICE } from '../application/dto/merchant-ai-notice.dto'
 
 const propertyInputSchema = z.object({ propertyId: z.uuid() })
+const authorizationInputSchema = z.object({ propertyId: z.uuid().optional() })
 const commandSchema = propertyInputSchema.extend({
   idempotencyKey: z.string().min(8).max(128),
   expectedStateVersion: z.number().int().safe().nonnegative(),
@@ -45,19 +46,26 @@ function mapMerchantAiError(error: unknown): never {
   throw catchUntagged(error)
 }
 
-async function managementContext(propertyId: string) {
+async function managementContext(propertyId: string | undefined) {
   const headers = await headersFromContext()
   const actor = await resolveTenantContext(headers)
-  await requireExecutionAllowed({ actor, action: 'ai.manage', propertyId })
+  await requireExecutionAllowed({
+    actor,
+    action: 'ai.manage',
+    ...(propertyId ? { propertyId } : {}),
+  })
   return { headers, actor }
 }
 
 export const getMerchantAiAuthorizationFn = createServerFn({ method: 'GET' })
-  .validator(propertyInputSchema)
+  .validator(authorizationInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const { actor } = await managementContext(data.propertyId)
+        if (!data.propertyId) {
+          return { authorization: null, notice: MERCHANT_AI_NOTICE }
+        }
         try {
           const authorization =
             await getContainer().identityPublicApi.requests.merchantAiAuthorization.get({

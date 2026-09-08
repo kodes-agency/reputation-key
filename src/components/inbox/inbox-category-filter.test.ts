@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { z } from 'zod/v4'
-import { AI_PRIMARY_CATEGORIES } from '#/shared/openai-route-output-schemas'
+import { AI_PRIMARY_CATEGORIES } from '#/shared/ai-primary-categories'
 import { inboxSearchSchema } from './inbox-search-schema'
 import { AI_CATEGORY_LABELS, AI_CATEGORY_OPTIONS } from '#/shared/ai-category-labels'
 

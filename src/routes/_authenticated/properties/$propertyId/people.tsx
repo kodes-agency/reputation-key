@@ -13,10 +13,8 @@ import {
 import { listMembers } from '#/contexts/identity/server/organizations'
 import { listPortals } from '#/contexts/portal/server/portals'
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
-import {
-  PeoplePage,
-  peopleSearchSchema,
-} from '#/components/features/property/people/people-page'
+import { PeoplePage } from '#/components/features/property/people/people-page'
+import { peopleSearchSchema } from '#/components/features/property/people/people-search-schema'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import {
   staffKeys,

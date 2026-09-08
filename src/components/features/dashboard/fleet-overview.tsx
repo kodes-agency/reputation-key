@@ -3,15 +3,12 @@
 // each row deep-links into that property's deep-dive.
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { useQueryClient } from '@tanstack/react-query'
-import { dashboardKeys } from '#/shared/queries/query-keys'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { FleetLoadMore } from './fleet-load-more'
 import { StatCard } from '#/components/features/shared/stat-card'
 import { Button } from '#/components/ui/button'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import { LoadingState, ErrorState } from '#/components/layout/page-states'
 import type { FleetOverviewData } from '#/contexts/reporting/application/public-api'
 import { FleetRow, formatRating } from './fleet-row'
 
@@ -22,26 +19,6 @@ function Shell({ children }: Readonly<{ children: ReactNode }>) {
       <PageHeader title="Dashboard" description="Overview across all properties" />
       {children}
     </PageShell>
-  )
-}
-
-export function FleetOverviewLoading() {
-  return (
-    <Shell>
-      <LoadingState label="Loading fleet overview…" />
-    </Shell>
-  )
-}
-
-export function FleetOverviewError({ message }: Readonly<{ message?: string }>) {
-  const qc = useQueryClient()
-  return (
-    <Shell>
-      <ErrorState
-        message={message}
-        onRetry={() => qc.invalidateQueries({ queryKey: dashboardKeys.fleet() })}
-      />
-    </Shell>
   )
 }
 

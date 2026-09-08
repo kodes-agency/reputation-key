@@ -1,5 +1,5 @@
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
-import { AI_PRIMARY_CATEGORIES } from '#/shared/openai-route-output-schemas'
+import { AI_PRIMARY_CATEGORIES } from '#/shared/ai-primary-categories'
 
 export type ReviewAttention = 'urgent' | 'high' | 'medium' | 'low'
 

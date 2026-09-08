@@ -12,25 +12,29 @@
 // non-entry chunk "lazy", which was false: a statically imported chunk is part
 // of the initial payload no matter how the bundler names it.
 //
-// Budgets — measured 2026-09-05 against a fresh local build:
+// Budgets — measured 2026-09-08 against a fresh local build after WP5.1:
 //
 //   budget                              actual (gzip)   budget (gzip)
-//   main entry chunk (index-*.js)            37,896 B      133,120 B (130 KiB)
-//   initial static closure (JS + all CSS)   682,203 B      689,152 B (673 KiB)
-//   any single chunk outside the closure     14,412 B      128,000 B (125 KiB)
+//   main entry chunk (index-*.js)            68,725 B       70,100 B (+2.0%)
+//   initial static closure (JS + all CSS)   319,519 B      329,105 B (+3.0%)
+//   largest lazy chunk (vendor-charts)       93,053 B      128,000 B (125 KiB)
 //
-// The closure budget is a RATCHET at the measured actual, not a target. The
-// target is 200 KiB (204,800 B). The gap is not chunk grouping — TanStack Start
-// already route-splits (43 output chunks carry `tsr-split`). It is 53 static
-// edges where a route's NON-component code (loader, `validateSearch`,
-// `beforeLoad`, and the sibling `-*.ts` / `-*-fns.ts` modules) imports a
-// component barrel at module scope, which pins that component chunk — and its
-// npm dependencies — into the first paint. Fix pattern: import the leaf module
-// instead (see `inbox-search-schema.ts`, extracted from `inbox-page-v2.tsx`).
-// The remaining clusters are named in LEAN_TRANSFORMATION_PLAN.md WP0.2 step 4.
+// The closure budget is a RATCHET above the measured floor, not an aspirational
+// number. The measured target is 319,519 B (312 KiB), replacing the unmeasured
+// 204,800 B target. Fully deferring the 29,257 B Sentry chunk would move the
+// floor to about 290,000 B; it remains in this closure because src/start.ts
+// statically imports the browser middleware even though instrument.client.ts
+// now retains its dynamic import.
 //
-// When this fails: cut the offending route -> component edge the failure list
-// names. Do NOT raise the budget without recording the new measurement here.
+// Two mechanisms had pinned lazy feature code into first paint: route config and
+// loader value-imports from component barrels, and one broad `app-shared` group
+// that welded `src/contexts/*/server/*` stubs to `src/components/*`. Routes now
+// import their small leaves, server stubs have their own group, and components
+// use Rolldown's default route-aware splitting. A broad components group would
+// rejoin eager validation leaves to the lazy feature trees.
+//
+// When this fails: resolve the new static importer and cut that source edge. Do
+// NOT raise the budget without recording a fresh production measurement here.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -41,8 +45,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
-  mainEntryGzip: 130 * 1024, // 133,120
-  initialClosureGzip: 673 * 1024, // 689,152 — ratchet at the 2026-09-05 actual; target 204,800
+  mainEntryGzip: 70_100, // measured 68,725 + 2%
+  initialClosureGzip: 329_105, // measured 319,519 + 3%
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 

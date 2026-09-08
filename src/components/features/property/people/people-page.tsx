@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { LockKeyhole } from 'lucide-react'
-import { z } from 'zod/v4'
 import type { Action } from '#/components/hooks/use-action'
 import { DirectoryTab } from '#/components/features/property/people/directory-tab'
 import { StaffTab } from '#/components/features/property/people/staff-tab'
@@ -17,10 +16,6 @@ import type {
   StaffParticipationView,
   UpdatePortalResponsibilitiesMutationInput,
 } from '#/components/features/staff/types'
-
-export const peopleSearchSchema = z.object({
-  tab: z.enum(['staff', 'directory']).optional(),
-})
 
 type DirectoryMember = Readonly<{
   userId: string

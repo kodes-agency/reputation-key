@@ -3,7 +3,7 @@
 // filters by the active escalation flag, not a status value.
 import { z } from 'zod/v4'
 import type { InboxStatus } from '#/contexts/inbox/application/public-api'
-import { AI_PRIMARY_CATEGORIES } from '#/shared/openai-route-output-schemas'
+import { AI_PRIMARY_CATEGORIES } from '#/shared/ai-primary-categories'
 
 export const INBOX_PAGE_SIZE = 50
 

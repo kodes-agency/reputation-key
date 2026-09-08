@@ -8,7 +8,7 @@
 // The canonical ids are lower_snake ASCII words, so sentence-casing them IS the
 // label (`wait_time` -> `Wait time`). A hand-written map would be a second copy
 // of the catalogue that nothing forces to stay in step.
-import { AI_PRIMARY_CATEGORIES } from '#/shared/openai-route-output-schemas'
+import { AI_PRIMARY_CATEGORIES } from '#/shared/ai-primary-categories'
 
 export type AiPrimaryCategory = (typeof AI_PRIMARY_CATEGORIES)[number]
 

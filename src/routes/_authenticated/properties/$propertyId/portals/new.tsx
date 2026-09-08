@@ -3,6 +3,10 @@ import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { createPortal } from '#/contexts/portal/server/portals'
 import { PortalCreationWithPreview } from '#/components/features/portal'
+import {
+  CreatePortalError,
+  CreatePortalLoading,
+} from '#/components/features/portal/portal-route-fallbacks'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
@@ -10,7 +14,6 @@ import { portalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import { ErrorState, LoadingState } from '#/components/layout/page-states'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 
 export const Route = createFileRoute(
@@ -36,26 +39,6 @@ export const Route = createFileRoute(
   errorComponent: CreatePortalError,
   component: CreatePortalPage,
 })
-
-function CreatePortalLoading() {
-  return (
-    <PageShell>
-      <LoadingState label="Loading portal editor" />
-    </PageShell>
-  )
-}
-
-function CreatePortalError({ error }: { error: Error }) {
-  return (
-    <PageShell>
-      <PageHeader
-        title="New Portal"
-        description="Create a public page for this property."
-      />
-      <ErrorState message={error.message || 'The portal editor could not be loaded.'} />
-    </PageShell>
-  )
-}
 
 function CreatePortalPage() {
   const { propertyId } = Route.useParams()
