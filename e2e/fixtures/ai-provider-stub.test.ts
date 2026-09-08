@@ -37,7 +37,7 @@ describe('AI Responses provider stub', () => {
     const provider = await fetch(`${handle.baseUrl}/v1/responses`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(providerRequest('reply_template_selection_v1')),
+      body: JSON.stringify(providerRequest('reply_draft_v1')),
     })
     expect(provider.status).toBe(200)
     const body = (await provider.json()) as {

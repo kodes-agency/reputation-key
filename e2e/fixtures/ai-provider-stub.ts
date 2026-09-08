@@ -93,7 +93,7 @@ function parseOperationKind(body: unknown): AiProviderStubOperationKind | null {
   switch ((format as Record<string, unknown>).name) {
     case 'review_analysis_v1':
       return 'analysis'
-    case 'reply_template_selection_v1':
+    case 'reply_draft_v1':
       return 'reply'
     case 'property_trend_v1':
       return 'trend'
