@@ -9,6 +9,9 @@ export const SESSION_UPDATE_AGE_SECONDS = 60 * 60 * 24
 /** Invitation expiry: 7 days in seconds */
 export const INVITATION_EXPIRY_SECONDS = 60 * 60 * 24 * 7
 
+/** Email verification expiry: 24 hours in seconds */
+export const EMAIL_VERIFICATION_EXPIRY_SECONDS = 60 * 60 * 24
+
 import { betterAuth } from 'better-auth'
 import { createAuthMiddleware } from 'better-auth/api'
 import { organization } from 'better-auth/plugins'
@@ -100,6 +103,7 @@ export function createAuth() {
       },
     },
     emailVerification: {
+      expiresIn: EMAIL_VERIFICATION_EXPIRY_SECONDS,
       sendOnSignUp: true,
       sendVerificationEmail: async ({ user, url }) => {
         await sendVerificationEmail(user.email, url)
