@@ -3,6 +3,7 @@
 import { useForm } from '@tanstack/react-form'
 import { useId } from 'react'
 import { Loader2 } from 'lucide-react'
+import { submitHandler } from '#/components/forms/form-submit'
 import { Button } from '#/components/ui/button'
 import { FieldError } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
@@ -41,13 +42,7 @@ export function CategoryEditInlineForm({
   const submitIcon = isPending ? <Loader2 className="size-4 animate-spin" /> : null
 
   return (
-    <form
-      className="flex flex-col gap-1"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void form.handleSubmit().catch(() => undefined)
-      }}
-    >
+    <form className="flex flex-col gap-1" onSubmit={submitHandler(form)}>
       <div className="flex items-center gap-2">
         <form.Field name="title">
           {(field) => {

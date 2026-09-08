@@ -9,6 +9,7 @@ import { useForm } from '@tanstack/react-form'
 import { z } from 'zod/v4'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitForm } from '#/components/forms/form-submit'
 import {
   registerUserInputSchema,
   registerMemberInputSchema,
@@ -92,7 +93,7 @@ export function RegisterForm({ mode, mutation, invitationId }: Props) {
       onSubmit={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        form.handleSubmit()
+        void submitForm(form)
       }}
       className="space-y-4"
     >

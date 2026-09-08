@@ -1,5 +1,6 @@
 import { useForm } from '@tanstack/react-form'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { Checkbox } from '#/components/ui/checkbox'
 import { Input } from '#/components/ui/input'
@@ -79,7 +80,7 @@ function PrivateFeedbackTargetFormCard({
       onSubmit={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        form.handleSubmit()
+        void submitForm(form)
       }}
     >
       <Card>

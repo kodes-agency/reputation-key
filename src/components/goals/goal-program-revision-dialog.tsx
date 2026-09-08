@@ -25,6 +25,7 @@ import {
 import { Input } from '#/components/ui/input'
 import { Field, FieldError, FieldLabel } from '#/components/ui/field'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import {
   GoalSubjectPicker,
@@ -98,7 +99,7 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
           onSubmit={(event) => {
             event.preventDefault()
             event.stopPropagation()
-            void form.handleSubmit()
+            void submitForm(form)
           }}
         >
           <DialogHeader>

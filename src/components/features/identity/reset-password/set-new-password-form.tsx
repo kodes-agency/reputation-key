@@ -2,6 +2,7 @@ import { useForm } from '@tanstack/react-form'
 import { FieldGroup } from '#/components/ui/field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitForm } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import type { Action } from '#/components/hooks/use-action'
@@ -31,7 +32,7 @@ export function SetNewPasswordForm({ mutation }: Props) {
       onSubmit={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        form.handleSubmit()
+        void submitForm(form)
       }}
       className="space-y-4"
     >

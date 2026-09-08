@@ -1,6 +1,7 @@
 import { useForm, useStore } from '@tanstack/react-form'
 import { useEffect, useRef } from 'react'
 import { SubmitButton } from '#/components/forms/submit-button'
+import { submitForm } from '#/components/forms/form-submit'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import type { Action } from '#/components/hooks/use-action'
 import {
@@ -118,7 +119,7 @@ export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Prop
         onSubmit={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          form.handleSubmit()
+          void submitForm(form)
         }}
         className="space-y-4"
       >

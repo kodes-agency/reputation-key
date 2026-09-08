@@ -1,4 +1,5 @@
 import { useForm } from '@tanstack/react-form'
+import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { guestRatingFormDto } from '#/contexts/guest/application/dto/guest-response-form.dto'
 import { Honeypot, RatingChoices } from './guest-response-fields'
@@ -37,13 +38,7 @@ export function GuestRatingForm({
   })
 
   return (
-    <form
-      className={className}
-      onSubmit={(event) => {
-        event.preventDefault()
-        void form.handleSubmit()
-      }}
-    >
+    <form className={className} onSubmit={submitHandler(form)}>
       <form.Field name="rating">
         {(field) => (
           <div data-invalid={!field.state.meta.isValid}>

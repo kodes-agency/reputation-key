@@ -1,4 +1,5 @@
 import { useForm } from '@tanstack/react-form'
+import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { FormTextarea } from '#/components/forms/form-textarea'
@@ -39,13 +40,7 @@ export function PortalLocalizedOverrideForm({
     },
   })
   return (
-    <form
-      className="space-y-3 border-t pt-4"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void form.handleSubmit().catch(() => undefined)
-      }}
-    >
+    <form className="space-y-3 border-t pt-4" onSubmit={submitHandler(form)}>
       <div>
         <p className="text-sm font-medium">This Portal only</p>
         <p className="text-xs text-muted-foreground">

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AlertCircle, Check, Loader2 } from 'lucide-react'
+import { submitForm } from '#/components/forms/form-submit'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { Field, FieldLabel } from '#/components/ui/field'
@@ -37,7 +38,7 @@ export function GoogleImportReviewForm({
       onSubmit={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        void form.handleSubmit()
+        void submitForm(form)
       }}
     >
       <div className="flex flex-col gap-4 rounded-lg border bg-muted/30 p-4 sm:flex-row sm:items-end sm:justify-between">

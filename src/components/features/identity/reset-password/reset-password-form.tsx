@@ -7,6 +7,7 @@ import { useForm } from '@tanstack/react-form'
 import { FieldGroup } from '#/components/ui/field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitForm } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 
@@ -39,7 +40,7 @@ export function ResetPasswordForm({ mutation }: Props) {
       onSubmit={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        form.handleSubmit()
+        void submitForm(form)
       }}
       className="space-y-4"
     >

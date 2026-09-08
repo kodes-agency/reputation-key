@@ -2,6 +2,7 @@ import { useForm } from '@tanstack/react-form'
 import { z } from 'zod/v4'
 import { useEffect } from 'react'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitForm } from '#/components/forms/form-submit'
 import { BasicInfoSection } from './basic-info-section'
 import { PortalFeedbackThresholdField } from './portal-feedback-threshold-field'
 import type { Action } from '#/components/hooks/use-action'
@@ -70,7 +71,7 @@ export function EditPortalForm({
   useEffect(() => {
     if (!formRef) return
     formRef.current = {
-      handleSubmit: () => void form.handleSubmit(),
+      handleSubmit: () => void submitForm(form),
       // Value-based so undoing every edit clears the unsaved warning.
       hasUnsavedChanges: () => !form.state.isDefaultValue,
     }
@@ -84,7 +85,7 @@ export function EditPortalForm({
       onSubmit={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        form.handleSubmit()
+        void submitForm(form)
       }}
       className="flex flex-col gap-6"
     >

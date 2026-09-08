@@ -3,6 +3,7 @@
 import { useForm } from '@tanstack/react-form'
 import { useId } from 'react'
 import { Loader2 } from 'lucide-react'
+import { submitHandler } from '#/components/forms/form-submit'
 import { Button } from '#/components/ui/button'
 import { createLinkInputSchema } from '#/contexts/portal/application/dto/portal-link.dto'
 import { LinkInlineField } from './link-inline-field'
@@ -41,13 +42,7 @@ export function LinkInlineForm({
   const fieldId = useId()
 
   return (
-    <form
-      className={className}
-      onSubmit={(event) => {
-        event.preventDefault()
-        void form.handleSubmit().catch(() => undefined)
-      }}
-    >
+    <form className={className} onSubmit={submitHandler(form)}>
       <div className="flex gap-2">
         <form.Field name="label">
           {(field) => (

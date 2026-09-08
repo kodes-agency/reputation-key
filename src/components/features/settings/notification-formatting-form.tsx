@@ -2,6 +2,7 @@ import { useForm } from '@tanstack/react-form'
 import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import type { NotificationUserSettings } from '#/contexts/feed/application/public-api'
@@ -39,13 +40,7 @@ export function NotificationFormattingForm(props: Props) {
   })
 
   return (
-    <form
-      className="grid min-w-0 gap-4 sm:grid-cols-2"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void form.handleSubmit()
-      }}
-    >
+    <form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={submitHandler(form)}>
       <FormErrorBanner error={props.updateUserSettings.error} />
       <form.Field name="locale">
         {(field: BaseFieldApi) => (

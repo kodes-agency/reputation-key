@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '#/components/ui/select'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import type { Action } from '#/components/hooks/use-action'
 import { updatePropertyInputSchema } from '#/contexts/property/application/dto/update-property.dto'
@@ -67,7 +68,7 @@ export function PropertyReplyLanguageCard({ property, updateProperty }: Props) {
       onSubmit={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        void form.handleSubmit()
+        void submitForm(form)
       }}
     >
       <Card className="min-w-0">

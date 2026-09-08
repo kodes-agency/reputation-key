@@ -1,4 +1,5 @@
 import { useForm } from '@tanstack/react-form'
+import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { FormTextarea } from '#/components/forms/form-textarea'
@@ -39,13 +40,7 @@ export function PortalPropertyContentForm({
     },
   })
   return (
-    <form
-      className="space-y-3"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void form.handleSubmit().catch(() => undefined)
-      }}
-    >
+    <form className="space-y-3" onSubmit={submitHandler(form)}>
       <p className="text-sm text-muted-foreground">Property-wide fallback</p>
       <FieldGroup>
         <form.Field name="title">

@@ -10,6 +10,7 @@ import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitForm } from '#/components/forms/form-submit'
 import { inviteMemberInputSchema } from '#/contexts/identity/application/dto/invitation.dto'
 import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import { z } from 'zod/v4'
@@ -83,7 +84,7 @@ export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) 
       onSubmit={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        form.handleSubmit()
+        void submitForm(form)
       }}
       className="flex flex-col gap-4"
     >

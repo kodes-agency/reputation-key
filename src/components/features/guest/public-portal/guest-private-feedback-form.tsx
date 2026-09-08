@@ -1,4 +1,5 @@
 import { useForm } from '@tanstack/react-form'
+import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { Field, FieldLabel } from '#/components/ui/field'
 import { Textarea } from '#/components/ui/textarea'
@@ -27,13 +28,7 @@ export function GuestPrivateFeedbackForm({ mutation, onSubmit, copy }: Props) {
   })
 
   return (
-    <form
-      className="rounded-lg border p-5"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void form.handleSubmit()
-      }}
-    >
+    <form className="rounded-lg border p-5" onSubmit={submitHandler(form)}>
       <h2 className="font-semibold">{copy.privateFeedbackTitle}</h2>
       <p className="mt-1 text-sm">{copy.privateFeedbackBody}</p>
       <form.Field name="text">

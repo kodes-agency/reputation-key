@@ -1,4 +1,5 @@
 import { useForm } from '@tanstack/react-form'
+import { submitHandler } from '#/components/forms/form-submit'
 import { Button } from '#/components/ui/button'
 import { AlertDialogCancel, AlertDialogFooter } from '#/components/ui/alert-dialog'
 import { Field, FieldError, FieldLabel } from '#/components/ui/field'
@@ -34,13 +35,7 @@ export function PortalPlannedReplacementForm({
     },
   })
   return (
-    <form
-      className="grid gap-4"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void form.handleSubmit().catch(() => undefined)
-      }}
-    >
+    <form className="grid gap-4" onSubmit={submitHandler(form)}>
       <form.Field name="gracePeriodDays">
         {(field) => {
           const invalid = field.state.meta.isTouched && !field.state.meta.isValid
