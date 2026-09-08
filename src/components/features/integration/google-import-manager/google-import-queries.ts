@@ -190,7 +190,7 @@ export function googleImportLeaseQuery(input: {
   leaseRef: string | null
   enabled: boolean
   hasProviderContent: boolean
-  visibleAndFocused: boolean
+  pageVisible: boolean
   epoch: number
   guard: GoogleImportContentGuard
   renewLease: typeof renewImportAuthorizationLease
@@ -219,7 +219,7 @@ export function googleImportLeaseQuery(input: {
       input.connectionId !== null &&
       input.leaseRef !== null &&
       input.hasProviderContent &&
-      input.visibleAndFocused,
+      input.pageVisible,
     refetchInterval: 10_000,
     refetchIntervalInBackground: false,
     retry: false,
