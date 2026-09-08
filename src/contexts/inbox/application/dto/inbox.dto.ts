@@ -249,14 +249,21 @@ export const setResponseTargetPolicyDto = z.discriminatedUnion('scope', [
   }),
 ])
 
+/** Whole hours, 1–720 (30 days); the server contract is minutes, saved as hours × 60. */
+const responseTargetHours = z
+  .number({ error: 'Enter the target in whole hours' })
+  .int('Enter the target in whole hours')
+  .min(1, 'The target must be at least 1 hour')
+  .max(720, 'The target must be at most 720 hours (30 days)')
+
 export const organizationResponseTargetFormDto = z.object({
-  durationHours: z.number().int().min(1).max(720),
+  durationHours: responseTargetHours,
 })
 
 export const privateFeedbackPropertyTargetFormDto = z
   .object({
     useOrganizationTarget: z.boolean(),
-    durationHours: z.number().int().min(1).max(720),
+    durationHours: responseTargetHours,
   })
   .strict()
 
