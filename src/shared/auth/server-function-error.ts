@@ -23,9 +23,35 @@ export class ServerFunctionError extends Error {
   }
 }
 
+/**
+ * Recognise a server-function error by its shape, not by class identity.
+ *
+ * `instanceof` was load-bearing in three places (this adapter's `test`,
+ * `catchUntagged`, and the traced-server-fn wrapper) and it is not reliable
+ * here: this module is imported both as `#/shared/auth/server-function-error`
+ * and as `./server-function-error`, which the dev SSR module graph can resolve
+ * to two distinct module instances - and therefore two distinct classes. When
+ * that happened, an error the domain had already classified
+ * (`GoogleImportDiscoveryError(temporarily_unavailable)`, logged as such and
+ * thrown with a 503) reached the browser as `InternalError` /
+ * `internal_error` / 500, so the whole discovery error vocabulary collapsed
+ * into one generic sentence with no action. The `_tag` marker exists precisely
+ * so recognition can be structural.
+ */
+export function isServerFunctionError(value: unknown): value is ServerFunctionError {
+  if (!(value instanceof Error)) return false
+  const candidate = value as Partial<ServerFunctionError>
+  return (
+    typeof candidate._tag === 'string' &&
+    candidate._tag.length > 0 &&
+    typeof candidate.code === 'string' &&
+    typeof candidate.status === 'number'
+  )
+}
+
 export const serverFunctionErrorAdapter = createSerializationAdapter({
   key: 'repkey:server-function-error',
-  test: (value): value is ServerFunctionError => value instanceof ServerFunctionError,
+  test: (value): value is ServerFunctionError => isServerFunctionError(value),
   toSerializable: (error) => ({
     name: error.name,
     message: error.message,

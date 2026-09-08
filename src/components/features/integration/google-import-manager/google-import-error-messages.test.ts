@@ -3,6 +3,7 @@ import type { GoogleImportDiscoveryErrorCode } from '#/contexts/integration/appl
 import type { GoogleImportTransactionErrorCode } from '#/contexts/integration/application/google-import-transaction'
 import {
   connectionCallbackErrorMessage,
+  discoveryErrorIsRecoverable,
   discoveryErrorMessage,
   startErrorMessage,
 } from './google-import-error-messages'
@@ -56,6 +57,37 @@ describe('discoveryErrorMessage', () => {
     expect(discoveryErrorMessage(coded('provider_rejected'))).toMatch(
       /google rejected the request for this account/i,
     )
+  })
+
+  // The shape that actually reaches the browser on a client-side navigation is
+  // the seroval-deserialized plain object, not an Error instance (see
+  // `#/shared/auth/capability-denial.ts`). Guarding on `instanceof Error` threw
+  // the server's classification away and showed the generic sentence for every
+  // classified failure.
+  it('reads the code from a deserialized server error, not just an Error', () => {
+    expect(
+      discoveryErrorMessage({
+        name: 'GoogleImportDiscoveryError',
+        code: 'reference_invalid',
+        message: 'Google import discovery failed: reference_invalid',
+      }),
+    ).toMatch(/expired/i)
+  })
+
+  it('recovers the code from the message the server actually sends', () => {
+    expect(
+      discoveryErrorMessage(
+        new Error('Google import discovery failed: reauthentication_required'),
+      ),
+    ).toMatch(/reconnect google/i)
+  })
+
+  it('offers a restart only for failures a fresh discovery clears', () => {
+    expect(discoveryErrorIsRecoverable({ code: 'reference_invalid' })).toBe(true)
+    expect(discoveryErrorIsRecoverable({ code: 'temporarily_unavailable' })).toBe(true)
+    expect(discoveryErrorIsRecoverable({ code: 'provider_rejected' })).toBe(false)
+    expect(discoveryErrorIsRecoverable({ code: 'reauthentication_required' })).toBe(false)
+    expect(discoveryErrorIsRecoverable(null)).toBe(false)
   })
 
   it('falls back to one generic message for an unknown or absent code', () => {

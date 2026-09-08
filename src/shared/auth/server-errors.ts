@@ -5,7 +5,10 @@
 import { getLogger } from '#/shared/observability/logger'
 import { getRequestContext } from '#/shared/observability/request-context'
 import { APIError } from 'better-auth'
-import { ServerFunctionError } from './server-function-error'
+import {
+  isServerFunctionError,
+  ServerFunctionError,
+} from '#/shared/auth/server-function-error'
 
 /**
  * Throw a ServerFunctionError — used by all context server functions
@@ -86,7 +89,7 @@ function extractApiErrorBody(body: unknown): { message: string; code: string } {
 export function catchUntagged(e: unknown): never {
   const ctx = getRequestContext()
   const logger = getLogger()
-  if (e instanceof ServerFunctionError) throw e
+  if (isServerFunctionError(e)) throw e
 
   if (e instanceof APIError) {
     const statusName = typeof e.status === 'string' ? e.status : 'INTERNAL_SERVER_ERROR'
