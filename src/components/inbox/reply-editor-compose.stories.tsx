@@ -330,10 +330,40 @@ export const ManualEditWinsOverDelayedSuggestion: Story = {
   },
 }
 
-// An imported property has no portal brand profile yet, so the drafting route
-// refuses with `brand_profile_unavailable`. The panel has to name the screen
-// that clears it: without the link this refusal is a dead end, because the
-// public display name is only settable inside a property's portal.
+const onGenerateNotAuthorized = fn(async (): Promise<ReplySuggestionResult> => ({
+  status: 'unavailable',
+  code: 'not_authorized',
+  retryAfterEpochMillis: null,
+})).mockName('onGenerateNotAuthorized')
+
+export const AiRepliesNotEnabled: Story = {
+  args: {
+    initialText: 'Thank you for sharing your experience.',
+    onGenerateSuggestion: onGenerateNotAuthorized,
+  },
+  play: async ({ canvas }) => {
+    onGenerateNotAuthorized.mockClear()
+
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+
+    await waitFor(() =>
+      expect(
+        canvas.getByText(/AI reply drafting is not enabled for this property/i),
+      ).toBeVisible(),
+    )
+    const link = canvas.getByRole('link', { name: /enable ai replies/i })
+    expect(link).toHaveAttribute('href', expect.stringContaining('/settings/ai'))
+    expect(link).toHaveAttribute(
+      'href',
+      expect.stringContaining('propertyId=10000000-0000-4000-8000-000000000101'),
+    )
+  },
+}
+
+// An imported property has no Portal brand profile yet, so the drafting route
+// refuses with `brand_profile_unavailable`. Property settings owns the field
+// that clears it even when the Property has no Portals, so the refusal must
+// point there instead of dead-ending on the empty Portal list.
 const onGenerateBrandRefusal = fn(async (): Promise<ReplySuggestionResult> => ({
   status: 'unavailable',
   code: 'brand_profile_unavailable',
@@ -360,7 +390,9 @@ export const PublicDisplayNameMissing: Story = {
       canvas.getByRole('link', { name: /set the public display name/i }),
     ).toHaveAttribute(
       'href',
-      expect.stringContaining('/properties/10000000-0000-4000-8000-000000000101/portals'),
+      expect.stringContaining(
+        '/properties/10000000-0000-4000-8000-000000000101/settings',
+      ),
     )
   },
 }
