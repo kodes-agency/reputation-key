@@ -4,6 +4,7 @@ import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
+import { FieldError } from '#/components/ui/field'
 import {
   Card,
   CardContent,
@@ -88,11 +89,16 @@ function TargetPolicyForm({
               type="number"
               min={1}
               max={720}
-              value={field.state.value}
+              // A cleared or non-numeric control reads as NaN; the schema
+              // names it, the input must not.
+              value={Number.isNaN(field.state.value) ? '' : field.state.value}
               onBlur={field.handleBlur}
               onChange={(event) => field.handleChange(event.target.valueAsNumber)}
               aria-invalid={field.state.meta.errors.length > 0}
             />
+            {field.state.meta.errors.length > 0 ? (
+              <FieldError errors={field.state.meta.errors} />
+            ) : null}
           </div>
         )}
       </form.Field>

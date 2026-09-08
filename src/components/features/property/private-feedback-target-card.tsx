@@ -4,6 +4,7 @@ import { SubmitButton } from '#/components/forms/submit-button'
 import { Checkbox } from '#/components/ui/checkbox'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
+import { FieldError } from '#/components/ui/field'
 import {
   Card,
   CardContent,
@@ -123,11 +124,14 @@ function PrivateFeedbackTargetFormCard({
                       min={1}
                       max={720}
                       disabled={useOrganizationTarget}
-                      value={field.state.value}
+                      value={Number.isNaN(field.state.value) ? '' : field.state.value}
                       onBlur={field.handleBlur}
                       onChange={(event) => field.handleChange(event.target.valueAsNumber)}
                       aria-invalid={field.state.meta.errors.length > 0}
                     />
+                    {field.state.meta.errors.length > 0 ? (
+                      <FieldError errors={field.state.meta.errors} />
+                    ) : null}
                   </div>
                 )}
               </form.Field>
