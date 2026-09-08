@@ -2,7 +2,10 @@ import type { GoogleConnectionDto } from '#/contexts/integration/application/pub
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { GoogleImportDiscoveryPanel } from './google-import-discovery-panel'
-import { discoveryErrorMessage } from './google-import-error-messages'
+import {
+  discoveryErrorIsRecoverable,
+  discoveryErrorMessage,
+} from './google-import-error-messages'
 import { GoogleImportReviewForm } from './google-import-review-form'
 import type {
   GoogleImportDiscoveryController,
@@ -107,6 +110,11 @@ export function GoogleImportManagerBody({
       hasMoreCandidates={discovery.candidatesQuery.hasNextPage}
       accountsError={visibleError(discovery.accountsQuery.error)}
       candidatesError={visibleError(discovery.candidatesQuery.error)}
+      onRecoverCandidates={
+        discoveryErrorIsRecoverable(discovery.candidatesQuery.error)
+          ? discovery.resumeDiscovery
+          : null
+      }
       selectAllError={discovery.selectAllError}
       isSelectingAll={discovery.selectAllPending}
       onSearchChange={discovery.setSearch}
