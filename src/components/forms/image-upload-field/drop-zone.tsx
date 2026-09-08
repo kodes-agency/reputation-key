@@ -62,6 +62,7 @@ export function DropZone({
         />
       ) : (
         <EmptyState
+          variant={variant}
           uploading={uploading}
           uploadProgress={uploadProgress}
           acceptedTypes={acceptedTypes}

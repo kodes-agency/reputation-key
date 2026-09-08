@@ -3,6 +3,7 @@
 import { ImageIcon, Loader2 } from 'lucide-react'
 
 type EmptyStateProps = Readonly<{
+  variant: 'rect' | 'circle'
   uploading: boolean
   uploadProgress: number
   acceptedTypes: ReadonlyArray<string>
@@ -11,6 +12,7 @@ type EmptyStateProps = Readonly<{
 }>
 
 export function EmptyState({
+  variant,
   uploading,
   uploadProgress,
   acceptedTypes,
@@ -29,6 +31,13 @@ export function EmptyState({
             />
           </div>
           <p className="text-xs">{uploadProgress}%</p>
+        </>
+      ) : variant === 'circle' ? (
+        // The circle is 128px: only the icon and the label fit. The accepted
+        // formats and size limit are the surrounding card's description.
+        <>
+          <ImageIcon className="size-8" />
+          <p className="text-center text-xs">{label}</p>
         </>
       ) : (
         <>
