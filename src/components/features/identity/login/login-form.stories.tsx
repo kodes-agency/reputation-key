@@ -35,6 +35,11 @@ const resolvingAction = makeAction(async () => ({ ok: true }))
 
 export const Idle: Story = {
   args: { mutation: resolvingAction },
+  // Before hydration the browser submits this form natively; `method="post"`
+  // keeps the password out of the URL, history, and request logs.
+  play: async ({ canvasElement }) => {
+    await expect(canvasElement.querySelector('form')).toHaveAttribute('method', 'post')
+  },
 }
 
 // Pending mutation: button shows the spinner + is disabled.
