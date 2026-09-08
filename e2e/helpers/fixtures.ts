@@ -24,6 +24,7 @@ import { createTokenEncryptionAdapter } from '../../src/contexts/integration/inf
 import { EXECUTION_POLICY_VERSION } from '../../src/shared/auth/execution-policy'
 import { computeAiReviewSourceProvenance } from '../../src/contexts/review/application/ai-review-source'
 import { googleReplyTextDigest } from '../../src/shared/domain/google-reply-text'
+import { serverFunctionErrorAdapter } from '../../src/shared/auth/server-function-error'
 
 /**
  * Unique-per-run marker for every fixture-created external identifier.
@@ -347,10 +348,9 @@ let _codec: SerovalCodec | undefined
  * seroval + the app's seroval plugins, resolved through the app's own
  * dependency chain (seroval/router-core are not direct dependencies — pnpm
  * strict — so they cannot be imported by name here; the chain always yields
- * the exact versions the running server serializes with). The app configures
- * no custom serializationAdapters (vite.config.ts), so the server's plugin
- * set is exactly router-core's defaultSerovalPlugins — see
- * start-client-core getDefaultSerovalPlugins.js.
+ * the exact versions the running server serializes with). The plugin set is
+ * what start-client-core's getDefaultSerovalPlugins builds: the app's
+ * serializationAdapters (`src/start.ts`) ahead of router-core's defaults.
  */
 async function codec(): Promise<SerovalCodec> {
   if (!_codec) {
@@ -369,8 +369,17 @@ async function codec(): Promise<SerovalCodec> {
     }
     const routerCore = (await import(
       pathToFileURL(join(dirname(routerCorePkg), 'dist/esm/index.js')).href
-    )) as { defaultSerovalPlugins: unknown[] }
-    _codec = { ...seroval, plugins: routerCore.defaultSerovalPlugins }
+    )) as {
+      defaultSerovalPlugins: unknown[]
+      makeSerovalPlugin: (adapter: unknown) => unknown
+    }
+    _codec = {
+      ...seroval,
+      plugins: [
+        routerCore.makeSerovalPlugin(serverFunctionErrorAdapter),
+        ...routerCore.defaultSerovalPlugins,
+      ],
+    }
   }
   return _codec
 }
