@@ -4,11 +4,13 @@ import {
   GOOGLE_PROVIDER_ENDPOINTS,
 } from '../../src/composition'
 import type { Env } from '../../src/shared/config/env'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation-profiles'
 import {
+  aiProviderMode,
+  applyEnvOverlay,
   googleProviderMode,
   parseEnvOverlay,
-  applyEnvOverlay,
-} from './google-provider-mode'
+} from './provider-modes'
 
 /** What `e2e/stack.env` pins, i.e. the state the real mode has to undo. */
 function sandboxEnv(): NodeJS.ProcessEnv {
@@ -112,5 +114,59 @@ describe('local Google provider mode', () => {
     expect(googleProviderMode(env).callbackUrl).toBe(
       'http://localhost:4000/api/auth/google/callback',
     )
+  })
+})
+
+describe('local AI provider mode', () => {
+  function stubbedAi(): NodeJS.ProcessEnv {
+    return {
+      AI_PROVIDER_LOCAL_STUB: 'enabled',
+      OPENAI_API_KEY: 'sk-local-ai-provider-stub-not-live',
+    }
+  }
+
+  it('keeps the stub by default', () => {
+    const env = stubbedAi()
+    expect(aiProviderMode(env).kind).toBe('stub')
+    expect(env.AI_PROVIDER_LOCAL_STUB).toBe('enabled')
+  })
+
+  it('drops the stub selector in real mode so the pinned OpenAI connector is built', () => {
+    const env: NodeJS.ProcessEnv = {
+      ...stubbedAi(),
+      REPKEY_LOCAL_AI: 'real',
+      OPENAI_API_KEY: `sk-proj-${'a'.repeat(40)}`,
+    }
+    const mode = aiProviderMode(env)
+
+    expect(mode.kind).toBe('real')
+    // A selector left with ANY value keeps provider calls on the stub, so the
+    // key must be absent rather than falsy.
+    expect('AI_PROVIDER_LOCAL_STUB' in env).toBe(false)
+    expect(mode.summary).toContain(AI_PROVIDER_DEPLOYMENT_PROFILE.modelSnapshot)
+  })
+
+  it('names the pinned model and the key instead of starting a stack that cannot infer', () => {
+    for (const key of [undefined, 'sk-local-ai-provider-stub-not-live', 'not-a-key']) {
+      const env: NodeJS.ProcessEnv = { ...stubbedAi(), REPKEY_LOCAL_AI: 'real' }
+      if (key === undefined) delete env.OPENAI_API_KEY
+      else env.OPENAI_API_KEY = key
+      expect(() => aiProviderMode(env)).toThrow('OPENAI_API_KEY')
+      expect(() => aiProviderMode(env)).toThrow(
+        AI_PROVIDER_DEPLOYMENT_PROFILE.modelSnapshot,
+      )
+    }
+  })
+
+  it('is independent of the Google posture', () => {
+    const env: NodeJS.ProcessEnv = {
+      ...sandboxEnv(),
+      ...stubbedAi(),
+      REPKEY_LOCAL_AI: 'real',
+      OPENAI_API_KEY: `sk-${'b'.repeat(40)}`,
+    }
+    expect(aiProviderMode(env).kind).toBe('real')
+    expect(googleProviderMode(env).kind).toBe('sandbox')
+    expect(env.GBP_API_BASE_URL).toBe('https://provider-sandbox:4100')
   })
 })

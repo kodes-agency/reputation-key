@@ -118,9 +118,20 @@ deployed cell sends. Without the redirect URI registered, Google answers
 `Error 400: redirect_uri`; a wrong client answers `invalid_client`.
 
 Real API quota is consumed and real reviewer data lands in the local database;
-`pnpm local:down` deletes that volume. Pub/Sub notifications cannot reach
+`pnpm local:down` deletes that volume. Re-run the import workflow only on a
+fresh stack: a portal you created binds the property, and the fixture cleanup
+cannot delete a bound property. Pub/Sub notifications cannot reach
 localhost, so review updates arrive through the periodic sync rather than a
-push. The AI provider stays stubbed unless you also point it at OpenAI.
+push. **Real AI - `REPKEY_LOCAL_AI=real`.** Independent of the Google posture: the
+runner drops `AI_PROVIDER_LOCAL_STUB` so the gateway builds its pinned
+`api.openai.com` connector, and refuses to start unless `OPENAI_API_KEY` looks
+real, naming the model snapshot the account must be able to call. Analysis,
+reply drafting and trends then run on the live model; the banner prints
+`AI: LIVE`. Spend is bounded by the organisation cost window
+(`ai_organization_cost_windows`) and recorded per operation. Verified locally:
+a reply draft and a worker analysis both settled `succeeded` for 446 micros
+total, and the live model classified a review `mixed / wait_time / medium`
+where the stub's rating-keyed answer is `neutral / service`.
 
 The seed binds no property to Google, and the sandbox has no default scope.
 To get a Google-bound property with synced reviews for the AI features, run
