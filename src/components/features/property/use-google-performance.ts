@@ -17,7 +17,7 @@ import {
   useRetryCountdown,
   type PerformanceClearReason,
 } from './use-google-performance-lifecycle'
-import { usePageVisibleAndFocused } from '#/components/hooks/use-page-visible-and-focused'
+import { usePageVisible } from '#/components/hooks/use-page-visible'
 import { useHydrated } from '#/components/hooks/use-hydrated'
 import {
   PerformanceQueryError,
@@ -39,7 +39,7 @@ export function useGooglePerformance(
   const getPerformance = useServerFn(input.serverFns.getPerformance)
   const renewLease = useServerFn(input.serverFns.renewLease)
   const queryClient = useQueryClient()
-  const pageActive = usePageVisibleAndFocused()
+  const pageVisible = usePageVisible()
   const hydrated = useHydrated()
   const [viewEpoch, setViewEpoch] = useState(0)
   const [reportEnabled, setReportEnabled] = useState(true)
@@ -133,7 +133,7 @@ export function useGooglePerformance(
       hydrated &&
       reportEnabled &&
       clearReason === null &&
-      pageActive &&
+      pageVisible &&
       lease !== null &&
       report !== null,
     initialData: lease ? { ok: true as const, lease } : undefined,
