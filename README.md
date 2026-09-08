@@ -133,7 +133,10 @@ a reply draft and a worker analysis both settled `succeeded` for 446 micros
 total, and the live model classified a review `mixed / wait_time / medium`
 where the stub's rating-keyed answer is `neutral / service`.
 
-The seed binds no property to Google, and the sandbox has no default scope.
+In sandbox mode, **"Connect Google" cannot work**: the authorize host is pinned
+to `accounts.google.com` by the provider contract and the sandbox client id is a
+placeholder, so Google answers `Error 401: invalid_client`. The stack prints that
+warning at startup. The seed binds no property to Google, and the sandbox has no default scope.
 To get a Google-bound property with synced reviews for the AI features, run
 the import workflow against the running stack:
 
