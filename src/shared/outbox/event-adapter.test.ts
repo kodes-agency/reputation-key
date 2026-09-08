@@ -316,7 +316,7 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
     })
   })
 
-  it('keeps publication intent adapter, schemas, and catalogue on strict v2', () => {
+  it('keeps publication intent adapter and schemas on strict v2 with a live consumer', () => {
     clearEventSchemas()
     registerAllEventSchemas()
     const event = reviewReplyPublicationRequested({
@@ -353,11 +353,12 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
         occurredAt: NOW.toISOString(),
       },
     })
-    expect(catalogue).toBeDefined()
-    if (!catalogue) throw new Error('publication intent catalogue row is missing')
-    expect(catalogue.version).toBe(row.eventVersion)
+    expect(catalogue?.consumers.map((consumer) => consumer.name)).toEqual([
+      'review.on-reply-publication-requested',
+    ])
     expect(isEventRegistered(event._tag, 1)).toBe(true)
-    expect(isEventRegistered(event._tag, catalogue.version)).toBe(true)
+    if (row.eventVersion === undefined) throw new Error('event version is missing')
+    expect(isEventRegistered(event._tag, row.eventVersion)).toBe(true)
   })
 
   it.each([

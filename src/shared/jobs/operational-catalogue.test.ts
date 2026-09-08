@@ -26,7 +26,8 @@ describe('job operational catalogue', () => {
         retryAttempts: family.retryAttempts,
         retryBackoff: family.retryBackoff,
         timeoutMs: family.timeoutMs,
-        retention: family.retention,
+        retention: 'completed:100,failed:50',
+        routing: 'cell_local',
         schedule: family.schedule,
         posture:
           family.registration === 'enabled'
