@@ -1,4 +1,4 @@
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { AiError } from '../../domain/errors'
 import type {
   AiOperationBinding,
@@ -36,24 +36,45 @@ export type AiOperationClaim =
   | Readonly<{ status: 'replayed'; operation: AiOperationRecord }>
   | Readonly<{ status: 'conflict' }>
 
-export type AiOperationRecoveryCandidate = Readonly<{
+type AiReviewAnalysisRecovery = Readonly<{
+  eventEnvelopeId: string
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  reviewId: ReviewId
+  sourceEpoch: number
+  sourceRevision: number
+  analysisSequence: number
+  reviewAnalysisEpoch: number
+  propertyProfileVersion: number
+}>
+
+type AiOperationRecoveryIdentity = Readonly<{
   operationId: AiOperationId
-  organizationId: string | null
   attempt: number
-  state: 'pending' | 'executing' | 'failed'
-  failureCode: AiError['code'] | null
   createdAtEpochMillis: number
   updatedAtEpochMillis: number
-  analysis: Readonly<{
-    eventEnvelopeId: string
-    organizationId: OrganizationId
-    propertyId: PropertyId
-    sourceEpoch: number
-    analysisSequence: number
-    reviewAnalysisEpoch: number
-    propertyProfileVersion: number
-  }> | null
 }>
+
+export type AiOperationRecoveryCandidate =
+  | Readonly<
+      AiOperationRecoveryIdentity & {
+        organizationId: string | null
+        state: 'pending' | 'executing' | 'failed'
+        failureCode: AiError['code'] | null
+        analysis: AiReviewAnalysisRecovery | null
+      }
+    >
+  | Readonly<
+      AiOperationRecoveryIdentity & {
+        organizationId: OrganizationId
+        state: 'succeeded_pending_delivery'
+        failureCode: null
+        analysis: AiReviewAnalysisRecovery &
+          Readonly<{
+            resultStatus: 'ready' | 'unavailable' | 'missing'
+          }>
+      }
+    >
 
 export type AiOperationFailureInput = Readonly<{
   operationId: AiOperationId
@@ -73,6 +94,11 @@ export type AiOperationFailureInput = Readonly<{
         /** Recovery path for a retry whose dispatch owner disappeared. */
         expectedState: 'pending'
         expectedFailureCode: AiError['code'] | null
+      }>
+    | Readonly<{
+        /** Recovery path for a completed analysis whose result cannot be delivered. */
+        expectedState: 'succeeded_pending_delivery'
+        expectedFailureCode?: null
       }>
   )
 
@@ -101,7 +127,7 @@ export type AiOperationStorePort = Readonly<{
   recordFailure(input: AiOperationFailureInput): Promise<boolean>
 
   /**
-   * Abandoned work, ordered deterministically, at most `limit` rows.
+   * Recoverable work, ordered deterministically, at most `limit` rows.
    *
    * Executing operations are candidates once their open attempt has outlived
    * `executionHorizonMillis`, or once the operation expires. Review Analysis
@@ -109,14 +135,19 @@ export type AiOperationStorePort = Readonly<{
    * too: their finite outbox dispatch may already be gone, so no request owner
    * remains to claim the scheduled retry.
    *
+   * A completed Review Analysis whose result is still pending delivery after
+   * the same horizon is a candidate until it reaches a terminal operation
+   * state. Its result status distinguishes recoverable persisted output from a
+   * corrupt/missing output that must advance the sequence without a result.
+   *
    * A reaper-failed Review Analysis operation remains a candidate until its
    * originating event has a consumer receipt. That makes the operation row the
    * durable recovery fact if the process dies after fencing the provider call
    * but before advancing the strict aggregate sequence and writing the receipt.
    *
-   * Candidate selection is lock-free and may be stale. `recordFailure` performs
-   * the exact state, attempt, and prior-failure-code CAS before a pending or
-   * executing operation can be terminalized.
+   * Candidate selection is lock-free and may be stale. Terminal writes perform
+   * exact state and attempt CAS checks; failure recovery also checks the prior
+   * failure code.
    */
   listExpiredExecutions(
     input: Readonly<{

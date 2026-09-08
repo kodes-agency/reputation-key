@@ -172,12 +172,14 @@ describe.sequential('AI budget ledger (real PostgreSQL)', () => {
       .where(eq(aiOperations.id, stale))
     const fresh = await fixture.seedOperation()
     // The window has room for exactly one live reservation; the reaper job's
-    // tick frees it alongside the abandoned-execution sweep.
+    // tick frees it alongside the operation recovery sweep.
     const released: number[] = []
     const reaperTick = createAiOperationExecutionReaperHandler({
       reap: async () => ({
-        abandonedVisited: 0,
+        recoveryCandidatesVisited: 0,
         operationsFenced: 0,
+        operationsDelivered: 0,
+        operationsSettled: 0,
         operationsRaced: 0,
         batchFull: false,
       }),

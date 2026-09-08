@@ -1,8 +1,12 @@
 import { createHash } from 'node:crypto'
 import { and, eq, gt, inArray, isNull, lte, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { aiOperations, eventConsumerReceipts } from '#/shared/db/schema'
-import { organizationId, propertyId } from '#/shared/domain/ids'
+import {
+  aiOperations,
+  aiReviewAnalyses,
+  eventConsumerReceipts,
+} from '#/shared/db/schema'
+import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import {
   AI_OPERATION_PROFILES,
   AI_PROVIDER_DEPLOYMENT_PROFILE,
@@ -259,11 +263,15 @@ function mapOperation(row: OperationRow): AiOperationRecord {
   }
 }
 
-function recoveryCandidate(operation: AiOperationRecord): AiOperationRecoveryCandidate {
+function recoveryCandidate(
+  operation: AiOperationRecord,
+  persistedAnalysisStatus: string | null,
+): AiOperationRecoveryCandidate {
   if (
     operation.state !== 'pending' &&
     operation.state !== 'executing' &&
-    operation.state !== 'failed'
+    operation.state !== 'failed' &&
+    operation.state !== 'succeeded_pending_delivery'
   ) {
     failCorrupt('recovery candidate has a settled state')
   }
@@ -274,21 +282,48 @@ function recoveryCandidate(operation: AiOperationRecord): AiOperationRecoveryCan
             eventEnvelopeId: operation.identity.originEventId,
             organizationId: organizationId(operation.identity.organizationId),
             propertyId: propertyId(operation.identity.propertyId),
+            reviewId: reviewId(operation.identity.reviewId),
             sourceEpoch: operation.identity.sourceEpoch,
+            sourceRevision: operation.identity.sourceRevision,
             analysisSequence: operation.identity.analysisSequence,
             reviewAnalysisEpoch: operation.binding.capabilityFence.reviewAnalysisEpoch,
             propertyProfileVersion: operation.binding.propertyProfileVersion,
           }
         : failCorrupt('analysis recovery candidate has the wrong capability')
       : null
-  return {
+  const identity = {
     operationId: operation.id,
-    organizationId: operation.identity.organizationId,
     attempt: operation.executionAttempt,
-    state: operation.state,
-    failureCode: operation.failureCode,
     createdAtEpochMillis: operation.createdAtEpochMillis,
     updatedAtEpochMillis: operation.updatedAtEpochMillis,
+  }
+  if (operation.state === 'succeeded_pending_delivery') {
+    if (operation.failureCode !== null) {
+      failCorrupt('completed analysis recovery candidate has a failure code')
+    }
+    if (analysis === null) {
+      failCorrupt('completed delivery recovery candidate is not an analysis')
+    }
+    const resultStatus =
+      persistedAnalysisStatus === null
+        ? ('missing' as const)
+        : persistedAnalysisStatus === 'ready' ||
+            persistedAnalysisStatus === 'unavailable'
+          ? persistedAnalysisStatus
+          : failCorrupt('completed analysis recovery candidate has an invalid result')
+    return {
+      organizationId: analysis.organizationId,
+      ...identity,
+      state: operation.state,
+      failureCode: null,
+      analysis: { ...analysis, resultStatus },
+    }
+  }
+  return {
+    organizationId: operation.identity.organizationId,
+    ...identity,
+    state: operation.state,
+    failureCode: operation.failureCode,
     analysis,
   }
 }
@@ -549,10 +584,12 @@ export const createAiOperationStoreAdapter = (
     },
 
     async listExpiredExecutions(input) {
-      // Selection is intentionally lock-free. The reaper terminalizes pending
-      // and executing rows through `recordFailure`'s exact CAS. Failed analysis
-      // rows are selected only while their origin event lacks a receipt, making
-      // a crash between the CAS and sequence advancement recoverable.
+      // Selection is intentionally lock-free. The reaper terminalizes pending,
+      // executing, and result-less completed rows through `recordFailure`'s
+      // exact CAS. Persisted results use `markDelivered`'s exact CAS. Failed
+      // analysis rows are selected only while their origin event lacks a
+      // receipt, making a crash between failure and sequence advancement
+      // recoverable.
       const now = new Date(input.nowEpochMillis)
       const horizonDeadline = new Date(
         input.nowEpochMillis - input.executionHorizonMillis,
@@ -561,6 +598,7 @@ export const createAiOperationStoreAdapter = (
         .select({
           operation: aiOperations,
           receiptEventId: eventConsumerReceipts.eventId,
+          persistedAnalysisStatus: aiReviewAnalyses.status,
         })
         .from(aiOperations)
         .leftJoin(
@@ -569,6 +607,10 @@ export const createAiOperationStoreAdapter = (
             eq(eventConsumerReceipts.eventId, aiOperations.originEventId),
             eq(eventConsumerReceipts.consumerName, AI_REVIEW_ANALYSIS_CONSUMER),
           ),
+        )
+        .leftJoin(
+          aiReviewAnalyses,
+          eq(aiReviewAnalyses.operationId, aiOperations.id),
         )
         .where(
           or(
@@ -586,8 +628,16 @@ export const createAiOperationStoreAdapter = (
             ),
             and(
               eq(aiOperations.command, 'analysis'),
+              eq(aiOperations.state, 'succeeded_pending_delivery'),
+              isNull(aiOperations.deliveredAt),
+              lte(aiOperations.createdAt, horizonDeadline),
+            ),
+            and(
+              eq(aiOperations.command, 'analysis'),
               eq(aiOperations.state, 'failed'),
               inArray(aiOperations.failureCode, [
+                'completed_without_delivery',
+                'language_not_supported',
                 'operation_abandoned',
                 'operation_ambiguous',
               ]),
@@ -604,7 +654,9 @@ export const createAiOperationStoreAdapter = (
           aiOperations.id,
         )
         .limit(input.limit)
-      return rows.map((row) => recoveryCandidate(mapOperation(row.operation)))
+      return rows.map((row) =>
+        recoveryCandidate(mapOperation(row.operation), row.persistedAnalysisStatus),
+      )
     },
 
     async markDelivered(input) {

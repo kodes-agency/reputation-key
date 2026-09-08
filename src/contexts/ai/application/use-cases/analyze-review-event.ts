@@ -142,6 +142,59 @@ export async function settleReviewAnalysisWithoutResult(
     : { status: 'terminal' }
 }
 
+export type SettleReviewAnalysisWithResultInput = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  reviewId: ReviewId
+  sourceEpoch: number
+  sourceRevision: number
+  reviewAnalysisEpoch: number
+  analysisSequence: number
+  propertyProfileVersion: number
+  operationId: string
+}>
+
+export type SettleReviewAnalysisWithResultResult =
+  | Readonly<{ status: 'terminal' | 'generation_changed' }>
+  | Readonly<{ status: 'gap'; expectedSequence: number }>
+
+export async function settleReviewAnalysisWithResult(
+  dependencies: Readonly<{
+    reviewEvents: Pick<AiReviewEventStorePort, 'settleOutcome'>
+    aggregates: Pick<AiPropertyAggregateStorePort, 'applyReviewAnalysis'>
+  }>,
+  input: SettleReviewAnalysisWithResultInput,
+): Promise<SettleReviewAnalysisWithResultResult> {
+  const settled = await dependencies.reviewEvents.settleOutcome({
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    sourceEpoch: input.sourceEpoch,
+    reviewAnalysisEpoch: input.reviewAnalysisEpoch,
+    analysisSequence: input.analysisSequence,
+    state: 'ready',
+    operationId: input.operationId,
+    dispositionCode: null,
+  })
+  if (!settled) return { status: 'generation_changed' }
+  const aggregate = await dependencies.aggregates.applyReviewAnalysis({
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    reviewId: input.reviewId,
+    sourceEpoch: input.sourceEpoch,
+    sourceRevision: input.sourceRevision,
+    analysisSequence: input.analysisSequence,
+    reviewAnalysisEpoch: input.reviewAnalysisEpoch,
+    propertyProfileVersion: input.propertyProfileVersion,
+    calendarProfileVersion: 'property-calendar-v1',
+  })
+  if (aggregate.status === 'gap') {
+    return { status: 'gap', expectedSequence: aggregate.expectedAnalysisSequence }
+  }
+  return aggregate.status === 'stale' || aggregate.status === 'unavailable'
+    ? { status: 'generation_changed' }
+    : { status: 'terminal' }
+}
+
 function attentionFor(
   output: Extract<AnalysisResult, { status: 'success' }>['result'],
   rating: number,
@@ -440,32 +493,24 @@ export function createAnalyzeReviewEvent(
       claimed.operation.state === 'succeeded' ||
       claimed.operation.state === 'succeeded_pending_delivery'
     ) {
-      const settled = await dependencies.reviewEvents.settleOutcome({
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        sourceEpoch: input.sourceEpoch,
-        reviewAnalysisEpoch,
-        analysisSequence: input.analysisSequence,
-        state: 'ready',
-        operationId: claimed.operation.id,
-        dispositionCode: null,
-      })
-      if (!settled) return { status: 'generation_changed' }
-      const aggregate = await dependencies.aggregates.applyReviewAnalysis({
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        reviewId: input.reviewId,
-        sourceEpoch: input.sourceEpoch,
-        sourceRevision: input.sourceRevision,
-        analysisSequence: input.analysisSequence,
-        reviewAnalysisEpoch,
-        propertyProfileVersion: profile.profileVersion,
-        calendarProfileVersion: 'property-calendar-v1',
-      })
-      if (aggregate.status === 'gap') {
-        return { status: 'gap', expectedSequence: aggregate.expectedAnalysisSequence }
+      const settled = await settleReviewAnalysisWithResult(
+        settlementDependencies,
+        {
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          reviewId: input.reviewId,
+          sourceEpoch: input.sourceEpoch,
+          sourceRevision: input.sourceRevision,
+          reviewAnalysisEpoch,
+          analysisSequence: input.analysisSequence,
+          propertyProfileVersion: profile.profileVersion,
+          operationId: claimed.operation.id,
+        },
+      )
+      if (settled.status === 'gap') {
+        return { status: 'gap', expectedSequence: settled.expectedSequence }
       }
-      if (aggregate.status === 'stale' || aggregate.status === 'unavailable') {
+      if (settled.status === 'generation_changed') {
         return { status: 'generation_changed' }
       }
       await dependencies.operations.markDelivered({
@@ -612,32 +657,24 @@ export function createAnalyzeReviewEvent(
         expiresAtEpochMillis: completedAtEpochMillis + DERIVATIVE_RETENTION_MILLIS,
       })
       if (!stored) return { status: 'generation_changed' }
-      const settled = await dependencies.reviewEvents.settleOutcome({
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        sourceEpoch: input.sourceEpoch,
-        reviewAnalysisEpoch,
-        analysisSequence: input.analysisSequence,
-        state: 'ready',
-        operationId: execution.id,
-        dispositionCode: null,
-      })
-      if (!settled) return { status: 'generation_changed' }
-      const aggregate = await dependencies.aggregates.applyReviewAnalysis({
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        reviewId: input.reviewId,
-        sourceEpoch: input.sourceEpoch,
-        sourceRevision: input.sourceRevision,
-        analysisSequence: input.analysisSequence,
-        reviewAnalysisEpoch,
-        propertyProfileVersion: profile.profileVersion,
-        calendarProfileVersion: 'property-calendar-v1',
-      })
-      if (aggregate.status === 'gap') {
-        return { status: 'gap', expectedSequence: aggregate.expectedAnalysisSequence }
+      const settled = await settleReviewAnalysisWithResult(
+        settlementDependencies,
+        {
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          reviewId: input.reviewId,
+          sourceEpoch: input.sourceEpoch,
+          sourceRevision: input.sourceRevision,
+          reviewAnalysisEpoch,
+          analysisSequence: input.analysisSequence,
+          propertyProfileVersion: profile.profileVersion,
+          operationId: execution.id,
+        },
+      )
+      if (settled.status === 'gap') {
+        return { status: 'gap', expectedSequence: settled.expectedSequence }
       }
-      if (aggregate.status === 'stale' || aggregate.status === 'unavailable') {
+      if (settled.status === 'generation_changed') {
         return { status: 'generation_changed' }
       }
       await dependencies.operations.markDelivered({
