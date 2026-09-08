@@ -1,6 +1,10 @@
 import { useMemo, useRef, useState, type ComponentProps } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import {
+  AuthedRouterDecorator,
+  withRole,
+} from '../../../../.storybook/AuthedRouterDecorator'
 import type {
   getPropertyGooglePerformance,
   renewPropertyGooglePerformanceLease,
@@ -179,6 +183,12 @@ const getDisconnected = (async () => ({
   action: 'open_integrations',
 })) as unknown as typeof getPropertyGooglePerformance
 
+const getDisconnectedWithoutAction = (async () => ({
+  status: 'unavailable',
+  reason: 'disconnected',
+  action: null,
+})) as unknown as typeof getPropertyGooglePerformance
+
 const getProviderError = (async () => ({
   status: 'error',
   errorCode: 'provider_timeout',
@@ -262,6 +272,7 @@ const meta = {
   tags: ['autodocs'],
   parameters: { layout: 'padded' },
   render: (args) => <ControlledPerformanceSection {...args} />,
+  decorators: [AuthedRouterDecorator],
   args: {
     propertyId: PROPERTY_ID,
     preset: '30d',
@@ -303,6 +314,7 @@ export const Loading: Story = {
 }
 
 export const PropertyDisconnected: Story = {
+  decorators: [withRole('AccountAdmin')],
   args: {
     serverFns: { getPerformance: getDisconnected, renewLease },
   },
@@ -310,7 +322,30 @@ export const PropertyDisconnected: Story = {
     await expect(
       canvas.findByText('Performance is not available for this property'),
     ).resolves.toBeVisible()
-    await expect(canvas.getByRole('link', { name: 'Open integrations' })).toBeVisible()
+    const integrations = canvas.getByRole('link', { name: 'Open integrations' })
+    await expect(integrations).toBeVisible()
+    await expect(integrations).toHaveAttribute('href', '/settings/integrations')
+
+    integrations.addEventListener('click', (event) => event.preventDefault(), {
+      once: true,
+    })
+    await userEvent.click(integrations)
+  },
+}
+
+export const PropertyDisconnectedForPropertyManager: Story = {
+  args: {
+    serverFns: { getPerformance: getDisconnectedWithoutAction, renewLease },
+  },
+  decorators: [withRole('PropertyManager')],
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.findByText('Performance is not available for this property'),
+    ).resolves.toBeVisible()
+    await expect(
+      canvas.getByText(/ask an account admin to review this property's Google setup/i),
+    ).toBeVisible()
+    await expect(canvas.queryByRole('link', { name: 'Open integrations' })).toBeNull()
   },
 }
 

@@ -55,6 +55,16 @@ describe('Auth configuration', () => {
     expect(organizationPlugin?.options?.dynamicAccessControl?.enabled).toBe(false)
   })
 
+  it('keeps verification tokens valid for the 24-hour email promise', async () => {
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+
+    const { createAuth } = await import('#/shared/auth/auth')
+    const auth = createAuth()
+
+    expect(auth.options.emailVerification?.expiresIn).toBe(60 * 60 * 24)
+  })
+
   it('session configuration has correct expiry', async () => {
     const { resetEnv } = await import('#/shared/config/env')
     resetEnv()

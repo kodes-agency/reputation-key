@@ -2,7 +2,12 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { propertyKeys, identityKeys, inboxKeys } from '#/shared/queries/query-keys'
+import {
+  propertyKeys,
+  identityKeys,
+  inboxKeys,
+  portalKeys,
+} from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { listMembers } from '#/contexts/identity/server/organizations'
 import {
@@ -29,6 +34,11 @@ import {
   setResponseTargetPolicyFn,
 } from '#/contexts/inbox/server/inbox'
 import { PrivateFeedbackTargetCard } from '#/components/features/property/private-feedback-target-card'
+import { PropertyPublicDisplayNameCard } from '#/components/features/property/property-public-display-name-card'
+import {
+  getPropertyPortalExperience,
+  savePropertyPortalBrandProfile,
+} from '#/contexts/portal/server/portals'
 
 const responsibleManagersQuery = (propertyId: string) =>
   queryOptions({
@@ -50,6 +60,13 @@ const responseTargetPolicyQuery = (propertyId: string) =>
     staleTime: 60_000,
   })
 
+const propertyPortalExperienceQuery = (propertyId: string) =>
+  queryOptions({
+    queryKey: portalKeys.propertyExperience(propertyId),
+    queryFn: () => getPropertyPortalExperience({ data: { propertyId } }),
+    staleTime: 30_000,
+  })
+
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/settings')({
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
@@ -64,6 +81,9 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/set
       context.queryClient.ensureQueryData(membersQuery),
       ...(can(role, 'organization.update')
         ? [context.queryClient.ensureQueryData(responseTargetPolicyQuery(propertyId))]
+        : []),
+      ...(can(role, 'portal.read')
+        ? [context.queryClient.ensureQueryData(propertyPortalExperienceQuery(propertyId))]
         : []),
     ])
   },
@@ -82,6 +102,11 @@ function PropertySettingsRoute() {
   const { data: responseTargetSettings } = useQuery({
     ...responseTargetPolicyQuery(propertyId),
     enabled: canManageResponseTargets,
+  })
+  const canReadPortalBrand = can(role, 'portal.read')
+  const { data: portalExperience } = useQuery({
+    ...propertyPortalExperienceQuery(propertyId),
+    enabled: canReadPortalBrand,
   })
   const updateAction = useActionMutation(updatePropertyResponsibleManagers, {
     successMessage: 'Responsible managers updated',
@@ -137,6 +162,10 @@ function PropertySettingsRoute() {
     successMessage: 'Property response target updated',
     invalidateKeys: [inboxKeys.responseTargetPolicies(propertyId)],
   })
+  const savePublicDisplayName = useActionMutation(savePropertyPortalBrandProfile, {
+    successMessage: 'Public display name saved',
+    invalidateKeys: [portalKeys.propertyExperience(propertyId)],
+  })
 
   return (
     <PageShell>
@@ -150,6 +179,14 @@ function PropertySettingsRoute() {
         ]}
       />
       <div className="space-y-6">
+        {portalExperience ? (
+          <PropertyPublicDisplayNameCard
+            key={propertyId}
+            propertyId={propertyId}
+            profile={portalExperience.profile}
+            action={savePublicDisplayName}
+          />
+        ) : null}
         <PropertyResponsibleManagersCard
           propertyId={propertyId}
           state={responsibleManagers}

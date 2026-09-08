@@ -1,5 +1,5 @@
 {
-  "attestationDigest": "d42770c86fcae33d9ea1b0e12b66ad4515fae4bbe19803c3ac5e8a92880e151c",
+  "attestationDigest": "23fac1bbedd46bc8298948dbcc8f00c2cecfd1b5996903ce4f745530e93e7a6d",
   "constants": {
     "minimumLetters": 24,
     "minimumProbability": 0.85,
@@ -114,6 +114,6 @@
   "version": "reply-language-verifier-v1",
   "wrapper": {
     "path": "src/shared/ai-reply-language-verifier.ts",
-    "sha256": "782e54bc8e0dcefd0780b17c17940f55221c7178590d91cc5ac51230548a1612"
+    "sha256": "c37010e072d073c1718f030c4e8022024584f46a0ee0e344e0ad56ec2a949be4"
   }
 }
