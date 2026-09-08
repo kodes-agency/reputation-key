@@ -7,6 +7,8 @@
     "src/bootstrap.ts",
     "src/composition.ts",
     "scripts/cleanup-kodes.ts",
+    "scripts/local/host-stack.ts",
+    "scripts/local/loopback-hosts.mjs",
     "scripts/check-db.ts",
     "scripts/check-schema-drift.ts",
     "scripts/cleanup-all.ts",

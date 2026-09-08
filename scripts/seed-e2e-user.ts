@@ -62,7 +62,11 @@ import { assertLocalToolExecutionIdentity } from '../src/shared/config/local-too
 import { LOCAL_E2E_ORGANIZATION_ID } from '../src/shared/config/local-stack-contract'
 import { GOOGLE_CONTENT_CAPABILITIES } from '../src/shared/domain/google-content-capability'
 import { createGoogleContentAuthorityRepository } from '../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
+import { createAiControlAdapter } from '../src/contexts/ai/infrastructure/adapters/ai-control.adapter'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../src/shared/ai-operation-profiles'
+import { CURRENT_MERCHANT_AI_CAPABILITIES } from '../src/shared/domain/merchant-ai-capability'
 
+import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { Redis } from 'ioredis'
 
@@ -1263,8 +1267,51 @@ async function ensureLocalGoogleContentCapabilitiesAllowed(): Promise<void> {
   }
 }
 
+/**
+ * The baseline seeds every AI capability control `killed|draining` - the
+ * dark-runtime posture an operator lifts per release. The local stack is that
+ * operator: each capability is restored against the checked-out revision, so
+ * analysis, reply drafting and trends run through the AI stub without an
+ * `ops:ai-control` step. Mirrors the Google content acceptance above.
+ */
+async function ensureLocalAiCapabilitiesEnabled(): Promise<void> {
+  const control = createAiControlAdapter(getDb())
+  const profile = AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion
+  const candidateReleaseSha = execFileSync('git', ['rev-parse', 'HEAD'], {
+    encoding: 'utf8',
+  }).trim()
+  for (const capability of CURRENT_MERCHANT_AI_CAPABILITIES) {
+    const heads = await control.readHeads({
+      providerDeploymentProfileVersion: profile,
+      capability,
+    })
+    const head = heads.find(
+      (h) => h.scope.kind === 'capability' && h.scope.capability === capability,
+    )
+    if (!head) throw new Error(`AI control head is absent: capability:${capability}`)
+    if (head.executionState === 'enabled' && head.admissionState === 'accepting') continue
+    const after = await control.transition({
+      scope: { kind: 'capability', capability },
+      providerDeploymentProfileVersion: profile,
+      expectedControlId: head.controlId,
+      expectedGeneration: head.generation,
+      executionState: 'enabled',
+      admissionState: 'accepting',
+      reasonCode: 'operator_restore',
+      actorUserId: 'local-stack-seed',
+      ticketReference: 'local-stack',
+      candidateReleaseSha,
+    })
+    if (!after)
+      throw new Error(
+        `AI capability ${capability} could not be restored for the local stack`,
+      )
+  }
+}
+
 async function main(): Promise<void> {
   await ensureLocalGoogleContentCapabilitiesAllowed()
+  await ensureLocalAiCapabilitiesEnabled()
   const managerUserId = await ensureCredentialUser({
     email: managerEmail,
     password: managerPassword,

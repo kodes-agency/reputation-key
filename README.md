@@ -61,6 +61,8 @@ CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migratio
 | Command             | Description                                                       |
 | ------------------- | ----------------------------------------------------------------- |
 | `pnpm dev`          | Start dev server on :3000                                         |
+| `pnpm local:up`     | Inner loop: services in Compose, web (HMR) + worker on the host   |
+| `pnpm local:down`   | Remove the local services and their volumes                       |
 | `pnpm build`        | Build the web, worker, and migration bundles                      |
 | `pnpm start`        | Run built web server                                              |
 | `pnpm start:worker` | Run built worker                                                  |
@@ -71,14 +73,42 @@ CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migratio
 | `pnpm lint:ci`      | `lint` + test-quality + Google/AI artifact gates                  |
 | `pnpm format`       | Prettier format                                                   |
 
-### Local E2E stack
+### Local stacks
 
-The local E2E stack runs the containerised production build with `NODE_ENV=test`
-and one Redis. Compose, host migration/seed commands, and Playwright share the
-committed `e2e/stack.env`. `e2e:stack:up` first issues a run-scoped local CA
-with `openssl` into the ignored `e2e/.certs/` because the Google provider
-sandbox is TLS-only (ADR 0050); containers and Playwright trust it through
-`NODE_EXTRA_CA_CERTS`.
+Both stacks share the committed `e2e/stack.env` and the same Compose services:
+Postgres, Redis, the TLS Google Business Profile sandbox, the AI provider stub
+and the mail stub. `scripts/e2e/stack-services.sh` issues a run-scoped local CA
+with `openssl` into the ignored `e2e/.certs/` (the sandbox is TLS-only,
+ADR 0050), starts the services, runs the deploy migration and the e2e seed.
+Nothing here talks to real Google, OpenAI or Resend.
+
+**Inner loop - `pnpm local:up`.** The web dev server (HMR) and the worker run
+on the host against those services; every feature runs, including Google
+import/sync through the sandbox, the AI pipeline (the stub synthesizes answers
+for unscripted requests) and email. `http://127.0.0.1:3000`; sign in as
+`test@example.com` (password `E2E_TEST_PASSWORD` in `e2e/stack.env`) or
+`staff@example.com` / `password123`. Ctrl-C stops both processes;
+`pnpm local:down` removes the services and their volumes. The host processes
+resolve the Compose service names to loopback through
+`scripts/local/loopback-hosts.mjs` because `local-provider-fetch.ts`
+deliberately compiles the AI stub address in.
+
+The seed binds no property to Google, and the sandbox has no default scope.
+To get a Google-bound property with synced reviews for the AI features, run
+the import workflow against the running stack:
+
+```bash
+E2E_EXTERNAL_STACK= NODE_EXTRA_CA_CERTS=e2e/.certs/ca.crt pnpm test:e2e --project=critical e2e/critical/workflows/google-import-sync.spec.ts
+```
+
+Then, in the app: Settings → AI & replies → that property (reply language,
+enable AI), and a portal's Settings tab for the public display name a reply
+draft must use.
+
+**Pre-merge - `pnpm e2e:stack:up`.** The containerised production build
+(`NODE_ENV=test`, `E2E=1`) on the same services - what CI's e2e job runs.
+Use it to click through a build or to run the suite; the suite is not meant
+for the dev server (production server-function ids, the auth rate limit):
 
 ```bash
 pnpm e2e:stack:up
@@ -91,6 +121,9 @@ Use a fresh volume and image lifecycle on every pass when reproducing a flake:
 ```bash
 for i in 1 2 3; do pnpm e2e:stack:down && pnpm e2e:stack:up && pnpm test:e2e --project=critical; done
 ```
+
+**Deploy - `pnpm ops deploy-ci-images --sha <main sha> --apply`** once `main`
+is green; CI has already run the same stack, so deploying is not a test step.
 
 ### Git hooks
 
