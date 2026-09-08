@@ -161,9 +161,9 @@ describe('AI operation execution reaper', () => {
       NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS,
       'ready',
     )
-    const listExpiredExecutions = vi.fn<
-      AiOperationStorePort['listExpiredExecutions']
-    >(async () => [overdue, stale, fresh])
+    const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
+      async () => [overdue, stale, fresh],
+    )
     const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
     const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
     const settleOutcome = vi.fn(async () => ({
@@ -262,9 +262,9 @@ describe('AI operation execution reaper', () => {
       NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS,
       'missing',
     )
-    const listExpiredExecutions = vi.fn<
-      AiOperationStorePort['listExpiredExecutions']
-    >(async () => [missing])
+    const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
+      async () => [missing],
+    )
     const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
     const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
     const settleOutcome = vi.fn(async () => ({

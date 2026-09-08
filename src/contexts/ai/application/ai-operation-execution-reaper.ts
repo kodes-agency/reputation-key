@@ -70,15 +70,56 @@ type StandardRecoveryCandidate = Exclude<
 >
 
 type DispositionCode =
-  | 'language_not_supported'
-  | 'operation_abandoned'
-  | 'operation_ambiguous'
+  'language_not_supported' | 'operation_abandoned' | 'operation_ambiguous'
 
 type FenceResult =
   | Readonly<{ outcome: 'fenced'; dispositionCode: DispositionCode }>
   | Readonly<{ outcome: 'already_fenced'; dispositionCode: DispositionCode }>
   | Readonly<{ outcome: 'raced' }>
   | Readonly<{ outcome: 'skipped' }>
+
+type DeliveryRecoveryCandidate = Extract<
+  AiOperationRecoveryCandidate,
+  Readonly<{ state: 'succeeded_pending_delivery' }>
+>
+
+type DeliveryDispositionCode = Exclude<DispositionCode, 'operation_abandoned'>
+
+type DeliveryFailureCode = 'completed_without_delivery' | DeliveryDispositionCode
+
+type RecoveryResult =
+  | Readonly<{ outcome: 'delivered' }>
+  | Readonly<{ outcome: 'fenced'; settled: boolean }>
+  | Readonly<{ outcome: 'raced' }>
+  | Readonly<{ outcome: 'settled' }>
+  | Readonly<{ outcome: 'skipped' }>
+
+type RecoveryCounts = {
+  operationsFenced: number
+  operationsDelivered: number
+  operationsSettled: number
+  operationsRaced: number
+}
+
+function countRecoveryResult(counts: RecoveryCounts, result: RecoveryResult): void {
+  switch (result.outcome) {
+    case 'delivered':
+      counts.operationsDelivered += 1
+      return
+    case 'fenced':
+      counts.operationsFenced += 1
+      if (result.settled) counts.operationsSettled += 1
+      return
+    case 'raced':
+      counts.operationsRaced += 1
+      return
+    case 'settled':
+      counts.operationsSettled += 1
+      return
+    case 'skipped':
+      return
+  }
+}
 
 export function createAiOperationExecutionReaper(
   deps: Readonly<{
@@ -168,6 +209,130 @@ export function createAiOperationExecutionReaper(
     return true
   }
 
+  // Delivery recovery has different CAS and crash windows from owner fencing.
+  // Keep ready-result delivery and no-result settlement in focused helpers so
+  // each durable transition remains explicit.
+  async function fenceCompletedDelivery(
+    candidate: DeliveryRecoveryCandidate,
+    failureCode: DeliveryFailureCode,
+    nowEpochMillis: number,
+  ): Promise<boolean> {
+    return deps.store.recordFailure({
+      operationId: candidate.operationId,
+      organizationId: candidate.organizationId,
+      expectedAttempt: candidate.attempt,
+      expectedState: 'succeeded_pending_delivery',
+      expectedFailureCode: null,
+      failureCode,
+      retryAtEpochMillis: null,
+      failedAtEpochMillis: nowEpochMillis,
+    })
+  }
+
+  async function deliverReadyAnalysis(
+    candidate: DeliveryRecoveryCandidate,
+    nowEpochMillis: number,
+  ): Promise<RecoveryResult> {
+    const {
+      eventEnvelopeId,
+      resultStatus: _resultStatus,
+      ...analysis
+    } = candidate.analysis
+    const settled = await settleReviewAnalysisWithResult(
+      { reviewEvents: deps.reviewEvents, aggregates: deps.aggregates },
+      { ...analysis, operationId: candidate.operationId },
+    )
+    if (settled.status === 'gap') return { outcome: 'skipped' }
+    if (settled.status === 'generation_changed') {
+      const fenced = await fenceCompletedDelivery(
+        candidate,
+        'completed_without_delivery',
+        nowEpochMillis,
+      )
+      if (!fenced) return { outcome: 'raced' }
+      await deps.recordAnalysisReceipt(eventEnvelopeId, 'obsolete')
+      return { outcome: 'fenced', settled: true }
+    }
+
+    // Receipt first is crash-safe because this state cannot invoke the
+    // provider. The row remains a candidate until markDelivered wins.
+    await deps.recordAnalysisReceipt(eventEnvelopeId, 'applied')
+    const delivered = await deps.store.markDelivered({
+      operationId: candidate.operationId,
+      organizationId: candidate.organizationId,
+      expectedAttempt: candidate.attempt,
+      deliveredAtEpochMillis: nowEpochMillis,
+    })
+    return delivered ? { outcome: 'delivered' } : { outcome: 'raced' }
+  }
+
+  async function recoverAnalysisWithoutResult(
+    candidate: DeliveryRecoveryCandidate,
+    dispositionCode: DeliveryDispositionCode,
+    nowEpochMillis: number,
+  ): Promise<RecoveryResult> {
+    const {
+      eventEnvelopeId,
+      resultStatus: _resultStatus,
+      ...analysis
+    } = candidate.analysis
+    const fenced = await fenceCompletedDelivery(
+      candidate,
+      dispositionCode,
+      nowEpochMillis,
+    )
+    if (!fenced) return { outcome: 'raced' }
+    const settled = await settleReviewAnalysisWithoutResult(
+      { reviewEvents: deps.reviewEvents, aggregates: deps.aggregates },
+      { ...analysis, operationId: candidate.operationId, dispositionCode },
+    )
+    if (settled.status === 'gap') return { outcome: 'fenced', settled: false }
+    await deps.recordAnalysisReceipt(
+      eventEnvelopeId,
+      settled.status === 'generation_changed' ? 'obsolete' : 'applied',
+    )
+    return { outcome: 'fenced', settled: true }
+  }
+
+  async function recoverDelivery(
+    candidate: DeliveryRecoveryCandidate,
+    nowEpochMillis: number,
+    horizonDeadline: number,
+  ): Promise<RecoveryResult> {
+    if (candidate.createdAtEpochMillis > horizonDeadline) {
+      return { outcome: 'skipped' }
+    }
+    if (candidate.analysis.resultStatus === 'ready') {
+      return deliverReadyAnalysis(candidate, nowEpochMillis)
+    }
+    const dispositionCode: DeliveryDispositionCode =
+      candidate.analysis.resultStatus === 'unavailable'
+        ? 'language_not_supported'
+        : 'operation_ambiguous'
+    return recoverAnalysisWithoutResult(candidate, dispositionCode, nowEpochMillis)
+  }
+
+  async function recoverStandardCandidate(
+    candidate: StandardRecoveryCandidate,
+    nowEpochMillis: number,
+    horizonDeadline: number,
+  ): Promise<RecoveryResult> {
+    if (
+      candidate.state === 'failed' &&
+      candidate.failureCode === 'completed_without_delivery'
+    ) {
+      if (candidate.analysis === null) return { outcome: 'skipped' }
+      await deps.recordAnalysisReceipt(candidate.analysis.eventEnvelopeId, 'obsolete')
+      return { outcome: 'settled' }
+    }
+
+    const result = await fence(candidate, nowEpochMillis, horizonDeadline)
+    if (result.outcome === 'skipped' || result.outcome === 'raced') return result
+    const settled = await settleAnalysis(candidate, result.dispositionCode)
+    if (result.outcome === 'fenced') return { outcome: 'fenced', settled }
+    return settled ? { outcome: 'settled' } : { outcome: 'skipped' }
+  }
+
   return async () => {
     const nowEpochMillis = deps.nowEpochMillis()
     const horizonDeadline = nowEpochMillis - AI_EXECUTION_ABANDONED_AFTER_MILLIS
@@ -176,116 +341,27 @@ export function createAiOperationExecutionReaper(
       executionHorizonMillis: AI_EXECUTION_ABANDONED_AFTER_MILLIS,
       limit,
     })
-    let operationsFenced = 0
-    let operationsDelivered = 0
-    let operationsSettled = 0
-    let operationsRaced = 0
+    const counts: RecoveryCounts = {
+      operationsFenced: 0,
+      operationsDelivered: 0,
+      operationsSettled: 0,
+      operationsRaced: 0,
+    }
 
     for (const candidate of candidates) {
-      if (candidate.state === 'succeeded_pending_delivery') {
-        if (candidate.createdAtEpochMillis > horizonDeadline) continue
-        const { eventEnvelopeId, resultStatus, ...analysis } = candidate.analysis
-        if (resultStatus === 'ready') {
-          const settled = await settleReviewAnalysisWithResult(
-            { reviewEvents: deps.reviewEvents, aggregates: deps.aggregates },
-            { ...analysis, operationId: candidate.operationId },
-          )
-          if (settled.status === 'gap') continue
-          if (settled.status === 'generation_changed') {
-            const fenced = await deps.store.recordFailure({
-              operationId: candidate.operationId,
-              organizationId: candidate.organizationId,
-              expectedAttempt: candidate.attempt,
-              expectedState: 'succeeded_pending_delivery',
-              expectedFailureCode: null,
-              failureCode: 'completed_without_delivery',
-              retryAtEpochMillis: null,
-              failedAtEpochMillis: nowEpochMillis,
-            })
-            if (!fenced) {
-              operationsRaced += 1
-              continue
-            }
-            operationsFenced += 1
-            await deps.recordAnalysisReceipt(eventEnvelopeId, 'obsolete')
-            operationsSettled += 1
-            continue
-          }
-
-          // Receipt first is crash-safe because this state cannot invoke the
-          // provider. The row remains a candidate until markDelivered wins.
-          await deps.recordAnalysisReceipt(eventEnvelopeId, 'applied')
-          const delivered = await deps.store.markDelivered({
-            operationId: candidate.operationId,
-            organizationId: candidate.organizationId,
-            expectedAttempt: candidate.attempt,
-            deliveredAtEpochMillis: nowEpochMillis,
-          })
-          if (delivered) operationsDelivered += 1
-          else operationsRaced += 1
-          continue
-        }
-
-        const dispositionCode =
-          resultStatus === 'unavailable'
-            ? ('language_not_supported' as const)
-            : ('operation_ambiguous' as const)
-        const fenced = await deps.store.recordFailure({
-          operationId: candidate.operationId,
-          organizationId: candidate.organizationId,
-          expectedAttempt: candidate.attempt,
-          expectedState: 'succeeded_pending_delivery',
-          expectedFailureCode: null,
-          failureCode: dispositionCode,
-          retryAtEpochMillis: null,
-          failedAtEpochMillis: nowEpochMillis,
-        })
-        if (!fenced) {
-          operationsRaced += 1
-          continue
-        }
-        operationsFenced += 1
-        const settled = await settleReviewAnalysisWithoutResult(
-          { reviewEvents: deps.reviewEvents, aggregates: deps.aggregates },
-          { ...analysis, operationId: candidate.operationId, dispositionCode },
-        )
-        if (settled.status === 'gap') continue
-        await deps.recordAnalysisReceipt(
-          eventEnvelopeId,
-          settled.status === 'generation_changed' ? 'obsolete' : 'applied',
-        )
-        operationsSettled += 1
-        continue
-      }
-
-      if (
-        candidate.state === 'failed' &&
-        candidate.failureCode === 'completed_without_delivery'
-      ) {
-        if (candidate.analysis === null) continue
-        await deps.recordAnalysisReceipt(candidate.analysis.eventEnvelopeId, 'obsolete')
-        operationsSettled += 1
-        continue
-      }
-
-      const result = await fence(candidate, nowEpochMillis, horizonDeadline)
-      if (result.outcome === 'skipped') continue
-      if (result.outcome === 'raced') {
-        operationsRaced += 1
-        continue
-      }
-      if (result.outcome === 'fenced') operationsFenced += 1
-      if (await settleAnalysis(candidate, result.dispositionCode)) {
-        operationsSettled += 1
-      }
+      const result =
+        candidate.state === 'succeeded_pending_delivery'
+          ? await recoverDelivery(candidate, nowEpochMillis, horizonDeadline)
+          : await recoverStandardCandidate(candidate, nowEpochMillis, horizonDeadline)
+      countRecoveryResult(counts, result)
     }
 
     return Object.freeze({
       recoveryCandidatesVisited: candidates.length,
-      operationsFenced,
-      operationsDelivered,
-      operationsSettled,
-      operationsRaced,
+      operationsFenced: counts.operationsFenced,
+      operationsDelivered: counts.operationsDelivered,
+      operationsSettled: counts.operationsSettled,
+      operationsRaced: counts.operationsRaced,
       batchFull: candidates.length >= limit,
     })
   }

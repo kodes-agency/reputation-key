@@ -493,20 +493,17 @@ export function createAnalyzeReviewEvent(
       claimed.operation.state === 'succeeded' ||
       claimed.operation.state === 'succeeded_pending_delivery'
     ) {
-      const settled = await settleReviewAnalysisWithResult(
-        settlementDependencies,
-        {
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          reviewId: input.reviewId,
-          sourceEpoch: input.sourceEpoch,
-          sourceRevision: input.sourceRevision,
-          reviewAnalysisEpoch,
-          analysisSequence: input.analysisSequence,
-          propertyProfileVersion: profile.profileVersion,
-          operationId: claimed.operation.id,
-        },
-      )
+      const settled = await settleReviewAnalysisWithResult(settlementDependencies, {
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        reviewId: input.reviewId,
+        sourceEpoch: input.sourceEpoch,
+        sourceRevision: input.sourceRevision,
+        reviewAnalysisEpoch,
+        analysisSequence: input.analysisSequence,
+        propertyProfileVersion: profile.profileVersion,
+        operationId: claimed.operation.id,
+      })
       if (settled.status === 'gap') {
         return { status: 'gap', expectedSequence: settled.expectedSequence }
       }
@@ -657,20 +654,17 @@ export function createAnalyzeReviewEvent(
         expiresAtEpochMillis: completedAtEpochMillis + DERIVATIVE_RETENTION_MILLIS,
       })
       if (!stored) return { status: 'generation_changed' }
-      const settled = await settleReviewAnalysisWithResult(
-        settlementDependencies,
-        {
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          reviewId: input.reviewId,
-          sourceEpoch: input.sourceEpoch,
-          sourceRevision: input.sourceRevision,
-          reviewAnalysisEpoch,
-          analysisSequence: input.analysisSequence,
-          propertyProfileVersion: profile.profileVersion,
-          operationId: execution.id,
-        },
-      )
+      const settled = await settleReviewAnalysisWithResult(settlementDependencies, {
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        reviewId: input.reviewId,
+        sourceEpoch: input.sourceEpoch,
+        sourceRevision: input.sourceRevision,
+        reviewAnalysisEpoch,
+        analysisSequence: input.analysisSequence,
+        propertyProfileVersion: profile.profileVersion,
+        operationId: execution.id,
+      })
       if (settled.status === 'gap') {
         return { status: 'gap', expectedSequence: settled.expectedSequence }
       }

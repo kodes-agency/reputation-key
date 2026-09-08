@@ -551,5 +551,4 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
       caughtUpAnalysisSequence: 1,
     })
   })
-
 })

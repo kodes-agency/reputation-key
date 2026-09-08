@@ -1,11 +1,7 @@
 import { createHash } from 'node:crypto'
 import { and, eq, gt, inArray, isNull, lte, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import {
-  aiOperations,
-  aiReviewAnalyses,
-  eventConsumerReceipts,
-} from '#/shared/db/schema'
+import { aiOperations, aiReviewAnalyses, eventConsumerReceipts } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import {
   AI_OPERATION_PROFILES,
@@ -307,8 +303,7 @@ function recoveryCandidate(
     const resultStatus =
       persistedAnalysisStatus === null
         ? ('missing' as const)
-        : persistedAnalysisStatus === 'ready' ||
-            persistedAnalysisStatus === 'unavailable'
+        : persistedAnalysisStatus === 'ready' || persistedAnalysisStatus === 'unavailable'
           ? persistedAnalysisStatus
           : failCorrupt('completed analysis recovery candidate has an invalid result')
     return {
@@ -608,10 +603,7 @@ export const createAiOperationStoreAdapter = (
             eq(eventConsumerReceipts.consumerName, AI_REVIEW_ANALYSIS_CONSUMER),
           ),
         )
-        .leftJoin(
-          aiReviewAnalyses,
-          eq(aiReviewAnalyses.operationId, aiOperations.id),
-        )
+        .leftJoin(aiReviewAnalyses, eq(aiReviewAnalyses.operationId, aiOperations.id))
         .where(
           or(
             and(
