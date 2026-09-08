@@ -97,7 +97,7 @@ describe('deploy migration runtime authority', () => {
     // The regression this pins: every one of these deploys was refused, so
     // `web` built from git and never shipped, and the beta sat on an older
     // build with no way to advance it.
-    it('authorizes web in reputation-key / google-closed-beta', () => {
+    it('authorizes web in reputation-key / closed-beta-v2', () => {
       expect(authorizeDeployMigrationRuntime(closedBeta, 'closed-beta')).toEqual({
         mode: 'railway',
         deploymentProfile: 'production',

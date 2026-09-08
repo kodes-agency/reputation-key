@@ -12,26 +12,26 @@ export const CI_IMAGE_DIGEST_MAP_VERSION = 'repkey-ci-image-digest-map-1' as con
 export const CI_IMAGE_DIGEST_MAP_FILE = 'ci-image-digest-map.json' as const
 export const TRUSTED_REPOSITORY = 'kodes-agency/reputation-key' as const
 export const TRUSTED_CI_WORKFLOW = '.github/workflows/ci.yml' as const
-export const CLOSED_BETA_ENVIRONMENT = 'google-closed-beta' as const
+export const CLOSED_BETA_ENVIRONMENT = 'closed-beta-v2' as const
 export const CLOSED_BETA_PROJECT_ID = '91ab4b88-25a1-404c-9961-4f2b392e2874' as const
-export const CLOSED_BETA_ENVIRONMENT_ID = '4a1eec11-f629-4acc-aa21-b6326fcf97e8' as const
+export const CLOSED_BETA_ENVIRONMENT_ID = '500b4fba-5567-49c3-89a5-323abb908d19' as const
 
 export const CLOSED_BETA_IMAGE_SERVICES = [
   {
     imageName: 'web',
     serviceName: 'web',
-    serviceId: '27bbc8e9-c8aa-4104-aa3d-7e8ce9d2071b',
+    serviceId: '9d3ceeb9-9f04-44da-8b9c-087d868bc010',
   },
   {
     imageName: 'worker',
     serviceName: 'worker',
-    serviceId: 'a667f978-ee3e-4707-9d38-7c23a4f2e4cc',
+    serviceId: 'ca163de9-a106-4e02-b1b6-1341dd179c5c',
   },
   {
     // Provider Redis goes last so a substrate failure cannot precede its users.
     imageName: 'google-provider-redis',
     serviceName: 'google-provider-redis',
-    serviceId: '91935481-1aae-4dcd-b0f2-a84b0b3b34f3',
+    serviceId: 'dc955f6c-0775-47f3-8bbc-8a6077edc3d3',
   },
 ] as const
 
@@ -159,8 +159,8 @@ const POLL_INTERVAL_MS = 10_000
 const DEPLOY_TIMEOUT_MS = 15 * 60_000
 const WEB_HEALTH_TIMEOUT_MS = 2 * 60_000
 const WEB_HEALTH_URLS = [
-  'https://web-google-closed-beta.up.railway.app/api/health/ready',
-  'https://web-google-closed-beta.up.railway.app/api/health/started',
+  'https://web-closed-beta-v2.up.railway.app/api/health/ready',
+  'https://web-closed-beta-v2.up.railway.app/api/health/started',
 ] as const
 
 function parseJson<T>(content: string, schema: z.ZodType<T>, label: string): T {

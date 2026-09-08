@@ -69,7 +69,8 @@ export function authorizeDeployMigrationRuntime(
   // DECLARED POSTURE authorizes. Previously both were pinned to the dedicated
   // cell unconditionally, which is correct for a public launch and refused
   // every deploy of the closed beta — it runs in `reputation-key` /
-  // `google-closed-beta`, so `web` built fine and then never shipped.
+  // `google-closed-beta` (now `closed-beta-v2`), so `web` built fine and then
+  // never shipped.
   assertRailwayDeploymentTarget(posture, deploymentProfile, {
     projectName,
     environmentName,

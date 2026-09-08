@@ -20,6 +20,7 @@ Every `ops:*` command runs through the operator-command harness
 
 The commands:
 
+- `ops:bootstrap-owner <owner email> <owner name> <organization name>` — create the first Organization and its AccountAdmin (role `owner`) on an EMPTY database, initial password on stdin; refuses once any user or Organization exists. The one operator-authored account: every other account is invited from the app. Destructive-class confirmation.
 - `ops:queue <status|pause|resume> <queue>` — pause/resume a BullMQ queue (containment; jobs preserved). §3/§7
 - `ops:quarantine <list|redrive <id>|discard <id>>` — inspect failure quarantine, redrive enabled work, or discard blocked/quarantined work without execution. §4/§7
 - `ops:refresh reviews` — enqueue one bounded Review refresh-sweep run. §3/§4

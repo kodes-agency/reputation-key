@@ -9,7 +9,7 @@ export const REHEARSAL_RAILWAY_PROJECT_NAME = 'reputation-key-us-beta-rehearsal'
 
 /** Where the closed beta actually runs today. */
 export const CLOSED_BETA_RAILWAY_PROJECT_NAME = 'reputation-key' as const
-export const CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME = 'google-closed-beta' as const
+export const CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME = 'closed-beta-v2' as const
 
 /** The dedicated single-US cell every wider posture must use. */
 export const CELL_US_RAILWAY_ENVIRONMENT_NAME = 'cell-us' as const
@@ -70,7 +70,8 @@ export type RailwayDeploymentTarget = Readonly<{
  * WHY THIS IS KEYED ON POSTURE. `assertRailwayProjectNameForProfile` above
  * encodes the dedicated cell the release programme is built around, and the
  * migration authority checked against it unconditionally. The closed beta does
- * not run there — it runs in `reputation-key` / `google-closed-beta` — so
+ * not run there — it runs in `reputation-key` / `closed-beta-v2` (the
+ * environment replaced on 2026-09-08; `google-closed-beta` before it) — so
  * `web` built from git successfully and then had every deploy refused, with
  * the beta permanently stuck on an older build.
  *

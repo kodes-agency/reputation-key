@@ -39,7 +39,7 @@ describe('Railway deployment target by release posture', () => {
   // The break this fixes: `web` built from git and then refused to deploy,
   // because the migration authority demanded a project named
   // `reputation-key-us-beta` and an environment named `cell-us` while the
-  // closed beta actually runs in `reputation-key` / `google-closed-beta`.
+  // closed beta actually runs in `reputation-key` / `closed-beta-v2`.
   // The gate was right to refuse — the names genuinely did not match — so the
   // fix is to teach it the target the closed beta really has, keyed on posture
   // so the strict one returns by itself when the audience widens.
@@ -49,7 +49,7 @@ describe('Railway deployment target by release posture', () => {
       environmentName: CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME,
     })
     expect(CLOSED_BETA_RAILWAY_PROJECT_NAME).toBe('reputation-key')
-    expect(CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME).toBe('google-closed-beta')
+    expect(CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME).toBe('closed-beta-v2')
   })
 
   it('re-arms the dedicated cell the moment the audience widens', () => {
@@ -82,14 +82,14 @@ describe('Railway deployment target by release posture', () => {
     expect(() =>
       assertRailwayDeploymentTarget('closed-beta', 'production', {
         projectName: 'reputation-key',
-        environmentName: 'google-closed-beta',
+        environmentName: 'closed-beta-v2',
       }),
     ).not.toThrow()
 
     expect(() =>
       assertRailwayDeploymentTarget('closed-beta', 'production', {
         projectName: 'reputation-key-us-beta',
-        environmentName: 'google-closed-beta',
+        environmentName: 'closed-beta-v2',
       }),
     ).toThrow('Railway project mismatch')
 
