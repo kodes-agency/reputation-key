@@ -56,7 +56,13 @@ const PROFILE_MANIFEST = Object.freeze({
   version: AI_PERSONALIZED_REPLY_PROFILE_VERSION,
   languages: AI_PERSONALIZED_REPLY_LANGUAGES,
   tones: Object.freeze(['professional', 'friendly', 'casual'] as const),
-  grounding: Object.freeze({ min: 1, max: 3, exactSourceExcerpt: true }),
+  grounding: Object.freeze({
+    min: 1,
+    max: 3,
+    exactSourceExcerpt: true,
+    selfQuoteContentWordsMustAppearInReply: true,
+    selfQuoteContentWordMinimumLength: 3,
+  }),
   brandGrounding: Object.freeze({ exactPublicDisplayNameRequired: true }),
   replyText: Object.freeze({ min: 24, max: 1_200 }),
   outputLeakageProfileVersion: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
@@ -81,18 +87,65 @@ function supportedLanguageGroup(tag: string): 'en-Latn' | 'bg-Cyrl' | null {
   return null
 }
 
+/**
+ * The two sides of a grounding pair carry different weight, so they are
+ * checked differently.
+ *
+ * `sourceExcerpt` is the anti-hallucination anchor and stays byte-exact
+ * (folded) against the redacted review: a reply may not assert words the guest
+ * never wrote.
+ *
+ * `replyExcerpt` only labels which part of the model's *own* reply that source
+ * supports. Models re-quote themselves loosely - measured against a real
+ * Bulgarian review, byte-exact self-quoting refused 6 of 8 live drafts: one
+ * differed by a single character (`мнение.` vs `мнение!`), another compressed
+ * its own sentence (`Благодарим Ви за препоръката!` for a reply reading
+ * `Благодарим Ви за високата оценка и препоръката!`). Neither is a grounding
+ * failure - the quoted source was exact in both, and a third swapped one
+ * pronoun (`услугите ни` for a reply reading `услугите на KODES agency`).
+ * The reply side therefore matches on content words - tokens of three
+ * characters or more - so grammar drift, word order and punctuation cannot
+ * fail a draft, while an excerpt carrying nouns or verbs the reply never used
+ * is still refused.
+ */
+const CONTENT_WORD_MINIMUM_LENGTH = 3
+
+function contentWords(value: string): string[] {
+  return folded(value)
+    .replace(/[\p{P}\p{S}]+/gu, ' ')
+    .split(/\s+/u)
+    .filter((token) => token.length >= CONTENT_WORD_MINIMUM_LENGTH)
+}
+
+function contentWordsOccurInReply(
+  replyCounts: Map<string, number>,
+  excerpt: string,
+): boolean {
+  const needed = new Map<string, number>()
+  for (const token of contentWords(excerpt)) {
+    needed.set(token, (needed.get(token) ?? 0) + 1)
+  }
+  if (needed.size === 0) return false
+  for (const [token, count] of needed) {
+    if ((replyCounts.get(token) ?? 0) < count) return false
+  }
+  return true
+}
+
 function hasValidGrounding(reviewText: string, draft: PersonalizedReplyDraft): boolean {
   const source = folded(reviewText)
-  const reply = folded(draft.replyText)
+  const replyCounts = new Map<string, number>()
+  for (const token of contentWords(draft.replyText)) {
+    replyCounts.set(token, (replyCounts.get(token) ?? 0) + 1)
+  }
   const seen = new Set<string>()
   for (const item of draft.grounding) {
     const sourceExcerpt = folded(item.sourceExcerpt)
-    const replyExcerpt = folded(item.replyExcerpt)
-    const key = `${sourceExcerpt}\0${replyExcerpt}`
+    const key = `${sourceExcerpt}\0${folded(item.replyExcerpt)}`
     if (
       seen.has(key) ||
       !source.includes(sourceExcerpt) ||
-      !reply.includes(replyExcerpt)
+      !contentWordsOccurInReply(replyCounts, item.replyExcerpt)
     ) {
       return false
     }

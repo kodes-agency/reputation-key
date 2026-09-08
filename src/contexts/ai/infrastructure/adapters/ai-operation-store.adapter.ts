@@ -1,13 +1,15 @@
 import { createHash } from 'node:crypto'
-import { and, eq, gt, isNull, lte, or } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull, lte, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { aiOperations } from '#/shared/db/schema'
+import { aiOperations, eventConsumerReceipts } from '#/shared/db/schema'
+import { organizationId, propertyId } from '#/shared/domain/ids'
 import {
   AI_OPERATION_PROFILES,
   AI_PROVIDER_DEPLOYMENT_PROFILE,
   AI_ROUTING_POLICY,
 } from '#/shared/ai-operation-profiles'
 import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import { AI_REVIEW_ANALYSIS_CONSUMER } from '../outbox-consumers'
 import type { AiErrorCode } from '../../domain/errors'
 import { createAiOperationIdentity, parseAiExecutionBinding } from '../../domain/rules'
 import type {
@@ -17,6 +19,7 @@ import type {
 } from '../../domain/types'
 import type {
   AiOperationRecord,
+  AiOperationRecoveryCandidate,
   AiOperationState,
   AiOperationStorePort,
 } from '../../application/ports/ai-operation-store.port'
@@ -33,6 +36,7 @@ const AI_ERROR_CODES: ReadonlySet<string> = new Set([
   'idempotency_conflict',
   'operation_in_progress',
   'operation_ambiguous',
+  'operation_abandoned',
   'completed_without_delivery',
   'merchant_opt_in_required',
   'capability_not_opted_in',
@@ -255,6 +259,40 @@ function mapOperation(row: OperationRow): AiOperationRecord {
   }
 }
 
+function recoveryCandidate(operation: AiOperationRecord): AiOperationRecoveryCandidate {
+  if (
+    operation.state !== 'pending' &&
+    operation.state !== 'executing' &&
+    operation.state !== 'failed'
+  ) {
+    failCorrupt('recovery candidate has a settled state')
+  }
+  const analysis =
+    operation.identity.command === 'analysis'
+      ? operation.binding.capabilityFence.capability === 'review_analysis'
+        ? {
+            eventEnvelopeId: operation.identity.originEventId,
+            organizationId: organizationId(operation.identity.organizationId),
+            propertyId: propertyId(operation.identity.propertyId),
+            sourceEpoch: operation.identity.sourceEpoch,
+            analysisSequence: operation.identity.analysisSequence,
+            reviewAnalysisEpoch: operation.binding.capabilityFence.reviewAnalysisEpoch,
+            propertyProfileVersion: operation.binding.propertyProfileVersion,
+          }
+        : failCorrupt('analysis recovery candidate has the wrong capability')
+      : null
+  return {
+    operationId: operation.id,
+    organizationId: operation.identity.organizationId,
+    attempt: operation.executionAttempt,
+    state: operation.state,
+    failureCode: operation.failureCode,
+    createdAtEpochMillis: operation.createdAtEpochMillis,
+    updatedAtEpochMillis: operation.updatedAtEpochMillis,
+    analysis,
+  }
+}
+
 function assertAligned(identity: AiOperationIdentity, binding: AiOperationBinding): void {
   if (
     identity.sourceEpoch !== binding.sourceEpoch ||
@@ -465,6 +503,8 @@ export const createAiOperationStoreAdapter = (
 
     async recordFailure(input) {
       return db.transaction(async (tx) => {
+        const expectedState = input.expectedState ?? 'executing'
+        const expectedFailureCode = input.expectedFailureCode ?? null
         const [operation] = await tx
           .select({ id: aiOperations.id })
           .from(aiOperations)
@@ -474,8 +514,11 @@ export const createAiOperationStoreAdapter = (
               input.organizationId === null
                 ? isNull(aiOperations.organizationId)
                 : eq(aiOperations.organizationId, input.organizationId),
-              eq(aiOperations.state, 'executing'),
+              eq(aiOperations.state, expectedState),
               eq(aiOperations.executionAttempt, input.expectedAttempt),
+              expectedFailureCode === null
+                ? isNull(aiOperations.failureCode)
+                : eq(aiOperations.failureCode, expectedFailureCode),
             ),
           )
           .limit(1)
@@ -506,46 +549,62 @@ export const createAiOperationStoreAdapter = (
     },
 
     async listExpiredExecutions(input) {
-      // Lock-free and allowed to be stale: every row this returns is re-checked
-      // by `recordFailure`, whose CAS matches on `state = 'executing'` AND the
-      // exact attempt. A row that settled between this scan and the write loses
-      // the CAS and is counted, never overwritten.
-      //
-      // The predicate is the OPEN ATTEMPT's age, not the operation's
-      // `expires_at`. `expires_at` is the idempotency lifetime — 24 hours for a
-      // review analysis — while an attempt is bounded by the domain's 15-minute
-      // operation horizon, so an `expires_at`-only scan cannot see an
-      // abandonment for a whole day. It did not: four closed-beta operations sat
-      // `executing` with settled `success` permits while this reported
-      // `abandonedVisited=0` on every run. `expires_at` remains a second,
-      // independent trigger for anything with no open attempt row to age.
+      // Selection is intentionally lock-free. The reaper terminalizes pending
+      // and executing rows through `recordFailure`'s exact CAS. Failed analysis
+      // rows are selected only while their origin event lacks a receipt, making
+      // a crash between the CAS and sequence advancement recoverable.
       const now = new Date(input.nowEpochMillis)
-      const attemptDeadline = new Date(
+      const horizonDeadline = new Date(
         input.nowEpochMillis - input.executionHorizonMillis,
       )
       const rows = await db
         .select({
-          operationId: aiOperations.id,
-          attempt: aiOperations.executionAttempt,
-          organizationId: aiOperations.organizationId,
+          operation: aiOperations,
+          receiptEventId: eventConsumerReceipts.eventId,
         })
         .from(aiOperations)
-        .where(
+        .leftJoin(
+          eventConsumerReceipts,
           and(
-            eq(aiOperations.state, 'executing'),
-            or(
-              lte(aiOperations.expiresAt, now),
-              lte(aiOperations.updatedAt, attemptDeadline),
+            eq(eventConsumerReceipts.eventId, aiOperations.originEventId),
+            eq(eventConsumerReceipts.consumerName, AI_REVIEW_ANALYSIS_CONSUMER),
+          ),
+        )
+        .where(
+          or(
+            and(
+              eq(aiOperations.state, 'executing'),
+              or(
+                lte(aiOperations.expiresAt, now),
+                lte(aiOperations.updatedAt, horizonDeadline),
+              ),
+            ),
+            and(
+              eq(aiOperations.command, 'analysis'),
+              eq(aiOperations.state, 'pending'),
+              lte(aiOperations.createdAt, horizonDeadline),
+            ),
+            and(
+              eq(aiOperations.command, 'analysis'),
+              eq(aiOperations.state, 'failed'),
+              inArray(aiOperations.failureCode, [
+                'operation_abandoned',
+                'operation_ambiguous',
+              ]),
+              isNull(eventConsumerReceipts.eventId),
             ),
           ),
         )
-        .orderBy(aiOperations.expiresAt)
+        .orderBy(
+          aiOperations.organizationId,
+          aiOperations.propertyId,
+          aiOperations.sourceEpoch,
+          aiOperations.analysisSequence,
+          aiOperations.updatedAt,
+          aiOperations.id,
+        )
         .limit(input.limit)
-      return rows.map((row) => ({
-        operationId: row.operationId as AiOperationId,
-        attempt: row.attempt,
-        organizationId: row.organizationId,
-      }))
+      return rows.map((row) => recoveryCandidate(mapOperation(row.operation)))
     },
 
     async markDelivered(input) {

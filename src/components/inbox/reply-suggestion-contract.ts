@@ -33,6 +33,15 @@ export type ReplyComposerInput = Readonly<{
   ) => Promise<ReplySuggestionResult>
 }>
 
+/**
+ * A refusal a manager can clear themselves. `brand_profile_unavailable` is the
+ * one an imported property always hits: the public display name the reply must
+ * carry lives on the property's portal brand profile, and nothing sets it at
+ * import — so the panel names the screen that does instead of dead-ending.
+ */
+export const replySuggestionFixTarget = (code: string): 'public_display_name' | null =>
+  code === 'brand_profile_unavailable' ? 'public_display_name' : null
+
 export const replySuggestionUnavailableMessage = (code: string): string => {
   if (code === 'language_not_supported')
     return 'AI drafting is unavailable for this review language.'

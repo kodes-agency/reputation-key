@@ -19,6 +19,7 @@ import type { AiOutputStorePort } from '../ports/ai-output-store.port'
 import type { AiPropertyAggregateStorePort } from '../ports/ai-property-aggregate-store.port'
 import type { AiQuotaPort } from '../ports/ai-quota.port'
 import type {
+  AiReviewAnalysisTerminalDisposition,
   AiReviewEventDisposition,
   AiReviewEventStorePort,
 } from '../ports/ai-review-event-store.port'
@@ -38,35 +39,17 @@ const PROFILE = AI_OPERATION_PROFILES.find(
 const DERIVATIVE_RETENTION_MILLIS = 730 * 24 * 60 * 60 * 1_000
 
 /**
- * BQC-3.6/3.7 budget alignment. `aiRetryAt` only terminal-settles at domain
- * attempt 4, and a domain attempt is consumed only once a provider attempt is
- * claimed: quota/rate backpressure, an in-progress lease, a drifted language
- * runtime and a not-yet-written Property processing profile all retry BEFORE
- * `claimExecution`, so they used to burn dispatch attempts without ever
- * reaching a terminal branch. The outcome row then stayed `pending` forever,
- * the terminal watermark froze there, and every later review was silently
- * excluded from the property aggregates.
+ * Every retry branch is bounded in time by the plan's 15-minute background
+ * operation horizon (§10.2). Before an operation exists the outbox row's stable
+ * `recordedAt` anchors the horizon; afterwards the operation gets the later of
+ * that instant and `createdAt + horizon`.
  *
- * Every retry branch below is therefore additionally bounded in TIME by the
- * plan's 15-minute background operation horizon (§10.2): at or after the horizon
- * the operation terminal-settles with a code-only disposition instead of
- * retrying. Before a claim exists the horizon is anchored on the outbox row's
- * `recordedAt` (identical for every redelivery of one event); once an operation
- * exists it gets the later of that and its own `createdAt + horizon`, so a relay
- * backlog cannot cut short work that already started.
- *
- * With the outbox dispatch budget (8 attempts, exponential 30s backoff, 0.5
- * jitter) the minimum delay before attempt n+1 is 15s * 2^(n-1), so an attempt
- * at or past the horizon always exists for an operation first claimed on any of
- * attempts 1-7, and every pre-claim branch terminal-settles by attempt 7. No
- * `pending`-outcome sweeper is therefore required: termination is a property of
- * the horizon, not of the retry count.
- *
- * Two residuals are deliberate and unchanged by this fix: a `gap` result writes
- * no outcome row at all (so quarantining one cannot freeze the watermark — it
- * stalls the cursor exactly as before), and a terminal-settle whose own database
- * write fails on the last attempts leaves the row `pending`. The second is an
- * outage of the same store the sweeper would have to use.
+ * Reaching the horizon here still depends on another dispatch. BullMQ's finite
+ * retry budget can exhaust first, so the recurring operation reaper is the
+ * durable backstop for an analysis operation left `pending` after this request
+ * owner disappears. It fences the operation before using the same terminal
+ * settlement path below; a sequence gap remains unreceipted and is retried in a
+ * later tick.
  */
 export const AI_ANALYSIS_OPERATION_HORIZON_MILLIS = 15 * 60 * 1_000
 /** Advisory spacing recorded on a deferred (pre-provider-attempt) retry. */
@@ -109,6 +92,56 @@ export type AnalyzeReviewEventDependencies = Readonly<{
   nowEpochMillis: () => number
 }>
 
+export type SettleReviewAnalysisWithoutResultInput = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  sourceEpoch: number
+  reviewAnalysisEpoch: number
+  analysisSequence: number
+  propertyProfileVersion: number
+  operationId: string | null
+  dispositionCode: AiReviewAnalysisTerminalDisposition
+}>
+
+export type SettleReviewAnalysisWithoutResultResult =
+  | Readonly<{ status: 'terminal' | 'generation_changed' }>
+  | Readonly<{ status: 'gap'; expectedSequence: number }>
+
+export async function settleReviewAnalysisWithoutResult(
+  dependencies: Readonly<{
+    reviewEvents: Pick<AiReviewEventStorePort, 'settleOutcome'>
+    aggregates: Pick<AiPropertyAggregateStorePort, 'advanceWithoutAnalysis'>
+  }>,
+  input: SettleReviewAnalysisWithoutResultInput,
+): Promise<SettleReviewAnalysisWithoutResultResult> {
+  const settled = await dependencies.reviewEvents.settleOutcome({
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    sourceEpoch: input.sourceEpoch,
+    reviewAnalysisEpoch: input.reviewAnalysisEpoch,
+    analysisSequence: input.analysisSequence,
+    state: 'terminal_no_result',
+    operationId: input.operationId,
+    dispositionCode: input.dispositionCode,
+  })
+  if (!settled) return { status: 'generation_changed' }
+  const aggregate = await dependencies.aggregates.advanceWithoutAnalysis({
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    sourceEpoch: input.sourceEpoch,
+    analysisSequence: input.analysisSequence,
+    reviewAnalysisEpoch: input.reviewAnalysisEpoch,
+    propertyProfileVersion: input.propertyProfileVersion,
+    dispositionCode: input.dispositionCode,
+  })
+  if (aggregate.status === 'gap') {
+    return { status: 'gap', expectedSequence: aggregate.expectedAnalysisSequence }
+  }
+  return aggregate.status === 'stale'
+    ? { status: 'generation_changed' }
+    : { status: 'terminal' }
+}
+
 function attentionFor(
   output: Extract<AnalysisResult, { status: 'success' }>['result'],
   rating: number,
@@ -141,42 +174,27 @@ function attentionFor(
 export function createAnalyzeReviewEvent(
   dependencies: AnalyzeReviewEventDependencies,
 ): (input: AnalyzeReviewEventInput) => Promise<AnalyzeReviewEventResult> {
-  async function settleWithoutResult(
+  const settlementDependencies = {
+    reviewEvents: dependencies.reviewEvents,
+    aggregates: dependencies.aggregates,
+  }
+
+  function settleWithoutResult(
     input: AnalyzeReviewEventInput,
     reviewAnalysisEpoch: number,
     propertyProfileVersion: number,
-    dispositionCode:
-      | 'language_not_supported'
-      | 'source_expired'
-      | 'provider_deleted'
-      | 'policy_disabled',
+    dispositionCode: AiReviewAnalysisTerminalDisposition,
   ): Promise<AnalyzeReviewEventResult> {
-    const settled = await dependencies.reviewEvents.settleOutcome({
+    return settleReviewAnalysisWithoutResult(settlementDependencies, {
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       sourceEpoch: input.sourceEpoch,
       reviewAnalysisEpoch,
       analysisSequence: input.analysisSequence,
-      state: 'terminal_no_result',
+      propertyProfileVersion,
       operationId: null,
       dispositionCode,
     })
-    if (!settled) return { status: 'generation_changed' }
-    const aggregate = await dependencies.aggregates.advanceWithoutAnalysis({
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      sourceEpoch: input.sourceEpoch,
-      analysisSequence: input.analysisSequence,
-      reviewAnalysisEpoch,
-      propertyProfileVersion,
-      dispositionCode,
-    })
-    if (aggregate.status === 'gap') {
-      return { status: 'gap', expectedSequence: aggregate.expectedAnalysisSequence }
-    }
-    return aggregate.status === 'stale'
-      ? { status: 'generation_changed' }
-      : { status: 'terminal' }
   }
 
   /**

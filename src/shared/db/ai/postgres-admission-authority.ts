@@ -5,6 +5,7 @@ import type { Pool } from 'pg'
 import type { Database } from '#/shared/db'
 import { aiOperations } from '#/shared/db/schema'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { AI_REPLY_ADOPTION_WINDOW_MILLIS } from '#/shared/ai-reply-provenance'
 import { settledCostMicros } from '#/shared/ai-openai-provider-profile'
 import type { AiSettlementRequestV1 } from '#/shared/ai-internal-transport-contract'
 import type {
@@ -102,6 +103,7 @@ export function createPostgresAiAdmissionAuthority(
             requestBindingKeyId: aiOperations.requestBindingKeyId,
             requestBindingHmac: aiOperations.requestBindingHmac,
             admissionNonce: aiOperations.admissionNonce,
+            expiresAt: aiOperations.expiresAt,
           })
           .from(aiOperations)
           .where(
@@ -127,6 +129,17 @@ export function createPostgresAiAdmissionAuthority(
         if (descriptor.callerDeadlineEpochMillis <= issuedAtEpochMillis) {
           return { status: 'denied' as const, code: 'permit_expired' as const }
         }
+        // The adoption window outlives the provider request deadline on
+        // purpose: it is the operator's reading time, not the call's. It can
+        // never outlive the operation row, whose `expires_at` the accepting
+        // transaction also checks.
+        const adoptionWindowEnd =
+          descriptor.route === 'reply-suggestion'
+            ? Math.min(
+                issuedAtEpochMillis + AI_REPLY_ADOPTION_WINDOW_MILLIS,
+                operation.expiresAt.getTime(),
+              )
+            : null
         if (operation.admissionNonce !== null) {
           if (
             operation.requestBindingKeyId !== requestBinding.keyId ||
@@ -139,14 +152,8 @@ export function createPostgresAiAdmissionAuthority(
             nonce: operation.admissionNonce,
             issuedAtEpochMillis,
             expiresAtEpochMillis: descriptor.callerDeadlineEpochMillis,
-            replyTokenExpiresAtEpochMillis:
-              descriptor.route === 'reply-suggestion'
-                ? descriptor.callerDeadlineEpochMillis
-                : null,
-            replyDraftExpiresAtEpochMillis:
-              descriptor.route === 'reply-suggestion'
-                ? descriptor.callerDeadlineEpochMillis
-                : null,
+            replyTokenExpiresAtEpochMillis: adoptionWindowEnd,
+            replyDraftExpiresAtEpochMillis: adoptionWindowEnd,
           }
         }
 
@@ -176,14 +183,8 @@ export function createPostgresAiAdmissionAuthority(
           nonce: admissionNonce,
           issuedAtEpochMillis,
           expiresAtEpochMillis: descriptor.callerDeadlineEpochMillis,
-          replyTokenExpiresAtEpochMillis:
-            descriptor.route === 'reply-suggestion'
-              ? descriptor.callerDeadlineEpochMillis
-              : null,
-          replyDraftExpiresAtEpochMillis:
-            descriptor.route === 'reply-suggestion'
-              ? descriptor.callerDeadlineEpochMillis
-              : null,
+          replyTokenExpiresAtEpochMillis: adoptionWindowEnd,
+          replyDraftExpiresAtEpochMillis: adoptionWindowEnd,
         }
       }),
 

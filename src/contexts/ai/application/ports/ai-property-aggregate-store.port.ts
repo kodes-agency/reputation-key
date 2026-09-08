@@ -1,4 +1,5 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
+import type { AiReviewAnalysisTerminalDisposition } from './ai-review-event-store.port'
 
 export type AiPropertyAggregateHead = Readonly<{
   organizationId: OrganizationId
@@ -95,11 +96,7 @@ export type AiPropertyAggregateStorePort = Readonly<{
       analysisSequence: number
       reviewAnalysisEpoch: number
       propertyProfileVersion: number
-      dispositionCode:
-        | 'source_expired'
-        | 'provider_deleted'
-        | 'policy_disabled'
-        | 'language_not_supported'
+      dispositionCode: AiReviewAnalysisTerminalDisposition
     }>,
   ): Promise<
     | Readonly<{ status: 'applied'; aggregateRevision: number }>
