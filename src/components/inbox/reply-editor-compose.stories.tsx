@@ -329,3 +329,62 @@ export const ManualEditWinsOverDelayedSuggestion: Story = {
     expect(canvas.queryByText(/ai-generated suggestion/i)).not.toBeInTheDocument()
   },
 }
+
+// An imported property has no portal brand profile yet, so the drafting route
+// refuses with `brand_profile_unavailable`. The panel has to name the screen
+// that clears it: without the link this refusal is a dead end, because the
+// public display name is only settable inside a property's portal.
+const onGenerateBrandRefusal = fn(async (): Promise<ReplySuggestionResult> => ({
+  status: 'unavailable',
+  code: 'brand_profile_unavailable',
+  retryAfterEpochMillis: null,
+})).mockName('onGenerateBrandRefusal')
+
+export const PublicDisplayNameMissing: Story = {
+  decorators: [withRole('AccountAdmin')],
+  args: {
+    initialText: 'Thank you for sharing your experience.',
+    onGenerateSuggestion: onGenerateBrandRefusal,
+  },
+  play: async ({ canvas }) => {
+    onGenerateBrandRefusal.mockClear()
+
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+
+    await waitFor(() =>
+      expect(
+        canvas.getByText(/reply suggestions need this property's public display name/i),
+      ).toBeVisible(),
+    )
+    expect(
+      canvas.getByRole('link', { name: /set the public display name/i }),
+    ).toHaveAttribute(
+      'href',
+      expect.stringContaining('/properties/10000000-0000-4000-8000-000000000101/portals'),
+    )
+  },
+}
+
+// A PropertyManager can draft with AI but cannot set the brand profile
+// (`portal.admin` is AccountAdmin-only), so the refusal points at the person
+// who can instead of a link that would refuse.
+export const PublicDisplayNameMissingForManager: Story = {
+  args: {
+    initialText: 'Thank you for sharing your experience.',
+    onGenerateSuggestion: onGenerateBrandRefusal,
+  },
+  play: async ({ canvas }) => {
+    onGenerateBrandRefusal.mockClear()
+
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+
+    await waitFor(() =>
+      expect(
+        canvas.getByText(/ask an account admin to set this property/i),
+      ).toBeVisible(),
+    )
+    expect(
+      canvas.queryByRole('link', { name: /set the public display name/i }),
+    ).toBeNull()
+  },
+}
