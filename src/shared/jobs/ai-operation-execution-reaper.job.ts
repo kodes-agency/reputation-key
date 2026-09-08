@@ -1,27 +1,25 @@
-// AI operation abandoned-execution reaper job.
+// AI operation abandoned-owner reaper job.
 //
-// One bounded repeatable run per cadence tick. All recovery logic lives in
-// `../../application/ai-operation-execution-reaper`, which routes every
-// candidate through the store's existing `recordFailure` CAS; this module is
-// only the queue seam plus content-free observability.
+// One bounded repeatable run per cadence tick. All recovery logic lives in the
+// AI application reaper, which routes each live-state candidate through the
+// operation store's `recordFailure` CAS and terminal-settles Review Analysis
+// outcomes before their receipts. This module is only the queue seam plus
+// content-free observability.
 //
 // The reaper is injected rather than constructed here: `src/shared/jobs/**` is
 // a shared-other boundary element and must not reach into a context's
-// infrastructure. Composition (bootstrap) owns the store wiring, matching the
-// permit start-deadline sweep seam.
+// infrastructure. The AI context build owns its store and outcome wiring.
 //
 // It lives here rather than under `src/contexts/ai/` deliberately. BQC-5.6
 // requires every job inside a dark context to carry a capability gate, and
 // gating this one would switch off recovery in the exact situation it exists
-// for — a killed AI runtime, which is when executions get abandoned. The permit
+// for — a killed AI runtime, which is when owners disappear. The permit
 // start-deadline sweep is unconditional for the identical reason and sits here
 // too.
 //
-// Cadence rationale: the bound that matters is the operation's own
-// `expires_at`, not this interval — a row only becomes reapable once that
-// horizon has already passed, so the tick only decides how long an already-dead
-// row keeps claiming to be in flight. Five minutes matches the permit sweep and
-// the scan does nothing when no operation is abandoned.
+// The 15-minute domain horizon decides when work is reapable. The five-minute
+// cadence only bounds how long an already-abandoned operation waits for the
+// next recovery tick.
 
 import type { Job } from 'bullmq'
 import { getLogger } from '#/shared/observability/logger'

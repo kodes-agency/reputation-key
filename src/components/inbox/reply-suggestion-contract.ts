@@ -33,14 +33,21 @@ export type ReplyComposerInput = Readonly<{
   ) => Promise<ReplySuggestionResult>
 }>
 
+export type ReplySuggestionFixTarget = 'public_display_name' | 'ai_settings'
+
 /**
- * A refusal a manager can clear themselves. `brand_profile_unavailable` is the
- * one an imported property always hits: the public display name the reply must
- * carry lives on the property's portal brand profile, and nothing sets it at
- * import — so the panel names the screen that does instead of dead-ending.
+ * A refusal with an operator-clearable requirement. Imported properties often
+ * have neither AI enablement nor a Portal brand profile. Both requirements are
+ * Property-wide: AI enablement lives in AI settings, while the public display
+ * name lives in Property settings and does not require creating a Portal.
  */
-export const replySuggestionFixTarget = (code: string): 'public_display_name' | null =>
-  code === 'brand_profile_unavailable' ? 'public_display_name' : null
+export const replySuggestionFixTarget = (
+  code: string,
+): ReplySuggestionFixTarget | null => {
+  if (code === 'brand_profile_unavailable') return 'public_display_name'
+  if (code === 'not_authorized') return 'ai_settings'
+  return null
+}
 
 export const replySuggestionUnavailableMessage = (code: string): string => {
   if (code === 'language_not_supported')

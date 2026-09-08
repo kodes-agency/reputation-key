@@ -11,6 +11,7 @@ import {
 } from './ai-review-language-catalogue'
 import {
   AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST,
+  prepareReplyLanguageDetectorInput,
   type ReplyLanguageDetector,
   resolveConcreteReplyLanguage,
   verifyReplyLanguageOutput,
@@ -195,6 +196,17 @@ describe.runIf(PINNED_LANGUAGE_RUNTIME)('reply-language-verifier-v1', () => {
     }
   })
 
+  // A guest typing an ellipsis used to disable AI drafting for that review
+  // forever: the redactor slices the original text without normalising, this
+  // gate answered `policy_unavailable`, and that code is not fallback-eligible,
+  // so the manager got "AI drafting is unavailable right now. Try again." on
+  // every attempt.
+  it('normalises a non-NFKC review instead of refusing it', () => {
+    const prepared = prepareReplyLanguageDetectorInput('Прекрасно обслужване…')
+
+    expect(prepared.status).toBe('ready')
+  })
+
   it('maps detector exceptions to policy_unavailable', () => {
     expect(
       resolveConcreteReplyLanguage({
@@ -306,6 +318,43 @@ describe('bg-Cyrl reply language wiring', () => {
     for (const scalar of [...'ѝщъ']) {
       expect(lookupAiLetterScriptExtensions(scalar.codePointAt(0)!) & 2).toBe(2)
     }
+  })
+
+  // The arithmetic this pins: the reply contract *requires* the approved public
+  // display name, so a Latin brand inside a Bulgarian reply scored against the
+  // 80% same-script rule made `5·cyr >= 4·(cyr + 11)` the real floor - 44
+  // Cyrillic letters, 55 total - while the output schema admits 24 characters
+  // and the prompt asks for a concise reply. Every short Bulgarian draft was
+  // refused as `output_invalid` after the provider had been billed.
+  it('accepts a short Bulgarian reply carrying the Latin display name it must carry', () => {
+    simulatePinnedLanguageRuntime()
+    const bulgarian = parseCanonicalReplyLanguageTag('bg-Cyrl')
+    if (bulgarian === null) throw new Error('bg-Cyrl must be a canonical tag')
+    const reply = 'Благодарим Ви за прекрасния отзив! KODES agency'
+
+    expect(
+      verifyReplyLanguageOutput(reply, bulgarian, detector('bg'), ['KODES agency']),
+    ).toEqual({ status: 'valid' })
+    expect(verifyReplyLanguageOutput(reply, bulgarian, detector('bg'))).toEqual({
+      status: 'output_invalid',
+    })
+  })
+
+  // An exemption covers the mandated span only: Latin prose the model added on
+  // its own still fails the script rule.
+  it('does not let the exemption excuse other foreign-script prose', () => {
+    simulatePinnedLanguageRuntime()
+    const bulgarian = parseCanonicalReplyLanguageTag('bg-Cyrl')
+    if (bulgarian === null) throw new Error('bg-Cyrl must be a canonical tag')
+
+    expect(
+      verifyReplyLanguageOutput(
+        'Благодарим Ви! KODES agency thanks you warmly for this wonderful and detailed review',
+        bulgarian,
+        detector('bg'),
+        ['KODES agency'],
+      ),
+    ).toEqual({ status: 'output_invalid' })
   })
 
   it('rejects a Bulgarian reply drafted in the wrong script or language', () => {

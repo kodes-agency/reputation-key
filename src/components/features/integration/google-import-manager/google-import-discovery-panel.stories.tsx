@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, within } from 'storybook/test'
 import type {
   ImportAccountDto,
   ImportCandidateDto,
@@ -88,6 +88,7 @@ function DiscoveryHarness() {
       isLoadingMoreCandidates={false}
       hasMoreCandidates
       accountsError={null}
+      onRecoverCandidates={null}
       candidatesError={null}
       selectAllError={null}
       isSelectingAll={false}
@@ -157,6 +158,7 @@ export const Loading: Story = {
     hasMoreCandidates: false,
     accountsError: null,
     candidatesError: null,
+    onRecoverCandidates: null,
     selectAllError: null,
     isSelectingAll: false,
     onSearchChange: () => {},
@@ -175,5 +177,46 @@ export const ProviderUnavailable: Story = {
     ...Loading.args,
     isLoadingAccounts: false,
     accountsError: 'Google Business Profile is temporarily unavailable.',
+  },
+}
+
+// An expired discovery handle is the state the operator actually lands in: the
+// account list still resolves, the location page does not, and clicking the
+// same account again can never clear it. The surface that reports the failure
+// has to own the restart.
+export const ExpiredDiscoveryHandle: Story = {
+  args: {
+    ...Loading.args,
+    accounts,
+    selectedAccountRef: 'account.north',
+    isLoadingAccounts: false,
+    candidatesError:
+      'This discovery page expired. Start again to fetch current locations.',
+    onRecoverCandidates: fn().mockName('onRecoverCandidates'),
+  },
+  play: async ({ args, canvas }) => {
+    await expect(canvas.getByText(/this discovery page expired/i)).toBeVisible()
+
+    await userEvent.click(canvas.getByRole('button', { name: /rediscover locations/i }))
+
+    await expect(args.onRecoverCandidates).toHaveBeenCalled()
+  },
+}
+
+// A failure a restart cannot clear must not offer one.
+export const UnrecoverableCandidateFailure: Story = {
+  args: {
+    ...Loading.args,
+    accounts,
+    selectedAccountRef: 'account.north',
+    isLoadingAccounts: false,
+    candidatesError: 'Google rejected the request for this account.',
+    onRecoverCandidates: null,
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText(/google rejected the request/i)).toBeVisible()
+    await expect(
+      canvas.queryByRole('button', { name: /rediscover locations/i }),
+    ).toBeNull()
   },
 }

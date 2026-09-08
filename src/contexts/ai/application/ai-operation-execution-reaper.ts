@@ -1,51 +1,42 @@
-// AI operation — abandoned-execution reaper.
+// AI operation — abandoned-owner reaper.
 //
-// `claimExecution` moves an operation to `executing` and the request path is
-// the only thing that writes a terminal state afterwards. Anything that kills
-// that path between the two — a crashed worker, a dropped request, a rejected
-// terminal write — leaves the row `executing` with nobody left to finish it.
+// Two durable states can lose their request owner:
 //
-// Nothing recovered those rows. `claim` refuses operations past `expires_at`,
-// so an abandoned row can never be re-claimed either: it is inert, permanent,
-// and still counted as in-flight AI work. Observed in the closed beta after a
-// constraint violation made the terminal write throw: six operations across two
-// reviews sat `executing` indefinitely while their permits had long since
-// settled.
+//   - `executing`, after `claimExecution` but before its terminal write; the
+//     provider may already have run, so recovery fails it as
+//     `operation_ambiguous` and never retries it;
+//   - Review Analysis `pending`, when a retryable provider response returned
+//     the operation to `pending` but BullMQ exhausted the origin event's finite
+//     dispatch budget before the 15-minute domain horizon.
 //
-// Recovery is bounded by the horizon the ATTEMPT runs under, not by the
-// operation's own `expires_at`. That distinction is the whole reason this
-// existed and still missed the closed beta's stranded operations: `expires_at`
-// is the idempotency lifetime — 24 hours for a review analysis — while an
-// attempt is bounded by the domain's 15-minute operation horizon. Four
-// operations sat `executing` with settled `success` permits while this reported
-// `abandonedVisited=0` on every run, because they were 24 hours from expiry and
-// the scan asked the wrong clock.
+// The latter freezes the strict property sequence unless recovery performs both
+// halves of normal terminal delivery: fence the operation, then advance the
+// no-result aggregate sequence and record the origin event's consumer receipt.
+// A failed `operation_abandoned`/`operation_ambiguous` analysis remains
+// selectable while that receipt is absent, so a crash between those halves is
+// retried on the next tick. Sequence gaps stay unreceipted and retry later.
 //
-//   - selects rows still `executing` whose OPEN ATTEMPT has outlived the
-//     execution horizon, or whose operation has outlived `expires_at`;
-//   - settles each through the existing `recordFailure`, with no retry, so the
-//     open attempt row is closed and the operation reaches `failed`.
-//
-// The failure code is `operation_ambiguous` and that is the honest one: the
-// provider may well have run and been charged before the owner vanished, and
-// from here that is unknowable. Nothing is retried for exactly that reason —
-// re-running an operation whose provider call may have succeeded is how you
-// bill a merchant twice for one reply.
-//
-// `recordFailure` carries the CAS (state `executing` AND the exact attempt), so
-// the scan above may be lock-free and slightly stale: a row that settles
-// between the scan and the write loses the CAS and is counted as raced, never
-// overwritten.
+// Provider safety rests on one CAS. `claimExecution` can invoke the provider
+// only after changing `pending` to `executing`; the reaper changes that same
+// exact pending state/attempt/failure to `failed`. Whichever CAS wins excludes
+// the other. The reaper itself has no inference dependency and can never issue
+// a second billed call.
 
-import { AI_ANALYSIS_OPERATION_HORIZON_MILLIS } from './use-cases/analyze-review-event'
-import type { AiOperationStorePort } from './ports/ai-operation-store.port'
+import {
+  AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
+  settleReviewAnalysisWithoutResult,
+} from './use-cases/analyze-review-event'
+import type {
+  AiOperationRecoveryCandidate,
+  AiOperationStorePort,
+} from './ports/ai-operation-store.port'
+import type { AiPropertyAggregateStorePort } from './ports/ai-property-aggregate-store.port'
+import type { AiReviewEventStorePort } from './ports/ai-review-event-store.port'
 
-export const AI_EXECUTION_REAPER_BATCH_SIZE = 100
+const AI_EXECUTION_REAPER_BATCH_SIZE = 100
 
 /**
- * How long an open attempt may run before it counts as abandoned. The domain's
- * own bound, reused verbatim: `analyze-review-event` terminal-settles at this
- * horizon, so an attempt still open past it has no owner left that could.
+ * Shared bound for an open attempt and an operation waiting for redelivery.
  */
 export const AI_EXECUTION_ABANDONED_AFTER_MILLIS = AI_ANALYSIS_OPERATION_HORIZON_MILLIS
 
@@ -67,17 +58,100 @@ export type AiOperationExecutionReaperResult = Readonly<{
 
 export type AiOperationExecutionReaper = () => Promise<AiOperationExecutionReaperResult>
 
+type DispositionCode = 'operation_abandoned' | 'operation_ambiguous'
+
+type FenceResult =
+  | Readonly<{ outcome: 'fenced'; dispositionCode: DispositionCode }>
+  | Readonly<{ outcome: 'already_fenced'; dispositionCode: DispositionCode }>
+  | Readonly<{ outcome: 'raced' }>
+  | Readonly<{ outcome: 'skipped' }>
+
 export function createAiOperationExecutionReaper(
   deps: Readonly<{
     store: ExecutionReaperStore
+    reviewEvents: Pick<AiReviewEventStorePort, 'settleOutcome'>
+    aggregates: Pick<AiPropertyAggregateStorePort, 'advanceWithoutAnalysis'>
+    recordAnalysisReceipt: (
+      eventEnvelopeId: string,
+      status: 'applied' | 'obsolete',
+    ) => Promise<void>
     nowEpochMillis: () => number
     limit?: number
   }>,
 ): AiOperationExecutionReaper {
   const limit = deps.limit ?? AI_EXECUTION_REAPER_BATCH_SIZE
 
+  /**
+   * Fence one candidate, or report why it was left alone. A `failed` candidate
+   * was fenced by an earlier tick that then crashed before it could settle the
+   * review-analysis side, so it needs no second fence - only its disposition.
+   */
+  async function fence(
+    candidate: AiOperationRecoveryCandidate,
+    nowEpochMillis: number,
+    horizonDeadline: number,
+  ): Promise<FenceResult> {
+    if (candidate.state === 'failed') {
+      return candidate.failureCode === 'operation_abandoned' ||
+        candidate.failureCode === 'operation_ambiguous'
+        ? { outcome: 'already_fenced', dispositionCode: candidate.failureCode }
+        : { outcome: 'skipped' }
+    }
+    if (
+      candidate.state === 'pending' &&
+      candidate.createdAtEpochMillis > horizonDeadline
+    ) {
+      return { outcome: 'skipped' }
+    }
+    // The CAS is state-specific: a pending row is fenced against its recorded
+    // failure, an executing row against no failure at all, so the two shapes
+    // cannot be flattened into one object.
+    const expected =
+      candidate.state === 'pending'
+        ? {
+            expectedState: 'pending' as const,
+            expectedFailureCode: candidate.failureCode,
+          }
+        : { expectedState: 'executing' as const, expectedFailureCode: null }
+    const pending = candidate.state === 'pending'
+    const fenced = await deps.store.recordFailure({
+      operationId: candidate.operationId,
+      organizationId: candidate.organizationId,
+      expectedAttempt: candidate.attempt,
+      ...expected,
+      failureCode: pending ? 'operation_abandoned' : 'operation_ambiguous',
+      retryAtEpochMillis: null,
+      failedAtEpochMillis: nowEpochMillis,
+    })
+    return fenced
+      ? {
+          outcome: 'fenced',
+          dispositionCode: pending ? 'operation_abandoned' : 'operation_ambiguous',
+        }
+      : { outcome: 'raced' }
+  }
+
+  /** Advance the strict per-property analysis sequence the fenced operation held. */
+  async function settleAnalysis(
+    candidate: AiOperationRecoveryCandidate,
+    dispositionCode: DispositionCode,
+  ): Promise<void> {
+    if (candidate.analysis === null) return
+    const { eventEnvelopeId, ...analysis } = candidate.analysis
+    const settled = await settleReviewAnalysisWithoutResult(
+      { reviewEvents: deps.reviewEvents, aggregates: deps.aggregates },
+      { ...analysis, operationId: candidate.operationId, dispositionCode },
+    )
+    if (settled.status === 'gap') return
+    await deps.recordAnalysisReceipt(
+      eventEnvelopeId,
+      settled.status === 'generation_changed' ? 'obsolete' : 'applied',
+    )
+  }
+
   return async () => {
     const nowEpochMillis = deps.nowEpochMillis()
+    const horizonDeadline = nowEpochMillis - AI_EXECUTION_ABANDONED_AFTER_MILLIS
     const abandoned = await deps.store.listExpiredExecutions({
       nowEpochMillis,
       executionHorizonMillis: AI_EXECUTION_ABANDONED_AFTER_MILLIS,
@@ -87,18 +161,14 @@ export function createAiOperationExecutionReaper(
     let operationsRaced = 0
 
     for (const candidate of abandoned) {
-      const fenced = await deps.store.recordFailure({
-        operationId: candidate.operationId,
-        organizationId: candidate.organizationId,
-        expectedAttempt: candidate.attempt,
-        failureCode: 'operation_ambiguous',
-        // Terminal on purpose. See the header: the provider may already have
-        // run, so a retry risks a second billed call for one request.
-        retryAtEpochMillis: null,
-        failedAtEpochMillis: nowEpochMillis,
-      })
-      if (fenced) operationsFenced += 1
-      else operationsRaced += 1
+      const result = await fence(candidate, nowEpochMillis, horizonDeadline)
+      if (result.outcome === 'skipped') continue
+      if (result.outcome === 'raced') {
+        operationsRaced += 1
+        continue
+      }
+      if (result.outcome === 'fenced') operationsFenced += 1
+      await settleAnalysis(candidate, result.dispositionCode)
     }
 
     return Object.freeze({

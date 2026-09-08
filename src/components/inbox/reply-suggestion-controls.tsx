@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
+import type { ReplySuggestionFixTarget } from './reply-suggestion-contract'
 import type { ReplyTone } from './use-reply-suggestion'
 
 type Props = Readonly<{
@@ -21,8 +22,8 @@ type Props = Readonly<{
   hasAiDraft: boolean
   canUndo: boolean
   error: string | null
-  /** A refusal the manager can clear; renders the screen that clears it. */
-  errorFixTarget?: 'public_display_name' | null
+  /** A refusal the operator can clear; renders the screen that clears it. */
+  errorFixTarget?: ReplySuggestionFixTarget | null
   propertyId: string
   onToneChange: (tone: ReplyTone) => void
   onRequest: (tone?: ReplyTone) => Promise<void>
@@ -51,7 +52,8 @@ export function ReplySuggestionControls({
 }: Props) {
   const unavailableReasonId = useId()
   const { can } = usePermissions()
-  const canManagePortals = can('portal.admin')
+  const canManagePortalBrand = can('portal.admin')
+  const canManageAi = can('ai.manage')
   return (
     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
       <ButtonGroup>
@@ -128,9 +130,9 @@ export function ReplySuggestionControls({
         <div role="status" className="basis-full text-xs text-destructive">
           <p>{error}</p>
           {errorFixTarget === 'public_display_name' &&
-            (canManagePortals ? (
+            (canManagePortalBrand ? (
               <Button asChild size="xs" variant="link">
-                <Link to="/properties/$propertyId/portals" params={{ propertyId }}>
+                <Link to="/properties/$propertyId/settings" params={{ propertyId }}>
                   Set the public display name
                 </Link>
               </Button>
@@ -138,6 +140,16 @@ export function ReplySuggestionControls({
               <p>
                 Ask an account admin to set this property&rsquo;s public display name.
               </p>
+            ))}
+          {errorFixTarget === 'ai_settings' &&
+            (canManageAi ? (
+              <Button asChild size="xs" variant="link">
+                <Link to="/settings/ai" search={{ propertyId }}>
+                  Enable AI replies
+                </Link>
+              </Button>
+            ) : (
+              <p>Ask an account admin to enable AI replies for this property.</p>
             ))}
         </div>
       )}
