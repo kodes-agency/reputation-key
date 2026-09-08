@@ -4,6 +4,7 @@
 
 import { useForm } from '@tanstack/react-form'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
@@ -58,7 +59,7 @@ export function OrganizationSettingsForm({
       onSubmit={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        form.handleSubmit()
+        void submitForm(form)
       }}
       className="flex flex-col gap-6"
     >

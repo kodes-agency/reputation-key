@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextarea, type BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
@@ -124,13 +125,7 @@ export function InboxNotesThread({
 
       {/* Add note form */}
       {canAdd && (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            void form.handleSubmit()
-          }}
-          className="flex flex-col gap-2"
-        >
+        <form onSubmit={submitHandler(form)} className="flex flex-col gap-2">
           <FormErrorBanner error={addNote.error} />
           <form.Field name="text">
             {(field: BaseFieldApiTextarea) => (

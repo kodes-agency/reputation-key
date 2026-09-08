@@ -1,4 +1,5 @@
 import { useForm } from '@tanstack/react-form'
+import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FieldError } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
@@ -29,13 +30,7 @@ export function PortalApprovedDestinationRequestForm({
     },
   })
   return (
-    <form
-      className="flex flex-col gap-2 sm:flex-row"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void form.handleSubmit().catch(() => undefined)
-      }}
-    >
+    <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submitHandler(form)}>
       <form.Field name="uri">
         {(field) => {
           const invalid = field.state.meta.isTouched && !field.state.meta.isValid

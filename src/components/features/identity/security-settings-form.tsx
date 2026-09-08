@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
 import { FieldGroup } from '#/components/ui/field'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
@@ -42,13 +43,7 @@ export function SecuritySettingsForm({ changePassword }: Props) {
 
   return (
     <div className="space-y-6">
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          form.handleSubmit()
-        }}
-        className="space-y-6"
-      >
+      <form onSubmit={submitHandler(form)} className="space-y-6">
         <FormErrorBanner error={changePassword.error} />
         <Card>
           <CardHeader>

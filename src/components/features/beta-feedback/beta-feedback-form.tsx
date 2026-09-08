@@ -1,6 +1,7 @@
 import { useForm } from '@tanstack/react-form'
 import type { z } from 'zod/v4'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextarea } from '#/components/forms/form-textarea'
 import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
@@ -46,13 +47,7 @@ export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFo
   })
 
   return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault()
-        void form.handleSubmit()
-      }}
-      className="space-y-5"
-    >
+    <form onSubmit={submitHandler(form)} className="space-y-5">
       <FormErrorBanner error={submit.error} />
       <FieldGroup className="gap-4">
         <form.Field name="kind">

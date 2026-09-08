@@ -1,4 +1,5 @@
 import { useForm } from '@tanstack/react-form'
+import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
@@ -38,13 +39,7 @@ export function PortalPropertyBrandEditor({
   const readOnly = disabled || !experience.canManagePropertyBrand
 
   return (
-    <form
-      className="space-y-3 rounded-md border p-4"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void form.handleSubmit().catch(() => undefined)
-      }}
-    >
+    <form className="space-y-3 rounded-md border p-4" onSubmit={submitHandler(form)}>
       <div>
         <h4 className="font-medium">Property brand</h4>
         <p className="text-sm text-muted-foreground">

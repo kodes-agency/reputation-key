@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
 import { Field, FieldLabel } from '#/components/ui/field'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { Input } from '#/components/ui/input'
@@ -93,13 +94,7 @@ export function ProfileSettingsForm({
           <CardDescription>Update your name and view your email.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              form.handleSubmit()
-            }}
-            className="space-y-6"
-          >
+          <form onSubmit={submitHandler(form)} className="space-y-6">
             <div className="space-y-6">
               <form.Field
                 name="name"

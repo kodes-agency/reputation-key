@@ -1,4 +1,5 @@
 import { useForm } from '@tanstack/react-form'
+import { submitHandler } from '#/components/forms/form-submit'
 import { Button } from '#/components/ui/button'
 import { createPortalGroupInputSchema } from '#/contexts/portal/application/dto/create-portal-group.dto'
 import type { PortalGroupMutations } from './portal-group-types'
@@ -32,10 +33,7 @@ export function PortalGroupCreateForm({
     <form
       id="create-portal-group-form"
       className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-4 sm:flex-row sm:items-end"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void form.handleSubmit().catch(() => undefined)
-      }}
+      onSubmit={submitHandler(form)}
     >
       <form.Field name="name">
         {(field) => (

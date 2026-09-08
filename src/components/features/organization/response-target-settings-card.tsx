@@ -1,6 +1,7 @@
 import { useForm } from '@tanstack/react-form'
 import type { Action } from '#/components/hooks/use-action'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
@@ -68,7 +69,7 @@ function TargetPolicyForm({
       onSubmit={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        form.handleSubmit()
+        void submitForm(form)
       }}
     >
       <div className="space-y-1">

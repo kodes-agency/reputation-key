@@ -3,6 +3,7 @@
 import { useForm } from '@tanstack/react-form'
 import type { Ref } from 'react'
 import { Plus, Loader2 } from 'lucide-react'
+import { submitHandler } from '#/components/forms/form-submit'
 import { Button } from '#/components/ui/button'
 import { FieldError } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
@@ -36,13 +37,7 @@ export function CategoryAddForm({ onSubmit, isPending, error, inputRef }: Props)
   const submitIcon = isPending ? <Loader2 className="size-4 animate-spin" /> : <Plus />
 
   return (
-    <form
-      className="mb-6 flex flex-col gap-1"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void form.handleSubmit().catch(() => undefined)
-      }}
-    >
+    <form className="mb-6 flex flex-col gap-1" onSubmit={submitHandler(form)}>
       <div className="flex gap-2">
         <form.Field name="title">
           {(field) => {

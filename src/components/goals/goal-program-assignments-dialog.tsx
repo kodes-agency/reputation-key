@@ -8,6 +8,7 @@ import {
 } from '#/contexts/reporting/application/dto/goal-program.dto'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitForm } from '#/components/forms/form-submit'
 import { goalKeys } from '#/shared/queries/query-keys'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
@@ -108,7 +109,7 @@ export function GoalProgramAssignmentsDialog(props: Props) {
           onSubmit={(event) => {
             event.preventDefault()
             event.stopPropagation()
-            void form.handleSubmit()
+            void submitForm(form)
           }}
         >
           <DialogHeader>

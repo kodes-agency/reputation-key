@@ -11,6 +11,7 @@ import {
 } from '#/components/ui/select'
 import { Textarea } from '#/components/ui/textarea'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { feedbackHandlingDecisionDto } from '#/contexts/inbox/application/dto/inbox.dto'
 import {
@@ -55,7 +56,7 @@ export function FeedbackHandlingForm(props: Props) {
       onSubmit={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        void form.handleSubmit()
+        void submitForm(form)
       }}
     >
       <FormErrorBanner error={props.mutation.error} />

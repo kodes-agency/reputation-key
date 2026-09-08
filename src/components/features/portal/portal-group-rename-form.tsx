@@ -1,4 +1,5 @@
 import { useForm } from '@tanstack/react-form'
+import { submitHandler } from '#/components/forms/form-submit'
 import { Button } from '#/components/ui/button'
 import { updatePortalGroupInputSchema } from '#/contexts/portal/application/dto/update-portal-group.dto'
 import type { PortalGroupMutations } from './portal-group-types'
@@ -34,10 +35,7 @@ export function PortalGroupRenameForm({
   return (
     <form
       className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void form.handleSubmit().catch(() => undefined)
-      }}
+      onSubmit={submitHandler(form)}
     >
       <form.Field name="name">
         {(field) => (
