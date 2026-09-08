@@ -8,9 +8,16 @@ type Props = Readonly<{
   error: unknown
   onAccept: (id: string) => void
   accepting: boolean
+  joiningNotice: React.ReactNode
 }>
 
-export function InvitationListView({ invitations, error, onAccept, accepting }: Props) {
+export function InvitationListView({
+  invitations,
+  error,
+  onAccept,
+  accepting,
+  joiningNotice,
+}: Props) {
   return (
     <AuthCard
       title="Pending invitations"
@@ -35,6 +42,7 @@ export function InvitationListView({ invitations, error, onAccept, accepting }: 
           ))}
         </div>
       )}
+      {invitations.length > 0 ? joiningNotice : null}
     </AuthCard>
   )
 }

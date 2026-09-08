@@ -1,18 +1,15 @@
 ---
-status: draft
+status: accepted
+accepted_by: Bozhidar Denev
+accepted_on: 2026-09-08
 ---
 
 # Google Business Profile Access Disclosure
 
-**Status:** Candidate draft — pending counsel, provider-evidence, and release review
-**Date:** 2026-08-28
-**Version:** 2.0-draft
+**Status:** Accepted for publication
+**Effective date:** 2026-09-08
+**Version:** 2.0
 **Accountable owner:** Bozhidar Denev
-
-> **Do not publish this draft.** It reflects the current repository design, not
-> proof of a live deployment or legal approval. Before publication, bind it to
-> the original Google correspondence, the exact release manifest, verified
-> provider configuration, and named counsel acceptance.
 
 ## What access Reputation Key requests
 
@@ -33,8 +30,8 @@ Current public policy references:
 - [Working with Business Profile review data](https://developers.google.com/my-business/content/review-data)
 - [Business Profile real-time notifications](https://developers.google.com/my-business/content/notification-setup)
 
-The public policy review was last refreshed for this draft on 2026-08-28. The
-release owner must recheck it for each material release because Google's public
+The public policy references were last refreshed on 2026-08-28. The release
+owner must recheck them for each material release because Google's public
 policies may change.
 
 ## How Google data is used
@@ -129,15 +126,15 @@ retention follows the separately approved product/privacy schedule; “derived�
 does not mean “retain forever.”
 
 The repository implements field-level source separation, eligibility fences,
-and erasure/recovery tooling. Recurring production erasure is still a release
+and erasure/recovery tooling. Recurring production erasure remains a release
 gate pending backfill, parity, restore-boundary, and live-cell evidence. This
-draft therefore does not claim that repository tests prove live deletion.
+disclosure therefore does not claim that repository tests prove live deletion.
 
 Disconnecting Google access stops new provider work and invalidates the
 Property's Google destination. Token revocation, source erasure, derived-data
 handling, backups, and independently retained manager-authored history follow
-their distinct approved lifecycle procedures. Final time commitments must be
-copied from the accepted retention schedule, not inferred from this draft.
+their distinct accepted lifecycle procedures. The time commitments are stated
+in the accepted retention schedule rather than inferred from this disclosure.
 
 ## Security and operational controls
 
@@ -153,10 +150,10 @@ The repository is designed so that:
 - release tooling verifies one signed candidate and its provider-approval
   evidence before promotion.
 
-These are implementation requirements. Before publication, the release record
-must separately prove the deployed cell, encryption/key ownership, token
-revocation, logging filters, backups/restores, monitoring, incident contacts,
-and provider configuration.
+These are implementation requirements. Before an affected capability is
+activated, the release record must separately prove the deployed cell,
+encryption/key ownership, token revocation, logging filters, backups/restores,
+monitoring, incident contacts, and provider configuration.
 
 ## Incident and change control
 
@@ -164,16 +161,16 @@ Suspected credential misuse, unauthorized Google access, or exposed Google
 content enters the security incident process immediately. The operator
 contains affected provider capability, preserves content-free evidence,
 rotates or revokes affected authority, assesses scope, and follows the approved
-Google and data-subject notification procedures. This draft does not invent a
-notification deadline; counsel and the applicable provider terms own that
-decision.
+Google and data-subject notification procedures. This disclosure does not state
+one universal notification deadline; applicable law and the provider terms
+determine the deadline.
 
 The release owner must review the public Google policies, the original written
 response and its conditions, the actual OAuth/Pub/Sub configuration, and the
 signed release manifest whenever the data flow, provider, region, retention,
 AI purpose, or publication behavior changes.
 
-## Evidence still required before publication
+## Release evidence required before activation
 
 - the original Google email with headers, sender, time, and support case or
   equivalent provenance retained outside public source control;
@@ -182,8 +179,4 @@ AI purpose, or publication behavior changes.
 - accepted raw-content, derivative, disconnect, backup, and restore lifecycle;
 - named provider, region, no-training, and minimum-retention evidence for any
   enabled AI capability; and
-- dated counsel, product, security, and provider-policy acceptance.
-
----
-
-_Candidate disclosure only. It is not approved customer-facing text._
+- dated accountable-owner, product, security, and provider-policy acceptance.

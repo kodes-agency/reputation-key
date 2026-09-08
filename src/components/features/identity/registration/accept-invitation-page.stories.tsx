@@ -15,6 +15,7 @@ const meta = {
       },
     ],
     acceptInvitation: fn(async () => undefined),
+    joiningNotice: 'By joining you accept the Beta Agreement and the Privacy Notice.',
   },
 } satisfies Meta<typeof AcceptInvitationPage>
 

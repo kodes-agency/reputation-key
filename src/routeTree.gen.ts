@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AcceptInvitationRouteImport } from './routes/accept-invitation'
 import { Route as JoinRouteImport } from './routes/join'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as UnavailableRouteImport } from './routes/unavailable'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -21,6 +22,8 @@ import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authen
 import { Route as AuthenticatedProgressRouteImport } from './routes/_authenticated/progress'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as PTokenRouteImport } from './routes/p/$token'
+import { Route as PrivacyBetaAgreementRouteImport } from './routes/privacy_.beta-agreement'
+import { Route as PrivacyGoogleAccessDisclosureRouteImport } from './routes/privacy_.google-access-disclosure'
 import { Route as AuthenticatedInboxIndexRouteImport } from './routes/_authenticated/inbox/index'
 import { Route as AuthenticatedPropertiesIndexRouteImport } from './routes/_authenticated/properties/index'
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties/$propertyId'
@@ -82,6 +85,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
@@ -118,6 +126,17 @@ const PTokenRoute = PTokenRouteImport.update({
   path: '/p/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyBetaAgreementRoute = PrivacyBetaAgreementRouteImport.update({
+  id: '/privacy_/beta-agreement',
+  path: '/privacy/beta-agreement',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyGoogleAccessDisclosureRoute =
+  PrivacyGoogleAccessDisclosureRouteImport.update({
+    id: '/privacy_/google-access-disclosure',
+    path: '/privacy/google-access-disclosure',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedInboxIndexRoute = AuthenticatedInboxIndexRouteImport.update({
   id: '/inbox/',
   path: '/inbox/',
@@ -330,6 +349,7 @@ export interface FileRoutesByFullPath {
   '/accept-invitation': typeof AcceptInvitationRoute
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unavailable': typeof UnavailableRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -337,6 +357,8 @@ export interface FileRoutesByFullPath {
   '/progress': typeof AuthenticatedProgressRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/p/$token': typeof PTokenRoute
+  '/privacy/beta-agreement': typeof PrivacyBetaAgreementRoute
+  '/privacy/google-access-disclosure': typeof PrivacyGoogleAccessDisclosureRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/settings/ai': typeof AuthenticatedSettingsAiRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
@@ -379,12 +401,15 @@ export interface FileRoutesByTo {
   '/accept-invitation': typeof AcceptInvitationRoute
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unavailable': typeof UnavailableRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/progress': typeof AuthenticatedProgressRoute
   '/p/$token': typeof PTokenRoute
+  '/privacy/beta-agreement': typeof PrivacyBetaAgreementRoute
+  '/privacy/google-access-disclosure': typeof PrivacyGoogleAccessDisclosureRoute
   '/settings/ai': typeof AuthenticatedSettingsAiRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
@@ -427,6 +452,7 @@ export interface FileRoutesById {
   '/accept-invitation': typeof AcceptInvitationRoute
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unavailable': typeof UnavailableRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -434,6 +460,8 @@ export interface FileRoutesById {
   '/_authenticated/progress': typeof AuthenticatedProgressRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/p/$token': typeof PTokenRoute
+  '/privacy_/beta-agreement': typeof PrivacyBetaAgreementRoute
+  '/privacy_/google-access-disclosure': typeof PrivacyGoogleAccessDisclosureRoute
   '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/_authenticated/settings/ai': typeof AuthenticatedSettingsAiRoute
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
@@ -478,6 +506,7 @@ export interface FileRouteTypes {
     | '/accept-invitation'
     | '/join'
     | '/login'
+    | '/privacy'
     | '/reset-password'
     | '/unavailable'
     | '/dashboard'
@@ -485,6 +514,8 @@ export interface FileRouteTypes {
     | '/progress'
     | '/settings'
     | '/p/$token'
+    | '/privacy/beta-agreement'
+    | '/privacy/google-access-disclosure'
     | '/properties/$propertyId'
     | '/settings/ai'
     | '/settings/integrations'
@@ -527,12 +558,15 @@ export interface FileRouteTypes {
     | '/accept-invitation'
     | '/join'
     | '/login'
+    | '/privacy'
     | '/reset-password'
     | '/unavailable'
     | '/dashboard'
     | '/notifications'
     | '/progress'
     | '/p/$token'
+    | '/privacy/beta-agreement'
+    | '/privacy/google-access-disclosure'
     | '/settings/ai'
     | '/settings/integrations'
     | '/settings/members'
@@ -574,6 +608,7 @@ export interface FileRouteTypes {
     | '/accept-invitation'
     | '/join'
     | '/login'
+    | '/privacy'
     | '/reset-password'
     | '/unavailable'
     | '/_authenticated/dashboard'
@@ -581,6 +616,8 @@ export interface FileRouteTypes {
     | '/_authenticated/progress'
     | '/_authenticated/settings'
     | '/p/$token'
+    | '/privacy_/beta-agreement'
+    | '/privacy_/google-access-disclosure'
     | '/_authenticated/properties/$propertyId'
     | '/_authenticated/settings/ai'
     | '/_authenticated/settings/integrations'
@@ -625,9 +662,12 @@ export interface RootRouteChildren {
   AcceptInvitationRoute: typeof AcceptInvitationRoute
   JoinRoute: typeof JoinRoute
   LoginRoute: typeof LoginRoute
+  PrivacyRoute: typeof PrivacyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   UnavailableRoute: typeof UnavailableRoute
   PTokenRoute: typeof PTokenRoute
+  PrivacyBetaAgreementRoute: typeof PrivacyBetaAgreementRoute
+  PrivacyGoogleAccessDisclosureRoute: typeof PrivacyGoogleAccessDisclosureRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiHealthLiveRoute: typeof ApiHealthLiveRoute
   ApiHealthMetricsRoute: typeof ApiHealthMetricsRoute
@@ -678,6 +718,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reset-password': {
       id: '/reset-password'
       path: '/reset-password'
@@ -725,6 +772,20 @@ declare module '@tanstack/react-router' {
       path: '/p/$token'
       fullPath: '/p/$token'
       preLoaderRoute: typeof PTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy_/beta-agreement': {
+      id: '/privacy_/beta-agreement'
+      path: '/privacy/beta-agreement'
+      fullPath: '/privacy/beta-agreement'
+      preLoaderRoute: typeof PrivacyBetaAgreementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy_/google-access-disclosure': {
+      id: '/privacy_/google-access-disclosure'
+      path: '/privacy/google-access-disclosure'
+      fullPath: '/privacy/google-access-disclosure'
+      preLoaderRoute: typeof PrivacyGoogleAccessDisclosureRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/inbox/': {
@@ -1108,9 +1169,12 @@ const rootRouteChildren: RootRouteChildren = {
   AcceptInvitationRoute: AcceptInvitationRoute,
   JoinRoute: JoinRoute,
   LoginRoute: LoginRoute,
+  PrivacyRoute: PrivacyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   UnavailableRoute: UnavailableRoute,
   PTokenRoute: PTokenRoute,
+  PrivacyBetaAgreementRoute: PrivacyBetaAgreementRoute,
+  PrivacyGoogleAccessDisclosureRoute: PrivacyGoogleAccessDisclosureRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiHealthLiveRoute: ApiHealthLiveRoute,
   ApiHealthMetricsRoute: ApiHealthMetricsRoute,

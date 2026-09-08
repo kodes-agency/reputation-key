@@ -1,18 +1,15 @@
 ---
-status: draft
+status: accepted
+accepted_by: Bozhidar Denev
+accepted_on: 2026-09-08
 ---
 
 # Privacy Notice — Reputation Key Closed Beta
 
-**Status:** Candidate draft — pending counsel, live-provider, and release review
-**Date:** 2026-08-28
-**Version:** 2.0-draft
+**Status:** Accepted for publication
+**Effective date:** 2026-09-08
+**Version:** 2.0
 **Accountable owner:** Bozhidar Denev
-
-> **Do not publish this draft.** It describes the intended closed-beta product
-> and distinguishes repository controls from live evidence. It still requires
-> an accepted retention schedule, subprocessor schedule, rights procedure,
-> international-transfer analysis, effective date, and named counsel approval.
 
 ## 1. About this notice
 
@@ -28,8 +25,21 @@ This notice covers two groups:
 - **Guests** — people who open a published Portal and may submit a private
   rating, optional private feedback, or choose a destination link.
 
-The final notice must state the accepted controller/processor roles and legal
-bases. Engineering does not decide those questions.
+Kodes Agency, operating as Reputation Key, is the controller for Participant
+account data, security and monitoring signals, and beta feedback. Participant
+account data and beta feedback are processed to perform the closed beta
+agreement. Security, abuse-prevention, and diagnostic signals are processed for
+Kodes Agency's legitimate interests in protecting and operating the Service.
+
+For Google Business Profile content and Guest Portal submissions, the
+Organization is the controller and Kodes Agency is its processor, acting on the
+Organization's documented instructions. Guest private ratings and feedback are
+voluntary submissions processed for the Organization's legitimate interest in
+service quality.
+
+AI features run only after an Organization administrator records an opt-in to
+the current Merchant AI notice. A new notice version requires a new recorded
+opt-in.
 
 ## 2. Information handled by the Service
 
@@ -60,10 +70,10 @@ manager-authored reply workflow and reconciliation evidence.
 Google-controlled source content is isolated from longer-lived application
 facts. Its intended maximum cache horizon is 30 calendar days from the latest
 successful fetch, with refresh due before expiry. Production erasure and
-restore-boundary evidence remains a release gate; this draft does not treat a
+restore-boundary evidence remains a release gate. This notice does not treat a
 repository test as proof of live deletion.
 
-See the separate [Google Business Profile Access Disclosure](google-access-disclosure.md).
+See the separate [Google Business Profile Access Disclosure](/privacy/google-access-disclosure).
 
 ### Portal and Guest information
 
@@ -111,10 +121,15 @@ cookies, credentials, raw tenant content, and unapproved identifiers from
 ordinary monitoring. Native feedback text is submitted deliberately and held
 separately from application telemetry.
 
-The final provider schedule must identify actual monitoring, email, hosting,
-database, cache/queue, object-storage, and AI providers and their configured
-regions and retention. Older provider names in superseded drafts are not live
-evidence.
+The Service uses the following providers:
+
+| Provider | Purpose                                        | Processing location and retention or use controls                                                                                                                                                                                                                                          |
+| -------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Railway  | Hosting, PostgreSQL, Redis, and object storage | United States, US West                                                                                                                                                                                                                                                                     |
+| OpenAI   | AI inference                                   | Global API endpoint with no residency commitment; prompt cache up to 24 hours; ordinary abuse-monitoring retention generally no more than 30 days, subject to documented legal or safety exceptions; API data is not used for training unless Reputation Key's OpenAI organization opts in |
+| Google   | Business Profile APIs and OAuth                | Independent controller of Business Profile data                                                                                                                                                                                                                                            |
+| Resend   | Transactional email                            | United States                                                                                                                                                                                                                                                                              |
+| Sentry   | Error monitoring                               | United States; used only when a DSN is configured, and no DSN is configured today                                                                                                                                                                                                          |
 
 ## 3. Why information is used
 
@@ -137,9 +152,8 @@ The Service uses information to:
 - improve the closed beta using deliberately submitted feedback.
 
 Core analytics are part of the Service and do not have a product toggle to
-decline collection while continuing to use the affected workflow. The final
-notice and lawful-basis/rights analysis for that design require counsel
-acceptance.
+decline collection while continuing to use the affected workflow. The
+controller roles and legal bases stated in section 1 apply to these uses.
 
 Portal and staff-attribution metrics are decision-support evidence. The beta
 does not provide competitive rankings, bottom lists, automatic employment
@@ -161,8 +175,14 @@ decisions, or review-derived staff scoring.
 - Service providers receive only the data required for their accepted purpose
   and configuration.
 
-The final notice must attach the verified subprocessor and international-
-transfer schedule before publication.
+All providers in the schedule process personal data in the United States.
+The beta has no EU deployment. OpenAI uses a global API endpoint and gives no
+provider residency commitment, so this notice makes no US-only provider
+processing promise.
+
+For transfers from the EU or UK, Reputation Key relies on each provider's
+data-processing terms incorporating the EU Standard Contractual Clauses and,
+where the provider is certified, the EU-U.S. Data Privacy Framework.
 
 ## 5. Independently controlled AI features
 
@@ -187,8 +207,8 @@ training on submitted Google content have no activation path.
 
 ## 6. Current retention posture
 
-The following horizons are implemented or represented in the repository. They
-remain subject to the final accepted retention matrix and deployed evidence.
+The following accepted horizons are implemented or represented in the
+repository:
 
 | Information class                                                                      | Current repository horizon or trigger                                              |
 | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -208,12 +228,28 @@ remain subject to the final accepted retention matrix and deployed evidence.
 Reading, viewing, moderating, or archiving content does not extend its content
 deadline.
 
-The final schedule still needs accepted rules for base Guest visit/destination
-facts, legacy Guest rows, account/member deletion, manager-authored replies and
-notes, Portal configuration/publication history, Contact Requests, provider
-reply content, AI derivatives, logs, quarantine, object storage, restored
-backups, and independently retained operational evidence. Until those are
-accepted and executable, this draft must not state a universal deletion promise.
+The accepted rules for the remaining information classes are:
+
+- base Guest visit and destination facts are content-free and kept for 24
+  months;
+- there are no legacy Guest rows: the beta database started empty on
+  2026-09-05;
+- account and member data is kept for the life of the membership and purged by
+  the Organization closure workflow;
+- manager-authored replies and notes, Portal configuration, and publication
+  history are kept for the life of the Organization and purged at closure;
+- Contact Requests are disabled;
+- provider reply content follows the 30-day source-content policy;
+- de-identified AI derivatives are kept for 24 months and withheld immediately
+  when authorization is withdrawn;
+- application logs are content-minimized and held by the hosting provider for
+  no more than 30 days;
+- there is no quarantine retention class because no quarantine tables remain;
+- Organization Export objects are kept for no more than seven days, and their
+  retrieval links for no more than 24 hours; and
+- the hosting provider keeps encrypted backups for no more than 30 days. Every
+  erasure is recorded in the append-only `backup_erasure_ledger` and re-applied
+  after any restore.
 
 ## 7. Choices, corrections, and withdrawal
 
@@ -231,11 +267,16 @@ accepted and executable, this draft must not state a universal deletion promise.
 
 Participants and Guests may have rights of access, correction, objection,
 withdrawal, deletion, restriction, or portability depending on applicable law
-and the Operator's role. The final notice must name the verified request channel,
-identity-verification procedure, response time, exceptions, appeal/escalation
-path, and backup implications. Organization Export foundations exist but the
-complete 17-context workflow is not yet activated; this draft does not promise
-an unavailable self-service export.
+and the controller's role. Send a request to
+[denev@kodes.agency](mailto:denev@kodes.agency). Participants verify their
+identity by writing from their registered address. Guests present the signed
+response link or the details of their submission. Reputation Key responds
+within 30 days.
+
+To escalate a request, write to the same address and mark the message
+“escalation.” A Participant or Guest may also contact the competent supervisory
+authority. The backup rules in section 6 apply to erasure requests. Organization
+Export is not available as a self-service workflow during the beta.
 
 ## 8. Security and deployment posture
 
@@ -244,28 +285,14 @@ encrypted provider credentials, secure transport requirements, source-content
 isolation, content-minimal durable facts, monitoring scrubbing, bounded jobs,
 and signed immutable release promotion.
 
-The target beta topology is exactly one Railway Data Cell, `cell-us`, in
-Railway's US West/California placement. All supported countries explicitly
-route to this one beta cell; dormant `europe` and `global` identifiers are
-denied and are not additional beta deployments. This target is not proof of
-current live placement.
-
-Before publication, retain the live `cell-us` service/provider inventory,
-domains, image digests, encryption/key evidence, backup/PITR and restore test,
-object lifecycle, monitoring/email retention, incident routing, and data-flow/
-transfer record. Do not infer those facts from repository configuration alone.
+The beta has one production deployment on Railway in the United States (US
+West); no EU deployment exists.
 
 ## 9. Changes and contact
 
-The final notice must identify the effective date, material-change process,
-data-protection contact, security contact, and approved request channel. The
-closed beta must notify affected Participants of material changes under the
-accepted procedure before the changes take effect.
+This notice takes effect on 2026-09-08 and is version 2.0. Material changes will
+be announced to Participants by email at least 14 days before they take effect.
+The version and effective date will remain shown on this page.
 
-Current accountable product/security contact for draft review: **Bozhidar
-Denev**.
-
----
-
-_Candidate privacy text only. It has not been approved by legal counsel and is
-not evidence that a provider or deployment is live._
+The data-protection, security, and rights-request contact is
+[denev@kodes.agency](mailto:denev@kodes.agency).

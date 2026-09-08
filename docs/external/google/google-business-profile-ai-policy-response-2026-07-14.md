@@ -11,6 +11,7 @@
 
 - [Submitted request](google-business-profile-ai-policy-clarification.md)
 - [Submitted PDF attachment](attachments/reputation-key-google-ai-policy-clarification.pdf)
+- [Processing-region and prompt-cache restatement (pending submission)](google-business-profile-ai-processing-restatement-2026-09-08.md)
 - The original email, full headers, sender address, date/time, and support case should be retained outside the repository's public history or in the approved compliance-evidence store.
 
 The verbatim response below was supplied by the product owner. Repository maintainers have not independently authenticated the email headers.

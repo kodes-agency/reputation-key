@@ -152,7 +152,8 @@ function runtimeSpecifiers(code: string): string[] {
 
 // ── Resolution ─────────────────────────────────────────────────────────
 
-const ASSET_EXT_RE = /\.(css|scss|svg|png|jpe?g|gif|webp|json|woff2?|ttf|ico|mp4|webm)$/i
+const ASSET_EXT_RE =
+  /\.(css|scss|svg|png|jpe?g|gif|webp|json|md|woff2?|ttf|ico|mp4|webm)$/i
 
 /** Returns the resolved absolute path, 'bare' for packages, or null for assets. */
 function resolveSpecifier(spec: string, fromFile: string): string | 'bare' | null {

@@ -6,6 +6,7 @@ export type GuestPortalCopy = Readonly<{
   locale: GuestPortalLocale
   version: GuestPortalLanguagePackVersion
   languageNavigationLabel: string
+  privacyNotice: string
   portalLogoAlt: (organizationName: string) => string
   gatewayUnavailableTitle: string
   gatewayUnavailableBody: string

@@ -89,6 +89,7 @@
     "jose": "^6.2.12",
     "libphonenumber-js": "1.13.12",
     "lucide-react": "^1.41.0",
+    "marked": "18.0.12",
     "openai": "7.4.0",
     "pg": "8.23.0",
     "pino": "10.3.1",

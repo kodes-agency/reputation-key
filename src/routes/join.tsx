@@ -64,6 +64,23 @@ function JoinPage() {
   return (
     <AuthCard title="Create your account" description="Join your team on Reputation Key">
       <RegisterForm mode="join" mutation={mutation} invitationId={search.invitationId} />
+      <p className="mt-4 text-center text-xs leading-relaxed text-muted-foreground">
+        By joining you accept the{' '}
+        <Link
+          to="/privacy/beta-agreement"
+          className="font-medium text-link underline underline-offset-4"
+        >
+          Beta Agreement
+        </Link>{' '}
+        and the{' '}
+        <Link
+          to="/privacy"
+          className="font-medium text-link underline underline-offset-4"
+        >
+          Privacy Notice
+        </Link>
+        .
+      </p>
       <AuthFooterLink message="Already have an account?" linkText="Sign in" to="/login" />
     </AuthCard>
   )

@@ -168,6 +168,11 @@ export function PublicPortalContent({
           </>
         )}
       </main>
+      <footer className="mx-auto max-w-lg px-4 pb-8 text-center text-sm">
+        <a href="/privacy" className="underline underline-offset-4" style={MUTED_STYLE}>
+          {copy.privacyNotice}
+        </a>
+      </footer>
     </div>
   )
 }
