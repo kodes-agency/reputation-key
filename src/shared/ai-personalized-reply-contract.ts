@@ -63,7 +63,12 @@ const PROFILE_MANIFEST = Object.freeze({
     selfQuoteContentWordsMustAppearInReply: true,
     selfQuoteContentWordMinimumLength: 3,
   }),
-  brandGrounding: Object.freeze({ exactPublicDisplayNameRequired: true }),
+  brandGrounding: Object.freeze({
+    publicDisplayNameRequired: true,
+    foldedComparison: true,
+    repetitionAllowed: true,
+    exemptFromOutputLeakageScan: true,
+  }),
   replyText: Object.freeze({ min: 24, max: 1_200 }),
   outputLeakageProfileVersion: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
   outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
@@ -76,8 +81,26 @@ export const AI_PERSONALIZED_REPLY_PROFILE_DIGEST = createHash('sha256')
   .update(canonicalizeRfc8785(PROFILE_MANIFEST), 'utf8')
   .digest('hex')
 
+/**
+ * Case-, form- and typography-insensitive comparison key.
+ *
+ * NFKC and locale-independent lowercasing are not enough on their own: NFKC
+ * leaves U+2019 (`’`) distinct from `'` and leaves line breaks intact, so a
+ * model re-quoting a guest who typed `I’m` as `I'm`, or flattening a quote that
+ * spanned a newline, failed the source-excerpt check. 4 of the 20 real reviews
+ * on the beta property carry U+2019 and one carries both hazards in a single
+ * 44-character sentence. Neither shape is a hallucination, which is the only
+ * thing that check exists to catch.
+ */
 function folded(value: string): string {
-  return value.normalize('NFKC').toLocaleLowerCase('und')
+  return value
+    .normalize('NFKC')
+    .toLocaleLowerCase('und')
+    .replace(/[\u2018\u2019\u201b\u2032]/gu, "'")
+    .replace(/[\u201c\u201d\u201f\u2033]/gu, '"')
+    .replace(/[\u2010-\u2015\u2212]/gu, '-')
+    .replace(/\s+/gu, ' ')
+    .trim()
 }
 
 function supportedLanguageGroup(tag: string): 'en-Latn' | 'bg-Cyrl' | null {
@@ -154,20 +177,50 @@ function hasValidGrounding(reviewText: string, draft: PersonalizedReplyDraft): b
   return true
 }
 
-function usesExactPublicDisplayNameOnce(
-  replyText: string,
-  brandDisplayName: string,
-): boolean {
-  if (brandDisplayName.length === 0) return false
-  const first = replyText.indexOf(brandDisplayName)
-  return first >= 0 && replyText.indexOf(brandDisplayName, first + 1) === -1
+/**
+ * The reply has to carry the property's approved public display name, because
+ * that is the identity the merchant notice promises guests will see.
+ *
+ * It used to have to carry it byte-exactly and exactly once. Both halves cost
+ * real drafts. Byte-exact: the prompt tells the model to ground itself in the
+ * guest's words, and of the four real reviews on the beta property that name
+ * the business, three spell it `Kodes` or `kodes` rather than `KODES agency`,
+ * so following the prompt failed the validator. Exactly once: a reply that
+ * opens with the business name and signs off with it - the most natural
+ * hospitality shape there is - was refused for being more on-brand than
+ * required. Neither is a safety property; the name is present either way, and a
+ * human approves every reply before it reaches Google.
+ */
+function usesPublicDisplayName(replyText: string, brandDisplayName: string): boolean {
+  const brand = folded(brandDisplayName)
+  return brand.length > 0 && folded(replyText).includes(brand)
 }
 
-function containsProhibitedContent(replyText: string, countryCode: string): boolean {
-  if (PROHIBITED_REPLY_PATTERNS.some((pattern) => pattern.test(replyText))) return true
+/**
+ * Blank out the approved display name before the leakage scan.
+ *
+ * The scanner refuses digits and symbols outright, and the brand check above
+ * *requires* the display name to appear - so a property legitimately named
+ * `Hotel 5` or `Café & Bar` made the two rules mutually unsatisfiable and every
+ * AI draft for it impossible. The approved name is reviewed Brand Profile data,
+ * not model-invented content, so it is exempt by the same reasoning that admits
+ * it into the reply at all.
+ */
+function withoutBrandDisplayName(replyText: string, brandDisplayName: string): string {
+  if (brandDisplayName.length === 0) return replyText
+  return replyText.split(brandDisplayName).join(' ')
+}
+
+function containsProhibitedContent(
+  replyText: string,
+  countryCode: string,
+  brandDisplayName: string,
+): boolean {
+  const scanned = withoutBrandDisplayName(replyText, brandDisplayName)
+  if (PROHIBITED_REPLY_PATTERNS.some((pattern) => pattern.test(scanned))) return true
   return (
     scanAiReplyOutput({
-      text: replyText,
+      text: scanned,
       countryCode,
       expectedProfileVersion: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
       expectedProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
@@ -196,10 +249,16 @@ export function parsePersonalizedReplyDraft(
   if (!hasValidGrounding(input.reviewText, parsed.data)) {
     return { status: 'rejected', reason: 'grounding' }
   }
-  if (!usesExactPublicDisplayNameOnce(parsed.data.replyText, input.brandDisplayName)) {
+  if (!usesPublicDisplayName(parsed.data.replyText, input.brandDisplayName)) {
     return { status: 'rejected', reason: 'brand' }
   }
-  if (containsProhibitedContent(parsed.data.replyText, input.countryCode)) {
+  if (
+    containsProhibitedContent(
+      parsed.data.replyText,
+      input.countryCode,
+      input.brandDisplayName,
+    )
+  ) {
     return { status: 'rejected', reason: 'prohibited_content' }
   }
   return {
