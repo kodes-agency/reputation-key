@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { ServerFunctionError } from '#/shared/auth/server-errors'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 
 // ── TanStack Start context setup ──────────────────────────────────
 // createServerFn's middleware chain reads startOptions from a global ALS.

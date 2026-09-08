@@ -5,6 +5,7 @@ import {
   type ErrorMonitoringSdk,
 } from './telemetry'
 import { scrubSentryEvent } from './sentry-event-scrub'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 
 function sdk() {
   const scope = {
@@ -71,6 +72,25 @@ describe('error monitoring runtime', () => {
       release_sha: baseConfig.release,
     })
     const options = sentry.init.mock.calls[0]![0]
+    expect(
+      options.beforeSend(
+        { message: 'refused' },
+        {
+          originalException: new ServerFunctionError(
+            'AuthError',
+            'x',
+            'unauthorized',
+            401,
+          ),
+        },
+      ),
+    ).toBeNull()
+    expect(
+      options.beforeSend(
+        { message: 'db failed' },
+        { originalException: new Error('db') },
+      ),
+    ).toEqual(scrubSentryEvent({ message: 'db failed' }))
     expect(
       options.integrations([
         { name: 'Http' },

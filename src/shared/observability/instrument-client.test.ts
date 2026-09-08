@@ -1,10 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { initializeBrowserObservability } from '#/instrument.client'
 import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
-import {
-  scrubSentryBreadcrumb,
-  scrubSentryEvent,
-} from '#/shared/observability/sentry-event-scrub'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import { scrubSentryBreadcrumb } from '#/shared/observability/sentry-event-scrub'
 
 const sentry = {
   init: vi.fn((options: unknown) => void options),
@@ -107,9 +105,25 @@ describe('browser observability initialization', () => {
       environment: 'google-closed-beta',
       sendDefaultPii: false,
       tracesSampleRate: 0,
-      beforeSend: scrubSentryEvent,
+      beforeSend: expect.any(Function),
       beforeBreadcrumb: scrubSentryBreadcrumb,
     })
+    const { beforeSend } = sentry.init.mock.calls[0]![0] as {
+      beforeSend: (event: unknown, hint: { originalException: unknown }) => unknown
+    }
+    expect(
+      beforeSend(
+        { message: 'refused' },
+        {
+          originalException: new ServerFunctionError(
+            'AuthError',
+            'x',
+            'unauthorized',
+            401,
+          ),
+        },
+      ),
+    ).toBeNull()
     expect(sentry.captureException).toHaveBeenCalledOnce()
     expect(sentry.captureException).toHaveBeenCalledWith(bufferedError)
     expect(errors.removeEventListener).toHaveBeenCalledTimes(2)

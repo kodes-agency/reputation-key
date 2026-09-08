@@ -20,6 +20,7 @@ import {
   type CapabilitySet,
 } from '#/shared/auth/capability-set'
 import { propertyIdFromLocation } from '#/components/hooks/use-property-id'
+import { httpStatus } from '#/shared/observability/expected-refusal'
 import { SidebarProvider } from '#/components/ui/sidebar'
 import { ManagerSidebar } from '#/components/layout/manager-sidebar'
 import { SettingsSidebar } from '#/components/layout/settings-sidebar'
@@ -132,6 +133,12 @@ export const Route = createFileRoute('/_authenticated')({
       }
     } catch (e) {
       if (isRedirect(e)) throw e
+
+      // The session ended between getSession() and this call (sign-out in
+      // another tab, expiry): the same outcome as no session above.
+      if (httpStatus(e) === 401) {
+        throw redirect({ to: '/login', search: { redirect: location.href } })
+      }
 
       const errorCode =
         e instanceof Error &&

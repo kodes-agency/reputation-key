@@ -19,7 +19,8 @@ import {
   runWithContext,
 } from '#/shared/observability/request-context'
 import { startRequestSpan } from '#/shared/observability/trace'
-import { ServerFunctionError, catchUntagged } from '#/shared/auth/server-errors'
+import { catchUntagged } from '#/shared/auth/server-errors'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { getLogger } from '#/shared/observability/logger'
 
 /**

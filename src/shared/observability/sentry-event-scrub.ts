@@ -1,4 +1,19 @@
+import { isExpectedRefusal } from './expected-refusal'
 import { isSensitiveObservabilityField } from './sensitive-field-policy'
+
+export type SentryEventHint = Readonly<{ originalException?: unknown }>
+
+/**
+ * `beforeSend` for both SDKs: an expected refusal (4xx) is never an issue;
+ * everything else is scrubbed. The Nitro hook applies the same rule, but
+ * Sentry's server function middleware and the browser SDK bypass it.
+ */
+export function dropExpectedRefusals<T>(
+  scrub: (event: T) => T,
+): (event: T, hint?: SentryEventHint) => T | null {
+  return (event, hint) =>
+    isExpectedRefusal(hint?.originalException) ? null : scrub(event)
+}
 
 const REDACTED = '[REDACTED]'
 

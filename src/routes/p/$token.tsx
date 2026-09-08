@@ -43,9 +43,9 @@ const unavailablePostureStatus: Readonly<Record<number, true>> = {
 }
 
 /**
- * `ServerFunctionError` carries `.status`, but the class itself does not survive
- * seroval serialization across the server/client boundary — narrow structurally
- * rather than with `instanceof`.
+ * `ServerFunctionError` carries `.status` across the server/client boundary
+ * (`serverFunctionErrorAdapter`); narrowing structurally keeps this route
+ * independent of the class.
  */
 function isUnavailablePosture(error: unknown): boolean {
   if (typeof error !== 'object' || error === null || !('status' in error)) return false

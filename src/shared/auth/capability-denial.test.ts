@@ -1,7 +1,7 @@
 // Unit tests for isDarkCapabilityDenial (BQC-6.7 / F-PEOPLE).
 import { describe, expect, it } from 'vitest'
 import { isDarkCapabilityDenial } from './capability-denial'
-import { ServerFunctionError } from './server-errors'
+import { ServerFunctionError } from './server-function-error'
 
 describe('isDarkCapabilityDenial', () => {
   it('matches the dark-capability deny reasons', () => {
