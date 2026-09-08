@@ -10,6 +10,7 @@ storybook-static
 *.local
 .env
 .env.local
+local.env
 .nitro
 .tanstack
 .wrangler

@@ -93,6 +93,35 @@ resolve the Compose service names to loopback through
 `scripts/local/loopback-hosts.mjs` because `local-provider-fetch.ts`
 deliberately compiles the AI stub address in.
 
+**Real Google - `local.env` + `REPKEY_LOCAL_GOOGLE=real`.** To connect a real
+Google account and import real locations from this stack, copy
+`local.env.example` to `local.env` (gitignored) and set the real OAuth
+credentials. `pnpm local:up` then drops every `provider-sandbox` endpoint pin,
+selects Google's approved endpoints (`production-fixed`), and prints
+`Google: LIVE`. Nothing about that path is production-only: outside
+`NODE_ENV=production` the four provider keyrings derive local fallbacks from
+`OAUTH_STATE_SECRET` and the opaque OAuth state lives in an in-memory
+provider-ephemeral store.
+
+One Google-side prerequisite, once: an OAuth 2.0 **Web application** client in
+the same Google Cloud project as production (the Business Profile API
+allowlist is per project) whose authorised redirect URIs include exactly
+
+```
+http://127.0.0.1:3000/api/auth/google/callback
+```
+
+The stack sends `response_type=code`, `scope=openid
+https://www.googleapis.com/auth/business.manage`, `access_type=offline`,
+`prompt=consent`, PKCE `S256` and an opaque state handle - the same request the
+deployed cell sends. Without the redirect URI registered, Google answers
+`Error 400: redirect_uri`; a wrong client answers `invalid_client`.
+
+Real API quota is consumed and real reviewer data lands in the local database;
+`pnpm local:down` deletes that volume. Pub/Sub notifications cannot reach
+localhost, so review updates arrive through the periodic sync rather than a
+push. The AI provider stays stubbed unless you also point it at OpenAI.
+
 The seed binds no property to Google, and the sandbox has no default scope.
 To get a Google-bound property with synced reviews for the AI features, run
 the import workflow against the running stack:
