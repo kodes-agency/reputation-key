@@ -3,7 +3,7 @@ import type {
   ObservabilityInitResult,
   ObservabilityService,
 } from './telemetry'
-import { isExpectedRefusal } from './expected-refusal'
+import { isExpectedRefusal } from '#/shared/security/expected-refusal'
 
 interface NitroErrorMonitor {
   initialize(service: ObservabilityService): ObservabilityInitResult

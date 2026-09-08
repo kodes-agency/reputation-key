@@ -15,7 +15,7 @@ import { AlertCircle } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { publicErrorMessage } from '#/shared/security/error-display'
 import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
-import { httpStatus, isExpectedRefusal } from '#/shared/observability/expected-refusal'
+import { httpStatus, isExpectedRefusal } from '#/shared/security/expected-refusal'
 
 /** Default pending component — shown while route loaders are resolving. */
 function DefaultPendingComponent() {

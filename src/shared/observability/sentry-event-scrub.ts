@@ -1,4 +1,4 @@
-import { isExpectedRefusal } from './expected-refusal'
+import { isExpectedRefusal } from '#/shared/security/expected-refusal'
 import { isSensitiveObservabilityField } from './sensitive-field-policy'
 
 export type SentryEventHint = Readonly<{ originalException?: unknown }>

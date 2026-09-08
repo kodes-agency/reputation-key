@@ -20,7 +20,7 @@ import {
   type CapabilitySet,
 } from '#/shared/auth/capability-set'
 import { propertyIdFromLocation } from '#/components/hooks/use-property-id'
-import { httpStatus } from '#/shared/observability/expected-refusal'
+import { httpStatus } from '#/shared/security/expected-refusal'
 import { SidebarProvider } from '#/components/ui/sidebar'
 import { ManagerSidebar } from '#/components/layout/manager-sidebar'
 import { SettingsSidebar } from '#/components/layout/settings-sidebar'
