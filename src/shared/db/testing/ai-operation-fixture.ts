@@ -40,6 +40,8 @@ export type AiOperationSeed = Readonly<{
   executionPermitId?: string | null
   sourceDigest?: string
   sourceByteCount?: number
+  /** Row lifetime; the adoption window a grant may issue is clamped by it. */
+  expiresAt?: Date
 }>
 
 type ControlPosture = Readonly<{
@@ -226,7 +228,7 @@ export async function installAiOperationFixture(
         executionPermitId: seed.executionPermitId ?? null,
         createdAt: now,
         updatedAt: now,
-        expiresAt: new Date(now.getTime() + 60 * 60_000),
+        expiresAt: seed.expiresAt ?? new Date(now.getTime() + 60 * 60_000),
       })
       return id
     },

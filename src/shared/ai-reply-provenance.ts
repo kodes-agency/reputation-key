@@ -168,6 +168,23 @@ function decodeCanonicalBase64Url(value: string): Buffer {
   return bytes
 }
 
+/**
+ * How long an issued reply suggestion stays adoptable in the browser.
+ *
+ * This is a human window, not a machine one. It used to be the route's
+ * `callerDeadlineEpochMillis` - the provider *request* deadline (70 s, of which
+ * inference spends 5-20 s) - so a manager who read the draft for a minute got
+ * "The suggested draft could not be saved" and lost it. Every other fence on
+ * adoption is state-based, not time-based: single-use `replyAdoptionDisposition`
+ * CAS, the rendered-suggestion digest, and the source/reply/profile revisions
+ * checked inside the accepting transaction (see
+ * `src/contexts/review/infrastructure/ai-suggested-draft-store.ts`), which turn
+ * a genuinely stale suggestion into `stale`, not `expired`. The window is
+ * therefore free to be generous, and is bounded by the operation row's own
+ * 15-minute `expires_at` where the grant is issued.
+ */
+export const AI_REPLY_ADOPTION_WINDOW_MILLIS = 10 * 60 * 1_000
+
 export function digestRenderedReply(text: string): string {
   if (text.length === 0 || text.normalize('NFKC') !== text) {
     throw new TypeError('Rendered reply is invalid')
