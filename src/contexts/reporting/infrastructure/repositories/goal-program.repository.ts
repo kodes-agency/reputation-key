@@ -8,7 +8,6 @@ import {
   goalResultRevisions,
   goalSubjectAssignments,
 } from '#/shared/db/schema/goal.schema'
-import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import type {
   GoalMonthlyResult,
@@ -342,21 +341,6 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
             assignmentCount: bundle.assignments.length,
           },
         })
-        await tx.insert(outboxEvents).values({
-          id: input.outboxEventId,
-          eventType: 'goal.program.created',
-          eventVersion: 1,
-          organizationId: bundle.program.organizationId,
-          propertyId: bundle.program.propertyId,
-          sourceContext: 'goal',
-          sourceAggregateId: bundle.program.id,
-          payload: {
-            programId: bundle.program.id,
-            programVersionId: bundle.version.id,
-            metric: bundle.version.metric,
-            assignmentCount: bundle.assignments.length,
-          },
-        })
       })
     },
 
@@ -502,21 +486,6 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
             reason: input.reason,
           },
         })
-        await tx.insert(outboxEvents).values({
-          id: input.outboxEventId,
-          eventType: 'goal.program.status_changed',
-          eventVersion: 1,
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          sourceContext: 'goal',
-          sourceAggregateId: input.programId,
-          payload: {
-            programId: input.programId,
-            previousStatus: input.expectedStatus,
-            status: input.status,
-            reason: input.reason,
-          },
-        })
         return mapProgram(row)
       })
     },
@@ -578,22 +547,6 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
             resourceId: input.version.programId,
             details: {
               propertyId: input.version.propertyId,
-              previousProgramVersionId: input.expectedVersion.id,
-              programVersionId: input.version.id,
-              metric: input.version.metric,
-              assignmentCount: input.assignments.length,
-            },
-          })
-          await tx.insert(outboxEvents).values({
-            id: input.outboxEventId,
-            eventType: 'goal.program.revised',
-            eventVersion: 1,
-            organizationId: input.version.organizationId,
-            propertyId: input.version.propertyId,
-            sourceContext: 'goal',
-            sourceAggregateId: input.version.programId,
-            payload: {
-              programId: input.version.programId,
               previousProgramVersionId: input.expectedVersion.id,
               programVersionId: input.version.id,
               metric: input.version.metric,
@@ -721,20 +674,6 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
             resultCount: input.results.length,
           },
         })
-        await tx.insert(outboxEvents).values({
-          id: input.outboxEventId,
-          eventType: 'goal.program.activated',
-          eventVersion: 1,
-          organizationId: row.organizationId,
-          propertyId: row.propertyId,
-          sourceContext: 'goal',
-          sourceAggregateId: row.id,
-          payload: {
-            programId: row.id,
-            programVersionId: input.bundle.version.id,
-            resultCount: input.results.length,
-          },
-        })
         return mapProgram(row)
       })
     },
@@ -762,22 +701,6 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
           .onConflictDoNothing()
           .returning({ id: goalMonthlyResults.id })
         if (inserted.length === 0) return 0
-        await tx.insert(outboxEvents).values({
-          id: input.outboxEventId,
-          eventType: 'goal.monthly_results.scheduled',
-          eventVersion: 1,
-          organizationId: input.program.organizationId,
-          propertyId: input.program.propertyId,
-          sourceContext: 'goal',
-          sourceAggregateId: input.program.id,
-          payload: {
-            programId: input.program.id,
-            programVersionId: input.version.id,
-            resultCount: inserted.length,
-            periodStart: input.results[0]?.periodStart.toISOString() ?? null,
-            periodEnd: input.results[0]?.periodEnd.toISOString() ?? null,
-          },
-        })
         return inserted.length
       })
     },

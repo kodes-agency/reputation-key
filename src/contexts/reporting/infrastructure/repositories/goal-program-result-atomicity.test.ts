@@ -125,7 +125,6 @@ describe.sequential('Goal Program result CAS and outbox (integration)', () => {
     await createGoalProgramRepository(getDb()).create({
       bundle,
       auditAction: 'goal.program.created',
-      outboxEventId: randomUUID(),
     })
     return result
   }
