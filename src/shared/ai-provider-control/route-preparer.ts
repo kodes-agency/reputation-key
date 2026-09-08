@@ -537,6 +537,7 @@ export function createAiGatewayRoutePreparer(
               replyText,
               responseContext.concreteLanguage,
               dependencies.replyLanguageDetector,
+              [responseContext.brandDisplayName],
             ).status !== 'valid'
           )
             return null

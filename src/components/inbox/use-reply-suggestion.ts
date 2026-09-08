@@ -5,6 +5,7 @@ import {
   replySuggestionFixTarget,
   replySuggestionUnavailableMessage,
   type PendingReplySuggestion,
+  type ReplySuggestionFixTarget,
   type ReplySuggestionResult,
   type ReplyTone,
 } from './reply-suggestion-contract'
@@ -33,7 +34,9 @@ export function useReplySuggestion(input: Input) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isAdopting, setIsAdopting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [errorFixTarget, setErrorFixTarget] = useState<'public_display_name' | null>(null)
+  const [errorFixTarget, setErrorFixTarget] = useState<ReplySuggestionFixTarget | null>(
+    null,
+  )
   const [suggestion, setSuggestion] = useState<PendingReplySuggestion | null>(null)
   const sequence = useRef(0)
 

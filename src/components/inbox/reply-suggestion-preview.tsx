@@ -24,9 +24,16 @@ export const ReplySuggestionPreview = (props: Props) => (
     </div>
     <p className="mt-2 whitespace-pre-wrap text-sm">{props.suggestion.draft.text}</p>
     {props.suggestion.kind === 'local_fallback' && (
+      // Deliberately does not blame the provider. This sentence used to read
+      // "The AI service was unavailable", but a local fallback is offered for
+      // any reason a personalized draft could not be produced - including our
+      // own output checks refusing the model's answer, which accounted for 11
+      // of 26 real draft requests on the beta property. Naming the provider
+      // sent the operator to retry a service that was working.
       <p className="mt-2 text-xs text-muted-foreground">
-        The AI service was unavailable, so this general wording was prepared locally.
-        Review and edit it before publishing.
+        A personalized draft was not available, so this general wording was prepared
+        locally. Try again for a personalized draft, or review and edit this one before
+        publishing.
       </p>
     )}
     <div className="mt-3 flex gap-2">
