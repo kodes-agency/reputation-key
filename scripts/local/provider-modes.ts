@@ -108,8 +108,14 @@ export function googleProviderMode(env: NodeJS.ProcessEnv): GoogleProviderMode {
     return Object.freeze({
       kind: 'sandbox' as const,
       callbackUrl,
-      summary:
-        'Google: Compose sandbox (provider-sandbox:4100) - no real API call leaves this machine',
+      summary: [
+        'Google: Compose sandbox (provider-sandbox:4100) - no real API call leaves this machine.',
+        '  "Connect Google" still points at accounts.google.com (the authorize host is',
+        '  pinned by the provider contract) and the sandbox client id is a placeholder,',
+        "  so clicking it lands on Google's `Error 401: invalid_client`. Either set",
+        '  REPKEY_LOCAL_GOOGLE=real in local.env, or bind a property by running the',
+        '  google-import-sync workflow against this stack (see README).',
+      ].join('\n'),
     })
   }
 
