@@ -1,10 +1,9 @@
-// AI operation abandoned-owner reaper job.
+// AI operation abandoned-owner and delivery reaper job.
 //
 // One bounded repeatable run per cadence tick. All recovery logic lives in the
-// AI application reaper, which routes each live-state candidate through the
-// operation store's `recordFailure` CAS and terminal-settles Review Analysis
-// outcomes before their receipts. This module is only the queue seam plus
-// content-free observability.
+// AI application reaper, which fences result-less work or delivers persisted
+// Review Analysis output before recording the origin event's receipt. This
+// module is only the queue seam plus content-free observability.
 //
 // The reaper is injected rather than constructed here: `src/shared/jobs/**` is
 // a shared-other boundary element and must not reach into a context's
@@ -17,8 +16,8 @@
 // start-deadline sweep is unconditional for the identical reason and sits here
 // too.
 //
-// The 15-minute domain horizon decides when work is reapable. The five-minute
-// cadence only bounds how long an already-abandoned operation waits for the
+// The 15-minute domain horizon decides when work is recoverable. The five-minute
+// cadence only bounds how long an already-ownerless operation waits for the
 // next recovery tick.
 
 import type { Job } from 'bullmq'
@@ -35,8 +34,10 @@ export const JOB_NAME = 'ai-operation-execution-reaper' as const
  * concrete implementation.
  */
 type AiOperationExecutionReaperOutcome = Readonly<{
-  abandonedVisited: number
+  recoveryCandidatesVisited: number
   operationsFenced: number
+  operationsDelivered: number
+  operationsSettled: number
   operationsRaced: number
   batchFull: boolean
 }>
@@ -62,12 +63,14 @@ export const createAiOperationExecutionReaperHandler =
       getLogger().info(
         {
           job: JOB_NAME,
-          abandonedVisited: outcome.abandonedVisited,
+          recoveryCandidatesVisited: outcome.recoveryCandidatesVisited,
           operationsFenced: outcome.operationsFenced,
+          operationsDelivered: outcome.operationsDelivered,
+          operationsSettled: outcome.operationsSettled,
           operationsRaced: outcome.operationsRaced,
           batchFull: outcome.batchFull,
           reservationsReleased,
         },
-        'AI operation abandoned-execution reaper completed',
+        'AI operation recovery reaper completed',
       )
     })

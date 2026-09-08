@@ -7,8 +7,11 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   aiExecutionControlHeads,
   aiOperations,
+  aiPropertyProcessingProfiles,
+  aiReviewAnalyses,
   aiReviewAnalysisEnrollments,
   eventConsumerReceipts,
+  materialReviewRevisions,
   merchantAiConsentEvidence,
   merchantAiEnablement,
   outboxEvents,
@@ -48,10 +51,13 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
   const enrollments = createReviewAnalysisEnrollmentAdapter(db, () => ENROLLMENT_ID)
 
   const clear = async () => {
-    await db
-      .delete(eventConsumerReceipts)
-      .where(eq(eventConsumerReceipts.eventId, TRIGGER_EVENT_ID))
-    await db.delete(outboxEvents).where(eq(outboxEvents.id, TRIGGER_EVENT_ID))
+    await db.execute(sql`
+      DELETE FROM event_consumer_receipts
+      WHERE event_id IN (
+        SELECT id FROM outbox_events WHERE organization_id = ${ORGANIZATION_ID}
+      )
+    `)
+    await db.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORGANIZATION_ID))
     await db.delete(properties).where(eq(properties.id, PROPERTY_ID))
     await deleteTestOrganizations(db, [ORGANIZATION_ID])
   }
@@ -224,10 +230,21 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
     })
     expect(result).toEqual({ status: 'duplicate', enrollmentId: ENROLLMENT_ID })
   })
-  it('catches up after the reaper terminal-settles an abandoned pending revision', async () => {
+  it('catches up after the reaper delivers a persisted result', async () => {
     const reviewId = '74000000-0000-4000-8000-000000000005'
     const operationId = '74000000-0000-4000-8000-000000000006'
     const executionPermitId = '74000000-0000-4000-8000-000000000007'
+    const freshOperationId = '74000000-0000-4000-8000-000000000008'
+    const freshPermitId = '74000000-0000-4000-8000-000000000009'
+    const freshEventId = '74000000-0000-4000-8000-000000000010'
+    const freshReviewId = '74000000-0000-4000-8000-000000000011'
+    const deliveredOperationId = '74000000-0000-4000-8000-000000000012'
+    const deliveredPermitId = '74000000-0000-4000-8000-000000000013'
+    const deliveredEventId = '74000000-0000-4000-8000-000000000014'
+    const deliveredReviewId = '74000000-0000-4000-8000-000000000015'
+    const completedAt = new Date(NOW.getTime() + 60_000)
+    const freshCreatedAt = new Date(NOW.getTime() + 1)
+    const reaperNow = new Date(NOW.getTime() + AI_EXECUTION_ABANDONED_AFTER_MILLIS)
     const expectedFence = {
       authorizationLineageId: LINEAGE_ID,
       authorizationStateVersion: 1,
@@ -258,7 +275,7 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
       platform: 'google',
-      externalId: 'ai-enrollment-abandoned-operation-review',
+      externalId: 'ai-enrollment-pending-delivery-review',
       reviewerName: 'Synthetic reviewer',
       rating: 5,
       text: 'Synthetic review content',
@@ -270,6 +287,29 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
       analysisSequence: 0,
       aiSourceByteLength: 24,
       aiSourceDigest: 'a'.repeat(64),
+    })
+    await db.insert(materialReviewRevisions).values({
+      reviewId,
+      revision: 1,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      sourceEpoch: 0,
+      normalizationVersion: 'legacy-unverified-v0',
+      rating: 5,
+      normalizedText: 'Synthetic review content',
+    })
+    await db.insert(aiPropertyProcessingProfiles).values({
+      propertyId: PROPERTY_ID,
+      organizationId: ORGANIZATION_ID,
+      countryCode: 'US',
+      timezone: 'America/New_York',
+      processingRegion: 'global',
+      routingPolicyVersion: 1,
+      providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
+      sourceEpoch: 0,
+      profileVersion: 1,
+      lifecycleState: 'active',
+      updatedAt: NOW,
     })
     await enrollments.applyAuthorizationLifecycle({
       eventEnvelopeId: TRIGGER_EVENT_ID,
@@ -336,7 +376,7 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
       `provider:${AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion}`,
     )
     const capabilityControl = control('capability:review_analysis')
-    await db.insert(aiOperations).values({
+    const operationBase: typeof aiOperations.$inferInsert = {
       id: operationId,
       idempotencyScope: `analysis:${operationId}`,
       idempotencyKey: `analysis:${backfill.id}`,
@@ -381,13 +421,56 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
       },
       routeKey: 'review-analysis',
       executionPermitId,
-      state: 'pending',
+      state: 'succeeded_pending_delivery',
       executionAttempt: 1,
-      nextAttemptAt: new Date(NOW.getTime() + 30_000),
-      failureCode: 'provider_rate_limited',
+      failureCode: null,
       createdAt: NOW,
-      updatedAt: NOW,
+      updatedAt: completedAt,
       expiresAt: new Date(NOW.getTime() + 24 * 60 * 60_000),
+    }
+    await db.insert(aiOperations).values([
+      operationBase,
+      {
+        ...operationBase,
+        id: freshOperationId,
+        idempotencyScope: `analysis:${freshOperationId}`,
+        idempotencyKey: `analysis:${freshEventId}`,
+        reviewId: freshReviewId,
+        originEventId: freshEventId,
+        executionPermitId: freshPermitId,
+        createdAt: freshCreatedAt,
+        updatedAt: freshCreatedAt,
+      },
+      {
+        ...operationBase,
+        id: deliveredOperationId,
+        idempotencyScope: `analysis:${deliveredOperationId}`,
+        idempotencyKey: `analysis:${deliveredEventId}`,
+        reviewId: deliveredReviewId,
+        originEventId: deliveredEventId,
+        executionPermitId: deliveredPermitId,
+        state: 'succeeded',
+        deliveredAt: completedAt,
+      },
+    ])
+    await db.insert(aiReviewAnalyses).values({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      reviewId,
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      analysisSequence: 1,
+      operationId,
+      authorizationLineageId: LINEAGE_ID,
+      reviewAnalysisEpoch: 1,
+      propertyProfileVersion: 1,
+      analysisProfileVersion: 'review-analysis-v1',
+      status: 'ready',
+      sentiment: 'positive',
+      primaryCategory: 'service',
+      attention: 'low',
+      generatedAt: completedAt,
+      expiresAt: new Date(completedAt.getTime() + 365 * 24 * 60 * 60_000),
     })
 
     await expect(
@@ -409,30 +492,58 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
       aggregates: createAiPropertyAggregateStoreAdapter(db),
       recordAnalysisReceipt: (eventId: string, status: 'applied' | 'obsolete') =>
         outbox.insertReceipt(eventId, AI_REVIEW_ANALYSIS_CONSUMER, status),
-      nowEpochMillis: () => NOW.getTime() + AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+      nowEpochMillis: () => reaperNow.getTime(),
     }
-    await expect(createAiOperationExecutionReaper(dependencies)()).resolves.toMatchObject(
-      {
-        abandonedVisited: 1,
-        operationsFenced: 1,
-      },
-    )
-
-    const [operation] = await db
-      .select({ state: aiOperations.state, failureCode: aiOperations.failureCode })
-      .from(aiOperations)
-      .where(eq(aiOperations.id, operationId))
-    expect(operation).toEqual({
-      state: 'failed',
-      failureCode: 'operation_abandoned',
+    await expect(createAiOperationExecutionReaper(dependencies)()).resolves.toEqual({
+      recoveryCandidatesVisited: 1,
+      operationsFenced: 0,
+      operationsDelivered: 1,
+      operationsSettled: 0,
+      operationsRaced: 0,
+      batchFull: false,
     })
+
+    const operations = await db
+      .select({
+        id: aiOperations.id,
+        state: aiOperations.state,
+        failureCode: aiOperations.failureCode,
+        deliveredAt: aiOperations.deliveredAt,
+        updatedAt: aiOperations.updatedAt,
+      })
+      .from(aiOperations)
+      .where(eq(aiOperations.organizationId, ORGANIZATION_ID))
+      .orderBy(aiOperations.id)
+    expect(operations).toEqual([
+      {
+        id: operationId,
+        state: 'succeeded',
+        failureCode: null,
+        deliveredAt: reaperNow,
+        updatedAt: reaperNow,
+      },
+      {
+        id: freshOperationId,
+        state: 'succeeded_pending_delivery',
+        failureCode: null,
+        deliveredAt: null,
+        updatedAt: freshCreatedAt,
+      },
+      {
+        id: deliveredOperationId,
+        state: 'succeeded',
+        failureCode: null,
+        deliveredAt: completedAt,
+        updatedAt: completedAt,
+      },
+    ])
     await expect(
       enrollments.reconcile({
         enrollmentId: ENROLLMENT_ID,
         organizationId: ORGANIZATION_ID,
         expectedFence,
         correlationId: ENROLLMENT_ID,
-        occurredAt: new Date(NOW.getTime() + AI_EXECUTION_ABANDONED_AFTER_MILLIS),
+        occurredAt: reaperNow,
       }),
     ).resolves.toMatchObject({
       status: 'caught_up',
