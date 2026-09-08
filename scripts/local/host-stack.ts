@@ -1,13 +1,16 @@
 // `pnpm local:up`, second half: the web dev server (HMR) and the worker on the
 // host, against the Compose services `scripts/e2e/stack-services.sh` started.
 // The environment is the committed `e2e/stack.env` (already exported by the
-// package script) plus the three host-only adjustments the containers get
-// from Compose: loopback resolution of the service names, trust for the
-// sandbox's run-scoped CA, and the worker's writer keys. Nothing here selects
-// an `E2E` posture - this stack behaves like the deployed cell.
+// package script), then the gitignored `local.env` overlay if it exists, plus
+// the three host-only adjustments the containers get from Compose: loopback
+// resolution of the service names, trust for the sandbox's run-scoped CA, and
+// the worker's writer keys. Nothing here selects an `E2E` posture - this stack
+// behaves like the deployed cell, against the sandbox or against real Google
+// (`REPKEY_LOCAL_GOOGLE=real`; see ./google-provider-mode.ts).
 import { spawn, type ChildProcess } from 'node:child_process'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { applyEnvOverlay, googleProviderMode } from './google-provider-mode'
 
 const root = process.cwd()
 
@@ -16,6 +19,9 @@ function required(name: string): string {
   if (!value) throw new Error(`${name} is not set - run this through \`pnpm local:up\``)
   return value
 }
+
+const overlaid = applyEnvOverlay(process.env, resolve(root, 'local.env'))
+const google = googleProviderMode(process.env)
 
 const hostEnv: NodeJS.ProcessEnv = {
   ...process.env,
@@ -93,5 +99,13 @@ process.on('SIGINT', () => shutdown('SIGINT', 0))
 process.on('SIGTERM', () => shutdown('SIGTERM', 0))
 
 process.stdout.write(
-  '[local] web http://127.0.0.1:3000 (the BETTER_AUTH_URL origin) - manager test@example.com (password: E2E_TEST_PASSWORD in e2e/stack.env), staff staff@example.com / password123; Ctrl-C stops both, `pnpm local:down` removes the services\n',
+  [
+    '[local] web http://127.0.0.1:3000 (the BETTER_AUTH_URL origin) - manager test@example.com',
+    '        (password: E2E_TEST_PASSWORD in e2e/stack.env), staff staff@example.com / password123',
+    ...(overlaid.length > 0
+      ? [`[local] local.env overlay applied: ${overlaid.join(', ')}`]
+      : []),
+    `[local] ${google.summary}`,
+    '[local] Ctrl-C stops both processes; `pnpm local:down` removes the services',
+  ].join('\n') + '\n',
 )
