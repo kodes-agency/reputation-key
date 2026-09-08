@@ -26,11 +26,14 @@ import {
   AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
   settleReviewAnalysisWithoutResult,
 } from './use-cases/analyze-review-event'
-import type { AiOperationStorePort } from './ports/ai-operation-store.port'
+import type {
+  AiOperationRecoveryCandidate,
+  AiOperationStorePort,
+} from './ports/ai-operation-store.port'
 import type { AiPropertyAggregateStorePort } from './ports/ai-property-aggregate-store.port'
 import type { AiReviewEventStorePort } from './ports/ai-review-event-store.port'
 
-export const AI_EXECUTION_REAPER_BATCH_SIZE = 100
+const AI_EXECUTION_REAPER_BATCH_SIZE = 100
 
 /**
  * Shared bound for an open attempt and an operation waiting for redelivery.
@@ -55,6 +58,14 @@ export type AiOperationExecutionReaperResult = Readonly<{
 
 export type AiOperationExecutionReaper = () => Promise<AiOperationExecutionReaperResult>
 
+type DispositionCode = 'operation_abandoned' | 'operation_ambiguous'
+
+type FenceResult =
+  | Readonly<{ outcome: 'fenced'; dispositionCode: DispositionCode }>
+  | Readonly<{ outcome: 'already_fenced'; dispositionCode: DispositionCode }>
+  | Readonly<{ outcome: 'raced' }>
+  | Readonly<{ outcome: 'skipped' }>
+
 export function createAiOperationExecutionReaper(
   deps: Readonly<{
     store: ExecutionReaperStore
@@ -70,6 +81,74 @@ export function createAiOperationExecutionReaper(
 ): AiOperationExecutionReaper {
   const limit = deps.limit ?? AI_EXECUTION_REAPER_BATCH_SIZE
 
+  /**
+   * Fence one candidate, or report why it was left alone. A `failed` candidate
+   * was fenced by an earlier tick that then crashed before it could settle the
+   * review-analysis side, so it needs no second fence - only its disposition.
+   */
+  async function fence(
+    candidate: AiOperationRecoveryCandidate,
+    nowEpochMillis: number,
+    horizonDeadline: number,
+  ): Promise<FenceResult> {
+    if (candidate.state === 'failed') {
+      return candidate.failureCode === 'operation_abandoned' ||
+        candidate.failureCode === 'operation_ambiguous'
+        ? { outcome: 'already_fenced', dispositionCode: candidate.failureCode }
+        : { outcome: 'skipped' }
+    }
+    if (
+      candidate.state === 'pending' &&
+      candidate.createdAtEpochMillis > horizonDeadline
+    ) {
+      return { outcome: 'skipped' }
+    }
+    // The CAS is state-specific: a pending row is fenced against its recorded
+    // failure, an executing row against no failure at all, so the two shapes
+    // cannot be flattened into one object.
+    const expected =
+      candidate.state === 'pending'
+        ? {
+            expectedState: 'pending' as const,
+            expectedFailureCode: candidate.failureCode,
+          }
+        : { expectedState: 'executing' as const, expectedFailureCode: null }
+    const pending = candidate.state === 'pending'
+    const fenced = await deps.store.recordFailure({
+      operationId: candidate.operationId,
+      organizationId: candidate.organizationId,
+      expectedAttempt: candidate.attempt,
+      ...expected,
+      failureCode: pending ? 'operation_abandoned' : 'operation_ambiguous',
+      retryAtEpochMillis: null,
+      failedAtEpochMillis: nowEpochMillis,
+    })
+    return fenced
+      ? {
+          outcome: 'fenced',
+          dispositionCode: pending ? 'operation_abandoned' : 'operation_ambiguous',
+        }
+      : { outcome: 'raced' }
+  }
+
+  /** Advance the strict per-property analysis sequence the fenced operation held. */
+  async function settleAnalysis(
+    candidate: AiOperationRecoveryCandidate,
+    dispositionCode: DispositionCode,
+  ): Promise<void> {
+    if (candidate.analysis === null) return
+    const { eventEnvelopeId, ...analysis } = candidate.analysis
+    const settled = await settleReviewAnalysisWithoutResult(
+      { reviewEvents: deps.reviewEvents, aggregates: deps.aggregates },
+      { ...analysis, operationId: candidate.operationId, dispositionCode },
+    )
+    if (settled.status === 'gap') return
+    await deps.recordAnalysisReceipt(
+      eventEnvelopeId,
+      settled.status === 'generation_changed' ? 'obsolete' : 'applied',
+    )
+  }
+
   return async () => {
     const nowEpochMillis = deps.nowEpochMillis()
     const horizonDeadline = nowEpochMillis - AI_EXECUTION_ABANDONED_AFTER_MILLIS
@@ -82,68 +161,14 @@ export function createAiOperationExecutionReaper(
     let operationsRaced = 0
 
     for (const candidate of abandoned) {
-      let dispositionCode: 'operation_abandoned' | 'operation_ambiguous'
-      if (candidate.state === 'failed') {
-        if (
-          candidate.failureCode !== 'operation_abandoned' &&
-          candidate.failureCode !== 'operation_ambiguous'
-        ) {
-          continue
-        }
-        dispositionCode = candidate.failureCode
-      } else {
-        if (
-          candidate.state === 'pending' &&
-          candidate.createdAtEpochMillis > horizonDeadline
-        ) {
-          continue
-        }
-        dispositionCode =
-          candidate.state === 'pending' ? 'operation_abandoned' : 'operation_ambiguous'
-        const expected =
-          candidate.state === 'pending'
-            ? {
-                expectedState: 'pending' as const,
-                expectedFailureCode: candidate.failureCode,
-              }
-            : {
-                expectedState: 'executing' as const,
-                expectedFailureCode: null,
-              }
-        const fenced = await deps.store.recordFailure({
-          operationId: candidate.operationId,
-          organizationId: candidate.organizationId,
-          expectedAttempt: candidate.attempt,
-          ...expected,
-          failureCode: dispositionCode,
-          retryAtEpochMillis: null,
-          failedAtEpochMillis: nowEpochMillis,
-        })
-        if (!fenced) {
-          operationsRaced += 1
-          continue
-        }
-        operationsFenced += 1
+      const result = await fence(candidate, nowEpochMillis, horizonDeadline)
+      if (result.outcome === 'skipped') continue
+      if (result.outcome === 'raced') {
+        operationsRaced += 1
+        continue
       }
-
-      if (candidate.analysis === null) continue
-      const { eventEnvelopeId, ...analysis } = candidate.analysis
-      const settled = await settleReviewAnalysisWithoutResult(
-        {
-          reviewEvents: deps.reviewEvents,
-          aggregates: deps.aggregates,
-        },
-        {
-          ...analysis,
-          operationId: candidate.operationId,
-          dispositionCode,
-        },
-      )
-      if (settled.status === 'gap') continue
-      await deps.recordAnalysisReceipt(
-        eventEnvelopeId,
-        settled.status === 'generation_changed' ? 'obsolete' : 'applied',
-      )
+      if (result.outcome === 'fenced') operationsFenced += 1
+      await settleAnalysis(candidate, result.dispositionCode)
     }
 
     return Object.freeze({
