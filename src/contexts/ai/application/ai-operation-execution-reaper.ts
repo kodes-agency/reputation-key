@@ -229,6 +229,27 @@ export function createAiOperationExecutionReaper(
     })
   }
 
+  async function settleDeliveryWithoutResult(
+    candidate: DeliveryRecoveryCandidate,
+    dispositionCode: DeliveryDispositionCode,
+  ): Promise<boolean> {
+    const {
+      eventEnvelopeId,
+      resultStatus: _resultStatus,
+      ...analysis
+    } = candidate.analysis
+    const settled = await settleReviewAnalysisWithoutResult(
+      { reviewEvents: deps.reviewEvents, aggregates: deps.aggregates },
+      { ...analysis, operationId: candidate.operationId, dispositionCode },
+    )
+    if (settled.status === 'gap') return false
+    await deps.recordAnalysisReceipt(
+      eventEnvelopeId,
+      settled.status === 'generation_changed' ? 'obsolete' : 'applied',
+    )
+    return true
+  }
+
   async function deliverReadyAnalysis(
     candidate: DeliveryRecoveryCandidate,
     nowEpochMillis: number,
@@ -250,8 +271,11 @@ export function createAiOperationExecutionReaper(
         nowEpochMillis,
       )
       if (!fenced) return { outcome: 'raced' }
-      await deps.recordAnalysisReceipt(eventEnvelopeId, 'obsolete')
-      return { outcome: 'fenced', settled: true }
+      const recovered = await settleDeliveryWithoutResult(
+        candidate,
+        'operation_ambiguous',
+      )
+      return { outcome: 'fenced', settled: recovered }
     }
 
     // Receipt first is crash-safe because this state cannot invoke the
@@ -271,27 +295,14 @@ export function createAiOperationExecutionReaper(
     dispositionCode: DeliveryDispositionCode,
     nowEpochMillis: number,
   ): Promise<RecoveryResult> {
-    const {
-      eventEnvelopeId,
-      resultStatus: _resultStatus,
-      ...analysis
-    } = candidate.analysis
     const fenced = await fenceCompletedDelivery(
       candidate,
       dispositionCode,
       nowEpochMillis,
     )
     if (!fenced) return { outcome: 'raced' }
-    const settled = await settleReviewAnalysisWithoutResult(
-      { reviewEvents: deps.reviewEvents, aggregates: deps.aggregates },
-      { ...analysis, operationId: candidate.operationId, dispositionCode },
-    )
-    if (settled.status === 'gap') return { outcome: 'fenced', settled: false }
-    await deps.recordAnalysisReceipt(
-      eventEnvelopeId,
-      settled.status === 'generation_changed' ? 'obsolete' : 'applied',
-    )
-    return { outcome: 'fenced', settled: true }
+    const settled = await settleDeliveryWithoutResult(candidate, dispositionCode)
+    return { outcome: 'fenced', settled }
   }
 
   async function recoverDelivery(
@@ -321,9 +332,8 @@ export function createAiOperationExecutionReaper(
       candidate.state === 'failed' &&
       candidate.failureCode === 'completed_without_delivery'
     ) {
-      if (candidate.analysis === null) return { outcome: 'skipped' }
-      await deps.recordAnalysisReceipt(candidate.analysis.eventEnvelopeId, 'obsolete')
-      return { outcome: 'settled' }
+      const settled = await settleAnalysis(candidate, 'operation_ambiguous')
+      return settled ? { outcome: 'settled' } : { outcome: 'skipped' }
     }
 
     const result = await fence(candidate, nowEpochMillis, horizonDeadline)

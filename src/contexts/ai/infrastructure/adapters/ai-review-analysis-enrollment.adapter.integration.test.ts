@@ -242,6 +242,9 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
     const deliveredPermitId = '74000000-0000-4000-8000-000000000013'
     const deliveredEventId = '74000000-0000-4000-8000-000000000014'
     const deliveredReviewId = '74000000-0000-4000-8000-000000000015'
+    const supersededOperationId = '74000000-0000-4000-8000-000000000016'
+    const supersededPermitId = '74000000-0000-4000-8000-000000000017'
+    const supersededReviewId = '74000000-0000-4000-8000-000000000018'
     const completedAt = new Date(NOW.getTime() + 60_000)
     const freshCreatedAt = new Date(NOW.getTime() + 1)
     const reaperNow = new Date(NOW.getTime() + AI_EXECUTION_ABANDONED_AFTER_MILLIS)
@@ -452,6 +455,21 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
         state: 'succeeded',
         deliveredAt: completedAt,
       },
+      {
+        ...operationBase,
+        id: supersededOperationId,
+        idempotencyScope: `analysis:${supersededOperationId}`,
+        idempotencyKey: `analysis:${TRIGGER_EVENT_ID}`,
+        reviewId: supersededReviewId,
+        originEventId: TRIGGER_EVENT_ID,
+        executionPermitId: supersededPermitId,
+        capabilityFences: {
+          capability: 'review_analysis',
+          reviewAnalysisEpoch: 2,
+        },
+        state: 'failed',
+        failureCode: 'completed_without_delivery',
+      },
     ])
     await db.insert(aiReviewAnalyses).values({
       organizationId: ORGANIZATION_ID,
@@ -471,6 +489,11 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
       attention: 'low',
       generatedAt: completedAt,
       expiresAt: new Date(completedAt.getTime() + 365 * 24 * 60 * 60_000),
+    })
+    await db.insert(eventConsumerReceipts).values({
+      eventId: TRIGGER_EVENT_ID,
+      consumerName: AI_REVIEW_ANALYSIS_CONSUMER,
+      status: 'obsolete',
     })
 
     await expect(
@@ -536,7 +559,25 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
         deliveredAt: completedAt,
         updatedAt: completedAt,
       },
+      {
+        id: supersededOperationId,
+        state: 'failed',
+        failureCode: 'completed_without_delivery',
+        deliveredAt: null,
+        updatedAt: completedAt,
+      },
     ])
+    await expect(
+      dependencies.aggregates.advanceWithoutAnalysis({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        sourceEpoch: 0,
+        reviewAnalysisEpoch: 1,
+        analysisSequence: 1,
+        propertyProfileVersion: 1,
+        dispositionCode: 'operation_ambiguous',
+      }),
+    ).resolves.toEqual({ status: 'replayed', aggregateRevision: 1 })
     await expect(
       enrollments.reconcile({
         enrollmentId: ENROLLMENT_ID,
