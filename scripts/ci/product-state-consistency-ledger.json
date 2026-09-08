@@ -106,6 +106,7 @@
         "links",
         "responsibleManagers",
         "publicationHistory",
+        "propertyExperience",
         "experience",
         "approvedDestinations",
         "groups",
@@ -117,7 +118,7 @@
         "analytics"
       ],
       "owner": "Portal query lifecycle",
-      "policy": "Property lists, groups, and goal-subject projections include propertyId. Every successful Portal Group create, rename, archive, member-add, or member-remove command goes through one named cache policy that invalidates only the exact groups, goalSubjects, and goalSubjectNames keys for that Property; failed commands do not run the policy. Detail descendants use globally unique portalId; the guest-experience projection also includes propertyId because it combines Property defaults with Portal overrides, while approved destinations remain Portal-scoped. Analytics additionally nests propertyId, portalId, and time range so property teardown, portal teardown, and range-specific reads each have a usable prefix."
+      "policy": "Property lists, groups, and goal-subject projections include propertyId. Every successful Portal Group create, rename, archive, member-add, or member-remove command goes through one named cache policy that invalidates only the exact groups, goalSubjects, and goalSubjectNames keys for that Property; failed commands do not run the policy. Property-wide guest-experience data has its own propertyId prefix, and Portal-specific experience projections descend from it so a brand-profile write refreshes every affected screen. Detail descendants use globally unique portalId, while approved destinations remain Portal-scoped. Analytics additionally nests propertyId, portalId, and time range so property teardown, portal teardown, and range-specific reads each have a usable prefix."
     },
     {
       "id": "integrationKeys",

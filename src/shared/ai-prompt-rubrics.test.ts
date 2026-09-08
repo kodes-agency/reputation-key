@@ -9,6 +9,13 @@ import {
 } from './openai-route-output-schemas'
 import { AI_PRIMARY_CATEGORIES } from './ai-primary-categories'
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from './ai-personalized-reply-contract'
+import { evaluateLanguageScriptConsistency } from './ai-language-script-consistency'
+import {
+  AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
+  AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
+  scanAiReplyOutput,
+} from './ai-reply-output-leakage'
+import { AI_STRUCTURED_MARKER_DETECTORS_DIGEST } from './ai-structured-marker-detectors'
 
 type Vector = Readonly<{
   vectorId: string
@@ -98,6 +105,46 @@ describe('reply prompt states the grounded personalized-draft contract', () => {
     expect(prompt.toLowerCase()).toContain('untrusted data')
     expect(prompt).toContain('exact Property display name')
     expect(prompt).toContain('approved public Brand Profile data')
+  })
+
+  // Probed, not restated: whatever the scanner refuses, the prompt has to say.
+  // 11 of 26 real reply requests on the beta property were refused after the
+  // provider had been billed, and the prompt named no character constraint at
+  // all - so the model had no way to comply.
+  it('names the character classes its output scan refuses', () => {
+    const scan = (text: string) =>
+      scanAiReplyOutput({
+        text,
+        countryCode: 'GB',
+        expectedProfileVersion: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
+        expectedProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
+        expectedDetectorProfileDigest: AI_STRUCTURED_MARKER_DETECTORS_DIGEST,
+      })
+
+    expect(scan('Thank you for the lovely words about our team')).toBe('safe')
+    expect(scan('Thank you for the 5 star review')).not.toBe('safe')
+    expect(scan('Best regards: the team')).not.toBe('safe')
+
+    const lower = prompt.toLowerCase()
+    expect(lower).toContain('no digits')
+    expect(lower).toContain('emoji')
+    expect(lower).toContain('spell any number as a word')
+  })
+
+  // The same-script ratio the language verifier enforces, discovered by probing
+  // the boundary. A Bulgarian reply that must also carry a Latin display name
+  // could not satisfy an unstated ratio.
+  it('names the same-script ratio the language verifier enforces', () => {
+    const cyrillic = 'абвгдежзийклмнопрстуфхцчшщъьюя'
+    const ratioAccepted = (latinLetters: number) =>
+      evaluateLanguageScriptConsistency(
+        `${cyrillic.slice(0, 16)}${'x'.repeat(latinLetters)}`,
+        'bg-Cyrl',
+      ).status
+
+    expect(ratioAccepted(4)).toBe('consistent')
+    expect(ratioAccepted(5)).toBe('inconsistent')
+    expect(prompt.toLowerCase()).toContain('four out of five')
   })
 
   it('does not ask the provider to select or render a stock template', () => {

@@ -105,26 +105,6 @@ describe('personalized reply draft contract', () => {
       'brand',
     ],
     [
-      'case-changed public Brand display name',
-      {
-        output: {
-          ...ENGLISH.output,
-          replyText: ENGLISH.output.replyText.replace('Example Hotel', 'example hotel'),
-        },
-      },
-      'brand',
-    ],
-    [
-      'public Brand display name repeated twice',
-      {
-        output: {
-          ...ENGLISH.output,
-          replyText: `${ENGLISH.output.replyText} Thank you from Example Hotel.`,
-        },
-      },
-      'brand',
-    ],
-    [
       'compensation promise',
       {
         output: {
@@ -280,6 +260,106 @@ describe('personalized reply draft contract', () => {
         },
       }),
     ).toEqual({ status: 'rejected', reason: 'grounding' })
+  })
+
+  // Measured live: of the four real reviews on the beta property that name the
+  // business, three spell it `Kodes`/`kodes` rather than `KODES agency`, and the
+  // prompt tells the model to ground itself in the guest's words. The reply
+  // still carries the approved identity.
+  it('accepts the approved display name in the casing the guest used', () => {
+    const result = parsePersonalizedReplyDraft({
+      ...ENGLISH,
+      brandDisplayName: 'KODES agency',
+      output: {
+        ...ENGLISH.output,
+        replyText:
+          'Thank you for sharing this. The Kodes Agency team is glad the quiet room and the kindness of our breakfast team made your stay enjoyable.',
+        grounding: [{ sourceExcerpt: 'room was quiet', replyExcerpt: 'quiet room' }],
+      },
+    })
+    expect(result.status).toBe('accepted')
+  })
+
+  // Opening with the business name and signing off with it is the most ordinary
+  // hospitality shape there is; it used to be refused for being too on-brand.
+  it('accepts a reply that names the business more than once', () => {
+    const result = parsePersonalizedReplyDraft({
+      ...ENGLISH,
+      output: {
+        ...ENGLISH.output,
+        replyText:
+          'Example Hotel thanks you for this. We are glad the quiet room and the kindness of our breakfast team made your stay enjoyable. The Example Hotel team',
+        grounding: [{ sourceExcerpt: 'room was quiet', replyExcerpt: 'quiet room' }],
+      },
+    })
+    expect(result.status).toBe('accepted')
+  })
+
+  it('still refuses a reply that never names the business', () => {
+    expect(
+      parsePersonalizedReplyDraft({
+        ...ENGLISH,
+        output: {
+          ...ENGLISH.output,
+          replyText:
+            'Thank you for sharing this. We are delighted that the quiet room and the kindness of our breakfast team made your stay enjoyable.',
+          grounding: [{ sourceExcerpt: 'room was quiet', replyExcerpt: 'quiet room' }],
+        },
+      }),
+    ).toEqual({ status: 'rejected', reason: 'brand' })
+  })
+
+  // 4 of the 20 real reviews carry U+2019; one carries a newline inside the
+  // sentence a grounding excerpt has to span.
+  it('accepts a source excerpt that differs only in apostrophe shape or line breaks', () => {
+    const result = parsePersonalizedReplyDraft({
+      ...ENGLISH,
+      reviewText: 'Great SEO services!\nI\u2019m extremely satisfied with the team.',
+      output: {
+        ...ENGLISH.output,
+        replyText:
+          'Thank you - we are glad you are extremely satisfied with the team at Example Hotel.',
+        grounding: [
+          {
+            sourceExcerpt: "services! I'm extremely satisfied with the team",
+            replyExcerpt: 'extremely satisfied with the team',
+          },
+        ],
+      },
+    })
+    expect(result.status).toBe('accepted')
+  })
+
+  // A display name carrying a digit or an ampersand used to make two contracts
+  // mutually unsatisfiable: the brand rule required the string, the leakage
+  // scanner refused digits and symbols, so no output could ever be accepted.
+  it('accepts a display name whose characters the leakage scanner forbids elsewhere', () => {
+    const result = parsePersonalizedReplyDraft({
+      ...ENGLISH,
+      brandDisplayName: 'Rooms 24 & Co',
+      output: {
+        ...ENGLISH.output,
+        replyText:
+          'Thank you for sharing this. Rooms 24 & Co is glad the quiet room and the kindness of our breakfast team made your stay enjoyable.',
+        grounding: [{ sourceExcerpt: 'room was quiet', replyExcerpt: 'quiet room' }],
+      },
+    })
+    expect(result.status).toBe('accepted')
+  })
+
+  it('still refuses forbidden characters the model added on its own', () => {
+    expect(
+      parsePersonalizedReplyDraft({
+        ...ENGLISH,
+        brandDisplayName: 'Rooms 24 & Co',
+        output: {
+          ...ENGLISH.output,
+          replyText:
+            'Thank you for sharing this. Rooms 24 & Co is glad the quiet room pleased you; reach us at team@example.com any time.',
+          grounding: [{ sourceExcerpt: 'room was quiet', replyExcerpt: 'quiet room' }],
+        },
+      }),
+    ).toEqual({ status: 'rejected', reason: 'prohibited_content' })
   })
 
   it('rejects loose or oversized provider output', () => {

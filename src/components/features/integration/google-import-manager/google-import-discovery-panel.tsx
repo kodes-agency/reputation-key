@@ -30,6 +30,8 @@ type Props = Readonly<{
   hasMoreCandidates: boolean
   accountsError: string | null
   candidatesError: string | null
+  /** Restart discovery; null when the failure is not one a restart clears. */
+  onRecoverCandidates: (() => void) | null
   selectAllError: string | null
   isSelectingAll: boolean
   onSearchChange: (value: string) => void
@@ -108,6 +110,7 @@ export function GoogleImportDiscoveryPanel(props: Props) {
                 selectedIds={props.selectedIds}
                 isLoading={props.isLoadingCandidates}
                 error={props.candidatesError}
+                onRecover={props.onRecoverCandidates}
                 onToggleCandidate={props.onToggleCandidate}
                 onToggleLoaded={props.onToggleLoaded}
               />

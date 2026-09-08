@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
-import { usePageVisibleAndFocused } from '#/components/hooks/use-page-visible-and-focused'
+import { usePageVisible } from '#/components/hooks/use-page-visible'
 import {
   createGoogleImportContentLifecycle,
   type ImportCandidateDto,
@@ -60,7 +60,7 @@ function useGoogleImportContent({
   clearProviderState,
 }: GoogleImportContentOptions) {
   const queryClient = useQueryClient()
-  const visibleAndFocused = usePageVisibleAndFocused()
+  const pageVisible = usePageVisible()
   const organizationIdRef = useRef(organizationId)
   const [epoch, setEpoch] = useState(0)
   const [lifecycle] = useState(() =>
@@ -113,7 +113,7 @@ function useGoogleImportContent({
       leaseRef: authorizationLease?.leaseRef ?? null,
       enabled,
       hasProviderContent: accounts.length > 0 || candidates.length > 0,
-      visibleAndFocused,
+      pageVisible,
       epoch,
       guard: lifecycle.guard,
       renewLease: importFns.renewImportAuthorizationLease,

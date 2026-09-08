@@ -1,6 +1,7 @@
 import { AlertCircle } from 'lucide-react'
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
+import { Button } from '#/components/ui/button'
 import { GoogleImportCandidateList } from './google-import-candidate-list'
 import { GoogleImportLoadingRows } from './google-import-loading-rows'
 
@@ -9,6 +10,8 @@ type Props = Readonly<{
   selectedIds: ReadonlySet<string>
   isLoading: boolean
   error: string | null
+  /** Restart discovery; null when a restart cannot clear the failure. */
+  onRecover?: (() => void) | null
   onToggleCandidate: (candidate: ImportCandidateDto, checked: boolean) => void
   onToggleLoaded: (checked: boolean) => void
 }>
@@ -23,6 +26,7 @@ export function GoogleImportCandidateResults({
   selectedIds,
   isLoading,
   error,
+  onRecover = null,
   onToggleCandidate,
   onToggleLoaded,
 }: Props) {
@@ -31,7 +35,17 @@ export function GoogleImportCandidateResults({
       <Alert variant="destructive">
         <AlertCircle aria-hidden="true" />
         <AlertTitle>Locations unavailable</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
+        <AlertDescription className="space-y-3">
+          <p>{error}</p>
+          {onRecover ? (
+            // An expired discovery handle cannot be cleared by waiting or by
+            // clicking the same account again, so the surface that reports it
+            // owns the restart.
+            <Button type="button" variant="outline" size="sm" onClick={onRecover}>
+              Rediscover locations
+            </Button>
+          ) : null}
+        </AlertDescription>
       </Alert>
     )
   }

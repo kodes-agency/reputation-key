@@ -14,6 +14,42 @@ function surface(e: unknown): ServerFunctionError {
 }
 
 describe('catchUntagged', () => {
+  // The regression: this module is imported both by alias and relatively, so the
+  // dev SSR module graph can hold two copies of the class. When it did, an error
+  // the domain had already classified and logged as
+  // `GoogleImportDiscoveryError(temporarily_unavailable) -> 503` reached the
+  // browser as `InternalError` / `internal_error` / 500, and every classified
+  // Google-import refusal collapsed into one generic sentence with no action.
+  // A structurally identical instance from a duplicate class must pass through.
+  it('passes through a tagged error from a duplicate class instance', () => {
+    class DuplicateServerFunctionError extends Error {
+      readonly _tag: string
+      readonly code: string
+      readonly status: number
+      constructor(name: string, message: string, code: string, status: number) {
+        super(message)
+        this.name = name
+        this._tag = name
+        this.code = code
+        this.status = status
+      }
+    }
+    const tagged = new DuplicateServerFunctionError(
+      'GoogleImportDiscoveryError',
+      'Google import discovery failed: temporarily_unavailable',
+      'temporarily_unavailable',
+      503,
+    )
+
+    expect(() => catchUntagged(tagged)).toThrow(tagged)
+  })
+
+  it('still hides an untagged failure behind a generic 500', () => {
+    expect(() => catchUntagged(new Error('relation "replies" does not exist'))).toThrow(
+      expect.objectContaining({ code: 'internal_error', status: 500 }),
+    )
+  })
+
   it('surfaces a better-auth APIError with its real HTTP status', () => {
     // No body message — better-auth drops the org plugin's string error code,
     // so catchUntagged must still surface the real status.

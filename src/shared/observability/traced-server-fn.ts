@@ -20,7 +20,7 @@ import {
 } from '#/shared/observability/request-context'
 import { startRequestSpan } from '#/shared/observability/trace'
 import { catchUntagged } from '#/shared/auth/server-errors'
-import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import { getLogger } from '#/shared/observability/logger'
 
 /**
@@ -57,7 +57,7 @@ export function tracedHandler<TInput, TOutput>(
         } catch (e) {
           span.end(e)
           // Already a ServerFunctionError (tagged by domain catch block) — just re-throw
-          if (e instanceof ServerFunctionError) {
+          if (isServerFunctionError(e)) {
             throw e
           }
           // Untagged error — log full detail and wrap as generic 500
