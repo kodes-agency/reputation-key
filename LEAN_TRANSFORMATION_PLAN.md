@@ -765,6 +765,66 @@ Entry `769e1e28` → `b32c72a3`. **244 files changed, +2,886 / −8,141**, 8 pul
 
 **Left as recorded, not fixed:** the `Review` workflow credential (WP3.0-C, on the user); the worker-death alert still has no notification credentials on the hosting side; Railway is unchanged by every Phase 4 WP.
 
+## Phase 5 progress — every WP closed 2026-09-08
+
+Execution spec: `review/2026-09-05-lean-audit/phase5-execution-spec.md`, written against `main` = `6738e364` by five read-only scouts; the plan review that preceded it (`phase5-plan-review.md`, 44 sections, 31 clean, 13 with failures) was folded into the record above in `f6067607` — every struck contingency, the corrected anchors and the two work packages the review found that the plan claimed and never executed (WP5.4, WP5.5). Nine work-package pull requests plus nine fixes from the browser verification, each merged with the six required checks green; the advisory `Review` workflow still fails on the credential (WP3.0-C, on the user).
+
+**WP5.0 — the lawful and regional gates (#489, 25 files, +511 / −178).** `docs/legal/privacy-notice.md` is published at `/privacy` with `id="contact"`, the Google access disclosure and the beta agreement beside it, the footer and join copy link them; the notice's duties were completed from code facts (30-day raw source, 24-hour de-identified derivatives, the 7-day export object, the 30-day contact purge) rather than from memory. The binding-spec contradiction the agent caught — the owner accepts the agreement, so the notice cannot cite an unaccepted contract — was resolved by accepting all three documents under the owner's authority, recorded in `docs/BETA.md` §10. The Google letter restates the processing region: global OpenAI endpoint, no regional profile, US hosting on Railway; `merchant-ai-notice-2026-09-06.v1` is the notice the beta consents under.
+
+**WP5.1 — the client bundle (#493, 33 files, +233 / −326).** Route → barrel edges cut: initial closure **580 → 320 KB gzip**, entry **99 → 69 KB**, 24 people-search/route-fallback/vendor-chart splits, one `sentry` vendor chunk. The ratchets are re-set at the measured floor (`scripts/check-bundles.mjs`: entry 69 KB, closure 320 KB), and a regression pin keeps the Recharts bindings live (`chart-live-bindings.test.ts`) after a module-scope `const` froze `undefined` across the chunk cycle.
+
+**WP5.2a — dead ceremony (#492, 64 files, +153 / −11,612; 42 files deleted).** The struck migration ceremony (`scripts/ops/report-portal-access-artifacts.ts`, the null-inbox-source copies, the AI-governance generators), the orphaned governance modules and the e2e self-proofs are gone; stories fail on console errors again (`.storybook/vitest.setup.ts`). **WP5.2b — the hero-image path (#491, 49 files, +61 / −4,347):** the portal upload issuance store, its jobs and the worker readiness row deleted; the column and the asset storage stay. Together with WP5.4 (#490, `scripts/migrations/` folded into the baseline, 34 files, −808) the tree lost ~17,000 lines of ceremony in one wave.
+
+**WP5.3a — the container seam (#494, 23 files, +603 / −1,290).** `deployables.ts`, `container-partition.ts` and the process-fixture trio are one `createContainer` plus a process claim (`claimProcessContainer`/`releaseProcessContainer`); operator controls live in `composition/operator-container.ts` and refuse provider calls by construction. **WP5.3b — catalogue slimming (#496, 11 files, +549 / −6,235):** `entry-point-catalogue.ts` **4,031 → 564**, `event-job-catalogue.ts` **2,650 → 884** — only the six `EntryPointRow` fields, two `EventFamilyRow` fields and the job contract the runtime reads, proven reader-by-reader in the commit body; the four inert row kinds went with their tests. The scout's claim that `beta-notification-trigger-matrix.ts` had no production caller was wrong (the feed build, the outbox notification delivery and the delivery-lag repository read it) and the file stayed.
+
+**WP5.5 — the preauthorize chain (#488, 27 files, +747 / −1,582)** and **WP5.6 — one `start_google_execution_permit` (#495, 10 files, +515 / −584):** the risky half WP2.2 recorded as done and never did. `googleContentAuthority.preauthorize` and the approval-gap disposition are gone; the four `authorizeGoogle*Content` closures call the authorization check directly and a thin issuer writes the permit; `start_google_execution_permit_v1/v2/v3` (3,631 lines of delegation) are one five-parameter `SECURITY DEFINER` function with the same CTE/CAS body, and `buildRefusingGoogleProviderAuthority` stayed because it is the operator container's load-bearing fail-closed control, not approval ceremony.
+
+**The browser verification (`phase5-browser-matrix.md`, 26 rows, all observed).** The stack on the host — a from-scratch `pnpm db:reset`, the seed, the TLS GBP stub, the mail stub, the AI stub, `vite dev` and the worker — with every capability in `docs/BETA.md` §3 driven by throwaway Playwright scripts, three rows per agent in parallel and the AI rows by hand. It found nine things the suites had not, all fixed and merged this phase:
+
+| PR   | found by | what                                                                                                                                                                                                       |
+| ---- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #497 | row 18   | the review-analysis enrollment transaction never ran: `AS authorization` is a reserved word and the snapshot hashed with pgcrypto's `digest()` no cell installs — no integration test had ever executed it |
+| #498 | row 18   | `storeAnalysis` compared the property's head sequence with the operation's; only the last-pinned review of a property could store, every other paid result was discarded and the pipeline stalled          |
+| #499 | row 15   | five goal-program outbox events never registered, consumed or catalogued since 2026-08-25 — each creation a permanently failed job in the quarantine substrate the alerting watches                        |
+| #500 | row 21   | the 128px circular upload zone clipped four lines of rect copy mid-word                                                                                                                                    |
+| #501 | row 9    | `useDefaultLayout` read localStorage as the server snapshot: a hydration mismatch on every reload with a saved Inbox layout, and the layout never applied                                                  |
+| #502 | row 23   | every refused form submit was an unhandled rejection — 34 forms and one imperative save handle; one helper consumes TanStack Form's rethrow                                                                |
+| #503 | row 14   | a withdrawn private-feedback item could be reopened into an escalating cycle nothing can close; the reopen now honours the one-way outcome rule and the dialog keeps the refusal in view                   |
+| #504 | row 10   | the hours controls rendered `NaN` and no copy when cleared; one schema carries the messages for both cards                                                                                                 |
+| #505 | row 18   | the AI provider stub still classified reply requests by the retired `reply_template_selection_v1` name, so local reply drafting had been dead since 2026-08-28                                             |
+
+Four rows passed against a corrected expectation rather than a changed product: a browser-created goal program is scheduled for the next full month (15), invitations live under Settings → Members, not People (16), export is documented as not self-service during the beta (20), and the avatar presign succeeds while the object store is absent on this host (21). Two host-only accommodations were needed and are not product changes: the compose service name `ai-provider-stub` resolved to loopback with a `dns.lookup` shim, and the three AI capability controls restored through `pnpm ops ai-control` (the seed leaves them `killed|draining`, the dark-runtime posture).
+
+**Rules for the next phase, from this one:** (1) a transaction with no integration test has never run — #497's two faults were both syntax-level and both survived every suite because the adapter was only ever mocked; (2) a store guard compared against an allocator is a guard on the wrong thing — #498 held for exactly one review per property; (3) the browser is the only gate that sees the seam between a designed refusal and a leaked rejection (#502, #503) or between server copy and rendered copy (#504); (4) a fixture that names a retired schema is a fixture nobody runs — #505 hid behind "the designed refusal".
+
+## Phase 5 close — measured 2026-09-08
+
+Entry `6738e364` → `65e925d2`. **18 pull requests (#488–#505)**, every one merged with the six required checks green; the Phase 5 fixes were found by running the product, not by reading it.
+
+| anchor                                    | Phase 5 entry     | now                                          |
+| ----------------------------------------- | ----------------- | -------------------------------------------- |
+| tracked files                             | 3,709             | **3,649**                                    |
+| TypeScript lines (all) / `src/**`         | 589,401 / 557,287 | **568,727 / 538,001**                        |
+| `src/shared/governance/*.ts` lines        | 8,794             | **2,715**                                    |
+| the two catalogues                        | 6,944             | **1,448**                                    |
+| `start_google_execution_permit` functions | 3                 | **1**                                        |
+| `scripts/migrations/`                     | present           | **gone** (the baseline is the deploy)        |
+| `src/composition/*.ts` files              | 15                | 14 — `createContainer` + a process claim     |
+| entry / initial closure (gzip)            | 99 KB / 580 KB    | **69 KB / 320 KB**, ratchets at the floor    |
+| `docs/legal/*` published at `/privacy`    | no                | **notice, disclosure, agreement — accepted** |
+| test files / story files                  | 1,115 / 81        | 1,094 / **83**                               |
+| unit suite (pinned Node, clean env)       | 55 s              | **48 s** — 911 files / 8,234 tests           |
+| integration suite                         | 89 s              | 86 s — 183 files / 1,000 tests               |
+| CI wall (`main`, #499)                    | 5m34s             | **4m46s**                                    |
+
+Unchanged by design: `eslint.config.js` 888 → 889, `package.json` scripts 53, active docs 49, ADRs 22 / 1,430 lines, `src/**/CONTEXT.md` 1,131 → 1,132.
+
+**Program-level verification on `main` at `65e925d2`, pinned runtime, clean environment:** `pnpm typecheck`, `pnpm lint:ci`, `pnpm test:unit` (48 s), `pnpm test:integration` (86 s), `pnpm build`, `pnpm check:bundles` (entry 69,102 B / 70,100 B; closure 320,538 B / 329,105 B gzip; largest chunk outside the closure 93,059 B / 128,000 B), `pnpm test:storybook` (83 files / 456 stories, a11y `test: 'error'`) — all green. One recorded trap: a shell that has sourced `.env` fails eight container-shape unit tests with `AI worker subject HMAC authority is unavailable`, because the exported `OPENAI_API_KEY` makes `enableJobs` containers demand the HMAC keys; the unit project is meant to run without the developer `.env` and does.
+
+**The app was run — the whole beta contract, not a smoke:** `review/2026-09-05-lean-audit/phase5-browser-matrix.md` records 26 rows observed on the host stack, the nine fixes they produced, the four rows whose expectation was corrected, and the two host-only accommodations. The AI pipeline ran end to end for the first time in this program's history: enablement → three `ready` analyses → `caught_up` → a personalized reply suggestion through the stub.
+
+**Left as recorded, not fixed:** the `Review` workflow credential (WP3.0-C, on the user); the worker-death alert still has no notification credentials on the hosting side; the compose service name `ai-provider-stub` is hard-coded in `local-provider-fetch.ts`, so a host-run worker needs the DNS shim the matrix describes (the compose stack does not); Railway is unchanged by every Phase 5 WP.
+
 ## Assumptions & contingencies
 
 - ~~**Storybook:** default is "keep, one runner" (WP3.6). If you prefer to drop Storybook entirely, WP3.6 instead deletes `.storybook/`, all `*.stories.tsx`, both CI jobs and the ten `@storybook*`/`@vitest/browser*` packages, and `pnpm test-storybook` leaves the local gate.~~ **Struck 2026-09-08 — dead trigger, and three of its facts were wrong:** WP3.6 closed keeping Storybook; the build-only job was already gone (one job, not two); the packages are eight, not ten; `pnpm test-storybook` never existed.
