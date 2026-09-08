@@ -59,7 +59,7 @@ async function main(): Promise<void> {
       REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
       ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
       GRANT EXECUTE ON FUNCTION public.load_google_execution_permit_v1(uuid) TO ${role};
-      GRANT EXECUTE ON FUNCTION public.start_google_execution_permit_v3(
+      GRANT EXECUTE ON FUNCTION public.start_google_execution_permit(
         uuid, text, text, text, jsonb
       ) TO ${role};
       GRANT EXECUTE ON FUNCTION public.fail_google_execution_permit_v1(

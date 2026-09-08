@@ -2376,7 +2376,7 @@ END;
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v1(p_permit_id uuid, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb)
+CREATE OR REPLACE FUNCTION public.start_google_execution_permit(p_permit_id uuid, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb)
  RETURNS TABLE(outcome text)
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -2386,6 +2386,243 @@ DECLARE
   v_now timestamptz := clock_timestamp();
   v_operation_deadline_at timestamptz := v_now + interval '30 seconds';
 BEGIN
+  IF p_route_key = 'oauth.revoke' AND EXISTS (
+    SELECT 1
+    FROM public.idempotency_receipts AS attempt
+    WHERE attempt.scope = 'google_disconnect_revoke'
+      AND attempt.payload->>'cleanupWorkPermitId' = p_permit_id::text
+  ) THEN
+
+  RETURN QUERY
+  WITH candidate AS MATERIALIZED (
+    SELECT permit.*,
+      CASE
+        WHEN permit.state <> 'admitted' THEN 'changed'
+        WHEN permit.start_deadline_at <= v_now THEN 'expired'
+        WHEN permit.capability::text = 'property.import_gbp_v2'
+          AND permit.property_id IS NULL
+          AND permit.connection_id IS NOT NULL
+          AND permit.initiator_user_id IS NOT NULL
+          AND permit.operation_key = 'provider.oauth.revoke'
+          AND permit.route_key = 'oauth.revoke'
+          AND EXISTS (
+            SELECT 1
+            FROM public.idempotency_receipts AS attempt
+            INNER JOIN public.google_connections AS connection
+              ON connection.organization_id = attempt.payload->>'organizationId'
+             AND connection.id::text = attempt.payload->>'connectionId'
+            -- WP2.2: approval ceremony removed; see start_…_v1. Everything
+            -- below is the disconnect-revoke state machine, which is exactly
+            -- what this branch exists to prove.
+            WHERE attempt.scope = 'google_disconnect_revoke'
+              AND attempt.payload->>'cleanupWorkPermitId' = permit.id::text
+              AND attempt.payload->>'organizationId' = permit.organization_id
+              AND attempt.payload->>'connectionId' = permit.connection_id::text
+              AND attempt.payload->>'initiatorUserId' = permit.initiator_user_id
+              AND attempt.payload->>'state' = 'dispatching'
+              AND (attempt.payload->>'cleanupDeadlineAt')::timestamptz > v_now
+              AND attempt.payload->>'dispatchingAt' IS NOT NULL
+              AND attempt.payload->>'terminalAt' IS NULL
+              AND attempt.payload->>'credentialBinding' IS NULL
+              AND permit.admitted_at <=
+                (attempt.payload->>'dispatchingAt')::timestamptz
+              AND connection.status = 'disconnecting'
+              AND connection.credential_use_state = 'cleanup_only'
+              AND connection.cleanup_material_deadline_at =
+                (attempt.payload->>'cleanupDeadlineAt')::timestamptz
+              AND connection.lifecycle_version =
+                (attempt.payload->>'expectedLifecycleVersion')::bigint + 1
+              AND connection.access_version =
+                (attempt.payload->>'expectedAccessVersion')::bigint
+              AND connection.credential_generation =
+                (attempt.payload->>'expectedCredentialGeneration')::bigint
+              AND permit.authorization_vector->>'connectionLifecycleVersion' =
+                attempt.payload->>'expectedLifecycleVersion'
+              AND permit.authorization_vector->>'connectionAccessVersion' =
+                attempt.payload->>'expectedAccessVersion'
+              AND permit.authorization_vector->>'credentialGeneration' =
+                attempt.payload->>'expectedCredentialGeneration'
+          ) THEN 'started'
+        ELSE 'changed'
+      END AS admission_outcome
+    FROM public.authorization_execution_permits AS permit
+    WHERE permit.id = p_permit_id
+    FOR UPDATE OF permit
+  ), transition AS (
+    UPDATE public.authorization_execution_permits AS permit
+    SET state = CASE WHEN candidate.admission_outcome = 'started'
+          THEN 'started'::public.authorization_execution_permit_state
+          ELSE 'fenced'::public.authorization_execution_permit_state END,
+        started_at = CASE WHEN candidate.admission_outcome = 'started'
+          THEN v_now ELSE permit.started_at END,
+        operation_deadline_at = CASE WHEN candidate.admission_outcome = 'started'
+          THEN v_operation_deadline_at ELSE permit.operation_deadline_at END,
+        fenced_at = CASE WHEN candidate.admission_outcome = 'started'
+          THEN permit.fenced_at ELSE v_now END,
+        correlation_id = CASE
+          WHEN candidate.admission_outcome = 'started' THEN permit.correlation_id
+          WHEN candidate.admission_outcome = 'expired' THEN 'start_deadline_elapsed'
+          ELSE 'authorization_changed' END
+    FROM candidate
+    WHERE permit.id = candidate.id
+      AND candidate.state = 'admitted'
+      AND candidate.route_key = p_route_key
+      AND candidate.route_catalog_version = p_route_catalog_version
+      AND candidate.quota_policy_id = p_quota_policy_id
+      AND jsonb_typeof(p_authorization_vector) = 'object'
+      AND (SELECT count(*) FROM jsonb_object_keys(p_authorization_vector)) = 5
+      AND p_authorization_vector ?& ARRAY[
+        'requestBindingSha256',
+        'credentialBinding',
+        'projectFingerprint',
+        'requestBodySha256',
+        'requestBodyBytes'
+      ]::text[]
+      AND p_authorization_vector->>'requestBindingSha256' ~ '^[a-f0-9]{64}$'
+      AND p_authorization_vector->>'credentialBinding' ~ '^[a-f0-9]{64}$'
+      AND p_authorization_vector->>'projectFingerprint' ~ '^[a-f0-9]{64}$'
+      AND p_authorization_vector->>'requestBodySha256' ~ '^[a-f0-9]{64}$'
+      AND jsonb_typeof(p_authorization_vector->'requestBodyBytes') = 'number'
+      AND p_authorization_vector->>'requestBodyBytes' ~ '^[1-9][0-9]*$'
+      AND candidate.authorization_vector @> p_authorization_vector
+    RETURNING candidate.admission_outcome
+  )
+  SELECT transition.admission_outcome FROM transition
+  UNION ALL
+  SELECT CASE WHEN candidate.start_deadline_at <= v_now
+    THEN 'expired' ELSE 'changed' END
+  FROM candidate
+  WHERE NOT EXISTS (SELECT 1 FROM transition)
+  LIMIT 1;
+    RETURN;
+  END IF;
+
+  IF p_route_key = 'oauth.token.exchange' THEN
+  RETURN QUERY
+  WITH candidate AS MATERIALIZED (
+    SELECT permit.*,
+      CASE
+        WHEN permit.state <> 'admitted' THEN 'changed'
+        WHEN permit.start_deadline_at <= v_now THEN 'expired'
+        WHEN permit.capability::text = 'property.import_gbp_v2'
+          AND permit.property_id IS NULL
+          AND permit.connection_id IS NOT NULL
+          AND permit.initiator_user_id IS NOT NULL
+          AND permit.operation_key = 'provider.oauth.token.exchange'
+          AND permit.route_key = 'oauth.token.exchange'
+          AND EXISTS (
+            SELECT 1
+            -- WP2.2: approval ceremony removed; see start_…_v1. The member and
+            -- permission joins stay — an OAuth exchange is only admissible when
+            -- initiated by a member whose permission version matches.
+            FROM public.member AS member
+            INNER JOIN public.permission_version AS permission
+              ON permission.organization_id = permit.organization_id
+            LEFT JOIN public.google_connections AS connection
+              ON connection.organization_id = permit.organization_id
+             AND connection.id = permit.connection_id
+            WHERE member."organizationId" = permit.organization_id
+              AND member."userId" = permit.initiator_user_id
+              AND member.role = 'owner'
+              AND permit.authorization_vector->>'principalKind' = 'user'
+              AND permit.authorization_vector->>'role' = 'AccountAdmin'
+              AND permit.authorization_vector->>'permissionDigest' ~ '^[a-f0-9]{64}$'
+              AND jsonb_typeof(
+                permit.authorization_vector->'permissionVersion'
+              ) = 'number'
+              AND permit.authorization_vector->>'permissionVersion' ~
+                '^(0|[1-9][0-9]*)$'
+              AND permission.version::text =
+                permit.authorization_vector->>'permissionVersion'
+              AND (
+                (
+                  permit.authorization_vector->>'oauthCredentialOperation' =
+                    'exchange_new'
+                  AND connection.id IS NULL
+                  AND permit.authorization_vector->'connectionLifecycleVersion' =
+                    '0'::jsonb
+                  AND permit.authorization_vector->'connectionAccessVersion' =
+                    '0'::jsonb
+                  AND permit.authorization_vector->'credentialGeneration' =
+                    '0'::jsonb
+                )
+                OR (
+                  permit.authorization_vector->>'oauthCredentialOperation' =
+                    'exchange_existing'
+                  AND connection.id IS NOT NULL
+                  AND connection.status::text IN (
+                    'active', 'degraded', 'reauth_required', 'disconnected'
+                  )
+                  AND connection.credential_use_state::text IN ('active', 'none')
+                  AND connection.status::text =
+                    permit.authorization_vector->>'connectionStatus'
+                  AND connection.credential_use_state::text =
+                    permit.authorization_vector->>'credentialUseState'
+                  AND connection.lifecycle_version::text =
+                    permit.authorization_vector->>'connectionLifecycleVersion'
+                  AND connection.access_version::text =
+                    permit.authorization_vector->>'connectionAccessVersion'
+                  AND connection.credential_generation::text =
+                    permit.authorization_vector->>'credentialGeneration'
+                )
+              )
+          ) THEN 'started'
+        ELSE 'changed'
+      END AS admission_outcome
+    FROM public.authorization_execution_permits AS permit
+    WHERE permit.id = p_permit_id
+    FOR UPDATE OF permit
+  ), transition AS (
+    UPDATE public.authorization_execution_permits AS permit
+    SET state = CASE WHEN candidate.admission_outcome = 'started'
+          THEN 'started'::public.authorization_execution_permit_state
+          ELSE 'fenced'::public.authorization_execution_permit_state END,
+        started_at = CASE WHEN candidate.admission_outcome = 'started'
+          THEN v_now ELSE permit.started_at END,
+        operation_deadline_at = CASE WHEN candidate.admission_outcome = 'started'
+          THEN v_operation_deadline_at ELSE permit.operation_deadline_at END,
+        fenced_at = CASE WHEN candidate.admission_outcome = 'started'
+          THEN permit.fenced_at ELSE v_now END,
+        correlation_id = CASE
+          WHEN candidate.admission_outcome = 'started' THEN permit.correlation_id
+          WHEN candidate.admission_outcome = 'expired' THEN 'start_deadline_elapsed'
+          ELSE 'authorization_changed' END
+    FROM candidate
+    WHERE permit.id = candidate.id
+      AND candidate.state = 'admitted'
+      AND candidate.route_key = p_route_key
+      AND candidate.route_catalog_version = p_route_catalog_version
+      AND candidate.quota_policy_id = p_quota_policy_id
+      AND jsonb_typeof(p_authorization_vector) = 'object'
+      AND (
+        SELECT count(*) FROM jsonb_object_keys(p_authorization_vector)
+      ) = 5
+      AND p_authorization_vector ?& ARRAY[
+        'requestBindingSha256',
+        'credentialBinding',
+        'projectFingerprint',
+        'requestBodySha256',
+        'requestBodyBytes'
+      ]::text[]
+      AND p_authorization_vector->>'requestBindingSha256' ~ '^[a-f0-9]{64}$'
+      AND p_authorization_vector->>'credentialBinding' ~ '^[a-f0-9]{64}$'
+      AND p_authorization_vector->>'projectFingerprint' ~ '^[a-f0-9]{64}$'
+      AND p_authorization_vector->>'requestBodySha256' ~ '^[a-f0-9]{64}$'
+      AND jsonb_typeof(p_authorization_vector->'requestBodyBytes') = 'number'
+      AND p_authorization_vector->>'requestBodyBytes' ~ '^[1-9][0-9]*$'
+      AND candidate.authorization_vector @> p_authorization_vector
+    RETURNING candidate.admission_outcome
+  )
+  SELECT transition.admission_outcome FROM transition
+  UNION ALL
+  SELECT CASE WHEN candidate.start_deadline_at <= v_now
+    THEN 'expired' ELSE 'changed' END
+  FROM candidate
+  WHERE NOT EXISTS (SELECT 1 FROM transition)
+  LIMIT 1;
+    RETURN;
+  END IF;
+
   RETURN QUERY
   WITH candidate AS MATERIALIZED (
     SELECT permit.*,
@@ -2744,290 +2981,6 @@ BEGIN
       )
       AND jsonb_typeof(p_authorization_vector->'requestBodyBytes') = 'number'
       AND p_authorization_vector->>'requestBodyBytes' ~ '^(0|[1-9][0-9]*)$'
-      AND candidate.authorization_vector @> p_authorization_vector
-    RETURNING candidate.admission_outcome
-  )
-  SELECT transition.admission_outcome FROM transition
-  UNION ALL
-  SELECT CASE WHEN candidate.start_deadline_at <= v_now
-    THEN 'expired' ELSE 'changed' END
-  FROM candidate
-  WHERE NOT EXISTS (SELECT 1 FROM transition)
-  LIMIT 1;
-END
-$function$
-;
---> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v2(p_permit_id uuid, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb)
- RETURNS TABLE(outcome text)
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-DECLARE
-  v_now timestamptz := clock_timestamp();
-  v_operation_deadline_at timestamptz := v_now + interval '30 seconds';
-BEGIN
-  -- Preserve the established authority for every non-exchange route. The new
-  -- branch is intentionally exact rather than a broader relaxation of v1.
-  IF p_route_key <> 'oauth.token.exchange' THEN
-    RETURN QUERY
-    SELECT legacy.outcome
-    FROM public.start_google_execution_permit_v1(
-      p_permit_id,
-      p_route_key,
-      p_route_catalog_version,
-      p_quota_policy_id,
-      p_authorization_vector
-    ) AS legacy;
-    RETURN;
-  END IF;
-
-  RETURN QUERY
-  WITH candidate AS MATERIALIZED (
-    SELECT permit.*,
-      CASE
-        WHEN permit.state <> 'admitted' THEN 'changed'
-        WHEN permit.start_deadline_at <= v_now THEN 'expired'
-        WHEN permit.capability::text = 'property.import_gbp_v2'
-          AND permit.property_id IS NULL
-          AND permit.connection_id IS NOT NULL
-          AND permit.initiator_user_id IS NOT NULL
-          AND permit.operation_key = 'provider.oauth.token.exchange'
-          AND permit.route_key = 'oauth.token.exchange'
-          AND EXISTS (
-            SELECT 1
-            -- WP2.2: approval ceremony removed; see start_…_v1. The member and
-            -- permission joins stay — an OAuth exchange is only admissible when
-            -- initiated by a member whose permission version matches.
-            FROM public.member AS member
-            INNER JOIN public.permission_version AS permission
-              ON permission.organization_id = permit.organization_id
-            LEFT JOIN public.google_connections AS connection
-              ON connection.organization_id = permit.organization_id
-             AND connection.id = permit.connection_id
-            WHERE member."organizationId" = permit.organization_id
-              AND member."userId" = permit.initiator_user_id
-              AND member.role = 'owner'
-              AND permit.authorization_vector->>'principalKind' = 'user'
-              AND permit.authorization_vector->>'role' = 'AccountAdmin'
-              AND permit.authorization_vector->>'permissionDigest' ~ '^[a-f0-9]{64}$'
-              AND jsonb_typeof(
-                permit.authorization_vector->'permissionVersion'
-              ) = 'number'
-              AND permit.authorization_vector->>'permissionVersion' ~
-                '^(0|[1-9][0-9]*)$'
-              AND permission.version::text =
-                permit.authorization_vector->>'permissionVersion'
-              AND (
-                (
-                  permit.authorization_vector->>'oauthCredentialOperation' =
-                    'exchange_new'
-                  AND connection.id IS NULL
-                  AND permit.authorization_vector->'connectionLifecycleVersion' =
-                    '0'::jsonb
-                  AND permit.authorization_vector->'connectionAccessVersion' =
-                    '0'::jsonb
-                  AND permit.authorization_vector->'credentialGeneration' =
-                    '0'::jsonb
-                )
-                OR (
-                  permit.authorization_vector->>'oauthCredentialOperation' =
-                    'exchange_existing'
-                  AND connection.id IS NOT NULL
-                  AND connection.status::text IN (
-                    'active', 'degraded', 'reauth_required', 'disconnected'
-                  )
-                  AND connection.credential_use_state::text IN ('active', 'none')
-                  AND connection.status::text =
-                    permit.authorization_vector->>'connectionStatus'
-                  AND connection.credential_use_state::text =
-                    permit.authorization_vector->>'credentialUseState'
-                  AND connection.lifecycle_version::text =
-                    permit.authorization_vector->>'connectionLifecycleVersion'
-                  AND connection.access_version::text =
-                    permit.authorization_vector->>'connectionAccessVersion'
-                  AND connection.credential_generation::text =
-                    permit.authorization_vector->>'credentialGeneration'
-                )
-              )
-          ) THEN 'started'
-        ELSE 'changed'
-      END AS admission_outcome
-    FROM public.authorization_execution_permits AS permit
-    WHERE permit.id = p_permit_id
-    FOR UPDATE OF permit
-  ), transition AS (
-    UPDATE public.authorization_execution_permits AS permit
-    SET state = CASE WHEN candidate.admission_outcome = 'started'
-          THEN 'started'::public.authorization_execution_permit_state
-          ELSE 'fenced'::public.authorization_execution_permit_state END,
-        started_at = CASE WHEN candidate.admission_outcome = 'started'
-          THEN v_now ELSE permit.started_at END,
-        operation_deadline_at = CASE WHEN candidate.admission_outcome = 'started'
-          THEN v_operation_deadline_at ELSE permit.operation_deadline_at END,
-        fenced_at = CASE WHEN candidate.admission_outcome = 'started'
-          THEN permit.fenced_at ELSE v_now END,
-        correlation_id = CASE
-          WHEN candidate.admission_outcome = 'started' THEN permit.correlation_id
-          WHEN candidate.admission_outcome = 'expired' THEN 'start_deadline_elapsed'
-          ELSE 'authorization_changed' END
-    FROM candidate
-    WHERE permit.id = candidate.id
-      AND candidate.state = 'admitted'
-      AND candidate.route_key = p_route_key
-      AND candidate.route_catalog_version = p_route_catalog_version
-      AND candidate.quota_policy_id = p_quota_policy_id
-      AND jsonb_typeof(p_authorization_vector) = 'object'
-      AND (
-        SELECT count(*) FROM jsonb_object_keys(p_authorization_vector)
-      ) = 5
-      AND p_authorization_vector ?& ARRAY[
-        'requestBindingSha256',
-        'credentialBinding',
-        'projectFingerprint',
-        'requestBodySha256',
-        'requestBodyBytes'
-      ]::text[]
-      AND p_authorization_vector->>'requestBindingSha256' ~ '^[a-f0-9]{64}$'
-      AND p_authorization_vector->>'credentialBinding' ~ '^[a-f0-9]{64}$'
-      AND p_authorization_vector->>'projectFingerprint' ~ '^[a-f0-9]{64}$'
-      AND p_authorization_vector->>'requestBodySha256' ~ '^[a-f0-9]{64}$'
-      AND jsonb_typeof(p_authorization_vector->'requestBodyBytes') = 'number'
-      AND p_authorization_vector->>'requestBodyBytes' ~ '^[1-9][0-9]*$'
-      AND candidate.authorization_vector @> p_authorization_vector
-    RETURNING candidate.admission_outcome
-  )
-  SELECT transition.admission_outcome FROM transition
-  UNION ALL
-  SELECT CASE WHEN candidate.start_deadline_at <= v_now
-    THEN 'expired' ELSE 'changed' END
-  FROM candidate
-  WHERE NOT EXISTS (SELECT 1 FROM transition)
-  LIMIT 1;
-END
-$function$
-;
---> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v3(p_permit_id uuid, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb)
- RETURNS TABLE(outcome text)
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-DECLARE
-  v_now timestamptz := clock_timestamp();
-  v_operation_deadline_at timestamptz := v_now + interval '30 seconds';
-BEGIN
-  IF p_route_key <> 'oauth.revoke' OR NOT EXISTS (
-    SELECT 1
-    FROM public.idempotency_receipts AS attempt
-    WHERE attempt.scope = 'google_disconnect_revoke'
-      AND attempt.payload->>'cleanupWorkPermitId' = p_permit_id::text
-  ) THEN
-    RETURN QUERY
-    SELECT delegated.outcome
-    FROM public.start_google_execution_permit_v2(
-      p_permit_id,
-      p_route_key,
-      p_route_catalog_version,
-      p_quota_policy_id,
-      p_authorization_vector
-    ) AS delegated;
-    RETURN;
-  END IF;
-
-  RETURN QUERY
-  WITH candidate AS MATERIALIZED (
-    SELECT permit.*,
-      CASE
-        WHEN permit.state <> 'admitted' THEN 'changed'
-        WHEN permit.start_deadline_at <= v_now THEN 'expired'
-        WHEN permit.capability::text = 'property.import_gbp_v2'
-          AND permit.property_id IS NULL
-          AND permit.connection_id IS NOT NULL
-          AND permit.initiator_user_id IS NOT NULL
-          AND permit.operation_key = 'provider.oauth.revoke'
-          AND permit.route_key = 'oauth.revoke'
-          AND EXISTS (
-            SELECT 1
-            FROM public.idempotency_receipts AS attempt
-            INNER JOIN public.google_connections AS connection
-              ON connection.organization_id = attempt.payload->>'organizationId'
-             AND connection.id::text = attempt.payload->>'connectionId'
-            -- WP2.2: approval ceremony removed; see start_…_v1. Everything
-            -- below is the disconnect-revoke state machine, which is exactly
-            -- what this branch exists to prove.
-            WHERE attempt.scope = 'google_disconnect_revoke'
-              AND attempt.payload->>'cleanupWorkPermitId' = permit.id::text
-              AND attempt.payload->>'organizationId' = permit.organization_id
-              AND attempt.payload->>'connectionId' = permit.connection_id::text
-              AND attempt.payload->>'initiatorUserId' = permit.initiator_user_id
-              AND attempt.payload->>'state' = 'dispatching'
-              AND (attempt.payload->>'cleanupDeadlineAt')::timestamptz > v_now
-              AND attempt.payload->>'dispatchingAt' IS NOT NULL
-              AND attempt.payload->>'terminalAt' IS NULL
-              AND attempt.payload->>'credentialBinding' IS NULL
-              AND permit.admitted_at <=
-                (attempt.payload->>'dispatchingAt')::timestamptz
-              AND connection.status = 'disconnecting'
-              AND connection.credential_use_state = 'cleanup_only'
-              AND connection.cleanup_material_deadline_at =
-                (attempt.payload->>'cleanupDeadlineAt')::timestamptz
-              AND connection.lifecycle_version =
-                (attempt.payload->>'expectedLifecycleVersion')::bigint + 1
-              AND connection.access_version =
-                (attempt.payload->>'expectedAccessVersion')::bigint
-              AND connection.credential_generation =
-                (attempt.payload->>'expectedCredentialGeneration')::bigint
-              AND permit.authorization_vector->>'connectionLifecycleVersion' =
-                attempt.payload->>'expectedLifecycleVersion'
-              AND permit.authorization_vector->>'connectionAccessVersion' =
-                attempt.payload->>'expectedAccessVersion'
-              AND permit.authorization_vector->>'credentialGeneration' =
-                attempt.payload->>'expectedCredentialGeneration'
-          ) THEN 'started'
-        ELSE 'changed'
-      END AS admission_outcome
-    FROM public.authorization_execution_permits AS permit
-    WHERE permit.id = p_permit_id
-    FOR UPDATE OF permit
-  ), transition AS (
-    UPDATE public.authorization_execution_permits AS permit
-    SET state = CASE WHEN candidate.admission_outcome = 'started'
-          THEN 'started'::public.authorization_execution_permit_state
-          ELSE 'fenced'::public.authorization_execution_permit_state END,
-        started_at = CASE WHEN candidate.admission_outcome = 'started'
-          THEN v_now ELSE permit.started_at END,
-        operation_deadline_at = CASE WHEN candidate.admission_outcome = 'started'
-          THEN v_operation_deadline_at ELSE permit.operation_deadline_at END,
-        fenced_at = CASE WHEN candidate.admission_outcome = 'started'
-          THEN permit.fenced_at ELSE v_now END,
-        correlation_id = CASE
-          WHEN candidate.admission_outcome = 'started' THEN permit.correlation_id
-          WHEN candidate.admission_outcome = 'expired' THEN 'start_deadline_elapsed'
-          ELSE 'authorization_changed' END
-    FROM candidate
-    WHERE permit.id = candidate.id
-      AND candidate.state = 'admitted'
-      AND candidate.route_key = p_route_key
-      AND candidate.route_catalog_version = p_route_catalog_version
-      AND candidate.quota_policy_id = p_quota_policy_id
-      AND jsonb_typeof(p_authorization_vector) = 'object'
-      AND (SELECT count(*) FROM jsonb_object_keys(p_authorization_vector)) = 5
-      AND p_authorization_vector ?& ARRAY[
-        'requestBindingSha256',
-        'credentialBinding',
-        'projectFingerprint',
-        'requestBodySha256',
-        'requestBodyBytes'
-      ]::text[]
-      AND p_authorization_vector->>'requestBindingSha256' ~ '^[a-f0-9]{64}$'
-      AND p_authorization_vector->>'credentialBinding' ~ '^[a-f0-9]{64}$'
-      AND p_authorization_vector->>'projectFingerprint' ~ '^[a-f0-9]{64}$'
-      AND p_authorization_vector->>'requestBodySha256' ~ '^[a-f0-9]{64}$'
-      AND jsonb_typeof(p_authorization_vector->'requestBodyBytes') = 'number'
-      AND p_authorization_vector->>'requestBodyBytes' ~ '^[1-9][0-9]*$'
       AND candidate.authorization_vector @> p_authorization_vector
     RETURNING candidate.admission_outcome
   )
