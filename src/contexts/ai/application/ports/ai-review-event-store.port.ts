@@ -3,6 +3,12 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 export type AiReviewEventDisposition =
   'pending' | 'source_expired' | 'provider_deleted' | 'policy_disabled'
 
+export type AiReviewAnalysisTerminalDisposition =
+  | Exclude<AiReviewEventDisposition, 'pending'>
+  | 'language_not_supported'
+  | 'operation_abandoned'
+  | 'operation_ambiguous'
+
 export type AiReviewEventConsumeResult =
   | Readonly<{
       status: 'accepted'
@@ -39,12 +45,7 @@ export type AiReviewEventStorePort = Readonly<{
       analysisSequence: number
       state: 'ready' | 'terminal_no_result'
       operationId: string | null
-      dispositionCode:
-        | 'language_not_supported'
-        | 'source_expired'
-        | 'provider_deleted'
-        | 'policy_disabled'
-        | null
+      dispositionCode: AiReviewAnalysisTerminalDisposition | null
     }>,
   ): Promise<Readonly<{
     terminalAnalysisSequence: number

@@ -49,8 +49,6 @@ import {
   createAiReviewAnalysisEnrollmentSweepHandler,
   JOB_NAME as AI_ENROLLMENT_SWEEP_JOB_NAME,
 } from '#/shared/jobs/ai-review-analysis-enrollment-sweep.job'
-import { createAiOperationExecutionReaper } from '#/contexts/ai/application/ai-operation-execution-reaper'
-import { createAiOperationStoreAdapter } from '#/contexts/ai/infrastructure/adapters/ai-operation-store.adapter'
 import type { Env } from '#/shared/config/env'
 import { writeWorkerHeartbeat } from '#/shared/health/worker-heartbeat'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
@@ -454,22 +452,15 @@ export async function bootstrap(
     'registered permit start-deadline sweep job handler',
   )
 
-  // ── AI operation abandoned-execution reaper ───────────────────────
-  // `claimExecution` moves an operation to `executing` and only the request
-  // path writes a terminal state after it. Anything that kills that path in
-  // between leaves the row `executing` forever, and `claim` refuses expired
-  // rows so it can never be picked up again either.
-  // Registered unconditionally for the same reason as the permit sweep above:
-  // a killed or unconfigured AI runtime is precisely when executions get
-  // abandoned, so gating the recovery on the capability would disable it
-  // exactly when it is needed.
+  // ── AI abandoned-owner recovery ────────────────────────────────────
+  // The context-owned reaper fences ownerless executions and Review Analysis
+  // retries, then advances terminal analysis outcomes through the same strict
+  // sequence path as normal delivery. Registration is unconditional: a killed
+  // or unconfigured AI runtime is precisely when recovery must remain live.
   container.jobRegistry.register(
     AI_EXECUTION_REAPER_JOB_NAME,
     createAiOperationExecutionReaperHandler({
-      reap: createAiOperationExecutionReaper({
-        store: createAiOperationStoreAdapter(container.db, () => crypto.randomUUID()),
-        nowEpochMillis: () => container.clock().getTime(),
-      }),
+      reap: container.aiWorkerRuntime.reapAiOperations,
       releaseStaleReservations: () => container.db.transaction(reapStaleAiReservations),
     }),
   )
