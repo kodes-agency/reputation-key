@@ -437,7 +437,6 @@ async function activateScheduledProgram(
     bundle,
     results: newResults,
     at: now,
-    outboxEventId: deps.id(),
   })
   if (!active) return { kind: 'skipped' }
   return {
@@ -476,7 +475,6 @@ async function appendDueResults(
     version: bundle.version,
     results: nextResults,
     at: now,
-    outboxEventId: deps.id(),
   })
 }
 
@@ -649,7 +647,6 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       await deps.repository.create({
         bundle,
         auditAction: 'goal.program.created',
-        outboxEventId: deps.id(),
       })
       return bundle
     },
@@ -788,7 +785,6 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         assignments,
         actorId: actor.userId,
         at: now,
-        outboxEventId: deps.id(),
       })
       if (!revised) throw new GoalProgramError('revision_conflict')
       return {
@@ -1048,7 +1044,6 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         assignments,
         actorId: actor.userId,
         at: selectedAt,
-        outboxEventId: deps.id(),
       })
       if (!revised) throw new GoalProgramError('revision_conflict')
       return {
@@ -1102,7 +1097,6 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         reason: input.reason.trim() || 'status_changed',
         actorId: actor.userId,
         at: deps.now(),
-        outboxEventId: deps.id(),
       })
       if (!updated) throw new GoalProgramError('revision_conflict')
       return updated

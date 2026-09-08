@@ -136,7 +136,6 @@ export type GoalProgramRepository = Readonly<{
     input: Readonly<{
       bundle: GoalProgramBundle
       auditAction: string
-      outboxEventId: string
     }>,
   ): Promise<void>
   get(
@@ -156,7 +155,6 @@ export type GoalProgramRepository = Readonly<{
       reason: string
       actorId: string
       at: Date
-      outboxEventId: string
     }>,
   ): Promise<GoalProgram | null>
   revise(
@@ -166,7 +164,6 @@ export type GoalProgramRepository = Readonly<{
       assignments: readonly GoalSubjectAssignment[]
       actorId: string
       at: Date
-      outboxEventId: string
     }>,
   ): Promise<boolean>
   findAssignmentConflicts(
@@ -184,7 +181,6 @@ export type GoalProgramRepository = Readonly<{
       bundle: GoalProgramBundle
       results: readonly GoalMonthlyResult[]
       at: Date
-      outboxEventId: string
     }>,
   ): Promise<GoalProgram | null>
   appendResults(
@@ -193,7 +189,6 @@ export type GoalProgramRepository = Readonly<{
       version: GoalProgramVersion
       results: readonly GoalMonthlyResult[]
       at: Date
-      outboxEventId: string
     }>,
   ): Promise<number>
   listDueResults(now: Date): Promise<readonly GoalMonthlyResult[]>

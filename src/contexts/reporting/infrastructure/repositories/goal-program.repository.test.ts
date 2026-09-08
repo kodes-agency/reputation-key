@@ -212,7 +212,6 @@ describe.sequential('Goal Program repository (integration)', () => {
     await repository.create({
       bundle,
       auditAction: 'goal.program.created',
-      outboxEventId: randomUUID(),
     })
 
     await expect(repository.get(organizationId, propertyId, programId)).resolves.toEqual(
@@ -230,7 +229,6 @@ describe.sequential('Goal Program repository (integration)', () => {
           ),
         ],
         at: new Date('2026-02-01T00:00:00.000Z'),
-        outboxEventId: randomUUID(),
       }),
     ).resolves.toMatchObject({ status: 'active', statusReason: null })
 
@@ -257,7 +255,6 @@ describe.sequential('Goal Program repository (integration)', () => {
         assignments: [nextAssignment],
         actorId: 'manager-1',
         at: nextAt,
-        outboxEventId: randomUUID(),
       }),
     ).resolves.toBe(true)
 
@@ -283,7 +280,6 @@ describe.sequential('Goal Program repository (integration)', () => {
         version: revised.version,
         results: [marchResult],
         at: nextAt,
-        outboxEventId: randomUUID(),
       }),
     ).resolves.toBe(1)
     await expect(
@@ -292,7 +288,6 @@ describe.sequential('Goal Program repository (integration)', () => {
         version: revised.version,
         results: [marchResult],
         at: nextAt,
-        outboxEventId: randomUUID(),
       }),
     ).resolves.toBe(0)
     const temporal = await lease.pool.query<{
@@ -349,7 +344,6 @@ describe.sequential('Goal Program repository (integration)', () => {
         ],
         actorId: 'manager-1',
         at: nextAt,
-        outboxEventId: randomUUID(),
       }),
     ).resolves.toBe(false)
     await expect(
@@ -374,7 +368,6 @@ describe.sequential('Goal Program repository (integration)', () => {
     await repository.create({
       bundle: original,
       auditAction: 'goal.program.created',
-      outboxEventId: randomUUID(),
     })
 
     await expect(
@@ -387,7 +380,6 @@ describe.sequential('Goal Program repository (integration)', () => {
         reason: 'cancelled before start',
         actorId: 'manager-1',
         at: new Date('2026-01-20T12:00:00.000Z'),
-        outboxEventId: randomUUID(),
       }),
     ).resolves.toMatchObject({ status: 'ended' })
 
@@ -409,7 +401,6 @@ describe.sequential('Goal Program repository (integration)', () => {
       repository.create({
         bundle: replacement,
         auditAction: 'goal.program.created',
-        outboxEventId: randomUUID(),
       }),
     ).resolves.toBeUndefined()
   })
@@ -429,7 +420,6 @@ describe.sequential('Goal Program repository (integration)', () => {
     await repository.create({
       bundle: original,
       auditAction: 'goal.program.created',
-      outboxEventId: randomUUID(),
     })
 
     await expect(
@@ -442,7 +432,6 @@ describe.sequential('Goal Program repository (integration)', () => {
         reason: 'stop after current month',
         actorId: 'manager-1',
         at: new Date('2026-01-15T12:00:00.000Z'),
-        outboxEventId: randomUUID(),
       }),
     ).resolves.toMatchObject({ status: 'ended' })
 
@@ -465,7 +454,6 @@ describe.sequential('Goal Program repository (integration)', () => {
       repository.create({
         bundle: replacement,
         auditAction: 'goal.program.created',
-        outboxEventId: randomUUID(),
       }),
     ).resolves.toBeUndefined()
   })
@@ -486,7 +474,6 @@ describe.sequential('Goal Program repository (integration)', () => {
     await repository.create({
       bundle: original,
       auditAction: 'goal.program.created',
-      outboxEventId: randomUUID(),
     })
     await lease.pool.query(
       `UPDATE goal_monthly_results
