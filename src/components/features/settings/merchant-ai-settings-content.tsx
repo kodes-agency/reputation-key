@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { AlertTriangle } from 'lucide-react'
 import type {
   CurrentMerchantAiCapability,
@@ -5,6 +6,7 @@ import type {
 } from '#/contexts/identity/application/public-api'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
+import { Button } from '#/components/ui/button'
 import {
   Card,
   CardContent,
@@ -23,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { MerchantAiDataHandling } from './merchant-ai-data-handling'
 
 export type MerchantAiPropertyOption = Readonly<{
@@ -77,6 +80,45 @@ export function MerchantAiPropertySelector({
   )
 }
 
+function MerchantAiGoogleSourceUnavailable() {
+  const { can } = usePermissions()
+  const canManageGoogleConnection = can('integration.manage')
+  const canConfirmGoogleProperty = can('property.import_gbp_v2')
+
+  return (
+    <Alert variant="destructive">
+      <AlertTriangle aria-hidden="true" />
+      <AlertTitle>Google source unavailable</AlertTitle>
+      <AlertDescription>
+        <p>
+          Connect and confirm this property&apos;s Google Business Profile before enabling
+          AI features. Existing authorization can still be turned off.
+        </p>
+        {canManageGoogleConnection || canConfirmGoogleProperty ? (
+          <div className="flex flex-wrap items-center gap-1">
+            {canManageGoogleConnection ? (
+              <Button asChild size="xs" variant="link">
+                <Link to="/settings/integrations">Open Google integrations</Link>
+              </Button>
+            ) : null}
+            {canConfirmGoogleProperty ? (
+              <Button asChild size="xs" variant="link">
+                <Link to="/properties/import-google">Review property import</Link>
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        {!canManageGoogleConnection || !canConfirmGoogleProperty ? (
+          <p>
+            Ask an account admin to connect Google and confirm this property&apos;s
+            Business Profile.
+          </p>
+        ) : null}
+      </AlertDescription>
+    </Alert>
+  )
+}
+
 export function MerchantAiSettingsContent({
   sourceActive,
   state,
@@ -104,16 +146,7 @@ export function MerchantAiSettingsContent({
 
   return (
     <CardContent className="flex min-w-0 flex-col gap-6">
-      {!sourceActive ? (
-        <Alert variant="destructive">
-          <AlertTriangle aria-hidden="true" />
-          <AlertTitle>Google source unavailable</AlertTitle>
-          <AlertDescription>
-            Connect and confirm this property&apos;s Google Business Profile before
-            enabling AI features. Existing authorization can still be turned off.
-          </AlertDescription>
-        </Alert>
-      ) : null}
+      {!sourceActive ? <MerchantAiGoogleSourceUnavailable /> : null}
 
       <MerchantAiDataHandling notice={notice} />
 

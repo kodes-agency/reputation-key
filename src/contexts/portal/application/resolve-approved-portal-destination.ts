@@ -47,7 +47,7 @@ export async function resolveApprovedPortalDestination(
   if (destination.approvalState !== 'approved') {
     throw portalError(
       'destination_not_approved',
-      'This destination needs Account Admin approval before it can be added',
+      'This destination was saved for approval. An account admin can approve it in the Settings tab under Approved link destinations.',
     )
   }
   return destination
