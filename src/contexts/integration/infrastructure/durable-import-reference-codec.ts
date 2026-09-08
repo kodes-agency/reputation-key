@@ -74,6 +74,12 @@ const eligibility = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('relink'), propertyId: z.string().min(1), profile }),
   z.object({ kind: z.literal('already_imported'), propertyId: z.string().min(1) }),
   z.object({ kind: z.literal('active_binding_conflict') }),
+  // Google reports no Voice of Merchant. The contract offers this row for
+  // display only, so it never carries a candidate reference — but it still has
+  // to ENCODE, because one unencodable candidate nulls the whole page and the
+  // caller sees `capacity_exceeded`. Omitting this arm made every Google
+  // account holding one unverified location fail its entire discovery.
+  z.object({ kind: z.literal('verification_required') }),
   z.object({ kind: z.literal('unavailable') }),
 ])
 export const durableCandidatePayloadSchema = z.object({
