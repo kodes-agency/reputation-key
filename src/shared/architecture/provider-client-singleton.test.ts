@@ -32,6 +32,13 @@ const SOLE_SDK_IMPORTER = join(
   'openai-connector.ts',
 )
 
+/**
+ * `pnpm local:up`'s host runner, the one non-`src` file allowed to name the
+ * provider key. Host-only: `production-artifact-boundary` keeps `scripts/` out
+ * of every image.
+ */
+const LOCAL_HOST_RUNNER = join('scripts', 'local', 'provider-modes.ts')
+
 /** Structured-output helpers are part of the SDK surface and stay with it. */
 const ZOD_HELPER_ROOT = join('src', 'shared', 'ai-provider-control') + sep
 
@@ -121,7 +128,7 @@ describe('provider client singleton', () => {
     ).toEqual([])
   })
 
-  it('reads the provider key in exactly one production module', () => {
+  it('reads the provider key in one production module and one host-only runner', () => {
     // This assertion used to be "OPENAI never appears in env.ts", on the
     // reasoning that naming the key there would make the whole application a
     // credential holder. WP2.3 made that false on purpose: the sidecar that
@@ -144,7 +151,22 @@ describe('provider client singleton', () => {
         join('src', 'composition', 'provider-runtime.ts'),
         join('src', 'shared', 'ai-provider-control', 'openai-connector.ts'),
         join('src', 'shared', 'config', 'env.ts'),
+        // The `pnpm local:up` runner refuses `REPKEY_LOCAL_AI=real` with the
+        // fake key that ships in `e2e/stack.env`, which means naming the
+        // variable. It reads the shape and nothing else: it ships in no image
+        // (host-only tooling) and holds no transport, which the next assertion
+        // states rather than argues.
+        LOCAL_HOST_RUNNER,
       ].sort(),
+    )
+  })
+
+  it('lets the local host runner refuse a fake key while owning no transport', () => {
+    const runner = productionSources.find(({ file }) => file === LOCAL_HOST_RUNNER)
+
+    expect(runner).toBeDefined()
+    expect(runner?.source).not.toMatch(
+      /from\s+['"](?:undici|openai|node:https?|got|axios)['"]|\bfetch\(|new\s+OpenAI\b/u,
     )
   })
 })

@@ -6,11 +6,11 @@
 // resolution of the service names, trust for the sandbox's run-scoped CA, and
 // the worker's writer keys. Nothing here selects an `E2E` posture - this stack
 // behaves like the deployed cell, against the sandbox or against real Google
-// (`REPKEY_LOCAL_GOOGLE=real`; see ./google-provider-mode.ts).
+// (`REPKEY_LOCAL_GOOGLE=real`; see ./provider-modes.ts).
 import { spawn, type ChildProcess } from 'node:child_process'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { applyEnvOverlay, googleProviderMode } from './google-provider-mode'
+import { aiProviderMode, applyEnvOverlay, googleProviderMode } from './provider-modes'
 
 const root = process.cwd()
 
@@ -22,6 +22,7 @@ function required(name: string): string {
 
 const overlaid = applyEnvOverlay(process.env, resolve(root, 'local.env'))
 const google = googleProviderMode(process.env)
+const ai = aiProviderMode(process.env)
 
 const hostEnv: NodeJS.ProcessEnv = {
   ...process.env,
@@ -106,6 +107,7 @@ process.stdout.write(
       ? [`[local] local.env overlay applied: ${overlaid.join(', ')}`]
       : []),
     `[local] ${google.summary}`,
+    `[local] ${ai.summary}`,
     '[local] Ctrl-C stops both processes; `pnpm local:down` removes the services',
   ].join('\n') + '\n',
 )
