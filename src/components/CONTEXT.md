@@ -55,7 +55,7 @@ invalidate the narrow parent key rather than the router.
 `use-action-mutation` wraps `useMutation` with the shared `Action` shape, success
 toasts, and targeted invalidation. `use-action` covers non-form fire-and-forget
 work. `use-hydrated` provides an SSR-safe client signal;
-`use-page-visible-and-focused` pauses sensitive polling; `use-property-id` reads
+`use-page-visible` pauses sensitive polling while the page is hidden (focus is deliberately not part of it); `use-property-id` reads
 Property route scope; `use-theme-mode` owns persisted theme state.
 
 ## Presentation
