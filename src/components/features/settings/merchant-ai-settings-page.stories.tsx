@@ -1,5 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import {
+  AuthedRouterDecorator,
+  withRole,
+} from '../../../../.storybook/AuthedRouterDecorator'
 import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import type { MerchantAiSnapshot } from '#/contexts/identity/application/public-api'
 import { MerchantAiSettingsPage } from './merchant-ai-settings-page'
@@ -109,6 +113,7 @@ const meta = {
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
   decorators: [
+    AuthedRouterDecorator,
     (Story) => (
       <div className="p-4">
         <Story />
@@ -234,10 +239,47 @@ export const Revoked: Story = {
   },
 }
 
-export const GoogleSourceUnavailable: Story = {
+export const GoogleSourceUnavailableForPropertyManager: Story = {
   args: {
     properties: [{ ...properties[0], googleBindingState: 'disconnected' }],
     snapshot: enabled,
+  },
+  decorators: [withRole('PropertyManager')],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(
+        /ask an account admin to connect Google and confirm this property's Business Profile/i,
+      ),
+    ).toBeVisible()
+    await expect(
+      canvas.queryByRole('link', { name: /open Google integrations/i }),
+    ).toBeNull()
+    await expect(
+      canvas.queryByRole('link', { name: /review property import/i }),
+    ).toBeNull()
+  },
+}
+
+export const GoogleSourceUnavailableForAccountAdmin: Story = {
+  args: {
+    properties: [{ ...properties[0], googleBindingState: 'disconnected' }],
+    snapshot: enabled,
+  },
+  decorators: [withRole('AccountAdmin')],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const integrations = canvas.getByRole('link', { name: /open Google integrations/i })
+    const propertyImport = canvas.getByRole('link', { name: /review property import/i })
+    await expect(integrations).toBeVisible()
+    await expect(integrations).toHaveAttribute('href', '/settings/integrations')
+    await expect(propertyImport).toBeVisible()
+    await expect(propertyImport).toHaveAttribute('href', '/properties/import-google')
+
+    integrations.addEventListener('click', (event) => event.preventDefault(), {
+      once: true,
+    })
+    await userEvent.click(integrations)
   },
 }
 

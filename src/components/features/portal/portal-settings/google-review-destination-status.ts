@@ -50,7 +50,7 @@ export function presentGoogleReviewDestination(
     label: 'Needs connection',
     badgeVariant: 'outline',
     description:
-      'Connect or refresh Google for this property before publishing the portal.',
+      'Guests cannot continue to Google while this property has no verified destination. Publishing is also blocked.',
     confirmedAt: null,
   }
 }
