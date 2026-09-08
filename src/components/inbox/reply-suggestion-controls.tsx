@@ -1,5 +1,7 @@
 import { useId } from 'react'
+import { Link } from '@tanstack/react-router'
 import { ChevronDown, RotateCcw, Sparkles, Undo2 } from 'lucide-react'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import { ButtonGroup } from '#/components/ui/button-group'
 import {
@@ -19,6 +21,9 @@ type Props = Readonly<{
   hasAiDraft: boolean
   canUndo: boolean
   error: string | null
+  /** A refusal the manager can clear; renders the screen that clears it. */
+  errorFixTarget?: 'public_display_name' | null
+  propertyId: string
   onToneChange: (tone: ReplyTone) => void
   onRequest: (tone?: ReplyTone) => Promise<void>
   onUndo: () => void
@@ -38,11 +43,15 @@ export function ReplySuggestionControls({
   hasAiDraft,
   canUndo,
   error,
+  errorFixTarget = null,
+  propertyId,
   onToneChange,
   onRequest,
   onUndo,
 }: Props) {
   const unavailableReasonId = useId()
+  const { can } = usePermissions()
+  const canManagePortals = can('portal.admin')
   return (
     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
       <ButtonGroup>
@@ -116,9 +125,21 @@ export function ReplySuggestionControls({
         </Button>
       )}
       {error && (
-        <p role="status" className="basis-full text-xs text-destructive">
-          {error}
-        </p>
+        <div role="status" className="basis-full text-xs text-destructive">
+          <p>{error}</p>
+          {errorFixTarget === 'public_display_name' &&
+            (canManagePortals ? (
+              <Button asChild size="xs" variant="link">
+                <Link to="/properties/$propertyId/portals" params={{ propertyId }}>
+                  Set the public display name
+                </Link>
+              </Button>
+            ) : (
+              <p>
+                Ask an account admin to set this property&rsquo;s public display name.
+              </p>
+            ))}
+        </div>
       )}
       {!error && unavailableReason && (
         <p

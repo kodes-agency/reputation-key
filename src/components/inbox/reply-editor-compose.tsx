@@ -114,6 +114,8 @@ export function ReplyCompose(props: ReplyComposeProps) {
               hasAiDraft={state.hasAiDraft || state.ai.suggestion !== null}
               canUndo={state.historyCount > 0}
               error={state.ai.error}
+              errorFixTarget={state.ai.errorFixTarget}
+              propertyId={props.propertyId}
               onToneChange={state.ai.setTone}
               onRequest={state.ai.request}
               onUndo={state.undo}
