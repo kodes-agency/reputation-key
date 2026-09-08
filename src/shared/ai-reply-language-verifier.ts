@@ -106,10 +106,23 @@ function placeholderLengthAt(text: string, index: number): number {
   return 0
 }
 
+/**
+ * Normalise the detector's input rather than refusing it.
+ *
+ * This used to return `policy_unavailable` whenever the input was not already
+ * NFKC, and its input is the *redacted guest review* - which the redactor
+ * slices out of the original text without normalising. One ellipsis (`…`), one
+ * non-breaking space or one `ﬁ` ligature written by a guest therefore disabled
+ * AI drafting for that review permanently, and `policy_unavailable` is not
+ * fallback-eligible, so the manager got "AI drafting is unavailable right now.
+ * Try again." on every attempt for a retry that could never succeed.
+ * Normalising is just as deterministic as refusing, which is what the pinned
+ * detector input needs.
+ */
 export function prepareReplyLanguageDetectorInput(
-  text: string,
+  input: string,
 ): PreparedReplyLanguageDetectorInput | Readonly<{ status: 'policy_unavailable' }> {
-  if (text.normalize('NFKC') !== text) return { status: 'policy_unavailable' }
+  const text = input.normalize('NFKC')
   let normalized = ''
   let pendingSpace = false
   let letterCount = 0
@@ -277,10 +290,23 @@ export function resolveConcreteReplyLanguage(
   return { status: 'resolved', language }
 }
 
+/**
+ * Verify that the model replied in the admitted language.
+ *
+ * `exemptSpans` carries text the reply is *required* to contain in its own
+ * script - today the property's approved public display name. Without the
+ * exemption the two contracts fight: `usesPublicDisplayName` forces the reply
+ * to embed `KODES agency` (11 Latin letters) while the script rule demands at
+ * least 80% Cyrillic letters, so solving `5·cyr >= 4·(cyr + 11)` means no
+ * Bulgarian reply under 55 letters can ever pass - against an output schema
+ * whose floor is 24 characters and a prompt that asks for a "concise" reply.
+ * A mandated foreign-script brand token is not evidence of the wrong language.
+ */
 export function verifyReplyLanguageOutput(
   text: string,
   expected: ConcreteReplyLanguage,
   detector: ReplyLanguageDetector,
+  exemptSpans: readonly string[] = [],
 ): ReplyLanguageOutputResult {
   const mapped = mapReviewLanguageMetadata(expected.tag)
   if (
@@ -291,7 +317,11 @@ export function verifyReplyLanguageOutput(
     return { status: 'output_invalid' }
   }
   if (!isAiReviewLanguageRuntimeAvailable()) return { status: 'output_invalid' }
-  const prepared = prepareReplyLanguageDetectorInput(text)
+  const verified = exemptSpans.reduce(
+    (carried, span) => (span.length === 0 ? carried : carried.split(span).join(' ')),
+    text,
+  )
+  const prepared = prepareReplyLanguageDetectorInput(verified)
   if (
     prepared.status !== 'ready' ||
     prepared.letterCount < MIN_REPLY_LANGUAGE_LETTERS_V1
@@ -309,7 +339,7 @@ export function verifyReplyLanguageOutput(
     !detection.reliable ||
     detection.probability < MIN_REPLY_LANGUAGE_PROBABILITY_V1 ||
     normalizedPrimary(detection.language) !== primaryForGroup(expected.templateGroup) ||
-    verifiedScript(text, expected.tag, expected.templateGroup) !== 'accepted'
+    verifiedScript(verified, expected.tag, expected.templateGroup) !== 'accepted'
   ) {
     return { status: 'output_invalid' }
   }
