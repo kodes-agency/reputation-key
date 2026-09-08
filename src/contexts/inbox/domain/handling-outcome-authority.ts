@@ -10,8 +10,11 @@
 //
 // Live rows follow the same refusal: an outcome is never derived from a legacy
 // `closed_at`. Once a source has been withdrawn, purged or made ineligible, no
-// later reopen re-earns the right to an outcome. The Inbox may still show the
-// work; it may never claim it was handled.
+// later cycle re-earns the right to an outcome — so a manual reopen is refused
+// too. A reopened cycle would be work the Inbox chases with reminders and
+// escalation and can never close, because the only closure a manager authors
+// is the outcome. The closed item stays visible; it may never claim it was
+// handled.
 
 import { err, ok, type Result } from '#/shared/domain'
 import { inboxError, type InboxError } from './errors'
@@ -105,6 +108,40 @@ export function assertManagerHandlingPermitted(
       inboxError(
         'invalid_transition',
         'Withdrawn, purged or unavailable private feedback can never record a manager handling outcome',
+        {
+          inboxItemId: request.current.inboxItemId,
+          cycleNumber: request.current.currentCycleNumber,
+          unavailableCloseReasons,
+        },
+      ),
+    )
+  }
+  return ok(true)
+}
+
+export type ManualReopenRequest = Readonly<{
+  current: HandlingCycleHead
+  /** Every close reason already recorded against this Inbox Item; see above. */
+  recordedCloseReasons: ReadonlyArray<string>
+}>
+
+/**
+ * Decide whether a manager may reopen this cycle by hand. Cycle status,
+ * revision fencing and authorization stay with the caller — this answers only
+ * "could the reopened cycle ever be honestly handled".
+ */
+export function assertManualReopenPermitted(
+  request: ManualReopenRequest,
+): Result<true, InboxError> {
+  if (request.current.sourceType !== 'feedback') return ok(true)
+  const unavailableCloseReasons = SOURCE_UNAVAILABLE_CLOSE_REASONS.filter((reason) =>
+    request.recordedCloseReasons.includes(reason),
+  )
+  if (unavailableCloseReasons.length > 0) {
+    return err(
+      inboxError(
+        'invalid_transition',
+        'Withdrawn, purged or unavailable private feedback cannot be reopened: no manager outcome could ever close it',
         {
           inboxItemId: request.current.inboxItemId,
           cycleNumber: request.current.currentCycleNumber,
