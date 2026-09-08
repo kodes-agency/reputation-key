@@ -419,6 +419,31 @@ describe('Postgres Google admission permit authority', () => {
     expect(Number(result.rows[0]?.operation_ms)).toBe(30_000)
   })
 
+  it('expires an admitted permit after its start deadline', async () => {
+    await pool.query(
+      `UPDATE authorization_execution_permits
+          SET admitted_at = clock_timestamp() - interval '2 seconds',
+              start_deadline_at = clock_timestamp() - interval '1 second'
+        WHERE id = $1`,
+      [PERMIT_ID],
+    )
+    const adapter = authority()
+    const snapshot = await adapter.load(PERMIT_ID)
+    if (!snapshot) throw new Error('expected expired permit snapshot')
+
+    await expect(adapter.start(snapshot)).resolves.toBe('expired')
+    const result = await pool.query(
+      `SELECT state, correlation_id
+         FROM authorization_execution_permits
+        WHERE id = $1`,
+      [PERMIT_ID],
+    )
+    expect(result.rows[0]).toEqual({
+      state: 'fenced',
+      correlation_id: 'start_deadline_elapsed',
+    })
+  })
+
   it('does not start when exact request authorization metadata drifts', async () => {
     const adapter = authority()
     const snapshot = await adapter.load(PERMIT_ID)
