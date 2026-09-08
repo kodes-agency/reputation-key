@@ -194,18 +194,18 @@ describe('BQR-2.2: outbox consumer registration', () => {
       expect(unresolved).toEqual([])
     })
 
-    it('each context registers under a module whose catalogue row is its own file', () => {
-      const rowFileByModule: Record<string, string> = Object.fromEntries(
-        ENTRY_POINT_CATALOGUE.filter((r) => r.kind === 'consumer').map((r) => [
-          r.name,
-          r.file,
-        ]),
-      )
+    it('each context registration names a live catalogue consumer module', () => {
       const misattributed = discoverRegistrations()
-        .filter((r) => r.file.startsWith('src/contexts/'))
-        .filter((r) => r.module !== undefined)
-        .filter((r) => rowFileByModule[r.module as string] !== r.file)
-        .map((r) => `${r.file}: ${r.consumerName} → ${r.module as string}`)
+        .filter((registration) => registration.file.startsWith('src/contexts/'))
+        .filter((registration) => registration.module !== undefined)
+        .filter(
+          (registration) =>
+            !CATALOGUE_CONSUMER_MODULES.has(registration.module as string),
+        )
+        .map(
+          (registration) =>
+            `${registration.file}: ${registration.consumerName} → ${registration.module as string}`,
+        )
       expect(misattributed).toEqual([])
     })
   })

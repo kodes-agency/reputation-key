@@ -1,6 +1,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
+import { JOB_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
 
 const ROOT = resolve(process.cwd())
 const ACTIVITY_ROOT = resolve(ROOT, 'src/contexts/feed')
@@ -61,11 +63,25 @@ describe('canonical Recent Activity identifiers', () => {
         .map((path) => relative(ROOT, path))
         .sort()
 
-    expect(filesContaining("'insert-activity-log'")).toEqual([
-      'src/contexts/feed/infrastructure/jobs/project-recent-activity.job.ts',
-      'src/shared/governance/entry-point-catalogue.ts',
-      'src/shared/governance/event-job-catalogue.ts',
-    ])
+    expect(
+      filesContaining("'insert-activity-log'").filter(
+        (file) => !file.startsWith('src/shared/governance/'),
+      ),
+    ).toEqual(['src/contexts/feed/infrastructure/jobs/project-recent-activity.job.ts'])
+    expect(ENTRY_POINT_CATALOGUE).toContainEqual({
+      kind: 'job',
+      name: 'insert-activity-log',
+      action: 'system:activity.record',
+      capability: 'none',
+      resourceScope: 'organization',
+      externalEffect: false,
+    })
+    expect(
+      JOB_FAMILY_ROWS.find((row) => row.jobName === 'insert-activity-log'),
+    ).toMatchObject({
+      jobName: 'insert-activity-log',
+      processor: 'src/contexts/feed/infrastructure/jobs/project-recent-activity.job.ts',
+    })
     // `activity_log` was a rollback-compatibility view with no pgTable, so the
     // regenerated baseline does not create it and the register no longer names
     // it. Nothing in the tree may reintroduce the physical name.

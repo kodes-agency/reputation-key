@@ -42,26 +42,29 @@ describe('architecture: core Portal lifecycle facts are atomic', () => {
     expect(source).toContain('commandStore: portalCommandStore')
   })
 
-  it('catalogues every migrated lifecycle family as registered and replay-unique', () => {
-    for (const eventType of ['portal.created', 'portal.updated', 'portal.deleted']) {
-      expect(EVENT_FAMILY_ROWS.find((row) => row.eventType === eventType)).toMatchObject({
-        schemaRegistered: true,
-        recordedInOutbox: true,
-        idempotencyKey: 'eventId',
-      })
+  it('catalogues every migrated lifecycle family with its durable consumers', () => {
+    const expectedConsumers: Readonly<Record<string, ReadonlyArray<string>>> = {
+      'portal.created': [],
+      'portal.updated': [],
+      'portal.deleted': [],
+      'portal.publication.published': [
+        'activity.operational-action-history',
+        'activity.recent-activity',
+      ],
+      'portal.publication.rolled_back': ['activity.recent-activity'],
+      'portal.archived': [
+        'activity.operational-action-history',
+        'activity.recent-activity',
+      ],
+      'portal.restored': ['activity.recent-activity'],
     }
 
-    for (const eventType of [
-      'portal.publication.published',
-      'portal.publication.rolled_back',
-      'portal.archived',
-      'portal.restored',
-    ]) {
-      expect(EVENT_FAMILY_ROWS.find((row) => row.eventType === eventType)).toMatchObject({
-        schemaRegistered: true,
-        recordedInOutbox: true,
-        idempotencyKey: 'eventId+consumerName',
-      })
+    for (const [eventType, expected] of Object.entries(expectedConsumers)) {
+      const row = EVENT_FAMILY_ROWS.find((candidate) => candidate.eventType === eventType)
+      expect(
+        row?.consumers.map((consumer) => consumer.name).sort(),
+        `${eventType} durable consumers`,
+      ).toEqual([...expected].sort())
     }
   })
 

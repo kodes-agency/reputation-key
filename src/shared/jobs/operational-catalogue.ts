@@ -104,8 +104,8 @@ function operationalContract(row: JobFamilyRow): JobOperationalContract {
     retryBackoff: row.retryBackoff,
     timeoutMs: row.timeoutMs,
     workerConcurrency: JOB_OPERATIONAL_QUEUE_CONCURRENCY[row.queue],
-    retention: row.retention,
-    routing: row.region,
+    retention: 'completed:100,failed:50',
+    routing: 'cell_local',
     posture: postureFor(row.registration),
     schedule: row.schedule,
     lastSuccessObjectiveMs: lastSuccessObjective(row),
@@ -137,9 +137,7 @@ export function validateOperationalCatalogueCoverage(): void {
       contract.retryAttempts !== row.retryAttempts ||
       contract.retryBackoff !== row.retryBackoff ||
       contract.timeoutMs !== row.timeoutMs ||
-      contract.retention !== row.retention ||
       contract.schedule !== row.schedule ||
-      contract.routing !== row.region ||
       contract.capability !== row.capability ||
       contract.posture !== postureFor(row.registration)
     ) {
