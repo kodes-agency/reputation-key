@@ -32,6 +32,7 @@ import { MAX_REPLY_LENGTH } from '../../domain/rules'
 import {
   buildIdempotencyKey,
   nextPublicationState,
+  PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
 } from '../../domain/reply-publication-workflow'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
@@ -161,7 +162,7 @@ function makeReplyCommandStoreFake(
     // + the new publication-cycle fields — with the same domain pre-check.
     markPublicationAuthorized: async (reply, updates, facts, now) => {
       if (!nextPublicationState(reply.publicationState, 'authorize')) return null
-      return transition(
+      const saved = await transition(
         reply,
         {
           ...updates,
@@ -169,11 +170,15 @@ function makeReplyCommandStoreFake(
           publicationCycle: facts.publicationIntent.publicationCycle,
           publicationAttempts: 0,
           publicationLastErrorClass: null,
-          reconcileDueAt: null,
+          reconcileDueAt: new Date(
+            (now ?? NOW).getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
+          ),
         },
         facts.lifecycleEvent,
         now,
       )
+      if (saved) await outbox.record(facts.publicationIntent)
+      return saved
     },
     markPublished: (reply, updates, event, now) =>
       transition(
@@ -193,7 +198,7 @@ function makeReplyCommandStoreFake(
     // transition with the edit fields + the updated fact.
     editPublishedReply: async (reply, command) => {
       if (reply.status !== 'published') return null
-      return transition(
+      const saved = await transition(
         reply,
         {
           text: command.text,
@@ -202,11 +207,15 @@ function makeReplyCommandStoreFake(
           publicationCycle: command.publicationIntent.publicationCycle,
           publicationAttempts: 0,
           publicationLastErrorClass: null,
-          reconcileDueAt: null,
+          reconcileDueAt: new Date(
+            (command.now ?? NOW).getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
+          ),
         },
         command.lifecycleEvent,
         command.now,
       )
+      if (saved) await outbox.record(command.publicationIntent)
+      return saved
     },
     mirrorSyncedReply: vi.fn(async () => {
       throw new Error('mirrorSyncedReply is not used by reply-operations')
@@ -681,7 +690,7 @@ describe('submitReply', () => {
 // ── approveReply ────────────────────────────────────────────────────────
 
 describe('approveReply', () => {
-  it('transitions pending_approval → approved and enqueues publish job', async () => {
+  it('commits one authorization intent before enqueue and produces neither for a member', async () => {
     const pending = makeReply({ status: 'pending_approval' })
     const deps = makeDeps({
       replyRepo: {
@@ -689,28 +698,54 @@ describe('approveReply', () => {
         findInternalByReviewId: vi.fn(async () => pending),
       } as unknown as ReplyRepository,
     })
+    vi.mocked(deps.queue.addPublishJob).mockImplementation(async () => {
+      expect(deps.outbox.byTag('review.reply.publication_requested')).toHaveLength(1)
+    })
+
     const result = await approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
-    expect(result.status).toBe('approved')
-    expect(result.approvedBy).toBe(USER_ID)
-    expect(result.publicationCycle).toBe(1)
+
+    expect(result).toMatchObject({
+      status: 'approved',
+      approvedBy: USER_ID,
+      publicationCycle: 1,
+    })
+    const intents = deps.outbox.byTag('review.reply.publication_requested')
+    expect(intents).toHaveLength(1)
+    const intent = intents[0]!
+    expect(intent).toMatchObject({
+      replyId: REPLY_ID,
+      reviewId: REVIEW_ID,
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      userId: USER_ID,
+      publicationCycle: 1,
+    })
+    expect(deps.queue.addPublishJob).toHaveBeenCalledOnce()
     expect(deps.queue.addPublishJob).toHaveBeenCalledWith(
       {
-        replyId: REPLY_ID,
-        organizationId: ORG_ID,
-        publicationCycle: 1,
-        propertyId: PROP_ID,
-        sourceEpoch: 0,
-        materialReviewRevision: 1,
-        baseObservationRevision: 0,
-        // Named attribution for user-triggered delayed work.
+        replyId: intent.replyId,
+        organizationId: intent.organizationId,
+        publicationCycle: intent.publicationCycle,
+        propertyId: intent.propertyId,
+        sourceEpoch: intent.sourceEpoch,
+        materialReviewRevision: intent.materialReviewRevision,
+        baseObservationRevision: intent.baseObservationRevision,
         initiator: { kind: 'user', id: USER_ID },
       },
-      {
-        // RPL-01: the committed monotonic cycle is both the queue identity and
-        // the worker's stale-intent fence.
-        idempotencyKey: buildIdempotencyKey(REPLY_ID, 1),
-      },
+      { idempotencyKey: buildIdempotencyKey(intent.replyId, intent.publicationCycle) },
     )
+
+    const memberDeps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => pending),
+      } as unknown as ReplyRepository,
+    })
+    await expect(
+      approveReply(memberDeps)({ reviewId: REVIEW_ID }, MEMBER_CTX),
+    ).rejects.toMatchObject({ code: 'unauthorized', _tag: 'ReviewError' })
+    expect(memberDeps.outbox.byTag('review.reply.publication_requested')).toHaveLength(0)
+    expect(memberDeps.queue.addPublishJob).not.toHaveBeenCalled()
   })
 
   it('sets approvedAt when approving', async () => {
@@ -798,7 +833,9 @@ describe('editPublishedReply', () => {
     expect(result.publicationCycle).toBe(1)
     expect(result.publicationAttempts).toBe(0)
     expect(result.publicationLastErrorClass).toBeNull()
-    expect(result.reconcileDueAt).toBeNull()
+    expect(result.reconcileDueAt).toEqual(
+      new Date(NOW.getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS),
+    )
 
     const fact = deps.outbox.byTag('review.reply.updated')[0]!
     expect(fact.replyId).toBe(REPLY_ID)
@@ -1222,7 +1259,7 @@ describe('retryPublish', () => {
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
   })
 
-  it('returns the published reply when reauthorization CAS loses to reconciliation', async () => {
+  it('returns published when a concurrent observation wins after the check-only read', async () => {
     const ambiguous = makeReply({
       status: 'publish_failed',
       publicationState: 'ambiguous',
@@ -1266,11 +1303,11 @@ describe('retryPublish', () => {
     await expect(retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)).resolves.toBe(
       published,
     )
-    expect(conditionalUpdate).toHaveBeenCalledTimes(1)
+    expect(conditionalUpdate).not.toHaveBeenCalled()
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
   })
 
-  it('ambiguous + provider does NOT show the reply → proceeds with re-approve + enqueue', async () => {
+  it('ambiguous + provider absence refuses to republish because a filtered accepted reply may still be live', async () => {
     const ambiguous = makeReply({
       status: 'publish_failed',
       publicationState: 'ambiguous',
@@ -1303,11 +1340,80 @@ describe('retryPublish', () => {
       } as never,
     })
 
-    const result = await retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
+    await expect(
+      retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
+    expect(deps.googleReplyObservationStore.record).toHaveBeenCalledOnce()
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+  })
 
-    expect(result.status).toBe('approved')
-    expect(result.publicationState).toBe('authorized')
-    expect(deps.queue.addPublishJob).toHaveBeenCalledTimes(1)
+  it('terminal ambiguous + provider absence still refuses a second provider write', async () => {
+    const terminal = makeReply({
+      status: 'publish_failed',
+      publicationState: 'terminal',
+      publicationCycle: 1,
+      publicationAttempts: 1,
+      publicationLastErrorClass: 'ambiguous',
+      reconcileDueAt: null,
+    })
+    const reviewWithConnection = makeReview({
+      googleConnectionId: 'conn-1' as never,
+      externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+      externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
+    })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => terminal),
+        findById: vi.fn(async () => terminal),
+      } as unknown as ReplyRepository,
+      reviewRepo: {
+        findById: vi.fn(async () => reviewWithConnection),
+      } as unknown as ReviewRepository,
+    })
+    vi.mocked(deps.googleReviewApi.getReview).mockResolvedValue({
+      status: 'found',
+      review: {
+        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+        externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
+        replyText: null,
+      } as never,
+    })
+
+    await expect(
+      retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
+    expect(deps.googleReplyObservationStore.record).toHaveBeenCalledOnce()
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+  })
+  it('terminal ambiguity + missing provider subject is check-only', async () => {
+    const terminal = makeReply({
+      status: 'publish_failed',
+      publicationState: 'terminal',
+      publicationCycle: 1,
+      publicationAttempts: 1,
+      publicationLastErrorClass: 'ambiguous',
+    })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => terminal),
+        findById: vi.fn(async () => terminal),
+      } as unknown as ReplyRepository,
+      reviewRepo: {
+        findById: vi.fn(async () => makeReview({ googleConnectionId: null })),
+      } as unknown as ReviewRepository,
+    })
+
+    await expect(
+      retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
+    expect(deps.googleReviewApi.getReview).not.toHaveBeenCalled()
+    expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
   })
 })
 

@@ -209,13 +209,11 @@ export type PublicationStateInput = PersistedPublicationState | null
 /** Events that drive persisted-state transitions (BQC-3.8). */
 export type PublicationStateEvent =
   | 'authorize' // approval / retry re-authorization — a new publication cycle
-  | 'claim' // publish job claims a row ('sending' → 'sending' = the SAME BullMQ
-  //   job re-claiming its in-flight workflow after an ambiguous attempt;
-  //   jobId idempotency serializes attempts, so no second worker can race this)
+  | 'claim' // a fresh authorization grants exactly one provider-write attempt
   | 'provider_accepted' // write response persisted; provider read still required
   | 'publish' // exact current provider observation confirmed
   | 'fail_terminal' // classified terminal_rejection
-  | 'fail_ambiguous' // classified ambiguous on the final attempt
+  | 'fail_ambiguous' // uncertain write/read outcome awaiting bounded reconciliation
   | 'requeue' // classified retryable — back to 'authorized' for the next attempt
   | 'cancel' // policy/disconnect cancellation
 
@@ -226,22 +224,29 @@ export const PERSISTED_PUBLICATION_TRANSITIONS: Readonly<
     Readonly<Partial<Record<PublicationStateEvent, PersistedPublicationState>>>
   >
 > = {
-  requested: { authorize: 'authorized', claim: 'sending', cancel: 'cancelled' },
-  authorized: { claim: 'sending', cancel: 'cancelled' },
+  requested: {
+    authorize: 'authorized',
+    fail_terminal: 'terminal',
+    cancel: 'cancelled',
+  },
+  authorized: { claim: 'sending', fail_terminal: 'terminal', cancel: 'cancelled' },
   sending: {
-    claim: 'sending',
     provider_accepted: 'pending_observation',
     fail_terminal: 'terminal',
     fail_ambiguous: 'ambiguous',
     requeue: 'authorized',
     cancel: 'cancelled',
   },
-  pending_observation: { publish: 'published', cancel: 'cancelled' },
+  pending_observation: {
+    publish: 'published',
+    fail_ambiguous: 'ambiguous',
+    cancel: 'cancelled',
+  },
   published: {},
   // publish from terminal/ambiguous is the reconciliation heal: the provider
   // shows the reply, so the honest local state is published (never a new send).
   terminal: { authorize: 'authorized', publish: 'published' },
-  ambiguous: { authorize: 'authorized', publish: 'published' },
+  ambiguous: { authorize: 'authorized', publish: 'published', fail_terminal: 'terminal' },
   // A cancelled reply returns to draft; a fresh approval cycle re-authorizes.
   cancelled: { authorize: 'authorized' },
 }
@@ -279,6 +284,12 @@ export const AMBIGUOUS_RECONCILE_DELAY_MS = 15 * 60 * 1000
 /** A successful write response still needs a provider read after a short
  * convergence window before it can become published. */
 export const PROVIDER_OBSERVATION_RECONCILE_DELAY_MS = 60 * 1000
+
+/** Backstop for a publication whose queue/worker owner disappears. The five
+ * 120-second publish attempts plus the catalogue's 30/60/120/240-second
+ * backoffs fit inside 17.5 minutes; 20 minutes keeps healthy work ahead of the
+ * recurring five-minute reconciliation sweep while bounding abandoned rows. */
+export const PUBLICATION_RECOVERY_RECONCILE_DELAY_MS = 20 * 60 * 1000
 
 /** Integration context codes that always fail BEFORE the reply PUT. */
 const PRE_REQUEST_TERMINAL_CODES: ReadonlySet<string> = new Set([

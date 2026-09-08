@@ -62,10 +62,14 @@ describe('jobEnqueueOptions (BQC-3.6)', () => {
     expect(jobTimeoutMs('retention-sweep')).toBe(900_000)
   })
 
-  it('keeps the publish-reply fast backoff (exponential:5000)', () => {
-    expect(jobEnqueueOptions('publish-reply').backoff).toMatchObject({
-      type: 'exponential',
-      delay: 5000,
+  it('gives reply publication five bounded exponential attempts', () => {
+    expect(jobEnqueueOptions('publish-reply')).toEqual({
+      attempts: 5,
+      backoff: {
+        type: 'exponential',
+        delay: 30_000,
+        jitter: expect.any(Number),
+      },
     })
   })
 

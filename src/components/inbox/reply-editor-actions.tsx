@@ -1,6 +1,6 @@
 // Inbox detail — interactive reply status views (pending, failed, rejected)
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Textarea } from '#/components/ui/textarea'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
@@ -22,6 +22,25 @@ type ReplyView = Readonly<{
   rejectionReason: string | null
 }>
 
+type ReplyStatusSummaryProps = Readonly<{
+  reply: ReplyView
+  status: ReactNode
+}>
+
+function ReplyStatusSummary({ reply, status }: ReplyStatusSummaryProps) {
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        <h2 className="text-sm font-medium">Reply</h2>
+        {status}
+      </div>
+      <div className="rounded-md border bg-muted/30 p-3">
+        <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply.text}</p>
+      </div>
+    </>
+  )
+}
+
 type PendingProps = Readonly<{
   reply: ReplyView
   isSaving: boolean
@@ -40,13 +59,10 @@ export function ReplyPendingApproval({
 
   return (
     <div className="space-y-3 border-t pt-4">
-      <div className="flex items-center gap-2">
-        <h2 className="text-sm font-medium">Reply</h2>
-        <Badge variant="outline">Awaiting Approval</Badge>
-      </div>
-      <div className="rounded-md border bg-muted/30 p-3">
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply.text}</p>
-      </div>
+      <ReplyStatusSummary
+        reply={reply}
+        status={<Badge variant="outline">Awaiting Approval</Badge>}
+      />
       <div className="flex flex-wrap gap-2">
         <AlertDialog>
           <AlertDialogTrigger asChild>
@@ -110,28 +126,70 @@ export function ReplyPendingApproval({
   )
 }
 
-type FailedProps = Readonly<{
-  reply: ReplyView
+type FailedReplyView = ReplyView &
+  Readonly<{
+    publicationAttempts: number
+    publicationLastErrorClass: 'terminal_rejection' | 'retryable' | 'ambiguous' | null
+  }>
+
+type CheckProps = Readonly<{
+  reply: FailedReplyView
+  isSaving: boolean
+  onCheck: () => Promise<unknown>
+}>
+
+/** Unknown provider outcome: the only safe operator action is another read. */
+export function ReplyPublicationNeedsCheck({ reply, isSaving, onCheck }: CheckProps) {
+  return (
+    <div className="space-y-3 border-t pt-4">
+      <ReplyStatusSummary
+        reply={reply}
+        status={<Badge variant="outline">Google status unconfirmed</Badge>}
+      />
+      <p className="text-xs text-muted-foreground">
+        Google may have accepted this reply, but RepKey could not verify it. To avoid
+        posting twice, RepKey will only check Google—it will not send this reply again.
+      </p>
+      <Button size="sm" disabled={isSaving} onClick={() => onCheck()}>
+        {isSaving ? 'Checking Google…' : 'Check Google again'}
+      </Button>
+    </div>
+  )
+}
+
+type RetryProps = Readonly<{
+  reply: FailedReplyView
   isSaving: boolean
   onRetry: () => Promise<unknown>
 }>
 
-export function ReplyPublishFailed({ reply, isSaving, onRetry }: FailedProps) {
+/** A confirmed pre-request/retry exhaustion failure that is safe to send again. */
+export function ReplyPublicationRetryable({ reply, isSaving, onRetry }: RetryProps) {
+  const wasRejected = reply.publicationLastErrorClass === 'terminal_rejection'
+  const retryDescription =
+    reply.publicationAttempts === 0
+      ? 'RepKey could not start publishing before the recovery deadline. No Google update was attempted, so it is safe to try again.'
+      : `RepKey stopped after ${reply.publicationAttempts} ${
+          reply.publicationAttempts === 1 ? 'attempt' : 'attempts'
+        }. Google did not accept the update, so it is safe to try again when the connection is stable.`
+
   return (
     <div className="space-y-3 border-t pt-4">
-      <div className="flex items-center gap-2">
-        <h2 className="text-sm font-medium">Reply</h2>
-        <Badge variant="outline">Needs a check</Badge>
-      </div>
-      <div className="rounded-md border bg-muted/30 p-3">
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply.text}</p>
-      </div>
+      <ReplyStatusSummary
+        reply={reply}
+        status={
+          <Badge variant="outline">
+            {wasRejected ? 'Google rejected update' : 'Publishing stopped'}
+          </Badge>
+        }
+      />
       <p className="text-xs text-muted-foreground">
-        Google has not confirmed this reply yet. RepKey checks the current Google reply
-        before trying the update again.
+        {wasRejected
+          ? 'Google rejected this update before it could be published. Check the Google Business Profile connection and permissions, then try again.'
+          : retryDescription}
       </p>
       <Button size="sm" disabled={isSaving} onClick={() => onRetry()}>
-        Check and retry
+        {isSaving ? 'Starting…' : 'Try publishing again'}
       </Button>
     </div>
   )
@@ -147,13 +205,10 @@ type RejectedProps = Readonly<{
 export function ReviewReplyRejected({ reply, isSaving, onEditResubmit }: RejectedProps) {
   return (
     <div className="space-y-3 border-t pt-4">
-      <div className="flex items-center gap-2">
-        <h2 className="text-sm font-medium">Reply</h2>
-        <Badge variant="destructive">Rejected</Badge>
-      </div>
-      <div className="rounded-md border bg-muted/30 p-3">
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply.text}</p>
-      </div>
+      <ReplyStatusSummary
+        reply={reply}
+        status={<Badge variant="destructive">Rejected</Badge>}
+      />
       {reply.rejectionReason && (
         <p className="text-xs text-muted-foreground">Reason: {reply.rejectionReason}</p>
       )}

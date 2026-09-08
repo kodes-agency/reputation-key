@@ -37,7 +37,11 @@ import {
   reviewReplyPublishFailed,
   type ReviewReplyPublicationCancelled,
 } from '../../domain/events'
-import { AMBIGUOUS_RECONCILE_DELAY_MS } from '../../domain/reply-publication-workflow'
+import {
+  AMBIGUOUS_RECONCILE_DELAY_MS,
+  PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
+  PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
+} from '../../domain/reply-publication-workflow'
 import { createReviewRepository } from './review.repository'
 import { createReplyRepository } from './reply.repository'
 import { createAtomicReplyCommandStore } from '../reply-command-store'
@@ -422,7 +426,7 @@ describe.sequential('publication state machine (integration, migration 0015)', (
     expect(outbox.rows).toHaveLength(0)
   })
 
-  it('an ambiguous row written by the store is findable by the sweep query once due', async () => {
+  it('schedules authorized, sending, pending, and ambiguous rows without selecting healthy in-flight work', async () => {
     const db = getDb()
     const reviewRepo = createReviewRepository(db, () => new Date())
     const replyRepo = createReplyRepository(db, () => new Date())
@@ -439,6 +443,22 @@ describe.sequential('publication state machine (integration, migration 0015)', (
       publicationCycle: 0,
     })
     await replyRepo.upsert(pending)
+
+    const expectDueBoundary = async (dueAt: Date) => {
+      await expect(
+        replyRepo.findDuePublicationReconciliationBatch(
+          new Date(dueAt.getTime() - 1),
+          null,
+          500,
+        ),
+      ).resolves.toEqual([])
+      await expect(
+        replyRepo.findDuePublicationReconciliationBatch(dueAt, null, 500),
+      ).resolves.toEqual([
+        expect.objectContaining({ id: REPLY_A, reconcileDueAt: dueAt }),
+      ])
+    }
+
     const authorized = await store.markPublicationAuthorized(
       pending,
       { status: 'approved', approvedBy: USER_A, approvedAt: NOW },
@@ -459,20 +479,42 @@ describe.sequential('publication state machine (integration, migration 0015)', (
       },
       NOW,
     )
-    expect(authorized).not.toBeNull()
+    const authorizedDue = new Date(
+      NOW.getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
+    )
+    expect(authorized).toMatchObject({
+      publicationState: 'authorized',
+      reconcileDueAt: authorizedDue,
+    })
+    await expectDueBoundary(authorizedDue)
 
-    // Claim, then fail ambiguous on the final attempt — the store persists
-    // publication_state='ambiguous' + reconcile_due_at = NOW + 15min.
     const claimed = await store.markPublicationSending(
       authorized!,
       publicationAttempt(),
       NOW,
     )
-    expect(claimed?.publicationState).toBe('sending')
-    expect(claimed?.publicationAttempts).toBe(1)
+    const sendingDue = new Date(NOW.getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS)
+    expect(claimed).toMatchObject({
+      publicationState: 'sending',
+      publicationAttempts: 1,
+      reconcileDueAt: sendingDue,
+    })
+    await expectDueBoundary(sendingDue)
+
+    const providerPending = await store.markProviderOutcomePendingObservation(
+      claimed!,
+      { providerCorrelationId: 'google-correlation-1', providerRespondedAt: NOW },
+      NOW,
+    )
+    const pendingDue = new Date(NOW.getTime() + PROVIDER_OBSERVATION_RECONCILE_DELAY_MS)
+    expect(providerPending).toMatchObject({
+      publicationState: 'pending_observation',
+      reconcileDueAt: pendingDue,
+    })
+    await expectDueBoundary(pendingDue)
 
     const marked = await store.markPublicationAmbiguous(
-      claimed!,
+      providerPending!,
       reviewReplyPublishFailed({
         replyId: REPLY_A,
         reviewId: REVIEW_A,
@@ -483,30 +525,15 @@ describe.sequential('publication state machine (integration, migration 0015)', (
       }),
       NOW,
     )
-    expect(marked?.status).toBe('publish_failed')
-    expect(marked?.publicationState).toBe('ambiguous')
-    expect(marked?.publicationLastErrorClass).toBe('ambiguous')
-    expect(marked?.reconcileDueAt?.getTime()).toBe(
-      NOW.getTime() + AMBIGUOUS_RECONCILE_DELAY_MS,
-    )
+    const ambiguousDue = new Date(NOW.getTime() + AMBIGUOUS_RECONCILE_DELAY_MS)
+    expect(marked).toMatchObject({
+      status: 'publish_failed',
+      publicationState: 'ambiguous',
+      publicationLastErrorClass: 'ambiguous',
+      reconcileDueAt: ambiguousDue,
+    })
+    await expectDueBoundary(ambiguousDue)
 
-    // Not yet due → the sweep query skips the row.
-    const notYetDue = await replyRepo.findDuePublicationReconciliationBatch(
-      new Date(NOW.getTime() + AMBIGUOUS_RECONCILE_DELAY_MS - 60 * 1000),
-      null,
-      500,
-    )
-    expect(notYetDue).toHaveLength(0)
-
-    // Due → the sweep query finds exactly this row.
-    const due = await replyRepo.findDuePublicationReconciliationBatch(
-      new Date(NOW.getTime() + AMBIGUOUS_RECONCILE_DELAY_MS),
-      null,
-      500,
-    )
-    expect(due.map((r) => r.id)).toEqual([REPLY_A])
-
-    // Authorization intent and publish_failed fact are both durable.
     const outbox = await pool.query(
       `SELECT event_type FROM outbox_events WHERE organization_id = $1`,
       [ORG_A],

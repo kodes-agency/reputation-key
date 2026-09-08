@@ -576,10 +576,10 @@ type ObservationDecision = ReturnType<typeof decideGoogleReplyObservation>
  * re-issued it. A single snapshot run re-reads every review in its
  * confirmation scan, which stranded Review Inbox items on published replies.
  *
- * ONLY a snapshot re-read qualifies. A targeted reconciliation read exists to
- * move the fence a publication re-claim is measured against ("permits a
- * sending re-claim only after a newer targeted absence observation"), so it
- * must advance the head even when it observes exactly what the head says.
+ * A targeted reconciliation read remains distinct, attempt-scoped evidence,
+ * so it is retained even when it restates the head. It can confirm or
+ * supersede an attempt, but an absent echo never authorizes another provider
+ * write.
  */
 function restatesCurrentHead(
   args: Readonly<{

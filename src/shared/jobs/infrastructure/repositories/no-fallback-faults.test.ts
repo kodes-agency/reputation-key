@@ -12,12 +12,11 @@
 //   (a) QUEUE UNAVAILABLE AT PUBLISH — the relay's BullMQ add fails against a
 //       dead-port connection; the claimed event is NOT marked published; its
 //       lease expires; a healthy handle of the SAME queue reclaims it.
-//   (c) PROVIDER (GBP) DOWN — publish-reply against a failing googleReviewApi:
-//       5xx is ambiguous and rethrows through BullMQ attempts, while each
-//       retry is gated by an exact targeted-absence readback; the final
-//       timeout persists publish_failed + publication_state='ambiguous' +
-//       reconcile_due_at. The dead-letter envelope has no policyReason and
-//       carries identifier-only data. Only one provider binding is called.
+//   (c) PROVIDER (GBP) DOWN — a 5xx leaves the single provider write
+//       ambiguous. The retry performs one targeted read; absence remains
+//       ambiguous, schedules bounded reconciliation, and never authorizes a
+//       second write or alternate provider. The job then finishes because the
+//       recurring reconciler owns the durable state.
 //   (d) AGING/VISIBILITY — health metrics read the real parked state:
 //       oldestUnpublishedAgeMs > 0 for the unpublished event; quarantine
 //       count/age reflect the quarantined job; failedReason is content-safe.
@@ -469,7 +468,7 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
     await db.execute(sql`DELETE FROM reviews WHERE organization_id = ${ORG_C}`)
   })
 
-  it('ambiguous 5xx retries only after targeted absence; the final ambiguity is durable and never falls back', async () => {
+  it('makes an ambiguous 5xx durable after readback without another provider write or fallback', async () => {
     if (!redisAvailable) return
     const reviewRepo = createReviewRepository(db, () => new Date())
     const replyRepo = createReplyRepository(db, () => new Date())
@@ -522,22 +521,15 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       },
     ])
 
-    // GBP down: two 5xx responses, then the provider stops responding at all.
-    // Each 5xx is an ambiguous provider outcome: BullMQ retries, but the next
-    // attempt must first read back an exact targeted absence before resending.
+    // A 5xx is an ambiguous provider outcome: the request may have landed.
+    // The next BullMQ attempt may read Google but can never repeat the write.
     const gbp5xx = {
       _tag: 'IntegrationError',
       code: 'gbp_api_error',
       message: 'GBP responded 503',
       context: { status: 503 },
     }
-    const gbpTimeout = new Error('The operation was aborted')
-    gbpTimeout.name = 'AbortError'
-    const replyToReview = vi
-      .fn()
-      .mockRejectedValueOnce(gbp5xx)
-      .mockRejectedValueOnce(gbp5xx)
-      .mockRejectedValueOnce(gbpTimeout)
+    const replyToReview = vi.fn().mockRejectedValueOnce(gbp5xx)
     const googleReviewApi: GoogleReviewApiPort = {
       listReviewsPage: async () => ({
         reviews: [],
@@ -579,36 +571,29 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       staffPublicApi: {} as unknown as StaffPublicApi,
     })
 
-    // Attempt 1 (5xx → ambiguous): rethrow = BullMQ retry; the row remains
-    // sending so the next attempt must reconcile before another provider call.
+    // The one provider write is ambiguous and remains `sending` until the
+    // retry performs its targeted read.
     await expect(handler(publishJob(0))).rejects.toBe(gbp5xx)
     let row = await replyRepo.findById(REPLY_C, ORG_C)
-    expect(row!.status).toBe('approved')
-    expect(row!.publicationState).toBe('sending')
-    expect(row!.publicationAttempts).toBe(1)
+    expect(row).toMatchObject({
+      status: 'approved',
+      publicationState: 'sending',
+      publicationAttempts: 1,
+    })
 
-    // Attempt 2 first records a targeted absence, then resends through the same
-    // provider binding. Its second 5xx remains ambiguous/sending for one more readback.
-    await expect(handler(publishJob(1))).rejects.toBe(gbp5xx)
+    // Google does not echo the reply. That is not evidence the write failed:
+    // the retry records ambiguity, schedules reconciliation, and returns
+    // without a second provider write.
+    await expect(handler(publishJob(1))).resolves.toBeUndefined()
     row = await replyRepo.findById(REPLY_C, ORG_C)
-    expect(row!.publicationState).toBe('sending')
-    expect(row!.publicationAttempts).toBe(2)
-
-    // Attempt 3 = final (timeout → ambiguous): publish_failed persisted with
-    // the 3.8 reconcile schedule; the job rethrows into BullMQ exhaustion.
-    const finalAttemptStartedAt = Date.now()
-    await expect(handler(publishJob(2))).rejects.toBe(gbpTimeout)
-    const finalAttemptFinishedAt = Date.now()
-    row = await replyRepo.findById(REPLY_C, ORG_C)
-    expect(row!.status).toBe('publish_failed')
-    expect(row!.publicationState).toBe('ambiguous')
-    expect(row!.publicationLastErrorClass).toBe('ambiguous')
-    expect(row!.reconcileDueAt).not.toBeNull()
-    expect(row!.reconcileDueAt!.getTime()).toBeGreaterThanOrEqual(
-      finalAttemptStartedAt + AMBIGUOUS_RECONCILE_DELAY_MS,
-    )
-    expect(row!.reconcileDueAt!.getTime()).toBeLessThanOrEqual(
-      finalAttemptFinishedAt + AMBIGUOUS_RECONCILE_DELAY_MS,
+    expect(row).toMatchObject({
+      status: 'publish_failed',
+      publicationState: 'ambiguous',
+      publicationAttempts: 1,
+      publicationLastErrorClass: 'ambiguous',
+    })
+    expect(row!.reconcileDueAt).toEqual(
+      new Date(PROVIDER_OBSERVED_AT_C.getTime() + AMBIGUOUS_RECONCILE_DELAY_MS),
     )
 
     // The publish_failed fact is persisted identifier-only (3.3/3.8 states).
@@ -623,33 +608,14 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
     expect(payload.propertyId).toBe(PROP_C)
     expect('text' in payload).toBe(false)
 
-    // Every call hit the one provider binding — no alternate provider or
-    // endpoint was ever invoked.
-    expect(replyToReview).toHaveBeenCalledTimes(3)
-    const bindings = new Set(
-      replyToReview.mock.calls.map((call) => call[0].connectionId as string),
-    )
-    expect(bindings).toEqual(new Set([CONN_C as string]))
+    // Exactly one provider binding received one write; the readback never
+    // selected another endpoint or admitted another PUT.
+    expect(replyToReview).toHaveBeenCalledOnce()
+    expect(replyToReview.mock.calls[0]![0].connectionId).toBe(CONN_C)
 
-    // The 3.6 dead-letter envelope holds the exhausted job: no policyReason
-    // (a provider outage is not a policy failure), identifier-only payload,
-    // content-safe failedReason.
-    const exhausted = {
-      ...publishJob(2),
-      id: 'bqc46-c-exhausted',
-      attemptsMade: 3,
-    } as Job
-    const outcome = await quarantineExhaustedJob(q(QUAR_C), exhausted, gbpTimeout)
-    expect(outcome.quarantined).toBe(true)
-    const [entry] = await listQuarantinedJobs(q(QUAR_C))
-    expect(entry!.envelope.jobName).toBe('publish-reply')
-    expect(entry!.envelope.originalQueue).toBe('default')
-    expect(entry!.envelope.attemptsMade).toBe(3)
-    expect(entry!.envelope.policyReason).toBeUndefined()
-    expect(entry!.envelope.failedReason).toBe('AbortError: The operation was aborted')
-    expect(entry!.envelope.failedReason.length).toBeLessThanOrEqual(200)
-    expect(entry!.envelope.data).toEqual(publishJob(2).data)
-    expect(entry!.envelope.data).not.toHaveProperty('text')
+    // The retry completed into reconciler-owned durable state, so there is no
+    // exhausted publish job to quarantine.
+    await expect(listQuarantinedJobs(q(QUAR_C))).resolves.toEqual([])
   })
 })
 

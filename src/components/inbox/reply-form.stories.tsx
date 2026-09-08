@@ -1,9 +1,9 @@
 // Reply editor orchestrator stories.
 //
-// ReplyEditor routes on `reply.status` across 6 reply states. It builds its
-// 6 mutations (draft/submit/approve/reject/delete/retry) internally via
-// useMutationAction over the stubbed server fns (.storybook/stubs/
-// review-reply-server.ts), so — unlike LoginForm — it takes NO Action prop.
+// ReplyEditor routes on reply status plus publication state. It builds its
+// action mutations internally via useActionMutation over the stubbed server
+// functions (the check and retry controls share one safe server action),
+// so — unlike LoginForm — it takes NO Action prop.
 // Every branch is therefore driven through the `reply` prop, which is the
 // type-correct way to reach each status view without a live server.
 //
@@ -113,9 +113,52 @@ export const PendingApproval: Story = {
   },
 }
 
-// status='approved' → read-only "Waiting for Google" view.
-export const Approved: Story = {
-  args: { reply: makeReply({ status: 'approved', approvedAt: NOW }) },
+// Approved publication stages expose honest progress rather than one indefinite state.
+export const ApprovedQueued: Story = {
+  args: {
+    reply: makeReply({
+      status: 'approved',
+      publicationState: 'authorized',
+      approvedAt: NOW,
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Queued for Google')).toBeInTheDocument()
+    expect(canvas.getByText(/will start publishing this reply shortly/i)).toBeVisible()
+  },
+}
+
+export const ApprovedSending: Story = {
+  args: {
+    reply: makeReply({
+      status: 'approved',
+      publicationState: 'sending',
+      publicationAttempts: 1,
+      approvedAt: NOW,
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Sending to Google')).toBeInTheDocument()
+    expect(canvas.getByText(/sending this reply to Google/i)).toBeVisible()
+  },
+}
+
+export const ApprovedPendingObservation: Story = {
+  args: {
+    reply: makeReply({
+      status: 'approved',
+      publicationState: 'pending_observation',
+      publicationAttempts: 1,
+      approvedAt: NOW,
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Waiting for Google')).toBeInTheDocument()
+    expect(canvas.getByText(/Google accepted the update/i)).toBeVisible()
+  },
 }
 
 // status='published' → green "Confirmed on Google" badge + timestamp.
@@ -125,9 +168,37 @@ export const Published: Story = {
   },
 }
 
-// status='publish_failed' → calm "Needs a check" + safe retry affordance.
-export const PublishFailed: Story = {
-  args: { reply: makeReply({ status: 'publish_failed', approvedAt: NOW }) },
+export const AmbiguousCheckOnly: Story = {
+  args: {
+    reply: makeReply({
+      status: 'publish_failed',
+      publicationState: 'terminal',
+      publicationAttempts: 1,
+      publicationLastErrorClass: 'ambiguous',
+      approvedAt: NOW,
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByRole('button', { name: 'Check Google again' })).toBeVisible()
+    expect(canvas.queryByRole('button', { name: /publish|retry|send/i })).toBeNull()
+  },
+}
+
+export const RetryableTerminal: Story = {
+  args: {
+    reply: makeReply({
+      status: 'publish_failed',
+      publicationState: 'terminal',
+      publicationAttempts: 5,
+      publicationLastErrorClass: 'retryable',
+      approvedAt: NOW,
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByRole('button', { name: 'Try publishing again' })).toBeVisible()
+  },
 }
 
 // status='rejected' → "Rejected" badge + rejection reason.

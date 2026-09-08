@@ -1,42 +1,28 @@
-// Review context — BullMQ job handler reconciling provider-pending and
-// ambiguous reply publications.
+// Review context — recurring liveness owner for reply publication states.
 //
-// Keyset-bounded sweep mirroring refresh-expiring-reviews (500 rows/batch,
-// 10 batches/run, keyset (reconcileDueAt, id)). A monotonic 240s internal
-// deadline leaves 60s before the non-cancelling 300s worker timeout for one
-// already-started bounded provider read, its guarded checkpoint, reporting,
-// and advisory-lease release.
+// Every reachable non-terminal row carries reconcile_due_at. The sweep:
+//   requested/authorized  → terminal retryable failure (no provider write began)
+//   sending/pending       → one provider read, then ambiguous if not confirmed
+//   ambiguous             → one final provider read, then terminal ambiguity
 //
-//   replies WHERE publication_state IN ('pending_observation', 'ambiguous')
-//           AND reconcile_due_at <= now
-//
-// A row lands there when the publish job's FINAL attempt had an ambiguous
-// outcome (the Google request may have landed — see classifyPublicationFailure
-// and markPublicationAmbiguous, which sets reconcile_due_at = now + 15min).
-// Every due row re-reads provider state via reconcileReplyPublication. An
-// exact observation heals the Reply to published. Every other result advances
-// that exact row's schedule beyond this run's frozen clock, guarded by its
-// state, cycle, and old due time. Old absent/error rows therefore cannot keep
-// occupying the first bounded page and starving later due work.
-//
-// Per-row failure isolation: a failed row is counted, the batch finishes, and
-// the run THROWS so BullMQ retries. The failed row has already been deferred,
-// so the retry can continue with other due work instead of looping on it.
+// This state-encoded two-read ceiling prevents accepted-but-not-echoed replies
+// from generating unbounded Google reads. No outcome from this job authorizes a
+// provider write; an exact observation may publish, and every other transition
+// is a guarded command-store write.
 
 import type { Job } from 'bullmq'
-
-export const JOB_NAME = 'reconcile-ambiguous-publications' as const
+import { performance } from 'node:perf_hooks'
 import type { ReplyRepository } from '../../application/ports/reply.repository'
+import type { ReviewRepository } from '../../application/ports/review.repository'
+import type { ReplyCommandStore } from '../../application/ports/reply-command-store.port'
 import type { ReconcileReplyPublication } from '../../application/use-cases/reconcile-reply-publication'
 import type { Reply } from '../../domain/types'
-import {
-  AMBIGUOUS_RECONCILE_DELAY_MS,
-  PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
-} from '../../domain/reply-publication-workflow'
+import { reviewReplyPublishFailed } from '../../domain/events'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
-import { performance } from 'node:perf_hooks'
 import type { PublicationReconciliationRunLease } from '../../application/ports/publication-reconciliation-run-lease.port'
+
+export const JOB_NAME = 'reconcile-ambiguous-publications' as const
 
 const DEFAULT_BATCH_SIZE = 500
 const DEFAULT_MAX_BATCHES = 10
@@ -44,6 +30,11 @@ const RECONCILIATION_MAX_RUN_MS = 240_000
 
 type ReconcileSweepDeps = Readonly<{
   replyRepo: ReplyRepository
+  reviewRepo: Pick<ReviewRepository, 'findById'>
+  replyCommandStore: Pick<
+    ReplyCommandStore,
+    'markPublicationAmbiguous' | 'markPublicationTerminal'
+  >
   reconcileReplyPublication: ReconcileReplyPublication
   clock: () => Date
   logger: Pick<LoggerPort, 'info' | 'warn'>
@@ -60,49 +51,81 @@ type SweepCounts = {
   batches: number
   seen: number
   healed: number
-  deferred: number
+  advanced: number
+  terminal: number
   superseded: number
   failed: number
 }
 
 type Cursor = Readonly<{ reconcileDueAt: Date; id: string }>
-
 type Logger = ReconcileSweepDeps['logger']
+type RowOutcome = 'healed' | 'advanced' | 'terminal' | 'superseded' | 'failed'
 
-type RowOutcome = 'healed' | 'deferred' | 'superseded' | 'failed'
-
-async function deferRow(
+async function publishFailedEvent(
   deps: ReconcileSweepDeps,
   reply: Reply,
-  now: Date,
+  occurredAt: Date,
+) {
+  const review = await deps.reviewRepo.findById(reply.reviewId, reply.organizationId)
+  if (!review) return null
+  return reviewReplyPublishFailed({
+    replyId: reply.id,
+    reviewId: reply.reviewId,
+    propertyId: review.propertyId,
+    organizationId: reply.organizationId,
+    authorId: reply.createdBy,
+    occurredAt,
+  })
+}
+
+async function settleNonConfirmingRow(
+  deps: ReconcileSweepDeps,
+  reply: Reply,
   logger: Logger,
-): Promise<'deferred' | 'superseded' | 'failed'> {
-  if (
-    reply.reconcileDueAt === null ||
-    (reply.publicationState !== 'pending_observation' &&
-      reply.publicationState !== 'ambiguous')
-  ) {
+): Promise<Exclude<RowOutcome, 'healed'>> {
+  const now = deps.clock()
+  try {
+    if (
+      reply.publicationState === 'sending' ||
+      reply.publicationState === 'pending_observation'
+    ) {
+      const event = await publishFailedEvent(deps, reply, now)
+      const advanced = await deps.replyCommandStore.markPublicationAmbiguous(
+        reply,
+        event,
+        now,
+      )
+      return advanced ? 'advanced' : 'superseded'
+    }
+
+    if (
+      reply.publicationState === 'requested' ||
+      reply.publicationState === 'authorized'
+    ) {
+      const event = await publishFailedEvent(deps, reply, now)
+      const terminal = await deps.replyCommandStore.markPublicationTerminal(
+        reply,
+        'retryable',
+        event,
+        now,
+      )
+      return terminal ? 'terminal' : 'superseded'
+    }
+
+    if (reply.publicationState === 'ambiguous') {
+      const terminal = await deps.replyCommandStore.markPublicationTerminal(
+        reply,
+        'ambiguous',
+        null,
+        now,
+      )
+      return terminal ? 'terminal' : 'superseded'
+    }
+
     logger.warn('reconcile sweep: repository returned an ineligible row')
     return 'failed'
-  }
-
-  const delay =
-    reply.publicationState === 'pending_observation'
-      ? PROVIDER_OBSERVATION_RECONCILE_DELAY_MS
-      : AMBIGUOUS_RECONCILE_DELAY_MS
-  try {
-    const deferred = await deps.replyRepo.deferPublicationReconciliation({
-      replyId: reply.id,
-      organizationId: reply.organizationId,
-      publicationCycle: reply.publicationCycle,
-      publicationState: reply.publicationState,
-      currentDueAt: reply.reconcileDueAt,
-      nextDueAt: new Date(now.getTime() + delay),
-      updatedAt: now,
-    })
-    return deferred ? 'deferred' : 'superseded'
   } catch (err) {
-    logger.warn({ err }, 'reconcile sweep: row deferral failed')
+    logger.warn({ err }, 'reconcile sweep: publication settlement failed')
     return 'failed'
   }
 }
@@ -113,29 +136,28 @@ async function reconcileRow(
   reply: Reply,
   logger: Logger,
 ): Promise<RowOutcome> {
-  let reconciliationFailed = false
+  if (reply.publicationState === 'requested' || reply.publicationState === 'authorized') {
+    return settleNonConfirmingRow(deps, reply, logger)
+  }
+
   try {
     const result = await deps.reconcileReplyPublication({
       replyId: reply.id,
       organizationId: reply.organizationId,
     })
     if (result.isErr()) {
-      logger.warn({ err: result.error }, 'reconcile sweep: row reconcile failed')
-      reconciliationFailed = true
+      logger.warn({ err: result.error }, 'reconcile sweep: provider read failed')
     } else if (result.value.outcome === 'confirmed_on_google') {
       return 'healed'
     }
   } catch (err) {
-    logger.warn({ err }, 'reconcile sweep: row threw')
-    reconciliationFailed = true
+    logger.warn({ err }, 'reconcile sweep: provider read threw')
   }
 
-  // Base the next due time on completion of this row's provider read, not the
-  // sweep start. A long bounded run must not make an early short deferral due
-  // again before the run (or its BullMQ retry) has finished.
-  const deferred = await deferRow(deps, reply, deps.clock(), logger)
-  if (deferred !== 'deferred') return deferred
-  return reconciliationFailed ? 'failed' : 'deferred'
+  // A missing echo is not proof that an accepted Google reply is absent. The
+  // first read exposes ambiguity; the second ends automatic reads without ever
+  // granting permission for another PUT.
+  return settleNonConfirmingRow(deps, reply, logger)
 }
 
 /** Reconcile rows until the batch ends or the internal start deadline closes. */
@@ -155,7 +177,8 @@ async function processBatch(
     const outcome = await reconcileRow(deps, reply, logger)
     if (outcome === 'failed') counts.failed++
     else if (outcome === 'healed') counts.healed++
-    else if (outcome === 'deferred') counts.deferred++
+    else if (outcome === 'advanced') counts.advanced++
+    else if (outcome === 'terminal') counts.terminal++
     else counts.superseded++
     lastProcessed = reply
   }
@@ -172,9 +195,6 @@ export const createReconcileAmbiguousPublicationsHandler = (deps: ReconcileSweep
   }
 
   return async (_job: Job) => {
-    // Pool checkout/advisory-lock acquisition is part of the non-cancelling
-    // worker budget. Starting this clock afterward would overstate the 60s
-    // operational reserve whenever PostgreSQL connection retries are slow.
     const runDeadline = monotonicNowMs() + maxRunMs
     const reachedDeadline = () => monotonicNowMs() >= runDeadline
     const lease = await deps.runLease.tryAcquire()
@@ -198,7 +218,8 @@ export const createReconcileAmbiguousPublicationsHandler = (deps: ReconcileSweep
           batches: 0,
           seen: 0,
           healed: 0,
-          deferred: 0,
+          advanced: 0,
+          terminal: 0,
           superseded: 0,
           failed: 0,
         }
@@ -229,9 +250,6 @@ export const createReconcileAmbiguousPublicationsHandler = (deps: ReconcileSweep
           stoppedForDeadline = processed.stoppedForDeadline
 
           if (processed.lastProcessed) {
-            // The batch query filters reconcile_due_at IS NOT NULL. Advance only
-            // through work actually checkpointed; an unstarted suffix remains
-            // due for the next non-overlapping firing.
             cursor = {
               reconcileDueAt: processed.lastProcessed.reconcileDueAt as Date,
               id: processed.lastProcessed.id as string,
@@ -246,9 +264,6 @@ export const createReconcileAmbiguousPublicationsHandler = (deps: ReconcileSweep
         )
 
         if (counts.failed > 0) {
-          // Mirror retention-sweep: never acknowledge a failed row as success —
-          // throw for the BullMQ retry (reconcile is idempotent; healed rows
-          // have left the ambiguous set).
           throw new Error(
             `reconcile-ambiguous-publications: ${counts.failed} row(s) failed across ${counts.batches} batch(es)`,
           )

@@ -27,20 +27,51 @@ export type InboxReplyCacheChange = Readonly<{
 /** BullMQ inserts the activity row ~2s after a status change — re-invalidate on a lag. */
 export const BULLMQ_ACTIVITY_LAG_MS = 2500
 
-/** Poll interval while a reply publish is pending (approved → published, async via BullMQ). */
+/** Poll cadence while a reply publication still has a bounded background owner. */
 export const REPLY_POLL_INTERVAL_MS = 3000
+
+/** Browser-side ceiling: the worker/reconciler contract settles within 25 minutes. */
+export const REPLY_POLL_MAX_AGE_MS = 30 * 60 * 1000
+
+const POLLED_PUBLICATION_STATES: Readonly<Record<string, true>> = {
+  requested: true,
+  authorized: true,
+  sending: true,
+  pending_observation: true,
+}
 
 // ── Reply-poll predicate ────────────────────────────────────────
 //
-//   reply status   → interval
-//   approved       → REPLY_POLL_INTERVAL_MS (publish pending)
-//   anything else  → false (stop polling)
-//   no reply       → false
-
+// Poll only while a registered background component can still advance the
+// publication. The worker/reconciler deadline is 25 minutes; the browser stops
+// after 30 minutes even if a stale cache snapshot never observes settlement.
 export function replyRefetchInterval(
-  reply: Readonly<{ status: string }> | null | undefined,
+  reply:
+    | Readonly<{
+        status: string
+        publicationState: string | null
+        updatedAt: Date | string
+      }>
+    | null
+    | undefined,
+  nowMs = Date.now(),
 ): number | false {
-  return reply && reply.status === 'approved' ? REPLY_POLL_INTERVAL_MS : false
+  if (
+    !reply ||
+    reply.status !== 'approved' ||
+    !reply.publicationState ||
+    !Object.hasOwn(POLLED_PUBLICATION_STATES, reply.publicationState)
+  ) {
+    return false
+  }
+
+  const updatedAtMs =
+    reply.updatedAt instanceof Date
+      ? reply.updatedAt.getTime()
+      : Date.parse(reply.updatedAt)
+  return Number.isFinite(updatedAtMs) && nowMs - updatedAtMs < REPLY_POLL_MAX_AGE_MS
+    ? REPLY_POLL_INTERVAL_MS
+    : false
 }
 
 // ── Folder caches ───────────────────────────────────────────────

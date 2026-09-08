@@ -4,7 +4,11 @@
 import type { getReplyFn } from '#/contexts/review/server/reply'
 import { ReplyCompose } from './reply-editor-compose'
 import { ReviewReplyApproved, ReviewReplyMirror } from './reply-editor-views'
-import { ReplyPendingApproval, ReplyPublishFailed } from './reply-editor-actions'
+import {
+  ReplyPendingApproval,
+  ReplyPublicationNeedsCheck,
+  ReplyPublicationRetryable,
+} from './reply-editor-actions'
 import { ReplyRejectedWithEdit } from './reply-rejected-edit'
 import { ReplyPublishedWithEdit } from './reply-published-edit'
 import type { ReplyTone, ReplySuggestionResult } from './reply-editor-compose'
@@ -19,7 +23,8 @@ type ResolvedReplyView =
   | Readonly<{ kind: 'approved'; reply: NonNullable<ReplyData> }>
   | Readonly<{ kind: 'mirror'; reply: NonNullable<ReplyData> }>
   | Readonly<{ kind: 'published'; reply: NonNullable<ReplyData> }>
-  | Readonly<{ kind: 'failed'; reply: NonNullable<ReplyData> }>
+  | Readonly<{ kind: 'failed-check'; reply: NonNullable<ReplyData> }>
+  | Readonly<{ kind: 'failed-retry'; reply: NonNullable<ReplyData> }>
   | Readonly<{ kind: 'rejected'; reply: NonNullable<ReplyData> }>
   | Readonly<{ kind: 'none' }>
 
@@ -31,7 +36,12 @@ export function resolveReplyView(reply: ReplyData | null): ResolvedReplyView {
   // never the compose box, never actions (editing is a future feature).
   if (reply.source === 'google_sync') return { kind: 'mirror', reply }
   if (reply.status === 'published') return { kind: 'published', reply }
-  if (reply.status === 'publish_failed') return { kind: 'failed', reply }
+  if (reply.status === 'publish_failed') {
+    return reply.publicationState === 'ambiguous' ||
+      reply.publicationLastErrorClass === 'ambiguous'
+      ? { kind: 'failed-check', reply }
+      : { kind: 'failed-retry', reply }
+  }
   if (reply.status === 'rejected') return { kind: 'rejected', reply }
   return { kind: 'none' }
 }
@@ -52,6 +62,7 @@ type ReplyStatusViewProps = Readonly<{
   onDeleteDraft: (() => Promise<unknown>) | undefined
   onApprove: () => Promise<unknown>
   onReject: (reason?: string) => Promise<unknown>
+  onCheck: () => Promise<unknown>
   onRetry: () => Promise<unknown>
   onSaveEdit: (text: string) => Promise<unknown>
   onGenerateSuggestion?: (
@@ -74,6 +85,7 @@ export function ReplyStatusView({
   onApprove,
   onReject,
   onRetry,
+  onCheck,
   onSaveEdit,
   onGenerateSuggestion,
 }: ReplyStatusViewProps) {
@@ -119,9 +131,21 @@ export function ReplyStatusView({
           onSaveEdit={onSaveEdit}
         />
       )
-    case 'failed':
+    case 'failed-check':
       return (
-        <ReplyPublishFailed reply={view.reply} isSaving={isSaving} onRetry={onRetry} />
+        <ReplyPublicationNeedsCheck
+          reply={view.reply}
+          isSaving={isSaving}
+          onCheck={onCheck}
+        />
+      )
+    case 'failed-retry':
+      return (
+        <ReplyPublicationRetryable
+          reply={view.reply}
+          isSaving={isSaving}
+          onRetry={onRetry}
+        />
       )
     case 'rejected':
       return (

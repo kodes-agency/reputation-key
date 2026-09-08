@@ -7,11 +7,11 @@
 // reply UX in the inbox detail panel; (b)-(d) use RPC for setup and assert
 // durable state + stub-recorded provider calls.
 //
-// Transitions verified:
 //   (a) draft → edit → submit → approve → published (stub records the upsert)
-//   (b) approve → transient 500 → retryQueued → BullMQ retry → published
-//       (failure recovery with the recovered state asserted)
-//   (c) approve → terminal 403 → publish_failed/terminal; retry does NOT heal
+//   (b) approve → uncertain 500 → ambiguous; operator reconciliation remains
+//       read-only and no second provider write is issued
+//   (c) approve → terminal 403 → publish_failed/terminal; a fresh, safe retry
+//       is rejected again by the provider
 //   (d) ambiguous publication + provider shows the reply → retryPublish
 //       reconcile-before-retry heals to published with ZERO re-sends
 
@@ -276,14 +276,9 @@ test.describe('Critical workflow: reply lifecycle', () => {
     expect(puts[0].body).toContain('Final reply wording — thank you!')
   })
 
-  test('(b) transient 500 heals through the retryQueued path (failure recovery)', async ({
+  test('(b) transient 500 becomes check-only ambiguity without resend', async ({
     page,
   }) => {
-    // The longest chain in this file: a scripted 500, a BullMQ retry with its
-    // backoff, an accepted write, a provider read-back, and the observation
-    // that confirms it — every provider step sharing ONE quota with the whole
-    // suite. 90s was enough for the spec alone and not for its position in a
-    // full run.
     test.setTimeout(180_000)
     const s = await setupScenario('transient', {
       reviews: [stubReview('transient')],
@@ -291,7 +286,6 @@ test.describe('Critical workflow: reply lifecycle', () => {
     })
     await signIn(page)
 
-    // Drive the lifecycle to approved via the synchronous server fns.
     await callServerFn(page, {
       file: REPLY_FILE,
       exportName: 'draftReplyFn',
@@ -308,63 +302,89 @@ test.describe('Critical workflow: reply lifecycle', () => {
       data: { reviewId: s.reviewId },
     })
 
-    // Attempt 1 hits the scripted 500 → classified retryable →
-    // markPublicationRetryQueued + BullMQ retry → attempt 2 succeeds. This is
-    // the taxonomy's transient failure-recovery path; the recovered state is
-    // asserted (published, not merely "a retry was attempted").
-    //
-    // 'published' is the PROVIDER-confirmed state, so the retry only reaches
-    // it once a read-back observes the reply. Wait for the accepted write,
-    // then drive that read the way the sync schedule would.
-    await waitFor(
-      async () => {
-        const [attempt] = await dbQuery<{ outcome: string }>(
-          `SELECT outcome FROM reply_publication_attempts
-           WHERE review_id = $1 ORDER BY attempt_number DESC LIMIT 1`,
-          [s.reviewId],
-        )
-        return attempt && attempt.outcome !== 'sending' ? attempt : null
-      },
-      { timeoutMs: 30_000, description: 'retried provider write accepted' },
-    )
-    await enqueueReviewSync({
-      propertyId: s.propertyId,
-      organizationId: seed.organizationId,
-      connectionId: s.connectionId,
-      locationName: s.locationName,
-    })
-    const healed = await waitFor(
+    // A reply Google accepted but did not echo is indistinguishable from one
+    // it never received. A 500 therefore makes the single write uncertain:
+    // BullMQ may check provider truth, but it must never restore a blind resend.
+    // The fail-then-success stub deliberately would accept a second PUT, so
+    // remaining ambiguous positively proves that unsafe recovery did not run.
+    const uncertain = await waitFor(
       async () => {
         const reply = await getReplyForReview(s.reviewId)
-        return reply?.status === 'published' ? reply : null
+        return reply?.status === 'publish_failed' &&
+          reply?.publication_state === 'ambiguous'
+          ? reply
+          : null
       },
       {
-        // Worker-polling wait: inherit the 90s default instead of the 45s that
-        // timed out on a loaded runner (179 probes, no terminal state).
-        description: 'reply published after the transient retry',
+        description: 'uncertain provider write settled as check-only ambiguity',
         diagnose: async () => await getReplyForReview(s.reviewId),
       },
     )
-    expect(healed.publication_state).toBe('published')
-    expect(healed.publication_attempts).toBe(2)
+    expect(uncertain.publication_attempts).toBe(1)
+    expect(uncertain.publication_last_error_class).toBe('ambiguous')
 
-    // Exactly 2 provider upserts: one transient failure + one recovered success.
-    const puts = await gbpStubControl.calls({
+    const putsBeforeCheck = await gbpStubControl.calls({
       method: 'PUT',
       pathPrefix: `/v4/${s.locationName}`,
     })
-    expect(puts).toHaveLength(2)
+    expect(putsBeforeCheck).toHaveLength(1)
 
-    // NOTE (gap reported in the slice summary): when ALL BullMQ attempts are
-    // exhausted by transient failures the reply sits at status 'approved' /
-    // publication_state 'authorized', and retryPublish cannot recover it —
-    // the transition authority rejects approved→approved (verified:
-    // 'Cannot transition reply from approved to approved'). The only
-    // recovery left is the ops quarantine redrive. Operator retryPublish IS
-    // covered for the states it supports: terminal (c) and ambiguous (d).
+    await page.goto(`/inbox?propertyId=${s.propertyId}&itemId=${s.inboxItemId}`)
+    await expect(page.getByText('Google status unconfirmed').first()).toBeVisible({
+      timeout: 15_000,
+    })
+    await expect(
+      page.getByText('To avoid posting twice', { exact: false }).first(),
+    ).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Check Google again' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Try publishing again' })).toHaveCount(
+      0,
+    )
+
+    const getsBeforeCheck = await gbpStubControl.calls({
+      method: 'GET',
+      pathPrefix: `/v4/${s.locationName}/reviews`,
+    })
+    await waitFor(
+      async () => {
+        try {
+          await callServerFn(page, {
+            file: REPLY_FILE_OPS,
+            exportName: 'retryPublishFn',
+            data: { reviewId: s.reviewId },
+          })
+          return null
+        } catch (error) {
+          if (/will not send it again/i.test(String(error))) return true
+          if (/re-read provider reply state/i.test(String(error))) return null
+          throw error
+        }
+      },
+      {
+        timeoutMs: 30_000,
+        description: 'operator reconciliation completed without admitting a resend',
+      },
+    )
+
+    const reconciled = await getReplyForReview(s.reviewId)
+    expect(reconciled?.status).toBe('publish_failed')
+    expect(reconciled?.publication_state).toBe('ambiguous')
+    expect(reconciled?.publication_attempts).toBe(1)
+    const putsAfterCheck = await gbpStubControl.calls({
+      method: 'PUT',
+      pathPrefix: `/v4/${s.locationName}`,
+    })
+    expect(putsAfterCheck).toHaveLength(1)
+    const getsAfterCheck = await gbpStubControl.calls({
+      method: 'GET',
+      pathPrefix: `/v4/${s.locationName}/reviews`,
+    })
+    expect(getsAfterCheck.length).toBeGreaterThan(getsBeforeCheck.length)
   })
 
-  test('(c) terminal 403 → publish_failed; retry does NOT heal', async ({ page }) => {
+  test('(c) terminal 403 permits a fresh retry, which remains terminal', async ({
+    page,
+  }) => {
     test.setTimeout(90_000)
     const s = await setupScenario('terminal', {
       reviews: [stubReview('terminal')],
@@ -415,21 +435,25 @@ test.describe('Critical workflow: reply lifecycle', () => {
     })
     expect(putsAfterTerminal).toHaveLength(1)
 
-    // The UI shows the terminal state.
+    // A 403 is conclusive rejection before provider acceptance, so unlike an
+    // uncertain 500 it is safe to offer a fresh user-authorized publication
+    // cycle rather than a check-only action.
     await page.goto(`/inbox?propertyId=${s.propertyId}&itemId=${s.inboxItemId}`)
-    // The UI names the user-facing state, not the internal status value.
-    await expect(page.getByText('Needs a check').first()).toBeVisible({
+    await expect(page.getByText('Google rejected update').first()).toBeVisible({
       timeout: 15_000,
     })
     await expect(
       page
-        .getByText('Google has not confirmed this reply yet.', { exact: false })
+        .getByText('Check the Google Business Profile connection and permissions', {
+          exact: false,
+        })
         .first(),
     ).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Check and retry' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Try publishing again' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Check Google again' })).toHaveCount(0)
 
-    // Retry is offered but does NOT heal against a still-403 provider — the
-    // terminal state persists (no retry-affordance success).
+    // A fresh retry is offered but does NOT heal against a still-403 provider:
+    // the new cycle is rejected conclusively and settles terminal again.
     await callServerFn(page, {
       file: REPLY_FILE_OPS,
       exportName: 'retryPublishFn',
