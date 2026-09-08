@@ -395,18 +395,18 @@ describe('analyze review event', () => {
       expect(harness.mocks.release).toHaveBeenCalledWith({ quotaId: 'quota-1' })
     })
 
-    it('does not aggregate or mark delivery when replay settlement loses authorization', async () => {
+    it('finishes an idempotent aggregate replay when its outcome is already terminal', async () => {
       const harness = createHarness({
         operationState: 'succeeded_pending_delivery',
         settleOutcome: false,
       })
 
       await expect(harness.analyze(input)).resolves.toEqual({
-        status: 'generation_changed',
+        status: 'replayed',
       })
       expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
-      expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
-      expect(harness.mocks.markDelivered).not.toHaveBeenCalled()
+      expect(harness.mocks.applyReviewAnalysis).toHaveBeenCalledOnce()
+      expect(harness.mocks.markDelivered).toHaveBeenCalledOnce()
     })
 
     it('does not mark a replay delivered when aggregate generations are stale', async () => {

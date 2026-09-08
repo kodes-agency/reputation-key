@@ -114,7 +114,10 @@ export async function settleReviewAnalysisWithoutResult(
   }>,
   input: SettleReviewAnalysisWithoutResultInput,
 ): Promise<SettleReviewAnalysisWithoutResultResult> {
-  const settled = await dependencies.reviewEvents.settleOutcome({
+  // A replayed terminal outcome does not prove the aggregate advanced. Always
+  // run its idempotent mutation; that result distinguishes replay, gap, and a
+  // genuinely stale generation.
+  await dependencies.reviewEvents.settleOutcome({
     organizationId: input.organizationId,
     propertyId: input.propertyId,
     sourceEpoch: input.sourceEpoch,
@@ -124,7 +127,6 @@ export async function settleReviewAnalysisWithoutResult(
     operationId: input.operationId,
     dispositionCode: input.dispositionCode,
   })
-  if (!settled) return { status: 'generation_changed' }
   const aggregate = await dependencies.aggregates.advanceWithoutAnalysis({
     organizationId: input.organizationId,
     propertyId: input.propertyId,
@@ -165,7 +167,9 @@ export async function settleReviewAnalysisWithResult(
   }>,
   input: SettleReviewAnalysisWithResultInput,
 ): Promise<SettleReviewAnalysisWithResultResult> {
-  const settled = await dependencies.reviewEvents.settleOutcome({
+  // The outcome and aggregate have separate crash windows. Re-run the
+  // idempotent aggregate mutation even when the outcome was already terminal.
+  await dependencies.reviewEvents.settleOutcome({
     organizationId: input.organizationId,
     propertyId: input.propertyId,
     sourceEpoch: input.sourceEpoch,
@@ -175,7 +179,6 @@ export async function settleReviewAnalysisWithResult(
     operationId: input.operationId,
     dispositionCode: null,
   })
-  if (!settled) return { status: 'generation_changed' }
   const aggregate = await dependencies.aggregates.applyReviewAnalysis({
     organizationId: input.organizationId,
     propertyId: input.propertyId,
