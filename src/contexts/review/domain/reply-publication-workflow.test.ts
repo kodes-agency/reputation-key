@@ -11,6 +11,7 @@ import {
   nextPublicationCycle,
   nextPublicationState,
   AMBIGUOUS_RECONCILE_DELAY_MS,
+  PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
 } from './reply-publication-workflow'
 
 describe('reply-publication-workflow (B1.10)', () => {
@@ -365,9 +366,10 @@ describe('nextPublicationState (BQC-3.8 persisted machine)', () => {
     expect(nextPublicationState('published', 'authorize')).toBeNull()
   })
 
-  it('claim: authorized → sending; sending → sending (same job re-claiming its in-flight workflow)', () => {
+  it('only a fresh authorization can claim one provider write', () => {
     expect(nextPublicationState('authorized', 'claim')).toBe('sending')
-    expect(nextPublicationState('sending', 'claim')).toBe('sending')
+    expect(nextPublicationState('requested', 'claim')).toBeNull()
+    expect(nextPublicationState('sending', 'claim')).toBeNull()
   })
 
   it('claim is invalid from NULL, cancelled, and terminal states (cancelled/racing rows cannot be claimed)', () => {
@@ -389,11 +391,18 @@ describe('nextPublicationState (BQC-3.8 persisted machine)', () => {
     expect(nextPublicationState(null, 'publish')).toBe('published')
   })
 
-  it('fail_terminal / fail_ambiguous / requeue apply only to an in-flight send', () => {
+  it('bounds orphaned and uncertain publication states while keeping requeue send-only', () => {
+    expect(nextPublicationState('requested', 'fail_terminal')).toBe('terminal')
+    expect(nextPublicationState('authorized', 'fail_terminal')).toBe('terminal')
     expect(nextPublicationState('sending', 'fail_terminal')).toBe('terminal')
+    expect(nextPublicationState('ambiguous', 'fail_terminal')).toBe('terminal')
     expect(nextPublicationState('sending', 'fail_ambiguous')).toBe('ambiguous')
+    expect(nextPublicationState('pending_observation', 'fail_ambiguous')).toBe(
+      'ambiguous',
+    )
     expect(nextPublicationState('sending', 'requeue')).toBe('authorized')
-    expect(nextPublicationState('authorized', 'fail_terminal')).toBeNull()
+
+    expect(nextPublicationState('pending_observation', 'fail_terminal')).toBeNull()
     expect(nextPublicationState('authorized', 'fail_ambiguous')).toBeNull()
     expect(nextPublicationState('authorized', 'requeue')).toBeNull()
   })
@@ -411,5 +420,9 @@ describe('nextPublicationState (BQC-3.8 persisted machine)', () => {
 
   it('AMBIGUOUS_RECONCILE_DELAY_MS is 15 minutes', () => {
     expect(AMBIGUOUS_RECONCILE_DELAY_MS).toBe(15 * 60 * 1000)
+  })
+
+  it('PUBLICATION_RECOVERY_RECONCILE_DELAY_MS exceeds the 17.5-minute retry horizon', () => {
+    expect(PUBLICATION_RECOVERY_RECONCILE_DELAY_MS).toBe(20 * 60 * 1000)
   })
 })

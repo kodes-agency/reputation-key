@@ -586,7 +586,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     expect(cancellations.rows).toHaveLength(2)
   })
 
-  it('permits a sending re-claim only after a newer targeted absence observation', async () => {
+  it('refuses a second claim even after a targeted absence observation', async () => {
     const { review, reply } = await seedReviewAndReply({ providerPending: false })
     expect(reply.publicationState).toBe('sending')
     await createGoogleReplyObservationStore(getDb()).record(
@@ -614,16 +614,13 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
       new Date(NOW.getTime() + 1_000),
     )
 
-    expect(reclaimed?.publicationAttempts).toBe(2)
+    expect(reclaimed).toBeNull()
     const attempts = await pool.query(
       `SELECT attempt_number, outcome FROM reply_publication_attempts
        WHERE reply_id = $1 ORDER BY attempt_number`,
       [REPLY_A],
     )
-    expect(attempts.rows).toMatchObject([
-      { attempt_number: 1, outcome: 'ambiguous' },
-      { attempt_number: 2, outcome: 'sending' },
-    ])
+    expect(attempts.rows).toEqual([{ attempt_number: 1, outcome: 'sending' }])
   })
 
   it('settles a pre-RPL uncertain send with live truth as external without inventing confirmation provenance', async () => {
@@ -752,43 +749,21 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     expect(cancellation.rows[0].payload).toMatchObject({ cause: 'provider_truth' })
   })
 
-  it('refuses a targeted read captured for an older attempt after a newer attempt is current', async () => {
-    const { review, reply } = await seedReviewAndReply({ providerPending: false })
+  it('refuses a targeted read captured for a different attempt', async () => {
+    const { review } = await seedReviewAndReply({ providerPending: false })
     const store = createGoogleReplyObservationStore(getDb())
-    const staleTarget = {
-      replyId: REPLY_A,
-      publicationCycle: 1,
-      attemptNumber: 1,
-    }
-    await store.record(
-      observationInput(review, {
-        readGeneration: await store.allocateReadGeneration(),
-        observationKey: sha256Hex('attempt-one-absence'),
-        source: 'targeted_reconciliation',
-        publicationTarget: staleTarget,
-        observedText: null,
-      }),
-    )
-    const reclaimed = await createTestReplyCommandStore().markPublicationSending(
-      reply,
-      {
-        providerOperationKey: `publish:${REPLY_A}:1:2:target-race`,
-        propertyId: PROP_A,
-        sourceEpoch: review.sourceEpoch,
-        materialReviewRevision: review.sourceRevision,
-        baseObservationRevision: 0,
-      },
-      new Date(NOW.getTime() + 1_000),
-    )
-    expect(reclaimed?.publicationAttempts).toBe(2)
 
     await expect(
       store.record(
         observationInput(review, {
           readGeneration: await store.allocateReadGeneration(),
-          observationKey: sha256Hex('late-attempt-one-live-read'),
+          observationKey: sha256Hex('wrong-attempt-live-read'),
           source: 'targeted_reconciliation',
-          publicationTarget: staleTarget,
+          publicationTarget: {
+            replyId: REPLY_A,
+            publicationCycle: 1,
+            attemptNumber: 2,
+          },
         }),
       ),
     ).rejects.toMatchObject({ code: 'invalid_transition' })
@@ -799,7 +774,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     expect(current).toMatchObject({
       status: 'approved',
       publicationState: 'sending',
-      publicationAttempts: 2,
+      publicationAttempts: 1,
     })
   })
 

@@ -1,5 +1,5 @@
-// Review context — BullMQ job handler for publishing replies to Google
-// Retries up to 3 times with exponential backoff.
+// Review context — BullMQ job handler for publishing replies to Google.
+// Retries up to five times with the catalogue's bounded exponential backoff.
 //
 // BQC-3.3: provider outcomes are classified via the reply-publication saga
 // (classifyPublicationFailure).
@@ -11,9 +11,9 @@
 //      cancelled (disconnect/policy) or the row is no longer claimable:
 //      the side effect must NOT run.
 //   2. a persisted `sending` state is uncertain: perform a targeted provider
-//      read first. A live exact/divergent reply is recorded and stops the
-//      attempt; only an observed absence permits a new guarded write attempt.
-//      A fresh authorized attempt then calls Google once.
+//      read first. A live exact/divergent reply is recorded; absence or a read
+//      failure becomes ambiguous. No read result from this retry path permits
+//      another provider write.
 //   3. POST-CALL RACE GUARD — re-reads the reply before the local ack:
 //      row missing (purged by the disconnect cascade) or
 //      publication_state='cancelled' (disconnect won the race) → return
@@ -24,12 +24,13 @@
 //      current provider read may publish the local Reply.
 //   5. failure → classified:
 //        terminal_rejection  → markPublicationTerminal (no retry burn)
-//        retryable           → markPublicationRetryQueued + rethrow
-//        ambiguous non-final → rethrow (state stays 'sending'; the SAME job's
-//                              next attempt re-claims sending → sending)
+//        retryable non-final → markPublicationRetryQueued + rethrow
+//        retryable final     → markPublicationTerminal + rethrow
+//        ambiguous non-final → rethrow; the next attempt performs one targeted
+//                              readback and then heals/supersedes or marks
+//                              ambiguous without repeating the write
 //        ambiguous final     → markPublicationAmbiguous (reconcile_due_at set
-//                              for the reconcile-ambiguous-publications sweep)
-//                              + rethrow
+//                              for the bounded reconciliation sweep) + rethrow
 
 import type { Job } from 'bullmq'
 
@@ -50,7 +51,7 @@ import { reviewReplyPublishFailed } from '../../domain/events'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
 
-const MAX_ATTEMPTS = 3
+const MAX_ATTEMPTS = 5
 
 type PublishHandlerDeps = Readonly<{
   replyRepo: ReplyRepository
@@ -214,28 +215,22 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
       const jobCycle = job.data.publicationCycle ?? 0
 
       // A persisted `sending` row means a previous attempt may have reached
-      // Google without its local outcome being committed. Never issue another
-      // PUT until a targeted read proves the reply absent. A live reply—exact
-      // or divergent—is recorded by the observation authority and stops here.
-      if (
-        reply.publicationState === 'sending' &&
-        review.googleConnectionId &&
-        reviewName
-      ) {
-        const mayResend = await reconcileUncertainAttempt(
-          deps,
-          job,
-          reply,
-          review,
-          reviewName,
-        )
-        if (!mayResend) return
+      // Google without its local outcome being committed. A targeted read can
+      // confirm or supersede it, but no missing/error response permits another write.
+      if (reply.publicationState === 'sending') {
+        if (review.googleConnectionId && reviewName) {
+          await reconcileUncertainAttempt(deps, job, reply, review, reviewName)
+        } else {
+          // The previous write may have landed before the provider subject
+          // disappeared. Loss of read access is not evidence that it did not.
+          await markUncertainAttemptForReconciliation(deps, reply, review)
+        }
+        return
       }
 
-      // BQC-3.8: CLAIM the publication (approved + authorized|sending →
-      // sending, attempts+1). 'sending' re-claim is the SAME BullMQ job
-      // retrying its in-flight workflow after an ambiguous attempt (jobId
-      // idempotency serializes attempts — no second worker can hold it).
+      // BQC-3.8: CLAIM a fresh publication (approved + authorized → sending,
+      // attempts+1). A persisted sending row returned through the check-only
+      // path above, so it can never be re-claimed into a second Google write.
       // Null = cancelled meanwhile (disconnect/policy) or no longer claimable.
       const claimed = await deps.replyCommandStore.markPublicationSending(reply, {
         providerOperationKey: `${String(job.id ?? reply.id)}:${job.attemptsMade + 1}`,
@@ -304,68 +299,95 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
   }
 }
 
+async function markUncertainAttemptForReconciliation(
+  deps: PublishHandlerDeps,
+  reply: Reply,
+  review: Review,
+): Promise<void> {
+  const now = deps.clock()
+  await deps.replyCommandStore.markPublicationAmbiguous(
+    reply,
+    buildPublishFailedEvent(review, reply, now),
+    now,
+  )
+}
+
 async function reconcileUncertainAttempt(
   deps: PublishHandlerDeps,
   job: Job<PublishReplyJobData>,
   reply: Reply,
   review: Review,
   reviewName: string,
-): Promise<boolean> {
-  if (!review.googleConnectionId) return false
-  const result = await deps.googleReviewApi.getReview({
-    organizationId: reply.organizationId,
-    propertyId: review.propertyId,
-    connectionId: review.googleConnectionId,
-    sourceEpoch: review.sourceEpoch,
-    locationName: review.externalLocationId,
-    reviewName,
-  })
-  // A missing Review is not evidence that a retry is safe. Source lifecycle
-  // reconciliation owns that case; sending another write would target an
-  // unverified provider subject.
-  if (result.status === 'not_found') return false
+): Promise<void> {
+  if (!review.googleConnectionId) return
+  let result
+  try {
+    result = await deps.googleReviewApi.getReview({
+      organizationId: reply.organizationId,
+      propertyId: review.propertyId,
+      connectionId: review.googleConnectionId,
+      sourceEpoch: review.sourceEpoch,
+      locationName: review.externalLocationId,
+      reviewName,
+    })
+  } catch (err) {
+    await markUncertainAttemptForReconciliation(deps, reply, review)
+    throw err
+  }
+  if (result.status === 'not_found') {
+    await markUncertainAttemptForReconciliation(deps, reply, review)
+    return
+  }
 
   // Allocate after acquiring the response: concurrent targeted reads are
   // ordered by the truth they actually received, not by request start time.
   const readGeneration = await deps.googleReplyObservationStore.allocateReadGeneration()
   const observedAt = deps.clock()
 
-  await deps.googleReplyObservationStore.record({
-    organizationId: reply.organizationId,
-    propertyId: review.propertyId,
-    reviewId: reply.reviewId,
-    sourceEpoch: review.sourceEpoch,
-    materialReviewRevision: review.sourceRevision,
-    observationKey: sha256Hex(
-      [
-        'publish-readback-v2',
-        String(job.id ?? ''),
-        String(reply.id),
-        String(reply.publicationCycle),
-        String(reply.publicationAttempts),
-        String(job.attemptsMade),
-        String(review.sourceEpoch),
-        String(review.sourceRevision),
-        String(readGeneration),
-        result.review.replyUpdatedAt?.toISOString() ?? 'none',
-        result.review.replyText === null
-          ? 'reply-state:absent'
-          : `reply-state:live:${sha256Hex(result.review.replyText)}`,
-      ].join('\0'),
-    ),
-    source: 'targeted_reconciliation',
-    publicationTarget: {
-      replyId: reply.id,
-      publicationCycle: reply.publicationCycle,
-      attemptNumber: reply.publicationAttempts,
-    },
-    readGeneration,
-    observedText: result.review.replyText,
-    providerUpdatedAt: result.review.replyUpdatedAt,
-    observedAt,
-    contentExpiresAt: contentExpiresAtFromFetch(observedAt),
-  })
-  return result.review.replyText === null
+  try {
+    await deps.googleReplyObservationStore.record({
+      organizationId: reply.organizationId,
+      propertyId: review.propertyId,
+      reviewId: reply.reviewId,
+      sourceEpoch: review.sourceEpoch,
+      materialReviewRevision: review.sourceRevision,
+      observationKey: sha256Hex(
+        [
+          'publish-readback-v2',
+          String(job.id ?? ''),
+          String(reply.id),
+          String(reply.publicationCycle),
+          String(reply.publicationAttempts),
+          String(job.attemptsMade),
+          String(review.sourceEpoch),
+          String(review.sourceRevision),
+          String(readGeneration),
+          result.review.replyUpdatedAt?.toISOString() ?? 'none',
+          result.review.replyText === null
+            ? 'reply-state:absent'
+            : `reply-state:live:${sha256Hex(result.review.replyText)}`,
+        ].join('\0'),
+      ),
+      source: 'targeted_reconciliation',
+      publicationTarget: {
+        replyId: reply.id,
+        publicationCycle: reply.publicationCycle,
+        attemptNumber: reply.publicationAttempts,
+      },
+      readGeneration,
+      observedText: result.review.replyText,
+      providerUpdatedAt: result.review.replyUpdatedAt,
+      observedAt,
+      contentExpiresAt: contentExpiresAtFromFetch(observedAt),
+    })
+  } catch (err) {
+    await markUncertainAttemptForReconciliation(deps, reply, review)
+    throw err
+  }
+
+  if (result.review.replyText === null) {
+    await markUncertainAttemptForReconciliation(deps, reply, review)
+  }
 }
 
 /** BQC-3.3/3.8: classified failure handling — see the header table. */
@@ -397,11 +419,19 @@ async function handlePublishFailure(
   }
 
   if (failure === 'retryable') {
-    // Provably pre-dispatch transient failure or explicit rate-limit response:
-    // back to 'authorized' so the next BullMQ attempt (or a quarantine
-    // redrive) re-claims; last_error_class and attempts are preserved.
+    // Explicit pre-dispatch transients and provider rate-limit responses prove
+    // this attempt did not publish. Let BullMQ retry within its finite budget;
+    // after the last attempt, expose a terminal failure the operator can retry.
     logger.error({ err, attempt }, 'Reply publish failed (retryable)')
-    await deps.replyCommandStore.markPublicationRetryQueued(claimed)
+    if (finalAttempt) {
+      await deps.replyCommandStore.markPublicationTerminal(
+        claimed,
+        'retryable',
+        buildPublishFailedEvent(review, claimed, deps.clock()),
+      )
+    } else {
+      await deps.replyCommandStore.markPublicationRetryQueued(claimed)
+    }
     throw err
   }
 
@@ -409,12 +439,10 @@ async function handlePublishFailure(
     // Ambiguous on the FINAL attempt (timeout/unknown AFTER the request may
     // have landed): the reply may exist on Google. Honest unknown →
     // publish_failed + publication_state='ambiguous' + reconcile_due_at; the
-    // reconcile-ambiguous-publications sweep (or an operator via
-    // reconcileReplyPublication / retryPublish reconcile-before-retry)
-    // re-reads provider state before any new publish.
+    // reconciliation sweep and operator control are both read-only.
     logger.error(
-      { err, attempt, reconcile: 'reconcileReplyPublication' },
-      'Ambiguous publish outcome on final attempt — marked publish_failed; reconcile before retrying',
+      { err, attempt, reconcile: 'read-only' },
+      'Ambiguous publish outcome on final attempt — marked publish_failed for read-only reconciliation',
     )
     await deps.replyCommandStore.markPublicationAmbiguous(
       claimed,
@@ -423,11 +451,10 @@ async function handlePublishFailure(
     throw err
   }
 
-  // Ambiguous on a non-final attempt: the state stays 'sending' — the SAME
-  // BullMQ job's next attempt re-claims (sending → sending is the claim of an
-  // in-flight workflow; jobId idempotency serializes attempts, so no second
-  // worker can race the claim). Marking anything here would lie about an
-  // outcome we do not know.
+  // Ambiguous on a non-final attempt: preserve `sending` and let BullMQ run
+  // one targeted readback. That next execution may confirm/supersede the
+  // attempt, but it never interprets a missing echo as permission for another
+  // provider write.
   logger.error({ err, attempt }, 'Reply publish outcome ambiguous — retrying')
   throw err
 }

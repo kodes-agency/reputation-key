@@ -107,9 +107,9 @@ export type ReplyCommandStore = Readonly<{
   ): Promise<Reply | null>
   /**
    * BQC-3.8: the approve/retry authorization write. Guarded status update +
-   * publication_state='authorized' with attempts/last-error/reconcile-due
-   * reset (a NEW monotonic publication cycle) + the optional
-   * review.reply.approved lifecycle fact + the required durable
+   * publication_state='authorized' with attempts/error reset, a fresh
+   * bounded recovery deadline, a NEW monotonic publication cycle, the optional
+   * review.reply.approved lifecycle fact, and the required durable
    * review.reply.publication_requested intent — one transaction.
    */
   markPublicationAuthorized(
@@ -119,13 +119,13 @@ export type ReplyCommandStore = Readonly<{
     now?: Date,
   ): Promise<Reply | null>
   /**
-   * BQC-3.8: publish-job claim — status='approved' AND publication_state IN
-   * ('authorized','sending') → 'sending', attempts+1. A 'sending' re-claim is
-   * admitted only after this same BullMQ job has durably recorded targeted
-   * provider readback proving the prior attempt's exact reply absent (jobId
-   * idempotency serializes attempts — no second worker can hold the claim).
-   * No fact. Returns null when the guard misses (cancelled meanwhile, or the
-   * row is no longer in a claimable state).
+   * BQC-3.8: the single-use publish-job claim — status='approved' AND
+   * publication_state='authorized' → 'sending', attempts+1, plus a bounded
+   * recovery deadline. A `sending` row can never be claimed again. Google may
+   * accept a reply without echoing it in a later read, which is
+   * indistinguishable from a write it never received; absence is therefore not
+   * evidence for another write, and the code must refuse to guess. Returns null
+   * when the guard misses.
    */
   markPublicationSending(
     reply: Reply,
@@ -133,9 +133,10 @@ export type ReplyCommandStore = Readonly<{
     now?: Date,
   ): Promise<Reply | null>
   /**
-   * Persist a successful provider write response while keeping the local
-   * Reply un-published. Only an exact, current provider observation may make
-   * the later pending_observation → published transition.
+   * Persist a successful provider write response as `pending_observation` with
+   * a bounded provider-read deadline while keeping the local Reply unpublished.
+   * Only an exact, current provider observation may make the later
+   * pending_observation → published transition.
    */
   markProviderOutcomePendingObservation(
     reply: Reply,
@@ -143,11 +144,11 @@ export type ReplyCommandStore = Readonly<{
     now?: Date,
   ): Promise<Reply | null>
   /**
-   * BQC-3.8: classified terminal rejection — status → publish_failed +
-   * publication_state='terminal' + last_error_class + the publish_failed
-   * fact, one transaction. `event` is null only when the parent review row
-   * is missing (impossible under the replies→reviews FK): the update then
-   * commits fact-less, mirroring the pre-BQC-3.3 tolerate-and-log path.
+   * BQC-3.8: bounded terminal settlement — status → publish_failed +
+   * publication_state='terminal' + last_error_class + optional publish_failed
+   * fact, one transaction. Used for confirmed no-write failures, exhausted
+   * retryable work, and sweep expiry. A null event is allowed when the parent
+   * review is unavailable; liveness settlement must still complete.
    */
   markPublicationTerminal(
     reply: Reply,
@@ -156,11 +157,11 @@ export type ReplyCommandStore = Readonly<{
     now?: Date,
   ): Promise<Reply | null>
   /**
-   * BQC-3.8: classified ambiguous outcome on the final attempt — status →
-   * publish_failed + publication_state='ambiguous' + last_error_class=
-   * 'ambiguous' + reconcile_due_at = now + AMBIGUOUS_RECONCILE_DELAY_MS +
-   * the publish_failed fact, one transaction. The persisted class and due
-   * date are what the reconcile sweep finds the row by.
+   * BQC-3.8: a non-confirming provider outcome from `sending` or
+   * `pending_observation` — status → publish_failed +
+   * publication_state='ambiguous' + last_error_class='ambiguous' +
+   * reconcile_due_at = now + AMBIGUOUS_RECONCILE_DELAY_MS + the optional
+   * publish_failed fact, one transaction.
    */
   markPublicationAmbiguous(
     reply: Reply,
@@ -168,18 +169,18 @@ export type ReplyCommandStore = Readonly<{
     now?: Date,
   ): Promise<Reply | null>
   /**
-   * BQC-3.8: classified retryable failure — publication_state 'sending' →
-   * 'authorized' with last_error_class and attempts preserved, so the next
-   * BullMQ attempt (or a quarantine redrive) can claim the row again. No
-   * fact. Returns null when the guard misses.
+   * BQC-3.8: classified safe-to-retry failure — publication_state 'sending' →
+   * 'authorized' with attempts/error preserved and a fresh bounded recovery
+   * deadline, so the next BullMQ attempt can claim the row. No fact. Returns
+   * null when the guard misses.
    */
   markPublicationRetryQueued(reply: Reply, now?: Date): Promise<Reply | null>
   /**
    * Edit-and-republish: guarded status='published' → 'approved' with the new
-   * text and a fresh publication cycle (publication_state='authorized',
-   * attempts/error/reconcile-due reset) + the review.reply.updated fact, one
-   * transaction. Returns null when the reply is no longer published (race
-   * with a purge/cancellation or a concurrent edit) — no fact, no mutation.
+   * text, a fresh publication cycle, and a bounded recovery deadline
+   * (publication_state='authorized', attempts/error reset) + the
+   * review.reply.updated fact, one transaction. Returns null when the reply is
+   * no longer published — no fact, no mutation.
    */
   editPublishedReply(
     reply: Reply,

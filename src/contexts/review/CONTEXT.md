@@ -60,7 +60,11 @@ Terminal/ambiguous outcomes may enter `publish_failed`; rejected replies can be 
 7. Every publication cycle atomically commits Reply state and its identifier-only
    intent. Older cycles cannot admit or acknowledge newer work.
 8. Provider write acknowledgement persists the exact attempt/correlation outcome as `pending_observation`; it never marks the Reply published and never closes Inbox work.
-9. A persisted `sending` attempt is an uncertain provider outcome. Before any repeat write, the worker performs a targeted read and records it. Exact live or divergent truth stops the write; a missing Review or failed read stops the write; only a newer, current, targeted absence observation with all source/material/reply/cycle fences intact permits the database to claim another attempt.
+9. A persisted `sending` attempt is an uncertain provider outcome. The worker
+   performs a targeted read before doing anything else. Exact live truth may
+   confirm it and divergent truth may supersede it; absence, a missing Review,
+   and failed reads remain ambiguous because Google may have accepted a reply
+   without echoing it. No read outcome permits a second write for that attempt.
 10. A stale observation or event cannot confirm a newer Reply cycle. Application
     agreement alone is not closure authority.
 11. Count or average drift during or between reputation scans terminally fails the

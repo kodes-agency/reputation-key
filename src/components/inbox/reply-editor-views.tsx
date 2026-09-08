@@ -26,20 +26,51 @@ type ReplyView = Readonly<{
   rejectionReason: string | null
 }>
 
-export function ReviewReplyApproved({ reply }: Readonly<{ reply: ReplyView }>) {
+type ApprovedPublicationState =
+  'requested' | 'authorized' | 'sending' | 'pending_observation'
+
+const APPROVED_PUBLICATION_COPY: Readonly<
+  Record<ApprovedPublicationState, Readonly<{ badge: string; description: string }>>
+> = {
+  requested: {
+    badge: 'Queued for Google',
+    description:
+      'Your confirmation is recorded. RepKey will start publishing this reply shortly.',
+  },
+  authorized: {
+    badge: 'Queued for Google',
+    description:
+      'Your confirmation is recorded. RepKey will start publishing this reply shortly.',
+  },
+  sending: {
+    badge: 'Sending to Google',
+    description:
+      'RepKey is sending this reply to Google. It will keep checking until the exact reply is confirmed live.',
+  },
+  pending_observation: {
+    badge: 'Waiting for Google',
+    description:
+      'Google accepted the update. RepKey is checking until this exact reply is confirmed live.',
+  },
+}
+
+export function ReviewReplyApproved({
+  reply,
+}: Readonly<{ reply: ReplyView & { publicationState: string | null } }>) {
+  const copy =
+    APPROVED_PUBLICATION_COPY[reply.publicationState as ApprovedPublicationState] ??
+    APPROVED_PUBLICATION_COPY.authorized
+
   return (
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">
         <h2 className="text-sm font-medium">Reply</h2>
-        <Badge variant="outline">Waiting for Google</Badge>
+        <Badge variant="outline">{copy.badge}</Badge>
       </div>
       <div className="rounded-md border bg-muted/30 p-3">
         <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply.text}</p>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Your confirmation is recorded. This reply stays pending until Google confirms that
-        it is live.
-      </p>
+      <p className="text-xs text-muted-foreground">{copy.description}</p>
     </div>
   )
 }

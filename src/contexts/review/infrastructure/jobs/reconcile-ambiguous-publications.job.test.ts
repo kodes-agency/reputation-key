@@ -1,15 +1,12 @@
-// reconcile-ambiguous-publications sweep handler tests (BQC-3.8).
+// Reconciliation sweep liveness tests.
 //
-// Due provider-pending and ambiguous rows (the repository applies the
-// predicate) are reconciled one by one via
-// reconcileReplyPublication: healed rows leave the set, still-failed rows
-// stay for operator retry, and any row failure is isolated, counted, and
-// rethrown at the end so BullMQ retries (mirroring retention-sweep — a
-// failed row is never acknowledged as success).
+// Every due publication state must leave the due set: provider-safe authorized
+// work fails terminally, uncertain sends become operator-visible ambiguity, and
+// ambiguity gets one final read before automatic reconciliation stops.
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createReconcileAmbiguousPublicationsHandler } from './reconcile-ambiguous-publications.job'
-import { ok, err } from '#/shared/domain'
+import { err, ok } from '#/shared/domain'
 import { reviewError } from '../../domain/errors'
 import type { ReplyRepository } from '../../application/ports/reply.repository'
 import type { ReconcileReplyPublicationInput } from '../../application/use-cases/reconcile-reply-publication'
@@ -21,22 +18,21 @@ vi.mock('#/shared/observability/trace', () => ({
 }))
 
 const NOW = new Date('2026-07-17T00:00:00Z')
-const DUE = new Date(NOW.getTime() - 60 * 1000) // due one minute ago
-const PENDING_NEXT_DUE = new Date(NOW.getTime() + 60 * 1000)
-const AMBIGUOUS_NEXT_DUE = new Date(NOW.getTime() + 15 * 60 * 1000)
+const DUE = new Date(NOW.getTime() - 60_000)
 const ORG_ID = organizationId('org-1')
 
-function makeAmbiguousReply(
+function makeReply(
   id: string,
-  reconcileDueAt: Date = DUE,
+  publicationState: NonNullable<Reply['publicationState']>,
   overrides: Partial<Reply> = {},
 ): Reply {
+  const failed = publicationState === 'ambiguous' || publicationState === 'terminal'
   return {
     id: replyId(id),
     reviewId: reviewId(`rev-${id}`),
     organizationId: ORG_ID,
     text: 'Thank you!',
-    status: 'publish_failed',
+    status: failed ? 'publish_failed' : 'approved',
     source: 'internal',
     createdBy: userId('user-1'),
     approvedBy: userId('user-1'),
@@ -47,11 +43,16 @@ function makeAmbiguousReply(
     submittedAt: NOW,
     approvedAt: NOW,
     publishedAt: null,
-    publicationState: 'ambiguous',
+    publicationState,
     publicationCycle: 1,
-    publicationAttempts: 3,
-    publicationLastErrorClass: 'ambiguous',
-    reconcileDueAt,
+    publicationAttempts: publicationState === 'requested' ? 0 : 1,
+    publicationLastErrorClass:
+      publicationState === 'authorized'
+        ? 'retryable'
+        : publicationState === 'ambiguous' || publicationState === 'terminal'
+          ? 'ambiguous'
+          : null,
+    reconcileDueAt: DUE,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -64,12 +65,36 @@ function makeDeps(opts: {
 }) {
   const batchQueue = [...opts.batches]
   const leaseRelease = vi.fn(async () => {})
+  const markPublicationAmbiguous = vi.fn(async (reply: Reply) => ({
+    ...reply,
+    status: 'publish_failed' as const,
+    publicationState: 'ambiguous' as const,
+    publicationLastErrorClass: 'ambiguous' as const,
+  }))
+  const markPublicationTerminal = vi.fn(
+    async (reply: Reply, errorClass: Reply['publicationLastErrorClass']) => ({
+      ...reply,
+      status: 'publish_failed' as const,
+      publicationState: 'terminal' as const,
+      publicationLastErrorClass: errorClass,
+      reconcileDueAt: null,
+    }),
+  )
   const replyRepo = {
     findDuePublicationReconciliationBatch: vi.fn(async () => batchQueue.shift() ?? []),
-    deferPublicationReconciliation: vi.fn(async () => true),
   } as unknown as ReplyRepository
   return {
     replyRepo,
+    reviewRepo: {
+      findById: vi.fn(async (id: Reply['reviewId']) => ({
+        id,
+        propertyId: 'prop-1',
+      })),
+    },
+    replyCommandStore: {
+      markPublicationAmbiguous,
+      markPublicationTerminal,
+    },
     reconcileReplyPublication: opts.reconcile,
     clock: () => NOW,
     logger: { info: vi.fn(), warn: vi.fn() },
@@ -82,135 +107,130 @@ function makeDeps(opts: {
 
 const makeJob = () => ({ id: 'job-1', data: {} }) as never
 
+async function runOne(reply: Reply, outcome: 'confirmed_on_google' | 'absent') {
+  const reconcile = vi.fn(async (_input: ReconcileReplyPublicationInput) =>
+    ok({ outcome }),
+  )
+  const deps = makeDeps({ batches: [[reply]], reconcile })
+  const handler = createReconcileAmbiguousPublicationsHandler(deps as never)
+  await handler(makeJob())
+  return { deps, reconcile }
+}
+
 describe('reconcile-ambiguous-publications sweep', () => {
-  it('reconciles every due row and reports counts (healed + still_failed)', async () => {
-    const rows = [makeAmbiguousReply('reply-1'), makeAmbiguousReply('reply-2')]
-    const reconcile = vi
-      .fn()
-      .mockResolvedValueOnce(ok({ outcome: 'confirmed_on_google' }))
-      .mockResolvedValueOnce(ok({ outcome: 'absent' }))
-    const deps = makeDeps({ batches: [rows], reconcile })
-    const handler = createReconcileAmbiguousPublicationsHandler(deps as never)
+  it('terminally fails a due authorized retry without issuing another provider request', async () => {
+    const authorized = makeReply('reply-authorized', 'authorized')
+    const { deps, reconcile } = await runOne(authorized, 'absent')
 
-    await expect(handler(makeJob())).resolves.toBeUndefined()
-    expect(deps.leaseRelease).toHaveBeenCalledOnce()
-
-    // The sweep asks the repo for DUE rows only (now = the run clock).
-    expect(deps.replyRepo.findDuePublicationReconciliationBatch).toHaveBeenCalledWith(
-      NOW,
-      null,
-      500,
-    )
-    expect(reconcile).toHaveBeenCalledTimes(2)
-    expect(reconcile).toHaveBeenNthCalledWith(1, {
-      replyId: replyId('reply-1'),
-      organizationId: ORG_ID,
-    })
-    expect(reconcile).toHaveBeenNthCalledWith(2, {
-      replyId: replyId('reply-2'),
-      organizationId: ORG_ID,
-    })
-    expect(deps.replyRepo.deferPublicationReconciliation).toHaveBeenCalledOnce()
-    expect(deps.replyRepo.deferPublicationReconciliation).toHaveBeenCalledWith({
-      replyId: replyId('reply-2'),
-      organizationId: ORG_ID,
-      publicationCycle: 1,
-      publicationState: 'ambiguous',
-      currentDueAt: DUE,
-      nextDueAt: AMBIGUOUS_NEXT_DUE,
-      updatedAt: NOW,
-    })
-  })
-
-  it('keeps a pending observation moving on a deterministic short retry window', async () => {
-    const pending = makeAmbiguousReply('reply-pending', DUE, {
-      status: 'approved',
-      publicationState: 'pending_observation',
-    })
-    const reconcile = vi.fn(async (_input: ReconcileReplyPublicationInput) =>
-      ok({ outcome: 'absent' as const }),
-    )
-    const deps = makeDeps({ batches: [[pending]], reconcile })
-    const handler = createReconcileAmbiguousPublicationsHandler(deps as never)
-
-    await expect(handler(makeJob())).resolves.toBeUndefined()
-
-    expect(deps.replyRepo.deferPublicationReconciliation).toHaveBeenCalledWith({
-      replyId: replyId('reply-pending'),
-      organizationId: ORG_ID,
-      publicationCycle: 1,
-      publicationState: 'pending_observation',
-      currentDueAt: DUE,
-      nextDueAt: PENDING_NEXT_DUE,
-      updatedAt: NOW,
-    })
-  })
-
-  it('starts each deferral window after that row finishes reconciling', async () => {
-    const pending = makeAmbiguousReply('reply-slow', DUE, {
-      status: 'approved',
-      publicationState: 'pending_observation',
-    })
-    const finishedAt = new Date(NOW.getTime() + 2 * 60 * 1000)
-    const clock = vi.fn().mockReturnValueOnce(NOW).mockReturnValueOnce(finishedAt)
-    const reconcile = vi.fn(async (_input: ReconcileReplyPublicationInput) =>
-      ok({ outcome: 'absent' as const }),
-    )
-    const deps = makeDeps({ batches: [[pending]], reconcile })
-    const handler = createReconcileAmbiguousPublicationsHandler({
-      ...deps,
-      clock,
-    } as never)
-
-    await expect(handler(makeJob())).resolves.toBeUndefined()
-
-    expect(deps.replyRepo.deferPublicationReconciliation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        replyId: pending.id,
-        updatedAt: finishedAt,
-        nextDueAt: new Date(
-          finishedAt.getTime() + (PENDING_NEXT_DUE.getTime() - NOW.getTime()),
-        ),
-      }),
-    )
-  })
-
-  it('an empty due set is a clean no-op', async () => {
-    const reconcile = vi.fn()
-    const deps = makeDeps({ batches: [[]], reconcile })
-    const handler = createReconcileAmbiguousPublicationsHandler(deps as never)
-
-    await expect(handler(makeJob())).resolves.toBeUndefined()
     expect(reconcile).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationTerminal).toHaveBeenCalledWith(
+      authorized,
+      'retryable',
+      expect.objectContaining({ _tag: 'review.reply.publish_failed' }),
+      NOW,
+    )
   })
 
-  it('isolates a per-row failure, finishes the batch, then throws for the BullMQ retry', async () => {
+  it('drives a stranded sending attempt through ambiguity to terminal without another PUT', async () => {
+    const sending = makeReply('reply-sending', 'sending')
+    const first = await runOne(sending, 'absent')
+
+    expect(first.reconcile).toHaveBeenCalledOnce()
+    expect(first.deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledWith(
+      sending,
+      expect.objectContaining({ _tag: 'review.reply.publish_failed' }),
+      NOW,
+    )
+    expect(first.deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
+
+    const ambiguous = makeReply('reply-sending', 'ambiguous')
+    const second = await runOne(ambiguous, 'absent')
+    expect(second.reconcile).toHaveBeenCalledOnce()
+    expect(second.deps.replyCommandStore.markPublicationTerminal).toHaveBeenCalledWith(
+      ambiguous,
+      'ambiguous',
+      null,
+      NOW,
+    )
+  })
+
+  it('bounds accepted-but-unobserved publication to two reads and a terminal outcome', async () => {
+    const pending = makeReply('reply-pending', 'pending_observation')
+    const first = await runOne(pending, 'absent')
+
+    expect(first.deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledOnce()
+    expect(first.deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
+
+    const ambiguous = makeReply('reply-pending', 'ambiguous')
+    const second = await runOne(ambiguous, 'absent')
+    expect(second.deps.replyCommandStore.markPublicationTerminal).toHaveBeenCalledOnce()
+    expect(first.reconcile).toHaveBeenCalledOnce()
+    expect(second.reconcile).toHaveBeenCalledOnce()
+  })
+
+  it('terminally settles a due ambiguous row after its final non-confirming read', async () => {
+    const ambiguous = makeReply('reply-ambiguous', 'ambiguous')
+    const { deps } = await runOne(ambiguous, 'absent')
+
+    expect(deps.replyCommandStore.markPublicationTerminal).toHaveBeenCalledWith(
+      ambiguous,
+      'ambiguous',
+      null,
+      NOW,
+    )
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
+  })
+
+  it('leaves provider-confirmed work untouched by failure settlement', async () => {
+    const pending = makeReply('reply-confirmed', 'pending_observation')
+    const { deps } = await runOne(pending, 'confirmed_on_google')
+
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
+  })
+
+  it('turns a failed first provider read into ambiguity, then stops after the final read failure', async () => {
+    const pending = makeReply('reply-read-error', 'pending_observation')
+    const firstReconcile = vi.fn(async () =>
+      err(reviewError('sync_failed', 'provider read failed')),
+    )
+    const firstDeps = makeDeps({ batches: [[pending]], reconcile: firstReconcile })
+    await createReconcileAmbiguousPublicationsHandler(firstDeps as never)(makeJob())
+    expect(firstDeps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledOnce()
+
+    const ambiguous = makeReply('reply-read-error', 'ambiguous')
+    const secondReconcile = vi.fn(async () =>
+      err(reviewError('sync_failed', 'provider read still failed')),
+    )
+    const secondDeps = makeDeps({ batches: [[ambiguous]], reconcile: secondReconcile })
+    await createReconcileAmbiguousPublicationsHandler(secondDeps as never)(makeJob())
+    expect(secondDeps.replyCommandStore.markPublicationTerminal).toHaveBeenCalledOnce()
+  })
+
+  it('isolates a settlement write failure, processes the batch, then retries the sweep', async () => {
     const rows = [
-      makeAmbiguousReply('reply-1'),
-      makeAmbiguousReply('reply-2'),
-      makeAmbiguousReply('reply-3'),
+      makeReply('reply-broken', 'ambiguous'),
+      makeReply('reply-healed', 'pending_observation'),
     ]
     const reconcile = vi
       .fn()
-      .mockResolvedValueOnce(err(reviewError('sync_failed', 'provider read failed')))
-      .mockRejectedValueOnce(new Error('db down'))
+      .mockResolvedValueOnce(ok({ outcome: 'absent' }))
       .mockResolvedValueOnce(ok({ outcome: 'confirmed_on_google' }))
     const deps = makeDeps({ batches: [rows], reconcile })
-    const handler = createReconcileAmbiguousPublicationsHandler(deps as never)
+    deps.replyCommandStore.markPublicationTerminal.mockRejectedValueOnce(
+      new Error('database unavailable'),
+    )
 
-    await expect(handler(makeJob())).rejects.toThrow(/2 row\(s\) failed/)
+    await expect(
+      createReconcileAmbiguousPublicationsHandler(deps as never)(makeJob()),
+    ).rejects.toThrow(/1 row\(s\) failed/)
+    expect(reconcile).toHaveBeenCalledTimes(2)
     expect(deps.leaseRelease).toHaveBeenCalledOnce()
-
-    // Every row was attempted despite the failures.
-    expect(reconcile).toHaveBeenCalledTimes(3)
-    // Failed provider reads are also moved out of this run's due set before
-    // BullMQ retries, so one unhealthy row cannot monopolize the first page.
-    expect(deps.replyRepo.deferPublicationReconciliation).toHaveBeenCalledTimes(2)
   })
 
-  it('keyset-paginates within a run using the last row of each batch', async () => {
-    const first = [makeAmbiguousReply('reply-1'), makeAmbiguousReply('reply-2')]
-    const second = [makeAmbiguousReply('reply-3')]
+  it('keyset-paginates through settled rows', async () => {
+    const first = [makeReply('reply-1', 'ambiguous'), makeReply('reply-2', 'ambiguous')]
+    const second = [makeReply('reply-3', 'ambiguous')]
     const reconcile = vi.fn(async () => ok({ outcome: 'absent' as const }))
     const deps = makeDeps({ batches: [first, second], reconcile })
     const handler = createReconcileAmbiguousPublicationsHandler({
@@ -218,34 +238,19 @@ describe('reconcile-ambiguous-publications sweep', () => {
       batchSize: 2,
     } as never)
 
-    await expect(handler(makeJob())).resolves.toBeUndefined()
+    await handler(makeJob())
 
     const calls = vi.mocked(deps.replyRepo.findDuePublicationReconciliationBatch).mock
       .calls
-    // The loop probes until a batch comes back empty.
-    expect(calls).toHaveLength(3)
-    expect(calls[0]).toEqual([NOW, null, 2])
-    expect(calls[1]).toEqual([NOW, { reconcileDueAt: DUE, id: 'reply-2' }, 2])
-    expect(calls[2]).toEqual([NOW, { reconcileDueAt: DUE, id: 'reply-3' }, 2])
-  })
-
-  it('stops at the batch budget', async () => {
-    const row = makeAmbiguousReply('reply-1')
-    const reconcile = vi.fn(async () => ok({ outcome: 'absent' as const }))
-    const deps = makeDeps({ batches: [[row], [row], [row]], reconcile })
-    const handler = createReconcileAmbiguousPublicationsHandler({
-      ...deps,
-      batchSize: 1,
-      maxBatches: 2,
-    } as never)
-
-    await expect(handler(makeJob())).resolves.toBeUndefined()
-    expect(deps.replyRepo.findDuePublicationReconciliationBatch).toHaveBeenCalledTimes(2)
-    expect(reconcile).toHaveBeenCalledTimes(2)
+    expect(calls).toEqual([
+      [NOW, null, 2],
+      [NOW, { reconcileDueAt: DUE, id: 'reply-2' }, 2],
+      [NOW, { reconcileDueAt: DUE, id: 'reply-3' }, 2],
+    ])
   })
 
   it('stops before starting another provider read when the monotonic run deadline closes', async () => {
-    const rows = [makeAmbiguousReply('reply-1'), makeAmbiguousReply('reply-2')]
+    const rows = [makeReply('reply-1', 'ambiguous'), makeReply('reply-2', 'ambiguous')]
     let monotonicMs = 0
     const reconcile = vi.fn(async () => {
       monotonicMs = 240_000
@@ -258,117 +263,25 @@ describe('reconcile-ambiguous-publications sweep', () => {
       maxRunMs: 240_000,
     } as never)
 
-    await expect(handler(makeJob())).resolves.toBeUndefined()
+    await handler(makeJob())
 
     expect(reconcile).toHaveBeenCalledOnce()
-    expect(reconcile).toHaveBeenCalledWith({
-      replyId: replyId('reply-1'),
-      organizationId: ORG_ID,
-    })
-    expect(deps.replyRepo.deferPublicationReconciliation).toHaveBeenCalledOnce()
+    expect(deps.replyCommandStore.markPublicationTerminal).toHaveBeenCalledOnce()
     expect(deps.leaseRelease).toHaveBeenCalledOnce()
   })
 
   it('is a clean no-op when another replica holds the reconciliation lease', async () => {
     const reconcile = vi.fn()
-    const deps = makeDeps({ batches: [[makeAmbiguousReply('reply-1')]], reconcile })
+    const deps = makeDeps({ batches: [[makeReply('reply-1', 'ambiguous')]], reconcile })
     const handler = createReconcileAmbiguousPublicationsHandler({
       ...deps,
       runLease: { tryAcquire: vi.fn(async () => null) },
     } as never)
 
-    await expect(handler(makeJob())).resolves.toBeUndefined()
+    await handler(makeJob())
 
     expect(deps.replyRepo.findDuePublicationReconciliationBatch).not.toHaveBeenCalled()
     expect(reconcile).not.toHaveBeenCalled()
     expect(deps.leaseRelease).not.toHaveBeenCalled()
-  })
-
-  it('charges lease acquisition to the monotonic run budget', async () => {
-    let monotonicMs = 0
-    const reconcile = vi.fn()
-    const deps = makeDeps({ batches: [[makeAmbiguousReply('reply-1')]], reconcile })
-    const handler = createReconcileAmbiguousPublicationsHandler({
-      ...deps,
-      monotonicNowMs: () => monotonicMs,
-      maxRunMs: 240_000,
-      runLease: {
-        tryAcquire: vi.fn(async () => {
-          monotonicMs = 240_000
-          return { release: deps.leaseRelease }
-        }),
-      },
-    } as never)
-
-    await expect(handler(makeJob())).resolves.toBeUndefined()
-
-    expect(deps.replyRepo.findDuePublicationReconciliationBatch).not.toHaveBeenCalled()
-    expect(reconcile).not.toHaveBeenCalled()
-    expect(deps.leaseRelease).toHaveBeenCalledOnce()
-  })
-
-  it('reschedules an old absent row so a later due row gets the next bounded page', async () => {
-    const firstDue = new Date(NOW.getTime() - 2 * 60 * 1000)
-    const laterDue = new Date(NOW.getTime() - 60 * 1000)
-    let rows = [
-      makeAmbiguousReply('reply-old', firstDue),
-      makeAmbiguousReply('reply-later', laterDue),
-    ]
-    const replyRepo = {
-      findDuePublicationReconciliationBatch: vi.fn(
-        async (
-          now: Date,
-          cursor: Readonly<{ reconcileDueAt: Date; id: string }> | null,
-          limit: number,
-        ) =>
-          rows
-            .filter(
-              (row) =>
-                row.reconcileDueAt !== null &&
-                row.reconcileDueAt <= now &&
-                (cursor === null ||
-                  row.reconcileDueAt > cursor.reconcileDueAt ||
-                  (row.reconcileDueAt.getTime() === cursor.reconcileDueAt.getTime() &&
-                    row.id > cursor.id)),
-            )
-            .sort(
-              (left, right) =>
-                left.reconcileDueAt!.getTime() - right.reconcileDueAt!.getTime() ||
-                left.id.localeCompare(right.id),
-            )
-            .slice(0, limit),
-      ),
-      deferPublicationReconciliation: vi.fn(
-        async (command: { replyId: string; nextDueAt: Date }) => {
-          rows = rows.map((row) =>
-            row.id === command.replyId
-              ? { ...row, reconcileDueAt: command.nextDueAt }
-              : row,
-          )
-          return true
-        },
-      ),
-    } as unknown as ReplyRepository
-    const reconcile = vi.fn(async (_input: ReconcileReplyPublicationInput) =>
-      ok({ outcome: 'absent' as const }),
-    )
-    const handler = createReconcileAmbiguousPublicationsHandler({
-      replyRepo,
-      reconcileReplyPublication: reconcile as never,
-      clock: () => NOW,
-      logger: { info: vi.fn(), warn: vi.fn() },
-      runLease: {
-        tryAcquire: async () => ({ release: async () => {} }),
-      },
-      batchSize: 1,
-      maxBatches: 2,
-    })
-
-    await expect(handler(makeJob())).resolves.toBeUndefined()
-
-    expect(reconcile.mock.calls.map(([input]) => input.replyId)).toEqual([
-      replyId('reply-old'),
-      replyId('reply-later'),
-    ])
   })
 })

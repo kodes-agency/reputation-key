@@ -18,7 +18,8 @@ import { assertCurrentAiDraftBinding } from '../ai-draft-binding'
 import { reviewError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
 
-type DuePublicationState = 'pending_observation' | 'ambiguous'
+type DuePublicationState =
+  'requested' | 'authorized' | 'sending' | 'pending_observation' | 'ambiguous'
 
 async function findDuePublicationBatch(
   db: Database,
@@ -143,31 +144,12 @@ export const createReplyRepository = (
     trace('reply.findDuePublicationReconciliationBatch', () =>
       findDuePublicationBatch(
         db,
-        ['pending_observation', 'ambiguous'],
+        ['requested', 'authorized', 'sending', 'pending_observation', 'ambiguous'],
         now,
         cursor,
         limit,
       ),
     ),
-
-  deferPublicationReconciliation: async (command) => {
-    return trace('reply.deferPublicationReconciliation', async () => {
-      const deferred = await db
-        .update(replies)
-        .set({ reconcileDueAt: command.nextDueAt, updatedAt: command.updatedAt })
-        .where(
-          and(
-            eq(replies.id, command.replyId),
-            eq(replies.organizationId, command.organizationId),
-            eq(replies.publicationCycle, command.publicationCycle),
-            eq(replies.publicationState, command.publicationState),
-            eq(replies.reconcileDueAt, command.currentDueAt),
-          ),
-        )
-        .returning({ id: replies.id })
-      return deferred.length === 1
-    })
-  },
 
   findPublicationActiveByReviewIds: async (reviewIds, organizationId) => {
     return trace('reply.findPublicationActiveByReviewIds', async () => {

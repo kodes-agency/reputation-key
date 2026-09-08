@@ -30,6 +30,7 @@ import { denyLegacyReviewDestruction } from '../application/review-lifecycle-saf
 import {
   AMBIGUOUS_RECONCILE_DELAY_MS,
   PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
+  PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
   nextPublicationCycle,
   nextPublicationState,
   type PersistedPublicationState,
@@ -318,45 +319,6 @@ const updateCurrentAttempt = async (
   }
 }
 
-function selectPriorPublicationAttempt(tx: Tx, reply: Reply) {
-  return tx
-    .select({
-      baseObservationRevision: replyPublicationAttempts.baseObservationRevision,
-      sourceEpoch: replyPublicationAttempts.sourceEpoch,
-      materialReviewRevision: replyPublicationAttempts.materialReviewRevision,
-      replyStateRevision: replyPublicationAttempts.replyStateRevision,
-      expectedReplyDigest: replyPublicationAttempts.expectedReplyDigest,
-      createdAt: replyPublicationAttempts.createdAt,
-    })
-    .from(replyPublicationAttempts)
-    .where(
-      and(
-        eq(replyPublicationAttempts.organizationId, reply.organizationId),
-        eq(replyPublicationAttempts.reviewId, reply.reviewId),
-        eq(replyPublicationAttempts.replyId, reply.id),
-        eq(replyPublicationAttempts.publicationCycle, reply.publicationCycle),
-        eq(replyPublicationAttempts.attemptNumber, reply.publicationAttempts),
-      ),
-    )
-    .limit(1)
-}
-
-type PriorPublicationAttemptRow = Awaited<
-  ReturnType<typeof selectPriorPublicationAttempt>
->[number]
-
-/** Only an in-flight re-claim has a prior attempt to be fenced against. */
-async function readPriorPublicationAttempt(
-  tx: Tx,
-  reply: Reply,
-): Promise<PriorPublicationAttemptRow | undefined> {
-  if (reply.publicationState !== 'sending' || reply.publicationAttempts <= 0) {
-    return undefined
-  }
-  const rows = await selectPriorPublicationAttempt(tx, reply)
-  return rows[0]
-}
-
 /**
  * The stored authorization for this cycle, but only while it still describes
  * the reply text, the manager-observed source, and the locked provider truth
@@ -400,40 +362,6 @@ async function readCurrentPublicationAuthorization(
     return null
   }
   return authorization
-}
-
-/**
- * A first claim must start from exactly the observation head the manager
- * authorized. A re-claim of an uncertain `sending` row may only proceed when a
- * targeted read, taken after that attempt, proved the provider currently holds
- * no reply for the same source and the same authorized text.
- */
-function claimObservationFenceIsCurrent(
-  reply: Reply,
-  attempt: PublicationAttemptStart,
-  authorization: PublicationAuthorizationRow,
-  head: LockedReplyTruthScope['head'],
-  priorAttempt: PriorPublicationAttemptRow | undefined,
-): boolean {
-  if (reply.publicationState === 'authorized') {
-    return (head?.observationRevision ?? 0) === authorization.baseObservationRevision
-  }
-  if (reply.publicationState !== 'sending') return true
-  return (
-    priorAttempt !== undefined &&
-    head !== null &&
-    head.state === 'absent' &&
-    head.source === 'targeted_reconciliation' &&
-    head.contentState === 'active' &&
-    head.sourceEpoch === attempt.sourceEpoch &&
-    head.materialReviewRevision === attempt.materialReviewRevision &&
-    head.observationRevision > priorAttempt.baseObservationRevision &&
-    head.observedAt.getTime() >= priorAttempt.createdAt.getTime() &&
-    priorAttempt.sourceEpoch === attempt.sourceEpoch &&
-    priorAttempt.materialReviewRevision === attempt.materialReviewRevision &&
-    priorAttempt.replyStateRevision === authorization.replyStateRevision &&
-    priorAttempt.expectedReplyDigest === authorization.expectedReplyDigest
-  )
 }
 
 /** The named manager has lost current authority: move the cycle to
@@ -620,7 +548,9 @@ export const createAtomicReplyCommandStore = (
               publicationCycle,
               publicationAttempts: 0,
               publicationLastErrorClass: null,
-              reconcileDueAt: null,
+              reconcileDueAt: new Date(
+                occurredAt.getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
+              ),
             },
             occurredAt,
           )
@@ -710,16 +640,9 @@ export const createAtomicReplyCommandStore = (
             .limit(1)
           if (duplicate[0]) return null
 
-          const priorAttempt = await readPriorPublicationAttempt(tx, reply)
           const head = scope.head
           if (
-            !claimObservationFenceIsCurrent(
-              reply,
-              attempt,
-              authorization,
-              head,
-              priorAttempt,
-            )
+            (head?.observationRevision ?? 0) !== authorization.baseObservationRevision
           ) {
             return null
           }
@@ -727,20 +650,17 @@ export const createAtomicReplyCommandStore = (
             tx,
             reply,
             'approved',
-            ['authorized', 'sending'],
+            ['authorized'],
             {
               publicationState: target,
               publicationAttempts: sql`${replies.publicationAttempts} + 1`,
+              reconcileDueAt: new Date(
+                at.getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
+              ),
               updatedAt: at,
             },
           )
           if (!claimed) return null
-          if (reply.publicationState === 'sending' && reply.publicationAttempts > 0) {
-            await updateCurrentAttempt(tx, reply, {
-              outcome: 'ambiguous',
-              updatedAt: at,
-            })
-          }
           await tx.insert(replyPublicationAttempts).values({
             organizationId: reply.organizationId,
             propertyId: attempt.propertyId,
@@ -794,20 +714,28 @@ export const createAtomicReplyCommandStore = (
         'reply.commandStore.markPublicationTerminal',
         reply,
         'fail_terminal',
-        ['sending'],
+        ['requested', 'authorized', 'sending', 'ambiguous'],
         (target, at) => ({
           status: 'publish_failed',
           publicationState: target,
           publicationLastErrorClass: errorClass,
+          reconcileDueAt: null,
           updatedAt: at,
         }),
         event,
         now,
-        (tx, saved, at) =>
-          updateCurrentAttempt(tx, saved, {
-            outcome: 'terminal_rejection',
+        async (tx, saved, at) => {
+          if (saved.publicationAttempts < 1) return
+          await updateCurrentAttempt(tx, saved, {
+            outcome:
+              errorClass === 'terminal_rejection'
+                ? 'terminal_rejection'
+                : errorClass === 'retryable'
+                  ? 'retryable_failure'
+                  : 'ambiguous',
             updatedAt: at,
-          }),
+          })
+        },
       ),
 
     markPublicationAmbiguous: (reply, event, now) =>
@@ -815,7 +743,7 @@ export const createAtomicReplyCommandStore = (
         'reply.commandStore.markPublicationAmbiguous',
         reply,
         'fail_ambiguous',
-        ['sending'],
+        ['sending', 'pending_observation'],
         (target, at) => ({
           status: 'publish_failed',
           publicationState: target,
@@ -847,6 +775,9 @@ export const createAtomicReplyCommandStore = (
             ['sending'],
             {
               publicationState: target,
+              reconcileDueAt: new Date(
+                occurredAt.getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
+              ),
               updatedAt: occurredAt,
             },
           )
@@ -896,7 +827,9 @@ export const createAtomicReplyCommandStore = (
               publicationCycle,
               publicationAttempts: 0,
               publicationLastErrorClass: null,
-              reconcileDueAt: null,
+              reconcileDueAt: new Date(
+                occurredAt.getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
+              ),
             },
             occurredAt,
           )
@@ -1091,7 +1024,9 @@ export const createSequentialReplyCommandStore = (deps: {
           publicationCycle,
           publicationAttempts: 0,
           publicationLastErrorClass: null,
-          reconcileDueAt: null,
+          reconcileDueAt: new Date(
+            (now ?? deps.clock()).getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
+          ),
         },
         now,
       )
@@ -1107,8 +1042,13 @@ export const createSequentialReplyCommandStore = (deps: {
       publicationTransition(
         reply,
         'claim',
-        ['authorized', 'sending'],
-        { publicationState: 'sending' },
+        ['authorized'],
+        {
+          publicationState: 'sending',
+          reconcileDueAt: new Date(
+            (now ?? deps.clock()).getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
+          ),
+        },
         null,
         now,
       ),
@@ -1132,11 +1072,12 @@ export const createSequentialReplyCommandStore = (deps: {
       publicationTransition(
         reply,
         'fail_terminal',
-        ['sending'],
+        ['requested', 'authorized', 'sending', 'ambiguous'],
         {
           status: 'publish_failed',
           publicationState: 'terminal',
           publicationLastErrorClass: errorClass,
+          reconcileDueAt: null,
         },
         event,
         now,
@@ -1146,7 +1087,7 @@ export const createSequentialReplyCommandStore = (deps: {
       publicationTransition(
         reply,
         'fail_ambiguous',
-        ['sending'],
+        ['sending', 'pending_observation'],
         {
           status: 'publish_failed',
           publicationState: 'ambiguous',
@@ -1164,7 +1105,12 @@ export const createSequentialReplyCommandStore = (deps: {
         reply,
         'requeue',
         ['sending'],
-        { publicationState: 'authorized' },
+        {
+          publicationState: 'authorized',
+          reconcileDueAt: new Date(
+            (now ?? deps.clock()).getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
+          ),
+        },
         null,
         now,
       ),
@@ -1186,7 +1132,10 @@ export const createSequentialReplyCommandStore = (deps: {
             publicationCycle,
             publicationAttempts: 0,
             publicationLastErrorClass: null,
-            reconcileDueAt: null,
+            reconcileDueAt: new Date(
+              (command.now ?? deps.clock()).getTime() +
+                PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
+            ),
           },
           command.now,
         )

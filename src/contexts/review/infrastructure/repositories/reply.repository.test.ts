@@ -313,13 +313,12 @@ describe.sequential('replyRepository (integration)', () => {
   })
 
   describe('publication reconciliation scheduling', () => {
-    it('finds pending observations and advances only the exact due cycle', async () => {
+    it('finds due pending observations without widening operator candidates', async () => {
       const db = getDb()
       await seedReview(db)
       const repo = createReplyRepository(db, () => new Date())
       const candidates = createPublicationReconciliationCandidateQuery(db)
       const currentDueAt = new Date(now.getTime() - 60 * 1000)
-      const nextDueAt = new Date(now.getTime() + 60 * 1000)
       const pending = await repo.upsert(
         makeReply({
           source: 'internal',
@@ -351,38 +350,9 @@ describe.sequential('replyRepository (integration)', () => {
           limit: 10,
         }),
       ).resolves.toEqual([])
-      await expect(
-        repo.deferPublicationReconciliation({
-          replyId: pending.id,
-          organizationId: ORG_A,
-          publicationCycle: 2,
-          publicationState: 'pending_observation',
-          currentDueAt,
-          nextDueAt,
-          updatedAt: now,
-        }),
-      ).resolves.toBe(true)
-      await expect(
-        repo.findDuePublicationReconciliationBatch(now, null, 10),
-      ).resolves.toEqual([])
-
-      await expect(
-        repo.deferPublicationReconciliation({
-          replyId: pending.id,
-          organizationId: ORG_A,
-          publicationCycle: 1,
-          publicationState: 'pending_observation',
-          currentDueAt,
-          nextDueAt: new Date(now.getTime() + 2 * 60 * 1000),
-          updatedAt: now,
-        }),
-      ).resolves.toBe(false)
-      await expect(repo.findById(pending.id, ORG_A)).resolves.toEqual(
-        expect.objectContaining({ reconcileDueAt: nextDueAt, publicationCycle: 2 }),
-      )
     })
 
-    it('preserves millisecond CAS and keyset progress for due ambiguous rows', async () => {
+    it('normalizes millisecond deadlines and preserves keyset progress', async () => {
       const db = getDb()
       const firstReview = await seedReview(db)
       const secondReview = await seedReview(db, {
@@ -420,10 +390,8 @@ describe.sequential('replyRepository (integration)', () => {
         }),
       )
 
-      // A provider deadline can arrive with PostgreSQL microsecond precision.
-      // The column contract must normalize it to the JavaScript Date scale so
-      // the value returned by a page remains valid for both its next cursor
-      // and the exact compare-and-swap deferral predicate.
+      // PostgreSQL can store microsecond precision. Normalize to JavaScript's
+      // millisecond Date scale so a returned deadline remains a valid cursor.
       await pool.query(
         `UPDATE replies
          SET reconcile_due_at = TIMESTAMPTZ '2025-06-01 11:58:00.123456+00'
@@ -454,22 +422,6 @@ describe.sequential('replyRepository (integration)', () => {
         limit: 1,
       })
       expect(secondPage).toEqual([expect.objectContaining({ replyId: second.id })])
-
-      const nextDueAt = new Date('2025-06-01T12:05:00.789Z')
-      await expect(
-        repo.deferPublicationReconciliation({
-          replyId: first.id,
-          organizationId: ORG_A,
-          publicationCycle: 2,
-          publicationState: 'ambiguous',
-          currentDueAt: firstPage[0]!.reconcileDueAt!,
-          nextDueAt,
-          updatedAt: now,
-        }),
-      ).resolves.toBe(true)
-      await expect(repo.findById(first.id, ORG_A)).resolves.toEqual(
-        expect.objectContaining({ reconcileDueAt: nextDueAt }),
-      )
     })
   })
 

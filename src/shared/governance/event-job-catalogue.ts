@@ -580,7 +580,7 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       schedule: 'none',
       registration: 'enabled',
     },
-    { retryBackoff: 'exponential:5000' },
+    { retryAttempts: 5, retryBackoff: 'exponential:30000' },
   ),
   job(
     'project-recent-activity',

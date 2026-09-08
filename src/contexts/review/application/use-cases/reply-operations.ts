@@ -608,18 +608,18 @@ export const retryPublish =
     // D6-001: scope reply mutations to the caller's assigned properties.
     const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
 
-    // Provider-snapshot reconciliation is asynchronous. If it settled this
-    // publication before the operator's retry arrived, the command is already
-    // satisfied and must not begin another publication cycle.
     if (isSettledPublishedReply(reply)) return reply
 
-    // BQC-3.8: reconcile-before-retry for an AMBIGUOUS publication. The
-    // previous send may have landed on Google — re-read provider state first:
-    //   provider shows the reply → heal to published and STOP (no re-enqueue,
-    //     no duplicate send);
-    //   provider does not → the send never landed; fall through to the normal
-    //     re-approve + enqueue below.
-    if (reply.publicationState === 'ambiguous') {
+    // Any state descended from an unknown provider outcome is check-only. A
+    // Google read that omits the reply is not positive no-write evidence: an
+    // accepted reply can be delayed or filtered from the response. Only an
+    // exact live observation may heal it; provider truth may also cancel it.
+    // Neither case ever admits a second PUT.
+    const requiresPositiveReconciliation =
+      reply.publicationState === 'ambiguous' ||
+      (reply.publicationState === 'terminal' &&
+        reply.publicationLastErrorClass === 'ambiguous')
+    if (requiresPositiveReconciliation) {
       const reconciled = await reconcileReplyPublication({
         replyRepo: deps.replyRepo,
         reviewRepo: deps.reviewRepo,
@@ -628,10 +628,9 @@ export const retryPublish =
         clock: deps.clock,
       })({ replyId: reply.id, organizationId: ctx.organizationId })
       if (reconciled.isErr()) {
-        // Another reconciler may have committed published after our first
-        // read but before this reconciliation acquired its state.
         const current = await deps.replyRepo.findById(reply.id, ctx.organizationId)
         if (isSettledPublishedReply(current)) return current
+        if (current?.publicationState === 'cancelled') return current
         throw reconciled.error
       }
       if (reconciled.value.outcome === 'confirmed_on_google') {
@@ -639,12 +638,14 @@ export const retryPublish =
         if (!healed) throw reviewError('reply_not_found', 'Reply not found')
         return healed
       }
-      if (reconciled.value.outcome !== 'absent') {
-        throw reviewError(
-          'invalid_transition',
-          'The current Google reply must be reviewed before another publication attempt',
-        )
-      }
+
+      const current = await deps.replyRepo.findById(reply.id, ctx.organizationId)
+      if (isSettledPublishedReply(current)) return current
+      if (current?.publicationState === 'cancelled') return current
+      throw reviewError(
+        'invalid_transition',
+        'Google did not positively confirm whether this reply is live; RepKey will not send it again',
+      )
     }
 
     const now = deps.clock()

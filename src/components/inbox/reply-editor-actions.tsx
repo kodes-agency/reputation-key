@@ -110,28 +110,74 @@ export function ReplyPendingApproval({
   )
 }
 
-type FailedProps = Readonly<{
-  reply: ReplyView
+type FailedReplyView = ReplyView &
+  Readonly<{
+    publicationAttempts: number
+    publicationLastErrorClass: 'terminal_rejection' | 'retryable' | 'ambiguous' | null
+  }>
+
+type CheckProps = Readonly<{
+  reply: FailedReplyView
   isSaving: boolean
-  onRetry: () => Promise<unknown>
+  onCheck: () => Promise<unknown>
 }>
 
-export function ReplyPublishFailed({ reply, isSaving, onRetry }: FailedProps) {
+/** Unknown provider outcome: the only safe operator action is another read. */
+export function ReplyPublicationNeedsCheck({ reply, isSaving, onCheck }: CheckProps) {
   return (
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">
         <h2 className="text-sm font-medium">Reply</h2>
-        <Badge variant="outline">Needs a check</Badge>
+        <Badge variant="outline">Google status unconfirmed</Badge>
       </div>
       <div className="rounded-md border bg-muted/30 p-3">
         <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply.text}</p>
       </div>
       <p className="text-xs text-muted-foreground">
-        Google has not confirmed this reply yet. RepKey checks the current Google reply
-        before trying the update again.
+        Google may have accepted this reply, but RepKey could not verify it. To avoid
+        posting twice, RepKey will only check Google—it will not send this reply again.
+      </p>
+      <Button size="sm" disabled={isSaving} onClick={() => onCheck()}>
+        {isSaving ? 'Checking Google…' : 'Check Google again'}
+      </Button>
+    </div>
+  )
+}
+
+type RetryProps = Readonly<{
+  reply: FailedReplyView
+  isSaving: boolean
+  onRetry: () => Promise<unknown>
+}>
+
+/** A confirmed pre-request/retry exhaustion failure that is safe to send again. */
+export function ReplyPublicationRetryable({ reply, isSaving, onRetry }: RetryProps) {
+  const wasRejected = reply.publicationLastErrorClass === 'terminal_rejection'
+  const retryDescription =
+    reply.publicationAttempts === 0
+      ? 'RepKey could not start publishing before the recovery deadline. No Google update was attempted, so it is safe to try again.'
+      : `RepKey stopped after ${reply.publicationAttempts} ${
+          reply.publicationAttempts === 1 ? 'attempt' : 'attempts'
+        }. Google did not accept the update, so it is safe to try again when the connection is stable.`
+
+  return (
+    <div className="space-y-3 border-t pt-4">
+      <div className="flex items-center gap-2">
+        <h2 className="text-sm font-medium">Reply</h2>
+        <Badge variant="outline">
+          {wasRejected ? 'Google rejected update' : 'Publishing stopped'}
+        </Badge>
+      </div>
+      <div className="rounded-md border bg-muted/30 p-3">
+        <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply.text}</p>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {wasRejected
+          ? 'Google rejected this update before it could be published. Check the Google Business Profile connection and permissions, then try again.'
+          : retryDescription}
       </p>
       <Button size="sm" disabled={isSaving} onClick={() => onRetry()}>
-        Check and retry
+        {isSaving ? 'Starting…' : 'Try publishing again'}
       </Button>
     </div>
   )

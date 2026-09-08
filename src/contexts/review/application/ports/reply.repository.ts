@@ -35,19 +35,6 @@ export type ConditionalReplyUpdate = Readonly<{
   reconcileDueAt?: Date | null
 }>
 
-/** Exact compare-and-set command for moving one due provider-read check beyond
- * the sweep's fixed clock. Every fence prevents an older worker from changing
- * the schedule of a newer publication cycle. */
-export type DeferPublicationReconciliation = Readonly<{
-  replyId: ReplyId
-  organizationId: OrganizationId
-  publicationCycle: number
-  publicationState: 'pending_observation' | 'ambiguous'
-  currentDueAt: Date
-  nextDueAt: Date
-  updatedAt: Date
-}>
-
 export type ReplyRepository = Readonly<{
   findById(id: ReplyId, organizationId: OrganizationId): Promise<Reply | null>
   findByReviewId(
@@ -71,11 +58,10 @@ export type ReplyRepository = Readonly<{
     organizationId: OrganizationId,
   ): Promise<Reply | null>
   /**
-   * Keyset-bounded batch of provider-pending or ambiguous replies whose
-   * provider-read check is due, ordered (reconcileDueAt ASC, id ASC).
-   * `cursor` resumes strictly AFTER (reconcileDueAt, id). This is the
-   * automatic recovery sweep. Operator commands use the separate,
-   * content-free PublicationReconciliationCandidateQuery.
+   * Keyset-bounded batch of every non-terminal publication state whose
+   * recovery deadline is due, ordered (reconcileDueAt ASC, id ASC). `cursor`
+   * resumes strictly AFTER (reconcileDueAt, id). The recurring sweep either
+   * advances or settles each returned row; it never writes to the provider.
    */
   findDuePublicationReconciliationBatch(
     now: Date,
@@ -83,18 +69,10 @@ export type ReplyRepository = Readonly<{
     limit: number,
   ): Promise<ReadonlyArray<Reply>>
   /**
-   * Guarded schedule advance after one non-confirming provider read. Returns
-   * false when the state, publication cycle, or prior due time moved on; that
-   * makes the stale sweep row an already-settled no-op.
-   */
-  deferPublicationReconciliation(
-    command: DeferPublicationReconciliation,
-  ): Promise<boolean>
-  /**
    * BQC-3.8: replies in an active publication state
-   * (requested/authorized/sending) for the given reviews — the rows the
-   * disconnect/policy cancellation flow must cancel. Bounded by the caller's
-   * review batch.
+   * (requested/authorized/sending/pending_observation) for the given reviews —
+   * the rows the disconnect/policy cancellation flow must cancel. Bounded by
+   * the caller's review batch.
    */
   findPublicationActiveByReviewIds(
     reviewIds: ReadonlyArray<ReviewId>,

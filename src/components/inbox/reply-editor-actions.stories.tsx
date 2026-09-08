@@ -1,13 +1,14 @@
-// Reply status action views — pending_approval / publish_failed / rejected.
+// Reply status action views — pending approval, publication recovery, rejected.
 //
-// These three sibling views each take plain callbacks + an isSaving flag (not
-// Action objects), so stories inject fn() spies. render-based stories let one
-// file cover all three exported components under a single CSF title.
+// The sibling views take plain callbacks + an isSaving flag. Render-based
+// stories keep their operator copy and send-vs-check controls independently
+// testable under one CSF title.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
   ReplyPendingApproval,
-  ReplyPublishFailed,
+  ReplyPublicationNeedsCheck,
+  ReplyPublicationRetryable,
   ReviewReplyRejected,
 } from './reply-editor-actions'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
@@ -17,6 +18,7 @@ const replyText = 'Thank you for your review! We appreciate your feedback.'
 const onApprove = fn(async () => undefined)
 const onReject = fn(async (_reason?: string) => undefined)
 const onRetry = fn(async () => undefined)
+const onCheck = fn(async () => undefined)
 const onEditResubmit = fn(() => {})
 
 const meta: Meta<typeof ReplyPendingApproval> = {
@@ -111,41 +113,78 @@ export const RejectWithReason: Story = {
   },
 }
 
-// ── publish_failed ────────────────────────────────────────────────────
+// ── publication recovery ──────────────────────────────────────────────
 
-// An unconfirmed update → calm status note + safe check-and-retry action.
-export const PublishFailed: Story = {
+export const AmbiguousCheckOnly: Story = {
   render: () => (
-    <ReplyPublishFailed
-      reply={{ text: replyText, publishedAt: null, rejectionReason: null }}
+    <ReplyPublicationNeedsCheck
+      reply={{
+        text: replyText,
+        publishedAt: null,
+        rejectionReason: null,
+        publicationAttempts: 1,
+        publicationLastErrorClass: 'ambiguous',
+      }}
+      isSaving={false}
+      onCheck={onCheck}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    onCheck.mockClear()
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Google status unconfirmed')).toBeInTheDocument()
+    expect(
+      canvas.getByText(/will only check Google—it will not send this reply again/i),
+    ).toBeInTheDocument()
+    expect(canvas.queryByRole('button', { name: /publish|retry|send/i })).toBeNull()
+    await userEvent.click(canvas.getByRole('button', { name: 'Check Google again' }))
+    expect(onCheck).toHaveBeenCalledOnce()
+  },
+}
+
+export const AmbiguousCheckInProgress: Story = {
+  render: () => (
+    <ReplyPublicationNeedsCheck
+      reply={{
+        text: replyText,
+        publishedAt: null,
+        rejectionReason: null,
+        publicationAttempts: 1,
+        publicationLastErrorClass: 'ambiguous',
+      }}
+      isSaving
+      onCheck={onCheck}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByRole('button', { name: 'Checking Google…' })).toBeDisabled()
+  },
+}
+
+export const RetryableTerminal: Story = {
+  render: () => (
+    <ReplyPublicationRetryable
+      reply={{
+        text: replyText,
+        publishedAt: null,
+        rejectionReason: null,
+        publicationAttempts: 5,
+        publicationLastErrorClass: 'retryable',
+      }}
       isSaving={false}
       onRetry={onRetry}
     />
   ),
   play: async ({ canvasElement }) => {
     onRetry.mockClear()
+    onCheck.mockClear()
     const canvas = within(canvasElement)
-    expect(canvas.getByText(/needs a check/i)).toBeInTheDocument()
-    expect(
-      canvas.getByText(/google has not confirmed this reply yet/i),
-    ).toBeInTheDocument()
-    await userEvent.click(canvas.getByRole('button', { name: /check and retry/i }))
+    expect(canvas.getByText('Publishing stopped')).toBeInTheDocument()
+    expect(canvas.getByText(/stopped after 5 attempts/i)).toBeInTheDocument()
+    await userEvent.click(canvas.getByRole('button', { name: 'Try publishing again' }))
     expect(onRetry).toHaveBeenCalledOnce()
-  },
-}
-
-// isSaving → Retry disabled.
-export const PublishFailedSaving: Story = {
-  render: () => (
-    <ReplyPublishFailed
-      reply={{ text: replyText, publishedAt: null, rejectionReason: null }}
-      isSaving={true}
-      onRetry={onRetry}
-    />
-  ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(canvas.getByRole('button', { name: /check and retry/i })).toBeDisabled()
+    expect(onCheck).not.toHaveBeenCalled()
   },
 }
 

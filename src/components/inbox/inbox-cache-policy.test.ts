@@ -7,8 +7,6 @@ import {
   BULLMQ_ACTIVITY_LAG_MS,
   inboxCachePolicy,
   mergeInboxCommandItem,
-  replyRefetchInterval,
-  REPLY_POLL_INTERVAL_MS,
 } from './inbox-cache-policy'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import type {
@@ -322,27 +320,5 @@ describe('inboxCachePolicy.onBulkReopened', () => {
       inboxKeys.counts(),
       inboxKeys.lastVisitCount(),
     ])
-  })
-})
-
-// ── replyRefetchInterval (reply-poll predicate) ─────────────────
-//
-//   reply status   → interval
-//   approved       → REPLY_POLL_INTERVAL_MS (publish is async via BullMQ)
-//   anything else  → false (stop polling)
-//   no reply       → false
-
-describe('replyRefetchInterval', () => {
-  it('polls while the reply is approved (publish pending)', () => {
-    expect(replyRefetchInterval({ status: 'approved' })).toBe(REPLY_POLL_INTERVAL_MS)
-  })
-
-  it.each(['draft', 'published', 'rejected'])('stops polling for status %s', (status) => {
-    expect(replyRefetchInterval({ status })).toBe(false)
-  })
-
-  it('does not poll when there is no reply', () => {
-    expect(replyRefetchInterval(undefined)).toBe(false)
-    expect(replyRefetchInterval(null)).toBe(false)
   })
 })

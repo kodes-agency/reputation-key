@@ -252,6 +252,8 @@ export async function registerReviewWorkerJobs(
 
   const reconcileAmbiguousHandler = createReconcileAmbiguousPublicationsHandler({
     replyRepo: input.replyRepo,
+    reviewRepo: input.reviewRepo,
+    replyCommandStore: input.replyCommandStore,
     reconcileReplyPublication: input.reconcileReplyPublication,
     clock: input.clock,
     logger: input.logger,
