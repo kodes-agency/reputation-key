@@ -28,6 +28,7 @@ import {
   reviewReplyPublicationRequested,
   reviewReplyRejected,
   reviewReplyUpdated,
+  type ReviewReplyPublicationRequested,
 } from '../../domain/events'
 
 // ── Shared ────────────────────────────────────────────────────────────
@@ -167,6 +168,91 @@ async function assertCurrentAiDraftBinding(
   if (status === 'stale') {
     throw reviewError('ai_suggestion_stale', 'The AI-assisted draft is no longer current')
   }
+}
+
+async function preparePublicationAuthorization(
+  deps: ReplyDeps,
+  ctx: AuthContext,
+  reply: Reply,
+  review: Review,
+): Promise<Readonly<{ now: Date; publicationIntent: ReviewReplyPublicationRequested }>> {
+  const now = deps.clock()
+  const publicationCycle = nextPublicationCycle(reply.publicationCycle)
+  const authorizationFence = await resolvePublicationAuthorizationFence(deps, review)
+  return {
+    now,
+    publicationIntent: reviewReplyPublicationRequested({
+      replyId: reply.id,
+      reviewId: reply.reviewId,
+      propertyId: review.propertyId,
+      organizationId: reply.organizationId,
+      userId: ctx.userId,
+      publicationCycle,
+      ...authorizationFence,
+      occurredAt: now,
+    }),
+  }
+}
+
+async function enqueueAuthorizedPublication(
+  deps: ReplyDeps,
+  ctx: AuthContext,
+  reply: Reply,
+  publicationIntent: ReviewReplyPublicationRequested,
+): Promise<void> {
+  await deps.queue.addPublishJob(
+    {
+      replyId: reply.id,
+      organizationId: reply.organizationId,
+      publicationCycle: reply.publicationCycle,
+      propertyId: publicationIntent.propertyId,
+      sourceEpoch: publicationIntent.sourceEpoch,
+      materialReviewRevision: publicationIntent.materialReviewRevision,
+      baseObservationRevision: publicationIntent.baseObservationRevision,
+      // Named attribution for operator/user-triggered delayed work.
+      initiator: { kind: 'user', id: ctx.userId },
+    },
+    {
+      idempotencyKey: buildIdempotencyKey(reply.id, reply.publicationCycle),
+    },
+  )
+}
+
+/**
+ * Split read-only provider reconciliation from retry re-authorization: this
+ * path may return only settled/cancelled state and must never admit a new PUT.
+ */
+async function reconcileUncertainPublicationBeforeRetry(
+  deps: ReplyDeps,
+  ctx: AuthContext,
+  reply: Reply,
+): Promise<Reply> {
+  const reconciled = await reconcileReplyPublication({
+    replyRepo: deps.replyRepo,
+    reviewRepo: deps.reviewRepo,
+    googleReviewApi: deps.googleReviewApi,
+    observationStore: deps.googleReplyObservationStore,
+    clock: deps.clock,
+  })({ replyId: reply.id, organizationId: ctx.organizationId })
+  if (reconciled.isErr()) {
+    const current = await deps.replyRepo.findById(reply.id, ctx.organizationId)
+    if (isSettledPublishedReply(current)) return current
+    if (current?.publicationState === 'cancelled') return current
+    throw reconciled.error
+  }
+  if (reconciled.value.outcome === 'confirmed_on_google') {
+    const healed = await deps.replyRepo.findById(reply.id, ctx.organizationId)
+    if (!healed) throw reviewError('reply_not_found', 'Reply not found')
+    return healed
+  }
+
+  const current = await deps.replyRepo.findById(reply.id, ctx.organizationId)
+  if (isSettledPublishedReply(current)) return current
+  if (current?.publicationState === 'cancelled') return current
+  throw reviewError(
+    'invalid_transition',
+    'Google did not positively confirm whether this reply is live; RepKey will not send it again',
+  )
 }
 
 export type DraftReply = ReturnType<typeof draftReply>
@@ -346,19 +432,12 @@ export const approveReply =
     const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
     await assertCurrentAiDraftBinding(deps, ctx, reply)
 
-    const now = deps.clock()
-    const publicationCycle = nextPublicationCycle(reply.publicationCycle)
-    const authorizationFence = await resolvePublicationAuthorizationFence(deps, review)
-    const publicationIntent = reviewReplyPublicationRequested({
-      replyId: reply.id,
-      reviewId: reply.reviewId,
-      propertyId: review.propertyId,
-      organizationId: reply.organizationId,
-      userId: ctx.userId,
-      publicationCycle,
-      ...authorizationFence,
-      occurredAt: now,
-    })
+    const { now, publicationIntent } = await preparePublicationAuthorization(
+      deps,
+      ctx,
+      reply,
+      review,
+    )
     // BQC-3.3: guarded status update + approved fact commit in one tx. The
     // durable review.reply.approved outbox row is the recovery record if the
     // process crashes before the enqueue below.
@@ -391,22 +470,7 @@ export const approveReply =
     // publication fully durable (requested → … → published state machine).
     // The saga idempotency key (sourceVersion = approval-cycle updatedAt)
     // dedupes a double enqueue of THIS approval cycle as the BullMQ jobId.
-    await deps.queue.addPublishJob(
-      {
-        replyId: approved.id,
-        organizationId: approved.organizationId,
-        publicationCycle: approved.publicationCycle,
-        propertyId: publicationIntent.propertyId,
-        sourceEpoch: publicationIntent.sourceEpoch,
-        materialReviewRevision: publicationIntent.materialReviewRevision,
-        baseObservationRevision: publicationIntent.baseObservationRevision,
-        // Named attribution for operator/user-triggered delayed work.
-        initiator: { kind: 'user', id: ctx.userId },
-      },
-      {
-        idempotencyKey: buildIdempotencyKey(approved.id, approved.publicationCycle),
-      },
-    )
+    await enqueueAuthorizedPublication(deps, ctx, approved, publicationIntent)
 
     return approved
   }
@@ -466,19 +530,12 @@ export const editPublishedReply =
       return reply
     }
 
-    const now = deps.clock()
-    const publicationCycle = nextPublicationCycle(reply.publicationCycle)
-    const authorizationFence = await resolvePublicationAuthorizationFence(deps, review)
-    const publicationIntent = reviewReplyPublicationRequested({
-      replyId: reply.id,
-      reviewId: reply.reviewId,
-      propertyId: review.propertyId,
-      organizationId: reply.organizationId,
-      userId: ctx.userId,
-      publicationCycle,
-      ...authorizationFence,
-      occurredAt: now,
-    })
+    const { now, publicationIntent } = await preparePublicationAuthorization(
+      deps,
+      ctx,
+      reply,
+      review,
+    )
 
     // Guarded edit: text + status → approved + a fresh publication cycle +
     // the review.reply.updated fact — one transaction. The committed updated
@@ -501,21 +558,7 @@ export const editPublishedReply =
     if (updatedResult.isErr()) throw updatedResult.error
     const updated = updatedResult.value
 
-    await deps.queue.addPublishJob(
-      {
-        replyId: updated.id,
-        organizationId: updated.organizationId,
-        publicationCycle: updated.publicationCycle,
-        propertyId: publicationIntent.propertyId,
-        sourceEpoch: publicationIntent.sourceEpoch,
-        materialReviewRevision: publicationIntent.materialReviewRevision,
-        baseObservationRevision: publicationIntent.baseObservationRevision,
-        initiator: { kind: 'user', id: ctx.userId },
-      },
-      {
-        idempotencyKey: buildIdempotencyKey(updated.id, updated.publicationCycle),
-      },
-    )
+    await enqueueAuthorizedPublication(deps, ctx, updated, publicationIntent)
 
     return updated
   }
@@ -620,47 +663,15 @@ export const retryPublish =
       (reply.publicationState === 'terminal' &&
         reply.publicationLastErrorClass === 'ambiguous')
     if (requiresPositiveReconciliation) {
-      const reconciled = await reconcileReplyPublication({
-        replyRepo: deps.replyRepo,
-        reviewRepo: deps.reviewRepo,
-        googleReviewApi: deps.googleReviewApi,
-        observationStore: deps.googleReplyObservationStore,
-        clock: deps.clock,
-      })({ replyId: reply.id, organizationId: ctx.organizationId })
-      if (reconciled.isErr()) {
-        const current = await deps.replyRepo.findById(reply.id, ctx.organizationId)
-        if (isSettledPublishedReply(current)) return current
-        if (current?.publicationState === 'cancelled') return current
-        throw reconciled.error
-      }
-      if (reconciled.value.outcome === 'confirmed_on_google') {
-        const healed = await deps.replyRepo.findById(reply.id, ctx.organizationId)
-        if (!healed) throw reviewError('reply_not_found', 'Reply not found')
-        return healed
-      }
-
-      const current = await deps.replyRepo.findById(reply.id, ctx.organizationId)
-      if (isSettledPublishedReply(current)) return current
-      if (current?.publicationState === 'cancelled') return current
-      throw reviewError(
-        'invalid_transition',
-        'Google did not positively confirm whether this reply is live; RepKey will not send it again',
-      )
+      return reconcileUncertainPublicationBeforeRetry(deps, ctx, reply)
     }
 
-    const now = deps.clock()
-    const publicationCycle = nextPublicationCycle(reply.publicationCycle)
-    const authorizationFence = await resolvePublicationAuthorizationFence(deps, review)
-    const publicationIntent = reviewReplyPublicationRequested({
-      replyId: reply.id,
-      reviewId: reply.reviewId,
-      propertyId: review.propertyId,
-      organizationId: reply.organizationId,
-      userId: ctx.userId,
-      publicationCycle,
-      ...authorizationFence,
-      occurredAt: now,
-    })
+    const { now, publicationIntent } = await preparePublicationAuthorization(
+      deps,
+      ctx,
+      reply,
+      review,
+    )
     // BQC-3.8: re-authorization starts a NEW publication cycle
     // (publication_state='authorized', attempts/error/reconcile-due reset).
     // No new fact — re-approval reuses the approved state, exactly as before.
@@ -684,25 +695,7 @@ export const retryPublish =
     // Post-commit enqueue (no new fact — re-approval reuses the approved
     // state). The retry bumps updatedAt, so the saga idempotency key differs
     // from the exhausted publish job's key and a fresh job is enqueued.
-    await deps.queue.addPublishJob(
-      {
-        replyId: backToApproved.id,
-        organizationId: backToApproved.organizationId,
-        publicationCycle: backToApproved.publicationCycle,
-        propertyId: publicationIntent.propertyId,
-        sourceEpoch: publicationIntent.sourceEpoch,
-        materialReviewRevision: publicationIntent.materialReviewRevision,
-        baseObservationRevision: publicationIntent.baseObservationRevision,
-        // Named attribution for operator/user-triggered delayed work.
-        initiator: { kind: 'user', id: ctx.userId },
-      },
-      {
-        idempotencyKey: buildIdempotencyKey(
-          backToApproved.id,
-          backToApproved.publicationCycle,
-        ),
-      },
-    )
+    await enqueueAuthorizedPublication(deps, ctx, backToApproved, publicationIntent)
 
     return backToApproved
   }

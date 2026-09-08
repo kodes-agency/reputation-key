@@ -1,6 +1,6 @@
 // Inbox detail — interactive reply status views (pending, failed, rejected)
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Textarea } from '#/components/ui/textarea'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
@@ -22,6 +22,25 @@ type ReplyView = Readonly<{
   rejectionReason: string | null
 }>
 
+type ReplyStatusSummaryProps = Readonly<{
+  reply: ReplyView
+  status: ReactNode
+}>
+
+function ReplyStatusSummary({ reply, status }: ReplyStatusSummaryProps) {
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        <h2 className="text-sm font-medium">Reply</h2>
+        {status}
+      </div>
+      <div className="rounded-md border bg-muted/30 p-3">
+        <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply.text}</p>
+      </div>
+    </>
+  )
+}
+
 type PendingProps = Readonly<{
   reply: ReplyView
   isSaving: boolean
@@ -40,13 +59,10 @@ export function ReplyPendingApproval({
 
   return (
     <div className="space-y-3 border-t pt-4">
-      <div className="flex items-center gap-2">
-        <h2 className="text-sm font-medium">Reply</h2>
-        <Badge variant="outline">Awaiting Approval</Badge>
-      </div>
-      <div className="rounded-md border bg-muted/30 p-3">
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply.text}</p>
-      </div>
+      <ReplyStatusSummary
+        reply={reply}
+        status={<Badge variant="outline">Awaiting Approval</Badge>}
+      />
       <div className="flex flex-wrap gap-2">
         <AlertDialog>
           <AlertDialogTrigger asChild>
@@ -126,13 +142,10 @@ type CheckProps = Readonly<{
 export function ReplyPublicationNeedsCheck({ reply, isSaving, onCheck }: CheckProps) {
   return (
     <div className="space-y-3 border-t pt-4">
-      <div className="flex items-center gap-2">
-        <h2 className="text-sm font-medium">Reply</h2>
-        <Badge variant="outline">Google status unconfirmed</Badge>
-      </div>
-      <div className="rounded-md border bg-muted/30 p-3">
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply.text}</p>
-      </div>
+      <ReplyStatusSummary
+        reply={reply}
+        status={<Badge variant="outline">Google status unconfirmed</Badge>}
+      />
       <p className="text-xs text-muted-foreground">
         Google may have accepted this reply, but RepKey could not verify it. To avoid
         posting twice, RepKey will only check Google—it will not send this reply again.
@@ -162,15 +175,14 @@ export function ReplyPublicationRetryable({ reply, isSaving, onRetry }: RetryPro
 
   return (
     <div className="space-y-3 border-t pt-4">
-      <div className="flex items-center gap-2">
-        <h2 className="text-sm font-medium">Reply</h2>
-        <Badge variant="outline">
-          {wasRejected ? 'Google rejected update' : 'Publishing stopped'}
-        </Badge>
-      </div>
-      <div className="rounded-md border bg-muted/30 p-3">
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply.text}</p>
-      </div>
+      <ReplyStatusSummary
+        reply={reply}
+        status={
+          <Badge variant="outline">
+            {wasRejected ? 'Google rejected update' : 'Publishing stopped'}
+          </Badge>
+        }
+      />
       <p className="text-xs text-muted-foreground">
         {wasRejected
           ? 'Google rejected this update before it could be published. Check the Google Business Profile connection and permissions, then try again.'
@@ -193,13 +205,10 @@ type RejectedProps = Readonly<{
 export function ReviewReplyRejected({ reply, isSaving, onEditResubmit }: RejectedProps) {
   return (
     <div className="space-y-3 border-t pt-4">
-      <div className="flex items-center gap-2">
-        <h2 className="text-sm font-medium">Reply</h2>
-        <Badge variant="destructive">Rejected</Badge>
-      </div>
-      <div className="rounded-md border bg-muted/30 p-3">
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply.text}</p>
-      </div>
+      <ReplyStatusSummary
+        reply={reply}
+        status={<Badge variant="destructive">Rejected</Badge>}
+      />
       {reply.rejectionReason && (
         <p className="text-xs text-muted-foreground">Reason: {reply.rejectionReason}</p>
       )}

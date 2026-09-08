@@ -461,6 +461,70 @@ export const createAtomicReplyCommandStore = (
     })
   }
 
+  /**
+   * Split the shared authorization-fence validation and evidence write from
+   * command-specific lifecycle facts so approval and edit keep one invariant.
+   */
+  const authorizePublicationCycle = async (
+    tx: Tx,
+    input: Readonly<{
+      reply: Reply
+      intent: PublicationAuthorizationFacts['publicationIntent']
+      publicationCycle: number
+      updates: ConditionalReplyUpdate
+      occurredAt: Date
+    }>,
+  ): Promise<Reply | null> => {
+    const { reply, intent, publicationCycle, updates, occurredAt } = input
+    const scope = await lockCurrentReplyTruthScope(tx, {
+      organizationId: reply.organizationId,
+      reviewId: reply.reviewId,
+      propertyId: intent.propertyId,
+    })
+    if (!scope || !authorizationFenceIsCurrent(intent, scope)) return null
+    const actorAllowed = await publicationActorAuthority(tx, {
+      organizationId: reply.organizationId,
+      propertyId: intent.propertyId,
+      userId: intent.userId,
+      at: occurredAt,
+    })
+    if (!actorAllowed) return null
+    if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
+    const row = await guardedReplyUpdate(
+      tx,
+      reply,
+      {
+        ...updates,
+        publicationState: 'authorized',
+        publicationCycle,
+        publicationAttempts: 0,
+        publicationLastErrorClass: null,
+        reconcileDueAt: new Date(
+          occurredAt.getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
+        ),
+      },
+      occurredAt,
+    )
+    if (!row) return null
+    await tx.insert(replyPublicationAuthorizations).values({
+      organizationId: reply.organizationId,
+      propertyId: intent.propertyId,
+      reviewId: reply.reviewId,
+      replyId: reply.id,
+      publicationCycle,
+      sourceEpoch: intent.sourceEpoch,
+      materialReviewRevision: intent.materialReviewRevision,
+      baseObservationRevision: intent.baseObservationRevision,
+      authorizedByUserId: intent.userId,
+      replyStateRevision: row.stateRevision,
+      normalizationVersion: 'google-reply-v1',
+      expectedReplyDigest: googleReplyTextDigest(row.text),
+      authorizedAt: occurredAt,
+      createdAt: occurredAt,
+    })
+    return row
+  }
+
   const mirrorUpsert = async (
     tx: Tx,
     replyToUpsert: Omit<Reply, 'createdAt' | 'updatedAt'>,
@@ -524,53 +588,14 @@ export const createAtomicReplyCommandStore = (
       const occurredAt = now ?? clock()
       return trace('reply.commandStore.markPublicationAuthorized', async () => {
         const saved = await db.transaction(async (tx) => {
-          const intent = facts.publicationIntent
-          const scope = await lockCurrentReplyTruthScope(tx, {
-            organizationId: reply.organizationId,
-            reviewId: reply.reviewId,
-            propertyId: intent.propertyId,
-          })
-          if (!scope || !authorizationFenceIsCurrent(intent, scope)) return null
-          const actorAllowed = await publicationActorAuthority(tx, {
-            organizationId: reply.organizationId,
-            propertyId: intent.propertyId,
-            userId: intent.userId,
-            at: occurredAt,
-          })
-          if (!actorAllowed) return null
-          if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
-          const row = await guardedReplyUpdate(
-            tx,
+          const row = await authorizePublicationCycle(tx, {
             reply,
-            {
-              ...updates,
-              publicationState: 'authorized',
-              publicationCycle,
-              publicationAttempts: 0,
-              publicationLastErrorClass: null,
-              reconcileDueAt: new Date(
-                occurredAt.getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
-              ),
-            },
-            occurredAt,
-          )
-          if (!row) return null
-          await tx.insert(replyPublicationAuthorizations).values({
-            organizationId: reply.organizationId,
-            propertyId: intent.propertyId,
-            reviewId: reply.reviewId,
-            replyId: reply.id,
+            intent: facts.publicationIntent,
             publicationCycle,
-            sourceEpoch: intent.sourceEpoch,
-            materialReviewRevision: intent.materialReviewRevision,
-            baseObservationRevision: intent.baseObservationRevision,
-            authorizedByUserId: intent.userId,
-            replyStateRevision: row.stateRevision,
-            normalizationVersion: 'google-reply-v1',
-            expectedReplyDigest: googleReplyTextDigest(row.text),
-            authorizedAt: occurredAt,
-            createdAt: occurredAt,
+            updates,
+            occurredAt,
           })
+          if (!row) return null
           if (facts.lifecycleEvent) await insertOutboxRow(tx, facts.lifecycleEvent)
           await insertOutboxRow(tx, facts.publicationIntent)
           return row
@@ -802,54 +827,14 @@ export const createAtomicReplyCommandStore = (
       const occurredAt = command.now ?? clock()
       return trace('reply.commandStore.editPublishedReply', async () => {
         const saved = await db.transaction(async (tx) => {
-          const intent = command.publicationIntent
-          const scope = await lockCurrentReplyTruthScope(tx, {
-            organizationId: reply.organizationId,
-            reviewId: reply.reviewId,
-            propertyId: intent.propertyId,
-          })
-          if (!scope || !authorizationFenceIsCurrent(intent, scope)) return null
-          const actorAllowed = await publicationActorAuthority(tx, {
-            organizationId: reply.organizationId,
-            propertyId: intent.propertyId,
-            userId: intent.userId,
-            at: occurredAt,
-          })
-          if (!actorAllowed) return null
-          if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
-          const row = await guardedReplyUpdate(
-            tx,
+          const row = await authorizePublicationCycle(tx, {
             reply,
-            {
-              text: command.text,
-              status: 'approved',
-              publicationState: 'authorized',
-              publicationCycle,
-              publicationAttempts: 0,
-              publicationLastErrorClass: null,
-              reconcileDueAt: new Date(
-                occurredAt.getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
-              ),
-            },
-            occurredAt,
-          )
-          if (!row) return null
-          await tx.insert(replyPublicationAuthorizations).values({
-            organizationId: reply.organizationId,
-            propertyId: intent.propertyId,
-            reviewId: reply.reviewId,
-            replyId: reply.id,
+            intent: command.publicationIntent,
             publicationCycle,
-            sourceEpoch: intent.sourceEpoch,
-            materialReviewRevision: intent.materialReviewRevision,
-            baseObservationRevision: intent.baseObservationRevision,
-            authorizedByUserId: intent.userId,
-            replyStateRevision: row.stateRevision,
-            normalizationVersion: 'google-reply-v1',
-            expectedReplyDigest: googleReplyTextDigest(row.text),
-            authorizedAt: occurredAt,
-            createdAt: occurredAt,
+            updates: { text: command.text, status: 'approved' },
+            occurredAt,
           })
+          if (!row) return null
           await insertOutboxRow(tx, command.lifecycleEvent)
           await insertOutboxRow(tx, command.publicationIntent)
           return row
