@@ -34,13 +34,27 @@ export const INBOX_PANEL_IDS = {
  */
 export const CLIP_PANEL_CONTENT = { overflow: 'hidden' } as const
 
-/** SSR-safe persistence adapter for the resizable Inbox layout. */
+/**
+ * Persistence adapter for the resizable Inbox layout.
+ *
+ * `useDefaultLayout` reads it through `useSyncExternalStore` with the SAME
+ * getter as the server snapshot, so during hydration a saved layout in
+ * localStorage is rendered against server HTML that had none: React logs the
+ * attribute mismatch on the sidebar Panel and keeps the server flex-grow, and
+ * the saved layout never applies. The page hands this adapter over only once
+ * hydrated (`useHydrated`); until then `HYDRATING_LAYOUT_STORAGE` reads
+ * nothing, matching the server exactly.
+ */
 export const inboxLayoutStorage: LayoutStorage = {
-  getItem: (key) =>
-    typeof window === 'undefined' ? null : window.localStorage.getItem(key),
+  getItem: (key) => window.localStorage.getItem(key),
   setItem: (key, value) => {
-    if (typeof window !== 'undefined') window.localStorage.setItem(key, value)
+    window.localStorage.setItem(key, value)
   },
+}
+
+export const HYDRATING_LAYOUT_STORAGE: LayoutStorage = {
+  getItem: () => null,
+  setItem: () => undefined,
 }
 
 export const ResizeHandle = () => (

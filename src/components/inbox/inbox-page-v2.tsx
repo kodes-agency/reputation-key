@@ -11,6 +11,7 @@ import { replaceInboxSearch } from './inbox-navigation'
 import type { InboxServerFns } from './types'
 import { useRef, useState } from 'react'
 import { Group, Panel, useDefaultLayout } from 'react-resizable-panels'
+import { useHydrated } from '#/components/hooks/use-hydrated'
 import {
   Sheet,
   SheetContent,
@@ -26,6 +27,7 @@ import {
   InboxDetailPane,
   INBOX_PANEL_IDS,
   CLIP_PANEL_CONTENT,
+  HYDRATING_LAYOUT_STORAGE,
   inboxLayoutStorage,
 } from './inbox-page-parts'
 import { InboxDetailSheet } from './inbox-detail-sheet'
@@ -65,10 +67,13 @@ export function InboxPageV2({
   const listRef = useRef<HTMLDivElement>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   // Replaces the v2 `autoSaveId` prop, which v4 dropped in favour of an
-  // explicit hook. Must run before the no-org early return below.
+  // explicit hook. Must run before the no-org early return below. The saved
+  // layout is read only after hydration (see `inboxLayoutStorage`); the Group
+  // is keyed on it because `defaultLayout` is consumed at mount.
+  const hydrated = useHydrated()
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: 'inbox-layout',
-    storage: inboxLayoutStorage,
+    storage: hydrated ? inboxLayoutStorage : HYDRATING_LAYOUT_STORAGE,
   })
 
   if (!ctx.activeOrganization?.id) return <InboxNoOrgState />
@@ -168,6 +173,7 @@ export function InboxPageV2({
 
   return (
     <Group
+      key={defaultLayout ? 'saved-layout' : 'default-layout'}
       orientation="horizontal"
       defaultLayout={defaultLayout}
       onLayoutChanged={onLayoutChanged}
