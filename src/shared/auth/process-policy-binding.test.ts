@@ -56,7 +56,12 @@ import { getExecutionPolicy } from '#/shared/auth/execution-policy'
 import { getDelayedExecutionPolicy } from '#/shared/auth/system-execution-policy'
 import { checkGlobalCapability } from '#/shared/auth/beta-capabilities'
 import { buildCapabilityPolicyHandle } from '#/contexts/identity/infrastructure/policy-store-init'
-import { createContainer } from '#/composition'
+import {
+  createContainer,
+  DUPLICATE_CONTAINER_ERROR,
+  getContainer,
+  releaseProcessContainer,
+} from '#/composition'
 import {
   bindProcessPolicies,
   boundProcessPolicies,
@@ -64,6 +69,7 @@ import {
   PROCESS_POLICY_ALREADY_BOUND,
   type ProcessPolicyBundle,
 } from '#/shared/auth/process-policy-binding'
+import { createSimulationContainer } from '#/shared/testing/simulation-container.server'
 
 const FIXED_DATE = new Date('2026-01-15T12:00:00.000Z')
 const clock: Clock = () => FIXED_DATE
@@ -183,6 +189,7 @@ describe('building a container installs nothing (ARC-03-T8)', () => {
 
   afterEach(() => {
     releaseProcessPolicies()
+    releaseProcessContainer()
   })
 
   it('leaves the process policies uninstalled until an entry point binds', () => {
@@ -198,6 +205,24 @@ describe('building a container installs nothing (ARC-03-T8)', () => {
 
     bindProcessPolicies(container)
     expect(getExecutionPolicy()).toBe(container.executionPolicy)
+  })
+
+  it('binds the claimed simulation without cold-booting a web container', async () => {
+    clearEventSchemas()
+    const { container } = await createSimulationContainer({
+      clock,
+      db: dbStub,
+      redis: undefined,
+      identityPort: createInMemoryIdentityPort(),
+      email: async () => {},
+    })
+    try {
+      expect(boundProcessPolicies()).toBe(container)
+      expect(() => getContainer()).toThrow(DUPLICATE_CONTAINER_ERROR)
+      expect(boundProcessPolicies()).toBe(container)
+    } finally {
+      await container.shutdown.run()
+    }
   })
 })
 

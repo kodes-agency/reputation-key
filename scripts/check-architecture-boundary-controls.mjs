@@ -109,26 +109,26 @@ const controls = [
     file: 'src/shared/queries/boundary-negative-control.ts',
     source: "import '#/shared/jobs/queue'\n",
   },
-  // ARC-03-T16: one process builds one Application Container. A request
-  // handler that can construct the WORKER container holds worker registration
-  // authority and a second set of queue connections.
+  // ARC-03-T16: only the operator harness may construct the refusing operator
+  // graph. A second entry point with that authority could create another
+  // Application Container and expose maintenance capabilities.
   {
-    name: 'start entry cannot import the worker container builder',
+    name: 'start entry cannot import the operator container builder',
     file: 'src/start.ts',
-    source: "import '#/composition/deployables'\n",
+    source: "import '#/composition/operator-container'\n",
   },
   {
-    name: 'route cannot import the worker container builder',
+    name: 'route cannot import the operator container builder',
     file: 'src/routes/boundary-negative-control.ts',
-    source: "import '#/composition/deployables'\n",
+    source: "import '#/composition/operator-container'\n",
   },
   // The api-route category IS allowed to resolve the composition root, so this
-  // is the control that proves the deployable fence is doing its own work
-  // rather than riding on the composition-root ban.
+  // control proves the operator-builder fence does its own work rather than
+  // riding on the composition-root ban.
   {
-    name: 'API route cannot import the worker container builder',
+    name: 'API route cannot import the operator container builder',
     file: 'src/routes/api/boundary-negative-control.ts',
-    source: "import '#/composition/deployables'\n",
+    source: "import '#/composition/operator-container'\n",
   },
   // ARC-03-T16: classifying `.storybook/**` so no-unknown could be enabled
   // must not become a licence for production code to link the harness.
@@ -197,11 +197,11 @@ const allowedControls = [
     file: 'src/shared/health/boundary-positive-control.ts',
     source: "import '#/shared/jobs/queue'\n",
   },
-  // ARC-03-T16: the worker entry is the one process that must build it.
+  // ARC-03-T16: scripts/ops is the only category allowed to build this graph.
   {
-    name: 'worker entry may import the worker container builder',
-    file: 'src/worker/boundary-positive-control.ts',
-    source: "import '#/composition/deployables'\n",
+    name: 'operator script may import the operator container builder',
+    file: 'scripts/ops/boundary-positive-control.ts',
+    source: "import '../../src/composition/operator-container'\n",
   },
   {
     name: 'story file may import the Storybook harness',

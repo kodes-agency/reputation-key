@@ -9,7 +9,12 @@ import { join, relative, resolve } from 'node:path'
 import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
 import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
 import { walk } from '#/shared/testing/source-tree'
-import { createContainer, type Container } from '#/composition'
+import {
+  claimProcessContainer,
+  createContainer,
+  releaseProcessContainer,
+  type Container,
+} from '#/composition'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
@@ -256,6 +261,29 @@ describe('ARC-03-T7: container-scoped consumer registry', () => {
 
     await containerA.shutdown.run()
     await containerB.shutdown.run()
+  })
+
+  it('registers deterministic consumer keys across worker rebuilds', async () => {
+    const snapshots: string[][] = []
+    for (let buildNumber = 0; buildNumber < 2; buildNumber += 1) {
+      claimProcessContainer('worker')
+      let container: Container | undefined
+      try {
+        container = build()
+        container.registerOutboxConsumers()
+        snapshots.push(
+          container.consumerRegistry
+            .list()
+            .map(({ eventType, consumerName }) => `${eventType}:${consumerName}`)
+            .sort(),
+        )
+      } finally {
+        await container?.shutdown.run()
+        releaseProcessContainer()
+      }
+    }
+
+    expect(snapshots[1]).toEqual(snapshots[0])
   })
 
   it('holds no module-level registration state and exports no free registrar', () => {
