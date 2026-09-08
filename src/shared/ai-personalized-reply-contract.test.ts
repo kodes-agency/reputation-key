@@ -164,6 +164,124 @@ describe('personalized reply draft contract', () => {
     expect(result).toEqual({ status: 'rejected', reason })
   })
 
+  // Captured live: the model re-quoted its own sentence with a full stop where
+  // the reply ends in an exclamation mark, and byte-exact self-quoting refused
+  // the whole draft. The source side of that same pair was exact, so the reply
+  // was genuinely grounded.
+  it('accepts a draft whose reply excerpt drifts only in punctuation', () => {
+    const result = parsePersonalizedReplyDraft({
+      reviewText:
+        'Имаме семеен хотел в центъра на Стара Загора. Препоръчвам на всички мои колеги!',
+      rating: 5,
+      targetLanguageTag: 'bg-Cyrl-BG',
+      tone: 'professional',
+      countryCode: 'BG',
+      brandDisplayName: 'KODES agency',
+      output: {
+        languageCode: 'bg-Cyrl-BG',
+        replyText:
+          'Благодарим Ви за препоръката и за споделеното мнение! Радваме се, че KODES agency е бил полезен.',
+        grounding: [
+          {
+            sourceExcerpt: 'Препоръчвам на всички мои колеги!',
+            replyExcerpt: 'Благодарим Ви за препоръката и за споделеното мнение.',
+          },
+        ],
+      },
+    })
+    expect(result.status).toBe('accepted')
+  })
+
+  // Also captured live: the model quoted a compressed form of its own opening
+  // sentence. Every word it quoted is in the reply, and the source excerpt was
+  // exact, so the draft is grounded.
+  it('accepts a reply excerpt the model compressed from its own sentence', () => {
+    const result = parsePersonalizedReplyDraft({
+      reviewText:
+        'Имаме семеен хотел в центъра на Стара Загора. Препоръчвам на всички мои колеги!',
+      rating: 5,
+      targetLanguageTag: 'bg-Cyrl-BG',
+      tone: 'professional',
+      countryCode: 'BG',
+      brandDisplayName: 'KODES agency',
+      output: {
+        languageCode: 'bg-Cyrl-BG',
+        replyText:
+          'Благодарим Ви за високата оценка и препоръката! Радваме се, че KODES agency е бил полезен.',
+        grounding: [
+          {
+            sourceExcerpt: 'Препоръчвам на всички мои колеги!',
+            replyExcerpt: 'Благодарим Ви за препоръката!',
+          },
+        ],
+      },
+    })
+    expect(result.status).toBe('accepted')
+  })
+
+  // A third live shape: the model quoted `услугите ни` while its reply credited
+  // `услугите на KODES agency`. Grammar drift, same claim, exact source.
+  it('accepts a reply excerpt that swaps a function word', () => {
+    const result = parsePersonalizedReplyDraft({
+      reviewText: 'Благодарение на услугите на агенцията, имаме повече трафик към сайта.',
+      rating: 5,
+      targetLanguageTag: 'bg-Cyrl-BG',
+      tone: 'professional',
+      countryCode: 'BG',
+      brandDisplayName: 'KODES agency',
+      output: {
+        languageCode: 'bg-Cyrl-BG',
+        replyText:
+          'Радваме се, че услугите на KODES agency са допринесли за повече трафик към сайта.',
+        grounding: [
+          {
+            sourceExcerpt: 'имаме повече трафик към сайта',
+            replyExcerpt: 'услугите ни са допринесли за повече трафик към сайта',
+          },
+        ],
+      },
+    })
+    expect(result.status).toBe('accepted')
+  })
+
+  // Tolerance covers the model's own words only: an excerpt padded with words
+  // the reply never contains means the model quoted something it did not write.
+  it('still rejects a reply excerpt containing words absent from the reply', () => {
+    expect(
+      parsePersonalizedReplyDraft({
+        ...ENGLISH,
+        output: {
+          ...ENGLISH.output,
+          grounding: [
+            {
+              sourceExcerpt: 'room was quiet',
+              replyExcerpt: 'the room, which was quiet',
+            },
+          ],
+        },
+      }),
+    ).toEqual({ status: 'rejected', reason: 'grounding' })
+  })
+
+  // The source side stays byte-exact: punctuation tolerance must not leak into
+  // the anchor that proves the guest actually wrote the quoted words.
+  it('keeps the source excerpt byte-exact against the review', () => {
+    expect(
+      parsePersonalizedReplyDraft({
+        ...ENGLISH,
+        output: {
+          ...ENGLISH.output,
+          grounding: [
+            {
+              sourceExcerpt: 'room was quiet.',
+              replyExcerpt: 'quiet room',
+            },
+          ],
+        },
+      }),
+    ).toEqual({ status: 'rejected', reason: 'grounding' })
+  })
+
   it('rejects loose or oversized provider output', () => {
     expect(
       parsePersonalizedReplyDraft({

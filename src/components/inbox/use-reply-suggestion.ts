@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
 import type { ReplyDraftSnapshot } from './use-reply-autosave'
 import {
+  replySuggestionFixTarget,
   replySuggestionUnavailableMessage,
   type PendingReplySuggestion,
   type ReplySuggestionResult,
@@ -32,6 +33,7 @@ export function useReplySuggestion(input: Input) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isAdopting, setIsAdopting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [errorFixTarget, setErrorFixTarget] = useState<'public_display_name' | null>(null)
   const [suggestion, setSuggestion] = useState<PendingReplySuggestion | null>(null)
   const sequence = useRef(0)
 
@@ -51,6 +53,7 @@ export function useReplySuggestion(input: Input) {
       setTone(requestedTone)
       setIsGenerating(true)
       setError(null)
+      setErrorFixTarget(null)
       try {
         await input.onFlush(baseDraft)
         const result = await input.onGenerate(requestedTone, input.target)
@@ -61,6 +64,7 @@ export function useReplySuggestion(input: Input) {
           return
         if (result.status === 'unavailable') {
           setError(replySuggestionUnavailableMessage(result.code))
+          setErrorFixTarget(replySuggestionFixTarget(result.code))
           return
         }
         const verifiedLanguageTag = resolveSuggestedReplyLanguageTag(
@@ -108,6 +112,7 @@ export function useReplySuggestion(input: Input) {
     if (suggestion === null || isAdopting) return
     setIsAdopting(true)
     setError(null)
+    setErrorFixTarget(null)
     try {
       await input.onAccept(suggestion.draft, suggestion.provenanceToken)
       input.onAdopt(suggestion.draft, suggestion.kind)
@@ -125,6 +130,7 @@ export function useReplySuggestion(input: Input) {
     isGenerating,
     isAdopting,
     error,
+    errorFixTarget,
     suggestion,
     request,
     adopt,
