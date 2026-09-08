@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Button } from '#/components/ui/button'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import {
   Dialog,
   DialogContent,
@@ -61,12 +62,14 @@ export function InboxReopenDialog({
   const [internalOpen, setInternalOpen] = useState(false)
   const [reason, setReason] = useState<ManualReopenReason | ''>('')
   const [explanation, setExplanation] = useState('')
+  const [refusal, setRefusal] = useState<unknown>(null)
   const effectiveOpen = open ?? internalOpen
   const changeOpen = (next: boolean) => {
     if (open === undefined) setInternalOpen(next)
     if (!next) {
       setReason('')
       setExplanation('')
+      setRefusal(null)
     }
     onOpenChange?.(next)
   }
@@ -74,12 +77,20 @@ export function InboxReopenDialog({
   const otherExplanation = explanation.trim()
   const canConfirm = reason !== '' && (reason !== 'other' || otherExplanation.length > 0)
 
+  // The command may refuse (a withdrawn source, a stale revision): the dialog
+  // stays open with the reason in view instead of leaking the rejection.
   const submit = async () => {
     if (!canConfirm) return
-    await onConfirm({
-      reason,
-      explanation: reason === 'other' ? otherExplanation : null,
-    })
+    setRefusal(null)
+    try {
+      await onConfirm({
+        reason,
+        explanation: reason === 'other' ? otherExplanation : null,
+      })
+    } catch (error) {
+      setRefusal(error)
+      return
+    }
     changeOpen(false)
   }
 
@@ -97,6 +108,7 @@ export function InboxReopenDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
+          <FormErrorBanner error={refusal} />
           <div className="grid gap-2">
             <Label htmlFor="inbox-reopen-reason">Reason</Label>
             <Select

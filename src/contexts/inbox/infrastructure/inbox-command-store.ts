@@ -92,6 +92,8 @@ import {
   completeGoogleReviewTarget,
   insertResponseTargetForHandlingCycle,
 } from './response-target.store'
+import { assertManualReopenPermitted } from '../domain/handling-outcome-authority'
+import { selectSourceUnavailableCloseReasons } from './handling-cycle-transitions.read'
 
 export type InboxCommandAuthorityPrincipal = Readonly<{
   userId: string
@@ -183,6 +185,24 @@ const handlingCycleHeadFromRow = (row: PersistedHead): HandlingCycleHead => ({
   stateRevision: row.stateRevision,
   status: row.status,
 })
+
+/**
+ * A withdrawn, purged or ineligible private-feedback source can never be
+ * handled, so it cannot be reopened either. Runs inside the same locked
+ * transaction as the reopen so a withdrawal committing concurrently cannot
+ * slip past it; reads the whole item history like the outcome check does.
+ */
+async function assertManualReopenHonest(tx: Tx, head: HandlingCycleHead): Promise<void> {
+  if (head.sourceType !== 'feedback') return
+  const decision = assertManualReopenPermitted({
+    current: head,
+    recordedCloseReasons: await selectSourceUnavailableCloseReasons(tx, {
+      inboxItemId: head.inboxItemId,
+      organizationId: head.organizationId,
+    }),
+  })
+  if (decision.isErr()) throw decision.error
+}
 
 const lifecycleFactFor = (transition: HandlingCycleTransition): DomainEvent => {
   const scope = {
@@ -1662,6 +1682,7 @@ async function reopenLockedBulkItem(
       'Inbox Handling Cycle disappeared during bulk reopen',
     )
   }
+  await assertManualReopenHonest(tx, handlingCycleHeadFromRow(headRow))
   const decision = createNextHandlingCycle({
     current: handlingCycleHeadFromRow(headRow),
     sourceRevision: headRow.currentSourceRevision,
@@ -2251,6 +2272,7 @@ export const createAtomicInboxCommandStore = (
             now,
             authorityRequirements(currentItem, actorPrincipals(currentItem, fact)),
           )
+          await assertManualReopenHonest(tx, handlingCycleHeadFromRow(headRow))
           const decision = createNextHandlingCycle({
             current: handlingCycleHeadFromRow(headRow),
             sourceRevision: headRow.currentSourceRevision,

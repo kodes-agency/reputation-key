@@ -9,6 +9,7 @@ import {
 import {
   SOURCE_UNAVAILABLE_CLOSE_REASONS,
   assertManagerHandlingPermitted,
+  assertManualReopenPermitted,
   isSourceUnavailableCloseReason,
   managerHandlingAttributionFor,
 } from './handling-outcome-authority'
@@ -136,5 +137,48 @@ describe('assertManagerHandlingPermitted', () => {
     expect(decision.isErr()).toBe(true)
     if (!decision.isErr()) return
     expect(decision.error.code).toBe('invalid_input')
+  })
+})
+
+describe('assertManualReopenPermitted', () => {
+  it('permits reopening a closed private-feedback cycle whose source is still live', () => {
+    const decision = assertManualReopenPermitted({
+      current: head({ status: 'closed' }),
+      recordedCloseReasons: ['private_feedback_handled'],
+    })
+    expect(decision.isOk()).toBe(true)
+  })
+
+  it('refuses to reopen once the guest withdrew: the cycle could never close', () => {
+    const decision = assertManualReopenPermitted({
+      current: head({ status: 'closed' }),
+      recordedCloseReasons: ['guest_withdrawn'],
+    })
+    expect(decision.isErr()).toBe(true)
+    if (!decision.isErr()) return
+    expect(decision.error.code).toBe('invalid_transition')
+    expect(decision.error.context).toMatchObject({
+      unavailableCloseReasons: ['guest_withdrawn'],
+    })
+  })
+
+  it('refuses after a purge or redaction made the source ineligible, even cycles later', () => {
+    const decision = assertManualReopenPermitted({
+      current: head({ currentCycleNumber: 3, status: 'closed' }),
+      recordedCloseReasons: ['superseded_by_source_revision', 'source_ineligible'],
+    })
+    expect(decision.isErr()).toBe(true)
+  })
+
+  it('leaves Review cycles to their own reopen rules', () => {
+    const decision = assertManualReopenPermitted({
+      current: head({
+        sourceType: 'review',
+        sourceId: reviewId('8a000000-0000-4000-8000-000000000004'),
+        status: 'closed',
+      }),
+      recordedCloseReasons: ['source_ineligible'],
+    })
+    expect(decision.isOk()).toBe(true)
   })
 })

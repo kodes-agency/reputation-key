@@ -3,11 +3,12 @@
 // The database already refuses an outcome row without a matching
 // `private_feedback_handled` completion transition, and `markHandled` already
 // refuses a closed cycle. Neither covers the live hole this file closes: a
-// guest withdrawal (or retention purge) closes cycle 1, a manager reopens the
-// item for internal follow-up, and cycle 2 is open and structurally handleable
-// — so a Private Feedback Handling Outcome could be recorded about a body that
-// no longer exists. That is the same fabricated-outcome failure the legacy
-// classifier guards against, and it must fail closed for LIVE rows too.
+// guest withdrawal (or retention purge) closes cycle 1; a manager reopening
+// the item would open cycle 2 as structurally handleable work — a Private
+// Feedback Handling Outcome about a body that no longer exists, or, refused,
+// an open escalating cycle nothing can close. So the reopen itself fails
+// closed, the outcome authority stays one-way, and the live-source reopen
+// keeps working.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
@@ -152,22 +153,10 @@ async function withdraw(item: InboxItem): Promise<void> {
   })
 }
 
-/** Manual reopen for internal follow-up — legitimate work, illegitimate outcome. */
-async function reopen(item: InboxItem, closedStateRevision: number): Promise<InboxItem> {
-  const [row] = (
-    await pool.query<{ command_revision: string }>(
-      'SELECT command_revision FROM inbox_items WHERE id = $1',
-      [item.id],
-    )
-  ).rows
-  const current: InboxItem = {
-    ...item,
-    status: 'closed',
-    closedAt: WITHDRAWN_AT,
-    commandRevision: Number(row!.command_revision),
-  }
+/** Manual reopen for internal follow-up; refused once the source is gone. */
+function reopen(item: InboxItem, closedStateRevision: number, commandRevision: number) {
   return commandStore(db).reopenReviewCycle({
-    item: current,
+    item: { ...item, status: 'closed', closedAt: WITHDRAWN_AT, commandRevision },
     expected: { cycleNumber: 1, sourceRevision: 1, stateRevision: closedStateRevision },
     reason: 'internal_follow_up_still_needed',
     explanation: null,
@@ -183,6 +172,27 @@ async function reopen(item: InboxItem, closedStateRevision: number): Promise<Inb
     now: REOPENED_AT,
   })
 }
+
+const commandRevisionOf = async (id: InboxItem['id']): Promise<number> =>
+  Number(
+    (
+      await pool.query<{ command_revision: string }>(
+        'SELECT command_revision FROM inbox_items WHERE id = $1',
+        [id],
+      )
+    ).rows[0]!.command_revision,
+  )
+
+const countReminders = async (id: InboxItem['id']): Promise<number> =>
+  Number(
+    (
+      await pool.query<{ count: string }>(
+        `SELECT count(*) AS count FROM inbox_response_target_reminders
+         WHERE inbox_item_id = $1 AND cancelled_at IS NULL`,
+        [id],
+      )
+    ).rows[0]!.count,
+  )
 
 const countOutcomes = async (id: InboxItem['id']): Promise<number> =>
   Number(
@@ -223,72 +233,28 @@ beforeEach(async () => {
 })
 
 describe.sequential('Manager handling authority (PostgreSQL)', () => {
-  it('refuses a manager outcome on a cycle reopened after the source was withdrawn', async () => {
+  it('refuses to reopen private feedback the guest withdrew, leaving no new work behind', async () => {
     const item = await openFeedbackCycle(WITHDRAWN_ITEM, WITHDRAWN_FEEDBACK)
     await withdraw(item)
-    const reopened = await reopen(item, 2)
-    expect(reopened.status).toBe('open')
+    const commandRevision = await commandRevisionOf(item.id)
 
-    const handling = createFeedbackHandlingStore(db, allowAllCommandAuthority)
-    const state = await handling.getState(item.id, ORG)
-    expect(state).toMatchObject({ cycleNumber: 2, status: 'open' })
-
-    await expect(
-      handling.markHandled({
-        item: reopened,
-        outcomeId: '6b000000-0000-4000-8000-000000000010',
-        outcome: 'follow_up_completed',
-        internalNote: null,
-        actorUserId: MANAGER,
-        recordedAt: ATTEMPTED_AT,
-        expected: {
-          commandRevision: reopened.commandRevision,
-          cycleNumber: state!.cycleNumber,
-          sourceRevision: state!.sourceRevision,
-          stateRevision: state!.stateRevision,
-        },
-      }),
-    ).rejects.toMatchObject({
+    await expect(reopen(item, 2, commandRevision)).rejects.toMatchObject({
       code: 'invalid_transition',
       context: { unavailableCloseReasons: ['guest_withdrawn'] },
     })
 
-    // The refusal must leave no trace of manager judgement anywhere.
-    expect(await countOutcomes(item.id)).toBe(0)
-    expect(await closeReasons(item.id)).toEqual(['guest_withdrawn'])
+    // The refusal leaves the withdrawn closure exactly as it was: one cycle,
+    // closed, no reminders chasing it, and nothing a manager could handle.
+    const handling = createFeedbackHandlingStore(db, allowAllCommandAuthority)
     await expect(handling.getState(item.id, ORG)).resolves.toMatchObject({
-      cycleNumber: 2,
-      status: 'open',
+      cycleNumber: 1,
+      status: 'closed',
       currentOutcome: null,
     })
-  })
-
-  it('still refuses once the reopened cycle has been closed and a correction is attempted', async () => {
-    const item = await openFeedbackCycle(WITHDRAWN_ITEM, WITHDRAWN_FEEDBACK)
-    await withdraw(item)
-    const reopened = await reopen(item, 2)
-    const handling = createFeedbackHandlingStore(db, allowAllCommandAuthority)
-    const state = await handling.getState(item.id, ORG)
-
-    await expect(
-      handling.correctOutcome({
-        item: reopened,
-        outcomeId: '6b000000-0000-4000-8000-000000000011',
-        outcome: 'handled_with_team',
-        internalNote: null,
-        actorUserId: MANAGER,
-        recordedAt: ATTEMPTED_AT,
-        expected: {
-          commandRevision: reopened.commandRevision,
-          cycleNumber: state!.cycleNumber,
-          sourceRevision: state!.sourceRevision,
-          stateRevision: state!.stateRevision,
-          outcomeRevision: 1,
-          outcomeId: '6b000000-0000-4000-8000-000000000010',
-        },
-      }),
-    ).rejects.toMatchObject({ _tag: 'InboxError' })
     expect(await countOutcomes(item.id)).toBe(0)
+    expect(await closeReasons(item.id)).toEqual(['guest_withdrawn'])
+    expect(await countReminders(item.id)).toBe(0)
+    expect(await commandRevisionOf(item.id)).toBe(commandRevision)
   })
 
   it('permits a manager outcome on a reopened cycle whose source was never unavailable', async () => {
