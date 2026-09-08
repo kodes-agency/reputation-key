@@ -4,6 +4,7 @@ const COMMANDS: Readonly<Record<string, readonly [file: string, ...args: string[
   Object.freeze({
     'ai-approve-enrollment': ['scripts/ops/ai-approve-enrollment.ts'],
     'ai-control': ['scripts/ops/ai-execution-control.ts'],
+    'bootstrap-owner': ['scripts/ops/bootstrap-owner.ts'],
     'disconnect-connection': ['scripts/ops/disconnect-connection.ts'],
     'gbp-subscribe': ['scripts/ops/gbp-subscribe.ts'],
     'google-admission-role': ['scripts/ops/provision-google-admission-role.ts'],
