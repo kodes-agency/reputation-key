@@ -11,15 +11,10 @@ const NOW = Date.parse('2026-09-08T18:30:00.000Z')
 const ORGANIZATION_ID = organizationId('ai-operation-reaper-test')
 const PROPERTY_ID = propertyId('79000000-0000-4000-8000-000000000001')
 const EVENT_ID = '79000000-0000-4000-8000-000000000002'
-const OVERDUE_OPERATION_ID =
-  '79000000-0000-4000-8000-000000000003' as AiOperationId
-const FRESH_OPERATION_ID =
-  '79000000-0000-4000-8000-000000000004' as AiOperationId
+const OVERDUE_OPERATION_ID = '79000000-0000-4000-8000-000000000003' as AiOperationId
+const FRESH_OPERATION_ID = '79000000-0000-4000-8000-000000000004' as AiOperationId
 
-function pendingCandidate(
-  operationId: AiOperationId,
-  createdAtEpochMillis: number,
-) {
+function pendingCandidate(operationId: AiOperationId, createdAtEpochMillis: number) {
   return {
     operationId,
     organizationId: ORGANIZATION_ID,
@@ -50,9 +45,9 @@ describe('AI operation execution reaper', () => {
       FRESH_OPERATION_ID,
       NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS + 1,
     )
-    const listExpiredExecutions = vi.fn<
-      AiOperationStorePort['listExpiredExecutions']
-    >(async () => [overdue, fresh])
+    const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
+      async () => [overdue, fresh],
+    )
     const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
     const settleOutcome = vi.fn(async () => ({
       terminalAnalysisSequence: 18,

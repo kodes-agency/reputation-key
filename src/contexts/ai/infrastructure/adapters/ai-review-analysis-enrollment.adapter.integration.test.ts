@@ -407,12 +407,9 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
       }),
       reviewEvents: createAiReviewEventStoreAdapter(db),
       aggregates: createAiPropertyAggregateStoreAdapter(db),
-      recordAnalysisReceipt: (
-        eventId: string,
-        status: 'applied' | 'obsolete',
-      ) => outbox.insertReceipt(eventId, AI_REVIEW_ANALYSIS_CONSUMER, status),
-      nowEpochMillis: () =>
-        NOW.getTime() + AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+      recordAnalysisReceipt: (eventId: string, status: 'applied' | 'obsolete') =>
+        outbox.insertReceipt(eventId, AI_REVIEW_ANALYSIS_CONSUMER, status),
+      nowEpochMillis: () => NOW.getTime() + AI_EXECUTION_ABANDONED_AFTER_MILLIS,
     }
     await expect(createAiOperationExecutionReaper(dependencies)()).resolves.toMatchObject(
       {
@@ -435,9 +432,7 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
         organizationId: ORGANIZATION_ID,
         expectedFence,
         correlationId: ENROLLMENT_ID,
-        occurredAt: new Date(
-          NOW.getTime() + AI_EXECUTION_ABANDONED_AFTER_MILLIS,
-        ),
+        occurredAt: new Date(NOW.getTime() + AI_EXECUTION_ABANDONED_AFTER_MILLIS),
       }),
     ).resolves.toMatchObject({
       status: 'caught_up',

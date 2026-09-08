@@ -276,8 +276,7 @@ function recoveryCandidate(operation: AiOperationRecord): AiOperationRecoveryCan
             propertyId: propertyId(operation.identity.propertyId),
             sourceEpoch: operation.identity.sourceEpoch,
             analysisSequence: operation.identity.analysisSequence,
-            reviewAnalysisEpoch:
-              operation.binding.capabilityFence.reviewAnalysisEpoch,
+            reviewAnalysisEpoch: operation.binding.capabilityFence.reviewAnalysisEpoch,
             propertyProfileVersion: operation.binding.propertyProfileVersion,
           }
         : failCorrupt('analysis recovery candidate has the wrong capability')
@@ -568,10 +567,7 @@ export const createAiOperationStoreAdapter = (
           eventConsumerReceipts,
           and(
             eq(eventConsumerReceipts.eventId, aiOperations.originEventId),
-            eq(
-              eventConsumerReceipts.consumerName,
-              AI_REVIEW_ANALYSIS_CONSUMER,
-            ),
+            eq(eventConsumerReceipts.consumerName, AI_REVIEW_ANALYSIS_CONSUMER),
           ),
         )
         .where(

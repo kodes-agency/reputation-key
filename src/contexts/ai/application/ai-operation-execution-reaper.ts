@@ -72,8 +72,7 @@ export function createAiOperationExecutionReaper(
 
   return async () => {
     const nowEpochMillis = deps.nowEpochMillis()
-    const horizonDeadline =
-      nowEpochMillis - AI_EXECUTION_ABANDONED_AFTER_MILLIS
+    const horizonDeadline = nowEpochMillis - AI_EXECUTION_ABANDONED_AFTER_MILLIS
     const abandoned = await deps.store.listExpiredExecutions({
       nowEpochMillis,
       executionHorizonMillis: AI_EXECUTION_ABANDONED_AFTER_MILLIS,
@@ -100,9 +99,7 @@ export function createAiOperationExecutionReaper(
           continue
         }
         dispositionCode =
-          candidate.state === 'pending'
-            ? 'operation_abandoned'
-            : 'operation_ambiguous'
+          candidate.state === 'pending' ? 'operation_abandoned' : 'operation_ambiguous'
         const expected =
           candidate.state === 'pending'
             ? {
