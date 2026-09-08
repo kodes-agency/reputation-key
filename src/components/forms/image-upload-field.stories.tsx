@@ -64,6 +64,13 @@ export const CircleEmpty: Story = {
     variant: 'circle',
     emptyLabel: 'Upload avatar',
   },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // The 128px circle carries only the label; the four-line rect copy
+    // overflowed it and was clipped mid-word.
+    await expect(canvas.getByText('Upload avatar')).toBeInTheDocument()
+    await expect(canvas.queryByText(/click to upload/i)).not.toBeInTheDocument()
+  },
 }
 
 export const RectWithPreview: Story = {
