@@ -9,6 +9,7 @@ import {
   sentryGlobalRequestMiddleware,
 } from '@sentry/tanstackstart-react'
 import { getSecurityHeaders } from '#/shared/security/security-headers'
+import { serverFunctionErrorAdapter } from '#/shared/auth/server-function-error'
 // Policy administration is an operator-facing server surface rather than a
 // route component. Import it here so its createServerFn handlers are present
 // in the production server manifest.
@@ -54,6 +55,7 @@ const cspNonceMiddleware = createMiddleware({ type: 'request' }).server(
 )
 
 export const startInstance = createStart(() => ({
+  serializationAdapters: [serverFunctionErrorAdapter],
   requestMiddleware: [sentryGlobalRequestMiddleware, csrfMiddleware, cspNonceMiddleware],
   functionMiddleware: [sentryGlobalFunctionMiddleware],
 }))

@@ -3,6 +3,7 @@ import type {
   ObservabilityInitResult,
   ObservabilityService,
 } from './telemetry'
+import { isExpectedRefusal } from '#/shared/security/expected-refusal'
 
 interface NitroErrorMonitor {
   initialize(service: ObservabilityService): ObservabilityInitResult
@@ -18,12 +19,6 @@ interface NitroErrorMonitoringApp {
   }
 }
 
-function httpStatus(error: Error): number | undefined {
-  const candidate = error as Error & { status?: unknown; statusCode?: unknown }
-  if (typeof candidate.statusCode === 'number') return candidate.statusCode
-  return typeof candidate.status === 'number' ? candidate.status : undefined
-}
-
 /**
  * Register the Nitro error hook without forwarding its request or route
  * context. Expected 4xx responses are product/security outcomes, not issues.
@@ -34,8 +29,7 @@ export function createNitroErrorMonitoringPlugin(
   return (app) => {
     monitor.initialize('web')
     app.hooks.hook('error', (error) => {
-      const status = httpStatus(error)
-      if (status !== undefined && status < 500) return
+      if (isExpectedRefusal(error)) return
       monitor.captureException(error, { source: 'nitro' })
     })
   }

@@ -5,20 +5,7 @@
 import { getLogger } from '#/shared/observability/logger'
 import { getRequestContext } from '#/shared/observability/request-context'
 import { APIError } from 'better-auth'
-
-export class ServerFunctionError extends Error {
-  readonly _tag: string
-  readonly code: string
-  readonly status: number
-
-  constructor(errorName: string, message: string, code: string, status: number) {
-    super(message)
-    this.name = errorName
-    this._tag = errorName
-    this.code = code
-    this.status = status
-  }
-}
+import { ServerFunctionError } from './server-function-error'
 
 /**
  * Throw a ServerFunctionError — used by all context server functions

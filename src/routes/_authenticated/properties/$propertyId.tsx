@@ -39,7 +39,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
     } catch (error) {
       // A property outside the caller's organization answers 404 from the
       // server fn; that is this route's not-found, never a rendered error.
-      // `ServerFunctionError` does not survive seroval, so narrow on `.status`.
+      // Narrow on `.status`: the server function error crosses the wire with it.
       if (isNotFoundStatus(error)) throw notFound()
       throw error
     }

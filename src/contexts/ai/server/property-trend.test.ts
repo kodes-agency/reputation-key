@@ -101,7 +101,7 @@ vi.mock('#/shared/auth/execution-policy', async (importOriginal) => {
 })
 
 import { getPropertyAiTrendFn } from './property-trend'
-import { ServerFunctionError } from '#/shared/auth/server-errors'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 
 // ── Sourced fixtures ────────────────────────────────────────────────
 // The report profile version is read off the compiled operation catalogue, never

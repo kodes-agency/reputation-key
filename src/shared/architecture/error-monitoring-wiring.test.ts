@@ -75,7 +75,6 @@ describe('production error-monitoring wiring', () => {
     )
     expect(router).toContain("from '#/shared/observability/browser-exception-capture'")
     expect(router).not.toContain("from '@sentry/tanstackstart-react'")
-    expect(instrumentation).toContain('beforeSend: scrubSentryEvent')
     expect(instrumentation).toContain('beforeBreadcrumb: scrubSentryBreadcrumb')
     expect(viteConfig).toContain("'**/shared/observability/browser-exception-capture.ts'")
     expect(telemetry).toContain("from './sentry-event-scrub'")

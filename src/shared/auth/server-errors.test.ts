@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { APIError } from 'better-auth'
-import { catchUntagged, ServerFunctionError } from './server-errors'
+import { catchUntagged } from './server-errors'
+import { ServerFunctionError } from './server-function-error'
 
 /** Run catchUntagged (which throws) and capture the thrown ServerFunctionError. */
 function surface(e: unknown): ServerFunctionError {

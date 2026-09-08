@@ -14,12 +14,14 @@
 import * as Sentry from '@sentry/node'
 import { z } from 'zod/v4'
 import {
+  dropExpectedRefusals,
   filterAndScrubSentryTransaction,
   scrubSentryBreadcrumb,
   scrubSentryEvent,
   scrubSentryTags,
   scrubString,
   type SentryBreadcrumb,
+  type SentryEventHint,
 } from './sentry-event-scrub'
 
 const ERROR_MONITOR_FLUSH_BUDGET_MS = 1_500
@@ -58,7 +60,7 @@ export interface ErrorMonitoringSdk {
     readonly integrations: (
       defaults: ReadonlyArray<{ readonly name?: string }>,
     ) => ReadonlyArray<{ readonly name?: string }>
-    readonly beforeSend: (event: unknown) => unknown
+    readonly beforeSend: (event: unknown, hint?: SentryEventHint) => unknown
     readonly beforeSendTransaction: (event: unknown) => unknown
     readonly beforeBreadcrumb: (breadcrumb: SentryBreadcrumb) => SentryBreadcrumb
   }): unknown
@@ -250,7 +252,7 @@ export function createErrorMonitor(deps: {
                   integration.name !== 'LocalVariablesAsync' &&
                   integration.name !== 'ContextLines',
               ),
-            beforeSend: scrubSentryEvent,
+            beforeSend: dropExpectedRefusals(scrubSentryEvent),
             beforeSendTransaction: filterAndScrubSentryTransaction,
             beforeBreadcrumb: scrubSentryBreadcrumb,
           })

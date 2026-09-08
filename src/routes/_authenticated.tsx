@@ -20,6 +20,7 @@ import {
   type CapabilitySet,
 } from '#/shared/auth/capability-set'
 import { propertyIdFromLocation } from '#/components/hooks/use-property-id'
+import { httpStatus } from '#/shared/security/expected-refusal'
 import { SidebarProvider } from '#/components/ui/sidebar'
 import { ManagerSidebar } from '#/components/layout/manager-sidebar'
 import { SettingsSidebar } from '#/components/layout/settings-sidebar'
@@ -63,6 +64,30 @@ type CapabilityResolution =
   | Readonly<{ ok: true; capabilities: CapabilitySet }>
   | Readonly<{ ok: false; error: unknown }>
 
+/**
+ * Every expected way the organization lookup fails becomes a redirect:
+ *  1. isRedirect — always forward (e.g., auth middleware redirects).
+ *  2. 401 — the session ended between getSession() and this call (sign-out
+ *     in another tab, expiry): the same outcome as no session.
+ *  3. no_active_org — expected for an account awaiting access; route to the
+ *     explicit invitation/support state before the tenant shell loads.
+ *  4. Everything else propagates to the route error boundary.
+ */
+function organizationLoadFailure(error: unknown, href: string): unknown {
+  if (isRedirect(error)) return error
+  if (httpStatus(error) === 401) {
+    return redirect({ to: '/login', search: { redirect: href } })
+  }
+  const code =
+    error instanceof Error && 'code' in error
+      ? (error as { code?: unknown }).code
+      : undefined
+  if (code === 'no_active_org') {
+    return redirect({ to: '/unavailable', search: { reason: 'workspace_access' } })
+  }
+  return error
+}
+
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async ({ location }) => {
     const session = await getSession()
@@ -94,13 +119,9 @@ export const Route = createFileRoute('/_authenticated')({
       (error: unknown) => ({ ok: false, error }),
     )
 
-    // Error handling strategy for getActiveOrganization:
-    //  1. isRedirect — always forward (e.g., auth middleware redirects).
-    //  2. availability: disabled — the entire workspace is intentionally dark;
-    //     redirect before rendering any authenticated surface.
-    //  3. no_active_org — expected for an account awaiting access; route to the
-    //     explicit invitation/support state before the tenant shell loads.
-    //  4. Everything else — propagate to the route error boundary.
+    // `availability: disabled` — the entire workspace is intentionally dark;
+    // redirect before rendering any authenticated surface. Failures are
+    // classified by organizationLoadFailure().
     try {
       const org = await getActiveOrganization()
       if (org.availability === 'disabled') {
@@ -131,23 +152,7 @@ export const Route = createFileRoute('/_authenticated')({
         })
       }
     } catch (e) {
-      if (isRedirect(e)) throw e
-
-      const errorCode =
-        e instanceof Error &&
-        'code' in e &&
-        typeof (e as { code?: unknown }).code === 'string'
-          ? (e as { code: string }).code
-          : null
-      if (errorCode === 'no_active_org') {
-        throw redirect({
-          to: '/unavailable',
-          search: { reason: 'workspace_access' },
-        })
-      } else {
-        // Unexpected error — propagate to error boundary.
-        throw e
-      }
+      throw organizationLoadFailure(e, location.href)
     }
 
     const capabilityResolution = await capabilitiesPromise

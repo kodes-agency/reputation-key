@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
+  dropExpectedRefusals,
   filterAndScrubSentryTransaction,
   scrubSentryBreadcrumb,
   scrubSentryEvent,
@@ -239,5 +241,49 @@ describe('telemetry PII scrubbing (B3.5)', () => {
     })
     expect(JSON.stringify(scrubbed)).not.toContain(marker)
     expect(JSON.stringify(scrubbed)).not.toContain('manager@example.com')
+  })
+})
+
+describe('dropExpectedRefusals', () => {
+  const beforeSend = dropExpectedRefusals(scrubSentryEvent)
+  const event = () => ({ message: 'password=hunter2 failed' })
+
+  it.each([
+    [
+      'a wrong password',
+      new ServerFunctionError(
+        'AuthError',
+        'Invalid email or password',
+        'invalid_credentials',
+        401,
+      ),
+    ],
+    [
+      'an expired session',
+      new ServerFunctionError('AuthError', 'Valid session required', 'unauthorized', 401),
+    ],
+    [
+      "another organization's property",
+      new ServerFunctionError('PropertyError', 'Not found', 'not_found', 404),
+    ],
+    ['an h3 client error', Object.assign(new Error('Bad Request'), { statusCode: 400 })],
+  ])('never delivers %s', (_label, refusal) => {
+    expect(beforeSend(event(), { originalException: refusal })).toBeNull()
+  })
+
+  it.each([
+    [
+      'a server failure',
+      new ServerFunctionError('InternalError', 'boom', 'internal', 500),
+    ],
+    ['an untyped error', new Error('database failed')],
+    ['no exception hint', undefined],
+  ])('delivers %s scrubbed', (_label, exception) => {
+    const delivered = beforeSend(
+      event(),
+      exception === undefined ? undefined : { originalException: exception },
+    )
+    expect(delivered).not.toBeNull()
+    expect(JSON.stringify(delivered)).not.toContain('hunter2')
   })
 })

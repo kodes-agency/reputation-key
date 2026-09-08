@@ -1,7 +1,11 @@
 import { useEffect } from 'react'
 import { getGlobalStartContext } from '@tanstack/react-start'
 import { QueryClient } from '@tanstack/react-query'
-import { createRouter as createTanStackRouter, useRouter } from '@tanstack/react-router'
+import {
+  createRouter as createTanStackRouter,
+  Navigate,
+  useRouter,
+} from '@tanstack/react-router'
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
 import { routeTree } from './routeTree.gen'
 
@@ -11,6 +15,7 @@ import { AlertCircle } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { publicErrorMessage } from '#/shared/security/error-display'
 import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
+import { httpStatus, isExpectedRefusal } from '#/shared/security/expected-refusal'
 
 /** Default pending component — shown while route loaders are resolving. */
 function DefaultPendingComponent() {
@@ -25,13 +30,27 @@ function DefaultPendingComponent() {
   )
 }
 
-/** Default error component — shown when route loaders throw. */
+/**
+ * Default error component — shown when route loaders throw.
+ *
+ * A 401 here means the session ended under an open page (sign-out elsewhere,
+ * expiry) and a query or loader refused: that is the login page's job, not a
+ * failure. Expected refusals (4xx) are never reported; `beforeSend` drops
+ * them too, this keeps the boundary honest about what it captures.
+ */
 function DefaultErrorComponent({ error }: { error: Error }) {
   const router = useRouter()
+  const signedOut = httpStatus(error) === 401
 
   useEffect(() => {
-    captureBrowserException(error)
+    if (!isExpectedRefusal(error)) captureBrowserException(error)
   }, [error])
+
+  if (signedOut) {
+    return (
+      <Navigate to="/login" search={{ redirect: router.state.location.href }} replace />
+    )
+  }
 
   return (
     <div className="page-wrap px-4 pb-8 pt-14">

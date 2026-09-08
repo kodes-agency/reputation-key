@@ -118,7 +118,7 @@ vi.mock('#/shared/auth/execution-policy', async (importOriginal) => {
 })
 
 import { generateReplySuggestionFn } from './reply-suggestion'
-import { ServerFunctionError } from '#/shared/auth/server-errors'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 
 // ── Sourced fixtures ────────────────────────────────────────────────
 

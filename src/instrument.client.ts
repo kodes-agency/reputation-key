@@ -1,6 +1,7 @@
 import type * as SentrySdk from '@sentry/tanstackstart-react'
 import { setBrowserExceptionCapture } from '#/shared/observability/browser-exception-capture'
 import {
+  dropExpectedRefusals,
   scrubSentryBreadcrumb,
   scrubSentryEvent,
 } from '#/shared/observability/sentry-event-scrub'
@@ -58,7 +59,7 @@ export async function initializeBrowserObservability(
       environment: metaContent(root, 'repkey-sentry-environment'),
       sendDefaultPii: false,
       tracesSampleRate: 0,
-      beforeSend: scrubSentryEvent,
+      beforeSend: dropExpectedRefusals(scrubSentryEvent),
       beforeBreadcrumb: scrubSentryBreadcrumb,
     })
     setBrowserExceptionCapture((error) => {
