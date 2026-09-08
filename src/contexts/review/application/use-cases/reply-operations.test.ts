@@ -162,7 +162,7 @@ function makeReplyCommandStoreFake(
     // + the new publication-cycle fields — with the same domain pre-check.
     markPublicationAuthorized: async (reply, updates, facts, now) => {
       if (!nextPublicationState(reply.publicationState, 'authorize')) return null
-      return transition(
+      const saved = await transition(
         reply,
         {
           ...updates,
@@ -177,6 +177,8 @@ function makeReplyCommandStoreFake(
         facts.lifecycleEvent,
         now,
       )
+      if (saved) await outbox.record(facts.publicationIntent)
+      return saved
     },
     markPublished: (reply, updates, event, now) =>
       transition(
@@ -196,7 +198,7 @@ function makeReplyCommandStoreFake(
     // transition with the edit fields + the updated fact.
     editPublishedReply: async (reply, command) => {
       if (reply.status !== 'published') return null
-      return transition(
+      const saved = await transition(
         reply,
         {
           text: command.text,
@@ -212,6 +214,8 @@ function makeReplyCommandStoreFake(
         command.lifecycleEvent,
         command.now,
       )
+      if (saved) await outbox.record(command.publicationIntent)
+      return saved
     },
     mirrorSyncedReply: vi.fn(async () => {
       throw new Error('mirrorSyncedReply is not used by reply-operations')
@@ -686,7 +690,7 @@ describe('submitReply', () => {
 // ── approveReply ────────────────────────────────────────────────────────
 
 describe('approveReply', () => {
-  it('transitions pending_approval → approved and enqueues publish job', async () => {
+  it('commits one authorization intent before enqueue and produces neither for a member', async () => {
     const pending = makeReply({ status: 'pending_approval' })
     const deps = makeDeps({
       replyRepo: {
@@ -694,28 +698,54 @@ describe('approveReply', () => {
         findInternalByReviewId: vi.fn(async () => pending),
       } as unknown as ReplyRepository,
     })
+    vi.mocked(deps.queue.addPublishJob).mockImplementation(async () => {
+      expect(deps.outbox.byTag('review.reply.publication_requested')).toHaveLength(1)
+    })
+
     const result = await approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
-    expect(result.status).toBe('approved')
-    expect(result.approvedBy).toBe(USER_ID)
-    expect(result.publicationCycle).toBe(1)
+
+    expect(result).toMatchObject({
+      status: 'approved',
+      approvedBy: USER_ID,
+      publicationCycle: 1,
+    })
+    const intents = deps.outbox.byTag('review.reply.publication_requested')
+    expect(intents).toHaveLength(1)
+    const intent = intents[0]!
+    expect(intent).toMatchObject({
+      replyId: REPLY_ID,
+      reviewId: REVIEW_ID,
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      userId: USER_ID,
+      publicationCycle: 1,
+    })
+    expect(deps.queue.addPublishJob).toHaveBeenCalledOnce()
     expect(deps.queue.addPublishJob).toHaveBeenCalledWith(
       {
-        replyId: REPLY_ID,
-        organizationId: ORG_ID,
-        publicationCycle: 1,
-        propertyId: PROP_ID,
-        sourceEpoch: 0,
-        materialReviewRevision: 1,
-        baseObservationRevision: 0,
-        // Named attribution for user-triggered delayed work.
+        replyId: intent.replyId,
+        organizationId: intent.organizationId,
+        publicationCycle: intent.publicationCycle,
+        propertyId: intent.propertyId,
+        sourceEpoch: intent.sourceEpoch,
+        materialReviewRevision: intent.materialReviewRevision,
+        baseObservationRevision: intent.baseObservationRevision,
         initiator: { kind: 'user', id: USER_ID },
       },
-      {
-        // RPL-01: the committed monotonic cycle is both the queue identity and
-        // the worker's stale-intent fence.
-        idempotencyKey: buildIdempotencyKey(REPLY_ID, 1),
-      },
+      { idempotencyKey: buildIdempotencyKey(intent.replyId, intent.publicationCycle) },
     )
+
+    const memberDeps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => pending),
+      } as unknown as ReplyRepository,
+    })
+    await expect(
+      approveReply(memberDeps)({ reviewId: REVIEW_ID }, MEMBER_CTX),
+    ).rejects.toMatchObject({ code: 'unauthorized', _tag: 'ReviewError' })
+    expect(memberDeps.outbox.byTag('review.reply.publication_requested')).toHaveLength(0)
+    expect(memberDeps.queue.addPublishJob).not.toHaveBeenCalled()
   })
 
   it('sets approvedAt when approving', async () => {

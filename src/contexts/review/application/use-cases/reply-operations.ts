@@ -170,41 +170,48 @@ async function assertCurrentAiDraftBinding(
   }
 }
 
-async function preparePublicationAuthorization(
+type PublicationCommandOutcome = Readonly<{
+  reply: Reply
+  shouldEnqueue: boolean
+}>
+
+/**
+ * One command-side chokepoint constructs the durable authorization intent and
+ * performs low-latency queue admission only after the callback commits it.
+ */
+async function authorizeAndEnqueuePublication(
   deps: ReplyDeps,
   ctx: AuthContext,
   reply: Reply,
   review: Review,
-): Promise<Readonly<{ now: Date; publicationIntent: ReviewReplyPublicationRequested }>> {
+  authorize: (
+    now: Date,
+    publicationIntent: ReviewReplyPublicationRequested,
+  ) => Promise<PublicationCommandOutcome>,
+): Promise<Reply> {
   const now = deps.clock()
   const publicationCycle = nextPublicationCycle(reply.publicationCycle)
   const authorizationFence = await resolvePublicationAuthorizationFence(deps, review)
-  return {
-    now,
-    publicationIntent: reviewReplyPublicationRequested({
-      replyId: reply.id,
-      reviewId: reply.reviewId,
-      propertyId: review.propertyId,
-      organizationId: reply.organizationId,
-      userId: ctx.userId,
-      publicationCycle,
-      ...authorizationFence,
-      occurredAt: now,
-    }),
-  }
-}
+  const publicationIntent = reviewReplyPublicationRequested({
+    replyId: reply.id,
+    reviewId: reply.reviewId,
+    propertyId: review.propertyId,
+    organizationId: reply.organizationId,
+    userId: ctx.userId,
+    publicationCycle,
+    ...authorizationFence,
+    occurredAt: now,
+  })
+  const outcome = await authorize(now, publicationIntent)
+  if (!outcome.shouldEnqueue) return outcome.reply
 
-async function enqueueAuthorizedPublication(
-  deps: ReplyDeps,
-  ctx: AuthContext,
-  reply: Reply,
-  publicationIntent: ReviewReplyPublicationRequested,
-): Promise<void> {
+  // The queue cannot join the pg transaction. The committed intent is the
+  // recovery record; the deterministic reply+cycle key dedupes admission.
   await deps.queue.addPublishJob(
     {
-      replyId: reply.id,
-      organizationId: reply.organizationId,
-      publicationCycle: reply.publicationCycle,
+      replyId: outcome.reply.id,
+      organizationId: outcome.reply.organizationId,
+      publicationCycle: outcome.reply.publicationCycle,
       propertyId: publicationIntent.propertyId,
       sourceEpoch: publicationIntent.sourceEpoch,
       materialReviewRevision: publicationIntent.materialReviewRevision,
@@ -213,9 +220,13 @@ async function enqueueAuthorizedPublication(
       initiator: { kind: 'user', id: ctx.userId },
     },
     {
-      idempotencyKey: buildIdempotencyKey(reply.id, reply.publicationCycle),
+      idempotencyKey: buildIdempotencyKey(
+        outcome.reply.id,
+        outcome.reply.publicationCycle,
+      ),
     },
   )
+  return outcome.reply
 }
 
 /**
@@ -432,47 +443,40 @@ export const approveReply =
     const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
     await assertCurrentAiDraftBinding(deps, ctx, reply)
 
-    const { now, publicationIntent } = await preparePublicationAuthorization(
+    return authorizeAndEnqueuePublication(
       deps,
       ctx,
       reply,
       review,
+      async (now, publicationIntent) => {
+        // BQC-3.3: guarded status update + approved fact commit in one tx. The
+        // durable review.reply.approved outbox row is the recovery record if the
+        // process crashes before the enqueue below.
+        // BQC-3.8: the same write authorizes the publication cycle —
+        // publication_state='authorized', attempts/last-error/reconcile-due reset.
+        const approvedResult = await commitTransition(reply, 'approved', now, () =>
+          deps.commandStore.markPublicationAuthorized(
+            reply,
+            { status: 'approved', approvedBy: ctx.userId, approvedAt: now },
+            {
+              lifecycleEvent: reviewReplyApproved({
+                replyId: reply.id,
+                reviewId: reply.reviewId,
+                propertyId: review.propertyId,
+                organizationId: reply.organizationId,
+                userId: ctx.userId,
+                authorId: reply.createdBy,
+                occurredAt: now,
+              }),
+              publicationIntent,
+            },
+            now,
+          ),
+        )
+        if (approvedResult.isErr()) throw approvedResult.error
+        return { reply: approvedResult.value, shouldEnqueue: true }
+      },
     )
-    // BQC-3.3: guarded status update + approved fact commit in one tx. The
-    // durable review.reply.approved outbox row is the recovery record if the
-    // process crashes before the enqueue below.
-    // BQC-3.8: the same write authorizes the publication cycle —
-    // publication_state='authorized', attempts/last-error/reconcile-due reset.
-    const approvedResult = await commitTransition(reply, 'approved', now, () =>
-      deps.commandStore.markPublicationAuthorized(
-        reply,
-        { status: 'approved', approvedBy: ctx.userId, approvedAt: now },
-        {
-          lifecycleEvent: reviewReplyApproved({
-            replyId: reply.id,
-            reviewId: reply.reviewId,
-            propertyId: review.propertyId,
-            organizationId: reply.organizationId,
-            userId: ctx.userId,
-            authorId: reply.createdBy,
-            occurredAt: now,
-          }),
-          publicationIntent,
-        },
-        now,
-      ),
-    )
-    if (approvedResult.isErr()) throw approvedResult.error
-    const approved = approvedResult.value
-
-    // Post-commit enqueue: the BullMQ queue cannot join the pg transaction.
-    // The committed approved fact is the recovery record; BQC-3.8 makes
-    // publication fully durable (requested → … → published state machine).
-    // The saga idempotency key (sourceVersion = approval-cycle updatedAt)
-    // dedupes a double enqueue of THIS approval cycle as the BullMQ jobId.
-    await enqueueAuthorizedPublication(deps, ctx, approved, publicationIntent)
-
-    return approved
   }
 
 // ── Edit published reply (edit-and-republish) ─────────────────────────
@@ -530,37 +534,34 @@ export const editPublishedReply =
       return reply
     }
 
-    const { now, publicationIntent } = await preparePublicationAuthorization(
+    return authorizeAndEnqueuePublication(
       deps,
       ctx,
       reply,
       review,
+      async (now, publicationIntent) => {
+        // Guarded edit: text + status → approved + a fresh publication cycle +
+        // the review.reply.updated fact — one transaction. The committed updated
+        // fact is the recovery record if the process crashes before the enqueue.
+        const updatedResult = await commitTransition(reply, 'approved', now, () =>
+          deps.commandStore.editPublishedReply(reply, {
+            text,
+            lifecycleEvent: reviewReplyUpdated({
+              replyId: reply.id,
+              reviewId: reply.reviewId,
+              propertyId: review.propertyId,
+              organizationId: reply.organizationId,
+              userId: ctx.userId,
+              occurredAt: now,
+            }),
+            publicationIntent,
+            now,
+          }),
+        )
+        if (updatedResult.isErr()) throw updatedResult.error
+        return { reply: updatedResult.value, shouldEnqueue: true }
+      },
     )
-
-    // Guarded edit: text + status → approved + a fresh publication cycle +
-    // the review.reply.updated fact — one transaction. The committed updated
-    // fact is the recovery record if the process crashes before the enqueue.
-    const updatedResult = await commitTransition(reply, 'approved', now, () =>
-      deps.commandStore.editPublishedReply(reply, {
-        text,
-        lifecycleEvent: reviewReplyUpdated({
-          replyId: reply.id,
-          reviewId: reply.reviewId,
-          propertyId: review.propertyId,
-          organizationId: reply.organizationId,
-          userId: ctx.userId,
-          occurredAt: now,
-        }),
-        publicationIntent,
-        now,
-      }),
-    )
-    if (updatedResult.isErr()) throw updatedResult.error
-    const updated = updatedResult.value
-
-    await enqueueAuthorizedPublication(deps, ctx, updated, publicationIntent)
-
-    return updated
   }
 
 // ── Reject reply ──────────────────────────────────────────────────────
@@ -666,36 +667,34 @@ export const retryPublish =
       return reconcileUncertainPublicationBeforeRetry(deps, ctx, reply)
     }
 
-    const { now, publicationIntent } = await preparePublicationAuthorization(
+    return authorizeAndEnqueuePublication(
       deps,
       ctx,
       reply,
       review,
+      async (now, publicationIntent) => {
+        // BQC-3.8: re-authorization starts a NEW publication cycle
+        // (publication_state='authorized', attempts/error/reconcile-due reset).
+        // No new lifecycle fact — re-approval reuses the approved state.
+        const backToApprovedResult = await commitTransition(reply, 'approved', now, () =>
+          deps.commandStore.markPublicationAuthorized(
+            reply,
+            { status: 'approved' },
+            { lifecycleEvent: null, publicationIntent },
+            now,
+          ),
+        )
+        if (backToApprovedResult.isErr()) {
+          // The authorization CAS can lose to the same legitimate publication
+          // transition. Durable published state means the requested outcome won,
+          // but no new intent was committed and no enqueue is needed.
+          const current = await deps.replyRepo.findById(reply.id, ctx.organizationId)
+          if (isSettledPublishedReply(current)) {
+            return { reply: current, shouldEnqueue: false }
+          }
+          throw backToApprovedResult.error
+        }
+        return { reply: backToApprovedResult.value, shouldEnqueue: true }
+      },
     )
-    // BQC-3.8: re-authorization starts a NEW publication cycle
-    // (publication_state='authorized', attempts/error/reconcile-due reset).
-    // No new fact — re-approval reuses the approved state, exactly as before.
-    const backToApprovedResult = await commitTransition(reply, 'approved', now, () =>
-      deps.commandStore.markPublicationAuthorized(
-        reply,
-        { status: 'approved' },
-        { lifecycleEvent: null, publicationIntent },
-        now,
-      ),
-    )
-    if (backToApprovedResult.isErr()) {
-      // The authorization CAS can lose to the same legitimate publication
-      // transition. Durable published state means the requested outcome won.
-      const current = await deps.replyRepo.findById(reply.id, ctx.organizationId)
-      if (isSettledPublishedReply(current)) return current
-      throw backToApprovedResult.error
-    }
-    const backToApproved = backToApprovedResult.value
-
-    // Post-commit enqueue (no new fact — re-approval reuses the approved
-    // state). The retry bumps updatedAt, so the saga idempotency key differs
-    // from the exhausted publish job's key and a fresh job is enqueued.
-    await enqueueAuthorizedPublication(deps, ctx, backToApproved, publicationIntent)
-
-    return backToApproved
   }
