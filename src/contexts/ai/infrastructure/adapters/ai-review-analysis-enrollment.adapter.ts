@@ -183,7 +183,7 @@ async function snapshot(
   const result = await tx.execute(sql`
     SELECT count(*)::bigint AS count,
            encode(
-             digest(
+             sha256(
                convert_to(
                  COALESCE(
                    string_agg(
@@ -193,8 +193,7 @@ async function snapshot(
                    ''
                  ),
                  'UTF8'
-               ),
-               'sha256'
+               )
              ),
              'hex'
            ) AS digest
@@ -402,15 +401,15 @@ export const createReviewAnalysisEnrollmentAdapter = (
       }
 
       const current = await tx.execute(sql`
-        SELECT authorization.*, property.source_epoch AS property_source_epoch,
+        SELECT enablement.*, property.source_epoch AS property_source_epoch,
                property.lifecycle_state, property.deleted_at
-        FROM merchant_ai_enablement AS authorization
+        FROM merchant_ai_enablement AS enablement
         INNER JOIN properties AS property
-          ON property.organization_id = authorization.organization_id
-         AND property.id = authorization.property_id
-        WHERE authorization.organization_id = ${input.organizationId}
-          AND authorization.property_id = ${input.propertyId}::uuid
-        FOR UPDATE OF authorization, property
+          ON property.organization_id = enablement.organization_id
+         AND property.id = enablement.property_id
+        WHERE enablement.organization_id = ${input.organizationId}
+          AND enablement.property_id = ${input.propertyId}::uuid
+        FOR UPDATE OF enablement, property
       `)
       const row = current.rows[0] as Row | undefined
       if (!row) {
