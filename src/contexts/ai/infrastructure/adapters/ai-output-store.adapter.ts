@@ -590,6 +590,11 @@ export const createAiOutputStoreAdapter = (
         ) {
           return false
         }
+        // The review's own analysis_sequence proves the source has not been
+        // re-sequenced since the operation was reserved. The property head is a
+        // per-property allocator (every pin or source change takes the next
+        // number), so it equals this sequence only for the last review sequenced
+        // — comparing against it discarded every other paid analysis.
         const completedAt = new Date(input.providerCompletion.completedAtEpochMillis)
         const [currentSource] = await tx
           .select({
@@ -599,17 +604,8 @@ export const createAiOutputStoreAdapter = (
             sourceDigest: reviews.aiSourceDigest,
             sourceByteCount: reviews.aiSourceByteLength,
             contentExpiresAt: reviews.contentExpiresAt,
-            headSequence: reviewAiAnalysisHeads.headSequence,
           })
           .from(reviews)
-          .innerJoin(
-            reviewAiAnalysisHeads,
-            and(
-              eq(reviewAiAnalysisHeads.organizationId, reviews.organizationId),
-              eq(reviewAiAnalysisHeads.propertyId, reviews.propertyId),
-              eq(reviewAiAnalysisHeads.sourceEpoch, reviews.sourceEpoch),
-            ),
-          )
           .where(
             and(
               eq(reviews.organizationId, input.organizationId),
@@ -626,7 +622,6 @@ export const createAiOutputStoreAdapter = (
           currentSource.analysisSequence !== input.analysisSequence ||
           currentSource.sourceDigest !== operation.sourceDigest ||
           currentSource.sourceByteCount !== operation.sourceByteCount ||
-          currentSource.headSequence !== input.analysisSequence ||
           currentSource.contentExpiresAt === null ||
           currentSource.contentExpiresAt <= completedAt
         ) {
