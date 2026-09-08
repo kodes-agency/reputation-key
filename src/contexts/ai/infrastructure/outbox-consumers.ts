@@ -121,11 +121,13 @@ export async function handleAiReviewEvent(
   })
 
   if (result.status === 'retry') {
-    // Retry scheduling is BullMQ's (exponential 30s backoff, 8 attempts — see
-    // DISPATCH_JOB_OPTIONS in src/shared/outbox/relay.ts). The domain bounds the
-    // same work by its 15-minute operation horizon and terminal-settles there,
-    // so this throw can never exhaust the dispatch budget while the outcome row
-    // is still `pending`. The code is content-free.
+    // BullMQ owns the finite dispatch retry budget (exponential 30s backoff,
+    // 8 attempts; see DISPATCH_JOB_OPTIONS in shared/outbox/relay.ts). It can
+    // exhaust before the 15-minute domain horizon, so this throw deliberately
+    // leaves the event unreceipted. The unconditional operation reaper owns an
+    // analysis operation still pending past that horizon: it fences the
+    // operation, advances the strict terminal sequence, then writes the receipt.
+    // The error remains content-free.
     throw new Error(`AI review analysis retry required: ${result.code}`)
   }
   if (result.status === 'gap') {

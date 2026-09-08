@@ -364,6 +364,7 @@ const aiErrorCodeSchema = z.enum([
   'idempotency_conflict',
   'operation_in_progress',
   'operation_ambiguous',
+  'operation_abandoned',
   'completed_without_delivery',
   'merchant_opt_in_required',
   'capability_not_opted_in',
