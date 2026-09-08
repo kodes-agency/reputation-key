@@ -41,10 +41,14 @@ most one hour. That was incorrect: each request uses
 in-memory mode.
 
 The current merchant notice is
-`MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-09-06.v1'`. It states
+`MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-09-08.v1'`. It states
 24-hour extended prompt caching and that cached prompt prefixes may persist with
-OpenAI for up to 24 hours. This letter re-notifies
-Google of that correction before further activation.
+OpenAI for up to 24 hours, and it describes reply drafting as it runs: the
+provider drafts an editable suggestion from the review text and the Property's
+public display name (permitted by your response as "AI reply draft — with
+merchant opt-in and manager review/edit"), with a fixed application-owned
+starting point only as the fallback; no prior replies enter the prompt. This
+letter re-notifies Google of both corrections before further activation.
 
 ## Requested record update
 
