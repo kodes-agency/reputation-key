@@ -83,14 +83,16 @@ async function installPagedProviderScope(): Promise<void> {
           {
             name: `${LOC_A}/reviews/imp-a1`,
             starRating: 'FIVE',
-            comment: 'Import sync review A1 body',
+            comment:
+              'Import sync review A1 body: the front desk welcomed us warmly and the room was spotless every day of our stay.',
             reviewer: { displayName: 'Import Reviewer A1' },
             createTime: '2026-07-20T10:00:00Z',
           },
           {
             name: `${LOC_A}/reviews/imp-a2`,
             starRating: 'FOUR',
-            comment: 'Import sync review A2 body',
+            comment:
+              'Import sync review A2 body: breakfast was generous, though the pool area closed earlier than the website said.',
             reviewer: { displayName: 'Import Reviewer A2' },
             createTime: '2026-07-21T10:00:00Z',
           },
@@ -99,7 +101,8 @@ async function installPagedProviderScope(): Promise<void> {
           {
             name: `${LOC_B}/reviews/imp-b1`,
             starRating: 'THREE',
-            comment: 'Import sync review B1 body',
+            comment:
+              'Import sync review B1 body: a decent stay overall, but the check-in queue was long and the lift was out of order.',
             reviewer: { displayName: 'Import Reviewer B1' },
             createTime: '2026-07-22T10:00:00Z',
           },

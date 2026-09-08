@@ -228,6 +228,110 @@ function providerResponse(script: AiProviderStubResponse): Record<string, unknow
   }
 }
 
+/**
+ * `AI_PROVIDER_STUB_UNSCRIPTED=respond` (the local inner loop, `pnpm local:up`):
+ * an unscripted request gets a synthesized answer instead of 503, so analysis,
+ * drafting and trends run end to end without arming the stub first. The
+ * answers are derived from the request's own provider payload (`input[1]`,
+ * the canonical JSON the route preparer built) because the app's acceptance
+ * rules are content-bound: a reply must quote the review and name the
+ * property exactly once. The e2e stack keeps the default, `503`, so specs
+ * stay deterministic.
+ */
+type UnscriptedMode = '503' | 'respond'
+
+function unscriptedMode(): UnscriptedMode {
+  return process.env.AI_PROVIDER_STUB_UNSCRIPTED === 'respond' ? 'respond' : '503'
+}
+
+function providerPayload(body: Record<string, unknown>): Record<string, unknown> | null {
+  const input = body.input
+  if (!Array.isArray(input) || input.length < 2) return null
+  const second = input[1] as { content?: unknown } | null
+  if (
+    second === null ||
+    typeof second !== 'object' ||
+    typeof second.content !== 'string'
+  ) {
+    return null
+  }
+  try {
+    const parsed = JSON.parse(second.content) as unknown
+    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null
+  } catch {
+    return null
+  }
+}
+
+function synthesizedReply(
+  payload: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const reviewText =
+    typeof payload.reviewText === 'string' ? payload.reviewText.trim() : ''
+  const propertyDisplayName =
+    typeof payload.propertyDisplayName === 'string' ? payload.propertyDisplayName : ''
+  const languageCode =
+    typeof payload.languageCode === 'string' ? payload.languageCode : 'en-Latn'
+  if (reviewText.length < 2 || propertyDisplayName.length === 0) return null
+  // The excerpt must appear verbatim in both texts, must not carry the
+  // property name (the reply may contain it exactly once), and must survive
+  // the app's leakage scanner - so it is the longest run of plain words, never
+  // a fragment with digits, codes or punctuation that reads as an identifier.
+  const excerpt = reviewText
+    .split(/[^\p{L}\s'’-]+/u)
+    .map((fragment) => fragment.trim().replace(/\s+/gu, ' '))
+    .filter((fragment) => fragment.length >= 2 && !fragment.includes(propertyDisplayName))
+    .sort((a, b) => b.length - a.length)[0]
+    ?.slice(0, 80)
+    .trim()
+  if (excerpt === undefined || excerpt.length < 2) return null
+  const replyText = `Thank you for telling us about ${excerpt}. Everyone at ${propertyDisplayName} appreciates you taking the time, and we hope to welcome you again soon.`
+  return {
+    languageCode,
+    replyText,
+    grounding: [{ sourceExcerpt: excerpt, replyExcerpt: excerpt }],
+  }
+}
+
+function synthesizedParsed(
+  operationKind: AiProviderStubOperationKind,
+  payload: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  switch (operationKind) {
+    case 'analysis': {
+      const rating = typeof payload?.rating === 'number' ? payload.rating : 5
+      return rating >= 4
+        ? {
+            sentiment: 'positive',
+            sentimentValence: 60,
+            primaryCategory: 'service',
+            urgencySignals: [],
+          }
+        : rating === 3
+          ? {
+              sentiment: 'neutral',
+              sentimentValence: 0,
+              primaryCategory: 'service',
+              urgencySignals: [],
+            }
+          : {
+              sentiment: 'negative',
+              sentimentValence: -60,
+              primaryCategory: 'service',
+              urgencySignals: [],
+            }
+    }
+    case 'reply':
+      return payload === null ? null : synthesizedReply(payload)
+    case 'trend':
+      return { selectedSignalIds: ['valence.overall.up'] }
+    case 'synthetic_canary':
+      return { marker: 'synthetic_canary_ok' }
+  }
+}
+
 async function handler(
   request: IncomingMessage,
   response: ServerResponse,
@@ -292,7 +396,14 @@ async function handler(
       json(response, 400, { error: 'invalid_request' })
       return
     }
-    const script = scripts.get(operationKind)?.shift()
+    let script = scripts.get(operationKind)?.shift()
+    if (script === undefined && unscriptedMode() === 'respond') {
+      const parsed = synthesizedParsed(
+        operationKind,
+        providerPayload(body as Record<string, unknown>),
+      )
+      if (parsed !== null) script = { operationKind, parsed }
+    }
     if (script === undefined) {
       calls.push({
         ordinal: ++callOrdinal,
