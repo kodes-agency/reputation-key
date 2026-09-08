@@ -33,12 +33,6 @@ import {
   redactOperationalActionHistorySubject,
   releaseOperationalActionHistoryLegalHold,
 } from './application/use-cases/operational-action-history-lifecycle'
-import {
-  applyRecentActivityVocabularyReconciliation,
-  reportRecentActivityVocabulary,
-} from './application/use-cases/reconcile-recent-activity-vocabulary'
-import type { RecentActivityVocabularyApplyAuthority } from './ports/recent-activity-vocabulary-reconciliation.port'
-import { createRecentActivityVocabularyReconciliationStore } from './infrastructure/recent-activity-vocabulary-reconciliation.store'
 import { createActivityProjectionRuntime } from './application/activity-projection-runtime'
 import { createActivityOrganizationExportContributor } from './infrastructure/adapters/activity-organization-export.adapter'
 import { createActivityOrganizationLifecycleContributor } from './infrastructure/adapters/activity-organization-lifecycle.adapter'
@@ -131,7 +125,6 @@ type ActivityBuildInput = Readonly<{
   operationalHistoryAccessAuthority?: OperationalHistoryAccessAuthority
   operationalHistoryIdGen: () => OperationalActionHistoryRecordId
   operationalHistoryHoldIdGen: () => string
-  recentActivityVocabularyApplyAuthority?: RecentActivityVocabularyApplyAuthority
 }>
 
 const buildActivityFeed = (input: ActivityBuildInput) => {
@@ -142,10 +135,6 @@ const buildActivityFeed = (input: ActivityBuildInput) => {
   const recoveryRuntime = createRecentActivityRecoveryRuntime(input.db, input.logger)
   const privacyStore = createRecentActivityPrivacyStore(input.db)
   const operationalHistoryStore = createOperationalActionHistoryStore(input.db)
-  const vocabularyStore = createRecentActivityVocabularyReconciliationStore(input.db)
-  const vocabularyAuthority =
-    input.recentActivityVocabularyApplyAuthority ??
-    ({ authorize: async () => false } as const)
   const operationalHistoryIdGen = input.operationalHistoryIdGen
   const operationalHistoryLifecycle = {
     store: operationalHistoryStore,
@@ -236,16 +225,6 @@ const buildActivityFeed = (input: ActivityBuildInput) => {
           store: privacyStore,
           clock: input.clock,
         }),
-        reportRecentActivityVocabulary: reportRecentActivityVocabulary({
-          store: vocabularyStore,
-          clock: input.clock,
-        }),
-        applyRecentActivityVocabularyReconciliation:
-          applyRecentActivityVocabularyReconciliation({
-            store: vocabularyStore,
-            authority: vocabularyAuthority,
-            clock: input.clock,
-          }),
         listOperationalActionHistory: listHistory,
         exportOperationalActionHistory: exportHistory,
         appendOperationalAction: appendOperationalAction({

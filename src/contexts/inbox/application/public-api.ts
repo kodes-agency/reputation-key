@@ -35,10 +35,6 @@ export {
   type InboxRevisionConflictResult,
 } from '../domain/errors'
 
-// IBX-01 cutover classification. Pure and read-only: it reports what the legacy
-// rows prove and never infers an outcome or an on-time result from `closedAt`.
-export { canonicalInboxHandlingCutoverReport } from './inbox-handling-cutover'
-
 // Application-layer detail result (includes the review reply) — used by the
 // client detail state. See get-inbox-item-detail use case.
 export type { InboxItemDetailResult } from './use-cases/get-inbox-item-detail'

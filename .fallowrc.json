@@ -17,7 +17,6 @@
     "scripts/generate-ai-review-language-regions.ts",
     "scripts/generate-ai-unicode-case-folding.ts",
     "scripts/generate-ai-zh-orthography-table.ts",
-    "scripts/ops/report-portal-access-artifacts.ts",
     "scripts/seed-demo-reviews.ts",
     "scripts/test-db-setup.ts",
     "vite.config.ts",

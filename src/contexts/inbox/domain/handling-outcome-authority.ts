@@ -8,12 +8,10 @@
 // never happened, and it does so on exactly the rows a regulator or a guest is
 // most likely to ask about.
 //
-// The legacy classifier (application/inbox-handling-cutover.ts) already refuses
-// to *derive* an outcome from a legacy `closed_at`. This module is the same
-// refusal for LIVE rows, and it is deliberately one-way: once a source has been
-// withdrawn, purged or made ineligible, no later reopen re-earns the right to
-// an outcome. The Inbox may still show the work; it may never claim it was
-// handled.
+// Live rows follow the same refusal: an outcome is never derived from a legacy
+// `closed_at`. Once a source has been withdrawn, purged or made ineligible, no
+// later reopen re-earns the right to an outcome. The Inbox may still show the
+// work; it may never claim it was handled.
 
 import { err, ok, type Result } from '#/shared/domain'
 import { inboxError, type InboxError } from './errors'

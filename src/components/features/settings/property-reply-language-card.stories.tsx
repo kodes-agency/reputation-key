@@ -6,20 +6,24 @@ import {
 } from './property-reply-language-card'
 
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000001'
-const updateProperty = Object.assign(
-  fn(async (input: Parameters<PropertyReplyLanguageUpdateAction>[0]) => ({
-    property: {
-      id: input.data.propertyId,
-      defaultReplyLanguage: input.data.defaultReplyLanguage,
+const createUpdateProperty = () =>
+  Object.assign(
+    fn(async (input: Parameters<PropertyReplyLanguageUpdateAction>[0]) => ({
+      property: {
+        id: input.data.propertyId,
+        defaultReplyLanguage: input.data.defaultReplyLanguage,
+      },
+    })),
+    {
+      isPending: false,
+      error: null,
+      isSuccess: false,
+      data: null,
     },
-  })),
-  {
-    isPending: false,
-    error: null,
-    isSuccess: false,
-    data: null,
-  },
-) satisfies PropertyReplyLanguageUpdateAction
+  ) satisfies PropertyReplyLanguageUpdateAction
+
+const configureReplyLanguage = createUpdateProperty()
+const clearReplyLanguage = createUpdateProperty()
 
 const meta = {
   title: 'Settings/PropertyReplyLanguageCard',
@@ -38,7 +42,7 @@ const meta = {
       name: 'Hotel Elegance',
       defaultReplyLanguage: null,
     },
-    updateProperty,
+    updateProperty: configureReplyLanguage,
   },
 } satisfies Meta<typeof PropertyReplyLanguageCard>
 
@@ -47,7 +51,7 @@ type Story = StoryObj<typeof meta>
 
 export const ExplicitlyUnconfigured: Story = {
   play: async ({ canvasElement }) => {
-    updateProperty.mockClear()
+    configureReplyLanguage.mockClear()
     const canvas = within(canvasElement)
     const page = within(canvasElement.ownerDocument.body)
 
@@ -67,8 +71,8 @@ export const ExplicitlyUnconfigured: Story = {
       await canvas.findByRole('button', { name: 'Save reply language' }),
     )
 
-    await waitFor(() => expect(updateProperty).toHaveBeenCalledOnce())
-    expect(updateProperty).toHaveBeenCalledWith({
+    await waitFor(() => expect(configureReplyLanguage).toHaveBeenCalledOnce())
+    expect(configureReplyLanguage).toHaveBeenCalledWith({
       data: {
         propertyId: PROPERTY_ID,
         defaultReplyLanguage: 'bg-Cyrl',
@@ -84,9 +88,10 @@ export const ConfiguredCanBeClearedExplicitly: Story = {
       name: 'Hotel Elegance',
       defaultReplyLanguage: 'tr-Latn',
     },
+    updateProperty: clearReplyLanguage,
   },
   play: async ({ canvasElement }) => {
-    updateProperty.mockClear()
+    clearReplyLanguage.mockClear()
     const canvas = within(canvasElement)
     const page = within(canvasElement.ownerDocument.body)
 
@@ -97,8 +102,8 @@ export const ConfiguredCanBeClearedExplicitly: Story = {
       await canvas.findByRole('button', { name: 'Save reply language' }),
     )
 
-    await waitFor(() => expect(updateProperty).toHaveBeenCalledOnce())
-    expect(updateProperty).toHaveBeenCalledWith({
+    await waitFor(() => expect(clearReplyLanguage).toHaveBeenCalledOnce())
+    expect(clearReplyLanguage).toHaveBeenCalledWith({
       data: {
         propertyId: PROPERTY_ID,
         defaultReplyLanguage: null,

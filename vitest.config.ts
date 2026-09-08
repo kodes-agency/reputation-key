@@ -28,11 +28,10 @@ const storybookProject: TestProjectConfiguration[] =
   process.env.REPKEY_STORYBOOK_TESTS === 'true'
     ? [
         {
-          // The storybookTest plugin transforms stories into vitest tests, runs
-          // them in headless Chromium, and merges the Storybook vite config —
-          // including the viteFinal stub aliases in .storybook/main.ts
-          // (async_hooks / review-reply / observability-logger) — so no manual
-          // setup file or alias duplication is needed.
+          // The storybookTest plugin transforms stories into Vitest tests,
+          // runs them in headless Chromium, and merges the Storybook Vite
+          // aliases from .storybook/main.ts. The setup file restores the
+          // console-error failure gate around every transformed story.
           //
           // The name is set here rather than left to the plugin: the plugin only
           // force-names the project `storybook:<configDir>` when
@@ -43,6 +42,10 @@ const storybookProject: TestProjectConfiguration[] =
           plugins: [storybookTest({ configDir: resolve(__dirname, '.storybook') })],
           test: {
             name: 'storybook',
+            setupFiles: ['./.storybook/vitest.setup.ts'],
+            // The console spy is browser-global, so concurrent stories could
+            // reset or restore another story's gate before its assertions run.
+            maxConcurrency: 1,
             browser: {
               enabled: true,
               headless: true,

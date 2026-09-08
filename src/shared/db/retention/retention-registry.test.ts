@@ -1,12 +1,10 @@
 // LIF-01-T16 — the counsel-ready retention registry, report-only.
 //
 // The registry is the bullet-10 matrix. These tests are the gate that keeps it
-// honest: it may not silently gain apply authority, it may not silently drop a
-// data class, it may not silently start deleting from a compatibility mirror,
-// and reading a row may not silently extend its content deadline.
+// honest: it may not silently gain apply authority, silently drop a data class,
+// or let reading a row silently extend its content deadline.
 
 import { describe, expect, it } from 'vitest'
-import { contractionCandidateTableNames } from '#/shared/governance/contraction-inventory-registry'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 import {
   assertRetentionRegistryApplyAllowed,
@@ -15,7 +13,6 @@ import {
   RETENTION_DATA_CLASSES,
   RETENTION_REGISTRY,
   retentionRegistryClassCoverage,
-  retentionRegistryContractionViolations,
   retentionRegistryDeadlineExtensionViolations,
   retentionRegistryReportOnlyPlan,
   type RetentionRegistryRule,
@@ -160,95 +157,6 @@ describe('retention registry — §3.3.10 default horizons', () => {
       expect(rule.source, id).toBe(source)
       expect(rule.eligibility.horizon, id).toEqual({ kind: 'counsel_undecided' })
       expect(rule.coveredFacts, id).toEqual(coveredFacts)
-    }
-  })
-})
-
-describe('retention registry — compatibility mirrors are untouchable', () => {
-  const candidates = contractionCandidateTableNames()
-
-  it('resolves the contraction candidates it is guarding against', () => {
-    expect(candidates).toContain('feedback')
-    expect(candidates).toContain('ratings')
-    expect(candidates).toContain('scan_events')
-    expect(candidates).toContain('portal_group_members')
-  })
-
-  it('allows only row-preserving redactions against contraction candidates', () => {
-    const violations = retentionRegistryContractionViolations(
-      RETENTION_REGISTRY,
-      candidates,
-    )
-    expect(
-      violations,
-      'a deleting retention rule over a contraction candidate would perform the contraction early, before the one verified release plus restore proof that gates it',
-    ).toEqual([])
-  })
-
-  it('detects a rule that starts targeting a mirror', () => {
-    const smuggled: RetentionRegistryRule = {
-      ...ruleById('guest.private_feedback_text'),
-      id: 'guest.smuggled_mirror',
-      source: 'feedback',
-    }
-    expect(retentionRegistryContractionViolations([smuggled], candidates)).toEqual([
-      { ruleId: 'guest.smuggled_mirror', source: 'feedback' },
-    ])
-  })
-
-  it('is not fooled by a mirror relabelled as an object store', () => {
-    const relabelled: RetentionRegistryRule = {
-      ...ruleById('guest.private_feedback_text'),
-      id: 'guest.relabelled_mirror',
-      sourceKind: 'object_store',
-      source: 'scan_events',
-    }
-    expect(retentionRegistryContractionViolations([relabelled], candidates)).toEqual([
-      { ruleId: 'guest.relabelled_mirror', source: 'scan_events' },
-    ])
-  })
-
-  it('rejects an overbroad redaction against a compatibility mirror', () => {
-    const overbroad: RetentionRegistryRule = {
-      ...ruleById('guest.legacy_feedback.abuse_pseudonym'),
-      redactColumns: ['comment'],
-    }
-    expect(retentionRegistryContractionViolations([overbroad], candidates)).toEqual([
-      {
-        ruleId: 'guest.legacy_feedback.abuse_pseudonym',
-        source: 'feedback',
-      },
-    ])
-  })
-
-  it('never deletes from a contraction candidate in the executable sweep either', () => {
-    const deleting = RETENTION_RULES.filter(
-      (rule) =>
-        (rule.operation ?? 'delete') === 'delete' && candidates.includes(rule.table),
-    )
-    expect(
-      deleting.map((rule) => rule.subject),
-      'the scheduled sweep must not delete rows a contraction decision still depends on',
-    ).toEqual([])
-  })
-
-  it('declares every surviving legacy-mirror pseudonym redaction as row-preserving', () => {
-    const redactingMirrorSubjects = RETENTION_RULES.filter((rule) =>
-      candidates.includes(rule.table),
-    ).map((rule) => rule.subject)
-    expect(redactingMirrorSubjects.sort()).toEqual(
-      LEGACY_MIRROR_PSEUDONYM_REDACTIONS.map(({ subject }) => subject).sort(),
-    )
-    for (const entry of LEGACY_MIRROR_PSEUDONYM_REDACTIONS) {
-      const rule = RETENTION_RULES.find(({ subject }) => subject === entry.subject)
-      expect(rule?.operation, entry.subject).toBe('redact')
-      expect(rule?.table, entry.subject).toBe(entry.table)
-      const registryRule = RETENTION_REGISTRY.find(
-        (candidate) =>
-          candidate.source === entry.table && candidate.evidenceSubject === entry.subject,
-      )
-      expect(registryRule?.operation, entry.subject).toBe('redact')
-      expect(registryRule?.redactColumns, entry.subject).toEqual([entry.redactedColumn])
     }
   })
 })
