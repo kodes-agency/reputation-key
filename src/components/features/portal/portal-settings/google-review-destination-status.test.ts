@@ -33,15 +33,18 @@ describe('presentGoogleReviewDestination', () => {
     })
   })
 
-  it('gives a mild next step when no destination is available', () => {
-    expect(
-      presentGoogleReviewDestination({ state: 'unavailable', retrievedAt: null }),
-    ).toEqual({
+  it('explains the guest and publication impact when no destination is available', () => {
+    const result = presentGoogleReviewDestination({
+      state: 'unavailable',
+      retrievedAt: null,
+    })
+
+    expect(result).toMatchObject({
       label: 'Needs connection',
       badgeVariant: 'outline',
-      description:
-        'Connect or refresh Google for this property before publishing the portal.',
       confirmedAt: null,
     })
+    expect(result.description).toContain('Guests cannot continue to Google')
+    expect(result.description).toContain('Publishing is also blocked')
   })
 })
