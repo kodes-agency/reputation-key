@@ -1,5 +1,4 @@
 // Public schema/version contract consumed by operational and settings tooling over time.
-// fallow-ignore-next-line unused-export
 export const ASPECT_TAXONOMY_VERSION = 'aspect-taxonomy-v1' as const
 export const ASPECT_TAXONOMY_V1_DIGEST =
   '856740c88ef24ffeb18744b48e1ec41b1cca561d22af6aa1124f8d413ca1ecb4' as const

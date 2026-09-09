@@ -241,6 +241,230 @@ function mapAnalyzedReview(
   })
 }
 
+type AggregateTransaction = Parameters<Parameters<Database['transaction']>[0]>[0]
+type ApplyReviewAnalysisInput = Parameters<
+  AiPropertyAggregateStorePort['applyReviewAnalysis']
+>[0]
+type AggregateHead = typeof aiPropertyAggregateHeads.$inferSelect
+type StoredContribution = typeof aiPropertyAggregateContributions.$inferSelect
+type AspectDelta = Readonly<{
+  localDate: string
+  aspect: string
+  polarity: string
+  delta: number
+}>
+
+function addAspectDeltas(
+  deltas: Map<string, AspectDelta>,
+  localDate: string,
+  aspects: readonly ContributionAspect[],
+  direction: 1 | -1,
+): void {
+  for (const aspect of aspects) {
+    const key = `${localDate}\u0000${aspect.aspect}\u0000${aspect.polarity}`
+    const current = deltas.get(key)
+    deltas.set(key, {
+      localDate,
+      aspect: aspect.aspect,
+      polarity: aspect.polarity,
+      delta: (current?.delta ?? 0) + direction,
+    })
+  }
+}
+
+function collectAspectDeltas(input: {
+  previous: StoredContribution | undefined
+  previousAspects: readonly ContributionAspect[]
+  analysis: Contribution
+  analysisLocalDate: string
+  analysisAspects: readonly ContributionAspect[]
+}): readonly AspectDelta[] {
+  const deltas = new Map<string, AspectDelta>()
+  if (input.previous?.status === 'ready') {
+    addAspectDeltas(deltas, input.previous.localDate, input.previousAspects, -1)
+  }
+  if (input.analysis.status === 'ready') {
+    addAspectDeltas(deltas, input.analysisLocalDate, input.analysisAspects, 1)
+  }
+  return [...deltas.values()]
+}
+
+async function persistAspectDelta(
+  tx: AggregateTransaction,
+  input: ApplyReviewAnalysisInput,
+  delta: AspectDelta,
+): Promise<void> {
+  if (delta.delta === 0) return
+  const rowKey = and(
+    eq(aiPropertyDailyAspectAggregates.organizationId, input.organizationId),
+    eq(aiPropertyDailyAspectAggregates.propertyId, input.propertyId),
+    eq(aiPropertyDailyAspectAggregates.localDate, delta.localDate),
+    eq(aiPropertyDailyAspectAggregates.sourceEpoch, input.sourceEpoch),
+    eq(aiPropertyDailyAspectAggregates.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
+    eq(
+      aiPropertyDailyAspectAggregates.propertyProfileVersion,
+      input.propertyProfileVersion,
+    ),
+    eq(aiPropertyDailyAspectAggregates.aspect, delta.aspect),
+    eq(aiPropertyDailyAspectAggregates.polarity, delta.polarity),
+  )
+  if (delta.delta > 0) {
+    await tx
+      .insert(aiPropertyDailyAspectAggregates)
+      .values({
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        localDate: delta.localDate,
+        sourceEpoch: input.sourceEpoch,
+        reviewAnalysisEpoch: input.reviewAnalysisEpoch,
+        propertyProfileVersion: input.propertyProfileVersion,
+        aspect: delta.aspect,
+        polarity: delta.polarity,
+        mentionCount: delta.delta,
+      })
+      .onConflictDoUpdate({
+        target: [
+          aiPropertyDailyAspectAggregates.organizationId,
+          aiPropertyDailyAspectAggregates.propertyId,
+          aiPropertyDailyAspectAggregates.localDate,
+          aiPropertyDailyAspectAggregates.sourceEpoch,
+          aiPropertyDailyAspectAggregates.reviewAnalysisEpoch,
+          aiPropertyDailyAspectAggregates.propertyProfileVersion,
+          aiPropertyDailyAspectAggregates.aspect,
+          aiPropertyDailyAspectAggregates.polarity,
+        ],
+        set: {
+          mentionCount: sql`${aiPropertyDailyAspectAggregates.mentionCount} + ${delta.delta}`,
+        },
+      })
+    return
+  }
+  const [updatedAspect] = await tx
+    .update(aiPropertyDailyAspectAggregates)
+    .set({
+      mentionCount: sql`${aiPropertyDailyAspectAggregates.mentionCount} + ${delta.delta}`,
+    })
+    .where(rowKey)
+    .returning({ mentionCount: aiPropertyDailyAspectAggregates.mentionCount })
+  if (!updatedAspect || !(updatedAspect.mentionCount >= 0)) {
+    throw new Error('Property daily aspect aggregate would become negative')
+  }
+  if (updatedAspect.mentionCount === 0) {
+    await tx.delete(aiPropertyDailyAspectAggregates).where(rowKey)
+  }
+}
+
+async function updateDailyAggregates(input: {
+  tx: AggregateTransaction
+  command: ApplyReviewAnalysisInput
+  head: AggregateHead
+  analysis: Contribution
+  analysisLocalDate: string
+  analysisAspects: readonly ContributionAspect[]
+  previous: StoredContribution | undefined
+  previousAspects: readonly ContributionAspect[]
+  aggregateRevision: number
+  appliedAt: Date
+}): Promise<void> {
+  const dates = Array.from(
+    new Set([
+      ...(input.previous?.status === 'ready' ? [input.previous.localDate] : []),
+      ...(input.analysis.status === 'ready' ? [input.analysisLocalDate] : []),
+    ]),
+  ).sort()
+  if (dates.length === 0) return
+
+  await input.tx
+    .insert(aiPropertyDailyAggregates)
+    .values(
+      dates.map((localDate) =>
+        zeroDailyValues({
+          organizationId: input.command.organizationId,
+          propertyId: input.command.propertyId,
+          localDate,
+          sourceEpoch: input.command.sourceEpoch,
+          reviewAnalysisEpoch: input.command.reviewAnalysisEpoch,
+          propertyProfileVersion: input.command.propertyProfileVersion,
+          aggregateRevision: input.head.aggregateRevision,
+          terminalAnalysisSequence: input.head.terminalAnalysisSequence,
+          updatedAt: input.appliedAt,
+        }),
+      ),
+    )
+    .onConflictDoNothing()
+  const rows = await input.tx
+    .select()
+    .from(aiPropertyDailyAggregates)
+    .where(
+      and(
+        eq(aiPropertyDailyAggregates.organizationId, input.command.organizationId),
+        eq(aiPropertyDailyAggregates.propertyId, input.command.propertyId),
+        eq(aiPropertyDailyAggregates.sourceEpoch, input.command.sourceEpoch),
+        eq(
+          aiPropertyDailyAggregates.reviewAnalysisEpoch,
+          input.command.reviewAnalysisEpoch,
+        ),
+        eq(
+          aiPropertyDailyAggregates.propertyProfileVersion,
+          input.command.propertyProfileVersion,
+        ),
+        inArray(aiPropertyDailyAggregates.localDate, dates),
+      ),
+    )
+    .orderBy(aiPropertyDailyAggregates.localDate)
+    .for('update')
+  if (rows.length !== dates.length) {
+    throw new Error('Property daily aggregate is missing')
+  }
+  for (const row of rows) {
+    let next = row
+    if (input.previous?.localDate === row.localDate) {
+      next = adjustDaily(next, input.previous, -1)
+    }
+    if (input.analysisLocalDate === row.localDate) {
+      next = adjustDaily(next, input.analysis, 1)
+    }
+    if (![next.reviewCount >= 0, next.ratingSum >= 0].every(Boolean)) {
+      throw new Error('Property daily aggregate would become negative')
+    }
+    await input.tx
+      .update(aiPropertyDailyAggregates)
+      .set({
+        ...next,
+        aggregateRevision: input.aggregateRevision,
+        terminalAnalysisSequence: input.command.analysisSequence,
+        updatedAt: input.appliedAt,
+      })
+      .where(
+        and(
+          eq(aiPropertyDailyAggregates.organizationId, input.command.organizationId),
+          eq(aiPropertyDailyAggregates.propertyId, input.command.propertyId),
+          eq(aiPropertyDailyAggregates.localDate, row.localDate),
+          eq(aiPropertyDailyAggregates.sourceEpoch, input.command.sourceEpoch),
+          eq(
+            aiPropertyDailyAggregates.reviewAnalysisEpoch,
+            input.command.reviewAnalysisEpoch,
+          ),
+          eq(
+            aiPropertyDailyAggregates.propertyProfileVersion,
+            input.command.propertyProfileVersion,
+          ),
+        ),
+      )
+  }
+
+  const deltas = collectAspectDeltas({
+    previous: input.previous,
+    previousAspects: input.previousAspects,
+    analysis: input.analysis,
+    analysisLocalDate: input.analysisLocalDate,
+    analysisAspects: input.analysisAspects,
+  })
+  for (const delta of deltas) {
+    await persistAspectDelta(input.tx, input.command, delta)
+  }
+}
+
 export const createAiPropertyAggregateStoreAdapter = (
   db: Database,
 ): AiPropertyAggregateStorePort => {
@@ -522,183 +746,18 @@ export const createAiPropertyAggregateStoreAdapter = (
           )
         }
 
-        const dates = Array.from(
-          new Set([
-            ...(previous?.status === 'ready' ? [previous.localDate] : []),
-            ...(analysis.status === 'ready' ? [analysis.localDate] : []),
-          ]),
-        ).sort()
-        if (dates.length > 0) {
-          await tx
-            .insert(aiPropertyDailyAggregates)
-            .values(
-              dates.map((localDate) =>
-                zeroDailyValues({
-                  organizationId: input.organizationId,
-                  propertyId: input.propertyId,
-                  localDate,
-                  sourceEpoch: input.sourceEpoch,
-                  reviewAnalysisEpoch: input.reviewAnalysisEpoch,
-                  propertyProfileVersion: input.propertyProfileVersion,
-                  aggregateRevision: head.aggregateRevision,
-                  terminalAnalysisSequence: head.terminalAnalysisSequence,
-                  updatedAt: appliedAt,
-                }),
-              ),
-            )
-            .onConflictDoNothing()
-          const rows = await tx
-            .select()
-            .from(aiPropertyDailyAggregates)
-            .where(
-              and(
-                eq(aiPropertyDailyAggregates.organizationId, input.organizationId),
-                eq(aiPropertyDailyAggregates.propertyId, input.propertyId),
-                eq(aiPropertyDailyAggregates.sourceEpoch, input.sourceEpoch),
-                eq(
-                  aiPropertyDailyAggregates.reviewAnalysisEpoch,
-                  input.reviewAnalysisEpoch,
-                ),
-                eq(
-                  aiPropertyDailyAggregates.propertyProfileVersion,
-                  input.propertyProfileVersion,
-                ),
-                inArray(aiPropertyDailyAggregates.localDate, dates),
-              ),
-            )
-            .orderBy(aiPropertyDailyAggregates.localDate)
-            .for('update')
-          if (rows.length !== dates.length)
-            throw new Error('Property daily aggregate is missing')
-          for (const row of rows) {
-            let next = row
-            if (previous?.localDate === row.localDate)
-              next = adjustDaily(next, previous, -1)
-            if (analysis.localDate === row.localDate)
-              next = adjustDaily(next, analysis, 1)
-            if (![next.reviewCount >= 0, next.ratingSum >= 0].every(Boolean)) {
-              throw new Error('Property daily aggregate would become negative')
-            }
-            await tx
-              .update(aiPropertyDailyAggregates)
-              .set({
-                ...next,
-                aggregateRevision,
-                terminalAnalysisSequence: input.analysisSequence,
-                updatedAt: appliedAt,
-              })
-              .where(
-                and(
-                  eq(aiPropertyDailyAggregates.organizationId, input.organizationId),
-                  eq(aiPropertyDailyAggregates.propertyId, input.propertyId),
-                  eq(aiPropertyDailyAggregates.localDate, row.localDate),
-                  eq(aiPropertyDailyAggregates.sourceEpoch, input.sourceEpoch),
-                  eq(
-                    aiPropertyDailyAggregates.reviewAnalysisEpoch,
-                    input.reviewAnalysisEpoch,
-                  ),
-                  eq(
-                    aiPropertyDailyAggregates.propertyProfileVersion,
-                    input.propertyProfileVersion,
-                  ),
-                ),
-              )
-          }
-          const aspectDeltas = new Map<
-            string,
-            {
-              localDate: string
-              aspect: string
-              polarity: string
-              delta: number
-            }
-          >()
-          const addAspectDeltas = (
-            localDate: string,
-            aspects: readonly ContributionAspect[],
-            direction: 1 | -1,
-          ): void => {
-            for (const aspect of aspects) {
-              const key = `${localDate}\u0000${aspect.aspect}\u0000${aspect.polarity}`
-              const current = aspectDeltas.get(key)
-              aspectDeltas.set(key, {
-                localDate,
-                aspect: aspect.aspect,
-                polarity: aspect.polarity,
-                delta: (current?.delta ?? 0) + direction,
-              })
-            }
-          }
-          if (previous?.status === 'ready') {
-            addAspectDeltas(previous.localDate, previousAspects, -1)
-          }
-          if (analysis.status === 'ready') {
-            addAspectDeltas(analysis.localDate, analysisAspects, 1)
-          }
-          for (const delta of aspectDeltas.values()) {
-            if (delta.delta === 0) continue
-            const rowKey = and(
-              eq(aiPropertyDailyAspectAggregates.organizationId, input.organizationId),
-              eq(aiPropertyDailyAspectAggregates.propertyId, input.propertyId),
-              eq(aiPropertyDailyAspectAggregates.localDate, delta.localDate),
-              eq(aiPropertyDailyAspectAggregates.sourceEpoch, input.sourceEpoch),
-              eq(
-                aiPropertyDailyAspectAggregates.reviewAnalysisEpoch,
-                input.reviewAnalysisEpoch,
-              ),
-              eq(
-                aiPropertyDailyAspectAggregates.propertyProfileVersion,
-                input.propertyProfileVersion,
-              ),
-              eq(aiPropertyDailyAspectAggregates.aspect, delta.aspect),
-              eq(aiPropertyDailyAspectAggregates.polarity, delta.polarity),
-            )
-            if (delta.delta > 0) {
-              await tx
-                .insert(aiPropertyDailyAspectAggregates)
-                .values({
-                  organizationId: input.organizationId,
-                  propertyId: input.propertyId,
-                  localDate: delta.localDate,
-                  sourceEpoch: input.sourceEpoch,
-                  reviewAnalysisEpoch: input.reviewAnalysisEpoch,
-                  propertyProfileVersion: input.propertyProfileVersion,
-                  aspect: delta.aspect,
-                  polarity: delta.polarity,
-                  mentionCount: delta.delta,
-                })
-                .onConflictDoUpdate({
-                  target: [
-                    aiPropertyDailyAspectAggregates.organizationId,
-                    aiPropertyDailyAspectAggregates.propertyId,
-                    aiPropertyDailyAspectAggregates.localDate,
-                    aiPropertyDailyAspectAggregates.sourceEpoch,
-                    aiPropertyDailyAspectAggregates.reviewAnalysisEpoch,
-                    aiPropertyDailyAspectAggregates.propertyProfileVersion,
-                    aiPropertyDailyAspectAggregates.aspect,
-                    aiPropertyDailyAspectAggregates.polarity,
-                  ],
-                  set: {
-                    mentionCount: sql`${aiPropertyDailyAspectAggregates.mentionCount} + ${delta.delta}`,
-                  },
-                })
-              continue
-            }
-            const [updatedAspect] = await tx
-              .update(aiPropertyDailyAspectAggregates)
-              .set({
-                mentionCount: sql`${aiPropertyDailyAspectAggregates.mentionCount} + ${delta.delta}`,
-              })
-              .where(rowKey)
-              .returning({ mentionCount: aiPropertyDailyAspectAggregates.mentionCount })
-            if (!updatedAspect || !(updatedAspect.mentionCount >= 0)) {
-              throw new Error('Property daily aspect aggregate would become negative')
-            }
-            if (updatedAspect.mentionCount === 0) {
-              await tx.delete(aiPropertyDailyAspectAggregates).where(rowKey)
-            }
-          }
-        }
+        await updateDailyAggregates({
+          tx,
+          command: input,
+          head,
+          analysis,
+          analysisLocalDate: analysis.localDate,
+          analysisAspects,
+          previous,
+          previousAspects,
+          aggregateRevision,
+          appliedAt,
+        })
 
         const [updatedHead] = await tx
           .update(aiPropertyAggregateHeads)

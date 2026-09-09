@@ -9,7 +9,7 @@ export const AI_SENTIMENTS = Object.freeze([
   'negative',
   'mixed',
 ] as const)
-export const AI_URGENCY_SIGNALS = Object.freeze([
+const AI_URGENCY_SIGNALS = Object.freeze([
   'safety',
   'health',
   'discrimination',
@@ -135,7 +135,7 @@ export const AI_SYNTHETIC_CANARY_OUTPUT_SCHEMA = z
  * property required, and additionalProperties:false). A changed SDK transform is
  * caught by the package-contract test before a profile digest can be released.
  */
-export function deriveAiRouteOutputJsonSchema(
+function deriveAiRouteOutputJsonSchema(
   schema: z.ZodType,
 ): ReturnType<typeof z.toJSONSchema> {
   const generated = z.toJSONSchema(schema, { target: 'draft-7' })
