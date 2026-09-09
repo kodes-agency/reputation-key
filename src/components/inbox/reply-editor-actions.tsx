@@ -1,6 +1,6 @@
 // Inbox detail — interactive reply status views (pending, failed, rejected)
 
-import { useState, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { Textarea } from '#/components/ui/textarea'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
@@ -16,6 +16,7 @@ import {
   AlertDialogTrigger,
 } from '#/components/ui/alert-dialog'
 import { REPLY_STATE_COPY, replyStateDescription } from './reply-state-copy'
+import { unfilledReplySlotsMessage } from '#/contexts/review/application/public-api'
 
 type ReplyView = Readonly<{
   text: string
@@ -57,6 +58,8 @@ export function ReplyPendingApproval({
 }: PendingProps) {
   const [showRejectInput, setShowRejectInput] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
+  const publishBlockedReason = unfilledReplySlotsMessage(reply.text)
+  const publishBlockedReasonId = useId()
 
   return (
     <div className="space-y-3 border-t pt-4">
@@ -69,7 +72,13 @@ export function ReplyPendingApproval({
       <div className="flex flex-wrap gap-2">
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button size="sm" disabled={isSaving}>
+            <Button
+              size="sm"
+              disabled={isSaving || publishBlockedReason !== null}
+              aria-describedby={
+                publishBlockedReason !== null ? publishBlockedReasonId : undefined
+              }
+            >
               Confirm &amp; Publish
             </Button>
           </AlertDialogTrigger>
@@ -85,7 +94,7 @@ export function ReplyPendingApproval({
             <AlertDialogFooter>
               <AlertDialogCancel>Keep reviewing</AlertDialogCancel>
               <AlertDialogAction
-                disabled={isSaving}
+                disabled={isSaving || publishBlockedReason !== null}
                 onClick={() => void onApprove().catch(() => undefined)}
               >
                 {isSaving ? 'Confirming…' : 'Confirm & Publish'}
@@ -102,6 +111,11 @@ export function ReplyPendingApproval({
           Reject
         </Button>
       </div>
+      {publishBlockedReason !== null && (
+        <p id={publishBlockedReasonId} role="status" className="text-xs text-destructive">
+          {publishBlockedReason}
+        </p>
+      )}
       {showRejectInput && (
         <div className="space-y-2">
           <Textarea

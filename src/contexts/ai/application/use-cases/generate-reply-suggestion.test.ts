@@ -347,6 +347,8 @@ function createHarness(
   return {
     generate: createGenerateReplySuggestion(dependencies),
     mocks: {
+      readMerchantAuthorization: dependencies.authorization.readMerchantAuthorization,
+      readProcessingProfile: dependencies.processingProfiles.readForAi,
       claim,
       claimExecution,
       readHeads: dependencies.control.readHeads,
@@ -360,6 +362,7 @@ function createHarness(
         dependencies.propertyReplyLanguages.readDefaultReplyLanguage,
       resolveReplyLanguage: dependencies.resolveReplyLanguage,
       readCurrentAiReplyBrandProfile,
+      recordFailure: dependencies.operations.recordFailure,
     },
   }
 }
@@ -397,11 +400,48 @@ describe('generate reply suggestion', () => {
     })
     expect(harness.mocks.resolveReplyLanguage).not.toHaveBeenCalled()
     expectNoAiExecution(
+      harness.mocks.readMerchantAuthorization,
+      harness.mocks.readProcessingProfile,
+      harness.mocks.readCurrentAiReplyBrandProfile,
       harness.mocks.readHeads,
       harness.mocks.claim,
       harness.mocks.claimExecution,
+      harness.mocks.recordFailure,
       harness.mocks.acquire,
+      harness.mocks.release,
       harness.mocks.generateReply,
+      harness.mocks.settleEphemeralReply,
+      harness.mocks.markDelivered,
+    )
+  })
+  it('serves an explicit catalogue request without merchant AI admission or execution', async () => {
+    const harness = createHarness({ propertyReplyLanguage: 'en-Latn' })
+
+    await expect(
+      harness.generate({
+        ...INPUT,
+        targetLanguage: { kind: 'property_default' },
+        templateOnly: true,
+      }),
+    ).resolves.toMatchObject({
+      status: 'fallback',
+      kind: 'local_safe_template',
+      reason: 'provider_or_output_unavailable',
+      languageSource: 'explicit',
+    })
+    expectNoAiExecution(
+      harness.mocks.readMerchantAuthorization,
+      harness.mocks.readProcessingProfile,
+      harness.mocks.readCurrentAiReplyBrandProfile,
+      harness.mocks.readHeads,
+      harness.mocks.claim,
+      harness.mocks.claimExecution,
+      harness.mocks.recordFailure,
+      harness.mocks.acquire,
+      harness.mocks.release,
+      harness.mocks.generateReply,
+      harness.mocks.settleEphemeralReply,
+      harness.mocks.markDelivered,
     )
   })
   it.each([
@@ -484,11 +524,18 @@ describe('generate reply suggestion', () => {
         concreteLanguageTag: 'bg-Cyrl-BG',
       })
       expectNoAiExecution(
+        harness.mocks.readMerchantAuthorization,
+        harness.mocks.readProcessingProfile,
+        harness.mocks.readCurrentAiReplyBrandProfile,
         harness.mocks.readHeads,
         harness.mocks.claim,
         harness.mocks.claimExecution,
+        harness.mocks.recordFailure,
         harness.mocks.acquire,
+        harness.mocks.release,
         harness.mocks.generateReply,
+        harness.mocks.settleEphemeralReply,
+        harness.mocks.markDelivered,
       )
     },
   )

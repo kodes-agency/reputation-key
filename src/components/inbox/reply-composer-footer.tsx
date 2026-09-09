@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { CheckCircle2, LoaderCircle, Lock, TriangleAlert } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import type { ReplyAutosaveStatus } from './use-reply-autosave'
@@ -7,6 +8,7 @@ type Props = Readonly<{
   error: string | null
   languageName: string | null
   canSubmit: boolean
+  submitBlockedReason: string | null
   disabled: boolean
   isSubmitting: boolean
   onRetrySave: () => Promise<void>
@@ -42,12 +44,14 @@ export function ReplyComposerFooter({
   error,
   languageName,
   canSubmit,
+  submitBlockedReason,
   disabled,
   isSubmitting,
   onRetrySave,
   onSubmit,
   onDelete,
 }: Props) {
+  const submitBlockedReasonId = useId()
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -72,11 +76,19 @@ export function ReplyComposerFooter({
         <Button
           size="sm"
           disabled={!canSubmit || disabled}
+          aria-describedby={
+            submitBlockedReason !== null ? submitBlockedReasonId : undefined
+          }
           onClick={() => void onSubmit()}
         >
           {isSubmitting ? 'Submitting…' : 'Submit for approval'}
         </Button>
       </div>
+      {submitBlockedReason !== null && (
+        <p id={submitBlockedReasonId} role="status" className="text-xs text-destructive">
+          {submitBlockedReason}
+        </p>
+      )}
       {error && <p className="text-xs text-destructive">{error}</p>}
       <p className="flex items-start gap-2 text-xs text-muted-foreground">
         <Lock className="mt-0.5 size-3.5 shrink-0" />

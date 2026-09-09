@@ -1,5 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
-import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
+import {
+  MAX_REPLY_LENGTH,
+  unfilledReplySlotsMessage,
+} from '#/contexts/review/application/public-api'
 import {
   AUTO_DETECT_REVIEW_LANGUAGE,
   defaultReplyLanguageTag,
@@ -9,6 +12,7 @@ import {
 import type { ReplyComposerInput } from './reply-suggestion-contract'
 import { useReplyAutosave, type ReplyDraftSnapshot } from './use-reply-autosave'
 import { useReplySuggestion } from './use-reply-suggestion'
+import { useReplyTemplate } from './use-reply-template'
 
 const validDraft = (draft: ReplyDraftSnapshot) =>
   draft.text.trim().length > 0 && draft.text.length <= MAX_REPLY_LENGTH
@@ -90,6 +94,19 @@ export function useReplyComposer(input: ReplyComposerInput) {
     (selectedLanguage === null && input.reviewLanguageReadiness !== 'detectable'
       ? ({ kind: 'review_language' } as const)
       : null)
+  const adoptDraft = (
+    nextDraft: ReplyDraftSnapshot,
+    kind: 'personalized' | 'local_fallback' | 'library_template',
+  ) => {
+    history.current.push(draft)
+    setHistoryCount(history.current.length)
+    revision.current += 1
+    if (target?.kind === 'review_language')
+      setEffectiveReviewLanguage(nextDraft.languageTag)
+    setSelectedLanguage(nextDraft.languageTag)
+    setDraft(nextDraft)
+    setHasAiDraft(kind === 'personalized')
+  }
   const ai = useReplySuggestion({
     draft,
     revision,
@@ -101,20 +118,22 @@ export function useReplyComposer(input: ReplyComposerInput) {
       if (provenanceToken === null) await autosave.flush(nextDraft)
       else await autosave.acceptAiDraft(nextDraft, provenanceToken)
     },
-    onAdopt: (nextDraft, kind) => {
-      history.current.push(draft)
-      setHistoryCount(history.current.length)
-      revision.current += 1
-      if (target?.kind === 'review_language')
-        setEffectiveReviewLanguage(nextDraft.languageTag)
-      setSelectedLanguage(nextDraft.languageTag)
-      setDraft(nextDraft)
-      setHasAiDraft(kind === 'personalized')
-    },
+    onAdopt: adoptDraft,
     onGenerate: input.onGenerate,
+  })
+  const templates = useReplyTemplate({
+    target,
+    revision,
+    onList: input.onListTemplates,
+    onLoad: input.onLoadTemplate,
+    onAccept: (nextDraft) => autosave.flush(nextDraft),
+    onAdopt: (nextDraft) => adoptDraft(nextDraft, 'library_template'),
+    onLoadLocalSafe: () => ai.request(undefined, true),
+    onDismissSuggestion: ai.dismiss,
   })
   const updateDraft = (next: ReplyDraftSnapshot, nextSelection = selectedLanguage) => {
     ai.dismiss()
+    templates.clearLoadedMessage()
     revision.current += 1
     setDraft(next)
     autosave.schedule(
@@ -143,6 +162,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
   }
   const updateLanguage = (languageTag: string) => {
     ai.dismiss()
+    templates.clearLoadedMessage()
     if (languageTag === AUTO_DETECT_REVIEW_LANGUAGE) {
       const next = { ...draft, languageTag: null }
       setSelectedLanguage(languageTag)
@@ -158,8 +178,13 @@ export function useReplyComposer(input: ReplyComposerInput) {
     if (validDraft(next)) void autosave.flush(next).catch(() => undefined)
     else autosave.schedule(next, false)
   }
+  const submitBlockedReason = unfilledReplySlotsMessage(draft.text)
   const submit = async () => {
     setSubmitError(null)
+    if (submitBlockedReason !== null) {
+      setSubmitError(submitBlockedReason)
+      return
+    }
     try {
       await autosave.flush(draft)
       await input.onSubmit()
@@ -175,6 +200,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
     options,
     autosave,
     ai,
+    templates,
     target,
     hasAiDraft,
     submitError,
@@ -183,9 +209,11 @@ export function useReplyComposer(input: ReplyComposerInput) {
     canSubmit:
       !isAutoDetectingLanguage &&
       validDraft(draft) &&
+      submitBlockedReason === null &&
       autosave.status !== 'error' &&
       !ai.isGenerating &&
       !ai.isAdopting,
+    submitBlockedReason,
     updateText: (text: string) => updateDraft({ ...draft, text }),
     updateLanguage,
     flushOnBlur: () => {

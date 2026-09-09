@@ -1,7 +1,6 @@
-// Server import exception per src/components/CONTEXT.md "Server-function boundary" — 7 mutations (draft/submit/
-// approve/reject/delete/retryPublish/editPublishedReply), above the ≥5
-// threshold. Value-imports from #/contexts/review/server/reply are deliberate
-// to avoid prop drilling.
+// Server import exception per src/components/CONTEXT.md "Server-function boundary" —
+// this editor coordinates the reply command family plus template-list/load actions.
+// Value imports stay centralized here to avoid prop drilling through every status view.
 
 import {
   draftReplyFn,
@@ -11,6 +10,8 @@ import {
   deleteReplyFn,
   retryPublishFn,
   editPublishedReplyFn,
+  listReplyTemplatesFn,
+  loadReplyTemplateFn,
 } from '#/contexts/review/server/reply'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { ReplyStatusView, resolveReplyView } from './reply-status-view'
@@ -75,6 +76,10 @@ export function ReplyEditor({
     successMessage: 'Update confirmed. Waiting for Google',
     onSuccess: (reply) => onReplyChanged({ kind: 'state_changed', reply }),
   })
+  const listTemplates = useActionMutation(listReplyTemplatesFn)
+  const loadTemplate = useActionMutation(loadReplyTemplateFn, {
+    onSuccess: (reply) => onReplyChanged({ kind: 'draft_saved', reply }),
+  })
   const isSaving = [submit, approve, reject, del, check, retry, edit].some(
     (mutation) => mutation.isPending,
   )
@@ -112,15 +117,24 @@ export function ReplyEditor({
       onCheck={() => check({ data: { reviewId } })}
       onRetry={() => retry({ data: { reviewId } })}
       onSaveEdit={(text) => edit({ data: { reviewId, text } })}
+      onListTemplates={(targetLanguage) =>
+        listTemplates({ data: { reviewId, targetLanguage } })
+      }
+      onLoadTemplate={(templateId, targetLanguage) =>
+        loadTemplate({
+          data: { reviewId, templateId, targetLanguage },
+        })
+      }
       onGenerateSuggestion={
         generateReplySuggestion
-          ? (tone, targetLanguage) =>
+          ? (tone, targetLanguage, templateOnly) =>
               generateReplySuggestion({
                 data: {
                   reviewId,
                   tone,
                   targetLanguage,
                   idempotencyKey: crypto.randomUUID(),
+                  ...(templateOnly ? { templateOnly: true } : {}),
                 },
               })
           : undefined

@@ -1,0 +1,25 @@
+import { AI_PRIMARY_CATEGORIES } from './ai-primary-categories'
+
+// Public schema/version contract consumed by operational and settings tooling over time.
+// fallow-ignore-next-line unused-export
+export const ASPECT_TAXONOMY_VERSION = 'aspect-taxonomy-v1' as const
+
+export const ASPECT_TAXONOMY_V1 = Object.freeze([
+  ...AI_PRIMARY_CATEGORIES,
+  'room',
+  'food_and_drink',
+  'noise',
+  'wifi_and_tech',
+  'check_in_out',
+  'parking',
+  'amenities',
+  'events',
+] as const)
+
+export type ReplyTemplateAspect = (typeof ASPECT_TAXONOMY_V1)[number]
+
+const ASPECTS = new Set<string>(ASPECT_TAXONOMY_V1)
+
+export function isReplyTemplateAspect(value: string): value is ReplyTemplateAspect {
+  return ASPECTS.has(value)
+}

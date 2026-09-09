@@ -62,6 +62,30 @@ export const PendingApprovalSaving: Story = {
   },
 }
 
+export const PendingApprovalWithUnfilledSlot: Story = {
+  render: () => (
+    <ReplyPendingApproval
+      reply={{
+        text: 'Dear {guest_name}, thank you.',
+        publishedAt: null,
+        rejectionReason: null,
+      }}
+      isSaving={false}
+      onApprove={onApprove}
+      onReject={onReject}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByRole('button', { name: /confirm & publish/i })).toBeDisabled()
+    expect(
+      canvas.getByText(
+        'Fill every template placeholder before publishing: {guest_name}.',
+      ),
+    ).toBeVisible()
+  },
+}
+
 export const ConfirmAndPublish: Story = {
   render: () => (
     <ReplyPendingApproval

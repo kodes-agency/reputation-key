@@ -105,3 +105,47 @@ export const transitionReply = (
 
 /** Shared across domain, server functions, and UI. */
 export const MAX_REPLY_LENGTH = 4096
+
+export const REPLY_TEMPLATE_SLOT_TOKENS = Object.freeze([
+  '{guest_name}',
+  '{staff_name}',
+  '{dish}',
+  '{event_type}',
+  '{escalation_contact}',
+] as const)
+
+export type ReplyTemplateSlotToken = (typeof REPLY_TEMPLATE_SLOT_TOKENS)[number]
+
+const REPLY_SLOT_PATTERN = /\{[^{}\r\n]*\}/g
+const ALLOWED_REPLY_TEMPLATE_SLOTS: Readonly<Record<ReplyTemplateSlotToken, true>> =
+  Object.freeze(
+    Object.fromEntries(REPLY_TEMPLATE_SLOT_TOKENS.map((slot) => [slot, true])) as Record<
+      ReplyTemplateSlotToken,
+      true
+    >,
+  )
+
+/** Unique brace-delimited placeholders, in first-occurrence order. */
+export function unfilledReplySlots(text: string): readonly string[] {
+  return [...new Set(text.match(REPLY_SLOT_PATTERN) ?? [])]
+}
+
+/** Placeholders that property-authored template content is not allowed to use. */
+export function unknownReplyTemplateSlots(text: string): readonly string[] {
+  return unfilledReplySlots(text).filter(
+    (slot) => !Object.hasOwn(ALLOWED_REPLY_TEMPLATE_SLOTS, slot),
+  )
+}
+
+/** Shared client/server explanation for the publish-side placeholder fence. */
+export function unfilledReplySlotsMessage(text: string): string | null {
+  const slots = unfilledReplySlots(text)
+  return slots.length === 0
+    ? null
+    : `Fill every template placeholder before publishing: ${slots.join(', ')}.`
+}
+
+export function assertReplySlotsFilled(text: string): void {
+  const message = unfilledReplySlotsMessage(text)
+  if (message !== null) throw reviewError('invalid_reply', message)
+}

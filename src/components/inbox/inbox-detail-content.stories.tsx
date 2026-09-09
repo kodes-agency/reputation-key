@@ -261,7 +261,7 @@ export const ReplyToolbarDetectsMissingReviewLanguage: Story = {
     // the language select) once "Use draft" is pressed.
     await expect(canvas.findByText('Personalized AI suggestion')).resolves.toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: /use draft/i }))
-    await expect(canvas.findByText(/AI draft/i)).resolves.toBeVisible()
+    await expect(canvas.findByText(/^AI draft$/i)).resolves.toBeVisible()
     await expect(
       canvas.getByRole('combobox', { name: 'Reply language' }),
     ).toHaveTextContent(/Bulgarian\s*·\s*Review language/i)

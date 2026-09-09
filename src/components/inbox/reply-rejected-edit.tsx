@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ReplyCompose } from './reply-editor-compose'
+import { ReplyCompose, type ReplyComposeProps } from './reply-editor-compose'
 import { ReviewReplyRejected } from './reply-editor-actions'
 import type { ReplyData } from './reply-status-view'
 import type { ReplySuggestionResult, ReplyTone } from './use-reply-suggestion'
@@ -25,7 +25,10 @@ type Props = Readonly<{
   onGenerateSuggestion?: (
     tone: ReplyTone,
     target: ReplyLanguageTarget,
+    templateOnly?: boolean,
   ) => Promise<ReplySuggestionResult>
+  onListTemplates: NonNullable<ReplyComposeProps['onListTemplates']>
+  onLoadTemplate: NonNullable<ReplyComposeProps['onLoadTemplate']>
 }>
 
 export function ReplyRejectedWithEdit(props: Props) {
@@ -74,6 +77,8 @@ export function ReplyRejectedWithEdit(props: Props) {
       onSubmit={props.onSubmitReply}
       onDelete={props.onDeleteDraft}
       onGenerateSuggestion={props.onGenerateSuggestion}
+      onListTemplates={props.onListTemplates}
+      onLoadTemplate={props.onLoadTemplate}
     />
   )
 }

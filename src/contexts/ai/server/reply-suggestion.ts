@@ -24,6 +24,7 @@ const generateReplySuggestionDto = z
       z.object({ kind: z.literal('review_language') }).strict(),
     ]),
     idempotencyKey: z.uuid(),
+    templateOnly: z.boolean().optional(),
   })
   .strict()
 
@@ -50,11 +51,13 @@ export const generateReplySuggestionFn = createServerFn({ method: 'POST' })
               404,
             )
           }
-          await requireExecutionAllowed({
-            actor: ctx,
-            action: 'ai.reply.generate',
-            propertyId: current.source.propertyId,
-          })
+          if (!data.templateOnly) {
+            await requireExecutionAllowed({
+              actor: ctx,
+              action: 'ai.reply.generate',
+              propertyId: current.source.propertyId,
+            })
+          }
           const baseReplyStateRevision =
             await container.reviewPublicApi.aiReviewSource.readReplyStateRevision({
               organizationId: ctx.organizationId,
@@ -68,6 +71,7 @@ export const generateReplySuggestionFn = createServerFn({ method: 'POST' })
             tone: data.tone,
             targetLanguage: data.targetLanguage,
             idempotencyKey: data.idempotencyKey,
+            ...(data.templateOnly ? { templateOnly: true } : {}),
             expectedSourceEpoch: current.source.sourceEpoch,
             expectedSourceRevision: current.source.sourceRevision,
             expectedBaseReplyStateRevision: baseReplyStateRevision,

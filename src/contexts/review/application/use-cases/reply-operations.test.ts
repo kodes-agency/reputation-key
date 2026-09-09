@@ -115,6 +115,8 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
+    templateId: overrides.templateId ?? null,
+    templateVersion: overrides.templateVersion ?? null,
   }
 }
 
@@ -670,6 +672,22 @@ describe('submitReply', () => {
     expect(fact.occurredAt).toBe(NOW)
   })
 
+  it('refuses a draft with an unfilled template slot before transition', async () => {
+    const draft = makeReply({ status: 'draft', text: 'Thank you, {guest_name}.' })
+    const deps = makeDeps({
+      replyRepo: replyRepoWith(draft),
+    })
+
+    await expect(
+      submitReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toMatchObject({
+      code: 'invalid_reply',
+      message: 'Fill every template placeholder before publishing: {guest_name}.',
+    })
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
+  })
+
   it('treats a lost race (conditionalUpdate returns null) as invalid_transition', async () => {
     const draft = makeReply({ status: 'draft' })
     const deps = makeDeps({
@@ -772,6 +790,26 @@ describe('approveReply', () => {
     await expect(
       approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
+  })
+
+  it('refuses approval while a template slot remains without reserving publication work', async () => {
+    const pending = makeReply({
+      status: 'pending_approval',
+      text: 'Dear {guest_name}, thank you.',
+    })
+    const deps = makeDeps({
+      replyRepo: replyRepoWith(pending),
+    })
+
+    await expect(
+      approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toMatchObject({
+      code: 'invalid_reply',
+      message: 'Fill every template placeholder before publishing: {guest_name}.',
+    })
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
   })
 
   it('records the reviewReplyApproved fact with correct data', async () => {
@@ -877,6 +915,23 @@ describe('editPublishedReply', () => {
     expect(result).toBe(reply)
     expect(deps.outbox.facts).toHaveLength(0)
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+  })
+
+  it('refuses an edit containing an unfilled slot before reply or provider work', async () => {
+    const deps = makeDeps()
+
+    await expect(
+      editPublishedReply(deps)(
+        { reviewId: REVIEW_ID, text: 'Thank you, {staff_name}.' },
+        MANAGER_CTX,
+      ),
+    ).rejects.toMatchObject({
+      code: 'invalid_reply',
+      message: 'Fill every template placeholder before publishing: {staff_name}.',
+    })
+    expect(deps.replyRepo.findInternalByReviewId).not.toHaveBeenCalled()
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
   })
 
   it('rejects editing a non-published reply', async () => {

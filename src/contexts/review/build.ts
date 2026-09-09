@@ -15,6 +15,7 @@ import type { PropertySourceEpochPort } from './application/ports/property-sourc
 import type { ReviewRepository } from './application/ports/review.repository'
 import type { ReviewObservationRepository } from './application/ports/review-observation.repository'
 import type { ReplyRepository } from './application/ports/reply.repository'
+import type { ReplyTemplateRepository } from './application/ports/reply-template.repository'
 import type { FindAmbiguousPublicationReconciliationCandidates } from './application/ports/publication-reconciliation-maintenance.port'
 import type { ReplyCommandStore } from './application/ports/reply-command-store.port'
 import type {
@@ -32,6 +33,7 @@ import { createReviewOrganizationLifecycleContributor } from './infrastructure/a
 import { createReviewRepository } from './infrastructure/repositories/review.repository'
 import { createReviewObservationRepository } from './infrastructure/repositories/review-observation.repository'
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
+import { createReplyTemplateRepository } from './infrastructure/repositories/reply-template.repository'
 import { createPublicationReconciliationCandidateQuery } from './infrastructure/repositories/publication-reconciliation-candidate.repository'
 import { createServingStats } from './infrastructure/serving-stats'
 import type { ReviewServingStats } from './application/ports/serving-stats.port'
@@ -84,6 +86,12 @@ import {
   retryPublish,
   editPublishedReply,
 } from './application/use-cases/reply-operations'
+import {
+  listReplyTemplates,
+  loadReplyTemplate,
+  type ListReplyTemplates,
+  type LoadReplyTemplate,
+} from './application/use-cases/reply-template-operations'
 import { reconcileReplyPublication } from './application/use-cases/reconcile-reply-publication'
 import { cancelPublicationsForConnection } from './application/use-cases/cancel-publications'
 import { getStaffRecentActivity } from './application/use-cases/get-staff-recent-activity'
@@ -161,6 +169,8 @@ export type ReviewContextApi = Readonly<{
         delete: ReturnType<typeof deleteReply>
         get: ReturnType<typeof getReply>
         retryPublish: ReturnType<typeof retryPublish>
+        listTemplates: ListReplyTemplates
+        loadTemplate: LoadReplyTemplate
       }>
       /** Property-scoped Review activity query presented to Review HTTP adapters. */
       getStaffRecentActivity: ReturnType<typeof getStaffRecentActivity>
@@ -217,6 +227,7 @@ export type ReviewContextApi = Readonly<{
       reviewRepo: ReviewRepository
       observationRepo: ReviewObservationRepository
       replyRepo: ReplyRepository
+      replyTemplateRepo: ReplyTemplateRepository
       replyCommandStore: ReplyCommandStore
       queue: ReviewQueuePort
       targetedQueue: TargetedGoogleReviewQueuePort
@@ -233,6 +244,8 @@ export type ReviewContextApi = Readonly<{
       deleteReply: ReturnType<typeof deleteReply>
       getReply: ReturnType<typeof getReply>
       retryPublish: ReturnType<typeof retryPublish>
+      listReplyTemplates: ListReplyTemplates
+      loadReplyTemplate: LoadReplyTemplate
       reconcileReplyPublication: ReturnType<typeof reconcileReplyPublication>
       getStaffRecentActivity: ReturnType<typeof getStaffRecentActivity>
       runReviewSourceContentLifecycle: RunReviewSourceContentLifecycle
@@ -256,6 +269,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   const reviewRepo = createReviewRepository(input.db, input.clock)
   const observationRepo = createReviewObservationRepository(input.db)
   const replyRepo = createReplyRepository(input.db, input.clock)
+  const replyTemplateRepo = createReplyTemplateRepository(input.db, input.clock)
   const publicationCandidates = createPublicationReconciliationCandidateQuery(input.db)
   const sourceContentLifecycleStore = createReviewSourceContentLifecycleStore(input.db)
   const recoveryPlanning = createReviewLifecycleRecoveryPlanningQuery(input.db)
@@ -392,6 +406,12 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     idGen: () => replyId(input.idGen()),
     staffPublicApi: input.staffPublicApi,
   }
+  const draftReplyUseCase = draftReply(replyDeps)
+  const replyTemplateDeps = {
+    repository: replyTemplateRepo,
+    reviewRepo,
+    staffPublicApi: input.staffPublicApi,
+  }
 
   // BQC-3.8: disconnect cancels in-flight publications before/with the
   // source-content purge (the guarded store tolerates the race). Delivered by
@@ -443,7 +463,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       syncActivity,
       clock: input.clock,
     }),
-    draftReply: draftReply(replyDeps),
+    draftReply: draftReplyUseCase,
     submitReply: submitReply(replyDeps),
     approveReply: approveReply(replyDeps),
     rejectReply: rejectReply(replyDeps),
@@ -451,6 +471,11 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     getReply: getReply(replyDeps),
     retryPublish: retryPublish(replyDeps),
     editPublishedReply: editPublishedReply(replyDeps),
+    listReplyTemplates: listReplyTemplates(replyTemplateDeps),
+    loadReplyTemplate: loadReplyTemplate({
+      ...replyTemplateDeps,
+      draftReply: draftReplyUseCase,
+    }),
     reconcileReplyPublication: reconcileReplyPublication({
       replyRepo,
       reviewRepo,
@@ -535,6 +560,8 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         delete: useCases.deleteReply,
         get: useCases.getReply,
         retryPublish: useCases.retryPublish,
+        listTemplates: useCases.listReplyTemplates,
+        loadTemplate: useCases.loadReplyTemplate,
       }),
       getStaffRecentActivity: useCases.getStaffRecentActivity,
     },
@@ -585,6 +612,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         reviewRepo,
         observationRepo,
         replyRepo,
+        replyTemplateRepo,
         replyCommandStore,
         queue,
         targetedQueue,

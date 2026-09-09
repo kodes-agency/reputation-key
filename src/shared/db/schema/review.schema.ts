@@ -875,6 +875,10 @@ export const replies = pgTable(
     // Canonical language selected for this reply's public text. Nullable for
     // legacy/provider-mirrored replies that predate language selection.
     replyLanguageTag: varchar('reply_language_tag', { length: 35 }),
+    // Informational provenance for a property-authored library template. These
+    // fields do not make the reply AI-authored and are deliberately not fences.
+    templateId: uuid('template_id'),
+    templateVersion: integer('template_version'),
     status: replyStatusEnum('status').notNull(),
     source: replySourceEnum('source').notNull(),
     createdBy: varchar('created_by', { length: 255 }),
@@ -956,6 +960,13 @@ export const replies = pgTable(
     check(
       'replies_reply_language_tag_valid',
       sql`${t.replyLanguageTag} IS NULL OR ${t.replyLanguageTag} ~ ${sql.raw(`'${REPLY_LANGUAGE_TAG_SQL_PATTERN}'`)}`,
+    ),
+    check(
+      'replies_template_provenance_valid',
+      sql`(
+        (${t.templateId} IS NULL AND ${t.templateVersion} IS NULL)
+        OR (${t.templateId} IS NOT NULL AND ${t.templateVersion} >= 1)
+      )`,
     ),
     uniqueIndex('replies_origin_operation_unique')
       .on(t.originOperationId)

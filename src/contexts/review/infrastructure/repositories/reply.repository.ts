@@ -270,6 +270,8 @@ export const createReplyRepository = (
           set: {
             text: row.text,
             replyLanguageTag: row.replyLanguageTag,
+            templateId: row.templateId,
+            templateVersion: row.templateVersion,
             status: row.status,
             approvedBy: row.approvedBy,
             rejectedBy: row.rejectedBy,

@@ -48,6 +48,8 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
+    templateId: overrides.templateId ?? null,
+    templateVersion: overrides.templateVersion ?? null,
   }
 }
 

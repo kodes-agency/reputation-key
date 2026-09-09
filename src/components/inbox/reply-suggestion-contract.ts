@@ -2,6 +2,7 @@ import type {
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,
 } from '#/contexts/ai/application/public-api'
+import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
 import {
   equivalentReplyLanguageTags,
   languageDisplayName,
@@ -31,6 +32,13 @@ export type PendingReplySuggestion =
       languageSource: FallbackSuggestionResult['languageSource']
     }>
 
+export type LoadedReplyTemplateDraft = Readonly<{
+  text: string
+  replyLanguageTag?: string | null
+  templateId: string | null
+  templateVersion: number | null
+}>
+
 export type ReplyComposerInput = Readonly<{
   initialText: string
   initialLanguageTag: string | null
@@ -47,7 +55,13 @@ export type ReplyComposerInput = Readonly<{
   onGenerate?: (
     tone: ReplyTone,
     target: ReplyLanguageTarget,
+    templateOnly?: boolean,
   ) => Promise<ReplySuggestionResult>
+  onListTemplates?: (target: ReplyLanguageTarget) => Promise<ReplyTemplateListResult>
+  onLoadTemplate?: (
+    templateId: string,
+    target: ReplyLanguageTarget,
+  ) => Promise<LoadedReplyTemplateDraft>
 }>
 
 export type ReplySuggestionFixTarget = 'public_display_name' | 'ai_settings'

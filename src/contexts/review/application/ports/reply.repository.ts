@@ -43,6 +43,8 @@ export type ConditionalReplyUpdate = Readonly<{
   status?: ReplyStatus
   text?: string
   replyLanguageTag?: string | null
+  templateId?: string | null
+  templateVersion?: number | null
   aiGenerated?: boolean
   submittedAt?: Date | null
   approvedBy?: string | null

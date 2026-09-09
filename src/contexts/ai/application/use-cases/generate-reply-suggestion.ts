@@ -68,6 +68,8 @@ export type GenerateReplySuggestionInput = Readonly<{
   targetLanguage:
     Readonly<{ kind: 'property_default' }> | Readonly<{ kind: 'review_language' }>
   idempotencyKey: string
+  /** Explicitly request the governed local catalogue without AI admission or execution. */
+  templateOnly?: boolean
   expectedSourceEpoch: number
   expectedSourceRevision: number
   expectedBaseReplyStateRevision: number
@@ -314,46 +316,26 @@ export function createGenerateReplySuggestion(
   dependencies: GenerateReplySuggestionDependencies,
 ): (input: GenerateReplySuggestionInput) => Promise<GenerateReplySuggestionResult> {
   return async (input) => {
-    const nowEpochMillis = dependencies.nowEpochMillis()
-    const [authorization, runtime, source, baseReplyStateRevision, brandProfile] =
-      await Promise.all([
-        dependencies.authorization.readMerchantAuthorization(input),
-        dependencies.processingProfiles.readForAi(input),
-        dependencies.reviewSources.readForAi({
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          reviewId: input.reviewId,
-          expected: {
-            kind: 'reply',
-            sourceEpoch: input.expectedSourceEpoch,
-            sourceRevision: input.expectedSourceRevision,
-          },
-        }),
-        dependencies.reviewSources.readReplyStateRevision(input),
-        dependencies.replyBrandProfiles.readCurrentAiReplyBrandProfile(
-          input.organizationId,
-          input.propertyId,
-        ),
-      ])
-    if (
-      authorization === null ||
-      authorization.state !== 'enabled' ||
-      authorization.authorizationLineageId === null ||
-      authorization.authorizedSourceEpoch !== input.expectedSourceEpoch ||
-      !authorization.capabilities.includes('reply_drafting') ||
-      authorization.capabilityRuntimeProfileVersions.reply_drafting !==
-        PROFILE.capabilityRuntimeProfileVersion ||
-      runtime.status !== 'available'
-    ) {
-      return unavailable('not_authorized')
-    }
+    const [source, baseReplyStateRevision] = await Promise.all([
+      dependencies.reviewSources.readForAi({
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        reviewId: input.reviewId,
+        expected: {
+          kind: 'reply',
+          sourceEpoch: input.expectedSourceEpoch,
+          sourceRevision: input.expectedSourceRevision,
+        },
+      }),
+      dependencies.reviewSources.readReplyStateRevision(input),
+    ])
     if (
       source.status !== 'available' ||
       baseReplyStateRevision !== input.expectedBaseReplyStateRevision
     ) {
       return unavailable('source_changed')
     }
-    if (brandProfile === null) return unavailable('brand_profile_unavailable')
+
     const observation = source.observation
     if (observation.text === null) {
       const target = await resolveTargetReplyLanguage(dependencies, input, null)
@@ -364,24 +346,36 @@ export function createGenerateReplySuggestion(
             languageSource: target.languageSource,
           })
     }
+
     const reviewText = observation.text
     const evaluatedLanguage = mapReviewLanguageMetadata(observation.languageCode)
     if (evaluatedLanguage.status !== 'supported') {
-      return unavailable(
-        evaluatedLanguage.status === 'language_not_supported'
-          ? 'language_not_supported'
-          : 'policy_unavailable',
-      )
+      if (!input.templateOnly) {
+        return unavailable(
+          evaluatedLanguage.status === 'language_not_supported'
+            ? 'language_not_supported'
+            : 'policy_unavailable',
+        )
+      }
+      const target = await resolveTargetReplyLanguage(dependencies, input, null)
+      return target === null
+        ? unavailable('target_language_unavailable')
+        : localFallback(input, target.language, observation.rating, {
+            reason: 'language_undetermined',
+            languageSource: target.languageSource,
+          })
     }
+
     const reviewLanguage = await dependencies.resolveReplyLanguage({
       text: reviewText,
       evaluatedLanguage: evaluatedLanguage.language,
     })
     if (reviewLanguage.status !== 'resolved') {
-      if (
-        reviewLanguage.status !== 'language_not_supported' ||
-        reviewLanguage.reason === 'metadata_language_mismatch'
-      ) {
+      const canUseTemplate =
+        input.templateOnly ||
+        (reviewLanguage.status === 'language_not_supported' &&
+          reviewLanguage.reason !== 'metadata_language_mismatch')
+      if (!canUseTemplate) {
         return unavailable(
           reviewLanguage.status === 'language_not_supported'
             ? 'language_not_supported'
@@ -396,6 +390,7 @@ export function createGenerateReplySuggestion(
             languageSource: target.languageSource,
           })
     }
+
     const target = await resolveTargetReplyLanguage(
       dependencies,
       input,
@@ -403,12 +398,38 @@ export function createGenerateReplySuggestion(
     )
     if (target === null) return unavailable('target_language_unavailable')
     const targetReplyLanguage = target.language
-    if (!PERSONALIZED_LANGUAGE_SET.has(targetReplyLanguage.templateGroup)) {
+    if (
+      input.templateOnly ||
+      !PERSONALIZED_LANGUAGE_SET.has(targetReplyLanguage.templateGroup)
+    ) {
       return localFallback(input, targetReplyLanguage, observation.rating, {
         reason: 'provider_or_output_unavailable',
         languageSource: target.languageSource,
       })
     }
+
+    const [authorization, runtime, brandProfile] = await Promise.all([
+      dependencies.authorization.readMerchantAuthorization(input),
+      dependencies.processingProfiles.readForAi(input),
+      dependencies.replyBrandProfiles.readCurrentAiReplyBrandProfile(
+        input.organizationId,
+        input.propertyId,
+      ),
+    ])
+    if (
+      authorization === null ||
+      authorization.state !== 'enabled' ||
+      authorization.authorizationLineageId === null ||
+      authorization.authorizedSourceEpoch !== input.expectedSourceEpoch ||
+      !authorization.capabilities.includes('reply_drafting') ||
+      authorization.capabilityRuntimeProfileVersions.reply_drafting !==
+        PROFILE.capabilityRuntimeProfileVersion ||
+      runtime.status !== 'available'
+    ) {
+      return unavailable('not_authorized')
+    }
+    if (brandProfile === null) return unavailable('brand_profile_unavailable')
+    const nowEpochMillis = dependencies.nowEpochMillis()
     const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
       providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
       capability: 'reply_drafting',
