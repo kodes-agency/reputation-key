@@ -221,8 +221,8 @@ export function validateDeterministicAggregateWindow(
   if (sum(Object.values(parsed.attentionCounts)) !== reviewCount) {
     throw new TypeError('attention counts must sum to reviewCount')
   }
-  if (sum(Object.values(parsed.categoryCounts)) !== reviewCount) {
-    throw new TypeError('category counts must sum to reviewCount')
+  if (Object.values(parsed.categoryCounts).some((count) => count > parsed.reviewCount)) {
+    throw new TypeError('category mention count cannot exceed reviewCount')
   }
   return freezeWindow(parsed)
 }

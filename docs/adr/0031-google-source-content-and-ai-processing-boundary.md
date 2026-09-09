@@ -11,7 +11,7 @@ Google Business Profile review processing is allowed only through a versioned, e
 
 The review context remains the sole owner of canonical raw Google review and reply content. Raw review text, rating, reviewer information, Google identifiers, and Google-observed reply text are refreshed or removed under the applicable 30-day cache policy; a local read, scheduler touch, copy, backup, or model call never extends that clock. RepKey adopts the conservative interpretation that only a successful authorized Google re-fetch may establish a new cache observation until Google confirms more precise refresh semantics.
 
-AI results may be retained separately only when they are property-scoped derivative metadata that does not reproduce raw content, personally identifiable information, Google identifiers, exact replies, or reversible content fingerprints. Per-review sentiment/category analysis, property-local themes/trends/summaries, and manager-requested reply drafts are conditionally allowed. Cross-property AI reports, organization summaries, automatic reply publication, provider training on submitted data, silent cross-region fallback, and review-derived staff goals/badges/leaderboards are denied.
+AI results may be retained separately only when they are property-scoped derivative metadata that does not reproduce raw content, personally identifiable information, Google identifiers, exact replies, or reversible content fingerprints. Bounded lowercase category labels of no more than four words are permitted derivative metadata only when they identify nobody, contain no proper noun, and are non-reversible; review excerpts and identifiers remain forbidden. Per-review sentiment/aspect analysis, property-local themes/trends/summaries, and manager-requested reply drafts are conditionally allowed. Cross-property AI reports, organization summaries, automatic reply publication, provider training on submitted data, silent cross-region fallback, and review-derived staff goals/badges/leaderboards are denied.
 
 Every external AI operation requires all of the following at invocation and persistence time:
 
@@ -59,6 +59,6 @@ production identifiers.
 ## Consequences
 
 - PRE17 must establish the raw-content lifecycle, property processing profile, source-policy evaluator, deletion participation, and evidence hooks before Phase 17 can call a model.
-- Phase 17/18 schemas must keep raw content and derivatives separate and record policy, prompt/schema/model, redaction, consent, provider deployment, and region versions without retaining prompt bodies.
+- Phase 17/18 schemas must keep raw content and derivatives separate and record policy, prompt/schema/model, aspect-taxonomy, redaction, consent, provider deployment, and region versions without retaining prompt bodies.
 - Backups and restores need purge-ledger or approved erasure behavior so restoration cannot resurrect expired content into service.
-- The exact raw-cache refresh semantics, durable previous-reply examples, historical backfill details, and backup treatment remain conservative until a narrower written clarification or approved policy change supersedes this ADR.
+- Review-analysis contract changes bump the capability epoch and use the existing enrollment path to backfill eligible history. The exact raw-cache refresh semantics, durable previous-reply examples, and backup treatment remain conservative until a narrower written clarification or approved policy change supersedes this ADR.

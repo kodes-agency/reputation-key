@@ -36,6 +36,13 @@
       "when": 1788976902641,
       "tag": "0004_rare_shooting_star",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788989402676,
+      "tag": "0005_outgoing_warhawk",
+      "breakpoints": true
     }
   ]
 }

@@ -2,17 +2,21 @@ import { describe, expect, it } from 'vitest'
 import { zodTextFormat } from 'openai/helpers/zod'
 import {
   AI_ANALYSIS_OUTPUT_SCHEMA,
+  AI_ANALYSIS_V2_OUTPUT_SCHEMA,
   AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA,
   AI_REPLY_SELECTION_OUTPUT_SCHEMA,
   AI_SYNTHETIC_CANARY_OUTPUT_SCHEMA,
   AI_TREND_SELECTION_OUTPUT_SCHEMA,
   AI_ROUTE_OUTPUT_JSON_SCHEMAS,
   CONCRETE_REPLY_LANGUAGE_PATTERN,
+  TREND_SIGNAL_PATTERN,
 } from './openai-route-output-schemas'
+import { ASPECT_TAXONOMY_V1 } from './aspect-taxonomy'
 import { REPLY_TEMPLATE_LANGUAGE_GROUPS } from './ai-review-language-catalogue'
 
 const cases = [
   ['review-analysis', AI_ANALYSIS_OUTPUT_SCHEMA],
+  ['review-analysis-v2', AI_ANALYSIS_V2_OUTPUT_SCHEMA],
   ['reply-suggestion', AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA],
   ['property-trend', AI_TREND_SELECTION_OUTPUT_SCHEMA],
   ['synthetic-canary', AI_SYNTHETIC_CANARY_OUTPUT_SCHEMA],
@@ -89,6 +93,71 @@ describe('AI route output schema authority', () => {
         selectedSignalIds: ['sentiment.positive.up', 'sentiment.positive.up'],
       }).success,
     ).toBe(false)
+    expect(
+      AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse({
+        sentiment: 'negative',
+        sentimentValence: -70,
+        urgencySignals: [],
+        aspects: [
+          { aspect: 'cleanliness', polarity: 'negative', intensity: -80 },
+          { aspect: 'cleanliness', polarity: 'negative', intensity: -60 },
+        ],
+        issueLabel: null,
+      }).success,
+    ).toBe(false)
+    expect(
+      AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse({
+        sentiment: 'negative',
+        sentimentValence: -70,
+        urgencySignals: [],
+        aspects: [{ aspect: 'cleanliness', polarity: 'positive', intensity: -80 }],
+        issueLabel: null,
+      }).success,
+    ).toBe(false)
+  })
+
+  it.each([
+    ['uppercase', 'Bed bugs'],
+    ['digits', 'room 2'],
+    ['punctuation', 'bed-bugs'],
+    ['five words', 'one two three four five'],
+    ['41 characters', 'a'.repeat(41)],
+    ['review excerpt with a proper noun', 'dirty sheets at Hilton'],
+  ])('rejects an issue label containing %s', (_case, issueLabel) => {
+    expect(
+      AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse({
+        sentiment: 'negative',
+        sentimentValence: -70,
+        urgencySignals: [],
+        aspects: [{ aspect: 'cleanliness', polarity: 'negative', intensity: -80 }],
+        issueLabel,
+      }).success,
+    ).toBe(false)
+  })
+
+  it('accepts null and a bounded generic issue label', () => {
+    const value = {
+      sentiment: 'negative',
+      sentimentValence: -70,
+      urgencySignals: [],
+      aspects: [{ aspect: 'cleanliness', polarity: 'negative', intensity: -80 }],
+    } as const
+    expect(
+      AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse({ ...value, issueLabel: null }).success,
+    ).toBe(true)
+    expect(
+      AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse({
+        ...value,
+        issueLabel: 'bathroom maintenance',
+      }).success,
+    ).toBe(true)
+  })
+
+  it('accepts every aspect taxonomy id in trend signal grammar', () => {
+    for (const aspect of ASPECT_TAXONOMY_V1) {
+      expect(TREND_SIGNAL_PATTERN.test(`category.${aspect}.up`)).toBe(true)
+      expect(TREND_SIGNAL_PATTERN.test(`category.${aspect}.down`)).toBe(true)
+    }
   })
 
   it('pins personalized reply evidence and trend signal grammars in provider-visible JSON schema', () => {

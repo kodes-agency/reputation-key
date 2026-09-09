@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { startAiProviderStub, type AiProviderStubHandle } from './ai-provider-stub'
 import { parsePersonalizedReplyDraft } from '../../src/shared/ai-personalized-reply-contract'
 import {
-  AI_ANALYSIS_OUTPUT_SCHEMA,
+  AI_ANALYSIS_V2_OUTPUT_SCHEMA,
   AI_TREND_SELECTION_OUTPUT_SCHEMA,
 } from '../../src/shared/openai-route-output-schemas'
 
@@ -120,12 +120,12 @@ describe('AI Responses provider stub', () => {
     }
 
     it('answers an unscripted analysis with output the app accepts, keyed by rating', async () => {
-      const low = await unscripted('review_analysis_v1', {
+      const low = await unscripted('review_analysis_v2', {
         reviewText: 'Cold food.',
         rating: 1,
       })
       expect(low.status).toBe(200)
-      expect(AI_ANALYSIS_OUTPUT_SCHEMA.safeParse(low.parsed).success).toBe(true)
+      expect(AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse(low.parsed).success).toBe(true)
       expect((low.parsed as { sentiment: string }).sentiment).toBe('negative')
     })
 

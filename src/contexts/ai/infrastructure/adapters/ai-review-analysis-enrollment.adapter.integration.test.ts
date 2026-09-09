@@ -407,7 +407,7 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
       propertyProfileVersion: 1,
       routingPolicyVersion: 1,
       providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
-      operationProfileVersion: 'review-analysis-v1',
+      operationProfileVersion: 'review-analysis-v2',
       capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
       sourcePolicyId: 'google-business-profile-source-policy-v1',
       sourceCanonicalizerDigest: 'e'.repeat(64),

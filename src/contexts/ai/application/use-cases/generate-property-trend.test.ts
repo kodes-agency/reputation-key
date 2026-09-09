@@ -91,7 +91,14 @@ function analyzedReview(
     sentiment: positive ? 'positive' : 'neutral',
     primaryCategory: sequence % 10 === 0 ? 'service' : 'staff',
     attention: 'low',
-    analysisProfileVersion: 'review-analysis-v1',
+    aspects: [
+      {
+        aspect: sequence % 10 === 0 ? 'service' : 'staff',
+        polarity: positive ? 'positive' : 'neutral',
+        intensity: positive ? 60 : 0,
+      },
+    ],
+    analysisProfileVersion: 'review-analysis-v2',
     providerDeploymentProfileVersion: 'private-beta-global-v1',
     modelSnapshot: 'gpt-5.4-mini-2026-03-17',
   }
@@ -322,7 +329,7 @@ describe('generate property trend', () => {
           }),
           modelLineage: [
             {
-              analysisProfileVersion: 'review-analysis-v1',
+              analysisProfileVersion: 'review-analysis-v2',
               providerDeploymentProfileVersion: 'private-beta-global-v1',
               modelSnapshot: 'gpt-5.4-mini-2026-03-17',
             },

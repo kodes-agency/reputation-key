@@ -11,6 +11,8 @@ import {
 import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'
 import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
 import type { AnalysisResult } from '#/shared/ai-gateway-transport-contract'
+import { AI_ANALYSIS_V2_OUTPUT_SCHEMA } from '#/shared/openai-route-output-schemas'
+import type { AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiControlPort } from '../ports/ai-control.port'
 import type { AiInferencePort } from '../ports/ai-inference.port'
@@ -34,7 +36,7 @@ import {
 } from '../ai-workflow-support'
 
 const PROFILE = AI_OPERATION_PROFILES.find(
-  (candidate) => candidate.profileVersion === 'review-analysis-v1',
+  (candidate) => candidate.profileVersion === 'review-analysis-v2',
 )!
 const DERIVATIVE_RETENTION_MILLIS = 730 * 24 * 60 * 60 * 1_000
 
@@ -196,6 +198,36 @@ export async function settleReviewAnalysisWithResult(
   return aggregate.status === 'stale' || aggregate.status === 'unavailable'
     ? { status: 'generation_changed' }
     : { status: 'terminal' }
+}
+
+export function derivePrimaryCategoryV1(
+  aspects: ReadonlyArray<
+    Readonly<{
+      aspect: AspectTaxonomyV1Id
+      polarity: 'positive' | 'neutral' | 'negative'
+      intensity: number
+    }>
+  >,
+): AspectTaxonomyV1Id {
+  let primary:
+    | Readonly<{
+        aspect: AspectTaxonomyV1Id
+        polarity: 'positive' | 'neutral' | 'negative'
+        intensity: number
+      }>
+    | undefined
+  for (const candidate of aspects) {
+    if (
+      primary === undefined ||
+      Math.abs(candidate.intensity) > Math.abs(primary.intensity) ||
+      (Math.abs(candidate.intensity) === Math.abs(primary.intensity) &&
+        candidate.polarity === 'negative' &&
+        primary.polarity !== 'negative')
+    ) {
+      primary = candidate
+    }
+  }
+  return primary?.aspect ?? 'other'
 }
 
 function attentionFor(
@@ -625,6 +657,33 @@ export function createAnalyzeReviewEvent(
           'policy_disabled',
         )
       }
+      const parsedAnalysis = AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse(response.result)
+      if (!parsedAnalysis.success) {
+        const failedAtEpochMillis = dependencies.nowEpochMillis()
+        const retryAtEpochMillis = aiRetryAt(expectedAttempt, failedAtEpochMillis, null)
+        await dependencies.operations.recordFailure({
+          operationId: execution.id,
+          organizationId: input.organizationId,
+          expectedAttempt,
+          failureCode: 'output_invalid',
+          retryAtEpochMillis,
+          failedAtEpochMillis,
+        })
+        if (retryAtEpochMillis !== null) {
+          return {
+            status: 'retry',
+            retryAtEpochMillis,
+            code: 'output_invalid',
+          }
+        }
+        return settleWithoutResult(
+          input,
+          reviewAnalysisEpoch,
+          profile.profileVersion,
+          'policy_disabled',
+        )
+      }
+      const analysisResult = parsedAnalysis.data
       const completedAtEpochMillis = response.settlementReceipt.settledAtEpochMillis
       const stored = await dependencies.outputs.storeAnalysis({
         operationId: execution.id,
@@ -648,9 +707,11 @@ export function createAnalyzeReviewEvent(
         result: {
           status: 'ready',
           derivative: {
-            sentiment: response.result.sentiment,
-            primaryCategory: response.result.primaryCategory,
-            attention: attentionFor(response.result, observation.rating),
+            sentiment: analysisResult.sentiment,
+            primaryCategory: derivePrimaryCategoryV1(analysisResult.aspects),
+            attention: attentionFor(analysisResult, observation.rating),
+            aspects: analysisResult.aspects,
+            issueLabel: analysisResult.issueLabel,
           },
         },
         generatedAtEpochMillis: completedAtEpochMillis,

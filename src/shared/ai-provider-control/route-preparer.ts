@@ -42,7 +42,7 @@ import {
   type DeterministicTrendCandidate,
 } from '#/shared/ai-property-trend-contract'
 import {
-  AI_ANALYSIS_OUTPUT_SCHEMA,
+  AI_ANALYSIS_V2_OUTPUT_SCHEMA,
   AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA,
   AI_TREND_SELECTION_OUTPUT_SCHEMA,
 } from '#/shared/openai-route-output-schemas'
@@ -82,7 +82,7 @@ import {
 import { derivePropertySafetyIdentifier } from './safety-identifier'
 import { digestRenderedReply, signAiReplyProvenance } from './provenance'
 import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
-const analysisOutputSchema = AI_ANALYSIS_OUTPUT_SCHEMA
+const analysisOutputSchema = AI_ANALYSIS_V2_OUTPUT_SCHEMA
 const personalizedReplySchema = AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA
 const trendSelectionSchema = AI_TREND_SELECTION_OUTPUT_SCHEMA
 const closedJsonSchemaFormatSchema = z

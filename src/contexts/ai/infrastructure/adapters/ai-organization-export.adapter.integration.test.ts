@@ -363,12 +363,9 @@ async function seedFixture(): Promise<Fixture> {
          review_analysis_epoch, property_profile_version,
          calendar_profile_version, aggregate_revision, terminal_analysis_sequence,
          review_count, rating_sum, positive_count, neutral_count, negative_count,
-         mixed_count, service_count, staff_count, quality_count, value_count,
-         cleanliness_count, wait_time_count, atmosphere_count, location_count,
-         accessibility_count, other_count, urgent_count, high_count,
-         medium_count, low_count, updated_at
+         mixed_count, urgent_count, high_count, medium_count, low_count, updated_at
        ) VALUES ($1, $2, $3, 0, $4, 1, 'property-calendar-v1', 1, 1, 1, 5, 1, 0,
-                 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, $5)`,
+                 0, 0, 0, 0, 0, 1, $5)`,
       [
         fixture.organizationId,
         fixture.propertyId,
@@ -376,6 +373,14 @@ async function seedFixture(): Promise<Fixture> {
         epoch,
         new Date(ANALYZED_AT),
       ],
+    )
+    await lease.pool.query(
+      `INSERT INTO ai_property_daily_aspect_aggregates (
+         organization_id, property_id, local_date, source_epoch,
+         review_analysis_epoch, property_profile_version, aspect, polarity,
+         mention_count
+       ) VALUES ($1, $2, $3, 0, $4, 1, 'service', 'positive', 1)`,
+      [fixture.organizationId, fixture.propertyId, localDate, epoch],
     )
   }
 
@@ -531,6 +536,8 @@ describe.sequential('AI Organization Export contributor', () => {
       authorization_lineage_id: fixture.lineageId,
       sentiment: 'positive',
       primary_category: 'service',
+      aspects: [],
+      issue_label: null,
       attention: 'low',
       status: 'ready',
     })
@@ -543,6 +550,8 @@ describe.sequential('AI Organization Export contributor', () => {
       review_count: 1,
       rating_sum: 5,
       positive_count: 1,
+      aspect_mentions: [{ aspect: 'service', polarity: 'positive', mention_count: 1 }],
+      service_count: 1,
     })
 
     const trends = jsonRecords(first.entries, 'ai/property-trend-outcomes.json')

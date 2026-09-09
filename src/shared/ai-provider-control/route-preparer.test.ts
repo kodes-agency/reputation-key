@@ -76,7 +76,7 @@ function analysisRequest() {
       replyTemplateCatalogueVersion: null,
       replyTemplateCatalogueDigest: null,
       providerDeploymentProfileVersion: 'private-beta-global-v1',
-      operationProfileVersion: 'review-analysis-v1',
+      operationProfileVersion: 'review-analysis-v2',
       capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
       aiSubjectHmacKeyVersion: 'subject-v1',
       stopFence: {
@@ -168,8 +168,11 @@ function preparer(
 const acceptedAnalysis = Object.freeze({
   sentiment: 'positive',
   sentimentValence: 80,
-  primaryCategory: 'service',
   urgencySignals: Object.freeze([]),
+  aspects: Object.freeze([
+    Object.freeze({ aspect: 'service', polarity: 'positive', intensity: 80 }),
+  ]),
+  issueLabel: null,
 })
 const fakeReceipt = () => ({ marker: 'settled-receipt' }) as never
 const fakeGrant = () => ({}) as never

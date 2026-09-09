@@ -162,6 +162,8 @@ export const merchantAiConsentEvidence = pgTable(
             AND ${t.noticeDigest} = '7bb8d9bddbec630d90f546ba4d0f308076840e25786389a19e1c651dd21434a8')
           OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-08.v1'
             AND ${t.noticeDigest} = 'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865')
+          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-09.v1'
+            AND ${t.noticeDigest} = 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1')
         )
         AND ${t.sourcePolicyId} = 'google-business-profile-source-policy-v1'
         AND ${t.routingPolicyVersion} = 1
@@ -279,6 +281,8 @@ export const merchantAiEnablement = pgTable(
             AND ${t.noticeDigest} = '7bb8d9bddbec630d90f546ba4d0f308076840e25786389a19e1c651dd21434a8')
           OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-08.v1'
             AND ${t.noticeDigest} = 'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865')
+          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-09.v1'
+            AND ${t.noticeDigest} = 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1')
         )
         AND ${t.sourcePolicyId} = 'google-business-profile-source-policy-v1'
         AND ${t.routingPolicyVersion} = 1

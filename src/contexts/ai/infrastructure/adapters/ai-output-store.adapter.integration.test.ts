@@ -6,8 +6,11 @@ import {
   aiExecutionControlHeads,
   aiExecutionControlTransitions,
   aiOperations,
+  aiPropertyAggregateContributionAspects,
+  aiPropertyDailyAspectAggregates,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
+  aiReviewAnalysisAspects,
   materialReviewRevisions,
   merchantAiConsentEvidence,
   merchantAiEnablement,
@@ -24,6 +27,7 @@ import { AI_PRIMARY_CATEGORIES } from '#/shared/ai-primary-categories'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import type { AiOperationId } from '../../domain/types'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter'
+import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter'
 
 const NOW = new Date('2026-09-08T10:00:00.000Z')
 const COMPLETED_AT = new Date('2026-09-08T10:05:00.000Z')
@@ -366,7 +370,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       propertyProfileVersion: 1,
       routingPolicyVersion: 1,
       providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
-      operationProfileVersion: 'review-analysis-v1',
+      operationProfileVersion: 'review-analysis-v2',
       capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
       sourcePolicyId: 'google-business-profile-source-policy-v1',
       sourceCanonicalizerDigest: 'e'.repeat(64),
@@ -438,13 +442,17 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       authorizationLineageId: LINEAGE_ID,
       reviewAnalysisEpoch: 1,
       propertyProfileVersion: 1,
-      analysisProfileVersion: 'review-analysis-v1',
+      analysisProfileVersion: 'review-analysis-v2',
       result: {
         status: 'ready',
         derivative: {
           sentiment: 'positive',
           primaryCategory: AI_PRIMARY_CATEGORIES[0],
           attention: 'low',
+          aspects: [
+            { aspect: AI_PRIMARY_CATEGORIES[0], polarity: 'positive', intensity: 75 },
+          ],
+          issueLabel: 'helpful service',
         },
       },
       generatedAtEpochMillis: COMPLETED_AT.getTime(),
@@ -462,6 +470,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         sentiment: aiReviewAnalyses.sentiment,
         primaryCategory: aiReviewAnalyses.primaryCategory,
         attention: aiReviewAnalyses.attention,
+        issueLabel: aiReviewAnalyses.issueLabel,
       })
       .from(aiReviewAnalyses)
       .where(eq(aiReviewAnalyses.operationId, OPERATION_ID))
@@ -472,7 +481,25 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       sentiment: 'positive',
       primaryCategory: AI_PRIMARY_CATEGORIES[0],
       attention: 'low',
+      issueLabel: 'helpful service',
     })
+    const aspects = await db
+      .select({
+        aspect: aiReviewAnalysisAspects.aspect,
+        polarity: aiReviewAnalysisAspects.polarity,
+        intensity: aiReviewAnalysisAspects.intensity,
+      })
+      .from(aiReviewAnalysisAspects)
+      .where(
+        and(
+          eq(aiReviewAnalysisAspects.organizationId, ORGANIZATION_ID),
+          eq(aiReviewAnalysisAspects.propertyId, PROPERTY_ID),
+          eq(aiReviewAnalysisAspects.reviewId, REVIEW_A_ID),
+        ),
+      )
+    expect(aspects).toEqual([
+      { aspect: AI_PRIMARY_CATEGORIES[0], polarity: 'positive', intensity: 75 },
+    ])
 
     const [operation] = await db
       .select({ state: aiOperations.state, updatedAt: aiOperations.updatedAt })
@@ -482,6 +509,82 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       state: 'succeeded_pending_delivery',
       updatedAt: COMPLETED_AT,
     })
+  })
+
+  it('projects v2 aspects through per-review and daily aggregate rows', async () => {
+    await expect(storeReviewA()).resolves.toBe(true)
+    const aggregates = createAiPropertyAggregateStoreAdapter(db)
+    await expect(
+      aggregates.applyReviewAnalysis({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_A_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: 1,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 1,
+        calendarProfileVersion: 'property-calendar-v1',
+      }),
+    ).resolves.toEqual({ status: 'applied', aggregateRevision: 1 })
+    await expect(
+      aggregates.advanceWithoutAnalysis({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        reviewAnalysisEpoch: 1,
+        analysisSequence: 2,
+        propertyProfileVersion: 1,
+        dispositionCode: 'provider_deleted',
+      }),
+    ).resolves.toEqual({ status: 'applied', aggregateRevision: 2 })
+
+    const contributionAspects = await db
+      .select({
+        aspect: aiPropertyAggregateContributionAspects.aspect,
+        polarity: aiPropertyAggregateContributionAspects.polarity,
+        intensity: aiPropertyAggregateContributionAspects.intensity,
+      })
+      .from(aiPropertyAggregateContributionAspects)
+      .where(eq(aiPropertyAggregateContributionAspects.reviewId, REVIEW_A_ID))
+    expect(contributionAspects).toEqual([
+      { aspect: AI_PRIMARY_CATEGORIES[0], polarity: 'positive', intensity: 75 },
+    ])
+    const dailyAspects = await db
+      .select({
+        aspect: aiPropertyDailyAspectAggregates.aspect,
+        polarity: aiPropertyDailyAspectAggregates.polarity,
+        mentionCount: aiPropertyDailyAspectAggregates.mentionCount,
+      })
+      .from(aiPropertyDailyAspectAggregates)
+      .where(eq(aiPropertyDailyAspectAggregates.propertyId, PROPERTY_ID))
+    expect(dailyAspects).toEqual([
+      { aspect: AI_PRIMARY_CATEGORIES[0], polarity: 'positive', mentionCount: 1 },
+    ])
+
+    const window = await aggregates.readWindow({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      sourceEpoch: SOURCE_EPOCH,
+      reviewAnalysisEpoch: 1,
+      propertyProfileVersion: 1,
+      startLocalDate: '2026-09-07',
+      endLocalDate: '2026-09-07',
+    })
+    expect(window?.days).toEqual([
+      expect.objectContaining({
+        localDate: '2026-09-07',
+        categoryCounts: expect.objectContaining({ service: 1 }),
+      }),
+    ])
+    expect(window?.analyzedReviews).toEqual([
+      expect.objectContaining({
+        reviewId: REVIEW_A_ID,
+        aspects: [
+          { aspect: AI_PRIMARY_CATEGORIES[0], polarity: 'positive', intensity: 75 },
+        ],
+      }),
+    ])
   })
 
   it('rejects an analysis after the review is pinned to a newer sequence', async () => {

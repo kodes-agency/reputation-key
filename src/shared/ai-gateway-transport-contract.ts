@@ -19,7 +19,7 @@ import {
 } from './ai-review-language-catalogue'
 import { AI_RUNTIME_CAPABILITIES_V1 } from './ai-runtime-capability-contract'
 import {
-  AI_ANALYSIS_OUTPUT_SCHEMA,
+  AI_ANALYSIS_V2_OUTPUT_SCHEMA,
   AI_TREND_SELECTION_OUTPUT_SCHEMA,
 } from './openai-route-output-schemas'
 import {
@@ -389,7 +389,7 @@ const aiErrorCodeSchema = z.enum([
   'policy_unavailable',
 ])
 
-const analysisPayloadSchema = AI_ANALYSIS_OUTPUT_SCHEMA
+const analysisPayloadSchema = AI_ANALYSIS_V2_OUTPUT_SCHEMA
 
 const replyPayloadSchema = personalizedReplyDraftOutputSchema
   .omit({ languageCode: true, grounding: true })

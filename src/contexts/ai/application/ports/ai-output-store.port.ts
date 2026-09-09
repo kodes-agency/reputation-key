@@ -1,21 +1,20 @@
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
 import type { AiOperationId, ReviewAnalysisReadV1 } from '../../domain/types'
+import type { AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
+
+export type AiAnalysisAspect = Readonly<{
+  aspect: AspectTaxonomyV1Id
+  polarity: 'positive' | 'neutral' | 'negative'
+  intensity: number
+}>
 
 export type AiAnalysisDerivative = Readonly<{
   sentiment: 'positive' | 'neutral' | 'negative' | 'mixed'
-  primaryCategory:
-    | 'service'
-    | 'staff'
-    | 'quality'
-    | 'value'
-    | 'cleanliness'
-    | 'wait_time'
-    | 'atmosphere'
-    | 'location'
-    | 'accessibility'
-    | 'other'
+  primaryCategory: AspectTaxonomyV1Id
   attention: 'urgent' | 'high' | 'medium' | 'low'
+  aspects: readonly AiAnalysisAspect[]
+  issueLabel: string | null
 }>
 
 export type AiAnalysisResult =

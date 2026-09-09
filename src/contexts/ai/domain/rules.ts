@@ -428,7 +428,8 @@ export function parseAiExecutionBinding(
       !isPositiveSafeInteger(value.sourceRevision) ||
       !isNonnegativeSafeInteger(value.reviewedAtEpochMillis) ||
       !nonEmptyString(value.aiSubjectHmacKeyVersion, 100) ||
-      value.operationProfileVersion !== 'review-analysis-v1' ||
+      (value.operationProfileVersion !== 'review-analysis-v1' &&
+        value.operationProfileVersion !== 'review-analysis-v2') ||
       value.capabilityRuntimeProfileVersion !== 'review-analysis-runtime-v1' ||
       !allNull(value, [
         'concreteReplyLanguage',

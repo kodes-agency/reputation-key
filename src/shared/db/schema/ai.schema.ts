@@ -424,6 +424,7 @@ export const aiReviewAnalyses = pgTable(
     unavailableReason: varchar('unavailable_reason', { length: 40 }),
     sentiment: varchar('sentiment', { length: 20 }),
     primaryCategory: varchar('primary_category', { length: 40 }),
+    issueLabel: varchar('issue_label', { length: 40 }),
     attention: varchar('attention', { length: 20 }),
     generatedAt: timestamptz('generated_at').notNull(),
     expiresAt: timestamptz('expires_at').notNull(),
@@ -477,8 +478,8 @@ export const aiReviewAnalyses = pgTable(
     check(
       'ai_review_analyses_result_valid',
       sql`(
-        (${t.status} = 'ready' AND ${t.unavailableReason} IS NULL AND ${t.sentiment} IN ('positive', 'neutral', 'negative', 'mixed') AND ${t.primaryCategory} IN ('service', 'staff', 'quality', 'value', 'cleanliness', 'wait_time', 'atmosphere', 'location', 'accessibility', 'other') AND ${t.attention} IN ('urgent', 'high', 'medium', 'low'))
-        OR (${t.status} = 'unavailable' AND ${t.unavailableReason} = 'language_not_supported' AND ${t.sentiment} IS NULL AND ${t.primaryCategory} IS NULL AND ${t.attention} IS NULL)
+        (${t.status} = 'ready' AND ${t.unavailableReason} IS NULL AND ${t.sentiment} IN ('positive', 'neutral', 'negative', 'mixed') AND ${t.primaryCategory} IN ('service', 'staff', 'quality', 'value', 'cleanliness', 'wait_time', 'atmosphere', 'location', 'accessibility', 'other', 'room', 'food_and_drink', 'noise', 'wifi_and_tech', 'check_in_out', 'parking', 'amenities', 'events') AND ${t.attention} IN ('urgent', 'high', 'medium', 'low') AND (${t.issueLabel} IS NULL OR ${t.issueLabel} ~ '^[a-z]+( [a-z]+){0,3}$'))
+        OR (${t.status} = 'unavailable' AND ${t.unavailableReason} = 'language_not_supported' AND ${t.sentiment} IS NULL AND ${t.primaryCategory} IS NULL AND ${t.attention} IS NULL AND ${t.issueLabel} IS NULL)
       )`,
     ),
     check('ai_review_analyses_retention_valid', sql`${t.expiresAt} > ${t.generatedAt}`),
@@ -491,6 +492,61 @@ export const aiReviewAnalyses = pgTable(
       t.analysisSequence,
     ),
     index('ai_review_analyses_expiry_idx').on(t.expiresAt),
+  ],
+)
+export const aiReviewAnalysisAspects = pgTable(
+  'ai_review_analysis_aspects',
+  {
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    reviewId: uuid('review_id').notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    sourceRevision: bigint('source_revision', { mode: 'number' }).notNull(),
+    analysisSequence: bigint('analysis_sequence', { mode: 'number' }).notNull(),
+    aspect: varchar('aspect', { length: 40 }).notNull(),
+    polarity: varchar('polarity', { length: 20 }).notNull(),
+    intensity: integer('intensity').notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.reviewId,
+        t.sourceEpoch,
+        t.sourceRevision,
+        t.analysisSequence,
+        t.aspect,
+      ],
+      name: 'ai_review_analysis_aspects_pk',
+    }),
+    foreignKey({
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.reviewId,
+        t.sourceEpoch,
+        t.sourceRevision,
+        t.analysisSequence,
+      ],
+      foreignColumns: [
+        aiReviewAnalyses.organizationId,
+        aiReviewAnalyses.propertyId,
+        aiReviewAnalyses.reviewId,
+        aiReviewAnalyses.sourceEpoch,
+        aiReviewAnalyses.sourceRevision,
+        aiReviewAnalyses.analysisSequence,
+      ],
+      name: 'ai_review_analysis_aspects_analysis_fk',
+    }).onDelete('cascade'),
+    check(
+      'ai_review_analysis_aspects_aspect_valid',
+      sql`${t.aspect} IN ('service', 'staff', 'quality', 'value', 'cleanliness', 'wait_time', 'atmosphere', 'location', 'accessibility', 'other', 'room', 'food_and_drink', 'noise', 'wifi_and_tech', 'check_in_out', 'parking', 'amenities', 'events')`,
+    ),
+    check(
+      'ai_review_analysis_aspects_polarity_intensity_valid',
+      sql`(${t.polarity} = 'positive' AND ${t.intensity} BETWEEN 20 AND 100) OR (${t.polarity} = 'neutral' AND abs(${t.intensity}) <= 19) OR (${t.polarity} = 'negative' AND ${t.intensity} < 0 AND abs(${t.intensity}) BETWEEN 20 AND 100)`,
+    ),
   ],
 )
 
@@ -557,7 +613,7 @@ export const aiPropertyAggregateContributions = pgTable(
     check(
       'ai_property_aggregate_contributions_result_valid',
       sql`(
-        (${t.status} = 'ready' AND ${t.sentiment} IN ('positive', 'neutral', 'negative', 'mixed') AND ${t.primaryCategory} IN ('service', 'staff', 'quality', 'value', 'cleanliness', 'wait_time', 'atmosphere', 'location', 'accessibility', 'other') AND ${t.attention} IN ('urgent', 'high', 'medium', 'low'))
+        (${t.status} = 'ready' AND ${t.sentiment} IN ('positive', 'neutral', 'negative', 'mixed') AND ${t.primaryCategory} IN ('service', 'staff', 'quality', 'value', 'cleanliness', 'wait_time', 'atmosphere', 'location', 'accessibility', 'other', 'room', 'food_and_drink', 'noise', 'wifi_and_tech', 'check_in_out', 'parking', 'amenities', 'events') AND ${t.attention} IN ('urgent', 'high', 'medium', 'low'))
         OR (${t.status} = 'unavailable' AND ${t.sentiment} IS NULL AND ${t.primaryCategory} IS NULL AND ${t.attention} IS NULL)
       )`,
     ),
@@ -567,6 +623,61 @@ export const aiPropertyAggregateContributions = pgTable(
       t.localDate,
       t.sourceEpoch,
       t.reviewAnalysisEpoch,
+    ),
+  ],
+)
+export const aiPropertyAggregateContributionAspects = pgTable(
+  'ai_property_aggregate_contribution_aspects',
+  {
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    reviewId: uuid('review_id').notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    sourceRevision: bigint('source_revision', { mode: 'number' }).notNull(),
+    analysisSequence: bigint('analysis_sequence', { mode: 'number' }).notNull(),
+    aspect: varchar('aspect', { length: 40 }).notNull(),
+    polarity: varchar('polarity', { length: 20 }).notNull(),
+    intensity: integer('intensity').notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.reviewId,
+        t.sourceEpoch,
+        t.sourceRevision,
+        t.analysisSequence,
+        t.aspect,
+      ],
+      name: 'ai_property_aggregate_contribution_aspects_pk',
+    }),
+    foreignKey({
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.reviewId,
+        t.sourceEpoch,
+        t.sourceRevision,
+        t.analysisSequence,
+      ],
+      foreignColumns: [
+        aiPropertyAggregateContributions.organizationId,
+        aiPropertyAggregateContributions.propertyId,
+        aiPropertyAggregateContributions.reviewId,
+        aiPropertyAggregateContributions.sourceEpoch,
+        aiPropertyAggregateContributions.sourceRevision,
+        aiPropertyAggregateContributions.analysisSequence,
+      ],
+      name: 'ai_property_aggregate_contribution_aspects_contribution_fk',
+    }).onDelete('cascade'),
+    check(
+      'ai_property_aggregate_contribution_aspects_aspect_valid',
+      sql`${t.aspect} IN ('service', 'staff', 'quality', 'value', 'cleanliness', 'wait_time', 'atmosphere', 'location', 'accessibility', 'other', 'room', 'food_and_drink', 'noise', 'wifi_and_tech', 'check_in_out', 'parking', 'amenities', 'events')`,
+    ),
+    check(
+      'ai_property_contribution_aspects_polarity_intensity_valid',
+      sql`(${t.polarity} = 'positive' AND ${t.intensity} BETWEEN 20 AND 100) OR (${t.polarity} = 'neutral' AND abs(${t.intensity}) <= 19) OR (${t.polarity} = 'negative' AND ${t.intensity} < 0 AND abs(${t.intensity}) BETWEEN 20 AND 100)`,
     ),
   ],
 )
@@ -637,16 +748,6 @@ export const aiPropertyDailyAggregates = pgTable(
     neutralCount: integer('neutral_count').notNull(),
     negativeCount: integer('negative_count').notNull(),
     mixedCount: integer('mixed_count').notNull(),
-    serviceCount: integer('service_count').notNull(),
-    staffCount: integer('staff_count').notNull(),
-    qualityCount: integer('quality_count').notNull(),
-    valueCount: integer('value_count').notNull(),
-    cleanlinessCount: integer('cleanliness_count').notNull(),
-    waitTimeCount: integer('wait_time_count').notNull(),
-    atmosphereCount: integer('atmosphere_count').notNull(),
-    locationCount: integer('location_count').notNull(),
-    accessibilityCount: integer('accessibility_count').notNull(),
-    otherCount: integer('other_count').notNull(),
     urgentCount: integer('urgent_count').notNull(),
     highCount: integer('high_count').notNull(),
     mediumCount: integer('medium_count').notNull(),
@@ -676,13 +777,72 @@ export const aiPropertyDailyAggregates = pgTable(
     ),
     check(
       'ai_property_daily_aggregates_counts_nonnegative',
-      sql`${t.reviewCount} >= 0 AND ${t.ratingSum} >= 0 AND ${t.positiveCount} >= 0 AND ${t.neutralCount} >= 0 AND ${t.negativeCount} >= 0 AND ${t.mixedCount} >= 0 AND ${t.serviceCount} >= 0 AND ${t.staffCount} >= 0 AND ${t.qualityCount} >= 0 AND ${t.valueCount} >= 0 AND ${t.cleanlinessCount} >= 0 AND ${t.waitTimeCount} >= 0 AND ${t.atmosphereCount} >= 0 AND ${t.locationCount} >= 0 AND ${t.accessibilityCount} >= 0 AND ${t.otherCount} >= 0 AND ${t.urgentCount} >= 0 AND ${t.highCount} >= 0 AND ${t.mediumCount} >= 0 AND ${t.lowCount} >= 0`,
+      sql`${t.reviewCount} >= 0 AND ${t.ratingSum} >= 0 AND ${t.positiveCount} >= 0 AND ${t.neutralCount} >= 0 AND ${t.negativeCount} >= 0 AND ${t.mixedCount} >= 0 AND ${t.urgentCount} >= 0 AND ${t.highCount} >= 0 AND ${t.mediumCount} >= 0 AND ${t.lowCount} >= 0`,
     ),
     check(
       'ai_property_daily_aggregates_count_sums_valid',
-      sql`${t.positiveCount} + ${t.neutralCount} + ${t.negativeCount} + ${t.mixedCount} = ${t.reviewCount} AND ${t.serviceCount} + ${t.staffCount} + ${t.qualityCount} + ${t.valueCount} + ${t.cleanlinessCount} + ${t.waitTimeCount} + ${t.atmosphereCount} + ${t.locationCount} + ${t.accessibilityCount} + ${t.otherCount} = ${t.reviewCount} AND ${t.urgentCount} + ${t.highCount} + ${t.mediumCount} + ${t.lowCount} = ${t.reviewCount} AND ${t.ratingSum} <= ${t.reviewCount} * 5`,
+      sql`${t.positiveCount} + ${t.neutralCount} + ${t.negativeCount} + ${t.mixedCount} = ${t.reviewCount} AND ${t.urgentCount} + ${t.highCount} + ${t.mediumCount} + ${t.lowCount} = ${t.reviewCount} AND ${t.ratingSum} <= ${t.reviewCount} * 5`,
     ),
     index('ai_property_daily_aggregates_window_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.sourceEpoch,
+      t.reviewAnalysisEpoch,
+      t.localDate,
+    ),
+  ],
+)
+export const aiPropertyDailyAspectAggregates = pgTable(
+  'ai_property_daily_aspect_aggregates',
+  {
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    localDate: date('local_date', { mode: 'string' }).notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    reviewAnalysisEpoch: integer('review_analysis_epoch').notNull(),
+    propertyProfileVersion: integer('property_profile_version').notNull(),
+    aspect: varchar('aspect', { length: 40 }).notNull(),
+    polarity: varchar('polarity', { length: 20 }).notNull(),
+    mentionCount: integer('mention_count').notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.localDate,
+        t.sourceEpoch,
+        t.reviewAnalysisEpoch,
+        t.propertyProfileVersion,
+        t.aspect,
+        t.polarity,
+      ],
+      name: 'ai_property_daily_aspect_aggregates_pk',
+    }),
+    foreignKey({
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.localDate,
+        t.sourceEpoch,
+        t.reviewAnalysisEpoch,
+        t.propertyProfileVersion,
+      ],
+      foreignColumns: [
+        aiPropertyDailyAggregates.organizationId,
+        aiPropertyDailyAggregates.propertyId,
+        aiPropertyDailyAggregates.localDate,
+        aiPropertyDailyAggregates.sourceEpoch,
+        aiPropertyDailyAggregates.reviewAnalysisEpoch,
+        aiPropertyDailyAggregates.propertyProfileVersion,
+      ],
+      name: 'ai_property_daily_aspect_aggregates_daily_fk',
+    }).onDelete('cascade'),
+    check(
+      'ai_property_daily_aspect_aggregates_values_valid',
+      sql`${t.sourceEpoch} >= 0 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyProfileVersion} >= 1 AND ${t.aspect} IN ('service', 'staff', 'quality', 'value', 'cleanliness', 'wait_time', 'atmosphere', 'location', 'accessibility', 'other', 'room', 'food_and_drink', 'noise', 'wifi_and_tech', 'check_in_out', 'parking', 'amenities', 'events') AND ${t.polarity} IN ('positive', 'neutral', 'negative') AND ${t.mentionCount} >= 0`,
+    ),
+    index('ai_property_daily_aspect_aggregates_window_idx').on(
       t.organizationId,
       t.propertyId,
       t.sourceEpoch,

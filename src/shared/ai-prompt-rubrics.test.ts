@@ -2,12 +2,12 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { AI_OPERATION_PROFILES } from './ai-operation-profiles'
 import {
-  AI_ANALYSIS_OUTPUT_SCHEMA,
+  AI_ANALYSIS_V2_OUTPUT_SCHEMA,
   AI_REPLY_TEMPLATE_IDS,
   AI_SENTIMENTS,
   CONCRETE_REPLY_LANGUAGE_PATTERN,
 } from './openai-route-output-schemas'
-import { AI_PRIMARY_CATEGORIES } from './ai-primary-categories'
+import { ASPECT_TAXONOMY_V1 } from './aspect-taxonomy'
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from './ai-personalized-reply-contract'
 import { evaluateLanguageScriptConsistency } from './ai-language-script-consistency'
 import {
@@ -46,11 +46,12 @@ function acceptedValenceRange(
 ): Readonly<{ min: number; max: number }> {
   const accepted: number[] = []
   for (let valence = -100; valence <= 100; valence += 1) {
-    const result = AI_ANALYSIS_OUTPUT_SCHEMA.safeParse({
+    const result = AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse({
       sentiment,
       sentimentValence: valence,
-      primaryCategory: AI_PRIMARY_CATEGORIES[0],
       urgencySignals: [],
+      aspects: [{ aspect: ASPECT_TAXONOMY_V1[0], polarity: 'neutral', intensity: 0 }],
+      issueLabel: null,
     })
     if (result.success) accepted.push(valence)
   }
@@ -59,7 +60,7 @@ function acceptedValenceRange(
 }
 
 describe('analysis prompt states the bands its validator enforces', () => {
-  const prompt = promptFor('review-analysis-v1')
+  const prompt = promptFor('review-analysis-v2')
 
   // The defect this pins: the schema rejected `positive` with valence 15 as
   // `output_invalid` AFTER the call was fully billed, while the prompt asked
@@ -89,6 +90,17 @@ describe('analysis prompt states the bands its validator enforces', () => {
     // assert the prompt calls it unconstrained.
     expect(mixed.min).toBeLessThan(positive.min)
     expect(prompt.toLowerCase()).toContain('mixed accepts any value')
+  })
+
+  it('states the aspect, intensity, and non-excerpt label constraints', () => {
+    expect(prompt).toContain('one to five unique controlled aspect records')
+    expect(prompt).toContain('positive requires 20 or above')
+    expect(prompt).toContain('neutral requires -19 to 19')
+    expect(prompt).toContain('negative requires -20 or below')
+    expect(prompt).toContain('one to four words')
+    expect(prompt).toContain('at most 40 characters')
+    expect(prompt).toContain('never an excerpt, person, brand, or place name')
+    expect(prompt).toContain('Do not quote or summarize the review')
   })
 })
 

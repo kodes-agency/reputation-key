@@ -39,7 +39,7 @@ export function createReadReviewAnalysis(dependencies: ReadAiInsightsDependencie
         authorizationLineageId: gate.authorization.authorizationLineageId,
         reviewAnalysisEpoch: gate.authorization.capabilityEpochs.review_analysis.epoch,
         propertyProfileVersion: gate.profile.profileVersion,
-        analysisProfileVersion: 'review-analysis-v1',
+        analysisProfileVersion: 'review-analysis-v2',
         nowEpochMillis: dependencies.nowEpochMillis(),
       },
       async (result) => result,

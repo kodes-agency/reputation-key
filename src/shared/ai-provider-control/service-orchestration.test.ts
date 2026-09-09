@@ -69,7 +69,7 @@ function routeRequest(): AiGatewayRouteRequestV1 {
       replyTemplateCatalogueVersion: null,
       replyTemplateCatalogueDigest: null,
       providerDeploymentProfileVersion: 'private-beta-global-v1',
-      operationProfileVersion: 'review-analysis-v1',
+      operationProfileVersion: 'review-analysis-v2',
       capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
       aiSubjectHmacKeyVersion: 'v1',
       stopFence: {
@@ -162,8 +162,9 @@ function preparedExecution(
           result: {
             sentiment: 'positive',
             sentimentValence: 80,
-            primaryCategory: 'service',
             urgencySignals: [],
+            aspects: [{ aspect: 'service', polarity: 'positive', intensity: 80 }],
+            issueLabel: null,
           },
           settlementReceipt: receipt,
         }),

@@ -330,12 +330,9 @@ async function seedFixture(): Promise<Fixture> {
        review_analysis_epoch, property_profile_version,
        calendar_profile_version, aggregate_revision, terminal_analysis_sequence,
        review_count, rating_sum, positive_count, neutral_count, negative_count,
-       mixed_count, service_count, staff_count, quality_count, value_count,
-       cleanliness_count, wait_time_count, atmosphere_count, location_count,
-       accessibility_count, other_count, urgent_count, high_count,
-       medium_count, low_count, updated_at
+       mixed_count, urgent_count, high_count, medium_count, low_count, updated_at
      ) VALUES ($1, $2, $3, 0, 1, 1, 'property-calendar-v1', 1, 1, 1, 5, 1, 0, 0,
-               0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, $4)`,
+               0, 0, 0, 0, 1, $4)`,
     [fixture.organizationId, fixture.propertyId, LOCAL_DATE, ANALYZED_AT],
   )
   await lease.pool.query(
