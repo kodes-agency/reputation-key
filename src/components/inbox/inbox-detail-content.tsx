@@ -6,6 +6,7 @@ import { InboxActivityTimeline } from './inbox-activity-timeline'
 import { InboxDetailSourceContent } from './inbox-detail-source-content'
 import { InboxNotesThread } from './inbox-notes-thread'
 import { InboxReviewAnalysisPanel } from './inbox-review-analysis'
+import { reviewLanguageReadiness } from './reply-language-options'
 import { ReplyEditor } from './reply-form'
 import { ReplyToolbarProvider, ReplyToolbarSlot } from './reply-toolbar-slot'
 import { FeedbackHandlingCard } from './feedback-handling-card'
@@ -121,7 +122,7 @@ export function InboxDetailContent({
                   detail?.propertyDefaultReplyLanguage ?? null
                 }
                 reviewReplyLanguage={detail?.reviewReplyLanguage ?? null}
-                canDetectReviewLanguage={Boolean(detail?.reviewText?.trim())}
+                reviewLanguageReadiness={reviewLanguageReadiness(detail?.reviewText)}
                 onReplyChanged={onReplyMutated}
                 generateReplySuggestion={detailFns.generateReplySuggestion}
               />

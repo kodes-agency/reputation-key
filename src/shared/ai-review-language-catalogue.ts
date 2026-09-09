@@ -17,6 +17,7 @@ export {
   isAiUnicodeWhiteSpace,
   isReplyTemplateLanguageGroup,
   mapReplyLanguageMetadata,
+  MIN_REPLY_LANGUAGE_LETTERS_V1,
   parseCanonicalReplyLanguageTag,
   type CanonicalSupportedBcp47Tag,
   type ConcreteReplyLanguage,
