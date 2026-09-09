@@ -7,6 +7,10 @@
 
 import type { Container } from './composition'
 import { createHealthCheckHandler, JOB_NAME } from '#/shared/jobs/health-check.job'
+import {
+  createPublishedEventRedeliveryHandler,
+  JOB_NAME as PUBLISHED_EVENT_REDELIVERY_JOB_NAME,
+} from '#/shared/outbox/published-event-redelivery.job'
 import { isDbHealthy } from '#/shared/health/db-probe'
 import { areRedisDependenciesHealthy } from '#/shared/health/redis-dependencies'
 import { createAlertAuxReader } from '#/shared/observability/alert-aux-reads'
@@ -178,6 +182,25 @@ export async function bootstrap(
   // Preserve the result: BullMQ writes it to the job record for diagnostics.
   container.jobRegistry.register(JOB_NAME, async (job) => healthCheckHandler(job))
   logger.info({ job: JOB_NAME }, 'registered health-check job handler')
+
+  const publishedEventRedeliveryHandler = container.opsQueues.domainEvents
+    ? createPublishedEventRedeliveryHandler({
+        repo: container.outboxRepo,
+        queue: container.opsQueues.domainEvents,
+        clock: container.clock,
+        logger: container.logger,
+      })
+    : null
+  container.jobRegistry.register(PUBLISHED_EVENT_REDELIVERY_JOB_NAME, async (job) => {
+    if (!publishedEventRedeliveryHandler) {
+      throw new Error('domain-events queue unavailable for published event redelivery')
+    }
+    await publishedEventRedeliveryHandler(job)
+  })
+  logger.info(
+    { job: PUBLISHED_EVENT_REDELIVERY_JOB_NAME },
+    'registered published event redelivery job handler',
+  )
 
   registerCapabilityGatedJob(
     PORTAL_DESTINATION_REVALIDATION_JOB,

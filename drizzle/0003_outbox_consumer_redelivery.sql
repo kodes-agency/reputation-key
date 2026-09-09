@@ -1,0 +1,4 @@
+ALTER TABLE "outbox_events" ADD COLUMN "consumer_redelivery_attempts" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "outbox_events" ADD COLUMN "consumer_redelivery_next_at" timestamp with time zone;--> statement-breakpoint
+CREATE INDEX "outbox_events_consumer_redelivery_due_idx" ON "outbox_events" USING btree ("consumer_redelivery_next_at","published_at") WHERE "outbox_events"."published_at" IS NOT NULL AND "outbox_events"."recovery_fenced_at" IS NULL;--> statement-breakpoint
+ALTER TABLE "outbox_events" ADD CONSTRAINT "outbox_events_consumer_redelivery_attempts_nonnegative" CHECK ("outbox_events"."consumer_redelivery_attempts" >= 0);
