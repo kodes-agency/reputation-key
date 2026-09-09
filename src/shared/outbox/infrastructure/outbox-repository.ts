@@ -51,6 +51,16 @@ export type UnpublishedEvent = Readonly<{
   recordedAt: Date
 }>
 
+export type DurableConsumerExpectation = Readonly<{
+  eventType: string
+  consumerName: string
+}>
+
+export type PublishedEventRedeliveryCandidate = UnpublishedEvent &
+  Readonly<{
+    redeliveryAttempt: number
+  }>
+
 // ReceiptStatus lives in shared/db/schema/outbox.schema (single declaration,
 // BQC-5.8) — re-exported here so the public barrel (#/shared/outbox) keeps
 // surfacing it from the repository module.
@@ -87,6 +97,26 @@ export type OutboxRepository = Readonly<{
   ) => Promise<void>
   /** Find events with expired leases (health-metrics' expired-lease signal). */
   findExpiredLeases: (limit: number) => Promise<readonly UnpublishedEvent[]>
+  /**
+   * Atomically reserve a bounded batch of stale published events for another
+   * pass through the canonical dispatcher. Only events still missing at least
+   * one catalogue consumer receipt are eligible. The durable attempt/next-at
+   * fields fence overlapping scheduler ticks and cap permanent failures.
+   */
+  claimPublishedForConsumerRedelivery: (input: {
+    consumerExpectations: readonly DurableConsumerExpectation[]
+    cutoff: Date
+    now: Date
+    limit: number
+    maxAttempts: number
+    backoffBaseMs: number
+  }) => Promise<readonly PublishedEventRedeliveryCandidate[]>
+  /** Count stale missing-receipt events whose durable redelivery budget is spent. */
+  countExhaustedConsumerRedeliveries: (input: {
+    consumerExpectations: readonly DurableConsumerExpectation[]
+    cutoff: Date
+    maxAttempts: number
+  }) => Promise<number>
   // BQC-1.6: outbox retention runs through the scheduled retention-sweep
   // (bounded CTE executor + evidence), replacing the unused invalid
   // DELETE...LIMIT methods that previously lived here.
@@ -267,6 +297,123 @@ export function createOutboxRepository(db: Database): OutboxRepository {
           .limit(limit)
 
         return rows
+      })
+    },
+    claimPublishedForConsumerRedelivery: async (input) => {
+      if (input.consumerExpectations.length === 0 || input.limit <= 0) return []
+      return trace('outbox.claimPublishedForConsumerRedelivery', async () => {
+        const expectedValues = sql.join(
+          input.consumerExpectations.map(
+            ({ eventType, consumerName }) => sql`(${eventType}, ${consumerName})`,
+          ),
+          sql`, `,
+        )
+        const rows = await db.execute(sql`
+          WITH expected(event_type, consumer_name) AS (
+            VALUES ${expectedValues}
+          ),
+          candidates AS (
+            SELECT o.id
+            FROM ${outboxEvents} AS o
+            WHERE o.published_at IS NOT NULL
+              AND o.published_at <= ${input.cutoff}
+              AND o.recovery_fenced_at IS NULL
+              AND o.consumer_redelivery_attempts < ${input.maxAttempts}
+              AND (
+                o.consumer_redelivery_next_at IS NULL
+                OR o.consumer_redelivery_next_at <= ${input.now}
+              )
+              AND EXISTS (
+                SELECT 1
+                FROM expected
+                WHERE expected.event_type = o.event_type
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM ${eventConsumerReceipts} AS receipt
+                    WHERE receipt.event_id = o.id
+                      AND receipt.consumer_name = expected.consumer_name
+                  )
+              )
+            ORDER BY o.published_at, o.id
+            LIMIT ${input.limit}
+            FOR UPDATE SKIP LOCKED
+          ),
+          claimed AS (
+            UPDATE ${outboxEvents} AS o
+            SET consumer_redelivery_attempts = o.consumer_redelivery_attempts + 1,
+                consumer_redelivery_next_at = ${input.now}::timestamptz
+                  + (${input.backoffBaseMs} * power(2, o.consumer_redelivery_attempts))
+                    * INTERVAL '1 millisecond'
+            FROM candidates
+            WHERE o.id = candidates.id
+            RETURNING o.id,
+                      o.event_type,
+                      o.event_version,
+                      o.payload,
+                      o.organization_id,
+                      o.property_id,
+                      o.source_context,
+                      o.source_aggregate_id,
+                      o.created_at,
+                      o.published_at,
+                      o.consumer_redelivery_attempts
+          )
+          SELECT id,
+                 event_type,
+                 event_version,
+                 payload,
+                 organization_id,
+                 property_id,
+                 source_context,
+                 source_aggregate_id,
+                 (EXTRACT(EPOCH FROM created_at) * 1000)::float8 AS "recordedAtMs",
+                 consumer_redelivery_attempts AS "redeliveryAttempt"
+          FROM claimed
+          ORDER BY published_at, id
+        `)
+
+        return (
+          rows.rows as unknown as Array<ClaimedRow & { redeliveryAttempt: number }>
+        ).map((row) => ({
+          ...mapClaimedRow(row),
+          redeliveryAttempt: row.redeliveryAttempt,
+        }))
+      })
+    },
+
+    countExhaustedConsumerRedeliveries: async (input) => {
+      if (input.consumerExpectations.length === 0) return 0
+      return trace('outbox.countExhaustedConsumerRedeliveries', async () => {
+        const expectedValues = sql.join(
+          input.consumerExpectations.map(
+            ({ eventType, consumerName }) => sql`(${eventType}, ${consumerName})`,
+          ),
+          sql`, `,
+        )
+        const result = await db.execute(sql`
+          WITH expected(event_type, consumer_name) AS (
+            VALUES ${expectedValues}
+          )
+          SELECT count(*)::int AS count
+          FROM ${outboxEvents} AS o
+          WHERE o.published_at IS NOT NULL
+            AND o.published_at <= ${input.cutoff}
+            AND o.recovery_fenced_at IS NULL
+            AND o.consumer_redelivery_attempts >= ${input.maxAttempts}
+            AND EXISTS (
+              SELECT 1
+              FROM expected
+              WHERE expected.event_type = o.event_type
+                AND NOT EXISTS (
+                  SELECT 1
+                  FROM ${eventConsumerReceipts} AS receipt
+                  WHERE receipt.event_id = o.id
+                    AND receipt.consumer_name = expected.consumer_name
+                )
+            )
+        `)
+        const row = result.rows[0]
+        return row && typeof row.count === 'number' ? row.count : 0
       })
     },
   }

@@ -35,6 +35,12 @@ export const outboxEvents = pgTable(
       onDelete: 'restrict',
     }),
     recoveryFencedAt: timestamp('recovery_fenced_at', { withTimezone: true }),
+    consumerRedeliveryAttempts: integer('consumer_redelivery_attempts')
+      .notNull()
+      .default(0),
+    consumerRedeliveryNextAt: timestamp('consumer_redelivery_next_at', {
+      withTimezone: true,
+    }),
   },
   (table) => [
     index('outbox_events_unpublished_idx')
@@ -54,6 +60,13 @@ export const outboxEvents = pgTable(
     index('outbox_events_recovery_fence_idx')
       .on(table.recoveryFenceRunId, table.createdAt)
       .where(sql`${table.recoveryFencedAt} IS NOT NULL`),
+    index('outbox_events_consumer_redelivery_due_idx')
+      .on(table.consumerRedeliveryNextAt, table.publishedAt)
+      .where(sql`${table.publishedAt} IS NOT NULL AND ${table.recoveryFencedAt} IS NULL`),
+    check(
+      'outbox_events_consumer_redelivery_attempts_nonnegative',
+      sql`${table.consumerRedeliveryAttempts} >= 0`,
+    ),
     check(
       'outbox_events_recovery_fence_pair_check',
       sql`(${table.recoveryFenceRunId} IS NULL) = (${table.recoveryFencedAt} IS NULL)`,

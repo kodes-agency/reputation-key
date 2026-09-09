@@ -64,6 +64,7 @@ export type SystemAction =
   | 'system:ui.render'
   // delayed/system execution
   | 'system:health.check'
+  | 'system:outbox.redeliver'
   | 'system:portal.health_reconcile'
   | 'system:portal.destination_revalidate'
   | 'system:property.import'
@@ -168,6 +169,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     true,
   ),
   job('health-check', 'system:health.check', 'none', 'none'),
+  job('published-event-redelivery', 'system:outbox.redeliver', 'none', 'tenant_cross'),
   job(
     'import-gbp-property-item-v2',
     'system:property.import_v2',
@@ -450,6 +452,12 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
   ),
   schedule('health-check-recurring', 'system:health.check', 'none', 'none'),
+  schedule(
+    'published-event-redelivery-recurring',
+    'system:outbox.redeliver',
+    'none',
+    'tenant_cross',
+  ),
   schedule(
     'schedule-property-ai-trends-recurring',
     'system:ai.trend_schedule',

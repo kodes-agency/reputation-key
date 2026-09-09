@@ -22,6 +22,13 @@
       "when": 1788840803624,
       "tag": "0002_db_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788914127320,
+      "tag": "0003_outbox_consumer_redelivery",
+      "breakpoints": true
     }
   ]
 }

@@ -650,6 +650,18 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     { timeoutMs: 30_000 },
   ),
   job(
+    'published-event-redelivery',
+    'src/shared/outbox/published-event-redelivery.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:outbox.redeliver',
+      schedule: 'every:300000',
+      registration: 'enabled',
+    },
+    { timeoutMs: 120_000 },
+  ),
+  job(
     'refresh-expiring-reviews',
     'src/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job.ts',
     {
