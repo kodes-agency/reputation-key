@@ -247,6 +247,20 @@ function reviewSourceBytes(
   }).bytes
 }
 
+/** Which reply-output rule refused. Identifiers only, no provider content. */
+export type AiReplyOutputRefusal = Readonly<{
+  route: 'reply-suggestion'
+  reason:
+    | 'shape'
+    | 'language'
+    | 'grounding'
+    | 'brand'
+    | 'prohibited_content'
+    | 'profile_version_mismatch'
+    | 'language_verification'
+    | 'adoption_window_elapsed'
+}>
+
 export function createAiGatewayRoutePreparer(
   dependencies: Readonly<{
     requestBindingKeys: VersionedHmacKeyring
@@ -255,6 +269,18 @@ export function createAiGatewayRoutePreparer(
     provenanceKid: string
     provenancePrivateKey: KeyObject
     now?: () => number
+    /**
+     * Content-free notice of WHICH output rule refused a reply draft.
+     *
+     * Every refusal below lands on the operation as one opaque
+     * `output_invalid`, which is undiagnosable after the fact: five different
+     * rules produce it, the provider has already been billed, and the operator
+     * is shown a local fallback. Attributing 11 real refusals on the beta
+     * property required attaching a debugger-style probe to the running
+     * process. The reason is a fixed identifier - never review or reply text -
+     * so it is safe to record.
+     */
+    onOutputRefused?: (refusal: AiReplyOutputRefusal) => void
   }>,
 ): AiGatewayRoutePreparer {
   const now = dependencies.now ?? Date.now
@@ -529,8 +555,14 @@ export function createAiGatewayRoutePreparer(
           if (
             result.status !== 'accepted' ||
             result.profileVersion !== responseContext.replyProfileVersion
-          )
+          ) {
+            dependencies.onOutputRefused?.({
+              route: 'reply-suggestion',
+              reason:
+                result.status === 'accepted' ? 'profile_version_mismatch' : result.reason,
+            })
             return null
+          }
           const replyText = result.draft.replyText
           if (
             verifyReplyLanguageOutput(
@@ -539,8 +571,13 @@ export function createAiGatewayRoutePreparer(
               dependencies.replyLanguageDetector,
               [responseContext.brandDisplayName],
             ).status !== 'valid'
-          )
+          ) {
+            dependencies.onOutputRefused?.({
+              route: 'reply-suggestion',
+              reason: 'language_verification',
+            })
             return null
+          }
           const renderDigest = digestRenderedReply(replyText)
           return Object.freeze({
             buildResponse: (
@@ -551,8 +588,13 @@ export function createAiGatewayRoutePreparer(
                 grant.replyTokenExpiresAtEpochMillis === null ||
                 grant.replyDraftExpiresAtEpochMillis === null ||
                 grant.replyTokenExpiresAtEpochMillis <= now()
-              )
+              ) {
+                dependencies.onOutputRefused?.({
+                  route: 'reply-suggestion',
+                  reason: 'adoption_window_elapsed',
+                })
                 throw new GatewayPreparationError('output_invalid')
+              }
               const provenanceToken = signAiReplyProvenance(
                 {
                   version: 'ai-reply-provenance-v3',
