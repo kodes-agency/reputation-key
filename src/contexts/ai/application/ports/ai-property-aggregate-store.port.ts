@@ -1,5 +1,6 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { AiReviewAnalysisTerminalDisposition } from './ai-review-event-store.port'
+import type { AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
 
 export type AiPropertyAggregateHead = Readonly<{
   organizationId: OrganizationId
@@ -41,6 +42,12 @@ export type AiPropertyDailyAggregate = Readonly<{
   }>
 }>
 
+export type AiPropertyAnalyzedReviewAspect = Readonly<{
+  aspect: AspectTaxonomyV1Id
+  polarity: 'positive' | 'neutral' | 'negative'
+  intensity: number
+}>
+
 /**
  * Content-free, current contribution evidence for trend coverage, model lineage,
  * and supporting Review navigation. It deliberately carries no Review text.
@@ -51,18 +58,9 @@ export type AiPropertyAnalyzedReview = Readonly<{
   analysisSequence: number
   localDate: string
   sentiment: 'positive' | 'neutral' | 'negative' | 'mixed'
-  primaryCategory:
-    | 'service'
-    | 'staff'
-    | 'quality'
-    | 'value'
-    | 'cleanliness'
-    | 'wait_time'
-    | 'atmosphere'
-    | 'location'
-    | 'accessibility'
-    | 'other'
+  primaryCategory: AspectTaxonomyV1Id
   attention: 'urgent' | 'high' | 'medium' | 'low'
+  aspects: readonly AiPropertyAnalyzedReviewAspect[]
   analysisProfileVersion: string
   providerDeploymentProfileVersion: string
   modelSnapshot: string

@@ -23,7 +23,7 @@ export type AiOrganizationExportCollection =
   'review_analyses' | 'property_daily_aggregates' | 'property_trend_outcomes'
 
 export type AiOrganizationExportPayload = Readonly<{
-  version: 'ai-organization-export/v1'
+  version: 'ai-organization-export/v2'
   requestedAsOf: string
   snapshotBound: 'repeatable_read_within_15m_of_request'
   reviewAnalyses: readonly ExportRecord[]
@@ -37,7 +37,7 @@ export type AiOrganizationExportPayload = Readonly<{
 
 /** One emitted JSON file: the lossless authority for exactly one collection. */
 export type AiOrganizationExportDocument = Readonly<{
-  version: 'ai-organization-export/v1'
+  version: 'ai-organization-export/v2'
   requestedAsOf: string
   snapshotBound: 'repeatable_read_within_15m_of_request'
   collection: AiOrganizationExportCollection
@@ -218,6 +218,8 @@ const REVIEW_ANALYSIS_COLUMNS = [
   'unavailable_reason',
   'sentiment',
   'primary_category',
+  'aspects',
+  'issue_label',
   'attention',
   'generated_at',
   'expires_at',
@@ -240,6 +242,7 @@ const PROPERTY_DAILY_AGGREGATE_COLUMNS = [
   'neutral_count',
   'negative_count',
   'mixed_count',
+  'aspect_mentions',
   'service_count',
   'staff_count',
   'quality_count',
@@ -410,6 +413,24 @@ async function readPayload(
               analysis.unavailable_reason,
               analysis.sentiment,
               analysis.primary_category,
+              COALESCE((
+                SELECT jsonb_agg(
+                  jsonb_build_object(
+                    'aspect', analysis_aspect.aspect,
+                    'polarity', analysis_aspect.polarity,
+                    'intensity', analysis_aspect.intensity
+                  )
+                  ORDER BY analysis_aspect.aspect
+                )
+                FROM ai_review_analysis_aspects AS analysis_aspect
+                WHERE analysis_aspect.organization_id = analysis.organization_id
+                  AND analysis_aspect.property_id = analysis.property_id
+                  AND analysis_aspect.review_id = analysis.review_id
+                  AND analysis_aspect.source_epoch = analysis.source_epoch
+                  AND analysis_aspect.source_revision = analysis.source_revision
+                  AND analysis_aspect.analysis_sequence = analysis.analysis_sequence
+              ), '[]'::jsonb) AS aspects,
+              analysis.issue_label,
               analysis.attention,
               to_char(analysis.generated_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS generated_at,
               to_char(analysis.expires_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS expires_at
@@ -465,16 +486,17 @@ async function readPayload(
               aggregate.neutral_count,
               aggregate.negative_count,
               aggregate.mixed_count,
-              aggregate.service_count,
-              aggregate.staff_count,
-              aggregate.quality_count,
-              aggregate.value_count,
-              aggregate.cleanliness_count,
-              aggregate.wait_time_count,
-              aggregate.atmosphere_count,
-              aggregate.location_count,
-              aggregate.accessibility_count,
-              aggregate.other_count,
+              daily_aspects.aspect_mentions,
+              daily_aspects.service_count,
+              daily_aspects.staff_count,
+              daily_aspects.quality_count,
+              daily_aspects.value_count,
+              daily_aspects.cleanliness_count,
+              daily_aspects.wait_time_count,
+              daily_aspects.atmosphere_count,
+              daily_aspects.location_count,
+              daily_aspects.accessibility_count,
+              daily_aspects.other_count,
               aggregate.urgent_count,
               aggregate.high_count,
               aggregate.medium_count,
@@ -487,6 +509,37 @@ async function readPayload(
             INNER JOIN ai_property_processing_profiles AS profile
               ON profile.organization_id = aggregate.organization_id
              AND profile.property_id = aggregate.property_id
+            INNER JOIN LATERAL (
+              SELECT
+                COALESCE(
+                  jsonb_agg(
+                    jsonb_build_object(
+                      'aspect', daily_aspect.aspect,
+                      'polarity', daily_aspect.polarity,
+                      'mention_count', daily_aspect.mention_count
+                    )
+                    ORDER BY daily_aspect.aspect, daily_aspect.polarity
+                  ),
+                  '[]'::jsonb
+                ) AS aspect_mentions,
+                COALESCE(sum(daily_aspect.mention_count) FILTER (WHERE daily_aspect.aspect = 'service'), 0)::integer AS service_count,
+                COALESCE(sum(daily_aspect.mention_count) FILTER (WHERE daily_aspect.aspect = 'staff'), 0)::integer AS staff_count,
+                COALESCE(sum(daily_aspect.mention_count) FILTER (WHERE daily_aspect.aspect = 'quality'), 0)::integer AS quality_count,
+                COALESCE(sum(daily_aspect.mention_count) FILTER (WHERE daily_aspect.aspect = 'value'), 0)::integer AS value_count,
+                COALESCE(sum(daily_aspect.mention_count) FILTER (WHERE daily_aspect.aspect = 'cleanliness'), 0)::integer AS cleanliness_count,
+                COALESCE(sum(daily_aspect.mention_count) FILTER (WHERE daily_aspect.aspect = 'wait_time'), 0)::integer AS wait_time_count,
+                COALESCE(sum(daily_aspect.mention_count) FILTER (WHERE daily_aspect.aspect = 'atmosphere'), 0)::integer AS atmosphere_count,
+                COALESCE(sum(daily_aspect.mention_count) FILTER (WHERE daily_aspect.aspect = 'location'), 0)::integer AS location_count,
+                COALESCE(sum(daily_aspect.mention_count) FILTER (WHERE daily_aspect.aspect = 'accessibility'), 0)::integer AS accessibility_count,
+                COALESCE(sum(daily_aspect.mention_count) FILTER (WHERE daily_aspect.aspect = 'other'), 0)::integer AS other_count
+              FROM ai_property_daily_aspect_aggregates AS daily_aspect
+              WHERE daily_aspect.organization_id = aggregate.organization_id
+                AND daily_aspect.property_id = aggregate.property_id
+                AND daily_aspect.local_date = aggregate.local_date
+                AND daily_aspect.source_epoch = aggregate.source_epoch
+                AND daily_aspect.review_analysis_epoch = aggregate.review_analysis_epoch
+                AND daily_aspect.property_profile_version = aggregate.property_profile_version
+            ) AS daily_aspects ON true
             WHERE aggregate.organization_id = ${organizationId}
               AND merchant.state = 'enabled'
               AND merchant.capabilities @> ARRAY['review_analysis']::text[]
@@ -553,7 +606,7 @@ async function readPayload(
       )
 
       return {
-        version: 'ai-organization-export/v1',
+        version: 'ai-organization-export/v2',
         requestedAsOf: asOfIso,
         snapshotBound: 'repeatable_read_within_15m_of_request',
         reviewAnalyses,

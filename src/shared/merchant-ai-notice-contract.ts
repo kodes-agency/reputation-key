@@ -1,16 +1,13 @@
 import { z } from 'zod/v4'
 export { canonicalizeRfc8785 } from './canonical-json'
 
-// Bumped from merchant-ai-notice-2026-08-19.v1 because the shipped text was
-// false: it promised "volatile in-memory prompt caching … at most one hour"
-// while every request sends prompt_cache_retention: '24h'
-// (ai-openai-request-contract.ts) — 24x the stated maximum — and the pinned
-// model rejects `in_memory` with HTTP 400, so the mechanism was wrong too. A
-// new version re-collects consent against the corrected statement. Historical
-// consent stays recorded at its own version — see the known-version set in the
-// enablement/evidence CHECKs (merchant-ai-authorization.schema.ts). The 08-19
-// bump before this one widened the review-language catalogue to bg-Cyrl.
-export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-09-08.v1' as const
+// Bumped from merchant-ai-notice-2026-09-08.v1 because Review Analysis now
+// persists controlled aspect/polarity/intensity metadata and one optional
+// generic issue label. A new version re-collects consent for that processing.
+// Historical consent stays recorded at its own version — see the known-version
+// set in the enablement/evidence CHECKs
+// (merchant-ai-authorization.schema.ts).
+export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-09-09.v1' as const
 
 const capabilitySchema = z
   .object({
@@ -84,6 +81,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
         'RepKey may use the Google review body, star rating, review time, evaluated language, and property context needed for the selected feature. Reviewer names, profile photos, Google identifiers, exact provider resource names, and raw organization, property, user, and review identifiers are excluded from the provider request.',
         'Before provider processing, RepKey applies automated minimization and redaction. Unstructured personal details can still be missed. A rotating pseudonymous safety identifier contains no raw actor, organization, property, or review identifier.',
         'Supported analysis groups are und, en-Latn, es-Latn, fr-Latn, de-Latn, pt-Latn, it-Latn, nl-Latn, pl-Latn, tr-Latn, uk-Cyrl, ru-Cyrl, ar-Arab, he-Hebr, hi-Deva, bn-Beng, ta-Taml, th-Thai, vi-Latn, id-Latn, zh-Hans, zh-Hant, ja-Jpan, ko-Kore, and bg-Cyrl. Explicit languages outside this catalogue are skipped before provider work.',
+        'Review analysis records which aspects a review mentions and how positively or negatively, plus an optional short generic issue label that is a lowercase category phrase and never reproduces review text or names a person.',
       ]),
       links: Object.freeze([
         Object.freeze({ label: 'RepKey privacy notice', target: '/privacy' }),
@@ -179,7 +177,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
 noticePayloadSchema.parse(MERCHANT_AI_NOTICE_PAYLOAD)
 
 export const MERCHANT_AI_NOTICE_DIGEST =
-  'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865' as const
+  'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1' as const
 function isLowercaseSha256(value: string): boolean {
   if (value.length !== 64) return false
   for (let index = 0; index < value.length; index += 1) {

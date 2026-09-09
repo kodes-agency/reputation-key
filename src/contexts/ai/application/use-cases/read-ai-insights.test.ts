@@ -18,8 +18,8 @@ import { createReadPropertyTrend, createReadReviewAnalysis } from './read-ai-ins
  * Both reads are admission gates in front of the output store: they decide
  * whether the caller may read at all, and with which pins. Every literal that
  * the production code pins comes from the compiled catalogue here — pasting
- * `'review-analysis-v1'` would keep passing after a catalogue repin, which is
- * exactly the mismatch these reads exist to prevent.
+ * a concrete analysis profile version would keep passing after a catalogue
+ * repin, which is exactly the mismatch these reads exist to prevent.
  */
 const REVIEW_ANALYSIS_PROFILE = AI_OPERATION_PROFILES.find(
   (profile) => profile.capability === 'review_analysis',
@@ -136,6 +136,8 @@ const ANALYSIS_READY: ReviewAnalysisReadV1 = Object.freeze({
   sentiment: 'negative',
   primaryCategory: 'service',
   attention: 'urgent',
+  aspects: [{ aspect: 'service', polarity: 'negative', intensity: -80 }] as const,
+  issueLabel: 'service recovery',
   generatedAtEpochMillis: NOW - 60_000,
 })
 

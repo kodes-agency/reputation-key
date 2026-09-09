@@ -3,6 +3,8 @@ import { AI_PRIMARY_CATEGORIES } from './ai-primary-categories'
 // Public schema/version contract consumed by operational and settings tooling over time.
 // fallow-ignore-next-line unused-export
 export const ASPECT_TAXONOMY_VERSION = 'aspect-taxonomy-v1' as const
+export const ASPECT_TAXONOMY_V1_DIGEST =
+  '856740c88ef24ffeb18744b48e1ec41b1cca561d22af6aa1124f8d413ca1ecb4' as const
 
 export const ASPECT_TAXONOMY_V1 = Object.freeze([
   ...AI_PRIMARY_CATEGORIES,
@@ -15,6 +17,8 @@ export const ASPECT_TAXONOMY_V1 = Object.freeze([
   'amenities',
   'events',
 ] as const)
+
+export type AspectTaxonomyV1Id = (typeof ASPECT_TAXONOMY_V1)[number]
 
 export type ReplyTemplateAspect = (typeof ASPECT_TAXONOMY_V1)[number]
 

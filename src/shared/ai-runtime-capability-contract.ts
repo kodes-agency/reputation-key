@@ -33,7 +33,7 @@ const runtimeEntrySchema = z
     ]),
     caller: z.enum(['web', 'worker']),
     operationProfileVersion: z.enum([
-      'review-analysis-v1',
+      'review-analysis-v2',
       'reply-suggestion-v1',
       'property-trend-v1',
     ]),
@@ -54,7 +54,7 @@ const EXPECTED_RUNTIME_CAPABILITIES = Object.freeze([
     gatewayPath: '/v1/review-analysis',
     gatewayProfileVersion: 'review-analysis-gateway-v1',
     caller: 'worker',
-    operationProfileVersion: 'review-analysis-v1',
+    operationProfileVersion: 'review-analysis-v2',
     providerDeploymentProfileVersion: 'private-beta-global-v1',
     noticeVersion: MERCHANT_AI_NOTICE_VERSION,
     noticeDigest: MERCHANT_AI_NOTICE_DIGEST,

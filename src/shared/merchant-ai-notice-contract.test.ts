@@ -49,7 +49,7 @@ describe('Merchant AI notice contract', () => {
   })
 
   it('binds the immutable notice version and structured payload into the digest', () => {
-    expect(MERCHANT_AI_NOTICE_VERSION).toBe('merchant-ai-notice-2026-09-08.v1')
+    expect(MERCHANT_AI_NOTICE_VERSION).toBe('merchant-ai-notice-2026-09-09.v1')
     expect(MERCHANT_AI_NOTICE_DIGEST).toMatch(/^[0-9a-f]{64}$/)
     expect(MERCHANT_AI_NOTICE_DIGEST).toBe(
       createHash('sha256')
@@ -64,6 +64,9 @@ describe('Merchant AI notice contract', () => {
           'utf8',
         )
         .digest('hex'),
+    )
+    expect(MERCHANT_AI_NOTICE_DIGEST).toBe(
+      'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1',
     )
   })
 

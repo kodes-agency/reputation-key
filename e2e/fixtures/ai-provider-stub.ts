@@ -91,7 +91,7 @@ function parseOperationKind(body: unknown): AiProviderStubOperationKind | null {
   const format = (text as Record<string, unknown>).format
   if (format === null || typeof format !== 'object' || Array.isArray(format)) return null
   switch ((format as Record<string, unknown>).name) {
-    case 'review_analysis_v1':
+    case 'review_analysis_v2':
       return 'analysis'
     case 'reply_draft_v1':
       return 'reply'
@@ -306,21 +306,24 @@ function synthesizedParsed(
         ? {
             sentiment: 'positive',
             sentimentValence: 60,
-            primaryCategory: 'service',
             urgencySignals: [],
+            aspects: [{ aspect: 'service', polarity: 'positive', intensity: 60 }],
+            issueLabel: null,
           }
         : rating === 3
           ? {
               sentiment: 'neutral',
               sentimentValence: 0,
-              primaryCategory: 'service',
               urgencySignals: [],
+              aspects: [{ aspect: 'service', polarity: 'neutral', intensity: 0 }],
+              issueLabel: null,
             }
           : {
               sentiment: 'negative',
               sentimentValence: -60,
-              primaryCategory: 'service',
               urgencySignals: [],
+              aspects: [{ aspect: 'service', polarity: 'negative', intensity: -60 }],
+              issueLabel: 'service recovery',
             }
     }
     case 'reply':

@@ -235,8 +235,9 @@ describe('AI gateway caller-wire contract', () => {
       result: {
         sentiment: 'positive',
         sentimentValence: 80,
-        primaryCategory: 'service',
         urgencySignals: [],
+        aspects: [{ aspect: 'service', polarity: 'positive', intensity: 80 }],
+        issueLabel: null,
       },
       settlementReceipt: receipt,
     }

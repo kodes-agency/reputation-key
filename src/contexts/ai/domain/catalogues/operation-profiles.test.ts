@@ -54,6 +54,11 @@ import {
   AI_PROVIDER_DEPLOYMENT_PROFILE,
   AI_ROUTING_POLICY,
 } from '../../../../shared/ai-operation-profiles'
+import {
+  ASPECT_TAXONOMY_VERSION,
+  ASPECT_TAXONOMY_V1,
+  ASPECT_TAXONOMY_V1_DIGEST,
+} from '#/shared/aspect-taxonomy'
 
 const sha256 = (domain: string, value: unknown): string =>
   createHash('sha256')
@@ -120,7 +125,7 @@ describe('PR5 immutable AI execution catalogues', () => {
       policyDigest: AI_ROUTING_POLICY.policyDigest,
     })
     expect(AI_OPERATION_PROFILES.map((profile) => profile.profileVersion)).toEqual([
-      'review-analysis-v1',
+      'review-analysis-v2',
       'reply-suggestion-v1',
       'property-trend-v1',
       'synthetic-canary-v1',
@@ -168,7 +173,7 @@ describe('PR5 immutable AI execution catalogues', () => {
       ),
     ).toEqual([
       {
-        profileVersion: 'review-analysis-v1',
+        profileVersion: 'review-analysis-v2',
         sourceByteLimit: 16_384,
         providerPayloadByteLimit: 16_384,
         preparedRequestByteLimit: 65_536,
@@ -223,9 +228,18 @@ describe('PR5 immutable AI execution catalogues', () => {
 
   it('uses schema-closed derivative, grounded draft, selected-signal, and canary outputs', () => {
     const [analysis, reply, trend, canary] = AI_OPERATION_PROFILES
+    expect(analysis?.outputSchema).toEqual(
+      AI_ROUTE_OUTPUT_JSON_SCHEMAS['review-analysis-v2'],
+    )
     expect(analysis?.outputSchema).toMatchObject({
       additionalProperties: false,
-      required: ['sentiment', 'sentimentValence', 'primaryCategory', 'urgencySignals'],
+      required: [
+        'sentiment',
+        'sentimentValence',
+        'urgencySignals',
+        'aspects',
+        'issueLabel',
+      ],
     })
     expect(reply?.outputSchema).toEqual(AI_ROUTE_OUTPUT_JSON_SCHEMAS['reply-suggestion'])
     expect(trend?.outputSchema).toEqual(AI_ROUTE_OUTPUT_JSON_SCHEMAS['property-trend'])
@@ -266,6 +280,17 @@ describe('PR5 immutable AI execution catalogues', () => {
         languageCatalogueDigest: LANGUAGE_CATALOGUE_DIGEST,
       },
     })
+    expect(analysis?.artifactAttestations).toMatchObject({
+      aspectTaxonomyVersion: ASPECT_TAXONOMY_VERSION,
+      aspectTaxonomyDigest: ASPECT_TAXONOMY_V1_DIGEST,
+      attentionFormulaVersion: 'review-attention-v1',
+    })
+    expect(ASPECT_TAXONOMY_V1_DIGEST).toBe(
+      createHash('sha256')
+        .update('repkey-aspect-taxonomy-v1\0', 'utf8')
+        .update(canonicalizeRfc8785(ASPECT_TAXONOMY_V1), 'utf8')
+        .digest('hex'),
+    )
     expect(reply?.artifactAttestations).toMatchObject({
       source: {
         replyLanguageVerifierVersion: AI_REPLY_LANGUAGE_VERIFIER_VERSION,

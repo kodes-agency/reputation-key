@@ -10,6 +10,7 @@ import type { AnalyzeReviewEventDependencies } from './analyze-review-event'
 import {
   AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
   createAnalyzeReviewEvent,
+  derivePrimaryCategoryV1,
 } from './analyze-review-event'
 import type { AiOperationId } from '../../domain/types'
 import {
@@ -73,6 +74,19 @@ const OPERATION_ID = '71000000-0000-4000-8000-000000000103' as AiOperationId
 const PERMIT_ID = '71000000-0000-4000-8000-000000000104'
 const LINEAGE_ID = '71000000-0000-4000-8000-000000000105'
 const SHA = 'a'.repeat(64)
+const VALID_ANALYSIS_RESULT = Object.freeze({
+  sentiment: 'negative' as const,
+  sentimentValence: -90,
+  urgencySignals: Object.freeze(['health'] as const),
+  aspects: Object.freeze([
+    Object.freeze({
+      aspect: 'service' as const,
+      polarity: 'negative' as const,
+      intensity: -90,
+    }),
+  ]),
+  issueLabel: 'service recovery',
+})
 
 const input = Object.freeze({
   organizationId: ORGANIZATION_ID,
@@ -101,6 +115,8 @@ function createHarness(
     quotaCode?: string
     /** Simulates a redelivery of an operation claimed in an earlier attempt. */
     operationCreatedAtEpochMillis?: number
+    analysisResult?: unknown
+    rating?: 1 | 2 | 3 | 4 | 5
   }> = {},
 ) {
   let claimedOperation: AiOperationRecord | undefined
@@ -162,12 +178,7 @@ function createHarness(
   const analyzeReview = vi.fn(async () => ({
     route: 'review-analysis' as const,
     status: 'success' as const,
-    result: {
-      sentiment: 'negative' as const,
-      sentimentValence: -90,
-      primaryCategory: 'service' as const,
-      urgencySignals: ['health'] as const,
-    },
+    result: options.analysisResult ?? VALID_ANALYSIS_RESULT,
     settlementReceipt: {
       version: 'ai-settlement-receipt-v1' as const,
       receiptKid: 'receipt_v1',
@@ -301,7 +312,7 @@ function createHarness(
           organizationId: ORGANIZATION_ID,
           propertyId: PROPERTY_ID,
           text: 'The kitchen made several guests sick.',
-          rating: 1 as const,
+          rating: options.rating ?? 1,
           languageCode:
             options.languageCode === undefined ? 'en-US' : options.languageCode,
           reviewedAtEpochMillis: NOW - 1_000,
@@ -347,6 +358,7 @@ function createHarness(
       analyzeReview,
       storeAnalysis,
       settleOutcome,
+      recordFailure,
       applyReviewAnalysis,
       advanceWithoutAnalysis,
       markDelivered,
@@ -354,6 +366,31 @@ function createHarness(
     },
   }
 }
+
+describe('review-analysis-v2 local primary category', () => {
+  it('selects the aspect with the largest absolute intensity', () => {
+    expect(
+      derivePrimaryCategoryV1([
+        { aspect: 'service', polarity: 'positive', intensity: 40 },
+        { aspect: 'room', polarity: 'negative', intensity: -80 },
+        { aspect: 'noise', polarity: 'negative', intensity: -60 },
+      ]),
+    ).toBe('room')
+  })
+
+  it('lets a negative aspect win an equal-magnitude tie', () => {
+    expect(
+      derivePrimaryCategoryV1([
+        { aspect: 'service', polarity: 'positive', intensity: 80 },
+        { aspect: 'cleanliness', polarity: 'negative', intensity: -80 },
+      ]),
+    ).toBe('cleanliness')
+  })
+
+  it('falls back to other when no aspect is available', () => {
+    expect(derivePrimaryCategoryV1([])).toBe('other')
+  })
+})
 
 describe('analyze review event', () => {
   describe('with the pinned language runtime', () => {
@@ -386,6 +423,8 @@ describe('analyze review event', () => {
               sentiment: 'negative',
               primaryCategory: 'service',
               attention: 'urgent',
+              aspects: [{ aspect: 'service', polarity: 'negative', intensity: -90 }],
+              issueLabel: 'service recovery',
             },
           },
         }),
@@ -394,6 +433,101 @@ describe('analyze review event', () => {
       expect(harness.mocks.markDelivered).toHaveBeenCalledOnce()
       expect(harness.mocks.release).toHaveBeenCalledWith({ quotaId: 'quota-1' })
     })
+
+    it.each([
+      [
+        'urgent',
+        {
+          sentiment: 'positive',
+          sentimentValence: 60,
+          urgencySignals: ['safety'],
+          aspects: [{ aspect: 'service', polarity: 'positive', intensity: 60 }],
+          issueLabel: null,
+        },
+        5,
+        'urgent',
+      ],
+      [
+        'high',
+        {
+          sentiment: 'positive',
+          sentimentValence: 60,
+          urgencySignals: ['service_failure'],
+          aspects: [{ aspect: 'service', polarity: 'positive', intensity: 60 }],
+          issueLabel: null,
+        },
+        5,
+        'high',
+      ],
+      [
+        'medium',
+        {
+          sentiment: 'negative',
+          sentimentValence: -40,
+          urgencySignals: [],
+          aspects: [{ aspect: 'service', polarity: 'negative', intensity: -40 }],
+          issueLabel: null,
+        },
+        5,
+        'medium',
+      ],
+      [
+        'low',
+        {
+          sentiment: 'positive',
+          sentimentValence: 60,
+          urgencySignals: [],
+          aspects: [{ aspect: 'service', polarity: 'positive', intensity: 60 }],
+          issueLabel: null,
+        },
+        5,
+        'low',
+      ],
+    ] as const)(
+      'keeps review-attention-v1 %s behavior pinned',
+      async (_case, analysisResult, rating, expectedAttention) => {
+        const harness = createHarness({ analysisResult, rating })
+
+        await expect(harness.analyze(input)).resolves.toEqual({ status: 'completed' })
+        expect(harness.mocks.storeAnalysis).toHaveBeenCalledWith(
+          expect.objectContaining({
+            result: expect.objectContaining({
+              derivative: expect.objectContaining({ attention: expectedAttention }),
+            }),
+          }),
+        )
+      },
+    )
+
+    it.each([
+      ['uppercase', 'Bed bugs'],
+      ['digits', 'room 2'],
+      ['punctuation', 'bed-bugs'],
+      ['five words', 'one two three four five'],
+      ['41 characters', 'a'.repeat(41)],
+      ['review excerpt with a proper noun', 'dirty sheets at Hilton'],
+    ])(
+      'rejects %s issue labels as output_invalid without storage',
+      async (_case, issueLabel) => {
+        const harness = createHarness({
+          analysisResult: {
+            ...VALID_ANALYSIS_RESULT,
+            issueLabel,
+          },
+        })
+
+        await expect(harness.analyze(input)).resolves.toEqual({
+          status: 'retry',
+          retryAtEpochMillis: NOW + 1_000,
+          code: 'output_invalid',
+        })
+        expect(harness.mocks.recordFailure).toHaveBeenCalledWith(
+          expect.objectContaining({ failureCode: 'output_invalid' }),
+        )
+        expect(harness.mocks.storeAnalysis).not.toHaveBeenCalled()
+        expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
+      },
+    )
 
     it('finishes an idempotent aggregate replay when its outcome is already terminal', async () => {
       const harness = createHarness({

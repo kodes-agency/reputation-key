@@ -33,6 +33,8 @@ const analysis = (reviewId: string, sequence: number) => ({
   unavailable_reason: null,
   sentiment: 'positive',
   primary_category: 'service',
+  aspects: [{ aspect: 'service', polarity: 'positive', intensity: 80 }],
+  issue_label: null,
   attention: 'low',
   generated_at: '2026-08-27T09:30:00.000000Z',
   expires_at: '2026-08-28T09:30:00.000000Z',
@@ -41,7 +43,7 @@ const analysis = (reviewId: string, sequence: number) => ({
 const payload = (
   overrides: Partial<AiOrganizationExportPayload> = {},
 ): AiOrganizationExportPayload => ({
-  version: 'ai-organization-export/v1',
+  version: 'ai-organization-export/v2',
   requestedAsOf: ASOF.toISOString(),
   snapshotBound: 'repeatable_read_within_15m_of_request',
   reviewAnalyses: [analysis('review-a', 1), analysis('review-b', 2)],
@@ -61,6 +63,7 @@ const payload = (
       neutral_count: 0,
       negative_count: 0,
       mixed_count: 0,
+      aspect_mentions: [{ aspect: 'service', polarity: 'positive', mention_count: 2 }],
       service_count: 2,
       staff_count: 0,
       quality_count: 0,
@@ -210,7 +213,7 @@ describe('AI Organization Export entries', () => {
       'property_id,review_id,source_epoch,source_revision,analysis_sequence,' +
         'review_analysis_epoch,property_profile_version,analysis_profile_version,' +
         'authorization_lineage_id,status,unavailable_reason,sentiment,' +
-        'primary_category,attention,generated_at,expires_at',
+        'primary_category,aspects,issue_label,attention,generated_at,expires_at',
     )
     expect(
       text(buildAiExportEntries(payload()), 'ai/property-trend-outcomes.csv')

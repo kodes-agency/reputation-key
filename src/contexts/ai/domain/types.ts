@@ -153,6 +153,26 @@ export type AiOperationIdentity =
       aggregateRevision: number
     }>
 
+export type ReviewAnalysisAspectV2 =
+  | 'service'
+  | 'staff'
+  | 'quality'
+  | 'value'
+  | 'cleanliness'
+  | 'wait_time'
+  | 'atmosphere'
+  | 'location'
+  | 'accessibility'
+  | 'other'
+  | 'room'
+  | 'food_and_drink'
+  | 'noise'
+  | 'wifi_and_tech'
+  | 'check_in_out'
+  | 'parking'
+  | 'amenities'
+  | 'events'
+
 export type ReviewAnalysisCurrentnessV1 = Readonly<{
   sourceEpoch: number
   sourceRevision: number
@@ -175,17 +195,13 @@ export type ReviewAnalysisReadV1 =
       ReviewAnalysisCurrentnessV1 & {
         status: 'ready'
         sentiment: 'positive' | 'neutral' | 'negative' | 'mixed'
-        primaryCategory:
-          | 'service'
-          | 'staff'
-          | 'quality'
-          | 'value'
-          | 'cleanliness'
-          | 'wait_time'
-          | 'atmosphere'
-          | 'location'
-          | 'accessibility'
-          | 'other'
+        primaryCategory: ReviewAnalysisAspectV2
+        aspects: readonly Readonly<{
+          aspect: ReviewAnalysisAspectV2
+          polarity: 'positive' | 'neutral' | 'negative'
+          intensity: number
+        }>[]
+        issueLabel: string | null
         attention: 'urgent' | 'high' | 'medium' | 'low'
         generatedAtEpochMillis: number
       }

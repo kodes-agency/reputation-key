@@ -397,6 +397,101 @@ function allNull(
   return keys.every((key) => value[key] === null)
 }
 
+function analysisBindingValid(
+  value: Readonly<Record<string, unknown>>,
+  fence: Readonly<Record<string, unknown>>,
+): boolean {
+  return (
+    exactKeys(fence, ['capability', 'reviewAnalysisEpoch']) &&
+    isPositiveSafeInteger(fence.reviewAnalysisEpoch) &&
+    nonEmptyString(value.evaluatedLanguage, 35) &&
+    isPositiveSafeInteger(value.sourceRevision) &&
+    isNonnegativeSafeInteger(value.reviewedAtEpochMillis) &&
+    nonEmptyString(value.aiSubjectHmacKeyVersion, 100) &&
+    (value.operationProfileVersion === 'review-analysis-v1' ||
+      value.operationProfileVersion === 'review-analysis-v2') &&
+    value.capabilityRuntimeProfileVersion === 'review-analysis-runtime-v1' &&
+    allNull(value, [
+      'concreteReplyLanguage',
+      'replyLanguageVerifierDigest',
+      'languageScriptConsistencyDigest',
+      'zhOrthographyVerifierDigest',
+      'outputLeakageProfileVersion',
+      'outputLeakageProfileDigest',
+      'replyTemplateCatalogueVersion',
+      'replyTemplateCatalogueDigest',
+      'replyBrandProfileVersion',
+      'replyBrandDisplayNameDigest',
+    ])
+  )
+}
+
+function replyBindingDigestsValid(value: Readonly<Record<string, unknown>>): boolean {
+  return [
+    value.languageCatalogueDigest,
+    value.replyLanguageVerifierDigest,
+    value.languageScriptConsistencyDigest,
+    value.zhOrthographyVerifierDigest,
+    value.outputLeakageProfileDigest,
+    value.replyTemplateCatalogueDigest,
+  ].every((digest) => typeof digest === 'string' && SHA256.test(digest))
+}
+
+function replyBindingValid(
+  value: Readonly<Record<string, unknown>>,
+  fence: Readonly<Record<string, unknown>>,
+): boolean {
+  const concrete = value.concreteReplyLanguage
+  return (
+    exactKeys(fence, ['capability', 'replyDraftingEpoch', 'baseReplyStateRevision']) &&
+    isPositiveSafeInteger(fence.replyDraftingEpoch) &&
+    isNonnegativeSafeInteger(fence.baseReplyStateRevision) &&
+    nonEmptyString(value.evaluatedLanguage, 35) &&
+    isRecord(concrete) &&
+    exactKeys(concrete, ['tag', 'templateGroup']) &&
+    nonEmptyString(concrete.tag, 35) &&
+    nonEmptyString(concrete.templateGroup, 64) &&
+    isPositiveSafeInteger(value.sourceRevision) &&
+    isNonnegativeSafeInteger(value.reviewedAtEpochMillis) &&
+    value.aiSubjectHmacKeyVersion === null &&
+    nonEmptyString(value.outputLeakageProfileVersion, 100) &&
+    nonEmptyString(value.replyTemplateCatalogueVersion, 100) &&
+    value.operationProfileVersion === 'reply-suggestion-v1' &&
+    value.capabilityRuntimeProfileVersion === 'reply-drafting-runtime-v1' &&
+    replyBindingDigestsValid(value)
+  )
+}
+
+function trendBindingValid(
+  value: Readonly<Record<string, unknown>>,
+  fence: Readonly<Record<string, unknown>>,
+): boolean {
+  return (
+    exactKeys(fence, ['capability', 'reviewAnalysisEpoch', 'propertyTrendsEpoch']) &&
+    isPositiveSafeInteger(fence.reviewAnalysisEpoch) &&
+    isPositiveSafeInteger(fence.propertyTrendsEpoch) &&
+    value.operationProfileVersion === 'property-trend-v1' &&
+    value.capabilityRuntimeProfileVersion === 'property-trends-runtime-v1' &&
+    allNull(value, [
+      'evaluatedLanguage',
+      'concreteReplyLanguage',
+      'languageCatalogueDigest',
+      'replyLanguageVerifierDigest',
+      'languageScriptConsistencyDigest',
+      'zhOrthographyVerifierDigest',
+      'sourceRevision',
+      'reviewedAtEpochMillis',
+      'outputLeakageProfileVersion',
+      'outputLeakageProfileDigest',
+      'replyTemplateCatalogueVersion',
+      'replyTemplateCatalogueDigest',
+      'replyBrandProfileVersion',
+      'replyBrandDisplayNameDigest',
+      'aiSubjectHmacKeyVersion',
+    ])
+  )
+}
+
 export function parseAiExecutionBinding(
   value: unknown,
 ): Result<AiExecutionBinding, AiError> {
@@ -420,99 +515,24 @@ export function parseAiExecutionBinding(
   if (!isRecord(value.capabilityFence)) return invalid('capability fence is invalid')
 
   const capability = value.capabilityFence.capability
-  if (capability === 'review_analysis') {
-    if (
-      !exactKeys(value.capabilityFence, ['capability', 'reviewAnalysisEpoch']) ||
-      !isPositiveSafeInteger(value.capabilityFence.reviewAnalysisEpoch) ||
-      !nonEmptyString(value.evaluatedLanguage, 35) ||
-      !isPositiveSafeInteger(value.sourceRevision) ||
-      !isNonnegativeSafeInteger(value.reviewedAtEpochMillis) ||
-      !nonEmptyString(value.aiSubjectHmacKeyVersion, 100) ||
-      value.operationProfileVersion !== 'review-analysis-v1' ||
-      value.capabilityRuntimeProfileVersion !== 'review-analysis-runtime-v1' ||
-      !allNull(value, [
-        'concreteReplyLanguage',
-        'replyLanguageVerifierDigest',
-        'languageScriptConsistencyDigest',
-        'zhOrthographyVerifierDigest',
-        'outputLeakageProfileVersion',
-        'outputLeakageProfileDigest',
-        'replyTemplateCatalogueVersion',
-        'replyTemplateCatalogueDigest',
-        'replyBrandProfileVersion',
-        'replyBrandDisplayNameDigest',
-      ])
-    ) {
-      return invalid('analysis binding is cross-wired or incomplete')
-    }
-  } else if (capability === 'reply_drafting') {
-    const concrete = value.concreteReplyLanguage
-    if (
-      !exactKeys(value.capabilityFence, [
-        'capability',
-        'replyDraftingEpoch',
-        'baseReplyStateRevision',
-      ]) ||
-      !isPositiveSafeInteger(value.capabilityFence.replyDraftingEpoch) ||
-      !isNonnegativeSafeInteger(value.capabilityFence.baseReplyStateRevision) ||
-      !nonEmptyString(value.evaluatedLanguage, 35) ||
-      !isRecord(concrete) ||
-      !exactKeys(concrete, ['tag', 'templateGroup']) ||
-      !nonEmptyString(concrete.tag, 35) ||
-      !nonEmptyString(concrete.templateGroup, 64) ||
-      !isPositiveSafeInteger(value.sourceRevision) ||
-      !isNonnegativeSafeInteger(value.reviewedAtEpochMillis) ||
-      value.aiSubjectHmacKeyVersion !== null ||
-      !nonEmptyString(value.outputLeakageProfileVersion, 100) ||
-      !nonEmptyString(value.replyTemplateCatalogueVersion, 100) ||
-      value.operationProfileVersion !== 'reply-suggestion-v1' ||
-      value.capabilityRuntimeProfileVersion !== 'reply-drafting-runtime-v1' ||
-      [
-        value.languageCatalogueDigest,
-        value.replyLanguageVerifierDigest,
-        value.languageScriptConsistencyDigest,
-        value.zhOrthographyVerifierDigest,
-        value.outputLeakageProfileDigest,
-        value.replyTemplateCatalogueDigest,
-      ].some((digest) => typeof digest !== 'string' || !SHA256.test(digest))
-    ) {
-      return invalid('reply binding is cross-wired or incomplete')
-    }
-  } else if (capability === 'property_trends') {
-    if (
-      !exactKeys(value.capabilityFence, [
-        'capability',
-        'reviewAnalysisEpoch',
-        'propertyTrendsEpoch',
-      ]) ||
-      !isPositiveSafeInteger(value.capabilityFence.reviewAnalysisEpoch) ||
-      !isPositiveSafeInteger(value.capabilityFence.propertyTrendsEpoch) ||
-      value.operationProfileVersion !== 'property-trend-v1' ||
-      value.capabilityRuntimeProfileVersion !== 'property-trends-runtime-v1' ||
-      !allNull(value, [
-        'evaluatedLanguage',
-        'concreteReplyLanguage',
-        'languageCatalogueDigest',
-        'replyLanguageVerifierDigest',
-        'languageScriptConsistencyDigest',
-        'zhOrthographyVerifierDigest',
-        'sourceRevision',
-        'reviewedAtEpochMillis',
-        'outputLeakageProfileVersion',
-        'outputLeakageProfileDigest',
-        'replyTemplateCatalogueVersion',
-        'replyTemplateCatalogueDigest',
-        'replyBrandProfileVersion',
-        'replyBrandDisplayNameDigest',
-        'aiSubjectHmacKeyVersion',
-      ])
-    ) {
-      return invalid('trend binding is cross-wired or incomplete')
-    }
-  } else {
-    return invalid('unknown capability fence')
+  const valid =
+    capability === 'review_analysis'
+      ? analysisBindingValid(value, value.capabilityFence)
+      : capability === 'reply_drafting'
+        ? replyBindingValid(value, value.capabilityFence)
+        : capability === 'property_trends'
+          ? trendBindingValid(value, value.capabilityFence)
+          : null
+  if (valid === null) return invalid('unknown capability fence')
+  if (!valid) {
+    return invalid(
+      capability === 'review_analysis'
+        ? 'analysis binding is cross-wired or incomplete'
+        : capability === 'reply_drafting'
+          ? 'reply binding is cross-wired or incomplete'
+          : 'trend binding is cross-wired or incomplete',
+    )
   }
-
   return ok(value as AiExecutionBinding)
 }
 

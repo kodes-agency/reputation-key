@@ -22,6 +22,7 @@ import { createAlertDispatcher } from '#/shared/observability/alert-dispatcher'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { createConsumerRegistry } from '#/shared/outbox'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { AI_PRIMARY_CATEGORIES } from '#/shared/ai-primary-categories'
 import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
 import { createTanstackRequestContext } from '#/shared/auth/tanstack-request-context'
 import { createBetterAuthSessionPort } from '#/shared/auth/better-auth-session'
@@ -500,12 +501,20 @@ function buildContainer(
         ) {
           return { status: 'none' } as const
         }
-        return ai.publicApi.readReviewAnalysis({
+        const analysis = await ai.publicApi.readReviewAnalysis({
           ...request,
           sourceEpoch: current.source.sourceEpoch,
           sourceRevision: current.source.sourceRevision,
           analysisSequence: current.source.analysisSequence,
         })
+        if (analysis.status !== 'ready') return analysis
+        return {
+          ...analysis,
+          primaryCategory:
+            AI_PRIMARY_CATEGORIES.find(
+              (category) => category === analysis.primaryCategory,
+            ) ?? 'other',
+        }
       },
       findCurrentReviewIdsByAttention: ai.publicApi.findCurrentReviewIdsByAttention,
       findCurrentReviewIdsByCategory: ai.publicApi.findCurrentReviewIdsByCategory,

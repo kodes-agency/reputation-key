@@ -249,7 +249,29 @@ async function eraseRetiredDerivatives(
       )
   `)
   await tx.execute(sql`
+    DELETE FROM ai_property_aggregate_contribution_aspects AS aspect
+    USING ai_property_aggregate_contributions AS contribution
+    WHERE aspect.organization_id = contribution.organization_id
+      AND aspect.property_id = contribution.property_id
+      AND aspect.review_id = contribution.review_id
+      AND aspect.source_epoch = contribution.source_epoch
+      AND aspect.source_revision = contribution.source_revision
+      AND aspect.analysis_sequence = contribution.analysis_sequence
+      AND contribution.organization_id = ${input.organizationId}
+      AND contribution.property_id = ${input.propertyId}::uuid
+      AND (
+        contribution.source_epoch <> ${sourceEpoch}
+        OR contribution.review_analysis_epoch <> ${reviewEpoch}
+      )
+  `)
+  await tx.execute(sql`
     DELETE FROM ai_property_aggregate_contributions
+    WHERE organization_id = ${input.organizationId}
+      AND property_id = ${input.propertyId}::uuid
+      AND (source_epoch <> ${sourceEpoch} OR review_analysis_epoch <> ${reviewEpoch})
+  `)
+  await tx.execute(sql`
+    DELETE FROM ai_property_daily_aspect_aggregates
     WHERE organization_id = ${input.organizationId}
       AND property_id = ${input.propertyId}::uuid
       AND (source_epoch <> ${sourceEpoch} OR review_analysis_epoch <> ${reviewEpoch})
@@ -265,6 +287,22 @@ async function eraseRetiredDerivatives(
     WHERE organization_id = ${input.organizationId}
       AND property_id = ${input.propertyId}::uuid
       AND (source_epoch <> ${sourceEpoch} OR review_analysis_epoch <> ${reviewEpoch})
+  `)
+  await tx.execute(sql`
+    DELETE FROM ai_review_analysis_aspects AS aspect
+    USING ai_review_analyses AS analysis
+    WHERE aspect.organization_id = analysis.organization_id
+      AND aspect.property_id = analysis.property_id
+      AND aspect.review_id = analysis.review_id
+      AND aspect.source_epoch = analysis.source_epoch
+      AND aspect.source_revision = analysis.source_revision
+      AND aspect.analysis_sequence = analysis.analysis_sequence
+      AND analysis.organization_id = ${input.organizationId}
+      AND analysis.property_id = ${input.propertyId}::uuid
+      AND (
+        analysis.source_epoch <> ${sourceEpoch}
+        OR analysis.review_analysis_epoch <> ${reviewEpoch}
+      )
   `)
   await tx.execute(sql`
     DELETE FROM ai_review_analyses
