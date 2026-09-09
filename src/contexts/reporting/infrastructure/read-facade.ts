@@ -31,6 +31,7 @@ import {
 } from '#/shared/db/schema'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 import { METRIC_VERSION_IDS, findMetricVersionById } from '../domain/metric-registry'
+import type { MetricStatsDataState } from '../application/ports/metric-stats.port'
 
 /** Hard statement-level budget for one direct dashboard read. */
 export const DASHBOARD_READ_BUDGET_MS = 5000
@@ -132,7 +133,7 @@ export type MetricAggregateRow = Readonly<{
   metricKey: string
   total: number
   count: number
-  state: 'available' | 'updating' | 'unavailable'
+  state: MetricStatsDataState
   sampleCount: number
   minimumSample: number
 }>
@@ -254,7 +255,7 @@ export async function readMetricAggregates(
     const governedEvidenceCount = Number(row?.governedEvidenceCount ?? 0)
     const state =
       evidenceCount === 0
-        ? 'updating'
+        ? 'insufficient_data'
         : governedEvidenceCount === evidenceCount && sampleCount >= version.minimumSample
           ? 'available'
           : 'unavailable'

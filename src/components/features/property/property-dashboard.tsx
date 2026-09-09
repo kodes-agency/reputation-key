@@ -94,7 +94,12 @@ export function PropertyDashboard({
               {formatTrend(kpis.reviews.trend)}
             </span>
           }
-          availability={{ state: 'ready', dataThrough: null, reason: null }}
+          availability={{
+            subject: 'reviews',
+            state: 'ready',
+            dataThrough: null,
+            reason: null,
+          }}
         />
         <StatCard
           label="Avg Rating"
@@ -113,6 +118,7 @@ export function PropertyDashboard({
             </>
           }
           availability={{
+            subject: 'ratings',
             state: kpis.avgRating.evidence.state,
             dataThrough: kpis.avgRating.evidence.verifiedThrough,
             reason: kpis.avgRating.evidence.availabilityReason,
@@ -130,6 +136,7 @@ export function PropertyDashboard({
             ) : undefined
           }
           availability={{
+            subject: 'scans',
             state: kpis.scans.evidence.current.state,
             dataThrough: null,
             reason: null,
@@ -148,6 +155,7 @@ export function PropertyDashboard({
             ) : undefined
           }
           availability={{
+            subject: 'private_feedback',
             state: kpis.feedback.evidence.current.state,
             dataThrough: null,
             reason: null,

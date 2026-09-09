@@ -55,7 +55,7 @@ function computeKpis(input: {
   const priorAvgRating = priorReviews?.avgRating ?? null
 
   const missingEvidence = (): MetricKPIPeriodEvidence => ({
-    state: 'updating',
+    state: 'insufficient_data',
     definitionVersionId: null,
     sampleCount: 0,
     minimumSample: null,
@@ -68,9 +68,9 @@ function computeKpis(input: {
           ? row.total === null
             ? 'temporarily_unavailable'
             : 'ready'
-          : row.state === 'unavailable'
-            ? 'temporarily_unavailable'
-            : 'updating',
+          : row.state === 'insufficient_data'
+            ? 'insufficient_data'
+            : 'temporarily_unavailable',
       definitionVersionId: row.definitionVersionId,
       sampleCount: row.sampleCount,
       minimumSample: row.minimumSample,

@@ -18,7 +18,7 @@ import type { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-ag
 import {
   activeSignals,
   calmSignals,
-  emptyDashboard,
+  noDataDashboard,
   populatedDashboard,
   property,
 } from './property-dashboard-stories-data'
@@ -162,17 +162,27 @@ export const RatingDrop: Story = {
   args: { ...Default.args, signals: { ...activeSignals, ratingDrop: true } },
 }
 
-// A brand-new property: zeroed KPIs, empty arrays, null funnel, no reviews.
-export const EmptyDashboard: Story = {
-  args: { ...Default.args, dashboard: emptyDashboard, signals: calmSignals },
+// The selected window is complete but contains no eligible KPI readings.
+export const NoDataWindow: Story = {
+  args: { ...Default.args, dashboard: noDataDashboard, signals: calmSignals },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    const card = (label: string) => {
+      const element = canvas.getByText(label).closest('.rounded-lg')
+      if (!(element instanceof HTMLElement)) throw new Error(`${label} card is missing`)
+      return within(element)
+    }
+
     expect(canvas.getByText(/no reviews yet/i)).toBeVisible()
-    const ratingCard = canvas.getByText('Avg Rating').closest('.rounded-lg')
-    expect(ratingCard).not.toBeNull()
-    expect(within(ratingCard as HTMLElement).getAllByText('—')).toHaveLength(2)
-    expect(within(ratingCard as HTMLElement).getByText('Insufficient data')).toBeVisible()
-    expect(within(ratingCard as HTMLElement).queryByText('0.0')).toBeNull()
+    expect(card('Reviews').getByText('Ready')).toBeVisible()
+    expect(card('Reviews').queryByText(/Data through/)).toBeNull()
+    expect(
+      card('Avg Rating').getByText('No eligible ratings in this period.'),
+    ).toBeVisible()
+    expect(card('Scans').getByText('No scans recorded in this period.')).toBeVisible()
+    expect(
+      card('Feedback').getByText('No private feedback received in this period.'),
+    ).toBeVisible()
   },
 }
 

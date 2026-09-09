@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
 import type { MetricAvailabilityState } from '#/contexts/reporting/application/public-api'
 import { AvailabilityLine } from '#/components/features/dashboard/availability-line'
+import type { MetricEvidenceSubject } from '#/components/features/dashboard/metric-availability-presentation'
 
 export type StatCardAvailability = Readonly<{
+  subject: MetricEvidenceSubject
   state: MetricAvailabilityState
   dataThrough: Date | null
   reason: string | null

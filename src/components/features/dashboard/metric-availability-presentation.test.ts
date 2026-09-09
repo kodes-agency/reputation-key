@@ -7,6 +7,7 @@ import {
 } from './metric-availability-presentation'
 
 const evidence = {
+  subject: 'ratings' as const,
   state: 'ready' as const,
   dataThrough: new Date('2026-08-25T10:15:00.000Z'),
 }
@@ -34,6 +35,34 @@ describe('Metric availability presentation', () => {
         'UTC',
       ),
     ).toBe('Updating; figures will appear when checks finish.')
+  })
+
+  it('omits a missing data-through clause instead of rendering a placeholder', () => {
+    expect(metricEvidenceLine({ ...evidence, dataThrough: null })).toBeNull()
+  })
+
+  it("describes an empty window in each metric's own language", () => {
+    expect(
+      metricEvidenceLine({
+        subject: 'scans',
+        state: 'insufficient_data',
+        dataThrough: null,
+      }),
+    ).toBe('No scans recorded in this period.')
+    expect(
+      metricEvidenceLine({
+        subject: 'private_feedback',
+        state: 'insufficient_data',
+        dataThrough: null,
+      }),
+    ).toBe('No private feedback received in this period.')
+    expect(
+      metricEvidenceLine({
+        subject: 'ratings',
+        state: 'insufficient_data',
+        dataThrough: null,
+      }),
+    ).toBe('No eligible ratings in this period.')
   })
 
   it('formats a data-through time identically without an ambient locale or zone', () => {

@@ -261,7 +261,7 @@ describe('dashboardRepository (integration)', () => {
         expect(rows.find(({ metricKey }) => metricKey === 'portal.rating')).toEqual({
           metricKey: 'portal.rating',
           total: null,
-          state: 'updating',
+          state: 'insufficient_data',
           definitionVersionId: METRIC_VERSION_IDS.portalRatingAnalytics,
           sampleCount: 0,
           minimumSample: 5,
@@ -451,7 +451,7 @@ describe('dashboardRepository (integration)', () => {
   })
 
   describe('getKPIs', () => {
-    it('preserves missing Metric evidence instead of manufacturing zero values or trends', async () => {
+    it('marks missing Metric rows as insufficient data without manufacturing zero values or trends', async () => {
       const getPeriodStats = vi.fn().mockResolvedValue({ count: 2, avgRating: 4.5 })
       const getSumsByPeriod = vi
         .fn()
@@ -506,7 +506,7 @@ describe('dashboardRepository (integration)', () => {
             minimumSample: 1,
           },
           prior: {
-            state: 'updating',
+            state: 'insufficient_data',
             definitionVersionId: null,
             sampleCount: 0,
             minimumSample: null,
@@ -519,13 +519,13 @@ describe('dashboardRepository (integration)', () => {
         trend: null,
         evidence: {
           current: {
-            state: 'updating',
+            state: 'insufficient_data',
             definitionVersionId: null,
             sampleCount: 0,
             minimumSample: null,
           },
           prior: {
-            state: 'updating',
+            state: 'insufficient_data',
             definitionVersionId: null,
             sampleCount: 0,
             minimumSample: null,
@@ -743,7 +743,7 @@ describe('dashboardRepository (integration)', () => {
       expect(result.scans.value).toBe(1)
       expect(result.scans.priorValue).toBeNull()
       expect(result.scans.trend).toBeNull()
-      expect(result.scans.evidence.prior?.state).toBe('updating')
+      expect(result.scans.evidence.prior?.state).toBe('insufficient_data')
     })
   })
 
@@ -911,7 +911,7 @@ describe('dashboardRepository (integration)', () => {
           {
             metricKey: 'portal.rating',
             count: null,
-            state: 'updating',
+            state: 'insufficient_data',
             definitionVersionId: METRIC_VERSION_IDS.portalRatingAnalytics,
             sampleCount: 0,
             minimumSample: 5,

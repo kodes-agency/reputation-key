@@ -36,13 +36,13 @@ const availableMetricKpi = (
   },
 })
 
-const updatingMetricKpi: MetricKPIValue = {
+const noDataMetricKpi: MetricKPIValue = {
   value: null,
   priorValue: null,
   trend: null,
   evidence: {
     current: {
-      state: 'updating',
+      state: 'insufficient_data',
       definitionVersionId: null,
       sampleCount: 0,
       minimumSample: null,
@@ -130,7 +130,7 @@ export const activeSignals: AttentionSignals = {
   needsAttention: 8,
 }
 
-export const emptyDashboard: DashboardData = {
+export const noDataDashboard: DashboardData = {
   kpis: {
     reviews: { value: 0, priorValue: 0, trend: null },
     avgRating: {
@@ -141,8 +141,8 @@ export const emptyDashboard: DashboardData = {
       priorSampleCount: 0,
       evidence: insufficientRatingEvidence,
     },
-    scans: updatingMetricKpi,
-    feedback: updatingMetricKpi,
+    scans: noDataMetricKpi,
+    feedback: noDataMetricKpi,
   },
   ratingDistribution: [],
   ratingTrend: [],

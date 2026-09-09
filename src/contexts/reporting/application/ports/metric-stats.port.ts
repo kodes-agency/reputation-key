@@ -9,10 +9,13 @@ import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
  * scope and period.
  *
  * - available: eligible evidence meets the version's minimum sample contract;
- * - updating: the version has not produced evidence for this window yet;
+ * - insufficient_data: no governed evidence exists in the requested window;
  * - unavailable: evidence exists but does not satisfy the serving contract.
+ *
+ * This read has no projection-lifecycle evidence, so it cannot truthfully
+ * claim that work is in flight.
  */
-export type MetricStatsDataState = 'available' | 'updating' | 'unavailable'
+export type MetricStatsDataState = 'available' | 'insufficient_data' | 'unavailable'
 
 export type MetricStatsEvidence = Readonly<{
   state: MetricStatsDataState
