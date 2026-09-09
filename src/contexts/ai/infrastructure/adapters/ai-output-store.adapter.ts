@@ -331,11 +331,20 @@ const lockedReviewOperationColumns = {
   replyBrandDisplayNameDigest: aiOperations.replyBrandDisplayNameDigest,
 } as const
 
-async function lockReviewOperation(tx: Transaction, operationId: string) {
+async function lockReviewOperation(
+  tx: Transaction,
+  operationId: string,
+  organizationId: string,
+) {
   const [operation] = await tx
     .select(lockedReviewOperationColumns)
     .from(aiOperations)
-    .where(eq(aiOperations.id, operationId))
+    .where(
+      and(
+        eq(aiOperations.id, operationId),
+        eq(aiOperations.organizationId, organizationId),
+      ),
+    )
     .limit(1)
     .for('update')
   return operation
@@ -593,7 +602,11 @@ export const createAiOutputStoreAdapter = (
   return {
     async storeAnalysis(input) {
       return db.transaction(async (tx) => {
-        const operation = await lockReviewOperation(tx, input.operationId)
+        const operation = await lockReviewOperation(
+          tx,
+          input.operationId,
+          input.organizationId,
+        )
         const fence = capabilityFence(operation?.capabilityFences)
         if (
           !operation ||
@@ -733,7 +746,11 @@ export const createAiOutputStoreAdapter = (
     },
     async settleEphemeralReply(input) {
       return db.transaction(async (tx) => {
-        const operation = await lockReviewOperation(tx, input.operationId)
+        const operation = await lockReviewOperation(
+          tx,
+          input.operationId,
+          input.organizationId,
+        )
         const fence = capabilityFence(operation?.capabilityFences)
         if (
           operation?.state !== 'executing' ||
