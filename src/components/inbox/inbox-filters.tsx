@@ -1,7 +1,8 @@
 import type {
   InboxSort,
   InboxStatus,
-  ReviewCategory,
+  ReviewAspect,
+  ReviewAspectPolarity,
   SourceType,
 } from '#/contexts/inbox/application/public-api'
 
@@ -14,14 +15,15 @@ export type InboxFilterValues = Readonly<{
   ratingMin: number | undefined
   ratingMax: number | undefined
   attention: 'urgent' | 'high' | 'medium' | 'low' | undefined
-  category: ReviewCategory | undefined
+  aspect: ReviewAspect | undefined
+  polarity: ReviewAspectPolarity | undefined
   q: string | undefined
   sort: InboxSort | undefined
 }>
 
 export type InboxListFilterValues = Pick<
   InboxFilterValues,
-  'sourceType' | 'ratingMin' | 'ratingMax' | 'attention' | 'category'
+  'sourceType' | 'ratingMin' | 'ratingMax' | 'attention' | 'aspect' | 'polarity'
 >
 
 export const CLEARED_INBOX_LIST_FILTERS: InboxListFilterValues = {
@@ -29,7 +31,8 @@ export const CLEARED_INBOX_LIST_FILTERS: InboxListFilterValues = {
   ratingMin: undefined,
   ratingMax: undefined,
   attention: undefined,
-  category: undefined,
+  aspect: undefined,
+  polarity: undefined,
 }
 
 export function countActiveInboxFilters(value: InboxListFilterValues): number {
@@ -37,6 +40,7 @@ export function countActiveInboxFilters(value: InboxListFilterValues): number {
     Number(value.sourceType !== undefined) +
     Number(value.ratingMin !== undefined || value.ratingMax !== undefined) +
     Number(value.attention !== undefined) +
-    Number(value.category !== undefined)
+    Number(value.aspect !== undefined) +
+    Number(value.polarity !== undefined)
   )
 }

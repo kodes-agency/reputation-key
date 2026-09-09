@@ -216,6 +216,9 @@ describe('getInboxItemDetail', () => {
     const readCurrentReviewAnalysis = vi.fn(async () => ({
       status: 'ready' as const,
       sentiment: 'positive' as const,
+      aspects: [
+        { aspect: 'service' as const, polarity: 'positive' as const, intensity: 75 },
+      ],
       primaryCategory: 'service' as const,
       attention: 'low' as const,
       generatedAtEpochMillis: FIXED_TIME.getTime(),
@@ -223,7 +226,7 @@ describe('getInboxItemDetail', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis,
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
-      findCurrentReviewIdsByCategory: vi.fn(async () => []),
+      findCurrentReviewIdsByAspect: vi.fn(async () => []),
     }
 
     const result = await getInboxItemDetail({
@@ -242,6 +245,7 @@ describe('getInboxItemDetail', () => {
     expect(result.analysis).toEqual({
       status: 'ready',
       sentiment: 'positive',
+      aspects: [{ aspect: 'service', polarity: 'positive', intensity: 75 }],
       primaryCategory: 'service',
       attention: 'low',
       generatedAtEpochMillis: FIXED_TIME.getTime(),

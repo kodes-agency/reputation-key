@@ -1,6 +1,13 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
+import {
+  ASPECT_POLARITIES_V1,
+  ASPECT_TAXONOMY_V1,
+  type AspectPolarityV1,
+  type AspectTaxonomyV1Id,
+} from './aspect-taxonomy'
+import { ASPECT_LABELS } from './aspect-labels'
 
 export const AI_PROPERTY_TREND_CONTRACT_VERSION = 'property-trend-v1' as const
 export const AI_PROPERTY_TREND_DEFINITION_VERSION =
@@ -9,61 +16,43 @@ export const AI_TREND_RENDER_PROFILE_VERSION = 'trend-render-v1' as const
 export const AI_PROPERTY_TREND_MINIMUM_ANALYZED_PER_WINDOW = 20 as const
 export const AI_PROPERTY_TREND_MINIMUM_COVERAGE_BASIS_POINTS = 9_000 as const
 const AI_PROPERTY_TREND_MINIMUM_CHANGE_PERCENTAGE_POINTS = 15 as const
-const AI_PROPERTY_TREND_CATEGORY_MINIMUM_SHARE_PERCENT = 10 as const
+const AI_PROPERTY_TREND_ASPECT_MINIMUM_SHARE_PERCENT = 10 as const
+
+type TrendDirection = 'up' | 'down'
 
 export type ClosedTrendSignalId =
-  | `sentiment.${'positive' | 'neutral' | 'negative' | 'mixed'}.${'up' | 'down'}`
-  | `attention.${'urgent' | 'high' | 'medium' | 'low'}.${'up' | 'down'}`
-  | `category.${
-      | 'service'
-      | 'staff'
-      | 'quality'
-      | 'value'
-      | 'cleanliness'
-      | 'wait_time'
-      | 'atmosphere'
-      | 'location'
-      | 'accessibility'
-      | 'other'}.${'up' | 'down'}`
+  | `sentiment.${'positive' | 'neutral' | 'negative' | 'mixed'}.${TrendDirection}`
+  | `attention.${'urgent' | 'high' | 'medium' | 'low'}.${TrendDirection}`
+  | `aspect.${AspectTaxonomyV1Id}.${AspectPolarityV1}.${TrendDirection}`
 
-export const CLOSED_TREND_SIGNAL_IDS = Object.freeze([
-  'attention.high.down',
-  'attention.high.up',
-  'attention.low.down',
-  'attention.low.up',
-  'attention.medium.down',
-  'attention.medium.up',
-  'attention.urgent.down',
-  'attention.urgent.up',
-  'category.accessibility.down',
-  'category.accessibility.up',
-  'category.atmosphere.down',
-  'category.atmosphere.up',
-  'category.cleanliness.down',
-  'category.cleanliness.up',
-  'category.location.down',
-  'category.location.up',
-  'category.other.down',
-  'category.other.up',
-  'category.quality.down',
-  'category.quality.up',
-  'category.service.down',
-  'category.service.up',
-  'category.staff.down',
-  'category.staff.up',
-  'category.value.down',
-  'category.value.up',
-  'category.wait_time.down',
-  'category.wait_time.up',
-  'sentiment.mixed.down',
-  'sentiment.mixed.up',
-  'sentiment.negative.down',
-  'sentiment.negative.up',
-  'sentiment.neutral.down',
-  'sentiment.neutral.up',
-  'sentiment.positive.down',
-  'sentiment.positive.up',
-] as const satisfies readonly ClosedTrendSignalId[])
+const ASPECT_TREND_SIGNAL_IDS = ASPECT_TAXONOMY_V1.flatMap((aspect) =>
+  ASPECT_POLARITIES_V1.flatMap((polarity) => [
+    `aspect.${aspect}.${polarity}.down` as const,
+    `aspect.${aspect}.${polarity}.up` as const,
+  ]),
+)
+
+export const CLOSED_TREND_SIGNAL_IDS = Object.freeze(
+  [
+    'attention.high.down',
+    'attention.high.up',
+    'attention.low.down',
+    'attention.low.up',
+    'attention.medium.down',
+    'attention.medium.up',
+    'attention.urgent.down',
+    'attention.urgent.up',
+    ...ASPECT_TREND_SIGNAL_IDS,
+    'sentiment.mixed.down',
+    'sentiment.mixed.up',
+    'sentiment.negative.down',
+    'sentiment.negative.up',
+    'sentiment.neutral.down',
+    'sentiment.neutral.up',
+    'sentiment.positive.down',
+    'sentiment.positive.up',
+  ].sort(),
+) as readonly ClosedTrendSignalId[]
 
 /**
  * Property-local derivative aggregates for one seven-day window.
@@ -87,18 +76,11 @@ export type DeterministicAggregateWindow = Readonly<{
     medium: number
     low: number
   }>
-  categoryCounts: Readonly<{
-    service: number
-    staff: number
-    quality: number
-    value: number
-    cleanliness: number
-    waitTime: number
-    atmosphere: number
-    location: number
-    accessibility: number
-    other: number
-  }>
+  aspectCounts: readonly Readonly<{
+    aspect: AspectTaxonomyV1Id
+    polarity: AspectPolarityV1
+    count: number
+  }>[]
 }>
 
 export type DeterministicTrendCandidate = Readonly<{
@@ -126,9 +108,9 @@ export type PropertyTrendRender = Readonly<{
   headline:
     'Review signals improved' | 'Review signals need attention' | 'Notable review changes'
   /**
-   * Dominant polarity of the selected signals. `stable` means "no polarised
-   * signal was selected" (neutral-sentiment/category shifts are material but
-   * directionless) — never "no material change".
+   * Dominant polarity of the selected signals. `stable` means no polarised
+   * signal was selected (neutral-sentiment/aspect shifts are material but
+   * directionless) — never no material change.
    */
   direction: 'improving' | 'stable' | 'declining'
   sentences: readonly string[]
@@ -153,18 +135,11 @@ const attentionCountsSchema = z
     low: nonnegativeSafeInteger,
   })
   .strict()
-const categoryCountsSchema = z
+const aspectCountSchema = z
   .object({
-    service: nonnegativeSafeInteger,
-    staff: nonnegativeSafeInteger,
-    quality: nonnegativeSafeInteger,
-    value: nonnegativeSafeInteger,
-    cleanliness: nonnegativeSafeInteger,
-    waitTime: nonnegativeSafeInteger,
-    atmosphere: nonnegativeSafeInteger,
-    location: nonnegativeSafeInteger,
-    accessibility: nonnegativeSafeInteger,
-    other: nonnegativeSafeInteger,
+    aspect: z.enum(ASPECT_TAXONOMY_V1),
+    polarity: z.enum(ASPECT_POLARITIES_V1),
+    count: nonnegativeSafeInteger,
   })
   .strict()
 const aggregateWindowSchema = z
@@ -172,7 +147,9 @@ const aggregateWindowSchema = z
     reviewCount: nonnegativeSafeInteger,
     sentimentCounts: sentimentCountsSchema,
     attentionCounts: attentionCountsSchema,
-    categoryCounts: categoryCountsSchema,
+    aspectCounts: z
+      .array(aspectCountSchema)
+      .max(ASPECT_TAXONOMY_V1.length * ASPECT_POLARITIES_V1.length),
   })
   .strict()
 const candidateSchema = z
@@ -204,7 +181,9 @@ function freezeWindow(
     reviewCount: value.reviewCount,
     sentimentCounts: Object.freeze({ ...value.sentimentCounts }),
     attentionCounts: Object.freeze({ ...value.attentionCounts }),
-    categoryCounts: Object.freeze({ ...value.categoryCounts }),
+    aspectCounts: Object.freeze(
+      value.aspectCounts.map((entry) => Object.freeze({ ...entry })),
+    ),
   })
 }
 
@@ -221,8 +200,14 @@ export function validateDeterministicAggregateWindow(
   if (sum(Object.values(parsed.attentionCounts)) !== reviewCount) {
     throw new TypeError('attention counts must sum to reviewCount')
   }
-  if (Object.values(parsed.categoryCounts).some((count) => count > parsed.reviewCount)) {
-    throw new TypeError('category mention count cannot exceed reviewCount')
+  const aspectIdentities = new Set(
+    parsed.aspectCounts.map(({ aspect, polarity }) => `${aspect}:${polarity}`),
+  )
+  if (aspectIdentities.size !== parsed.aspectCounts.length) {
+    throw new TypeError('aspect and polarity pairs must be unique')
+  }
+  if (parsed.aspectCounts.some(({ count }) => count > parsed.reviewCount)) {
+    throw new TypeError('aspect mention count cannot exceed reviewCount')
   }
   return freezeWindow(parsed)
 }
@@ -257,13 +242,13 @@ function compareScoredCandidates(left: ScoredCandidate, right: ScoredCandidate):
 
 function shareCandidate(
   input: Readonly<{
-    family: 'sentiment' | 'attention' | 'category'
+    family: 'sentiment' | 'attention' | 'aspect'
     name: string
     baselineNumerator: number
     currentNumerator: number
     baselineCount: number
     currentCount: number
-    categoryPrevalenceRequired: boolean
+    prevalenceRequired: boolean
   }>,
 ): ScoredCandidate | null {
   const baselineCount = BigInt(input.baselineCount)
@@ -279,11 +264,11 @@ function shareCandidate(
   )
     return null
   if (
-    input.categoryPrevalenceRequired &&
+    input.prevalenceRequired &&
     currentNumerator * 100n <
-      BigInt(AI_PROPERTY_TREND_CATEGORY_MINIMUM_SHARE_PERCENT) * currentCount &&
+      BigInt(AI_PROPERTY_TREND_ASPECT_MINIMUM_SHARE_PERCENT) * currentCount &&
     baselineNumerator * 100n <
-      BigInt(AI_PROPERTY_TREND_CATEGORY_MINIMUM_SHARE_PERCENT) * baselineCount
+      BigInt(AI_PROPERTY_TREND_ASPECT_MINIMUM_SHARE_PERCENT) * baselineCount
   )
     return null
 
@@ -302,18 +287,8 @@ function shareCandidate(
 
 const SENTIMENT_NAMES = ['positive', 'neutral', 'negative', 'mixed'] as const
 const ATTENTION_NAMES = ['urgent', 'high', 'medium', 'low'] as const
-const CATEGORY_NAMES = [
-  ['service', 'service'],
-  ['staff', 'staff'],
-  ['quality', 'quality'],
-  ['value', 'value'],
-  ['cleanliness', 'cleanliness'],
-  ['wait_time', 'waitTime'],
-  ['atmosphere', 'atmosphere'],
-  ['location', 'location'],
-  ['accessibility', 'accessibility'],
-  ['other', 'other'],
-] as const
+const aspectCountKey = (aspect: AspectTaxonomyV1Id, polarity: AspectPolarityV1) =>
+  `${aspect}:${polarity}`
 
 export function computeDeterministicTrendCandidates(
   input: Readonly<{
@@ -333,7 +308,7 @@ export function computeDeterministicTrendCandidates(
       currentNumerator: current.sentimentCounts[name],
       baselineCount: baseline.reviewCount,
       currentCount: current.reviewCount,
-      categoryPrevalenceRequired: false,
+      prevalenceRequired: false,
     })
     if (item !== null) scored.push(item)
   }
@@ -345,21 +320,36 @@ export function computeDeterministicTrendCandidates(
       currentNumerator: current.attentionCounts[name],
       baselineCount: baseline.reviewCount,
       currentCount: current.reviewCount,
-      categoryPrevalenceRequired: false,
+      prevalenceRequired: false,
     })
     if (item !== null) scored.push(item)
   }
-  for (const [idName, countName] of CATEGORY_NAMES) {
-    const item = shareCandidate({
-      family: 'category',
-      name: idName,
-      baselineNumerator: baseline.categoryCounts[countName],
-      currentNumerator: current.categoryCounts[countName],
-      baselineCount: baseline.reviewCount,
-      currentCount: current.reviewCount,
-      categoryPrevalenceRequired: true,
-    })
-    if (item !== null) scored.push(item)
+  const baselineAspectCounts = new Map(
+    baseline.aspectCounts.map(({ aspect, polarity, count }) => [
+      aspectCountKey(aspect, polarity),
+      count,
+    ]),
+  )
+  const currentAspectCounts = new Map(
+    current.aspectCounts.map(({ aspect, polarity, count }) => [
+      aspectCountKey(aspect, polarity),
+      count,
+    ]),
+  )
+  for (const aspect of ASPECT_TAXONOMY_V1) {
+    for (const polarity of ASPECT_POLARITIES_V1) {
+      const item = shareCandidate({
+        family: 'aspect',
+        name: `${aspect}.${polarity}`,
+        baselineNumerator:
+          baselineAspectCounts.get(aspectCountKey(aspect, polarity)) ?? 0,
+        currentNumerator: currentAspectCounts.get(aspectCountKey(aspect, polarity)) ?? 0,
+        baselineCount: baseline.reviewCount,
+        currentCount: current.reviewCount,
+        prevalenceRequired: true,
+      })
+      if (item !== null) scored.push(item)
+    }
   }
   scored.sort(compareScoredCandidates)
   return Object.freeze(scored.slice(0, 12).map(({ candidate }) => candidate))
@@ -390,13 +380,13 @@ function validateCandidate(candidate: DeterministicTrendCandidate): ScoredCandid
   )
     throw new TypeError('invalid share candidate')
   if (
-    candidate.id.startsWith('category.') &&
+    candidate.id.startsWith('aspect.') &&
     baselineNumerator * 100n <
-      BigInt(AI_PROPERTY_TREND_CATEGORY_MINIMUM_SHARE_PERCENT) * baselineDenominator &&
+      BigInt(AI_PROPERTY_TREND_ASPECT_MINIMUM_SHARE_PERCENT) * baselineDenominator &&
     currentNumerator * 100n <
-      BigInt(AI_PROPERTY_TREND_CATEGORY_MINIMUM_SHARE_PERCENT) * currentDenominator
+      BigInt(AI_PROPERTY_TREND_ASPECT_MINIMUM_SHARE_PERCENT) * currentDenominator
   )
-    throw new TypeError('category candidate does not meet prevalence')
+    throw new TypeError('aspect candidate does not meet prevalence')
   return {
     candidate,
     scoreNumerator: absolute(delta) * 10n,
@@ -431,6 +421,13 @@ export function validateTrendSelection(
   return Object.freeze([...parsed.selectedSignalIds])
 }
 
+const ASPECT_POLARITY_SIGNAL_LABELS: Readonly<Record<AspectPolarityV1, string>> =
+  Object.freeze({
+    positive: 'praise',
+    neutral: 'neutral mentions',
+    negative: 'complaints',
+  })
+
 const LABEL_BY_SIGNAL_NAME: Readonly<Record<string, string>> = Object.freeze({
   positive: 'Positive sentiment',
   neutral: 'Neutral sentiment',
@@ -440,37 +437,52 @@ const LABEL_BY_SIGNAL_NAME: Readonly<Record<string, string>> = Object.freeze({
   high: 'High attention',
   medium: 'Medium attention',
   low: 'Low attention',
-  service: 'Service mentions',
-  staff: 'Staff mentions',
-  quality: 'Quality mentions',
-  value: 'Value mentions',
-  cleanliness: 'Cleanliness mentions',
-  wait_time: 'Wait time mentions',
-  atmosphere: 'Atmosphere mentions',
-  location: 'Location mentions',
-  accessibility: 'Accessibility mentions',
-  other: 'Other topic mentions',
+  ...Object.fromEntries(
+    ASPECT_TAXONOMY_V1.flatMap((aspect) =>
+      ASPECT_POLARITIES_V1.map((polarity) => [
+        `${aspect}.${polarity}`,
+        `${ASPECT_LABELS[aspect]} ${ASPECT_POLARITY_SIGNAL_LABELS[polarity]}`,
+      ]),
+    ),
+  ),
 })
-const FAVORABLE_SIGNALS: Readonly<Partial<Record<ClosedTrendSignalId, true>>> =
-  Object.freeze({
-    'sentiment.positive.up': true,
-    'sentiment.negative.down': true,
-    'sentiment.mixed.down': true,
-    'attention.urgent.down': true,
-    'attention.high.down': true,
-    'attention.medium.down': true,
-    'attention.low.up': true,
-  })
-const ATTENTION_SIGNALS: Readonly<Partial<Record<ClosedTrendSignalId, true>>> =
-  Object.freeze({
-    'sentiment.positive.down': true,
-    'sentiment.negative.up': true,
-    'sentiment.mixed.up': true,
-    'attention.urgent.up': true,
-    'attention.high.up': true,
-    'attention.medium.up': true,
-    'attention.low.down': true,
-  })
+
+const BASE_FAVORABLE_SIGNAL_IDS = new Set<ClosedTrendSignalId>([
+  'sentiment.positive.up',
+  'sentiment.negative.down',
+  'sentiment.mixed.down',
+  'attention.urgent.down',
+  'attention.high.down',
+  'attention.medium.down',
+  'attention.low.up',
+])
+const BASE_ATTENTION_SIGNAL_IDS = new Set<ClosedTrendSignalId>([
+  'sentiment.positive.down',
+  'sentiment.negative.up',
+  'sentiment.mixed.up',
+  'attention.urgent.up',
+  'attention.high.up',
+  'attention.medium.up',
+  'attention.low.down',
+])
+const FAVORABLE_SIGNAL_IDS = Object.freeze(
+  CLOSED_TREND_SIGNAL_IDS.filter(
+    (id) =>
+      BASE_FAVORABLE_SIGNAL_IDS.has(id) ||
+      (id.startsWith('aspect.') &&
+        (id.endsWith('.positive.up') || id.endsWith('.negative.down'))),
+  ),
+)
+const ATTENTION_SIGNAL_IDS = Object.freeze(
+  CLOSED_TREND_SIGNAL_IDS.filter(
+    (id) =>
+      BASE_ATTENTION_SIGNAL_IDS.has(id) ||
+      (id.startsWith('aspect.') &&
+        (id.endsWith('.positive.down') || id.endsWith('.negative.up'))),
+  ),
+)
+const FAVORABLE_SIGNALS = new Set(FAVORABLE_SIGNAL_IDS)
+const ATTENTION_SIGNALS = new Set(ATTENTION_SIGNAL_IDS)
 
 const TREND_RENDER_MANIFEST = Object.freeze({
   version: AI_TREND_RENDER_PROFILE_VERSION,
@@ -480,12 +492,8 @@ const TREND_RENDER_MANIFEST = Object.freeze({
     mixed: 'Notable review changes',
   }),
   labels: LABEL_BY_SIGNAL_NAME,
-  favorableSignalIds: Object.freeze(
-    CLOSED_TREND_SIGNAL_IDS.filter((id) => FAVORABLE_SIGNALS[id] === true),
-  ),
-  attentionSignalIds: Object.freeze(
-    CLOSED_TREND_SIGNAL_IDS.filter((id) => ATTENTION_SIGNALS[id] === true),
-  ),
+  favorableSignalIds: FAVORABLE_SIGNAL_IDS,
+  attentionSignalIds: ATTENTION_SIGNAL_IDS,
   shareSentence: '{label} rose|fell from {baseline}% to {current}%',
   directionRule: 'leading-signal-polarity-then-majority-polarity-then-stable',
   rounding: 'half-away-from-zero-to-one-decimal',
@@ -502,8 +510,8 @@ const PROPERTY_TREND_CONTRACT_MANIFEST = Object.freeze({
   signalIds: CLOSED_TREND_SIGNAL_IDS,
   minimumWindowReviewCount: 10,
   shareThresholdPercentagePoints: 10,
-  categoryMinimumWindowShareNumerator: 1,
-  categoryMinimumWindowShareDenominator: 10,
+  aspectMinimumWindowShareNumerator: 1,
+  aspectMinimumWindowShareDenominator: 10,
   meanValenceSignal: 'removed-no-persisted-per-review-valence',
   maximumProviderCandidates: 12,
   selectionMinimum: 1,
@@ -528,7 +536,7 @@ const PROPERTY_TREND_DEFINITION_MANIFEST = Object.freeze({
   minimumCurrentAnalysisCoverageBasisPoints:
     AI_PROPERTY_TREND_MINIMUM_COVERAGE_BASIS_POINTS,
   shareThresholdPercentagePoints: AI_PROPERTY_TREND_MINIMUM_CHANGE_PERCENTAGE_POINTS,
-  categoryMinimumWindowSharePercent: AI_PROPERTY_TREND_CATEGORY_MINIMUM_SHARE_PERCENT,
+  aspectMinimumWindowSharePercent: AI_PROPERTY_TREND_ASPECT_MINIMUM_SHARE_PERCENT,
   starOnlyReviewsExcludedFromCandidateDenominator: true,
   unresolvedSequenceGapDisposition: 'updating',
   meanValenceSignal: 'removed-no-persisted-per-review-valence',
@@ -570,8 +578,10 @@ function roundRatioToOneDecimal(
 }
 
 function renderCandidate(candidate: DeterministicTrendCandidate): string {
-  const [, name, directionValue] = candidate.id.split('.')
-  const label = name === undefined ? undefined : LABEL_BY_SIGNAL_NAME[name]
+  const [family, firstName, secondName, fourthName] = candidate.id.split('.')
+  const name = family === 'aspect' ? `${firstName}.${secondName}` : firstName
+  const directionValue = family === 'aspect' ? fourthName : secondName
+  const label = LABEL_BY_SIGNAL_NAME[name]
   if (label === undefined || (directionValue !== 'up' && directionValue !== 'down')) {
     throw new TypeError('unknown trend render mapping')
   }
@@ -604,10 +614,8 @@ export function renderPropertyTrendReport(
     if (candidate === undefined) throw new TypeError('selected signal is not renderable')
     return renderCandidate(candidate)
   })
-  const favorable = selectedSignalIds.filter(
-    (id) => FAVORABLE_SIGNALS[id] === true,
-  ).length
-  const adverse = selectedSignalIds.filter((id) => ATTENTION_SIGNALS[id] === true).length
+  const favorable = selectedSignalIds.filter((id) => FAVORABLE_SIGNALS.has(id)).length
+  const adverse = selectedSignalIds.filter((id) => ATTENTION_SIGNALS.has(id)).length
   const allFavorable = favorable === selectedSignalIds.length
   const allAttention = adverse === selectedSignalIds.length
   const headline = allFavorable
@@ -618,19 +626,18 @@ export function renderPropertyTrendReport(
   // `direction` is the report's dominant polarity: the leading (first selected)
   // signal decides when it is polarised, otherwise the polarised majority does.
   // `stable` is reserved for a selection with NO polarised signal at all —
-  // neutral-sentiment and category shifts are material but directionless — so a
-  // mixed report of real improvements and regressions never reads as unchanged.
+  // neutral-sentiment and neutral-aspect shifts are material but directionless, so
+  // a mixed report of real improvements and regressions never reads as unchanged.
   const leading = selectedSignalIds[0]!
-  const direction: PropertyTrendRender['direction'] =
-    FAVORABLE_SIGNALS[leading] === true
-      ? 'improving'
-      : ATTENTION_SIGNALS[leading] === true
-        ? 'declining'
-        : favorable > adverse
-          ? 'improving'
-          : adverse > favorable
-            ? 'declining'
-            : 'stable'
+  const direction: PropertyTrendRender['direction'] = FAVORABLE_SIGNALS.has(leading)
+    ? 'improving'
+    : ATTENTION_SIGNALS.has(leading)
+      ? 'declining'
+      : favorable > adverse
+        ? 'improving'
+        : adverse > favorable
+          ? 'declining'
+          : 'stable'
   const summary = `${sentences.join('. ')}.`
   if (summary.length >= 600)
     throw new TypeError('rendered trend summary exceeds 600 characters')

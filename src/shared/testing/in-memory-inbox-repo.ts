@@ -1,6 +1,9 @@
 // Shared testing utility — in-memory inbox repository for unit tests
 import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
-import type { ReviewCategory } from '#/contexts/inbox/application/ports/ai-review-insights.port'
+import type {
+  ReviewAspect,
+  ReviewAspectPolarity,
+} from '#/contexts/inbox/application/ports/ai-review-insights.port'
 import type { InboxItem } from '#/contexts/inbox/domain/types'
 import { unbrandAll } from '#/shared/domain/ids'
 
@@ -23,12 +26,17 @@ const nextCommandRevision = (item: InboxItem): number => {
   return next
 }
 
+type ReviewAspectMention = Readonly<{
+  aspect: ReviewAspect
+  polarity: ReviewAspectPolarity
+}>
+
 export function createInMemoryInboxRepo(): InboxRepository & {
   items: InboxItem[]
-  categories: Map<string, ReviewCategory>
+  analysisAspects: Map<string, readonly ReviewAspectMention[]>
 } {
   const items: InboxItem[] = []
-  const categories = new Map<string, ReviewCategory>()
+  const analysisAspects = new Map<string, readonly ReviewAspectMention[]>()
   const repo: InboxRepository = {
     findById: async (id, orgId) =>
       items.find((i) => i.id === id && i.organizationId === orgId) ?? null,
@@ -82,10 +90,14 @@ export function createInMemoryInboxRepo(): InboxRepository & {
         filtered = filtered.filter(
           (i) => i.attention !== null && filters.attention!.includes(i.attention!),
         )
-      if (filters.category?.length)
+      if (filters.aspect?.length || filters.polarity?.length)
         filtered = filtered.filter((item) => {
-          const category = categories.get(item.id)
-          return category !== undefined && filters.category!.includes(category)
+          const mentions = analysisAspects.get(item.id) ?? []
+          return mentions.some(
+            (mention) =>
+              (!filters.aspect?.length || filters.aspect.includes(mention.aspect)) &&
+              (!filters.polarity?.length || filters.polarity.includes(mention.polarity)),
+          )
         })
       if (filters.isEscalated !== undefined)
         filtered = filtered.filter((i) =>
@@ -305,5 +317,5 @@ export function createInMemoryInboxRepo(): InboxRepository & {
       }
     },
   }
-  return { ...repo, items, categories }
+  return { ...repo, items, analysisAspects }
 }

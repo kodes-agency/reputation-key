@@ -23,7 +23,7 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import { AI_PRIMARY_CATEGORIES } from '#/shared/ai-primary-categories'
+import { ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import type { AiOperationId } from '../../domain/types'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter'
@@ -447,10 +447,10 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         status: 'ready',
         derivative: {
           sentiment: 'positive',
-          primaryCategory: AI_PRIMARY_CATEGORIES[0],
+          primaryCategory: ASPECT_TAXONOMY_V1[0],
           attention: 'low',
           aspects: [
-            { aspect: AI_PRIMARY_CATEGORIES[0], polarity: 'positive', intensity: 75 },
+            { aspect: ASPECT_TAXONOMY_V1[0], polarity: 'positive', intensity: 75 },
           ],
           issueLabel: 'helpful service',
         },
@@ -479,7 +479,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       analysisSequence: 1,
       status: 'ready',
       sentiment: 'positive',
-      primaryCategory: AI_PRIMARY_CATEGORIES[0],
+      primaryCategory: ASPECT_TAXONOMY_V1[0],
       attention: 'low',
       issueLabel: 'helpful service',
     })
@@ -498,7 +498,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         ),
       )
     expect(aspects).toEqual([
-      { aspect: AI_PRIMARY_CATEGORIES[0], polarity: 'positive', intensity: 75 },
+      { aspect: ASPECT_TAXONOMY_V1[0], polarity: 'positive', intensity: 75 },
     ])
 
     const [operation] = await db
@@ -548,7 +548,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       .from(aiPropertyAggregateContributionAspects)
       .where(eq(aiPropertyAggregateContributionAspects.reviewId, REVIEW_A_ID))
     expect(contributionAspects).toEqual([
-      { aspect: AI_PRIMARY_CATEGORIES[0], polarity: 'positive', intensity: 75 },
+      { aspect: ASPECT_TAXONOMY_V1[0], polarity: 'positive', intensity: 75 },
     ])
     const dailyAspects = await db
       .select({
@@ -559,7 +559,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       .from(aiPropertyDailyAspectAggregates)
       .where(eq(aiPropertyDailyAspectAggregates.propertyId, PROPERTY_ID))
     expect(dailyAspects).toEqual([
-      { aspect: AI_PRIMARY_CATEGORIES[0], polarity: 'positive', mentionCount: 1 },
+      { aspect: ASPECT_TAXONOMY_V1[0], polarity: 'positive', mentionCount: 1 },
     ])
 
     const window = await aggregates.readWindow({
@@ -574,15 +574,13 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     expect(window?.days).toEqual([
       expect.objectContaining({
         localDate: '2026-09-07',
-        categoryCounts: expect.objectContaining({ service: 1 }),
+        aspectCounts: [{ aspect: 'service', polarity: 'positive', count: 1 }],
       }),
     ])
     expect(window?.analyzedReviews).toEqual([
       expect.objectContaining({
         reviewId: REVIEW_A_ID,
-        aspects: [
-          { aspect: AI_PRIMARY_CATEGORIES[0], polarity: 'positive', intensity: 75 },
-        ],
+        aspects: [{ aspect: ASPECT_TAXONOMY_V1[0], polarity: 'positive', intensity: 75 }],
       }),
     ])
   })

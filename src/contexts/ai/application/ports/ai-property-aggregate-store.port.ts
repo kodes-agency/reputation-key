@@ -1,6 +1,6 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { AiReviewAnalysisTerminalDisposition } from './ai-review-event-store.port'
-import type { AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
+import type { AspectPolarityV1, AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
 
 export type AiPropertyAggregateHead = Readonly<{
   organizationId: OrganizationId
@@ -10,6 +10,12 @@ export type AiPropertyAggregateHead = Readonly<{
   propertyProfileVersion: number
   aggregateRevision: number
   terminalAnalysisSequence: number
+}>
+
+export type AiPropertyDailyAspectCount = Readonly<{
+  aspect: AspectTaxonomyV1Id
+  polarity: AspectPolarityV1
+  count: number
 }>
 
 export type AiPropertyDailyAggregate = Readonly<{
@@ -22,18 +28,7 @@ export type AiPropertyDailyAggregate = Readonly<{
     negative: number
     mixed: number
   }>
-  categoryCounts: Readonly<{
-    service: number
-    staff: number
-    quality: number
-    value: number
-    cleanliness: number
-    wait_time: number
-    atmosphere: number
-    location: number
-    accessibility: number
-    other: number
-  }>
+  aspectCounts: readonly AiPropertyDailyAspectCount[]
   attentionCounts: Readonly<{
     urgent: number
     high: number
@@ -44,7 +39,7 @@ export type AiPropertyDailyAggregate = Readonly<{
 
 export type AiPropertyAnalyzedReviewAspect = Readonly<{
   aspect: AspectTaxonomyV1Id
-  polarity: 'positive' | 'neutral' | 'negative'
+  polarity: AspectPolarityV1
   intensity: number
 }>
 
@@ -57,10 +52,11 @@ export type AiPropertyAnalyzedReview = Readonly<{
   sourceRevision: number
   analysisSequence: number
   localDate: string
+  rating: number
   sentiment: 'positive' | 'neutral' | 'negative' | 'mixed'
-  primaryCategory: AspectTaxonomyV1Id
   attention: 'urgent' | 'high' | 'medium' | 'low'
   aspects: readonly AiPropertyAnalyzedReviewAspect[]
+  issueLabel: string | null
   analysisProfileVersion: string
   providerDeploymentProfileVersion: string
   modelSnapshot: string

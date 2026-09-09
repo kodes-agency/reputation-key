@@ -228,13 +228,13 @@ export const buildAiContext = (input: AiContextBuildInput) => {
           ...request,
           nowEpochMillis: nowEpochMillis(),
         }),
-      findCurrentReviewIdsByCategory: (
+      findCurrentReviewIdsByAspect: (
         request: Omit<
-          Parameters<AiOutputStorePort['findCurrentReviewIdsByCategory']>[0],
+          Parameters<AiOutputStorePort['findCurrentReviewIdsByAspect']>[0],
           'nowEpochMillis'
         >,
       ) =>
-        outputs.findCurrentReviewIdsByCategory({
+        outputs.findCurrentReviewIdsByAspect({
           ...request,
           nowEpochMillis: nowEpochMillis(),
         }),

@@ -1,12 +1,8 @@
-// What guests talk about — the AI category breakdown and sentiment mix.
+// What guests talk about — aspect/polarity mentions, impact, issues, and sentiment.
 //
 // The section is self-fetching, so each story stubs the server function with a
-// different status. Every status the read can return gets a story, including the
-// two that render nothing, because "renders nothing" is the behaviour a
-// capability-gated section is most likely to get wrong.
-//
-// The category rows are router Links into the inbox, so the stories mount a
-// two-route memory router — the same harness shape as fleet-overview.stories.
+// different status. Aspect rows are router links into the inbox, so the stories
+// mount a two-route memory router.
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
@@ -19,6 +15,7 @@ import {
   RouterProvider,
 } from '@tanstack/react-router'
 import type { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-aggregates'
+import { isAiIssueLabel } from '#/shared/ai-issue-label'
 import {
   PropertyAiAggregateSection,
   type PropertyAiAggregatesServerFn,
@@ -35,13 +32,19 @@ const readyData = {
   startLocalDate: '2026-07-22',
   endLocalDate: '2026-08-20',
   reviewCount: 48,
-  categories: [
-    { category: 'service', count: 18 },
-    { category: 'cleanliness', count: 11 },
-    { category: 'wait_time', count: 9 },
-    { category: 'value', count: 6 },
-    { category: 'staff', count: 4 },
-    { category: 'quality', count: 0 },
+  impactVersion: 'aspect-impact-v1',
+  aspects: [
+    { aspect: 'service', polarity: 'negative', mentionCount: 18, impact: -12.4 },
+    { aspect: 'cleanliness', polarity: 'positive', mentionCount: 11, impact: 7.15 },
+    { aspect: 'wait_time', polarity: 'negative', mentionCount: 9, impact: -5.6 },
+    { aspect: 'room', polarity: 'neutral', mentionCount: 6, impact: 0 },
+    { aspect: 'staff', polarity: 'positive', mentionCount: 4, impact: 2.85 },
+    { aspect: 'quality', polarity: 'positive', mentionCount: 0, impact: 0 },
+  ],
+  emergingIssues: [
+    { label: 'front desk delays', count: 7 },
+    { label: 'bathroom maintenance', count: 4 },
+    { label: 'Copied Review Excerpt', count: 99 },
   ],
   sentimentByDay: [
     { localDate: '2026-08-16', positive: 4, neutral: 1, negative: 2, mixed: 0 },
@@ -91,20 +94,21 @@ const meta: Meta<typeof PropertyAiAggregateSection> = {
 export default meta
 type Story = StoryObj<typeof PropertyAiAggregateSection>
 
-export const Ready: Story = {
+export const AspectPolarityCountsAndImpact: Story = {
   render: () => <SectionHarness getAggregates={stub(readyData)} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByText('What guests talk about')).toBeVisible()
-    // Sorted by volume, so service leads.
-    expect(await canvas.findByText('Service')).toBeVisible()
-    expect(await canvas.findByText('18')).toBeVisible()
-    // wait_time must read as words, not as its identifier.
-    expect(await canvas.findByText('Wait time')).toBeVisible()
+    expect(await canvas.findByText('Service · Negative')).toBeVisible()
+    expect(await canvas.findByText('-12.40')).toBeVisible()
+    expect(await canvas.findByText('Wait time · Negative')).toBeVisible()
     expect(canvas.queryByText('wait_time')).toBeNull()
-    // A zero-count category is not something guests talked about.
-    expect(canvas.queryByText('Quality')).toBeNull()
-    // The window is stated, because it is property-local and fixed.
+    expect(canvas.queryByText('Quality · Positive')).toBeNull()
+    expect(await canvas.findByText('front desk delays')).toBeVisible()
+    expect(await canvas.findByText('bathroom maintenance')).toBeVisible()
+    const rejectedLabel = 'Copied Review Excerpt'
+    expect(isAiIssueLabel(rejectedLabel)).toBe(false)
+    expect(canvas.queryByText(rejectedLabel)).toBeNull()
     expect(await canvas.findByText(/2026-07-22 to 2026-08-20/)).toBeVisible()
   },
 }
@@ -113,12 +117,10 @@ export const RowsDeepLinkIntoTheInbox: Story = {
   render: () => <SectionHarness getAggregates={stub(readyData)} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const row = await canvas.findByRole('link', { name: /Service/ })
-    // The whole point of the breakdown: the answer to "what should I fix?" has
-    // to be actionable. A row linking to an unfiltered inbox would be the exact
-    // defect this section replaces.
+    const row = await canvas.findByRole('link', { name: /Service · Negative/ })
     const href = row.getAttribute('href') ?? ''
-    expect(href).toContain('category=service')
+    expect(href).toContain('aspect=service')
+    expect(href).toContain('polarity=negative')
     expect(href).toContain(`propertyId=${PROPERTY_ID}`)
   },
 }
@@ -140,8 +142,8 @@ export const DisabledRendersNothing: Story = {
   },
 }
 
-// An enabled property with no analysed reviews yet: the section appears and says
-// so, rather than drawing an empty chart.
+// An enabled property with no analysed reviews yet: every empty state remains
+// explicit rather than drawing an empty chart.
 export const ReadyButEmpty: Story = {
   render: () => (
     <SectionHarness
@@ -150,7 +152,9 @@ export const ReadyButEmpty: Story = {
         startLocalDate: '2026-08-14',
         endLocalDate: '2026-08-20',
         reviewCount: 0,
-        categories: [],
+        impactVersion: 'aspect-impact-v1',
+        aspects: [],
+        emergingIssues: [],
         sentimentByDay: [],
         sentimentTotals: { positive: 0, neutral: 0, negative: 0, mixed: 0 },
       })}
@@ -158,7 +162,19 @@ export const ReadyButEmpty: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(await canvas.findByText(/No categorised reviews/)).toBeVisible()
+    expect(await canvas.findByText(/No aspect mentions/)).toBeVisible()
+    expect(await canvas.findByText(/No emerging issues/)).toBeVisible()
     expect(await canvas.findByText(/No analysed reviews/)).toBeVisible()
+  },
+}
+
+export const EmergingIssuesEmpty: Story = {
+  render: () => (
+    <SectionHarness getAggregates={stub({ ...readyData, emergingIssues: [] })} />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(await canvas.findByText(/No emerging issues/)).toBeVisible()
+    expect(await canvas.findByText('Service · Negative')).toBeVisible()
   },
 }

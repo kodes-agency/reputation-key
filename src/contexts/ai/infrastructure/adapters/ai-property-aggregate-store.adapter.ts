@@ -19,10 +19,11 @@ import type {
   AiPropertyAnalyzedReview,
   AiPropertyAggregateStorePort,
   AiPropertyDailyAggregate,
+  AiPropertyDailyAspectCount,
 } from '../../application/ports/ai-property-aggregate-store.port'
 import { reviewId } from '#/shared/domain/ids'
-import { isReplyTemplateAspect } from '#/shared/aspect-taxonomy'
-import { AI_PRIMARY_CATEGORIES } from '#/shared/ai-primary-categories'
+import { isAspectTaxonomyV1Id, type AspectPolarityV1 } from '#/shared/aspect-taxonomy'
+import { isAiIssueLabel } from '#/shared/ai-issue-label'
 
 type DailyRow = typeof aiPropertyDailyAggregates.$inferSelect
 
@@ -45,31 +46,6 @@ const SENTIMENT_COLUMNS = {
   negative: 'negativeCount',
   mixed: 'mixedCount',
 } as const
-type LegacyCategory = (typeof AI_PRIMARY_CATEGORIES)[number]
-const LEGACY_CATEGORY_VALUES: Readonly<Record<LegacyCategory, true>> = Object.freeze({
-  service: true,
-  staff: true,
-  quality: true,
-  value: true,
-  cleanliness: true,
-  wait_time: true,
-  atmosphere: true,
-  location: true,
-  accessibility: true,
-  other: true,
-})
-const EMPTY_LEGACY_CATEGORY_COUNTS = Object.freeze({
-  service: 0,
-  staff: 0,
-  quality: 0,
-  value: 0,
-  cleanliness: 0,
-  wait_time: 0,
-  atmosphere: 0,
-  location: 0,
-  accessibility: 0,
-  other: 0,
-}) satisfies AiPropertyDailyAggregate['categoryCounts']
 const ATTENTION_COLUMNS = {
   urgent: 'urgentCount',
   high: 'highCount',
@@ -145,7 +121,7 @@ function adjustDaily(
 
 function mapDaily(
   row: DailyRow,
-  categoryCounts: AiPropertyDailyAggregate['categoryCounts'],
+  aspectCounts: readonly AiPropertyDailyAspectCount[],
 ): AiPropertyDailyAggregate {
   return {
     localDate: row.localDate,
@@ -157,7 +133,7 @@ function mapDaily(
       negative: row.negativeCount,
       mixed: row.mixedCount,
     },
-    categoryCounts,
+    aspectCounts,
     attentionCounts: {
       urgent: row.urgentCount,
       high: row.highCount,
@@ -191,7 +167,7 @@ function isAnalyzedReviewAspect(
   const intensity = Reflect.get(value, 'intensity')
   if (
     typeof aspect !== 'string' ||
-    !isReplyTemplateAspect(aspect) ||
+    !isAspectTaxonomyV1Id(aspect) ||
     (polarity !== 'positive' && polarity !== 'neutral' && polarity !== 'negative') ||
     typeof intensity !== 'number' ||
     !Number.isInteger(intensity)
@@ -211,20 +187,20 @@ function mapAnalyzedReview(
     sourceRevision: number | string
     analysisSequence: number | string
     localDate: string
+    rating: number
     sentiment: string
-    primaryCategory: string
     attention: string
     aspects: unknown
+    issueLabel: string | null
     analysisProfileVersion: string
     providerDeploymentProfileVersion: string
     modelSnapshot: string
   }>,
 ): AiPropertyAnalyzedReview {
-  const historicalV1 = row.analysisProfileVersion === 'review-analysis-v1'
   const aspects =
     Array.isArray(row.aspects) &&
+    row.aspects.length >= 1 &&
     row.aspects.length <= 5 &&
-    (historicalV1 ? row.aspects.length === 0 : row.aspects.length >= 1) &&
     row.aspects.every(isAnalyzedReviewAspect)
       ? row.aspects
       : null
@@ -237,9 +213,12 @@ function mapAnalyzedReview(
     analysisSequence < 1 ||
     aspects === null ||
     !/^\d{4}-\d{2}-\d{2}$/.test(row.localDate) ||
+    !Number.isInteger(row.rating) ||
+    row.rating < 1 ||
+    row.rating > 5 ||
     !Object.hasOwn(SENTIMENT_VALUES, row.sentiment) ||
-    !isReplyTemplateAspect(row.primaryCategory) ||
     !Object.hasOwn(ATTENTION_VALUES, row.attention) ||
+    (row.issueLabel !== null && !isAiIssueLabel(row.issueLabel)) ||
     row.analysisProfileVersion.length === 0 ||
     row.providerDeploymentProfileVersion.length === 0 ||
     row.modelSnapshot.length === 0
@@ -251,10 +230,11 @@ function mapAnalyzedReview(
     sourceRevision,
     analysisSequence,
     localDate: row.localDate,
+    rating: row.rating,
     sentiment: row.sentiment as AiPropertyAnalyzedReview['sentiment'],
-    primaryCategory: row.primaryCategory,
     attention: row.attention as AiPropertyAnalyzedReview['attention'],
     aspects: Object.freeze(aspects.map((aspect) => Object.freeze({ ...aspect }))),
+    issueLabel: row.issueLabel,
     analysisProfileVersion: row.analysisProfileVersion,
     providerDeploymentProfileVersion: row.providerDeploymentProfileVersion,
     modelSnapshot: row.modelSnapshot,
@@ -385,11 +365,9 @@ export const createAiPropertyAggregateStoreAdapter = (
                 .orderBy(aiReviewAnalysisAspects.aspect)
                 .for('share')
             : []
-        const historicalV1 = analysis.analysisProfileVersion === 'review-analysis-v1'
         const validAnalysisAspectCount =
           analysis.status === 'ready'
-            ? analysisAspects.length <= 5 &&
-              (historicalV1 ? analysisAspects.length === 0 : analysisAspects.length >= 1)
+            ? analysisAspects.length >= 1 && analysisAspects.length <= 5
             : analysisAspects.length === 0
         if (!validAnalysisAspectCount) {
           throw new Error('Property analysis aspect rows are invalid')
@@ -495,8 +473,7 @@ export const createAiPropertyAggregateStoreAdapter = (
             : []
         const validPreviousAspectCount =
           previous?.status !== 'ready' ||
-          (previousAspects.length <= 5 &&
-            (historicalV1 ? previousAspects.length === 0 : previousAspects.length >= 1))
+          (previousAspects.length >= 1 && previousAspects.length <= 5)
         if (!validPreviousAspectCount) {
           throw new Error('Previous aggregate contribution aspects are invalid')
         }
@@ -888,6 +865,7 @@ export const createAiPropertyAggregateStoreAdapter = (
           .select({
             localDate: aiPropertyDailyAspectAggregates.localDate,
             aspect: aiPropertyDailyAspectAggregates.aspect,
+            polarity: aiPropertyDailyAspectAggregates.polarity,
             mentionCount: aiPropertyDailyAspectAggregates.mentionCount,
           })
           .from(aiPropertyDailyAspectAggregates)
@@ -911,27 +889,38 @@ export const createAiPropertyAggregateStoreAdapter = (
           .orderBy(
             aiPropertyDailyAspectAggregates.localDate,
             aiPropertyDailyAspectAggregates.aspect,
+            aiPropertyDailyAspectAggregates.polarity,
           )
-        const categoryCountsByDate = new Map<string, Record<LegacyCategory, number>>()
+        const aspectCountsByDate = new Map<string, AiPropertyDailyAspectCount[]>()
         for (const row of dailyAspects) {
-          if (!Object.hasOwn(LEGACY_CATEGORY_VALUES, row.aspect)) continue
-          const category = row.aspect as LegacyCategory
-          let counts = categoryCountsByDate.get(row.localDate)
-          if (counts === undefined) {
-            counts = { ...EMPTY_LEGACY_CATEGORY_COUNTS }
-            categoryCountsByDate.set(row.localDate, counts)
+          if (
+            !isAspectTaxonomyV1Id(row.aspect) ||
+            (row.polarity !== 'positive' &&
+              row.polarity !== 'neutral' &&
+              row.polarity !== 'negative') ||
+            !Number.isSafeInteger(row.mentionCount) ||
+            row.mentionCount < 0
+          ) {
+            throw new Error('Property daily aspect aggregate is invalid')
           }
-          counts[category] += row.mentionCount
+          const counts = aspectCountsByDate.get(row.localDate) ?? []
+          counts.push({
+            aspect: row.aspect,
+            polarity: row.polarity as AspectPolarityV1,
+            count: row.mentionCount,
+          })
+          aspectCountsByDate.set(row.localDate, counts)
         }
         const analyzed = await tx.execute<{
           reviewId: string
           sourceRevision: number | string
           analysisSequence: number | string
           localDate: string
+          rating: number
           sentiment: string
-          primaryCategory: string
           attention: string
           aspects: unknown
+          issueLabel: string | null
           analysisProfileVersion: string
           providerDeploymentProfileVersion: string
           modelSnapshot: string
@@ -951,9 +940,10 @@ export const createAiPropertyAggregateStoreAdapter = (
             latest.source_revision::float8 AS "sourceRevision",
             latest.analysis_sequence::float8 AS "analysisSequence",
             latest.local_date::text AS "localDate",
+            latest.rating AS rating,
             latest.sentiment AS sentiment,
-            latest.primary_category AS "primaryCategory",
             latest.attention AS attention,
+            analysis.issue_label AS "issueLabel",
             COALESCE((
               SELECT jsonb_agg(
                 jsonb_build_object(
@@ -1000,10 +990,7 @@ export const createAiPropertyAggregateStoreAdapter = (
             terminalAnalysisSequence: head.terminalAnalysisSequence,
           },
           days: days.map((day) =>
-            mapDaily(
-              day,
-              categoryCountsByDate.get(day.localDate) ?? EMPTY_LEGACY_CATEGORY_COUNTS,
-            ),
+            mapDaily(day, Object.freeze(aspectCountsByDate.get(day.localDate) ?? [])),
           ),
           analyzedReviews: Object.freeze(analyzed.rows.map(mapAnalyzedReview)),
         }

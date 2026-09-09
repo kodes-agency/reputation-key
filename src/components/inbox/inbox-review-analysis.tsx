@@ -1,7 +1,7 @@
 import { AlertTriangle, CircleGauge, Tag } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import type { InboxReviewAnalysis } from '#/contexts/inbox/application/public-api'
-import { AI_CATEGORY_LABELS } from '#/shared/ai-category-labels'
+import { ASPECT_LABELS, ASPECT_POLARITY_LABELS } from '#/shared/aspect-labels'
 
 export function InboxReviewAnalysisPanel({
   analysis,
@@ -23,10 +23,16 @@ export function InboxReviewAnalysisPanel({
         <CircleGauge />
         {analysis.sentiment[0].toUpperCase() + analysis.sentiment.slice(1)} sentiment
       </Badge>
-      <Badge variant="outline" className="font-normal text-muted-foreground">
-        <Tag />
-        {AI_CATEGORY_LABELS[analysis.primaryCategory]}
-      </Badge>
+      {analysis.aspects.map((aspect) => (
+        <Badge
+          key={aspect.aspect}
+          variant={aspect.polarity === 'negative' ? 'destructive' : 'outline'}
+          className="font-normal"
+        >
+          <Tag />
+          {ASPECT_LABELS[aspect.aspect]} · {ASPECT_POLARITY_LABELS[aspect.polarity]}
+        </Badge>
+      ))}
       <Badge
         variant={analysis.attention === 'urgent' ? 'destructive' : 'outline'}
         className="font-normal"

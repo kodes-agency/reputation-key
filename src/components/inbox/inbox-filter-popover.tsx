@@ -8,7 +8,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from '#/components/ui/popover'
-import { AI_CATEGORY_OPTIONS } from '#/shared/ai-category-labels'
+import { ASPECT_OPTIONS, ASPECT_POLARITY_OPTIONS } from '#/shared/aspect-labels'
 import { Filter, X } from 'lucide-react'
 import { InboxFilterSelect } from './inbox-filter-select'
 import {
@@ -105,15 +105,31 @@ export function InboxFilterPopover({ value, onChange }: Props) {
             }
           />
           <InboxFilterSelect
-            label="Topic"
-            value={value.category ?? 'all'}
-            options={[{ value: 'all', label: 'All topics' }, ...AI_CATEGORY_OPTIONS]}
-            onChange={(category) =>
+            label="Aspect"
+            value={value.aspect ?? 'all'}
+            options={[{ value: 'all', label: 'All aspects' }, ...ASPECT_OPTIONS]}
+            onChange={(aspect) =>
               onChange({
-                category:
-                  category === 'all'
+                aspect:
+                  aspect === 'all'
                     ? undefined
-                    : (category as InboxListFilterValues['category']),
+                    : (aspect as InboxListFilterValues['aspect']),
+              })
+            }
+          />
+          <InboxFilterSelect
+            label="Polarity"
+            value={value.polarity ?? 'all'}
+            options={[
+              { value: 'all', label: 'All polarities' },
+              ...ASPECT_POLARITY_OPTIONS,
+            ]}
+            onChange={(polarity) =>
+              onChange({
+                polarity:
+                  polarity === 'all'
+                    ? undefined
+                    : (polarity as InboxListFilterValues['polarity']),
               })
             }
           />

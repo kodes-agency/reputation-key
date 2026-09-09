@@ -11,6 +11,7 @@ import {
   type DeterministicAggregateWindow,
   type DeterministicTrendCandidate,
 } from '#/shared/ai-property-trend-contract'
+import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
 import { addDays } from '../local-date'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type {
@@ -64,39 +65,30 @@ function aggregateWindow(
 ): DeterministicAggregateWindow {
   const sentimentCounts = { positive: 0, neutral: 0, negative: 0, mixed: 0 }
   const attentionCounts = { urgent: 0, high: 0, medium: 0, low: 0 }
-  const categoryCounts = {
-    service: 0,
-    staff: 0,
-    quality: 0,
-    value: 0,
-    cleanliness: 0,
-    waitTime: 0,
-    atmosphere: 0,
-    location: 0,
-    accessibility: 0,
-    other: 0,
-  }
+  const aspectCountsByIdentity = new Map<string, number>()
   let reviewCount = 0
   for (const day of days) {
     reviewCount += day.reviewCount
     addCounts(sentimentCounts, day.sentimentCounts)
     addCounts(attentionCounts, day.attentionCounts)
-    categoryCounts.service += day.categoryCounts.service
-    categoryCounts.staff += day.categoryCounts.staff
-    categoryCounts.quality += day.categoryCounts.quality
-    categoryCounts.value += day.categoryCounts.value
-    categoryCounts.cleanliness += day.categoryCounts.cleanliness
-    categoryCounts.waitTime += day.categoryCounts.wait_time
-    categoryCounts.atmosphere += day.categoryCounts.atmosphere
-    categoryCounts.location += day.categoryCounts.location
-    categoryCounts.accessibility += day.categoryCounts.accessibility
-    categoryCounts.other += day.categoryCounts.other
+    for (const { aspect, polarity, count } of day.aspectCounts) {
+      const identity = `${aspect}:${polarity}`
+      aspectCountsByIdentity.set(
+        identity,
+        (aspectCountsByIdentity.get(identity) ?? 0) + count,
+      )
+    }
   }
   return {
     reviewCount,
     sentimentCounts,
     attentionCounts,
-    categoryCounts,
+    aspectCounts: ASPECT_TAXONOMY_V1.flatMap((aspect) =>
+      ASPECT_POLARITIES_V1.flatMap((polarity) => {
+        const count = aspectCountsByIdentity.get(`${aspect}:${polarity}`) ?? 0
+        return count === 0 ? [] : [{ aspect, polarity, count }]
+      }),
+    ),
   }
 }
 
@@ -201,11 +193,14 @@ function reviewMatchesSignal(
   review: AiPropertyAnalyzedReview,
   signalId: string,
 ): boolean {
-  const [family, name] = signalId.split('.')
+  const [family, name, polarity] = signalId.split('.')
   if (family === 'sentiment') return review.sentiment === name
   if (family === 'attention') return review.attention === name
-  if (family === 'category') {
-    return review.primaryCategory === (name === 'wait_time' ? 'wait_time' : name)
+  if (family === 'aspect') {
+    return review.aspects.some(
+      (reviewAspect) =>
+        reviewAspect.aspect === name && reviewAspect.polarity === polarity,
+    )
   }
   return false
 }

@@ -4,7 +4,7 @@
 // via resolveTenantContext(headers), never from client input.
 
 import { z } from 'zod/v4'
-import { AI_PRIMARY_CATEGORIES } from '#/shared/ai-primary-categories'
+import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
 import { SAFE_OPAQUE_IDENTIFIER_PATTERN } from '#/shared/domain/safe-identifier'
 import { PRIVATE_FEEDBACK_HANDLING_OUTCOMES } from '../../domain/feedback-handling'
 
@@ -43,8 +43,11 @@ export const getInboxItemsDto = z.object({
       z.array(z.enum(['urgent', 'high', 'medium', 'low'])),
     ])
     .optional(),
-  category: z
-    .union([z.enum(AI_PRIMARY_CATEGORIES), z.array(z.enum(AI_PRIMARY_CATEGORIES))])
+  aspect: z
+    .union([z.enum(ASPECT_TAXONOMY_V1), z.array(z.enum(ASPECT_TAXONOMY_V1))])
+    .optional(),
+  polarity: z
+    .union([z.enum(ASPECT_POLARITIES_V1), z.array(z.enum(ASPECT_POLARITIES_V1))])
     .optional(),
   sourceDateFrom: z.coerce.date().optional(),
   sourceDateTo: z.coerce.date().optional(),

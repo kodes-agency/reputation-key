@@ -29,6 +29,27 @@ export const ActiveFilters: Story = {
   },
 }
 
+export const AspectAndPolarity: Story = {
+  args: {
+    value: {
+      ...emptyFilters,
+      aspect: 'wait_time',
+      polarity: 'negative',
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /filters/i }))
+    const body = within(canvasElement.ownerDocument.body)
+    await expect(body.getByRole('combobox', { name: 'Aspect' })).toHaveTextContent(
+      'Wait time',
+    )
+    await expect(body.getByRole('combobox', { name: 'Polarity' })).toHaveTextContent(
+      'Complaints',
+    )
+  },
+}
+
 export const ClearFilters: Story = {
   args: {
     value: { ...emptyFilters, sourceType: 'review', ratingMax: 3 },

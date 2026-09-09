@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { zodTextFormat } from 'openai/helpers/zod'
 import {
-  AI_ANALYSIS_OUTPUT_SCHEMA,
   AI_ANALYSIS_V2_OUTPUT_SCHEMA,
   AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA,
   AI_REPLY_SELECTION_OUTPUT_SCHEMA,
@@ -11,11 +10,10 @@ import {
   CONCRETE_REPLY_LANGUAGE_PATTERN,
   TREND_SIGNAL_PATTERN,
 } from './openai-route-output-schemas'
-import { ASPECT_TAXONOMY_V1 } from './aspect-taxonomy'
+import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from './aspect-taxonomy'
 import { REPLY_TEMPLATE_LANGUAGE_GROUPS } from './ai-review-language-catalogue'
 
 const cases = [
-  ['review-analysis', AI_ANALYSIS_OUTPUT_SCHEMA],
   ['review-analysis-v2', AI_ANALYSIS_V2_OUTPUT_SCHEMA],
   ['reply-suggestion', AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA],
   ['property-trend', AI_TREND_SELECTION_OUTPUT_SCHEMA],
@@ -81,14 +79,6 @@ describe('AI route output schema authority', () => {
 
   it('enforces refinements the provider schema cannot express', () => {
     expect(
-      AI_ANALYSIS_OUTPUT_SCHEMA.safeParse({
-        sentiment: 'positive',
-        sentimentValence: 50,
-        primaryCategory: 'service',
-        urgencySignals: ['health', 'health'],
-      }).success,
-    ).toBe(false)
-    expect(
       AI_TREND_SELECTION_OUTPUT_SCHEMA.safeParse({
         selectedSignalIds: ['sentiment.positive.up', 'sentiment.positive.up'],
       }).success,
@@ -153,11 +143,27 @@ describe('AI route output schema authority', () => {
     ).toBe(true)
   })
 
-  it('accepts every aspect taxonomy id in trend signal grammar', () => {
+  it('accepts only governed aspect and polarity ids in trend signal grammar', () => {
     for (const aspect of ASPECT_TAXONOMY_V1) {
-      expect(TREND_SIGNAL_PATTERN.test(`category.${aspect}.up`)).toBe(true)
-      expect(TREND_SIGNAL_PATTERN.test(`category.${aspect}.down`)).toBe(true)
+      for (const polarity of ASPECT_POLARITIES_V1) {
+        expect(TREND_SIGNAL_PATTERN.test(`aspect.${aspect}.${polarity}.up`)).toBe(true)
+        expect(TREND_SIGNAL_PATTERN.test(`aspect.${aspect}.${polarity}.down`)).toBe(true)
+      }
     }
+    expect(TREND_SIGNAL_PATTERN.test('aspect.not_governed.negative.up')).toBe(false)
+  })
+
+  it('rejects an aspect outside the governed taxonomy before any consumer receives it', () => {
+    const result = AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse({
+      sentiment: 'negative',
+      sentimentValence: -70,
+      urgencySignals: [],
+      aspects: [{ aspect: 'not_governed', polarity: 'negative', intensity: -80 }],
+      issueLabel: null,
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]?.path).toEqual(['aspects', 0, 'aspect'])
   })
 
   it('pins personalized reply evidence and trend signal grammars in provider-visible JSON schema', () => {
@@ -174,7 +180,9 @@ describe('AI route output schema authority', () => {
     expect(replyText).toMatchObject({ type: 'string', minLength: 24, maxLength: 1_200 })
     expect(grounding).toMatchObject({ type: 'array', minItems: 1, maxItems: 3 })
     expect(Object.keys(groundingProperties)).toEqual(['sourceExcerpt', 'replyExcerpt'])
-    expect(requireStringField(items, 'pattern')).toContain('valence\\.overall')
+    expect(requireStringField(items, 'pattern')).toContain('aspect\\.')
+    expect(requireStringField(items, 'pattern')).not.toContain('category\\.')
+    expect(requireStringField(items, 'pattern')).not.toContain('valence\\.')
   })
 
   it('keeps the retired template selection schema available only as a historical verifier', () => {

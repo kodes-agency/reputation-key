@@ -1,11 +1,14 @@
+import type { AspectPolarityV1, AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
-import { AI_PRIMARY_CATEGORIES } from '#/shared/ai-primary-categories'
 
 export type ReviewAttention = 'urgent' | 'high' | 'medium' | 'low'
-
-/** The canonical AI primary-category union — derived from the one catalogue the
- *  provider output schema is built from, never re-typed here. */
-export type ReviewCategory = (typeof AI_PRIMARY_CATEGORIES)[number]
+export type ReviewAspect = AspectTaxonomyV1Id
+export type ReviewAspectPolarity = AspectPolarityV1
+export type ReviewAnalysisAspect = Readonly<{
+  aspect: ReviewAspect
+  polarity: ReviewAspectPolarity
+  intensity: number
+}>
 
 export type InboxReviewAnalysis =
   | Readonly<{ status: 'disabled' }>
@@ -14,8 +17,10 @@ export type InboxReviewAnalysis =
   | Readonly<{
       status: 'ready'
       sentiment: 'positive' | 'neutral' | 'negative' | 'mixed'
-      primaryCategory: ReviewCategory
+      aspects: readonly ReviewAnalysisAspect[]
+      primaryCategory: ReviewAspect
       attention: ReviewAttention
+      issueLabel?: string
       generatedAtEpochMillis: number
     }>
 
@@ -37,14 +42,14 @@ export type AiReviewInsightsPort = Readonly<{
       attention: readonly ReviewAttention[]
     }>,
   ): Promise<readonly ReviewId[]>
-  /** Review ids whose *current* analysis carries one of `categories`. An empty
-   *  result means "no review matches" — never "no filter" (see the attention
-   *  finder above; both are gated by the AI context's capability/epoch rules). */
-  findCurrentReviewIdsByCategory(
+  /** Review ids whose current analysis contains a matching aspect mention.
+   * When both arrays are supplied, a single mention must satisfy both. */
+  findCurrentReviewIdsByAspect(
     input: Readonly<{
       organizationId: OrganizationId
       propertyIds?: readonly PropertyId[]
-      categories: readonly ReviewCategory[]
+      aspects?: readonly ReviewAspect[]
+      polarities?: readonly ReviewAspectPolarity[]
     }>,
   ): Promise<readonly ReviewId[]>
 }>

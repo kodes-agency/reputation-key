@@ -56,10 +56,15 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
                     ? data.attention
                     : [data.attention]
                   : undefined,
-                category: data.category
-                  ? Array.isArray(data.category)
-                    ? data.category
-                    : [data.category]
+                aspect: data.aspect
+                  ? Array.isArray(data.aspect)
+                    ? data.aspect
+                    : [data.aspect]
+                  : undefined,
+                polarity: data.polarity
+                  ? Array.isArray(data.polarity)
+                    ? data.polarity
+                    : [data.polarity]
                   : undefined,
                 sourceDateFrom: data.sourceDateFrom,
                 sourceDateTo: data.sourceDateTo,

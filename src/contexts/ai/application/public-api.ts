@@ -3,7 +3,8 @@
 // control directly. Composition roots may wire infrastructure through build.ts.
 
 export type {
-  AiCategoryCount,
+  AiAspectAggregate,
+  AiEmergingIssue,
   AiSentimentDay,
 } from './use-cases/read-property-aggregates'
 

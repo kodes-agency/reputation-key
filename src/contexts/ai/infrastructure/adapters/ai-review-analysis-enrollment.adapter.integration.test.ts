@@ -9,6 +9,7 @@ import {
   aiOperations,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
+  aiReviewAnalysisAspects,
   aiReviewAnalysisEnrollments,
   eventConsumerReceipts,
   materialReviewRevisions,
@@ -482,13 +483,24 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
       authorizationLineageId: LINEAGE_ID,
       reviewAnalysisEpoch: 1,
       propertyProfileVersion: 1,
-      analysisProfileVersion: 'review-analysis-v1',
+      analysisProfileVersion: 'review-analysis-v2',
       status: 'ready',
       sentiment: 'positive',
       primaryCategory: 'service',
       attention: 'low',
       generatedAt: completedAt,
       expiresAt: new Date(completedAt.getTime() + 365 * 24 * 60 * 60_000),
+    })
+    await db.insert(aiReviewAnalysisAspects).values({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      reviewId,
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      analysisSequence: 1,
+      aspect: 'service',
+      polarity: 'positive',
+      intensity: 80,
     })
     await db.insert(eventConsumerReceipts).values({
       eventId: TRIGGER_EVENT_ID,

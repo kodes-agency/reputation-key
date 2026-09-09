@@ -3,14 +3,25 @@ import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiPropertyCalendarPort } from '../ports/ai-property-calendar.port'
 import type {
   AiPropertyAggregateStorePort,
+  AiPropertyAnalyzedReview,
   AiPropertyDailyAggregate,
+  AiPropertyDailyAspectCount,
 } from '../ports/ai-property-aggregate-store.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
 import { addDays } from '../local-date'
 import { resolveAiReadGate } from '../ai-read-gate'
+import { ASPECT_IMPACT_VERSION, computeAspectImpact } from '#/shared/aspect-impact'
+import { isAiIssueLabel } from '#/shared/ai-issue-label'
 
-export type AiCategoryCount = Readonly<{
-  category: keyof AiPropertyDailyAggregate['categoryCounts']
+export type AiAspectAggregate = Readonly<{
+  aspect: AiPropertyDailyAspectCount['aspect']
+  polarity: AiPropertyDailyAspectCount['polarity']
+  mentionCount: number
+  impact: number
+}>
+
+export type AiEmergingIssue = Readonly<{
+  label: string
   count: number
 }>
 
@@ -23,9 +34,8 @@ export type AiSentimentDay = Readonly<{
 }>
 
 /**
- * What the property dashboard needs from `ai_property_daily_aggregates`: the
- * category mix over a window, and the sentiment split per day so it can be
- * drawn as a trend rather than a single number.
+ * The dashboard's settled 30-day view: aspect mentions and rating-weighted
+ * impact, sentiment by day, and bounded emerging issue labels.
  */
 export type AiPropertyAggregateWindowRead =
   | Readonly<{ status: 'disabled' }>
@@ -35,8 +45,10 @@ export type AiPropertyAggregateWindowRead =
       startLocalDate: string
       endLocalDate: string
       reviewCount: number
-      /** Descending by count, then by category name so ties are stable. */
-      categories: readonly AiCategoryCount[]
+      impactVersion: typeof ASPECT_IMPACT_VERSION
+      /** Descending by mention count, then stable aspect/polarity identity. */
+      aspects: readonly AiAspectAggregate[]
+      emergingIssues: readonly AiEmergingIssue[]
       /** Only days that actually have a row; absent days are genuinely absent. */
       sentimentByDay: readonly AiSentimentDay[]
       sentimentTotals: Readonly<{
@@ -67,8 +79,8 @@ export function createReadPropertyAggregates(
   dependencies: ReadPropertyAggregatesDependencies,
 ): (input: ReadPropertyAggregatesInput) => Promise<AiPropertyAggregateWindowRead> {
   return async (input) => {
-    // Category and sentiment are review-analysis derivatives, so this read is
-    // gated on `review_analysis` rather than `property_trends`.
+    // Aspect mentions and sentiment are review-analysis derivatives, so this
+    // read is gated on `review_analysis` rather than `property_trends`.
     const gate = await resolveAiReadGate(dependencies, input, 'review_analysis')
     if (gate.status === 'disabled') return { status: 'disabled' }
 
@@ -105,27 +117,43 @@ export function createReadPropertyAggregates(
       status: 'ready',
       startLocalDate,
       endLocalDate,
-      ...summarize(window.days),
+      ...summarize(window.days, window.analyzedReviews),
     }
   }
 }
 
 function summarize(
   days: readonly AiPropertyDailyAggregate[],
+  analyzedReviews: readonly AiPropertyAnalyzedReview[],
 ): Omit<
   Extract<AiPropertyAggregateWindowRead, { status: 'ready' }>,
   'status' | 'startLocalDate' | 'endLocalDate'
 > {
-  const categoryTotals = new Map<AiCategoryCount['category'], number>()
+  const aspectTotals = new Map<
+    string,
+    {
+      aspect: AiAspectAggregate['aspect']
+      polarity: AiAspectAggregate['polarity']
+      mentionCount: number
+      impact: number
+    }
+  >()
   const sentimentTotals = { positive: 0, neutral: 0, negative: 0, mixed: 0 }
   let reviewCount = 0
   const sentimentByDay: AiSentimentDay[] = []
 
   for (const day of days) {
     reviewCount += day.reviewCount
-    for (const [category, count] of Object.entries(day.categoryCounts)) {
-      const key = category as AiCategoryCount['category']
-      categoryTotals.set(key, (categoryTotals.get(key) ?? 0) + count)
+    for (const mention of day.aspectCounts) {
+      const key = `${mention.aspect}:${mention.polarity}`
+      const total = aspectTotals.get(key) ?? {
+        aspect: mention.aspect,
+        polarity: mention.polarity,
+        mentionCount: 0,
+        impact: 0,
+      }
+      total.mentionCount += mention.count
+      aspectTotals.set(key, total)
     }
     sentimentTotals.positive += day.sentimentCounts.positive
     sentimentTotals.neutral += day.sentimentCounts.neutral
@@ -134,11 +162,37 @@ function summarize(
     sentimentByDay.push({ localDate: day.localDate, ...day.sentimentCounts })
   }
 
-  const categories = [...categoryTotals.entries()]
-    .map(([category, count]) => ({ category, count }))
-    // Volume first, because the question the section answers is "what should I
-    // fix?". Name breaks ties so the order never flickers between reads.
-    .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category))
+  const issueCounts = new Map<string, number>()
+  for (const review of analyzedReviews) {
+    for (const mention of review.aspects) {
+      const key = `${mention.aspect}:${mention.polarity}`
+      const total = aspectTotals.get(key)
+      if (total) {
+        total.impact += computeAspectImpact({ ...mention, rating: review.rating })
+      }
+    }
+    if (review.issueLabel !== null && isAiIssueLabel(review.issueLabel)) {
+      issueCounts.set(review.issueLabel, (issueCounts.get(review.issueLabel) ?? 0) + 1)
+    }
+  }
 
-  return { reviewCount, categories, sentimentByDay, sentimentTotals }
+  const aspects = [...aspectTotals.values()].sort(
+    (a, b) =>
+      b.mentionCount - a.mentionCount ||
+      a.aspect.localeCompare(b.aspect) ||
+      a.polarity.localeCompare(b.polarity),
+  )
+  const emergingIssues = [...issueCounts]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+    .slice(0, 5)
+
+  return {
+    reviewCount,
+    impactVersion: ASPECT_IMPACT_VERSION,
+    aspects,
+    emergingIssues,
+    sentimentByDay,
+    sentimentTotals,
+  }
 }

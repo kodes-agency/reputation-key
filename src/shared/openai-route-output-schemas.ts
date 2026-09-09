@@ -1,6 +1,6 @@
 import { z } from 'zod/v4'
-import { ASPECT_TAXONOMY_V1 } from './aspect-taxonomy'
-import { AI_PRIMARY_CATEGORIES } from './ai-primary-categories'
+import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from './aspect-taxonomy'
+import { AI_ISSUE_LABEL_MAX_LENGTH, AI_ISSUE_LABEL_PATTERN } from './ai-issue-label'
 import { personalizedReplyDraftOutputSchema } from './ai-personalized-reply-profile'
 
 export const AI_SENTIMENTS = Object.freeze([
@@ -37,23 +37,18 @@ export const CONCRETE_REPLY_LANGUAGE_PATTERN =
 
 // Anchored finite controlled vocabulary; every branch has a fixed terminal suffix.
 export const TREND_SIGNAL_PATTERN =
-  /^(?:sentiment\.(?:positive|neutral|negative|mixed)\.(?:up|down)|attention\.(?:urgent|high|medium|low)\.(?:up|down)|category\.(?:service|staff|quality|value|cleanliness|wait_time|atmosphere|location|accessibility|other|room|food_and_drink|noise|wifi_and_tech|check_in_out|parking|amenities|events)\.(?:up|down)|valence\.overall\.(?:up|down))$/
+  /^(?:sentiment\.(?:positive|neutral|negative|mixed)\.(?:up|down)|attention\.(?:urgent|high|medium|low)\.(?:up|down)|aspect\.(?:service|staff|quality|value|cleanliness|wait_time|atmosphere|location|accessibility|other|room|food_and_drink|noise|wifi_and_tech|check_in_out|parking|amenities|events)\.(?:positive|neutral|negative)\.(?:up|down))$/
 
 function addUniqueIssue(values: readonly string[], context: z.RefinementCtx): void {
   if (new Set(values).size !== values.length) {
     context.addIssue({ code: 'custom', message: 'array values must be unique' })
   }
 }
-export const AI_ASPECT_POLARITIES = Object.freeze([
-  'positive',
-  'neutral',
-  'negative',
-] as const)
 
 const aiAnalysisAspectSchema = z
   .object({
     aspect: z.enum(ASPECT_TAXONOMY_V1),
-    polarity: z.enum(AI_ASPECT_POLARITIES),
+    polarity: z.enum(ASPECT_POLARITIES_V1),
     intensity: z.number().int().min(-100).max(100),
   })
   .strict()
@@ -70,27 +65,6 @@ const aiAnalysisAspectSchema = z
     }
   })
 
-export const AI_ANALYSIS_OUTPUT_SCHEMA = z
-  .object({
-    sentiment: z.enum(AI_SENTIMENTS),
-    sentimentValence: z.number().int().min(-100).max(100),
-    primaryCategory: z.enum(AI_PRIMARY_CATEGORIES),
-    urgencySignals: z.array(z.enum(AI_URGENCY_SIGNALS)).max(3),
-  })
-  .strict()
-  .superRefine((value, context) => {
-    addUniqueIssue(value.urgencySignals, context)
-    const valid =
-      value.sentiment === 'mixed' ||
-      (value.sentiment === 'positive' && value.sentimentValence >= 20) ||
-      (value.sentiment === 'neutral' &&
-        value.sentimentValence >= -19 &&
-        value.sentimentValence <= 19) ||
-      (value.sentiment === 'negative' && value.sentimentValence <= -20)
-    if (!valid)
-      context.addIssue({ code: 'custom', message: 'sentiment valence is inconsistent' })
-  })
-
 export const AI_ANALYSIS_V2_OUTPUT_SCHEMA = z
   .object({
     sentiment: z.enum(AI_SENTIMENTS),
@@ -98,12 +72,7 @@ export const AI_ANALYSIS_V2_OUTPUT_SCHEMA = z
     urgencySignals: z.array(z.enum(AI_URGENCY_SIGNALS)).max(3),
     aspects: z.array(aiAnalysisAspectSchema).min(1).max(5),
     issueLabel: z.union([
-      z
-        .string()
-        .max(40)
-        // Provider and server both cap this field at 40 characters before use.
-        // eslint-disable-next-line security/detect-unsafe-regex
-        .regex(/^[a-z][a-z]*( [a-z]+){0,3}$/),
+      z.string().max(AI_ISSUE_LABEL_MAX_LENGTH).regex(AI_ISSUE_LABEL_PATTERN),
       z.null(),
     ]),
   })
@@ -178,14 +147,12 @@ export function deriveAiRouteOutputJsonSchema(
 }
 
 export const AI_ROUTE_OUTPUT_JSON_SCHEMAS = Object.freeze({
-  'review-analysis': deriveAiRouteOutputJsonSchema(AI_ANALYSIS_OUTPUT_SCHEMA),
   'review-analysis-v2': deriveAiRouteOutputJsonSchema(AI_ANALYSIS_V2_OUTPUT_SCHEMA),
   'reply-suggestion': deriveAiRouteOutputJsonSchema(AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA),
   'property-trend': deriveAiRouteOutputJsonSchema(AI_TREND_SELECTION_OUTPUT_SCHEMA),
   'synthetic-canary': deriveAiRouteOutputJsonSchema(AI_SYNTHETIC_CANARY_OUTPUT_SCHEMA),
 })
 
-export type AiAnalysisOutput = z.infer<typeof AI_ANALYSIS_OUTPUT_SCHEMA>
 export type AiAnalysisV2Output = z.infer<typeof AI_ANALYSIS_V2_OUTPUT_SCHEMA>
 export type AiReplySelectionOutput = z.infer<typeof AI_REPLY_SELECTION_OUTPUT_SCHEMA>
 export type AiPersonalizedReplyOutput = z.infer<

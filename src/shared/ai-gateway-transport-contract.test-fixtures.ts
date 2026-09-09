@@ -129,35 +129,21 @@ export const baselineWindow = {
   reviewCount: 20,
   sentimentCounts: { positive: 4, neutral: 8, negative: 6, mixed: 2 },
   attentionCounts: { urgent: 2, high: 4, medium: 6, low: 8 },
-  categoryCounts: {
-    service: 2,
-    staff: 4,
-    quality: 2,
-    value: 2,
-    cleanliness: 2,
-    waitTime: 0,
-    atmosphere: 0,
-    location: 0,
-    accessibility: 0,
-    other: 8,
-  },
+  aspectCounts: [
+    { aspect: 'service', polarity: 'positive', count: 2 },
+    { aspect: 'staff', polarity: 'neutral', count: 4 },
+    { aspect: 'other', polarity: 'negative', count: 8 },
+  ],
 } as const
 export const currentWindow = {
   reviewCount: 20,
   sentimentCounts: { positive: 14, neutral: 2, negative: 2, mixed: 2 },
   attentionCounts: { urgent: 0, high: 2, medium: 4, low: 14 },
-  categoryCounts: {
-    service: 10,
-    staff: 2,
-    quality: 2,
-    value: 2,
-    cleanliness: 2,
-    waitTime: 0,
-    atmosphere: 0,
-    location: 0,
-    accessibility: 0,
-    other: 2,
-  },
+  aspectCounts: [
+    { aspect: 'service', polarity: 'positive', count: 10 },
+    { aspect: 'staff', polarity: 'neutral', count: 2 },
+    { aspect: 'other', polarity: 'negative', count: 2 },
+  ],
 } as const
 
 export function trendRequest(): PropertyTrendGatewayRequestV1 {

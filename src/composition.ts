@@ -22,7 +22,6 @@ import { createAlertDispatcher } from '#/shared/observability/alert-dispatcher'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { createConsumerRegistry } from '#/shared/outbox'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { AI_PRIMARY_CATEGORIES } from '#/shared/ai-primary-categories'
 import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
 import { createTanstackRequestContext } from '#/shared/auth/tanstack-request-context'
 import { createBetterAuthSessionPort } from '#/shared/auth/better-auth-session'
@@ -509,15 +508,17 @@ function buildContainer(
         })
         if (analysis.status !== 'ready') return analysis
         return {
-          ...analysis,
-          primaryCategory:
-            AI_PRIMARY_CATEGORIES.find(
-              (category) => category === analysis.primaryCategory,
-            ) ?? 'other',
+          status: 'ready',
+          sentiment: analysis.sentiment,
+          aspects: analysis.aspects,
+          primaryCategory: analysis.primaryCategory,
+          attention: analysis.attention,
+          ...(analysis.issueLabel === null ? {} : { issueLabel: analysis.issueLabel }),
+          generatedAtEpochMillis: analysis.generatedAtEpochMillis,
         }
       },
       findCurrentReviewIdsByAttention: ai.publicApi.findCurrentReviewIdsByAttention,
-      findCurrentReviewIdsByCategory: ai.publicApi.findCurrentReviewIdsByCategory,
+      findCurrentReviewIdsByAspect: ai.publicApi.findCurrentReviewIdsByAspect,
     },
     // Foreign read sources the inbox build adapts into its lookup ports.
     sources: {
