@@ -1,12 +1,12 @@
 {
-  "attestationDigest": "23fac1bbedd46bc8298948dbcc8f00c2cecfd1b5996903ce4f745530e93e7a6d",
+  "attestationDigest": "40ae89abbb4c03fbb0fb7ccae8e4b42071e0ee926e3a38df0476806ba111d37b",
   "constants": {
     "minimumLetters": 24,
     "minimumProbability": 0.85,
     "reliableRequired": true
   },
   "dependencies": {
-    "languageCatalogueDigest": "d117b9f16e90bec59f007861e86cd73ebe84b20497f004ecfc3b0ef86f12501a",
+    "languageCatalogueDigest": "1e81444e68d22e397c9a12a263388ab5686f4b07b97c879a8083797263258ed9",
     "languageScriptConsistencyDigest": "16be4d6ec7e2bf13a4f059bc6249de7972fcb543e7989543b18903791fcb65fa",
     "zhOrthographyDigest": "5b9434548d3766edc36f3cc2b2627908e5265b1b5b8218259f6f615e42a53cc2"
   },
@@ -114,6 +114,6 @@
   "version": "reply-language-verifier-v1",
   "wrapper": {
     "path": "src/shared/ai-reply-language-verifier.ts",
-    "sha256": "c37010e072d073c1718f030c4e8022024584f46a0ee0e344e0ad56ec2a949be4"
+    "sha256": "0848ef8fa874a7264679cc26f0f916a444ef906cab9921a155873d0092e97938"
   }
 }
