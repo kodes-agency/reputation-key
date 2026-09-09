@@ -1,9 +1,13 @@
 // Review context — Drizzle reply repository implementation
 // Per architecture: factory function returning Readonly<{ method }>.
 
-import { and, asc, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNotNull, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { replies } from '#/shared/db/schema/review.schema'
+import {
+  googleReplyObservations,
+  replies,
+  replyPublicationAttempts,
+} from '#/shared/db/schema/review.schema'
 import type { ReplyRepository } from '../../application/ports/reply.repository'
 import type { Reply, ReplySource } from '../../domain/types'
 import {
@@ -150,6 +154,54 @@ export const createReplyRepository = (
         limit,
       ),
     ),
+
+  findPublicationAttemptObservationProgress: (attempt) =>
+    trace('reply.findPublicationAttemptObservationProgress', async () => {
+      // Absent observations deliberately have no "matched attempt" columns:
+      // matching is reserved for confirmation. Targeted recording nevertheless
+      // guards the exact current attempt, so its immutable source scope and
+      // provider-head baseline identify the absences attributable to this attempt.
+      const rows = await db
+        .select({
+          attemptStartedAt: replyPublicationAttempts.createdAt,
+          absentObservationCount: sql<number>`count(${googleReplyObservations.id})::int`,
+        })
+        .from(replyPublicationAttempts)
+        .leftJoin(
+          googleReplyObservations,
+          and(
+            eq(
+              googleReplyObservations.organizationId,
+              replyPublicationAttempts.organizationId,
+            ),
+            eq(googleReplyObservations.propertyId, replyPublicationAttempts.propertyId),
+            eq(googleReplyObservations.reviewId, replyPublicationAttempts.reviewId),
+            eq(googleReplyObservations.sourceEpoch, replyPublicationAttempts.sourceEpoch),
+            eq(
+              googleReplyObservations.materialReviewRevision,
+              replyPublicationAttempts.materialReviewRevision,
+            ),
+            gt(
+              googleReplyObservations.observationRevision,
+              replyPublicationAttempts.baseObservationRevision,
+            ),
+            eq(googleReplyObservations.source, 'targeted_reconciliation'),
+            eq(googleReplyObservations.state, 'absent'),
+          ),
+        )
+        .where(
+          and(
+            eq(replyPublicationAttempts.organizationId, attempt.organizationId),
+            eq(replyPublicationAttempts.reviewId, attempt.reviewId),
+            eq(replyPublicationAttempts.replyId, attempt.replyId),
+            eq(replyPublicationAttempts.publicationCycle, attempt.publicationCycle),
+            eq(replyPublicationAttempts.attemptNumber, attempt.attemptNumber),
+          ),
+        )
+        .groupBy(replyPublicationAttempts.createdAt)
+        .limit(1)
+      return rows[0] ?? null
+    }),
 
   findPublicationActiveByReviewIds: async (reviewIds, organizationId) => {
     return trace('reply.findPublicationActiveByReviewIds', async () => {

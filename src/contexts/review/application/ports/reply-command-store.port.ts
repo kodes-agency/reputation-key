@@ -144,6 +144,13 @@ export type ReplyCommandStore = Readonly<{
     now?: Date,
   ): Promise<Reply | null>
   /**
+   * Keep an acknowledged write in pending_observation and move only its read
+   * deadline. The caller must first prove the attempt is inside both propagation
+   * grace bounds. This command records no fact, creates no attempt, and grants
+   * no provider-write authority.
+   */
+  deferPendingPublicationObservation(reply: Reply, now?: Date): Promise<Reply | null>
+  /**
    * BQC-3.8: bounded terminal settlement — status → publish_failed +
    * publication_state='terminal' + last_error_class + optional publish_failed
    * fact, one transaction. Used for confirmed no-write failures, exhausted

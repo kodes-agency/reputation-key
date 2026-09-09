@@ -1,18 +1,19 @@
 // Reconciliation sweep liveness tests.
 //
-// Every due publication state must leave the due set: provider-safe authorized
-// work fails terminally, uncertain sends become operator-visible ambiguity, and
-// ambiguity gets one final read before automatic reconciliation stops.
+// Every due publication state has a bounded owner: provider-safe authorized
+// work fails terminally, uncertain sends become operator-visible ambiguity,
+// provider-accepted replies get bounded propagation grace, and ambiguity gets
+// one final read before automatic reconciliation stops.
 
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, type Mock } from 'vitest'
 import { createReconcileAmbiguousPublicationsHandler } from './reconcile-ambiguous-publications.job'
 import { err, ok } from '#/shared/domain'
 import { reviewError } from '../../domain/errors'
 import type { ReplyRepository } from '../../application/ports/reply.repository'
 import type { ReconcileReplyPublicationInput } from '../../application/use-cases/reconcile-reply-publication'
 import type { Reply } from '../../domain/types'
+import { PROVIDER_OBSERVATION_RECONCILE_DELAY_MS } from '../../domain/reply-publication-workflow'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
-
 vi.mock('#/shared/observability/trace', () => ({
   trace: vi.fn((_name: string, fn: () => unknown) => fn()),
 }))
@@ -61,16 +62,31 @@ function makeReply(
 
 function makeDeps(opts: {
   batches: ReadonlyArray<ReadonlyArray<Reply>>
-  reconcile: ReturnType<typeof vi.fn>
+  reconcile: Mock
+  attemptProgress?: Readonly<{
+    attemptStartedAt: Date
+    absentObservationCount: number
+  }> | null
 }) {
   const batchQueue = [...opts.batches]
   const leaseRelease = vi.fn(async () => {})
+  let persistedReply: Reply | null = null
   const markPublicationAmbiguous = vi.fn(async (reply: Reply) => ({
     ...reply,
     status: 'publish_failed' as const,
     publicationState: 'ambiguous' as const,
     publicationLastErrorClass: 'ambiguous' as const,
   }))
+  const deferPendingPublicationObservation = vi.fn(
+    async (reply: Reply, at: Date = NOW) => {
+      persistedReply = {
+        ...reply,
+        publicationState: 'pending_observation' as const,
+        reconcileDueAt: new Date(at.getTime() + PROVIDER_OBSERVATION_RECONCILE_DELAY_MS),
+      }
+      return persistedReply
+    },
+  )
   const markPublicationTerminal = vi.fn(
     async (reply: Reply, errorClass: Reply['publicationLastErrorClass']) => ({
       ...reply,
@@ -82,6 +98,9 @@ function makeDeps(opts: {
   )
   const replyRepo = {
     findDuePublicationReconciliationBatch: vi.fn(async () => batchQueue.shift() ?? []),
+    findPublicationAttemptObservationProgress: vi.fn(
+      async () => opts.attemptProgress ?? null,
+    ),
   } as unknown as ReplyRepository
   return {
     replyRepo,
@@ -92,6 +111,7 @@ function makeDeps(opts: {
       })),
     },
     replyCommandStore: {
+      deferPendingPublicationObservation,
       markPublicationAmbiguous,
       markPublicationTerminal,
     },
@@ -102,16 +122,24 @@ function makeDeps(opts: {
       tryAcquire: vi.fn(async () => ({ release: leaseRelease })),
     },
     leaseRelease,
+    getPersistedReply: () => persistedReply,
   }
 }
 
 const makeJob = () => ({ id: 'job-1', data: {} }) as never
 
-async function runOne(reply: Reply, outcome: 'confirmed_on_google' | 'absent') {
+async function runOne(
+  reply: Reply,
+  outcome: 'confirmed_on_google' | 'absent',
+  attemptProgress?: Readonly<{
+    attemptStartedAt: Date
+    absentObservationCount: number
+  }> | null,
+) {
   const reconcile = vi.fn(async (_input: ReconcileReplyPublicationInput) =>
     ok({ outcome }),
   )
-  const deps = makeDeps({ batches: [[reply]], reconcile })
+  const deps = makeDeps({ batches: [[reply]], reconcile, attemptProgress })
   const handler = createReconcileAmbiguousPublicationsHandler(deps as never)
   await handler(makeJob())
   return { deps, reconcile }
@@ -136,6 +164,9 @@ describe('reconcile-ambiguous-publications sweep', () => {
     const first = await runOne(sending, 'absent')
 
     expect(first.reconcile).toHaveBeenCalledOnce()
+    expect(
+      first.deps.replyRepo.findPublicationAttemptObservationProgress,
+    ).not.toHaveBeenCalled()
     expect(first.deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledWith(
       sending,
       expect.objectContaining({ _tag: 'review.reply.publish_failed' }),
@@ -154,7 +185,48 @@ describe('reconcile-ambiguous-publications sweep', () => {
     )
   })
 
-  it('bounds accepted-but-unobserved publication to two reads and a terminal outcome', async () => {
+  it('keeps an accepted reply waiting while its current attempt is inside propagation grace', async () => {
+    const pending = makeReply('reply-propagating', 'pending_observation')
+    const { deps, reconcile } = await runOne(pending, 'absent', {
+      attemptStartedAt: new Date(NOW.getTime() - 10 * 60 * 1000),
+      absentObservationCount: 1,
+    })
+
+    expect(reconcile).toHaveBeenCalledOnce()
+    expect(deps.getPersistedReply()).toMatchObject({
+      publicationState: 'pending_observation',
+      reconcileDueAt: new Date(NOW.getTime() + PROVIDER_OBSERVATION_RECONCILE_DELAY_MS),
+    })
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      boundary: 'propagation window',
+      attemptStartedAt: new Date(NOW.getTime() - 15 * 60 * 1000),
+      absentObservationCount: 1,
+    },
+    {
+      boundary: 'grace read cap',
+      attemptStartedAt: new Date(NOW.getTime() - 5 * 60 * 1000),
+      absentObservationCount: 4,
+    },
+  ])('advances pending work after the $boundary is exhausted', async (progress) => {
+    const pending = makeReply(`reply-${progress.boundary}`, 'pending_observation')
+    const { deps } = await runOne(pending, 'absent', progress)
+
+    expect(
+      deps.replyCommandStore.deferPendingPublicationObservation,
+    ).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledWith(
+      pending,
+      expect.objectContaining({ _tag: 'review.reply.publish_failed' }),
+      NOW,
+    )
+  })
+
+  it('ends grace-exhausted accepted-but-unobserved work after one final ambiguous read', async () => {
     const pending = makeReply('reply-pending', 'pending_observation')
     const first = await runOne(pending, 'absent')
 
@@ -181,10 +253,27 @@ describe('reconcile-ambiguous-publications sweep', () => {
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
   })
 
-  it('leaves provider-confirmed work untouched by failure settlement', async () => {
-    const pending = makeReply('reply-confirmed', 'pending_observation')
-    const { deps } = await runOne(pending, 'confirmed_on_google')
+  it.each([
+    {
+      position: 'inside',
+      attemptStartedAt: new Date(NOW.getTime() - 10 * 60 * 1000),
+      absentObservationCount: 1,
+    },
+    {
+      position: 'outside',
+      attemptStartedAt: new Date(NOW.getTime() - 16 * 60 * 1000),
+      absentObservationCount: 4,
+    },
+  ])('confirms immediately $position propagation grace', async (progress) => {
+    const pending = makeReply(
+      `reply-confirmed-${progress.position}`,
+      'pending_observation',
+    )
+    const { deps } = await runOne(pending, 'confirmed_on_google', progress)
 
+    expect(
+      deps.replyCommandStore.deferPendingPublicationObservation,
+    ).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
   })
