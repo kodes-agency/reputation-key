@@ -2,8 +2,12 @@ import { match } from 'ts-pattern'
 import type { MetricAvailabilityState } from '#/contexts/reporting/application/public-api'
 import { formatDateTime } from '#/lib/format-date-time'
 
+export type MetricEvidenceSubject =
+  'reviews' | 'ratings' | 'scans' | 'private_feedback' | 'review_clicks'
+
 export type MetricEvidenceLineInput = Readonly<{
   basis?: 'governed_period' | 'anonymous_lifetime'
+  subject: MetricEvidenceSubject
   state: MetricAvailabilityState
   dataThrough: Date | null
 }>
@@ -56,16 +60,32 @@ export function metricAvailabilityDetail(reason: string | null): string {
   }
 }
 
+function insufficientDataLine(
+  subject: MetricEvidenceSubject,
+  basis: MetricEvidenceLineInput['basis'],
+): string {
+  const period = basis === 'anonymous_lifetime' ? 'the all-time aggregate' : 'this period'
+  return match(subject)
+    .with('reviews', () => `No eligible reviews in ${period}.`)
+    .with('ratings', () => `No eligible ratings in ${period}.`)
+    .with('scans', () => `No scans recorded in ${period}.`)
+    .with('private_feedback', () => `No private feedback received in ${period}.`)
+    .with('review_clicks', () => `No review clicks recorded in ${period}.`)
+    .exhaustive()
+}
+
 export function metricEvidenceLine(
   evidence: MetricEvidenceLineInput,
   locale?: string,
   timeZone?: string,
-): string {
+): string | null {
   if (evidence.basis === 'anonymous_lifetime') {
     return match(evidence.state)
       .with('ready', () => 'All-time aggregate')
       .with('updating', () => 'All-time totals are being checked.')
-      .with('insufficient_data', () => 'No eligible ratings in the all-time aggregate.')
+      .with('insufficient_data', () =>
+        insufficientDataLine(evidence.subject, evidence.basis),
+      )
       .with(
         'temporarily_unavailable',
         () => 'All-time totals are temporarily unavailable.',
@@ -74,12 +94,15 @@ export function metricEvidenceLine(
   }
 
   return match(evidence.state)
-    .with(
-      'ready',
-      () => `Data through ${formatEvidenceTime(evidence.dataThrough, locale, timeZone)}`,
+    .with('ready', () =>
+      evidence.dataThrough === null
+        ? null
+        : `Data through ${formatEvidenceTime(evidence.dataThrough, locale, timeZone)}`,
     )
     .with('updating', () => 'Updating; figures will appear when checks finish.')
-    .with('insufficient_data', () => 'No eligible ratings in this period.')
+    .with('insufficient_data', () =>
+      insufficientDataLine(evidence.subject, evidence.basis),
+    )
     .with('temporarily_unavailable', () => 'Figures are temporarily unavailable.')
     .exhaustive()
 }

@@ -6,6 +6,7 @@ const meta = {
   component: AvailabilityLine,
   tags: ['autodocs'],
   args: {
+    subject: 'ratings',
     state: 'ready',
     dataThrough: new Date('2026-08-25T10:15:00.000Z'),
     reason: null,

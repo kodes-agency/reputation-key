@@ -78,6 +78,7 @@ export function PortalAnalyticsContent({ data, timeRange, onTimeRangeChange }: P
           }
           hint={trendHint(data.kpis.scans.trend)}
           availability={{
+            subject: 'scans',
             state: data.kpis.scans.evidence.state,
             dataThrough: data.kpis.scans.evidence.verifiedThrough,
             reason: data.kpis.scans.evidence.availabilityReason,
@@ -96,6 +97,7 @@ export function PortalAnalyticsContent({ data, timeRange, onTimeRangeChange }: P
             </>
           }
           availability={{
+            subject: 'ratings',
             state: data.kpis.avgRating.evidence.state,
             dataThrough: data.kpis.avgRating.evidence.verifiedThrough,
             reason: data.kpis.avgRating.evidence.availabilityReason,
@@ -111,6 +113,7 @@ export function PortalAnalyticsContent({ data, timeRange, onTimeRangeChange }: P
           }
           hint={trendHint(data.kpis.feedback.trend)}
           availability={{
+            subject: 'private_feedback',
             state: data.kpis.feedback.evidence.state,
             dataThrough: data.kpis.feedback.evidence.verifiedThrough,
             reason: data.kpis.feedback.evidence.availabilityReason,
@@ -126,6 +129,7 @@ export function PortalAnalyticsContent({ data, timeRange, onTimeRangeChange }: P
           }
           hint={trendHint(data.kpis.reviewLinkClicks.trend)}
           availability={{
+            subject: 'review_clicks',
             state: data.kpis.reviewLinkClicks.evidence.state,
             dataThrough: data.kpis.reviewLinkClicks.evidence.verifiedThrough,
             reason: data.kpis.reviewLinkClicks.evidence.availabilityReason,

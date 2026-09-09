@@ -13,6 +13,7 @@ import type {
 } from '#/contexts/reporting/application/public-api'
 import { FleetAttentionBreakdown } from './fleet-attention-breakdown'
 import { AvailabilityLine } from './availability-line'
+import type { MetricEvidenceSubject } from './metric-availability-presentation'
 
 export const formatRating = (rating: number | null): string =>
   rating !== null && rating > 0 ? rating.toFixed(1) : '—'
@@ -37,8 +38,13 @@ function metricEvidenceTitle(evidence: FleetMetricEvidence): string {
 
 function EvidenceBadge({
   label,
+  subject,
   evidence,
-}: Readonly<{ label: string; evidence: FleetMetricEvidence }>) {
+}: Readonly<{
+  label: string
+  subject: MetricEvidenceSubject
+  evidence: FleetMetricEvidence
+}>) {
   const state = evidence.freshness === 'insufficient_data' ? 'insufficient_data' : 'ready'
   return (
     <Badge
@@ -47,6 +53,7 @@ function EvidenceBadge({
     >
       {label}{' '}
       <AvailabilityLine
+        subject={subject}
         state={state}
         dataThrough={evidence.watermark}
         reason={null}
@@ -81,13 +88,21 @@ export function FleetRow({ entry }: Readonly<{ entry: FleetEntry }>) {
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <EvidenceBadge label="Reviews" evidence={entry.reviewEvidence} />
+          <EvidenceBadge
+            label="Reviews"
+            subject="reviews"
+            evidence={entry.reviewEvidence}
+          />
           {entry.scanEvidence ? (
             <>
               <span className="text-xs tabular-nums text-muted-foreground">
                 {entry.scanCount} scans
               </span>
-              <EvidenceBadge label="Scans" evidence={entry.scanEvidence} />
+              <EvidenceBadge
+                label="Scans"
+                subject="scans"
+                evidence={entry.scanEvidence}
+              />
             </>
           ) : null}
           {entry.feedbackEvidence ? (
@@ -95,7 +110,11 @@ export function FleetRow({ entry }: Readonly<{ entry: FleetEntry }>) {
               <span className="text-xs tabular-nums text-muted-foreground">
                 {entry.feedbackCount} responses
               </span>
-              <EvidenceBadge label="Responses" evidence={entry.feedbackEvidence} />
+              <EvidenceBadge
+                label="Responses"
+                subject="private_feedback"
+                evidence={entry.feedbackEvidence}
+              />
             </>
           ) : null}
         </div>

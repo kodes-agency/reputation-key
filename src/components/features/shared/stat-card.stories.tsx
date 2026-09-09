@@ -38,6 +38,7 @@ export const Updating: Story = {
     label: 'Scans',
     value: '—',
     availability: {
+      subject: 'scans',
       state: 'updating',
       dataThrough: null,
       reason: null,

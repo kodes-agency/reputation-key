@@ -110,6 +110,7 @@ function MatrixRow({
         <Badge variant="outline">
           {row.correction ? 'Corrected · ' : ''}
           <AvailabilityLine
+            subject={row.metric === 'qualified_scans' ? 'scans' : 'ratings'}
             state={row.availability}
             dataThrough={row.dataThrough}
             reason={null}
