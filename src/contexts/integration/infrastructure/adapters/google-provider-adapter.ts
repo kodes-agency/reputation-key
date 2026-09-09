@@ -166,6 +166,9 @@ export async function executeGoogleProviderRaw(
     const gatewayKind = gatewayFailureKind(result)
     throw createGbpApiError(input.operation, gatewayKind, {
       retryAfterMs: retryableBackoffMs(gatewayKind, result.retryAfterMs),
+      ...(result.code === 'admission_denied' && result.admissionCode !== undefined
+        ? { executionAdmissionCode: result.admissionCode }
+        : {}),
     })
   }
 

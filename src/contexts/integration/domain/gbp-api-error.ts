@@ -16,6 +16,8 @@ export type GbpApiError = Readonly<{
   /** Content-free diagnostics. Provider response bytes are never retained. */
   providerBodyBytes: number
   retryAfterMs: number | null
+  /** Content-free reason when our execution admission refused before provider I/O. */
+  executionAdmissionCode: string | null
   message: string
 }>
 
@@ -31,7 +33,13 @@ const textEncoder = new TextEncoder()
 export const createGbpApiError = (
   operation: string,
   kind: GbpApiErrorKind,
-  details: string | Readonly<{ providerBodyBytes?: number; retryAfterMs?: number }> = '',
+  details:
+    | string
+    | Readonly<{
+        providerBodyBytes?: number
+        retryAfterMs?: number
+        executionAdmissionCode?: string
+      }> = '',
 ): Error & GbpApiError => {
   const message = `GBP API ${operation} failed (${kind})`
   // TS can't see defineProperties add the tagged props, so the intersection is asserted once here.
@@ -48,6 +56,9 @@ export const createGbpApiError = (
     ),
     retryAfterMs: defineEnumerable(
       typeof details === 'string' ? null : (details.retryAfterMs ?? null),
+    ),
+    executionAdmissionCode: defineEnumerable(
+      typeof details === 'string' ? null : (details.executionAdmissionCode ?? null),
     ),
   })
   if ('captureStackTrace' in Error && typeof Error.captureStackTrace === 'function') {

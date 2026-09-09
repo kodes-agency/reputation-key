@@ -120,6 +120,13 @@ function mapProviderError(error: unknown): UnavailablePerformanceResult {
     return errorResult('stale_source', true)
   }
   if (!isGbpApiError(error)) return errorResult('temporarily_unavailable', true)
+  if (
+    error.executionAdmissionCode === 'credential_unavailable' ||
+    error.executionAdmissionCode === 'runtime_unavailable' ||
+    error.executionAdmissionCode === 'authorization_changed'
+  ) {
+    return errorResult('authorization_stale', true)
+  }
   const retryAfterSeconds =
     error.retryAfterMs === null || error.retryAfterMs <= 0
       ? null

@@ -19,11 +19,12 @@ describe('Property Google Performance presentation contract', () => {
       'rate_limited',
       'provider_timeout',
       'provider_rejected',
+      'authorization_stale',
       'temporarily_unavailable',
       'malformed_provider_response',
       'stale_source',
     ])
-    expect(isGooglePerformanceErrorCode('stale_source')).toBe(true)
+    expect(isGooglePerformanceErrorCode('authorization_stale')).toBe(true)
     expect(isGooglePerformanceErrorCode('provider_body')).toBe(false)
   })
 })
