@@ -190,16 +190,32 @@ describe('executeGoogleProviderRaw admission classification', () => {
     ).resolves.toMatchObject({ kind: 'rate_limited', retryAfterMs: 9_000 })
   })
 
-  it.each([['authorization_changed'], ['authorization_denied']] as const)(
-    'reports %s as a rejected authorization rather than a retryable outage',
+  it('keeps a current authorization denial non-retryable', async () => {
+    const error = await providerError(admissionDenied('authorization_denied'))
+
+    expect(error.kind).toBe('permission_denied')
+    await expect(userVisible(admissionDenied('authorization_denied'))).resolves.toEqual({
+      status: 'error',
+      errorCode: 'provider_rejected',
+      retryable: false,
+      retryAfterSeconds: null,
+    })
+  })
+
+  it.each([
+    ['credential_unavailable'],
+    ['runtime_unavailable'],
+    ['authorization_changed'],
+  ] as const)(
+    'preserves the own-side %s denial for a fresh authorization request',
     async (admissionCode) => {
       const error = await providerError(admissionDenied(admissionCode))
 
-      expect(error.kind).toBe('permission_denied')
+      expect(error.executionAdmissionCode).toBe(admissionCode)
       await expect(userVisible(admissionDenied(admissionCode))).resolves.toEqual({
         status: 'error',
-        errorCode: 'provider_rejected',
-        retryable: false,
+        errorCode: 'authorization_stale',
+        retryable: true,
         retryAfterSeconds: null,
       })
     },

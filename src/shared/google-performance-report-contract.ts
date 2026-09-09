@@ -18,6 +18,7 @@ export const GOOGLE_PERFORMANCE_ERROR_CODES = [
   'rate_limited',
   'provider_timeout',
   'provider_rejected',
+  'authorization_stale',
   'temporarily_unavailable',
   'malformed_provider_response',
   'stale_source',

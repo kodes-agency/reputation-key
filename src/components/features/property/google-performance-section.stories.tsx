@@ -196,6 +196,13 @@ const getProviderError = (async () => ({
   retryAfterSeconds: null,
 })) as unknown as typeof getPropertyGooglePerformance
 
+const getAuthorizationStale = (async () => ({
+  status: 'error',
+  errorCode: 'authorization_stale',
+  retryable: true,
+  retryAfterSeconds: null,
+})) as unknown as typeof getPropertyGooglePerformance
+
 const getExpired = (async () => ({
   status: 'ready',
   data: Object.freeze({
@@ -358,6 +365,23 @@ export const ProviderUnavailable: Story = {
       canvas.findByText('Performance report unavailable'),
     ).resolves.toBeVisible()
     await expect(canvas.getByText(/too long to respond/i)).toBeVisible()
+  },
+}
+
+export const AuthorizationStale: Story = {
+  decorators: [withRole('AccountAdmin')],
+  args: {
+    serverFns: { getPerformance: getAuthorizationStale, renewLease },
+  },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.findByText(
+        'This live report needs a fresh authorization. Select Refresh to request it.',
+      ),
+    ).resolves.toBeVisible()
+    const refresh = canvas.getByRole('button', { name: 'Refresh' })
+    await expect(refresh).toBeVisible()
+    await expect(refresh).toBeEnabled()
   },
 }
 

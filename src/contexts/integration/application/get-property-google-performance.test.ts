@@ -279,6 +279,33 @@ describe('getPropertyGooglePerformance', () => {
   })
 
   it.each([
+    ['credential_unavailable', 'upstream_error'],
+    ['runtime_unavailable', 'upstream_error'],
+    ['authorization_changed', 'permission_denied'],
+  ] as const)(
+    'maps its own %s admission denial to a retryable authorization refresh',
+    async (executionAdmissionCode, kind) => {
+      const fetchReport = vi.fn(async () => {
+        throw createGbpApiError('fetchPerformanceReport', kind, {
+          executionAdmissionCode,
+        })
+      })
+      const { getPerformance, authorize, issueLease } = setup({ fetchReport })
+
+      await expect(
+        getPerformance({ propertyId: PROPERTY_ID, preset: '7d', actor: ACTOR }),
+      ).resolves.toEqual({
+        status: 'error',
+        errorCode: 'authorization_stale',
+        retryable: true,
+        retryAfterSeconds: null,
+      })
+      expect(authorize).toHaveBeenCalledTimes(1)
+      expect(issueLease).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([
     [
       createGbpApiError('fetchPerformanceReport', 'rate_limited', {
         retryAfterMs: 4_500,

@@ -54,8 +54,12 @@ function errorMessage(code: string): string {
       return 'Google returned data that could not be safely displayed.'
     case 'stale_source':
       return 'The property connection changed while this report was loading.'
-    default:
+    case 'authorization_stale':
+      return 'This live report needs a fresh authorization. Select Refresh to request it.'
+    case 'temporarily_unavailable':
       return 'Google Business Profile performance is temporarily unavailable.'
+    default:
+      return 'This performance report could not be loaded. Select Refresh to try again.'
   }
 }
 
