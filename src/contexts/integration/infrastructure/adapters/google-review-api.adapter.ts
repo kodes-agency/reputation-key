@@ -451,7 +451,16 @@ function mapReview(raw: GbpReviewItem, locationName: string): GoogleReview {
     reviewedAt: parseDate(raw.createTime),
     sourceCreatedAt: parseDate(raw.createTime),
     sourceUpdatedAt: raw.updateTime ? parseDate(raw.updateTime) : null,
-    replyText: raw.reviewReply?.comment ?? null,
+    // Google wraps an echoed reply in the same translation envelope it wraps
+    // review text in - `(Translated by Google) <en>\n\n(Original)\n<src>` -
+    // whenever the reply language differs from the reader locale. The review
+    // text two lines above is already split; the reply was not, so the digest
+    // of the whole blob never matched the digest of what we sent. Measured on
+    // the beta property: a Bulgarian reply that Google had published at
+    // 09:01:28Z could not be confirmed, so it settled as "Google status
+    // unconfirmed" and no reply on a translated review could ever reach
+    // Published.
+    replyText: parseGoogleReviewComment(raw.reviewReply?.comment).original,
     replyUpdatedAt: raw.reviewReply?.updateTime
       ? parseDate(raw.reviewReply.updateTime)
       : null,
