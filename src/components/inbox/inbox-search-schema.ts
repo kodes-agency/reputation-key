@@ -3,7 +3,7 @@
 // filters by the active escalation flag, not a status value.
 import { z } from 'zod/v4'
 import type { InboxStatus } from '#/contexts/inbox/application/public-api'
-import { AI_PRIMARY_CATEGORIES } from '#/shared/ai-primary-categories'
+import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
 
 export const INBOX_PAGE_SIZE = 50
 
@@ -18,10 +18,11 @@ export const inboxSearchObjectSchema = z.object({
   ratingMin: z.coerce.number().int().min(1).max(5).optional(),
   ratingMax: z.coerce.number().int().min(1).max(5).optional(),
   attention: z.enum(['urgent', 'high', 'medium', 'low']).optional(),
-  // Enum over the canonical AI category catalogue — the same list the provider
-  // output schema is built from, so a deep link like `?category=wait_time`
-  // cannot drift from what the analysis actually stores.
-  category: z.enum(AI_PRIMARY_CATEGORIES).optional(),
+  // Aspect and polarity remain separate URL keys so dashboard drill-downs are
+  // readable (`?aspect=wait_time&polarity=negative`) and either dimension can
+  // be widened without inventing a second composite vocabulary.
+  aspect: z.enum(ASPECT_TAXONOMY_V1).optional(),
+  polarity: z.enum(ASPECT_POLARITIES_V1).optional(),
   q: z.string().optional(),
   sort: z.enum(['newest', 'oldest']).optional(),
 })

@@ -73,10 +73,15 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
                 ? data.attention
                 : [data.attention]
               : undefined,
-            category: data.category
-              ? Array.isArray(data.category)
-                ? data.category
-                : [data.category]
+            aspect: data.aspect
+              ? Array.isArray(data.aspect)
+                ? data.aspect
+                : [data.aspect]
+              : undefined,
+            polarity: data.polarity
+              ? Array.isArray(data.polarity)
+                ? data.polarity
+                : [data.polarity]
               : undefined,
             q: data.q,
             sourceDateFrom: data.sourceDateFrom,

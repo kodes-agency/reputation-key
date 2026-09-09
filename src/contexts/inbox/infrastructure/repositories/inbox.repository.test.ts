@@ -979,7 +979,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention,
-      findCurrentReviewIdsByCategory: vi.fn(async () => []),
+      findCurrentReviewIdsByAspect: vi.fn(async () => []),
     }
     const enrichedRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
 
@@ -1075,7 +1075,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention,
-      findCurrentReviewIdsByCategory: vi.fn(async () => []),
+      findCurrentReviewIdsByAspect: vi.fn(async () => []),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
 
@@ -1094,54 +1094,64 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     expect(result.items.map((item) => item.sourceId)).toEqual([srcMatch])
   })
 
-  it('category filters intersect with attention through the AI projection', async () => {
+  it('aspect and polarity filters intersect with attention through the AI projection', async () => {
     const srcBoth = reviewId(crypto.randomUUID())
     const srcAttentionOnly = reviewId(crypto.randomUUID())
-    const srcCategoryOnly = reviewId(crypto.randomUUID())
-    for (const sourceId of [srcBoth, srcAttentionOnly, srcCategoryOnly]) {
+    const srcAspectOnly = reviewId(crypto.randomUUID())
+    for (const sourceId of [srcBoth, srcAttentionOnly, srcAspectOnly]) {
       await repo.create(makeInboxItem({ sourceId }), ORG_A)
     }
-    const findCurrentReviewIdsByCategory = vi.fn(async () => [srcBoth, srcCategoryOnly])
+    const findCurrentReviewIdsByAspect = vi.fn(async () => [srcBoth, srcAspectOnly])
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention: vi.fn(async () => [srcBoth, srcAttentionOnly]),
-      findCurrentReviewIdsByCategory,
+      findCurrentReviewIdsByAspect,
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
 
     const result = await filteredRepo.findFilteredPaginated(
-      { propertyId: PROP_A, attention: ['urgent'], category: ['wait_time'] },
+      {
+        propertyId: PROP_A,
+        attention: ['urgent'],
+        aspect: ['wait_time'],
+        polarity: ['negative'],
+      },
       ORG_A,
       undefined,
       50,
     )
 
-    expect(findCurrentReviewIdsByCategory).toHaveBeenCalledWith({
+    expect(findCurrentReviewIdsByAspect).toHaveBeenCalledWith({
       organizationId: ORG_A,
       propertyIds: [PROP_A],
-      categories: ['wait_time'],
+      aspects: ['wait_time'],
+      polarities: ['negative'],
     })
     // Intersection, not union: only the review in BOTH id sets survives.
     expect(result.items.map((item) => item.sourceId)).toEqual([srcBoth])
   })
 
   it('an empty AI id set means no matches, never no filter', async () => {
-    // The dangerous failure mode: a tenant without the AI capability, or a
-    // category nobody has mentioned, resolves to zero review ids. Skipping the
-    // predicate then would show the ENTIRE inbox while the UI claims a filter
-    // is applied -- the same class of defect as a search param that gets
-    // stripped before it reaches the query.
+    // The dangerous failure mode: a tenant without the AI capability, or an
+    // aspect/polarity pair nobody has mentioned, resolves to zero review ids.
+    // Skipping the predicate then would show the ENTIRE inbox while the UI
+    // claims a filter is applied -- the same class of defect as a search param
+    // that gets stripped before it reaches the query.
     await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
     await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
-      findCurrentReviewIdsByCategory: vi.fn(async () => []),
+      findCurrentReviewIdsByAspect: vi.fn(async () => []),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
 
     for (const filters of [
-      { propertyId: PROP_A, category: ['service' as const] },
+      {
+        propertyId: PROP_A,
+        aspect: ['service' as const],
+        polarity: ['negative' as const],
+      },
       { propertyId: PROP_A, attention: ['urgent' as const] },
     ]) {
       const result = await filteredRepo.findFilteredPaginated(

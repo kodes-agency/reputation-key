@@ -166,12 +166,12 @@ async function countWhere(
 }
 
 /**
- * AI-derived narrowing for the item list: `attention` and `category`.
+ * AI-derived narrowing for the item list: attention and aspect mentions.
  *
  * Neither is a column on `inbox_items`. Each active filter resolves to the
  * review ids whose CURRENT analysis matches, through the AI context's gated
- * projection, and contributes its own `IN` predicate — so supplying both
- * intersects them rather than unioning them.
+ * projection, and contributes its own `IN` predicate. Aspect and polarity
+ * constrain the same mention; attention intersects that mention result.
  *
  * Returns `null` to mean "stop, nothing can match". An absent AI port or an
  * empty id set is "no review matches", NEVER "no filter": treating it as the
@@ -182,7 +182,13 @@ async function resolveAiNarrowing(
   orgId: OrganizationId,
   filters: InboxFilters,
 ): Promise<SQL[] | null> {
-  if (!filters.attention?.length && !filters.category?.length) return []
+  if (
+    !filters.attention?.length &&
+    !filters.aspect?.length &&
+    !filters.polarity?.length
+  ) {
+    return []
+  }
   const propertyIds =
     filters.propertyIds ?? (filters.propertyId ? [filters.propertyId] : undefined)
   const lookups: Array<Promise<readonly ReviewId[]> | undefined> = []
@@ -195,12 +201,13 @@ async function resolveAiNarrowing(
       }),
     )
   }
-  if (filters.category?.length) {
+  if (filters.aspect?.length || filters.polarity?.length) {
     lookups.push(
-      ports.aiInsights?.findCurrentReviewIdsByCategory({
+      ports.aiInsights?.findCurrentReviewIdsByAspect({
         organizationId: orgId,
         propertyIds,
-        categories: filters.category,
+        aspects: filters.aspect,
+        polarities: filters.polarity,
       }),
     )
   }
@@ -340,8 +347,8 @@ export const createInboxRepository = (
         if (contentNarrowing === null)
           return { items: [], nextCursor: null, totalCount: 0 } as PaginatedResult
         conditions.push(...contentNarrowing)
-        // AI-derived narrowing (attention / category). Extracted because adding
-        // the second filter pushed this function past the complexity threshold.
+        // AI-derived narrowing (attention / aspect mention). Kept separate so
+        // every filter resolves through the same current-analysis boundary.
         const aiNarrowing = await resolveAiNarrowing(ports, orgId, filters)
         if (aiNarrowing === null)
           return { items: [], nextCursor: null, totalCount: 0 } as PaginatedResult

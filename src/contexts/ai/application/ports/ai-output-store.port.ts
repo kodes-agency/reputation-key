@@ -1,11 +1,11 @@
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
 import type { AiOperationId, ReviewAnalysisReadV1 } from '../../domain/types'
-import type { AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
+import type { AspectPolarityV1, AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
 
 export type AiAnalysisAspect = Readonly<{
   aspect: AspectTaxonomyV1Id
-  polarity: 'positive' | 'neutral' | 'negative'
+  polarity: AspectPolarityV1
   intensity: number
 }>
 
@@ -201,11 +201,12 @@ export type AiOutputStorePort = Readonly<{
       nowEpochMillis: number
     }>,
   ): Promise<readonly ReviewId[]>
-  findCurrentReviewIdsByCategory(
+  findCurrentReviewIdsByAspect(
     input: Readonly<{
       organizationId: OrganizationId
       propertyIds?: readonly PropertyId[]
-      categories: readonly AiAnalysisDerivative['primaryCategory'][]
+      aspects?: readonly AiAnalysisAspect['aspect'][]
+      polarities?: readonly AiAnalysisAspect['polarity'][]
       nowEpochMillis: number
     }>,
   ): Promise<readonly ReviewId[]>

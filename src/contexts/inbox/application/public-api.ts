@@ -46,7 +46,12 @@ export type { InboxNoteView } from './use-cases/get-inbox-notes'
 export type { InboxError } from '../domain/errors'
 export { INBOX_BULK_LIMIT } from './dto/inbox.dto'
 export type { Cursor, InboxSort } from './ports/inbox.repository'
-export type { InboxReviewAnalysis, ReviewCategory } from './ports/ai-review-insights.port'
+export type {
+  InboxReviewAnalysis,
+  ReviewAnalysisAspect,
+  ReviewAspect,
+  ReviewAspectPolarity,
+} from './ports/ai-review-insights.port'
 
 /** Request-facing Inbox capabilities. Persistence and construction stay private. */
 export type InboxPublicApi = Readonly<{

@@ -1,16 +1,30 @@
-// The dashboard aggregate read. Three things here are easy to get wrong and
-// invisible if wrong: the capability gate, the epoch triple, and the
-// property-local window. Each gets a test that fails if it is dropped.
-import { describe, it, expect, vi } from 'vitest'
-import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { createReadPropertyAggregates } from './read-property-aggregates'
+import { describe, expect, it, vi } from 'vitest'
+import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
+import {
+  createReadPropertyAggregates,
+  type ReadPropertyAggregatesDependencies,
+} from './read-property-aggregates'
 
 const ORG = organizationId('11111111-1111-4111-8111-111111111111')
 const PROP = propertyId('22222222-2222-4222-8222-222222222222')
 const ACTOR = userId('33333333-3333-4333-8333-333333333333')
 const NOW = Date.UTC(2026, 7, 20, 3, 0, 0)
 
-function day(localDate: string, over: Partial<Record<string, number>> = {}) {
+function day(
+  localDate: string,
+  over: Readonly<{
+    reviewCount?: number
+    positive?: number
+    neutral?: number
+    negative?: number
+    mixed?: number
+    aspectCounts?: readonly Readonly<{
+      aspect: 'service' | 'cleanliness' | 'room'
+      polarity: 'positive' | 'neutral' | 'negative'
+      count: number
+    }>[]
+  }> = {},
+) {
   return {
     localDate,
     reviewCount: over.reviewCount ?? 2,
@@ -21,19 +35,44 @@ function day(localDate: string, over: Partial<Record<string, number>> = {}) {
       negative: over.negative ?? 1,
       mixed: over.mixed ?? 0,
     },
-    categoryCounts: {
-      service: over.service ?? 1,
-      staff: 0,
-      quality: 0,
-      value: 0,
-      cleanliness: over.cleanliness ?? 1,
-      wait_time: 0,
-      atmosphere: 0,
-      location: 0,
-      accessibility: 0,
-      other: 0,
-    },
+    aspectCounts: over.aspectCounts ?? [
+      { aspect: 'service' as const, polarity: 'negative' as const, count: 1 },
+      { aspect: 'cleanliness' as const, polarity: 'positive' as const, count: 1 },
+    ],
     attentionCounts: { urgent: 0, high: 0, medium: 1, low: 1 },
+  }
+}
+
+function analyzedReview(
+  sequence: number,
+  input: Readonly<{
+    rating: number
+    aspect: 'service' | 'cleanliness' | 'room'
+    polarity: 'positive' | 'neutral' | 'negative'
+    intensity: number
+    issueLabel?: string | null
+  }>,
+) {
+  return {
+    reviewId: reviewId(`00000000-0000-4000-8000-${String(sequence).padStart(12, '0')}`),
+    sourceRevision: 1,
+    analysisSequence: sequence,
+    localDate: '2026-08-20',
+    rating: input.rating,
+    sentiment:
+      input.polarity === 'negative' ? ('negative' as const) : ('positive' as const),
+    attention: 'low' as const,
+    aspects: [
+      {
+        aspect: input.aspect,
+        polarity: input.polarity,
+        intensity: input.intensity,
+      },
+    ],
+    issueLabel: input.issueLabel ?? null,
+    analysisProfileVersion: 'review-analysis-v2',
+    providerDeploymentProfileVersion: 'private-beta-global-v1',
+    modelSnapshot: 'gpt-5-mini-2025-08-07',
   }
 }
 
@@ -47,7 +86,11 @@ function harness(
 ) {
   const readWindow = vi.fn(async () =>
     over.window === undefined
-      ? { head: {}, days: [day('2026-08-19'), day('2026-08-20')] }
+      ? {
+          head: {},
+          days: [day('2026-08-19'), day('2026-08-20')],
+          analyzedReviews: [],
+        }
       : over.window,
   )
   const resolveLocalDate = vi.fn(async () =>
@@ -65,19 +108,19 @@ function harness(
           property_trends: { epoch: 9 },
         },
       })),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any,
+    } as unknown as ReadPropertyAggregatesDependencies['authorization'],
     processingProfiles: {
       readForAi: vi.fn(async () => ({
         status: 'available',
         profile: { profileVersion: 11, timezone: 'Asia/Tokyo' },
       })),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    aggregates: { readWindow } as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    calendar: { resolveLocalDate } as any,
+    } as unknown as ReadPropertyAggregatesDependencies['processingProfiles'],
+    aggregates: {
+      readWindow,
+    } as unknown as ReadPropertyAggregatesDependencies['aggregates'],
+    calendar: {
+      resolveLocalDate,
+    } as unknown as ReadPropertyAggregatesDependencies['calendar'],
     nowEpochMillis: () => NOW,
   })
   return { read, readWindow, resolveLocalDate }
@@ -87,8 +130,6 @@ const input = { organizationId: ORG, propertyId: PROP, actorUserId: ACTOR, days:
 
 describe('readPropertyAggregates capability gate', () => {
   it('is disabled without the review_analysis capability', async () => {
-    // Category and sentiment are analysis derivatives. Holding property_trends
-    // must not unlock them.
     const { read, readWindow } = harness({ capabilities: ['property_trends'] })
     expect(await read(input)).toEqual({ status: 'disabled' })
     expect(readWindow).not.toHaveBeenCalled()
@@ -103,9 +144,6 @@ describe('readPropertyAggregates capability gate', () => {
 
 describe('readPropertyAggregates window', () => {
   it('pins every column of the aggregate primary key', async () => {
-    // The grain is one row per property per local date PER EPOCH TRIPLE. A read
-    // filtered on dates alone sums the same day across successive epochs and
-    // reports inflated counts.
     const { read, readWindow } = harness()
     await read(input)
     expect(readWindow).toHaveBeenCalledWith(
@@ -117,7 +155,7 @@ describe('readPropertyAggregates window', () => {
     )
   })
 
-  it('resolves the window in the property timezone, not UTC', async () => {
+  it('resolves the inclusive window in the property timezone', async () => {
     const { read, readWindow, resolveLocalDate } = harness()
     await read(input)
     expect(resolveLocalDate).toHaveBeenCalledWith({
@@ -125,7 +163,6 @@ describe('readPropertyAggregates window', () => {
       timezone: 'Asia/Tokyo',
       calendarProfileVersion: 'property-calendar-v1',
     })
-    // 30 days inclusive of today, so the start is today minus 29.
     expect(readWindow).toHaveBeenCalledWith(
       expect.objectContaining({
         startLocalDate: '2026-07-22',
@@ -134,9 +171,7 @@ describe('readPropertyAggregates window', () => {
     )
   })
 
-  it('reports preparing rather than zeroes while the aggregate is mid-flight', async () => {
-    // readWindow returns null when the heads and the cursor disagree. Zeroes
-    // would read as "no reviews" instead of "not settled yet".
+  it('reports preparing rather than zeroes while aggregates are unsettled', async () => {
     const { read } = harness({ window: null })
     expect(await read(input)).toEqual({ status: 'preparing' })
   })
@@ -149,50 +184,119 @@ describe('readPropertyAggregates window', () => {
 })
 
 describe('readPropertyAggregates summary', () => {
-  it('sums the window and sorts categories by volume', async () => {
+  it('returns aspect-polarity counts and computes weighted impact at read time', async () => {
     const { read } = harness({
       window: {
         head: {},
         days: [
-          day('2026-08-19', { service: 1, cleanliness: 3 }),
-          day('2026-08-20', { service: 1, cleanliness: 4 }),
+          day('2026-08-20', {
+            reviewCount: 3,
+            aspectCounts: [
+              { aspect: 'service', polarity: 'negative', count: 2 },
+              { aspect: 'room', polarity: 'positive', count: 1 },
+            ],
+          }),
+        ],
+        analyzedReviews: [
+          analyzedReview(1, {
+            rating: 1,
+            aspect: 'service',
+            polarity: 'negative',
+            intensity: -100,
+            issueLabel: 'slow front desk',
+          }),
+          analyzedReview(2, {
+            rating: 3,
+            aspect: 'service',
+            polarity: 'negative',
+            intensity: -100,
+            issueLabel: 'slow front desk',
+          }),
+          analyzedReview(3, {
+            rating: 5,
+            aspect: 'room',
+            polarity: 'positive',
+            intensity: 100,
+            issueLabel: 'quiet rooms',
+          }),
+        ],
+      },
+    })
+
+    const result = await read(input)
+    if (result.status !== 'ready') throw new Error('expected ready')
+    expect(result.impactVersion).toBe('aspect-impact-v1')
+    expect(result.aspects).toEqual([
+      { aspect: 'service', polarity: 'negative', mentionCount: 2, impact: -1.6 },
+      { aspect: 'room', polarity: 'positive', mentionCount: 1, impact: 1 },
+    ])
+    expect(result.emergingIssues).toEqual([
+      { label: 'slow front desk', count: 2 },
+      { label: 'quiet rooms', count: 1 },
+    ])
+  })
+
+  it('breaks aspect count and issue ties by stable identity', async () => {
+    const { read } = harness({
+      window: {
+        head: {},
+        days: [
+          day('2026-08-20', {
+            aspectCounts: [
+              { aspect: 'service', polarity: 'negative', count: 2 },
+              { aspect: 'cleanliness', polarity: 'negative', count: 2 },
+            ],
+          }),
+        ],
+        analyzedReviews: [
+          analyzedReview(1, {
+            rating: 2,
+            aspect: 'service',
+            polarity: 'negative',
+            intensity: -50,
+            issueLabel: 'slow service',
+          }),
+          analyzedReview(2, {
+            rating: 2,
+            aspect: 'cleanliness',
+            polarity: 'negative',
+            intensity: -50,
+            issueLabel: 'dirty bathroom',
+          }),
         ],
       },
     })
     const result = await read(input)
     if (result.status !== 'ready') throw new Error('expected ready')
-    expect(result.reviewCount).toBe(4)
-    // Cleanliness outweighs service, so it must lead: the section answers
-    // "what should I fix?".
-    expect(result.categories.slice(0, 2)).toEqual([
-      { category: 'cleanliness', count: 7 },
-      { category: 'service', count: 2 },
+    expect(result.aspects.map(({ aspect }) => aspect)).toEqual(['cleanliness', 'service'])
+    expect(result.emergingIssues.map(({ label }) => label)).toEqual([
+      'dirty bathroom',
+      'slow service',
     ])
-    expect(result.sentimentTotals).toEqual({
-      positive: 2,
-      neutral: 0,
-      negative: 2,
-      mixed: 0,
-    })
   })
 
-  it('breaks ties by name so the order never flickers between reads', async () => {
+  it('keeps sentiment rows and excludes labels that fail the label rule', async () => {
     const { read } = harness({
-      window: { head: {}, days: [day('2026-08-20', { service: 2, cleanliness: 2 })] },
+      window: {
+        head: {},
+        days: [day('2026-08-19'), day('2026-08-20')],
+        analyzedReviews: [
+          analyzedReview(1, {
+            rating: 1,
+            aspect: 'service',
+            polarity: 'negative',
+            intensity: -80,
+            issueLabel: 'Copied Review Excerpt',
+          }),
+        ],
+      },
     })
     const result = await read(input)
     if (result.status !== 'ready') throw new Error('expected ready')
-    const tied = result.categories.filter((entry) => entry.count === 2)
-    expect(tied.map((entry) => entry.category)).toEqual(['cleanliness', 'service'])
-  })
-
-  it('keeps one entry per day so sentiment can be drawn as a trend', async () => {
-    const { read } = harness()
-    const result = await read(input)
-    if (result.status !== 'ready') throw new Error('expected ready')
-    expect(result.sentimentByDay.map((entry) => entry.localDate)).toEqual([
+    expect(result.sentimentByDay.map(({ localDate }) => localDate)).toEqual([
       '2026-08-19',
       '2026-08-20',
     ])
+    expect(result.emergingIssues).toEqual([])
   })
 })

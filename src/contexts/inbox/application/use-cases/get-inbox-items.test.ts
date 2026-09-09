@@ -343,17 +343,22 @@ describe('getInboxItems', () => {
     )
   })
 
-  it('filters the in-memory repository by its seeded AI category', async () => {
+  it('filters the in-memory repository by an aspect and polarity on one mention', async () => {
     const { useCase, repo } = setup()
-    const service = seedItem({ id: 'ii-service' })
-    const waitTime = seedItem({ id: 'ii-wait-time' })
-    repo.items.push(service, waitTime)
-    repo.categories.set(service.id, 'service')
-    repo.categories.set(waitTime.id, 'wait_time')
+    const praise = seedItem({ id: 'ii-praise' })
+    const complaint = seedItem({ id: 'ii-complaint' })
+    repo.items.push(praise, complaint)
+    repo.analysisAspects.set(praise.id, [{ aspect: 'wait_time', polarity: 'positive' }])
+    repo.analysisAspects.set(complaint.id, [
+      { aspect: 'wait_time', polarity: 'negative' },
+    ])
 
-    const result = await useCase({ filters: { category: ['wait_time'] } }, adminCtx)
+    const result = await useCase(
+      { filters: { aspect: ['wait_time'], polarity: ['negative'] } },
+      adminCtx,
+    )
 
-    expect(result.items.map((item) => item.id)).toEqual([waitTime.id])
+    expect(result.items.map((item) => item.id)).toEqual([complaint.id])
     expect(result.totalCount).toBe(1)
   })
 

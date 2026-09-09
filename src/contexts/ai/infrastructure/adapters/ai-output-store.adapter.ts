@@ -1,4 +1,15 @@
-import { and, desc, eq, gt, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm'
+import {
+  and,
+  desc,
+  eq,
+  exists,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
 import type { ReviewId } from '#/shared/domain/ids'
@@ -26,6 +37,8 @@ import {
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import { isAspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
+import { isAiIssueLabel } from '#/shared/ai-issue-label'
 import type {
   AiOutputStorePort,
   AiTrendEvidence,
@@ -66,26 +79,6 @@ const LOCAL_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const REVIEW_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const CLOSED_SIGNAL_ID_SET = new Set<string>(CLOSED_TREND_SIGNAL_IDS)
-function validIssueLabel(value: string | null): boolean {
-  if (value === null) return true
-  if (value.length === 0 || value.length > 40) return false
-  let wordCount = 1
-  for (let index = 0; index < value.length; index += 1) {
-    const codePoint = value.charCodeAt(index)
-    if (codePoint >= 97 && codePoint <= 122) continue
-    if (
-      codePoint !== 32 ||
-      index === 0 ||
-      index === value.length - 1 ||
-      value.charCodeAt(index - 1) === 32
-    ) {
-      return false
-    }
-    wordCount += 1
-    if (wordCount > 4) return false
-  }
-  return true
-}
 
 function objectValue(value: unknown): Readonly<Record<string, unknown>> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -297,6 +290,65 @@ function trendEvidence(value: unknown): AiTrendEvidence | null {
 type AiOutputCapability = 'review_analysis' | 'reply_drafting' | 'property_trends'
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
+
+const authorizedEffectOperationColumns = {
+  state: aiOperations.state,
+  executionAttempt: aiOperations.executionAttempt,
+  command: aiOperations.command,
+  capability: aiOperations.capability,
+  organizationId: aiOperations.organizationId,
+  propertyId: aiOperations.propertyId,
+  sourceEpoch: aiOperations.sourceEpoch,
+  authorizationLineageId: aiOperations.authorizationLineageId,
+  noticeVersion: aiOperations.noticeVersion,
+  noticeDigest: aiOperations.noticeDigest,
+  propertyProfileVersion: aiOperations.propertyProfileVersion,
+  sourcePolicyId: aiOperations.sourcePolicyId,
+  redactionProfileVersion: aiOperations.redactionProfileVersion,
+  capabilityFences: aiOperations.capabilityFences,
+  globalControlId: aiOperations.globalControlId,
+  globalControlGeneration: aiOperations.globalControlGeneration,
+  providerControlId: aiOperations.providerControlId,
+  providerControlGeneration: aiOperations.providerControlGeneration,
+  capabilityControlId: aiOperations.capabilityControlId,
+  capabilityControlGeneration: aiOperations.capabilityControlGeneration,
+} as const
+
+const reviewOperationColumns = {
+  ...authorizedEffectOperationColumns,
+  reviewId: aiOperations.reviewId,
+  sourceRevision: aiOperations.sourceRevision,
+  sourceDigest: aiOperations.sourceDigest,
+  sourceByteCount: aiOperations.sourceByteCount,
+} as const
+
+const lockedReviewOperationColumns = {
+  ...reviewOperationColumns,
+  analysisSequence: aiOperations.analysisSequence,
+  actorUserId: aiOperations.actorUserId,
+  baseReplyStateRevision: aiOperations.baseReplyStateRevision,
+  replyBrandProfileVersion: aiOperations.replyBrandProfileVersion,
+  replyBrandDisplayNameDigest: aiOperations.replyBrandDisplayNameDigest,
+} as const
+
+async function lockReviewOperation(
+  tx: Transaction,
+  operationId: string,
+  organizationId: string,
+) {
+  const [operation] = await tx
+    .select(lockedReviewOperationColumns)
+    .from(aiOperations)
+    .where(
+      and(
+        eq(aiOperations.id, operationId),
+        eq(aiOperations.organizationId, organizationId),
+      ),
+    )
+    .limit(1)
+    .for('update')
+  return operation
+}
 
 type AuthorizedEffectOperation = Readonly<{
   organizationId: string
@@ -550,38 +602,11 @@ export const createAiOutputStoreAdapter = (
   return {
     async storeAnalysis(input) {
       return db.transaction(async (tx) => {
-        const [operation] = await tx
-          .select({
-            state: aiOperations.state,
-            executionAttempt: aiOperations.executionAttempt,
-            command: aiOperations.command,
-            capability: aiOperations.capability,
-            organizationId: aiOperations.organizationId,
-            propertyId: aiOperations.propertyId,
-            reviewId: aiOperations.reviewId,
-            sourceEpoch: aiOperations.sourceEpoch,
-            sourceRevision: aiOperations.sourceRevision,
-            sourceDigest: aiOperations.sourceDigest,
-            sourceByteCount: aiOperations.sourceByteCount,
-            analysisSequence: aiOperations.analysisSequence,
-            authorizationLineageId: aiOperations.authorizationLineageId,
-            noticeVersion: aiOperations.noticeVersion,
-            noticeDigest: aiOperations.noticeDigest,
-            propertyProfileVersion: aiOperations.propertyProfileVersion,
-            sourcePolicyId: aiOperations.sourcePolicyId,
-            redactionProfileVersion: aiOperations.redactionProfileVersion,
-            capabilityFences: aiOperations.capabilityFences,
-            globalControlId: aiOperations.globalControlId,
-            globalControlGeneration: aiOperations.globalControlGeneration,
-            providerControlId: aiOperations.providerControlId,
-            providerControlGeneration: aiOperations.providerControlGeneration,
-            capabilityControlId: aiOperations.capabilityControlId,
-            capabilityControlGeneration: aiOperations.capabilityControlGeneration,
-          })
-          .from(aiOperations)
-          .where(eq(aiOperations.id, input.operationId))
-          .limit(1)
-          .for('update')
+        const operation = await lockReviewOperation(
+          tx,
+          input.operationId,
+          input.organizationId,
+        )
         const fence = capabilityFence(operation?.capabilityFences)
         if (
           !operation ||
@@ -600,9 +625,9 @@ export const createAiOutputStoreAdapter = (
             operation.authorizationLineageId === input.authorizationLineageId,
             operation.propertyProfileVersion === input.propertyProfileVersion,
             input.analysisProfileVersion === 'review-analysis-v2',
-            input.result.status === 'ready'
-              ? validIssueLabel(input.result.derivative.issueLabel)
-              : true,
+            input.result.status !== 'ready' ||
+              input.result.derivative.issueLabel === null ||
+              isAiIssueLabel(input.result.derivative.issueLabel),
             fence.capability === 'review_analysis',
             fence.reviewAnalysisEpoch === input.reviewAnalysisEpoch,
           ].every(Boolean)
@@ -721,41 +746,11 @@ export const createAiOutputStoreAdapter = (
     },
     async settleEphemeralReply(input) {
       return db.transaction(async (tx) => {
-        const [operation] = await tx
-          .select({
-            state: aiOperations.state,
-            executionAttempt: aiOperations.executionAttempt,
-            command: aiOperations.command,
-            capability: aiOperations.capability,
-            organizationId: aiOperations.organizationId,
-            propertyId: aiOperations.propertyId,
-            reviewId: aiOperations.reviewId,
-            actorUserId: aiOperations.actorUserId,
-            sourceEpoch: aiOperations.sourceEpoch,
-            sourceRevision: aiOperations.sourceRevision,
-            sourceDigest: aiOperations.sourceDigest,
-            sourceByteCount: aiOperations.sourceByteCount,
-            baseReplyStateRevision: aiOperations.baseReplyStateRevision,
-            authorizationLineageId: aiOperations.authorizationLineageId,
-            noticeVersion: aiOperations.noticeVersion,
-            noticeDigest: aiOperations.noticeDigest,
-            propertyProfileVersion: aiOperations.propertyProfileVersion,
-            replyBrandProfileVersion: aiOperations.replyBrandProfileVersion,
-            replyBrandDisplayNameDigest: aiOperations.replyBrandDisplayNameDigest,
-            sourcePolicyId: aiOperations.sourcePolicyId,
-            redactionProfileVersion: aiOperations.redactionProfileVersion,
-            capabilityFences: aiOperations.capabilityFences,
-            globalControlId: aiOperations.globalControlId,
-            globalControlGeneration: aiOperations.globalControlGeneration,
-            providerControlId: aiOperations.providerControlId,
-            providerControlGeneration: aiOperations.providerControlGeneration,
-            capabilityControlId: aiOperations.capabilityControlId,
-            capabilityControlGeneration: aiOperations.capabilityControlGeneration,
-          })
-          .from(aiOperations)
-          .where(eq(aiOperations.id, input.operationId))
-          .limit(1)
-          .for('update')
+        const operation = await lockReviewOperation(
+          tx,
+          input.operationId,
+          input.organizationId,
+        )
         const fence = capabilityFence(operation?.capabilityFences)
         if (
           operation?.state !== 'executing' ||
@@ -860,10 +855,35 @@ export const createAiOutputStoreAdapter = (
         gt(aiReviewAnalyses.expiresAt, now),
       ])
     },
-    async findCurrentReviewIdsByCategory(input) {
-      if (input.categories.length === 0) return []
+    async findCurrentReviewIdsByAspect(input) {
+      if (
+        input.aspects?.length === 0 ||
+        input.polarities?.length === 0 ||
+        (input.aspects === undefined && input.polarities === undefined)
+      ) {
+        return []
+      }
+      const mentionConditions = [
+        eq(aiReviewAnalysisAspects.organizationId, aiReviewAnalyses.organizationId),
+        eq(aiReviewAnalysisAspects.propertyId, aiReviewAnalyses.propertyId),
+        eq(aiReviewAnalysisAspects.reviewId, aiReviewAnalyses.reviewId),
+        eq(aiReviewAnalysisAspects.sourceEpoch, aiReviewAnalyses.sourceEpoch),
+        eq(aiReviewAnalysisAspects.sourceRevision, aiReviewAnalyses.sourceRevision),
+        eq(aiReviewAnalysisAspects.analysisSequence, aiReviewAnalyses.analysisSequence),
+        ...(input.aspects
+          ? [inArray(aiReviewAnalysisAspects.aspect, [...input.aspects])]
+          : []),
+        ...(input.polarities
+          ? [inArray(aiReviewAnalysisAspects.polarity, [...input.polarities])]
+          : []),
+      ]
       return findCurrentAnalysisReviewIds(db, input, (now) => [
-        inArray(aiReviewAnalyses.primaryCategory, [...input.categories]),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(aiReviewAnalysisAspects)
+            .where(and(...mentionConditions)),
+        ),
         gt(aiReviewAnalyses.expiresAt, now),
       ])
     },
@@ -872,29 +892,10 @@ export const createAiOutputStoreAdapter = (
       return db.transaction(async (tx) => {
         const [operation] = await tx
           .select({
-            state: aiOperations.state,
-            executionAttempt: aiOperations.executionAttempt,
-            command: aiOperations.command,
-            capability: aiOperations.capability,
-            organizationId: aiOperations.organizationId,
-            propertyId: aiOperations.propertyId,
-            sourceEpoch: aiOperations.sourceEpoch,
+            ...authorizedEffectOperationColumns,
             dueLocalDate: aiOperations.dueLocalDate,
             terminalAnalysisSequence: aiOperations.terminalAnalysisSequence,
             aggregateRevision: aiOperations.aggregateRevision,
-            authorizationLineageId: aiOperations.authorizationLineageId,
-            noticeVersion: aiOperations.noticeVersion,
-            noticeDigest: aiOperations.noticeDigest,
-            propertyProfileVersion: aiOperations.propertyProfileVersion,
-            sourcePolicyId: aiOperations.sourcePolicyId,
-            redactionProfileVersion: aiOperations.redactionProfileVersion,
-            capabilityFences: aiOperations.capabilityFences,
-            globalControlId: aiOperations.globalControlId,
-            globalControlGeneration: aiOperations.globalControlGeneration,
-            providerControlId: aiOperations.providerControlId,
-            providerControlGeneration: aiOperations.providerControlGeneration,
-            capabilityControlId: aiOperations.capabilityControlId,
-            capabilityControlGeneration: aiOperations.capabilityControlGeneration,
           })
           .from(aiOperations)
           .where(eq(aiOperations.id, input.operationId))
@@ -1254,11 +1255,12 @@ export const createAiOutputStoreAdapter = (
             ),
           )
           .orderBy(aiReviewAnalysisAspects.aspect)
-        const historicalV1 = analysis.analysisProfileVersion === 'review-analysis-v1'
         if (
-          (!historicalV1 && (aspects.length < 1 || aspects.length > 5)) ||
-          (historicalV1 && aspects.length !== 0) ||
-          !validIssueLabel(analysis.issueLabel)
+          !isAspectTaxonomyV1Id(analysis.primaryCategory) ||
+          aspects.length < 1 ||
+          aspects.length > 5 ||
+          aspects.some(({ aspect }) => !isAspectTaxonomyV1Id(aspect)) ||
+          (analysis.issueLabel !== null && !isAiIssueLabel(analysis.issueLabel))
         ) {
           throw new Error('Ready AI analysis aspects or issue label are invalid')
         }

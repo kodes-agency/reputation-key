@@ -329,7 +329,7 @@ function synthesizedParsed(
     case 'reply':
       return payload === null ? null : synthesizedReply(payload)
     case 'trend':
-      return { selectedSignalIds: ['valence.overall.up'] }
+      return { selectedSignalIds: ['sentiment.positive.up'] }
     case 'synthetic_canary':
       return { marker: 'synthetic_canary_ok' }
   }

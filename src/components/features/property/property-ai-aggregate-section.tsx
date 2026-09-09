@@ -1,7 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import type { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-aggregates'
 import { aiKeys } from '#/shared/queries/query-keys'
-import { CategoryBreakdownList, SentimentMixChart } from './property-ai-aggregate-charts'
+import {
+  AspectBreakdownList,
+  EmergingIssuesList,
+  SentimentMixChart,
+} from './property-ai-aggregate-charts'
 
 export type PropertyAiAggregatesServerFn = typeof getPropertyAiAggregatesFn
 
@@ -49,7 +53,7 @@ export function PropertyAiAggregateSection({
       <Section>
         <div className="mt-3 rounded-lg border p-4">
           <p className="text-sm text-muted-foreground">
-            Guest topics are unavailable right now. The rest of the dashboard is
+            Guest insights are unavailable right now. The rest of the dashboard is
             unaffected.
           </p>
         </div>
@@ -62,7 +66,7 @@ export function PropertyAiAggregateSection({
       <Section>
         <div className="mt-3 rounded-lg border p-4">
           <p className="text-sm text-muted-foreground">
-            Analysis for this property is still settling. Topics appear once the daily
+            Analysis for this property is still settling. Insights appear once the daily
             totals agree with the reviews behind them.
           </p>
         </div>
@@ -83,14 +87,23 @@ export function PropertyAiAggregateSection({
         {data.reviewCount} analysed {data.reviewCount === 1 ? 'review' : 'reviews'} from{' '}
         {data.startLocalDate} to {data.endLocalDate}, in the property&apos;s own time zone
       </p>
-      <div className="mt-3 grid min-w-0 gap-4 lg:grid-cols-2">
+      <div className="mt-3 grid min-w-0 gap-4 xl:grid-cols-3">
         <div className="min-w-0 rounded-lg border bg-muted/30 p-4">
-          <h3 className="mb-3 text-sm font-semibold tracking-tight">Topics by volume</h3>
-          <CategoryBreakdownList
+          <h3 className="mb-1 text-sm font-semibold tracking-tight">
+            Aspect mentions and impact
+          </h3>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Mention counts beside rating-weighted impact
+          </p>
+          <AspectBreakdownList
             propertyId={propertyId}
-            categories={data.categories}
+            aspects={data.aspects}
             reviewCount={data.reviewCount}
           />
+        </div>
+        <div className="min-w-0 rounded-lg border bg-muted/30 p-4">
+          <h3 className="mb-3 text-sm font-semibold tracking-tight">Emerging issues</h3>
+          <EmergingIssuesList issues={data.emergingIssues} />
         </div>
         <div className="min-w-0 rounded-lg border bg-muted/30 p-4">
           <h3 className="mb-3 text-sm font-semibold tracking-tight">

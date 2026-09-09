@@ -156,7 +156,7 @@ export const ReviewAsPropertyManager: Story = {
   },
 }
 
-export const ReviewWithAnalysis: Story = {
+export const ReviewWithMixedAspectPolarities: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
     ...ReviewAsPropertyManager.args,
@@ -164,9 +164,14 @@ export const ReviewWithAnalysis: Story = {
       ...reviewDetail,
       analysis: {
         status: 'ready',
-        sentiment: 'positive',
+        sentiment: 'mixed',
+        aspects: [
+          { aspect: 'service', polarity: 'negative', intensity: -82 },
+          { aspect: 'room', polarity: 'positive', intensity: 68 },
+        ],
         primaryCategory: 'service',
         attention: 'high',
+        issueLabel: 'front desk delays',
         generatedAtEpochMillis: Date.parse('2026-08-16T12:00:00Z'),
       },
     },
@@ -175,8 +180,9 @@ export const ReviewWithAnalysis: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('region', { name: 'AI review analysis' })).toBeVisible()
     await expect(canvas.getByText('High attention')).toBeVisible()
-    await expect(canvas.getByText('Positive sentiment')).toBeVisible()
-    await expect(canvas.getByText('Service')).toBeVisible()
+    await expect(canvas.getByText('Mixed sentiment')).toBeVisible()
+    await expect(canvas.getByText('Service · Negative')).toBeVisible()
+    await expect(canvas.getByText('Room · Positive')).toBeVisible()
   },
 }
 

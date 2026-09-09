@@ -25,18 +25,7 @@ function aggregateDay(localDate: string, reviewCount: number): AiPropertyDailyAg
       negative: 0,
       mixed: 0,
     },
-    categoryCounts: {
-      service: reviewCount,
-      staff: 0,
-      quality: 0,
-      value: 0,
-      cleanliness: 0,
-      wait_time: 0,
-      atmosphere: 0,
-      location: 0,
-      accessibility: 0,
-      other: 0,
-    },
+    aspectCounts: [{ aspect: 'service', polarity: 'positive', count: reviewCount }],
     attentionCounts: { urgent: 0, high: 0, medium: 0, low: reviewCount },
   }
 }
@@ -52,18 +41,10 @@ function trendDay(localDate: string, positiveCount: number): AiPropertyDailyAggr
       negative: 0,
       mixed: 0,
     },
-    categoryCounts: {
-      service: 2,
-      staff: 18,
-      quality: 0,
-      value: 0,
-      cleanliness: 0,
-      wait_time: 0,
-      atmosphere: 0,
-      location: 0,
-      accessibility: 0,
-      other: 0,
-    },
+    aspectCounts: [
+      { aspect: 'service', polarity: 'positive', count: 2 },
+      { aspect: 'staff', polarity: 'neutral', count: 18 },
+    ],
     attentionCounts: { urgent: 0, high: 0, medium: 0, low: 20 },
   }
 }
@@ -88,8 +69,8 @@ function analyzedReview(
     sourceRevision: 1,
     analysisSequence: sequence,
     localDate,
+    rating: positive ? 5 : 3,
     sentiment: positive ? 'positive' : 'neutral',
-    primaryCategory: sequence % 10 === 0 ? 'service' : 'staff',
     attention: 'low',
     aspects: [
       {
@@ -98,6 +79,7 @@ function analyzedReview(
         intensity: positive ? 60 : 0,
       },
     ],
+    issueLabel: null,
     analysisProfileVersion: 'review-analysis-v2',
     providerDeploymentProfileVersion: 'private-beta-global-v1',
     modelSnapshot: 'gpt-5.4-mini-2026-03-17',

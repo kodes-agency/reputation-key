@@ -264,6 +264,7 @@ const approvedDetail: InboxItemDetailResult = {
   analysis: {
     status: 'ready',
     sentiment: 'positive',
+    aspects: [{ aspect: 'service', polarity: 'positive', intensity: 76 }],
     primaryCategory: 'service',
     attention: 'low',
     generatedAtEpochMillis: Date.parse('2026-08-19T07:08:00Z'),
