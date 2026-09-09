@@ -291,6 +291,56 @@ type AiOutputCapability = 'review_analysis' | 'reply_drafting' | 'property_trend
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 
+const authorizedEffectOperationColumns = {
+  state: aiOperations.state,
+  executionAttempt: aiOperations.executionAttempt,
+  command: aiOperations.command,
+  capability: aiOperations.capability,
+  organizationId: aiOperations.organizationId,
+  propertyId: aiOperations.propertyId,
+  sourceEpoch: aiOperations.sourceEpoch,
+  authorizationLineageId: aiOperations.authorizationLineageId,
+  noticeVersion: aiOperations.noticeVersion,
+  noticeDigest: aiOperations.noticeDigest,
+  propertyProfileVersion: aiOperations.propertyProfileVersion,
+  sourcePolicyId: aiOperations.sourcePolicyId,
+  redactionProfileVersion: aiOperations.redactionProfileVersion,
+  capabilityFences: aiOperations.capabilityFences,
+  globalControlId: aiOperations.globalControlId,
+  globalControlGeneration: aiOperations.globalControlGeneration,
+  providerControlId: aiOperations.providerControlId,
+  providerControlGeneration: aiOperations.providerControlGeneration,
+  capabilityControlId: aiOperations.capabilityControlId,
+  capabilityControlGeneration: aiOperations.capabilityControlGeneration,
+} as const
+
+const reviewOperationColumns = {
+  ...authorizedEffectOperationColumns,
+  reviewId: aiOperations.reviewId,
+  sourceRevision: aiOperations.sourceRevision,
+  sourceDigest: aiOperations.sourceDigest,
+  sourceByteCount: aiOperations.sourceByteCount,
+} as const
+
+const lockedReviewOperationColumns = {
+  ...reviewOperationColumns,
+  analysisSequence: aiOperations.analysisSequence,
+  actorUserId: aiOperations.actorUserId,
+  baseReplyStateRevision: aiOperations.baseReplyStateRevision,
+  replyBrandProfileVersion: aiOperations.replyBrandProfileVersion,
+  replyBrandDisplayNameDigest: aiOperations.replyBrandDisplayNameDigest,
+} as const
+
+async function lockReviewOperation(tx: Transaction, operationId: string) {
+  const [operation] = await tx
+    .select(lockedReviewOperationColumns)
+    .from(aiOperations)
+    .where(eq(aiOperations.id, operationId))
+    .limit(1)
+    .for('update')
+  return operation
+}
+
 type AuthorizedEffectOperation = Readonly<{
   organizationId: string
   propertyId: string
@@ -543,38 +593,7 @@ export const createAiOutputStoreAdapter = (
   return {
     async storeAnalysis(input) {
       return db.transaction(async (tx) => {
-        const [operation] = await tx
-          .select({
-            state: aiOperations.state,
-            executionAttempt: aiOperations.executionAttempt,
-            command: aiOperations.command,
-            capability: aiOperations.capability,
-            organizationId: aiOperations.organizationId,
-            propertyId: aiOperations.propertyId,
-            reviewId: aiOperations.reviewId,
-            sourceEpoch: aiOperations.sourceEpoch,
-            sourceRevision: aiOperations.sourceRevision,
-            sourceDigest: aiOperations.sourceDigest,
-            sourceByteCount: aiOperations.sourceByteCount,
-            analysisSequence: aiOperations.analysisSequence,
-            authorizationLineageId: aiOperations.authorizationLineageId,
-            noticeVersion: aiOperations.noticeVersion,
-            noticeDigest: aiOperations.noticeDigest,
-            propertyProfileVersion: aiOperations.propertyProfileVersion,
-            sourcePolicyId: aiOperations.sourcePolicyId,
-            redactionProfileVersion: aiOperations.redactionProfileVersion,
-            capabilityFences: aiOperations.capabilityFences,
-            globalControlId: aiOperations.globalControlId,
-            globalControlGeneration: aiOperations.globalControlGeneration,
-            providerControlId: aiOperations.providerControlId,
-            providerControlGeneration: aiOperations.providerControlGeneration,
-            capabilityControlId: aiOperations.capabilityControlId,
-            capabilityControlGeneration: aiOperations.capabilityControlGeneration,
-          })
-          .from(aiOperations)
-          .where(eq(aiOperations.id, input.operationId))
-          .limit(1)
-          .for('update')
+        const operation = await lockReviewOperation(tx, input.operationId)
         const fence = capabilityFence(operation?.capabilityFences)
         if (
           !operation ||
@@ -714,41 +733,7 @@ export const createAiOutputStoreAdapter = (
     },
     async settleEphemeralReply(input) {
       return db.transaction(async (tx) => {
-        const [operation] = await tx
-          .select({
-            state: aiOperations.state,
-            executionAttempt: aiOperations.executionAttempt,
-            command: aiOperations.command,
-            capability: aiOperations.capability,
-            organizationId: aiOperations.organizationId,
-            propertyId: aiOperations.propertyId,
-            reviewId: aiOperations.reviewId,
-            actorUserId: aiOperations.actorUserId,
-            sourceEpoch: aiOperations.sourceEpoch,
-            sourceRevision: aiOperations.sourceRevision,
-            sourceDigest: aiOperations.sourceDigest,
-            sourceByteCount: aiOperations.sourceByteCount,
-            baseReplyStateRevision: aiOperations.baseReplyStateRevision,
-            authorizationLineageId: aiOperations.authorizationLineageId,
-            noticeVersion: aiOperations.noticeVersion,
-            noticeDigest: aiOperations.noticeDigest,
-            propertyProfileVersion: aiOperations.propertyProfileVersion,
-            replyBrandProfileVersion: aiOperations.replyBrandProfileVersion,
-            replyBrandDisplayNameDigest: aiOperations.replyBrandDisplayNameDigest,
-            sourcePolicyId: aiOperations.sourcePolicyId,
-            redactionProfileVersion: aiOperations.redactionProfileVersion,
-            capabilityFences: aiOperations.capabilityFences,
-            globalControlId: aiOperations.globalControlId,
-            globalControlGeneration: aiOperations.globalControlGeneration,
-            providerControlId: aiOperations.providerControlId,
-            providerControlGeneration: aiOperations.providerControlGeneration,
-            capabilityControlId: aiOperations.capabilityControlId,
-            capabilityControlGeneration: aiOperations.capabilityControlGeneration,
-          })
-          .from(aiOperations)
-          .where(eq(aiOperations.id, input.operationId))
-          .limit(1)
-          .for('update')
+        const operation = await lockReviewOperation(tx, input.operationId)
         const fence = capabilityFence(operation?.capabilityFences)
         if (
           operation?.state !== 'executing' ||
@@ -890,29 +875,10 @@ export const createAiOutputStoreAdapter = (
       return db.transaction(async (tx) => {
         const [operation] = await tx
           .select({
-            state: aiOperations.state,
-            executionAttempt: aiOperations.executionAttempt,
-            command: aiOperations.command,
-            capability: aiOperations.capability,
-            organizationId: aiOperations.organizationId,
-            propertyId: aiOperations.propertyId,
-            sourceEpoch: aiOperations.sourceEpoch,
+            ...authorizedEffectOperationColumns,
             dueLocalDate: aiOperations.dueLocalDate,
             terminalAnalysisSequence: aiOperations.terminalAnalysisSequence,
             aggregateRevision: aiOperations.aggregateRevision,
-            authorizationLineageId: aiOperations.authorizationLineageId,
-            noticeVersion: aiOperations.noticeVersion,
-            noticeDigest: aiOperations.noticeDigest,
-            propertyProfileVersion: aiOperations.propertyProfileVersion,
-            sourcePolicyId: aiOperations.sourcePolicyId,
-            redactionProfileVersion: aiOperations.redactionProfileVersion,
-            capabilityFences: aiOperations.capabilityFences,
-            globalControlId: aiOperations.globalControlId,
-            globalControlGeneration: aiOperations.globalControlGeneration,
-            providerControlId: aiOperations.providerControlId,
-            providerControlGeneration: aiOperations.providerControlGeneration,
-            capabilityControlId: aiOperations.capabilityControlId,
-            capabilityControlGeneration: aiOperations.capabilityControlGeneration,
           })
           .from(aiOperations)
           .where(eq(aiOperations.id, input.operationId))

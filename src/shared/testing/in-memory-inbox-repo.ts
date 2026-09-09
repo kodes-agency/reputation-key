@@ -31,6 +31,22 @@ type ReviewAspectMention = Readonly<{
   polarity: ReviewAspectPolarity
 }>
 
+type InboxFilters = Parameters<InboxRepository['findFilteredPaginated']>[0]
+
+function matchesAnalysisNarrowing(
+  item: InboxItem,
+  filters: Pick<InboxFilters, 'aspect' | 'polarity'>,
+  analysisAspects: ReadonlyMap<string, readonly ReviewAspectMention[]>,
+): boolean {
+  if (!filters.aspect?.length && !filters.polarity?.length) return true
+  const mentions = analysisAspects.get(item.id) ?? []
+  return mentions.some(
+    (mention) =>
+      (!filters.aspect?.length || filters.aspect.includes(mention.aspect)) &&
+      (!filters.polarity?.length || filters.polarity.includes(mention.polarity)),
+  )
+}
+
 export function createInMemoryInboxRepo(): InboxRepository & {
   items: InboxItem[]
   analysisAspects: Map<string, readonly ReviewAspectMention[]>
@@ -90,15 +106,9 @@ export function createInMemoryInboxRepo(): InboxRepository & {
         filtered = filtered.filter(
           (i) => i.attention !== null && filters.attention!.includes(i.attention!),
         )
-      if (filters.aspect?.length || filters.polarity?.length)
-        filtered = filtered.filter((item) => {
-          const mentions = analysisAspects.get(item.id) ?? []
-          return mentions.some(
-            (mention) =>
-              (!filters.aspect?.length || filters.aspect.includes(mention.aspect)) &&
-              (!filters.polarity?.length || filters.polarity.includes(mention.polarity)),
-          )
-        })
+      filtered = filtered.filter((item) =>
+        matchesAnalysisNarrowing(item, filters, analysisAspects),
+      )
       if (filters.isEscalated !== undefined)
         filtered = filtered.filter((i) =>
           filters.isEscalated
