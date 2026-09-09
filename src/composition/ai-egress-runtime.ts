@@ -67,6 +67,7 @@ import {
   loadSafetyIdentifierKey,
 } from '#/shared/ai-provider-control/key-material'
 import type { AiAdmissionClient } from '#/shared/ai-provider-control/contracts'
+import { getLogger } from '#/shared/observability/logger'
 
 /**
  * The sidecar pair exposed a health endpoint and a readiness probe because a
@@ -246,6 +247,13 @@ export function createAiEgressRuntime(
       replyLanguageDetector: await createCld3ReplyLanguageDetector(),
       provenanceKid,
       provenancePrivateKey,
+      // The operation row only ever records `output_invalid`, so without this
+      // line a refused draft cannot be attributed to one of eight rules after
+      // the fact - which is exactly the diagnosis that previously needed a
+      // probe attached to the running process. Identifiers only.
+      onOutputRefused: (refusal) => {
+        getLogger().warn(refusal, 'AI reply output refused by an output rule')
+      },
     })
 
     return createAiEgressGatewayService({

@@ -28,7 +28,7 @@ import {
   AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
   AI_REVIEW_LANGUAGE_REGION_UNICODE_VERSION,
 } from '#/shared/generated/ai-review-language-canonical-regions-v1'
-import { createAiGatewayRoutePreparer } from './route-preparer'
+import { type AiReplyOutputRefusal, createAiGatewayRoutePreparer } from './route-preparer'
 import { createSensitiveSourceLease } from './source-lease'
 
 const UUID = {
@@ -150,9 +150,11 @@ function preparer(
     probability: number
     reliable: boolean
   }> = () => ({ language: 'en', probability: 1, reliable: true }),
+  onOutputRefused?: (refusal: AiReplyOutputRefusal) => void,
 ) {
   const provenance = generateKeyPairSync('ed25519')
   return createAiGatewayRoutePreparer({
+    ...(onOutputRefused ? { onOutputRefused } : {}),
     requestBindingKeys: createVersionedHmacKeyring(`request-v1:${'11'.repeat(32)}`),
     safetyIdentifierKey: Buffer.alloc(32, 7),
     replyLanguageDetector: {
@@ -257,6 +259,94 @@ describe('gateway route-preparer source lifetime', () => {
       responseBytes: profile?.responseByteLimit,
       outputTokens: profile?.maxOutputTokens,
     })
+  })
+
+  // A refused draft lands on the operation as one opaque `output_invalid`,
+  // after the provider has been billed and while the operator is shown a local
+  // fallback. Attributing eleven real refusals on the beta property required
+  // attaching a probe to the running process, so each rule now names itself.
+  it('names the rule that refused a reply draft, without carrying its content', () => {
+    const request = replyRequest()
+    if (request.route !== 'reply-suggestion') {
+      throw new Error('expected reply suggestion request')
+    }
+    const refusals: AiReplyOutputRefusal[] = []
+    const prepared = preparer(
+      (text) => ({
+        language: /[\u0400-\u04ff]/u.test(text) ? 'bg' : 'tr',
+        probability: 1,
+        reliable: true,
+      }),
+      (refusal) => refusals.push(refusal),
+    ).prepare(request)
+
+    // Never names the business, so the brand rule refuses.
+    expect(
+      prepared.acceptProviderResult({
+        languageCode: 'bg-Cyrl-BG',
+        replyText:
+          'Благодарим ви за отзива. Радваме се, че внимателният и отзивчив персонал е допринесъл за приятния ви престой.',
+        grounding: [
+          {
+            sourceExcerpt: 'personel çok ilgili ve yardımseverdi',
+            replyExcerpt: 'внимателният и отзивчив персонал',
+          },
+        ],
+      }),
+    ).toBeNull()
+
+    // Quotes words the review never contained, so the grounding anchor refuses.
+    expect(
+      prepared.acceptProviderResult({
+        languageCode: 'bg-Cyrl-BG',
+        replyText:
+          'Example Hotel ви благодари за отзива. Радваме се, че закуската беше на ниво и че престоят ви бе приятен.',
+        grounding: [
+          {
+            sourceExcerpt: 'rooftop pool was heated',
+            replyExcerpt: 'закуската беше на ниво',
+          },
+        ],
+      }),
+    ).toBeNull()
+
+    expect(refusals).toEqual([
+      { route: 'reply-suggestion', reason: 'brand' },
+      { route: 'reply-suggestion', reason: 'grounding' },
+    ])
+    // Identifiers only: no review text, no reply text, no excerpt.
+    expect(JSON.stringify(refusals)).not.toMatch(/благодар|persone|rooftop/i)
+  })
+
+  it('reports nothing when the draft is accepted', () => {
+    const request = replyRequest()
+    if (request.route !== 'reply-suggestion') {
+      throw new Error('expected reply suggestion request')
+    }
+    const refusals: AiReplyOutputRefusal[] = []
+    const prepared = preparer(
+      (text) => ({
+        language: /[\u0400-\u04ff]/u.test(text) ? 'bg' : 'tr',
+        probability: 1,
+        reliable: true,
+      }),
+      (refusal) => refusals.push(refusal),
+    ).prepare(request)
+
+    expect(
+      prepared.acceptProviderResult({
+        languageCode: 'bg-Cyrl-BG',
+        replyText:
+          'Example Hotel ви благодари за отзива. Радваме се, че внимателният и отзивчив персонал е допринесъл за приятния ви престой.',
+        grounding: [
+          {
+            sourceExcerpt: 'personel çok ilgili ve yardımseverdi',
+            replyExcerpt: 'внимателният и отзивчив персонал',
+          },
+        ],
+      }),
+    ).not.toBeNull()
+    expect(refusals).toEqual([])
   })
 
   it('verifies a regional Turkish source group independently and admits the bound Bulgarian target', () => {
