@@ -26,6 +26,7 @@ type Input = Readonly<{
   onGenerate?: (
     tone: ReplyTone,
     target: ReplyLanguageTarget,
+    templateOnly?: boolean,
   ) => Promise<ReplySuggestionResult>
 }>
 
@@ -48,7 +49,7 @@ export function useReplySuggestion(input: Input) {
   )
 
   const request = useCallback(
-    async (requestedTone: ReplyTone = tone) => {
+    async (requestedTone: ReplyTone = tone, templateOnly = false) => {
       if (!input.onGenerate || !input.target) return
       const requestSequence = ++sequence.current
       const baseRevision = input.revision.current
@@ -59,7 +60,9 @@ export function useReplySuggestion(input: Input) {
       setErrorFixTarget(null)
       try {
         await input.onFlush(baseDraft)
-        const result = await input.onGenerate(requestedTone, input.target)
+        const result = templateOnly
+          ? await input.onGenerate(requestedTone, input.target, true)
+          : await input.onGenerate(requestedTone, input.target)
         if (
           requestSequence !== sequence.current ||
           baseRevision !== input.revision.current

@@ -15,6 +15,9 @@ export function buildReplySetClause(
   if (updates.text !== undefined) setClause.text = updates.text
   if (updates.replyLanguageTag !== undefined)
     setClause.replyLanguageTag = updates.replyLanguageTag
+  if (updates.templateId !== undefined) setClause.templateId = updates.templateId
+  if (updates.templateVersion !== undefined)
+    setClause.templateVersion = updates.templateVersion
   if (updates.aiGenerated !== undefined) {
     setClause.aiGenerated = updates.aiGenerated
     if (!updates.aiGenerated) {

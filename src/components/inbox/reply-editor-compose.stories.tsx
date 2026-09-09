@@ -8,6 +8,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test'
 import { ReplyCompose, type ReplySuggestionResult } from './reply-editor-compose'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
 
 const onSaveDraft = fn(async (_text: string) => undefined)
 const onSubmit = fn(async () => undefined)
@@ -59,6 +60,55 @@ const onGenerateNoTextTemplate = fn(async () => localTemplateSuggestion('no_revi
 const onGenerateShortTemplate = fn(async () =>
   localTemplateSuggestion('language_undetermined'),
 )
+const noLibraryTemplates = (): ReplyTemplateListResult => ({
+  profile: null,
+  groups: [],
+  recommendedTemplateId: null,
+})
+const onListNoTextTemplate = fn(async () => noLibraryTemplates())
+const onListShortTemplate = fn(async () => noLibraryTemplates())
+const onListTemplates = fn(async () => noLibraryTemplates())
+const onLoadTemplate = fn(async (templateId: string) => ({
+  text: 'Library template',
+  replyLanguageTag: 'en-Latn',
+  templateId,
+  templateVersion: 1,
+}))
+const LIBRARY_TEMPLATE_ID = '73000000-0000-4000-8000-000000000001'
+const LIBRARY_REPLY =
+  'Dear {guest_name},\n\nThank you for sharing your experience.\n\nWarm regards,\nHotel Team'
+const onListLibraryTemplates = fn(async (): Promise<ReplyTemplateListResult> => ({
+  profile: {
+    greeting: 'Dear {guest_name},',
+    signOffPositive: 'Warm regards,\nHotel Team',
+    signOffNegative: 'Sincerely,\nGuest Relations',
+    emojiAllowed: false,
+    escalationContact: 'care@example.test',
+    version: 2,
+  },
+  groups: [
+    {
+      languageGroup: 'en-Latn',
+      templates: [
+        {
+          id: LIBRARY_TEMPLATE_ID,
+          title: 'Guest appreciation',
+          aspect: null,
+          openLabel: null,
+          languageTag: 'en-Latn',
+          version: 3,
+        },
+      ],
+    },
+  ],
+  recommendedTemplateId: LIBRARY_TEMPLATE_ID,
+}))
+const onLoadLibraryTemplate = fn(async (templateId: string) => ({
+  text: LIBRARY_REPLY,
+  replyLanguageTag: 'en-Latn-US',
+  templateId,
+  templateVersion: 3,
+}))
 const onGenerateMissingTemplateLanguage = fn(
   async (): Promise<ReplySuggestionResult> => ({
     status: 'unavailable',
@@ -111,6 +161,9 @@ const meta: Meta<typeof ReplyCompose> = {
     isSaving: false,
     onSaveDraft,
     onSubmit,
+    onGenerateSuggestion,
+    onListTemplates,
+    onLoadTemplate,
   },
 }
 export default meta
@@ -140,6 +193,24 @@ export const OverLimit: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/5000\/4096/)).toHaveClass('text-destructive')
+    expect(canvas.getByRole('button', { name: /submit for approval/i })).toBeDisabled()
+  },
+}
+
+export const UnfilledTemplateSlotBlocksSubmit: Story = {
+  args: {
+    initialText: 'Dear {guest_name},\n\nThank you for your visit.',
+    initialLanguageTag: 'en-Latn',
+  },
+  play: async ({ canvas }) => {
+    expect(canvas.getByRole('textbox')).toHaveValue(
+      'Dear {guest_name},\n\nThank you for your visit.',
+    )
+    expect(
+      canvas.getByText(
+        'Fill every template placeholder before publishing: {guest_name}.',
+      ),
+    ).toBeVisible()
     expect(canvas.getByRole('button', { name: /submit for approval/i })).toBeDisabled()
   },
 }
@@ -222,6 +293,29 @@ export const LocalFallbackRequiresAdoption: Story = {
     await waitFor(() =>
       expect(onSaveDraft).toHaveBeenCalledWith(FALLBACK_REPLY, undefined, 'en-Latn'),
     )
+  },
+}
+
+export const LocalSafeMenuUsesCataloguePath: Story = {
+  args: { onGenerateSuggestion: onGenerateFallback },
+  play: async ({ canvas }) => {
+    onGenerateFallback.mockClear()
+
+    await userEvent.click(
+      canvas.getByRole('button', { name: /choose a reply template/i }),
+    )
+    await userEvent.click(
+      await screen.findByRole('menuitem', { name: 'Local safe template' }),
+    )
+
+    await waitFor(() =>
+      expect(onGenerateFallback).toHaveBeenCalledWith(
+        'professional',
+        { kind: 'property_default' },
+        true,
+      ),
+    )
+    await expect(canvas.findByText('Local safe starting point')).resolves.toBeVisible()
   },
 }
 
@@ -334,9 +428,12 @@ export const RatingOnlyUsesPropertyTemplate: Story = {
     reviewReplyLanguage: null,
     reviewLanguageReadiness: 'no_review_text',
     onGenerateSuggestion: onGenerateNoTextTemplate,
+    onListTemplates: onListNoTextTemplate,
   },
   play: async ({ canvasElement }) => {
+    onListNoTextTemplate.mockClear()
     onGenerateNoTextTemplate.mockClear()
+    onSaveDraft.mockClear()
     const canvas = within(canvasElement)
     await expectDisabledAutomaticDetection(
       canvasElement,
@@ -346,9 +443,10 @@ export const RatingOnlyUsesPropertyTemplate: Story = {
 
     const templateButton = canvas.getByRole('button', { name: /load template/i })
     expect(templateButton).toBeEnabled()
+    expect(canvas.getByRole('button', { name: /draft with ai/i })).toBeDisabled()
     await userEvent.click(templateButton)
     await waitFor(() =>
-      expect(onGenerateNoTextTemplate).toHaveBeenCalledWith('professional', {
+      expect(onListNoTextTemplate).toHaveBeenCalledWith({
         kind: 'property_default',
       }),
     )
@@ -357,6 +455,22 @@ export const RatingOnlyUsesPropertyTemplate: Story = {
         'This review has no text — template loaded in Bulgarian (property default).',
       ),
     ).resolves.toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: /use draft/i }))
+    await waitFor(() =>
+      expect(canvas.getByRole('textbox')).toHaveValue(BULGARIAN_TEMPLATE),
+    )
+    await waitFor(() =>
+      expect(onSaveDraft).toHaveBeenCalledWith(
+        BULGARIAN_TEMPLATE,
+        undefined,
+        'bg-Cyrl-BG',
+      ),
+    )
+    expect(onGenerateNoTextTemplate).toHaveBeenCalledWith(
+      'professional',
+      { kind: 'property_default' },
+      true,
+    )
   },
 }
 
@@ -367,8 +481,10 @@ export const ShortReviewUsesPropertyTemplate: Story = {
     reviewReplyLanguage: null,
     reviewLanguageReadiness: 'insufficient_language_evidence',
     onGenerateSuggestion: onGenerateShortTemplate,
+    onListTemplates: onListShortTemplate,
   },
   play: async ({ canvasElement }) => {
+    onListShortTemplate.mockClear()
     onGenerateShortTemplate.mockClear()
     const canvas = within(canvasElement)
     await expectDisabledAutomaticDetection(
@@ -379,15 +495,59 @@ export const ShortReviewUsesPropertyTemplate: Story = {
 
     await userEvent.click(canvas.getByRole('button', { name: /load template/i }))
     await waitFor(() =>
-      expect(onGenerateShortTemplate).toHaveBeenCalledWith('professional', {
+      expect(onListShortTemplate).toHaveBeenCalledWith({
         kind: 'property_default',
       }),
+    )
+    expect(onGenerateShortTemplate).toHaveBeenCalledWith(
+      'professional',
+      { kind: 'property_default' },
+      true,
     )
     await expect(
       canvas.findByText(
         "Review language couldn't be detected — template loaded in Bulgarian (property default).",
       ),
     ).resolves.toBeVisible()
+  },
+}
+
+export const LibraryTemplateLoadsAsManualDraft: Story = {
+  args: {
+    propertyDefaultReplyLanguage: 'en-Latn-US',
+    reviewReplyLanguage: null,
+    reviewLanguageReadiness: 'no_review_text',
+    onListTemplates: onListLibraryTemplates,
+    onLoadTemplate: onLoadLibraryTemplate,
+  },
+  play: async ({ canvas }) => {
+    onListLibraryTemplates.mockClear()
+    onLoadLibraryTemplate.mockClear()
+    onSaveDraft.mockClear()
+
+    expect(canvas.getByRole('button', { name: /load template/i })).toBeEnabled()
+    expect(canvas.getByRole('button', { name: /draft with ai/i })).toBeVisible()
+    await userEvent.click(
+      canvas.getByRole('button', { name: /choose a reply template/i }),
+    )
+    await expect(
+      screen.findByRole('menuitem', { name: 'Guest appreciation' }),
+    ).resolves.toBeVisible()
+    expect(screen.getByRole('menuitem', { name: 'Local safe template' })).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+
+    await userEvent.click(canvas.getByRole('button', { name: /load template/i }))
+
+    await waitFor(() =>
+      expect(onLoadLibraryTemplate).toHaveBeenCalledWith(LIBRARY_TEMPLATE_ID, {
+        kind: 'property_default',
+      }),
+    )
+    await waitFor(() => expect(canvas.getByRole('textbox')).toHaveValue(LIBRARY_REPLY))
+    expect(canvas.getByText('Template loaded: Guest appreciation')).toBeVisible()
+    await waitFor(() =>
+      expect(onSaveDraft).toHaveBeenCalledWith(LIBRARY_REPLY, undefined, 'en-Latn-US'),
+    )
   },
 }
 
@@ -398,6 +558,7 @@ export const ShortReviewNeedsPropertyLanguage: Story = {
     reviewReplyLanguage: null,
     reviewLanguageReadiness: 'insufficient_language_evidence',
     onGenerateSuggestion: onGenerateMissingTemplateLanguage,
+    onListTemplates: fn(async () => noLibraryTemplates()),
   },
   play: async ({ canvasElement }) => {
     onGenerateMissingTemplateLanguage.mockClear()
@@ -417,15 +578,17 @@ export const ShortReviewNeedsPropertyLanguage: Story = {
     expect(templateButton).toBeEnabled()
     await userEvent.click(templateButton)
     await waitFor(() =>
-      expect(onGenerateMissingTemplateLanguage).toHaveBeenCalledWith('professional', {
-        kind: 'review_language',
-      }),
+      expect(
+        canvas.getByText(
+          'Set a property default reply language in property settings before loading a template.',
+        ),
+      ).toBeVisible(),
     )
-    await expect(
-      canvas.findByText(
-        'Set a property default reply language in property settings before loading a template.',
-      ),
-    ).resolves.toBeVisible()
+    expect(onGenerateMissingTemplateLanguage).toHaveBeenCalledWith(
+      'professional',
+      { kind: 'review_language' },
+      true,
+    )
   },
 }
 

@@ -296,6 +296,22 @@ describe('generateReplySuggestionFn — request shaping', () => {
       propertyId: PROPERTY_ID,
     })
   })
+  it('routes explicit local templates without the AI execution-policy gate', async () => {
+    await generateReplySuggestionFn({
+      data: {
+        reviewId: REVIEW_ID,
+        tone: 'professional',
+        targetLanguage: REVIEW_LANGUAGE_TARGET,
+        idempotencyKey: IDEMPOTENCY_KEY,
+        templateOnly: true,
+      },
+    })
+
+    expect(mocks.requireExecutionAllowed).not.toHaveBeenCalled()
+    expect(mocks.generateReplySuggestion).toHaveBeenCalledWith(
+      expect.objectContaining({ templateOnly: true }),
+    )
+  })
 
   it.each(REPLY_TONES)('accepts the catalogued %s tone and forwards it', async (tone) => {
     await generateReplySuggestionFn({

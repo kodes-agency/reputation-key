@@ -100,3 +100,4 @@ export {
   approveReplyFn,
   editPublishedReplyFn,
 } from './reply-draft'
+export { listReplyTemplatesFn, loadReplyTemplateFn } from './reply-templates'

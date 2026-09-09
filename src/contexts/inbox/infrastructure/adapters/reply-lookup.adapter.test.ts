@@ -42,6 +42,8 @@ function makeReply(overrides: Partial<ReplyView> = {}): ReplyView {
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
+    templateId: overrides.templateId ?? null,
+    templateVersion: overrides.templateVersion ?? null,
   }
 }
 

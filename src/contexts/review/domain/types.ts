@@ -85,6 +85,9 @@ export type Reply = Readonly<{
   text: string
   /** Canonical concrete language selected for the public reply text. */
   replyLanguageTag?: string | null
+  /** Informational provenance for a property-authored library template. */
+  templateId: string | null
+  templateVersion: number | null
   status: ReplyStatus
   source: ReplySource
   createdBy: UserId | null

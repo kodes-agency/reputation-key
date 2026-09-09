@@ -9,6 +9,7 @@ const COMMANDS: Readonly<Record<string, readonly [file: string, ...args: string[
     'gbp-subscribe': ['scripts/ops/gbp-subscribe.ts'],
     'google-admission-role': ['scripts/ops/provision-google-admission-role.ts'],
     inspect: ['scripts/ops/inspect-decision.ts'],
+    'import-reply-templates': ['scripts/ops/import-reply-templates.ts'],
     'permit-start-deadline-fence': ['scripts/ops/permit-start-deadline-backfill.ts'],
     'privacy-request': ['scripts/ops/privacy-request.ts'],
     'property-erase': ['scripts/ops/property-erase.ts'],

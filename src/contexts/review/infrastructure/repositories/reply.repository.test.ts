@@ -4,10 +4,12 @@
 
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { eq } from 'drizzle-orm'
 import { createReplyRepository } from './reply.repository'
 import { createPublicationReconciliationCandidateQuery } from './publication-reconciliation-candidate.repository'
 import { createReviewRepository } from './review.repository'
 import { getDb } from '#/shared/db'
+import { replies } from '#/shared/db/schema/review.schema'
 import { organizationId, propertyId, reviewId, replyId } from '#/shared/domain/ids'
 import type { Review, Reply } from '../../domain/types'
 import { Pool } from 'pg'
@@ -150,6 +152,8 @@ function makeReply(overrides: Partial<Omit<Reply, 'id'>> & { id?: string } = {})
     createdAt: now,
     updatedAt: now,
     ...rest,
+    templateId: rest.templateId ?? null,
+    templateVersion: rest.templateVersion ?? null,
   } as Reply
 }
 
@@ -167,6 +171,40 @@ describe.sequential('replyRepository (integration)', () => {
       expect(found).toHaveLength(1)
       expect(found[0].id).toBe(created.id)
       expect(found[0].text).toBe('Thank you!')
+    })
+
+    it('persists a library template as a human-authored manual draft', async () => {
+      const db = getDb()
+      await seedReview(db)
+      const repo = createReplyRepository(db, () => new Date())
+      const draft = makeReply({
+        id: '2a000000-0000-4000-8000-000000000099',
+        status: 'draft',
+        source: 'internal',
+        createdBy: 'manager-1' as never,
+        aiGenerated: false,
+        templateId: '73000000-0000-4000-8000-000000000001',
+        templateVersion: 3,
+        publishedAt: null,
+      })
+
+      await repo.upsert(draft)
+      const [persisted] = await db
+        .select({
+          aiGenerated: replies.aiGenerated,
+          authorship: replies.authorship,
+          templateId: replies.templateId,
+          templateVersion: replies.templateVersion,
+        })
+        .from(replies)
+        .where(eq(replies.id, draft.id))
+
+      expect(persisted).toEqual({
+        aiGenerated: false,
+        authorship: 'human',
+        templateId: '73000000-0000-4000-8000-000000000001',
+        templateVersion: 3,
+      })
     })
 
     it('returns empty array for review with no replies', async () => {

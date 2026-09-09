@@ -8,18 +8,24 @@ import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { GoogleReplyObservationStore } from '../ports/google-reply-observation-store.port'
 import type { AiSuggestedDraftStore } from '../ports/ai-suggested-draft-store.port'
-import type { ReplyId, ReviewId, PropertyId } from '#/shared/domain/ids'
+import type { ReplyId, ReviewId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Reply, Review } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { canForContext } from '#/shared/domain/permissions'
-import { transitionReply, MAX_REPLY_LENGTH } from '../../domain/rules'
+import {
+  requireAccessibleReview,
+  requireReplyManager as requireManager,
+} from './reply-access'
+import {
+  assertReplySlotsFilled,
+  MAX_REPLY_LENGTH,
+  transitionReply,
+} from '../../domain/rules'
 import {
   buildIdempotencyKey,
   nextPublicationCycle,
 } from '../../domain/reply-publication-workflow'
 import { reviewError } from '../../domain/errors'
-import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { reconcileReplyPublication } from './reconcile-reply-publication'
 import { commitTransition } from '../reply-commit'
 import {
@@ -32,12 +38,6 @@ import {
 } from '../../domain/events'
 
 // ── Shared ────────────────────────────────────────────────────────────
-
-function requireManager(ctx: AuthContext) {
-  if (!canForContext(ctx, 'reply.manage')) {
-    throw reviewError('unauthorized', 'Only managers and admins can manage replies')
-  }
-}
 
 export type ReplyDeps = Readonly<{
   replyRepo: ReplyRepository
@@ -58,40 +58,6 @@ export type ReplyDeps = Readonly<{
   idGen: () => ReplyId
   staffPublicApi: StaffPublicApi
 }>
-
-/** Enforce property-assignment scoping for reply mutations (D6-001).
- *  Scope resolved per-permission (reply.manage): org-wide scope (AccountAdmin)
- *  → all accessible; assigned scope (PropertyManager) → assigned properties. */
-async function assertReplyPropertyAccessible(
-  deps: ReplyDeps,
-  ctx: AuthContext,
-  propertyId: PropertyId,
-): Promise<void> {
-  const accessible = await isPropertyAccessibleForPermission(
-    (orgId, userId, orgWide) =>
-      deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),
-    ctx,
-    'reply.manage',
-    propertyId,
-  )
-  if (!accessible) {
-    throw reviewError('forbidden', 'No access to this property', { propertyId })
-  }
-}
-
-/** Load the review and assert the caller can access its property (D6-001). */
-async function requireAccessibleReview(
-  deps: ReplyDeps,
-  ctx: AuthContext,
-  reviewId: ReviewId,
-): Promise<Review> {
-  const review = await deps.reviewRepo.findById(reviewId, ctx.organizationId)
-  if (!review) {
-    throw reviewError('review_not_found', 'Review not found')
-  }
-  await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
-  return review
-}
 
 /**
  * Reply mutations require a manager, the reply + review rows, and property
@@ -279,6 +245,9 @@ export type DraftReplyInput = Readonly<{
   text: string
   replyLanguageTag?: string
   provenanceToken?: string
+  /** Internal-only provenance set by the property template loader. */
+  templateId?: string
+  templateVersion?: number
 }>
 
 export const draftReply =
@@ -296,6 +265,12 @@ export const draftReply =
         'invalid_reply',
         `Reply text exceeds ${MAX_REPLY_LENGTH} characters`,
       )
+    }
+    if (
+      (input.templateId === undefined) !== (input.templateVersion === undefined) ||
+      (input.templateVersion !== undefined && input.templateVersion < 1)
+    ) {
+      throw reviewError('invalid_input', 'Template provenance is incomplete')
     }
 
     // D6-001: scope reply mutations to the caller's assigned properties.
@@ -332,7 +307,8 @@ export const draftReply =
       input.reviewId,
       ctx.organizationId,
     )
-    if (existing) await assertCurrentAiDraftBinding(deps, ctx, existing)
+    if (existing && input.templateId === undefined)
+      await assertCurrentAiDraftBinding(deps, ctx, existing)
 
     if (existing) {
       // Validate the (re-)draft transition through the single authority.
@@ -348,6 +324,12 @@ export const draftReply =
           text: input.text,
           ...(input.replyLanguageTag !== undefined
             ? { replyLanguageTag: input.replyLanguageTag }
+            : {}),
+          ...(input.templateId !== undefined
+            ? {
+                templateId: input.templateId,
+                templateVersion: input.templateVersion,
+              }
             : {}),
           rejectedBy: null,
           rejectionReason: null,
@@ -368,6 +350,8 @@ export const draftReply =
         organizationId: ctx.organizationId,
         text: input.text,
         replyLanguageTag: input.replyLanguageTag ?? null,
+        templateId: input.templateId ?? null,
+        templateVersion: input.templateVersion ?? null,
         status: 'draft',
         source: 'internal',
         createdBy: ctx.userId,
@@ -406,6 +390,7 @@ export const submitReply =
       input.reviewId,
       'No draft reply found for this review',
     )
+    assertReplySlotsFilled(reply.text)
     await assertCurrentAiDraftBinding(deps, ctx, reply)
 
     const now = deps.clock()
@@ -441,6 +426,7 @@ export const approveReply =
   async (input: ApproveReplyInput, ctx: AuthContext): Promise<Reply> => {
     // D6-001: scope reply mutations to the caller's assigned properties.
     const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
+    assertReplySlotsFilled(reply.text)
     await assertCurrentAiDraftBinding(deps, ctx, reply)
 
     return authorizeAndEnqueuePublication(
@@ -512,6 +498,7 @@ export const editPublishedReply =
         `Reply text exceeds ${MAX_REPLY_LENGTH} characters`,
       )
     }
+    assertReplySlotsFilled(text)
 
     const reply = await deps.replyRepo.findInternalByReviewId(
       input.reviewId,

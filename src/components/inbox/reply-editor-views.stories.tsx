@@ -46,3 +46,24 @@ export const PublishedEditRequiresConfirmation: Story = {
     )
   },
 }
+
+export const PublishedEditWithUnfilledSlot: Story = {
+  args: {
+    reply: {
+      text: 'Dear {guest_name}, thank you.',
+      publishedAt: new Date('2026-08-27T08:00:00.000Z'),
+      rejectionReason: null,
+    },
+    isSaving: false,
+    onSave,
+    onCancel,
+  },
+  play: async ({ canvas }) => {
+    expect(canvas.getByRole('button', { name: /review update/i })).toBeDisabled()
+    expect(
+      canvas.getByText(
+        'Fill every template placeholder before publishing: {guest_name}.',
+      ),
+    ).toBeVisible()
+  },
+}

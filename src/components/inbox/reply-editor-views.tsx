@@ -1,6 +1,6 @@
 // Inbox detail — read-only reply status views
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { Textarea } from '#/components/ui/textarea'
@@ -15,7 +15,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '#/components/ui/alert-dialog'
-import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
+import {
+  MAX_REPLY_LENGTH,
+  unfilledReplySlotsMessage,
+} from '#/contexts/review/application/public-api'
 import { formatDateTime } from './utils'
 import {
   approvedReplyStateCopy,
@@ -99,7 +102,10 @@ export function ReviewReplyPublishedEditor({
   const [text, setText] = useState(reply.text)
   const charCount = text.length
   const isOverLimit = charCount > MAX_REPLY_LENGTH
-  const canSave = text.trim().length > 0 && !isOverLimit && !isSaving
+  const publishBlockedReason = unfilledReplySlotsMessage(text)
+  const publishBlockedReasonId = useId()
+  const canSave =
+    text.trim().length > 0 && !isOverLimit && publishBlockedReason === null && !isSaving
 
   return (
     <div className="space-y-3 border-t pt-4">
@@ -131,7 +137,13 @@ export function ReviewReplyPublishedEditor({
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button size="sm" disabled={!canSave}>
+              <Button
+                size="sm"
+                disabled={!canSave}
+                aria-describedby={
+                  publishBlockedReason !== null ? publishBlockedReasonId : undefined
+                }
+              >
                 Review update
               </Button>
             </AlertDialogTrigger>
@@ -157,6 +169,11 @@ export function ReviewReplyPublishedEditor({
           </AlertDialog>
         </div>
       </div>
+      {publishBlockedReason !== null && (
+        <p id={publishBlockedReasonId} role="status" className="text-xs text-destructive">
+          {publishBlockedReason}
+        </p>
+      )}
     </div>
   )
 }

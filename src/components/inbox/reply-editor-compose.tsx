@@ -6,6 +6,7 @@ import {
   InputGroupTextarea,
 } from '#/components/ui/input-group'
 import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
+import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
 import { ReplyComposerFooter } from './reply-composer-footer'
 import { ReplyLanguageSelect } from './reply-language-select'
 import { ReplyLanguageReadiness } from './reply-language-readiness'
@@ -19,6 +20,7 @@ import { ReplySuggestionPreview } from './reply-suggestion-preview'
 import { ReplyToolbarPortal } from './reply-toolbar-slot'
 import { useReplyComposer } from './use-reply-composer'
 import type { ReplySuggestionResult, ReplyTone } from './use-reply-suggestion'
+import type { LoadedReplyTemplateDraft } from './reply-suggestion-contract'
 
 export type { ReplySuggestionResult, ReplyTone } from './use-reply-suggestion'
 
@@ -42,8 +44,51 @@ export type ReplyComposeProps = Readonly<{
   onGenerateSuggestion?: (
     tone: ReplyTone,
     target: ReplyLanguageTarget,
+    templateOnly?: boolean,
   ) => Promise<ReplySuggestionResult>
+  onListTemplates?: (target: ReplyLanguageTarget) => Promise<ReplyTemplateListResult>
+  onLoadTemplate?: (
+    templateId: string,
+    target: ReplyLanguageTarget,
+  ) => Promise<LoadedReplyTemplateDraft>
 }>
+
+const PRIMARY_EXPLANATIONS: Readonly<Record<ReviewLanguageReadiness, string>> = {
+  no_review_text: 'A template is recommended because this review has no text.',
+  insufficient_language_evidence:
+    'A template is recommended because this review is too short to identify its language.',
+  detectable: 'AI drafting is recommended because this review has enough specific text.',
+}
+
+function templateUnavailableReason(
+  hasTarget: boolean,
+  canLoadTemplates: boolean,
+): string | null {
+  if (!hasTarget) {
+    return 'Choose a supported reply language before loading a template.'
+  }
+  return canLoadTemplates ? null : 'The property template library is unavailable.'
+}
+
+function aiUnavailableReason(
+  hasTarget: boolean,
+  canGenerate: boolean,
+  readiness: ReviewLanguageReadiness,
+): string | null {
+  if (!hasTarget) {
+    return 'Choose a supported reply language before drafting with AI.'
+  }
+  if (!canGenerate) {
+    return 'AI drafting is unavailable.'
+  }
+  if (readiness === 'no_review_text') {
+    return 'AI drafting needs review text.'
+  }
+  if (readiness === 'insufficient_language_evidence') {
+    return 'AI drafting needs enough review text to verify its language.'
+  }
+  return null
+}
 
 export function ReplyCompose(props: ReplyComposeProps) {
   const state = useReplyComposer({
@@ -56,15 +101,25 @@ export function ReplyCompose(props: ReplyComposeProps) {
     onSaveDraft: props.onSaveDraft,
     onSubmit: props.onSubmit,
     onGenerate: props.onGenerateSuggestion,
+    onListTemplates: props.onListTemplates,
+    onLoadTemplate: props.onLoadTemplate,
   })
-  const busy = props.isSaving || state.ai.isGenerating || state.ai.isAdopting
+  const busy =
+    props.isSaving ||
+    state.ai.isGenerating ||
+    state.ai.isAdopting ||
+    state.templates.isLoading
   const usesTemplatePath = props.reviewLanguageReadiness !== 'detectable'
-  const aiUnavailableReason =
-    state.target === null
-      ? usesTemplatePath
-        ? 'Choose a supported reply language before loading a template.'
-        : 'Choose a supported reply language before drafting with AI.'
-      : null
+  const templateBlockedReason = templateUnavailableReason(
+    state.target !== null,
+    Boolean(props.onListTemplates && props.onLoadTemplate),
+  )
+  const aiBlockedReason = aiUnavailableReason(
+    state.target !== null,
+    Boolean(props.onGenerateSuggestion),
+    props.reviewLanguageReadiness,
+  )
+  const primaryExplanation = PRIMARY_EXPLANATIONS[props.reviewLanguageReadiness]
 
   return (
     <div className="flex flex-col gap-4">
@@ -107,27 +162,41 @@ export function ReplyCompose(props: ReplyComposeProps) {
           value={state.draft.text}
           rows={9}
           aria-invalid={state.overLimit}
-          disabled={props.isSaving || state.ai.isAdopting}
+          disabled={props.isSaving || state.ai.isAdopting || state.templates.isLoading}
           onChange={(event) => state.updateText(event.target.value)}
           onBlur={state.flushOnBlur}
         />
         <InputGroupAddon align="block-end" className="flex-wrap gap-2 border-t">
-          {props.onGenerateSuggestion && (
-            <ReplySuggestionControls
-              mode={usesTemplatePath ? 'template' : 'ai'}
-              tone={state.ai.tone}
-              disabled={busy || aiUnavailableReason !== null}
-              unavailableReason={aiUnavailableReason}
-              isGenerating={state.ai.isGenerating}
-              hasAiDraft={state.hasAiDraft || state.ai.suggestion !== null}
-              canUndo={state.historyCount > 0}
-              error={state.ai.error}
-              errorFixTarget={state.ai.errorFixTarget}
-              propertyId={props.propertyId}
-              onToneChange={state.ai.setTone}
-              onRequest={state.ai.request}
-              onUndo={state.undo}
-            />
+          <ReplySuggestionControls
+            primaryMode={usesTemplatePath ? 'template' : 'ai'}
+            primaryExplanation={primaryExplanation}
+            tone={state.ai.tone}
+            disabled={busy}
+            templateDisabled={templateBlockedReason !== null}
+            aiDisabled={aiBlockedReason !== null}
+            templateUnavailableReason={templateBlockedReason}
+            aiUnavailableReason={aiBlockedReason}
+            isGenerating={state.ai.isGenerating}
+            isLoadingTemplate={state.templates.isLoading}
+            hasAiDraft={state.hasAiDraft || state.ai.suggestion !== null}
+            canUndo={state.historyCount > 0}
+            aiError={state.ai.error}
+            templateError={state.templates.error}
+            errorFixTarget={state.ai.errorFixTarget}
+            propertyId={props.propertyId}
+            templates={state.templates.templates}
+            onToneChange={state.ai.setTone}
+            onRequestAi={state.ai.request}
+            onPrepareTemplateMenu={state.templates.prepareMenu}
+            onLoadRecommended={state.templates.loadRecommended}
+            onLoadTemplate={state.templates.load}
+            onLoadLocalSafe={state.templates.loadLocalSafe}
+            onUndo={state.undo}
+          />
+          {state.templates.loadedMessage && (
+            <p role="status" className="basis-full text-xs text-muted-foreground">
+              {state.templates.loadedMessage}
+            </p>
           )}
           <span
             className={`ml-auto text-xs ${state.overLimit ? 'text-destructive' : 'text-muted-foreground'}`}
@@ -145,6 +214,7 @@ export function ReplyCompose(props: ReplyComposeProps) {
             : languageDisplayName(state.draft.languageTag)
         }
         canSubmit={state.canSubmit}
+        submitBlockedReason={state.submitBlockedReason}
         disabled={busy}
         isSubmitting={props.isSaving}
         onRetrySave={state.autosave.retry}

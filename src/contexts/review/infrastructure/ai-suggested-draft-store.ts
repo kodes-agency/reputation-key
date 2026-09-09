@@ -358,6 +358,8 @@ export const createAiSuggestedDraftStore = (
             .set({
               text: input.text,
               replyLanguageTag: provenance.concreteLanguageTag,
+              templateId: null,
+              templateVersion: null,
               status: 'draft',
               aiGenerated: true,
               authorship: 'ai_assisted',
@@ -394,6 +396,8 @@ export const createAiSuggestedDraftStore = (
               organizationId: input.organizationId,
               text: input.text,
               replyLanguageTag: provenance.concreteLanguageTag,
+              templateId: null,
+              templateVersion: null,
               status: 'draft',
               source: 'internal',
               createdBy: input.actorUserId,

@@ -15,6 +15,8 @@ const sampleRow: ReplyRow = {
   organizationId: 'org-uuid-001',
   text: 'Thank you for your feedback!',
   replyLanguageTag: null,
+  templateId: null,
+  templateVersion: null,
   status: 'published',
   source: 'google_sync',
   createdBy: null,

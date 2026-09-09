@@ -2,7 +2,7 @@
 // to keep both files under the max-lines budget).
 
 import type { getReplyFn } from '#/contexts/review/server/reply'
-import { ReplyCompose } from './reply-editor-compose'
+import { ReplyCompose, type ReplyComposeProps } from './reply-editor-compose'
 import { ReviewReplyApproved, ReviewReplyMirror } from './reply-editor-views'
 import {
   ReplyPendingApproval,
@@ -71,7 +71,10 @@ type ReplyStatusViewProps = Readonly<{
   onGenerateSuggestion?: (
     tone: ReplyTone,
     target: ReplyLanguageTarget,
+    templateOnly?: boolean,
   ) => Promise<ReplySuggestionResult>
+  onListTemplates: NonNullable<ReplyComposeProps['onListTemplates']>
+  onLoadTemplate: NonNullable<ReplyComposeProps['onLoadTemplate']>
 }>
 
 /** Renders the reply in its current state (compose / read-only status views). */
@@ -91,6 +94,8 @@ export function ReplyStatusView({
   onCheck,
   onSaveEdit,
   onGenerateSuggestion,
+  onListTemplates,
+  onLoadTemplate,
 }: ReplyStatusViewProps) {
   const languageProps = {
     propertyDefaultReplyLanguage,
@@ -111,6 +116,8 @@ export function ReplyStatusView({
           onSubmit={onSubmitReply}
           onDelete={onDeleteDraft}
           onGenerateSuggestion={onGenerateSuggestion}
+          onListTemplates={onListTemplates}
+          onLoadTemplate={onLoadTemplate}
         />
       )
     case 'pending':
@@ -161,6 +168,8 @@ export function ReplyStatusView({
           onSubmitReply={onSubmitReply}
           onDeleteDraft={onDeleteDraft}
           onGenerateSuggestion={onGenerateSuggestion}
+          onListTemplates={onListTemplates}
+          onLoadTemplate={onLoadTemplate}
         />
       )
     case 'none':

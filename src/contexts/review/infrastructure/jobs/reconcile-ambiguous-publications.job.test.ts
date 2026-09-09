@@ -57,6 +57,8 @@ function makeReply(
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
+    templateId: overrides.templateId ?? null,
+    templateVersion: overrides.templateVersion ?? null,
   }
 }
 

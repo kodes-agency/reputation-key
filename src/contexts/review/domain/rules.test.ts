@@ -8,6 +8,10 @@ import {
   canTransitionReply,
   transitionReply,
   MAX_REPLY_LENGTH,
+  REPLY_TEMPLATE_SLOT_TOKENS,
+  unfilledReplySlots,
+  unknownReplyTemplateSlots,
+  unfilledReplySlotsMessage,
 } from './rules'
 import type { Reply, ReplyStatus } from './types'
 import { organizationId, replyId, reviewId } from '#/shared/domain/ids'
@@ -107,6 +111,38 @@ describe('computeReviewContentHash', () => {
         languageCode: '',
       }),
     )
+  })
+})
+
+describe('reply template slots', () => {
+  it('recognizes the exact allowed slot vocabulary without losing first-use order', () => {
+    expect(REPLY_TEMPLATE_SLOT_TOKENS).toEqual([
+      '{guest_name}',
+      '{staff_name}',
+      '{dish}',
+      '{event_type}',
+      '{escalation_contact}',
+    ])
+    expect(
+      unfilledReplySlots(
+        'Dear {guest_name}, ask {staff_name} about {dish}; thank you, {guest_name}.',
+      ),
+    ).toEqual(['{guest_name}', '{staff_name}', '{dish}'])
+  })
+
+  it('rejects every brace token outside that vocabulary', () => {
+    expect(
+      unknownReplyTemplateSlots(
+        '{guest_name} {property_name} {Guest_Name} {not-a-slot} {}',
+      ),
+    ).toEqual(['{property_name}', '{Guest_Name}', '{not-a-slot}', '{}'])
+  })
+
+  it('returns the publish guard reason while any slot remains', () => {
+    expect(unfilledReplySlotsMessage('Thank you, {guest_name}.')).toBe(
+      'Fill every template placeholder before publishing: {guest_name}.',
+    )
+    expect(unfilledReplySlotsMessage('Thank you, Maria.')).toBeNull()
   })
 })
 
@@ -214,6 +250,8 @@ describe('transitionReply — BQC-3.8 AI-draft publication proof', () => {
       createdAt: NOW,
       updatedAt: NOW,
       ...overrides,
+      templateId: overrides.templateId ?? null,
+      templateVersion: overrides.templateVersion ?? null,
     }
   }
 
