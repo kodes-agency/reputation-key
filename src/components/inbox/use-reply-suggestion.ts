@@ -90,11 +90,21 @@ export function useReplySuggestion(input: Input) {
           text: result.replyText,
           languageTag: verifiedLanguageTag,
         }
-        setSuggestion({
-          draft: nextDraft,
-          kind: result.status === 'ready' ? 'personalized' : 'local_fallback',
-          provenanceToken: result.status === 'ready' ? result.provenanceToken : null,
-        })
+        setSuggestion(
+          result.status === 'ready'
+            ? {
+                draft: nextDraft,
+                kind: 'personalized',
+                provenanceToken: result.provenanceToken,
+              }
+            : {
+                draft: nextDraft,
+                kind: 'local_fallback',
+                provenanceToken: null,
+                reason: result.reason,
+                languageSource: result.languageSource,
+              },
+        )
       } catch {
         if (requestSequence === sequence.current) {
           setError('The draft suggestion could not be generated. Try again.')

@@ -1,14 +1,36 @@
-import { parseCanonicalReplyLanguageTag } from '#/shared/reply-language-catalogue'
+import {
+  MIN_REPLY_LANGUAGE_LETTERS_V1,
+  parseCanonicalReplyLanguageTag,
+} from '#/shared/reply-language-catalogue'
 
 export type ReplyLanguageTarget =
   Readonly<{ kind: 'property_default' }> | Readonly<{ kind: 'review_language' }>
 
 export const AUTO_DETECT_REVIEW_LANGUAGE = '__review_language_auto__' as const
 
+export type ReviewLanguageReadiness =
+  'detectable' | 'insufficient_language_evidence' | 'no_review_text'
+
+const UNICODE_LETTER = /\p{L}/u
+
+export function reviewLanguageReadiness(
+  text: string | null | undefined,
+): ReviewLanguageReadiness {
+  if (text === null || text === undefined) return 'no_review_text'
+  let letters = 0
+  for (const scalar of text) {
+    if (!UNICODE_LETTER.test(scalar)) continue
+    letters += 1
+    if (letters >= MIN_REPLY_LANGUAGE_LETTERS_V1) return 'detectable'
+  }
+  return 'insufficient_language_evidence'
+}
+
 export type ReplyLanguageOption = Readonly<{
   tag: string
   label: string
   source: 'property' | 'review' | 'review_auto' | 'saved'
+  disabledReason?: string
 }>
 
 export function languageDisplayName(tag: string | null | undefined): string | null {
@@ -22,7 +44,10 @@ export function languageDisplayName(tag: string | null | undefined): string | nu
   }
 }
 
-function equivalentReplyLanguageTags(left: string | null, right: string | null): boolean {
+export function equivalentReplyLanguageTags(
+  left: string | null,
+  right: string | null,
+): boolean {
   if (!left || !right) return false
   if (left === right) return true
   const leftLanguage = parseCanonicalReplyLanguageTag(left)
@@ -39,7 +64,7 @@ export function replyLanguageOptions(
     propertyTag: string | null
     reviewTag: string | null
     savedTag: string | null
-    canDetectReviewLanguage?: boolean
+    reviewLanguageReadiness: ReviewLanguageReadiness
   }>,
 ): ReadonlyArray<ReplyLanguageOption> {
   const options: ReplyLanguageOption[] = []
@@ -50,20 +75,24 @@ export function replyLanguageOptions(
       source: 'property',
     })
   }
-  if (
-    input.reviewTag &&
-    !equivalentReplyLanguageTags(input.reviewTag, input.propertyTag)
-  ) {
-    options.push({
-      tag: input.reviewTag,
-      label: `Review language · ${languageDisplayName(input.reviewTag)}`,
-      source: 'review',
-    })
-  } else if (!input.reviewTag && input.canDetectReviewLanguage === true) {
+  if (input.reviewLanguageReadiness === 'detectable' && input.reviewTag) {
+    if (!equivalentReplyLanguageTags(input.reviewTag, input.propertyTag)) {
+      options.push({
+        tag: input.reviewTag,
+        label: `Review language · ${languageDisplayName(input.reviewTag)}`,
+        source: 'review',
+      })
+    }
+  } else {
     options.push({
       tag: AUTO_DETECT_REVIEW_LANGUAGE,
       label: 'Review language · Detect automatically',
       source: 'review_auto',
+      ...(input.reviewLanguageReadiness === 'insufficient_language_evidence'
+        ? { disabledReason: 'This review is too short to detect its language.' }
+        : input.reviewLanguageReadiness === 'no_review_text'
+          ? { disabledReason: 'This review has no text to detect.' }
+          : {}),
     })
   }
   if (
@@ -101,9 +130,9 @@ export function targetForReplyLanguage(
   tag: string | null,
   propertyTag: string | null,
   reviewTag: string | null,
-  options?: Readonly<{ canDetectReviewLanguage?: boolean }>,
+  reviewLanguageReadiness: ReviewLanguageReadiness,
 ): ReplyLanguageTarget | null {
-  if (tag === AUTO_DETECT_REVIEW_LANGUAGE && options?.canDetectReviewLanguage === true) {
+  if (tag === AUTO_DETECT_REVIEW_LANGUAGE && reviewLanguageReadiness === 'detectable') {
     return { kind: 'review_language' }
   }
   if (equivalentReplyLanguageTags(tag, propertyTag)) {

@@ -16,21 +16,25 @@ const validDraft = (draft: ReplyDraftSnapshot) =>
 export function useReplyComposer(input: ReplyComposerInput) {
   const [effectiveReviewLanguage, setEffectiveReviewLanguage] = useState<string | null>(
     () => {
+      if (input.reviewLanguageReadiness !== 'detectable') return null
       if (input.reviewLanguage) return input.reviewLanguage
       if (!input.initialAiGenerated || !input.initialLanguageTag) return null
       return targetForReplyLanguage(
         input.initialLanguageTag,
         input.propertyLanguage,
         input.reviewLanguage,
+        input.reviewLanguageReadiness,
       ) === null
         ? input.initialLanguageTag
         : null
     },
   )
+  const reviewLanguage =
+    input.reviewLanguageReadiness === 'detectable' ? effectiveReviewLanguage : null
   const initialTag = defaultReplyLanguageTag({
     savedTag: input.initialLanguageTag,
     propertyTag: input.propertyLanguage,
-    reviewTag: effectiveReviewLanguage,
+    reviewTag: reviewLanguage,
   })
   const [draft, setDraft] = useState<ReplyDraftSnapshot>({
     text: input.initialText,
@@ -38,7 +42,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
   })
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(
     initialTag ??
-      (input.canDetectReviewLanguage && effectiveReviewLanguage === null
+      (input.reviewLanguageReadiness === 'detectable' && reviewLanguage === null
         ? AUTO_DETECT_REVIEW_LANGUAGE
         : null),
   )
@@ -51,15 +55,15 @@ export function useReplyComposer(input: ReplyComposerInput) {
     () =>
       replyLanguageOptions({
         propertyTag: input.propertyLanguage,
-        reviewTag: effectiveReviewLanguage,
+        reviewTag: reviewLanguage,
         savedTag: input.initialLanguageTag,
-        canDetectReviewLanguage: input.canDetectReviewLanguage,
+        reviewLanguageReadiness: input.reviewLanguageReadiness,
       }),
     [
-      effectiveReviewLanguage,
-      input.canDetectReviewLanguage,
       input.initialLanguageTag,
       input.propertyLanguage,
+      input.reviewLanguageReadiness,
+      reviewLanguage,
     ],
   )
   const autosave = useReplyAutosave(
@@ -75,12 +79,17 @@ export function useReplyComposer(input: ReplyComposerInput) {
       ),
   )
   const isAutoDetectingLanguage = selectedLanguage === AUTO_DETECT_REVIEW_LANGUAGE
-  const target = targetForReplyLanguage(
+  const selectedTarget = targetForReplyLanguage(
     selectedLanguage,
     input.propertyLanguage,
-    effectiveReviewLanguage,
-    { canDetectReviewLanguage: input.canDetectReviewLanguage },
+    reviewLanguage,
+    input.reviewLanguageReadiness,
   )
+  const target =
+    selectedTarget ??
+    (selectedLanguage === null && input.reviewLanguageReadiness !== 'detectable'
+      ? ({ kind: 'review_language' } as const)
+      : null)
   const ai = useReplySuggestion({
     draft,
     revision,
@@ -123,7 +132,9 @@ export function useReplyComposer(input: ReplyComposerInput) {
         : previous
     const previousSelection =
       restored.languageTag ??
-      (input.canDetectReviewLanguage ? AUTO_DETECT_REVIEW_LANGUAGE : null)
+      (input.reviewLanguageReadiness === 'detectable'
+        ? AUTO_DETECT_REVIEW_LANGUAGE
+        : null)
     const resetDetectedLanguage =
       previousSelection === AUTO_DETECT_REVIEW_LANGUAGE && input.reviewLanguage === null
     if (resetDetectedLanguage) setEffectiveReviewLanguage(null)

@@ -30,6 +30,7 @@ const onGenerateFallback = fn(async (): Promise<ReplySuggestionResult> => ({
   status: 'fallback',
   kind: 'local_safe_template',
   reason: 'provider_or_output_unavailable',
+  languageSource: 'explicit',
   replyText: FALLBACK_REPLY,
   concreteLanguageTag: 'en-Latn',
 }))
@@ -42,6 +43,29 @@ const onGenerateUnavailable = fn(async (): Promise<ReplySuggestionResult> => ({
   code: 'language_not_supported',
   retryAfterEpochMillis: null,
 }))
+const BULGARIAN_TEMPLATE =
+  'Благодарим ви, че споделихте този положителен отзив. Радваме се, че преживяването ви е било приятно.'
+const localTemplateSuggestion = (
+  reason: 'language_undetermined' | 'no_review_text',
+): Extract<ReplySuggestionResult, { status: 'fallback' }> => ({
+  status: 'fallback',
+  kind: 'local_safe_template',
+  reason,
+  languageSource: 'explicit',
+  replyText: BULGARIAN_TEMPLATE,
+  concreteLanguageTag: 'bg-Cyrl-BG',
+})
+const onGenerateNoTextTemplate = fn(async () => localTemplateSuggestion('no_review_text'))
+const onGenerateShortTemplate = fn(async () =>
+  localTemplateSuggestion('language_undetermined'),
+)
+const onGenerateMissingTemplateLanguage = fn(
+  async (): Promise<ReplySuggestionResult> => ({
+    status: 'unavailable',
+    code: 'target_language_unavailable',
+    retryAfterEpochMillis: null,
+  }),
+)
 let resolveDelayedSuggestion: ((result: ReplySuggestionResult) => void) | undefined
 const onGenerateDelayed = fn(
   () =>
@@ -53,6 +77,22 @@ const resolveDelayed = (result: ReplySuggestionResult): void => {
   if (!resolveDelayedSuggestion)
     throw new Error('Delayed suggestion request was not started')
   resolveDelayedSuggestion(result)
+}
+
+async function expectDisabledAutomaticDetection(
+  canvasElement: HTMLElement,
+  optionName: RegExp,
+  propertyDefaultSelected: boolean,
+): Promise<void> {
+  const canvas = within(canvasElement)
+  const languageSelect = canvas.getByRole('combobox', { name: 'Reply language' })
+  if (propertyDefaultSelected) {
+    expect(languageSelect).toHaveTextContent(/Bulgarian\s*·\s*Property default/i)
+  }
+  await userEvent.click(languageSelect)
+  const autoDetect = await screen.findByRole('option', { name: optionName })
+  expect(autoDetect).toHaveAttribute('aria-disabled', 'true')
+  await userEvent.keyboard('{Escape}')
 }
 
 const meta: Meta<typeof ReplyCompose> = {
@@ -67,7 +107,7 @@ const meta: Meta<typeof ReplyCompose> = {
     initialLanguageTag: null,
     propertyDefaultReplyLanguage: 'en-Latn',
     reviewReplyLanguage: 'en-Latn-US',
-    canDetectReviewLanguage: true,
+    reviewLanguageReadiness: 'detectable',
     isSaving: false,
     onSaveDraft,
     onSubmit,
@@ -191,7 +231,7 @@ export const AiDetectsMissingReviewLanguage: Story = {
     initialText: 'Thank you for sharing your experience.',
     propertyDefaultReplyLanguage: null,
     reviewReplyLanguage: null,
-    canDetectReviewLanguage: true,
+    reviewLanguageReadiness: 'detectable',
     onGenerateSuggestion: onGenerateDetectedSuggestion,
   },
   play: async ({ canvas }) => {
@@ -253,7 +293,7 @@ export const ChooseReviewLanguageWhenMetadataIsMissing: Story = {
   args: {
     propertyDefaultReplyLanguage: 'bg-Cyrl',
     reviewReplyLanguage: null,
-    canDetectReviewLanguage: true,
+    reviewLanguageReadiness: 'detectable',
     onGenerateSuggestion: onGenerateDetectedSuggestion,
   },
   play: async ({ canvas }) => {
@@ -287,24 +327,105 @@ export const ChooseReviewLanguageWhenMetadataIsMissing: Story = {
   },
 }
 
-export const RatingOnlyAiUnavailable: Story = {
+export const RatingOnlyUsesPropertyTemplate: Story = {
+  tags: ['ai-language-regression'],
+  args: {
+    propertyDefaultReplyLanguage: 'bg-Cyrl-BG',
+    reviewReplyLanguage: null,
+    reviewLanguageReadiness: 'no_review_text',
+    onGenerateSuggestion: onGenerateNoTextTemplate,
+  },
+  play: async ({ canvasElement }) => {
+    onGenerateNoTextTemplate.mockClear()
+    const canvas = within(canvasElement)
+    await expectDisabledAutomaticDetection(
+      canvasElement,
+      /Review language · Detect automatically — This review has no text to detect\./i,
+      true,
+    )
+
+    const templateButton = canvas.getByRole('button', { name: /load template/i })
+    expect(templateButton).toBeEnabled()
+    await userEvent.click(templateButton)
+    await waitFor(() =>
+      expect(onGenerateNoTextTemplate).toHaveBeenCalledWith('professional', {
+        kind: 'property_default',
+      }),
+    )
+    await expect(
+      canvas.findByText(
+        'This review has no text — template loaded in Bulgarian (property default).',
+      ),
+    ).resolves.toBeVisible()
+  },
+}
+
+export const ShortReviewUsesPropertyTemplate: Story = {
+  tags: ['ai-language-regression'],
+  args: {
+    propertyDefaultReplyLanguage: 'bg-Cyrl-BG',
+    reviewReplyLanguage: null,
+    reviewLanguageReadiness: 'insufficient_language_evidence',
+    onGenerateSuggestion: onGenerateShortTemplate,
+  },
+  play: async ({ canvasElement }) => {
+    onGenerateShortTemplate.mockClear()
+    const canvas = within(canvasElement)
+    await expectDisabledAutomaticDetection(
+      canvasElement,
+      /Review language · Detect automatically — This review is too short to detect its language\./i,
+      true,
+    )
+
+    await userEvent.click(canvas.getByRole('button', { name: /load template/i }))
+    await waitFor(() =>
+      expect(onGenerateShortTemplate).toHaveBeenCalledWith('professional', {
+        kind: 'property_default',
+      }),
+    )
+    await expect(
+      canvas.findByText(
+        "Review language couldn't be detected — template loaded in Bulgarian (property default).",
+      ),
+    ).resolves.toBeVisible()
+  },
+}
+
+export const ShortReviewNeedsPropertyLanguage: Story = {
   tags: ['ai-language-regression'],
   args: {
     propertyDefaultReplyLanguage: null,
     reviewReplyLanguage: null,
-    canDetectReviewLanguage: false,
-    onGenerateSuggestion: onGenerateDetectedSuggestion,
+    reviewLanguageReadiness: 'insufficient_language_evidence',
+    onGenerateSuggestion: onGenerateMissingTemplateLanguage,
   },
-  play: async ({ canvas }) => {
-    const aiButton = canvas.getByRole('button', { name: /draft with ai/i })
-
-    expect(aiButton).toBeDisabled()
+  play: async ({ canvasElement }) => {
+    onGenerateMissingTemplateLanguage.mockClear()
+    const canvas = within(canvasElement)
     expect(
-      canvas.getAllByText(/AI drafting needs written review text/i),
-    ).not.toHaveLength(0)
-    expect(
-      canvas.getByText(/AI remains unavailable because this review has no text/i),
+      canvas.getByText(
+        'This review is too short to detect its language. Set a property default to load a local template.',
+      ),
     ).toBeVisible()
+    await expectDisabledAutomaticDetection(
+      canvasElement,
+      /Review language · Detect automatically — This review is too short to detect its language\./i,
+      false,
+    )
+
+    const templateButton = canvas.getByRole('button', { name: /load template/i })
+    expect(templateButton).toBeEnabled()
+    await userEvent.click(templateButton)
+    await waitFor(() =>
+      expect(onGenerateMissingTemplateLanguage).toHaveBeenCalledWith('professional', {
+        kind: 'review_language',
+      }),
+    )
+    await expect(
+      canvas.findByText(
+        'Set a property default reply language in property settings before loading a template.',
+      ),
+    ).resolves.toBeVisible()
   },
 }
 

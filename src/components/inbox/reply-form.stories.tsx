@@ -67,7 +67,7 @@ const meta: Meta<typeof ReplyEditor> = {
     loading: false,
     propertyDefaultReplyLanguage: 'en-Latn',
     reviewReplyLanguage: null,
-    canDetectReviewLanguage: true,
+    reviewLanguageReadiness: 'detectable',
     onReplyChanged,
   },
 }

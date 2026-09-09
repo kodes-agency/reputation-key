@@ -41,7 +41,12 @@ import type { AiOperationStorePort } from '../ports/ai-operation-store.port'
 import type { AiOutputStorePort } from '../ports/ai-output-store.port'
 import type { AiQuotaPort } from '../ports/ai-quota.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
-import type { AiExecutionBinding, AiOperationIdentity } from '../../domain/types'
+import type {
+  AiExecutionBinding,
+  AiOperationId,
+  AiOperationIdentity,
+} from '../../domain/types'
+import type { AiErrorCode } from '../../domain/errors'
 import {
   aiRequestFingerprint,
   aiRetryAt,
@@ -82,7 +87,9 @@ export type GenerateReplySuggestionResult =
       status: 'fallback'
       /** Local, deterministic copy — never represented as provider-generated. */
       kind: 'local_safe_template'
-      reason: 'provider_or_output_unavailable'
+      reason:
+        'provider_or_output_unavailable' | 'language_undetermined' | 'no_review_text'
+      languageSource: 'explicit' | 'property_default'
       replyText: string
       concreteLanguageTag: string
     }>
@@ -91,14 +98,8 @@ export type GenerateReplySuggestionResult =
       code:
         | 'not_authorized'
         | 'source_changed'
-        // The review carries no text at all — distinct from source_changed,
-        // which asks the operator to reload. Reloading cannot add text.
-        | 'no_review_text'
         // A language exists in the catalogue but has no reply templates.
         | 'language_not_supported'
-        // Not enough text (or too little detector confidence) to decide which
-        // language the review is in. Not the same as refusing a language.
-        | 'language_undetermined'
         // The property has no configured default, or the persisted value no
         // longer resolves through the pinned concrete-language catalogue.
         | 'target_language_unavailable'
@@ -151,22 +152,28 @@ const PERSONALIZED_LANGUAGE_SET: ReadonlySet<string> = new Set(
   AI_PERSONALIZED_REPLY_LANGUAGES,
 )
 
+type FallbackResult = Extract<GenerateReplySuggestionResult, { status: 'fallback' }>
+
 function localFallback(
   input: Pick<GenerateReplySuggestionInput, 'tone'>,
   language: ConcreteReplyLanguage,
   rating: 1 | 2 | 3 | 4 | 5,
+  metadata: Pick<FallbackResult, 'reason' | 'languageSource'>,
 ): GenerateReplySuggestionResult {
   const templateId =
-    rating >= 4
-      ? 'appreciation_positive'
-      : rating === 3
-        ? 'appreciation_neutral'
-        : 'acknowledge_concern'
+    rating === 1
+      ? 'recovery_service'
+      : rating === 2
+        ? 'acknowledge_concern'
+        : rating === 3
+          ? 'appreciation_neutral'
+          : 'appreciation_positive'
   try {
     return {
       status: 'fallback',
       kind: 'local_safe_template',
-      reason: 'provider_or_output_unavailable',
+      reason: metadata.reason,
+      languageSource: metadata.languageSource,
       replyText: resolveAiReplyTemplate({
         templateGroup: language.templateGroup,
         tone: input.tone,
@@ -189,17 +196,68 @@ function canOfferLocalFallback(code: string): boolean {
   )
 }
 
+type ResolvedTargetReplyLanguage = Readonly<{
+  language: ConcreteReplyLanguage
+  languageSource: FallbackResult['languageSource']
+}>
+
+type ReplyProviderFailure = Readonly<{
+  operationId: AiOperationId
+  organizationId: OrganizationId
+  expectedAttempt: number
+  failureCode: AiErrorCode
+  providerRetryAfterEpochMillis: number | null
+}>
+
+async function recordReplyProviderFailure(
+  dependencies: Pick<
+    GenerateReplySuggestionDependencies,
+    'operations' | 'nowEpochMillis'
+  >,
+  failure: ReplyProviderFailure,
+): Promise<number | null> {
+  // ONE clock read for both instants. Anchoring the backoff to the pre-call
+  // clock while stamping failure with a fresh read can put retry before write
+  // when provider work outlasts the backoff. aiRetryAt preserves the ordering.
+  const failedAtEpochMillis = dependencies.nowEpochMillis()
+  const retryAtEpochMillis = aiRetryAt(
+    failure.expectedAttempt,
+    failedAtEpochMillis,
+    failure.providerRetryAfterEpochMillis,
+  )
+  await dependencies.operations.recordFailure({
+    operationId: failure.operationId,
+    organizationId: failure.organizationId,
+    expectedAttempt: failure.expectedAttempt,
+    failureCode: failure.failureCode,
+    retryAtEpochMillis,
+    failedAtEpochMillis,
+  })
+  return retryAtEpochMillis
+}
+
 async function resolveTargetReplyLanguage(
   dependencies: Pick<GenerateReplySuggestionDependencies, 'propertyReplyLanguages'>,
   input: GenerateReplySuggestionInput,
-  reviewLanguage: ConcreteReplyLanguage,
-): Promise<ConcreteReplyLanguage | null> {
-  if (input.targetLanguage.kind === 'review_language') return reviewLanguage
+  reviewLanguage: ConcreteReplyLanguage | null,
+): Promise<ResolvedTargetReplyLanguage | null> {
+  if (input.targetLanguage.kind === 'review_language' && reviewLanguage !== null) {
+    return { language: reviewLanguage, languageSource: 'explicit' }
+  }
   const configured = await dependencies.propertyReplyLanguages.readDefaultReplyLanguage({
     organizationId: input.organizationId,
     propertyId: input.propertyId,
   })
-  return configured === null ? null : parseCanonicalReplyLanguageTag(configured)
+  const language = configured === null ? null : parseCanonicalReplyLanguageTag(configured)
+  return language === null
+    ? null
+    : {
+        language,
+        languageSource:
+          input.targetLanguage.kind === 'review_language'
+            ? 'property_default'
+            : 'explicit',
+      }
 }
 
 async function isReplySuggestionStillCurrent(
@@ -297,10 +355,15 @@ export function createGenerateReplySuggestion(
     }
     if (brandProfile === null) return unavailable('brand_profile_unavailable')
     const observation = source.observation
-    // A review with no text is not a review that CHANGED. Folding the two into
-    // source_changed told the operator to reload a review that was already
-    // current and could never gain text by reloading.
-    if (observation.text === null) return unavailable('no_review_text')
+    if (observation.text === null) {
+      const target = await resolveTargetReplyLanguage(dependencies, input, null)
+      return target === null
+        ? unavailable('target_language_unavailable')
+        : localFallback(input, target.language, observation.rating, {
+            reason: 'no_review_text',
+            languageSource: target.languageSource,
+          })
+    }
     const reviewText = observation.text
     const evaluatedLanguage = mapReviewLanguageMetadata(observation.languageCode)
     if (evaluatedLanguage.status !== 'supported') {
@@ -315,30 +378,36 @@ export function createGenerateReplySuggestion(
       evaluatedLanguage: evaluatedLanguage.language,
     })
     if (reviewLanguage.status !== 'resolved') {
-      // The verifier already separates "cannot tell which language this is"
-      // (MIN_REPLY_LANGUAGE_LETTERS_V1 / detector confidence) from "this
-      // language has no templates". Only the second is an unsupported
-      // language. Collapsing both discarded the reason the code had already
-      // computed and reported a five-character review as a language we refuse
-      // to serve.
-      return unavailable(
-        reviewLanguage.status !== 'language_not_supported'
-          ? 'policy_unavailable'
-          : reviewLanguage.reason === 'insufficient_language_evidence'
-            ? 'language_undetermined'
-            : 'language_not_supported',
-      )
+      if (
+        reviewLanguage.status !== 'language_not_supported' ||
+        reviewLanguage.reason === 'metadata_language_mismatch'
+      ) {
+        return unavailable(
+          reviewLanguage.status === 'language_not_supported'
+            ? 'language_not_supported'
+            : 'policy_unavailable',
+        )
+      }
+      const target = await resolveTargetReplyLanguage(dependencies, input, null)
+      return target === null
+        ? unavailable('target_language_unavailable')
+        : localFallback(input, target.language, observation.rating, {
+            reason: 'language_undetermined',
+            languageSource: target.languageSource,
+          })
     }
-    const targetReplyLanguage = await resolveTargetReplyLanguage(
+    const target = await resolveTargetReplyLanguage(
       dependencies,
       input,
       reviewLanguage.language,
     )
-    if (targetReplyLanguage === null) {
-      return unavailable('target_language_unavailable')
-    }
+    if (target === null) return unavailable('target_language_unavailable')
+    const targetReplyLanguage = target.language
     if (!PERSONALIZED_LANGUAGE_SET.has(targetReplyLanguage.templateGroup)) {
-      return unavailable('language_not_supported')
+      return localFallback(input, targetReplyLanguage, observation.rating, {
+        reason: 'provider_or_output_unavailable',
+        languageSource: target.languageSource,
+      })
     }
     const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
       providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
@@ -484,25 +553,12 @@ export function createGenerateReplySuggestion(
         AbortSignal.timeout(PROFILE.requestDeadlineMs),
       )
       if (response.status === 'error') {
-        // ONE clock read for both instants. Anchoring the backoff to the pre-call
-        // `nowEpochMillis` while stamping the failure with a fresh read puts the
-        // retry BEFORE the write whenever the provider call outlasts the backoff,
-        // and ai_operations_attempt_valid enforces `next_attempt_at >= updated_at`,
-        // so the retry write itself threw and the whole request 500'd. aiRetryAt
-        // adds at least 1s, so any call slower than that inverted them.
-        const failedAtEpochMillis = dependencies.nowEpochMillis()
-        const retryAtEpochMillis = aiRetryAt(
-          expectedAttempt,
-          failedAtEpochMillis,
-          response.retryAfterEpochMillis,
-        )
-        await dependencies.operations.recordFailure({
+        const retryAtEpochMillis = await recordReplyProviderFailure(dependencies, {
           operationId: execution.id,
           organizationId: input.organizationId,
           expectedAttempt,
           failureCode: response.code,
-          retryAtEpochMillis,
-          failedAtEpochMillis,
+          providerRetryAfterEpochMillis: response.retryAfterEpochMillis,
         })
         if (canOfferLocalFallback(response.code)) {
           const currentness = await isReplySuggestionStillCurrent(
@@ -513,7 +569,10 @@ export function createGenerateReplySuggestion(
           if (currentness !== 'current') {
             return unavailable(currentness)
           }
-          return localFallback(input, targetReplyLanguage, observation.rating)
+          return localFallback(input, targetReplyLanguage, observation.rating, {
+            reason: 'provider_or_output_unavailable',
+            languageSource: target.languageSource,
+          })
         }
         return unavailable('provider_unavailable', retryAtEpochMillis)
       }

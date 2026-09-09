@@ -16,6 +16,7 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { ReplyStatusView, resolveReplyView } from './reply-status-view'
 import type { ReplyData } from './reply-status-view'
 import type { InboxReplyCacheChange } from './inbox-cache-policy'
+import type { ReviewLanguageReadiness } from './reply-language-options'
 
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 export type { ReplyData } from './reply-status-view'
@@ -27,7 +28,7 @@ type ReplyEditorProps = Readonly<{
   loading: boolean
   propertyDefaultReplyLanguage: string | null
   reviewReplyLanguage: string | null
-  canDetectReviewLanguage: boolean
+  reviewLanguageReadiness: ReviewLanguageReadiness
   onReplyChanged: (change: InboxReplyCacheChange) => void
   generateReplySuggestion?: typeof generateReplySuggestionFn
 }>
@@ -39,7 +40,7 @@ export function ReplyEditor({
   loading,
   propertyDefaultReplyLanguage,
   reviewReplyLanguage,
-  canDetectReviewLanguage,
+  reviewLanguageReadiness,
   onReplyChanged,
   generateReplySuggestion,
 }: ReplyEditorProps) {
@@ -93,7 +94,7 @@ export function ReplyEditor({
       isSaving={isSaving}
       propertyDefaultReplyLanguage={propertyDefaultReplyLanguage}
       reviewReplyLanguage={reviewReplyLanguage}
-      canDetectReviewLanguage={canDetectReviewLanguage}
+      reviewLanguageReadiness={reviewLanguageReadiness}
       onSaveDraft={(text, provenanceToken, replyLanguageTag) =>
         draft({
           data: {

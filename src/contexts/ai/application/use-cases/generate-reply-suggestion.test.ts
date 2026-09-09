@@ -50,6 +50,7 @@ function createHarness(
   options: Readonly<{
     currentReplyStateRevision?: number
     reviewText?: string | null
+    rating?: 1 | 2 | 3 | 4 | 5
     reviewLanguageCode?: string | null
     replyLanguage?: Readonly<{
       status: string
@@ -295,7 +296,7 @@ function createHarness(
             options.reviewText === undefined
               ? 'A thoughtful review.'
               : options.reviewText,
-          rating: 5 as const,
+          rating: options.rating ?? (5 as const),
           languageCode:
             options.reviewLanguageCode === undefined
               ? 'en-US'
@@ -347,6 +348,9 @@ function createHarness(
     generate: createGenerateReplySuggestion(dependencies),
     mocks: {
       claim,
+      claimExecution,
+      readHeads: dependencies.control.readHeads,
+      acquire: dependencies.quota.acquire,
       generateReply,
       settleEphemeralReply,
       markDelivered,
@@ -358,6 +362,9 @@ function createHarness(
       readCurrentAiReplyBrandProfile,
     },
   }
+}
+function expectNoAiExecution(...mocks: readonly unknown[]): void {
+  for (const mock of mocks) expect(mock).not.toHaveBeenCalled()
 }
 
 describe('generate reply suggestion', () => {
@@ -373,16 +380,65 @@ describe('generate reply suggestion', () => {
     expect(harness.mocks.generateReply).not.toHaveBeenCalled()
   })
 
-  it('reports a textless review as no_review_text, not as a changed source', async () => {
-    const harness = createHarness({ reviewText: null })
+  it('loads a property-language template for a textless review without AI execution', async () => {
+    const harness = createHarness({
+      reviewText: null,
+      propertyReplyLanguage: 'bg-Cyrl-BG',
+    })
 
     await expect(harness.generate(INPUT)).resolves.toEqual({
-      status: 'unavailable',
-      code: 'no_review_text',
-      retryAfterEpochMillis: null,
+      status: 'fallback',
+      kind: 'local_safe_template',
+      reason: 'no_review_text',
+      languageSource: 'property_default',
+      replyText:
+        'Благодарим ви, че споделихте този положителен отзив. Радваме се, че преживяването ви е било приятно.',
+      concreteLanguageTag: 'bg-Cyrl-BG',
     })
-    expect(harness.mocks.claim).not.toHaveBeenCalled()
-    expect(harness.mocks.generateReply).not.toHaveBeenCalled()
+    expect(harness.mocks.resolveReplyLanguage).not.toHaveBeenCalled()
+    expectNoAiExecution(
+      harness.mocks.readHeads,
+      harness.mocks.claim,
+      harness.mocks.claimExecution,
+      harness.mocks.acquire,
+      harness.mocks.generateReply,
+    )
+  })
+  it.each([
+    [
+      4,
+      'Thank you for sharing this positive review. We are pleased that your experience was enjoyable.',
+    ],
+    [
+      3,
+      'Thank you for sharing your perspective. We appreciate the time you took to describe your experience.',
+    ],
+    [
+      2,
+      'Thank you for explaining your concerns. We recognize that this experience was disappointing.',
+    ],
+    [
+      1,
+      'We are sorry that the service did not meet expectations. Your feedback is important to our team.',
+    ],
+  ] as const)('selects the rating-%i catalogue intent', async (rating, replyText) => {
+    const harness = createHarness({
+      reviewText: null,
+      rating,
+      propertyReplyLanguage: 'en-Latn',
+    })
+
+    await expect(
+      harness.generate({
+        ...INPUT,
+        targetLanguage: { kind: 'property_default' },
+      }),
+    ).resolves.toMatchObject({
+      status: 'fallback',
+      reason: 'no_review_text',
+      languageSource: 'explicit',
+      replyText,
+    })
   })
 
   it('fails closed before admission when the Property Brand Profile is unavailable', async () => {
@@ -397,33 +453,83 @@ describe('generate reply suggestion', () => {
     expect(harness.mocks.generateReply).not.toHaveBeenCalled()
   })
 
-  it('separates undetectable language from an unsupported one', async () => {
-    const tooShort = createHarness({
+  it.each([
+    {
+      targetLanguage: { kind: 'review_language' } as const,
+      languageSource: 'property_default',
+    },
+    {
+      targetLanguage: { kind: 'property_default' } as const,
+      languageSource: 'explicit',
+    },
+  ])(
+    'loads a chosen-language template for undetectable text ($languageSource)',
+    async ({ targetLanguage, languageSource }) => {
+      const harness = createHarness({
+        reviewText: 'Nice',
+        propertyReplyLanguage: 'bg-Cyrl-BG',
+        replyLanguage: {
+          status: 'language_not_supported',
+          reason: 'insufficient_language_evidence',
+        },
+      })
+
+      await expect(harness.generate({ ...INPUT, targetLanguage })).resolves.toEqual({
+        status: 'fallback',
+        kind: 'local_safe_template',
+        reason: 'language_undetermined',
+        languageSource,
+        replyText:
+          'Благодарим ви, че споделихте този положителен отзив. Радваме се, че преживяването ви е било приятно.',
+        concreteLanguageTag: 'bg-Cyrl-BG',
+      })
+      expectNoAiExecution(
+        harness.mocks.readHeads,
+        harness.mocks.claim,
+        harness.mocks.claimExecution,
+        harness.mocks.acquire,
+        harness.mocks.generateReply,
+      )
+    },
+  )
+
+  it('returns the existing target-language refusal when no default can resolve undetectable text', async () => {
+    const harness = createHarness({
+      reviewText: 'Nice',
       replyLanguage: {
         status: 'language_not_supported',
         reason: 'insufficient_language_evidence',
       },
     })
-    await expect(tooShort.generate(INPUT)).resolves.toEqual({
+
+    await expect(harness.generate(INPUT)).resolves.toEqual({
       status: 'unavailable',
-      code: 'language_undetermined',
+      code: 'target_language_unavailable',
       retryAfterEpochMillis: null,
     })
+    expectNoAiExecution(
+      harness.mocks.readHeads,
+      harness.mocks.claim,
+      harness.mocks.claimExecution,
+      harness.mocks.acquire,
+      harness.mocks.generateReply,
+    )
+  })
 
-    const mismatched = createHarness({
+  it('keeps a metadata mismatch unavailable', async () => {
+    const harness = createHarness({
       replyLanguage: {
         status: 'language_not_supported',
         reason: 'metadata_language_mismatch',
       },
     })
-    await expect(mismatched.generate(INPUT)).resolves.toEqual({
+
+    await expect(harness.generate(INPUT)).resolves.toEqual({
       status: 'unavailable',
       code: 'language_not_supported',
       retryAfterEpochMillis: null,
     })
-
-    expect(tooShort.mocks.generateReply).not.toHaveBeenCalled()
-    expect(mismatched.mocks.generateReply).not.toHaveBeenCalled()
+    expect(harness.mocks.generateReply).not.toHaveBeenCalled()
   })
 
   it('binds settlement and delivery to the current durable reply head', async () => {
@@ -519,6 +625,7 @@ describe('generate reply suggestion', () => {
       status: 'fallback',
       kind: 'local_safe_template',
       reason: 'provider_or_output_unavailable',
+      languageSource: 'explicit',
       replyText:
         'Thank you for sharing this positive review. We are pleased that your experience was enjoyable.',
       concreteLanguageTag: 'en-Latn',
@@ -620,7 +727,7 @@ describe('generate reply suggestion', () => {
     )
   })
 
-  it('keeps an otherwise resolved language dark until its personalized profile is approved', async () => {
+  it('uses the catalogue when a resolved language has no personalized profile', async () => {
     const text =
       'Bulgaristan’da nadir görülen konforlu bir mekan ve konaklamada sabah kahvaltısı dahil.'
     const harness = createHarness({
@@ -633,15 +740,24 @@ describe('generate reply suggestion', () => {
     })
 
     await expect(harness.generate(INPUT)).resolves.toEqual({
-      status: 'unavailable',
-      code: 'language_not_supported',
-      retryAfterEpochMillis: null,
+      status: 'fallback',
+      kind: 'local_safe_template',
+      reason: 'provider_or_output_unavailable',
+      languageSource: 'explicit',
+      replyText:
+        'Bu olumlu değerlendirmeyi paylaştığınız için teşekkür ederiz. Deneyiminizin keyifli geçmesine sevindik.',
+      concreteLanguageTag: 'tr-Latn',
     })
     expect(harness.mocks.resolveReplyLanguage).toHaveBeenCalledWith({
       text,
       evaluatedLanguage: { tag: 'und', group: 'und' },
     })
-    expect(harness.mocks.claim).not.toHaveBeenCalled()
-    expect(harness.mocks.generateReply).not.toHaveBeenCalled()
+    expectNoAiExecution(
+      harness.mocks.readHeads,
+      harness.mocks.claim,
+      harness.mocks.claimExecution,
+      harness.mocks.acquire,
+      harness.mocks.generateReply,
+    )
   })
 })

@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ChevronDown, RotateCcw, Sparkles, Undo2 } from 'lucide-react'
+import { ChevronDown, RotateCcw, ShieldCheck, Sparkles, Undo2 } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import { ButtonGroup } from '#/components/ui/button-group'
@@ -13,9 +13,11 @@ import {
 } from '#/components/ui/dropdown-menu'
 import type { ReplySuggestionFixTarget } from './reply-suggestion-contract'
 import type { ReplyTone } from './use-reply-suggestion'
+type SuggestionMode = 'ai' | 'template'
 
 type Props = Readonly<{
   tone: ReplyTone
+  mode: SuggestionMode
   disabled: boolean
   unavailableReason: string | null
   isGenerating: boolean
@@ -36,8 +38,47 @@ const toneLabel: Record<ReplyTone, string> = {
   casual: 'Casual',
 }
 
+const modeCopy = {
+  ai: { action: 'Draft with AI', pending: 'Drafting…', tone: 'AI' },
+  template: { action: 'Load template', pending: 'Loading…', tone: 'Template' },
+} satisfies Record<
+  SuggestionMode,
+  Readonly<{ action: string; pending: string; tone: string }>
+>
+
+function ReplySuggestionRequestButton({
+  mode,
+  disabled,
+  describedBy,
+  isGenerating,
+  onRequest,
+}: Readonly<{
+  mode: SuggestionMode
+  disabled: boolean
+  describedBy: string | undefined
+  isGenerating: boolean
+  onRequest: () => void
+}>) {
+  const Icon = mode === 'template' ? ShieldCheck : Sparkles
+  const copy = modeCopy[mode]
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      disabled={disabled}
+      aria-describedby={describedBy}
+      onClick={onRequest}
+    >
+      <Icon data-icon="inline-start" />
+      {isGenerating ? copy.pending : copy.action}
+    </Button>
+  )
+}
+
 export function ReplySuggestionControls({
   tone,
+  mode,
   disabled,
   unavailableReason,
   isGenerating,
@@ -57,17 +98,13 @@ export function ReplySuggestionControls({
   return (
     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
       <ButtonGroup>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
+        <ReplySuggestionRequestButton
+          mode={mode}
           disabled={disabled}
-          aria-describedby={unavailableReason ? unavailableReasonId : undefined}
-          onClick={() => void onRequest()}
-        >
-          <Sparkles data-icon="inline-start" />
-          {isGenerating ? 'Drafting…' : 'Draft with AI'}
-        </Button>
+          describedBy={unavailableReason ? unavailableReasonId : undefined}
+          isGenerating={isGenerating}
+          onRequest={() => void onRequest()}
+        />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -75,7 +112,7 @@ export function ReplySuggestionControls({
               size="icon-sm"
               variant="outline"
               disabled={disabled}
-              aria-label={`AI tone: ${toneLabel[tone]}`}
+              aria-label={`${modeCopy[mode].tone} tone: ${toneLabel[tone]}`}
               aria-describedby={unavailableReason ? unavailableReasonId : undefined}
             >
               <ChevronDown data-icon="inline-start" />

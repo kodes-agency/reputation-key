@@ -3,34 +3,34 @@ import { Link } from '@tanstack/react-router'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import type { ReviewLanguageReadiness as ReviewLanguageReadinessState } from './reply-language-options'
 
 type Props = Readonly<{
   propertyId: string
   hasPropertyDefault: boolean
-  hasReviewText: boolean
+  reviewLanguageReadiness: ReviewLanguageReadinessState
   isAutoDetecting: boolean
 }>
 
 export function ReplyLanguageReadiness({
   propertyId,
   hasPropertyDefault,
-  hasReviewText,
+  reviewLanguageReadiness,
   isAutoDetecting,
 }: Props) {
   const { can } = usePermissions()
-  if (hasPropertyDefault && hasReviewText) return null
+  if (hasPropertyDefault) return null
 
   const canManageAi = can('ai.manage')
-  const title = hasReviewText
-    ? 'Property reply language not set'
-    : 'AI drafting needs written review text'
-  const description = hasReviewText
-    ? isAutoDetecting
-      ? 'We’ll detect this review’s language for this draft. Set a property default so future replies start in your local language.'
-      : 'Set a property default so future replies start in your local language.'
-    : hasPropertyDefault
-      ? 'You can still write a reply manually, but AI cannot draft from a rating alone.'
-      : 'You can still reply manually. Set a default language for manual replies; AI remains unavailable because this review has no text.'
+  const title = 'Property reply language not set'
+  const description =
+    reviewLanguageReadiness === 'detectable'
+      ? isAutoDetecting
+        ? 'We’ll detect this review’s language for this draft. Set a property default so future replies start in your local language.'
+        : 'Set a property default so future replies start in your local language.'
+      : reviewLanguageReadiness === 'insufficient_language_evidence'
+        ? 'This review is too short to detect its language. Set a property default to load a local template.'
+        : 'This review has no text. Set a property default to load a local template.'
 
   return (
     <Alert role="status" aria-live="polite">

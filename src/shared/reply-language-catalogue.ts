@@ -8,6 +8,8 @@ import {
  * The AI policy module re-exports these exact values; property forms, reply
  * controls, and database checks therefore cannot drift from the gateway.
  */
+export const MIN_REPLY_LANGUAGE_LETTERS_V1 = 24 as const
+
 export const REPLY_TEMPLATE_LANGUAGE_GROUPS = Object.freeze([
   'en-Latn',
   'es-Latn',

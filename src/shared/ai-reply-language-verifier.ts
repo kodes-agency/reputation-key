@@ -14,6 +14,7 @@ import {
   type ReplyTemplateLanguageGroup,
   isAiUnicodeWhiteSpace,
   mapReviewLanguageMetadata,
+  MIN_REPLY_LANGUAGE_LETTERS_V1,
 } from './ai-review-language-catalogue'
 import {
   AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST,
@@ -21,7 +22,6 @@ import {
 } from './ai-zh-orthography-verifier'
 
 export const AI_REPLY_LANGUAGE_VERIFIER_VERSION = 'reply-language-verifier-v1' as const
-export const MIN_REPLY_LANGUAGE_LETTERS_V1 = 24 as const
 export const MIN_REPLY_LANGUAGE_PROBABILITY_V1 = 0.85 as const
 
 const CLOSED_PLACEHOLDERS = Object.freeze([

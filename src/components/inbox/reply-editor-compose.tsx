@@ -9,7 +9,11 @@ import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
 import { ReplyComposerFooter } from './reply-composer-footer'
 import { ReplyLanguageSelect } from './reply-language-select'
 import { ReplyLanguageReadiness } from './reply-language-readiness'
-import { languageDisplayName, type ReplyLanguageTarget } from './reply-language-options'
+import {
+  languageDisplayName,
+  type ReplyLanguageTarget,
+  type ReviewLanguageReadiness,
+} from './reply-language-options'
 import { ReplySuggestionControls } from './reply-suggestion-controls'
 import { ReplySuggestionPreview } from './reply-suggestion-preview'
 import { ReplyToolbarPortal } from './reply-toolbar-slot'
@@ -25,8 +29,8 @@ export type ReplyComposeProps = Readonly<{
   initialAiGenerated?: boolean
   propertyDefaultReplyLanguage: string | null
   reviewReplyLanguage: string | null
-  /** True when the original review has text that governed detection can inspect. */
-  canDetectReviewLanguage: boolean
+  /** Whether the original review contains enough text for governed detection. */
+  reviewLanguageReadiness: ReviewLanguageReadiness
   isSaving: boolean
   onSaveDraft: (
     text: string,
@@ -48,16 +52,18 @@ export function ReplyCompose(props: ReplyComposeProps) {
     initialAiGenerated: props.initialAiGenerated ?? false,
     propertyLanguage: props.propertyDefaultReplyLanguage,
     reviewLanguage: props.reviewReplyLanguage,
-    canDetectReviewLanguage: props.canDetectReviewLanguage,
+    reviewLanguageReadiness: props.reviewLanguageReadiness,
     onSaveDraft: props.onSaveDraft,
     onSubmit: props.onSubmit,
     onGenerate: props.onGenerateSuggestion,
   })
   const busy = props.isSaving || state.ai.isGenerating || state.ai.isAdopting
-  const aiUnavailableReason = !props.canDetectReviewLanguage
-    ? 'AI drafting needs written review text.'
-    : state.target === null
-      ? 'Choose a supported reply language before drafting with AI.'
+  const usesTemplatePath = props.reviewLanguageReadiness !== 'detectable'
+  const aiUnavailableReason =
+    state.target === null
+      ? usesTemplatePath
+        ? 'Choose a supported reply language before loading a template.'
+        : 'Choose a supported reply language before drafting with AI.'
       : null
 
   return (
@@ -73,12 +79,13 @@ export function ReplyCompose(props: ReplyComposeProps) {
       <ReplyLanguageReadiness
         propertyId={props.propertyId}
         hasPropertyDefault={props.propertyDefaultReplyLanguage !== null}
-        hasReviewText={props.canDetectReviewLanguage}
+        reviewLanguageReadiness={props.reviewLanguageReadiness}
         isAutoDetecting={state.isAutoDetectingLanguage}
       />
       {state.ai.suggestion && (
         <ReplySuggestionPreview
           suggestion={state.ai.suggestion}
+          propertyLanguage={props.propertyDefaultReplyLanguage}
           disabled={busy}
           isAdopting={state.ai.isAdopting}
           onAdopt={() => void state.ai.adopt()}
@@ -107,6 +114,7 @@ export function ReplyCompose(props: ReplyComposeProps) {
         <InputGroupAddon align="block-end" className="flex-wrap gap-2 border-t">
           {props.onGenerateSuggestion && (
             <ReplySuggestionControls
+              mode={usesTemplatePath ? 'template' : 'ai'}
               tone={state.ai.tone}
               disabled={busy || aiUnavailableReason !== null}
               unavailableReason={aiUnavailableReason}

@@ -66,8 +66,14 @@ export function ReplyLanguageSelect({ value, options, disabled, onChange }: Prop
         <SelectContent align="end">
           <SelectGroup>
             {options.map((option) => (
-              <SelectItem key={`${option.source}-${option.tag}`} value={option.tag}>
-                {option.label}
+              <SelectItem
+                key={`${option.source}-${option.tag}`}
+                value={option.tag}
+                disabled={option.disabledReason !== undefined}
+              >
+                {option.disabledReason
+                  ? `${option.label} — ${option.disabledReason}`
+                  : option.label}
               </SelectItem>
             ))}
           </SelectGroup>

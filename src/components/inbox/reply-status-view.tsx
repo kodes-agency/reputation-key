@@ -12,7 +12,10 @@ import {
 import { ReplyRejectedWithEdit } from './reply-rejected-edit'
 import { ReplyPublishedWithEdit } from './reply-published-edit'
 import type { ReplyTone, ReplySuggestionResult } from './reply-editor-compose'
-import type { ReplyLanguageTarget } from './reply-language-options'
+import type {
+  ReplyLanguageTarget,
+  ReviewLanguageReadiness,
+} from './reply-language-options'
 
 export type ReplyData = Awaited<ReturnType<typeof getReplyFn>>
 
@@ -52,7 +55,7 @@ type ReplyStatusViewProps = Readonly<{
   isSaving: boolean
   propertyDefaultReplyLanguage: string | null
   reviewReplyLanguage: string | null
-  canDetectReviewLanguage: boolean
+  reviewLanguageReadiness: ReviewLanguageReadiness
   onSaveDraft: (
     text: string,
     provenanceToken?: string,
@@ -78,7 +81,7 @@ export function ReplyStatusView({
   isSaving,
   propertyDefaultReplyLanguage,
   reviewReplyLanguage,
-  canDetectReviewLanguage,
+  reviewLanguageReadiness,
   onSaveDraft,
   onSubmitReply,
   onDeleteDraft,
@@ -92,7 +95,7 @@ export function ReplyStatusView({
   const languageProps = {
     propertyDefaultReplyLanguage,
     reviewReplyLanguage,
-    canDetectReviewLanguage,
+    reviewLanguageReadiness,
   }
   switch (view.kind) {
     case 'compose':

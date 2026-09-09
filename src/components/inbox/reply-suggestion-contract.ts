@@ -2,17 +2,34 @@ import type {
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,
 } from '#/contexts/ai/application/public-api'
-import type { ReplyLanguageTarget } from './reply-language-options'
+import {
+  equivalentReplyLanguageTags,
+  languageDisplayName,
+} from './reply-language-options'
+import type {
+  ReplyLanguageTarget,
+  ReviewLanguageReadiness,
+} from './reply-language-options'
 import type { ReplyDraftSnapshot } from './use-reply-autosave'
 
 export type ReplyTone = GenerateReplySuggestionInput['tone']
 export type ReplySuggestionResult = GenerateReplySuggestionResult
 
-export type PendingReplySuggestion = Readonly<{
-  draft: ReplyDraftSnapshot
-  kind: 'personalized' | 'local_fallback'
-  provenanceToken: string | null
-}>
+type FallbackSuggestionResult = Extract<ReplySuggestionResult, { status: 'fallback' }>
+
+export type PendingReplySuggestion =
+  | Readonly<{
+      draft: ReplyDraftSnapshot
+      kind: 'personalized'
+      provenanceToken: string
+    }>
+  | Readonly<{
+      draft: ReplyDraftSnapshot
+      kind: 'local_fallback'
+      provenanceToken: null
+      reason: FallbackSuggestionResult['reason']
+      languageSource: FallbackSuggestionResult['languageSource']
+    }>
 
 export type ReplyComposerInput = Readonly<{
   initialText: string
@@ -20,7 +37,7 @@ export type ReplyComposerInput = Readonly<{
   initialAiGenerated: boolean
   propertyLanguage: string | null
   reviewLanguage: string | null
-  canDetectReviewLanguage: boolean
+  reviewLanguageReadiness: ReviewLanguageReadiness
   onSaveDraft: (
     text: string,
     provenanceToken?: string,
@@ -49,16 +66,33 @@ export const replySuggestionFixTarget = (
   return null
 }
 
+export const replyTemplateLoadedMessage = (
+  suggestion: Pick<
+    FallbackSuggestionResult,
+    'reason' | 'languageSource' | 'concreteLanguageTag'
+  >,
+  propertyLanguage: string | null,
+): string | null => {
+  if (suggestion.reason === 'provider_or_output_unavailable') return null
+  const languageName =
+    languageDisplayName(suggestion.concreteLanguageTag) ?? suggestion.concreteLanguageTag
+  const languageSource =
+    suggestion.languageSource === 'property_default' ||
+    equivalentReplyLanguageTags(suggestion.concreteLanguageTag, propertyLanguage)
+      ? 'property default'
+      : 'selected language'
+  return suggestion.reason === 'language_undetermined'
+    ? `Review language couldn't be detected — template loaded in ${languageName} (${languageSource}).`
+    : `This review has no text — template loaded in ${languageName} (${languageSource}).`
+}
+
 export const replySuggestionUnavailableMessage = (code: string): string => {
   if (code === 'language_not_supported')
     return 'AI drafting is unavailable for this review language.'
-  if (code === 'language_undetermined')
-    return 'The review is too short to determine its language.'
   if (code === 'target_language_unavailable')
-    return 'AI drafting is unavailable in the selected reply language.'
+    return 'Set a property default reply language in property settings before loading a template.'
   if (code === 'not_authorized')
     return 'AI reply drafting is not enabled for this property.'
-  if (code === 'no_review_text') return 'This review has no text to draft from.'
   if (code === 'source_changed') return 'The review changed. Reload and try again.'
   if (code === 'brand_profile_unavailable')
     return "Reply suggestions need this property's public display name before they can be generated."
