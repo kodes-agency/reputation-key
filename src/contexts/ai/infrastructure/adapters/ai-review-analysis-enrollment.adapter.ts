@@ -23,7 +23,6 @@ type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Row = Readonly<Record<string, unknown>>
 
 const CONSUMER_NAME = 'ai.enroll-review-analysis'
-const ANALYSIS_CONSUMER = 'ai.analyze-review-event'
 const BACKFILL_EVENT = 'ai.review_analysis.backfill_requested'
 
 function safeInteger(value: unknown, field: string, minimum = 0): number {
@@ -377,6 +376,58 @@ async function catchUp(
   }
 }
 
+async function reconcileRunning(
+  tx: Tx,
+  row: Row,
+  input: Readonly<{ enrollmentId: string; occurredAt: Date }>,
+  fence: ReviewAnalysisEnrollmentFence,
+): Promise<ReviewAnalysisEnrollmentReconcileResult> {
+  // The strict aggregate head is authoritative: reaching a replay event's
+  // assigned sequence proves every earlier sequence terminal, even if BullMQ
+  // exhausted that event before it wrote a receipt.
+  const progress = await tx.execute(sql`
+    WITH terminal AS (
+      SELECT COALESCE(
+        max(head.terminal_analysis_sequence),
+        ${fence.analysisStartSequence}::bigint
+      )::bigint AS sequence
+      FROM ai_property_aggregate_heads AS head
+      WHERE head.organization_id = ${String(row.organization_id)}
+        AND head.property_id = ${String(row.property_id)}::uuid
+        AND head.source_epoch = ${fence.sourceEpoch}
+        AND head.review_analysis_epoch = ${fence.reviewAnalysisEpoch}
+    )
+    SELECT
+      count(*)::bigint AS emitted,
+      count(*) FILTER (
+        WHERE (event.payload->>'analysisSequence')::bigint <= terminal.sequence
+      )::bigint AS settled
+    FROM outbox_events AS event
+    CROSS JOIN terminal
+    WHERE event.organization_id = ${String(row.organization_id)}
+      AND event.payload->>'correlationId' = ${input.enrollmentId}
+      AND event.event_type = ${BACKFILL_EVENT}
+  `)
+  const enrolled = safeInteger(row.enrolled_revision_count, 'enrolled count')
+  const emitted = safeInteger(
+    (progress.rows[0] as Row | undefined)?.emitted ?? 0,
+    'emitted event count',
+  )
+  if (emitted < enrolled) return { status: 'waiting_for_replay' }
+  if (emitted !== enrolled) {
+    return { status: 'stalled', reason: 'verification_inconsistent' }
+  }
+  const settled = safeInteger(
+    (progress.rows[0] as Row | undefined)?.settled ?? 0,
+    'settled event count',
+  )
+  if (settled < enrolled) return { status: 'waiting_for_replay' }
+  if (settled !== enrolled) {
+    return { status: 'stalled', reason: 'verification_inconsistent' }
+  }
+  return catchUp(tx, row, input.occurredAt)
+}
+
 export const createReviewAnalysisEnrollmentAdapter = (
   db: Database,
   idGen: () => string,
@@ -586,25 +637,7 @@ export const createReviewAnalysisEnrollmentAdapter = (
       }
 
       if (enrollmentState === 'running') {
-        const receipts = await tx.execute(sql`
-          SELECT count(*)::bigint AS count
-          FROM outbox_events AS event
-          INNER JOIN event_consumer_receipts AS receipt
-            ON receipt.event_id = event.id
-           AND receipt.consumer_name = ${ANALYSIS_CONSUMER}
-          WHERE event.payload->>'correlationId' = ${input.enrollmentId}
-            AND event.event_type = ${BACKFILL_EVENT}
-        `)
-        const settled = safeInteger(
-          (receipts.rows[0] as Row | undefined)?.count ?? 0,
-          'settled event count',
-        )
-        const enrolled = safeInteger(row.enrolled_revision_count, 'enrolled count')
-        if (settled < enrolled) return { status: 'waiting_for_replay' }
-        if (settled !== enrolled) {
-          return { status: 'stalled', reason: 'verification_inconsistent' }
-        }
-        return catchUp(tx, row, input.occurredAt)
+        return reconcileRunning(tx, row, input, storedFence)
       }
 
       const expectedSnapshot = await snapshot(tx, {
