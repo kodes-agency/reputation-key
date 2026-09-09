@@ -370,6 +370,78 @@ describe('GoogleReviewApiAdapter', () => {
     expect(page.reviews[0]?.text).not.toContain('Translated by Google')
   })
 
+  // Captured live: a Bulgarian reply that Google had already published at
+  // 09:01:28Z came back wrapped in the same envelope as review text, so the
+  // digest of the blob never matched the digest of what we sent. The reply
+  // settled as "Google status unconfirmed" and no reply on a translated review
+  // could ever reach Published.
+  it('maps an echoed reply back to the text we published, not Google translation of it', async () => {
+    const published =
+      'Благодарим за препоръката. Радваме се, че услугите на KODES agency са допринесли за повече трафик.'
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        contentType: 'application/json; charset=utf-8',
+        cacheControl: null,
+        retryAfter: null,
+      },
+      body: new TextEncoder().encode(
+        JSON.stringify({
+          reviews: [
+            {
+              ...providerReview(),
+              reviewReply: {
+                comment: `(Translated by Google) Thank you for the recommendation.\n\n(Original)\n${published}`,
+                updateTime: '2026-09-09T09:01:28.000Z',
+              },
+            },
+          ],
+          totalReviewCount: 1,
+          averageRating: 5,
+        }),
+      ),
+    })
+    const { api } = createAdapter({ execute })
+
+    const page = await api.listReviewsPage(listInput())
+
+    expect(page.reviews[0]?.replyText).toBe(published)
+    expect(page.reviews[0]?.replyText).not.toContain('Translated by Google')
+  })
+
+  it('leaves an unwrapped echoed reply exactly as Google returned it', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        contentType: 'application/json; charset=utf-8',
+        cacheControl: null,
+        retryAfter: null,
+      },
+      body: new TextEncoder().encode(
+        JSON.stringify({
+          reviews: [
+            {
+              ...providerReview(),
+              reviewReply: {
+                comment: 'Thank you for the kind words.',
+                updateTime: '2026-09-09T09:01:28.000Z',
+              },
+            },
+          ],
+          totalReviewCount: 1,
+          averageRating: 5,
+        }),
+      ),
+    })
+    const { api } = createAdapter({ execute })
+
+    const page = await api.listReviewsPage(listInput())
+
+    expect(page.reviews[0]?.replyText).toBe('Thank you for the kind words.')
+  })
+
   it('leaves an unwrapped Google comment as the review text', async () => {
     const execute = vi.fn().mockResolvedValue({
       ok: true,
