@@ -5,31 +5,16 @@
 // review context's internal types (ADR 0008).
 
 import type { OrganizationId, ReplyId, ReviewId, UserId } from '#/shared/domain/ids'
+import type {
+  InboxItemReplyState,
+  ReplyPublicationFailureClass,
+  ReplyPublicationState,
+  ReplyStatus,
+} from '../../domain/types'
 
-// Self-contained copies of the review ReplyStatus / ReplySource unions.
-// Kept in sync with src/contexts/review/domain/types.ts so ReplyView is
-// structurally identical to review's Reply (= the client's ReplyData) without
-// importing it — decoupling is the ADR-0008-accepted cost of context isolation.
-export type ReplyStatus =
-  'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected' | 'publish_failed'
-
+// Self-contained copy of the review ReplySource union. ReplyView remains
+// structurally identical to review's Reply without importing that context.
 export type ReplySource = 'google_sync' | 'internal'
-
-// Self-contained copies of review's publication-state unions (BQC-3.8), kept
-// in sync with src/contexts/review/domain/reply-publication-workflow.ts —
-// same decoupling rationale as ReplyStatus/ReplySource above.
-export type ReplyPublicationState =
-  | 'requested'
-  | 'authorized'
-  | 'sending'
-  | 'pending_observation'
-  | 'published'
-  | 'terminal'
-  | 'ambiguous'
-  | 'cancelled'
-
-export type ReplyPublicationFailureClass =
-  'terminal_rejection' | 'retryable' | 'ambiguous'
 
 /** Lightweight DTO — mirrors review's Reply shape without importing it.
  *  Structurally identical to `Awaited<ReturnType<typeof getReplyFn>>` so the
@@ -81,6 +66,14 @@ export type ReplyLookupPort = Readonly<{
     ids: ReadonlyArray<ReviewId>,
     orgId: OrganizationId,
   ): Promise<ReadonlyMap<string, ReplyMilestones>>
+  /**
+   * Governed, content-free effective reply state for a bounded review set.
+   * Reviews with no reply are absent from the map.
+   */
+  getReplyStatesByReviewIds(
+    ids: ReadonlyArray<ReviewId>,
+    orgId: OrganizationId,
+  ): Promise<ReadonlyMap<string, InboxItemReplyState>>
 }>
 
 /** Earliest reply timestamps for a review — rebuild stamps these on items. */

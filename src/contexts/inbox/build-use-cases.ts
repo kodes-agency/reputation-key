@@ -126,6 +126,7 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
       repo: input.inboxRepo,
       staffPublicApi: input.staffPublicApi,
       clock: input.clock,
+      replyLookup: input.replyLookup,
     }),
     addInboxNote: addInboxNote({
       repo: input.inboxRepo,

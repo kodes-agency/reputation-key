@@ -12,6 +12,10 @@ export type {
   InboxStatus,
   SourceType,
   ManualReopenReason,
+  InboxItemReplyState,
+  ReplyStatus,
+  ReplyPublicationState,
+  ReplyPublicationFailureClass,
 } from '../domain/types'
 export type {
   FeedbackHandlingCommandResult,

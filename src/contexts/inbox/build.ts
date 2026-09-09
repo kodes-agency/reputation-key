@@ -264,6 +264,8 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     findByReviewId: (id, orgId) => input.sources.reply.findByReviewId(id, orgId),
     findMilestonesByReviewIds: (ids, orgId) =>
       input.sources.reply.findMilestonesByReviewIds(ids, orgId),
+    findStatesByReviewIds: (ids, orgId) =>
+      input.sources.reply.findStatesByReviewIds(ids, orgId),
   })
   // BQC-3.4: projection source metadata (review.updated consumer + rebuild).
   const reviewSourceLookup: ReviewSourceLookupPort = createReviewSourceLookupAdapter({

@@ -27,50 +27,76 @@ export type InboxReplyCacheChange = Readonly<{
 /** BullMQ inserts the activity row ~2s after a status change — re-invalidate on a lag. */
 export const BULLMQ_ACTIVITY_LAG_MS = 2500
 
-/** Poll cadence while a reply publication still has a bounded background owner. */
+/** Poll cadence while a detail reply still has a bounded background owner. */
 export const REPLY_POLL_INTERVAL_MS = 3000
+
+/**
+ * The paged, enriched list is five times heavier than a detail read. A 15s
+ * cadence keeps manager-visible progress current without issuing it every 3s.
+ */
+export const INBOX_LIST_REPLY_POLL_INTERVAL_MS = 15_000
 
 /** Browser-side ceiling: the worker/reconciler contract settles within 25 minutes. */
 export const REPLY_POLL_MAX_AGE_MS = 30 * 60 * 1000
 
-const POLLED_PUBLICATION_STATES: Readonly<Record<string, true>> = {
+export const POLLED_PUBLICATION_STATES: Readonly<Record<string, true>> = {
   requested: true,
   authorized: true,
   sending: true,
   pending_observation: true,
 }
 
-// ── Reply-poll predicate ────────────────────────────────────────
-//
-// Poll only while a registered background component can still advance the
-// publication. The worker/reconciler deadline is 25 minutes; the browser stops
-// after 30 minutes even if a stale cache snapshot never observes settlement.
-export function replyRefetchInterval(
-  reply:
-    | Readonly<{
-        status: string
-        publicationState: string | null
-        updatedAt: Date | string
-      }>
-    | null
-    | undefined,
-  nowMs = Date.now(),
-): number | false {
-  if (
-    !reply ||
-    reply.status !== 'approved' ||
-    !reply.publicationState ||
-    !Object.hasOwn(POLLED_PUBLICATION_STATES, reply.publicationState)
-  ) {
-    return false
-  }
+type ReplyPollingCandidate = Readonly<{
+  status: string
+  publicationState: string | null
+  updatedAt: Date | string
+}>
 
+/** Active publication ownership, without applying the browser age ceiling. */
+export function isReplyPublicationInFlight(
+  reply: ReplyPollingCandidate | null | undefined,
+): boolean {
+  return (
+    reply?.status === 'approved' &&
+    !!reply.publicationState &&
+    Object.hasOwn(POLLED_PUBLICATION_STATES, reply.publicationState)
+  )
+}
+
+function isReplyWithinPollingAge(reply: ReplyPollingCandidate, nowMs: number): boolean {
   const updatedAtMs =
     reply.updatedAt instanceof Date
       ? reply.updatedAt.getTime()
       : Date.parse(reply.updatedAt)
   return Number.isFinite(updatedAtMs) && nowMs - updatedAtMs < REPLY_POLL_MAX_AGE_MS
+}
+
+// Poll only while a registered background component can still advance the
+// publication. The worker/reconciler deadline is 25 minutes; the browser stops
+// after 30 minutes even if a stale cache snapshot never observes settlement.
+export function replyRefetchInterval(
+  reply: ReplyPollingCandidate | null | undefined,
+  nowMs = Date.now(),
+): number | false {
+  return reply &&
+    isReplyPublicationInFlight(reply) &&
+    isReplyWithinPollingAge(reply, nowMs)
     ? REPLY_POLL_INTERVAL_MS
+    : false
+}
+
+/** Poll the loaded pages only while at least one governed row is in flight. */
+export function inboxListReplyRefetchInterval(
+  items: ReadonlyArray<Pick<InboxItem, 'replyState'>> | null | undefined,
+  nowMs = Date.now(),
+): number | false {
+  return items?.some(
+    ({ replyState }) =>
+      !!replyState &&
+      isReplyPublicationInFlight(replyState) &&
+      isReplyWithinPollingAge(replyState, nowMs),
+  )
+    ? INBOX_LIST_REPLY_POLL_INTERVAL_MS
     : false
 }
 
@@ -80,6 +106,11 @@ export function replyRefetchInterval(
 
 function invalidateFolderCaches(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: inboxKeys.lists() })
+  qc.invalidateQueries({ queryKey: inboxKeys.counts() })
+  qc.invalidateQueries({ queryKey: inboxKeys.lastVisitCount() })
+}
+
+function invalidateFolderSummaryCaches(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: inboxKeys.counts() })
   qc.invalidateQueries({ queryKey: inboxKeys.lastVisitCount() })
 }
@@ -174,13 +205,15 @@ export const inboxCachePolicy = {
   },
 
   /**
-   * A reply command returned the authoritative reply snapshot. Draft autosaves
-   * and workflow transitions are classified separately by callers, but both
-   * affect only this item's reply. Provider-confirmed publication is observed
-   * by detail polling; only the resulting Inbox status transition moves folders.
+   * A reply command returned the authoritative detail snapshot. Draft
+   * autosaves remain detail-only; every workflow transition refreshes governed
+   * list state so approval chips and publication polling start immediately.
    */
   onReplyChanged(qc: QueryClient, id: string, change: InboxReplyCacheChange): void {
     patchReply(qc, id, change.reply)
+    if (change.kind === 'state_changed') {
+      qc.invalidateQueries({ queryKey: inboxKeys.lists() })
+    }
   },
 
   /**
@@ -205,6 +238,14 @@ export const inboxCachePolicy = {
     )
     qc.invalidateQueries({ queryKey: inboxKeys.notes(id) })
     invalidateActivityAfterLag(qc, id)
+  },
+
+  /**
+   * A reply observed by list polling settled or left the loaded folder.
+   * The list query already owns that refetch; invalidating it here would loop.
+   */
+  onListReplySettled(qc: QueryClient): void {
+    invalidateFolderSummaryCaches(qc)
   },
 
   /**

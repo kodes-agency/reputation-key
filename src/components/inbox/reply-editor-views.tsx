@@ -17,6 +17,11 @@ import {
 } from '#/components/ui/alert-dialog'
 import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
 import { formatDateTime } from './utils'
+import {
+  approvedReplyStateCopy,
+  REPLY_STATE_COPY,
+  replyStateDescription,
+} from './reply-state-copy'
 
 const HEADING_ID = 'reply-editor-published-heading'
 
@@ -26,40 +31,11 @@ type ReplyView = Readonly<{
   rejectionReason: string | null
 }>
 
-type ApprovedPublicationState =
-  'requested' | 'authorized' | 'sending' | 'pending_observation'
-
-const APPROVED_PUBLICATION_COPY: Readonly<
-  Record<ApprovedPublicationState, Readonly<{ badge: string; description: string }>>
-> = {
-  requested: {
-    badge: 'Queued for Google',
-    description:
-      'Your confirmation is recorded. RepKey will start publishing this reply shortly.',
-  },
-  authorized: {
-    badge: 'Queued for Google',
-    description:
-      'Your confirmation is recorded. RepKey will start publishing this reply shortly.',
-  },
-  sending: {
-    badge: 'Sending to Google',
-    description:
-      'RepKey is sending this reply to Google. It will keep checking until the exact reply is confirmed live.',
-  },
-  pending_observation: {
-    badge: 'Waiting for Google',
-    description:
-      'Google accepted the update. RepKey is checking until this exact reply is confirmed live.',
-  },
-}
-
 export function ReviewReplyApproved({
   reply,
 }: Readonly<{ reply: ReplyView & { publicationState: string | null } }>) {
-  const copy =
-    APPROVED_PUBLICATION_COPY[reply.publicationState as ApprovedPublicationState] ??
-    APPROVED_PUBLICATION_COPY.authorized
+  const copy = approvedReplyStateCopy(reply.publicationState)
+  const description = replyStateDescription(copy)
 
   return (
     <div className="space-y-3 border-t pt-4">
@@ -70,7 +46,7 @@ export function ReviewReplyApproved({
       <div className="rounded-md border bg-muted/30 p-3">
         <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply.text}</p>
       </div>
-      <p className="text-xs text-muted-foreground">{copy.description}</p>
+      <p className="text-xs text-muted-foreground">{description}</p>
     </div>
   )
 }
@@ -83,7 +59,9 @@ export function ReviewReplyPublished({
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">
         <h2 className="text-sm font-medium">Reply</h2>
-        <Badge className="bg-green-100 text-green-800">Confirmed on Google</Badge>
+        <Badge className="bg-green-100 text-green-800">
+          {REPLY_STATE_COPY.published.badge}
+        </Badge>
         {onEdit && (
           <Button size="sm" variant="outline" className="ml-auto" onClick={onEdit}>
             Edit

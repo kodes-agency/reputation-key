@@ -15,6 +15,16 @@ export type ReplyMilestoneRow = Readonly<{
   firstPublishedAt: Date | null
 }>
 
+/** Content-free reply state used by bounded foreign list enrichment. */
+export type ReplyStateRow = Readonly<{
+  reviewId: ReviewId
+  source: ReplySource
+  status: ReplyStatus
+  publicationState: PersistedPublicationState | null
+  publicationLastErrorClass: PublicationFailureClass | null
+  updatedAt: Date
+}>
+
 /** Exact attempt key used to load content-free propagation timing evidence. */
 export type PublicationAttemptReference = Readonly<{
   organizationId: OrganizationId
@@ -67,6 +77,15 @@ export type ReplyRepository = Readonly<{
     reviewIds: ReadonlyArray<ReviewId>,
     organizationId: OrganizationId,
   ): Promise<ReadonlyArray<ReplyMilestoneRow>>
+  /**
+   * Current reply state scalars for a bounded review set. One query returns
+   * every source candidate so the consumer can apply effective-reply precedence
+   * without exposing reply text or actor identity.
+   */
+  findStatesByReviewIds(
+    reviewIds: ReadonlyArray<ReviewId>,
+    organizationId: OrganizationId,
+  ): Promise<ReadonlyArray<ReplyStateRow>>
   findGoogleSyncByReviewId(
     reviewId: ReviewId,
     organizationId: OrganizationId,

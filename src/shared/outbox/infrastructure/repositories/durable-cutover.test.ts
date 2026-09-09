@@ -232,6 +232,7 @@ function makeReplyLookup() {
     findByReviewId: (id, orgId) => replyRepo.findByReviewId(id, orgId),
     findMilestonesByReviewIds: (ids, orgId) =>
       replyRepo.findMilestonesByReviewIds(ids, orgId),
+    findStatesByReviewIds: (ids, orgId) => replyRepo.findStatesByReviewIds(ids, orgId),
   })
 }
 

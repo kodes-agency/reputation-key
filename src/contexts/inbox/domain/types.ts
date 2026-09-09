@@ -14,6 +14,22 @@ import type {
 export type InboxStatus = 'open' | 'closed'
 export type SourceType = 'review' | 'feedback'
 
+export type ReplyStatus =
+  'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected' | 'publish_failed'
+
+export type ReplyPublicationState =
+  | 'requested'
+  | 'authorized'
+  | 'sending'
+  | 'pending_observation'
+  | 'published'
+  | 'terminal'
+  | 'ambiguous'
+  | 'cancelled'
+
+export type ReplyPublicationFailureClass =
+  'terminal_rejection' | 'retryable' | 'ambiguous'
+
 export type HandlingCycleOpenReason =
   | 'legacy_backfill'
   | 'review_observed'
@@ -131,6 +147,13 @@ export type ReviewHandlingCycleHead = Readonly<{
   currentSourceRevision?: number
 }>
 
+export type InboxItemReplyState = Readonly<{
+  status: ReplyStatus
+  publicationState: ReplyPublicationState | null
+  publicationLastErrorClass: ReplyPublicationFailureClass | null
+  updatedAt: Date
+}>
+
 export type InboxItem = Readonly<{
   id: InboxItemId
   organizationId: OrganizationId
@@ -158,6 +181,8 @@ export type InboxItem = Readonly<{
   reviewLanguageCode?: string | null
   /** Current governed AI attention. Null means unavailable or not enriched. */
   attention?: 'urgent' | 'high' | 'medium' | 'low' | null
+  /** Governed reply state for the row chip. Absent on unenriched reads and for actors without reply.manage. */
+  replyState?: InboxItemReplyState | null
   closedAt: Date | null
   firstReplySubmittedAt: Date | null
   firstReplyPublishedAt: Date | null

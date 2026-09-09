@@ -6,7 +6,7 @@
 // never router.invalidate()). Navigation sub-hook lives in inbox-state-helpers.
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import type { getInboxItemsFn } from '#/contexts/inbox/server/inbox'
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useMemo, useRef } from 'react'
 import type { InboxFilterValues } from '#/components/inbox/inbox-filters'
 import type { InboxItem, Cursor } from '#/contexts/inbox/application/public-api'
 import { INBOX_PAGE_SIZE } from '#/components/inbox/inbox-search-schema'
@@ -23,7 +23,11 @@ import {
 } from './inbox-selection'
 import { useDebouncedValue } from './use-debounced-value'
 import { useScopedInboxSelection } from './use-scoped-inbox-selection'
-import { inboxCachePolicy } from './inbox-cache-policy'
+import {
+  inboxCachePolicy,
+  inboxListReplyRefetchInterval,
+  isReplyPublicationInFlight,
+} from './inbox-cache-policy'
 
 type InboxPage = {
   items: ReadonlyArray<InboxItem>
@@ -31,6 +35,12 @@ type InboxPage = {
   totalCount: number
   responseCutoff: Date
 }
+
+type ReplyPollObservation = Readonly<{
+  organizationId: string | undefined
+  filters: InboxFilterValues
+  inFlightItemIds: ReadonlySet<string>
+}>
 
 export function useInboxState(
   orgId: string | undefined,
@@ -40,6 +50,7 @@ export function useInboxState(
   getInboxItems: typeof getInboxItemsFn,
 ) {
   const qc = useQueryClient()
+  const replyPollObservation = useRef<ReplyPollObservation | null>(null)
   const { selectedIds, setSelectedIds } = useScopedInboxSelection(orgId, filters)
   const { handleRowClick, closeDetail } = useInboxNavigation(onNavigate)
 
@@ -64,13 +75,54 @@ export function useInboxState(
     initialPageParam: undefined as Cursor | undefined,
     getNextPageParam: (last: InboxPage) => last.nextCursor ?? undefined,
     enabled: !!orgId,
+    refetchInterval: (activeQuery) => {
+      const loadedPages = activeQuery.state.data?.pages
+      if (!loadedPages) return false
+      for (const page of loadedPages) {
+        const interval = inboxListReplyRefetchInterval(page.items)
+        if (interval !== false) return interval
+      }
+      return false
+    },
   })
 
-  const pages = query.data?.pages ?? []
-  const items = pages.flatMap((p) => p.items)
-  const nextCursor = pages.length ? pages[pages.length - 1]!.nextCursor : null
-  const totalCount = pages[0]?.totalCount ?? 0
-  const responseCutoff = pages[0]?.responseCutoff ?? null
+  const pages = query.data?.pages
+  const items = useMemo(() => pages?.flatMap((page) => page.items) ?? [], [pages])
+
+  // A polled row can disappear because provider confirmation closed it, or it
+  // can remain in the folder with a terminal outcome. Either transition makes
+  // the summary badges stale. Scope identity prevents filter/org changes from
+  // being mistaken for settlement.
+  useEffect(() => {
+    const inFlightItemIds = new Set<string>()
+    for (const item of items) {
+      if (isReplyPublicationInFlight(item.replyState)) {
+        inFlightItemIds.add(item.id)
+      }
+    }
+
+    const previous = replyPollObservation.current
+    if (
+      previous !== null &&
+      previous.organizationId === orgId &&
+      previous.filters === debouncedFilters
+    ) {
+      for (const id of previous.inFlightItemIds) {
+        if (!inFlightItemIds.has(id)) {
+          inboxCachePolicy.onListReplySettled(qc)
+          break
+        }
+      }
+    }
+    replyPollObservation.current = {
+      organizationId: orgId,
+      filters: debouncedFilters,
+      inFlightItemIds,
+    }
+  }, [debouncedFilters, items, orgId, qc])
+  const nextCursor = pages?.length ? pages[pages.length - 1]!.nextCursor : null
+  const totalCount = pages?.[0]?.totalCount ?? 0
+  const responseCutoff = pages?.[0]?.responseCutoff ?? null
 
   // Auto-close the detail if the selected item is no longer in the loaded list.
   useEffect(() => {

@@ -8,13 +8,14 @@ import type {
   InboxFilters,
   PaginatedResult,
 } from '../ports/inbox.repository'
-import type { PropertyId } from '#/shared/domain/ids'
+import type { PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { inboxError } from '../../domain/errors'
 import { resolveVisiblePropertyIds } from '../visible-properties'
 import { resolveInboxSourceScopes } from '../inbox-access'
 import { canForContext } from '#/shared/domain/permissions'
+import type { ReplyLookupPort } from '../ports/reply-lookup.port'
 
 export type GetInboxItemsInput = Readonly<{
   filters: InboxFilters
@@ -25,6 +26,7 @@ export type GetInboxItemsInput = Readonly<{
 export type GetInboxItemsDeps = Readonly<{
   repo: InboxRepository
   staffPublicApi: StaffPublicApi
+  replyLookup: ReplyLookupPort
   clock: () => Date
 }>
 
@@ -100,7 +102,27 @@ export const getInboxItems =
       input.cursor,
       input.limit,
     )
-    return { ...page, responseCutoff }
+    if (!canForContext(ctx, 'reply.manage')) {
+      return { ...page, responseCutoff }
+    }
+
+    const reviewIds = page.items.flatMap((item) =>
+      item.sourceType === 'review' ? [item.sourceId as ReviewId] : [],
+    )
+    if (reviewIds.length === 0) {
+      return { ...page, responseCutoff }
+    }
+
+    const replyStates = await deps.replyLookup.getReplyStatesByReviewIds(
+      reviewIds,
+      ctx.organizationId,
+    )
+    const items = page.items.map((item) =>
+      item.sourceType === 'review'
+        ? { ...item, replyState: replyStates.get(item.sourceId) ?? null }
+        : item,
+    )
+    return { ...page, items, responseCutoff }
   }
 
 export type GetInboxItems = ReturnType<typeof getInboxItems>

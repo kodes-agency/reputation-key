@@ -8,7 +8,10 @@ import {
   replies,
   replyPublicationAttempts,
 } from '#/shared/db/schema/review.schema'
-import type { ReplyRepository } from '../../application/ports/reply.repository'
+import type {
+  ReplyRepository,
+  ReplyStateRow,
+} from '../../application/ports/reply.repository'
 import type { Reply, ReplySource } from '../../domain/types'
 import {
   reviewId as toReviewId,
@@ -120,6 +123,36 @@ export const createReplyRepository = (
         reviewId: toReviewId(row.reviewId),
         firstSubmittedAt: row.firstSubmittedAt ? new Date(row.firstSubmittedAt) : null,
         firstPublishedAt: row.firstPublishedAt ? new Date(row.firstPublishedAt) : null,
+      }))
+    })
+  },
+
+  findStatesByReviewIds: async (reviewIds, organizationId) => {
+    return trace('reply.findStatesByReviewIds', async () => {
+      if (reviewIds.length === 0) return []
+      const rows = await db
+        .select({
+          reviewId: replies.reviewId,
+          source: replies.source,
+          status: replies.status,
+          publicationState: replies.publicationState,
+          publicationLastErrorClass: replies.publicationLastErrorClass,
+          updatedAt: replies.updatedAt,
+        })
+        .from(replies)
+        .where(
+          and(
+            eq(replies.organizationId, organizationId),
+            sql`${replies.reviewId} = ANY(${sql.param(reviewIds.map(String))}::uuid[])`,
+          ),
+        )
+        .orderBy(asc(replies.reviewId), asc(replies.source))
+      return rows.map((row): ReplyStateRow => ({
+        ...row,
+        reviewId: toReviewId(row.reviewId),
+        publicationState: row.publicationState as ReplyStateRow['publicationState'],
+        publicationLastErrorClass:
+          row.publicationLastErrorClass as ReplyStateRow['publicationLastErrorClass'],
       }))
     })
   },
