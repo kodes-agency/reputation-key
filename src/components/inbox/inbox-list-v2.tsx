@@ -5,6 +5,7 @@ import { Checkbox } from '#/components/ui/checkbox'
 import { cn } from '#/lib/utils'
 import { INBOX_BULK_LIMIT, type InboxItem } from '#/contexts/inbox/application/public-api'
 import { formatDate, formatInboxListDate, formatReviewLanguage } from './utils'
+import { replyStateRowLabel } from './reply-state-copy'
 
 type Props = Readonly<{
   items: ReadonlyArray<InboxItem>
@@ -53,6 +54,7 @@ const ListItemRow = React.memo(function ListItemRow({
     item.reviewerName ?? (item.sourceType === 'feedback' ? 'Guest feedback' : 'Anonymous')
   const content = listItemContent(item)
   const selectionDisabled = selectionAtLimit && !isChecked
+  const replyLabel = replyStateRowLabel(item.replyState)
   return (
     <div
       role="listitem"
@@ -76,7 +78,7 @@ const ListItemRow = React.memo(function ListItemRow({
         role="button"
         tabIndex={0}
         aria-current={isActive ? 'true' : undefined}
-        aria-label={`Open ${item.sourceType} from ${reviewer}`}
+        aria-label={`Open ${item.sourceType} from ${reviewer}${replyLabel ? `, ${replyLabel}` : ''}`}
         className="min-w-0 flex-1 cursor-pointer rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() => onRowClick(item)}
         onKeyDown={(event) => {
@@ -117,6 +119,7 @@ const ListItemRow = React.memo(function ListItemRow({
           >
             {content}
           </p>
+          {replyLabel && <Badge variant="secondary">{replyLabel}</Badge>}
           {item.attention === 'urgent' && (
             <Badge
               variant="outline"

@@ -7,6 +7,7 @@
 
 import type { ReplyLookupPort } from '../../application/ports/reply-lookup.port'
 import type { ReplyLookupSource } from '../../application/ports/lookup-sources.port'
+import type { InboxItemReplyState } from '../../domain/types'
 
 export const createReplyLookupAdapter = (deps: ReplyLookupSource): ReplyLookupPort => ({
   getEffectiveReplyByReviewId: async (id, orgId) => {
@@ -21,5 +22,15 @@ export const createReplyLookupAdapter = (deps: ReplyLookupSource): ReplyLookupPo
   getReplyMilestonesByReviewIds: async (ids, orgId) => {
     const rows = await deps.findMilestonesByReviewIds(ids, orgId)
     return new Map(rows.map(({ reviewId, ...milestones }) => [reviewId, milestones]))
+  },
+  getReplyStatesByReviewIds: async (ids, orgId) => {
+    const rows = await deps.findStatesByReviewIds(ids, orgId)
+    const states = new Map<string, InboxItemReplyState>()
+    for (const { reviewId, source, ...state } of rows) {
+      if (!states.has(reviewId) || source === 'internal') {
+        states.set(reviewId, state)
+      }
+    }
+    return states
   },
 })

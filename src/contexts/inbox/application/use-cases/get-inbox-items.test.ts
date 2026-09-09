@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { getInboxItems } from './get-inbox-items'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
 import {
@@ -9,13 +9,19 @@ import {
   feedbackId,
   userId,
 } from '#/shared/domain/ids'
-import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
+import type {
+  InboxItem,
+  InboxItemReplyState,
+  InboxStatus,
+  SourceType,
+} from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import type { Role } from '#/shared/domain/roles'
 import { isInboxError } from '../../domain/errors'
+import type { ReplyLookupPort } from '../ports/reply-lookup.port'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
@@ -68,11 +74,25 @@ function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): I
   return base
 }
 
-const setup = (peopleApi: StaffPublicApi = adminStaffApi) => {
+const setup = (
+  peopleApi: StaffPublicApi = adminStaffApi,
+  replyStates: ReadonlyMap<string, InboxItemReplyState> = new Map(),
+) => {
   const repo = createInMemoryInboxRepo()
-  const deps = { repo, staffPublicApi: peopleApi, clock: () => FIXED_TIME }
+  const getReplyStatesByReviewIds = vi.fn(async () => replyStates)
+  const replyLookup: ReplyLookupPort = {
+    getEffectiveReplyByReviewId: vi.fn(async () => null),
+    getReplyMilestonesByReviewIds: vi.fn(async () => new Map()),
+    getReplyStatesByReviewIds,
+  }
+  const deps = {
+    repo,
+    staffPublicApi: peopleApi,
+    replyLookup,
+    clock: () => FIXED_TIME,
+  }
   const useCase = getInboxItems(deps)
-  return { useCase, repo }
+  return { useCase, repo, getReplyStatesByReviewIds }
 }
 
 const adminCtx = {
@@ -115,6 +135,75 @@ describe('getInboxItems', () => {
     expect(result.totalCount).toBe(2)
     expect(result.nextCursor).toBeDefined()
     expect(result.responseCutoff).toEqual(FIXED_TIME)
+  })
+
+  it('omits reply state when the actor lacks reply.manage', async () => {
+    const item = seedItem({ id: 'ii-private-reply-state' })
+    const replyState: InboxItemReplyState = {
+      status: 'pending_approval',
+      publicationState: null,
+      publicationLastErrorClass: null,
+      updatedAt: FIXED_TIME,
+    }
+    const { useCase, repo, getReplyStatesByReviewIds } = setup(
+      adminStaffApi,
+      new Map([[String(item.sourceId), replyState]]),
+    )
+    repo.items.push(item)
+
+    const result = await useCase({ filters: {} }, dynamicCtx('inbox.read', 'review.read'))
+
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]).not.toHaveProperty('replyState')
+    expect(getReplyStatesByReviewIds).not.toHaveBeenCalled()
+  })
+
+  it('enriches every review row from one governed reply-state batch', async () => {
+    const withReply = seedItem({ id: 'ii-with-reply' })
+    const withoutReply = seedItem({ id: 'ii-without-reply' })
+    const feedback = seedItem({
+      id: 'ii-feedback',
+      sourceType: 'feedback',
+      sourceId: feedbackId('fb-list-enrichment'),
+    })
+    const replyState: InboxItemReplyState = {
+      status: 'approved',
+      publicationState: 'pending_observation',
+      publicationLastErrorClass: null,
+      updatedAt: FIXED_TIME,
+    }
+    const { useCase, repo, getReplyStatesByReviewIds } = setup(
+      adminStaffApi,
+      new Map([[String(withReply.sourceId), replyState]]),
+    )
+    repo.items.push(withReply, withoutReply, feedback)
+
+    const result = await useCase(
+      { filters: {} },
+      dynamicCtx('inbox.read', 'review.read', 'feedback.read', 'reply.manage'),
+    )
+
+    expect(getReplyStatesByReviewIds).toHaveBeenCalledOnce()
+    expect(getReplyStatesByReviewIds).toHaveBeenCalledWith(
+      expect.arrayContaining([withReply.sourceId, withoutReply.sourceId]),
+      ORG_ID,
+    )
+    expect(result.items.find((item) => item.id === withReply.id)?.replyState).toEqual(
+      replyState,
+    )
+    expect(result.items.find((item) => item.id === withoutReply.id)).toHaveProperty(
+      'replyState',
+      null,
+    )
+    expect(result.items.find((item) => item.id === feedback.id)).not.toHaveProperty(
+      'replyState',
+    )
+    expect(Object.keys(replyState)).toEqual([
+      'status',
+      'publicationState',
+      'publicationLastErrorClass',
+      'updatedAt',
+    ])
   })
 
   it('filters by status', async () => {

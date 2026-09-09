@@ -49,6 +49,7 @@ const setup = (replies: ReadonlyArray<ReplyView>) =>
   createReplyLookupAdapter({
     findByReviewId: async () => replies,
     findMilestonesByReviewIds: async () => [],
+    findStatesByReviewIds: async () => [],
   })
 
 describe('getEffectiveReplyByReviewId', () => {
@@ -115,6 +116,72 @@ describe('getReplyMilestonesByReviewIds', () => {
           {
             firstSubmittedAt,
             firstPublishedAt,
+          },
+        ],
+      ]),
+    )
+  })
+})
+
+describe('getReplyStatesByReviewIds', () => {
+  it('selects the effective reply from one content-free source batch', async () => {
+    const secondReview = reviewId('d4000000-0000-4000-8000-000000000011')
+    const findStatesByReviewIds = vi.fn(async () => [
+      {
+        reviewId: REVIEW,
+        source: 'google_sync' as const,
+        status: 'published' as const,
+        publicationState: 'published' as const,
+        publicationLastErrorClass: null,
+        updatedAt: NOW,
+      },
+      {
+        reviewId: REVIEW,
+        source: 'internal' as const,
+        status: 'pending_approval' as const,
+        publicationState: null,
+        publicationLastErrorClass: null,
+        updatedAt: NOW,
+      },
+      {
+        reviewId: secondReview,
+        source: 'google_sync' as const,
+        status: 'published' as const,
+        publicationState: 'published' as const,
+        publicationLastErrorClass: null,
+        updatedAt: NOW,
+      },
+    ])
+    const findByReviewId = vi.fn(async () => [])
+    const adapter = createReplyLookupAdapter({
+      findByReviewId,
+      findMilestonesByReviewIds: async () => [],
+      findStatesByReviewIds,
+    })
+
+    const result = await adapter.getReplyStatesByReviewIds([REVIEW, secondReview], ORG)
+
+    expect(findStatesByReviewIds).toHaveBeenCalledOnce()
+    expect(findStatesByReviewIds).toHaveBeenCalledWith([REVIEW, secondReview], ORG)
+    expect(findByReviewId).not.toHaveBeenCalled()
+    expect(result).toEqual(
+      new Map([
+        [
+          REVIEW,
+          {
+            status: 'pending_approval',
+            publicationState: null,
+            publicationLastErrorClass: null,
+            updatedAt: NOW,
+          },
+        ],
+        [
+          secondReview,
+          {
+            status: 'published',
+            publicationState: 'published',
+            publicationLastErrorClass: null,
+            updatedAt: NOW,
           },
         ],
       ]),

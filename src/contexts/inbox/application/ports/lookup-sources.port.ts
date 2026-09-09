@@ -13,6 +13,7 @@ import type {
 } from '#/shared/domain/ids'
 import type { ReplyMilestones, ReplyView } from './reply-lookup.port'
 import type { FeedbackContentFilter } from './feedback-lookup.port'
+import type { InboxItemReplyState } from '../../domain/types'
 
 /**
  * Guest-owned feedback/rating reads.
@@ -92,6 +93,20 @@ export type ReplyLookupSource = Readonly<{
     ids: ReadonlyArray<ReviewId>,
     orgId: OrganizationId,
   ) => Promise<ReadonlyArray<Readonly<{ reviewId: ReviewId } & ReplyMilestones>>>
+  /** Content-free state candidates for effective-reply selection. */
+  findStatesByReviewIds: (
+    ids: ReadonlyArray<ReviewId>,
+    orgId: OrganizationId,
+  ) => Promise<
+    ReadonlyArray<
+      Readonly<
+        {
+          reviewId: ReviewId
+          source: ReplyView['source']
+        } & InboxItemReplyState
+      >
+    >
+  >
 }>
 
 /** Structural shape the review repository rows satisfy (metadata only). */

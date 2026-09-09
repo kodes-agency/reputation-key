@@ -161,6 +161,7 @@ const setup = (
       return reply
     },
     getReplyMilestonesByReviewIds: async () => new Map(),
+    getReplyStatesByReviewIds: async () => new Map(),
   }
   return {
     repo,

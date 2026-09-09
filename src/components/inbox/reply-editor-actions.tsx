@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '#/components/ui/alert-dialog'
+import { REPLY_STATE_COPY, replyStateDescription } from './reply-state-copy'
 
 type ReplyView = Readonly<{
   text: string
@@ -61,7 +62,9 @@ export function ReplyPendingApproval({
     <div className="space-y-3 border-t pt-4">
       <ReplyStatusSummary
         reply={reply}
-        status={<Badge variant="outline">Awaiting Approval</Badge>}
+        status={
+          <Badge variant="outline">{REPLY_STATE_COPY.pending_approval.badge}</Badge>
+        }
       />
       <div className="flex flex-wrap gap-2">
         <AlertDialog>
@@ -140,16 +143,14 @@ type CheckProps = Readonly<{
 
 /** Unknown provider outcome: the only safe operator action is another read. */
 export function ReplyPublicationNeedsCheck({ reply, isSaving, onCheck }: CheckProps) {
+  const copy = REPLY_STATE_COPY.ambiguous
   return (
     <div className="space-y-3 border-t pt-4">
       <ReplyStatusSummary
         reply={reply}
-        status={<Badge variant="outline">Google status unconfirmed</Badge>}
+        status={<Badge variant="outline">{copy.badge}</Badge>}
       />
-      <p className="text-xs text-muted-foreground">
-        Google may have accepted this reply, but RepKey could not verify it. To avoid
-        posting twice, RepKey will only check Google—it will not send this reply again.
-      </p>
+      <p className="text-xs text-muted-foreground">{replyStateDescription(copy)}</p>
       <Button size="sm" disabled={isSaving} onClick={() => onCheck()}>
         {isSaving ? 'Checking Google…' : 'Check Google again'}
       </Button>
@@ -166,28 +167,18 @@ type RetryProps = Readonly<{
 /** A confirmed pre-request/retry exhaustion failure that is safe to send again. */
 export function ReplyPublicationRetryable({ reply, isSaving, onRetry }: RetryProps) {
   const wasRejected = reply.publicationLastErrorClass === 'terminal_rejection'
-  const retryDescription =
-    reply.publicationAttempts === 0
-      ? 'RepKey could not start publishing before the recovery deadline. No Google update was attempted, so it is safe to try again.'
-      : `RepKey stopped after ${reply.publicationAttempts} ${
-          reply.publicationAttempts === 1 ? 'attempt' : 'attempts'
-        }. Google did not accept the update, so it is safe to try again when the connection is stable.`
+  const copy = wasRejected
+    ? REPLY_STATE_COPY.terminal_rejection
+    : REPLY_STATE_COPY.retryable
+  const description = replyStateDescription(copy, reply.publicationAttempts)
 
   return (
     <div className="space-y-3 border-t pt-4">
       <ReplyStatusSummary
         reply={reply}
-        status={
-          <Badge variant="outline">
-            {wasRejected ? 'Google rejected update' : 'Publishing stopped'}
-          </Badge>
-        }
+        status={<Badge variant="outline">{copy.badge}</Badge>}
       />
-      <p className="text-xs text-muted-foreground">
-        {wasRejected
-          ? 'Google rejected this update before it could be published. Check the Google Business Profile connection and permissions, then try again.'
-          : retryDescription}
-      </p>
+      <p className="text-xs text-muted-foreground">{description}</p>
       <Button size="sm" disabled={isSaving} onClick={() => onRetry()}>
         {isSaving ? 'Starting…' : 'Try publishing again'}
       </Button>
@@ -207,7 +198,7 @@ export function ReviewReplyRejected({ reply, isSaving, onEditResubmit }: Rejecte
     <div className="space-y-3 border-t pt-4">
       <ReplyStatusSummary
         reply={reply}
-        status={<Badge variant="destructive">Rejected</Badge>}
+        status={<Badge variant="destructive">{REPLY_STATE_COPY.rejected.badge}</Badge>}
       />
       {reply.rejectionReason && (
         <p className="text-xs text-muted-foreground">Reason: {reply.rejectionReason}</p>

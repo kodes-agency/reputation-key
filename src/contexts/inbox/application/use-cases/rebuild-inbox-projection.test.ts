@@ -94,6 +94,7 @@ function setup(opts: {
   const replyLookup: ReplyLookupPort = {
     getEffectiveReplyByReviewId: vi.fn(async () => null),
     getReplyMilestonesByReviewIds: vi.fn(async () => opts.milestones ?? new Map()),
+    getReplyStatesByReviewIds: vi.fn(async () => new Map()),
   }
   const deps = {
     repo,

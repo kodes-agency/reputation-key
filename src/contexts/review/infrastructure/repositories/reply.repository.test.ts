@@ -241,6 +241,91 @@ describe.sequential('replyRepository (integration)', () => {
     })
   })
 
+  describe('findStatesByReviewIds', () => {
+    it('returns one content-free batch of source candidates within the tenant', async () => {
+      const db = getDb()
+      const firstReview = await seedReview(db)
+      const secondReview = await seedReview(db, {
+        id: reviewId('3a000000-0000-0000-0000-000000000002'),
+        externalId: 'rpl-ext-002',
+      })
+      const repo = createReplyRepository(db, () => now)
+
+      const providerReply = await repo.upsert(
+        makeReply({
+          id: '2a000000-0000-0000-0000-000000000011',
+          reviewId: firstReview.id,
+          source: 'google_sync',
+          text: 'provider reply text must not cross the lookup',
+          status: 'published',
+          publicationState: 'published',
+          publicationAttempts: 1,
+          publicationCycle: 1,
+          publicationLastErrorClass: null,
+          reconcileDueAt: null,
+        }),
+        now,
+      )
+      const internalReply = await repo.upsert(
+        makeReply({
+          id: '2a000000-0000-0000-0000-000000000012',
+          reviewId: firstReview.id,
+          source: 'internal',
+          text: 'manager reply text must not cross the lookup',
+          status: 'approved',
+          publicationState: 'pending_observation',
+          publicationAttempts: 1,
+          publicationCycle: 1,
+          publicationLastErrorClass: null,
+          reconcileDueAt: now,
+        }),
+        now,
+      )
+
+      const states = await repo.findStatesByReviewIds(
+        [firstReview.id, secondReview.id],
+        ORG_A,
+      )
+
+      expect(states).toEqual([
+        {
+          reviewId: firstReview.id,
+          source: 'google_sync',
+          status: 'published',
+          publicationState: 'published',
+          publicationLastErrorClass: null,
+          updatedAt: providerReply.updatedAt,
+        },
+        {
+          reviewId: firstReview.id,
+          source: 'internal',
+          status: 'approved',
+          publicationState: 'pending_observation',
+          publicationLastErrorClass: null,
+          updatedAt: internalReply.updatedAt,
+        },
+      ])
+      expect(Object.keys(states[0]!)).toEqual([
+        'reviewId',
+        'source',
+        'status',
+        'publicationState',
+        'publicationLastErrorClass',
+        'updatedAt',
+      ])
+      expect(JSON.stringify(states)).not.toContain('reply text')
+      await expect(repo.findStatesByReviewIds([firstReview.id], ORG_B)).resolves.toEqual(
+        [],
+      )
+    })
+
+    it('does not query for an empty review scope', async () => {
+      const repo = createReplyRepository(getDb(), () => now)
+
+      await expect(repo.findStatesByReviewIds([], ORG_A)).resolves.toEqual([])
+    })
+  })
+
   describe('findGoogleSyncByReviewId', () => {
     it('finds google_sync reply by review id', async () => {
       const db = getDb()

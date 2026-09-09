@@ -229,25 +229,22 @@ describe('inboxCachePolicy.onFeedbackHandlingChanged', () => {
 // ── onReplyMutated ──────────────────────────────────────────────
 
 describe('inboxCachePolicy reply changes', () => {
-  it.each(['draft_saved', 'state_changed'] as const)(
-    '%s writes only the reply into the selected detail cache',
-    (kind) => {
-      const { qc, invalidated, setDataCalls } = makeFakeQc()
-      const reply = {
-        id: 'reply-1',
-        status: kind === 'draft_saved' ? 'draft' : 'pending_approval',
-      } as unknown as InboxItemDetailResult['reply']
+  it('patches the detail and refreshes governed list state after a workflow change', () => {
+    const { qc, invalidated, setDataCalls } = makeFakeQc()
+    const reply = {
+      id: 'reply-1',
+      status: 'pending_approval',
+    } as unknown as InboxItemDetailResult['reply']
 
-      inboxCachePolicy.onReplyChanged(qc, ID, { kind, reply })
+    inboxCachePolicy.onReplyChanged(qc, ID, { kind: 'state_changed', reply })
 
-      expect(setDataCalls).toHaveLength(1)
-      expect(setDataCalls[0].key).toEqual(inboxKeys.detail(ID))
-      const old = { item: { id: ID }, reply: null, notes: [] }
-      expect(setDataCalls[0].updater(old)).toEqual({ ...old, reply })
-      expect(setDataCalls[0].updater(undefined)).toBeUndefined()
-      expect(invalidated).toEqual([])
-    },
-  )
+    expect(setDataCalls).toHaveLength(1)
+    expect(setDataCalls[0].key).toEqual(inboxKeys.detail(ID))
+    const old = { item: { id: ID }, reply: null, notes: [] }
+    expect(setDataCalls[0].updater(old)).toEqual({ ...old, reply })
+    expect(setDataCalls[0].updater(undefined)).toBeUndefined()
+    expect(invalidated).toEqual([inboxKeys.lists()])
+  })
 
   it('does not make folder data stale when an autosave returns a draft', () => {
     const { qc, invalidated } = makeFakeQc()
@@ -306,6 +303,17 @@ describe('inboxCachePolicy.onItemFolderChanged', () => {
     expect(invalidated).toContainEqual(inboxKeys.lists())
     expect(invalidated).toContainEqual(inboxKeys.counts())
     expect(invalidated).toContainEqual(inboxKeys.lastVisitCount())
+  })
+})
+
+describe('inboxCachePolicy.onListReplySettled', () => {
+  it('invalidates counts and last-visit without invalidating the polling list', () => {
+    const { qc, invalidated } = makeFakeQc()
+
+    inboxCachePolicy.onListReplySettled(qc)
+
+    expect(invalidated).toEqual([inboxKeys.counts(), inboxKeys.lastVisitCount()])
+    expect(invalidated).not.toContainEqual(inboxKeys.lists())
   })
 })
 

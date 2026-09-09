@@ -1,7 +1,8 @@
 // Inbox list v2 — Gmail-style multi-line rows with per-row checkbox selection
 // and row click to open detail. Presentational; rows are React.memo'd. Stories
-// cover populated/empty/selected states plus select + row-open interactions.
-// Items use distinct reviewer names so the per-row aria-labels are unambiguous.
+// cover populated/empty/selected states, reply-state chips, and select +
+// row-open interactions. Items use distinct reviewer names so per-row
+// aria-labels are unambiguous.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import { InboxListV2 } from './inbox-list-v2'
@@ -20,6 +21,7 @@ function makeItem(opts: {
   propertyName?: string
   reviewLanguageCode?: string
   attention?: InboxItem['attention']
+  replyState?: InboxItem['replyState']
 }): InboxItem {
   return {
     id: opts.id as InboxItem['id'],
@@ -37,6 +39,7 @@ function makeItem(opts: {
     propertyName: opts.propertyName ?? 'Acme Hotel',
     reviewLanguageCode: opts.reviewLanguageCode,
     attention: opts.attention,
+    ...(opts.replyState !== undefined ? { replyState: opts.replyState } : {}),
     isEscalated: opts.isEscalated ?? false,
     escalatedAt: null,
     escalatedBy: null,
@@ -101,6 +104,118 @@ const baseArgs = {
 // Compact review and feedback rows with property-first metadata.
 export const Default: Story = {
   args: { ...baseArgs },
+}
+
+export const AwaitingApprovalReply: Story = {
+  args: {
+    ...baseArgs,
+    items: [
+      makeItem({
+        id: 'rev-awaiting-approval',
+        sourceType: 'review',
+        reviewerName: 'Approval Reviewer',
+        replyState: {
+          status: 'pending_approval',
+          publicationState: null,
+          publicationLastErrorClass: null,
+          updatedAt: new Date('2025-01-01T00:00:00Z'),
+        },
+      }),
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Awaiting Approval')).toBeVisible()
+    expect(
+      canvas.getByRole('button', {
+        name: /open review from approval reviewer, awaiting approval/i,
+      }),
+    ).toBeVisible()
+  },
+}
+
+export const WaitingForGoogleReply: Story = {
+  args: {
+    ...baseArgs,
+    items: [
+      makeItem({
+        id: 'rev-waiting-google',
+        sourceType: 'review',
+        reviewerName: 'Waiting Reviewer',
+        replyState: {
+          status: 'approved',
+          publicationState: 'pending_observation',
+          publicationLastErrorClass: null,
+          updatedAt: new Date('2025-01-01T00:00:00Z'),
+        },
+      }),
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Waiting for Google')).toBeVisible()
+    expect(
+      canvas.getByRole('button', {
+        name: /open review from waiting reviewer, waiting for google/i,
+      }),
+    ).toBeVisible()
+  },
+}
+
+export const GoogleStatusUnconfirmedReply: Story = {
+  args: {
+    ...baseArgs,
+    items: [
+      makeItem({
+        id: 'rev-unconfirmed-google',
+        sourceType: 'review',
+        reviewerName: 'Unconfirmed Reviewer',
+        replyState: {
+          status: 'publish_failed',
+          publicationState: 'ambiguous',
+          publicationLastErrorClass: 'ambiguous',
+          updatedAt: new Date('2025-01-01T00:00:00Z'),
+        },
+      }),
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Google status unconfirmed')).toBeVisible()
+    expect(
+      canvas.getByRole('button', {
+        name: /open review from unconfirmed reviewer, google status unconfirmed/i,
+      }),
+    ).toBeVisible()
+  },
+}
+
+export const PublishingStoppedReply: Story = {
+  args: {
+    ...baseArgs,
+    items: [
+      makeItem({
+        id: 'rev-publishing-stopped',
+        sourceType: 'review',
+        reviewerName: 'Stopped Reviewer',
+        replyState: {
+          status: 'publish_failed',
+          publicationState: 'terminal',
+          publicationLastErrorClass: 'retryable',
+          updatedAt: new Date('2025-01-01T00:00:00Z'),
+        },
+      }),
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Publishing stopped')).toBeVisible()
+    expect(
+      canvas.getByRole('button', {
+        name: /open review from stopped reviewer, publishing stopped/i,
+      }),
+    ).toBeVisible()
+  },
 }
 
 // No items — the panel-level empty state handles this in composition.
