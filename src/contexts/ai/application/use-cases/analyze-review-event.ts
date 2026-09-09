@@ -354,14 +354,23 @@ export function createAnalyzeReviewEvent(
         input.disposition,
       )
     }
+    if (authorization === null || authorization.authorizationLineageId === null) {
+      return settleWithoutResult(
+        input,
+        reviewAnalysisEpoch,
+        profileVersionForSettle,
+        'policy_disabled',
+      )
+    }
+    const authorizationLineageId = authorization.authorizationLineageId
     if (
-      authorization === null ||
-      authorization.state !== 'enabled' ||
-      authorization.authorizationLineageId === null ||
-      authorization.authorizedSourceEpoch !== input.sourceEpoch ||
-      !authorization.capabilities.includes('review_analysis') ||
-      authorization.capabilityRuntimeProfileVersions.review_analysis !==
-        PROFILE.capabilityRuntimeProfileVersion
+      ![
+        authorization.state === 'enabled',
+        authorization.authorizedSourceEpoch === input.sourceEpoch,
+        authorization.capabilities.includes('review_analysis'),
+        authorization.capabilityRuntimeProfileVersions.review_analysis ===
+          PROFILE.capabilityRuntimeProfileVersion,
+      ].every(Boolean)
     ) {
       return settleWithoutResult(
         input,
@@ -403,12 +412,20 @@ export function createAnalyzeReviewEvent(
         analysisSequence: input.analysisSequence,
       },
     })
-    if (source.status !== 'available' || source.observation.text === null) {
+    if (source.status !== 'available') {
       return settleWithoutResult(
         input,
         reviewAnalysisEpoch,
         profile.profileVersion,
         source.status === 'expired' ? 'source_expired' : 'policy_disabled',
+      )
+    }
+    if (source.observation.text === null) {
+      return settleWithoutResult(
+        input,
+        reviewAnalysisEpoch,
+        profile.profileVersion,
+        'policy_disabled',
       )
     }
     const observation = source.observation
@@ -524,10 +541,8 @@ export function createAnalyzeReviewEvent(
         'policy_disabled',
       )
     }
-    if (
-      claimed.operation.state === 'succeeded' ||
-      claimed.operation.state === 'succeeded_pending_delivery'
-    ) {
+    const operation = claimed.operation
+    if (['succeeded', 'succeeded_pending_delivery'].includes(operation.state)) {
       const settled = await settleReviewAnalysisWithResult(settlementDependencies, {
         organizationId: input.organizationId,
         propertyId: input.propertyId,
@@ -537,7 +552,7 @@ export function createAnalyzeReviewEvent(
         reviewAnalysisEpoch,
         analysisSequence: input.analysisSequence,
         propertyProfileVersion: profile.profileVersion,
-        operationId: claimed.operation.id,
+        operationId: operation.id,
       })
       if (settled.status === 'gap') {
         return { status: 'gap', expectedSequence: settled.expectedSequence }
@@ -546,204 +561,207 @@ export function createAnalyzeReviewEvent(
         return { status: 'generation_changed' }
       }
       await dependencies.operations.markDelivered({
-        operationId: claimed.operation.id,
+        operationId: operation.id,
         organizationId: input.organizationId,
-        expectedAttempt: claimed.operation.executionAttempt,
+        expectedAttempt: operation.executionAttempt,
         deliveredAtEpochMillis: nowEpochMillis,
       })
       return { status: 'replayed' }
     }
-    // Once an operation exists it gets the plan's full 15 minutes from its own
-    // `createdAt`, so a relay backlog cannot cut short work that has already
-    // started. The provider-attempt cap (4, below) terminates this path
-    // independently; only the quota/lease deferrals rely on this horizon.
-    const operationHorizonEpochMillis = Math.max(
-      eventHorizonEpochMillis ?? 0,
-      claimed.operation.createdAtEpochMillis + AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
-    )
-    const expectedAttempt = claimed.operation.executionAttempt + 1
-    if (expectedAttempt > 4) {
-      return settleWithoutResult(
-        input,
-        reviewAnalysisEpoch,
-        profile.profileVersion,
-        'policy_disabled',
+    async function executeClaimedAnalysis(): Promise<AnalyzeReviewEventResult> {
+      // Once an operation exists it gets the plan's full 15 minutes from its own
+      // `createdAt`, so a relay backlog cannot cut short work that has already
+      // started. The provider-attempt cap (4, below) terminates this path
+      // independently; only the quota/lease deferrals rely on this horizon.
+      const operationHorizonEpochMillis = Math.max(
+        eventHorizonEpochMillis ?? 0,
+        operation.createdAtEpochMillis + AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
       )
-    }
-    const quota = await dependencies.quota.acquire({
-      propertyId: input.propertyId,
-      capability: 'review_analysis',
-      nowEpochMillis,
-    })
-    if (!quota.ok) {
-      return deferOrSettle(
-        input,
-        reviewAnalysisEpoch,
-        profile.profileVersion,
-        quota.code,
-        nowEpochMillis,
-        operationHorizonEpochMillis,
-      )
-    }
-    try {
-      const execution = await dependencies.operations.claimExecution({
-        operationId: claimed.operation.id,
-        organizationId: input.organizationId,
-        expectedAttempt,
+      const expectedAttempt = operation.executionAttempt + 1
+      if (expectedAttempt > 4) {
+        return settleWithoutResult(
+          input,
+          reviewAnalysisEpoch,
+          profile.profileVersion,
+          'policy_disabled',
+        )
+      }
+      const quota = await dependencies.quota.acquire({
+        propertyId: input.propertyId,
+        capability: 'review_analysis',
         nowEpochMillis,
       })
-      if (execution === null || execution.executionPermitId === null) {
+      if (!quota.ok) {
         return deferOrSettle(
           input,
           reviewAnalysisEpoch,
           profile.profileVersion,
-          'operation_in_progress',
+          quota.code,
           nowEpochMillis,
           operationHorizonEpochMillis,
         )
       }
-      const response = await dependencies.inference.analyzeReview(
-        {
-          route: 'review-analysis',
+      try {
+        const execution = await dependencies.operations.claimExecution({
+          operationId: operation.id,
+          organizationId: input.organizationId,
+          expectedAttempt,
+          nowEpochMillis,
+        })
+        if (execution === null || execution.executionPermitId === null) {
+          return deferOrSettle(
+            input,
+            reviewAnalysisEpoch,
+            profile.profileVersion,
+            'operation_in_progress',
+            nowEpochMillis,
+            operationHorizonEpochMillis,
+          )
+        }
+        const response = await dependencies.inference.analyzeReview(
+          {
+            route: 'review-analysis',
+            operationId: execution.id,
+            permitId: execution.executionPermitId,
+            attemptNumber: expectedAttempt,
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            internalSubjectId: input.reviewId,
+            actorId: null,
+            binding,
+            deadlineEpochMillis: nowEpochMillis + PROFILE.requestDeadlineMs,
+            redactionCountry: profile.countryCode,
+            observedContentExpiresAtEpochMillis: observation.contentExpiresAtEpochMillis,
+            source: {
+              kind: 'review',
+              text: observation.text,
+              rating: observation.rating,
+              languageCode: observation.languageCode,
+              reviewedAtEpochMillis: observation.reviewedAtEpochMillis,
+            },
+          },
+          AbortSignal.timeout(PROFILE.requestDeadlineMs),
+        )
+        if (response.status === 'error') {
+          // ONE clock read for both instants. Anchoring the backoff to the pre-call
+          // `nowEpochMillis` while stamping the failure with a fresh read puts the
+          // retry BEFORE the write whenever the provider call outlasts the backoff,
+          // and ai_operations_attempt_valid enforces `next_attempt_at >= updated_at`,
+          // so the retry write itself threw and the whole request 500'd. aiRetryAt
+          // adds at least 1s, so any call slower than that inverted them.
+          const failedAtEpochMillis = dependencies.nowEpochMillis()
+          const retryAtEpochMillis = aiRetryAt(
+            expectedAttempt,
+            failedAtEpochMillis,
+            response.retryAfterEpochMillis,
+          )
+          await dependencies.operations.recordFailure({
+            operationId: execution.id,
+            organizationId: input.organizationId,
+            expectedAttempt,
+            failureCode: response.code,
+            retryAtEpochMillis,
+            failedAtEpochMillis,
+          })
+          if (retryAtEpochMillis !== null) {
+            return { status: 'retry', retryAtEpochMillis, code: response.code }
+          }
+          return settleWithoutResult(
+            input,
+            reviewAnalysisEpoch,
+            profile.profileVersion,
+            'policy_disabled',
+          )
+        }
+        const parsedAnalysis = AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse(response.result)
+        if (!parsedAnalysis.success) {
+          const failedAtEpochMillis = dependencies.nowEpochMillis()
+          const retryAtEpochMillis = aiRetryAt(expectedAttempt, failedAtEpochMillis, null)
+          await dependencies.operations.recordFailure({
+            operationId: execution.id,
+            organizationId: input.organizationId,
+            expectedAttempt,
+            failureCode: 'output_invalid',
+            retryAtEpochMillis,
+            failedAtEpochMillis,
+          })
+          if (retryAtEpochMillis !== null) {
+            return {
+              status: 'retry',
+              retryAtEpochMillis,
+              code: 'output_invalid',
+            }
+          }
+          return settleWithoutResult(
+            input,
+            reviewAnalysisEpoch,
+            profile.profileVersion,
+            'policy_disabled',
+          )
+        }
+        const analysisResult = parsedAnalysis.data
+        const completedAtEpochMillis = response.settlementReceipt.settledAtEpochMillis
+        const stored = await dependencies.outputs.storeAnalysis({
           operationId: execution.id,
-          permitId: execution.executionPermitId,
-          attemptNumber: expectedAttempt,
+          providerCompletion: {
+            expectedAttempt,
+            modelSnapshot: AI_PROVIDER_DEPLOYMENT_PROFILE.modelSnapshot,
+            inputTokens: response.settlementReceipt.inputTokens,
+            outputTokens: response.settlementReceipt.outputTokens,
+            completedAtEpochMillis,
+          },
           organizationId: input.organizationId,
           propertyId: input.propertyId,
-          internalSubjectId: input.reviewId,
-          actorId: null,
-          binding,
-          deadlineEpochMillis: nowEpochMillis + PROFILE.requestDeadlineMs,
-          redactionCountry: profile.countryCode,
-          observedContentExpiresAtEpochMillis: observation.contentExpiresAtEpochMillis,
-          source: {
-            kind: 'review',
-            text: observation.text,
-            rating: observation.rating,
-            languageCode: observation.languageCode,
-            reviewedAtEpochMillis: observation.reviewedAtEpochMillis,
+          reviewId: input.reviewId,
+          sourceEpoch: input.sourceEpoch,
+          sourceRevision: input.sourceRevision,
+          analysisSequence: input.analysisSequence,
+          authorizationLineageId,
+          reviewAnalysisEpoch,
+          propertyProfileVersion: profile.profileVersion,
+          analysisProfileVersion: PROFILE.profileVersion,
+          result: {
+            status: 'ready',
+            derivative: {
+              sentiment: analysisResult.sentiment,
+              primaryCategory: derivePrimaryCategoryV1(analysisResult.aspects),
+              attention: attentionFor(analysisResult, observation.rating),
+              aspects: analysisResult.aspects,
+              issueLabel: analysisResult.issueLabel,
+            },
           },
-        },
-        AbortSignal.timeout(PROFILE.requestDeadlineMs),
-      )
-      if (response.status === 'error') {
-        // ONE clock read for both instants. Anchoring the backoff to the pre-call
-        // `nowEpochMillis` while stamping the failure with a fresh read puts the
-        // retry BEFORE the write whenever the provider call outlasts the backoff,
-        // and ai_operations_attempt_valid enforces `next_attempt_at >= updated_at`,
-        // so the retry write itself threw and the whole request 500'd. aiRetryAt
-        // adds at least 1s, so any call slower than that inverted them.
-        const failedAtEpochMillis = dependencies.nowEpochMillis()
-        const retryAtEpochMillis = aiRetryAt(
-          expectedAttempt,
-          failedAtEpochMillis,
-          response.retryAfterEpochMillis,
-        )
-        await dependencies.operations.recordFailure({
+          generatedAtEpochMillis: completedAtEpochMillis,
+          expiresAtEpochMillis: completedAtEpochMillis + DERIVATIVE_RETENTION_MILLIS,
+        })
+        if (!stored) return { status: 'generation_changed' }
+        const settled = await settleReviewAnalysisWithResult(settlementDependencies, {
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          reviewId: input.reviewId,
+          sourceEpoch: input.sourceEpoch,
+          sourceRevision: input.sourceRevision,
+          reviewAnalysisEpoch,
+          analysisSequence: input.analysisSequence,
+          propertyProfileVersion: profile.profileVersion,
+          operationId: execution.id,
+        })
+        if (settled.status === 'gap') {
+          return { status: 'gap', expectedSequence: settled.expectedSequence }
+        }
+        if (settled.status === 'generation_changed') {
+          return { status: 'generation_changed' }
+        }
+        await dependencies.operations.markDelivered({
           operationId: execution.id,
           organizationId: input.organizationId,
           expectedAttempt,
-          failureCode: response.code,
-          retryAtEpochMillis,
-          failedAtEpochMillis,
+          deliveredAtEpochMillis: dependencies.nowEpochMillis(),
         })
-        if (retryAtEpochMillis !== null) {
-          return { status: 'retry', retryAtEpochMillis, code: response.code }
-        }
-        return settleWithoutResult(
-          input,
-          reviewAnalysisEpoch,
-          profile.profileVersion,
-          'policy_disabled',
-        )
+        return { status: 'completed' }
+      } finally {
+        await dependencies.quota.release({ quotaId: quota.quotaId })
       }
-      const parsedAnalysis = AI_ANALYSIS_V2_OUTPUT_SCHEMA.safeParse(response.result)
-      if (!parsedAnalysis.success) {
-        const failedAtEpochMillis = dependencies.nowEpochMillis()
-        const retryAtEpochMillis = aiRetryAt(expectedAttempt, failedAtEpochMillis, null)
-        await dependencies.operations.recordFailure({
-          operationId: execution.id,
-          organizationId: input.organizationId,
-          expectedAttempt,
-          failureCode: 'output_invalid',
-          retryAtEpochMillis,
-          failedAtEpochMillis,
-        })
-        if (retryAtEpochMillis !== null) {
-          return {
-            status: 'retry',
-            retryAtEpochMillis,
-            code: 'output_invalid',
-          }
-        }
-        return settleWithoutResult(
-          input,
-          reviewAnalysisEpoch,
-          profile.profileVersion,
-          'policy_disabled',
-        )
-      }
-      const analysisResult = parsedAnalysis.data
-      const completedAtEpochMillis = response.settlementReceipt.settledAtEpochMillis
-      const stored = await dependencies.outputs.storeAnalysis({
-        operationId: execution.id,
-        providerCompletion: {
-          expectedAttempt,
-          modelSnapshot: AI_PROVIDER_DEPLOYMENT_PROFILE.modelSnapshot,
-          inputTokens: response.settlementReceipt.inputTokens,
-          outputTokens: response.settlementReceipt.outputTokens,
-          completedAtEpochMillis,
-        },
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        reviewId: input.reviewId,
-        sourceEpoch: input.sourceEpoch,
-        sourceRevision: input.sourceRevision,
-        analysisSequence: input.analysisSequence,
-        authorizationLineageId: authorization.authorizationLineageId,
-        reviewAnalysisEpoch,
-        propertyProfileVersion: profile.profileVersion,
-        analysisProfileVersion: PROFILE.profileVersion,
-        result: {
-          status: 'ready',
-          derivative: {
-            sentiment: analysisResult.sentiment,
-            primaryCategory: derivePrimaryCategoryV1(analysisResult.aspects),
-            attention: attentionFor(analysisResult, observation.rating),
-            aspects: analysisResult.aspects,
-            issueLabel: analysisResult.issueLabel,
-          },
-        },
-        generatedAtEpochMillis: completedAtEpochMillis,
-        expiresAtEpochMillis: completedAtEpochMillis + DERIVATIVE_RETENTION_MILLIS,
-      })
-      if (!stored) return { status: 'generation_changed' }
-      const settled = await settleReviewAnalysisWithResult(settlementDependencies, {
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        reviewId: input.reviewId,
-        sourceEpoch: input.sourceEpoch,
-        sourceRevision: input.sourceRevision,
-        reviewAnalysisEpoch,
-        analysisSequence: input.analysisSequence,
-        propertyProfileVersion: profile.profileVersion,
-        operationId: execution.id,
-      })
-      if (settled.status === 'gap') {
-        return { status: 'gap', expectedSequence: settled.expectedSequence }
-      }
-      if (settled.status === 'generation_changed') {
-        return { status: 'generation_changed' }
-      }
-      await dependencies.operations.markDelivered({
-        operationId: execution.id,
-        organizationId: input.organizationId,
-        expectedAttempt,
-        deliveredAtEpochMillis: dependencies.nowEpochMillis(),
-      })
-      return { status: 'completed' }
-    } finally {
-      await dependencies.quota.release({ quotaId: quota.quotaId })
     }
+    return executeClaimedAnalysis()
   }
 }

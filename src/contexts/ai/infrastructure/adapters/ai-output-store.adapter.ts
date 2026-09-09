@@ -584,23 +584,28 @@ export const createAiOutputStoreAdapter = (
           .for('update')
         const fence = capabilityFence(operation?.capabilityFences)
         if (
-          operation?.state !== 'executing' ||
-          operation.executionAttempt !== input.providerCompletion.expectedAttempt ||
-          operation.command !== 'analysis' ||
-          operation.capability !== 'review_analysis' ||
-          operation.organizationId !== input.organizationId ||
-          operation.propertyId !== input.propertyId ||
-          operation.reviewId !== input.reviewId ||
-          operation.sourceEpoch !== input.sourceEpoch ||
-          operation.sourceRevision !== input.sourceRevision ||
-          operation.analysisSequence !== input.analysisSequence ||
-          operation.authorizationLineageId !== input.authorizationLineageId ||
-          operation.propertyProfileVersion !== input.propertyProfileVersion ||
-          input.analysisProfileVersion !== 'review-analysis-v2' ||
-          (input.result.status === 'ready' &&
-            !validIssueLabel(input.result.derivative.issueLabel)) ||
-          fence?.capability !== 'review_analysis' ||
-          fence.reviewAnalysisEpoch !== input.reviewAnalysisEpoch
+          !operation ||
+          !fence ||
+          ![
+            operation.state === 'executing',
+            operation.executionAttempt === input.providerCompletion.expectedAttempt,
+            operation.command === 'analysis',
+            operation.capability === 'review_analysis',
+            operation.organizationId === input.organizationId,
+            operation.propertyId === input.propertyId,
+            operation.reviewId === input.reviewId,
+            operation.sourceEpoch === input.sourceEpoch,
+            operation.sourceRevision === input.sourceRevision,
+            operation.analysisSequence === input.analysisSequence,
+            operation.authorizationLineageId === input.authorizationLineageId,
+            operation.propertyProfileVersion === input.propertyProfileVersion,
+            input.analysisProfileVersion === 'review-analysis-v2',
+            input.result.status === 'ready'
+              ? validIssueLabel(input.result.derivative.issueLabel)
+              : true,
+            fence.capability === 'review_analysis',
+            fence.reviewAnalysisEpoch === input.reviewAnalysisEpoch,
+          ].every(Boolean)
         ) {
           return false
         }
@@ -1068,14 +1073,17 @@ export const createAiOutputStoreAdapter = (
           .limit(1)
           .for('share')
 
-        const authorized =
-          authorization?.state === 'enabled' &&
-          authorization.authorizationLineageId === input.authorizationLineageId &&
-          authorization.capabilities.includes('review_analysis') &&
-          authorization.reviewAnalysisEpoch === input.reviewAnalysisEpoch &&
-          authorization.sourceEpoch === input.sourceEpoch &&
-          input.analysisSequence >= authorization.analysisStartSequence
-        if (!authorized) {
+        if (
+          !authorization ||
+          ![
+            authorization.state === 'enabled',
+            authorization.authorizationLineageId === input.authorizationLineageId,
+            authorization.capabilities.includes('review_analysis'),
+            authorization.reviewAnalysisEpoch === input.reviewAnalysisEpoch,
+            authorization.sourceEpoch === input.sourceEpoch,
+            input.analysisSequence >= authorization.analysisStartSequence,
+          ].every(Boolean)
+        ) {
           return deliverCurrent({ status: 'disabled' })
         }
 
@@ -1096,9 +1104,11 @@ export const createAiOutputStoreAdapter = (
           .for('share')
         if (
           !profile ||
-          profile.lifecycleState !== 'active' ||
-          profile.profileVersion !== input.propertyProfileVersion ||
-          profile.sourceEpoch !== input.sourceEpoch
+          ![
+            profile.lifecycleState === 'active',
+            profile.profileVersion === input.propertyProfileVersion,
+            profile.sourceEpoch === input.sourceEpoch,
+          ].every(Boolean)
         ) {
           return deliverCurrent({
             status: 'none',
@@ -1126,9 +1136,11 @@ export const createAiOutputStoreAdapter = (
           .for('share')
         if (
           !review ||
-          review.sourceEpoch !== input.sourceEpoch ||
-          review.sourceRevision !== input.sourceRevision ||
-          review.analysisSequence !== input.analysisSequence
+          ![
+            review.sourceEpoch === input.sourceEpoch,
+            review.sourceRevision === input.sourceRevision,
+            review.analysisSequence === input.analysisSequence,
+          ].every(Boolean)
         ) {
           return deliverCurrent({
             status: 'none',
@@ -1182,28 +1194,29 @@ export const createAiOutputStoreAdapter = (
           .for('share')
 
         const analysisFence = capabilityFence(analysis?.operationCapabilityFences)
-        const operationCurrent =
-          analysis !== undefined &&
-          (analysis.operationState === 'succeeded' ||
-            analysis.operationState === 'succeeded_pending_delivery') &&
-          analysis.operationCommand === 'analysis' &&
-          analysis.operationCapability === 'review_analysis' &&
-          analysis.operationOrganizationId === input.organizationId &&
-          analysis.operationPropertyId === input.propertyId &&
-          analysis.operationReviewId === input.reviewId &&
-          analysis.operationSourceEpoch === input.sourceEpoch &&
-          analysis.operationSourceRevision === input.sourceRevision &&
-          analysis.operationAnalysisSequence === input.analysisSequence &&
-          analysis.operationAuthorizationLineageId === input.authorizationLineageId &&
-          analysis.operationPropertyProfileVersion === input.propertyProfileVersion &&
-          analysis.operationNoticeVersion === authorization.noticeVersion &&
-          analysis.operationNoticeDigest === authorization.noticeDigest &&
-          analysis.operationSourcePolicyId === authorization.sourcePolicyId &&
-          analysis.operationRedactionProfileVersion ===
-            authorization.redactionProfileFamily &&
-          analysisFence?.capability === 'review_analysis' &&
-          analysisFence.reviewAnalysisEpoch === input.reviewAnalysisEpoch
-        if (!operationCurrent) {
+        if (
+          !analysis ||
+          ![
+            ['succeeded', 'succeeded_pending_delivery'].includes(analysis.operationState),
+            analysis.operationCommand === 'analysis',
+            analysis.operationCapability === 'review_analysis',
+            analysis.operationOrganizationId === input.organizationId,
+            analysis.operationPropertyId === input.propertyId,
+            analysis.operationReviewId === input.reviewId,
+            analysis.operationSourceEpoch === input.sourceEpoch,
+            analysis.operationSourceRevision === input.sourceRevision,
+            analysis.operationAnalysisSequence === input.analysisSequence,
+            analysis.operationAuthorizationLineageId === input.authorizationLineageId,
+            analysis.operationPropertyProfileVersion === input.propertyProfileVersion,
+            analysis.operationNoticeVersion === authorization.noticeVersion,
+            analysis.operationNoticeDigest === authorization.noticeDigest,
+            analysis.operationSourcePolicyId === authorization.sourcePolicyId,
+            analysis.operationRedactionProfileVersion ===
+              authorization.redactionProfileFamily,
+            analysisFence?.capability === 'review_analysis',
+            analysisFence?.reviewAnalysisEpoch === input.reviewAnalysisEpoch,
+          ].every(Boolean)
+        ) {
           return deliverCurrent({
             status: 'none',
             ...currentness(input),

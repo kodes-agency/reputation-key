@@ -353,10 +353,12 @@ export const createAiPropertyAggregateStoreAdapter = (
           )
           .limit(1)
           .for('share')
+        if (!analysis) return { status: 'stale' }
         if (
-          !analysis ||
-          analysis.reviewAnalysisEpoch !== input.reviewAnalysisEpoch ||
-          analysis.propertyProfileVersion !== input.propertyProfileVersion
+          ![
+            analysis.reviewAnalysisEpoch === input.reviewAnalysisEpoch,
+            analysis.propertyProfileVersion === input.propertyProfileVersion,
+          ].every(Boolean)
         ) {
           return { status: 'stale' }
         }
@@ -384,14 +386,12 @@ export const createAiPropertyAggregateStoreAdapter = (
                 .for('share')
             : []
         const historicalV1 = analysis.analysisProfileVersion === 'review-analysis-v1'
-        if (
-          (analysis.status === 'ready' &&
-            (analysisAspects.length > 5 ||
-              (historicalV1
-                ? analysisAspects.length !== 0
-                : analysisAspects.length < 1))) ||
-          (analysis.status !== 'ready' && analysisAspects.length !== 0)
-        ) {
+        const validAnalysisAspectCount =
+          analysis.status === 'ready'
+            ? analysisAspects.length <= 5 &&
+              (historicalV1 ? analysisAspects.length === 0 : analysisAspects.length >= 1)
+            : analysisAspects.length === 0
+        if (!validAnalysisAspectCount) {
           throw new Error('Property analysis aspect rows are invalid')
         }
 
@@ -493,11 +493,11 @@ export const createAiPropertyAggregateStoreAdapter = (
                 .orderBy(aiPropertyAggregateContributionAspects.aspect)
                 .for('share')
             : []
-        if (
-          previous?.status === 'ready' &&
-          (previousAspects.length > 5 ||
-            (historicalV1 ? previousAspects.length !== 0 : previousAspects.length < 1))
-        ) {
+        const validPreviousAspectCount =
+          previous?.status !== 'ready' ||
+          (previousAspects.length <= 5 &&
+            (historicalV1 ? previousAspects.length === 0 : previousAspects.length >= 1))
+        if (!validPreviousAspectCount) {
           throw new Error('Previous aggregate contribution aspects are invalid')
         }
 
@@ -599,7 +599,7 @@ export const createAiPropertyAggregateStoreAdapter = (
               next = adjustDaily(next, previous, -1)
             if (analysis.localDate === row.localDate)
               next = adjustDaily(next, analysis, 1)
-            if (next.reviewCount < 0 || next.ratingSum < 0) {
+            if (![next.reviewCount >= 0, next.ratingSum >= 0].every(Boolean)) {
               throw new Error('Property daily aggregate would become negative')
             }
             await tx
@@ -714,7 +714,7 @@ export const createAiPropertyAggregateStoreAdapter = (
               })
               .where(rowKey)
               .returning({ mentionCount: aiPropertyDailyAspectAggregates.mentionCount })
-            if (!updatedAspect || updatedAspect.mentionCount < 0) {
+            if (!updatedAspect || !(updatedAspect.mentionCount >= 0)) {
               throw new Error('Property daily aspect aggregate would become negative')
             }
             if (updatedAspect.mentionCount === 0) {
