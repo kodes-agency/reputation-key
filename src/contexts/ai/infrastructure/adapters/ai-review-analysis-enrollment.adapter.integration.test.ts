@@ -230,7 +230,7 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
     })
     expect(result).toEqual({ status: 'duplicate', enrollmentId: ENROLLMENT_ID })
   })
-  it('catches up after the reaper delivers a persisted result', async () => {
+  it('waits while the aggregate is behind, then catches up after terminal progress without a receipt', async () => {
     const reviewId = '74000000-0000-4000-8000-000000000005'
     const operationId = '74000000-0000-4000-8000-000000000006'
     const executionPermitId = '74000000-0000-4000-8000-000000000007'
@@ -578,6 +578,14 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
         dispositionCode: 'operation_ambiguous',
       }),
     ).resolves.toEqual({ status: 'replayed', aggregateRevision: 1 })
+    await db
+      .delete(eventConsumerReceipts)
+      .where(
+        and(
+          eq(eventConsumerReceipts.eventId, backfill.id),
+          eq(eventConsumerReceipts.consumerName, AI_REVIEW_ANALYSIS_CONSUMER),
+        ),
+      )
     await expect(
       enrollments.reconcile({
         enrollmentId: ENROLLMENT_ID,
