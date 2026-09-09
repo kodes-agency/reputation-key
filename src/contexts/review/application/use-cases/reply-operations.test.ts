@@ -190,6 +190,7 @@ function makeReplyCommandStoreFake(
     // Job/sweep-facing methods are not exercised by the reply ops tests.
     markPublicationSending: vi.fn(),
     markProviderOutcomePendingObservation: vi.fn(),
+    deferPendingPublicationObservation: vi.fn(),
     markPublicationTerminal: vi.fn(),
     markPublicationAmbiguous: vi.fn(),
     markPublicationRetryQueued: vi.fn(),

@@ -2,22 +2,27 @@
 //
 // Every reachable non-terminal row carries reconcile_due_at. The sweep:
 //   requested/authorized  → terminal retryable failure (no provider write began)
-//   sending/pending       → one provider read, then ambiguous if not confirmed
+//   sending               → one provider read, then ambiguous if not confirmed
+//   pending               → bounded absent-echo grace, then ambiguous
 //   ambiguous             → one final provider read, then terminal ambiguity
 //
-// This state-encoded two-read ceiling prevents accepted-but-not-echoed replies
-// from generating unbounded Google reads. No outcome from this job authorizes a
-// provider write; an exact observation may publish, and every other transition
-// is a guarded command-store write.
+// The pending grace has independent age/read ceilings, and ambiguity still has
+// one final read. No outcome from this job authorizes a provider write; an exact
+// observation may publish, and every other transition is a guarded command-store
+// write.
 
 import type { Job } from 'bullmq'
 import { performance } from 'node:perf_hooks'
 import type { ReplyRepository } from '../../application/ports/reply.repository'
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { ReplyCommandStore } from '../../application/ports/reply-command-store.port'
-import type { ReconcileReplyPublication } from '../../application/use-cases/reconcile-reply-publication'
+import type {
+  ReconcilePublicationOutcome,
+  ReconcileReplyPublication,
+} from '../../application/use-cases/reconcile-reply-publication'
 import type { Reply } from '../../domain/types'
 import { reviewReplyPublishFailed } from '../../domain/events'
+import { canDeferPendingProviderObservation } from '../../domain/reply-publication-workflow'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 import type { PublicationReconciliationRunLease } from '../../application/ports/publication-reconciliation-run-lease.port'
@@ -33,7 +38,9 @@ type ReconcileSweepDeps = Readonly<{
   reviewRepo: Pick<ReviewRepository, 'findById'>
   replyCommandStore: Pick<
     ReplyCommandStore,
-    'markPublicationAmbiguous' | 'markPublicationTerminal'
+    | 'deferPendingPublicationObservation'
+    | 'markPublicationAmbiguous'
+    | 'markPublicationTerminal'
   >
   reconcileReplyPublication: ReconcileReplyPublication
   clock: () => Date
@@ -51,6 +58,7 @@ type SweepCounts = {
   batches: number
   seen: number
   healed: number
+  deferred: number
   advanced: number
   terminal: number
   superseded: number
@@ -59,8 +67,8 @@ type SweepCounts = {
 
 type Cursor = Readonly<{ reconcileDueAt: Date; id: string }>
 type Logger = ReconcileSweepDeps['logger']
-type RowOutcome = 'healed' | 'advanced' | 'terminal' | 'superseded' | 'failed'
-
+type RowOutcome =
+  'healed' | 'deferred' | 'advanced' | 'terminal' | 'superseded' | 'failed'
 async function publishFailedEvent(
   deps: ReconcileSweepDeps,
   reply: Reply,
@@ -82,9 +90,36 @@ async function settleNonConfirmingRow(
   deps: ReconcileSweepDeps,
   reply: Reply,
   logger: Logger,
+  providerOutcome: ReconcilePublicationOutcome['outcome'] | null,
 ): Promise<Exclude<RowOutcome, 'healed'>> {
   const now = deps.clock()
   try {
+    if (
+      reply.publicationState === 'pending_observation' &&
+      providerOutcome === 'absent'
+    ) {
+      const progress = await deps.replyRepo.findPublicationAttemptObservationProgress({
+        organizationId: reply.organizationId,
+        reviewId: reply.reviewId,
+        replyId: reply.id,
+        publicationCycle: reply.publicationCycle,
+        attemptNumber: reply.publicationAttempts,
+      })
+      if (
+        progress &&
+        canDeferPendingProviderObservation({
+          ...progress,
+          now,
+        })
+      ) {
+        const deferred = await deps.replyCommandStore.deferPendingPublicationObservation(
+          reply,
+          now,
+        )
+        return deferred ? 'deferred' : 'superseded'
+      }
+    }
+
     if (
       reply.publicationState === 'sending' ||
       reply.publicationState === 'pending_observation'
@@ -137,8 +172,10 @@ async function reconcileRow(
   logger: Logger,
 ): Promise<RowOutcome> {
   if (reply.publicationState === 'requested' || reply.publicationState === 'authorized') {
-    return settleNonConfirmingRow(deps, reply, logger)
+    return settleNonConfirmingRow(deps, reply, logger, null)
   }
+
+  let providerOutcome: ReconcilePublicationOutcome['outcome'] | null = null
 
   try {
     const result = await deps.reconcileReplyPublication({
@@ -149,15 +186,17 @@ async function reconcileRow(
       logger.warn({ err: result.error }, 'reconcile sweep: provider read failed')
     } else if (result.value.outcome === 'confirmed_on_google') {
       return 'healed'
+    } else {
+      providerOutcome = result.value.outcome
     }
   } catch (err) {
     logger.warn({ err }, 'reconcile sweep: provider read threw')
   }
 
-  // A missing echo is not proof that an accepted Google reply is absent. The
-  // first read exposes ambiguity; the second ends automatic reads without ever
-  // granting permission for another PUT.
-  return settleNonConfirmingRow(deps, reply, logger)
+  // An absent echo after provider acceptance is ordinary propagation while
+  // both grace bounds hold. Once either bound closes, this is exactly the
+  // pre-existing ambiguity path; sending and failed/missing reads are unchanged.
+  return settleNonConfirmingRow(deps, reply, logger, providerOutcome)
 }
 
 /** Reconcile rows until the batch ends or the internal start deadline closes. */
@@ -177,6 +216,7 @@ async function processBatch(
     const outcome = await reconcileRow(deps, reply, logger)
     if (outcome === 'failed') counts.failed++
     else if (outcome === 'healed') counts.healed++
+    else if (outcome === 'deferred') counts.deferred++
     else if (outcome === 'advanced') counts.advanced++
     else if (outcome === 'terminal') counts.terminal++
     else counts.superseded++
@@ -218,6 +258,7 @@ export const createReconcileAmbiguousPublicationsHandler = (deps: ReconcileSweep
           batches: 0,
           seen: 0,
           healed: 0,
+          deferred: 0,
           advanced: 0,
           terminal: 0,
           superseded: 0,

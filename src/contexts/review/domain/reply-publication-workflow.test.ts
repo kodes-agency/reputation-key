@@ -10,7 +10,10 @@ import {
   classifyPublicationFailure,
   nextPublicationCycle,
   nextPublicationState,
+  canDeferPendingProviderObservation,
   AMBIGUOUS_RECONCILE_DELAY_MS,
+  PROVIDER_OBSERVATION_PROPAGATION_GRACE_MAX_READS,
+  PROVIDER_OBSERVATION_PROPAGATION_GRACE_MS,
   PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
 } from './reply-publication-workflow'
 
@@ -420,6 +423,34 @@ describe('nextPublicationState (BQC-3.8 persisted machine)', () => {
 
   it('AMBIGUOUS_RECONCILE_DELAY_MS is 15 minutes', () => {
     expect(AMBIGUOUS_RECONCILE_DELAY_MS).toBe(15 * 60 * 1000)
+  })
+
+  it('bounds pending-provider propagation by both attempt age and absent reads', () => {
+    const attemptStartedAt = new Date('2026-09-09T10:01:34Z')
+
+    expect(PROVIDER_OBSERVATION_PROPAGATION_GRACE_MS).toBe(15 * 60 * 1000)
+    expect(PROVIDER_OBSERVATION_PROPAGATION_GRACE_MAX_READS).toBe(3)
+    expect(
+      canDeferPendingProviderObservation({
+        attemptStartedAt,
+        now: new Date(attemptStartedAt.getTime() + 15 * 60 * 1000 - 1),
+        absentObservationCount: 3,
+      }),
+    ).toBe(true)
+    expect(
+      canDeferPendingProviderObservation({
+        attemptStartedAt,
+        now: new Date(attemptStartedAt.getTime() + 15 * 60 * 1000),
+        absentObservationCount: 1,
+      }),
+    ).toBe(false)
+    expect(
+      canDeferPendingProviderObservation({
+        attemptStartedAt,
+        now: new Date(attemptStartedAt.getTime() + 5 * 60 * 1000),
+        absentObservationCount: 4,
+      }),
+    ).toBe(false)
   })
 
   it('PUBLICATION_RECOVERY_RECONCILE_DELAY_MS exceeds the 17.5-minute retry horizon', () => {

@@ -15,6 +15,20 @@ export type ReplyMilestoneRow = Readonly<{
   firstPublishedAt: Date | null
 }>
 
+/** Exact attempt key used to load content-free propagation timing evidence. */
+export type PublicationAttemptReference = Readonly<{
+  organizationId: OrganizationId
+  reviewId: ReviewId
+  replyId: ReplyId
+  publicationCycle: number
+  attemptNumber: number
+}>
+
+/** Existing evidence that bounds pending-observation propagation grace. */
+export type PublicationAttemptObservationProgress = Readonly<{
+  attemptStartedAt: Date
+  absentObservationCount: number
+}>
 export type ConditionalReplyUpdate = Readonly<{
   status?: ReplyStatus
   text?: string
@@ -68,6 +82,14 @@ export type ReplyRepository = Readonly<{
     cursor: Readonly<{ reconcileDueAt: Date; id: string }> | null,
     limit: number,
   ): Promise<ReadonlyArray<Reply>>
+  /**
+   * The current attempt's durable start and successful targeted-absence read
+   * count. Missing/mismatched evidence returns null so callers fail closed to
+   * the existing ambiguity path.
+   */
+  findPublicationAttemptObservationProgress(
+    attempt: PublicationAttemptReference,
+  ): Promise<PublicationAttemptObservationProgress | null>
   /**
    * BQC-3.8: replies in an active publication state
    * (requested/authorized/sending/pending_observation) for the given reviews —

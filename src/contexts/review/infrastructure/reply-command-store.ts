@@ -734,6 +734,19 @@ export const createAtomicReplyCommandStore = (
           }),
       ),
 
+    deferPendingPublicationObservation: async (reply, now) => {
+      if (reply.publicationState !== 'pending_observation') return null
+      return trace('reply.commandStore.deferPendingPublicationObservation', async () => {
+        const at = now ?? clock()
+        return guardedPublicationUpdate(db, reply, 'approved', ['pending_observation'], {
+          reconcileDueAt: new Date(
+            at.getTime() + PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
+          ),
+          updatedAt: at,
+        })
+      })
+    },
+
     markPublicationTerminal: (reply, errorClass, event, now) =>
       publicationTransition(
         'reply.commandStore.markPublicationTerminal',
@@ -1052,6 +1065,29 @@ export const createSequentialReplyCommandStore = (deps: {
         null,
         now,
       ),
+
+    deferPendingPublicationObservation: (reply, now) => {
+      if (reply.publicationState !== 'pending_observation') {
+        return Promise.resolve(null)
+      }
+      if (!deps.publicationUpdate) {
+        throw reviewError(
+          'build_config_error',
+          'publicationUpdate dep is required to defer a provider observation',
+        )
+      }
+      const at = now ?? deps.clock()
+      return deps.publicationUpdate(
+        reply,
+        ['pending_observation'],
+        {
+          reconcileDueAt: new Date(
+            at.getTime() + PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
+          ),
+        },
+        at,
+      )
+    },
 
     markPublicationTerminal: (reply, errorClass, event, now) =>
       publicationTransition(

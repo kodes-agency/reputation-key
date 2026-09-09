@@ -285,6 +285,35 @@ export const AMBIGUOUS_RECONCILE_DELAY_MS = 15 * 60 * 1000
  * convergence window before it can become published. */
 export const PROVIDER_OBSERVATION_RECONCILE_DELAY_MS = 60 * 1000
 
+/** Google can accept a reply several minutes before getReview exposes it.
+ * Fifteen minutes gives the measured sub-ten-minute propagation lag one full
+ * five-minute sweep interval of margin. */
+export const PROVIDER_OBSERVATION_PROPAGATION_GRACE_MS = 15 * 60 * 1000
+
+/** At the registered five-minute sweep cadence, three absent observations can
+ * be re-deferred inside the propagation window. The fourth takes the existing
+ * ambiguity path even if wall-clock age is still inside the window. */
+export const PROVIDER_OBSERVATION_PROPAGATION_GRACE_MAX_READS = 3
+
+/** Fail closed to ambiguity unless both independent propagation bounds hold. */
+export function canDeferPendingProviderObservation(
+  input: Readonly<{
+    attemptStartedAt: Date
+    now: Date
+    absentObservationCount: number
+  }>,
+): boolean {
+  const ageMs = input.now.getTime() - input.attemptStartedAt.getTime()
+  return (
+    Number.isFinite(ageMs) &&
+    ageMs >= 0 &&
+    ageMs < PROVIDER_OBSERVATION_PROPAGATION_GRACE_MS &&
+    Number.isSafeInteger(input.absentObservationCount) &&
+    input.absentObservationCount >= 1 &&
+    input.absentObservationCount <= PROVIDER_OBSERVATION_PROPAGATION_GRACE_MAX_READS
+  )
+}
+
 /** Backstop for a publication whose queue/worker owner disappears. The five
  * 120-second publish attempts plus the catalogue's 30/60/120/240-second
  * backoffs fit inside 17.5 minutes; 20 minutes keeps healthy work ahead of the

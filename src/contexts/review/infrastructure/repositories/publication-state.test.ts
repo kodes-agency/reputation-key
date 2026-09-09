@@ -45,6 +45,7 @@ import {
 import { createReviewRepository } from './review.repository'
 import { createReplyRepository } from './reply.repository'
 import { createAtomicReplyCommandStore } from '../reply-command-store'
+import { createGoogleReplyObservationStore } from '../google-reply-observation-store'
 import type { PublicationAttemptStart } from '../../application/ports/reply-command-store.port'
 
 const ORG_A = organizationId('org-pub-state-bbbb-2222222222222222')
@@ -426,7 +427,7 @@ describe.sequential('publication state machine (integration, migration 0015)', (
     expect(outbox.rows).toHaveLength(0)
   })
 
-  it('schedules authorized, sending, pending, and ambiguous rows without selecting healthy in-flight work', async () => {
+  it('schedules every active state and defers pending reads without creating new write authority', async () => {
     const db = getDb()
     const reviewRepo = createReviewRepository(db, () => new Date())
     const replyRepo = createReplyRepository(db, () => new Date())
@@ -513,19 +514,83 @@ describe.sequential('publication state machine (integration, migration 0015)', (
     })
     await expectDueBoundary(pendingDue)
 
-    const marked = await store.markPublicationAmbiguous(
+    const graceObservedAt = new Date(NOW.getTime() + 3 * 60 * 1000)
+    const observationStore = createGoogleReplyObservationStore(db)
+    const absent = await observationStore.record({
+      organizationId: ORG_A,
+      propertyId: PROP_A,
+      reviewId: REVIEW_A,
+      sourceEpoch: review.sourceEpoch,
+      materialReviewRevision: review.sourceRevision,
+      observationKey: 'a'.repeat(64),
+      source: 'targeted_reconciliation',
+      publicationTarget: {
+        replyId: REPLY_A,
+        publicationCycle: 1,
+        attemptNumber: 1,
+      },
+      readGeneration: await observationStore.allocateReadGeneration(),
+      observedText: null,
+      providerUpdatedAt: null,
+      observedAt: graceObservedAt,
+      contentExpiresAt: new Date(graceObservedAt.getTime() + 24 * 60 * 60 * 1000),
+    })
+    expect(absent.resolution).toBe('unchanged')
+    await expect(
+      replyRepo.findPublicationAttemptObservationProgress({
+        organizationId: ORG_A,
+        reviewId: REVIEW_A,
+        replyId: REPLY_A,
+        publicationCycle: 1,
+        attemptNumber: 1,
+      }),
+    ).resolves.toEqual({
+      attemptStartedAt: NOW,
+      absentObservationCount: 1,
+    })
+
+    const deferred = await store.deferPendingPublicationObservation(
       providerPending!,
+      graceObservedAt,
+    )
+    const deferredDue = new Date(
+      graceObservedAt.getTime() + PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
+    )
+    expect(deferred).toMatchObject({
+      status: 'approved',
+      publicationState: 'pending_observation',
+      publicationAttempts: 1,
+      reconcileDueAt: deferredDue,
+    })
+    await expectDueBoundary(deferredDue)
+
+    const providerWriteAuthority = await pool.query(
+      `SELECT
+         (SELECT count(*)::int
+            FROM reply_publication_attempts
+            WHERE organization_id = $1 AND reply_id = $2) AS attempts,
+         (SELECT count(*)::int
+            FROM outbox_events
+            WHERE organization_id = $1
+              AND event_type = 'review.reply.publication_requested') AS intents`,
+      [ORG_A, REPLY_A],
+    )
+    expect(providerWriteAuthority.rows[0]).toEqual({ attempts: 1, intents: 1 })
+
+    const ambiguityAt = new Date(NOW.getTime() + 15 * 60 * 1000)
+    const marked = await store.markPublicationAmbiguous(
+      deferred!,
       reviewReplyPublishFailed({
         replyId: REPLY_A,
         reviewId: REVIEW_A,
         propertyId: PROP_A,
         organizationId: ORG_A,
         authorId: USER_A,
-        occurredAt: NOW,
+        occurredAt: ambiguityAt,
       }),
-      NOW,
+      ambiguityAt,
     )
-    const ambiguousDue = new Date(NOW.getTime() + AMBIGUOUS_RECONCILE_DELAY_MS)
+    const ambiguousDue = new Date(ambiguityAt.getTime() + AMBIGUOUS_RECONCILE_DELAY_MS)
     expect(marked).toMatchObject({
       status: 'publish_failed',
       publicationState: 'ambiguous',
