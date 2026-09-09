@@ -238,7 +238,7 @@ describe('listReplyTemplates', () => {
 })
 
 describe('renderReplyTemplate', () => {
-  it('applies greeting, positive sign-off, escalation contact, and emoji policy', () => {
+  it('adds profile framing when the template has neither greeting nor sign-off', () => {
     const rendered = renderReplyTemplate(makeTemplate(), makeProfile(), 5)
 
     expect(rendered).toBe(
@@ -247,7 +247,7 @@ describe('renderReplyTemplate', () => {
     expect(rendered).not.toContain('Secret Reviewer')
   })
 
-  it('does not duplicate an existing greeting and uses the negative sign-off', () => {
+  it('keeps an existing greeting and appends the negative-band sign-off', () => {
     const rendered = renderReplyTemplate(
       makeTemplate({ body: 'Hello {guest_name},\n\nWe are sorry about {dish}.' }),
       makeProfile(),
@@ -257,6 +257,50 @@ describe('renderReplyTemplate', () => {
     expect(rendered).toBe(
       'Hello {guest_name},\n\nWe are sorry about {dish}.\n\nSincerely,\nGuest Relations',
     )
+  })
+
+  it('keeps an existing profile sign-off exactly once after boundary normalization', () => {
+    const body =
+      'We look forward to welcoming you back for your next pampering session! 💅✨\n\nWith love, \nAtenaa Beauty Concept Team'
+    const rendered = renderReplyTemplate(
+      makeTemplate({ body }),
+      makeProfile({
+        greeting: '',
+        signOffPositive: 'With love,\nAtenaa Beauty Concept Team',
+        emojiAllowed: true,
+      }),
+      5,
+    )
+
+    expect(rendered).toBe(body)
+    expect(rendered.match(/Atenaa Beauty Concept Team/gu)).toHaveLength(1)
+  })
+
+  it("does not replace the body's other-band sign-off", () => {
+    const body = 'Thank you for visiting.\n\nSINCERELY!\nGuest   Relations.'
+    const rendered = renderReplyTemplate(
+      makeTemplate({ body }),
+      makeProfile({ greeting: '', emojiAllowed: true }),
+      5,
+    )
+
+    expect(rendered).toBe(body)
+    expect(rendered).not.toContain('Warm regards')
+  })
+
+  it('recognizes the configured greeting across case, whitespace, and punctuation', () => {
+    const body = 'УВАЖАЕМИ   {guest_name}!\n\nБлагодарим за отзива.'
+    const rendered = renderReplyTemplate(
+      makeTemplate({ body }),
+      makeProfile({
+        greeting: 'Уважаеми {guest_name},',
+        signOffPositive: '',
+        emojiAllowed: true,
+      }),
+      5,
+    )
+
+    expect(rendered).toBe(body)
   })
 })
 

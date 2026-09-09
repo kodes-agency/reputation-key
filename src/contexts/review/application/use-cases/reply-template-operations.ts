@@ -161,30 +161,59 @@ export const listReplyTemplates =
     }
   }
 
-const GREETING_LINE =
-  /^(?:dear|hello|hi|greetings|good (?:morning|afternoon|evening))\b.*[,!:]$/iu
+const GREETING_LINE = /^(?:dear|hello|hi|greetings|good (?:morning|afternoon|evening))\b/u
+const TRAILING_BOUNDARY_PUNCTUATION = /[.,!?;:…'"“”„‟‘’‚‛«»‹›，。！？；：、،؛۔।॥]+$/u
 const EMOJI = /\p{Extended_Pictographic}|\p{Regional_Indicator}|[\uFE0F\u20E3]/gu
 
-function hasGreetingLine(body: string, greeting: string): boolean {
-  const [firstLine = ''] = body.trimStart().split(/\r?\n/, 1)
-  return (
-    firstLine
-      .trim()
-      .localeCompare(greeting.trim(), undefined, { sensitivity: 'accent' }) === 0 ||
-    GREETING_LINE.test(firstLine.trim())
-  )
+function normalizedBoundaryLines(value: string): readonly string[] {
+  return value
+    .normalize('NFKC')
+    .split(/\r?\n/u)
+    .map((line) =>
+      line
+        .trim()
+        .replace(TRAILING_BOUNDARY_PUNCTUATION, '')
+        .replace(/\s+/gu, ' ')
+        .toLowerCase(),
+    )
+    .filter(Boolean)
 }
 
-function stripKnownSignOff(body: string, profile: PropertyReplyProfile): string {
-  const trimmed = body.trimEnd()
-  const normalized = trimmed.toLocaleLowerCase()
-  for (const signOff of [profile.signOffPositive, profile.signOffNegative]) {
-    const candidate = signOff.trim()
-    if (candidate && normalized.endsWith(candidate.toLocaleLowerCase())) {
-      return trimmed.slice(0, trimmed.length - candidate.length).trimEnd()
-    }
+function matchesBoundary(
+  body: string,
+  candidate: string,
+  edge: 'leading' | 'trailing',
+): boolean {
+  const bodyLines = normalizedBoundaryLines(body)
+  const candidateValue = normalizedBoundaryLines(candidate).join(' ')
+  if (!candidateValue || bodyLines.length === 0) return false
+  let boundaryValue = ''
+  for (let count = 1; count <= bodyLines.length; count += 1) {
+    const line =
+      edge === 'leading' ? bodyLines[count - 1]! : bodyLines[bodyLines.length - count]!
+    boundaryValue =
+      edge === 'leading'
+        ? `${boundaryValue}${boundaryValue ? ' ' : ''}${line}`
+        : `${line}${boundaryValue ? ' ' : ''}${boundaryValue}`
+    if (boundaryValue === candidateValue) return true
+    if (boundaryValue.length >= candidateValue.length) return false
   }
-  return trimmed
+  return false
+}
+
+function hasGreetingLine(body: string, greeting: string): boolean {
+  const [firstLine = ''] = normalizedBoundaryLines(body)
+  return matchesBoundary(body, greeting, 'leading') || GREETING_LINE.test(firstLine)
+}
+
+function hasProfileSignOff(body: string, profile: PropertyReplyProfile): boolean {
+  // Imported workbooks commonly carry a profile sign-off with different blank
+  // lines, casing, or punctuation. Compare complete trailing lines after
+  // normalizing those presentation details, and accept either rating band's
+  // sign-off so loading a template never duplicates or replaces its closing.
+  return [profile.signOffPositive, profile.signOffNegative].some((signOff) =>
+    matchesBoundary(body, signOff, 'trailing'),
+  )
 }
 
 export function renderReplyTemplate(
@@ -202,7 +231,9 @@ export function renderReplyTemplate(
   }
   const signOff =
     rating >= 4 ? profile.signOffPositive.trim() : profile.signOffNegative.trim()
-  if (signOff) rendered = `${stripKnownSignOff(rendered, profile)}\n\n${signOff}`
+  if (signOff && !hasProfileSignOff(rendered, profile)) {
+    rendered = `${rendered.trimEnd()}\n\n${signOff}`
+  }
   if (!profile.emojiAllowed) {
     rendered = rendered
       .replace(EMOJI, '')
