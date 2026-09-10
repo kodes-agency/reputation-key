@@ -20,6 +20,7 @@ import type {
   AiPropertyAggregateStorePort,
   AiPropertyDailyAggregate,
   AiPropertyDailyAspectCount,
+  AiPropertyUnavailableReview,
 } from '../../application/ports/ai-property-aggregate-store.port'
 import { reviewId } from '#/shared/domain/ids'
 import { isAspectTaxonomyV1Id, type AspectPolarityV1 } from '#/shared/aspect-taxonomy'
@@ -58,6 +59,45 @@ function safeSequence(value: unknown): number | null {
   return typeof parsed === 'number' && Number.isSafeInteger(parsed) && parsed >= 0
     ? parsed
     : null
+}
+
+const AI_INSIGHTS_READ_BUDGET_MS = 5_000
+
+function isPgStatementTimeout(error: unknown): boolean {
+  let current: unknown = error
+  for (
+    let depth = 0;
+    depth < 3 && typeof current === 'object' && current !== null;
+    depth += 1
+  ) {
+    if ('code' in current && current.code === '57014') return true
+    current = 'cause' in current ? current.cause : undefined
+  }
+  return false
+}
+
+async function withStatementTimeout<T>(
+  db: Database,
+  budgetMs: number,
+  read: (transaction: Database) => Promise<T>,
+): Promise<T> {
+  try {
+    return await db.transaction(async (transaction) => {
+      await transaction.execute(
+        sql`SELECT set_config('statement_timeout', ${String(budgetMs)}, true)`,
+      )
+      return read(transaction as unknown as Database)
+    })
+  } catch (error) {
+    if (isPgStatementTimeout(error)) {
+      throw {
+        _tag: 'AiInsightsReadTimeout',
+        budgetMs,
+        message: `AI insights read exceeded ${budgetMs}ms budget`,
+      }
+    }
+    throw error
+  }
 }
 
 function counterColumn<T extends Readonly<Record<string, keyof DailyRow>>>(
@@ -181,6 +221,9 @@ function isAnalyzedReviewAspect(
   )
 }
 
+// This fail-closed row boundary keeps every correlated evidence field in one
+// validation decision so an invalid projection can never be partially accepted.
+// fallow-ignore-next-line complexity
 function mapAnalyzedReview(
   row: Readonly<{
     reviewId: string
@@ -188,8 +231,8 @@ function mapAnalyzedReview(
     analysisSequence: number | string
     localDate: string
     rating: number
-    sentiment: string
-    attention: string
+    sentiment: string | null
+    attention: string | null
     aspects: unknown
     issueLabel: string | null
     analysisProfileVersion: string
@@ -216,7 +259,9 @@ function mapAnalyzedReview(
     !Number.isInteger(row.rating) ||
     row.rating < 1 ||
     row.rating > 5 ||
+    typeof row.sentiment !== 'string' ||
     !Object.hasOwn(SENTIMENT_VALUES, row.sentiment) ||
+    typeof row.attention !== 'string' ||
     !Object.hasOwn(ATTENTION_VALUES, row.attention) ||
     (row.issueLabel !== null && !isAiIssueLabel(row.issueLabel)) ||
     row.analysisProfileVersion.length === 0 ||
@@ -238,6 +283,41 @@ function mapAnalyzedReview(
     analysisProfileVersion: row.analysisProfileVersion,
     providerDeploymentProfileVersion: row.providerDeploymentProfileVersion,
     modelSnapshot: row.modelSnapshot,
+  })
+}
+
+function mapUnavailableReview(
+  row: Readonly<{
+    reviewId: string
+    sourceRevision: number | string
+    analysisSequence: number | string
+    localDate: string
+    rating: number
+    unavailableReason: string | null
+  }>,
+): AiPropertyUnavailableReview {
+  const sourceRevision = safeSequence(row.sourceRevision)
+  const analysisSequence = safeSequence(row.analysisSequence)
+  if (
+    sourceRevision === null ||
+    sourceRevision < 1 ||
+    analysisSequence === null ||
+    analysisSequence < 1 ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(row.localDate) ||
+    !Number.isInteger(row.rating) ||
+    row.rating < 1 ||
+    row.rating > 5 ||
+    row.unavailableReason !== 'language_not_supported'
+  ) {
+    throw new Error('Property unavailable Review evidence is invalid')
+  }
+  return Object.freeze({
+    reviewId: reviewId(row.reviewId),
+    sourceRevision,
+    analysisSequence,
+    localDate: row.localDate,
+    rating: row.rating,
+    reason: row.unavailableReason,
   })
 }
 
@@ -862,7 +942,7 @@ export const createAiPropertyAggregateStoreAdapter = (
     },
 
     async readWindow(input) {
-      return db.transaction(async (tx) => {
+      return withStatementTimeout(db, AI_INSIGHTS_READ_BUDGET_MS, async (tx) => {
         const [reviewHead] = await tx
           .select({ headSequence: reviewAiAnalysisHeads.headSequence })
           .from(reviewAiAnalysisHeads)
@@ -976,8 +1056,10 @@ export const createAiPropertyAggregateStoreAdapter = (
           analysisSequence: number | string
           localDate: string
           rating: number
-          sentiment: string
-          attention: string
+          status: string
+          unavailableReason: string | null
+          sentiment: string | null
+          attention: string | null
           aspects: unknown
           issueLabel: string | null
           analysisProfileVersion: string
@@ -1000,6 +1082,8 @@ export const createAiPropertyAggregateStoreAdapter = (
             latest.analysis_sequence::float8 AS "analysisSequence",
             latest.local_date::text AS "localDate",
             latest.rating AS rating,
+            analysis.status AS status,
+            analysis.unavailable_reason AS "unavailableReason",
             latest.sentiment AS sentiment,
             latest.attention AS attention,
             analysis.issue_label AS "issueLabel",
@@ -1032,12 +1116,32 @@ export const createAiPropertyAggregateStoreAdapter = (
            AND analysis.source_revision = latest.source_revision
            AND analysis.analysis_sequence = latest.analysis_sequence
           INNER JOIN ai_operations AS operation ON operation.id = analysis.operation_id
-          WHERE latest.status = 'ready'
+          WHERE latest.status = analysis.status
+            AND latest.status IN ('ready', 'unavailable')
             AND latest.local_date BETWEEN ${input.startLocalDate}::date AND ${input.endLocalDate}::date
-            AND analysis.status = 'ready'
             AND operation.state IN ('succeeded_pending_delivery', 'succeeded')
           ORDER BY latest.local_date, latest.review_id
         `)
+        const analyzedReviews: AiPropertyAnalyzedReview[] = []
+        const unavailableReviews: AiPropertyUnavailableReview[] = []
+        for (const row of analyzed.rows) {
+          if (row.status === 'ready') {
+            analyzedReviews.push(mapAnalyzedReview(row))
+            continue
+          }
+          if (
+            row.status === 'unavailable' &&
+            Array.isArray(row.aspects) &&
+            row.aspects.length === 0 &&
+            row.sentiment === null &&
+            row.attention === null &&
+            row.issueLabel === null
+          ) {
+            unavailableReviews.push(mapUnavailableReview(row))
+            continue
+          }
+          throw new Error('Property Review analysis outcome is invalid')
+        }
         return {
           head: {
             organizationId: input.organizationId,
@@ -1051,7 +1155,8 @@ export const createAiPropertyAggregateStoreAdapter = (
           days: days.map((day) =>
             mapDaily(day, Object.freeze(aspectCountsByDate.get(day.localDate) ?? [])),
           ),
-          analyzedReviews: Object.freeze(analyzed.rows.map(mapAnalyzedReview)),
+          analyzedReviews: Object.freeze(analyzedReviews),
+          unavailableReviews: Object.freeze(unavailableReviews),
         }
       })
     },

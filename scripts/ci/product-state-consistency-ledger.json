@@ -75,9 +75,9 @@
     },
     {
       "id": "aiKeys",
-      "members": ["all", "propertyTrend", "propertyAggregates"],
+      "members": ["all", "propertyTrend", "propertyAggregates", "propertyInsights"],
       "owner": "AI read-model query lifecycle",
-      "policy": "Trend and aggregate projections are independent property-scoped siblings under the AI root; globally unique propertyId prevents cross-property reuse."
+      "policy": "Trend, aggregate, and insights projections are independent property-scoped siblings under the AI root; insights also keys the selected day range, and globally unique propertyId prevents cross-property reuse."
     },
     {
       "id": "goalKeys",

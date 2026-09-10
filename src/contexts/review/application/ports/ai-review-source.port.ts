@@ -73,6 +73,7 @@ export type AiTrendPopulationReview = Readonly<{
   analysisSequence: number
   localDate: string
   hasText: boolean
+  rating: StarRating
 }>
 
 export type AiTrendPopulationRequest = Readonly<{

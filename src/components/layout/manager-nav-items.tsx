@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  BarChart3,
   MessageSquare,
   Users,
   Globe,
@@ -43,6 +44,12 @@ const navItems: ReadonlyArray<ManagerNavItem> = [
     label: 'Dashboard',
     icon: LayoutDashboard,
     to: '/properties/$propertyId',
+  },
+  {
+    key: 'insights',
+    label: 'Insights',
+    icon: BarChart3,
+    to: '/properties/$propertyId/insights',
   },
   {
     key: 'reviews',

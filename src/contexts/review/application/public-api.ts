@@ -90,6 +90,7 @@ export type { ReviewServingStats } from './ports/serving-stats.port'
 export type {
   AiReviewSourcePort,
   AiReviewCurrentSource,
+  AiTrendPopulationReview,
 } from './ports/ai-review-source.port'
 
 // ── Staff type aliases for cross-context consumers ──────────────────────
