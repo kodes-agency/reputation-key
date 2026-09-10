@@ -84,9 +84,7 @@ function openOperationsQueues(input: OperationalReadoutInput) {
       options?.opsBackgroundQueue ??
       infra.backgroundQueue ??
       (redis ? createJobQueue('background') : undefined),
-    domainEvents:
-      options?.opsDomainEventsQueue ??
-      (redis ? createJobQueue('domain-events') : undefined),
+    domainEvents: options?.opsDomainEventsQueue ?? infra.domainEventsQueue,
     quarantine:
       options?.opsQuarantineQueue ??
       (redis ? createJobQueue(QUARANTINE_QUEUE_NAME) : undefined),

@@ -64,6 +64,13 @@ export type RegisterAiConsumersInput = Readonly<{
   ) => Promise<AnalyzeReviewEventResult>
   receipts: OutboxRepository
   enqueuePropertyTrend: (scheduleId: string) => Promise<void>
+  advanceReviewAnalysisBackfill: (input: {
+    eventId: string
+    organizationId: string
+    propertyId: string
+    correlationId: string | null
+    analysisSequence: number
+  }) => Promise<unknown>
   /**
    * Apply the Identity authorization trigger through the AI command store.
    * That store commits the enrollment intent (or exact obsolete/no-op
@@ -122,7 +129,7 @@ export async function handleAiReviewEvent(
 
   if (result.status === 'retry') {
     // BullMQ owns the finite dispatch retry budget (exponential 30s backoff,
-    // 8 attempts; see DISPATCH_JOB_OPTIONS in shared/outbox/relay.ts). It can
+    // 8 attempts; see shared/outbox/dispatch-job-options.ts). It can
     // exhaust before the 15-minute domain horizon, so this throw deliberately
     // leaves the event unreceipted. The unconditional operation reaper owns an
     // analysis operation still pending past that horizon: it fences the
@@ -141,6 +148,22 @@ export async function handleAiReviewEvent(
     AI_REVIEW_ANALYSIS_CONSUMER,
     receiptStatus,
   )
+
+  // Settlement and receipt have both committed before the accelerator runs.
+  // The adapter enqueues exactly N+1 and swallows queue failure so durable
+  // published-event redelivery remains the crash/recovery authority.
+  if (
+    event.eventType === AI_REVIEW_ANALYSIS_BACKFILL_EVENT &&
+    result.status !== 'generation_changed'
+  ) {
+    await dependencies.advanceReviewAnalysisBackfill({
+      eventId: event.eventId,
+      organizationId: payload.organizationId,
+      propertyId: payload.propertyId,
+      correlationId: event.correlationId ?? null,
+      analysisSequence: payload.analysisSequence,
+    })
+  }
 
   return { status: receiptStatus }
 }

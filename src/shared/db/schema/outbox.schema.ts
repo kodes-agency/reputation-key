@@ -63,6 +63,18 @@ export const outboxEvents = pgTable(
     index('outbox_events_consumer_redelivery_due_idx')
       .on(table.consumerRedeliveryNextAt, table.publishedAt)
       .where(sql`${table.publishedAt} IS NOT NULL AND ${table.recoveryFencedAt} IS NULL`),
+    index('outbox_events_ai_backfill_chain_idx')
+      .on(
+        table.organizationId,
+        table.propertyId,
+        sql`(${table.payload}->>'correlationId')`,
+        sql`(${table.payload}->>'analysisSequence')`,
+      )
+      .where(
+        sql`${table.eventType} = 'ai.review_analysis.backfill_requested'
+          AND ${table.publishedAt} IS NOT NULL
+          AND ${table.recoveryFencedAt} IS NULL`,
+      ),
     check(
       'outbox_events_consumer_redelivery_attempts_nonnegative',
       sql`${table.consumerRedeliveryAttempts} >= 0`,

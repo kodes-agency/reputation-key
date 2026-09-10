@@ -17,7 +17,7 @@ import type {
   DurableConsumerExpectation,
   OutboxRepository,
 } from '#/shared/outbox/infrastructure/outbox-repository'
-import { DISPATCH_JOB_OPTIONS } from '#/shared/outbox/relay'
+import { DISPATCH_JOB_OPTIONS } from '#/shared/outbox/dispatch-job-options'
 
 export const JOB_NAME = 'published-event-redelivery' as const
 

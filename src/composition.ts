@@ -163,6 +163,7 @@ function buildContainer(
     enableJobs,
     queue: options?.queue,
     backgroundQueue: options?.backgroundQueue,
+    domainEventsQueue: options?.opsDomainEventsQueue,
   })
 
   // Identity port (adapter). Invitation property-access provisioning is a
@@ -457,6 +458,8 @@ function buildContainer(
     replyBrandProfiles: portal.publicApi.portal,
     inference: aiRuntime.inference,
     subjectHmac: aiRuntime.subjectHmac,
+    reviewAnalysisBackfillQueue: infra.domainEventsQueue,
+    logger,
     enqueuePropertyTrend: infra.jobQueue
       ? async (scheduleId) => {
           await infra.jobQueue!.add(
