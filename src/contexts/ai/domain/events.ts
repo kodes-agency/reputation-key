@@ -28,8 +28,8 @@ export const aiPropertyTrendGenerationRequested = (
 }
 
 /**
- * One review re-admitted to review analysis by the audited operator backfill
- * (`ops:ai-reanalyze`), carrying the FRESH analysis sequence allocated for it.
+ * One review re-admitted to review analysis by the first-enablement Review
+ * Analysis enrollment replay, carrying the FRESH analysis sequence allocated for it.
  *
  * Deliberately its OWN event type rather than a re-emitted `review.created` /
  * `review.updated`: those two are also consumed by the inbox

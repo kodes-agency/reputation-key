@@ -615,7 +615,7 @@ const aiPropertyTrendGenerationRequestedSchema = z.object({
 })
 // Envelope metadata is reattached after producer-side allowlist validation
 // and stripped from the delivered fact payload before consumer-side validation.
-// Operator review-analysis backfill (ops:ai-reanalyze). Identifier-only, and
+// First-enablement Review Analysis enrollment replay. Identifier-only, with
 // the same field set the AI review consumer already validates — `analysisSequence`
 // is the FRESH sequence allocated for the replay, not the review's stored one.
 // Not `.strict()`, matching the review event schemas: the outbox re-attaches

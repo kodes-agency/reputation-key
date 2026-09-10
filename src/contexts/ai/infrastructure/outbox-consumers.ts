@@ -235,7 +235,7 @@ export function registerAiConsumers(
     module: 'ai.outbox-consumers',
     handler: (event) => handleAiReviewEvent(dependencies, event),
   })
-  // The audited operator backfill (`ops:ai-reanalyze`). Registered ONLY here:
+  // The first-enablement Review Analysis enrollment replay. Registered ONLY here:
   // the inbox also consumes `review.created`/`review.updated`, so replaying
   // either to reach review analysis would churn inbox items for reviews that
   // never changed. Same handler — the analysis logic is not duplicated.
