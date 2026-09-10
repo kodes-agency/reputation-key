@@ -15,6 +15,7 @@ import {
   NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
   NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
   NOTIFICATION_EMAIL_STALLED_ALERT_MS,
+  REVIEW_ANALYSIS_STALLED_ALERT_MS,
   QUARANTINE_NONEMPTY_ALERT_MS,
   QUARANTINE_REDRIVE_SLA_ALERT_MS,
   SYNC_SWEEP_LAG_ALERT_MS,
@@ -156,6 +157,14 @@ const AUX: AlertAuxReads = {
     deliveredUnresolvedCount: 0,
     oldestDeliveredUnresolvedAgeMs: null,
   },
+  reviewAnalysis: {
+    monitorAvailable: true,
+    incompletePropertyCount: 0,
+    pendingSettlementCount: 0,
+    oldestNoProgressAgeMs: null,
+    zeroSnapshotEnrollmentCount: 0,
+    eligibleReviewCountMissed: 0,
+  },
 }
 
 function evaluateOne(name: string, snapshot: MutableSnapshot, aux: AlertAuxReads = AUX) {
@@ -164,6 +173,74 @@ function evaluateOne(name: string, snapshot: MutableSnapshot, aux: AlertAuxReads
   expect(def!.evaluate, `${name} must be implemented`).not.toBeNull()
   return def!.evaluate!(snapshot, aux)
 }
+
+describe('ai.review-analysis-stalled', () => {
+  it('fires when incomplete coverage has made no settlement progress past the threshold', () => {
+    const event = evaluateOne('ai.review-analysis-stalled', healthy(), {
+      ...AUX,
+      reviewAnalysis: {
+        ...AUX.reviewAnalysis,
+        incompletePropertyCount: 1,
+        pendingSettlementCount: 4,
+        oldestNoProgressAgeMs: REVIEW_ANALYSIS_STALLED_ALERT_MS + 1,
+      },
+    })
+
+    expect(event).toMatchObject({
+      name: 'ai.review-analysis-stalled',
+      severity: 'P2',
+      value: REVIEW_ANALYSIS_STALLED_ALERT_MS + 1,
+      threshold: REVIEW_ANALYSIS_STALLED_ALERT_MS,
+      windowMs: REVIEW_ANALYSIS_STALLED_ALERT_MS,
+    })
+    expect(event!.detail).toContain('1 AI-enabled property')
+    expect(event!.detail).toContain('4 pending settlement')
+  })
+
+  it('stays silent while incomplete coverage is still advancing', () => {
+    expect(
+      evaluateOne('ai.review-analysis-stalled', healthy(), {
+        ...AUX,
+        reviewAnalysis: {
+          ...AUX.reviewAnalysis,
+          incompletePropertyCount: 1,
+          pendingSettlementCount: 999,
+          oldestNoProgressAgeMs: REVIEW_ANALYSIS_STALLED_ALERT_MS,
+        },
+      }),
+    ).toBeNull()
+  })
+
+  it('stays silent when no property has AI enablement', () => {
+    expect(evaluateOne('ai.review-analysis-stalled', healthy())).toBeNull()
+  })
+})
+
+describe('ai.review-analysis-empty-enrollment', () => {
+  it('fires when an actionable zero-snapshot enrollment missed eligible reviews', () => {
+    const event = evaluateOne('ai.review-analysis-empty-enrollment', healthy(), {
+      ...AUX,
+      reviewAnalysis: {
+        ...AUX.reviewAnalysis,
+        zeroSnapshotEnrollmentCount: 1,
+        eligibleReviewCountMissed: 18,
+      },
+    })
+
+    expect(event).toMatchObject({
+      name: 'ai.review-analysis-empty-enrollment',
+      severity: 'P2',
+      value: 1,
+      threshold: 0,
+      windowMs: 5 * 60 * 1000,
+    })
+    expect(event!.detail).toContain('18 eligible review')
+  })
+
+  it('stays silent without a mismatched actionable enrollment', () => {
+    expect(evaluateOne('ai.review-analysis-empty-enrollment', healthy())).toBeNull()
+  })
+})
 
 // ── runbook anchors ────────────────────────────────────────────────
 

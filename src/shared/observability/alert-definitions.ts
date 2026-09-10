@@ -69,6 +69,16 @@ export type AlertAuxReads = Readonly<{
     deliveredUnresolvedCount: number
     oldestDeliveredUnresolvedAgeMs: number | null
   }>
+  /** Content-free health of enabled Review Analysis coverage and enrollment. */
+  reviewAnalysis: Readonly<{
+    /** false means the PostgreSQL observation failed; the stall alert fails visible. */
+    monitorAvailable: boolean
+    incompletePropertyCount: number
+    pendingSettlementCount: number
+    oldestNoProgressAgeMs: number | null
+    zeroSnapshotEnrollmentCount: number
+    eligibleReviewCountMissed: number
+  }>
 }>
 
 export type AlertDefinition = Readonly<{
@@ -168,6 +178,14 @@ export const SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS = 2 * 24 * 60 * 60
 /** An ambiguous reply publication past reconcile_due by more than 15min —
  *  the 30-min reconcile sweep should have picked it up. */
 export const REPLY_AMBIGUOUS_ALERT_MS = 15 * 60 * 1000
+
+/**
+ * A healthy 1,000-event aggregate drain completes in about one second. Fifteen
+ * minutes is therefore a deliberately generous three health-check cadences,
+ * but still catches a stranded chain well before the five-minute redelivery
+ * sweep can act on its two-hour missing-receipt horizon.
+ */
+export const REVIEW_ANALYSIS_STALLED_ALERT_MS = 15 * 60 * 1000
 
 /**
  * A delivered native-feedback report unresolved for three days is an
@@ -474,6 +492,69 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       return {
         value: oldestDueAgeMs,
         detail: `${dueForIncrementalCount} property(ies) due for incremental sync; oldest overdue by ${oldestDueAgeMs}ms (> ${SYNC_SWEEP_LAG_ALERT_MS}ms = 4 missed sweeps, ${pushState}) — new reviews are not arriving`,
+      }
+    },
+  }),
+
+  // ── Review Analysis coverage and first-enablement backfill ──
+  // Coverage is exact ledger cardinality, not an aggregate-head watermark:
+  // settlements for the current source/analysis epoch must equal
+  // review-head sequence minus the enablement start sequence.
+  define({
+    name: 'ai.review-analysis-stalled',
+    severity: 'P2',
+    runbook: 'runbooks.md §22',
+    windowMs: REVIEW_ANALYSIS_STALLED_ALERT_MS,
+    threshold: REVIEW_ANALYSIS_STALLED_ALERT_MS,
+    read: (_snapshot, aux) => {
+      const analysis = aux.reviewAnalysis
+      if (!analysis.monitorAvailable) {
+        return {
+          value: -1,
+          detail:
+            'Review Analysis coverage monitor unavailable — settlement progress is unknown',
+        }
+      }
+      if (analysis.incompletePropertyCount <= 0) return null
+      const ageMs = analysis.oldestNoProgressAgeMs
+      if (ageMs == null) {
+        return {
+          value: REVIEW_ANALYSIS_STALLED_ALERT_MS + 1,
+          detail:
+            'Review Analysis coverage is incomplete without a valid settlement-progress clock',
+        }
+      }
+      if (ageMs <= REVIEW_ANALYSIS_STALLED_ALERT_MS) return null
+      return {
+        value: ageMs,
+        detail:
+          `${analysis.incompletePropertyCount} AI-enabled property(ies) have ` +
+          `${analysis.pendingSettlementCount} pending settlement(s); oldest ` +
+          `settlement progress is ${ageMs}ms old (> ${REVIEW_ANALYSIS_STALLED_ALERT_MS}ms)`,
+      }
+    },
+  }),
+  // A zero snapshot can appear complete (head - start = settlement count = 0),
+  // so the coverage alert above cannot detect a stale enrollment watermark.
+  // Eligible rows behind an actionable empty snapshot are an impossible
+  // invariant and fire on one evaluation rather than waiting for an age.
+  define({
+    name: 'ai.review-analysis-empty-enrollment',
+    severity: 'P2',
+    runbook: 'runbooks.md §22',
+    windowMs: EVAL_CADENCE_MS,
+    threshold: 0,
+    read: (_snapshot, aux) => {
+      const analysis = aux.reviewAnalysis
+      if (!analysis.monitorAvailable || analysis.zeroSnapshotEnrollmentCount <= 0) {
+        return null
+      }
+      return {
+        value: analysis.zeroSnapshotEnrollmentCount,
+        detail:
+          `${analysis.zeroSnapshotEnrollmentCount} queued/running Review Analysis ` +
+          `enrollment(s) captured an empty snapshot despite ` +
+          `${analysis.eligibleReviewCountMissed} eligible review(s)`,
       }
     },
   }),

@@ -30,6 +30,7 @@ import {
   NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
   NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
   NOTIFICATION_EMAIL_STALLED_ALERT_MS,
+  REVIEW_ANALYSIS_STALLED_ALERT_MS,
   WORKER_HEARTBEAT_STALE_ALERT_MS,
   SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS,
   REPLY_AMBIGUOUS_ALERT_MS,
@@ -202,6 +203,14 @@ function healthyAux(): MutableAux {
       deliveredUnresolvedCount: 0,
       oldestDeliveredUnresolvedAgeMs: null,
     },
+    reviewAnalysis: {
+      monitorAvailable: true,
+      incompletePropertyCount: 0,
+      pendingSettlementCount: 0,
+      oldestNoProgressAgeMs: null,
+      zeroSnapshotEnrollmentCount: 0,
+      eligibleReviewCountMissed: 0,
+    },
   }
 }
 
@@ -210,6 +219,8 @@ function healthyAux(): MutableAux {
 describe('alert registry contract (BQC-7.4)', () => {
   it('registers exactly the phase-doc alert set', () => {
     expect(ALERT_DEFINITIONS.map((d) => d.name).sort()).toEqual([
+      'ai.review-analysis-empty-enrollment',
+      'ai.review-analysis-stalled',
       'backup.pitr',
       'beta-feedback.triage-backlog',
       'db.pool-exhaustion',
@@ -325,6 +336,37 @@ const BREACHES: readonly Breach[] = [
         failing: 2,
         handlerMissing: 1,
         repairRequired: 1,
+      }
+    },
+  },
+  {
+    name: 'ai.review-analysis-stalled',
+    severity: 'P2',
+    runbook: 'runbooks.md §22',
+    threshold: REVIEW_ANALYSIS_STALLED_ALERT_MS,
+    windowMs: REVIEW_ANALYSIS_STALLED_ALERT_MS,
+    value: REVIEW_ANALYSIS_STALLED_ALERT_MS + 1,
+    apply: (_s, aux) => {
+      aux.reviewAnalysis = {
+        ...aux.reviewAnalysis,
+        incompletePropertyCount: 1,
+        pendingSettlementCount: 4,
+        oldestNoProgressAgeMs: REVIEW_ANALYSIS_STALLED_ALERT_MS + 1,
+      }
+    },
+  },
+  {
+    name: 'ai.review-analysis-empty-enrollment',
+    severity: 'P2',
+    runbook: 'runbooks.md §22',
+    threshold: 0,
+    windowMs: 5 * 60 * 1000,
+    value: 1,
+    apply: (_s, aux) => {
+      aux.reviewAnalysis = {
+        ...aux.reviewAnalysis,
+        zeroSnapshotEnrollmentCount: 1,
+        eligibleReviewCountMissed: 18,
       }
     },
   },
