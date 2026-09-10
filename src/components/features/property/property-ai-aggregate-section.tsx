@@ -6,6 +6,7 @@ import {
   EmergingIssuesList,
   SentimentMixChart,
 } from './property-ai-aggregate-charts'
+import { PropertyAiProvisionalNotice } from './property-ai-provisional-notice'
 
 export type PropertyAiAggregatesServerFn = typeof getPropertyAiAggregatesFn
 
@@ -83,11 +84,15 @@ export function PropertyAiAggregateSection({
 
   return (
     <Section>
-      <p className="mt-1 text-xs text-muted-foreground">
+      {data.provisional ? (
+        <PropertyAiProvisionalNotice className="mt-3" coverage={data.coverage} />
+      ) : null}
+      <p className="mt-3 text-xs text-muted-foreground">
         {data.reviewCount} analysed {data.reviewCount === 1 ? 'review' : 'reviews'} from{' '}
         {data.startLocalDate} to {data.endLocalDate}, in the property&apos;s own time zone
         · {data.analyzedReviewCount} with aspect analysis · {data.preAspectAnalysisCount}{' '}
-        analysed before aspect analysis existed
+        analysed before aspect analysis existed · {data.coverage.awaitingAnalysisCount}{' '}
+        awaiting analysis
       </p>
       <div className="mt-3 grid min-w-0 gap-4 xl:grid-cols-3">
         <div className="min-w-0 rounded-lg border bg-muted/30 p-4">

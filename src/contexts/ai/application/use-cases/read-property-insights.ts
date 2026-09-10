@@ -97,8 +97,10 @@ export type AiPropertyInsightComparedIssue = Readonly<
 
 export type Period = Readonly<{ startLocalDate: string; endLocalDate: string }>
 
-type AiPropertyInsightsReadyBase = Readonly<{
+type AiPropertyInsightsReadyBase<Provisional extends boolean> = Readonly<{
   status: 'ready'
+  provisional: Provisional
+  coverage: AiPropertyAggregateWindow['coverage']
   startLocalDate: string
   endLocalDate: string
   dataThroughLocalDate: string
@@ -108,8 +110,8 @@ type AiPropertyInsightsReadyBase = Readonly<{
   weeklyAspectSeries: readonly AiPropertyInsightWeeklySeries[]
 }>
 
-export type AiPropertyInsightsPresetReady = Readonly<
-  AiPropertyInsightsReadyBase & {
+type AiPropertyInsightsComparedPresetReady = Readonly<
+  AiPropertyInsightsReadyBase<false> & {
     range: PropertyInsightsPreset
     precedingPeriod: Period
     aspects: readonly AiPropertyInsightComparedAspect[]
@@ -117,8 +119,19 @@ export type AiPropertyInsightsPresetReady = Readonly<
   }
 >
 
+type AiPropertyInsightsProvisionalPresetReady = Readonly<
+  AiPropertyInsightsReadyBase<true> & {
+    range: PropertyInsightsPreset
+    aspects: readonly AiPropertyInsightAspect[]
+    emergingIssues: readonly AiPropertyInsightIssue[]
+  }
+>
+
+export type AiPropertyInsightsPresetReady =
+  AiPropertyInsightsComparedPresetReady | AiPropertyInsightsProvisionalPresetReady
+
 export type AiPropertyInsightsAllTimeReady = Readonly<
-  AiPropertyInsightsReadyBase & {
+  AiPropertyInsightsReadyBase<boolean> & {
     range: 'all'
     windowStartBasis: 'earliest_evidence' | 'derivative_retention_horizon'
     aspects: readonly AiPropertyInsightAspect[]
@@ -551,7 +564,9 @@ async function readAllTimeInsights(
     startLocalDate,
     endLocalDate,
   })
-  if (aggregate === null) return { status: 'preparing' }
+  if (aggregate === null || aggregate.coverage.settledAnalysisCount === 0) {
+    return { status: 'preparing' }
+  }
 
   const currentPeriod = Object.freeze({ startLocalDate, endLocalDate })
   const { current } = prepareCurrentWindow(currentPeriod, population, aggregate)
@@ -559,9 +574,14 @@ async function readAllTimeInsights(
     return { status: 'insufficient_data', startLocalDate, endLocalDate }
   }
   const aspects = allTimeAspects(current.analyzed)
+  const provisional =
+    aggregate.coverage.awaitingAnalysisCount > 0 ||
+    current.basis.awaitingAnalysisCount > 0
 
   return Object.freeze({
     status: 'ready',
+    provisional,
+    coverage: aggregate.coverage,
     range: 'all',
     startLocalDate,
     endLocalDate,
@@ -602,7 +622,8 @@ async function readPresetInsights(
       detectEvidenceBeforeStart: false,
     }),
   ])
-  if (aggregate === null || population.status !== 'complete') {
+  if (population.status !== 'complete') return { status: 'preparing' }
+  if (aggregate === null || aggregate.coverage.settledAnalysisCount === 0) {
     return { status: 'preparing' }
   }
 
@@ -621,17 +642,38 @@ async function readPresetInsights(
     analyzedByVersion,
     unavailableByVersion,
   )
-  const aspects = compareAspects(current.analyzed, preceding.analyzed)
-
-  return Object.freeze({
-    status: 'ready',
+  const provisional =
+    aggregate.coverage.awaitingAnalysisCount > 0 ||
+    current.basis.awaitingAnalysisCount > 0 ||
+    preceding.basis.awaitingAnalysisCount > 0
+  const readyBase = Object.freeze({
+    status: 'ready' as const,
     range,
     startLocalDate,
     endLocalDate,
-    precedingPeriod,
     dataThroughLocalDate: endLocalDate,
     impactVersion: ASPECT_IMPACT_VERSION,
+    coverage: aggregate.coverage,
     basis: current.basis,
+  })
+
+  if (provisional) {
+    const aspects = allTimeAspects(current.analyzed)
+    return Object.freeze({
+      ...readyBase,
+      provisional: true,
+      aspects,
+      aspectEvidenceState: resolveAspectEvidenceState(current.basis, aspects),
+      weeklyAspectSeries: weeklySeries(currentPeriod, current.analyzed, aspects),
+      emergingIssues: allTimeEmergingIssues(current.analyzed),
+    })
+  }
+
+  const aspects = compareAspects(current.analyzed, preceding.analyzed)
+  return Object.freeze({
+    ...readyBase,
+    provisional: false,
+    precedingPeriod,
     aspects,
     aspectEvidenceState: resolveAspectEvidenceState(current.basis, aspects),
     weeklyAspectSeries: weeklySeries(currentPeriod, current.analyzed, aspects),

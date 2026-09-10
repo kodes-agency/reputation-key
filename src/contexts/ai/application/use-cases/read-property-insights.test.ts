@@ -103,16 +103,26 @@ function harness(
     population?: unknown
   }> = {},
 ) {
-  const readWindow = vi.fn(async () =>
-    options.aggregate === undefined
-      ? {
-          head: {},
-          days: [],
-          analyzedReviews: [],
-          unavailableReviews: [],
-        }
-      : options.aggregate,
-  )
+  const readWindow = vi.fn(async () => {
+    const aggregate =
+      options.aggregate === undefined
+        ? {
+            head: {},
+            days: [],
+            analyzedReviews: [],
+            unavailableReviews: [],
+          }
+        : options.aggregate
+    if (aggregate === null || typeof aggregate !== 'object') return aggregate
+    return {
+      coverage: {
+        settledAnalysisCount: 1,
+        expectedAnalysisCount: 1,
+        awaitingAnalysisCount: 0,
+      },
+      ...aggregate,
+    }
+  })
   const readTrendPopulation = vi.fn(async () =>
     options.population === undefined
       ? {
@@ -218,10 +228,28 @@ describe('readPropertyInsights gates and windows', () => {
     )
   })
 
-  it('reports preparing instead of an absence when either fenced read is unsettled', async () => {
-    const aggregateGap = harness({ aggregate: null })
-    await expect(aggregateGap.read(input)).resolves.toEqual({ status: 'preparing' })
+  it('keeps preparing when no aggregate evidence has been applied', async () => {
+    const noAnalysis = harness({
+      aggregate: {
+        head: {},
+        coverage: {
+          settledAnalysisCount: 0,
+          expectedAnalysisCount: 1,
+          awaitingAnalysisCount: 1,
+        },
+        days: [],
+        analyzedReviews: [],
+      },
+      population: {
+        status: 'complete',
+        reviews: [populationReview(1, '2026-08-20')],
+        hasEvidenceBeforeStart: false,
+      },
+    })
+    await expect(noAnalysis.read(input)).resolves.toEqual({ status: 'preparing' })
+  })
 
+  it('keeps preparing when the Review population cannot be read safely', async () => {
     const populationGap = harness({
       population: { status: 'policy_unavailable' },
     })
@@ -265,6 +293,93 @@ describe('readPropertyInsights evidence', () => {
         { stars: 5, count: 1 },
       ],
     })
+  })
+
+  it('returns provisional partial evidence without period comparisons', async () => {
+    const reviews = [
+      populationReview(1, '2026-08-20', { rating: 5 }),
+      populationReview(2, '2026-08-19', { rating: 2 }),
+      populationReview(3, '2026-07-21', { rating: 4 }),
+    ]
+    const { read } = harness({
+      population: { status: 'complete', reviews },
+      aggregate: {
+        head: {},
+        coverage: {
+          settledAnalysisCount: 2,
+          expectedAnalysisCount: 3,
+          awaitingAnalysisCount: 1,
+        },
+        days: [],
+        analyzedReviews: [
+          analyzedReview(1, '2026-08-20', {
+            rating: 5,
+            aspect: 'service',
+            issueLabel: 'helpful team',
+          }),
+          analyzedReview(3, '2026-07-21', {
+            rating: 4,
+            aspect: 'room',
+            issueLabel: 'quiet rooms',
+          }),
+        ],
+        unavailableReviews: [],
+      },
+    })
+
+    const result = await read(input)
+
+    expect(result).toMatchObject({
+      status: 'ready',
+      provisional: true,
+      coverage: {
+        settledAnalysisCount: 2,
+        expectedAnalysisCount: 3,
+        awaitingAnalysisCount: 1,
+      },
+      basis: { awaitingAnalysisCount: 1 },
+    })
+    expect(result).not.toHaveProperty('precedingPeriod')
+    if (result.status !== 'ready') throw new Error('expected provisional insights')
+    expect(result.aspects).toEqual([
+      {
+        aspect: 'service',
+        polarity: 'positive',
+        mentionCount: 1,
+        impact: 1,
+      },
+    ])
+    expect(result.emergingIssues).toEqual([{ label: 'helpful team', count: 1 }])
+  })
+
+  it('suppresses comparisons when the preceding window is still awaiting analysis', async () => {
+    const current = populationReview(1, '2026-08-20')
+    const preceding = populationReview(2, '2026-07-21')
+    const { read } = harness({
+      population: {
+        status: 'complete',
+        reviews: [current, preceding],
+        hasEvidenceBeforeStart: false,
+      },
+      aggregate: {
+        head: {},
+        coverage: {
+          settledAnalysisCount: 1,
+          expectedAnalysisCount: 2,
+          awaitingAnalysisCount: 1,
+        },
+        days: [],
+        analyzedReviews: [analyzedReview(1, '2026-08-20')],
+        unavailableReviews: [],
+      },
+    })
+
+    const result = await read(input)
+
+    expect(result).toMatchObject({ status: 'ready', provisional: true })
+    expect(result).not.toHaveProperty('precedingPeriod')
+    if (result.status !== 'ready') throw new Error('expected provisional insights')
+    expect(result.aspects[0]).not.toHaveProperty('comparison')
   })
 
   it('separates v1 evidence and marks an aspect-only gap as predating analysis', async () => {
@@ -346,6 +461,12 @@ describe('readPropertyInsights evidence', () => {
     const result = await read(input)
     if (result.status !== 'ready') throw new Error('expected ready insights')
     expect(result.impactVersion).toBe('aspect-impact-v1')
+    expect(result.provisional).toBe(false)
+    expect(result.coverage).toEqual({
+      settledAnalysisCount: 1,
+      expectedAnalysisCount: 1,
+      awaitingAnalysisCount: 0,
+    })
     expect(result.aspects).toEqual([
       {
         aspect: 'service',
@@ -464,6 +585,37 @@ describe('readPropertyInsights evidence', () => {
     expectTypeOf<
       DeclaresKey<AllTimeReady['emergingIssues'][number], 'comparison'>
     >().toEqualTypeOf<false>()
+  })
+
+  it('omits comparison keys from provisional presets and requires them when complete', () => {
+    type ProvisionalPreset = Extract<
+      AiPropertyInsightsRead,
+      { status: 'ready'; provisional: true }
+    >
+    type CompletePreset = Extract<
+      AiPropertyInsightsRead,
+      { status: 'ready'; provisional: false }
+    >
+    type DeclaresKey<Value, Key extends PropertyKey> = Key extends keyof Value
+      ? true
+      : false
+
+    expectTypeOf<
+      DeclaresKey<ProvisionalPreset, 'precedingPeriod'>
+    >().toEqualTypeOf<false>()
+    expectTypeOf<
+      DeclaresKey<ProvisionalPreset['aspects'][number], 'comparison'>
+    >().toEqualTypeOf<false>()
+    expectTypeOf<
+      DeclaresKey<ProvisionalPreset['emergingIssues'][number], 'comparison'>
+    >().toEqualTypeOf<false>()
+    expectTypeOf<DeclaresKey<CompletePreset, 'precedingPeriod'>>().toEqualTypeOf<true>()
+    expectTypeOf<
+      DeclaresKey<CompletePreset['aspects'][number], 'comparison'>
+    >().toEqualTypeOf<true>()
+    expectTypeOf<
+      DeclaresKey<CompletePreset['emergingIssues'][number], 'comparison'>
+    >().toEqualTypeOf<true>()
   })
 
   it('caps All Time at the derivative retention horizon when older evidence exists', async () => {

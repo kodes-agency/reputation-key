@@ -32,25 +32,18 @@ function polarityBadgeVariant(
   return 'outline'
 }
 
-type PropertyInsightsAspectEvidence =
-  | Pick<
-      AiPropertyInsightsAllTimeReady,
-      'range' | 'aspects' | 'basis' | 'aspectEvidenceState'
-    >
-  | Pick<
-      AiPropertyInsightsPresetReady,
-      'range' | 'aspects' | 'basis' | 'aspectEvidenceState'
-    >
+type PropertyInsightsEvidence =
+  AiPropertyInsightsAllTimeReady | AiPropertyInsightsPresetReady
 
 export function PropertyInsightsAspectTable({
   propertyId,
   evidence,
 }: Readonly<{
   propertyId: string
-  evidence: PropertyInsightsAspectEvidence
+  evidence: PropertyInsightsEvidence
 }>) {
   const { aspects, aspectEvidenceState } = evidence
-  const comparisonAvailable = evidence.range !== 'all'
+  const comparisonAvailable = evidence.range !== 'all' && !evidence.provisional
   if (aspectEvidenceState === 'predates_aspect_analysis') {
     return (
       <p className="text-sm text-muted-foreground">
@@ -75,14 +68,14 @@ export function PropertyInsightsAspectTable({
     )
   }
   const comparisonsByAspect =
-    evidence.range === 'all'
-      ? null
-      : new Map(
+    evidence.range !== 'all' && !evidence.provisional
+      ? new Map(
           evidence.aspects.map((aspect) => [
             `${aspect.aspect}:${aspect.polarity}`,
             aspect.comparison,
           ]),
         )
+      : null
 
   const busiest = aspects.reduce(
     (maximum, aspect) => Math.max(maximum, aspect.mentionCount),
@@ -214,9 +207,7 @@ export function PropertyInsightsAspectTable({
   )
 }
 
-type PropertyInsightsIssueEvidence =
-  | Pick<AiPropertyInsightsAllTimeReady, 'range' | 'emergingIssues' | 'basis'>
-  | Pick<AiPropertyInsightsPresetReady, 'range' | 'emergingIssues' | 'basis'>
+type PropertyInsightsIssueEvidence = PropertyInsightsEvidence
 
 export function PropertyInsightsEmergingIssues({
   evidence,
@@ -227,9 +218,9 @@ export function PropertyInsightsEmergingIssues({
   const readyAnalysisCount =
     evidence.basis.analyzedReviewCount + evidence.basis.preAspectAnalysisCount
   const comparisonsByIssue =
-    evidence.range === 'all'
-      ? null
-      : new Map(evidence.emergingIssues.map((issue) => [issue.label, issue.comparison]))
+    evidence.range !== 'all' && !evidence.provisional
+      ? new Map(evidence.emergingIssues.map((issue) => [issue.label, issue.comparison]))
+      : null
   if (readyAnalysisCount === 0) {
     return (
       <p className="text-sm text-muted-foreground">

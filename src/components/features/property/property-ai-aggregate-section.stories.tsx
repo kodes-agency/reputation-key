@@ -29,6 +29,12 @@ const stub = (value: unknown): PropertyAiAggregatesServerFn =>
 
 const readyData = {
   status: 'ready',
+  provisional: false,
+  coverage: {
+    settledAnalysisCount: 48,
+    expectedAnalysisCount: 48,
+    awaitingAnalysisCount: 0,
+  },
   startLocalDate: '2026-07-22',
   endLocalDate: '2026-08-20',
   reviewCount: 48,
@@ -56,6 +62,21 @@ const readyData = {
     { localDate: '2026-08-20', positive: 6, neutral: 2, negative: 1, mixed: 1 },
   ],
   sentimentTotals: { positive: 20, neutral: 6, negative: 11, mixed: 4 },
+}
+
+const provisionalData = {
+  ...readyData,
+  provisional: true,
+  coverage: {
+    settledAnalysisCount: 18,
+    expectedAnalysisCount: 20,
+    awaitingAnalysisCount: 2,
+  },
+  reviewCount: 18,
+  analyzedReviewCount: 18,
+  aspects: readyData.aspects.slice(0, 3),
+  emergingIssues: readyData.emergingIssues.slice(0, 2),
+  sentimentByDay: readyData.sentimentByDay.slice(-2),
 }
 
 function SectionHarness({
@@ -115,6 +136,17 @@ export const AspectPolarityCountsAndImpact: Story = {
   },
 }
 
+export const ProvisionalPartialAggregates: Story = {
+  render: () => <SectionHarness getAggregates={stub(provisionalData)} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(await canvas.findByText('Provisional figures')).toBeVisible()
+    expect(await canvas.findByText(/2 reviews awaiting analysis/)).toBeVisible()
+    expect(await canvas.findByText('Service · Negative')).toBeVisible()
+    expect(await canvas.findByText(/2 awaiting analysis/)).toBeVisible()
+  },
+}
+
 export const RowsDeepLinkIntoTheInbox: Story = {
   render: () => <SectionHarness getAggregates={stub(readyData)} />,
   play: async ({ canvasElement }) => {
@@ -151,6 +183,12 @@ export const ReadyButEmpty: Story = {
     <SectionHarness
       getAggregates={stub({
         status: 'ready',
+        provisional: false,
+        coverage: {
+          settledAnalysisCount: 1,
+          expectedAnalysisCount: 1,
+          awaitingAnalysisCount: 0,
+        },
         startLocalDate: '2026-08-14',
         endLocalDate: '2026-08-20',
         reviewCount: 0,
