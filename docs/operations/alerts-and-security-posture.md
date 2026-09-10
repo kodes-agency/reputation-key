@@ -118,7 +118,7 @@ surface dark); network-level restriction of the ops surface is platform-owned
 
 ## Alerts (BQC-7.4)
 
-Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner, severity per ADR 0038, threshold/window) and evaluated by the health-check job every 5 minutes against the OperationsSnapshot plus the aux reads (retention runs, policy denials, quarantine region-attempts, and content-free beta-feedback triage age/count).
+Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner, severity per ADR 0038, threshold/window) and evaluated by the health-check job every 5 minutes against the OperationsSnapshot plus the aux reads (retention runs, policy denials, quarantine region-attempts, content-free beta-feedback triage age/count, and content-free Review Analysis coverage/enrollment counts).
 
 **Dispatch:** every firing alert emits a schema-conformant structured `error` log line (`[alert] <name> firing`, fields: alert/severity/owner/runbook/value/threshold/windowMs/detail/firedAt — content-free) and, when `ALERT_WEBHOOK_URL` is set, POSTs the same payload to that operator webhook (3s timeout, best-effort — the log line is the durable record).
 
@@ -136,6 +136,8 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 | `source.freshness-deadline`                   | P1  | nearest hard expiry among refresh-due reviews < 2d away                                                                         | §3      |
 | `sync.sweep-lag`                              | P1  | oldest past-due incremental sync > 60min overdue (4 missed 15-min sweeps — new reviews are not arriving)                        | §13     |
 | `sync.failed-nonzero`                         | P2  | any coded sync failure whose retry is due                                                                                       | §13     |
+| `ai.review-analysis-stalled`                  | P2  | incomplete enabled coverage with no new settlement for > 15min; monitor failure also fires                                      | §22     |
+| `ai.review-analysis-empty-enrollment`         | P2  | any queued/running zero-snapshot enrollment while eligible reviews exist                                                        | §22     |
 | `retention.failure`                           | P1  | latest retention run failed for any subject                                                                                     | §8      |
 | `reply.ambiguous-aging`                       | P2  | oldest ambiguous publication > 15min past reconcile_due                                                                         | §6      |
 | `routing.region-attempts`                     | P2  | any quarantined wrong/unresolved/denied-region attempt                                                                          | §12     |
