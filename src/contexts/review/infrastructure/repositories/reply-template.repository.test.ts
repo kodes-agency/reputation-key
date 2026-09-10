@@ -114,6 +114,20 @@ describe.sequential('reply template repository', () => {
     const changedTemplate = await repository.upsertTemplate(
       template({ body: 'We appreciate your visit, {guest_name}.' }),
     )
+    const disabledTemplate = await repository.setTemplateEnabled({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      templateId: firstTemplate.value.id,
+      enabled: false,
+      updatedBy: 'user:manager',
+    })
+    const sameDisabledTemplate = await repository.setTemplateEnabled({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      templateId: firstTemplate.value.id,
+      enabled: false,
+      updatedBy: 'user:other',
+    })
 
     expect(firstProfile).toMatchObject({ disposition: 'inserted', value: { version: 1 } })
     expect(sameProfile).toMatchObject({ disposition: 'unchanged', value: { version: 1 } })
@@ -133,6 +147,55 @@ describe.sequential('reply template repository', () => {
       disposition: 'updated',
       value: { version: 2 },
     })
+    expect(disabledTemplate).toMatchObject({
+      disposition: 'updated',
+      value: { enabled: false, version: 3, updatedBy: 'user:manager' },
+    })
+    expect(sameDisabledTemplate).toMatchObject({
+      disposition: 'unchanged',
+      value: { enabled: false, version: 3, updatedBy: 'user:manager' },
+    })
+  })
+  it('renames by id in place and re-importing the former title creates a separate row', async () => {
+    const repository = createReplyTemplateRepository(getDb(), () => NOW)
+    const imported = await repository.upsertTemplate(template())
+
+    const renamed = await repository.updateTemplate({
+      ...template({ title: 'Renamed appreciation', updatedBy: 'user:manager' }),
+      templateId: imported.value.id,
+    })
+    const afterRename = await repository.listPropertyTemplates(ORG_A, PROPERTY_A)
+
+    expect(renamed).toMatchObject({
+      disposition: 'updated',
+      value: {
+        id: imported.value.id,
+        title: 'Renamed appreciation',
+        version: 2,
+        updatedBy: 'user:manager',
+      },
+    })
+    expect(afterRename).toHaveLength(1)
+
+    const noOp = await repository.updateTemplate({
+      ...template({ title: 'Renamed appreciation', updatedBy: 'user:other' }),
+      templateId: imported.value.id,
+    })
+    const reimported = await repository.upsertTemplate(template())
+    const afterReimport = await repository.listPropertyTemplates(ORG_A, PROPERTY_A)
+
+    expect(noOp).toMatchObject({
+      disposition: 'unchanged',
+      value: { version: 2, updatedBy: 'user:manager' },
+    })
+    expect(reimported).toMatchObject({
+      disposition: 'inserted',
+      value: { title: 'General positive', version: 1 },
+    })
+    expect(afterReimport.map(({ title }) => title).sort()).toEqual([
+      'General positive',
+      'Renamed appreciation',
+    ])
   })
 
   it('filters enabled templates by tenant, property, text presence, and rating band', async () => {
@@ -167,6 +230,16 @@ describe.sequential('reply template repository', () => {
       'en-Latn-US',
     )
     expect(await repository.readDefaultReplyLanguage(ORG_B, PROPERTY_A)).toBeNull()
+    expect(
+      (await repository.listPropertyTemplates(ORG_A, PROPERTY_A)).map(
+        ({ title, enabled }) => ({ title, enabled }),
+      ),
+    ).toEqual([
+      { title: 'Negative recovery', enabled: true },
+      { title: 'Disabled', enabled: false },
+      { title: 'General positive', enabled: true },
+      { title: 'No-text positive', enabled: true },
+    ])
   })
 
   it('never returns a profile or template through another tenant/property tuple', async () => {

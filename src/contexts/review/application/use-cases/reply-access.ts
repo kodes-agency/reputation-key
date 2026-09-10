@@ -18,8 +18,8 @@ export function requireReplyManager(ctx: AuthContext): void {
   }
 }
 
-async function assertReplyPropertyAccessible(
-  deps: ReplyAccessDeps,
+export async function assertReplyPropertyAccessible(
+  deps: Pick<ReplyAccessDeps, 'staffPublicApi'>,
   ctx: AuthContext,
   propertyId: PropertyId,
 ): Promise<void> {

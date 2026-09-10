@@ -1,89 +1,53 @@
+// Templates are matched by (property, sourceTitle) for repeatable workbook imports.
+// If a manager renames a template in Settings, re-importing its former sourceTitle
+// creates a new row; it never silently overwrites the renamed template.
 import { readFile } from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
 import { z } from 'zod/v4'
 import { createReplyTemplateRepository } from '../../src/contexts/review/infrastructure/repositories/reply-template.repository'
 import type { ReplyTemplateRepository } from '../../src/contexts/review/application/ports/reply-template.repository'
 import {
-  MAX_REPLY_LENGTH,
+  replyProfileFieldSchemas,
+  replyTemplateAspectSchema,
+  replyTemplateBodySchema,
+  replyTemplateLanguageSchema,
+  replyTemplateOpenLabelSchema,
+  replyTemplateRatingBandsSchema,
+  replyTemplateSlotSchema,
+  replyTemplateTitleSchema,
+} from '../../src/contexts/review/application/dto/reply-library.dto'
+import {
   REPLY_TEMPLATE_SLOT_TOKENS,
-  unknownReplyTemplateSlots,
   unfilledReplySlots,
 } from '../../src/contexts/review/domain/rules'
-import { ASPECT_TAXONOMY_V1 } from '../../src/shared/aspect-taxonomy'
 import { getDb } from '../../src/shared/db'
 import { closePool } from '../../src/shared/db/pool'
 import { propertyId as toPropertyId, type PropertyId } from '../../src/shared/domain/ids'
-import { parseCanonicalReplyLanguageTag } from '../../src/shared/reply-language-catalogue'
-
-const slotSchema = z.enum(REPLY_TEMPLATE_SLOT_TOKENS)
-const languageSchema = z.string().max(35).refine(parseCanonicalReplyLanguageTag, {
-  message: 'Unsupported reply template language',
-})
 
 const profileSchema = z
   .object({
     propertyDisplayName: z.string().min(1).max(120),
     vertical: z.string().min(1).max(80),
-    language: languageSchema,
-    greeting: z.string().max(120),
-    signOffPositive: z.string().max(200),
-    signOffNegative: z.string().max(200),
-    emojiAllowed: z.boolean(),
-    escalationContact: z.string().max(200).nullable(),
+    language: replyTemplateLanguageSchema,
+    ...replyProfileFieldSchemas,
     escalationContactNote: z.string().max(500).nullable(),
   })
   .strict()
-  .superRefine((profile, ctx) => {
-    const unknown = unknownReplyTemplateSlots(
-      [
-        profile.greeting,
-        profile.signOffPositive,
-        profile.signOffNegative,
-        profile.escalationContact ?? '',
-      ].join('\n'),
-    )
-    if (unknown.length > 0) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['greeting'],
-        message: `Unsupported reply template slot: ${unknown.join(', ')}`,
-      })
-    }
-  })
 
 const templateSchema = z
   .object({
     id: z.string().min(1).max(120),
-    sourceTitle: z.string().trim().min(1).max(120),
-    bands: z.array(z.number().int().min(1).max(5)).min(1).max(5),
+    sourceTitle: replyTemplateTitleSchema,
+    bands: replyTemplateRatingBandsSchema,
     hasText: z.boolean(),
-    aspect: z.enum(ASPECT_TAXONOMY_V1).nullable(),
-    openLabel: z.string().max(80).nullable(),
-    language: languageSchema,
-    slots: z.array(slotSchema).max(REPLY_TEMPLATE_SLOT_TOKENS.length),
-    text: z.string().trim().min(1).max(MAX_REPLY_LENGTH),
+    aspect: replyTemplateAspectSchema,
+    openLabel: replyTemplateOpenLabelSchema,
+    language: replyTemplateLanguageSchema,
+    slots: z.array(replyTemplateSlotSchema).max(REPLY_TEMPLATE_SLOT_TOKENS.length),
+    text: replyTemplateBodySchema,
   })
   .strict()
   .superRefine((template, ctx) => {
-    const sortedBands = [...template.bands].sort((a, b) => a - b)
-    if (
-      new Set(sortedBands).size !== sortedBands.length ||
-      sortedBands.some((band, index) => index > 0 && band !== sortedBands[index - 1]! + 1)
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['bands'],
-        message: 'Rating bands must be unique and contiguous',
-      })
-    }
-    const unknown = unknownReplyTemplateSlots(template.text)
-    if (unknown.length > 0) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['text'],
-        message: `Unsupported reply template slot: ${unknown.join(', ')}`,
-      })
-    }
     const declared = [...new Set(template.slots)].sort()
     const actual = [...unfilledReplySlots(template.text)].sort()
     if (declared.join('\0') !== actual.join('\0')) {
@@ -113,6 +77,12 @@ const librarySchema = z
   })
 
 const libraryFileSchema = z.record(z.string().min(1), librarySchema)
+export const REPLY_TEMPLATE_IMPORT_HELP = `Usage: import-reply-templates --property <uuid> --file <path> --library <key> [--dry-run]
+
+Templates are matched by sourceTitle within the property. If a template was renamed
+in Settings, re-importing its former sourceTitle creates a new row and leaves the
+renamed template unchanged.
+`
 
 export type ReplyTemplateImportLibrary = z.infer<typeof librarySchema>
 
@@ -120,6 +90,7 @@ export type ReplyTemplateImportSummary = Readonly<{
   library: string
   propertyId: string
   dryRun: boolean
+  templateMatch: 'property-title'
   profile: 'validated' | 'inserted' | 'updated' | 'unchanged'
   templates: Readonly<{
     total: number
@@ -156,6 +127,7 @@ export async function importReplyTemplateLibrary(input: {
     library: input.libraryKey,
     propertyId: String(input.propertyId),
     dryRun: input.dryRun,
+    templateMatch: 'property-title' as const,
     profile: 'validated' as ReplyTemplateImportSummary['profile'],
     templates: {
       total: input.library.templates.length,
@@ -210,6 +182,10 @@ function readOption(args: readonly string[], name: string): string {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2)
+  if (args.includes('--help')) {
+    process.stdout.write(REPLY_TEMPLATE_IMPORT_HELP)
+    return
+  }
   const property = z.uuid().parse(readOption(args, '--property'))
   const file = readOption(args, '--file')
   const libraryKey = readOption(args, '--library')

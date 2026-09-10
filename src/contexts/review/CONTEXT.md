@@ -35,6 +35,12 @@ and observations are append-only evidence with tenant, source, material, Reply,
 and cycle fences.
 Terminal/ambiguous outcomes may enter `publish_failed`; rejected replies can be re-drafted.
 
+A Property reply library has at most one rendering profile and a retained set of
+enabled or disabled templates. Settings edits templates by ID, so a title rename
+updates in place. The operations importer deliberately remains title-keyed for
+repeatability: re-importing a manager-renamed template&rsquo;s former source title
+creates a separate row and never overwrites the renamed template.
+
 ## Runtime
 
 `buildReviewContext` captures Review repositories, queues, use cases, and foreign public ports in one `registerWorkerJobs` runtime contribution. Composition supplies the canonical registry/background queue and Bootstrap invokes this one method with the parsed discovery interval; neither layer reconstructs Review job dependencies.
@@ -71,6 +77,12 @@ Terminal/ambiguous outcomes may enter `publish_failed`; rejected replies can be 
     run. Zero Reviews is count `0` with average `null`.
 12. Verified reputation facts contain no Review ID, provider identifier, reviewer,
     rating distribution, or text.
+13. Reply profile and template field rules come from
+    `application/dto/reply-library.dto.ts`; the Settings boundary, repository,
+    and operations importer must not restate them.
+14. Template edits and enabled-state changes are tenant-and-Property-scoped,
+    versioned, attributed to the acting user, and leave version and attribution
+    unchanged when the persisted value is unchanged.
 
 ## Verification
 

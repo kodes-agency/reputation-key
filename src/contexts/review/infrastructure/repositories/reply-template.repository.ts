@@ -12,16 +12,21 @@ import {
   type OrganizationId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import { parseCanonicalReplyLanguageTag } from '#/shared/reply-language-catalogue'
 import { trace } from '#/shared/observability/trace'
 import type {
   PropertyReplyProfile,
   PropertyReplyTemplate,
+  ReplyLibraryUpsertResult,
   ReplyProfileWrite,
   ReplyTemplateRepository,
+  ReplyTemplateEnabledUpdate,
+  ReplyTemplateUpdate,
   ReplyTemplateWrite,
 } from '../../application/ports/reply-template.repository'
-import { MAX_REPLY_LENGTH, unknownReplyTemplateSlots } from '../../domain/rules'
+import {
+  replyProfileValuesSchema,
+  replyTemplateValuesSchema,
+} from '../../application/dto/reply-library.dto'
 import { reviewError } from '../../domain/errors'
 
 function profileFromRow(
@@ -49,68 +54,45 @@ function templateFromRow(
 }
 
 function validateProfile(input: ReplyProfileWrite): void {
-  if (
-    input.greeting.length > 120 ||
-    input.signOffPositive.length > 200 ||
-    input.signOffNegative.length > 200 ||
-    (input.escalationContact !== null && input.escalationContact.length > 200)
-  ) {
-    throw reviewError('invalid_input', 'Reply profile content exceeds its limits')
-  }
-  const unknownSlots = unknownReplyTemplateSlots(
-    [
-      input.greeting,
-      input.signOffPositive,
-      input.signOffNegative,
-      input.escalationContact ?? '',
-    ].join('\n'),
-  )
-  if (unknownSlots.length > 0) {
+  const result = replyProfileValuesSchema.safeParse({
+    greeting: input.greeting,
+    signOffPositive: input.signOffPositive,
+    signOffNegative: input.signOffNegative,
+    emojiAllowed: input.emojiAllowed,
+    escalationContact: input.escalationContact,
+  })
+  if (!result.success) {
     throw reviewError(
       'invalid_input',
-      `Reply profile contains unsupported slots: ${unknownSlots.join(', ')}`,
+      result.error.issues[0]?.message ?? 'Reply profile is invalid',
     )
   }
 }
 
 function validateTemplate(input: ReplyTemplateWrite): void {
-  if (
-    !Number.isInteger(input.ratingMin) ||
-    !Number.isInteger(input.ratingMax) ||
-    input.ratingMin < 1 ||
-    input.ratingMax > 5 ||
-    input.ratingMin > input.ratingMax
-  ) {
-    throw reviewError('invalid_rating', 'Reply template rating band is invalid')
-  }
-  if (!input.title.trim() || input.title.length > 120) {
-    throw reviewError('invalid_input', 'Reply template title is invalid')
-  }
-  if (input.openLabel !== null && input.openLabel.length > 80) {
-    throw reviewError('invalid_input', 'Reply template open label is invalid')
-  }
-  if (!input.body.trim() || input.body.length > MAX_REPLY_LENGTH) {
-    throw reviewError('invalid_reply', 'Reply template body is invalid')
-  }
-  if (input.aspect !== null && !isReplyTemplateAspect(input.aspect)) {
-    throw reviewError(
-      'invalid_input',
-      `Reply template aspect is invalid: ${input.aspect}`,
-    )
-  }
-  if (parseCanonicalReplyLanguageTag(input.languageTag) === null) {
-    throw reviewError(
-      'invalid_input',
-      `Reply template language is invalid: ${input.languageTag}`,
-    )
-  }
-  const unknownSlots = unknownReplyTemplateSlots(input.body)
-  if (unknownSlots.length > 0) {
-    throw reviewError(
-      'invalid_input',
-      `Reply template contains unsupported slots: ${unknownSlots.join(', ')}`,
-    )
-  }
+  const result = replyTemplateValuesSchema.safeParse({
+    title: input.title,
+    ratingMin: input.ratingMin,
+    ratingMax: input.ratingMax,
+    hasText: input.hasText,
+    aspect: input.aspect,
+    openLabel: input.openLabel,
+    languageTag: input.languageTag,
+    body: input.body,
+    enabled: input.enabled,
+  })
+  if (result.success) return
+  const issue = result.error.issues[0]
+  const field = issue?.path[0]
+  const code =
+    field === 'ratingMin' || field === 'ratingMax'
+      ? 'invalid_rating'
+      : field === 'body'
+        ? issue?.code === 'custom'
+          ? 'invalid_input'
+          : 'invalid_reply'
+        : 'invalid_input'
+  throw reviewError(code, issue?.message ?? 'Reply template is invalid')
 }
 
 function sameProfile(
@@ -131,6 +113,7 @@ function sameTemplate(
   input: ReplyTemplateWrite,
 ): boolean {
   return (
+    current.title === input.title &&
     current.ratingMin === input.ratingMin &&
     current.ratingMax === input.ratingMax &&
     current.hasText === input.hasText &&
@@ -140,6 +123,95 @@ function sameTemplate(
     current.body === input.body &&
     current.enabled === input.enabled
   )
+}
+
+type TemplateRow = typeof propertyReplyTemplates.$inferSelect
+type TemplateScope = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  templateId: string
+}>
+type TemplateChanges = Partial<
+  Pick<
+    ReplyTemplateWrite,
+    | 'title'
+    | 'ratingMin'
+    | 'ratingMax'
+    | 'hasText'
+    | 'aspect'
+    | 'openLabel'
+    | 'languageTag'
+    | 'body'
+    | 'enabled'
+  >
+>
+
+async function readTemplateRow(
+  db: Database,
+  input: TemplateScope,
+): Promise<TemplateRow | null> {
+  const [row] = await db
+    .select()
+    .from(propertyReplyTemplates)
+    .where(
+      and(
+        eq(propertyReplyTemplates.id, input.templateId),
+        eq(propertyReplyTemplates.organizationId, input.organizationId),
+        eq(propertyReplyTemplates.propertyId, input.propertyId),
+      ),
+    )
+    .limit(1)
+  return row ?? null
+}
+
+async function persistTemplateChanges(
+  db: Database,
+  clock: () => Date,
+  current: TemplateRow,
+  input: Pick<ReplyTemplateWrite, 'organizationId' | 'propertyId' | 'updatedBy'>,
+  changes: TemplateChanges,
+): Promise<ReplyLibraryUpsertResult<PropertyReplyTemplate>> {
+  const [updated] = await db
+    .update(propertyReplyTemplates)
+    .set({
+      ...changes,
+      updatedBy: input.updatedBy,
+      version: sql`${propertyReplyTemplates.version} + 1`,
+      updatedAt: clock(),
+    })
+    .where(
+      and(
+        eq(propertyReplyTemplates.id, current.id),
+        eq(propertyReplyTemplates.organizationId, input.organizationId),
+        eq(propertyReplyTemplates.propertyId, input.propertyId),
+        eq(propertyReplyTemplates.version, current.version),
+      ),
+    )
+    .returning()
+  if (!updated) throw reviewError('repo_upsert_failed', 'Reply template update raced')
+  return { disposition: 'updated', value: templateFromRow(updated) }
+}
+
+async function updateTemplateRow(
+  db: Database,
+  clock: () => Date,
+  current: typeof propertyReplyTemplates.$inferSelect,
+  input: ReplyTemplateWrite,
+): Promise<ReplyLibraryUpsertResult<PropertyReplyTemplate>> {
+  if (sameTemplate(current, input)) {
+    return { disposition: 'unchanged', value: templateFromRow(current) }
+  }
+  return persistTemplateChanges(db, clock, current, input, {
+    title: input.title,
+    ratingMin: input.ratingMin,
+    ratingMax: input.ratingMax,
+    hasText: input.hasText,
+    aspect: input.aspect,
+    openLabel: input.openLabel,
+    languageTag: input.languageTag,
+    body: input.body,
+    enabled: input.enabled,
+  })
 }
 
 export const createReplyTemplateRepository = (
@@ -193,22 +265,29 @@ export const createReplyTemplateRepository = (
         )
       return rows.map(templateFromRow)
     }),
-
-  findEnabledTemplateById: (input) =>
-    trace('replyTemplate.findEnabledTemplateById', async () => {
-      const [row] = await db
+  listPropertyTemplates: (orgId, propId) =>
+    trace('replyTemplate.listPropertyTemplates', async () => {
+      const rows = await db
         .select()
         .from(propertyReplyTemplates)
         .where(
           and(
-            eq(propertyReplyTemplates.id, input.templateId),
-            eq(propertyReplyTemplates.organizationId, input.organizationId),
-            eq(propertyReplyTemplates.propertyId, input.propertyId),
-            eq(propertyReplyTemplates.enabled, true),
+            eq(propertyReplyTemplates.organizationId, orgId),
+            eq(propertyReplyTemplates.propertyId, propId),
           ),
         )
-        .limit(1)
-      return row ? templateFromRow(row) : null
+        .orderBy(
+          asc(propertyReplyTemplates.ratingMin),
+          asc(propertyReplyTemplates.ratingMax),
+          asc(propertyReplyTemplates.title),
+        )
+      return rows.map(templateFromRow)
+    }),
+
+  findEnabledTemplateById: (input) =>
+    trace('replyTemplate.findEnabledTemplateById', async () => {
+      const row = await readTemplateRow(db, input)
+      return row?.enabled ? templateFromRow(row) : null
     }),
 
   readDefaultReplyLanguage: (orgId, propId) =>
@@ -291,34 +370,24 @@ export const createReplyTemplateRepository = (
           throw reviewError('repo_upsert_failed', 'Reply template insert failed')
         return { disposition: 'inserted', value: templateFromRow(created) }
       }
-      if (sameTemplate(current, input)) {
+      return updateTemplateRow(db, clock, current, input)
+    }),
+  updateTemplate: (input: ReplyTemplateUpdate) =>
+    trace('replyTemplate.updateTemplate', async () => {
+      validateTemplate(input)
+      const current = await readTemplateRow(db, input)
+      if (!current) return null
+      return updateTemplateRow(db, clock, current, input)
+    }),
+  setTemplateEnabled: (input: ReplyTemplateEnabledUpdate) =>
+    trace('replyTemplate.setTemplateEnabled', async () => {
+      const current = await readTemplateRow(db, input)
+      if (!current) return null
+      if (current.enabled === input.enabled) {
         return { disposition: 'unchanged', value: templateFromRow(current) }
       }
-      const [updated] = await db
-        .update(propertyReplyTemplates)
-        .set({
-          ratingMin: input.ratingMin,
-          ratingMax: input.ratingMax,
-          hasText: input.hasText,
-          aspect: input.aspect,
-          openLabel: input.openLabel,
-          languageTag: input.languageTag,
-          body: input.body,
-          enabled: input.enabled,
-          updatedBy: input.updatedBy,
-          version: sql`${propertyReplyTemplates.version} + 1`,
-          updatedAt: clock(),
-        })
-        .where(
-          and(
-            eq(propertyReplyTemplates.id, current.id),
-            eq(propertyReplyTemplates.organizationId, input.organizationId),
-            eq(propertyReplyTemplates.propertyId, input.propertyId),
-            eq(propertyReplyTemplates.version, current.version),
-          ),
-        )
-        .returning()
-      if (!updated) throw reviewError('repo_upsert_failed', 'Reply template update raced')
-      return { disposition: 'updated', value: templateFromRow(updated) }
+      return persistTemplateChanges(db, clock, current, input, {
+        enabled: input.enabled,
+      })
     }),
 })

@@ -92,6 +92,16 @@ import {
   type ListReplyTemplates,
   type LoadReplyTemplate,
 } from './application/use-cases/reply-template-operations'
+import {
+  getPropertyReplyLibrary,
+  savePropertyReplyProfile,
+  savePropertyReplyTemplate,
+  setPropertyReplyTemplateEnabled,
+  type GetPropertyReplyLibrary,
+  type SavePropertyReplyProfile,
+  type SavePropertyReplyTemplate,
+  type SetPropertyReplyTemplateEnabled,
+} from './application/use-cases/reply-library-operations'
 import { reconcileReplyPublication } from './application/use-cases/reconcile-reply-publication'
 import { cancelPublicationsForConnection } from './application/use-cases/cancel-publications'
 import { getStaffRecentActivity } from './application/use-cases/get-staff-recent-activity'
@@ -171,6 +181,10 @@ export type ReviewContextApi = Readonly<{
         retryPublish: ReturnType<typeof retryPublish>
         listTemplates: ListReplyTemplates
         loadTemplate: LoadReplyTemplate
+        getPropertyLibrary: GetPropertyReplyLibrary
+        savePropertyProfile: SavePropertyReplyProfile
+        savePropertyTemplate: SavePropertyReplyTemplate
+        setPropertyTemplateEnabled: SetPropertyReplyTemplateEnabled
       }>
       /** Property-scoped Review activity query presented to Review HTTP adapters. */
       getStaffRecentActivity: ReturnType<typeof getStaffRecentActivity>
@@ -246,6 +260,10 @@ export type ReviewContextApi = Readonly<{
       retryPublish: ReturnType<typeof retryPublish>
       listReplyTemplates: ListReplyTemplates
       loadReplyTemplate: LoadReplyTemplate
+      getPropertyReplyLibrary: GetPropertyReplyLibrary
+      savePropertyReplyProfile: SavePropertyReplyProfile
+      savePropertyReplyTemplate: SavePropertyReplyTemplate
+      setPropertyReplyTemplateEnabled: SetPropertyReplyTemplateEnabled
       reconcileReplyPublication: ReturnType<typeof reconcileReplyPublication>
       getStaffRecentActivity: ReturnType<typeof getStaffRecentActivity>
       runReviewSourceContentLifecycle: RunReviewSourceContentLifecycle
@@ -476,6 +494,10 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       ...replyTemplateDeps,
       draftReply: draftReplyUseCase,
     }),
+    getPropertyReplyLibrary: getPropertyReplyLibrary(replyTemplateDeps),
+    savePropertyReplyProfile: savePropertyReplyProfile(replyTemplateDeps),
+    savePropertyReplyTemplate: savePropertyReplyTemplate(replyTemplateDeps),
+    setPropertyReplyTemplateEnabled: setPropertyReplyTemplateEnabled(replyTemplateDeps),
     reconcileReplyPublication: reconcileReplyPublication({
       replyRepo,
       reviewRepo,
@@ -562,6 +584,10 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         retryPublish: useCases.retryPublish,
         listTemplates: useCases.listReplyTemplates,
         loadTemplate: useCases.loadReplyTemplate,
+        getPropertyLibrary: useCases.getPropertyReplyLibrary,
+        savePropertyProfile: useCases.savePropertyReplyProfile,
+        savePropertyTemplate: useCases.savePropertyReplyTemplate,
+        setPropertyTemplateEnabled: useCases.setPropertyReplyTemplateEnabled,
       }),
       getStaffRecentActivity: useCases.getStaffRecentActivity,
     },

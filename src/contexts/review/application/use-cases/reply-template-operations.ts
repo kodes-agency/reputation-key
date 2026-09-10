@@ -206,7 +206,18 @@ function hasGreetingLine(body: string, greeting: string): boolean {
   return matchesBoundary(body, greeting, 'leading') || GREETING_LINE.test(firstLine)
 }
 
-function hasProfileSignOff(body: string, profile: PropertyReplyProfile): boolean {
+export type ReplyTemplateRenderProfile = Pick<
+  PropertyReplyProfile,
+  | 'greeting'
+  | 'signOffPositive'
+  | 'signOffNegative'
+  | 'emojiAllowed'
+  | 'escalationContact'
+>
+
+export type ReplyTemplateRenderTemplate = Pick<PropertyReplyTemplate, 'body'>
+
+function hasProfileSignOff(body: string, profile: ReplyTemplateRenderProfile): boolean {
   // Imported workbooks commonly carry a profile sign-off with different blank
   // lines, casing, or punctuation. Compare complete trailing lines after
   // normalizing those presentation details, and accept either rating band's
@@ -217,9 +228,9 @@ function hasProfileSignOff(body: string, profile: PropertyReplyProfile): boolean
 }
 
 export function renderReplyTemplate(
-  template: PropertyReplyTemplate,
-  profile: PropertyReplyProfile | null,
-  rating: Review['rating'],
+  template: ReplyTemplateRenderTemplate,
+  profile: ReplyTemplateRenderProfile | null,
+  rating: number,
 ): string {
   let rendered = template.body.trim()
   if (profile === null) return rendered
