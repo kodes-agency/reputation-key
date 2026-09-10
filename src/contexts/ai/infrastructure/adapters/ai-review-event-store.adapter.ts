@@ -9,6 +9,7 @@ type AggregateHeadRow = Readonly<{
   terminal_analysis_sequence: number | string | null
   aggregate_revision: number | string | null
 }>
+type SettlementRow = Readonly<{ settled: boolean }>
 
 function safeInteger(value: number | string | null | undefined): number {
   const parsed = typeof value === 'string' ? Number(value) : (value ?? 0)
@@ -46,15 +47,27 @@ export const createAiReviewEventStoreAdapter = (db: Database): AiReviewEventStor
     async consumeNext(input): Promise<AiReviewEventConsumeResult> {
       const head = await currentHead(input)
       const terminal = Math.max(head.terminal, input.analysisStartSequence)
-      if (input.analysisSequence <= terminal) {
+      const result = await db.execute<SettlementRow>(sql`
+        SELECT EXISTS (
+          SELECT 1
+          FROM ai_property_aggregate_settlements AS settlement
+          WHERE settlement.organization_id = ${input.organizationId}
+            AND settlement.property_id = ${input.propertyId}::uuid
+            AND settlement.review_id = ${input.reviewId}::uuid
+            AND settlement.source_epoch = ${input.sourceEpoch}
+            AND settlement.review_analysis_epoch = ${input.reviewAnalysisEpoch}
+            AND settlement.analysis_sequence = ${input.analysisSequence}
+        ) AS settled
+      `)
+      if (
+        input.analysisSequence <= input.analysisStartSequence ||
+        result.rows[0]?.settled === true
+      ) {
         return {
           status: 'duplicate',
-          consumedSequence: terminal,
+          consumedSequence: input.analysisSequence,
           terminalAnalysisSequence: terminal,
         }
-      }
-      if (input.analysisSequence !== terminal + 1) {
-        return { status: 'gap', expectedSequence: terminal + 1 }
       }
       return {
         status: 'accepted',

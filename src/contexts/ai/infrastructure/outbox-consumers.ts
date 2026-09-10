@@ -18,8 +18,6 @@ import type {
 export const AI_REVIEW_ANALYSIS_CONSUMER = 'ai.analyze-review-event'
 export const AI_PROPERTY_TREND_GENERATION_CONSUMER = 'ai.generate-property-trend'
 export const AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER = 'ai.enroll-review-analysis'
-/** The operator replay (`ops:ai-reanalyze`); the only chained event type. */
-export const AI_REVIEW_ANALYSIS_BACKFILL_EVENT = 'ai.review_analysis.backfill_requested'
 
 // Not `.strict()`: every emitted payload also carries envelope fields
 // (`correlationId`, `occurredAt`, and `platform` for review events — see the
@@ -64,13 +62,6 @@ export type RegisterAiConsumersInput = Readonly<{
   ) => Promise<AnalyzeReviewEventResult>
   receipts: OutboxRepository
   enqueuePropertyTrend: (scheduleId: string) => Promise<void>
-  advanceReviewAnalysisBackfill: (input: {
-    eventId: string
-    organizationId: string
-    propertyId: string
-    correlationId: string | null
-    analysisSequence: number
-  }) => Promise<unknown>
   /**
    * Apply the Identity authorization trigger through the AI command store.
    * That store commits the enrollment intent (or exact obsolete/no-op
@@ -132,13 +123,9 @@ export async function handleAiReviewEvent(
     // 8 attempts; see shared/outbox/dispatch-job-options.ts). It can
     // exhaust before the 15-minute domain horizon, so this throw deliberately
     // leaves the event unreceipted. The unconditional operation reaper owns an
-    // analysis operation still pending past that horizon: it fences the
-    // operation, advances the strict terminal sequence, then writes the receipt.
-    // The error remains content-free.
+    // analysis operation still pending past that horizon: it fences and settles
+    // the operation, then writes the receipt. The error remains content-free.
     throw new Error(`AI review analysis retry required: ${result.code}`)
-  }
-  if (result.status === 'gap') {
-    throw new Error('AI review analysis sequence gap')
   }
 
   const receiptStatus =
@@ -148,22 +135,6 @@ export async function handleAiReviewEvent(
     AI_REVIEW_ANALYSIS_CONSUMER,
     receiptStatus,
   )
-
-  // Settlement and receipt have both committed before the accelerator runs.
-  // The adapter enqueues exactly N+1 and swallows queue failure so durable
-  // published-event redelivery remains the crash/recovery authority.
-  if (
-    event.eventType === AI_REVIEW_ANALYSIS_BACKFILL_EVENT &&
-    result.status !== 'generation_changed'
-  ) {
-    await dependencies.advanceReviewAnalysisBackfill({
-      eventId: event.eventId,
-      organizationId: payload.organizationId,
-      propertyId: payload.propertyId,
-      correlationId: event.correlationId ?? null,
-      analysisSequence: payload.analysisSequence,
-    })
-  }
 
   return { status: receiptStatus }
 }

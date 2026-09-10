@@ -84,7 +84,7 @@ re-asserting "no other keys" only converts envelope additions into outages.
 ## 4. Consumer failures were undiagnosable
 
 `Consumer handler failed` logged `err` alone, which serializes to
-`{ "name": … }` — a schema rejection, a sequence gap and a provider retry looked
+`{ "name": … }` — a schema rejection, an ordering rejection and a provider retry looked
 identical. The dispatcher now also logs `failureReason` (error name + first
 message line, capped at 200 chars, mirroring the quarantine envelope). That line
 is what exposed defects 5 and 6 within minutes.

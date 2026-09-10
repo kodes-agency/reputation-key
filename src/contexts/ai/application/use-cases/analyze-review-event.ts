@@ -52,9 +52,8 @@ const PROFILE = AI_OPERATION_PROFILES.find(
  * Reaching the horizon here still depends on another dispatch. BullMQ's finite
  * retry budget can exhaust first, so the recurring operation reaper is the
  * durable backstop for an analysis operation left `pending` after this request
- * owner disappears. It fences the operation before using the same terminal
- * settlement path below; a sequence gap remains unreceipted and is retried in a
- * later tick.
+ * owner disappears. It fences the operation before using the same idempotent
+ * terminal settlement path below.
  */
 export const AI_ANALYSIS_OPERATION_HORIZON_MILLIS = 15 * 60 * 1_000
 /** Advisory spacing recorded on a deferred (pre-provider-attempt) retry. */
@@ -80,7 +79,6 @@ export type AnalyzeReviewEventInput = Readonly<{
 export type AnalyzeReviewEventResult =
   | Readonly<{ status: 'completed' | 'replayed' | 'terminal' | 'generation_changed' }>
   | Readonly<{ status: 'retry'; retryAtEpochMillis: number; code: string }>
-  | Readonly<{ status: 'gap'; expectedSequence: number }>
 
 export type AnalyzeReviewEventDependencies = Readonly<{
   authorization: AiAuthorizationPort
@@ -100,6 +98,7 @@ export type AnalyzeReviewEventDependencies = Readonly<{
 export type SettleReviewAnalysisWithoutResultInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
+  reviewId: ReviewId
   sourceEpoch: number
   reviewAnalysisEpoch: number
   analysisSequence: number
@@ -108,9 +107,9 @@ export type SettleReviewAnalysisWithoutResultInput = Readonly<{
   dispositionCode: AiReviewAnalysisTerminalDisposition
 }>
 
-export type SettleReviewAnalysisWithoutResultResult =
-  | Readonly<{ status: 'terminal' | 'generation_changed' }>
-  | Readonly<{ status: 'gap'; expectedSequence: number }>
+export type SettleReviewAnalysisWithoutResultResult = Readonly<{
+  status: 'terminal' | 'generation_changed'
+}>
 
 export async function settleReviewAnalysisWithoutResult(
   dependencies: Readonly<{
@@ -119,9 +118,8 @@ export async function settleReviewAnalysisWithoutResult(
   }>,
   input: SettleReviewAnalysisWithoutResultInput,
 ): Promise<SettleReviewAnalysisWithoutResultResult> {
-  // A replayed terminal outcome does not prove the aggregate advanced. Always
-  // run its idempotent mutation; that result distinguishes replay, gap, and a
-  // genuinely stale generation.
+  // A replayed terminal outcome does not prove the aggregate mutation committed.
+  // Always run its idempotent settlement to close that crash window.
   await dependencies.reviewEvents.settleOutcome({
     organizationId: input.organizationId,
     propertyId: input.propertyId,
@@ -135,15 +133,13 @@ export async function settleReviewAnalysisWithoutResult(
   const aggregate = await dependencies.aggregates.advanceWithoutAnalysis({
     organizationId: input.organizationId,
     propertyId: input.propertyId,
+    reviewId: input.reviewId,
     sourceEpoch: input.sourceEpoch,
     analysisSequence: input.analysisSequence,
     reviewAnalysisEpoch: input.reviewAnalysisEpoch,
     propertyProfileVersion: input.propertyProfileVersion,
     dispositionCode: input.dispositionCode,
   })
-  if (aggregate.status === 'gap') {
-    return { status: 'gap', expectedSequence: aggregate.expectedAnalysisSequence }
-  }
   return aggregate.status === 'stale'
     ? { status: 'generation_changed' }
     : { status: 'terminal' }
@@ -161,9 +157,9 @@ export type SettleReviewAnalysisWithResultInput = Readonly<{
   operationId: string
 }>
 
-export type SettleReviewAnalysisWithResultResult =
-  | Readonly<{ status: 'terminal' | 'generation_changed' }>
-  | Readonly<{ status: 'gap'; expectedSequence: number }>
+export type SettleReviewAnalysisWithResultResult = Readonly<{
+  status: 'terminal' | 'generation_changed'
+}>
 
 export async function settleReviewAnalysisWithResult(
   dependencies: Readonly<{
@@ -195,9 +191,6 @@ export async function settleReviewAnalysisWithResult(
     propertyProfileVersion: input.propertyProfileVersion,
     calendarProfileVersion: 'property-calendar-v1',
   })
-  if (aggregate.status === 'gap') {
-    return { status: 'gap', expectedSequence: aggregate.expectedAnalysisSequence }
-  }
   return aggregate.status === 'stale' || aggregate.status === 'unavailable'
     ? { status: 'generation_changed' }
     : { status: 'terminal' }
@@ -279,6 +272,7 @@ export function createAnalyzeReviewEvent(
     return settleReviewAnalysisWithoutResult(settlementDependencies, {
       organizationId: input.organizationId,
       propertyId: input.propertyId,
+      reviewId: input.reviewId,
       sourceEpoch: input.sourceEpoch,
       reviewAnalysisEpoch,
       analysisSequence: input.analysisSequence,
@@ -329,6 +323,7 @@ export function createAnalyzeReviewEvent(
     const consumed = await dependencies.reviewEvents.consumeNext({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
+      reviewId: input.reviewId,
       sourceEpoch: input.sourceEpoch,
       reviewAnalysisEpoch,
       analysisStartSequence: authorization?.reviewAnalysisStartSequence ?? 0,
@@ -336,9 +331,6 @@ export function createAnalyzeReviewEvent(
       eventEnvelopeId: input.eventEnvelopeId,
       disposition: input.disposition,
     })
-    if (consumed.status === 'gap') {
-      return { status: 'gap', expectedSequence: consumed.expectedSequence }
-    }
     if (consumed.status === 'generation_changed') return { status: 'generation_changed' }
 
     const runtime = await dependencies.processingProfiles.readForAi({
@@ -348,7 +340,7 @@ export function createAnalyzeReviewEvent(
     const profileVersionForSettle =
       runtime.status === 'available' ? runtime.profile.profileVersion : 1
     // A lifecycle transition needs no authorization, profile or provider call.
-    // It must always terminal-settle so the terminal watermark advances.
+    // It must always terminal-settle so exact coverage includes the event.
     if (input.disposition !== 'pending') {
       return settleWithoutResult(
         input,
@@ -557,9 +549,6 @@ export function createAnalyzeReviewEvent(
         propertyProfileVersion: profile.profileVersion,
         operationId: operation.id,
       })
-      if (settled.status === 'gap') {
-        return { status: 'gap', expectedSequence: settled.expectedSequence }
-      }
       if (settled.status === 'generation_changed') {
         return { status: 'generation_changed' }
       }
@@ -748,9 +737,6 @@ export function createAnalyzeReviewEvent(
           propertyProfileVersion: profile.profileVersion,
           operationId: execution.id,
         })
-        if (settled.status === 'gap') {
-          return { status: 'gap', expectedSequence: settled.expectedSequence }
-        }
         if (settled.status === 'generation_changed') {
           return { status: 'generation_changed' }
         }

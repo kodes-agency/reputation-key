@@ -128,6 +128,7 @@ describe('AI operation execution reaper', () => {
     expect(advanceWithoutAnalysis).toHaveBeenCalledWith({
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
+      reviewId: REVIEW_ID,
       sourceEpoch: 2,
       reviewAnalysisEpoch: 3,
       analysisSequence: 18,

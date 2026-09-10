@@ -38,10 +38,10 @@ export const aiPropertyTrendGenerationRequested = (
  * change. Nothing about the review changed — only the analysis plane is being
  * replayed — so only `ai.analyze-review-event` registers for this type.
  *
- * Identifier-only (ADR 0030). `analysisSequence` is the sequence freshly
- * allocated from `lock_review_ai_analysis_head_v1`, never the review's previous
- * one: the analysis log is strictly contiguous and reusing a historical
- * sequence would stall the cursor permanently.
+ * Identifier-only (ADR 0030). `analysisSequence` is freshly allocated from
+ * `lock_review_ai_analysis_head_v1`, never reused: generations compare Review
+ * revisions monotonically, so a later settlement always supersedes an earlier
+ * settlement for that Review even when different Reviews complete out of order.
  */
 export type AiReviewAnalysisBackfillRequested = Readonly<{
   _tag: 'ai.review_analysis.backfill_requested'

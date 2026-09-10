@@ -20,7 +20,11 @@ import {
   reviewAiAnalysisHeads,
   reviews,
 } from '#/shared/db/schema'
-import { organizationId, propertyId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  propertyId,
+  reviewId as parseReviewId,
+} from '#/shared/domain/ids'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -231,7 +235,7 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
     })
     expect(result).toEqual({ status: 'duplicate', enrollmentId: ENROLLMENT_ID })
   })
-  it('waits while the aggregate is behind, then catches up after terminal progress without a receipt', async () => {
+  it('waits for exact aggregate settlement, then catches up without a receipt', async () => {
     const reviewId = '74000000-0000-4000-8000-000000000005'
     const operationId = '74000000-0000-4000-8000-000000000006'
     const executionPermitId = '74000000-0000-4000-8000-000000000007'
@@ -258,8 +262,8 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
     }
 
     // Reconstruct the observed running enrollment from the public adapter:
-    // one eligible pre-enablement revision is assigned a fresh strict sequence
-    // and one correlated backfill event.
+    // one eligible pre-enablement revision is assigned a fresh sequence and one
+    // correlated backfill event.
     await db
       .delete(aiReviewAnalysisEnrollments)
       .where(eq(aiReviewAnalysisEnrollments.id, ENROLLMENT_ID))
@@ -583,6 +587,7 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
       dependencies.aggregates.advanceWithoutAnalysis({
         organizationId: ORGANIZATION_ID,
         propertyId: PROPERTY_ID,
+        reviewId: parseReviewId(reviewId),
         sourceEpoch: 0,
         reviewAnalysisEpoch: 1,
         analysisSequence: 1,

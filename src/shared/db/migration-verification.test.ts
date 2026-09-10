@@ -62,6 +62,7 @@ const EXPECTED_TABLES = [
   'ai_operations',
   'ai_review_analyses',
   'ai_property_aggregate_heads',
+  'ai_property_aggregate_settlements',
   'ai_property_daily_aggregates',
   'ai_property_trend_scheduler_heads',
   'ai_property_trend_schedules',
@@ -86,6 +87,7 @@ const EXPECTED_INDEXES = [
   'reviews_tenant_identity_unique',
   'ai_review_analyses_operation_unique',
   'ai_review_analyses_current_idx',
+  'ai_property_aggregate_settlements_review_idx',
 ] as const
 
 describe('migration verification (PRE17A A1 presence)', () => {

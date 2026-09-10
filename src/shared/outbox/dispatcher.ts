@@ -134,7 +134,7 @@ async function invokeConsumer(
     // configured attempts apply — receipts protect consumers that already
     // committed (they short-circuit on redelivery).
     // `err` alone serializes to `{ name }` here, which tells an operator nothing:
-    // a schema rejection, a sequence gap and a provider retry all logged
+    // a schema rejection, an ordering rejection and a provider retry all logged
     // identically. `failureReason` mirrors the quarantine envelope's rule —
     // error name plus the first message line, capped — and consumer failure
     // messages are code-only by contract.

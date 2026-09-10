@@ -57,6 +57,13 @@
       "when": 1789034776000,
       "tag": "0007_ai_backfill_chain_lookup",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789040618459,
+      "tag": "0008_per_review_monotonicity",
+      "breakpoints": true
     }
   ]
 }

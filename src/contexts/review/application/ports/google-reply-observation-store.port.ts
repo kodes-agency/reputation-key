@@ -56,7 +56,7 @@ export type GoogleReplyObservationHeadFence = Readonly<{
  * confirm a local Reply as published. */
 export type GoogleReplyObservationStore = Readonly<{
   /** Allocate immediately after provider response acquisition so response
-   * order, not request-start order, fences the head. Sequence gaps are
+   * order, not request-start order, fences the head. Unused generations are
    * expected when later validation or persistence fails. */
   allocateReadGeneration(): Promise<number>
   findCurrentHead(input: {

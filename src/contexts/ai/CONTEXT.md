@@ -42,7 +42,7 @@ authority. Reply Draft provider output remains session-ephemeral until an explic
 atomically revalidated adoption creates Review-owned draft content.
 
 Property Trends compare the latest 30 complete Property-local days with the prior 30. Readiness requires at least 20 analyzed text Reviews, at least 90% coverage,
-and a caught-up enrollment; incomplete or sequence-gapped work reports
+and a caught-up enrollment; incomplete settlement coverage reports
 `preparing`/`Updating` rather than a fabricated zero.
 
 ## Invariants
@@ -54,7 +54,7 @@ and a caught-up enrollment; incomplete or sequence-gapped work reports
 5. Provider output is advisory. It cannot mutate Inbox status/assignment/escalation, publish a Reply, change Portal behavior, alter a Goal/Metric/Recognition result, or trigger workforce decisions.
 6. Reply Drafting is never cached as a generic suggestion detached from the Review revision or Brand Profile version. A manager must explicitly request it, may edit it, and must separately adopt, then Confirm & Publish through the Reply workflow.
 7. Review Analysis enrollment is exhaustive for the authorized eligible source population; internal batching controls work size but never becomes a product cap or silently drops older Reviews.
-8. Missing, incomplete, stale, or sequence-gapped data returns `preparing`/unavailable evidence rather than zero or a fabricated trend.
+8. Missing, incomplete, stale, or coverage-incomplete data returns `preparing`/unavailable evidence rather than zero or a fabricated trend.
 9. No source content or credential is stored in Redis, queues, events, telemetry, operation identifiers, or subject references. Durable facts are identifier-only and protected subjects use audience-separated HMAC references.
 10. Provider work is cell-local and permit-bound. A provider outage, denied route, quota ambiguity, Redis/control outage, or authorization uncertainty fails closed without direct-network fallback.
 11. The enrollment safety ceiling is a pause, not a population limit. No replay becomes actionable until the governed operator command records exact-fence, ticket-digest, operator, and correlation evidence. That command cannot change consent, select a subset, start work, or activate provider execution.
