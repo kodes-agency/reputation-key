@@ -43,6 +43,13 @@
       "when": 1788989402676,
       "tag": "0005_outgoing_warhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789026385000,
+      "tag": "0006_reset_analysis_watermark_on_epoch",
+      "breakpoints": true
     }
   ]
 }
