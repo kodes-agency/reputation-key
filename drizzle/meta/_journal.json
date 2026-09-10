@@ -64,6 +64,13 @@
       "when": 1789040618459,
       "tag": "0008_per_review_monotonicity",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789076602643,
+      "tag": "0009_merchant_ai_template_exemplars_notice",
+      "breakpoints": true
     }
   ]
 }

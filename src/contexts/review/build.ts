@@ -87,8 +87,10 @@ import {
   editPublishedReply,
 } from './application/use-cases/reply-operations'
 import {
+  createAiReplyStyleReader,
   listReplyTemplates,
   loadReplyTemplate,
+  type AiReplyStyleReader,
   type ListReplyTemplates,
   type LoadReplyTemplate,
 } from './application/use-cases/reply-template-operations'
@@ -164,6 +166,8 @@ export type ReviewContextApi = Readonly<{
       sourceTransitionAuthority: ReviewSourceTransitionAuthority
       /** Content-minimized Review source/version facts for authorized AI consumers. */
       aiReviewSource: AiReviewSourcePort
+      /** Sanitized, property-authored style material for personalized AI replies. */
+      aiReplyStyle: AiReplyStyleReader
       /** Review-owned queue admission used by Integration import/push workflows. */
       syncAdmission: Readonly<
         Pick<ReviewQueuePort, 'addSyncJob'> &
@@ -288,6 +292,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   const observationRepo = createReviewObservationRepository(input.db)
   const replyRepo = createReplyRepository(input.db, input.clock)
   const replyTemplateRepo = createReplyTemplateRepository(input.db, input.clock)
+  const aiReplyStyle = createAiReplyStyleReader(replyTemplateRepo)
   const publicationCandidates = createPublicationReconciliationCandidateQuery(input.db)
   const sourceContentLifecycleStore = createReviewSourceContentLifecycleStore(input.db)
   const recoveryPlanning = createReviewLifecycleRecoveryPlanningQuery(input.db)
@@ -569,6 +574,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       responseTargetAuthority,
       sourceTransitionAuthority,
       aiReviewSource,
+      aiReplyStyle,
       syncAdmission: Object.freeze({
         addSyncJob: queue.addSyncJob,
         addTargetedFetchJob: targetedQueue.addTargetedFetchJob,

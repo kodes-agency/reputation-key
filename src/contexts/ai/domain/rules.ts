@@ -456,7 +456,7 @@ function replyBindingValid(
     value.aiSubjectHmacKeyVersion === null &&
     nonEmptyString(value.outputLeakageProfileVersion, 100) &&
     nonEmptyString(value.replyTemplateCatalogueVersion, 100) &&
-    value.operationProfileVersion === 'reply-suggestion-v1' &&
+    value.operationProfileVersion === 'reply-suggestion-v2' &&
     value.capabilityRuntimeProfileVersion === 'reply-drafting-runtime-v1' &&
     replyBindingDigestsValid(value)
   )

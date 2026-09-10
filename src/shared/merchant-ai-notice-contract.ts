@@ -1,13 +1,13 @@
 import { z } from 'zod/v4'
 export { canonicalizeRfc8785 } from './canonical-json'
 
-// Bumped from merchant-ai-notice-2026-09-08.v1 because Review Analysis now
-// persists controlled aspect/polarity/intensity metadata and one optional
-// generic issue label. A new version re-collects consent for that processing.
+// Bumped from merchant-ai-notice-2026-09-09.v1 because Reply Drafting now
+// sends the Property's approved reply templates to the provider as style
+// examples. A new version re-collects consent for that processing.
 // Historical consent stays recorded at its own version — see the known-version
 // set in the enablement/evidence CHECKs
 // (merchant-ai-authorization.schema.ts).
-export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-09-09.v1' as const
+export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-09-11.v1' as const
 
 const capabilitySchema = z
   .object({
@@ -82,6 +82,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
         'Before provider processing, RepKey applies automated minimization and redaction. Unstructured personal details can still be missed. A rotating pseudonymous safety identifier contains no raw actor, organization, property, or review identifier.',
         'Supported analysis groups are und, en-Latn, es-Latn, fr-Latn, de-Latn, pt-Latn, it-Latn, nl-Latn, pl-Latn, tr-Latn, uk-Cyrl, ru-Cyrl, ar-Arab, he-Hebr, hi-Deva, bn-Beng, ta-Taml, th-Thai, vi-Latn, id-Latn, zh-Hans, zh-Hant, ja-Jpan, ko-Kore, and bg-Cyrl. Explicit languages outside this catalogue are skipped before provider work.',
         'Review analysis records which aspects a review mentions and how positively or negatively, plus an optional short generic issue label that is a lowercase category phrase and never reproduces review text or names a person.',
+        "When drafting a reply, RepKey sends the property's own approved reply templates to OpenAI as style examples; this is property-authored content, not guest data, and the retention described above is unchanged.",
       ]),
       links: Object.freeze([
         Object.freeze({ label: 'RepKey privacy notice', target: '/privacy' }),
@@ -177,7 +178,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
 noticePayloadSchema.parse(MERCHANT_AI_NOTICE_PAYLOAD)
 
 export const MERCHANT_AI_NOTICE_DIGEST =
-  'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1' as const
+  '4ee03c5e1f754d7544d659ecf4e40366b64668832bc307d2257f3653601c8649' as const
 function isLowercaseSha256(value: string): boolean {
   if (value.length !== 64) return false
   for (let index = 0; index < value.length; index += 1) {

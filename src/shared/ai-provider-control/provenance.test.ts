@@ -140,6 +140,32 @@ describe('AI reply provenance', () => {
     ).toThrow(z.ZodError)
   })
 
+  it('accepts only the exact historical v1 and current v2 operation-prompt pairs', () => {
+    const keys = generateKeyPairSync('ed25519')
+    const current = {
+      ...groundedPersonalizedPayload(),
+      operationProfileVersion: 'reply-suggestion-v2' as const,
+      promptVersion: 'reply-suggestion-prompt-v2' as const,
+    }
+    const token = signAiReplyProvenance(current, keys.privateKey)
+    expect(
+      verifyAiReplyProvenance(token, new Map([['reply-v1', keys.publicKey]])),
+    ).toEqual(current)
+
+    for (const mismatched of [
+      {
+        ...current,
+        promptVersion: 'reply-suggestion-prompt-v1' as const,
+      },
+      {
+        ...groundedPersonalizedPayload(),
+        promptVersion: 'reply-suggestion-prompt-v2' as const,
+      },
+    ]) {
+      expect(() => signAiReplyProvenance(mismatched, keys.privateKey)).toThrow(z.ZodError)
+    }
+  })
+
   it('admits personalized provenance only for the approved English and Bulgarian profiles', () => {
     const keys = generateKeyPairSync('ed25519')
     expect(() =>

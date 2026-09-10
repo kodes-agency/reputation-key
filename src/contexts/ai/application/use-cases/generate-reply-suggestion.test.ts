@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { MERCHANT_AI_NOTICE_VERSION } from '#/shared/merchant-ai-notice-contract'
 import { parseCanonicalReplyLanguageTag } from '#/shared/ai-review-language-catalogue'
+import type { ReplyTemplateAspect } from '#/shared/aspect-taxonomy'
+import type { AiReplyStyle } from '#/shared/ai-reply-style-contract'
 import type { AiOperationId } from '../../domain/types'
 import type { GenerateReplySuggestionDependencies } from './generate-reply-suggestion'
 vi.mock('#/shared/ai-review-language-catalogue', async (importOriginal) => {
@@ -58,6 +60,8 @@ function createHarness(
       reason?: string
     }>
     propertyReplyLanguage?: string | null
+    replyStyle?: AiReplyStyle | null
+    analysisAspects?: readonly ReplyTemplateAspect[]
     brandProfile?: Readonly<{
       displayName: string
       version: number
@@ -202,6 +206,32 @@ function createHarness(
   const release = vi.fn(async () => {})
   const readReplyStateRevision = vi.fn(async () => currentReplyStateRevision)
 
+  const readAnalysisForDelivery = vi.fn(
+    async (
+      _input: unknown,
+      deliver: (result: unknown) => Promise<unknown>,
+    ): Promise<unknown> =>
+      deliver({
+        status: 'ready',
+        sourceEpoch: 2,
+        sourceRevision: 5,
+        analysisSequence: 1,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 3,
+        analysisProfileVersion: 'review-analysis-v2',
+        sentiment: 'positive',
+        primaryCategory: options.analysisAspects?.[0] ?? 'other',
+        aspects: (options.analysisAspects ?? []).map((aspect) => ({
+          aspect,
+          polarity: 'positive',
+          intensity: 80,
+        })),
+        issueLabel: null,
+        attention: 'low',
+        generatedAtEpochMillis: NOW,
+      }),
+  )
+  const readReplyStyle = vi.fn(async () => options.replyStyle ?? null)
   const dependencies = {
     authorization: {
       readMerchantAuthorization: vi.fn(async () => ({
@@ -211,9 +241,15 @@ function createHarness(
         stateVersion: 1,
         authorizationLineageId: LINEAGE_ID,
         authorizedSourceEpoch: 2,
-        capabilities: ['reply_drafting'] as const,
+        capabilities:
+          options.analysisAspects === undefined
+            ? (['reply_drafting'] as const)
+            : (['reply_drafting', 'review_analysis'] as const),
         capabilityRuntimeProfileVersions: {
           reply_drafting: 'reply-drafting-runtime-v1',
+          ...(options.analysisAspects === undefined
+            ? {}
+            : { review_analysis: 'review-analysis-runtime-v1' as const }),
         },
         capabilityEpochs: {
           review_analysis: { epoch: 1, changedAtEpochMillis: NOW },
@@ -277,7 +313,7 @@ function createHarness(
       settleEphemeralReply,
       findCurrentReviewIdsByAttention: vi.fn(),
       storeTrendReport: vi.fn(),
-      readAnalysisForDelivery: vi.fn(),
+      readAnalysisForDelivery,
       readTrendReportForDelivery: vi.fn(),
     },
     quota: {
@@ -313,6 +349,7 @@ function createHarness(
         status: options.assertCurrentStatus ?? ('current' as const),
       })),
     },
+    replyStyles: { readForAi: readReplyStyle },
     processingProfiles: {
       readForAi: vi.fn(async () => ({
         status: 'available' as const,
@@ -362,6 +399,8 @@ function createHarness(
         dependencies.propertyReplyLanguages.readDefaultReplyLanguage,
       resolveReplyLanguage: dependencies.resolveReplyLanguage,
       readCurrentAiReplyBrandProfile,
+      readAnalysisForDelivery,
+      readReplyStyle,
       recordFailure: dependencies.operations.recordFailure,
     },
   }
@@ -597,7 +636,7 @@ describe('generate reply suggestion', () => {
         reviewId: REVIEW_ID,
         baseReplyStateRevision: 3,
         replyDraftingEpoch: 7,
-        operationProfileVersion: 'reply-suggestion-v1',
+        operationProfileVersion: 'reply-suggestion-v2',
         replyProfileVersion: 'reply-draft-v2',
       }),
     )
@@ -619,7 +658,51 @@ describe('generate reply suggestion', () => {
       }),
       expect.any(AbortSignal),
     )
+    const [gatewayRequest] = (
+      harness.mocks.generateReply.mock.calls as unknown as readonly (readonly [
+        Record<string, unknown>,
+      ])[]
+    )[0]!
+    expect(gatewayRequest).not.toHaveProperty('replyStyle')
     expect(harness.mocks.readCurrentAiReplyBrandProfile).toHaveBeenCalledTimes(2)
+  })
+
+  it('loads analyzed-aspect exemplars and carries the server-only profile to the gateway', async () => {
+    const replyStyle: AiReplyStyle = {
+      localProfile: {
+        greeting: 'Dear {guest_name},',
+        signOffPositive: 'Warm regards,\nExample Hotel Team',
+        signOffNegative: 'Sincerely,\nExample Hotel Team',
+        emojiAllowed: false,
+        escalationContact: 'care@example.test',
+      },
+      exemplars: ['Thank you for highlighting the thoughtful room design.'],
+    }
+    const harness = createHarness({ replyStyle, analysisAspects: ['room'] })
+
+    await expect(harness.generate(INPUT)).resolves.toMatchObject({ status: 'ready' })
+    expect(harness.mocks.readAnalysisForDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: ORGANIZATION_ID,
+        reviewId: REVIEW_ID,
+        sourceRevision: 5,
+        analysisSequence: 1,
+        analysisProfileVersion: 'review-analysis-v2',
+      }),
+      expect.any(Function),
+    )
+    expect(harness.mocks.readReplyStyle).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      rating: 5,
+      hasText: true,
+      targetLanguageTag: 'en-Latn',
+      aspects: ['room'],
+    })
+    expect(harness.mocks.generateReply).toHaveBeenCalledWith(
+      expect.objectContaining({ replyStyle }),
+      expect.any(AbortSignal),
+    )
   })
 
   it('withholds a provider result when the public Brand Profile changes in flight', async () => {

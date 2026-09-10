@@ -18,6 +18,7 @@ import type { ReviewRepository } from '../ports/review.repository'
 import type { Reply, Review } from '../../domain/types'
 import { draftReply, type ReplyDeps } from './reply-operations'
 import {
+  createAiReplyStyleReader,
   listReplyTemplates,
   loadReplyTemplate,
   renderReplyTemplate,
@@ -137,13 +138,17 @@ function makeRepository(
   const templates = options.templates ?? [makeTemplate()]
   const repository = {
     findPropertyOrganization: vi.fn(async () => ORG),
-    findProfile: vi.fn(async () => options.profile ?? makeProfile()),
+    findProfile: vi.fn(async () =>
+      options.profile === undefined ? makeProfile() : options.profile,
+    ),
     findApplicableTemplates: vi.fn(async () => templates),
     findEnabledTemplateById: vi.fn(
       async ({ templateId }: { templateId: string }) =>
         templates.find((template) => template.id === templateId) ?? null,
     ),
-    readDefaultReplyLanguage: vi.fn(async () => options.defaultLanguage ?? 'en-Latn-US'),
+    readDefaultReplyLanguage: vi.fn(async () =>
+      options.defaultLanguage === undefined ? 'en-Latn-US' : options.defaultLanguage,
+    ),
     upsertProfile: vi.fn(),
     upsertTemplate: vi.fn(),
   } as unknown as ReplyTemplateRepository
@@ -234,6 +239,123 @@ describe('listReplyTemplates', () => {
     ).rejects.toMatchObject({ code: 'unauthorized' })
     expect(reviewRepo.findById).not.toHaveBeenCalled()
     expect(repository.findApplicableTemplates).not.toHaveBeenCalled()
+  })
+})
+
+describe('createAiReplyStyleReader', () => {
+  it('narrows to analyzed aspects and removes framing, slots, contacts, and forbidden emoji', async () => {
+    const room = makeTemplate({
+      id: 'room',
+      aspect: 'room',
+      body: [
+        'Dear {guest_name},',
+        '',
+        'Thank you for praising {dish}. 🌟',
+        'Please contact care@example.test',
+        '',
+        'Warm regards,',
+        'Hotel Team',
+      ].join('\n'),
+    })
+    const general = makeTemplate({
+      id: 'general',
+      aspect: null,
+      body: 'A general response that must not be selected.',
+    })
+    const { repository } = makeRepository({ templates: [general, room] })
+
+    await expect(
+      createAiReplyStyleReader(repository).readForAi({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        rating: 5,
+        hasText: true,
+        targetLanguageTag: 'en-Latn-US',
+        aspects: ['room'],
+      }),
+    ).resolves.toEqual({
+      localProfile: {
+        greeting: 'Dear {guest_name},',
+        signOffPositive: 'Warm regards,\nHotel Team',
+        signOffNegative: 'Sincerely,\nGuest Relations',
+        emojiAllowed: false,
+        escalationContact: 'care@example.test',
+      },
+      exemplars: ['Thank you for praising.'],
+    })
+  })
+
+  it('falls back to general templates when no analyzed aspect has a template', async () => {
+    const { repository } = makeRepository({
+      templates: [
+        makeTemplate({
+          id: 'general',
+          aspect: null,
+          body: 'General style.',
+        }),
+        makeTemplate({
+          id: 'service',
+          aspect: 'service',
+          body: 'Service-specific style.',
+        }),
+      ],
+    })
+
+    await expect(
+      createAiReplyStyleReader(repository).readForAi({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        rating: 5,
+        hasText: true,
+        targetLanguageTag: 'en-Latn-US',
+        aspects: ['room'],
+      }),
+    ).resolves.toMatchObject({ exemplars: ['General style.'] })
+  })
+
+  it.each([
+    ['profile', { profile: null }],
+    ['templates', { templates: [] }],
+  ] as const)(
+    'returns no style when the property has no %s',
+    async (_missing, options) => {
+      const { repository } = makeRepository(options)
+
+      await expect(
+        createAiReplyStyleReader(repository).readForAi({
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          rating: 5,
+          hasText: true,
+          targetLanguageTag: 'en-Latn-US',
+          aspects: null,
+        }),
+      ).resolves.toBeNull()
+    },
+  )
+
+  it('keeps the twelve strongest sanitized exemplars in deterministic order', async () => {
+    const templates = Array.from({ length: 13 }, (_, index) =>
+      makeTemplate({
+        id: `template-${index.toString().padStart(2, '0')}`,
+        title: `Template ${index.toString().padStart(2, '0')}`,
+        body: 'x'.repeat(index + 1),
+      }),
+    )
+    const { repository } = makeRepository({ templates })
+
+    const result = await createAiReplyStyleReader(repository).readForAi({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      rating: 5,
+      hasText: true,
+      targetLanguageTag: 'en-Latn-US',
+      aspects: null,
+    })
+
+    expect(result?.exemplars).toHaveLength(12)
+    expect(result?.exemplars.slice(0, 2)).toEqual(['x'.repeat(13), 'x'.repeat(12)])
+    expect(result?.exemplars).not.toContain('x')
   })
 })
 

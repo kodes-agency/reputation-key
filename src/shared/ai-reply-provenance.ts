@@ -4,7 +4,8 @@ import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import { aiInternalSafeIdSchema } from './ai-internal-transport-contract'
 import {
   OPENAI_KNOWN_MODEL_SNAPSHOTS,
-  OPENAI_PROMPT_VERSIONS,
+  OPENAI_KNOWN_REPLY_PROMPT_VERSIONS,
+  OPENAI_REPLY_PROMPT_VERSION_BY_OPERATION,
 } from './ai-openai-request-contract'
 import {
   AI_PERSONALIZED_REPLY_LANGUAGES,
@@ -34,6 +35,7 @@ const digest = z.string().regex(/^[0-9a-f]{64}$/)
 const safeId = aiInternalSafeIdSchema
 const positive = z.number().int().positive().safe()
 const nonnegative = z.number().int().nonnegative().safe()
+const replyOperationVersion = z.enum(['reply-suggestion-v2', 'reply-suggestion-v1'])
 
 const commonPayloadShape = {
   kid: z.string().regex(/^[a-z][a-z0-9._-]{0,31}$/),
@@ -50,11 +52,11 @@ const commonPayloadShape = {
   replyDraftingEpoch: positive,
   propertyProfileVersion: positive,
   providerDeploymentProfileVersion: safeId,
-  operationProfileVersion: z.literal('reply-suggestion-v1'),
-  // Known-version set, not a literal: stored provenance stays verifiable at the
-  // snapshot it was signed under. See OPENAI_KNOWN_MODEL_SNAPSHOTS.
+  operationProfileVersion: replyOperationVersion,
+  // Known-version sets plus the refinement below preserve only the exact
+  // historical v1 pair; new requests always use the v2 pair.
   modelSnapshot: z.enum(OPENAI_KNOWN_MODEL_SNAPSHOTS),
-  promptVersion: z.literal(OPENAI_PROMPT_VERSIONS['reply-suggestion']),
+  promptVersion: z.enum(OPENAI_KNOWN_REPLY_PROMPT_VERSIONS),
   outputLeakageProfileVersion: safeId,
   outputLeakageProfileDigest: digest,
   concreteLanguageTag: safeId,
@@ -68,11 +70,22 @@ const expiryRefinement = (
   value: Readonly<{
     tokenExpiresAtEpochMillis: number
     draftExpiresAtEpochMillis: number
+    operationProfileVersion: keyof typeof OPENAI_REPLY_PROMPT_VERSION_BY_OPERATION
+    promptVersion: (typeof OPENAI_KNOWN_REPLY_PROMPT_VERSIONS)[number]
   }>,
   context: z.RefinementCtx,
 ): void => {
   if (value.tokenExpiresAtEpochMillis > value.draftExpiresAtEpochMillis) {
     context.addIssue({ code: 'custom', message: 'token expiry exceeds draft expiry' })
+  }
+  if (
+    OPENAI_REPLY_PROMPT_VERSION_BY_OPERATION[value.operationProfileVersion] !==
+    value.promptVersion
+  ) {
+    context.addIssue({
+      code: 'custom',
+      message: 'reply operation and prompt versions differ',
+    })
   }
 }
 
@@ -80,6 +93,8 @@ const personalizedRefinement = (
   value: Readonly<{
     tokenExpiresAtEpochMillis: number
     draftExpiresAtEpochMillis: number
+    operationProfileVersion: keyof typeof OPENAI_REPLY_PROMPT_VERSION_BY_OPERATION
+    promptVersion: (typeof OPENAI_KNOWN_REPLY_PROMPT_VERSIONS)[number]
     concreteLanguageTag: string
     templateGroup: string
   }>,

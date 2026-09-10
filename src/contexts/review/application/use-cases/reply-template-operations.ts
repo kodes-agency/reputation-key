@@ -1,12 +1,25 @@
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { ReplyTemplateAspect } from '#/shared/aspect-taxonomy'
+import {
+  AI_REPLY_STYLE_MAX_EXEMPLARS,
+  replyStyleExampleHasRestrictedMaterial,
+  type AiReplyStyle,
+} from '#/shared/ai-reply-style-contract'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { ReviewId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import {
   mapReplyLanguageMetadata,
   parseCanonicalReplyLanguageTag,
   type ConcreteReplyLanguage,
   type ReplyTemplateLanguageGroup,
 } from '#/shared/reply-language-catalogue'
+import {
+  applyReplyTemplateEmojiPolicy,
+  renderReplyTemplate,
+  stripReplyTemplateProfileFraming,
+  type ReplyTemplateRenderProfile,
+  type ReplyTemplateRenderTemplate,
+} from '#/shared/reply-template-rendering'
 import type {
   PropertyReplyProfile,
   PropertyReplyTemplate,
@@ -14,8 +27,8 @@ import type {
 } from '../ports/reply-template.repository'
 import type { ReviewRepository } from '../ports/review.repository'
 import type { DraftReply } from './reply-operations'
-import type { Reply, Review } from '../../domain/types'
-import { MAX_REPLY_LENGTH } from '../../domain/rules'
+import type { Reply, Review, StarRating } from '../../domain/types'
+import { MAX_REPLY_LENGTH, REPLY_TEMPLATE_SLOT_TOKENS } from '../../domain/rules'
 import { reviewError } from '../../domain/errors'
 import { requireAccessibleReview, requireReplyManager } from './reply-access'
 
@@ -161,99 +174,139 @@ export const listReplyTemplates =
     }
   }
 
-const GREETING_LINE = /^(?:dear|hello|hi|greetings|good (?:morning|afternoon|evening))\b/u
-const TRAILING_BOUNDARY_PUNCTUATION = /[.,!?;:…'"“”„‟‘’‚‛«»‹›，。！？；：、،؛۔।॥]+$/u
-const EMOJI = /\p{Extended_Pictographic}|\p{Regional_Indicator}|[\uFE0F\u20E3]/gu
+export {
+  renderReplyTemplate,
+  type ReplyTemplateRenderProfile,
+  type ReplyTemplateRenderTemplate,
+}
 
-function normalizedBoundaryLines(value: string): readonly string[] {
-  return value
-    .normalize('NFKC')
+export type AiReplyStyleReader = Readonly<{
+  readForAi(input: {
+    organizationId: OrganizationId
+    propertyId: PropertyId
+    rating: StarRating
+    hasText: boolean
+    targetLanguageTag: string
+    aspects: readonly ReplyTemplateAspect[] | null
+  }): Promise<AiReplyStyle | null>
+}>
+
+function sanitizedStyleExample(
+  template: PropertyReplyTemplate,
+  profile: PropertyReplyProfile,
+): string | null {
+  const escalationContact =
+    profile.escalationContact?.normalize('NFKC').toLowerCase() ?? null
+  let body = stripReplyTemplateProfileFraming(template.body, profile)
     .split(/\r?\n/u)
-    .map((line) =>
-      line
-        .trim()
-        .replace(TRAILING_BOUNDARY_PUNCTUATION, '')
-        .replace(/\s+/gu, ' ')
-        .toLowerCase(),
+    .filter((line) => {
+      const normalized = line.normalize('NFKC').toLowerCase()
+      return (
+        !normalized.includes('{escalation_contact}') &&
+        (escalationContact === null || !normalized.includes(escalationContact))
+      )
+    })
+    .join('\n')
+  for (const slot of REPLY_TEMPLATE_SLOT_TOKENS) {
+    body = body.replaceAll(slot, '')
+  }
+  body = body
+    .replace(/\{[^{}\r\n]*\}/gu, '')
+    .replace(/[ \t]+([.,!?;:])/gu, '$1')
+    .replace(/[ \t]{2,}/gu, ' ')
+    .replace(/^[ \t]*[,;:.-]+[ \t]*/gmu, '')
+    .replace(/\n{3,}/gu, '\n\n')
+    .trim()
+  body = applyReplyTemplateEmojiPolicy(body, profile.emojiAllowed)
+  return body.length === 0 ||
+    replyStyleExampleHasRestrictedMaterial(body, profile.escalationContact)
+    ? null
+    : body
+}
+
+/**
+ * Review-owned read seam for the AI context. It deliberately returns no style
+ * unless both a property profile and applicable templates exist, preserving
+ * the pre-style drafting path for partially configured properties.
+ */
+export const createAiReplyStyleReader = (
+  repository: ReplyTemplateRepository,
+): AiReplyStyleReader => ({
+  async readForAi(input) {
+    const targetLanguage = parseCanonicalReplyLanguageTag(input.targetLanguageTag)
+    if (targetLanguage === null) return null
+    const [profile, applicable] = await Promise.all([
+      repository.findProfile(input.organizationId, input.propertyId),
+      repository.findApplicableTemplates({
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        rating: input.rating,
+        hasText: input.hasText,
+      }),
+    ])
+    if (profile === null) return null
+
+    const inLanguage = applicable.filter(
+      (template) =>
+        parseCanonicalReplyLanguageTag(template.languageTag)?.templateGroup ===
+        targetLanguage.templateGroup,
     )
-    .filter(Boolean)
-}
+    let selected = inLanguage
+    if (input.aspects !== null) {
+      const aspects = new Set<ReplyTemplateAspect>(input.aspects)
+      const matchingAspects = inLanguage.filter(
+        (template) => template.aspect !== null && aspects.has(template.aspect),
+      )
+      selected =
+        matchingAspects.length > 0
+          ? matchingAspects
+          : inLanguage.filter((template) => template.aspect === null)
+    }
 
-function matchesBoundary(
-  body: string,
-  candidate: string,
-  edge: 'leading' | 'trailing',
-): boolean {
-  const bodyLines = normalizedBoundaryLines(body)
-  const candidateValue = normalizedBoundaryLines(candidate).join(' ')
-  if (!candidateValue || bodyLines.length === 0) return false
-  let boundaryValue = ''
-  for (let count = 1; count <= bodyLines.length; count += 1) {
-    const line =
-      edge === 'leading' ? bodyLines[count - 1]! : bodyLines[bodyLines.length - count]!
-    boundaryValue =
-      edge === 'leading'
-        ? `${boundaryValue}${boundaryValue ? ' ' : ''}${line}`
-        : `${line}${boundaryValue ? ' ' : ''}${boundaryValue}`
-    if (boundaryValue === candidateValue) return true
-    if (boundaryValue.length >= candidateValue.length) return false
-  }
-  return false
-}
-
-function hasGreetingLine(body: string, greeting: string): boolean {
-  const [firstLine = ''] = normalizedBoundaryLines(body)
-  return matchesBoundary(body, greeting, 'leading') || GREETING_LINE.test(firstLine)
-}
-
-export type ReplyTemplateRenderProfile = Pick<
-  PropertyReplyProfile,
-  | 'greeting'
-  | 'signOffPositive'
-  | 'signOffNegative'
-  | 'emojiAllowed'
-  | 'escalationContact'
->
-
-export type ReplyTemplateRenderTemplate = Pick<PropertyReplyTemplate, 'body'>
-
-function hasProfileSignOff(body: string, profile: ReplyTemplateRenderProfile): boolean {
-  // Imported workbooks commonly carry a profile sign-off with different blank
-  // lines, casing, or punctuation. Compare complete trailing lines after
-  // normalizing those presentation details, and accept either rating band's
-  // sign-off so loading a template never duplicates or replaces its closing.
-  return [profile.signOffPositive, profile.signOffNegative].some((signOff) =>
-    matchesBoundary(body, signOff, 'trailing'),
-  )
-}
-
-export function renderReplyTemplate(
-  template: ReplyTemplateRenderTemplate,
-  profile: ReplyTemplateRenderProfile | null,
-  rating: number,
-): string {
-  let rendered = template.body.trim()
-  if (profile === null) return rendered
-  if (profile.escalationContact !== null) {
-    rendered = rendered.replaceAll('{escalation_contact}', profile.escalationContact)
-  }
-  if (profile.greeting.trim() && !hasGreetingLine(rendered, profile.greeting)) {
-    rendered = `${profile.greeting.trim()}\n\n${rendered}`
-  }
-  const signOff =
-    rating >= 4 ? profile.signOffPositive.trim() : profile.signOffNegative.trim()
-  if (signOff && !hasProfileSignOff(rendered, profile)) {
-    rendered = `${rendered.trimEnd()}\n\n${signOff}`
-  }
-  if (!profile.emojiAllowed) {
-    rendered = rendered
-      .replace(EMOJI, '')
-      .replaceAll(/[ \t]+(?=\r?\n|$)/g, '')
-      .replaceAll(/[ \t]{2,}/g, ' ')
-      .trim()
-  }
-  return rendered
-}
+    const utf8 = new TextEncoder()
+    const exemplars = selected
+      .map((template) => {
+        const body = sanitizedStyleExample(template, profile)
+        return body === null
+          ? null
+          : {
+              body,
+              byteLength: utf8.encode(body).byteLength,
+              id: template.id,
+              title: template.title,
+            }
+      })
+      .filter(
+        (
+          exemplar,
+        ): exemplar is Readonly<{
+          body: string
+          byteLength: number
+          id: string
+          title: string
+        }> => exemplar !== null,
+      )
+      .sort(
+        (left, right) =>
+          right.byteLength - left.byteLength ||
+          left.title.localeCompare(right.title) ||
+          left.id.localeCompare(right.id),
+      )
+      .slice(0, AI_REPLY_STYLE_MAX_EXEMPLARS)
+      .map((exemplar) => exemplar.body)
+    if (exemplars.length === 0) return null
+    return {
+      localProfile: {
+        greeting: profile.greeting,
+        signOffPositive: profile.signOffPositive,
+        signOffNegative: profile.signOffNegative,
+        emojiAllowed: profile.emojiAllowed,
+        escalationContact: profile.escalationContact,
+      },
+      exemplars,
+    }
+  },
+})
 
 export const loadReplyTemplate =
   (deps: ReplyTemplateDeps & Readonly<{ draftReply: DraftReply }>): LoadReplyTemplate =>

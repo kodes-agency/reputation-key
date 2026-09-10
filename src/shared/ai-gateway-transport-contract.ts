@@ -1,4 +1,5 @@
 import { z } from 'zod/v4'
+import { aiReplyStyleSchema } from './ai-reply-style-contract'
 import {
   aiExecutionBindingSchema,
   aiInternalCanonicalUuidSchema,
@@ -240,6 +241,7 @@ export const replySuggestionGatewayRequestSchema = z
     replyProfileVersion: z.literal(AI_PERSONALIZED_REPLY_PROFILE_VERSION),
     brandProfile: replyBrandProfileSchema,
     tone: z.enum(['professional', 'friendly', 'casual']),
+    replyStyle: aiReplyStyleSchema.optional(),
     source: reviewSourceSchema,
   })
   .strict()
@@ -396,9 +398,15 @@ const replyPayloadSchema = personalizedReplyDraftOutputSchema
   .extend({
     profileVersion: z.literal(AI_PERSONALIZED_REPLY_PROFILE_VERSION),
     concreteLanguageTag: z.string().min(1).max(35),
-    replyText: personalizedReplyDraftOutputSchema.shape.replyText.refine(
-      (value) => utf8ByteLength(value) <= 16_384,
-    ),
+    // The provider body remains capped by personalizedReplyDraftOutputSchema at
+    // 1,200 characters. The larger transport cap accommodates only trusted
+    // profile framing and a local negative-band escalation line.
+    replyText: z
+      .string()
+      .trim()
+      .min(24)
+      .max(4_096)
+      .refine((value) => utf8ByteLength(value) <= 16_384),
     provenanceToken: z.string().min(1).max(32_768),
     expiresAtEpochMillis: positiveSafeInteger,
     baseReplyStateRevision: nonnegativeSafeInteger,

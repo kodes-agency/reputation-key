@@ -22,6 +22,7 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
+import { renderReplyTemplate } from '#/shared/reply-template-rendering'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import {
   AI_REVIEW_LANGUAGE_REGION_ICU_VERSION,
@@ -132,7 +133,7 @@ function replyRequest() {
       outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
       replyTemplateCatalogueVersion: AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
       replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
-      operationProfileVersion: 'reply-suggestion-v1',
+      operationProfileVersion: 'reply-suggestion-v2',
       capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
       aiSubjectHmacKeyVersion: null,
     },
@@ -413,5 +414,144 @@ describe('gateway route-preparer source lifetime', () => {
         templateGroup: 'bg-Cyrl',
       },
     })
+  })
+  it('sends sanitized exemplars only and applies the approved greeting and sign-off locally', () => {
+    const profile = {
+      greeting: 'Уважаеми {guest_name},',
+      signOffPositive: 'С уважение,\nHotel Team',
+      signOffNegative: 'Искрено,\nGuest Relations',
+      emojiAllowed: false,
+      escalationContact: 'care@example.test',
+    }
+    const request = parseAiGatewayRouteRequest({
+      ...replyRequest(),
+      replyStyle: {
+        localProfile: profile,
+        exemplars: [
+          'Благодарим за подробния отзив и топлите думи за внимателния персонал.',
+        ],
+      },
+    })
+    const prepared = preparer((text) => ({
+      language: /[\u0400-\u04ff]/u.test(text) ? 'bg' : 'tr',
+      probability: 1,
+      reliable: true,
+    })).prepare(request)
+    const payload = JSON.parse(prepared.invocation.sdkRequest.input[1].content)
+    expect(payload).toMatchObject({
+      styleExamples: [
+        'Благодарим за подробния отзив и топлите думи за внимателния персонал.',
+      ],
+    })
+    expect(JSON.stringify(payload)).not.toMatch(
+      /localProfile|guest_name|care@example\.test|Guest Relations/u,
+    )
+
+    const modelBody =
+      'Example Hotel ви благодари за отзива. Радваме се, че внимателният и отзивчив персонал е допринесъл за приятния ви престой.'
+    const accepted = prepared.acceptProviderResult({
+      languageCode: 'bg-Cyrl-BG',
+      replyText: modelBody,
+      grounding: [
+        {
+          sourceExcerpt: 'personel çok ilgili ve yardımseverdi',
+          replyExcerpt: 'внимателният и отзивчив персонал',
+        },
+      ],
+    })
+    const response = accepted?.buildResponse(fakeReceipt(), {
+      requestBindingHmac: 'A'.repeat(43),
+      replyTokenExpiresAtEpochMillis: Date.now() + 60_000,
+      replyDraftExpiresAtEpochMillis: Date.now() + 120_000,
+    } as never)
+    if (response?.status !== 'success' || response.route !== 'reply-suggestion') {
+      throw new Error('expected a successful styled reply')
+    }
+    expect(response.result.replyText).toBe(
+      `Уважаеми {guest_name},\n\n${modelBody}\n\nС уважение,\nHotel Team`,
+    )
+
+    const templateDraft = renderReplyTemplate(
+      { body: 'Благодарим за посещението.' },
+      profile,
+      5,
+    )
+    expect(response.result.replyText).toMatch(/^Уважаеми \{guest_name\},/u)
+    expect(templateDraft).toMatch(/^Уважаеми \{guest_name\},/u)
+    expect(response.result.replyText).toMatch(/С уважение,\nHotel Team$/u)
+    expect(templateDraft).toMatch(/С уважение,\nHotel Team$/u)
+  })
+
+  it('adds the escalation contact only after a negative-band model output passes its guards', () => {
+    const request = parseAiGatewayRouteRequest({
+      ...replyRequest(),
+      source: { ...replyRequest().source, rating: 2 },
+      replyStyle: {
+        localProfile: {
+          greeting: 'Уважаеми {guest_name},',
+          signOffPositive: 'С уважение,\nHotel Team',
+          signOffNegative: 'Искрено,\nGuest Relations',
+          emojiAllowed: false,
+          escalationContact: 'care@example.test',
+        },
+        exemplars: ['Съжаляваме, че преживяването не е отговорило на очакванията ви.'],
+      },
+    })
+    const prepared = preparer((text) => ({
+      language: /[\u0400-\u04ff]/u.test(text) ? 'bg' : 'tr',
+      probability: 1,
+      reliable: true,
+    })).prepare(request)
+    expect(prepared.invocation.sdkRequest.input[1].content).not.toContain(
+      'care@example.test',
+    )
+    const modelBody =
+      'Example Hotel ви благодари за отзива. Оценяваме думите ви за внимателния и отзивчив персонал.'
+    const accepted = prepared.acceptProviderResult({
+      languageCode: 'bg-Cyrl-BG',
+      replyText: modelBody,
+      grounding: [
+        {
+          sourceExcerpt: 'personel çok ilgili ve yardımseverdi',
+          replyExcerpt: 'внимателния и отзивчив персонал',
+        },
+      ],
+    })
+    const response = accepted?.buildResponse(fakeReceipt(), {
+      requestBindingHmac: 'A'.repeat(43),
+      replyTokenExpiresAtEpochMillis: Date.now() + 60_000,
+      replyDraftExpiresAtEpochMillis: Date.now() + 120_000,
+    } as never)
+    if (response?.status !== 'success' || response.route !== 'reply-suggestion') {
+      throw new Error('expected a successful negative-band reply')
+    }
+    expect(response.result.replyText).toBe(
+      `Уважаеми {guest_name},\n\n${modelBody}\n\ncare@example.test\n\nИскрено,\nGuest Relations`,
+    )
+  })
+
+  it('fails closed instead of truncating style exemplars above the route payload ceiling', () => {
+    const request = parseAiGatewayRouteRequest({
+      ...replyRequest(),
+      replyStyle: {
+        localProfile: {
+          greeting: '',
+          signOffPositive: '',
+          signOffNegative: '',
+          emojiAllowed: true,
+          escalationContact: null,
+        },
+        exemplars: Array.from({ length: 12 }, () => 'x'.repeat(4_096)),
+      },
+    })
+
+    const routePreparer = preparer((text) => ({
+      language: /[\u0400-\u04ff]/u.test(text) ? 'bg' : 'tr',
+      probability: 1,
+      reliable: true,
+    }))
+    expect(() => routePreparer.prepare(request)).toThrow(
+      'descriptor byte count exceeds its limit',
+    )
   })
 })

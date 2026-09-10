@@ -118,7 +118,7 @@ export function replyRequest(): ReplySuggestionGatewayRequestV1 {
       outputLeakageProfileDigest: SHA,
       replyTemplateCatalogueVersion: 'gbp-reply-template-catalogue-v1',
       replyTemplateCatalogueDigest: SHA,
-      operationProfileVersion: 'reply-suggestion-v1',
+      operationProfileVersion: 'reply-suggestion-v2',
       capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
       aiSubjectHmacKeyVersion: null,
     },

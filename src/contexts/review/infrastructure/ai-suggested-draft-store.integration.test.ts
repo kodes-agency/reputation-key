@@ -56,6 +56,9 @@ const REQUEST_BINDING_HMAC = 'A'.repeat(43)
 const BRAND_DISPLAY_NAME_DIGEST = digestAiReplyBrandDisplayName('Example Hotel')
 const LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST =
   '86bb98cb3b0b1c8561141e2ec30e019725d5f0ba5dd57be4745c7db5bc851769'
+const PRE_STYLE_NOTICE_VERSION = 'merchant-ai-notice-2026-09-09.v1'
+const PRE_STYLE_NOTICE_DIGEST =
+  'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1'
 type ConsentContractFacts = Pick<
   typeof merchantAiEnablement.$inferInsert,
   `${'routing'}${'PolicyVersion'}` | `${'processing'}${'Region'}`
@@ -258,6 +261,9 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     baseReplyStateRevision: number
     replyBrandProfileVersion?: number
     replyBrandDisplayNameDigest?: string
+    operationProfileVersion?: 'reply-suggestion-v1' | 'reply-suggestion-v2'
+    noticeVersion?: string
+    noticeDigest?: string
   }) => {
     const [globalControl] = await db
       .select()
@@ -311,12 +317,12 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       tone: 'professional',
       baseReplyStateRevision: input.baseReplyStateRevision,
       authorizationLineageId: LINEAGE_ID,
-      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+      noticeVersion: input.noticeVersion ?? PRE_STYLE_NOTICE_VERSION,
+      noticeDigest: input.noticeDigest ?? PRE_STYLE_NOTICE_DIGEST,
       propertyProfileVersion: 1,
       routingPolicyVersion: 1,
       providerDeploymentProfileVersion: 'private-beta-global-v1',
-      operationProfileVersion: 'reply-suggestion-v1',
+      operationProfileVersion: input.operationProfileVersion ?? 'reply-suggestion-v1',
       capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
       replyBrandProfileVersion: input.replyBrandProfileVersion ?? null,
       replyBrandDisplayNameDigest: input.replyBrandDisplayNameDigest ?? null,
@@ -442,8 +448,8 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         propertyTrendsEpoch: 1,
         authorizedSourceEpoch: SOURCE_EPOCH,
         analysisStartSequence: 11,
-        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+        noticeVersion: PRE_STYLE_NOTICE_VERSION,
+        noticeDigest: PRE_STYLE_NOTICE_DIGEST,
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         ...CONSENT_CONTRACT_FACTS,
         providerDeploymentProfileVersion: 'private-beta-global-v1',
@@ -467,8 +473,8 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         authorizedSourceEpoch: SOURCE_EPOCH,
         analysisStartSequence: 11,
         stateVersion: 1,
-        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+        noticeVersion: PRE_STYLE_NOTICE_VERSION,
+        noticeDigest: PRE_STYLE_NOTICE_DIGEST,
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         ...CONSENT_CONTRACT_FACTS,
         providerDeploymentProfileVersion: 'private-beta-global-v1',
@@ -810,10 +816,86 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     ).resolves.toEqual({ status: 'rejected', reason: 'invalidated' })
   })
 
-  it('keeps an adopted Review-owned draft usable after a later Brand Profile change', async () => {
+  it('adopts an expiring v1 draft and then the current v2 draft across the notice cutover', async () => {
     brandProfileCurrent = true
-    const token = groundedProvenanceToken({
+    const expiringV1Token = groundedProvenanceToken({
       operationId: '74000000-0000-4000-8000-000000000008',
+    })
+    const expiringV1Accepted = await store.accept({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      reviewId: REVIEW_ID,
+      actorUserId: ACTOR_USER_ID,
+      text: SUGGESTION,
+      provenanceToken: expiringV1Token,
+      now: new Date(NOW.getTime() + 4),
+    })
+    expect(expiringV1Accepted).toMatchObject({
+      status: 'accepted',
+      reply: { stateRevision: 3 },
+    })
+    if (expiringV1Accepted.status !== 'accepted') {
+      throw new Error('Expected the in-flight v1 suggestion to be adopted')
+    }
+
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('repkey.merchant_ai_transition', '1', true)`)
+      const capabilityRuntimeProfileVersions = {
+        reply_drafting: 'reply-drafting-runtime-v1',
+      } as const
+      await tx.insert(merchantAiConsentEvidence).values({
+        authorizationLineageId: LINEAGE_ID,
+        stateVersion: 2,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        transitionKind: 'change',
+        state: 'enabled',
+        capabilities: ['reply_drafting'],
+        capabilityRuntimeProfileVersions,
+        reviewAnalysisEpoch: 1,
+        replyDraftingEpoch: 1,
+        propertyTrendsEpoch: 1,
+        authorizedSourceEpoch: SOURCE_EPOCH,
+        analysisStartSequence: 11,
+        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+        sourcePolicyId: 'google-business-profile-source-policy-v1',
+        ...CONSENT_CONTRACT_FACTS,
+        providerDeploymentProfileVersion: 'private-beta-global-v1',
+        redactionProfileFamily: 'gbp-review-global-v1',
+        actorUserId: ACTOR_USER_ID,
+        reasonCode: 'merchant_changed_capabilities',
+        idempotencyKey: 'ai-suggested-draft-reconsent-v2',
+        requestHash: 'd'.repeat(64),
+        occurredAt: new Date(NOW.getTime() + 4),
+      })
+      await tx
+        .update(merchantAiEnablement)
+        .set({
+          stateVersion: 2,
+          noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+          noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+          updatedBy: ACTOR_USER_ID,
+          updatedAt: new Date(NOW.getTime() + 4),
+        })
+        .where(eq(merchantAiEnablement.propertyId, PROPERTY_ID))
+    })
+    await seedSucceededReplyOperation({
+      operationId: '74000000-0000-4000-8000-000000000009',
+      permitId: '74000000-0000-4000-8000-000000000109',
+      sourceRevision: SOURCE_REVISION,
+      baseReplyStateRevision: 3,
+      replyBrandProfileVersion: 7,
+      replyBrandDisplayNameDigest: BRAND_DISPLAY_NAME_DIGEST,
+      operationProfileVersion: 'reply-suggestion-v2',
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+    })
+    const currentToken = groundedProvenanceToken({
+      operationId: '74000000-0000-4000-8000-000000000009',
+      baseReplyStateRevision: 3,
+      operationProfileVersion: 'reply-suggestion-v2',
+      promptVersion: 'reply-suggestion-prompt-v2',
     })
     const accepted = await store.accept({
       organizationId: ORGANIZATION_ID,
@@ -821,15 +903,15 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       reviewId: REVIEW_ID,
       actorUserId: ACTOR_USER_ID,
       text: SUGGESTION,
-      provenanceToken: token,
-      now: new Date(NOW.getTime() + 4),
+      provenanceToken: currentToken,
+      now: new Date(NOW.getTime() + 5),
     })
     expect(accepted).toMatchObject({
       status: 'accepted',
-      reply: { stateRevision: 3 },
+      reply: { stateRevision: 4 },
     })
     if (accepted.status !== 'accepted') {
-      throw new Error('Expected the grounded suggestion to be adopted')
+      throw new Error('Expected the current v2 suggestion to be adopted')
     }
 
     const authorityCallCount = brandAuthorityCalls.length
@@ -841,10 +923,10 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         reviewId: REVIEW_ID,
         actorUserId: ACTOR_USER_ID,
         text: SUGGESTION,
-        provenanceToken: token,
-        now: new Date(NOW.getTime() + 5),
+        provenanceToken: currentToken,
+        now: new Date(NOW.getTime() + 6),
       }),
-    ).resolves.toMatchObject({ status: 'accepted', reply: { stateRevision: 3 } })
+    ).resolves.toMatchObject({ status: 'accepted', reply: { stateRevision: 4 } })
     expect(brandAuthorityCalls).toHaveLength(authorityCallCount)
     await expect(
       store.assertCurrentBinding({
@@ -856,7 +938,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       db
         .select({ disposition: aiOperations.replyAdoptionDisposition })
         .from(aiOperations)
-        .where(eq(aiOperations.id, '74000000-0000-4000-8000-000000000008'))
+        .where(eq(aiOperations.id, '74000000-0000-4000-8000-000000000009'))
         .limit(1),
     ).resolves.toEqual([{ disposition: 'adopted' }])
 

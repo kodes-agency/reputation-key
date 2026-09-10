@@ -1,6 +1,9 @@
 import type { Database } from '#/shared/db'
 import type { Redis } from 'ioredis'
-import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
+import type {
+  AiReplyStyleReader,
+  AiReviewSourcePort,
+} from '#/contexts/review/application/public-api'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
 import {
   createCld3ReplyLanguageDetector,
@@ -91,6 +94,7 @@ export type AiContextBuildInput = Readonly<{
   propertyReplyLanguages: GenerateReplySuggestionDependencies['propertyReplyLanguages']
   replyBrandProfiles: PortalAiReplyBrandProfilePublicApi
   inference?: AiInferencePort
+  replyStyles: AiReplyStyleReader
   quota?: AiQuotaPort
   subjectHmac?: AiSubjectHmacPort
   resolveReplyLanguage?: GenerateReplySuggestionDependencies['resolveReplyLanguage']
@@ -214,6 +218,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
         processingProfiles,
         propertyReplyLanguages: input.propertyReplyLanguages,
         replyBrandProfiles: input.replyBrandProfiles,
+        replyStyles: input.replyStyles,
         resolveReplyLanguage,
         nowEpochMillis,
       }),

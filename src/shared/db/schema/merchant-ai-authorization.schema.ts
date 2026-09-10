@@ -151,6 +151,8 @@ export const merchantAiConsentEvidence = pgTable(
     // known version is pinned to its own digest — a row may never mix a
     // version with another version's digest. The set grows by one arm per
     // notice version; the constants live in merchant-ai-notice-contract.ts.
+    // The evidence and current-state tables intentionally enforce the same notice pair set.
+    // fallow-ignore-next-line code-duplication
     check(
       'merchant_ai_consent_evidence_contract_valid',
       sql`(
@@ -164,6 +166,8 @@ export const merchantAiConsentEvidence = pgTable(
             AND ${t.noticeDigest} = 'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865')
           OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-09.v1'
             AND ${t.noticeDigest} = 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1')
+          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-11.v1'
+            AND ${t.noticeDigest} = '4ee03c5e1f754d7544d659ecf4e40366b64668832bc307d2257f3653601c8649')
         )
         AND ${t.sourcePolicyId} = 'google-business-profile-source-policy-v1'
         AND ${t.routingPolicyVersion} = 1
@@ -283,6 +287,8 @@ export const merchantAiEnablement = pgTable(
             AND ${t.noticeDigest} = 'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865')
           OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-09.v1'
             AND ${t.noticeDigest} = 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1')
+          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-11.v1'
+            AND ${t.noticeDigest} = '4ee03c5e1f754d7544d659ecf4e40366b64668832bc307d2257f3653601c8649')
         )
         AND ${t.sourcePolicyId} = 'google-business-profile-source-policy-v1'
         AND ${t.routingPolicyVersion} = 1

@@ -188,7 +188,7 @@ export type AiOutputStorePort = Readonly<{
       replyBrandProfileVersion?: number
       /** Missing only for pre-grounding operations retained during rollout. */
       replyBrandDisplayNameDigest?: string
-      operationProfileVersion: 'reply-suggestion-v1'
+      operationProfileVersion: 'reply-suggestion-v2'
       replyProfileVersion: typeof AI_PERSONALIZED_REPLY_PROFILE_VERSION
     }>,
   ): Promise<boolean>

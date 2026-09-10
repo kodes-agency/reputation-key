@@ -2,13 +2,19 @@ import { createHash, sign, verify, type KeyObject } from 'node:crypto'
 import { z } from 'zod/v4'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import { aiInternalSafeIdSchema } from '#/shared/ai-internal-transport-contract'
-import { OPENAI_KNOWN_MODEL_SNAPSHOTS, OPENAI_PROMPT_VERSIONS } from './contracts'
+import {
+  OPENAI_KNOWN_MODEL_SNAPSHOTS,
+  OPENAI_KNOWN_REPLY_PROMPT_VERSIONS,
+  OPENAI_REPLY_PROMPT_VERSION_BY_OPERATION,
+} from './contracts'
 import {
   AI_PERSONALIZED_REPLY_LANGUAGES,
   AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,
 } from '#/shared/ai-personalized-reply-contract'
 
+// The browser verifier mirrors this wire contract but remains a separate trust boundary.
+// fallow-ignore-next-line code-duplication
 const DOMAINS = Object.freeze({
   'ai-reply-provenance-v1': 'repkey-ai-reply-provenance-v1\0',
   'ai-reply-provenance-v2': 'repkey-ai-reply-provenance-v2\0',
@@ -32,6 +38,7 @@ const digest = z.string().regex(/^[0-9a-f]{64}$/)
 const safeId = aiInternalSafeIdSchema
 const positive = z.number().int().positive().safe()
 const nonnegative = z.number().int().nonnegative().safe()
+const replyOperationVersion = z.enum(['reply-suggestion-v2', 'reply-suggestion-v1'])
 
 const commonPayloadShape = {
   kid: z.string().regex(/^[a-z][a-z0-9._-]{0,31}$/),
@@ -48,10 +55,11 @@ const commonPayloadShape = {
   replyDraftingEpoch: positive,
   propertyProfileVersion: positive,
   providerDeploymentProfileVersion: safeId,
-  operationProfileVersion: z.literal('reply-suggestion-v1'),
-  // Known-version set: see OPENAI_KNOWN_MODEL_SNAPSHOTS. Mirrors src/shared/ai-reply-provenance.ts.
+  operationProfileVersion: replyOperationVersion,
+  // Known-version sets plus the refinement below preserve only the exact
+  // historical v1 pair; new requests always use the v2 pair.
   modelSnapshot: z.enum(OPENAI_KNOWN_MODEL_SNAPSHOTS),
-  promptVersion: z.literal(OPENAI_PROMPT_VERSIONS['reply-suggestion']),
+  promptVersion: z.enum(OPENAI_KNOWN_REPLY_PROMPT_VERSIONS),
   outputLeakageProfileVersion: safeId,
   outputLeakageProfileDigest: digest,
   concreteLanguageTag: safeId,
@@ -65,18 +73,30 @@ const expiryRefinement = (
   value: Readonly<{
     tokenExpiresAtEpochMillis: number
     draftExpiresAtEpochMillis: number
+    operationProfileVersion: keyof typeof OPENAI_REPLY_PROMPT_VERSION_BY_OPERATION
+    promptVersion: (typeof OPENAI_KNOWN_REPLY_PROMPT_VERSIONS)[number]
   }>,
   context: z.RefinementCtx,
 ): void => {
   if (value.tokenExpiresAtEpochMillis > value.draftExpiresAtEpochMillis) {
     context.addIssue({ code: 'custom', message: 'token expiry exceeds draft expiry' })
   }
+  if (
+    OPENAI_REPLY_PROMPT_VERSION_BY_OPERATION[value.operationProfileVersion] !==
+    value.promptVersion
+  ) {
+    context.addIssue({
+      code: 'custom',
+      message: 'reply operation and prompt versions differ',
+    })
+  }
 }
-
 const personalizedRefinement = (
   value: Readonly<{
     tokenExpiresAtEpochMillis: number
     draftExpiresAtEpochMillis: number
+    operationProfileVersion: keyof typeof OPENAI_REPLY_PROMPT_VERSION_BY_OPERATION
+    promptVersion: (typeof OPENAI_KNOWN_REPLY_PROMPT_VERSIONS)[number]
     concreteLanguageTag: string
     templateGroup: string
   }>,

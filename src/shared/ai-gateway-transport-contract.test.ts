@@ -111,6 +111,46 @@ describe('AI gateway caller-wire contract', () => {
     ).toThrow(ZodError)
   })
 
+  it('admits only bounded reply style exemplars without slots or contact details', () => {
+    const localProfile = {
+      greeting: 'Dear {guest_name},',
+      signOffPositive: 'Warmly,\nExample Hotel',
+      signOffNegative: 'Sincerely,\nExample Hotel',
+      emojiAllowed: false,
+      escalationContact: 'care@example.test',
+    }
+    const styled = {
+      ...replyRequest(),
+      replyStyle: {
+        localProfile,
+        exemplars: ['Thank you for sharing such thoughtful feedback.'],
+      },
+    }
+    expect(parseAiGatewayRouteRequest(styled)).toEqual(styled)
+
+    for (const exemplar of [
+      'Thank you, {guest_name}.',
+      'Please email care@example.test.',
+      'Visit https://example.test/help.',
+    ]) {
+      expect(() =>
+        parseAiGatewayRouteRequest({
+          ...styled,
+          replyStyle: { localProfile, exemplars: [exemplar] },
+        }),
+      ).toThrow(ZodError)
+    }
+    expect(() =>
+      parseAiGatewayRouteRequest({
+        ...styled,
+        replyStyle: {
+          localProfile,
+          exemplars: Array.from({ length: 13 }, () => 'Approved style.'),
+        },
+      }),
+    ).toThrow(ZodError)
+  })
+
   it('carries only the distinct personalized profile on the reply route', () => {
     expect(parseAiGatewayRouteRequest(replyRequest())).toMatchObject({
       route: 'reply-suggestion',

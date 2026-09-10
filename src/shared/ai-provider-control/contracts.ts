@@ -14,8 +14,10 @@ import type { PreparedAiInvocation } from './prepared-invocation'
 export type { PreparedAiInvocation } from './prepared-invocation'
 export {
   OPENAI_KNOWN_MODEL_SNAPSHOTS,
+  OPENAI_KNOWN_REPLY_PROMPT_VERSIONS,
   OPENAI_MODEL_SNAPSHOT,
   OPENAI_PROMPT_VERSIONS,
+  OPENAI_REPLY_PROMPT_VERSION_BY_OPERATION,
   type AiGatewayRoute,
   type ClosedJsonSchemaFormat,
   type ClosedOpenAiRequest,

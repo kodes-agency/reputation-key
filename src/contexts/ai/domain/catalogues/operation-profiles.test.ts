@@ -52,6 +52,8 @@ import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from '#/shared/openai-route-output-schem
 import {
   AI_OPERATION_PROFILES,
   AI_PROVIDER_DEPLOYMENT_PROFILE,
+  AI_REPLY_PROVIDER_PAYLOAD_SHAPE_V2,
+  AI_REPLY_SDK_REQUEST_SHAPE_V2_DIGEST,
   AI_ROUTING_POLICY,
 } from '../../../../shared/ai-operation-profiles'
 import {
@@ -126,7 +128,7 @@ describe('PR5 immutable AI execution catalogues', () => {
     })
     expect(AI_OPERATION_PROFILES.map((profile) => profile.profileVersion)).toEqual([
       'review-analysis-v2',
-      'reply-suggestion-v1',
+      'reply-suggestion-v2',
       'property-trend-v1',
       'synthetic-canary-v1',
     ])
@@ -185,7 +187,7 @@ describe('PR5 immutable AI execution catalogues', () => {
         executionLeaseMs: 120_000,
       },
       {
-        profileVersion: 'reply-suggestion-v1',
+        profileVersion: 'reply-suggestion-v2',
         sourceByteLimit: 16_384,
         providerPayloadByteLimit: 16_384,
         preparedRequestByteLimit: 65_536,
@@ -322,13 +324,24 @@ describe('PR5 immutable AI execution catalogues', () => {
     for (const profile of AI_OPERATION_PROFILES) {
       expect(profile.staticTokenBearingBytes).toBeGreaterThan(0)
       expect(profile.staticTokenBearingDigest).toMatch(/^[0-9a-f]{64}$/)
-      expect(profile.sdkRequestShapeDigest).toBe(
-        AI_PROVIDER_DEPLOYMENT_PROFILE.deploymentContract.requestShapeDigest,
-      )
+      const expectedSdkDigest =
+        profile.sourceRoute === 'reply-suggestion'
+          ? AI_REPLY_SDK_REQUEST_SHAPE_V2_DIGEST
+          : AI_PROVIDER_DEPLOYMENT_PROFILE.deploymentContract.requestShapeDigest
+      expect(profile.sdkRequestShapeDigest).toBe(expectedSdkDigest)
       expect(profile.artifactAttestationsDigest).toBe(
         sha256('repkey-ai-operation-artifacts-v1\0', profile.artifactAttestations),
       )
     }
+    expect(AI_REPLY_SDK_REQUEST_SHAPE_V2_DIGEST).toBe(
+      sha256(
+        'repkey-ai-reply-sdk-request-shape-v2\0',
+        AI_REPLY_PROVIDER_PAYLOAD_SHAPE_V2,
+      ),
+    )
+    expect(AI_REPLY_SDK_REQUEST_SHAPE_V2_DIGEST).not.toBe(
+      AI_PROVIDER_DEPLOYMENT_PROFILE.deploymentContract.requestShapeDigest,
+    )
   })
   it('renders the exact gateway message/schema wrapper for every static token reservation', () => {
     for (const profile of AI_OPERATION_PROFILES) {

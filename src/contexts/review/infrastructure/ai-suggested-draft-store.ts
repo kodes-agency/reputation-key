@@ -13,6 +13,10 @@ import {
   digestRenderedReply,
   verifyAiReplyProvenance,
 } from '#/shared/ai-reply-provenance'
+import {
+  MERCHANT_AI_NOTICE_DIGEST,
+  MERCHANT_AI_NOTICE_VERSION,
+} from '#/shared/merchant-ai-notice-contract'
 import type {
   AiReplyProvenancePublicKeyring,
   AiSuggestedDraftStore,
@@ -23,6 +27,49 @@ import { replyFromRow } from './mappers/reply.mapper'
 import { assertCurrentAiDraftBinding } from './ai-draft-binding'
 
 const REPLY_DRAFTING_RUNTIME_PROFILE = 'reply-drafting-runtime-v1'
+
+const EXPIRING_PRE_STYLE_REPLY_PROVENANCE = Object.freeze({
+  operationProfileVersion: 'reply-suggestion-v1',
+  promptVersion: 'reply-suggestion-prompt-v1',
+  noticeVersion: 'merchant-ai-notice-2026-09-09.v1',
+  noticeDigest: 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1',
+})
+
+/**
+ * The v1 arm exists only so a manager can adopt a token issued immediately
+ * before the v2 deployment. Both token and operation expiry are enforced in
+ * the transaction below. Remove the arm once all in-flight v1 tokens have
+ * expired; its old-notice pin prevents any v2 runtime from minting a new one.
+ */
+function replyOperationProfileIsAdoptable(
+  operation: Readonly<{
+    operationProfileVersion: string
+    noticeVersion: string | null
+    noticeDigest: string | null
+  }>,
+  provenance: Readonly<{
+    operationProfileVersion: 'reply-suggestion-v1' | 'reply-suggestion-v2'
+    promptVersion: 'reply-suggestion-prompt-v1' | 'reply-suggestion-prompt-v2'
+  }>,
+): boolean {
+  if (provenance.operationProfileVersion === 'reply-suggestion-v2') {
+    return (
+      provenance.promptVersion === 'reply-suggestion-prompt-v2' &&
+      operation.operationProfileVersion === provenance.operationProfileVersion &&
+      operation.noticeVersion === MERCHANT_AI_NOTICE_VERSION &&
+      operation.noticeDigest === MERCHANT_AI_NOTICE_DIGEST
+    )
+  }
+  return (
+    provenance.operationProfileVersion ===
+      EXPIRING_PRE_STYLE_REPLY_PROVENANCE.operationProfileVersion &&
+    provenance.promptVersion === EXPIRING_PRE_STYLE_REPLY_PROVENANCE.promptVersion &&
+    operation.operationProfileVersion ===
+      EXPIRING_PRE_STYLE_REPLY_PROVENANCE.operationProfileVersion &&
+    operation.noticeVersion === EXPIRING_PRE_STYLE_REPLY_PROVENANCE.noticeVersion &&
+    operation.noticeDigest === EXPIRING_PRE_STYLE_REPLY_PROVENANCE.noticeDigest
+  )
+}
 
 function constantEqual(left: string | null, right: string): boolean {
   if (left === null) return false
@@ -210,7 +257,7 @@ export const createAiSuggestedDraftStore = (
           operation.propertyProfileVersion !== provenance.propertyProfileVersion ||
           provenance.providerDeploymentProfileVersion !==
             AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion ||
-          provenance.operationProfileVersion !== 'reply-suggestion-v1' ||
+          !replyOperationProfileIsAdoptable(operation, provenance) ||
           operation.outputLeakageProfileVersion !==
             provenance.outputLeakageProfileVersion ||
           operation.outputLeakageProfileDigest !==

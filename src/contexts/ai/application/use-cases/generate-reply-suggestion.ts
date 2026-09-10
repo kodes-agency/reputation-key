@@ -32,7 +32,10 @@ import {
 } from '#/shared/ai-personalized-reply-contract'
 import { AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST } from '#/shared/ai-zh-orthography-verifier'
 import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'
-import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
+import type {
+  AiReplyStyleReader,
+  AiReviewSourcePort,
+} from '#/contexts/review/application/public-api'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiControlPort } from '../ports/ai-control.port'
@@ -54,7 +57,7 @@ import {
   resolveAiExecutionStopFence,
 } from '../ai-workflow-support'
 
-const REPLY_OPERATION_PROFILE_VERSION = 'reply-suggestion-v1' as const
+const REPLY_OPERATION_PROFILE_VERSION = 'reply-suggestion-v2' as const
 const PROFILE = AI_OPERATION_PROFILES.find(
   (candidate) => candidate.profileVersion === REPLY_OPERATION_PROFILE_VERSION,
 )!
@@ -121,6 +124,7 @@ export type GenerateReplySuggestionDependencies = Readonly<{
   outputs: AiOutputStorePort
   quota: AiQuotaPort
   reviewSources: AiReviewSourcePort
+  replyStyles: AiReplyStyleReader
   processingProfiles: PropertyProcessingProfilePort
   propertyReplyLanguages: Readonly<{
     readDefaultReplyLanguage(
@@ -430,11 +434,43 @@ export function createGenerateReplySuggestion(
     }
     if (brandProfile === null) return unavailable('brand_profile_unavailable')
     const nowEpochMillis = dependencies.nowEpochMillis()
-    const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
-      providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
-      capability: 'reply_drafting',
-    })
+    const [stopFence, analyzedAspects] = await Promise.all([
+      resolveAiExecutionStopFence(dependencies.control, {
+        providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
+        capability: 'reply_drafting',
+      }),
+      authorization.capabilities.includes('review_analysis')
+        ? dependencies.outputs.readAnalysisForDelivery(
+            {
+              organizationId: input.organizationId,
+              actorUserId: input.actorUserId,
+              propertyId: input.propertyId,
+              reviewId: input.reviewId,
+              authorizationLineageId: authorization.authorizationLineageId,
+              reviewAnalysisEpoch: authorization.capabilityEpochs.review_analysis.epoch,
+              sourceEpoch: input.expectedSourceEpoch,
+              sourceRevision: input.expectedSourceRevision,
+              analysisSequence: observation.analysisSequence,
+              propertyProfileVersion: runtime.profile.profileVersion,
+              analysisProfileVersion: 'review-analysis-v2',
+              nowEpochMillis,
+            },
+            async (result) =>
+              result.status === 'ready'
+                ? result.aspects.map((aspect) => aspect.aspect)
+                : null,
+          )
+        : Promise.resolve(null),
+    ])
     if (stopFence === null) return unavailable('policy_unavailable')
+    const replyStyle = await dependencies.replyStyles.readForAi({
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      rating: observation.rating,
+      hasText: true,
+      targetLanguageTag: targetReplyLanguage.tag,
+      aspects: analyzedAspects,
+    })
 
     const canonicalSource = encodeCanonicalAiReviewSource({
       text: reviewText,
@@ -509,6 +545,7 @@ export function createGenerateReplySuggestion(
       identity,
       binding,
       sourceProvenance,
+      replyStyle,
     })
     const claimed = await dependencies.operations.claim({
       identity,
@@ -563,6 +600,7 @@ export function createGenerateReplySuggestion(
           redactionCountry: profile.countryCode,
           observedContentExpiresAtEpochMillis: observation.contentExpiresAtEpochMillis,
           tone: input.tone,
+          ...(replyStyle === null ? {} : { replyStyle }),
           source: {
             kind: 'review',
             text: reviewText,

@@ -77,7 +77,7 @@ const makeReplyBinding = (): Record<string, unknown> => ({
   outputLeakageProfileDigest: DIGEST,
   replyTemplateCatalogueVersion: 'gbp-reply-template-catalogue-v1',
   replyTemplateCatalogueDigest: DIGEST,
-  operationProfileVersion: 'reply-suggestion-v1',
+  operationProfileVersion: 'reply-suggestion-v2',
   capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
   aiSubjectHmacKeyVersion: null,
 })

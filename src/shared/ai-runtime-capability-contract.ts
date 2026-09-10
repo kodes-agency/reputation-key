@@ -34,7 +34,7 @@ const runtimeEntrySchema = z
     caller: z.enum(['web', 'worker']),
     operationProfileVersion: z.enum([
       'review-analysis-v2',
-      'reply-suggestion-v1',
+      'reply-suggestion-v2',
       'property-trend-v1',
     ]),
     providerDeploymentProfileVersion: z.literal('private-beta-global-v1'),
@@ -67,7 +67,7 @@ const EXPECTED_RUNTIME_CAPABILITIES = Object.freeze([
     gatewayPath: '/v1/reply-suggestion',
     gatewayProfileVersion: 'reply-suggestion-gateway-v1',
     caller: 'web',
-    operationProfileVersion: 'reply-suggestion-v1',
+    operationProfileVersion: 'reply-suggestion-v2',
     providerDeploymentProfileVersion: 'private-beta-global-v1',
     noticeVersion: MERCHANT_AI_NOTICE_VERSION,
     noticeDigest: MERCHANT_AI_NOTICE_DIGEST,

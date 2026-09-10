@@ -56,6 +56,8 @@ import {
   maximumCostMicros as maximumProviderCostMicros,
 } from '#/shared/ai-openai-provider-profile'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import type { AiReplyStyle } from '#/shared/ai-reply-style-contract'
+import { renderReplyTemplate } from '#/shared/reply-template-rendering'
 import type {
   AiAdmissionDescriptorV1,
   AiExecutionGrantV1,
@@ -247,6 +249,21 @@ function reviewSourceBytes(
   }).bytes
 }
 
+function renderReplyWithLocalStyle(
+  modelReplyText: string,
+  replyStyle: AiReplyStyle | null,
+  rating: 1 | 2 | 3 | 4 | 5,
+): string {
+  if (replyStyle === null) return modelReplyText
+  const escalationContact =
+    rating <= 3 ? replyStyle.localProfile.escalationContact?.trim() : undefined
+  const body =
+    escalationContact === undefined || escalationContact.length === 0
+      ? modelReplyText
+      : `${modelReplyText.trimEnd()}\n\n${escalationContact}`
+  return renderReplyTemplate({ body }, replyStyle.localProfile, rating)
+}
+
 /** Which reply-output rule refused. Identifiers only, no provider content. */
 export type AiReplyOutputRefusal = Readonly<{
   route: 'reply-suggestion'
@@ -322,13 +339,14 @@ export function createAiGatewayRoutePreparer(
             replyBrandDisplayNameDigest: string
             brandDisplayName: string
             providerDeploymentProfileVersion: typeof AI_PROVIDER_DEPLOYMENT_PROFILE_V1.profileVersion
-            operationProfileVersion: 'reply-suggestion-v1'
+            operationProfileVersion: 'reply-suggestion-v2'
             modelSnapshot: typeof AI_PROVIDER_DEPLOYMENT_PROFILE_V1.modelSnapshot
             promptVersion: (typeof OPENAI_PROMPT_VERSIONS)['reply-suggestion']
             replyProfileVersion: typeof AI_PERSONALIZED_REPLY_PROFILE_VERSION
             concreteLanguage: ConcreteReplyLanguage
             redactedReviewText: string
             rating: 1 | 2 | 3 | 4 | 5
+            replyStyle: AiReplyStyle | null
           }>
       if (request.route === 'property-trend') {
         const detachedTrendPayload = structuredClone(request.source)
@@ -400,7 +418,7 @@ export function createAiGatewayRoutePreparer(
               AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST
           )
             throw new GatewayPreparationError('policy_unavailable')
-          if (profile.profileVersion !== 'reply-suggestion-v1') {
+          if (profile.profileVersion !== 'reply-suggestion-v2') {
             throw new GatewayPreparationError('policy_unavailable')
           }
           const fence = request.binding.capabilityFence
@@ -415,7 +433,7 @@ export function createAiGatewayRoutePreparer(
               request.binding.replyBrandDisplayNameDigest
           )
             throw new GatewayPreparationError('policy_unavailable')
-          providerPayload = {
+          const commonReplyPayload = {
             replyProfileVersion: request.replyProfileVersion,
             propertyDisplayName: request.brandProfile.displayName,
             reviewText: text,
@@ -423,6 +441,13 @@ export function createAiGatewayRoutePreparer(
             languageCode: concrete.tag,
             tone: request.tone,
           }
+          providerPayload =
+            request.replyStyle === undefined
+              ? commonReplyPayload
+              : {
+                  ...commonReplyPayload,
+                  styleExamples: [...request.replyStyle.exemplars],
+                }
           outputSchema = personalizedReplySchema
           responseContext = Object.freeze({
             route: 'reply-suggestion',
@@ -449,6 +474,7 @@ export function createAiGatewayRoutePreparer(
             concreteLanguage: concrete,
             redactedReviewText: text,
             rating: request.source.rating,
+            replyStyle: request.replyStyle ?? null,
           })
         }
       }
@@ -563,10 +589,9 @@ export function createAiGatewayRoutePreparer(
             })
             return null
           }
-          const replyText = result.draft.replyText
           if (
             verifyReplyLanguageOutput(
-              replyText,
+              result.draft.replyText,
               responseContext.concreteLanguage,
               dependencies.replyLanguageDetector,
               [responseContext.brandDisplayName],
@@ -578,6 +603,11 @@ export function createAiGatewayRoutePreparer(
             })
             return null
           }
+          const replyText = renderReplyWithLocalStyle(
+            result.draft.replyText,
+            responseContext.replyStyle,
+            responseContext.rating,
+          )
           const renderDigest = digestRenderedReply(replyText)
           return Object.freeze({
             buildResponse: (

@@ -36,9 +36,21 @@ export const OPENAI_KNOWN_MODEL_SNAPSHOTS = Object.freeze([
 ] as const)
 export const OPENAI_PROMPT_VERSIONS = Object.freeze({
   'review-analysis': 'review-analysis-prompt-v1',
-  'reply-suggestion': 'reply-suggestion-prompt-v1',
+  'reply-suggestion': 'reply-suggestion-prompt-v2',
   'property-trend': 'property-trend-prompt-v1',
   'synthetic-canary': 'synthetic-canary-prompt-v1',
+} as const)
+
+/** Accepted only while already-issued v1 reply provenance remains unexpired. */
+export const OPENAI_KNOWN_REPLY_PROMPT_VERSIONS = Object.freeze([
+  OPENAI_PROMPT_VERSIONS['reply-suggestion'],
+  'reply-suggestion-prompt-v1',
+] as const)
+export const OPENAI_REPLY_PROMPT_VERSION_BY_OPERATION = Object.freeze({
+  'reply-suggestion-v2': OPENAI_PROMPT_VERSIONS['reply-suggestion'],
+  // Removal condition: delete once every in-flight v1 provenance token has
+  // reached its signed expiry. New provider requests cannot select this pair.
+  'reply-suggestion-v1': 'reply-suggestion-prompt-v1',
 } as const)
 
 /**

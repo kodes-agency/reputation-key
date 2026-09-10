@@ -794,6 +794,8 @@ export const createAiOutputStoreAdapter = (
         return true
       })
     },
+    // Analysis and reply settlement deliberately recheck the same operation envelope.
+    // fallow-ignore-next-line code-duplication
     async settleEphemeralReply(input) {
       return db.transaction(async (tx) => {
         const operation = await lockReviewOperation(
@@ -820,7 +822,7 @@ export const createAiOutputStoreAdapter = (
             (input.replyBrandProfileVersion ?? null) ||
           operation.replyBrandDisplayNameDigest !==
             (input.replyBrandDisplayNameDigest ?? null) ||
-          input.operationProfileVersion !== 'reply-suggestion-v1' ||
+          input.operationProfileVersion !== 'reply-suggestion-v2' ||
           input.replyProfileVersion !== AI_PERSONALIZED_REPLY_PROFILE_VERSION ||
           fence?.capability !== 'reply_drafting' ||
           fence.replyDraftingEpoch !== input.replyDraftingEpoch

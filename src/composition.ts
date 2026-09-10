@@ -451,6 +451,7 @@ function buildContainer(
     idGen: randomUUID,
     nowEpochMillis: () => clock().getTime(),
     reviewSources: review.publicApi.aiReviewSource,
+    replyStyles: review.publicApi.aiReplyStyle,
     propertyReplyLanguages: {
       readDefaultReplyLanguage: ({ organizationId: orgId, propertyId: pid }) =>
         property.publicApi.getPropertyReplyLanguage(orgId, pid),

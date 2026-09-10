@@ -18,7 +18,7 @@ import { deleteTestOrganizationsWithExecutor } from './test-organization-cleanup
 export const AI_REPLY_OPERATION_PROFILE = Object.freeze({
   command: 'reply',
   capability: 'reply_drafting',
-  profileVersion: 'reply-suggestion-v1',
+  profileVersion: 'reply-suggestion-v2',
   providerDeploymentProfileVersion: 'private-beta-global-v1',
   capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
   routeKey: 'reply-suggestion',
