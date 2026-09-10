@@ -14,12 +14,17 @@ export {
 } from './use-cases/read-property-insights'
 export type {
   AiPropertyInsightAspect,
+  AiPropertyInsightComparedAspect,
+  AiPropertyInsightComparedIssue,
   AiPropertyInsightIssue,
+  AiPropertyInsightsAllTimeReady,
   AiPropertyInsightsBasis,
+  AiPropertyInsightsPresetReady,
   AiPropertyInsightsRatingBucket,
   AiPropertyInsightsRead,
   AiPropertyInsightWeeklyPoint,
   AiPropertyInsightWeeklySeries,
+  PropertyInsightsPreset,
   PropertyInsightsRange,
 } from './use-cases/read-property-insights'
 

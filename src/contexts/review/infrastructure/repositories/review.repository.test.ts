@@ -337,6 +337,18 @@ describe.sequential('reviewRepository (integration)', () => {
       )
       await repo.upsert(
         makeReview({
+          id: '1a000000-0000-0000-0000-0000000000a4',
+          externalId: 'trend-before-window',
+          text: 'Earlier retained evidence',
+          reviewedAt: new Date('2025-08-15T10:00:00Z'),
+          firstFetchedAt: fetchedAt,
+          lastFetchedAt: fetchedAt,
+          contentExpiresAt: future,
+          analysisSequence: 10,
+        }),
+      )
+      await repo.upsert(
+        makeReview({
           id: '1a000000-0000-0000-0000-0000000000a3',
           externalId: 'trend-other-epoch',
           text: 'Must not cross the source-epoch fence',
@@ -360,6 +372,7 @@ describe.sequential('reviewRepository (integration)', () => {
           startLocalDate: '2026-08-16',
           endLocalDate: '2026-08-16',
           limit: 10,
+          detectEvidenceBeforeStart: true,
         }),
       ).resolves.toEqual({
         status: 'complete',
@@ -383,6 +396,7 @@ describe.sequential('reviewRepository (integration)', () => {
             rating: 5,
           },
         ],
+        hasEvidenceBeforeStart: true,
       })
 
       await expect(
@@ -395,6 +409,7 @@ describe.sequential('reviewRepository (integration)', () => {
           startLocalDate: '2026-08-16',
           endLocalDate: '2026-08-16',
           limit: 2,
+          detectEvidenceBeforeStart: false,
         }),
       ).resolves.toEqual({ status: 'limit_exceeded' })
     })

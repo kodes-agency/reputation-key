@@ -2,7 +2,8 @@ import { Link } from '@tanstack/react-router'
 import { Badge } from '#/components/ui/badge'
 import type {
   AiPropertyInsightAspect,
-  AiPropertyInsightIssue,
+  AiPropertyInsightsAllTimeReady,
+  AiPropertyInsightsPresetReady,
 } from '#/contexts/ai/application/public-api'
 import { cn } from '#/lib/utils'
 import { ASPECT_LABELS } from '#/shared/aspect-labels'
@@ -31,17 +32,29 @@ function polarityBadgeVariant(
   return 'outline'
 }
 
+type PropertyInsightsAspectEvidence =
+  | Pick<AiPropertyInsightsAllTimeReady, 'range' | 'aspects' | 'basis'>
+  | Pick<AiPropertyInsightsPresetReady, 'range' | 'aspects' | 'basis'>
+
 export function PropertyInsightsAspectTable({
   propertyId,
-  aspects,
-  analyzedReviewCount,
-  comparisonAvailable,
+  evidence,
 }: Readonly<{
   propertyId: string
-  aspects: readonly AiPropertyInsightAspect[]
-  analyzedReviewCount: number
-  comparisonAvailable: boolean
+  evidence: PropertyInsightsAspectEvidence
 }>) {
+  const { aspects } = evidence
+  const analyzedReviewCount = evidence.basis.analyzedReviewCount
+  const comparisonAvailable = evidence.range !== 'all'
+  const comparisonsByAspect =
+    evidence.range === 'all'
+      ? null
+      : new Map(
+          evidence.aspects.map((aspect) => [
+            `${aspect.aspect}:${aspect.polarity}`,
+            aspect.comparison,
+          ]),
+        )
   if (analyzedReviewCount === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -89,6 +102,9 @@ export function PropertyInsightsAspectTable({
             aspect.mentionCount === 0 ? 0 : (aspect.mentionCount / busiest) * 100
           const impactWidth =
             aspect.impact === 0 ? 0 : (Math.abs(aspect.impact) / strongestImpact) * 100
+          const comparison = comparisonsByAspect?.get(
+            `${aspect.aspect}:${aspect.polarity}`,
+          )
           return (
             <li key={`${aspect.aspect}:${aspect.polarity}`} className="min-w-0">
               <Link
@@ -157,22 +173,22 @@ export function PropertyInsightsAspectTable({
                   </span>
                 </span>
 
-                {comparisonAvailable && aspect.comparison !== null && (
+                {comparison !== undefined && (
                   <>
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs tabular-nums text-muted-foreground">
                       <span>
-                        {signedInteger(aspect.comparison.mentionCountDelta)}{' '}
-                        {Math.abs(aspect.comparison.mentionCountDelta) === 1
+                        {signedInteger(comparison.mentionCountDelta)}{' '}
+                        {Math.abs(comparison.mentionCountDelta) === 1
                           ? 'mention'
                           : 'mentions'}
                       </span>
                       <span aria-hidden="true">·</span>
-                      <span>{signedImpact(aspect.comparison.impactDelta)} impact</span>
+                      <span>{signedImpact(comparison.impactDelta)} impact</span>
                     </span>
                     <span className="sr-only">
-                      Previous period: {aspect.comparison.precedingMentionCount} mentions
-                      and {signedImpact(aspect.comparison.precedingImpact)} weighted
-                      impact. Open matching reviews in the inbox.
+                      Previous period: {comparison.precedingMentionCount} mentions and{' '}
+                      {signedImpact(comparison.precedingImpact)} weighted impact. Open
+                      matching reviews in the inbox.
                     </span>
                   </>
                 )}
@@ -185,15 +201,21 @@ export function PropertyInsightsAspectTable({
   )
 }
 
+type PropertyInsightsIssueEvidence =
+  | Pick<AiPropertyInsightsAllTimeReady, 'range' | 'emergingIssues' | 'basis'>
+  | Pick<AiPropertyInsightsPresetReady, 'range' | 'emergingIssues' | 'basis'>
+
 export function PropertyInsightsEmergingIssues({
-  issues,
-  analyzedReviewCount,
-  comparisonAvailable,
+  evidence,
 }: Readonly<{
-  issues: readonly AiPropertyInsightIssue[]
-  analyzedReviewCount: number
-  comparisonAvailable: boolean
+  evidence: PropertyInsightsIssueEvidence
 }>) {
+  const issues = evidence.emergingIssues
+  const analyzedReviewCount = evidence.basis.analyzedReviewCount
+  const comparisonsByIssue =
+    evidence.range === 'all'
+      ? null
+      : new Map(evidence.emergingIssues.map((issue) => [issue.label, issue.comparison]))
   if (analyzedReviewCount === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -212,35 +234,41 @@ export function PropertyInsightsEmergingIssues({
 
   return (
     <ul className="flex flex-col gap-2">
-      {issues.map((issue) => (
-        <li
-          key={issue.label}
-          className="flex min-h-11 items-center justify-between gap-4 rounded-lg border bg-background px-3 py-2.5"
-        >
-          <span className="min-w-0 truncate text-sm font-medium">{issue.label}</span>
-          <span className="flex shrink-0 items-center gap-2">
-            <span className="text-sm font-semibold tabular-nums">
-              {issue.count}
-              <span className="sr-only"> {issue.count === 1 ? 'review' : 'reviews'}</span>
+      {issues.map((issue) => {
+        const comparison = comparisonsByIssue?.get(issue.label)
+        return (
+          <li
+            key={issue.label}
+            className="flex min-h-11 items-center justify-between gap-4 rounded-lg border bg-background px-3 py-2.5"
+          >
+            <span className="min-w-0 truncate text-sm font-medium">{issue.label}</span>
+            <span className="flex shrink-0 items-center gap-2">
+              <span className="text-sm font-semibold tabular-nums">
+                {issue.count}
+                <span className="sr-only">
+                  {' '}
+                  {issue.count === 1 ? 'review' : 'reviews'}
+                </span>
+              </span>
+              {comparison !== undefined && (
+                <Badge
+                  variant={
+                    comparison.delta > 0
+                      ? 'destructive'
+                      : comparison.delta < 0
+                        ? 'secondary'
+                        : 'outline'
+                  }
+                >
+                  {comparison.delta === 0
+                    ? 'No change'
+                    : `${signedInteger(comparison.delta)} vs previous`}
+                </Badge>
+              )}
             </span>
-            {comparisonAvailable && issue.comparison !== null && (
-              <Badge
-                variant={
-                  issue.comparison.delta > 0
-                    ? 'destructive'
-                    : issue.comparison.delta < 0
-                      ? 'secondary'
-                      : 'outline'
-                }
-              >
-                {issue.comparison.delta === 0
-                  ? 'No change'
-                  : `${signedInteger(issue.comparison.delta)} vs previous`}
-              </Badge>
-            )}
-          </span>
-        </li>
-      ))}
+          </li>
+        )
+      })}
     </ul>
   )
 }

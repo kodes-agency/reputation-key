@@ -38,6 +38,7 @@ describe('createAiReviewSource', () => {
     const readTrendPopulation = vi.fn(async () => ({
       status: 'complete' as const,
       reviews: [],
+      hasEvidenceBeforeStart: false,
     }))
     const assertCurrentForAi = vi.fn(async () => ({ status: 'current' as const }))
     const findById = vi.fn(async () => ({
@@ -70,10 +71,12 @@ describe('createAiReviewSource', () => {
       startLocalDate: '2026-06-01',
       endLocalDate: '2026-07-30',
       limit: 10_001,
+      detectEvidenceBeforeStart: false,
     }
     await expect(source.readTrendPopulation(trendRequest)).resolves.toEqual({
       status: 'complete',
       reviews: [],
+      hasEvidenceBeforeStart: false,
     })
     expect(readTrendPopulation).toHaveBeenCalledWith(trendRequest)
     await expect(

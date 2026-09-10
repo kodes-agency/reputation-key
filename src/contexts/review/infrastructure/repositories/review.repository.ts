@@ -306,6 +306,7 @@ export const createReviewRepository = (
         !Number.isSafeInteger(input.limit) ||
         input.limit < 2 ||
         input.limit > 10_001 ||
+        typeof input.detectEvidenceBeforeStart !== 'boolean' ||
         !/^\d{4}-\d{2}-\d{2}$/.test(input.startLocalDate) ||
         !/^\d{4}-\d{2}-\d{2}$/.test(input.endLocalDate) ||
         input.startLocalDate > input.endLocalDate
@@ -318,58 +319,105 @@ export const createReviewRepository = (
           INSIGHTS_READ_BUDGET_MS,
           (transaction) =>
             transaction.execute(sql<{
-              reviewId: string
-              sourceRevision: number | string
-              analysisSequence: number | string
-              localDate: string
-              hasText: boolean
-              rating: number
+              reviewId: string | null
+              sourceRevision: number | string | null
+              analysisSequence: number | string | null
+              localDate: string | null
+              hasText: boolean | null
+              rating: number | null
+              hasEvidenceBeforeStart: boolean
             }>`
           WITH captured AS (
             SELECT transaction_timestamp() AS now
+          ),
+          bounded AS (
+            SELECT
+              review."id"::text AS "reviewId",
+              review."source_revision"::float8 AS "sourceRevision",
+              review."analysis_sequence"::float8 AS "analysisSequence",
+              ai_property_local_date_v1(
+                source."reviewed_at",
+                ${input.timezone}
+              )::text AS "localDate",
+              NULLIF(btrim(source."text"), '') IS NOT NULL AS "hasText",
+              source."rating" AS rating,
+              source."reviewed_at" AS "reviewedAt"
+            FROM "reviews" AS review
+            INNER JOIN "review_source_contents" AS source
+              ON source."organization_id" = review."organization_id"
+             AND source."property_id" = review."property_id"
+             AND source."review_id" = review."id"
+            CROSS JOIN captured
+            WHERE review."organization_id" = ${input.organizationId}
+              AND review."property_id" = ${input.propertyId}::uuid
+              AND review."source_content_state" = 'active'
+              AND review."source_epoch" = ${input.sourceEpoch}
+              AND source."source_epoch" = ${input.sourceEpoch}
+              AND source."source_revision" = review."source_revision"
+              AND source."content_expires_at" > captured.now
+              AND ai_property_local_date_v1(
+                source."reviewed_at",
+                ${input.timezone}
+              ) BETWEEN ${input.startLocalDate}::date AND ${input.endLocalDate}::date
+            ORDER BY source."reviewed_at", review."id"
+            LIMIT ${input.limit}
+          ),
+          evidence_boundary AS (
+            SELECT CASE
+              WHEN ${input.detectEvidenceBeforeStart} THEN EXISTS (
+                SELECT 1
+                FROM "reviews" AS earlier_review
+                INNER JOIN "review_source_contents" AS earlier_source
+                  ON earlier_source."organization_id" = earlier_review."organization_id"
+                 AND earlier_source."property_id" = earlier_review."property_id"
+                 AND earlier_source."review_id" = earlier_review."id"
+                CROSS JOIN captured
+                WHERE earlier_review."organization_id" = ${input.organizationId}
+                  AND earlier_review."property_id" = ${input.propertyId}::uuid
+                  AND earlier_review."source_content_state" = 'active'
+                  AND earlier_review."source_epoch" = ${input.sourceEpoch}
+                  AND earlier_source."source_epoch" = ${input.sourceEpoch}
+                  AND earlier_source."source_revision" = earlier_review."source_revision"
+                  AND earlier_source."content_expires_at" > captured.now
+                  AND ai_property_local_date_v1(
+                    earlier_source."reviewed_at",
+                    ${input.timezone}
+                  ) < ${input.startLocalDate}::date
+              )
+              ELSE false
+            END AS "hasEvidenceBeforeStart"
           )
           SELECT
-            review."id"::text AS "reviewId",
-            review."source_revision"::float8 AS "sourceRevision",
-            review."analysis_sequence"::float8 AS "analysisSequence",
-            ai_property_local_date_v1(
-              source."reviewed_at",
-              ${input.timezone}
-            )::text AS "localDate",
-            NULLIF(btrim(source."text"), '') IS NOT NULL AS "hasText",
-            source."rating" AS rating
-          FROM "reviews" AS review
-          INNER JOIN "review_source_contents" AS source
-            ON source."organization_id" = review."organization_id"
-           AND source."property_id" = review."property_id"
-           AND source."review_id" = review."id"
-          CROSS JOIN captured
-          WHERE review."organization_id" = ${input.organizationId}
-            AND review."property_id" = ${input.propertyId}::uuid
-            AND review."source_content_state" = 'active'
-            AND review."source_epoch" = ${input.sourceEpoch}
-            AND source."source_epoch" = ${input.sourceEpoch}
-            AND source."source_revision" = review."source_revision"
-            AND source."content_expires_at" > captured.now
-            AND ai_property_local_date_v1(
-              source."reviewed_at",
-              ${input.timezone}
-            ) BETWEEN ${input.startLocalDate}::date AND ${input.endLocalDate}::date
-          ORDER BY source."reviewed_at", review."id"
-          LIMIT ${input.limit}
+            bounded."reviewId",
+            bounded."sourceRevision",
+            bounded."analysisSequence",
+            bounded."localDate",
+            bounded."hasText",
+            bounded.rating,
+            evidence_boundary."hasEvidenceBeforeStart"
+          FROM evidence_boundary
+          LEFT JOIN bounded ON true
+          ORDER BY bounded."reviewedAt", bounded."reviewId"
             `),
         )
         if (result.rows.length >= input.limit) {
           return { status: 'limit_exceeded' as const }
         }
+        const hasEvidenceBeforeStart = result.rows[0]?.hasEvidenceBeforeStart
+        if (typeof hasEvidenceBeforeStart !== 'boolean') {
+          return { status: 'policy_unavailable' as const }
+        }
         const population = []
         for (const row of result.rows) {
+          if (row.reviewId === null) continue
+          if (typeof row.reviewId !== 'string') {
+            return { status: 'policy_unavailable' as const }
+          }
           const sourceRevision = parseSafeNonnegativeInteger(row.sourceRevision)
           const analysisSequence = parseSafeNonnegativeInteger(row.analysisSequence)
           if (
             sourceRevision === null ||
             analysisSequence === null ||
-            typeof row.reviewId !== 'string' ||
             typeof row.localDate !== 'string' ||
             !/^\d{4}-\d{2}-\d{2}$/.test(row.localDate) ||
             typeof row.hasText !== 'boolean' ||
@@ -394,6 +442,7 @@ export const createReviewRepository = (
         return {
           status: 'complete' as const,
           reviews: Object.freeze(population),
+          hasEvidenceBeforeStart,
         }
       } catch {
         return { status: 'policy_unavailable' as const }

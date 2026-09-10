@@ -109,18 +109,23 @@ function PropertyInsightsBasisLine({
   basis,
   startLocalDate,
   dataThroughLocalDate,
+  retentionLimited,
 }: Readonly<{
   basis: AiPropertyInsightsBasis
   startLocalDate: string
   dataThroughLocalDate: string
+  retentionLimited: boolean
 }>) {
   return (
     <p className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
       Based on {pluralized(basis.reviewCount, 'review')} · {basis.analyzedReviewCount}{' '}
       analysed · {basis.starOnlyCount} star-only · {basis.notAnalyzableCount} not
       analysable in a supported language · {basis.awaitingAnalysisCount} awaiting analysis
-      · window starts {formatLocalDate(startLocalDate)} · data through{' '}
-      {formatLocalDate(dataThroughLocalDate)}
+      ·{' '}
+      {retentionLimited
+        ? `window starts at the 24-month retention horizon (${formatLocalDate(startLocalDate)})`
+        : `window starts ${formatLocalDate(startLocalDate)}`}{' '}
+      · data through {formatLocalDate(dataThroughLocalDate)}
     </p>
   )
 }
@@ -164,7 +169,7 @@ function ReportState({
       </AlertTitle>
       <AlertDescription>
         {range === 'all'
-          ? 'No reviews were found in the available history.'
+          ? 'No reviews were found within the 24-month evidence retention horizon.'
           : 'No reviews were found in the selected period. Choose a longer range to look further back.'}
       </AlertDescription>
     </Alert>
@@ -227,6 +232,10 @@ export function PropertyInsightsReport({
             basis={result.basis}
             startLocalDate={result.startLocalDate}
             dataThroughLocalDate={result.dataThroughLocalDate}
+            retentionLimited={
+              result.range === 'all' &&
+              result.windowStartBasis === 'derivative_retention_horizon'
+            }
           />
 
           <Card>
@@ -236,18 +245,13 @@ export function PropertyInsightsReport({
               </CardTitle>
               <CardDescription>
                 {result.range === 'all'
-                  ? 'Mentions and rating-weighted impact across all available review evidence. Comparison is unavailable for All Time.'
+                  ? 'Mentions and rating-weighted impact across the available review evidence in this window. Comparison is unavailable for All Time.'
                   : `Mentions and rating-weighted impact, compared with the immediately preceding ${result.range}-day period.`}{' '}
                 Open any row to see its reviews in the inbox.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <PropertyInsightsAspectTable
-                propertyId={propertyId}
-                aspects={result.aspects}
-                analyzedReviewCount={result.basis.analyzedReviewCount}
-                comparisonAvailable={result.precedingPeriod !== null}
-              />
+              <PropertyInsightsAspectTable propertyId={propertyId} evidence={result} />
             </CardContent>
           </Card>
 
@@ -277,16 +281,12 @@ export function PropertyInsightsReport({
                 </CardTitle>
                 <CardDescription>
                   {result.range === 'all'
-                    ? 'Repeated issue labels across all available analysed history. Comparison is unavailable for All Time.'
+                    ? 'Repeated issue labels across the available analysed history in this window. Comparison is unavailable for All Time.'
                     : 'Repeated issue labels and their change from the preceding period.'}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <PropertyInsightsEmergingIssues
-                  issues={result.emergingIssues}
-                  analyzedReviewCount={result.basis.analyzedReviewCount}
-                  comparisonAvailable={result.precedingPeriod !== null}
-                />
+                <PropertyInsightsEmergingIssues evidence={result} />
               </CardContent>
             </Card>
           </div>

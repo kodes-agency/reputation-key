@@ -27,7 +27,11 @@ import type {
 } from '../ports/ai-review-event-store.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
 import type { AiSubjectHmacPort } from '../ports/ai-subject-hmac.port'
-import type { AiExecutionBinding, AiOperationIdentity } from '../../domain/types'
+import {
+  DERIVATIVE_RETENTION_MILLIS,
+  type AiExecutionBinding,
+  type AiOperationIdentity,
+} from '../../domain/types'
 import {
   aiRequestFingerprint,
   aiRetryAt,
@@ -38,7 +42,6 @@ import {
 const PROFILE = AI_OPERATION_PROFILES.find(
   (candidate) => candidate.profileVersion === 'review-analysis-v2',
 )!
-const DERIVATIVE_RETENTION_MILLIS = 730 * 24 * 60 * 60 * 1_000
 
 /**
  * Every retry branch is bounded in time by the plan's 15-minute background
