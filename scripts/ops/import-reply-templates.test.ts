@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ZodError } from 'zod/v4'
 import { organizationId, propertyId } from '../../src/shared/domain/ids'
+import {
+  OPERATOR_ACTION,
+  runOperatorCommand,
+  type OperatorIO,
+  type OperatorRuntime,
+} from '../../src/shared/ops/operator-command'
 import type {
   PropertyReplyProfile,
   PropertyReplyTemplate,
@@ -13,8 +19,10 @@ import {
   type ReplyTemplateValues,
 } from '../../src/contexts/review/application/dto/reply-library.dto'
 import {
+  createImportReplyTemplatesAction,
   importReplyTemplateLibrary,
   parseReplyTemplateLibraryFile,
+  REPLY_TEMPLATE_IMPORT_COMMAND_SPEC,
   REPLY_TEMPLATE_IMPORT_HELP,
   type ReplyTemplateImportLibrary,
 } from './import-reply-templates'
@@ -373,5 +381,123 @@ describe('importReplyTemplateLibrary', () => {
       { id: imported.id, title: 'Manager renamed' },
       { id: 'template-2', title: 'General positive' },
     ])
+  })
+})
+
+describe('import-reply-templates through the operator harness', () => {
+  const OPERATOR = 'operator@example.test'
+  const FILE = '/tmp/reply-template-library.json'
+  const argv = [
+    FILE,
+    'example',
+    '--operator',
+    OPERATOR,
+    '--org',
+    ORGANIZATION,
+    '--property',
+    PROPERTY,
+  ] as const
+
+  function runtime(registered: boolean) {
+    const decide = vi.fn<OperatorRuntime['decide']>(async (request) => {
+      const allowed =
+        registered &&
+        request.principal.kind === 'operator' &&
+        request.principal.id === OPERATOR
+      return {
+        allowed,
+        reason: allowed ? 'allowed' : 'operator_not_registered',
+        action: OPERATOR_ACTION,
+        policyVersion: 'test',
+      }
+    })
+    return {
+      runtime: { newCorrelationId: () => 'reply-template-import-test', decide },
+      decide,
+    }
+  }
+
+  function memoryIO(): OperatorIO & { outLines: string[]; errLines: string[] } {
+    const outLines: string[] = []
+    const errLines: string[] = []
+    return {
+      outLines,
+      errLines,
+      out: (line) => void outLines.push(line),
+      err: (line) => void errLines.push(line),
+    }
+  }
+
+  async function run(registered: boolean, extraArgs: readonly string[] = []) {
+    const repository = fakeRepository('inserted')
+    const io = memoryIO()
+    const policy = runtime(registered)
+    const result = await runOperatorCommand(
+      REPLY_TEMPLATE_IMPORT_COMMAND_SPEC,
+      createImportReplyTemplatesAction({
+        createRepository: () => repository,
+        readFile: async () => JSON.stringify(validInput()),
+      }),
+      policy.runtime,
+      [...argv, ...extraArgs],
+      io,
+    )
+    return { decide: policy.decide, io, repository, result }
+  }
+
+  it('refuses an unregistered operator before any reply-template write', async () => {
+    const { repository, result } = await run(false, [
+      '--reason',
+      'Import the approved template library',
+      '--apply',
+    ])
+
+    expect(result).toMatchObject({
+      exitCode: 1,
+      decision: { allowed: false, reason: 'operator_not_registered' },
+    })
+    expect(repository.findPropertyOrganization).not.toHaveBeenCalled()
+    expect(repository.upsertProfile).not.toHaveBeenCalled()
+    expect(repository.upsertTemplate).not.toHaveBeenCalled()
+  })
+
+  it('defaults to a no-op and writes only when the harness apply flag is set', async () => {
+    const dryRun = await run(true)
+
+    expect(dryRun.result.exitCode).toBe(0)
+    expect(dryRun.repository.upsertProfile).not.toHaveBeenCalled()
+    expect(dryRun.repository.upsertTemplate).not.toHaveBeenCalled()
+    expect(JSON.parse(dryRun.io.outLines.at(-1)!)).toMatchObject({
+      propertyId: PROPERTY,
+      dryRun: true,
+      profile: 'validated',
+    })
+    expect(dryRun.decide).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: { kind: 'operator', id: OPERATOR },
+        capability: 'property.publish_reply',
+        organizationId: ORGANIZATION,
+        propertyId: PROPERTY,
+      }),
+    )
+
+    const applied = await run(true, [
+      '--reason',
+      'Import the approved template library',
+      '--apply',
+    ])
+
+    expect(applied.result.exitCode).toBe(0)
+    expect(applied.repository.upsertProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ propertyId: PROPERTY, updatedBy: OPERATOR }),
+    )
+    expect(applied.repository.upsertTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ propertyId: PROPERTY, updatedBy: OPERATOR }),
+    )
+    expect(JSON.parse(applied.io.outLines.at(-1)!)).toMatchObject({
+      propertyId: PROPERTY,
+      dryRun: false,
+      profile: 'inserted',
+    })
   })
 })
