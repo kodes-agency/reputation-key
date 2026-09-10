@@ -154,7 +154,8 @@ function ReportState({
         <Clock aria-hidden="true" />
         <AlertTitle>Analysis for this property is still settling</AlertTitle>
         <AlertDescription>
-          No figures are shown until the daily totals agree with the reviews behind them.
+          No usable figures are available yet. They appear as soon as usable review and
+          analysis evidence is available.
         </AlertDescription>
       </Alert>
     )

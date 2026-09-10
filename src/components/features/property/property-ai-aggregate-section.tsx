@@ -67,8 +67,8 @@ export function PropertyAiAggregateSection({
       <Section>
         <div className="mt-3 rounded-lg border p-4">
           <p className="text-sm text-muted-foreground">
-            Analysis for this property is still settling. Insights appear once the daily
-            totals agree with the reviews behind them.
+            Analysis for this property is still settling. Insights appear as soon as
+            usable review and analysis evidence is available.
           </p>
         </div>
       </Section>
