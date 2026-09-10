@@ -8,23 +8,22 @@ import { propertyQuery } from '#/routes/-queries/route-queries'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { aiKeys } from '#/shared/queries/query-keys'
-import type { PropertyInsightsRangeDays } from '#/contexts/ai/application/public-api'
+import type { PropertyInsightsRange } from '#/contexts/ai/application/public-api'
 
 export const propertyInsightsSearchSchema = z.object({
-  range: z.coerce
-    .number()
-    .pipe(z.union([z.literal(30), z.literal(90), z.literal(180)]))
+  range: z
+    .union([
+      z.literal('all'),
+      z.coerce.number().pipe(z.union([z.literal(30), z.literal(90), z.literal(180)])),
+    ])
     .catch(90)
     .default(90),
 })
 
-export const propertyInsightsQuery = (
-  propertyId: string,
-  rangeDays: PropertyInsightsRangeDays,
-) =>
+export const propertyInsightsQuery = (propertyId: string, range: PropertyInsightsRange) =>
   queryOptions({
-    queryKey: aiKeys.propertyInsights(propertyId, rangeDays),
-    queryFn: () => getPropertyInsightsFn({ data: { propertyId, rangeDays } }),
+    queryKey: aiKeys.propertyInsights(propertyId, range),
+    queryFn: () => getPropertyInsightsFn({ data: { propertyId, range } }),
     staleTime: 60_000,
     retry: false,
   })
@@ -62,9 +61,9 @@ function PropertyInsightsRoute() {
     })
   }, [navigate, range])
 
-  const onRangeChange = (rangeDays: PropertyInsightsRangeDays) => {
+  const onRangeChange = (nextRange: PropertyInsightsRange) => {
     void navigate({
-      search: (previous) => ({ ...previous, range: rangeDays }),
+      search: (previous) => ({ ...previous, range: nextRange }),
     })
   }
 
@@ -72,7 +71,7 @@ function PropertyInsightsRoute() {
     <PropertyInsightsReport
       propertyId={propertyId}
       propertyName={propertyData.property.name}
-      rangeDays={range}
+      range={range}
       onRangeChange={onRangeChange}
       result={result}
     />

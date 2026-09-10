@@ -11,7 +11,7 @@ import {
 } from '@tanstack/react-router'
 import type {
   AiPropertyInsightsRead,
-  PropertyInsightsRangeDays,
+  PropertyInsightsRange,
 } from '#/contexts/ai/application/public-api'
 import { PropertyInsightsReport } from './property-insights-report'
 
@@ -19,11 +19,13 @@ const PROPERTY_ID = '11111111-1111-4111-8111-111111111111'
 
 const populated: Extract<AiPropertyInsightsRead, { status: 'ready' }> = {
   status: 'ready',
-  rangeDays: 90,
+  range: 90,
   startLocalDate: '2026-06-13',
   endLocalDate: '2026-09-10',
-  precedingStartLocalDate: '2026-03-15',
-  precedingEndLocalDate: '2026-06-12',
+  precedingPeriod: {
+    startLocalDate: '2026-03-15',
+    endLocalDate: '2026-06-12',
+  },
   dataThroughLocalDate: '2026-09-10',
   impactVersion: 'aspect-impact-v1',
   basis: {
@@ -47,40 +49,48 @@ const populated: Extract<AiPropertyInsightsRead, { status: 'ready' }> = {
       polarity: 'negative',
       mentionCount: 28,
       impact: -18.4,
-      precedingMentionCount: 19,
-      precedingImpact: -11.2,
-      mentionCountDelta: 9,
-      impactDelta: -7.2,
+      comparison: {
+        precedingMentionCount: 19,
+        precedingImpact: -11.2,
+        mentionCountDelta: 9,
+        impactDelta: -7.2,
+      },
     },
     {
       aspect: 'cleanliness',
       polarity: 'positive',
       mentionCount: 24,
       impact: 16.7,
-      precedingMentionCount: 20,
-      precedingImpact: 13.1,
-      mentionCountDelta: 4,
-      impactDelta: 3.6,
+      comparison: {
+        precedingMentionCount: 20,
+        precedingImpact: 13.1,
+        mentionCountDelta: 4,
+        impactDelta: 3.6,
+      },
     },
     {
       aspect: 'room',
       polarity: 'negative',
       mentionCount: 17,
       impact: -10.3,
-      precedingMentionCount: 21,
-      precedingImpact: -13.6,
-      mentionCountDelta: -4,
-      impactDelta: 3.3,
+      comparison: {
+        precedingMentionCount: 21,
+        precedingImpact: -13.6,
+        mentionCountDelta: -4,
+        impactDelta: 3.3,
+      },
     },
     {
       aspect: 'staff',
       polarity: 'positive',
       mentionCount: 16,
       impact: 9.8,
-      precedingMentionCount: 12,
-      precedingImpact: 7.4,
-      mentionCountDelta: 4,
-      impactDelta: 2.4,
+      comparison: {
+        precedingMentionCount: 12,
+        precedingImpact: 7.4,
+        mentionCountDelta: 4,
+        impactDelta: 2.4,
+      },
     },
   ],
   weeklyAspectSeries: [
@@ -119,21 +129,47 @@ const populated: Extract<AiPropertyInsightsRead, { status: 'ready' }> = {
     },
   ],
   emergingIssues: [
-    { label: 'front desk delays', count: 12, precedingCount: 5, delta: 7 },
-    { label: 'bathroom maintenance', count: 7, precedingCount: 9, delta: -2 },
-    { label: 'air conditioning noise', count: 4, precedingCount: 4, delta: 0 },
+    {
+      label: 'front desk delays',
+      count: 12,
+      comparison: { precedingCount: 5, delta: 7 },
+    },
+    {
+      label: 'bathroom maintenance',
+      count: 7,
+      comparison: { precedingCount: 9, delta: -2 },
+    },
+    {
+      label: 'air conditioning noise',
+      count: 4,
+      comparison: { precedingCount: 4, delta: 0 },
+    },
   ],
 }
 
+const allTime: Extract<AiPropertyInsightsRead, { status: 'ready' }> = {
+  ...populated,
+  range: 'all',
+  startLocalDate: '2025-06-25',
+  precedingPeriod: null,
+  aspects: populated.aspects.map((aspect) => ({ ...aspect, comparison: null })),
+  emergingIssues: populated.emergingIssues.map((issue) => ({
+    ...issue,
+    comparison: null,
+  })),
+}
+
 function StoryReport({ result }: Readonly<{ result: AiPropertyInsightsRead }>) {
-  const [rangeDays, setRangeDays] = useState<PropertyInsightsRangeDays>(90)
+  const [range, setRange] = useState<PropertyInsightsRange>(
+    result.status === 'ready' ? result.range : 90,
+  )
   return (
     <PropertyInsightsReport
       propertyId={PROPERTY_ID}
       propertyName="Harbour House Hotel"
-      rangeDays={rangeDays}
-      onRangeChange={setRangeDays}
-      result={result.status === 'ready' ? { ...result, rangeDays } : result}
+      range={range}
+      onRangeChange={setRange}
+      result={result}
     />
   )
 }
@@ -167,6 +203,15 @@ const meta: Meta<typeof PropertyInsightsReport> = {
 export default meta
 type Story = StoryObj<typeof PropertyInsightsReport>
 
+async function selectedAllTimeCanvas(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  expect(await canvas.findByRole('button', { name: 'All Time' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  return canvas
+}
+
 export const PopulatedReport: Story = {
   render: () => <ReportHarness result={populated} />,
   play: async ({ canvasElement }) => {
@@ -181,6 +226,19 @@ export const PopulatedReport: Story = {
     const service = await canvas.findByRole('link', { name: /Service.*Complaints/ })
     expect(service.getAttribute('href')).toContain('aspect=service')
     expect(service.getAttribute('href')).toContain('polarity=negative')
+  },
+}
+
+export const AllTimeHistorical: Story = {
+  render: () => <ReportHarness result={allTime} />,
+  play: async ({ canvasElement }) => {
+    const canvas = await selectedAllTimeCanvas(canvasElement)
+    expect(await canvas.findByText(/window starts 25 Jun 2025/)).toBeVisible()
+    expect(
+      await canvas.findAllByText(/Comparison is unavailable for All Time/),
+    ).toHaveLength(2)
+    expect(canvas.queryByText('Change vs previous')).toBeNull()
+    expect(canvas.queryByText(/\+7 vs previous/)).toBeNull()
   },
 }
 
@@ -235,6 +293,44 @@ export const ZeroEmergingIssues: Story = {
       ),
     ).toBeVisible()
     expect(await canvas.findByText('Service')).toBeVisible()
+  },
+}
+
+export const AllTimeAnalyzedWithoutMentions: Story = {
+  render: () => (
+    <ReportHarness
+      result={{
+        ...allTime,
+        basis: {
+          reviewCount: 12,
+          analyzedReviewCount: 12,
+          currentAnalysisCount: 12,
+          starOnlyCount: 0,
+          notAnalyzableCount: 0,
+          awaitingAnalysisCount: 0,
+          ratingDistribution: [
+            { stars: 1, count: 0 },
+            { stars: 2, count: 1 },
+            { stars: 3, count: 2 },
+            { stars: 4, count: 4 },
+            { stars: 5, count: 5 },
+          ],
+        },
+        aspects: [],
+        weeklyAspectSeries: [],
+        emergingIssues: [],
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = await selectedAllTimeCanvas(canvasElement)
+    // Each empty section has its own observable contract; combining these assertions
+    // would allow one report section to disappear without naming the regression.
+    // fallow-ignore-next-line code-duplication
+    expect(await canvas.findByText(/No aspect mentions were identified/)).toBeVisible()
+    expect(await canvas.findByText(/No weekly aspect trend can be plotted/)).toBeVisible()
+    expect(await canvas.findByText(/No recurring issue labels were found/)).toBeVisible()
+    expect(canvas.queryByText('Change vs previous')).toBeNull()
   },
 }
 

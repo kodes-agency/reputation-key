@@ -145,7 +145,7 @@ const input = {
   organizationId: ORGANIZATION_ID,
   propertyId: PROPERTY_ID,
   actorUserId: ACTOR_USER_ID,
-  rangeDays: 30 as const,
+  range: 30 as const,
 }
 
 describe('readPropertyInsights gates and windows', () => {
@@ -174,10 +174,13 @@ describe('readPropertyInsights gates and windows', () => {
     const result = await read(input)
     expect(result).toMatchObject({
       status: 'ready',
+      range: 30,
       startLocalDate: '2026-07-22',
       endLocalDate: '2026-08-20',
-      precedingStartLocalDate: '2026-06-22',
-      precedingEndLocalDate: '2026-07-21',
+      precedingPeriod: {
+        startLocalDate: '2026-06-22',
+        endLocalDate: '2026-07-21',
+      },
     })
     expect(readWindow).toHaveBeenCalledWith({
       organizationId: ORGANIZATION_ID,
@@ -297,30 +300,100 @@ describe('readPropertyInsights evidence', () => {
         polarity: 'negative',
         mentionCount: 2,
         impact: -1.6,
-        precedingMentionCount: 1,
-        precedingImpact: -0.4,
-        mentionCountDelta: 1,
-        impactDelta: -1.2,
+        comparison: {
+          precedingMentionCount: 1,
+          precedingImpact: -0.4,
+          mentionCountDelta: 1,
+          impactDelta: -1.2,
+        },
       },
       {
         aspect: 'room',
         polarity: 'positive',
         mentionCount: 1,
         impact: 1,
-        precedingMentionCount: 0,
-        precedingImpact: 0,
-        mentionCountDelta: 1,
-        impactDelta: 1,
+        comparison: {
+          precedingMentionCount: 0,
+          precedingImpact: 0,
+          mentionCountDelta: 1,
+          impactDelta: 1,
+        },
       },
     ])
     expect(result.emergingIssues).toEqual([
-      { label: 'slow front desk', count: 2, precedingCount: 1, delta: 1 },
-      { label: 'quiet rooms', count: 1, precedingCount: 0, delta: 1 },
+      {
+        label: 'slow front desk',
+        count: 2,
+        comparison: { precedingCount: 1, delta: 1 },
+      },
+      {
+        label: 'quiet rooms',
+        count: 1,
+        comparison: { precedingCount: 0, delta: 1 },
+      },
     ])
     expect(result.weeklyAspectSeries.map(({ aspect }) => aspect)).toEqual([
       'service',
       'room',
     ])
+  })
+
+  it('bounds All Time at the earliest Review evidence and returns no comparisons', async () => {
+    const reviews = [
+      populationReview(1, '2025-06-25', { rating: 4 }),
+      populationReview(2, '2025-10-02', { rating: 2 }),
+    ]
+    const { read, readWindow, readTrendPopulation } = harness({
+      population: { status: 'complete', reviews },
+      aggregate: {
+        head: {},
+        days: [],
+        analyzedReviews: [
+          analyzedReview(1, '2025-06-25', {
+            rating: 4,
+            polarity: 'positive',
+            issueLabel: 'helpful team',
+          }),
+          analyzedReview(2, '2025-10-02', {
+            rating: 2,
+            polarity: 'negative',
+            issueLabel: 'slow front desk',
+          }),
+        ],
+        unavailableReviews: [],
+      },
+    })
+
+    const result = await read({ ...input, range: 'all' })
+
+    expect(readTrendPopulation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        propertyId: PROPERTY_ID,
+        startLocalDate: '0001-01-01',
+        endLocalDate: '2026-08-20',
+      }),
+    )
+    expect(readWindow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        propertyId: PROPERTY_ID,
+        startLocalDate: '2025-06-25',
+        endLocalDate: '2026-08-20',
+      }),
+    )
+    expect(result).toMatchObject({
+      status: 'ready',
+      range: 'all',
+      startLocalDate: '2025-06-25',
+      precedingPeriod: null,
+      aspects: [
+        expect.objectContaining({ comparison: null }),
+        expect.objectContaining({ comparison: null }),
+      ],
+      emergingIssues: [
+        expect.objectContaining({ comparison: null }),
+        expect.objectContaining({ comparison: null }),
+      ],
+    })
   })
 
   it('returns insufficient_data rather than a ready payload of zero figures', async () => {

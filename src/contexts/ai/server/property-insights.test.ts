@@ -83,8 +83,7 @@ const ACTOR = {
   role: 'AccountAdmin',
 } as unknown as AuthContext
 
-const call = () =>
-  getPropertyInsightsFn({ data: { propertyId: PROPERTY_ID, rangeDays: 90 } })
+const call = () => getPropertyInsightsFn({ data: { propertyId: PROPERTY_ID, range: 90 } })
 
 const callUnchecked = (data: unknown) =>
   getPropertyInsightsFn({ data } as Parameters<typeof getPropertyInsightsFn>[0])
@@ -123,7 +122,7 @@ describe('getPropertyInsightsFn tenant and gate wiring', () => {
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
       actorUserId: ACTOR.userId,
-      rangeDays: 90,
+      range: 90,
     })
   })
 
@@ -142,7 +141,7 @@ describe('getPropertyInsightsFn single-property payload', () => {
       callUnchecked({
         propertyId: PROPERTY_ID,
         propertyIds: [PROPERTY_ID],
-        rangeDays: 90,
+        range: 90,
       }),
     )
 
@@ -150,19 +149,19 @@ describe('getPropertyInsightsFn single-property payload', () => {
     expect(mocks.readPropertyInsights).not.toHaveBeenCalled()
   })
 
-  it.each([30, 90, 180] as const)(
-    'accepts the bounded %i-day range',
-    async (rangeDays) => {
-      await getPropertyInsightsFn({ data: { propertyId: PROPERTY_ID, rangeDays } })
+  it.each([30, 90, 180, 'all'] as const)(
+    'accepts the supported %s range',
+    async (range) => {
+      await getPropertyInsightsFn({ data: { propertyId: PROPERTY_ID, range } })
 
       expect(mocks.readPropertyInsights).toHaveBeenCalledWith(
-        expect.objectContaining({ rangeDays }),
+        expect.objectContaining({ range }),
       )
     },
   )
 
   it('rejects an unbounded or malformed range before resolving the tenant', async () => {
-    await rejection(callUnchecked({ propertyId: PROPERTY_ID, rangeDays: 365 }))
+    await rejection(callUnchecked({ propertyId: PROPERTY_ID, range: 365 }))
 
     expect(mocks.resolveTenantContext).not.toHaveBeenCalled()
   })
