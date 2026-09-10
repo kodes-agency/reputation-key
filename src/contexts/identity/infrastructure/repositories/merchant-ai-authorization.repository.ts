@@ -604,14 +604,11 @@ export const createMerchantAiAuthorizationStore = (
           sourceRebound,
           contractChanged,
         )
-        const analysisWasEnabled =
-          current?.capabilities.includes('review_analysis') ?? false
         const analysisWillBeEnabled = input.capabilities.includes('review_analysis')
+        const previousReviewAnalysisEpoch = current?.capabilityEpochs.review_analysis ?? 0
         const resetsAnalysisWatermark =
-          input.operation === 'enable' ||
-          (input.operation === 'change' &&
-            analysisWillBeEnabled &&
-            (!analysisWasEnabled || sourceRebound))
+          analysisWillBeEnabled &&
+          capabilityEpochs.review_analysis > previousReviewAnalysisEpoch
         const analysisStartSequence = resetsAnalysisWatermark
           ? currentAnalysisHeadSequence
           : (current?.analysisStartSequence ?? 0)

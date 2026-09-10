@@ -10,6 +10,10 @@ import {
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
 import {
+  MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
+  MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1,
+} from '#/shared/ai-review-source-contract'
+import {
   createMerchantAiAuthorizationStore,
   hasActiveMerchantAiConsent,
   type MerchantAiAuthorizationFence,
@@ -35,6 +39,9 @@ const USER = 'user-merchant-ai-store'
 const PROPERTY = '10000000-0000-4000-8000-000000000001'
 const CONNECTION = '20000000-0000-4000-8000-000000000001'
 const NOW = new Date('2026-08-15T12:00:00.000Z')
+const PREVIOUS_NOTICE_VERSION = 'merchant-ai-notice-2026-09-08.v1'
+const PREVIOUS_NOTICE_DIGEST =
+  'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865'
 
 const store = createMerchantAiAuthorizationStore(db, randomUUID)
 
@@ -533,6 +540,155 @@ describe('Merchant AI authorization store', () => {
     })
   })
 
+  it('resnapshots the full eligible Review population when notice re-consent advances the analysis epoch', async () => {
+    const enabled = await store.mutate(
+      command({
+        noticeVersion: PREVIOUS_NOTICE_VERSION,
+        noticeDigest: PREVIOUS_NOTICE_DIGEST,
+      }),
+    )
+    await db.execute(sql`
+      INSERT INTO reviews (
+        id, organization_id, property_id, platform, external_id, reviewer_name,
+        rating, text, language_code, reviewed_at, content_expires_at,
+        source_epoch, source_revision, analysis_sequence, ai_source_byte_length,
+        ai_source_digest
+      ) VALUES
+        (
+          '10000000-0000-4000-8000-000000000020'::uuid, ${ORG}, ${PROPERTY}::uuid,
+          'google', 'notice-reconsent-review-20', 'Synthetic reviewer', 5,
+          'Eligible review twenty', 'en', ${NOW}, '2099-09-10T00:00:00.000Z',
+          3, 1, 20, 22, ${'a'.repeat(64)}
+        ),
+        (
+          '10000000-0000-4000-8000-000000000038'::uuid, ${ORG}, ${PROPERTY}::uuid,
+          'google', 'notice-reconsent-review-38', 'Synthetic reviewer', 4,
+          'Eligible review thirty eight', 'en', ${NOW}, '2099-09-10T00:00:00.000Z',
+          3, 1, 38, 28, ${'b'.repeat(64)}
+        )
+    `)
+    await db.execute(sql`
+      INSERT INTO ai_property_daily_aggregates (
+        organization_id, property_id, local_date, source_epoch,
+        review_analysis_epoch, property_profile_version, calendar_profile_version,
+        aggregate_revision, terminal_analysis_sequence, review_count, rating_sum,
+        positive_count, neutral_count, negative_count, mixed_count, urgent_count,
+        high_count, medium_count, low_count, updated_at
+      ) VALUES (
+        ${ORG}, ${PROPERTY}::uuid, '2026-08-14', 3, 1, 1,
+        'property-calendar-v1', 1, 7, 1, 5, 1, 0, 0, 0, 0, 0, 0, 1, ${NOW}
+      )
+    `)
+    await db.execute(sql`
+      UPDATE review_ai_analysis_heads
+      SET head_sequence = 38
+      WHERE organization_id = ${ORG}
+        AND property_id = ${PROPERTY}::uuid
+        AND source_epoch = 3
+    `)
+
+    const reconsented = await store.mutate(
+      command({
+        operation: 'change',
+        idempotencyKey: 'notice-reconsent',
+        expectedStateVersion: enabled.stateVersion,
+        reasonCode: 'notice_reconsented',
+      }),
+    )
+    const eligible = await db.execute(sql`
+      SELECT id
+      FROM reviews
+      WHERE organization_id = ${ORG}
+        AND property_id = ${PROPERTY}::uuid
+        AND source_epoch = 3
+        AND source_revision >= 1
+        AND analysis_sequence <= ${reconsented.analysisStartSequence}
+        AND text IS NOT NULL
+        AND content_expires_at > transaction_timestamp()
+        AND ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
+        AND (
+          COALESCE(octet_length(text), 0)::bigint
+          + COALESCE(octet_length(language_code), 0)::bigint
+          + COALESCE(octet_length(reviewer_name), 0)::bigint
+        ) <= ${MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1}
+      ORDER BY analysis_sequence
+    `)
+
+    expect(reconsented).toMatchObject({
+      capabilityEpochs: { review_analysis: 2 },
+      analysisStartSequence: 38,
+    })
+    expect(eligible.rows).toEqual([
+      { id: '10000000-0000-4000-8000-000000000020' },
+      { id: '10000000-0000-4000-8000-000000000038' },
+    ])
+  })
+
+  it('rejects watermark advancement when the Review Analysis epoch does not advance', async () => {
+    const enabled = await store.mutate(command())
+    await db.execute(sql`
+      UPDATE review_ai_analysis_heads
+      SET head_sequence = 38
+      WHERE organization_id = ${ORG}
+        AND property_id = ${PROPERTY}::uuid
+        AND source_epoch = 3
+    `)
+
+    await expect(
+      db.execute(sql`
+        SELECT apply_merchant_ai_transition_v1(
+          ${enabled.authorizationLineageId}::uuid,
+          ${enabled.stateVersion},
+          ${enabled.stateVersion + 1},
+          ${ORG},
+          ${PROPERTY}::uuid,
+          'change',
+          'enabled',
+          ARRAY['review_analysis', 'property_trends']::text[],
+          ${JSON.stringify({
+            review_analysis: 'review-analysis-runtime-v1',
+            property_trends: 'property-trends-runtime-v1',
+          })}::jsonb,
+          ${enabled.capabilityEpochs.review_analysis},
+          ${enabled.capabilityEpochs.reply_drafting + 1},
+          ${enabled.capabilityEpochs.property_trends},
+          ${enabled.authorizedSourceEpoch},
+          38,
+          ${MERCHANT_AI_NOTICE_VERSION},
+          ${MERCHANT_AI_NOTICE_DIGEST},
+          'google-business-profile-source-policy-v1',
+          1,
+          'global',
+          'private-beta-global-v1',
+          'gbp-review-global-v1',
+          ${USER},
+          'capabilities_changed',
+          'invalid-watermark-advance',
+          ${'c'.repeat(64)},
+          ${NOW}
+        )
+      `),
+    ).rejects.toMatchObject({
+      cause: expect.objectContaining({
+        message: 'merchant_ai_invalid_analysis_sequence',
+      }),
+    })
+
+    const changed = await store.mutate(
+      command({
+        operation: 'change',
+        idempotencyKey: 'valid-unchanged-watermark',
+        expectedStateVersion: enabled.stateVersion,
+        capabilities: ['review_analysis', 'property_trends'],
+        reasonCode: 'capabilities_changed',
+      }),
+    )
+    expect(changed).toMatchObject({
+      analysisStartSequence: 7,
+      capabilityEpochs: { review_analysis: 1 },
+    })
+  })
+
   it('increments only toggled capability epochs and every enabled epoch on source rebind', async () => {
     const initial = await store.mutate(command())
     const reduced = await store.mutate(
@@ -581,9 +737,16 @@ describe('Merchant AI authorization store', () => {
     })
   })
 
-  it('revokes after source disconnection, increments all epochs, and denies every old fence', async () => {
+  it('revokes after source disconnection without moving the watermark and denies every old fence', async () => {
     const enabled = await store.mutate(command())
     const oldFence = fence(enabled, 'review_analysis')
+    await db.execute(sql`
+      UPDATE review_ai_analysis_heads
+      SET head_sequence = 38
+      WHERE organization_id = ${ORG}
+        AND property_id = ${PROPERTY}::uuid
+        AND source_epoch = 3
+    `)
     await db.execute(sql`
       UPDATE properties
       SET lifecycle_state = 'suspended',
