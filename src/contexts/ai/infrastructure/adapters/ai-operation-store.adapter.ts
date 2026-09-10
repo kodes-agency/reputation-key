@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { and, eq, gt, inArray, isNull, lte, or } from 'drizzle-orm'
+import { and, eq, gt, isNull, lte, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiOperations, aiReviewAnalyses, eventConsumerReceipts } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
@@ -581,10 +581,10 @@ export const createAiOperationStoreAdapter = (
     async listExpiredExecutions(input) {
       // Selection is intentionally lock-free. The reaper terminalizes pending,
       // executing, and result-less completed rows through `recordFailure`'s
-      // exact CAS. Persisted results use `markDelivered`'s exact CAS. Failed
-      // analysis rows are selected only while their origin event lacks a
-      // receipt, making a crash between failure and sequence advancement
-      // recoverable.
+      // exact CAS. Persisted results use `markDelivered`'s exact CAS. Every
+      // failed analysis row remains selectable while its origin event lacks a
+      // receipt, making every terminal-failure-to-settlement crash window
+      // recoverable without maintaining a failure-code whitelist.
       const now = new Date(input.nowEpochMillis)
       const horizonDeadline = new Date(
         input.nowEpochMillis - input.executionHorizonMillis,
@@ -627,12 +627,6 @@ export const createAiOperationStoreAdapter = (
             and(
               eq(aiOperations.command, 'analysis'),
               eq(aiOperations.state, 'failed'),
-              inArray(aiOperations.failureCode, [
-                'completed_without_delivery',
-                'language_not_supported',
-                'operation_abandoned',
-                'operation_ambiguous',
-              ]),
               isNull(eventConsumerReceipts.eventId),
             ),
           ),

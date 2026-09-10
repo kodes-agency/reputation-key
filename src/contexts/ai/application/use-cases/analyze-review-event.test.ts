@@ -117,6 +117,7 @@ function createHarness(
     operationCreatedAtEpochMillis?: number
     analysisResult?: unknown
     rating?: 1 | 2 | 3 | 4 | 5
+    consumeStatus?: 'accepted' | 'duplicate' | 'generation_changed'
   }> = {},
 ) {
   let claimedOperation: AiOperationRecord | undefined
@@ -203,6 +204,41 @@ function createHarness(
     },
   }))
   const release = vi.fn(async () => {})
+  const readReviewSource = vi.fn(async () => ({
+    status: 'available' as const,
+    observation: {
+      kind: 'review' as const,
+      reviewId: REVIEW_ID,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      text: 'The kitchen made several guests sick.',
+      rating: options.rating ?? 1,
+      languageCode: options.languageCode === undefined ? 'en-US' : options.languageCode,
+      reviewedAtEpochMillis: NOW - 1_000,
+      contentExpiresAtEpochMillis: NOW + 60_000,
+      sourceEpoch: 2,
+      sourceRevision: 5,
+      analysisSequence: 7,
+    },
+  }))
+  const readProcessingProfile = vi.fn(async () =>
+    options.profileStatus === undefined
+      ? {
+          status: 'available' as const,
+          profile: {
+            organizationId: ORGANIZATION_ID,
+            propertyId: PROPERTY_ID,
+            countryCode: 'US',
+            timezone: 'America/New_York',
+            processingRegion: 'global' as const,
+            routingPolicyVersion: 1,
+            sourceEpoch: 2,
+            profileVersion: 3,
+            lifecycleState: 'active' as const,
+          },
+        }
+      : { status: options.profileStatus },
+  )
 
   const dependencies = {
     authorization: {
@@ -296,54 +332,24 @@ function createHarness(
       release,
     },
     reviewEvents: {
-      consumeNext: vi.fn(async () => ({
-        status: 'accepted' as const,
-        consumedSequence: 7,
-        terminalAnalysisSequence: 6,
-      })),
+      consumeNext: vi.fn(async () =>
+        options.consumeStatus === 'generation_changed'
+          ? { status: 'generation_changed' as const }
+          : {
+              status: options.consumeStatus ?? ('accepted' as const),
+              consumedSequence: 7,
+              terminalAnalysisSequence: 6,
+            },
+      ),
       settleOutcome,
     },
     reviewSources: {
-      readForAi: vi.fn(async () => ({
-        status: 'available' as const,
-        observation: {
-          kind: 'review' as const,
-          reviewId: REVIEW_ID,
-          organizationId: ORGANIZATION_ID,
-          propertyId: PROPERTY_ID,
-          text: 'The kitchen made several guests sick.',
-          rating: options.rating ?? 1,
-          languageCode:
-            options.languageCode === undefined ? 'en-US' : options.languageCode,
-          reviewedAtEpochMillis: NOW - 1_000,
-          contentExpiresAtEpochMillis: NOW + 60_000,
-          sourceEpoch: 2,
-          sourceRevision: 5,
-          analysisSequence: 7,
-        },
-      })),
+      readForAi: readReviewSource,
       readReplyStateRevision: vi.fn(),
       assertCurrent: vi.fn(),
     },
     processingProfiles: {
-      readForAi: vi.fn(async () =>
-        options.profileStatus === undefined
-          ? {
-              status: 'available' as const,
-              profile: {
-                organizationId: ORGANIZATION_ID,
-                propertyId: PROPERTY_ID,
-                countryCode: 'US',
-                timezone: 'America/New_York',
-                processingRegion: 'global' as const,
-                routingPolicyVersion: 1,
-                sourceEpoch: 2,
-                profileVersion: 3,
-                lifecycleState: 'active' as const,
-              },
-            }
-          : { status: options.profileStatus },
-      ),
+      readForAi: readProcessingProfile,
       refreshForAi: vi.fn(),
     },
     subjectHmac: {
@@ -363,6 +369,8 @@ function createHarness(
       advanceWithoutAnalysis,
       markDelivered,
       release,
+      readReviewSource,
+      readProcessingProfile,
     },
   }
 }
@@ -395,6 +403,19 @@ describe('review-analysis-v2 local primary category', () => {
 describe('analyze review event', () => {
   describe('with the pinned language runtime', () => {
     beforeEach(withPinnedLanguageRuntime)
+
+    it('receipts a duplicate event without reading runtime state or invoking the provider', async () => {
+      const harness = createHarness({ consumeStatus: 'duplicate' })
+
+      await expect(harness.analyze(input)).resolves.toEqual({ status: 'replayed' })
+      expect(harness.mocks.readProcessingProfile).not.toHaveBeenCalled()
+      expect(harness.mocks.readReviewSource).not.toHaveBeenCalled()
+      expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
+      expect(harness.mocks.storeAnalysis).not.toHaveBeenCalled()
+      expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
+      expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
+      expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
+    })
 
     it('fails unsupported languages closed without invoking the provider', async () => {
       const harness = createHarness({ languageCode: 'sw-Latn' })

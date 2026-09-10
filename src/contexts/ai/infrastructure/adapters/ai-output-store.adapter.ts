@@ -1292,7 +1292,8 @@ export const createAiOutputStoreAdapter = (
           .orderBy(aiReviewAnalysisAspects.aspect)
         if (
           !isAspectTaxonomyV1Id(analysis.primaryCategory) ||
-          aspects.length < 1 ||
+          (aspects.length < 1 &&
+            analysis.analysisProfileVersion !== 'review-analysis-v1') ||
           aspects.length > 5 ||
           aspects.some(({ aspect }) => !isAspectTaxonomyV1Id(aspect)) ||
           (analysis.issueLabel !== null && !isAiIssueLabel(analysis.issueLabel))
