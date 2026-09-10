@@ -32,6 +32,8 @@ const readyData = {
   startLocalDate: '2026-07-22',
   endLocalDate: '2026-08-20',
   reviewCount: 48,
+  analyzedReviewCount: 48,
+  preAspectAnalysisCount: 0,
   impactVersion: 'aspect-impact-v1',
   aspects: [
     { aspect: 'service', polarity: 'negative', mentionCount: 18, impact: -12.4 },
@@ -152,6 +154,8 @@ export const ReadyButEmpty: Story = {
         startLocalDate: '2026-08-14',
         endLocalDate: '2026-08-20',
         reviewCount: 0,
+        analyzedReviewCount: 0,
+        preAspectAnalysisCount: 0,
         impactVersion: 'aspect-impact-v1',
         aspects: [],
         emergingIssues: [],
@@ -165,6 +169,32 @@ export const ReadyButEmpty: Story = {
     expect(await canvas.findByText(/No aspect mentions/)).toBeVisible()
     expect(await canvas.findByText(/No emerging issues/)).toBeVisible()
     expect(await canvas.findByText(/No analysed reviews/)).toBeVisible()
+  },
+}
+
+export const PredatesAspectAnalysis: Story = {
+  render: () => (
+    <SectionHarness
+      getAggregates={stub({
+        ...readyData,
+        reviewCount: 20,
+        analyzedReviewCount: 0,
+        preAspectAnalysisCount: 20,
+        aspects: [],
+        emergingIssues: [],
+      })}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      await canvas.findByText(/20 analysed before aspect analysis existed/),
+    ).toBeVisible()
+    expect(
+      await canvas.findByText(
+        'These reviews were analysed before aspect analysis existed, so aspect mentions and impact cannot be reported.',
+      ),
+    ).toBeVisible()
   },
 }
 

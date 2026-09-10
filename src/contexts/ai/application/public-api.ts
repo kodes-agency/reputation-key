@@ -14,6 +14,7 @@ export {
 } from './use-cases/read-property-insights'
 export type {
   AiPropertyInsightAspect,
+  AiPropertyInsightAspectEvidenceState,
   AiPropertyInsightComparedAspect,
   AiPropertyInsightComparedIssue,
   AiPropertyInsightIssue,

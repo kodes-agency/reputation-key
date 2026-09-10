@@ -86,6 +86,8 @@ export function PropertyAiAggregateSection({
       <p className="mt-1 text-xs text-muted-foreground">
         {data.reviewCount} analysed {data.reviewCount === 1 ? 'review' : 'reviews'} from{' '}
         {data.startLocalDate} to {data.endLocalDate}, in the property&apos;s own time zone
+        · {data.analyzedReviewCount} with aspect analysis · {data.preAspectAnalysisCount}{' '}
+        analysed before aspect analysis existed
       </p>
       <div className="mt-3 grid min-w-0 gap-4 xl:grid-cols-3">
         <div className="min-w-0 rounded-lg border bg-muted/30 p-4">
@@ -99,6 +101,8 @@ export function PropertyAiAggregateSection({
             propertyId={propertyId}
             aspects={data.aspects}
             reviewCount={data.reviewCount}
+            analyzedReviewCount={data.analyzedReviewCount}
+            preAspectAnalysisCount={data.preAspectAnalysisCount}
           />
         </div>
         <div className="min-w-0 rounded-lg border bg-muted/30 p-4">

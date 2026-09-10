@@ -224,7 +224,7 @@ function isAnalyzedReviewAspect(
 // This fail-closed row boundary keeps every correlated evidence field in one
 // validation decision so an invalid projection can never be partially accepted.
 // fallow-ignore-next-line complexity
-function mapAnalyzedReview(
+export function mapAnalyzedReview(
   row: Readonly<{
     reviewId: string
     sourceRevision: number | string
@@ -240,10 +240,12 @@ function mapAnalyzedReview(
     modelSnapshot: string
   }>,
 ): AiPropertyAnalyzedReview {
+  // v1 analyses predate aspect extraction and remain current evidence until an
+  // epoch bump retires them. Only that profile may legitimately have no children.
   const aspects =
     Array.isArray(row.aspects) &&
-    row.aspects.length >= 1 &&
     row.aspects.length <= 5 &&
+    (row.aspects.length >= 1 || row.analysisProfileVersion === 'review-analysis-v1') &&
     row.aspects.every(isAnalyzedReviewAspect)
       ? row.aspects
       : null

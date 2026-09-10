@@ -45,6 +45,10 @@ export type AiPropertyAggregateWindowRead =
       startLocalDate: string
       endLocalDate: string
       reviewCount: number
+      /** Ready analyses with aspect evidence. */
+      analyzedReviewCount: number
+      /** Ready v1-era analyses that predate aspect extraction. */
+      preAspectAnalysisCount: number
       impactVersion: typeof ASPECT_IMPACT_VERSION
       /** Descending by mention count, then stable aspect/polarity identity. */
       aspects: readonly AiAspectAggregate[]
@@ -141,6 +145,8 @@ function summarize(
   const sentimentTotals = { positive: 0, neutral: 0, negative: 0, mixed: 0 }
   let reviewCount = 0
   const sentimentByDay: AiSentimentDay[] = []
+  let analyzedReviewCount = 0
+  let preAspectAnalysisCount = 0
 
   for (const day of days) {
     reviewCount += day.reviewCount
@@ -164,6 +170,11 @@ function summarize(
 
   const issueCounts = new Map<string, number>()
   for (const review of analyzedReviews) {
+    if (review.aspects.length === 0) {
+      preAspectAnalysisCount += 1
+    } else {
+      analyzedReviewCount += 1
+    }
     for (const mention of review.aspects) {
       const key = `${mention.aspect}:${mention.polarity}`
       const total = aspectTotals.get(key)
@@ -189,6 +200,8 @@ function summarize(
 
   return {
     reviewCount,
+    analyzedReviewCount,
+    preAspectAnalysisCount,
     impactVersion: ASPECT_IMPACT_VERSION,
     aspects,
     emergingIssues,

@@ -33,8 +33,14 @@ function polarityBadgeVariant(
 }
 
 type PropertyInsightsAspectEvidence =
-  | Pick<AiPropertyInsightsAllTimeReady, 'range' | 'aspects' | 'basis'>
-  | Pick<AiPropertyInsightsPresetReady, 'range' | 'aspects' | 'basis'>
+  | Pick<
+      AiPropertyInsightsAllTimeReady,
+      'range' | 'aspects' | 'basis' | 'aspectEvidenceState'
+    >
+  | Pick<
+      AiPropertyInsightsPresetReady,
+      'range' | 'aspects' | 'basis' | 'aspectEvidenceState'
+    >
 
 export function PropertyInsightsAspectTable({
   propertyId,
@@ -43,9 +49,31 @@ export function PropertyInsightsAspectTable({
   propertyId: string
   evidence: PropertyInsightsAspectEvidence
 }>) {
-  const { aspects } = evidence
-  const analyzedReviewCount = evidence.basis.analyzedReviewCount
+  const { aspects, aspectEvidenceState } = evidence
   const comparisonAvailable = evidence.range !== 'all'
+  if (aspectEvidenceState === 'predates_aspect_analysis') {
+    return (
+      <p className="text-sm text-muted-foreground">
+        These reviews were analysed before aspect analysis existed, so aspect mentions and
+        impact cannot be reported.
+      </p>
+    )
+  }
+  if (aspectEvidenceState === 'not_analyzed') {
+    return (
+      <p className="text-sm text-muted-foreground">
+        There are no analysed text reviews in this period, so aspect mentions and impact
+        cannot be reported.
+      </p>
+    )
+  }
+  if (aspectEvidenceState === 'no_mentions' || aspects.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No aspect mentions were identified among the analysed reviews in this period.
+      </p>
+    )
+  }
   const comparisonsByAspect =
     evidence.range === 'all'
       ? null
@@ -55,21 +83,6 @@ export function PropertyInsightsAspectTable({
             aspect.comparison,
           ]),
         )
-  if (analyzedReviewCount === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        There are no analysed text reviews in this period, so aspect mentions and impact
-        cannot be reported.
-      </p>
-    )
-  }
-  if (aspects.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        No aspect mentions were identified among the analysed reviews in this period.
-      </p>
-    )
-  }
 
   const busiest = aspects.reduce(
     (maximum, aspect) => Math.max(maximum, aspect.mentionCount),
@@ -211,12 +224,13 @@ export function PropertyInsightsEmergingIssues({
   evidence: PropertyInsightsIssueEvidence
 }>) {
   const issues = evidence.emergingIssues
-  const analyzedReviewCount = evidence.basis.analyzedReviewCount
+  const readyAnalysisCount =
+    evidence.basis.analyzedReviewCount + evidence.basis.preAspectAnalysisCount
   const comparisonsByIssue =
     evidence.range === 'all'
       ? null
       : new Map(evidence.emergingIssues.map((issue) => [issue.label, issue.comparison]))
-  if (analyzedReviewCount === 0) {
+  if (readyAnalysisCount === 0) {
     return (
       <p className="text-sm text-muted-foreground">
         There are no analysed text reviews in this period, so emerging issues cannot be

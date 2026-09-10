@@ -24,16 +24,22 @@ export function AspectBreakdownList({
   propertyId,
   aspects,
   reviewCount,
+  analyzedReviewCount,
+  preAspectAnalysisCount,
 }: Readonly<{
   propertyId: string
   aspects: readonly AiAspectAggregate[]
   reviewCount: number
+  analyzedReviewCount: number
+  preAspectAnalysisCount: number
 }>) {
   const present = aspects.filter((entry) => entry.mentionCount > 0)
   if (present.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        No aspect mentions in this period yet.
+        {analyzedReviewCount === 0 && preAspectAnalysisCount > 0
+          ? 'These reviews were analysed before aspect analysis existed, so aspect mentions and impact cannot be reported.'
+          : 'No aspect mentions in this period yet.'}
       </p>
     )
   }

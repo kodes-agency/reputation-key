@@ -7,7 +7,9 @@ import {
   aiExecutionControlTransitions,
   aiOperations,
   aiPropertyAggregateContributionAspects,
+  aiPropertyAggregateHeads,
   aiPropertyDailyAspectAggregates,
+  aiPropertyDailyAggregates,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
   aiReviewAnalysisAspects,
@@ -404,6 +406,12 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         ),
       )
     await db
+      .delete(aiPropertyDailyAggregates)
+      .where(eq(aiPropertyDailyAggregates.propertyId, PROPERTY_ID))
+    await db
+      .delete(aiPropertyAggregateHeads)
+      .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
+    await db
       .update(aiOperations)
       .set({ state: 'executing', updatedAt: NOW })
       .where(eq(aiOperations.id, OPERATION_ID))
@@ -583,6 +591,70 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         aspects: [{ aspect: ASPECT_TAXONOMY_V1[0], polarity: 'positive', intensity: 75 }],
       }),
     ])
+  })
+
+  it('reads current v1 analysis evidence that predates aspect children', async () => {
+    await expect(storeReviewA()).resolves.toBe(true)
+    const aggregates = createAiPropertyAggregateStoreAdapter(db)
+    await expect(
+      aggregates.applyReviewAnalysis({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_A_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: 1,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 1,
+        calendarProfileVersion: 'property-calendar-v1',
+      }),
+    ).resolves.toEqual({ status: 'applied', aggregateRevision: 1 })
+    await expect(
+      aggregates.advanceWithoutAnalysis({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        reviewAnalysisEpoch: 1,
+        analysisSequence: 2,
+        propertyProfileVersion: 1,
+        dispositionCode: 'provider_deleted',
+      }),
+    ).resolves.toEqual({ status: 'applied', aggregateRevision: 2 })
+
+    await db
+      .update(aiReviewAnalyses)
+      .set({ analysisProfileVersion: 'review-analysis-v1' })
+      .where(eq(aiReviewAnalyses.reviewId, REVIEW_A_ID))
+    await db
+      .delete(aiReviewAnalysisAspects)
+      .where(eq(aiReviewAnalysisAspects.reviewId, REVIEW_A_ID))
+    await db
+      .delete(aiPropertyAggregateContributionAspects)
+      .where(eq(aiPropertyAggregateContributionAspects.reviewId, REVIEW_A_ID))
+    await db
+      .delete(aiPropertyDailyAspectAggregates)
+      .where(eq(aiPropertyDailyAspectAggregates.propertyId, PROPERTY_ID))
+
+    await expect(
+      aggregates.readWindow({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 1,
+        startLocalDate: '2026-09-07',
+        endLocalDate: '2026-09-07',
+      }),
+    ).resolves.toMatchObject({
+      days: [{ localDate: '2026-09-07', aspectCounts: [] }],
+      analyzedReviews: [
+        {
+          reviewId: REVIEW_A_ID,
+          analysisProfileVersion: 'review-analysis-v1',
+          aspects: [],
+        },
+      ],
+    })
   })
 
   it('rejects an analysis after the review is pinned to a newer sequence', async () => {
