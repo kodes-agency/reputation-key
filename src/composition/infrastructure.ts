@@ -12,6 +12,7 @@ export type InfrastructureBuildInput = Readonly<{
   enableJobs: boolean
   queue?: Queue
   backgroundQueue?: Queue
+  domainEventsQueue?: Queue
 }>
 
 export type Infrastructure = Readonly<{
@@ -19,6 +20,7 @@ export type Infrastructure = Readonly<{
   rateLimiter: RateLimiter
   jobQueue: Queue | undefined
   backgroundQueue: Queue | undefined
+  domainEventsQueue: Queue | undefined
   jobRegistry: JobRegistry
 }>
 
@@ -35,12 +37,16 @@ export function buildInfrastructure(options: InfrastructureBuildInput): Infrastr
   const backgroundQueue =
     options.backgroundQueue ??
     (options.enableJobs && options.redis ? createJobQueue('background') : undefined)
+  const domainEventsQueue =
+    options.domainEventsQueue ??
+    (options.redis ? createJobQueue('domain-events') : undefined)
 
   return Object.freeze({
     cache,
     rateLimiter,
     jobQueue,
     backgroundQueue,
+    domainEventsQueue,
     jobRegistry: createJobRegistry(),
   })
 }

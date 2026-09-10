@@ -50,6 +50,13 @@
       "when": 1789026385000,
       "tag": "0006_reset_analysis_watermark_on_epoch",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789034776000,
+      "tag": "0007_ai_backfill_chain_lookup",
+      "breakpoints": true
     }
   ]
 }

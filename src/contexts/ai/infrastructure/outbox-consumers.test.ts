@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import type { OutboxRepository } from '#/shared/outbox'
-import { DISPATCH_JOB_OPTIONS } from '#/shared/outbox/relay'
+import { DISPATCH_JOB_OPTIONS } from '#/shared/outbox/dispatch-job-options'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import {
   AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
@@ -24,7 +24,11 @@ const ORGANIZATION_ID = 'ai-review-consumer-test'
 const RECORDED_AT = '2026-08-16T12:00:00.000Z'
 
 function event(
-  eventType: 'review.created' | 'review.updated' | 'review.source_transitioned',
+  eventType:
+    | 'review.created'
+    | 'review.updated'
+    | 'review.source_transitioned'
+    | 'ai.review_analysis.backfill_requested',
   change?: 'source_expired' | 'provider_deleted',
 ): ConsumerEvent {
   return {
@@ -52,6 +56,7 @@ function harness(result: AnalyzeReviewEventResult) {
   const analyzeReviewEvent = vi.fn(async () => result)
   const enqueuePropertyTrend = vi.fn(async () => {})
   const insertReceipt = vi.fn(async () => {})
+  const advanceReviewAnalysisBackfill = vi.fn(async () => ({ status: 'enqueued' }))
   const applyAiAuthorizationLifecycle = vi.fn<
     NonNullable<RegisterAiConsumersInput['applyAiAuthorizationLifecycle']>
   >(async () => ({
@@ -87,6 +92,7 @@ function harness(result: AnalyzeReviewEventResult) {
   const dependencies = {
     analyzeReviewEvent,
     enqueuePropertyTrend,
+    advanceReviewAnalysisBackfill,
     applyAiAuthorizationLifecycle,
     receipts: { insertReceipt } as unknown as OutboxRepository,
   } satisfies RegisterAiConsumersInput
@@ -94,6 +100,7 @@ function harness(result: AnalyzeReviewEventResult) {
     dependencies,
     analyzeReviewEvent,
     enqueuePropertyTrend,
+    advanceReviewAnalysisBackfill,
     applyAiAuthorizationLifecycle,
     insertReceipt,
   }
@@ -148,6 +155,29 @@ describe('AI review outbox consumer', () => {
       EVENT_ID,
       AI_REVIEW_ANALYSIS_CONSUMER,
       'applied',
+    )
+  })
+
+  it('wakes a backfill successor only after the settlement receipt commits', async () => {
+    const test = harness({ status: 'completed' })
+    const backfill = {
+      ...event('ai.review_analysis.backfill_requested'),
+      correlationId: '71000000-0000-4000-8000-000000000204',
+    }
+
+    await expect(handleAiReviewEvent(test.dependencies, backfill)).resolves.toEqual({
+      status: 'applied',
+    })
+
+    expect(test.advanceReviewAnalysisBackfill).toHaveBeenCalledWith({
+      eventId: EVENT_ID,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      correlationId: '71000000-0000-4000-8000-000000000204',
+      analysisSequence: 7,
+    })
+    expect(test.insertReceipt.mock.invocationCallOrder[0]).toBeLessThan(
+      test.advanceReviewAnalysisBackfill.mock.invocationCallOrder[0]!,
     )
   })
 
