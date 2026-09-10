@@ -36,11 +36,16 @@ export type AiPropertyInsightsRatingBucket = Readonly<{
   count: number
 }>
 
+export type AiPropertyInsightAspectEvidenceState =
+  'available' | 'no_mentions' | 'predates_aspect_analysis' | 'not_analyzed'
+
 export type AiPropertyInsightsBasis = Readonly<{
   reviewCount: number
-  /** Ready analyses whose aspects contribute to this report. */
+  /** Ready analyses with aspect evidence that contributes to this report. */
   analyzedReviewCount: number
-  /** Ready and unavailable current analyses, for explicit coverage reporting. */
+  /** Ready v1-era analyses that predate aspect extraction. */
+  preAspectAnalysisCount: number
+  /** All ready and unavailable current analyses, for explicit coverage reporting. */
   currentAnalysisCount: number
   starOnlyCount: number
   notAnalyzableCount: number
@@ -99,6 +104,7 @@ type AiPropertyInsightsReadyBase = Readonly<{
   dataThroughLocalDate: string
   impactVersion: typeof ASPECT_IMPACT_VERSION
   basis: AiPropertyInsightsBasis
+  aspectEvidenceState: AiPropertyInsightAspectEvidenceState
   weeklyAspectSeries: readonly AiPropertyInsightWeeklySeries[]
 }>
 
@@ -188,6 +194,7 @@ function summarizeWindow(
   const ratingCounts = [0, 0, 0, 0, 0]
   const analyzed: AiPropertyAnalyzedReview[] = []
   let starOnlyCount = 0
+  let preAspectAnalysisCount = 0
   let notAnalyzableCount = 0
   let awaitingAnalysisCount = 0
 
@@ -202,6 +209,7 @@ function summarizeWindow(
     const ready = analyzedByVersion.get(key)
     if (ready !== undefined && ready.localDate === review.localDate) {
       analyzed.push(ready)
+      if (ready.aspects.length === 0) preAspectAnalysisCount += 1
       continue
     }
     const unavailable = unavailableByVersion.get(key)
@@ -212,9 +220,14 @@ function summarizeWindow(
     awaitingAnalysisCount += 1
   }
 
+  const analyzedReviewCount = analyzed.length - preAspectAnalysisCount
   const currentAnalysisCount = analyzed.length + notAnalyzableCount
   if (
-    analyzed.length + starOnlyCount + notAnalyzableCount + awaitingAnalysisCount !==
+    analyzedReviewCount +
+      preAspectAnalysisCount +
+      starOnlyCount +
+      notAnalyzableCount +
+      awaitingAnalysisCount !==
     reviews.length
   ) {
     throw new Error('Property insights basis does not account for every Review')
@@ -224,7 +237,8 @@ function summarizeWindow(
   return Object.freeze({
     basis: Object.freeze({
       reviewCount: reviews.length,
-      analyzedReviewCount: analyzed.length,
+      analyzedReviewCount,
+      preAspectAnalysisCount,
       currentAnalysisCount,
       starOnlyCount,
       notAnalyzableCount,
@@ -237,6 +251,16 @@ function summarizeWindow(
     }),
     analyzed: Object.freeze(analyzed),
   })
+}
+
+function resolveAspectEvidenceState(
+  basis: AiPropertyInsightsBasis,
+  aspects: readonly AiPropertyInsightAspect[],
+): AiPropertyInsightAspectEvidenceState {
+  if (basis.analyzedReviewCount === 0) {
+    return basis.preAspectAnalysisCount > 0 ? 'predates_aspect_analysis' : 'not_analyzed'
+  }
+  return aspects.some((aspect) => aspect.mentionCount > 0) ? 'available' : 'no_mentions'
 }
 
 function aggregateAspects(
@@ -547,6 +571,7 @@ async function readAllTimeInsights(
     dataThroughLocalDate: endLocalDate,
     impactVersion: ASPECT_IMPACT_VERSION,
     basis: current.basis,
+    aspectEvidenceState: resolveAspectEvidenceState(current.basis, aspects),
     aspects,
     weeklyAspectSeries: weeklySeries(currentPeriod, current.analyzed, aspects),
     emergingIssues: allTimeEmergingIssues(current.analyzed),
@@ -608,6 +633,7 @@ async function readPresetInsights(
     impactVersion: ASPECT_IMPACT_VERSION,
     basis: current.basis,
     aspects,
+    aspectEvidenceState: resolveAspectEvidenceState(current.basis, aspects),
     weeklyAspectSeries: weeklySeries(currentPeriod, current.analyzed, aspects),
     emergingIssues: compareEmergingIssues(current.analyzed, preceding.analyzed),
   })

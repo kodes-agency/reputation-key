@@ -119,7 +119,8 @@ function PropertyInsightsBasisLine({
   return (
     <p className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
       Based on {pluralized(basis.reviewCount, 'review')} · {basis.analyzedReviewCount}{' '}
-      analysed · {basis.starOnlyCount} star-only · {basis.notAnalyzableCount} not
+      analysed with aspects · {basis.preAspectAnalysisCount} analysed before aspect
+      analysis existed · {basis.starOnlyCount} star-only · {basis.notAnalyzableCount} not
       analysable in a supported language · {basis.awaitingAnalysisCount} awaiting analysis
       ·{' '}
       {retentionLimited
@@ -186,7 +187,8 @@ function PropertyInsightsRatingDistribution({
           <h2 id="insights-rating-distribution-title">Rating distribution</h2>
         </CardTitle>
         <CardDescription>
-          Star-only reviews are included here and excluded from aspect counts.
+          Every review in the basis is included here. Star-only reviews and reviews that
+          predate aspect analysis do not contribute to aspect counts.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -269,7 +271,7 @@ export function PropertyInsightsReport({
               <CardContent>
                 <PropertyInsightsWeeklyChart
                   series={result.weeklyAspectSeries}
-                  analyzedReviewCount={result.basis.analyzedReviewCount}
+                  aspectEvidenceState={result.aspectEvidenceState}
                 />
               </CardContent>
             </Card>

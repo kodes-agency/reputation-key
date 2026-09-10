@@ -8,7 +8,10 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '#/components/ui/chart'
-import type { AiPropertyInsightWeeklySeries } from '#/contexts/ai/application/public-api'
+import type {
+  AiPropertyInsightAspectEvidenceState,
+  AiPropertyInsightWeeklySeries,
+} from '#/contexts/ai/application/public-api'
 import { ASPECT_LABELS } from '#/shared/aspect-labels'
 
 const SERIES_COLORS = [
@@ -21,15 +24,23 @@ const SERIES_COLORS = [
 
 export function PropertyInsightsWeeklyChart({
   series,
-  analyzedReviewCount,
+  aspectEvidenceState,
 }: Readonly<{
   series: readonly AiPropertyInsightWeeklySeries[]
-  analyzedReviewCount: number
+  aspectEvidenceState: AiPropertyInsightAspectEvidenceState
 }>) {
   const titleId = useId()
   const descriptionId = useId()
 
-  if (analyzedReviewCount === 0) {
+  if (aspectEvidenceState === 'predates_aspect_analysis') {
+    return (
+      <p className="text-sm text-muted-foreground">
+        These reviews were analysed before aspect analysis existed, so no weekly aspect
+        trend can be plotted.
+      </p>
+    )
+  }
+  if (aspectEvidenceState === 'not_analyzed') {
     return (
       <p className="text-sm text-muted-foreground">
         There are no analysed text reviews in this period, so weekly aspect trends cannot
@@ -37,7 +48,7 @@ export function PropertyInsightsWeeklyChart({
       </p>
     )
   }
-  if (series.length === 0) {
+  if (aspectEvidenceState === 'no_mentions' || series.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
         No weekly aspect trend can be plotted because no aspect mentions were identified

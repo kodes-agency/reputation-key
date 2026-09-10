@@ -68,6 +68,18 @@ function analyzedReview(
   })
 }
 
+function preAspectAnalyzedReview(
+  sequence: number,
+  localDate: string,
+  rating: number,
+): AiPropertyAnalyzedReview {
+  return Object.freeze({
+    ...analyzedReview(sequence, localDate, { rating }),
+    aspects: Object.freeze([]),
+    analysisProfileVersion: 'review-analysis-v1',
+  })
+}
+
 function unavailableReview(
   sequence: number,
   localDate: string,
@@ -240,6 +252,7 @@ describe('readPropertyInsights evidence', () => {
     expect(result.basis).toEqual({
       reviewCount: 4,
       analyzedReviewCount: 1,
+      preAspectAnalysisCount: 0,
       currentAnalysisCount: 2,
       starOnlyCount: 1,
       notAnalyzableCount: 1,
@@ -252,6 +265,40 @@ describe('readPropertyInsights evidence', () => {
         { stars: 5, count: 1 },
       ],
     })
+  })
+
+  it('separates v1 evidence and marks an aspect-only gap as predating analysis', async () => {
+    const review = populationReview(1, '2026-08-20', { rating: 5 })
+    const { read } = harness({
+      population: { status: 'complete', reviews: [review] },
+      aggregate: {
+        head: {},
+        days: [],
+        analyzedReviews: [preAspectAnalyzedReview(1, '2026-08-20', 5)],
+        unavailableReviews: [],
+      },
+    })
+
+    const result = await read(input)
+    if (result.status !== 'ready') throw new Error('expected ready insights')
+    expect(result.basis).toEqual({
+      reviewCount: 1,
+      analyzedReviewCount: 0,
+      preAspectAnalysisCount: 1,
+      currentAnalysisCount: 1,
+      starOnlyCount: 0,
+      notAnalyzableCount: 0,
+      awaitingAnalysisCount: 0,
+      ratingDistribution: [
+        { stars: 1, count: 0 },
+        { stars: 2, count: 0 },
+        { stars: 3, count: 0 },
+        { stars: 4, count: 0 },
+        { stars: 5, count: 1 },
+      ],
+    })
+    expect(result.aspectEvidenceState).toBe('predates_aspect_analysis')
+    expect(result.aspects).toEqual([])
   })
 
   it('aggregates fixed aspect-impact-v1 evidence at read time and compares periods', async () => {

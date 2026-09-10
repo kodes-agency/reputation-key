@@ -236,6 +236,50 @@ describe('readPropertyAggregates summary', () => {
     ])
   })
 
+  it('separates v1 reviews that predate aspect extraction', async () => {
+    const legacyReview = {
+      ...analyzedReview(2, {
+        rating: 4,
+        aspect: 'service',
+        polarity: 'positive',
+        intensity: 80,
+      }),
+      aspects: [],
+      analysisProfileVersion: 'review-analysis-v1',
+    }
+    const { read } = harness({
+      window: {
+        head: {},
+        days: [
+          day('2026-08-20', {
+            reviewCount: 2,
+            positive: 2,
+            negative: 0,
+            aspectCounts: [{ aspect: 'service', polarity: 'positive', count: 1 }],
+          }),
+        ],
+        analyzedReviews: [
+          analyzedReview(1, {
+            rating: 5,
+            aspect: 'service',
+            polarity: 'positive',
+            intensity: 100,
+          }),
+          legacyReview,
+        ],
+      },
+    })
+
+    const result = await read(input)
+    expect(result).toMatchObject({
+      status: 'ready',
+      reviewCount: 2,
+      analyzedReviewCount: 1,
+      preAspectAnalysisCount: 1,
+      aspects: [{ aspect: 'service', polarity: 'positive', mentionCount: 1 }],
+    })
+  })
+
   it('breaks aspect count and issue ties by stable identity', async () => {
     const { read } = harness({
       window: {

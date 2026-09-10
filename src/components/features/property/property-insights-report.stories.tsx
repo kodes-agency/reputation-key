@@ -29,9 +29,11 @@ const populated: AiPropertyInsightsPresetReady = {
   },
   dataThroughLocalDate: '2026-09-10',
   impactVersion: 'aspect-impact-v1',
+  aspectEvidenceState: 'available',
   basis: {
     reviewCount: 120,
     analyzedReviewCount: 96,
+    preAspectAnalysisCount: 0,
     currentAnalysisCount: 102,
     starOnlyCount: 18,
     notAnalyzableCount: 6,
@@ -157,6 +159,7 @@ const allTime: Extract<AiPropertyInsightsRead, { status: 'ready'; range: 'all' }
   dataThroughLocalDate: populated.dataThroughLocalDate,
   impactVersion: populated.impactVersion,
   basis: populated.basis,
+  aspectEvidenceState: populated.aspectEvidenceState,
   aspects: populated.aspects.map(({ aspect, polarity, mentionCount, impact }) => ({
     aspect,
     polarity,
@@ -335,6 +338,7 @@ export const AllTimeAnalyzedWithoutMentions: Story = {
         basis: {
           reviewCount: 12,
           analyzedReviewCount: 12,
+          preAspectAnalysisCount: 0,
           currentAnalysisCount: 12,
           starOnlyCount: 0,
           notAnalyzableCount: 0,
@@ -347,6 +351,7 @@ export const AllTimeAnalyzedWithoutMentions: Story = {
             { stars: 5, count: 5 },
           ],
         },
+        aspectEvidenceState: 'no_mentions',
         aspects: [],
         weeklyAspectSeries: [],
         emergingIssues: [],
@@ -365,6 +370,52 @@ export const AllTimeAnalyzedWithoutMentions: Story = {
   },
 }
 
+export const AllTimePredatesAspectAnalysis: Story = {
+  render: () => (
+    <ReportHarness
+      result={{
+        ...allTime,
+        basis: {
+          reviewCount: 12,
+          analyzedReviewCount: 0,
+          preAspectAnalysisCount: 12,
+          currentAnalysisCount: 12,
+          starOnlyCount: 0,
+          notAnalyzableCount: 0,
+          awaitingAnalysisCount: 0,
+          ratingDistribution: [
+            { stars: 1, count: 1 },
+            { stars: 2, count: 1 },
+            { stars: 3, count: 2 },
+            { stars: 4, count: 3 },
+            { stars: 5, count: 5 },
+          ],
+        },
+        aspectEvidenceState: 'predates_aspect_analysis',
+        aspects: [],
+        weeklyAspectSeries: [],
+        emergingIssues: [],
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = await selectedAllTimeCanvas(canvasElement)
+    expect(
+      await canvas.findByText(/12 analysed before aspect analysis existed/),
+    ).toBeVisible()
+    expect(
+      await canvas.findByText(
+        /These reviews were analysed before aspect analysis existed, so aspect mentions and impact cannot be reported/,
+      ),
+    ).toBeVisible()
+    expect(
+      await canvas.findByText(
+        /These reviews were analysed before aspect analysis existed, so no weekly aspect trend can be plotted/,
+      ),
+    ).toBeVisible()
+  },
+}
+
 export const AllReviewsAreStarOnly: Story = {
   render: () => (
     <ReportHarness
@@ -373,6 +424,7 @@ export const AllReviewsAreStarOnly: Story = {
         basis: {
           reviewCount: 12,
           analyzedReviewCount: 0,
+          preAspectAnalysisCount: 0,
           currentAnalysisCount: 0,
           starOnlyCount: 12,
           notAnalyzableCount: 0,
@@ -385,6 +437,7 @@ export const AllReviewsAreStarOnly: Story = {
             { stars: 5, count: 5 },
           ],
         },
+        aspectEvidenceState: 'not_analyzed',
         aspects: [],
         weeklyAspectSeries: [],
         emergingIssues: [],
@@ -396,7 +449,7 @@ export const AllReviewsAreStarOnly: Story = {
     expect(await canvas.findByText(/12 star-only/)).toBeVisible()
     expect(
       await canvas.findByText(
-        'Star-only reviews are included here and excluded from aspect counts.',
+        'Every review in the basis is included here. Star-only reviews and reviews that predate aspect analysis do not contribute to aspect counts.',
       ),
     ).toBeVisible()
     // Each unavailable section is independently asserted because omitting any one
