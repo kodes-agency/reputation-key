@@ -372,6 +372,7 @@ describe.sequential('reviewRepository (integration)', () => {
             analysisSequence: 11,
             localDate: '2026-08-16',
             hasText: true,
+            rating: 5,
           },
           {
             reviewId: reviewId('1a000000-0000-0000-0000-0000000000a2'),
@@ -379,6 +380,7 @@ describe.sequential('reviewRepository (integration)', () => {
             analysisSequence: 12,
             localDate: '2026-08-16',
             hasText: false,
+            rating: 5,
           },
         ],
       })

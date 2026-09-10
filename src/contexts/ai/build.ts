@@ -26,6 +26,7 @@ import {
   createReadReviewAnalysis,
 } from './application/use-cases/read-ai-insights'
 import { createReadPropertyAggregates } from './application/use-cases/read-property-aggregates'
+import { createReadPropertyInsights } from './application/use-cases/read-property-insights'
 import { createAiAuthorizationAdapter } from './infrastructure/adapters/ai-authorization.adapter'
 import { createAiControlAdapter } from './infrastructure/adapters/ai-control.adapter'
 import { createAiOperationStoreAdapter } from './infrastructure/adapters/ai-operation-store.adapter'
@@ -242,6 +243,12 @@ export const buildAiContext = (input: AiContextBuildInput) => {
         ...readDependencies,
         aggregates,
         calendar,
+      }),
+      readPropertyInsights: createReadPropertyInsights({
+        ...readDependencies,
+        aggregates,
+        calendar,
+        reviewSources: input.reviewSources,
       }),
     }),
     // LIF-01: the Organization Export contribution the Identity bundle builder

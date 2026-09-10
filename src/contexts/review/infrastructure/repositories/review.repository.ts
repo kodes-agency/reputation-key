@@ -27,7 +27,7 @@ import {
 import type { Database } from '#/shared/db'
 import { reviews, reviewProviderSubjects } from '#/shared/db/schema/review.schema'
 import type { ReviewRepository } from '../../application/ports/review.repository'
-import type { Review, ReviewPlatform } from '../../domain/types'
+import type { Review, ReviewPlatform, StarRating } from '../../domain/types'
 import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { reviewFromRow, reviewToRow } from '../mappers/review.mapper'
@@ -47,6 +47,21 @@ import type { ReviewProviderObservationOrigin } from '../../application/ports/re
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
 const MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1 = 16_384
 const MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1 = 65_536
+
+const INSIGHTS_READ_BUDGET_MS = 5_000
+
+async function withStatementTimeout<T>(
+  db: Database,
+  budgetMs: number,
+  read: (transaction: Database) => Promise<T>,
+): Promise<T> {
+  return db.transaction(async (transaction) => {
+    await transaction.execute(
+      sql`SELECT set_config('statement_timeout', ${String(budgetMs)}, true)`,
+    )
+    return read(transaction as unknown as Database)
+  })
+}
 
 function parseSafeNonnegativeInteger(value: unknown): number | null {
   try {
@@ -298,13 +313,18 @@ export const createReviewRepository = (
         return { status: 'policy_unavailable' as const }
       }
       try {
-        const result = await db.execute(sql<{
-          reviewId: string
-          sourceRevision: number | string
-          analysisSequence: number | string
-          localDate: string
-          hasText: boolean
-        }>`
+        const result = await withStatementTimeout(
+          db,
+          INSIGHTS_READ_BUDGET_MS,
+          (transaction) =>
+            transaction.execute(sql<{
+              reviewId: string
+              sourceRevision: number | string
+              analysisSequence: number | string
+              localDate: string
+              hasText: boolean
+              rating: number
+            }>`
           WITH captured AS (
             SELECT transaction_timestamp() AS now
           )
@@ -316,7 +336,8 @@ export const createReviewRepository = (
               source."reviewed_at",
               ${input.timezone}
             )::text AS "localDate",
-            NULLIF(btrim(source."text"), '') IS NOT NULL AS "hasText"
+            NULLIF(btrim(source."text"), '') IS NOT NULL AS "hasText",
+            source."rating" AS rating
           FROM "reviews" AS review
           INNER JOIN "review_source_contents" AS source
             ON source."organization_id" = review."organization_id"
@@ -336,7 +357,8 @@ export const createReviewRepository = (
             ) BETWEEN ${input.startLocalDate}::date AND ${input.endLocalDate}::date
           ORDER BY source."reviewed_at", review."id"
           LIMIT ${input.limit}
-        `)
+            `),
+        )
         if (result.rows.length >= input.limit) {
           return { status: 'limit_exceeded' as const }
         }
@@ -350,7 +372,11 @@ export const createReviewRepository = (
             typeof row.reviewId !== 'string' ||
             typeof row.localDate !== 'string' ||
             !/^\d{4}-\d{2}-\d{2}$/.test(row.localDate) ||
-            typeof row.hasText !== 'boolean'
+            typeof row.hasText !== 'boolean' ||
+            typeof row.rating !== 'number' ||
+            !Number.isInteger(row.rating) ||
+            row.rating < 1 ||
+            row.rating > 5
           ) {
             return { status: 'policy_unavailable' as const }
           }
@@ -361,6 +387,7 @@ export const createReviewRepository = (
               analysisSequence,
               localDate: row.localDate,
               hasText: row.hasText,
+              rating: row.rating as StarRating,
             }),
           )
         }

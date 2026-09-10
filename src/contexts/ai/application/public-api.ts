@@ -8,6 +8,21 @@ export type {
   AiSentimentDay,
 } from './use-cases/read-property-aggregates'
 
+export {
+  PROPERTY_INSIGHTS_RANGE_DAYS,
+  isPropertyInsightsRangeDays,
+} from './use-cases/read-property-insights'
+export type {
+  AiPropertyInsightAspect,
+  AiPropertyInsightIssue,
+  AiPropertyInsightsBasis,
+  AiPropertyInsightsRatingBucket,
+  AiPropertyInsightsRead,
+  AiPropertyInsightWeeklyPoint,
+  AiPropertyInsightWeeklySeries,
+  PropertyInsightsRangeDays,
+} from './use-cases/read-property-insights'
+
 export type {
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,

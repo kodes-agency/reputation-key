@@ -56,6 +56,7 @@ function populationReview(localDate: string, sequence: number, hasText = true) {
     analysisSequence: sequence,
     localDate,
     hasText,
+    rating: 5 as const,
   }
 }
 

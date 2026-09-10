@@ -62,6 +62,15 @@ export type AiPropertyAnalyzedReview = Readonly<{
   modelSnapshot: string
 }>
 
+export type AiPropertyUnavailableReview = Readonly<{
+  reviewId: ReviewId
+  sourceRevision: number
+  analysisSequence: number
+  localDate: string
+  rating: number
+  reason: 'language_not_supported'
+}>
+
 export type AiPropertyAggregateStorePort = Readonly<{
   applyReviewAnalysis(
     input: Readonly<{
@@ -112,5 +121,6 @@ export type AiPropertyAggregateStorePort = Readonly<{
     head: AiPropertyAggregateHead
     days: readonly AiPropertyDailyAggregate[]
     analyzedReviews: readonly AiPropertyAnalyzedReview[]
+    unavailableReviews: readonly AiPropertyUnavailableReview[]
   }> | null>
 }>

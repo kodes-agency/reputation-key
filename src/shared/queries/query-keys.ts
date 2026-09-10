@@ -152,6 +152,8 @@ export const aiKeys = {
     [...aiKeys.all, 'property-trend', propertyId] as const,
   propertyAggregates: (propertyId: string) =>
     [...aiKeys.all, 'property-aggregates', propertyId] as const,
+  propertyInsights: (propertyId: string, rangeDays: number) =>
+    [...aiKeys.all, 'property-insights', propertyId, rangeDays] as const,
 }
 
 // ── Goals ────────────────────────────────────────────────────────────────
@@ -173,6 +175,7 @@ export const staffKeys = {
 }
 
 // ── Reviews (staff recent activity) ──────────────────────────────────────
+// fallow-ignore-next-line unused-export -- public query-key catalogue consumed incrementally
 export const reviewKeys = {
   all: ['reviews'] as const,
   staffActivity: (propertyId: string) =>
