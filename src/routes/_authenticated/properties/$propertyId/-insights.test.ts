@@ -50,6 +50,7 @@ describe('Property Insights route', () => {
     expect(propertyInsightsSearchSchema.parse({ range: '30' })).toEqual({ range: 30 })
     expect(propertyInsightsSearchSchema.parse({ range: 90 })).toEqual({ range: 90 })
     expect(propertyInsightsSearchSchema.parse({ range: '180' })).toEqual({ range: 180 })
+    expect(propertyInsightsSearchSchema.parse({ range: 'all' })).toEqual({ range: 'all' })
   })
 
   it('primes the range-specific single-property query', async () => {
@@ -60,7 +61,7 @@ describe('Property Insights route', () => {
 
     await loader({
       params: { propertyId: PROPERTY_ID },
-      deps: { range: 180 },
+      deps: { range: 'all' },
       context: {
         queryClient: {
           ensureQueryData: async (options: { queryFn: () => Promise<unknown> }) =>
@@ -70,7 +71,7 @@ describe('Property Insights route', () => {
     } as never)
 
     expect(server.getPropertyInsights).toHaveBeenCalledWith({
-      data: { propertyId: PROPERTY_ID, rangeDays: 180 },
+      data: { propertyId: PROPERTY_ID, range: 'all' },
     })
   })
 
@@ -80,6 +81,9 @@ describe('Property Insights route', () => {
     )
     expect(propertyInsightsQuery(PROPERTY_ID, 90).queryKey).not.toEqual(
       propertyInsightsQuery(PROPERTY_ID, 180).queryKey,
+    )
+    expect(propertyInsightsQuery(PROPERTY_ID, 180).queryKey).not.toEqual(
+      propertyInsightsQuery(PROPERTY_ID, 'all').queryKey,
     )
   })
 })

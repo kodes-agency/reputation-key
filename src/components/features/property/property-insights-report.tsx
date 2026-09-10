@@ -20,11 +20,11 @@ import { RatingDistributionChart } from '#/components/features/shared/rating-dis
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
 import {
-  PROPERTY_INSIGHTS_RANGE_DAYS,
-  isPropertyInsightsRangeDays,
+  PROPERTY_INSIGHTS_RANGES,
+  isPropertyInsightsRange,
   type AiPropertyInsightsBasis,
   type AiPropertyInsightsRead,
-  type PropertyInsightsRangeDays,
+  type PropertyInsightsRange,
 } from '#/contexts/ai/application/public-api'
 import {
   PropertyInsightsAspectTable,
@@ -32,10 +32,11 @@ import {
 } from './property-insights-aspect-table'
 import { PropertyInsightsWeeklyChart } from './property-insights-weekly-chart'
 
-const RANGE_LABELS: Readonly<Record<PropertyInsightsRangeDays, string>> = {
+const RANGE_LABELS: Readonly<Record<PropertyInsightsRange, string>> = {
   30: '30 days',
   90: '90 days',
   180: '180 days',
+  all: 'All Time',
 }
 
 function pluralized(count: number, singular: string, plural = `${singular}s`): string {
@@ -52,20 +53,20 @@ function formatLocalDate(localDate: string): string {
 }
 
 function PropertyInsightsRangeControl({
-  rangeDays,
+  range,
   onRangeChange,
 }: Readonly<{
-  rangeDays: PropertyInsightsRangeDays
-  onRangeChange: (rangeDays: PropertyInsightsRangeDays) => void
+  range: PropertyInsightsRange
+  onRangeChange: (range: PropertyInsightsRange) => void
 }>) {
   return (
     <>
       <div className="sm:hidden">
         <Select
-          value={String(rangeDays)}
+          value={String(range)}
           onValueChange={(value) => {
-            const parsed = Number(value)
-            if (isPropertyInsightsRangeDays(parsed)) onRangeChange(parsed)
+            const parsed = value === 'all' ? value : Number(value)
+            if (isPropertyInsightsRange(parsed)) onRangeChange(parsed)
           }}
         >
           <SelectTrigger aria-label="Insights range" className="min-h-11 min-w-32">
@@ -73,9 +74,9 @@ function PropertyInsightsRangeControl({
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              {PROPERTY_INSIGHTS_RANGE_DAYS.map((range) => (
-                <SelectItem key={range} value={String(range)}>
-                  {RANGE_LABELS[range]}
+              {PROPERTY_INSIGHTS_RANGES.map((option) => (
+                <SelectItem key={option} value={String(option)}>
+                  {RANGE_LABELS[option]}
                 </SelectItem>
               ))}
             </SelectGroup>
@@ -87,16 +88,16 @@ function PropertyInsightsRangeControl({
         aria-label="Insights range"
         className="hidden items-center gap-1 sm:flex"
       >
-        {PROPERTY_INSIGHTS_RANGE_DAYS.map((range) => (
+        {PROPERTY_INSIGHTS_RANGES.map((option) => (
           <Button
-            key={range}
+            key={option}
             type="button"
             className="h-11 min-w-20"
-            variant={rangeDays === range ? 'secondary' : 'ghost'}
-            aria-pressed={rangeDays === range}
-            onClick={() => onRangeChange(range)}
+            variant={range === option ? 'secondary' : 'ghost'}
+            aria-pressed={range === option}
+            onClick={() => onRangeChange(option)}
           >
-            {RANGE_LABELS[range]}
+            {RANGE_LABELS[option]}
           </Button>
         ))}
       </div>
@@ -104,54 +105,33 @@ function PropertyInsightsRangeControl({
   )
 }
 
-function PropertyInsightsHeader({
-  propertyName,
-  rangeDays,
-  onRangeChange,
-}: Readonly<{
-  propertyName: string
-  rangeDays: PropertyInsightsRangeDays
-  onRangeChange: (rangeDays: PropertyInsightsRangeDays) => void
-}>) {
-  return (
-    <PageHeader
-      title={`${propertyName} insights`}
-      description="What guests praise, what needs attention, and how the picture is changing."
-      actions={
-        <PropertyInsightsRangeControl
-          rangeDays={rangeDays}
-          onRangeChange={onRangeChange}
-        />
-      }
-    />
-  )
-}
-
 function PropertyInsightsBasisLine({
   basis,
+  startLocalDate,
   dataThroughLocalDate,
 }: Readonly<{
   basis: AiPropertyInsightsBasis
+  startLocalDate: string
   dataThroughLocalDate: string
 }>) {
   return (
     <p className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
       Based on {pluralized(basis.reviewCount, 'review')} · {basis.analyzedReviewCount}{' '}
-      analysed · {basis.starOnlyCount} star-only
-      {basis.notAnalyzableCount > 0 && (
-        <> · {basis.notAnalyzableCount} not analysable in a supported language</>
-      )}
-      {basis.awaitingAnalysisCount > 0 && (
-        <> · {basis.awaitingAnalysisCount} awaiting analysis</>
-      )}{' '}
-      · data through {formatLocalDate(dataThroughLocalDate)}
+      analysed · {basis.starOnlyCount} star-only · {basis.notAnalyzableCount} not
+      analysable in a supported language · {basis.awaitingAnalysisCount} awaiting analysis
+      · window starts {formatLocalDate(startLocalDate)} · data through{' '}
+      {formatLocalDate(dataThroughLocalDate)}
     </p>
   )
 }
 
 function ReportState({
   status,
-}: Readonly<{ status: 'disabled' | 'preparing' | 'insufficient_data' }>) {
+  range,
+}: Readonly<{
+  status: 'disabled' | 'preparing' | 'insufficient_data'
+  range: PropertyInsightsRange
+}>) {
   if (status === 'disabled') {
     return (
       <Alert>
@@ -177,10 +157,15 @@ function ReportState({
   return (
     <Alert>
       <SearchX aria-hidden="true" />
-      <AlertTitle>Not enough review evidence in this period</AlertTitle>
+      <AlertTitle>
+        {range === 'all'
+          ? 'Not enough review evidence in the available history'
+          : 'Not enough review evidence in this period'}
+      </AlertTitle>
       <AlertDescription>
-        No reviews were found in the selected period. Choose a longer range to look
-        further back.
+        {range === 'all'
+          ? 'No reviews were found in the available history.'
+          : 'No reviews were found in the selected period. Choose a longer range to look further back.'}
       </AlertDescription>
     </Alert>
   )
@@ -200,10 +185,12 @@ function PropertyInsightsRatingDistribution({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <RatingDistributionChart
-          distribution={basis.ratingDistribution}
-          labelledBy="insights-rating-distribution-title"
-        />
+        <div className="mx-auto w-full max-w-3xl">
+          <RatingDistributionChart
+            distribution={basis.ratingDistribution}
+            labelledBy="insights-rating-distribution-title"
+          />
+        </div>
       </CardContent>
     </Card>
   )
@@ -212,30 +199,33 @@ function PropertyInsightsRatingDistribution({
 export function PropertyInsightsReport({
   propertyId,
   propertyName,
-  rangeDays,
+  range,
   onRangeChange,
   result,
 }: Readonly<{
   propertyId: string
   propertyName: string
-  rangeDays: PropertyInsightsRangeDays
-  onRangeChange: (rangeDays: PropertyInsightsRangeDays) => void
+  range: PropertyInsightsRange
+  onRangeChange: (range: PropertyInsightsRange) => void
   result: AiPropertyInsightsRead
 }>) {
   return (
     <PageShell tier="dashboard">
-      <PropertyInsightsHeader
-        propertyName={propertyName}
-        rangeDays={rangeDays}
-        onRangeChange={onRangeChange}
+      <PageHeader
+        title={`${propertyName} insights`}
+        description="What guests praise, what needs attention, and how the picture is changing."
+        actions={
+          <PropertyInsightsRangeControl range={range} onRangeChange={onRangeChange} />
+        }
       />
 
       {result.status !== 'ready' ? (
-        <ReportState status={result.status} />
+        <ReportState status={result.status} range={range} />
       ) : (
         <>
           <PropertyInsightsBasisLine
             basis={result.basis}
+            startLocalDate={result.startLocalDate}
             dataThroughLocalDate={result.dataThroughLocalDate}
           />
 
@@ -245,9 +235,10 @@ export function PropertyInsightsReport({
                 <h2>Aspect impact</h2>
               </CardTitle>
               <CardDescription>
-                Mentions and rating-weighted impact, compared with the immediately
-                preceding {result.rangeDays}-day period. Open any row to see its reviews
-                in the inbox.
+                {result.range === 'all'
+                  ? 'Mentions and rating-weighted impact across all available review evidence. Comparison is unavailable for All Time.'
+                  : `Mentions and rating-weighted impact, compared with the immediately preceding ${result.range}-day period.`}{' '}
+                Open any row to see its reviews in the inbox.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -255,6 +246,7 @@ export function PropertyInsightsReport({
                 propertyId={propertyId}
                 aspects={result.aspects}
                 analyzedReviewCount={result.basis.analyzedReviewCount}
+                comparisonAvailable={result.precedingPeriod !== null}
               />
             </CardContent>
           </Card>
@@ -284,13 +276,16 @@ export function PropertyInsightsReport({
                   <h2>Emerging issues</h2>
                 </CardTitle>
                 <CardDescription>
-                  Repeated issue labels and their change from the preceding period.
+                  {result.range === 'all'
+                    ? 'Repeated issue labels across all available analysed history. Comparison is unavailable for All Time.'
+                    : 'Repeated issue labels and their change from the preceding period.'}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <PropertyInsightsEmergingIssues
                   issues={result.emergingIssues}
                   analyzedReviewCount={result.basis.analyzedReviewCount}
+                  comparisonAvailable={result.precedingPeriod !== null}
                 />
               </CardContent>
             </Card>

@@ -9,7 +9,7 @@ describe('PropertyInsightsReport evidence states', () => {
       createElement(PropertyInsightsReport, {
         propertyId: '11111111-1111-4111-8111-111111111111',
         propertyName: 'Harbour House Hotel',
-        rangeDays: 90,
+        range: 90,
         onRangeChange: () => undefined,
         result: {
           status: 'insufficient_data',

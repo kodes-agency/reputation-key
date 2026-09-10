@@ -9,8 +9,8 @@ export type {
 } from './use-cases/read-property-aggregates'
 
 export {
-  PROPERTY_INSIGHTS_RANGE_DAYS,
-  isPropertyInsightsRangeDays,
+  PROPERTY_INSIGHTS_RANGES,
+  isPropertyInsightsRange,
 } from './use-cases/read-property-insights'
 export type {
   AiPropertyInsightAspect,
@@ -20,7 +20,7 @@ export type {
   AiPropertyInsightsRead,
   AiPropertyInsightWeeklyPoint,
   AiPropertyInsightWeeklySeries,
-  PropertyInsightsRangeDays,
+  PropertyInsightsRange,
 } from './use-cases/read-property-insights'
 
 export type {

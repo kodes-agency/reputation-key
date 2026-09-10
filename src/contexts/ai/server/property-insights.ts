@@ -10,7 +10,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 
 const getPropertyInsightsDto = z.strictObject({
   propertyId: z.uuid(),
-  rangeDays: z.union([z.literal(30), z.literal(90), z.literal(180)]),
+  range: z.union([z.literal(30), z.literal(90), z.literal(180), z.literal('all')]),
 })
 
 /**
@@ -38,7 +38,7 @@ export const getPropertyInsightsFn = createServerFn({ method: 'GET' })
             organizationId: context.organizationId,
             propertyId: id,
             actorUserId: context.userId,
-            rangeDays: data.rangeDays,
+            range: data.range,
           })
         } catch (error) {
           throw catchUntagged(error)

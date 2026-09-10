@@ -17,16 +17,11 @@ import type {
 } from '../ports/ai-property-aggregate-store.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
 
-export const PROPERTY_INSIGHTS_RANGE_DAYS = [30, 90, 180] as const
-export type PropertyInsightsRangeDays = (typeof PROPERTY_INSIGHTS_RANGE_DAYS)[number]
+export const PROPERTY_INSIGHTS_RANGES = [30, 90, 180, 'all'] as const
+export type PropertyInsightsRange = (typeof PROPERTY_INSIGHTS_RANGES)[number]
 
-export function isPropertyInsightsRangeDays(
-  value: unknown,
-): value is PropertyInsightsRangeDays {
-  return (
-    typeof value === 'number' &&
-    PROPERTY_INSIGHTS_RANGE_DAYS.some((candidate) => candidate === value)
-  )
+export function isPropertyInsightsRange(value: unknown): value is PropertyInsightsRange {
+  return PROPERTY_INSIGHTS_RANGES.some((candidate) => candidate === value)
 }
 
 export type AiPropertyInsightsRatingBucket = Readonly<{
@@ -51,10 +46,12 @@ export type AiPropertyInsightAspect = Readonly<{
   polarity: AspectPolarityV1
   mentionCount: number
   impact: number
-  precedingMentionCount: number
-  precedingImpact: number
-  mentionCountDelta: number
-  impactDelta: number
+  comparison: Readonly<{
+    precedingMentionCount: number
+    precedingImpact: number
+    mentionCountDelta: number
+    impactDelta: number
+  }> | null
 }>
 
 export type AiPropertyInsightWeeklyPoint = Readonly<{
@@ -70,8 +67,10 @@ export type AiPropertyInsightWeeklySeries = Readonly<{
 export type AiPropertyInsightIssue = Readonly<{
   label: string
   count: number
-  precedingCount: number
-  delta: number
+  comparison: Readonly<{
+    precedingCount: number
+    delta: number
+  }> | null
 }>
 
 export type AiPropertyInsightsRead =
@@ -79,16 +78,15 @@ export type AiPropertyInsightsRead =
   | Readonly<{ status: 'preparing' }>
   | Readonly<{
       status: 'insufficient_data'
-      startLocalDate: string
+      startLocalDate: string | null
       endLocalDate: string
     }>
   | Readonly<{
       status: 'ready'
-      rangeDays: PropertyInsightsRangeDays
+      range: PropertyInsightsRange
       startLocalDate: string
       endLocalDate: string
-      precedingStartLocalDate: string
-      precedingEndLocalDate: string
+      precedingPeriod: Period | null
       dataThroughLocalDate: string
       impactVersion: typeof ASPECT_IMPACT_VERSION
       basis: AiPropertyInsightsBasis
@@ -110,10 +108,10 @@ export type ReadPropertyInsightsInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   actorUserId: UserId
-  rangeDays: PropertyInsightsRangeDays
+  range: PropertyInsightsRange
 }>
 
-type Period = Readonly<{ startLocalDate: string; endLocalDate: string }>
+export type Period = Readonly<{ startLocalDate: string; endLocalDate: string }>
 
 type WindowSummary = Readonly<{
   basis: AiPropertyInsightsBasis
@@ -231,11 +229,15 @@ function aggregateAspects(
 
 function compareAspects(
   current: readonly AiPropertyAnalyzedReview[],
-  preceding: readonly AiPropertyAnalyzedReview[],
+  preceding: readonly AiPropertyAnalyzedReview[] | null,
 ): readonly AiPropertyInsightAspect[] {
   const currentTotals = aggregateAspects(current)
-  const precedingTotals = aggregateAspects(preceding)
-  const identities = new Set([...currentTotals.keys(), ...precedingTotals.keys()])
+  const precedingTotals =
+    preceding === null ? new Map<string, AspectTotal>() : aggregateAspects(preceding)
+  const identities =
+    preceding === null
+      ? new Set(currentTotals.keys())
+      : new Set([...currentTotals.keys(), ...precedingTotals.keys()])
   const rows = [...identities].map((identity) => {
     const currentValue = currentTotals.get(identity)
     const precedingValue = precedingTotals.get(identity)
@@ -251,10 +253,15 @@ function compareAspects(
       polarity: source.polarity,
       mentionCount,
       impact,
-      precedingMentionCount,
-      precedingImpact,
-      mentionCountDelta: mentionCount - precedingMentionCount,
-      impactDelta: Number((impact - precedingImpact).toFixed(6)),
+      comparison:
+        preceding === null
+          ? null
+          : Object.freeze({
+              precedingMentionCount,
+              precedingImpact,
+              mentionCountDelta: mentionCount - precedingMentionCount,
+              impactDelta: Number((impact - precedingImpact).toFixed(6)),
+            }),
     })
   })
   rows.sort(
@@ -268,8 +275,7 @@ function compareAspects(
 }
 
 function weeklySeries(
-  startLocalDate: string,
-  rangeDays: PropertyInsightsRangeDays,
+  period: Period,
   analyzed: readonly AiPropertyAnalyzedReview[],
   aspects: readonly AiPropertyInsightAspect[],
 ): readonly AiPropertyInsightWeeklySeries[] {
@@ -300,12 +306,14 @@ function weeklySeries(
 
   const weekStarts: string[] = []
   const weekByDate = new Map<string, number>()
-  let localDate = startLocalDate
-  for (let offset = 0; offset < rangeDays; offset += 1) {
+  let localDate = period.startLocalDate
+  let offset = 0
+  while (localDate <= period.endLocalDate) {
     const weekIndex = Math.floor(offset / 7)
     if (offset % 7 === 0) weekStarts.push(localDate)
     weekByDate.set(localDate, weekIndex)
     localDate = addDays(localDate, 1)
+    offset += 1
   }
 
   const counts = new Map(
@@ -341,7 +349,7 @@ function weeklySeries(
 
 function emergingIssues(
   current: readonly AiPropertyAnalyzedReview[],
-  preceding: readonly AiPropertyAnalyzedReview[],
+  preceding: readonly AiPropertyAnalyzedReview[] | null,
 ): readonly AiPropertyInsightIssue[] {
   const countLabels = (reviews: readonly AiPropertyAnalyzedReview[]) => {
     const counts = new Map<string, number>()
@@ -353,16 +361,21 @@ function emergingIssues(
     return counts
   }
   const currentCounts = countLabels(current)
-  const precedingCounts = countLabels(preceding)
+  const precedingCounts = preceding === null ? null : countLabels(preceding)
   return Object.freeze(
     [...currentCounts]
       .map(([label, count]) => {
-        const precedingCount = precedingCounts.get(label) ?? 0
+        const precedingCount = precedingCounts?.get(label) ?? 0
         return Object.freeze({
           label,
           count,
-          precedingCount,
-          delta: count - precedingCount,
+          comparison:
+            precedingCounts === null
+              ? null
+              : Object.freeze({
+                  precedingCount,
+                  delta: count - precedingCount,
+                }),
         })
       })
       .sort(
@@ -373,12 +386,16 @@ function emergingIssues(
   )
 }
 
+// Active Review evidence already enforces its retention horizon. Year one is only an
+// inclusive query sentinel; the earliest returned review becomes the visible boundary.
+const ALL_TIME_FLOOR_LOCAL_DATE = '0001-01-01'
+
 export function createReadPropertyInsights(
   dependencies: ReadPropertyInsightsDependencies,
 ): (input: ReadPropertyInsightsInput) => Promise<AiPropertyInsightsRead> {
   return async (input) => {
-    if (!isPropertyInsightsRangeDays(input.rangeDays)) {
-      throw new TypeError('Property insights range must be 30, 90, or 180 days')
+    if (!isPropertyInsightsRange(input.range)) {
+      throw new TypeError('Property insights range must be 30, 90, 180, or all')
     }
 
     // This intentionally mirrors every AI-owned aggregate read: the same gate and
@@ -394,34 +411,75 @@ export function createReadPropertyInsights(
     })
     if (endLocalDate === null) return { status: 'preparing' }
 
-    const startLocalDate = addDays(endLocalDate, -(input.rangeDays - 1))
-    const precedingEndLocalDate = addDays(startLocalDate, -1)
-    const precedingStartLocalDate = addDays(precedingEndLocalDate, -(input.rangeDays - 1))
     const scope = {
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       sourceEpoch: gate.authorization.authorizedSourceEpoch,
     }
-    const [aggregate, population] = await Promise.all([
-      dependencies.aggregates.readWindow({
+    const populationInput = {
+      ...scope,
+      timezone: gate.profile.timezone,
+      calendarProfileVersion: 'property-calendar-v1' as const,
+      endLocalDate,
+      limit: POPULATION_QUERY_LIMIT,
+    }
+    let startLocalDate: string
+    let precedingPeriod: Period | null
+    let populationReviews: readonly AiTrendPopulationReview[]
+    let aggregate: Readonly<{
+      analyzedReviews: readonly AiPropertyAnalyzedReview[]
+      unavailableReviews: readonly AiPropertyUnavailableReview[]
+    }> | null
+
+    if (input.range === 'all') {
+      const population = await dependencies.reviewSources.readTrendPopulation({
+        ...populationInput,
+        startLocalDate: ALL_TIME_FLOOR_LOCAL_DATE,
+      })
+      if (population.status !== 'complete') return { status: 'preparing' }
+      const earliestEvidenceLocalDate = population.reviews.reduce<string | null>(
+        (earliest, review) =>
+          earliest === null || review.localDate < earliest ? review.localDate : earliest,
+        null,
+      )
+      if (earliestEvidenceLocalDate === null) {
+        return { status: 'insufficient_data', startLocalDate: null, endLocalDate }
+      }
+      startLocalDate = earliestEvidenceLocalDate
+      precedingPeriod = null
+      populationReviews = population.reviews
+      aggregate = await dependencies.aggregates.readWindow({
         ...scope,
         reviewAnalysisEpoch: gate.authorization.capabilityEpochs.review_analysis.epoch,
         propertyProfileVersion: gate.profile.profileVersion,
-        startLocalDate: precedingStartLocalDate,
+        startLocalDate,
         endLocalDate,
-      }),
-      dependencies.reviewSources.readTrendPopulation({
-        ...scope,
-        timezone: gate.profile.timezone,
-        calendarProfileVersion: 'property-calendar-v1',
-        startLocalDate: precedingStartLocalDate,
-        endLocalDate,
-        limit: POPULATION_QUERY_LIMIT,
-      }),
-    ])
-    if (aggregate === null || population.status !== 'complete') {
-      return { status: 'preparing' }
+      })
+    } else {
+      startLocalDate = addDays(endLocalDate, -(input.range - 1))
+      const precedingEndLocalDate = addDays(startLocalDate, -1)
+      precedingPeriod = Object.freeze({
+        startLocalDate: addDays(precedingEndLocalDate, -(input.range - 1)),
+        endLocalDate: precedingEndLocalDate,
+      })
+      const [window, population] = await Promise.all([
+        dependencies.aggregates.readWindow({
+          ...scope,
+          reviewAnalysisEpoch: gate.authorization.capabilityEpochs.review_analysis.epoch,
+          propertyProfileVersion: gate.profile.profileVersion,
+          startLocalDate: precedingPeriod.startLocalDate,
+          endLocalDate,
+        }),
+        dependencies.reviewSources.readTrendPopulation({
+          ...populationInput,
+          startLocalDate: precedingPeriod.startLocalDate,
+        }),
+      ])
+      if (population.status !== 'complete') return { status: 'preparing' }
+      aggregate = window
+      populationReviews = population.reviews
     }
+    if (aggregate === null) return { status: 'preparing' }
 
     const analyzedByVersion = new Map(
       aggregate.analyzedReviews.map((review) => [reviewVersionKey(review), review]),
@@ -430,45 +488,39 @@ export function createReadPropertyInsights(
       aggregate.unavailableReviews.map((review) => [reviewVersionKey(review), review]),
     )
     const currentPeriod = Object.freeze({ startLocalDate, endLocalDate })
-    const precedingPeriod = Object.freeze({
-      startLocalDate: precedingStartLocalDate,
-      endLocalDate: precedingEndLocalDate,
-    })
     const current = summarizeWindow(
       currentPeriod,
-      population.reviews,
+      populationReviews,
       analyzedByVersion,
       unavailableByVersion,
     )
     if (current.basis.reviewCount === 0) {
       return { status: 'insufficient_data', startLocalDate, endLocalDate }
     }
-    const preceding = summarizeWindow(
-      precedingPeriod,
-      population.reviews,
-      analyzedByVersion,
-      unavailableByVersion,
-    )
-    const aspects = compareAspects(current.analyzed, preceding.analyzed)
+    const preceding =
+      precedingPeriod === null
+        ? null
+        : summarizeWindow(
+            precedingPeriod,
+            populationReviews,
+            analyzedByVersion,
+            unavailableByVersion,
+          )
+    const precedingAnalyzed = preceding?.analyzed ?? null
+    const aspects = compareAspects(current.analyzed, precedingAnalyzed)
 
     return Object.freeze({
       status: 'ready',
-      rangeDays: input.rangeDays,
+      range: input.range,
       startLocalDate,
       endLocalDate,
-      precedingStartLocalDate,
-      precedingEndLocalDate,
+      precedingPeriod,
       dataThroughLocalDate: endLocalDate,
       impactVersion: ASPECT_IMPACT_VERSION,
       basis: current.basis,
       aspects,
-      weeklyAspectSeries: weeklySeries(
-        startLocalDate,
-        input.rangeDays,
-        current.analyzed,
-        aspects,
-      ),
-      emergingIssues: emergingIssues(current.analyzed, preceding.analyzed),
+      weeklyAspectSeries: weeklySeries(currentPeriod, current.analyzed, aspects),
+      emergingIssues: emergingIssues(current.analyzed, precedingAnalyzed),
     })
   }
 }

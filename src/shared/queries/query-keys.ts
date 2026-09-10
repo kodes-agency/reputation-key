@@ -152,8 +152,8 @@ export const aiKeys = {
     [...aiKeys.all, 'property-trend', propertyId] as const,
   propertyAggregates: (propertyId: string) =>
     [...aiKeys.all, 'property-aggregates', propertyId] as const,
-  propertyInsights: (propertyId: string, rangeDays: number) =>
-    [...aiKeys.all, 'property-insights', propertyId, rangeDays] as const,
+  propertyInsights: (propertyId: string, range: number | 'all') =>
+    [...aiKeys.all, 'property-insights', propertyId, range] as const,
 }
 
 // ── Goals ────────────────────────────────────────────────────────────────
