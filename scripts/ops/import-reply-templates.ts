@@ -16,12 +16,16 @@ import {
   replyTemplateSlotSchema,
   replyTemplateTitleSchema,
 } from '../../src/contexts/review/application/dto/reply-library.dto'
+import type {
+  OperatorAction,
+  OperatorCommandSpec,
+} from '../../src/shared/ops/operator-command'
 import {
   REPLY_TEMPLATE_SLOT_TOKENS,
   unfilledReplySlots,
 } from '../../src/contexts/review/domain/rules'
 import { getDb } from '../../src/shared/db'
-import { closePool } from '../../src/shared/db/pool'
+import { runOperatorCommand } from './operator-command'
 import { propertyId as toPropertyId, type PropertyId } from '../../src/shared/domain/ids'
 
 const profileSchema = z
@@ -77,8 +81,22 @@ const librarySchema = z
   })
 
 const libraryFileSchema = z.record(z.string().min(1), librarySchema)
-export const REPLY_TEMPLATE_IMPORT_HELP = `Usage: import-reply-templates --property <uuid> --file <path> --library <key> [--dry-run]
 
+const COMMAND_NAME = 'ops:import-reply-templates'
+const USAGE =
+  'pnpm ops import-reply-templates <file> <library> --operator <id> --org <id> --property <uuid> [--reason <text> --ticket <ref> --apply]'
+
+export const REPLY_TEMPLATE_IMPORT_COMMAND_SPEC = {
+  name: COMMAND_NAME,
+  scope: 'property',
+  capability: 'property.publish_reply',
+  mutation: true,
+  usage: USAGE,
+} satisfies OperatorCommandSpec
+
+export const REPLY_TEMPLATE_IMPORT_HELP = `Usage: ${USAGE}
+
+Mutations are dry-run by default. Pass --apply with an audited --reason to write.
 Templates are matched by sourceTitle within the property. If a template was renamed
 in Settings, re-importing its former sourceTitle creates a new row and leaves the
 renamed template unchanged.
@@ -173,41 +191,59 @@ export async function importReplyTemplateLibrary(input: {
   return summary
 }
 
-function readOption(args: readonly string[], name: string): string {
-  const index = args.indexOf(name)
-  const value = index < 0 ? undefined : args[index + 1]
-  if (!value || value.startsWith('--')) throw new Error(`Missing required option ${name}`)
-  return value
+type ImportReplyTemplatesActionDependencies = Readonly<{
+  createRepository: () => ReplyTemplateRepository
+  readFile: (file: string) => Promise<string>
+}>
+
+export function createImportReplyTemplatesAction(
+  dependencies: ImportReplyTemplatesActionDependencies,
+): OperatorAction {
+  return async (ctx, args, io) => {
+    const [file, libraryKey, ...extra] = args.positionals
+    if (!file || !libraryKey || extra.length > 0) {
+      throw new Error(`exactly one file and library key are required; usage: ${USAGE}`)
+    }
+    if (!ctx.propertyId) {
+      throw new Error('Property scope is required')
+    }
+
+    const raw = JSON.parse(await dependencies.readFile(file)) as unknown
+    const library = parseReplyTemplateLibraryFile(raw, libraryKey)
+    const summary = await importReplyTemplateLibrary({
+      repository: dependencies.createRepository(),
+      propertyId: toPropertyId(z.uuid().parse(ctx.propertyId)),
+      libraryKey,
+      library,
+      dryRun: ctx.dryRun,
+      updatedBy: ctx.operatorId,
+    })
+    io.out(JSON.stringify(summary))
+  }
 }
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2)
-  if (args.includes('--help')) {
+  const argv = process.argv.slice(2)
+  if (argv.includes('--help')) {
     process.stdout.write(REPLY_TEMPLATE_IMPORT_HELP)
     return
   }
-  const property = z.uuid().parse(readOption(args, '--property'))
-  const file = readOption(args, '--file')
-  const libraryKey = readOption(args, '--library')
-  const raw = JSON.parse(await readFile(file, 'utf8')) as unknown
-  const library = parseReplyTemplateLibraryFile(raw, libraryKey)
-  const summary = await importReplyTemplateLibrary({
-    repository: createReplyTemplateRepository(getDb(), () => new Date()),
-    propertyId: toPropertyId(property),
-    libraryKey,
-    library,
-    dryRun: args.includes('--dry-run'),
-  })
-  process.stdout.write(`${JSON.stringify(summary)}\n`)
+  const result = await runOperatorCommand(
+    REPLY_TEMPLATE_IMPORT_COMMAND_SPEC,
+    createImportReplyTemplatesAction({
+      createRepository: () => createReplyTemplateRepository(getDb(), () => new Date()),
+      readFile: (file) => readFile(file, 'utf8'),
+    }),
+    argv,
+  )
+  process.exitCode = result.exitCode
 }
 
 const entrypoint = process.argv[1]
 if (entrypoint && pathToFileURL(entrypoint).href === import.meta.url) {
-  void main()
-    .catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error)
-      process.stderr.write(`[import-reply-templates] failed: ${message}\n`)
-      process.exitCode = 1
-    })
-    .finally(closePool)
+  void main().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error)
+    process.stderr.write(`${COMMAND_NAME} failed: ${message}\n`)
+    process.exitCode = 1
+  })
 }
