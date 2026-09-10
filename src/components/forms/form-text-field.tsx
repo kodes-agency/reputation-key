@@ -28,6 +28,7 @@ type Props = Readonly<{
   autoComplete?: string
   disabled?: boolean
   maxLength?: number
+  className?: string
 }>
 
 export function FormTextField({
@@ -39,6 +40,7 @@ export function FormTextField({
   autoComplete,
   disabled,
   maxLength,
+  className,
 }: Props) {
   const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
 
@@ -57,6 +59,7 @@ export function FormTextField({
         autoComplete={autoComplete}
         disabled={disabled}
         maxLength={maxLength}
+        className={className}
       />
       {isInvalid && <FieldError errors={field.state.meta.errors} />}
     </Field>

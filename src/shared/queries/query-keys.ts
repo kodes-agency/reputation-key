@@ -175,11 +175,12 @@ export const staffKeys = {
 }
 
 // ── Reviews (staff recent activity) ──────────────────────────────────────
-// fallow-ignore-next-line unused-export -- public query-key catalogue consumed incrementally
 export const reviewKeys = {
   all: ['reviews'] as const,
   staffActivity: (propertyId: string) =>
     [...reviewKeys.all, 'staff-activity', propertyId] as const,
+  replyLibrary: (propertyId: string) =>
+    [...reviewKeys.all, 'reply-library', propertyId] as const,
 }
 
 // ── Portals (detail + links + groups) ────────────────────────────────────

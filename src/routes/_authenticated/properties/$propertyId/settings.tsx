@@ -7,6 +7,7 @@ import {
   identityKeys,
   inboxKeys,
   portalKeys,
+  reviewKeys,
 } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { listMembers } from '#/contexts/identity/server/organizations'
@@ -39,6 +40,14 @@ import {
   getPropertyPortalExperience,
   savePropertyPortalBrandProfile,
 } from '#/contexts/portal/server/portals'
+import {
+  getPropertyReplyLibraryFn,
+  savePropertyReplyProfileFn,
+  savePropertyReplyTemplateFn,
+  setPropertyReplyTemplateEnabledFn,
+} from '#/contexts/review/server/reply'
+import { PropertyReplyProfileCard } from '#/components/features/property/property-reply-profile-card'
+import { PropertyReplyTemplateLibraryCard } from '#/components/features/property/property-reply-template-library-card'
 
 const responsibleManagersQuery = (propertyId: string) =>
   queryOptions({
@@ -66,6 +75,12 @@ const propertyPortalExperienceQuery = (propertyId: string) =>
     queryFn: () => getPropertyPortalExperience({ data: { propertyId } }),
     staleTime: 30_000,
   })
+const propertyReplyLibraryQuery = (propertyId: string) =>
+  queryOptions({
+    queryKey: reviewKeys.replyLibrary(propertyId),
+    queryFn: () => getPropertyReplyLibraryFn({ data: { propertyId } }),
+    staleTime: 30_000,
+  })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/settings')({
   beforeLoad: ({ context }) => {
@@ -85,10 +100,55 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/set
       ...(can(role, 'portal.read')
         ? [context.queryClient.ensureQueryData(propertyPortalExperienceQuery(propertyId))]
         : []),
+      ...(can(role, 'reply.manage')
+        ? [context.queryClient.ensureQueryData(propertyReplyLibraryQuery(propertyId))]
+        : []),
     ])
   },
   component: PropertySettingsRoute,
 })
+
+function PropertyReplyLibrarySettings({
+  propertyId,
+  role,
+}: Readonly<{ propertyId: string; role: AuthRouteContext['role'] }>) {
+  const { data: library } = useQuery({
+    ...propertyReplyLibraryQuery(propertyId),
+    enabled: can(role, 'reply.manage'),
+  })
+  const invalidateKeys = [reviewKeys.replyLibrary(propertyId)]
+  const saveProfile = useActionMutation(savePropertyReplyProfileFn, {
+    successMessage: 'Reply profile saved',
+    invalidateKeys,
+  })
+  const saveTemplate = useActionMutation(savePropertyReplyTemplateFn, {
+    successMessage: 'Reply template saved',
+    invalidateKeys,
+  })
+  const setTemplateEnabled = useActionMutation(setPropertyReplyTemplateEnabledFn, {
+    successMessage: 'Reply template availability updated',
+    invalidateKeys,
+  })
+
+  return (
+    <>
+      <PropertyReplyProfileCard
+        key={`${propertyId}:${library?.profile?.version ?? 0}`}
+        propertyId={propertyId}
+        profile={library?.profile ?? null}
+        action={saveProfile}
+      />
+      <PropertyReplyTemplateLibraryCard
+        propertyId={propertyId}
+        profile={library?.profile ?? null}
+        templates={library?.templates ?? []}
+        defaultLanguageTag={library?.defaultLanguageTag ?? null}
+        saveAction={saveTemplate}
+        toggleAction={setTemplateEnabled}
+      />
+    </>
+  )
+}
 
 function PropertySettingsRoute() {
   const { propertyId } = Route.useParams()
@@ -187,6 +247,7 @@ function PropertySettingsRoute() {
             action={savePublicDisplayName}
           />
         ) : null}
+        <PropertyReplyLibrarySettings propertyId={propertyId} role={role} />
         <PropertyResponsibleManagersCard
           propertyId={propertyId}
           state={responsibleManagers}

@@ -61,6 +61,17 @@ export type ReplyTemplateWrite = Readonly<{
   enabled: boolean
   updatedBy: string
 }>
+export type ReplyTemplateUpdate = ReplyTemplateWrite &
+  Readonly<{
+    templateId: string
+  }>
+export type ReplyTemplateEnabledUpdate = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  templateId: string
+  enabled: boolean
+  updatedBy: string
+}>
 
 export type ReplyLibraryUpsertResult<T> = Readonly<{
   disposition: 'inserted' | 'updated' | 'unchanged'
@@ -79,6 +90,10 @@ export type ReplyTemplateRepository = Readonly<{
     rating: StarRating
     hasText: boolean
   }): Promise<readonly PropertyReplyTemplate[]>
+  listPropertyTemplates(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+  ): Promise<readonly PropertyReplyTemplate[]>
   findEnabledTemplateById(input: {
     organizationId: OrganizationId
     propertyId: PropertyId
@@ -94,4 +109,10 @@ export type ReplyTemplateRepository = Readonly<{
   upsertTemplate(
     input: ReplyTemplateWrite,
   ): Promise<ReplyLibraryUpsertResult<PropertyReplyTemplate>>
+  updateTemplate(
+    input: ReplyTemplateUpdate,
+  ): Promise<ReplyLibraryUpsertResult<PropertyReplyTemplate> | null>
+  setTemplateEnabled(
+    input: ReplyTemplateEnabledUpdate,
+  ): Promise<ReplyLibraryUpsertResult<PropertyReplyTemplate> | null>
 }>

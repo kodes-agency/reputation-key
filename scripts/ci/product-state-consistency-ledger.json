@@ -93,9 +93,9 @@
     },
     {
       "id": "reviewKeys",
-      "members": ["all", "staffActivity"],
-      "owner": "Staff review-activity query lifecycle",
-      "policy": "The Staff activity projection is scoped by propertyId beneath the Review root; it cannot alias activity from another property."
+      "members": ["all", "staffActivity", "replyLibrary"],
+      "owner": "Property-scoped Review query lifecycles",
+      "policy": "Staff activity and the reply-profile/template library are distinct propertyId-scoped projections beneath the Review root; neither can alias state from another property."
     },
     {
       "id": "portalKeys",
