@@ -732,3 +732,53 @@ timeline. Legal/security approval, not engineering convenience, decides any
 grace-window waiver or notification obligation.
 
 ---
+
+## 22. Review Analysis Coverage Stalled or Empty Enrollment
+
+**Alerts:** `ai.review-analysis-stalled` (P2) and
+`ai.review-analysis-empty-enrollment` (P2).
+
+**Trigger/Symptoms:** An AI-enabled Property has fewer current-epoch rows in
+`ai_property_aggregate_settlements` than
+`review_ai_analysis_heads.head_sequence -
+merchant_ai_enablement.analysis_start_sequence`, and the settlement count has
+not advanced for more than 15 minutes; or a `queued`/`running` enrollment
+captured `snapshot_revision_count = 0` while its fenced eligible-review set is
+non-empty. The insights surface may remain “still settling” indefinitely.
+
+**Impact:** P2 — governed Review Analysis derivatives and Property insights are
+incomplete or a first-enablement backfill was silently skipped. Review source
+content and manual review/reply workflows remain available.
+
+**Diagnostics:** Work from identifiers and counts only. For the current
+enablement source and Review Analysis epochs, compare the exact settlement
+count with the review-head sequence minus the enablement start sequence; do not
+use an aggregate-head watermark or `property_profile_version` as completeness.
+Check the oldest unsettled identifier-only outbox event, the
+`ai.analyze-review-event` consumer receipt, AI operation/reaper state, Queue
+Redis health, and published-event redelivery attempts. For an empty enrollment,
+re-run the enrollment eligibility predicate at its stored fence and compare the
+eligible count with its snapshot count; never copy review text into the
+incident record.
+
+**Containment/Recovery:** Restore the failing ordinary path first. Let an
+in-horizon analysis retry or the execution reaper terminal-settle through the
+normal consumer. If the durable consumer receipt is missing, let the bounded
+published-event redelivery path re-enqueue it; do not insert settlement rows or
+advance heads manually. For an inconsistent empty enrollment, supersede and
+recreate it through the governed merchant-AI enrollment path after correcting
+the eligibility/watermark defect.
+
+**Verification:** For every enabled Property, the current-epoch settlement
+count exactly equals `head_sequence - analysis_start_sequence`, the count
+continues to advance when new review-analysis events arrive, and no actionable
+zero-snapshot enrollment has an eligible-review count above zero. Confirm both
+alerts clear on the next health-check evaluation.
+
+**Escalation/Evidence:** Escalate to Bozhidar Denev if progress remains stopped
+after ordinary retry/reaper execution or any enrollment invariant is violated.
+Retain only release/cell, Organization/Property/enrollment/event identifiers,
+epochs, sequences, counts, timestamps, coded outcomes, and the recovery
+decision—never review or reviewer content.
+
+---
