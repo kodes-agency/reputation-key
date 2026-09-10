@@ -682,6 +682,53 @@ export const aiPropertyAggregateContributionAspects = pgTable(
   ],
 )
 
+export const aiPropertyAggregateSettlements = pgTable(
+  'ai_property_aggregate_settlements',
+  {
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    reviewId: uuid('review_id').notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    reviewAnalysisEpoch: integer('review_analysis_epoch').notNull(),
+    analysisSequence: bigint('analysis_sequence', { mode: 'number' }).notNull(),
+    settledAt: timestamptz('settled_at').notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.sourceEpoch,
+        t.reviewAnalysisEpoch,
+        t.analysisSequence,
+      ],
+      name: 'ai_property_aggregate_settlements_pk',
+    }),
+    foreignKey({
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+      name: 'ai_property_aggregate_settlements_tenant_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.organizationId, t.propertyId, t.reviewId],
+      foreignColumns: [reviews.organizationId, reviews.propertyId, reviews.id],
+      name: 'ai_property_aggregate_settlements_review_fk',
+    }).onDelete('cascade'),
+    check(
+      'ai_property_aggregate_settlements_versions_valid',
+      sql`${t.sourceEpoch} >= 0 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.analysisSequence} BETWEEN 1 AND '9007199254740991'::bigint`,
+    ),
+    index('ai_property_aggregate_settlements_review_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.reviewId,
+      t.sourceEpoch,
+      t.reviewAnalysisEpoch,
+      t.analysisSequence.desc(),
+    ),
+  ],
+)
+
 export const aiPropertyAggregateHeads = pgTable(
   'ai_property_aggregate_heads',
   {

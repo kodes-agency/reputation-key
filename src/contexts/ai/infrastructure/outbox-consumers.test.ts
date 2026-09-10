@@ -56,7 +56,6 @@ function harness(result: AnalyzeReviewEventResult) {
   const analyzeReviewEvent = vi.fn(async () => result)
   const enqueuePropertyTrend = vi.fn(async () => {})
   const insertReceipt = vi.fn(async () => {})
-  const advanceReviewAnalysisBackfill = vi.fn(async () => ({ status: 'enqueued' }))
   const applyAiAuthorizationLifecycle = vi.fn<
     NonNullable<RegisterAiConsumersInput['applyAiAuthorizationLifecycle']>
   >(async () => ({
@@ -92,7 +91,6 @@ function harness(result: AnalyzeReviewEventResult) {
   const dependencies = {
     analyzeReviewEvent,
     enqueuePropertyTrend,
-    advanceReviewAnalysisBackfill,
     applyAiAuthorizationLifecycle,
     receipts: { insertReceipt } as unknown as OutboxRepository,
   } satisfies RegisterAiConsumersInput
@@ -100,7 +98,6 @@ function harness(result: AnalyzeReviewEventResult) {
     dependencies,
     analyzeReviewEvent,
     enqueuePropertyTrend,
-    advanceReviewAnalysisBackfill,
     applyAiAuthorizationLifecycle,
     insertReceipt,
   }
@@ -134,7 +131,7 @@ function merchantAiChangedEvent(): ConsumerEvent {
 }
 
 describe('AI review outbox consumer', () => {
-  it('analyzes an ordered event and records its receipt', async () => {
+  it('analyzes an event and records its receipt', async () => {
     const test = harness({ status: 'completed' })
 
     await expect(
@@ -155,29 +152,6 @@ describe('AI review outbox consumer', () => {
       EVENT_ID,
       AI_REVIEW_ANALYSIS_CONSUMER,
       'applied',
-    )
-  })
-
-  it('wakes a backfill successor only after the settlement receipt commits', async () => {
-    const test = harness({ status: 'completed' })
-    const backfill = {
-      ...event('ai.review_analysis.backfill_requested'),
-      correlationId: '71000000-0000-4000-8000-000000000204',
-    }
-
-    await expect(handleAiReviewEvent(test.dependencies, backfill)).resolves.toEqual({
-      status: 'applied',
-    })
-
-    expect(test.advanceReviewAnalysisBackfill).toHaveBeenCalledWith({
-      eventId: EVENT_ID,
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-      correlationId: '71000000-0000-4000-8000-000000000204',
-      analysisSequence: 7,
-    })
-    expect(test.insertReceipt.mock.invocationCallOrder[0]).toBeLessThan(
-      test.advanceReviewAnalysisBackfill.mock.invocationCallOrder[0]!,
     )
   })
 
@@ -271,25 +245,19 @@ describe('AI review outbox consumer', () => {
     expect(test.analyzeReviewEvent).not.toHaveBeenCalled()
   })
 
-  it.each([
-    { result: { status: 'retry', retryAtEpochMillis: 1, code: 'provider_unavailable' } },
-    { result: { status: 'gap', expectedSequence: 6 } },
-  ] satisfies ReadonlyArray<{ result: AnalyzeReviewEventResult }>)(
-    'leaves retryable or out-of-order events unreceipted: $result.status',
-    async ({ result }) => {
-      const test = harness(result)
+  it('leaves retryable events unreceipted', async () => {
+    const test = harness({
+      status: 'retry',
+      retryAtEpochMillis: 1,
+      code: 'provider_unavailable',
+    })
 
-      await expect(
-        handleAiReviewEvent(test.dependencies, event('review.updated')),
-      ).rejects.toThrow(
-        result.status === 'retry'
-          ? 'AI review analysis retry required: provider_unavailable'
-          : 'AI review analysis sequence gap',
-      )
-      expect(test.enqueuePropertyTrend).not.toHaveBeenCalled()
-      expect(test.insertReceipt).not.toHaveBeenCalled()
-    },
-  )
+    await expect(
+      handleAiReviewEvent(test.dependencies, event('review.updated')),
+    ).rejects.toThrow('AI review analysis retry required: provider_unavailable')
+    expect(test.enqueuePropertyTrend).not.toHaveBeenCalled()
+    expect(test.insertReceipt).not.toHaveBeenCalled()
+  })
 
   it('anchors the operation horizon on recordedAt, falling back to occurredAt', async () => {
     const test = harness({ status: 'completed' })

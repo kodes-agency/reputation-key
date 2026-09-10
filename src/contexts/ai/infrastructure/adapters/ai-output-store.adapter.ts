@@ -23,7 +23,6 @@ import {
 import {
   aiOperations,
   aiExecutionControlHeads,
-  aiPropertyAggregateHeads,
   aiPropertyProcessingProfiles,
   aiPropertyTrendOutcomes,
   aiPropertyTrendSchedules,
@@ -32,7 +31,6 @@ import {
   aiReviewAnalysisAspects,
   merchantAiEnablement,
   reviews,
-  reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
@@ -290,6 +288,58 @@ function trendEvidence(value: unknown): AiTrendEvidence | null {
 type AiOutputCapability = 'review_analysis' | 'reply_drafting' | 'property_trends'
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
+type AggregateCoverageInput = Readonly<{
+  organizationId: string
+  propertyId: string
+  sourceEpoch: number
+  reviewAnalysisEpoch: number
+  propertyProfileVersion: number
+}>
+
+async function readAggregateCoverageFence(
+  tx: Transaction,
+  input: AggregateCoverageInput,
+): Promise<
+  | Readonly<{
+      headSequence: number
+      terminalAnalysisSequence: number
+      aggregateRevision: number
+      settledCount: number
+    }>
+  | undefined
+> {
+  const result = await tx.execute<{
+    headSequence: number
+    terminalAnalysisSequence: number
+    aggregateRevision: number
+    settledCount: number
+  }>(sql`
+    SELECT review_head."head_sequence"::float8 AS "headSequence",
+           aggregate."terminal_analysis_sequence"::float8 AS "terminalAnalysisSequence",
+           aggregate."aggregate_revision"::float8 AS "aggregateRevision",
+           (
+             SELECT count(*)::float8
+             FROM "ai_property_aggregate_settlements" AS settlement
+             WHERE settlement."organization_id" = aggregate."organization_id"
+               AND settlement."property_id" = aggregate."property_id"
+               AND settlement."source_epoch" = aggregate."source_epoch"
+               AND settlement."review_analysis_epoch" =
+                 aggregate."review_analysis_epoch"
+           ) AS "settledCount"
+    FROM "review_ai_analysis_heads" AS review_head
+    INNER JOIN "ai_property_aggregate_heads" AS aggregate
+      ON aggregate."organization_id" = review_head."organization_id"
+     AND aggregate."property_id" = review_head."property_id"
+     AND aggregate."source_epoch" = review_head."source_epoch"
+    WHERE review_head."organization_id" = ${input.organizationId}
+      AND review_head."property_id" = ${input.propertyId}::uuid
+      AND review_head."source_epoch" = ${input.sourceEpoch}
+      AND aggregate."review_analysis_epoch" = ${input.reviewAnalysisEpoch}
+      AND aggregate."property_profile_version" = ${input.propertyProfileVersion}
+    FOR SHARE OF review_head, aggregate
+  `)
+  return result.rows[0]
+}
 
 const authorizedEffectOperationColumns = {
   state: aiOperations.state,
@@ -959,44 +1009,29 @@ export const createAiOutputStoreAdapter = (
         ) {
           return false
         }
-        const [reviewHead] = await tx
-          .select({ headSequence: reviewAiAnalysisHeads.headSequence })
-          .from(reviewAiAnalysisHeads)
-          .where(
-            and(
-              eq(reviewAiAnalysisHeads.organizationId, input.organizationId),
-              eq(reviewAiAnalysisHeads.propertyId, input.propertyId),
-              eq(reviewAiAnalysisHeads.sourceEpoch, input.sourceEpoch),
-            ),
-          )
-          .limit(1)
-          .for('share')
-        const [aggregateHead] = await tx
+        const [coverage] = await tx
           .select({
-            terminalAnalysisSequence: aiPropertyAggregateHeads.terminalAnalysisSequence,
-            aggregateRevision: aiPropertyAggregateHeads.aggregateRevision,
+            analysisStartSequence: merchantAiEnablement.analysisStartSequence,
           })
-          .from(aiPropertyAggregateHeads)
+          .from(merchantAiEnablement)
           .where(
             and(
-              eq(aiPropertyAggregateHeads.organizationId, input.organizationId),
-              eq(aiPropertyAggregateHeads.propertyId, input.propertyId),
-              eq(aiPropertyAggregateHeads.sourceEpoch, input.sourceEpoch),
-              eq(aiPropertyAggregateHeads.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(
-                aiPropertyAggregateHeads.propertyProfileVersion,
-                input.propertyProfileVersion,
-              ),
+              eq(merchantAiEnablement.organizationId, input.organizationId),
+              eq(merchantAiEnablement.propertyId, input.propertyId),
+              eq(merchantAiEnablement.authorizedSourceEpoch, input.sourceEpoch),
+              eq(merchantAiEnablement.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
             ),
           )
           .limit(1)
           .for('share')
+        const aggregateCoverage = await readAggregateCoverageFence(tx, input)
         if (
-          !reviewHead ||
-          !aggregateHead ||
-          reviewHead.headSequence !== input.terminalAnalysisSequence ||
-          aggregateHead.terminalAnalysisSequence !== input.terminalAnalysisSequence ||
-          aggregateHead.aggregateRevision !== input.aggregateRevision
+          !coverage ||
+          !aggregateCoverage ||
+          aggregateCoverage.settledCount !==
+            aggregateCoverage.headSequence - coverage.analysisStartSequence ||
+          aggregateCoverage.terminalAnalysisSequence !== input.terminalAnalysisSequence ||
+          aggregateCoverage.aggregateRevision !== input.aggregateRevision
         ) {
           return false
         }
@@ -1387,48 +1422,16 @@ export const createAiOutputStoreAdapter = (
           return deliverCurrent(preparing())
         }
 
-        const [reviewHead] = await tx
-          .select({ headSequence: reviewAiAnalysisHeads.headSequence })
-          .from(reviewAiAnalysisHeads)
-          .where(
-            and(
-              eq(reviewAiAnalysisHeads.organizationId, input.organizationId),
-              eq(reviewAiAnalysisHeads.propertyId, input.propertyId),
-              eq(reviewAiAnalysisHeads.sourceEpoch, input.sourceEpoch),
-            ),
-          )
-          .limit(1)
-          .for('share')
-        const [aggregateHead] = await tx
-          .select({
-            terminalAnalysisSequence: aiPropertyAggregateHeads.terminalAnalysisSequence,
-            aggregateRevision: aiPropertyAggregateHeads.aggregateRevision,
-          })
-          .from(aiPropertyAggregateHeads)
-          .where(
-            and(
-              eq(aiPropertyAggregateHeads.organizationId, input.organizationId),
-              eq(aiPropertyAggregateHeads.propertyId, input.propertyId),
-              eq(aiPropertyAggregateHeads.sourceEpoch, input.sourceEpoch),
-              eq(aiPropertyAggregateHeads.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(
-                aiPropertyAggregateHeads.propertyProfileVersion,
-                input.propertyProfileVersion,
-              ),
-            ),
-          )
-          .limit(1)
-          .for('share')
+        const aggregateCoverage = await readAggregateCoverageFence(tx, input)
         /**
-         * The analysis pipeline has consumed everything: the review head, the
-         * event cursor, and the aggregate head all agree on the same sequence
-         * and revision.
+         * The aggregate is complete only when every sequence allocated after
+         * authorization was transactionally settled. The terminal sequence is
+         * a max-watermark and can move ahead while lower sequences remain open.
          */
-        const analysisIsCaughtUp = () =>
-          reviewHead !== undefined &&
-          aggregateHead !== undefined &&
-          reviewHead.headSequence === aggregateHead.terminalAnalysisSequence
-        const caughtUp = analysisIsCaughtUp()
+        const caughtUp =
+          aggregateCoverage !== undefined &&
+          aggregateCoverage.settledCount ===
+            aggregateCoverage.headSequence - authorization.analysisStartSequence
 
         const now = new Date(input.nowEpochMillis)
         const reports = await tx
@@ -1532,8 +1535,8 @@ export const createAiOutputStoreAdapter = (
           const isCurrent =
             caughtUp &&
             complete.terminalAnalysisSequence ===
-              aggregateHead?.terminalAnalysisSequence &&
-            complete.aggregateRevision === aggregateHead?.aggregateRevision
+              aggregateCoverage?.terminalAnalysisSequence &&
+            complete.aggregateRevision === aggregateCoverage?.aggregateRevision
           const candidateIsNewer =
             candidate !== undefined &&
             (candidate.dueLocalDate > complete.dueLocalDate ||

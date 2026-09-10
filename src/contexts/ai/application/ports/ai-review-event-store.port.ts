@@ -1,4 +1,4 @@
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 
 export type AiReviewEventDisposition =
   'pending' | 'source_expired' | 'provider_deleted' | 'policy_disabled'
@@ -20,7 +20,6 @@ export type AiReviewEventConsumeResult =
       consumedSequence: number
       terminalAnalysisSequence: number
     }>
-  | Readonly<{ status: 'gap'; expectedSequence: number }>
   | Readonly<{ status: 'generation_changed' }>
 
 export type AiReviewEventStorePort = Readonly<{
@@ -28,6 +27,7 @@ export type AiReviewEventStorePort = Readonly<{
     input: Readonly<{
       organizationId: OrganizationId
       propertyId: PropertyId
+      reviewId: ReviewId
       sourceEpoch: number
       reviewAnalysisEpoch: number
       analysisStartSequence: number

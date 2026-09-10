@@ -126,7 +126,7 @@ drift, and the real-database append/fault/pagination/hold/redaction/assessment
 suite. Capture only content-free totals, journal head, test result, and failure
 codes in incident evidence.
 
-Escalate any sequence gap, provenance conflict, direct-mutation rejection, or
+Escalate any analysis coverage discontinuity, provenance conflict, direct-mutation rejection, or
 active-hold conflict to the Activity owner. Escalate policy interpretation or a
 request to delete history to counsel; it is not an operational override.
 

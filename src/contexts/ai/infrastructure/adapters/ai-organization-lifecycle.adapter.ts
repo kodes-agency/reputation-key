@@ -199,6 +199,7 @@ const PURGE_DELETE_TABLES = Object.freeze([
   'ai_property_trend_outcomes',
   'ai_property_trend_schedules',
   'ai_property_aggregate_contributions',
+  'ai_property_aggregate_settlements',
   'ai_property_daily_aggregates',
   'ai_property_aggregate_heads',
   'ai_review_analyses',

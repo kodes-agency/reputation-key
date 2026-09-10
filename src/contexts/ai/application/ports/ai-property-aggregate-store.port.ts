@@ -106,13 +106,13 @@ export type AiPropertyAggregateStorePort = Readonly<{
     | Readonly<{ status: 'replayed'; aggregateRevision: number }>
     | Readonly<{ status: 'unavailable' }>
     | Readonly<{ status: 'stale' }>
-    | Readonly<{ status: 'gap'; expectedAnalysisSequence: number }>
   >
   advanceWithoutAnalysis(
     input: Readonly<{
       organizationId: OrganizationId
       propertyId: PropertyId
       sourceEpoch: number
+      reviewId: ReviewId
       analysisSequence: number
       reviewAnalysisEpoch: number
       propertyProfileVersion: number
@@ -122,7 +122,6 @@ export type AiPropertyAggregateStorePort = Readonly<{
     | Readonly<{ status: 'applied'; aggregateRevision: number }>
     | Readonly<{ status: 'replayed'; aggregateRevision: number }>
     | Readonly<{ status: 'stale' }>
-    | Readonly<{ status: 'gap'; expectedAnalysisSequence: number }>
   >
   readWindow(
     input: AiPropertyAggregateWindowRequest,

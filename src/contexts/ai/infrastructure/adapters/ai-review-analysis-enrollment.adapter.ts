@@ -265,6 +265,12 @@ async function eraseRetiredDerivatives(
       )
   `)
   await tx.execute(sql`
+    WITH retired_settlements AS (
+      DELETE FROM ai_property_aggregate_settlements
+      WHERE organization_id = ${input.organizationId}
+        AND property_id = ${input.propertyId}::uuid
+        AND (source_epoch <> ${sourceEpoch} OR review_analysis_epoch <> ${reviewEpoch})
+    )
     DELETE FROM ai_property_aggregate_contributions
     WHERE organization_id = ${input.organizationId}
       AND property_id = ${input.propertyId}::uuid
@@ -420,28 +426,25 @@ async function reconcileRunning(
   input: Readonly<{ enrollmentId: string; occurredAt: Date }>,
   fence: ReviewAnalysisEnrollmentFence,
 ): Promise<ReviewAnalysisEnrollmentReconcileResult> {
-  // The strict aggregate head is authoritative: reaching a replay event's
-  // assigned sequence proves every earlier sequence terminal, even if BullMQ
-  // exhausted that event before it wrote a receipt.
+  // The transactionally written settlement ledger is authoritative. A consumer
+  // receipt may lag a committed aggregate mutation across the delivery crash window.
   const progress = await tx.execute(sql`
-    WITH terminal AS (
-      SELECT COALESCE(
-        max(head.terminal_analysis_sequence),
-        ${fence.analysisStartSequence}::bigint
-      )::bigint AS sequence
-      FROM ai_property_aggregate_heads AS head
-      WHERE head.organization_id = ${String(row.organization_id)}
-        AND head.property_id = ${String(row.property_id)}::uuid
-        AND head.source_epoch = ${fence.sourceEpoch}
-        AND head.review_analysis_epoch = ${fence.reviewAnalysisEpoch}
-    )
     SELECT
       count(*)::bigint AS emitted,
       count(*) FILTER (
-        WHERE (event.payload->>'analysisSequence')::bigint <= terminal.sequence
+        WHERE EXISTS (
+          SELECT 1
+          FROM ai_property_aggregate_settlements AS settlement
+          WHERE settlement.organization_id = ${String(row.organization_id)}
+            AND settlement.property_id = ${String(row.property_id)}::uuid
+            AND settlement.review_id::text = event.payload->>'reviewId'
+            AND settlement.source_epoch = ${fence.sourceEpoch}
+            AND settlement.review_analysis_epoch = ${fence.reviewAnalysisEpoch}
+            AND settlement.analysis_sequence =
+              (event.payload->>'analysisSequence')::bigint
+        )
       )::bigint AS settled
     FROM outbox_events AS event
-    CROSS JOIN terminal
     WHERE event.organization_id = ${String(row.organization_id)}
       AND event.payload->>'correlationId' = ${input.enrollmentId}
       AND event.event_type = ${BACKFILL_EVENT}

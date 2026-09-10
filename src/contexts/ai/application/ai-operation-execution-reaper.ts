@@ -9,14 +9,13 @@
 //     the operation to `pending` but BullMQ exhausted the origin event's finite
 //     dispatch budget before the 15-minute domain horizon;
 //   - Review Analysis `succeeded_pending_delivery`, after its result transaction
-//     committed but before strict aggregate delivery and the consumer receipt.
+//     committed but before aggregate delivery and the consumer receipt.
 //
-// Recovery performs both halves of terminal delivery: settle the strict
-// property sequence, then record the origin event's consumer receipt. A
+// Recovery performs both halves of terminal delivery: settle the analysis
+// event, then record the origin event's consumer receipt. A
 // reaper-failed analysis remains selectable while that receipt is absent.
 // A completed analysis remains selectable until `markDelivered` wins, even if
 // its receipt was written first, so either crash window is retried next tick.
-// Sequence gaps stay unreceipted and retry later.
 //
 // Provider safety rests on exact state-and-attempt CAS writes. `claimExecution`
 // can invoke the provider only after changing `pending` to `executing`; the
@@ -190,7 +189,7 @@ export function createAiOperationExecutionReaper(
       : { outcome: 'raced' }
   }
 
-  /** Advance the strict per-property analysis sequence the fenced operation held. */
+  /** Settle the fenced operation's per-review analysis event. */
   async function settleAnalysis(
     candidate: StandardRecoveryCandidate,
     dispositionCode: DispositionCode,
@@ -201,7 +200,6 @@ export function createAiOperationExecutionReaper(
       { reviewEvents: deps.reviewEvents, aggregates: deps.aggregates },
       { ...analysis, operationId: candidate.operationId, dispositionCode },
     )
-    if (settled.status === 'gap') return false
     await deps.recordAnalysisReceipt(
       eventEnvelopeId,
       settled.status === 'generation_changed' ? 'obsolete' : 'applied',
@@ -242,7 +240,6 @@ export function createAiOperationExecutionReaper(
       { reviewEvents: deps.reviewEvents, aggregates: deps.aggregates },
       { ...analysis, operationId: candidate.operationId, dispositionCode },
     )
-    if (settled.status === 'gap') return false
     await deps.recordAnalysisReceipt(
       eventEnvelopeId,
       settled.status === 'generation_changed' ? 'obsolete' : 'applied',
@@ -263,7 +260,6 @@ export function createAiOperationExecutionReaper(
       { reviewEvents: deps.reviewEvents, aggregates: deps.aggregates },
       { ...analysis, operationId: candidate.operationId },
     )
-    if (settled.status === 'gap') return { outcome: 'skipped' }
     if (settled.status === 'generation_changed') {
       const fenced = await fenceCompletedDelivery(
         candidate,

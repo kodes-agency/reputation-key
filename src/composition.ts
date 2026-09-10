@@ -458,8 +458,6 @@ function buildContainer(
     replyBrandProfiles: portal.publicApi.portal,
     inference: aiRuntime.inference,
     subjectHmac: aiRuntime.subjectHmac,
-    reviewAnalysisBackfillQueue: infra.domainEventsQueue,
-    logger,
     enqueuePropertyTrend: infra.jobQueue
       ? async (scheduleId) => {
           await infra.jobQueue!.add(

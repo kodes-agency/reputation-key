@@ -60,6 +60,71 @@ function numberFromDatabase(value: number | string): number {
 function dateFromDatabase(value: Date | string): Date {
   return value instanceof Date ? value : new Date(value)
 }
+type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
+
+async function lockCurrentScheduleBinding(tx: Transaction, scheduleId: string) {
+  const current = await tx.execute<{
+    organizationId: string
+    propertyId: string
+  }>(sql`
+    SELECT schedule."organization_id" AS "organizationId",
+           schedule."property_id"::text AS "propertyId"
+    FROM "ai_property_trend_schedules" AS schedule
+    INNER JOIN "properties" AS property
+      ON property."organization_id" = schedule."organization_id"
+     AND property."id" = schedule."property_id"
+    INNER JOIN "merchant_ai_enablement" AS auth
+      ON auth."organization_id" = schedule."organization_id"
+     AND auth."property_id" = schedule."property_id"
+    INNER JOIN "ai_property_processing_profiles" AS profile
+      ON profile."organization_id" = schedule."organization_id"
+     AND profile."property_id" = schedule."property_id"
+    INNER JOIN "ai_review_analysis_enrollments" AS enrollment
+      ON enrollment."organization_id" = schedule."organization_id"
+     AND enrollment."property_id" = schedule."property_id"
+     AND enrollment."authorization_lineage_id" = auth."authorization_lineage_id"
+     AND enrollment."authorization_state_version" = auth."state_version"
+     AND enrollment."source_epoch" = schedule."source_epoch"
+     AND enrollment."review_analysis_epoch" = schedule."review_analysis_epoch"
+     AND enrollment."analysis_start_sequence" = auth."analysis_start_sequence"
+     AND enrollment."state" = 'caught_up'
+    INNER JOIN "review_ai_analysis_heads" AS review_head
+      ON review_head."organization_id" = schedule."organization_id"
+     AND review_head."property_id" = schedule."property_id"
+     AND review_head."source_epoch" = schedule."source_epoch"
+    INNER JOIN "ai_property_aggregate_heads" AS aggregate
+      ON aggregate."organization_id" = schedule."organization_id"
+     AND aggregate."property_id" = schedule."property_id"
+     AND aggregate."source_epoch" = schedule."source_epoch"
+     AND aggregate."review_analysis_epoch" = schedule."review_analysis_epoch"
+     AND aggregate."property_profile_version" = schedule."property_profile_version"
+    WHERE schedule."id" = ${scheduleId}::uuid
+      AND property."deleted_at" IS NULL
+      AND property."lifecycle_state" = 'active'
+      AND auth."state" = 'enabled'
+      AND 'property_trends' = ANY(auth."capabilities")
+      AND auth."capability_runtime_profile_versions"->>'property_trends' = 'property-trends-runtime-v1'
+      AND auth."authorized_source_epoch" = schedule."source_epoch"
+      AND auth."review_analysis_epoch" = schedule."review_analysis_epoch"
+      AND auth."property_trends_epoch" = schedule."property_trends_epoch"
+      AND profile."lifecycle_state" = 'active'
+      AND profile."source_epoch" = schedule."source_epoch"
+      AND profile."profile_version" = schedule."property_profile_version"
+      AND profile."timezone" = schedule."timezone"
+      AND (
+        SELECT count(*)
+        FROM "ai_property_aggregate_settlements" AS settlement
+        WHERE settlement."organization_id" = aggregate."organization_id"
+          AND settlement."property_id" = aggregate."property_id"
+          AND settlement."source_epoch" = aggregate."source_epoch"
+          AND settlement."review_analysis_epoch" = aggregate."review_analysis_epoch"
+      ) = review_head."head_sequence" - auth."analysis_start_sequence"
+      AND aggregate."terminal_analysis_sequence" = schedule."terminal_analysis_sequence"
+      AND aggregate."aggregate_revision" = schedule."aggregate_revision"
+    FOR SHARE OF property, auth, profile, enrollment, review_head, aggregate
+  `)
+  return current.rows[0]
+}
 
 export const createAiPropertyTrendScheduleStore = (
   db: Database,
@@ -163,7 +228,15 @@ export const createAiPropertyTrendScheduleStore = (
             AND auth."capability_runtime_profile_versions"->>'property_trends' = 'property-trends-runtime-v1'
             AND auth."authorized_source_epoch" = profile."source_epoch"
             AND profile."lifecycle_state" = 'active'
-            AND aggregate."terminal_analysis_sequence" = review_head."head_sequence"
+            AND (
+              SELECT count(*)
+              FROM "ai_property_aggregate_settlements" AS settlement
+              WHERE settlement."organization_id" = aggregate."organization_id"
+                AND settlement."property_id" = aggregate."property_id"
+                AND settlement."source_epoch" = aggregate."source_epoch"
+                AND settlement."review_analysis_epoch" =
+                  aggregate."review_analysis_epoch"
+            ) = review_head."head_sequence" - auth."analysis_start_sequence"
             AND (${head.cursorOrganizationId}::varchar IS NULL OR
               (property."organization_id", property."id") >
               (${head.cursorOrganizationId}::varchar, ${head.cursorPropertyId}::uuid))
@@ -341,60 +414,7 @@ export const createAiPropertyTrendScheduleStore = (
             : 'stale'
         }
 
-        const current = await tx.execute<{
-          organizationId: string
-          propertyId: string
-        }>(sql`
-          SELECT schedule."organization_id" AS "organizationId",
-                 schedule."property_id"::text AS "propertyId"
-          FROM "ai_property_trend_schedules" AS schedule
-          INNER JOIN "properties" AS property
-            ON property."organization_id" = schedule."organization_id"
-           AND property."id" = schedule."property_id"
-          INNER JOIN "merchant_ai_enablement" AS auth
-            ON auth."organization_id" = schedule."organization_id"
-           AND auth."property_id" = schedule."property_id"
-          INNER JOIN "ai_property_processing_profiles" AS profile
-            ON profile."organization_id" = schedule."organization_id"
-           AND profile."property_id" = schedule."property_id"
-          INNER JOIN "ai_review_analysis_enrollments" AS enrollment
-            ON enrollment."organization_id" = schedule."organization_id"
-           AND enrollment."property_id" = schedule."property_id"
-           AND enrollment."authorization_lineage_id" = auth."authorization_lineage_id"
-           AND enrollment."authorization_state_version" = auth."state_version"
-           AND enrollment."source_epoch" = schedule."source_epoch"
-           AND enrollment."review_analysis_epoch" = schedule."review_analysis_epoch"
-           AND enrollment."analysis_start_sequence" = auth."analysis_start_sequence"
-           AND enrollment."state" = 'caught_up'
-          INNER JOIN "review_ai_analysis_heads" AS review_head
-            ON review_head."organization_id" = schedule."organization_id"
-           AND review_head."property_id" = schedule."property_id"
-           AND review_head."source_epoch" = schedule."source_epoch"
-          INNER JOIN "ai_property_aggregate_heads" AS aggregate
-            ON aggregate."organization_id" = schedule."organization_id"
-           AND aggregate."property_id" = schedule."property_id"
-           AND aggregate."source_epoch" = schedule."source_epoch"
-           AND aggregate."review_analysis_epoch" = schedule."review_analysis_epoch"
-           AND aggregate."property_profile_version" = schedule."property_profile_version"
-          WHERE schedule."id" = ${scheduleId}::uuid
-            AND property."deleted_at" IS NULL
-            AND property."lifecycle_state" = 'active'
-            AND auth."state" = 'enabled'
-            AND 'property_trends' = ANY(auth."capabilities")
-            AND auth."capability_runtime_profile_versions"->>'property_trends' = 'property-trends-runtime-v1'
-            AND auth."authorized_source_epoch" = schedule."source_epoch"
-            AND auth."review_analysis_epoch" = schedule."review_analysis_epoch"
-            AND auth."property_trends_epoch" = schedule."property_trends_epoch"
-            AND profile."lifecycle_state" = 'active'
-            AND profile."source_epoch" = schedule."source_epoch"
-            AND profile."profile_version" = schedule."property_profile_version"
-            AND profile."timezone" = schedule."timezone"
-            AND review_head."head_sequence" = schedule."terminal_analysis_sequence"
-            AND aggregate."terminal_analysis_sequence" = schedule."terminal_analysis_sequence"
-            AND aggregate."aggregate_revision" = schedule."aggregate_revision"
-          FOR SHARE OF property, auth, profile, enrollment, review_head, aggregate
-        `)
-        const binding = current.rows[0]
+        const binding = await lockCurrentScheduleBinding(tx, scheduleId)
         if (binding === undefined) return 'stale'
 
         const nowRows = await tx.execute<{ now: Date | string }>(sql`
@@ -479,60 +499,7 @@ export const createAiPropertyTrendScheduleStore = (
           return replayed ? 'replayed' : 'stale'
         }
 
-        const current = await tx.execute<{
-          organizationId: string
-          propertyId: string
-        }>(sql`
-          SELECT schedule."organization_id" AS "organizationId",
-                 schedule."property_id"::text AS "propertyId"
-          FROM "ai_property_trend_schedules" AS schedule
-          INNER JOIN "properties" AS property
-            ON property."organization_id" = schedule."organization_id"
-           AND property."id" = schedule."property_id"
-          INNER JOIN "merchant_ai_enablement" AS auth
-            ON auth."organization_id" = schedule."organization_id"
-           AND auth."property_id" = schedule."property_id"
-          INNER JOIN "ai_property_processing_profiles" AS profile
-            ON profile."organization_id" = schedule."organization_id"
-           AND profile."property_id" = schedule."property_id"
-          INNER JOIN "ai_review_analysis_enrollments" AS enrollment
-            ON enrollment."organization_id" = schedule."organization_id"
-           AND enrollment."property_id" = schedule."property_id"
-           AND enrollment."authorization_lineage_id" = auth."authorization_lineage_id"
-           AND enrollment."authorization_state_version" = auth."state_version"
-           AND enrollment."source_epoch" = schedule."source_epoch"
-           AND enrollment."review_analysis_epoch" = schedule."review_analysis_epoch"
-           AND enrollment."analysis_start_sequence" = auth."analysis_start_sequence"
-           AND enrollment."state" = 'caught_up'
-          INNER JOIN "review_ai_analysis_heads" AS review_head
-            ON review_head."organization_id" = schedule."organization_id"
-           AND review_head."property_id" = schedule."property_id"
-           AND review_head."source_epoch" = schedule."source_epoch"
-          INNER JOIN "ai_property_aggregate_heads" AS aggregate
-            ON aggregate."organization_id" = schedule."organization_id"
-           AND aggregate."property_id" = schedule."property_id"
-           AND aggregate."source_epoch" = schedule."source_epoch"
-           AND aggregate."review_analysis_epoch" = schedule."review_analysis_epoch"
-           AND aggregate."property_profile_version" = schedule."property_profile_version"
-          WHERE schedule."id" = ${scheduleId}::uuid
-            AND property."deleted_at" IS NULL
-            AND property."lifecycle_state" = 'active'
-            AND auth."state" = 'enabled'
-            AND 'property_trends' = ANY(auth."capabilities")
-            AND auth."capability_runtime_profile_versions"->>'property_trends' = 'property-trends-runtime-v1'
-            AND auth."authorized_source_epoch" = schedule."source_epoch"
-            AND auth."review_analysis_epoch" = schedule."review_analysis_epoch"
-            AND auth."property_trends_epoch" = schedule."property_trends_epoch"
-            AND profile."lifecycle_state" = 'active'
-            AND profile."source_epoch" = schedule."source_epoch"
-            AND profile."profile_version" = schedule."property_profile_version"
-            AND profile."timezone" = schedule."timezone"
-            AND review_head."head_sequence" = schedule."terminal_analysis_sequence"
-            AND aggregate."terminal_analysis_sequence" = schedule."terminal_analysis_sequence"
-            AND aggregate."aggregate_revision" = schedule."aggregate_revision"
-          FOR SHARE OF property, auth, profile, enrollment, review_head, aggregate
-        `)
-        const binding = current.rows[0]
+        const binding = await lockCurrentScheduleBinding(tx, scheduleId)
         if (binding === undefined) return 'stale'
 
         const nowRows = await tx.execute<{ now: Date | string }>(sql`

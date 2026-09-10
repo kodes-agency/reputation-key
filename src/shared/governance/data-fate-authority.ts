@@ -161,6 +161,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exportNames: [
       'aiPropertyAggregateContributions',
       'aiPropertyAggregateHeads',
+      'aiPropertyAggregateSettlements',
       'aiPropertyDailyAggregates',
       'aiPropertyTrendOutcomes',
       'aiReviewAnalyses',

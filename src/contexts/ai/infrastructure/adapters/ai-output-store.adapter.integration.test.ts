@@ -7,7 +7,9 @@ import {
   aiExecutionControlTransitions,
   aiOperations,
   aiPropertyAggregateContributionAspects,
+  aiPropertyAggregateContributions,
   aiPropertyAggregateHeads,
+  aiPropertyAggregateSettlements,
   aiPropertyDailyAspectAggregates,
   aiPropertyDailyAggregates,
   aiPropertyProcessingProfiles,
@@ -45,6 +47,10 @@ const REVIEW_A_ID = reviewId('75000000-0000-4000-8000-000000000003')
 const REVIEW_B_ID = reviewId('75000000-0000-4000-8000-000000000004')
 const OPERATION_ID = '75000000-0000-4000-8000-000000000005' as AiOperationId
 const ORIGIN_EVENT_ID = '75000000-0000-4000-8000-000000000006'
+const SUPERSEDED_OPERATION_ID = '75000000-0000-4000-8000-000000000007' as AiOperationId
+const LATEST_OPERATION_ID = '75000000-0000-4000-8000-000000000008' as AiOperationId
+const SUPERSEDED_EVENT_ID = '75000000-0000-4000-8000-000000000009'
+const LATEST_EVENT_ID = '75000000-0000-4000-8000-000000000010'
 const ACTOR_USER_ID = 'ai-output-store-test-actor'
 const SOURCE_EPOCH = 0
 const SOURCE_REVISION = 1
@@ -412,6 +418,9 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       .delete(aiPropertyAggregateHeads)
       .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
     await db
+      .delete(aiPropertyAggregateSettlements)
+      .where(eq(aiPropertyAggregateSettlements.propertyId, PROPERTY_ID))
+    await db
       .update(aiOperations)
       .set({ state: 'executing', updatedAt: NOW })
       .where(eq(aiOperations.id, OPERATION_ID))
@@ -539,6 +548,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       aggregates.advanceWithoutAnalysis({
         organizationId: ORGANIZATION_ID,
         propertyId: PROPERTY_ID,
+        reviewId: REVIEW_B_ID,
         sourceEpoch: SOURCE_EPOCH,
         reviewAnalysisEpoch: 1,
         analysisSequence: 2,
@@ -613,6 +623,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       aggregates.advanceWithoutAnalysis({
         organizationId: ORGANIZATION_ID,
         propertyId: PROPERTY_ID,
+        reviewId: REVIEW_B_ID,
         sourceEpoch: SOURCE_EPOCH,
         reviewAnalysisEpoch: 1,
         analysisSequence: 2,
@@ -655,6 +666,416 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         },
       ],
     })
+  })
+  it('converges for 20 different reviews applied in shuffled order', async () => {
+    const [baseOperation] = await db
+      .select()
+      .from(aiOperations)
+      .where(eq(aiOperations.id, OPERATION_ID))
+      .limit(1)
+    if (!baseOperation) throw new Error('Missing aggregate convergence fixture')
+
+    const fixture = Array.from({ length: 20 }, (_, index) => {
+      const sequence = index + 21
+      return {
+        reviewId: reviewId(
+          `75300000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+        ),
+        operationId: `75400000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+        eventId: `75500000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+        sequence,
+        rating: (index % 5) + 1,
+        sentiment: ['positive', 'neutral', 'negative', 'mixed'][index % 4]!,
+        attention: ['low', 'medium', 'high', 'urgent'][index % 4]!,
+        aspect: ASPECT_TAXONOMY_V1[index % ASPECT_TAXONOMY_V1.length]!,
+        polarity: index % 3 === 0 ? 'positive' : index % 3 === 1 ? 'neutral' : 'negative',
+        intensity: index % 3 === 0 ? 70 : index % 3 === 1 ? 0 : -70,
+      }
+    })
+    await db.insert(reviews).values(
+      fixture.map((row) => ({
+        id: row.reviewId,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        platform: 'google' as const,
+        externalId: `aggregate-convergence-${row.sequence}`,
+        reviewerName: `Convergence reviewer ${row.sequence}`,
+        rating: row.rating,
+        text: `Convergence review ${row.sequence}`,
+        languageCode: 'en',
+        reviewedAt: REVIEWED_AT,
+        contentExpiresAt: CONTENT_EXPIRES_AT,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: row.sequence,
+        aiSourceByteLength: SOURCE_BYTE_COUNT,
+        aiSourceDigest: REVIEW_A_SOURCE_DIGEST,
+      })),
+    )
+    await db.insert(materialReviewRevisions).values(
+      fixture.map((row) => ({
+        reviewId: row.reviewId,
+        revision: SOURCE_REVISION,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        normalizationVersion: 'legacy-unverified-v0',
+        rating: row.rating,
+        normalizedText: `Convergence review ${row.sequence}`,
+      })),
+    )
+    await db.insert(aiOperations).values(
+      fixture.map((row) => ({
+        ...baseOperation,
+        id: row.operationId,
+        idempotencyScope: `analysis:${row.operationId}`,
+        idempotencyKey: row.operationId,
+        reviewId: row.reviewId,
+        originEventId: row.eventId,
+        analysisSequence: row.sequence,
+      })),
+    )
+    await db.insert(aiReviewAnalyses).values(
+      fixture.map((row) => ({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: row.reviewId,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: row.sequence,
+        operationId: row.operationId,
+        authorizationLineageId: LINEAGE_ID,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 1,
+        analysisProfileVersion: 'review-analysis-v2',
+        status: 'ready',
+        unavailableReason: null,
+        sentiment: row.sentiment,
+        primaryCategory: row.aspect,
+        issueLabel: null,
+        attention: row.attention,
+        generatedAt: COMPLETED_AT,
+        expiresAt: ANALYSIS_EXPIRES_AT,
+      })),
+    )
+    await db.insert(aiReviewAnalysisAspects).values(
+      fixture.map((row) => ({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: row.reviewId,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: row.sequence,
+        aspect: row.aspect,
+        polarity: row.polarity,
+        intensity: row.intensity,
+      })),
+    )
+
+    const aggregates = createAiPropertyAggregateStoreAdapter(db)
+    const apply = async (row: (typeof fixture)[number]) =>
+      aggregates.applyReviewAnalysis({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: row.reviewId,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: row.sequence,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 1,
+        calendarProfileVersion: 'property-calendar-v1',
+      })
+    const resetAggregate = async () => {
+      await db
+        .delete(aiPropertyDailyAspectAggregates)
+        .where(eq(aiPropertyDailyAspectAggregates.propertyId, PROPERTY_ID))
+      await db
+        .delete(aiPropertyDailyAggregates)
+        .where(eq(aiPropertyDailyAggregates.propertyId, PROPERTY_ID))
+      await db
+        .delete(aiPropertyAggregateContributions)
+        .where(eq(aiPropertyAggregateContributions.propertyId, PROPERTY_ID))
+      await db
+        .delete(aiPropertyAggregateSettlements)
+        .where(eq(aiPropertyAggregateSettlements.propertyId, PROPERTY_ID))
+      await db
+        .delete(aiPropertyAggregateHeads)
+        .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
+    }
+    const snapshot = async () => {
+      const [daily] = await db
+        .select({
+          reviewCount: aiPropertyDailyAggregates.reviewCount,
+          ratingSum: aiPropertyDailyAggregates.ratingSum,
+          positiveCount: aiPropertyDailyAggregates.positiveCount,
+          neutralCount: aiPropertyDailyAggregates.neutralCount,
+          negativeCount: aiPropertyDailyAggregates.negativeCount,
+          mixedCount: aiPropertyDailyAggregates.mixedCount,
+          urgentCount: aiPropertyDailyAggregates.urgentCount,
+          highCount: aiPropertyDailyAggregates.highCount,
+          mediumCount: aiPropertyDailyAggregates.mediumCount,
+          lowCount: aiPropertyDailyAggregates.lowCount,
+        })
+        .from(aiPropertyDailyAggregates)
+        .where(eq(aiPropertyDailyAggregates.propertyId, PROPERTY_ID))
+      const aspects = await db
+        .select({
+          aspect: aiPropertyDailyAspectAggregates.aspect,
+          polarity: aiPropertyDailyAspectAggregates.polarity,
+          mentionCount: aiPropertyDailyAspectAggregates.mentionCount,
+        })
+        .from(aiPropertyDailyAspectAggregates)
+        .where(eq(aiPropertyDailyAspectAggregates.propertyId, PROPERTY_ID))
+        .orderBy(
+          aiPropertyDailyAspectAggregates.aspect,
+          aiPropertyDailyAspectAggregates.polarity,
+        )
+      const [head] = await db
+        .select({
+          aggregateRevision: aiPropertyAggregateHeads.aggregateRevision,
+          terminalAnalysisSequence: aiPropertyAggregateHeads.terminalAnalysisSequence,
+        })
+        .from(aiPropertyAggregateHeads)
+        .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
+      const coverage = await db.execute<{ count: number }>(sql`
+        SELECT count(*)::int AS count
+        FROM ai_property_aggregate_settlements
+        WHERE organization_id = ${ORGANIZATION_ID}
+          AND property_id = ${PROPERTY_ID}::uuid
+          AND source_epoch = ${SOURCE_EPOCH}
+          AND review_analysis_epoch = 1
+      `)
+      return {
+        daily,
+        aspects,
+        head,
+        settlementCount: coverage.rows[0]?.count,
+      }
+    }
+
+    for (const row of fixture) {
+      await expect(apply(row)).resolves.toMatchObject({ status: 'applied' })
+    }
+    const sequential = await snapshot()
+
+    await resetAggregate()
+    const shuffled = [...fixture].sort(
+      (left, right) => ((left.sequence * 7) % 20) - ((right.sequence * 7) % 20),
+    )
+    for (const row of shuffled) {
+      await expect(apply(row)).resolves.toMatchObject({ status: 'applied' })
+    }
+
+    expect(await snapshot()).toEqual(sequential)
+    expect(sequential).toMatchObject({
+      daily: { reviewCount: 20, ratingSum: 60 },
+      head: { aggregateRevision: 20, terminalAnalysisSequence: 40 },
+      settlementCount: 20,
+    })
+  })
+
+  it('keeps the latest analysis when the same review settles out of order', async () => {
+    await db
+      .delete(aiPropertyDailyAspectAggregates)
+      .where(eq(aiPropertyDailyAspectAggregates.propertyId, PROPERTY_ID))
+    await db
+      .delete(aiPropertyDailyAggregates)
+      .where(eq(aiPropertyDailyAggregates.propertyId, PROPERTY_ID))
+    await db
+      .delete(aiPropertyAggregateContributions)
+      .where(eq(aiPropertyAggregateContributions.propertyId, PROPERTY_ID))
+    await db
+      .delete(aiPropertyAggregateSettlements)
+      .where(eq(aiPropertyAggregateSettlements.propertyId, PROPERTY_ID))
+    await db
+      .delete(aiPropertyAggregateHeads)
+      .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
+    const [baseOperation] = await db
+      .select()
+      .from(aiOperations)
+      .where(eq(aiOperations.id, OPERATION_ID))
+      .limit(1)
+    if (!baseOperation) throw new Error('Missing aggregate supersession fixture')
+
+    await db.insert(aiOperations).values([
+      {
+        ...baseOperation,
+        id: LATEST_OPERATION_ID,
+        idempotencyScope: `analysis:${LATEST_OPERATION_ID}`,
+        idempotencyKey: LATEST_OPERATION_ID,
+        originEventId: LATEST_EVENT_ID,
+        analysisSequence: 9,
+      },
+      {
+        ...baseOperation,
+        id: SUPERSEDED_OPERATION_ID,
+        idempotencyScope: `analysis:${SUPERSEDED_OPERATION_ID}`,
+        idempotencyKey: SUPERSEDED_OPERATION_ID,
+        originEventId: SUPERSEDED_EVENT_ID,
+        analysisSequence: 5,
+      },
+    ])
+    await db.insert(aiReviewAnalyses).values([
+      {
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_A_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: 9,
+        operationId: LATEST_OPERATION_ID,
+        authorizationLineageId: LINEAGE_ID,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 1,
+        analysisProfileVersion: 'review-analysis-v2',
+        status: 'ready',
+        unavailableReason: null,
+        sentiment: 'positive',
+        primaryCategory: 'service',
+        issueLabel: null,
+        attention: 'low',
+        generatedAt: COMPLETED_AT,
+        expiresAt: ANALYSIS_EXPIRES_AT,
+      },
+      {
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_A_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: 5,
+        operationId: SUPERSEDED_OPERATION_ID,
+        authorizationLineageId: LINEAGE_ID,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 1,
+        analysisProfileVersion: 'review-analysis-v2',
+        status: 'ready',
+        unavailableReason: null,
+        sentiment: 'negative',
+        primaryCategory: 'quality',
+        issueLabel: null,
+        attention: 'urgent',
+        generatedAt: COMPLETED_AT,
+        expiresAt: ANALYSIS_EXPIRES_AT,
+      },
+    ])
+    await db.insert(aiReviewAnalysisAspects).values([
+      {
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_A_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: 9,
+        aspect: 'service',
+        polarity: 'positive',
+        intensity: 75,
+      },
+      {
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_A_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: 5,
+        aspect: 'quality',
+        polarity: 'negative',
+        intensity: -75,
+      },
+    ])
+
+    const aggregates = createAiPropertyAggregateStoreAdapter(db)
+    await db
+      .update(reviews)
+      .set({ analysisSequence: 9 })
+      .where(eq(reviews.id, REVIEW_A_ID))
+    await expect(
+      aggregates.applyReviewAnalysis({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_A_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: 9,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 1,
+        calendarProfileVersion: 'property-calendar-v1',
+      }),
+    ).resolves.toEqual({ status: 'applied', aggregateRevision: 1 })
+
+    const superseded = await aggregates.applyReviewAnalysis({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      reviewId: REVIEW_A_ID,
+      sourceEpoch: SOURCE_EPOCH,
+      sourceRevision: SOURCE_REVISION,
+      analysisSequence: 5,
+      reviewAnalysisEpoch: 1,
+      propertyProfileVersion: 1,
+      calendarProfileVersion: 'property-calendar-v1',
+    })
+
+    const [daily] = await db
+      .select({
+        reviewCount: aiPropertyDailyAggregates.reviewCount,
+        ratingSum: aiPropertyDailyAggregates.ratingSum,
+        positiveCount: aiPropertyDailyAggregates.positiveCount,
+        negativeCount: aiPropertyDailyAggregates.negativeCount,
+        urgentCount: aiPropertyDailyAggregates.urgentCount,
+        lowCount: aiPropertyDailyAggregates.lowCount,
+      })
+      .from(aiPropertyDailyAggregates)
+      .where(eq(aiPropertyDailyAggregates.propertyId, PROPERTY_ID))
+    expect(daily).toEqual({
+      reviewCount: 1,
+      ratingSum: 5,
+      positiveCount: 1,
+      negativeCount: 0,
+      urgentCount: 0,
+      lowCount: 1,
+    })
+    expect(superseded).toEqual({ status: 'stale' })
+    await expect(
+      aggregates.applyReviewAnalysis({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_A_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: 9,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 1,
+        calendarProfileVersion: 'property-calendar-v1',
+      }),
+    ).resolves.toEqual({ status: 'replayed', aggregateRevision: 1 })
+    await expect(
+      aggregates.applyReviewAnalysis({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_A_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: 5,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 1,
+        calendarProfileVersion: 'property-calendar-v1',
+      }),
+    ).resolves.toEqual({ status: 'stale' })
+
+    const settlements = await db
+      .select({ analysisSequence: aiPropertyAggregateSettlements.analysisSequence })
+      .from(aiPropertyAggregateSettlements)
+      .where(eq(aiPropertyAggregateSettlements.propertyId, PROPERTY_ID))
+      .orderBy(aiPropertyAggregateSettlements.analysisSequence)
+    const [head] = await db
+      .select({
+        aggregateRevision: aiPropertyAggregateHeads.aggregateRevision,
+        terminalAnalysisSequence: aiPropertyAggregateHeads.terminalAnalysisSequence,
+      })
+      .from(aiPropertyAggregateHeads)
+      .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
+    expect(settlements).toEqual([{ analysisSequence: 5 }, { analysisSequence: 9 }])
+    expect(head).toEqual({ aggregateRevision: 1, terminalAnalysisSequence: 9 })
   })
 
   it('rejects an analysis after the review is pinned to a newer sequence', async () => {

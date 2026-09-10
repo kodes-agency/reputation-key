@@ -1,5 +1,4 @@
 import type { Database } from '#/shared/db'
-import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Redis } from 'ioredis'
 import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
@@ -38,10 +37,6 @@ import { createAiPropertyTrendScheduleStore } from './infrastructure/adapters/ai
 import { createAiReviewEventStoreAdapter } from './infrastructure/adapters/ai-review-event-store.adapter'
 import { createPropertyProcessingProfileAdapter } from './infrastructure/adapters/property-processing-profile.adapter'
 import { createReviewAnalysisEnrollmentAdapter } from './infrastructure/adapters/ai-review-analysis-enrollment.adapter'
-import {
-  createReviewAnalysisBackfillChainAdapter,
-  type ReviewAnalysisBackfillChainQueue,
-} from './infrastructure/adapters/ai-review-analysis-backfill-chain.adapter'
 import { createRedisAiQuotaAdapter } from './infrastructure/adapters/ai-quota.adapter'
 import { createAiOrganizationExportContributor } from './infrastructure/adapters/ai-organization-export.adapter'
 import { createAiOrganizationLifecycleContributor } from './infrastructure/adapters/ai-organization-lifecycle.adapter'
@@ -100,8 +95,6 @@ export type AiContextBuildInput = Readonly<{
   subjectHmac?: AiSubjectHmacPort
   resolveReplyLanguage?: GenerateReplySuggestionDependencies['resolveReplyLanguage']
   enqueuePropertyTrend?: RegisterAiConsumersInput['enqueuePropertyTrend']
-  reviewAnalysisBackfillQueue?: ReviewAnalysisBackfillChainQueue
-  logger: Pick<LoggerPort, 'warn'>
   idGen: () => string
   nowEpochMillis: () => number
 }>
@@ -118,11 +111,6 @@ export const buildAiContext = (input: AiContextBuildInput) => {
   const calendar = createAiPropertyCalendarAdapter(input.db)
   const reviewEvents = createAiReviewEventStoreAdapter(input.db)
   const enrollments = createReviewAnalysisEnrollmentAdapter(input.db, input.idGen)
-  const advanceReviewAnalysisBackfill = createReviewAnalysisBackfillChainAdapter({
-    db: input.db,
-    queue: input.reviewAnalysisBackfillQueue,
-    logger: input.logger,
-  })
   const processingProfiles = createPropertyProcessingProfileAdapter(input.db, clock)
   const inference = input.inference ?? unavailableInference
   const quota =
@@ -207,7 +195,6 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     }
     registerAiConsumers(consumerRegistry, {
       enqueuePropertyTrend: input.enqueuePropertyTrend,
-      advanceReviewAnalysisBackfill,
       analyzeReviewEvent,
       applyAiAuthorizationLifecycle,
       receipts: input.outboxRepo,
