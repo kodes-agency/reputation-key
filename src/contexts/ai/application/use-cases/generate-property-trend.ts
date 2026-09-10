@@ -342,6 +342,7 @@ export function createGeneratePropertyTrend(
     ])
     if (
       aggregate === null ||
+      aggregate.coverage.awaitingAnalysisCount > 0 ||
       aggregate.head.terminalAnalysisSequence !== schedule.terminalAnalysisSequence ||
       aggregate.head.aggregateRevision !== schedule.aggregateRevision
     ) {

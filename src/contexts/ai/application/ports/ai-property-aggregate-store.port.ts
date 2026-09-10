@@ -71,6 +71,15 @@ export type AiPropertyUnavailableReview = Readonly<{
   reason: 'language_not_supported'
 }>
 
+export type AiPropertyAggregateCoverage = Readonly<{
+  /** Exact append-only settlement ledger rows for this source and analysis epoch. */
+  settledAnalysisCount: number
+  /** Review Analysis head minus the enablement start sequence. */
+  expectedAnalysisCount: number
+  /** Expected settlements that have not reached the aggregate ledger yet. */
+  awaitingAnalysisCount: number
+}>
+
 export type AiPropertyAggregateWindowRequest = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
@@ -83,6 +92,7 @@ export type AiPropertyAggregateWindowRequest = Readonly<{
 
 export type AiPropertyAggregateWindow = Readonly<{
   head: AiPropertyAggregateHead
+  coverage: AiPropertyAggregateCoverage
   days: readonly AiPropertyDailyAggregate[]
   analyzedReviews: readonly AiPropertyAnalyzedReview[]
   unavailableReviews: readonly AiPropertyUnavailableReview[]

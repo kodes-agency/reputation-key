@@ -84,15 +84,25 @@ function harness(
     window?: unknown
   }> = {},
 ) {
-  const readWindow = vi.fn(async () =>
-    over.window === undefined
-      ? {
-          head: {},
-          days: [day('2026-08-19'), day('2026-08-20')],
-          analyzedReviews: [],
-        }
-      : over.window,
-  )
+  const readWindow = vi.fn(async () => {
+    const window =
+      over.window === undefined
+        ? {
+            head: {},
+            days: [day('2026-08-19'), day('2026-08-20')],
+            analyzedReviews: [],
+          }
+        : over.window
+    if (window === null || typeof window !== 'object') return window
+    return {
+      coverage: {
+        settledAnalysisCount: 1,
+        expectedAnalysisCount: 1,
+        awaitingAnalysisCount: 0,
+      },
+      ...window,
+    }
+  })
   const resolveLocalDate = vi.fn(async () =>
     over.localDate === undefined ? '2026-08-20' : over.localDate,
   )
@@ -171,9 +181,53 @@ describe('readPropertyAggregates window', () => {
     )
   })
 
-  it('reports preparing rather than zeroes while aggregates are unsettled', async () => {
-    const { read } = harness({ window: null })
+  it('reports preparing when no aggregate evidence has been applied', async () => {
+    const { read } = harness({
+      window: {
+        head: {},
+        coverage: {
+          settledAnalysisCount: 0,
+          expectedAnalysisCount: 1,
+          awaitingAnalysisCount: 1,
+        },
+        days: [],
+        analyzedReviews: [],
+      },
+    })
     expect(await read(input)).toEqual({ status: 'preparing' })
+  })
+
+  it('returns exact provisional aggregates while settlement coverage is incomplete', async () => {
+    const { read } = harness({
+      window: {
+        head: {},
+        coverage: {
+          settledAnalysisCount: 1,
+          expectedAnalysisCount: 3,
+          awaitingAnalysisCount: 2,
+        },
+        days: [day('2026-08-20')],
+        analyzedReviews: [
+          analyzedReview(1, {
+            rating: 5,
+            aspect: 'service',
+            polarity: 'positive',
+            intensity: 80,
+          }),
+        ],
+      },
+    })
+
+    await expect(read(input)).resolves.toMatchObject({
+      status: 'ready',
+      provisional: true,
+      coverage: {
+        settledAnalysisCount: 1,
+        expectedAnalysisCount: 3,
+        awaitingAnalysisCount: 2,
+      },
+      analyzedReviewCount: 1,
+    })
   })
 
   it('reports preparing when the calendar cannot resolve a local date', async () => {
@@ -226,6 +280,12 @@ describe('readPropertyAggregates summary', () => {
     const result = await read(input)
     if (result.status !== 'ready') throw new Error('expected ready')
     expect(result.impactVersion).toBe('aspect-impact-v1')
+    expect(result.provisional).toBe(false)
+    expect(result.coverage).toEqual({
+      settledAnalysisCount: 1,
+      expectedAnalysisCount: 1,
+      awaitingAnalysisCount: 0,
+    })
     expect(result.aspects).toEqual([
       { aspect: 'service', polarity: 'negative', mentionCount: 2, impact: -1.6 },
       { aspect: 'room', polarity: 'positive', mentionCount: 1, impact: 1 },

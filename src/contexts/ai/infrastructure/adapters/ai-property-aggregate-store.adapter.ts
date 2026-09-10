@@ -19,6 +19,7 @@ import { OPENAI_MODEL_SNAPSHOT } from '#/shared/ai-openai-request-contract'
 import { AI_PROPERTY_CALENDAR_PROFILE_V1 } from '#/shared/ai-property-calendar-profile'
 import type {
   AiPropertyAnalyzedReview,
+  AiPropertyAggregateCoverage,
   AiPropertyAggregateStorePort,
   AiPropertyDailyAggregate,
   AiPropertyDailyAspectCount,
@@ -387,6 +388,26 @@ async function readInheritedAggregateProgress(
     throw new Error('Property aggregate progress is invalid')
   }
   return { terminalAnalysisSequence, settledCount }
+}
+
+function deriveAnalysisCoverage(
+  settledAnalysisCount: number,
+  headSequence: number,
+  analysisStartSequence: number,
+): AiPropertyAggregateCoverage {
+  const expectedAnalysisCount = headSequence - analysisStartSequence
+  if (
+    !Number.isSafeInteger(expectedAnalysisCount) ||
+    expectedAnalysisCount < 0 ||
+    settledAnalysisCount > expectedAnalysisCount
+  ) {
+    throw new Error('Property aggregate coverage is invalid')
+  }
+  return Object.freeze({
+    settledAnalysisCount,
+    expectedAnalysisCount,
+    awaitingAnalysisCount: expectedAnalysisCount - settledAnalysisCount,
+  })
 }
 
 async function readLatestReviewSettlement(
@@ -1111,15 +1132,12 @@ export const createAiPropertyAggregateStoreAdapter = (
           .limit(1)
           .for('share')
         const coverage = await readInheritedAggregateProgress(tx, input)
-        if (
-          !authorization ||
-          !reviewHead ||
-          !head ||
-          coverage.settledCount !==
-            reviewHead.headSequence - authorization.analysisStartSequence
-        ) {
-          return null
-        }
+        if (!authorization || !reviewHead || !head) return null
+        const analysisCoverage = deriveAnalysisCoverage(
+          coverage.settledCount,
+          reviewHead.headSequence,
+          authorization.analysisStartSequence,
+        )
         const days = await tx
           .select()
           .from(aiPropertyDailyAggregates)
@@ -1293,6 +1311,7 @@ export const createAiPropertyAggregateStoreAdapter = (
             aggregateRevision: head.aggregateRevision,
             terminalAnalysisSequence: head.terminalAnalysisSequence,
           },
+          coverage: analysisCoverage,
           days: days.map((day) =>
             mapDaily(day, Object.freeze(aspectCountsByDate.get(day.localDate) ?? [])),
           ),

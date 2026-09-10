@@ -16,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-import { RatingDistributionChart } from '#/components/features/shared/rating-distribution-chart'
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
 import {
@@ -31,6 +30,8 @@ import {
   PropertyInsightsEmergingIssues,
 } from './property-insights-aspect-table'
 import { PropertyInsightsWeeklyChart } from './property-insights-weekly-chart'
+import { PropertyAiProvisionalNotice } from './property-ai-provisional-notice'
+import { PropertyInsightsRatingDistribution } from './property-insights-rating-distribution'
 
 const RANGE_LABELS: Readonly<Record<PropertyInsightsRange, string>> = {
   30: '30 days',
@@ -47,10 +48,8 @@ const LOCAL_DATE_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   dateStyle: 'medium',
   timeZone: 'UTC',
 })
-
-function formatLocalDate(localDate: string): string {
-  return LOCAL_DATE_FORMATTER.format(new Date(`${localDate}T00:00:00.000Z`))
-}
+const formatLocalDate = (localDate: string): string =>
+  LOCAL_DATE_FORMATTER.format(new Date(`${localDate}T00:00:00.000Z`))
 
 function PropertyInsightsRangeControl({
   range,
@@ -155,7 +154,8 @@ function ReportState({
         <Clock aria-hidden="true" />
         <AlertTitle>Analysis for this property is still settling</AlertTitle>
         <AlertDescription>
-          No figures are shown until the daily totals agree with the reviews behind them.
+          No usable figures are available yet. They appear as soon as usable review and
+          analysis evidence is available.
         </AlertDescription>
       </Alert>
     )
@@ -174,32 +174,6 @@ function ReportState({
           : 'No reviews were found in the selected period. Choose a longer range to look further back.'}
       </AlertDescription>
     </Alert>
-  )
-}
-
-function PropertyInsightsRatingDistribution({
-  basis,
-}: Readonly<{ basis: AiPropertyInsightsBasis }>) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          <h2 id="insights-rating-distribution-title">Rating distribution</h2>
-        </CardTitle>
-        <CardDescription>
-          Every review in the basis is included here. Star-only reviews and reviews that
-          predate aspect analysis do not contribute to aspect counts.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="mx-auto w-full max-w-3xl">
-          <RatingDistributionChart
-            distribution={basis.ratingDistribution}
-            labelledBy="insights-rating-distribution-title"
-          />
-        </div>
-      </CardContent>
-    </Card>
   )
 }
 
@@ -230,6 +204,13 @@ export function PropertyInsightsReport({
         <ReportState status={result.status} range={range} />
       ) : (
         <>
+          {result.provisional && (
+            <PropertyAiProvisionalNotice
+              coverage={result.coverage}
+              comparisonsSuppressed
+            />
+          )}
+
           <PropertyInsightsBasisLine
             basis={result.basis}
             startLocalDate={result.startLocalDate}
@@ -248,7 +229,9 @@ export function PropertyInsightsReport({
               <CardDescription>
                 {result.range === 'all'
                   ? 'Mentions and rating-weighted impact across the available review evidence in this window. Comparison is unavailable for All Time.'
-                  : `Mentions and rating-weighted impact, compared with the immediately preceding ${result.range}-day period.`}{' '}
+                  : result.provisional
+                    ? 'Mentions and rating-weighted impact across the analysed reviews available so far. Comparison is unavailable while analysis is still filling in.'
+                    : `Mentions and rating-weighted impact, compared with the immediately preceding ${result.range}-day period.`}{' '}
                 Open any row to see its reviews in the inbox.
               </CardDescription>
             </CardHeader>
@@ -284,7 +267,9 @@ export function PropertyInsightsReport({
                 <CardDescription>
                   {result.range === 'all'
                     ? 'Repeated issue labels across the available analysed history in this window. Comparison is unavailable for All Time.'
-                    : 'Repeated issue labels and their change from the preceding period.'}
+                    : result.provisional
+                      ? 'Repeated issue labels across the analysed reviews available so far. Comparison is unavailable while analysis is still filling in.'
+                      : 'Repeated issue labels and their change from the preceding period.'}
                 </CardDescription>
               </CardHeader>
               <CardContent>

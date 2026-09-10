@@ -3,6 +3,7 @@ import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiPropertyCalendarPort } from '../ports/ai-property-calendar.port'
 import type {
   AiPropertyAggregateStorePort,
+  AiPropertyAggregateWindow,
   AiPropertyAnalyzedReview,
   AiPropertyDailyAggregate,
   AiPropertyDailyAspectCount,
@@ -42,6 +43,8 @@ export type AiPropertyAggregateWindowRead =
   | Readonly<{ status: 'preparing' }>
   | Readonly<{
       status: 'ready'
+      provisional: boolean
+      coverage: AiPropertyAggregateWindow['coverage']
       startLocalDate: string
       endLocalDate: string
       reviewCount: number
@@ -112,13 +115,16 @@ export function createReadPropertyAggregates(
       startLocalDate,
       endLocalDate,
     })
-    // `readWindow` returns null while the aggregate head, the review head and
-    // the cursor disagree, i.e. mid-flight. Reporting zeroes then would look
-    // like "no reviews" rather than "not settled yet".
-    if (window === null) return { status: 'preparing' }
+    // A missing window means that no aggregate evidence has been applied yet.
+    // Coverage gaps now return the exact partial window instead of hiding it.
+    if (window === null || window.coverage.settledAnalysisCount === 0) {
+      return { status: 'preparing' }
+    }
 
     return {
       status: 'ready',
+      provisional: window.coverage.awaitingAnalysisCount > 0,
+      coverage: window.coverage,
       startLocalDate,
       endLocalDate,
       ...summarize(window.days, window.analyzedReviews),
@@ -131,7 +137,7 @@ function summarize(
   analyzedReviews: readonly AiPropertyAnalyzedReview[],
 ): Omit<
   Extract<AiPropertyAggregateWindowRead, { status: 'ready' }>,
-  'status' | 'startLocalDate' | 'endLocalDate'
+  'status' | 'provisional' | 'coverage' | 'startLocalDate' | 'endLocalDate'
 > {
   const aspectTotals = new Map<
     string,

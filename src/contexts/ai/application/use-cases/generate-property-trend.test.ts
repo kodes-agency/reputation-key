@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { MERCHANT_AI_NOTICE_VERSION } from '#/shared/merchant-ai-notice-contract'
 import type {
+  AiPropertyAggregateCoverage,
   AiPropertyAnalyzedReview,
   AiPropertyDailyAggregate,
 } from '../ports/ai-property-aggregate-store.port'
@@ -115,6 +116,11 @@ function defaultEvidence() {
 function createHarness(
   days: readonly AiPropertyDailyAggregate[],
   evidence = defaultEvidence(),
+  coverage: AiPropertyAggregateCoverage = {
+    settledAnalysisCount: 40,
+    expectedAnalysisCount: 40,
+    awaitingAnalysisCount: 0,
+  },
 ) {
   const recordProviderFreeOutcome = vi.fn(async () => 'recorded' as const)
   const recordDeterministicReport = vi.fn(async () => 'recorded' as const)
@@ -128,6 +134,7 @@ function createHarness(
       aggregateRevision: 6,
       terminalAnalysisSequence: 5,
     },
+    coverage,
     days,
     analyzedReviews: evidence.analyzed,
   }))
@@ -220,6 +227,22 @@ function createHarness(
 }
 
 describe('generate property trend', () => {
+  it('retries instead of generating a trend from provisional aggregate coverage', async () => {
+    const harness = createHarness([trendDay('2024-02-01', 2)], defaultEvidence(), {
+      settledAnalysisCount: 39,
+      expectedAnalysisCount: 40,
+      awaitingAnalysisCount: 1,
+    })
+
+    await expect(harness.generate({ scheduleId: SCHEDULE_ID })).resolves.toEqual({
+      status: 'retry',
+      retryAtEpochMillis: NOW + 60_000,
+      code: 'trend_sequence_or_aggregate_gap',
+    })
+    expect(harness.recordProviderFreeOutcome).not.toHaveBeenCalled()
+    expect(harness.recordDeterministicReport).not.toHaveBeenCalled()
+  })
+
   it('records insufficient data without inference and uses pure Gregorian range bounds', async () => {
     const evidence = defaultEvidence()
     evidence.population.splice(19, 1)

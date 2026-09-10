@@ -531,6 +531,15 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
   it('projects v2 aspects through per-review and daily aggregate rows', async () => {
     await expect(storeReviewA()).resolves.toBe(true)
     const aggregates = createAiPropertyAggregateStoreAdapter(db)
+    const windowRequest = {
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      sourceEpoch: SOURCE_EPOCH,
+      reviewAnalysisEpoch: 1,
+      propertyProfileVersion: 1,
+      startLocalDate: '2026-09-07',
+      endLocalDate: '2026-09-07',
+    }
     await expect(
       aggregates.applyReviewAnalysis({
         organizationId: ORGANIZATION_ID,
@@ -544,6 +553,15 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         calendarProfileVersion: 'property-calendar-v1',
       }),
     ).resolves.toEqual({ status: 'applied', aggregateRevision: 1 })
+    await expect(aggregates.readWindow(windowRequest)).resolves.toMatchObject({
+      coverage: {
+        settledAnalysisCount: 1,
+        expectedAnalysisCount: 2,
+        awaitingAnalysisCount: 1,
+      },
+      days: [{ localDate: '2026-09-07', reviewCount: 1 }],
+      analyzedReviews: [{ reviewId: REVIEW_A_ID }],
+    })
     await expect(
       aggregates.advanceWithoutAnalysis({
         organizationId: ORGANIZATION_ID,
@@ -580,14 +598,11 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       { aspect: ASPECT_TAXONOMY_V1[0], polarity: 'positive', mentionCount: 1 },
     ])
 
-    const window = await aggregates.readWindow({
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-      sourceEpoch: SOURCE_EPOCH,
-      reviewAnalysisEpoch: 1,
-      propertyProfileVersion: 1,
-      startLocalDate: '2026-09-07',
-      endLocalDate: '2026-09-07',
+    const window = await aggregates.readWindow(windowRequest)
+    expect(window?.coverage).toEqual({
+      settledAnalysisCount: 2,
+      expectedAnalysisCount: 2,
+      awaitingAnalysisCount: 0,
     })
     expect(window?.days).toEqual([
       expect.objectContaining({

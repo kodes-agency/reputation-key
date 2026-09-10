@@ -20,6 +20,12 @@ const PROPERTY_ID = '11111111-1111-4111-8111-111111111111'
 
 const populated: AiPropertyInsightsPresetReady = {
   status: 'ready',
+  provisional: false,
+  coverage: {
+    settledAnalysisCount: 120,
+    expectedAnalysisCount: 120,
+    awaitingAnalysisCount: 0,
+  },
   range: 90,
   startLocalDate: '2026-06-13',
   endLocalDate: '2026-09-10',
@@ -152,6 +158,8 @@ const populated: AiPropertyInsightsPresetReady = {
 
 const allTime: Extract<AiPropertyInsightsRead, { status: 'ready'; range: 'all' }> = {
   status: 'ready',
+  provisional: false,
+  coverage: populated.coverage,
   range: 'all',
   startLocalDate: '2025-06-25',
   endLocalDate: populated.endLocalDate,
@@ -171,6 +179,62 @@ const allTime: Extract<AiPropertyInsightsRead, { status: 'ready'; range: 'all' }
     label,
     count,
   })),
+}
+
+const provisional: AiPropertyInsightsPresetReady = {
+  status: 'ready',
+  provisional: true,
+  coverage: {
+    settledAnalysisCount: 18,
+    expectedAnalysisCount: 20,
+    awaitingAnalysisCount: 2,
+  },
+  range: 90,
+  startLocalDate: '2026-06-13',
+  endLocalDate: '2026-09-10',
+  dataThroughLocalDate: '2026-09-10',
+  impactVersion: 'aspect-impact-v1',
+  aspectEvidenceState: 'available',
+  basis: {
+    reviewCount: 22,
+    analyzedReviewCount: 18,
+    preAspectAnalysisCount: 0,
+    currentAnalysisCount: 18,
+    starOnlyCount: 2,
+    notAnalyzableCount: 0,
+    awaitingAnalysisCount: 2,
+    ratingDistribution: [
+      { stars: 1, count: 1 },
+      { stars: 2, count: 2 },
+      { stars: 3, count: 3 },
+      { stars: 4, count: 7 },
+      { stars: 5, count: 9 },
+    ],
+  },
+  aspects: [
+    {
+      aspect: 'service',
+      polarity: 'negative',
+      mentionCount: 8,
+      impact: -5.4,
+    },
+    {
+      aspect: 'cleanliness',
+      polarity: 'positive',
+      mentionCount: 6,
+      impact: 4.7,
+    },
+  ],
+  weeklyAspectSeries: [
+    {
+      aspect: 'service',
+      points: [
+        { weekStartLocalDate: '2026-08-30', mentionCount: 3 },
+        { weekStartLocalDate: '2026-09-06', mentionCount: 5 },
+      ],
+    },
+  ],
+  emergingIssues: [{ label: 'front desk delays', count: 4 }],
 }
 
 function StoryReport({ result }: Readonly<{ result: AiPropertyInsightsRead }>) {
@@ -240,6 +304,18 @@ export const PopulatedReport: Story = {
     const service = await canvas.findByRole('link', { name: /Service.*Complaints/ })
     expect(service.getAttribute('href')).toContain('aspect=service')
     expect(service.getAttribute('href')).toContain('polarity=negative')
+  },
+}
+
+export const ProvisionalPartialReport: Story = {
+  render: () => <ReportHarness result={provisional} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(await canvas.findByText('Provisional figures')).toBeVisible()
+    expect(await canvas.findByText(/2 reviews awaiting analysis/)).toBeVisible()
+    expect(await canvas.findByText('Service')).toBeVisible()
+    expect(canvas.queryByText('Change vs previous')).toBeNull()
+    expect(canvas.queryByText(/vs previous/)).toBeNull()
   },
 }
 
