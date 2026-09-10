@@ -101,6 +101,8 @@ export type {
   AiReviewSourcePort,
   AiReviewCurrentSource,
   AiTrendPopulationReview,
+  AiTrendPopulationRequest,
+  AiTrendPopulationResult,
 } from './ports/ai-review-source.port'
 
 // ── Staff type aliases for cross-context consumers ──────────────────────

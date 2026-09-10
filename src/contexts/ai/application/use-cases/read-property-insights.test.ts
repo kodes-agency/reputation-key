@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import type {
   AiPropertyAnalyzedReview,
@@ -6,6 +6,7 @@ import type {
 } from '../ports/ai-property-aggregate-store.port'
 import {
   createReadPropertyInsights,
+  type AiPropertyInsightsRead,
   type ReadPropertyInsightsDependencies,
 } from './read-property-insights'
 
@@ -102,7 +103,11 @@ function harness(
   )
   const readTrendPopulation = vi.fn(async () =>
     options.population === undefined
-      ? { status: 'complete' as const, reviews: [] }
+      ? {
+          status: 'complete' as const,
+          reviews: [],
+          hasEvidenceBeforeStart: false,
+        }
       : options.population,
   )
   const resolveLocalDate = vi.fn(async () =>
@@ -344,7 +349,11 @@ describe('readPropertyInsights evidence', () => {
       populationReview(2, '2025-10-02', { rating: 2 }),
     ]
     const { read, readWindow, readTrendPopulation } = harness({
-      population: { status: 'complete', reviews },
+      population: {
+        status: 'complete',
+        reviews,
+        hasEvidenceBeforeStart: false,
+      },
       aggregate: {
         head: {},
         days: [],
@@ -369,8 +378,9 @@ describe('readPropertyInsights evidence', () => {
     expect(readTrendPopulation).toHaveBeenCalledWith(
       expect.objectContaining({
         propertyId: PROPERTY_ID,
-        startLocalDate: '0001-01-01',
+        startLocalDate: '2024-08-20',
         endLocalDate: '2026-08-20',
+        detectEvidenceBeforeStart: true,
       }),
     )
     expect(readWindow).toHaveBeenCalledWith(
@@ -384,15 +394,63 @@ describe('readPropertyInsights evidence', () => {
       status: 'ready',
       range: 'all',
       startLocalDate: '2025-06-25',
-      precedingPeriod: null,
-      aspects: [
-        expect.objectContaining({ comparison: null }),
-        expect.objectContaining({ comparison: null }),
-      ],
-      emergingIssues: [
-        expect.objectContaining({ comparison: null }),
-        expect.objectContaining({ comparison: null }),
-      ],
+      windowStartBasis: 'earliest_evidence',
+    })
+    expect(result).not.toHaveProperty('precedingPeriod')
+    if (result.status !== 'ready' || result.range !== 'all') {
+      throw new Error('expected ready All Time insights')
+    }
+    expect(result.aspects.every((aspect) => !('comparison' in aspect))).toBe(true)
+    expect(result.emergingIssues.every((issue) => !('comparison' in issue))).toBe(true)
+  })
+
+  it('omits every comparison key from the All Time result contract', () => {
+    type AllTimeReady = Extract<AiPropertyInsightsRead, { status: 'ready'; range: 'all' }>
+    type DeclaresKey<Value, Key extends PropertyKey> = Key extends keyof Value
+      ? true
+      : false
+
+    expectTypeOf<DeclaresKey<AllTimeReady, 'precedingPeriod'>>().toEqualTypeOf<false>()
+    expectTypeOf<
+      DeclaresKey<AllTimeReady['aspects'][number], 'comparison'>
+    >().toEqualTypeOf<false>()
+    expectTypeOf<
+      DeclaresKey<AllTimeReady['emergingIssues'][number], 'comparison'>
+    >().toEqualTypeOf<false>()
+  })
+
+  it('caps All Time at the derivative retention horizon when older evidence exists', async () => {
+    const retained = populationReview(2, '2025-01-10', { rating: 5 })
+    const { read, readWindow, readTrendPopulation } = harness({
+      population: {
+        status: 'complete',
+        reviews: [retained],
+        hasEvidenceBeforeStart: true,
+      },
+      aggregate: {
+        head: {},
+        days: [],
+        analyzedReviews: [analyzedReview(2, '2025-01-10')],
+        unavailableReviews: [],
+      },
+    })
+
+    const result = await read({ ...input, range: 'all' })
+
+    expect(readTrendPopulation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startLocalDate: '2024-08-20',
+        detectEvidenceBeforeStart: true,
+      }),
+    )
+    expect(readWindow).toHaveBeenCalledWith(
+      expect.objectContaining({ startLocalDate: '2024-08-20' }),
+    )
+    expect(result).toMatchObject({
+      status: 'ready',
+      range: 'all',
+      startLocalDate: '2024-08-20',
+      windowStartBasis: 'derivative_retention_horizon',
     })
   })
 

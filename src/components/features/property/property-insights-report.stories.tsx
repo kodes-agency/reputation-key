@@ -10,6 +10,7 @@ import {
   RouterProvider,
 } from '@tanstack/react-router'
 import type {
+  AiPropertyInsightsPresetReady,
   AiPropertyInsightsRead,
   PropertyInsightsRange,
 } from '#/contexts/ai/application/public-api'
@@ -17,7 +18,7 @@ import { PropertyInsightsReport } from './property-insights-report'
 
 const PROPERTY_ID = '11111111-1111-4111-8111-111111111111'
 
-const populated: Extract<AiPropertyInsightsRead, { status: 'ready' }> = {
+const populated: AiPropertyInsightsPresetReady = {
   status: 'ready',
   range: 90,
   startLocalDate: '2026-06-13',
@@ -147,15 +148,25 @@ const populated: Extract<AiPropertyInsightsRead, { status: 'ready' }> = {
   ],
 }
 
-const allTime: Extract<AiPropertyInsightsRead, { status: 'ready' }> = {
-  ...populated,
+const allTime: Extract<AiPropertyInsightsRead, { status: 'ready'; range: 'all' }> = {
+  status: 'ready',
   range: 'all',
   startLocalDate: '2025-06-25',
-  precedingPeriod: null,
-  aspects: populated.aspects.map((aspect) => ({ ...aspect, comparison: null })),
-  emergingIssues: populated.emergingIssues.map((issue) => ({
-    ...issue,
-    comparison: null,
+  endLocalDate: populated.endLocalDate,
+  windowStartBasis: 'earliest_evidence',
+  dataThroughLocalDate: populated.dataThroughLocalDate,
+  impactVersion: populated.impactVersion,
+  basis: populated.basis,
+  aspects: populated.aspects.map(({ aspect, polarity, mentionCount, impact }) => ({
+    aspect,
+    polarity,
+    mentionCount,
+    impact,
+  })),
+  weeklyAspectSeries: populated.weeklyAspectSeries,
+  emergingIssues: populated.emergingIssues.map(({ label, count }) => ({
+    label,
+    count,
   })),
 }
 
@@ -239,6 +250,26 @@ export const AllTimeHistorical: Story = {
     ).toHaveLength(2)
     expect(canvas.queryByText('Change vs previous')).toBeNull()
     expect(canvas.queryByText(/\+7 vs previous/)).toBeNull()
+  },
+}
+
+export const AllTimeRetentionLimited: Story = {
+  render: () => (
+    <ReportHarness
+      result={{
+        ...allTime,
+        startLocalDate: '2024-09-10',
+        windowStartBasis: 'derivative_retention_horizon',
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = await selectedAllTimeCanvas(canvasElement)
+    expect(
+      await canvas.findByText(
+        /window starts at the 24-month retention horizon \(10 Sept 2024\)/,
+      ),
+    ).toBeVisible()
   },
 }
 

@@ -337,6 +337,7 @@ export function createGeneratePropertyTrend(
         startLocalDate,
         endLocalDate,
         limit: 10_001,
+        detectEvidenceBeforeStart: false,
       }),
     ])
     if (

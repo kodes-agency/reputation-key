@@ -2,6 +2,9 @@ import type { Brand } from '#/shared/domain/brand'
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
 
+/** Fixed retention horizon for Review Analysis derivatives. */
+export const DERIVATIVE_RETENTION_MILLIS = 730 * 24 * 60 * 60 * 1_000
+
 export type AiOperationId = Brand<string, 'AiOperationId'>
 export type InternalAiSubjectId = Brand<string, 'InternalAiSubjectId'>
 export type InternalActorId = UserId

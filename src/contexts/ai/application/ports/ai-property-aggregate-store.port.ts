@@ -71,6 +71,23 @@ export type AiPropertyUnavailableReview = Readonly<{
   reason: 'language_not_supported'
 }>
 
+export type AiPropertyAggregateWindowRequest = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  sourceEpoch: number
+  reviewAnalysisEpoch: number
+  propertyProfileVersion: number
+  startLocalDate: string
+  endLocalDate: string
+}>
+
+export type AiPropertyAggregateWindow = Readonly<{
+  head: AiPropertyAggregateHead
+  days: readonly AiPropertyDailyAggregate[]
+  analyzedReviews: readonly AiPropertyAnalyzedReview[]
+  unavailableReviews: readonly AiPropertyUnavailableReview[]
+}>
+
 export type AiPropertyAggregateStorePort = Readonly<{
   applyReviewAnalysis(
     input: Readonly<{
@@ -108,19 +125,6 @@ export type AiPropertyAggregateStorePort = Readonly<{
     | Readonly<{ status: 'gap'; expectedAnalysisSequence: number }>
   >
   readWindow(
-    input: Readonly<{
-      organizationId: OrganizationId
-      propertyId: PropertyId
-      sourceEpoch: number
-      reviewAnalysisEpoch: number
-      propertyProfileVersion: number
-      startLocalDate: string
-      endLocalDate: string
-    }>,
-  ): Promise<Readonly<{
-    head: AiPropertyAggregateHead
-    days: readonly AiPropertyDailyAggregate[]
-    analyzedReviews: readonly AiPropertyAnalyzedReview[]
-    unavailableReviews: readonly AiPropertyUnavailableReview[]
-  }> | null>
+    input: AiPropertyAggregateWindowRequest,
+  ): Promise<AiPropertyAggregateWindow | null>
 }>
