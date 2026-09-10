@@ -331,6 +331,69 @@ describe('AI operation execution reaper', () => {
       batchFull: false,
     })
   })
+  it.each([
+    'output_invalid',
+    'output_truncated',
+    'provider_refused',
+    'provider_rate_limited',
+    'provider_unavailable',
+  ] as const)(
+    'terminal-settles an unreceipted %s analysis failure',
+    async (failureCode) => {
+      const failed = {
+        ...pendingCandidate(
+          OVERDUE_OPERATION_ID,
+          NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+        ),
+        state: 'failed' as const,
+        failureCode,
+      }
+      const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
+        async () => [failed],
+      )
+      const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
+      const settleOutcome = vi.fn(async () => ({
+        terminalAnalysisSequence: 18,
+        aggregateRevision: 17,
+      }))
+      const advanceWithoutAnalysis = vi.fn(async () => ({
+        status: 'applied' as const,
+        aggregateRevision: 18,
+      }))
+      const recordAnalysisReceipt = vi.fn(async () => undefined)
+
+      await expect(
+        createAiOperationExecutionReaper({
+          store: {
+            listExpiredExecutions,
+            recordFailure,
+            markDelivered: vi.fn(async () => true),
+          },
+          reviewEvents: { settleOutcome },
+          aggregates: {
+            applyReviewAnalysis: vi.fn(),
+            advanceWithoutAnalysis,
+          },
+          recordAnalysisReceipt,
+          nowEpochMillis: () => NOW,
+        })(),
+      ).resolves.toMatchObject({
+        recoveryCandidatesVisited: 1,
+        operationsSettled: 1,
+      })
+      expect(recordFailure).not.toHaveBeenCalled()
+      expect(settleOutcome).toHaveBeenCalledWith(
+        expect.objectContaining({
+          state: 'terminal_no_result',
+          dispositionCode: 'operation_ambiguous',
+        }),
+      )
+      expect(advanceWithoutAnalysis).toHaveBeenCalledWith(
+        expect.objectContaining({ dispositionCode: 'operation_ambiguous' }),
+      )
+      expect(recordAnalysisReceipt).toHaveBeenCalledWith(EVENT_ID, 'applied')
+    },
+  )
 
   it('advances an already-terminal outcome before receipting its fenced operation', async () => {
     const fenced = {

@@ -18,6 +18,7 @@ import type { AiControlPort } from '../ports/ai-control.port'
 import type { AiInferencePort } from '../ports/ai-inference.port'
 import type { AiOperationStorePort } from '../ports/ai-operation-store.port'
 import type { AiOutputStorePort } from '../ports/ai-output-store.port'
+import { issueLabelReproducesSource } from '#/shared/ai-issue-label'
 import type { AiPropertyAggregateStorePort } from '../ports/ai-property-aggregate-store.port'
 import type { AiQuotaPort } from '../ports/ai-quota.port'
 import type {
@@ -80,7 +81,22 @@ export type AnalyzeReviewEventResult =
   | Readonly<{ status: 'completed' | 'replayed' | 'terminal' | 'generation_changed' }>
   | Readonly<{ status: 'retry'; retryAtEpochMillis: number; code: string }>
 
+/** Content-free record of a governed refusal. Carries identifiers and the rule
+ *  only: the refused label and the matched excerpt are deliberately absent. */
+export type AiAnalysisObservabilityPort = Readonly<{
+  recordIssueLabelRefused(
+    event: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      reviewId: ReviewId
+      analysisSequence: number
+      rule: 'reproduces_source'
+    }>,
+  ): void
+}>
+
 export type AnalyzeReviewEventDependencies = Readonly<{
+  observability?: AiAnalysisObservabilityPort
   authorization: AiAuthorizationPort
   control: AiControlPort
   inference: AiInferencePort
@@ -332,6 +348,7 @@ export function createAnalyzeReviewEvent(
       disposition: input.disposition,
     })
     if (consumed.status === 'generation_changed') return { status: 'generation_changed' }
+    if (consumed.status === 'duplicate') return { status: 'replayed' }
 
     const runtime = await dependencies.processingProfiles.readForAi({
       organizationId: input.organizationId,
@@ -693,6 +710,27 @@ export function createAnalyzeReviewEvent(
         }
         const analysisResult = parsedAnalysis.data
         const completedAtEpochMillis = response.settlementReceipt.settledAtEpochMillis
+        // The merchant notice promises the issue label never reproduces review
+        // text. The output schema, the server-side shape check and the SQL
+        // CHECK all validate shape only, so a lowercase quotation satisfies
+        // every layer. Refuse a multi-word label that appears verbatim in the
+        // source; the aspects are the expensive part of the call and stay.
+        // Refused content is never logged — recording the label would leak the
+        // very excerpt the rule exists to keep out of storage.
+        const reproducesSource =
+          analysisResult.issueLabel !== null &&
+          observation.text !== null &&
+          issueLabelReproducesSource(analysisResult.issueLabel, observation.text)
+        const acceptedIssueLabel = reproducesSource ? null : analysisResult.issueLabel
+        if (reproducesSource) {
+          dependencies.observability?.recordIssueLabelRefused({
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            reviewId: input.reviewId,
+            analysisSequence: input.analysisSequence,
+            rule: 'reproduces_source',
+          })
+        }
         const stored = await dependencies.outputs.storeAnalysis({
           operationId: execution.id,
           providerCompletion: {
@@ -719,7 +757,7 @@ export function createAnalyzeReviewEvent(
               primaryCategory: derivePrimaryCategoryV1(analysisResult.aspects),
               attention: attentionFor(analysisResult, observation.rating),
               aspects: analysisResult.aspects,
-              issueLabel: analysisResult.issueLabel,
+              issueLabel: acceptedIssueLabel,
             },
           },
           generatedAtEpochMillis: completedAtEpochMillis,

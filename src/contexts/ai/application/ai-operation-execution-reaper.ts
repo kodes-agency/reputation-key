@@ -8,9 +8,10 @@
 //   - Review Analysis `pending`, when a retryable provider response returned
 //     the operation to `pending` but BullMQ exhausted the origin event's finite
 //     dispatch budget before the 15-minute domain horizon;
+//   - Review Analysis `failed`, when its terminal write committed before the
+//     separate no-result settlement and consumer receipt;
 //   - Review Analysis `succeeded_pending_delivery`, after its result transaction
 //     committed but before aggregate delivery and the consumer receipt.
-//
 // Recovery performs both halves of terminal delivery: settle the analysis
 // event, then record the origin event's consumer receipt. A
 // reaper-failed analysis remains selectable while that receipt is absent.
@@ -149,11 +150,13 @@ export function createAiOperationExecutionReaper(
     horizonDeadline: number,
   ): Promise<FenceResult> {
     if (candidate.state === 'failed') {
-      return candidate.failureCode === 'language_not_supported' ||
+      const dispositionCode: DispositionCode =
+        candidate.failureCode === 'language_not_supported' ||
         candidate.failureCode === 'operation_abandoned' ||
         candidate.failureCode === 'operation_ambiguous'
-        ? { outcome: 'already_fenced', dispositionCode: candidate.failureCode }
-        : { outcome: 'skipped' }
+          ? candidate.failureCode
+          : 'operation_ambiguous'
+      return { outcome: 'already_fenced', dispositionCode }
     }
     if (
       candidate.state === 'pending' &&

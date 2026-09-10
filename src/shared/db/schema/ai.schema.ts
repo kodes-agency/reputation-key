@@ -741,6 +741,18 @@ export const aiPropertyAggregateHeads = pgTable(
     terminalAnalysisSequence: bigint('terminal_analysis_sequence', {
       mode: 'number',
     }).notNull(),
+    // Settlements applied to THIS profile generation. The settlement ledger is
+    // deliberately profile-independent so an epoch survives a profile rollover,
+    // but the daily aggregates and contributions are profile-scoped: a new
+    // property_profile_version starts with no rows behind it. Counting coverage
+    // from the ledger would therefore report a freshly rolled profile complete
+    // while its window holds nothing. This counter never inherits, so a rollover
+    // reports incomplete until the generation is rebuilt.
+    settledAnalysisCount: bigint('settled_analysis_count', {
+      mode: 'number',
+    })
+      .notNull()
+      .default(0),
     updatedAt: timestamptz('updated_at').notNull(),
   },
   (t) => [
@@ -762,6 +774,10 @@ export const aiPropertyAggregateHeads = pgTable(
     check(
       'ai_property_aggregate_heads_versions_valid',
       sql`${t.sourceEpoch} >= 0 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyProfileVersion} >= 1 AND ${t.aggregateRevision} BETWEEN 0 AND '9007199254740991'::bigint AND ${t.terminalAnalysisSequence} BETWEEN 0 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'ai_property_aggregate_heads_settled_count_valid',
+      sql`${t.settledAnalysisCount} >= 0 AND ${t.settledAnalysisCount} <= '9007199254740991'::bigint`,
     ),
     index('ai_property_aggregate_heads_current_idx').on(
       t.organizationId,

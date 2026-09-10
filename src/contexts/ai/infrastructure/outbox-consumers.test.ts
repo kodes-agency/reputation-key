@@ -154,6 +154,18 @@ describe('AI review outbox consumer', () => {
       'applied',
     )
   })
+  it('receipts an already-handled replay as applied', async () => {
+    const test = harness({ status: 'replayed' })
+
+    await expect(
+      handleAiReviewEvent(test.dependencies, event('review.updated')),
+    ).resolves.toEqual({ status: 'applied' })
+    expect(test.insertReceipt).toHaveBeenCalledWith(
+      EVENT_ID,
+      AI_REVIEW_ANALYSIS_CONSUMER,
+      'applied',
+    )
+  })
 
   it('analyzes events carrying the envelope fields the producer actually emits', async () => {
     // Real google-closed-beta payload: the registry adds `platform` and

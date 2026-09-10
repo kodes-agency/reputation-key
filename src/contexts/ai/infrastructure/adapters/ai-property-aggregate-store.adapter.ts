@@ -488,6 +488,12 @@ async function lockAggregateHead(
   tx: AggregateTransaction,
   input: AggregateIdentityInput,
 ): Promise<AggregateHead> {
+  // The terminal sequence is generation identity and is inherited as a
+  // max-watermark. `settledAnalysisCount` is deliberately NOT inherited: the
+  // ledger spans profile versions, but the daily aggregates and contributions
+  // this head summarises do not, so a new profile generation genuinely has zero
+  // coverage until it is rebuilt. Inheriting the count reported a rolled
+  // profile complete over an empty window.
   const inheritedProgress = await readInheritedAggregateProgress(tx, input)
   await tx
     .insert(aiPropertyAggregateHeads)
@@ -499,6 +505,7 @@ async function lockAggregateHead(
       propertyProfileVersion: input.propertyProfileVersion,
       aggregateRevision: 0,
       terminalAnalysisSequence: inheritedProgress.terminalAnalysisSequence,
+      settledAnalysisCount: 0,
       updatedAt: new Date(),
     })
     .onConflictDoNothing()
@@ -549,6 +556,10 @@ async function commitAggregateHead(
         ${aiPropertyAggregateHeads.terminalAnalysisSequence},
         ${input.analysisSequence}
       )`,
+      // Reached only for a NEW settlement: both callers return early on
+      // `replayed` and `stale`, so this counts each settled sequence once for
+      // this profile generation.
+      settledAnalysisCount: sql`${aiPropertyAggregateHeads.settledAnalysisCount} + 1`,
       updatedAt: appliedAt,
     })
     .where(
@@ -1131,10 +1142,13 @@ export const createAiPropertyAggregateStoreAdapter = (
           )
           .limit(1)
           .for('share')
-        const coverage = await readInheritedAggregateProgress(tx, input)
         if (!authorization || !reviewHead || !head) return null
+        // Coverage is read from THIS head, not from the profile-independent
+        // settlement ledger: the days below are profile-scoped, so a ledger
+        // count would declare a freshly rolled profile complete over an empty
+        // window.
         const analysisCoverage = deriveAnalysisCoverage(
-          coverage.settledCount,
+          head.settledAnalysisCount,
           reviewHead.headSequence,
           authorization.analysisStartSequence,
         )

@@ -22,7 +22,7 @@ import {
   reviews,
   reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
-import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -32,6 +32,7 @@ import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import type { AiOperationId } from '../../domain/types'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter'
+import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
 
 const NOW = new Date('2026-09-08T10:00:00.000Z')
 const COMPLETED_AT = new Date('2026-09-08T10:05:00.000Z')
@@ -527,6 +528,73 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       updatedAt: COMPLETED_AT,
     })
   })
+  it('exposes every unreceipted terminal analysis failure to the reaper', async () => {
+    await db
+      .update(aiOperations)
+      .set({
+        state: 'failed',
+        failureCode: 'output_invalid',
+        nextAttemptAt: null,
+        updatedAt: COMPLETED_AT,
+      })
+      .where(eq(aiOperations.id, OPERATION_ID))
+
+    const operations = createAiOperationStoreAdapter(db, () => {
+      throw new Error('Recovery does not create operation ids')
+    })
+    await expect(
+      operations.listExpiredExecutions({
+        nowEpochMillis: COMPLETED_AT.getTime(),
+        executionHorizonMillis: 15 * 60_000,
+        limit: 10,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        operationId: OPERATION_ID,
+        state: 'failed',
+        failureCode: 'output_invalid',
+        analysis: expect.objectContaining({
+          eventEnvelopeId: ORIGIN_EVENT_ID,
+          analysisSequence: 1,
+        }),
+      }),
+    ])
+  })
+
+  it('reads current v1 analysis evidence with no aspect children', async () => {
+    await expect(storeReviewA()).resolves.toBe(true)
+    await db
+      .update(aiReviewAnalyses)
+      .set({ analysisProfileVersion: 'review-analysis-v1' })
+      .where(eq(aiReviewAnalyses.reviewId, REVIEW_A_ID))
+    await db
+      .delete(aiReviewAnalysisAspects)
+      .where(eq(aiReviewAnalysisAspects.reviewId, REVIEW_A_ID))
+
+    await expect(
+      outputs.readAnalysisForDelivery(
+        {
+          organizationId: ORGANIZATION_ID,
+          actorUserId: userId(ACTOR_USER_ID),
+          propertyId: PROPERTY_ID,
+          reviewId: REVIEW_A_ID,
+          authorizationLineageId: LINEAGE_ID,
+          reviewAnalysisEpoch: 1,
+          sourceEpoch: SOURCE_EPOCH,
+          sourceRevision: SOURCE_REVISION,
+          analysisSequence: 1,
+          propertyProfileVersion: 1,
+          analysisProfileVersion: 'review-analysis-v1',
+          nowEpochMillis: COMPLETED_AT.getTime(),
+        },
+        async (result) => result,
+      ),
+    ).resolves.toMatchObject({
+      status: 'ready',
+      analysisProfileVersion: 'review-analysis-v1',
+      aspects: [],
+    })
+  })
 
   it('projects v2 aspects through per-review and daily aggregate rows', async () => {
     await expect(storeReviewA()).resolves.toBe(true)
@@ -616,6 +684,63 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         aspects: [{ aspect: ASPECT_TAXONOMY_V1[0], polarity: 'positive', intensity: 75 }],
       }),
     ])
+  })
+
+  it('does not inherit coverage into a rolled property profile version', async () => {
+    // A property timezone or country change bumps property_profile_version
+    // WITHOUT bumping the review-analysis epoch. The settlement ledger is
+    // deliberately profile-independent, but the daily aggregates and
+    // contributions this coverage summarises are not: the new generation has
+    // no rows yet. Coverage read from the ledger reported it complete over an
+    // empty window, so the insights report showed a confidently empty period.
+    await expect(storeReviewA()).resolves.toBe(true)
+    const aggregates = createAiPropertyAggregateStoreAdapter(db)
+    await expect(
+      aggregates.applyReviewAnalysis({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_A_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: 1,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 1,
+        calendarProfileVersion: 'property-calendar-v1',
+      }),
+    ).resolves.toEqual({ status: 'applied', aggregateRevision: 1 })
+
+    // Production reaches the rolled generation by settling into it. Use the
+    // no-result path so the head is created exactly as a real profile bump
+    // would create it, without needing a second stored analysis.
+    await expect(
+      aggregates.advanceWithoutAnalysis({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_B_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        reviewAnalysisEpoch: 1,
+        analysisSequence: 2,
+        propertyProfileVersion: 2,
+        dispositionCode: 'provider_deleted',
+      }),
+    ).resolves.toMatchObject({ status: 'applied' })
+
+    const rolledWindow = await aggregates.readWindow({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      sourceEpoch: SOURCE_EPOCH,
+      reviewAnalysisEpoch: 1,
+      propertyProfileVersion: 2,
+      startLocalDate: '2026-09-07',
+      endLocalDate: '2026-09-07',
+    })
+
+    // Review A's analysis lives in profile generation 1 only, so generation 2
+    // holds one settlement, not two. Reporting two would claim the window is
+    // complete while its aspect rows are empty.
+    expect(rolledWindow?.coverage.settledAnalysisCount).toBe(1)
+    expect(rolledWindow?.coverage.awaitingAnalysisCount).toBe(1)
+    expect(rolledWindow?.days ?? []).toEqual([])
   })
 
   it('reads current v1 analysis evidence that predates aspect children', async () => {

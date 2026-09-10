@@ -64,6 +64,13 @@
       "when": 1789040618459,
       "tag": "0008_per_review_monotonicity",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789079269596,
+      "tag": "0010_profile_scoped_coverage",
+      "breakpoints": true
     }
   ]
 }
