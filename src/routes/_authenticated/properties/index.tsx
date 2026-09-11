@@ -10,10 +10,10 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import {
   infiniteQueryOptions,
   queryOptions,
+  useInfiniteQuery,
   useQuery,
   useSuspenseQuery,
 } from '@tanstack/react-query'
-import { useInfiniteQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import {
@@ -27,14 +27,18 @@ import { dashboardKeys } from '#/shared/queries/query-keys'
 import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 
 /**
- * Two windows, as on Overview (row 5): the rating a manager recognises is
- * all-time, the review count worth comparing is recent. Both are entries of one
- * read model, and the figures are read from whichever page arrives — the
- * projection pages at fifty, so a fleet larger than that fills in as pages
- * load rather than silently ending.
+ * One unbounded read, not the identity/pulse pair Overview uses.
+ *
+ * A bounded fleet window counts governed metric readings by their `event_at`,
+ * which is when the review was *recorded*; the per-property overview counts by
+ * when the guest wrote it. On a freshly imported property those disagree
+ * sharply — Hotel Elegance read "259 reviews in the last 30 days" here beside
+ * "3 in the last 30 days" on its own Overview, because all 259 were ingested
+ * today. Reconciling the two event-time semantics is a read-model decision, so
+ * this list shows the figure both sources agree on and leaves the 30-day pulse
+ * to the property's own page, where one basis is in force.
  */
 const LIFETIME: TimeRangePreset = 'all'
-const PULSE: TimeRangePreset = '30d'
 
 const fleetQuery = (timeRange: TimeRangePreset) =>
   infiniteQueryOptions({
@@ -60,36 +64,24 @@ export const Route = createFileRoute('/_authenticated/properties/')({
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     // Properties admin list is a manager surface (property.admin).
-    if (!can(role, 'property.admin'))
+    if (!can(role, 'property.admin')) {
       throw redirect({ to: '/unavailable', search: { feature: 'Properties' } })
+    }
   },
   component: PropertyListRoute,
 })
 
 function PropertyListRoute() {
   const { data: propsData } = useSuspenseQuery(propertiesQuery)
-  const lifetime = useInfiniteQuery(fleetQuery(LIFETIME))
-  const pulse = useInfiniteQuery(fleetQuery(PULSE))
+  const fleet = useInfiniteQuery(fleetQuery(LIFETIME))
   const checklist = useQuery(setupChecklistQuery)
 
   const comparison = new Map<string, PropertyComparison>()
-  for (const page of lifetime.data?.pages ?? []) {
+  for (const page of fleet.data?.pages ?? []) {
     for (const entry of page.entries) {
       comparison.set(entry.propertyId, {
         avgRating: entry.avgRating,
-        recentReviewCount: 0,
-        totalAttention: entry.totalAttention,
-      })
-    }
-  }
-  for (const page of pulse.data?.pages ?? []) {
-    for (const entry of page.entries) {
-      const existing = comparison.get(entry.propertyId)
-      comparison.set(entry.propertyId, {
-        // Attention is a standing count, so either read carries it; the recent
-        // read is the one to trust for a rating drop within the window.
-        avgRating: existing?.avgRating ?? null,
-        recentReviewCount: entry.reviewCount,
+        reviewCount: entry.reviewCount,
         totalAttention: entry.totalAttention,
       })
     }

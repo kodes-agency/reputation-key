@@ -253,33 +253,38 @@ export function GooglePerformanceChart({
           <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">
             View daily values
           </summary>
-          <Table className="min-w-max">
-            <TableCaption>{title} daily values in property-local dates.</TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                {series.map((item) => (
-                  <TableHead key={item.id} className="text-right">
-                    {item.label}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {model.dailyRows.map((row) => (
-                <TableRow key={row.localDate}>
-                  <TableCell>{row.localDate}</TableCell>
-                  {series.map((item, index) => (
-                    <TableCell key={item.id} className="text-right tabular-nums">
-                      {row[`series${index}`] === null
-                        ? 'Not returned'
-                        : numberFormat.format(row[`series${index}`] as number)}
-                    </TableCell>
+          {/* The table is wider than a phone. `overflow-hidden` on the details
+              clipped it, which loses columns silently; an inner scroller keeps
+              every value reachable and still keeps the card's rounded edge. */}
+          <div className="-mx-3 overflow-x-auto px-3 pb-3">
+            <Table className="min-w-max">
+              <TableCaption>{title} daily values in property-local dates.</TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  {series.map((item) => (
+                    <TableHead key={item.id} className="text-right">
+                      {item.label}
+                    </TableHead>
                   ))}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {model.dailyRows.map((row) => (
+                  <TableRow key={row.localDate}>
+                    <TableCell>{row.localDate}</TableCell>
+                    {series.map((item, index) => (
+                      <TableCell key={item.id} className="text-right tabular-nums">
+                        {row[`series${index}`] === null
+                          ? 'Not returned'
+                          : numberFormat.format(row[`series${index}`] as number)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </details>
       </CardContent>
     </Card>

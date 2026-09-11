@@ -38,8 +38,10 @@ interface Property {
 export type PropertyComparison = Readonly<{
   /** All-time, so the figure matches the Google profile and the Overview tile. */
   avgRating: number | null
-  /** Reviews in the last 30 days. */
-  recentReviewCount: number
+  /** All-time review count. A bounded fleet window counts by when a review was
+   *  recorded rather than when it was written, which disagrees with the
+   *  per-property Overview on a freshly imported property — see the route. */
+  reviewCount: number
   /** Distinct attention work, never the sum of overlapping signal counts. */
   totalAttention: number
 }>
@@ -70,8 +72,10 @@ function ComparisonFigures({
         </dd>
       </div>
       <div className="hidden text-right sm:block">
-        <dt className="text-xs text-muted-foreground">Reviews, 30 days</dt>
-        <dd className="font-semibold tabular-nums">{comparison.recentReviewCount}</dd>
+        <dt className="text-xs text-muted-foreground">Reviews</dt>
+        <dd className="font-semibold tabular-nums">
+          {comparison.reviewCount.toLocaleString()}
+        </dd>
       </div>
       <div className="text-right">
         <dt className="text-xs text-muted-foreground">Needs attention</dt>
@@ -177,7 +181,7 @@ export function PropertyListPage({
 
       {anyFigures ? (
         <p className="text-sm text-muted-foreground">
-          Ratings are all-time. Reviews cover the last 30 days.{' '}
+          Ratings and review counts are all-time.{' '}
           <GlossaryTerm term="needs-attention">Needs attention</GlossaryTerm> counts work
           waiting on you.
         </p>
