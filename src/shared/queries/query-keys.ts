@@ -95,6 +95,9 @@ export const identityKeys = {
   /** LIF-01-T21 transfer worklist a departing member must clear. */
   outstandingResponsibilities: () =>
     [...identityKeys.all, 'outstanding-responsibilities'] as const,
+  /** Merchant AI consent snapshot for one property (import onboarding). */
+  merchantAiAuthorization: (propertyId: string) =>
+    [...identityKeys.all, 'merchant-ai', propertyId] as const,
 }
 
 // ── Properties ──────────────────────────────────────────────────────────

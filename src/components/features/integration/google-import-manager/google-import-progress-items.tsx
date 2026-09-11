@@ -1,4 +1,12 @@
-import { AlertCircle, CheckCircle2, Loader2, RotateCcw, XCircle } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  Loader2,
+  RotateCcw,
+  XCircle,
+} from 'lucide-react'
 import type { ImportProgressItemDto } from '#/contexts/integration/application/public-api'
 import { Button } from '#/components/ui/button'
 import {
@@ -64,6 +72,47 @@ function RetryButton({
   )
 }
 
+/** Imported and relinked items link straight to the Property they produced. */
+function NextStep({
+  item,
+  retryingItemId,
+  mobile = false,
+  onRetry,
+}: Readonly<{
+  item: ImportProgressItemDto
+  retryingItemId: string | null
+  mobile?: boolean
+  onRetry: (item: ImportProgressItemDto) => void
+}>) {
+  if (item.propertyId !== null) {
+    return (
+      <Button
+        asChild
+        size="sm"
+        variant="outline"
+        className={mobile ? 'w-full' : undefined}
+      >
+        <Link
+          to="/properties/$propertyId"
+          params={{ propertyId: item.propertyId }}
+          aria-label={`View property ${item.propertyName}`}
+        >
+          View property
+          <ArrowRight aria-hidden="true" />
+        </Link>
+      </Button>
+    )
+  }
+  return (
+    <RetryButton
+      item={item}
+      retryingItemId={retryingItemId}
+      mobile={mobile}
+      onRetry={onRetry}
+    />
+  )
+}
+
 export function GoogleImportProgressItems({ items, retryingItemId, onRetry }: Props) {
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
@@ -91,7 +140,7 @@ export function GoogleImportProgressItems({ items, retryingItemId, onRetry }: Pr
                   </span>
                 </TableCell>
                 <TableCell className="text-right">
-                  <RetryButton
+                  <NextStep
                     item={item}
                     retryingItemId={retryingItemId}
                     onRetry={onRetry}
@@ -116,7 +165,7 @@ export function GoogleImportProgressItems({ items, retryingItemId, onRetry }: Pr
               {statusIcon(item)}
             </div>
             <p className="text-sm">{importItemMessage(item)}</p>
-            <RetryButton
+            <NextStep
               item={item}
               retryingItemId={retryingItemId}
               mobile

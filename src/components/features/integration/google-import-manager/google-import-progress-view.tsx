@@ -8,16 +8,21 @@ import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { StatCard } from '#/components/features/shared/stat-card'
+import { GoogleImportAiOnboarding } from './google-import-ai-onboarding'
+import { GoogleImportManagerBreadcrumbs } from './google-import-manager-breadcrumbs'
+import type { GoogleImportAiFns } from './google-import-manager-contract'
 import { GoogleImportProgressItems } from './google-import-progress-items'
 import {
   importProgressPercent,
   importProgressSummary,
+  importedPropertiesForAi,
   isImportParentTerminal,
   parentStatusMessage,
 } from './google-import-progress-model'
 
 type Props = Readonly<{
   progress: ImportProgressDto
+  aiFns: GoogleImportAiFns
   isPollingError: boolean
   isRefreshing: boolean
   isCancelling: boolean
@@ -29,6 +34,7 @@ type Props = Readonly<{
 
 export function GoogleImportProgressView({
   progress,
+  aiFns,
   isPollingError,
   isRefreshing,
   isCancelling,
@@ -40,9 +46,14 @@ export function GoogleImportProgressView({
   const percent = importProgressPercent(progress)
   const terminal = isImportParentTerminal(progress.status)
   const summary = importProgressSummary(progress)
+  const queued = progress.status === 'queued'
+  const importedProperties = importedPropertiesForAi(progress)
 
   return (
     <div className="space-y-6">
+      <GoogleImportManagerBreadcrumbs
+        step={importedProperties.length > 0 ? 'ai' : 'progress'}
+      />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -95,15 +106,26 @@ export function GoogleImportProgressView({
           aria-label="Google property import progress"
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={percent}
+          aria-valuenow={queued ? undefined : percent}
+          aria-valuetext={queued ? 'Queued, waiting for the import worker' : undefined}
         >
-          <div
-            className="h-full rounded-full bg-primary transition-[width]"
-            style={{ width: `${percent}%` }}
-          />
+          {queued ? (
+            // A freshly committed import has nothing processed yet; an empty
+            // bar reads as "nothing happened". Show motion until the worker
+            // settles the first item.
+            <div className="h-full w-1/3 animate-pulse rounded-full bg-primary/60 motion-reduce:animate-none" />
+          ) : (
+            <div
+              className="h-full rounded-full bg-primary transition-[width]"
+              style={{ width: `${percent}%` }}
+            />
+          )}
         </div>
         <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
-          {percent}% complete · Last updated{' '}
+          {queued
+            ? 'Queued · the import worker picks this up within seconds'
+            : `${percent}% complete`}
+          {' · Last updated '}
           {new Date(progress.updatedAt).toLocaleTimeString()}
         </p>
       </div>
@@ -130,6 +152,8 @@ export function GoogleImportProgressView({
         retryingItemId={retryingItemId}
         onRetry={onRetry}
       />
+
+      <GoogleImportAiOnboarding properties={importedProperties} aiFns={aiFns} />
 
       {terminal ? (
         <div className="flex flex-col gap-3 border-t pt-5 sm:flex-row">

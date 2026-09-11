@@ -24,6 +24,10 @@ import type {
   getGoogleAuthUrl,
   listGoogleConnections,
 } from '#/contexts/integration/server/google-connections'
+import type {
+  enableMerchantAiFn,
+  getMerchantAiAuthorizationFn,
+} from '#/contexts/identity/server/merchant-ai'
 
 export type GoogleImportStep = 'discover' | 'review' | 'progress'
 export type GoogleImportGetAuthUrl = typeof getGoogleAuthUrl
@@ -39,6 +43,12 @@ export type GoogleImportFns = Readonly<{
   getPropertyImportV2Status: typeof getPropertyImportV2Status
   retryPropertyImportItem: typeof retryPropertyImportItem
   cancelPropertyImportV2: typeof cancelPropertyImportV2
+}>
+
+/** The AI-analysis step of the flow reuses the Settings consent commands. */
+export type GoogleImportAiFns = Readonly<{
+  getMerchantAiAuthorization: typeof getMerchantAiAuthorizationFn
+  enableMerchantAi: typeof enableMerchantAiFn
 }>
 
 export type GoogleImportReviewFormApi = ReactFormExtendedApi<
@@ -69,7 +79,7 @@ export type GoogleImportDiscoveryController = Readonly<{
   accountsQuery: GoogleImportPageQueryState
   candidatesQuery: GoogleImportPageQueryState
   lifecycle: Readonly<{
-    clear: (reason: 'route_left') => Promise<void>
+    clear: (reason: 'route_left') => void
     epoch: () => number
   }>
   step: GoogleImportStep
@@ -102,6 +112,7 @@ export type GoogleImportManagerProps = Readonly<{
   initialRequestId?: string
   initialError?: 'connection_failed' | 'denied' | 'account_already_connected'
   importFns: GoogleImportFns
+  aiFns: GoogleImportAiFns
 }>
 
 export type GoogleImportReviewOptions = Readonly<{

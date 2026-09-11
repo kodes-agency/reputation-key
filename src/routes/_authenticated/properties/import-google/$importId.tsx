@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
-import { importFns } from './-import-fns'
+import { importAiFns, importFns } from './-import-fns'
 import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
 import { googleImportStatusQuery } from '#/components/features/integration/google-import-manager/google-import-queries'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
@@ -68,6 +68,7 @@ function ImportProgressPage() {
         connections={connectionData.connections}
         initialProgress={progress}
         importFns={importFns}
+        aiFns={importAiFns}
       />
     </PageShell>
   )

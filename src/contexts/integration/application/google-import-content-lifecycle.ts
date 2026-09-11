@@ -20,7 +20,7 @@ export type GoogleImportViewCompletion<T> =
     }>
 
 type LifecycleDependencies = Readonly<{
-  cancelQueries: () => Promise<void>
+  /** Removes the provider-content queries; removal cancels any in-flight fetch. */
   removeQueries: () => void
   clearContent: () => void
 }>
@@ -35,25 +35,23 @@ export function contentExpiryDelayMs(expiresAt: string, nowMs: number): number {
 
 export function createGoogleImportContentLifecycle(deps: LifecycleDependencies) {
   let viewEpoch = 0
-  let clearOperation: Promise<void> | null = null
   let active = true
   let clearContent = deps.clearContent
   const invalidationReasons: GoogleImportClearReason[] = []
 
-  const clear = async (reason: GoogleImportClearReason): Promise<void> => {
-    if (clearOperation) return clearOperation
+  // Synchronous on purpose. Removing a query destroys it, which cancels an
+  // in-flight fetch, so nothing here needs to await. An earlier version awaited
+  // a cancel first and only then checked `active`: React StrictMode runs the
+  // owning effect's cleanup (deactivate + clear) and immediately re-mounts
+  // (activate), so the deferred check saw an active view and cleared the
+  // state of a page that was never left. On the progress route that reset the
+  // step to discovery, and the import the user had just started vanished
+  // behind a "location details were cleared" notice.
+  const clear = (reason: GoogleImportClearReason): void => {
     invalidationReasons[viewEpoch] = reason
     viewEpoch += 1
-    clearOperation = (async () => {
-      try {
-        await deps.cancelQueries()
-        deps.removeQueries()
-        if (active) clearContent()
-      } finally {
-        clearOperation = null
-      }
-    })()
-    return clearOperation
+    deps.removeQueries()
+    if (active) clearContent()
   }
 
   const guard = async <T>(

@@ -55,16 +55,16 @@ export function googleImportContentExpiry(
 }
 
 type ContentLifecycle = Readonly<{
-  clear: (reason: 'content_expired' | 'lease_expired' | 'page_hidden') => Promise<void>
+  clear: (reason: 'content_expired' | 'lease_expired' | 'page_hidden') => void
 }>
 
 export function subscribeToGoogleImportVisibility(
   lifecycle: ContentLifecycle,
 ): () => void {
   const clearHiddenContent = () => {
-    if (document.visibilityState === 'hidden') void lifecycle.clear('page_hidden')
+    if (document.visibilityState === 'hidden') lifecycle.clear('page_hidden')
   }
-  const clearExitedContent = () => void lifecycle.clear('page_hidden')
+  const clearExitedContent = () => lifecycle.clear('page_hidden')
   document.addEventListener('visibilitychange', clearHiddenContent)
   document.addEventListener('freeze', clearExitedContent)
   window.addEventListener('pagehide', clearExitedContent)
@@ -87,7 +87,7 @@ export function scheduleGoogleImportExpiries(
     expiresAt === null
       ? undefined
       : window.setTimeout(
-          () => void lifecycle.clear(reason),
+          () => lifecycle.clear(reason),
           contentExpiryDelayMs(expiresAt, Date.now()),
         )
   const contentTimeout = schedule('content_expired', contentExpiresAt)

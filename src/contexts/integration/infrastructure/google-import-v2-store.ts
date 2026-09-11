@@ -289,12 +289,17 @@ function terminalItemPatch(
   }>,
 ) {
   const protectedState = input.retainRetryState ? undefined : null
+  // The Property an `imported`/`relinked` item produced is an internal
+  // reference the import flow hands the merchant to; it outlives the terminal
+  // scrub of provider identifiers and fences (see the schema comment).
+  const producedProperty =
+    input.status === 'imported' || input.status === 'relinked' ? undefined : null
   return {
     status: input.status,
     outcomeCode: input.outcomeCode,
     connectionId: protectedState,
     existingPropertyId: protectedState,
-    destinationPropertyId: protectedState,
+    destinationPropertyId: input.retainRetryState ? undefined : producedProperty,
     expectedConnectionLifecycleVersion: protectedState,
     expectedConnectionAccessVersion: protectedState,
     expectedCredentialGeneration: protectedState,
@@ -341,12 +346,15 @@ function lifecycleScopePredicate(scope: GoogleImportV2LifecycleScope) {
   }
 }
 
+// Provider authority still held by an item: the lifecycle sweeps for a
+// connection, user or organization visit these rows to cancel and scrub them.
+// The destination Property is deliberately absent: a terminal `imported` row
+// keeps it as a plain internal reference and holds no authority through it.
 const lifecycleAuthorityPresent = or(
   sql`${gbpImportRequestItems.status} IN ('pending', 'processing')`,
   eq(gbpImportRequestItems.outcomeCode, 'temporarily_unavailable'),
   isNotNull(gbpImportRequestItems.connectionId),
   isNotNull(gbpImportRequestItems.existingPropertyId),
-  isNotNull(gbpImportRequestItems.destinationPropertyId),
   isNotNull(gbpImportRequestItems.providerAccountSuffix),
   isNotNull(gbpImportRequestItems.providerLocationSuffix),
   isNotNull(gbpImportRequestItems.expectedConnectionLifecycleVersion),
@@ -355,6 +363,20 @@ const lifecycleAuthorityPresent = or(
   isNotNull(gbpImportRequestItems.expectedSourceEpoch),
   isNotNull(gbpImportRequestItems.expectedProfileVersion),
 )
+
+// A Property deletion must also find the terminal rows that still name the
+// Property, so its sweep selects on the reference as well as on authority.
+function lifecycleSweepPredicate(scope: GoogleImportV2LifecycleScope) {
+  return scope.kind === 'property'
+    ? and(
+        lifecycleScopePredicate(scope),
+        or(
+          lifecycleAuthorityPresent,
+          isNotNull(gbpImportRequestItems.destinationPropertyId),
+        ),
+      )
+    : and(lifecycleScopePredicate(scope), lifecycleAuthorityPresent)
+}
 
 type GoogleImportItemRow = typeof gbpImportRequestItems.$inferSelect
 
@@ -377,6 +399,10 @@ function progressItemFromRow(row: GoogleImportItemRow): ImportProgressItemDto {
     retryable,
     retryRevision: row.retryRevision,
     userAction: retryable ? (presentation?.userAction ?? 'none') : 'none',
+    propertyId:
+      row.status === 'imported' || row.status === 'relinked'
+        ? row.destinationPropertyId
+        : null,
   }
 }
 
@@ -1240,7 +1266,10 @@ export const createGoogleImportV2Store = (
             outcomeCode: input.outcomeCode,
             connectionId: null,
             existingPropertyId: null,
-            destinationPropertyId: null,
+            destinationPropertyId:
+              presentation.status === 'imported' || presentation.status === 'relinked'
+                ? undefined
+                : null,
             expectedConnectionLifecycleVersion: null,
             expectedConnectionAccessVersion: null,
             expectedCredentialGeneration: null,
@@ -1780,7 +1809,7 @@ export const createGoogleImportV2Store = (
             eq(gbpImportRequests.id, gbpImportRequestItems.importJobId),
           ),
         )
-        .where(and(lifecycleScopePredicate(scope), lifecycleAuthorityPresent))
+        .where(lifecycleSweepPredicate(scope))
         .orderBy(asc(gbpImportRequestItems.createdAt), asc(gbpImportRequestItems.id))
         .limit(limit)
       return rows.map((row) => ({
@@ -1845,7 +1874,7 @@ export const createGoogleImportV2Store = (
             eq(gbpImportRequests.id, gbpImportRequestItems.importJobId),
           ),
         )
-        .where(and(lifecycleScopePredicate(scope), lifecycleAuthorityPresent))
+        .where(lifecycleSweepPredicate(scope))
         .orderBy(asc(gbpImportRequestItems.createdAt), asc(gbpImportRequestItems.id))
         .limit(limit)
       return rows.length

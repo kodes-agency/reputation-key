@@ -6,6 +6,7 @@ import {
 } from '../../../../.storybook/AuthedRouterDecorator'
 import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import type { MerchantAiSnapshot } from '#/contexts/identity/application/public-api'
+import { consentToAi } from './merchant-ai-consent.stories.play'
 import { MerchantAiSettingsPage } from './merchant-ai-settings-page'
 import type { PropertyReplyLanguageUpdateAction } from './property-reply-language-card'
 
@@ -140,13 +141,7 @@ export const AwaitingConsent: Story = {
   play: async ({ canvasElement }) => {
     enableAction.mockClear()
     const canvas = within(canvasElement)
-    await userEvent.type(
-      canvas.getByLabelText(/confirm with your password/i),
-      'correct-password',
-    )
-    await userEvent.click(canvas.getByRole('button', { name: /^enable ai features$/i }))
-    const page = within(canvasElement.ownerDocument.body)
-    await userEvent.click(page.getByRole('button', { name: /confirm and enable/i }))
+    await consentToAi(canvasElement)
     await waitFor(() => expect(enableAction).toHaveBeenCalledOnce())
     expect(await canvas.findByText('On')).toBeInTheDocument()
     expect(canvas.getByLabelText(/confirm with your password/i)).toHaveValue('')
