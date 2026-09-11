@@ -146,6 +146,12 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  /* The positive half of the direction pair (dashboard redesign row 10).
+     `--success` already existed but was never mapped into a utility, so
+     "rating went up" had no colour while "went down" had `text-destructive`.
+     Always paired with a sign or arrow, never colour alone. */
+  --color-positive: var(--success);
+  --color-positive-muted: var(--success-muted);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

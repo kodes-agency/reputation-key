@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { Stars, ReplyStatusBadge } from './property-dashboard-helpers'
 import type { RecentReview } from '#/contexts/reporting/application/public-api'
 
@@ -19,27 +20,39 @@ const dashboardDateFormatter = new Intl.DateTimeFormat('en-US', {
  * Mirrors the guard `formatPropertyRecoveryDeadline` already uses in
  * property-lifecycle-card.tsx.
  */
-function formatReviewedAt(value: Date): string | null {
+export function formatReviewedAt(value: Date): string | null {
   const time = value instanceof Date ? value.getTime() : Number.NaN
   return Number.isFinite(time) ? dashboardDateFormatter.format(value) : null
 }
 
-export function ReviewRow({ review }: { review: RecentReview }) {
+/**
+ * The whole row is the link. It used to be inert, with a single "View all"
+ * above the list — so the five reviews a manager most wants to open were the
+ * only things on the page that could not be clicked (redesign row 4).
+ */
+export function ReviewRow({
+  review,
+  propertyId,
+}: Readonly<{ review: RecentReview; propertyId: string }>) {
   return (
-    <div className="flex items-center gap-4 rounded-lg border p-3">
-      <div className="flex flex-col items-center gap-1">
+    <Link
+      to="/inbox"
+      search={{ propertyId, reviewId: review.id }}
+      className="flex min-h-11 items-center gap-4 rounded-lg border p-3 transition-colors hover:border-border hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+    >
+      <span className="flex flex-col items-center gap-1">
         <span className="text-lg font-semibold">{review.rating}</span>
         <Stars rating={review.rating} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm">{review.snippet}</p>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm">{review.snippet}</span>
         {formatReviewedAt(review.reviewedAt) !== null && (
-          <p className="mt-1 text-xs text-muted-foreground">
+          <span className="mt-1 block text-xs text-muted-foreground">
             {formatReviewedAt(review.reviewedAt)}
-          </p>
+          </span>
         )}
-      </div>
+      </span>
       <ReplyStatusBadge status={review.replyStatus} />
-    </div>
+    </Link>
   )
 }

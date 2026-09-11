@@ -11,47 +11,27 @@
 // These assert BOTH directions. A guard that swallowed every date would pass
 // the degradation cases and silently delete the feature, so the valid-date
 // case is what keeps the fix honest.
+//
+// The row itself is a router link now (the five latest reviews are the things a
+// manager most wants to open), so the guard is exercised here as the pure
+// function it is; `property-overview.stories.tsx` renders a row with an
+// unparsable date under a real router to prove the render path.
 
-import { createElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import type { RecentReview } from '#/contexts/reporting/application/public-api'
-import { ReviewRow } from './property-dashboard-review-row'
-
-const review = (reviewedAt: Date): RecentReview =>
-  ({
-    id: 'review-1',
-    rating: 4,
-    snippet: 'Quiet room, quick check-in.',
-    reviewedAt,
-    replyStatus: 'none',
-  }) as unknown as RecentReview
-
-const renderRow = (reviewedAt: Date): string =>
-  renderToStaticMarkup(createElement(ReviewRow, { review: review(reviewedAt) }))
+import { formatReviewedAt } from './property-dashboard-review-row'
 
 describe('ReviewRow review date', () => {
-  it('renders a real instant', () => {
-    expect(renderRow(new Date('2026-03-14T00:00:00.000Z'))).toContain('Mar 14, 2026')
+  it('formats a real instant', () => {
+    expect(formatReviewedAt(new Date('2026-03-14T00:00:00.000Z'))).toBe('Mar 14, 2026')
   })
 
-  it('renders the row without throwing when the timestamp is unparsable', () => {
-    expect(() => renderRow(new Date('not-a-date'))).not.toThrow()
+  it('returns nothing rather than throwing on an unparsable timestamp', () => {
+    expect(() => formatReviewedAt(new Date('not-a-date'))).not.toThrow()
+    expect(formatReviewedAt(new Date('not-a-date'))).toBeNull()
   })
 
-  it('keeps the rest of the row when the date is missing', () => {
-    // Degrading beats failing: the reviewer's words and rating are the point of
-    // the row, and they survive a date the provider never sent.
-    const markup = renderRow(new Date(Number.NaN))
-
-    expect(markup).toContain('Quiet room, quick check-in.')
-    expect(markup).toContain('4')
-  })
-
-  it('omits the element rather than printing a broken value', () => {
-    const markup = renderRow(new Date(Number.NaN))
-
-    expect(markup).not.toMatch(/Invalid Date/i)
-    expect(markup).not.toMatch(/NaN/i)
+  it('returns nothing rather than printing a broken value', () => {
+    // Null, not the string "Invalid Date": the row omits the element entirely.
+    expect(formatReviewedAt(new Date(Number.NaN))).toBeNull()
   })
 })

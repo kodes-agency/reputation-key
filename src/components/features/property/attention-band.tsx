@@ -128,14 +128,19 @@ export function AttentionBand({ signals, propertyId }: AttentionBandProps) {
     )
   }
 
-  if (chips.length === 0) return null
-
+  // A row that vanishes when calm reads as a rendering failure on the page
+  // whose first job is answering "is anything wrong?" — so it says so
+  // (redesign rows 4, 12).
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+    <section aria-labelledby="overview-attention" className="space-y-3">
+      <h2 id="overview-attention" className="text-lg font-semibold tracking-tight">
         Needs attention
-      </span>
-      {chips}
-    </div>
+      </h2>
+      {chips.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nothing needs your attention.</p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">{chips}</div>
+      )}
+    </section>
   )
 }
