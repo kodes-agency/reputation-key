@@ -12,8 +12,21 @@
 // `controlled-route-gate.ts`).
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
+import { ChevronRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { SidebarMenuButton, SidebarMenuItem } from '#/components/ui/sidebar'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '#/components/ui/collapsible'
+import {
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+} from '#/components/ui/sidebar'
 
 /** Destination of a live row: path plus whichever of params/search it needs. */
 export type NavLinkTarget = Readonly<{
@@ -61,5 +74,72 @@ export function LinkNavItem({
       </SidebarMenuButton>
       {badge}
     </SidebarMenuItem>
+  )
+}
+
+/**
+ * A nav entry that owns sub-pages — the shadcn `NavMain` composition
+ * (`Collapsible` + `SidebarMenuSub`), with two deliberate differences.
+ *
+ * First, the parent is a link to its own landing page and a separate
+ * `SidebarMenuAction` chevron toggles the sub-list. The docs' demo makes the
+ * parent a pure toggle, but this sidebar is `collapsible="icon"` and
+ * `SidebarMenuSub` hides itself in icon mode, so a toggle-only parent would do
+ * nothing visible there. A link still works, and the one-click habit survives.
+ *
+ * Second, `Collapsible` renders `asChild` so its root merges into the
+ * `<li>` rather than wrapping it in a `<div>`: `<ul>` may only contain `<li>`,
+ * and the demo's nesting fails axe's `list`/`listitem` rules.
+ */
+export function CategoryNavItem({
+  icon: Icon,
+  label,
+  isActive,
+  link,
+  children,
+}: Readonly<{
+  icon: LucideIcon
+  label: string
+  /** True anywhere inside the category — drives both the parent's active state
+   *  and whether the sub-list starts open. */
+  isActive: boolean
+  link: NavLinkTarget
+  children: ReactNode
+}>) {
+  return (
+    <Collapsible asChild defaultOpen={isActive} className="group/collapsible">
+      <SidebarMenuItem>
+        <SidebarMenuButton asChild isActive={isActive} tooltip={label}>
+          <Link {...link}>
+            <Icon />
+            <span>{label}</span>
+          </Link>
+        </SidebarMenuButton>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuAction aria-label={`Toggle ${label} pages`}>
+            <ChevronRight className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+          </SidebarMenuAction>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarMenuSub>{children}</SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
+  )
+}
+
+export function CategoryNavSubItem({
+  label,
+  isActive,
+  link,
+}: Readonly<{ label: string; isActive: boolean; link: NavLinkTarget }>) {
+  return (
+    <SidebarMenuSubItem>
+      <SidebarMenuSubButton asChild isActive={isActive}>
+        <Link {...link}>
+          <span>{label}</span>
+        </Link>
+      </SidebarMenuSubButton>
+    </SidebarMenuSubItem>
   )
 }

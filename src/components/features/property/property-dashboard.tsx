@@ -1,4 +1,3 @@
-import { useId } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
 import type {
@@ -6,17 +5,12 @@ import type {
   DashboardData,
 } from '#/contexts/reporting/application/public-api'
 import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
-import type { PropertyPerformancePreset } from '#/shared/google-performance-report-contract'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { formatTrend, TrendIndicator } from './property-dashboard-helpers'
-import { RatingDistributionChart } from '#/components/features/shared/rating-distribution-chart'
 import { StatCard } from '#/components/features/shared/stat-card'
-import { PropertyReputationTrendChart } from './property-reputation-trend-chart'
 import { ReviewRow } from './property-dashboard-review-row'
 import { AttentionBand } from './attention-band'
-import { GooglePerformanceSection } from './google-performance-section'
-import type { GooglePerformanceServerFns } from './use-google-performance'
 import { TimeRangePicker } from '#/components/features/dashboard/time-range-picker'
 import { ratingPresentation } from '#/components/features/dashboard/rating-presentation'
 import {
@@ -35,9 +29,6 @@ export interface PropertyDashboardProps {
   propertyId: string
   timeRange: TimeRangePreset
   onTimeRangeChange: (value: TimeRangePreset) => void
-  performanceRange: PropertyPerformancePreset
-  onPerformanceRangeChange: (value: PropertyPerformancePreset) => void
-  performanceFns: GooglePerformanceServerFns
   getAiTrend: PropertyAiTrendServerFn
   getAiAggregates: PropertyAiAggregatesServerFn
 }
@@ -49,24 +40,12 @@ export function PropertyDashboard({
   propertyId,
   timeRange,
   onTimeRangeChange,
-  performanceRange,
-  onPerformanceRangeChange,
-  performanceFns,
   getAiTrend,
   getAiAggregates,
 }: PropertyDashboardProps) {
-  const ratingDistributionHeadingId = useId()
   if (!property) return null
 
-  const {
-    kpis,
-    recentReviews,
-    ratingDistribution,
-    ratingTrend,
-    reviewVolume,
-    replyPerformance,
-    engagementFunnel,
-  } = dashboard
+  const { kpis, recentReviews } = dashboard
   const rating = ratingPresentation(kpis.avgRating, timeRange)
 
   return (
@@ -163,82 +142,15 @@ export function PropertyDashboard({
         />
       </div>
 
-      <GooglePerformanceSection
-        key={`${propertyId}:${performanceRange}`}
-        propertyId={propertyId}
-        preset={performanceRange}
-        onPresetChange={onPerformanceRangeChange}
-        serverFns={performanceFns}
-      />
       <PropertyAiTrendSection propertyId={propertyId} getTrend={getAiTrend} />
       <PropertyAiAggregateSection
         propertyId={propertyId}
         getAggregates={getAiAggregates}
       />
 
-      {engagementFunnel && (
-        <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            Engagement Funnel
-          </h2>
-          <div className="mt-3 grid grid-cols-3 gap-4">
-            {[
-              { value: String(engagementFunnel.scans), label: 'Scans' },
-              { value: String(engagementFunnel.ratings), label: 'Ratings' },
-              {
-                value: String(engagementFunnel.reviewLinkClicks),
-                label: 'Review Clicks',
-              },
-            ].map((item) => (
-              <StatCard key={item.label} label={item.label} value={item.value} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="min-w-0">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-          Reputation over time
-        </h2>
-        <div className="mt-3">
-          <PropertyReputationTrendChart
-            ratingTrend={ratingTrend}
-            reviewVolume={reviewVolume}
-          />
-        </div>
-      </div>
-
-      <div className="min-w-0">
-        <h2
-          id={ratingDistributionHeadingId}
-          className="text-sm font-medium uppercase tracking-wide text-muted-foreground"
-        >
-          Rating Distribution
-        </h2>
-        <div className="mt-3">
-          <RatingDistributionChart
-            distribution={ratingDistribution}
-            labelledBy={ratingDistributionHeadingId}
-          />
-        </div>
-      </div>
-
-      <div>
-        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-          Reply Performance
-        </h2>
-        <div className="mt-3 grid grid-cols-2 gap-4">
-          <StatCard label="Reply Rate" value={`${replyPerformance.replyRate}%`} />
-          <StatCard
-            label="Avg Reply Time"
-            value={
-              replyPerformance.avgReplyHours === null
-                ? '—'
-                : `${Math.round(replyPerformance.avgReplyHours)}h`
-            }
-          />
-        </div>
-      </div>
+      {/* Rating trend, rating mix and reply performance moved to Dashboard →
+          Ratings; the Google report to Dashboard → Google (redesign rows 1,
+          7a, 7b). PR 2 replaces what is left with the four-row Overview. */}
 
       <div>
         <div className="flex items-center justify-between">

@@ -10,19 +10,11 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
+import { DashboardRangeControl } from '#/components/features/dashboard/dashboard-range-control'
+import { toInsightsRange, type DashboardRange } from '#/shared/dashboard-range'
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
 import {
-  PROPERTY_INSIGHTS_RANGES,
-  isPropertyInsightsRange,
   type AiPropertyInsightsBasis,
   type AiPropertyInsightsRead,
   type PropertyInsightsRange,
@@ -35,13 +27,6 @@ import { PropertyInsightsWeeklyChart } from './property-insights-weekly-chart'
 import { PropertyAiProvisionalNotice } from './property-ai-provisional-notice'
 import { PropertyInsightsRatingDistribution } from './property-insights-rating-distribution'
 
-const RANGE_LABELS: Readonly<Record<PropertyInsightsRange, string>> = {
-  30: '30 days',
-  90: '90 days',
-  180: '180 days',
-  all: 'All Time',
-}
-
 function pluralized(count: number, singular: string, plural = `${singular}s`): string {
   return `${count} ${count === 1 ? singular : plural}`
 }
@@ -52,59 +37,6 @@ const LOCAL_DATE_FORMATTER = new Intl.DateTimeFormat('en-GB', {
 })
 const formatLocalDate = (localDate: string): string =>
   LOCAL_DATE_FORMATTER.format(new Date(`${localDate}T00:00:00.000Z`))
-
-function PropertyInsightsRangeControl({
-  range,
-  onRangeChange,
-}: Readonly<{
-  range: PropertyInsightsRange
-  onRangeChange: (range: PropertyInsightsRange) => void
-}>) {
-  return (
-    <>
-      <div className="sm:hidden">
-        <Select
-          value={String(range)}
-          onValueChange={(value) => {
-            const parsed = value === 'all' ? value : Number(value)
-            if (isPropertyInsightsRange(parsed)) onRangeChange(parsed)
-          }}
-        >
-          <SelectTrigger aria-label="Insights range" className="min-h-11 min-w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {PROPERTY_INSIGHTS_RANGES.map((option) => (
-                <SelectItem key={option} value={String(option)}>
-                  {RANGE_LABELS[option]}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      </div>
-      <div
-        role="group"
-        aria-label="Insights range"
-        className="hidden items-center gap-1 sm:flex"
-      >
-        {PROPERTY_INSIGHTS_RANGES.map((option) => (
-          <Button
-            key={option}
-            type="button"
-            className="h-11 min-w-20"
-            variant={range === option ? 'secondary' : 'ghost'}
-            aria-pressed={range === option}
-            onClick={() => onRangeChange(option)}
-          >
-            {RANGE_LABELS[option]}
-          </Button>
-        ))}
-      </div>
-    </>
-  )
-}
 
 function PropertyInsightsBasisLine({
   basis,
@@ -201,6 +133,14 @@ function ReportState({
   )
 }
 
+/**
+ * Dashboard → Guest voice (redesign rows 1, 7c).
+ *
+ * PR 1 gives the page its own route, name and the shared range; the contents
+ * are unchanged. PR 3 merges the overview's two AI sections into it, replaces
+ * the aspect pseudo-table with one row per topic, and removes the weekly-trend,
+ * sentiment and distribution charts from this page.
+ */
 export function PropertyInsightsReport({
   propertyId,
   propertyName,
@@ -210,22 +150,29 @@ export function PropertyInsightsReport({
 }: Readonly<{
   propertyId: string
   propertyName: string
-  range: PropertyInsightsRange
-  onRangeChange: (range: PropertyInsightsRange) => void
+  range: DashboardRange
+  onRangeChange: (range: DashboardRange) => void
   result: AiPropertyInsightsRead
 }>) {
   return (
     <PageShell tier="dashboard">
       <PageHeader
-        title={`${propertyName} insights`}
+        title="Guest voice"
         description="What guests praise, what needs attention, and how the picture is changing."
-        actions={
-          <PropertyInsightsRangeControl range={range} onRangeChange={onRangeChange} />
-        }
+        breadcrumbs={[
+          { label: 'Properties', to: '/properties' },
+          { label: propertyName },
+          { label: 'Guest voice' },
+        ]}
+        actions={<DashboardRangeControl range={range} onRangeChange={onRangeChange} />}
       />
 
       {result.status !== 'ready' ? (
-        <ReportState status={result.status} range={range} propertyId={propertyId} />
+        <ReportState
+          status={result.status}
+          range={toInsightsRange(range)}
+          propertyId={propertyId}
+        />
       ) : (
         <>
           {result.provisional && (

@@ -38,7 +38,9 @@ function useActiveSection(): string {
       const m = s.location.pathname.match(/\/properties\/[^/]+(?:\/([^/]+))?/)
       if (!m) return 'dashboard'
       if (m[1] === 'portals') return 'portals'
-      if (m[1] === 'insights') return 'insights'
+      if (m[1] === 'ratings') return 'ratings'
+      if (m[1] === 'google') return 'google'
+      if (m[1] === 'guests') return 'guests'
       if (m[1] === 'reviews') return 'reviews'
       if (m[1] === 'people') return 'people'
       if (m[1] === 'goals') return 'goals'

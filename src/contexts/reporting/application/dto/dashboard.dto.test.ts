@@ -8,7 +8,7 @@ import {
 } from './dashboard.dto'
 
 describe('timeRangePreset', () => {
-  it.each(['7d', '30d', '60d', '90d', 'all'])('accepts %s', (val) => {
+  it.each(['7d', '30d', '60d', '90d', '180d', 'all'])('accepts %s', (val) => {
     expect(() => timeRangePreset.parse(val)).not.toThrow()
   })
 
