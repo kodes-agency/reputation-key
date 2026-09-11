@@ -55,9 +55,16 @@ export function useGooglePerformance(
     [input.preset, input.propertyId, viewEpoch],
   )
 
+  // Synchronous on purpose. `removeQueries` destroys each query, which cancels
+  // an in-flight fetch silently, so a preceding `await cancelQueries` bought
+  // nothing and deferred the removal past React's next effect pass. Under
+  // StrictMode (the app mounts under it) that pass re-subscribed to the query
+  // this cleanup was about to remove, so the observer sat on a detached,
+  // cancelled query and the section showed its skeleton for ever on every
+  // client-side navigation. Removing before the re-subscribe makes the
+  // observer build a fresh query and fetch.
   const clearQueryKey = useCallback(
-    async (key: QueryKey) => {
-      await queryClient.cancelQueries({ queryKey: key, exact: false })
+    (key: QueryKey) => {
       queryClient.removeQueries({ queryKey: key, exact: false })
     },
     [queryClient],
@@ -69,7 +76,7 @@ export function useGooglePerformance(
       setClearReason(reason)
       setReportEnabled(false)
       setViewEpoch((current) => current + 1)
-      void clearQueryKey(expiredKey)
+      clearQueryKey(expiredKey)
     },
     [clearQueryKey, queryKey],
   )
@@ -78,7 +85,7 @@ export function useGooglePerformance(
 
   useEffect(
     () => () => {
-      void clearQueryKey(queryKey)
+      clearQueryKey(queryKey)
     },
     [clearQueryKey, queryKey],
   )
