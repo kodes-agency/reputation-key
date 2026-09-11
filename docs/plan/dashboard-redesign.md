@@ -1,6 +1,6 @@
 # Dashboard redesign — decision record
 
-Status: active. Written before PR 1; archived when PR 7 merges.
+Status: **shipped**, 2026-09-12, in eight PRs (#562–#568).
 
 Fifteen decisions taken with the user on 2026-09-11, after a browser survey of
 `/dashboard`, `/properties/$propertyId` and `/properties/$propertyId/insights`
@@ -66,3 +66,41 @@ Negative / Impact` on one page, `Amenities [Complaints] / Weighted impact` on
   recorded and deferred; the page states its limit in a line either way.
 - No visual refresh (row 14), no onboarding flows, no per-manager reply
   analytics (the reason Responding is a block and not a page).
+
+## What shipped, measured on the live stack
+
+Hotel Elegance (259 reviews, AI on) at 1440 px, before → after:
+
+| Page                       | Before                             | After                              |
+| -------------------------- | ---------------------------------- | ---------------------------------- |
+| Overview                   | 4,161 px, 4 charts, 3 time windows | **1,196 px**, 0 charts, 0 controls |
+| Overview at 390 px         | 5,837 px (6.9 screens)             | **1,406 px (1.67 screens)**        |
+| Ratings                    | — (sections of Overview)           | 1,197 px, one 240 px chart         |
+| Google                     | — (section of Overview)            | 1,156 px, two 240 px charts        |
+| Guest voice (was Insights) | 2,457 px                           | **900 px**                         |
+| Fleet                      | 3,150 px on an unlinked page       | folded into `/properties`          |
+
+Across all four pages: zero `—`, zero `Data through`, no log line, and no
+occurrence of `aspect`, `weighted impact`, `star-only` or `aspect-impact-v1`.
+The tallest chart on any page is 240 px; the old rating histogram was 612.
+
+## Findings deferred, with reasons
+
+1. **The fleet and the property overview disagree about a 30-day window.** The
+   fleet projection counts governed metric readings by `event_at` — when a
+   review was _recorded_ — while `get-property-overview` counts by when the
+   guest wrote it. On Hotel Elegance that is 259 against 3, because every
+   review was ingested on one day. Verified in the database: 259 total, 3 by
+   `reviewed_at` within 30 days, 259 by `created_at`. Reconciling them touches
+   correction, eligibility and attribution-quality semantics, so `/properties`
+   shows the all-time count both sources agree on and the 30-day pulse stays on
+   the property page, where one basis is in force. **A read-model decision is
+   owed here.**
+2. **Google performance stops at six months.** "All time" clamps to the
+   contract's `180d` maximum and the page says so in one line. Whether that
+   maximum should grow is a backend question, untouched.
+3. **Glossary triggers are 20–28 px.** They are words inside sentences, not
+   controls in a row; WCAG 2.5.8 exempts inline targets, and forcing 44 px
+   would break the typography. Every actual control on these pages is ≥ 44 px.
+4. **The breadcrumb is a 20 px target.** App-wide component; changing it moves
+   every page in the product, so it is out of this phase's scope.
