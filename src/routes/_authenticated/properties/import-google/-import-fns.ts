@@ -14,7 +14,14 @@ import {
   getGoogleAuthUrl,
   listGoogleConnections,
 } from '#/contexts/integration/server/google-connections'
-import type { GoogleImportFns } from '#/components/features/integration/google-import-manager/google-import-manager-contract'
+import {
+  enableMerchantAiFn,
+  getMerchantAiAuthorizationFn,
+} from '#/contexts/identity/server/merchant-ai'
+import type {
+  GoogleImportAiFns,
+  GoogleImportFns,
+} from '#/components/features/integration/google-import-manager/google-import-manager-contract'
 
 export const importFns: GoogleImportFns = {
   get getGoogleAuthUrl() {
@@ -46,5 +53,14 @@ export const importFns: GoogleImportFns = {
   },
   get cancelPropertyImportV2() {
     return cancelPropertyImportV2
+  },
+}
+
+export const importAiFns: GoogleImportAiFns = {
+  get getMerchantAiAuthorization() {
+    return getMerchantAiAuthorizationFn
+  },
+  get enableMerchantAi() {
+    return enableMerchantAiFn
   },
 }

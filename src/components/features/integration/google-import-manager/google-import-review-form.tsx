@@ -119,6 +119,26 @@ export function GoogleImportReviewForm({
         </Alert>
       ) : null}
 
+      <section
+        aria-labelledby="google-import-next-steps-title"
+        className="rounded-xl border bg-muted/40 p-4 text-sm"
+      >
+        <h3 id="google-import-next-steps-title" className="font-medium">
+          What happens after you start
+        </h3>
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">
+          <li>
+            Each property is created and its Google reviews are imported into the inbox.
+            You can watch the progress and leave the page at any time.
+          </li>
+          <li>
+            You then choose, per property, whether RepKey may analyse those reviews with
+            AI. Nothing is sent to the AI provider until you enable it; you can also
+            decide later in Settings → AI &amp; replies.
+          </li>
+        </ol>
+      </section>
+
       <div className="flex flex-col-reverse gap-3 border-t pt-5 sm:flex-row sm:justify-between">
         <Button type="button" variant="outline" onClick={onBack} disabled={isSubmitting}>
           Back to locations

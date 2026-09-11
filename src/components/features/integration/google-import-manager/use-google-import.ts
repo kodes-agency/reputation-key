@@ -65,11 +65,6 @@ function useGoogleImportContent({
   const [epoch, setEpoch] = useState(0)
   const [lifecycle] = useState(() =>
     createGoogleImportContentLifecycle({
-      cancelQueries: async () => {
-        await queryClient.cancelQueries({
-          queryKey: integrationKeys.googleImportContent(),
-        })
-      },
       removeQueries: () =>
         queryClient.removeQueries({ queryKey: integrationKeys.googleImportContent() }),
       clearContent: () => {
@@ -132,7 +127,7 @@ function useGoogleImportContent({
     lifecycle.activate()
     return () => {
       lifecycle.deactivate()
-      void lifecycle.clear('route_left')
+      lifecycle.clear('route_left')
     }
   }, [lifecycle])
   useEffect(() => {
@@ -146,10 +141,10 @@ function useGoogleImportContent({
   useEffect(() => {
     if (organizationIdRef.current === organizationId) return
     organizationIdRef.current = organizationId
-    void lifecycle.clear('tenant_changed')
+    lifecycle.clear('tenant_changed')
   }, [lifecycle, organizationId])
   useEffect(() => {
-    if (leaseQuery.error) void lifecycle.clear('lease_expired')
+    if (leaseQuery.error) lifecycle.clear('lease_expired')
   }, [leaseQuery.error, lifecycle])
 
   return { accounts, candidates, accountsQuery, candidatesQuery, lifecycle }
@@ -203,15 +198,13 @@ export function useGoogleImport({
       )
     )
       return
-    void (async () => {
-      await content.lifecycle.clear('authorization_revoked')
-      dispatch({
-        type: 'set_connection',
-        connectionId:
-          connections.find((connection) => connection.status === 'active')?.id ?? null,
-        active: false,
-      })
-    })()
+    content.lifecycle.clear('authorization_revoked')
+    dispatch({
+      type: 'set_connection',
+      connectionId:
+        connections.find((connection) => connection.status === 'active')?.id ?? null,
+      active: false,
+    })
   }, [connections, content.lifecycle, state.connectionId])
 
   const changeConnection = async (connectionId: string) => {
@@ -222,7 +215,7 @@ export function useGoogleImport({
       )
     )
       return
-    await content.lifecycle.clear('connection_changed')
+    content.lifecycle.clear('connection_changed')
     dispatch({ type: 'set_connection', connectionId, active: true })
   }
   const toggleCandidate = (candidate: ImportCandidateDto, checked: boolean) => {

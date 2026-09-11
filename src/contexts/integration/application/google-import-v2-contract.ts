@@ -92,14 +92,8 @@ export function reconciledOutcomeCode(
     : receipt.outcome
 }
 
-export const IMPORT_ITEM_USER_ACTIONS = [
-  'none',
-  'rediscover',
-  'reauthenticate',
-  'reconnect',
-  'retry',
-] as const
-export type ImportItemUserAction = (typeof IMPORT_ITEM_USER_ACTIONS)[number]
+export type ImportItemUserAction =
+  'none' | 'rediscover' | 'reauthenticate' | 'reconnect' | 'retry'
 
 export type ImportReducerClass = 'success' | 'benign_skip' | 'failure' | 'cancellation'
 export type ImportOutcomePresentation = Readonly<{
@@ -320,9 +314,9 @@ export type StartPropertyImportInput = Readonly<{
 }>
 
 /**
- * No destination Property ID: terminal writes scrub `destination_property_id`
- * for every non-retryable item, so an `imported`/`relinked` row can never carry
- * one by the time progress is read.
+ * `propertyId` is the Property an `imported`/`relinked` item produced and is
+ * null for every other status. Provider identifiers never appear here:
+ * terminal writes scrub them, and this reference is internal.
  */
 export type ImportProgressItemDto = Readonly<{
   itemId: string
@@ -334,6 +328,7 @@ export type ImportProgressItemDto = Readonly<{
   retryable: boolean
   retryRevision: number
   userAction: ImportItemUserAction
+  propertyId: string | null
 }>
 
 export type ImportProgressDto = Readonly<{
