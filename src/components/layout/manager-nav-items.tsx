@@ -1,6 +1,5 @@
 import {
   LayoutDashboard,
-  BarChart3,
   MessageSquare,
   Users,
   Globe,
@@ -12,7 +11,12 @@ import { InboxVisitBadge } from '#/components/inbox/inbox-visit-badge'
 import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import type { Capabilities } from '#/shared/hooks/useCapabilities'
-import { InertNavItem, LinkNavItem } from './nav-items-shared'
+import {
+  CategoryNavItem,
+  CategoryNavSubItem,
+  InertNavItem,
+  LinkNavItem,
+} from './nav-items-shared'
 import type { Capability } from '#/shared/auth/beta-capabilities'
 import { REFUSAL_COPY } from '#/shared/auth/capability-refusal-category'
 
@@ -38,19 +42,31 @@ type ManagerNavItem = Readonly<{
   to: string
 }>
 
+/**
+ * The dashboard's sub-pages (redesign rows 1, 2). Overview leads because it is
+ * also the category's own landing page; the other three answer one question
+ * each — how are we rated, how are we found, what do guests say.
+ *
+ * No entry carries a capability: like the overview they were split out of, none
+ * of these routes gates on one. Guest voice checks the `dashboard.read`
+ * *permission* in its own `beforeLoad`, which every role that can see this
+ * sidebar already holds, so an inert row here would be a phantom.
+ */
+const dashboardSubItems: ReadonlyArray<
+  Readonly<{ key: string; label: string; to: string }>
+> = [
+  { key: 'dashboard', label: 'Overview', to: '/properties/$propertyId' },
+  { key: 'ratings', label: 'Ratings', to: '/properties/$propertyId/ratings' },
+  { key: 'google', label: 'Google', to: '/properties/$propertyId/google' },
+  { key: 'guests', label: 'Guest voice', to: '/properties/$propertyId/guests' },
+]
+
+const DASHBOARD_SECTIONS: ReadonlySet<string> = new Set(
+  dashboardSubItems.map((item) => item.key),
+)
+
+/** Entries below the Dashboard category, in sidebar order. */
 const navItems: ReadonlyArray<ManagerNavItem> = [
-  {
-    key: 'dashboard',
-    label: 'Dashboard',
-    icon: LayoutDashboard,
-    to: '/properties/$propertyId',
-  },
-  {
-    key: 'insights',
-    label: 'Insights',
-    icon: BarChart3,
-    to: '/properties/$propertyId/insights',
-  },
   {
     key: 'reviews',
     label: 'Reviews',
@@ -136,11 +152,48 @@ function ManagerNavRow({
   )
 }
 
+/**
+ * The Dashboard category and its four sub-pages. Without a property — the
+ * properties list, the import flow — the whole category is inert, exactly as
+ * every property-scoped entry already was: there is nothing for Ratings or
+ * Google to be about yet.
+ */
+function DashboardCategory({
+  propertyId,
+  activeSection,
+}: Readonly<{
+  propertyId: string | undefined
+  activeSection: string
+}>) {
+  if (!propertyId) {
+    return <InertNavItem icon={LayoutDashboard} label="Dashboard" tooltip="Dashboard" />
+  }
+
+  return (
+    <CategoryNavItem
+      icon={LayoutDashboard}
+      label="Dashboard"
+      isActive={DASHBOARD_SECTIONS.has(activeSection)}
+      link={{ to: '/properties/$propertyId', params: { propertyId } }}
+    >
+      {dashboardSubItems.map((item) => (
+        <CategoryNavSubItem
+          key={item.key}
+          label={item.label}
+          isActive={activeSection === item.key}
+          link={{ to: item.to, params: { propertyId } }}
+        />
+      ))}
+    </CategoryNavItem>
+  )
+}
+
 export function ManagerNavItems({ propertyId, activeSection, getLastVisitCount }: Props) {
   const { has, refusal } = useCapabilities()
 
   return (
     <SidebarMenu>
+      <DashboardCategory propertyId={propertyId} activeSection={activeSection} />
       {navItems.map((item) => (
         <ManagerNavRow
           key={item.key}

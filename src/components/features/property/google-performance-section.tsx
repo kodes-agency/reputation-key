@@ -5,19 +5,8 @@ import type {
   PropertyGooglePerformanceResultV1,
   PropertyPerformancePreset,
 } from '#/shared/google-performance-report-contract'
-import {
-  PROPERTY_PERFORMANCE_PRESETS,
-  isPropertyPerformancePreset,
-} from '#/shared/google-performance-report-contract'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
 import { cn } from '#/lib/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { GooglePerformanceReport } from './google-performance-report'
@@ -30,13 +19,6 @@ import {
   useGooglePerformance,
   type GooglePerformanceServerFns,
 } from './use-google-performance'
-
-const PRESET_LABELS: Readonly<Record<PropertyPerformancePreset, string>> = {
-  '7d': '7 days',
-  '30d': '30 days',
-  '90d': '90 days',
-  '180d': '180 days',
-}
 
 type UnavailablePerformanceResult = Extract<
   PropertyGooglePerformanceResultV1,
@@ -106,15 +88,19 @@ function GooglePerformanceUnavailable({
   )
 }
 
-function GooglePerformanceHeader({
-  preset,
-  onPresetChange,
+/**
+ * Refresh only. The range used to live here as a second picker on the same page
+ * as the overview's own, with prose conceding that the two were unrelated:
+ * "This range is independent from the Dashboard range above." The Google page
+ * now owns one shared range in its header (redesign rows 6, 7b), so this
+ * section keeps the one control that is genuinely its own — the lease refresh,
+ * with its cooldown.
+ */
+function GooglePerformanceRefresh({
   isFetching,
   retryAfterSeconds,
   onRefresh,
 }: Readonly<{
-  preset: PropertyPerformancePreset
-  onPresetChange: (preset: PropertyPerformancePreset) => void
   isFetching: boolean
   retryAfterSeconds: number
   onRefresh: () => void
@@ -122,69 +108,20 @@ function GooglePerformanceHeader({
   const retryDisabled = retryAfterSeconds > 0 || isFetching
 
   return (
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div className="flex min-w-0 flex-col gap-1">
-        <h2
-          id="google-performance-title"
-          className="text-lg font-semibold tracking-tight"
-        >
-          Google Business Profile performance
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Live discovery and customer-action signals. This range is independent from the
-          Dashboard range above.
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="sm:hidden">
-          <Select
-            value={preset}
-            onValueChange={(value) => {
-              if (isPropertyPerformancePreset(value)) onPresetChange(value)
-            }}
-          >
-            <SelectTrigger aria-label="Performance range" className="min-h-11 min-w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PROPERTY_PERFORMANCE_PRESETS.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {PRESET_LABELS[option]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div role="group" aria-label="Performance range" className="hidden gap-1 sm:flex">
-          {PROPERTY_PERFORMANCE_PRESETS.map((option) => (
-            <Button
-              key={option}
-              type="button"
-              className="h-11 min-w-16"
-              variant={preset === option ? 'secondary' : 'ghost'}
-              aria-pressed={preset === option}
-              onClick={() => onPresetChange(option)}
-            >
-              {PRESET_LABELS[option]}
-            </Button>
-          ))}
-        </div>
-        <Button
-          type="button"
-          className="h-11"
-          variant="outline"
-          disabled={retryDisabled}
-          onClick={onRefresh}
-        >
-          <RefreshCw data-icon="inline-start" aria-hidden="true" />
-          {isFetching
-            ? 'Refreshing'
-            : retryAfterSeconds > 0
-              ? `Retry in ${retryAfterSeconds}s`
-              : 'Refresh'}
-        </Button>
-      </div>
-    </div>
+    <Button
+      type="button"
+      className="h-11"
+      variant="outline"
+      disabled={retryDisabled}
+      onClick={onRefresh}
+    >
+      <RefreshCw data-icon="inline-start" aria-hidden="true" />
+      {isFetching
+        ? 'Refreshing'
+        : retryAfterSeconds > 0
+          ? `Retry in ${retryAfterSeconds}s`
+          : 'Refresh'}
+    </Button>
   )
 }
 
@@ -226,28 +163,31 @@ function GooglePerformanceContent({
   )
 }
 
+/**
+ * The Google report, and the refresh that owns its lease. The page supplies the
+ * range and the heading; this section contributes no header of its own, only
+ * the one control that is genuinely its own.
+ */
 export function GooglePerformanceSection({
   propertyId,
   preset,
-  onPresetChange,
   serverFns,
 }: Readonly<{
   propertyId: string
   preset: PropertyPerformancePreset
-  onPresetChange: (preset: PropertyPerformancePreset) => void
   serverFns: GooglePerformanceServerFns
 }>) {
   const performance = useGooglePerformance({ propertyId, preset, serverFns })
 
   return (
-    <section aria-labelledby="google-performance-title" className="flex flex-col gap-4">
-      <GooglePerformanceHeader
-        preset={preset}
-        onPresetChange={onPresetChange}
-        isFetching={performance.isFetching}
-        retryAfterSeconds={performance.retryAfterSeconds}
-        onRefresh={() => void performance.refresh()}
-      />
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <GooglePerformanceRefresh
+          isFetching={performance.isFetching}
+          retryAfterSeconds={performance.retryAfterSeconds}
+          onRefresh={() => void performance.refresh()}
+        />
+      </div>
 
       {performance.hasRetainedError && performance.errorResult ? (
         <GooglePerformanceError code={performance.errorResult.errorCode} retained />
@@ -262,6 +202,6 @@ export function GooglePerformanceSection({
         authorizationLost={performance.authorizationLost}
         contentExpired={performance.contentExpired}
       />
-    </section>
+    </div>
   )
 }

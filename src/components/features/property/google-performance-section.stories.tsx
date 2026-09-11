@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState, type ComponentProps } from 'react'
+import { useMemo, useRef, type ComponentProps } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor } from 'storybook/test'
 import {
   AuthedRouterDecorator,
   withRole,
@@ -224,21 +224,8 @@ const getDelayedReady = ((input: { data: { preset: PropertyPerformancePreset } }
       })
   })) as unknown as typeof getPropertyGooglePerformance
 
-function ControlledPerformanceSection(
-  props: ComponentProps<typeof GooglePerformanceSection>,
-) {
-  const [preset, setPreset] = useState(props.preset)
-  return (
-    <GooglePerformanceSection
-      {...props}
-      preset={preset}
-      onPresetChange={(nextPreset) => {
-        props.onPresetChange(nextPreset)
-        setPreset(nextPreset)
-      }}
-    />
-  )
-}
+// The section no longer owns a range control — the page does (redesign row 6) —
+// so there is no preset state to hold here.
 
 function RefreshFailurePerformanceSection(
   props: ComponentProps<typeof GooglePerformanceSection>,
@@ -275,7 +262,7 @@ function RefreshFailurePerformanceSection(
     }
   }, [])
 
-  return <ControlledPerformanceSection {...props} serverFns={serverFns} />
+  return <GooglePerformanceSection {...props} serverFns={serverFns} />
 }
 
 const meta = {
@@ -283,12 +270,10 @@ const meta = {
   component: GooglePerformanceSection,
   tags: ['autodocs'],
   parameters: { layout: 'padded' },
-  render: (args) => <ControlledPerformanceSection {...args} />,
   decorators: [AuthedRouterDecorator],
   args: {
     propertyId: PROPERTY_ID,
     preset: '30d',
-    onPresetChange: fn(),
     serverFns: {
       getPerformance: getReadyPerformance,
       renewLease,
@@ -301,15 +286,8 @@ type Story = StoryObj<typeof meta>
 
 export const LiveReport: Story = {
   play: async ({ canvas }) => {
-    await expect(
-      canvas.findByRole('heading', { name: 'Google Business Profile performance' }),
-    ).resolves.toBeVisible()
     await expect(canvas.findByText('4,872')).resolves.toBeVisible()
     await expect(canvas.getByText('Source: Google Business Profile')).toBeVisible()
-    const sevenDays = canvas.getByRole('button', { name: '7 days' })
-    sevenDays.focus()
-    await userEvent.keyboard('{Enter}')
-    await expect(sevenDays).toHaveAttribute('aria-pressed', 'true')
     await expect(getReadyPerformance).toHaveBeenCalled()
   },
 }
@@ -470,31 +448,12 @@ export const LightTheme: Story = {
 export const Compact320: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
   play: async ({ canvas }) => {
-    const range = canvas
-      .getAllByLabelText('Performance range')
-      .find((element) => element.getBoundingClientRect().height > 0)!
-    await expect(range.getBoundingClientRect().height).toBeGreaterThanOrEqual(44)
-    if (range.getAttribute('role') === 'combobox') {
-      await userEvent.click(range)
-      const ownerDocument = range.ownerDocument
-      const contentId = range.getAttribute('aria-controls')
-      expect(contentId).not.toBeNull()
-      if (contentId === null) return
-      const content = ownerDocument.getElementById(contentId)
-      expect(content).not.toBeNull()
-      if (content === null) return
-      await userEvent.click(within(content).getByRole('option', { name: '7 days' }))
-      await waitFor(() => {
-        expect(range).toHaveTextContent('7 days')
-        expect(ownerDocument.querySelector('[role="listbox"]')).toBeNull()
-        expect(ownerDocument.body.style.pointerEvents).toBe('')
-      })
-      return
-    }
-    const sevenDays = range.querySelector<HTMLButtonElement>('button')!
-    sevenDays.focus()
-    await userEvent.keyboard('{Enter}')
-    await expect(sevenDays).toHaveAttribute('aria-pressed', 'true')
+    // The range control moved to the page header; what this section still owns
+    // on a narrow screen is the refresh, and it has to stay tappable.
+    const refresh = await canvas.findByRole('button', { name: 'Refresh' })
+    await expect(refresh.getBoundingClientRect().height).toBeGreaterThanOrEqual(44)
+    await userEvent.click(refresh)
+    await waitFor(() => expect(getReadyPerformance).toHaveBeenCalled())
   },
 }
 

@@ -2,10 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { getPropertyOverviewFn } from '#/contexts/reporting/server/dashboard'
-import {
-  getPropertyGooglePerformance,
-  renewPropertyGooglePerformanceLease,
-} from '#/contexts/integration/server/google-performance'
 import { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
 import { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-aggregates'
 import { PropertyDashboard } from '#/components/features/property/property-dashboard'
@@ -15,11 +11,12 @@ import {
   timeRangePreset,
   type TimeRangePreset,
 } from '#/contexts/reporting/application/dto/dashboard.dto'
-import type { PropertyPerformancePreset } from '#/shared/google-performance-report-contract'
 
+// `performanceRange` is gone: the Google report has its own page with the
+// shared range (redesign rows 2, 6). A stale bookmark carrying it still loads —
+// unknown search keys are ignored, not rejected.
 const propertyDashboardSearch = z.object({
   timeRange: timeRangePreset.default('30d'),
-  performanceRange: z.enum(['7d', '30d', '90d', '180d']).catch('30d').default('30d'),
 })
 
 const overviewQuery = (propertyId: string, timeRange: TimeRangePreset) =>
@@ -43,16 +40,12 @@ function PropertyDashboardRoute() {
   const { propertyId } = Route.useParams()
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const property = propData.property
-  const { timeRange, performanceRange } = Route.useSearch()
+  const { timeRange } = Route.useSearch()
   const { data: overview } = useSuspenseQuery(overviewQuery(propertyId, timeRange))
   const navigate = Route.useNavigate()
 
   const onTimeRangeChange = (value: TimeRangePreset) => {
     navigate({ search: (previous) => ({ ...previous, timeRange: value }) })
-  }
-
-  const onPerformanceRangeChange = (value: PropertyPerformancePreset) => {
-    navigate({ search: (previous) => ({ ...previous, performanceRange: value }) })
   }
 
   return (
@@ -63,12 +56,6 @@ function PropertyDashboardRoute() {
       propertyId={propertyId}
       timeRange={timeRange}
       onTimeRangeChange={onTimeRangeChange}
-      performanceRange={performanceRange}
-      onPerformanceRangeChange={onPerformanceRangeChange}
-      performanceFns={{
-        getPerformance: getPropertyGooglePerformance,
-        renewLease: renewPropertyGooglePerformanceLease,
-      }}
       getAiTrend={getPropertyAiTrendFn}
       getAiAggregates={getPropertyAiAggregatesFn}
     />

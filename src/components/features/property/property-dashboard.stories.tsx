@@ -1,18 +1,15 @@
-// Property dashboard — a property's KPI strip, rating distribution, reply
-// performance, engagement funnel and recent reviews. Pure data-display surface:
-// all data arrives via props (DashboardData + AttentionSignals), no server/RPC.
-// Rating distribution and reputation-over-time both use the shared shadcn
-// chart surface, so chart stories wait for the Recharts series to mount before
-// asserting.
+// Property Overview — the attention band, the KPI strip, the two AI sections
+// and recent reviews. Pure data-display surface: all data arrives via props
+// (DashboardData + AttentionSignals), no server/RPC.
+//
+// Rating trend, rating mix and reply performance moved to the Ratings page and
+// the Google report to the Google page (redesign rows 1, 7a, 7b); their stories
+// moved with them.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import { PropertyDashboard } from './property-dashboard'
 import { TIME_RANGE_OPTIONS } from '#/contexts/reporting/application/dto/dashboard.dto'
 import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
-import type {
-  getPropertyGooglePerformance,
-  renewPropertyGooglePerformanceLease,
-} from '#/contexts/integration/server/google-performance'
 import type { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
 import type { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-aggregates'
 import {
@@ -23,16 +20,6 @@ import {
   property,
 } from './property-dashboard-stories-data'
 
-const performanceFns = {
-  getPerformance: (async () => ({
-    status: 'unavailable',
-    reason: 'integration_unavailable',
-    action: null,
-  })) as unknown as typeof getPropertyGooglePerformance,
-  renewLease: (async () => ({
-    ok: false,
-  })) as unknown as typeof renewPropertyGooglePerformanceLease,
-}
 const getAiTrend = (async () => ({
   status: 'ready',
   sourceEpoch: 1,
@@ -116,9 +103,6 @@ export const Default: Story = {
     propertyId: property.id,
     timeRange: '30d',
     onTimeRangeChange: (_value: TimeRangePreset) => {},
-    performanceRange: '30d',
-    onPerformanceRangeChange: () => {},
-    performanceFns,
     getAiTrend,
     getAiAggregates,
   },
@@ -138,12 +122,17 @@ export const Default: Story = {
     expect(canvas.getByText('+0.2 stars')).toBeVisible()
     expect(canvas.getByText('Overdue')).toBeVisible()
     expect(canvas.getByText(/items to triage/i)).toBeVisible()
-    expect(canvas.getByRole('img', { name: /rating distribution/i })).toBeVisible()
-    expect(canvas.getByText('78%')).toBeVisible()
     expect(await canvas.findByText('Review signals improved')).toBeVisible()
     // The basis-point field is a change magnitude, never a confidence score.
     expect(await canvas.findByText(/largest change 25 pts/i)).toBeVisible()
     expect(canvas.queryByText(/confidence/i)).toBeNull()
+
+    // Rating mix, rating trend and reply performance live on the Ratings page
+    // now; the Google report on its own page.
+    expect(canvas.queryByRole('img', { name: /rating/i })).toBeNull()
+    expect(canvas.queryByText(/reputation over time/i)).toBeNull()
+    expect(canvas.queryByText(/reply rate/i)).toBeNull()
+    expect(canvas.queryByText(/google business profile/i)).toBeNull()
   },
 }
 
@@ -183,56 +172,6 @@ export const NoDataWindow: Story = {
     expect(
       card('Feedback').getByText('No private feedback received in this period.'),
     ).toBeVisible()
-  },
-}
-
-// `ratingTrend` and `reviewVolume` were computed, shipped to the browser, and
-// never drawn. These pin that they render, and that the shapes which break
-// charts are handled rather than crashing or drawing an empty axis.
-export const ReputationTrend: Story = {
-  args: { ...Default.args },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(canvas.getByText(/reputation over time/i)).toBeVisible()
-    expect(canvas.queryByTestId('reputation-trend-empty')).toBeNull()
-    const chart = canvas.getByTestId('reputation-trend-chart')
-    expect(chart).toHaveAttribute('data-series', 'review-volume,average-rating')
-    expect(chart).toHaveAttribute('data-point-count', '3')
-  },
-}
-
-export const ReputationTrendEmpty: Story = {
-  args: {
-    ...Default.args,
-    dashboard: { ...populatedDashboard, ratingTrend: [], reviewVolume: [] },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    // An axis with no series is worse than saying there is nothing yet.
-    expect(canvas.getByTestId('reputation-trend-empty')).toBeVisible()
-  },
-}
-
-export const ReputationTrendSparse: Story = {
-  args: {
-    ...Default.args,
-    dashboard: {
-      ...populatedDashboard,
-      // Deliberately misaligned: a volume day with no rating, and a rating day
-      // with no volume. Zipping these by index would drop or mispair points.
-      ratingTrend: [{ date: '2026-07-02', avgRating: 4.6 }],
-      reviewVolume: [{ date: '2026-07-01', count: 3 }],
-    },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(canvas.queryByTestId('reputation-trend-empty')).toBeNull()
-    // Two distinct calendar days survive the merge. The pure merge unit test
-    // pins their exact values independently of Recharts' private class names.
-    expect(canvas.getByTestId('reputation-trend-chart')).toHaveAttribute(
-      'data-point-count',
-      '2',
-    )
   },
 }
 

@@ -13,8 +13,8 @@ import type { Role } from '#/shared/domain/roles'
 import type {
   AiPropertyInsightsPresetReady,
   AiPropertyInsightsRead,
-  PropertyInsightsRange,
 } from '#/contexts/ai/application/public-api'
+import type { DashboardRange } from '#/shared/dashboard-range'
 import { PropertyInsightsReport } from './property-insights-report'
 
 const PROPERTY_ID = '11111111-1111-4111-8111-111111111111'
@@ -239,8 +239,8 @@ const provisional: AiPropertyInsightsPresetReady = {
 }
 
 function StoryReport({ result }: Readonly<{ result: AiPropertyInsightsRead }>) {
-  const [range, setRange] = useState<PropertyInsightsRange>(
-    result.status === 'ready' ? result.range : 90,
+  const [range, setRange] = useState<DashboardRange>(
+    result.status === 'ready' && result.range === 'all' ? 'all' : '90d',
   )
   return (
     <PropertyInsightsReport
@@ -297,7 +297,7 @@ type Story = StoryObj<typeof PropertyInsightsReport>
 
 async function selectedAllTimeCanvas(canvasElement: HTMLElement) {
   const canvas = within(canvasElement)
-  expect(await canvas.findByRole('button', { name: 'All Time' })).toHaveAttribute(
+  expect(await canvas.findByRole('button', { name: 'All time' })).toHaveAttribute(
     'aria-pressed',
     'true',
   )
@@ -308,7 +308,9 @@ export const PopulatedReport: Story = {
   render: () => <ReportHarness result={populated} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(await canvas.findByText('Harbour House Hotel insights')).toBeVisible()
+    expect(
+      await canvas.findByRole('heading', { name: 'Guest voice', level: 1 }),
+    ).toBeVisible()
     expect(await canvas.findByText(/Based on 120 reviews/)).toBeVisible()
     expect(
       await canvas.findByText(/6 not analysable in a supported language/),
@@ -392,7 +394,14 @@ export const InsufficientData: Story = {
     expect(
       await canvas.findByText('Not enough review evidence in this period'),
     ).toBeVisible()
-    expect(canvas.queryByText('0 reviews')).toBeNull()
+    expect(
+      await canvas.findByText(/No reviews were found in the selected period/),
+    ).toBeVisible()
+    // A degraded window renders no figures at all, rather than a basis of zeros
+    // beside empty cards.
+    expect(canvas.queryByText(/Based on/)).toBeNull()
+    expect(canvas.queryByRole('heading', { name: 'Aspect impact' })).toBeNull()
+    expect(canvas.queryByRole('heading', { name: 'Rating distribution' })).toBeNull()
   },
 }
 

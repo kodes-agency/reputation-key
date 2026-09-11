@@ -6,7 +6,18 @@ export const MS_PER_DAY = 86_400_000
 /** Convert a time-range preset to concrete start/end dates relative to `now`.
  *  `now` is injected so callers can fast-forward time (ADR 0017). */
 function presetDays(preset: Exclude<TimeRangePreset, 'all'>): number {
-  return preset === '7d' ? 7 : preset === '60d' ? 60 : preset === '90d' ? 90 : 30
+  switch (preset) {
+    case '7d':
+      return 7
+    case '60d':
+      return 60
+    case '90d':
+      return 90
+    case '180d':
+      return 180
+    default:
+      return 30
+  }
 }
 
 export function timeRangeDays(preset: TimeRangePreset): number | null {

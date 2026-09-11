@@ -45,8 +45,11 @@ import { Route as ApiHealthStartedRouteImport } from './routes/api/health/starte
 import { Route as ApiNotificationsUnsubscribeRouteImport } from './routes/api/notifications/unsubscribe'
 import { Route as AuthenticatedPropertiesPropertyIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/index'
 import { Route as AuthenticatedPropertiesPropertyIdGoalsRouteImport } from './routes/_authenticated/properties/$propertyId/goals'
+import { Route as AuthenticatedPropertiesPropertyIdGoogleRouteImport } from './routes/_authenticated/properties/$propertyId/google'
+import { Route as AuthenticatedPropertiesPropertyIdGuestsRouteImport } from './routes/_authenticated/properties/$propertyId/guests'
 import { Route as AuthenticatedPropertiesPropertyIdInsightsRouteImport } from './routes/_authenticated/properties/$propertyId/insights'
 import { Route as AuthenticatedPropertiesPropertyIdPeopleRouteImport } from './routes/_authenticated/properties/$propertyId/people'
+import { Route as AuthenticatedPropertiesPropertyIdRatingsRouteImport } from './routes/_authenticated/properties/$propertyId/ratings'
 import { Route as AuthenticatedPropertiesPropertyIdReviewsRouteImport } from './routes/_authenticated/properties/$propertyId/reviews'
 import { Route as AuthenticatedPropertiesPropertyIdSettingsRouteImport } from './routes/_authenticated/properties/$propertyId/settings'
 import { Route as AuthenticatedPropertiesImportGoogleIndexRouteImport } from './routes/_authenticated/properties/import-google/index'
@@ -256,6 +259,18 @@ const AuthenticatedPropertiesPropertyIdGoalsRoute =
     path: '/goals',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
+const AuthenticatedPropertiesPropertyIdGoogleRoute =
+  AuthenticatedPropertiesPropertyIdGoogleRouteImport.update({
+    id: '/google',
+    path: '/google',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdGuestsRoute =
+  AuthenticatedPropertiesPropertyIdGuestsRouteImport.update({
+    id: '/guests',
+    path: '/guests',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
 const AuthenticatedPropertiesPropertyIdInsightsRoute =
   AuthenticatedPropertiesPropertyIdInsightsRouteImport.update({
     id: '/insights',
@@ -266,6 +281,12 @@ const AuthenticatedPropertiesPropertyIdPeopleRoute =
   AuthenticatedPropertiesPropertyIdPeopleRouteImport.update({
     id: '/people',
     path: '/people',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdRatingsRoute =
+  AuthenticatedPropertiesPropertyIdRatingsRouteImport.update({
+    id: '/ratings',
+    path: '/ratings',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
 const AuthenticatedPropertiesPropertyIdReviewsRoute =
@@ -386,8 +407,11 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/api/health/': typeof ApiHealthIndexRoute
   '/properties/$propertyId/goals': typeof AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren
+  '/properties/$propertyId/google': typeof AuthenticatedPropertiesPropertyIdGoogleRoute
+  '/properties/$propertyId/guests': typeof AuthenticatedPropertiesPropertyIdGuestsRoute
   '/properties/$propertyId/insights': typeof AuthenticatedPropertiesPropertyIdInsightsRoute
   '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
+  '/properties/$propertyId/ratings': typeof AuthenticatedPropertiesPropertyIdRatingsRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   '/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRoute
   '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
@@ -436,8 +460,11 @@ export interface FileRoutesByTo {
   '/properties': typeof AuthenticatedPropertiesIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/api/health': typeof ApiHealthIndexRoute
+  '/properties/$propertyId/google': typeof AuthenticatedPropertiesPropertyIdGoogleRoute
+  '/properties/$propertyId/guests': typeof AuthenticatedPropertiesPropertyIdGuestsRoute
   '/properties/$propertyId/insights': typeof AuthenticatedPropertiesPropertyIdInsightsRoute
   '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
+  '/properties/$propertyId/ratings': typeof AuthenticatedPropertiesPropertyIdRatingsRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   '/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRoute
   '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
@@ -491,8 +518,11 @@ export interface FileRoutesById {
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/api/health/': typeof ApiHealthIndexRoute
   '/_authenticated/properties/$propertyId/goals': typeof AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren
+  '/_authenticated/properties/$propertyId/google': typeof AuthenticatedPropertiesPropertyIdGoogleRoute
+  '/_authenticated/properties/$propertyId/guests': typeof AuthenticatedPropertiesPropertyIdGuestsRoute
   '/_authenticated/properties/$propertyId/insights': typeof AuthenticatedPropertiesPropertyIdInsightsRoute
   '/_authenticated/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
+  '/_authenticated/properties/$propertyId/ratings': typeof AuthenticatedPropertiesPropertyIdRatingsRoute
   '/_authenticated/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   '/_authenticated/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRoute
   '/_authenticated/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
@@ -546,8 +576,11 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/api/health/'
     | '/properties/$propertyId/goals'
+    | '/properties/$propertyId/google'
+    | '/properties/$propertyId/guests'
     | '/properties/$propertyId/insights'
     | '/properties/$propertyId/people'
+    | '/properties/$propertyId/ratings'
     | '/properties/$propertyId/reviews'
     | '/properties/$propertyId/settings'
     | '/properties/import-google/$importId'
@@ -596,8 +629,11 @@ export interface FileRouteTypes {
     | '/properties'
     | '/settings'
     | '/api/health'
+    | '/properties/$propertyId/google'
+    | '/properties/$propertyId/guests'
     | '/properties/$propertyId/insights'
     | '/properties/$propertyId/people'
+    | '/properties/$propertyId/ratings'
     | '/properties/$propertyId/reviews'
     | '/properties/$propertyId/settings'
     | '/properties/import-google/$importId'
@@ -650,8 +686,11 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/'
     | '/api/health/'
     | '/_authenticated/properties/$propertyId/goals'
+    | '/_authenticated/properties/$propertyId/google'
+    | '/_authenticated/properties/$propertyId/guests'
     | '/_authenticated/properties/$propertyId/insights'
     | '/_authenticated/properties/$propertyId/people'
+    | '/_authenticated/properties/$propertyId/ratings'
     | '/_authenticated/properties/$propertyId/reviews'
     | '/_authenticated/properties/$propertyId/settings'
     | '/_authenticated/properties/import-google/$importId'
@@ -948,6 +987,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
     }
+    '/_authenticated/properties/$propertyId/google': {
+      id: '/_authenticated/properties/$propertyId/google'
+      path: '/google'
+      fullPath: '/properties/$propertyId/google'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdGoogleRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
+    '/_authenticated/properties/$propertyId/guests': {
+      id: '/_authenticated/properties/$propertyId/guests'
+      path: '/guests'
+      fullPath: '/properties/$propertyId/guests'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdGuestsRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
     '/_authenticated/properties/$propertyId/insights': {
       id: '/_authenticated/properties/$propertyId/insights'
       path: '/insights'
@@ -960,6 +1013,13 @@ declare module '@tanstack/react-router' {
       path: '/people'
       fullPath: '/properties/$propertyId/people'
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPeopleRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
+    '/_authenticated/properties/$propertyId/ratings': {
+      id: '/_authenticated/properties/$propertyId/ratings'
+      path: '/ratings'
+      fullPath: '/properties/$propertyId/ratings'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdRatingsRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
     }
     '/_authenticated/properties/$propertyId/reviews': {
@@ -1118,8 +1178,11 @@ const AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren =
 
 interface AuthenticatedPropertiesPropertyIdRouteChildren {
   AuthenticatedPropertiesPropertyIdGoalsRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren
+  AuthenticatedPropertiesPropertyIdGoogleRoute: typeof AuthenticatedPropertiesPropertyIdGoogleRoute
+  AuthenticatedPropertiesPropertyIdGuestsRoute: typeof AuthenticatedPropertiesPropertyIdGuestsRoute
   AuthenticatedPropertiesPropertyIdInsightsRoute: typeof AuthenticatedPropertiesPropertyIdInsightsRoute
   AuthenticatedPropertiesPropertyIdPeopleRoute: typeof AuthenticatedPropertiesPropertyIdPeopleRoute
+  AuthenticatedPropertiesPropertyIdRatingsRoute: typeof AuthenticatedPropertiesPropertyIdRatingsRoute
   AuthenticatedPropertiesPropertyIdReviewsRoute: typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   AuthenticatedPropertiesPropertyIdSettingsRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRoute
   AuthenticatedPropertiesPropertyIdIndexRoute: typeof AuthenticatedPropertiesPropertyIdIndexRoute
@@ -1132,10 +1195,16 @@ const AuthenticatedPropertiesPropertyIdRouteChildren: AuthenticatedPropertiesPro
   {
     AuthenticatedPropertiesPropertyIdGoalsRoute:
       AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren,
+    AuthenticatedPropertiesPropertyIdGoogleRoute:
+      AuthenticatedPropertiesPropertyIdGoogleRoute,
+    AuthenticatedPropertiesPropertyIdGuestsRoute:
+      AuthenticatedPropertiesPropertyIdGuestsRoute,
     AuthenticatedPropertiesPropertyIdInsightsRoute:
       AuthenticatedPropertiesPropertyIdInsightsRoute,
     AuthenticatedPropertiesPropertyIdPeopleRoute:
       AuthenticatedPropertiesPropertyIdPeopleRoute,
+    AuthenticatedPropertiesPropertyIdRatingsRoute:
+      AuthenticatedPropertiesPropertyIdRatingsRoute,
     AuthenticatedPropertiesPropertyIdReviewsRoute:
       AuthenticatedPropertiesPropertyIdReviewsRoute,
     AuthenticatedPropertiesPropertyIdSettingsRoute:
