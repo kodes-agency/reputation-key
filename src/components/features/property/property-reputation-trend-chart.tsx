@@ -125,10 +125,16 @@ export function PropertyReputationTrendChart({
           <XAxis
             dataKey="date"
             ticks={ticks}
-            interval={0}
+            // `interval={0}` renders every provided tick and overrides
+            // minTickGap, so at 390 px eight date labels — several carrying a
+            // year — collided into one smear. `preserveStartEnd` keeps the
+            // window's ends and lets recharts drop the middle labels that will
+            // not fit, which is the only responsive answer: the tick set is
+            // chosen for the range, the label count for the width.
+            interval="preserveStartEnd"
             tickLine={false}
             axisLine={false}
-            minTickGap={12}
+            minTickGap={48}
             tickFormatter={(value: string) => labels.get(value) ?? value}
           />
           <YAxis
