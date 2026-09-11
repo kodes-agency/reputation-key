@@ -28,7 +28,7 @@ describe('unavailable route presentation', () => {
       description:
         'This capability is switched off for the closed beta and cannot be enabled from Settings.',
       guidance: null,
-      link: { label: 'Back to dashboard', to: '/dashboard' },
+      link: { label: 'Back to properties', to: '/properties' },
     })
   })
 
@@ -52,7 +52,7 @@ describe('unavailable route presentation', () => {
     })
   })
 
-  it('falls back to the dashboard when admin enablement has no property target', () => {
+  it('falls back to the properties list when admin enablement has no property target', () => {
     expect(
       unavailablePageContent({
         feature: 'Goals',
@@ -63,7 +63,7 @@ describe('unavailable route presentation', () => {
       description:
         'An account admin can enable it for this property from Property settings.',
       guidance: null,
-      link: { label: 'Back to dashboard', to: '/dashboard' },
+      link: { label: 'Back to properties', to: '/properties' },
     })
   })
 
@@ -79,7 +79,7 @@ describe('unavailable route presentation', () => {
       description:
         'Access is paused for this workspace or property. Try again later or contact support.',
       guidance: null,
-      link: { label: 'Back to dashboard', to: '/dashboard' },
+      link: { label: 'Back to properties', to: '/properties' },
     })
   })
 
@@ -88,7 +88,7 @@ describe('unavailable route presentation', () => {
       title: 'Recognition is not available in this beta',
       description: 'Recognition is not part of the current beta experience.',
       guidance: null,
-      link: { label: 'Back to dashboard', to: '/dashboard' },
+      link: { label: 'Back to properties', to: '/properties' },
     })
   })
 })

@@ -41,9 +41,8 @@ function AuthActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild>
-            <Link to="/dashboard">Dashboard</Link>
-          </DropdownMenuItem>
+          {/* `Dashboard` pointed at the fleet page, which was the same list
+              `Properties` already showed (redesign row 3). One entry now. */}
           <DropdownMenuItem asChild>
             <Link to="/properties">Properties</Link>
           </DropdownMenuItem>
@@ -83,16 +82,7 @@ export function Header({
         <div className="flex items-center gap-3">
           <LogoLink />
           {isLoggedIn && (
-            <div className="hidden sm:flex items-center gap-1">
-              <Button variant="ghost" size="sm" asChild>
-                <Link
-                  to="/dashboard"
-                  activeOptions={{ exact: true }}
-                  className="[&.active]:font-semibold"
-                >
-                  Dashboard
-                </Link>
-              </Button>
+            <div className="hidden items-center gap-1 sm:flex">
               <Button variant="ghost" size="sm" asChild>
                 <Link
                   to="/properties"

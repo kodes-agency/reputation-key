@@ -21,7 +21,6 @@ export type BetaFeedbackInput = z.infer<typeof betaFeedbackInputSchema>
 export type BetaFeedbackType = BetaFeedbackInput['kind']
 
 export type BetaFeedbackRouteKey =
-  | 'dashboard'
   | 'inbox'
   | 'notifications'
   | 'progress'
@@ -29,6 +28,9 @@ export type BetaFeedbackRouteKey =
   | 'properties.import.list'
   | 'properties.import.detail'
   | 'properties.property.overview'
+  | 'properties.property.ratings'
+  | 'properties.property.google'
+  | 'properties.property.guests'
   | 'properties.property.people'
   | 'properties.property.reviews'
   | 'properties.property.settings'
@@ -51,7 +53,6 @@ export type BetaFeedbackRouteKey =
 export type BetaFeedbackViewport = BetaFeedbackInput['viewport']
 
 const EXACT_ROUTES: Readonly<Record<string, BetaFeedbackRouteKey>> = {
-  '/dashboard': 'dashboard',
   '/inbox': 'inbox',
   '/notifications': 'notifications',
   '/progress': 'progress',
@@ -72,6 +73,9 @@ const PROPERTY_ROUTE_SUFFIXES: Readonly<Array<readonly [RegExp, BetaFeedbackRout
   [
     [/^\/properties\/[^/]+\/people$/, 'properties.property.people'],
     [/^\/properties\/[^/]+\/reviews$/, 'properties.property.reviews'],
+    [/^\/properties\/[^/]+\/ratings$/, 'properties.property.ratings'],
+    [/^\/properties\/[^/]+\/google$/, 'properties.property.google'],
+    [/^\/properties\/[^/]+\/guests$/, 'properties.property.guests'],
     [/^\/properties\/[^/]+\/settings$/, 'properties.property.settings'],
     [/^\/properties\/[^/]+\/goals$/, 'properties.property.goals.list'],
     [/^\/properties\/[^/]+\/goals\/new$/, 'properties.property.goals.new'],

@@ -40,7 +40,10 @@ describe('beta feedback contract', () => {
   )
 
   it.each([
-    ['/dashboard', 'dashboard'],
+    ['/properties/private-property-id', 'properties.property.overview'],
+    ['/properties/private-property-id/ratings', 'properties.property.ratings'],
+    ['/properties/private-property-id/google', 'properties.property.google'],
+    ['/properties/private-property-id/guests', 'properties.property.guests'],
     ['/inbox', 'inbox'],
     ['/properties', 'properties.list'],
     ['/properties/import-google/opaque-import-id', 'properties.import.detail'],

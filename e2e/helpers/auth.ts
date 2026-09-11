@@ -85,7 +85,7 @@ export async function signIn(
 
   // Wait for the clean authenticated landing (or the explicit unavailable
   // state when this helper is used with a non-interactive beta role).
-  await page.goto(landingPath ?? '/dashboard')
+  await page.goto(landingPath ?? '/properties')
   await page.waitForURL(/\/(dashboard|properties|inbox|settings|unavailable)/, {
     timeout: 20_000,
   })
