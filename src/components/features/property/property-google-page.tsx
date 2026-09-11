@@ -59,6 +59,7 @@ export function PropertyGooglePage({
       <GooglePerformanceSection
         key={`${propertyId}:${range}`}
         propertyId={propertyId}
+        range={range}
         preset={toPerformancePreset(range)}
         serverFns={performanceFns}
       />

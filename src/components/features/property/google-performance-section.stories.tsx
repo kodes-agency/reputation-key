@@ -1,6 +1,6 @@
 import { useMemo, useRef, type ComponentProps } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn, userEvent, waitFor } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
   AuthedRouterDecorator,
   withRole,
@@ -44,20 +44,20 @@ const discoverySeries: readonly PerformanceSeries[] = [
     id: 'desktop-search',
     label: 'Desktop Search',
     points: [
-      { localDate: '2026-07-10', value: 124, availability: 'returned' },
-      { localDate: '2026-07-11', value: 147, availability: 'returned' },
-      { localDate: '2026-07-12', value: 138, availability: 'returned' },
-      { localDate: '2026-07-13', value: null, availability: 'unavailable' },
+      { localDate: '2026-09-07', value: 124, availability: 'returned' },
+      { localDate: '2026-09-08', value: 147, availability: 'returned' },
+      { localDate: '2026-09-09', value: 138, availability: 'returned' },
+      { localDate: '2026-09-10', value: null, availability: 'unavailable' },
     ],
   },
   {
     id: 'mobile-maps',
     label: 'Mobile Maps',
     points: [
-      { localDate: '2026-07-10', value: 221, availability: 'returned' },
-      { localDate: '2026-07-11', value: 248, availability: 'returned' },
-      { localDate: '2026-07-12', value: 263, availability: 'returned' },
-      { localDate: '2026-07-13', value: 239, availability: 'returned' },
+      { localDate: '2026-09-07', value: 221, availability: 'returned' },
+      { localDate: '2026-09-08', value: 248, availability: 'returned' },
+      { localDate: '2026-09-09', value: 263, availability: 'returned' },
+      { localDate: '2026-09-10', value: 239, availability: 'returned' },
     ],
   },
 ]
@@ -67,30 +67,40 @@ const actionSeries: readonly PerformanceSeries[] = [
     id: 'website-clicks',
     label: 'Website clicks',
     points: [
-      { localDate: '2026-07-10', value: 18, availability: 'returned' },
-      { localDate: '2026-07-11', value: 22, availability: 'returned' },
-      { localDate: '2026-07-12', value: 17, availability: 'returned' },
-      { localDate: '2026-07-13', value: 26, availability: 'returned' },
+      { localDate: '2026-09-07', value: 18, availability: 'returned' },
+      { localDate: '2026-09-08', value: 22, availability: 'returned' },
+      { localDate: '2026-09-09', value: 17, availability: 'returned' },
+      { localDate: '2026-09-10', value: 26, availability: 'returned' },
     ],
   },
   {
     id: 'call-clicks',
     label: 'Call clicks',
     points: [
-      { localDate: '2026-07-10', value: 4, availability: 'returned' },
-      { localDate: '2026-07-11', value: 7, availability: 'returned' },
-      { localDate: '2026-07-12', value: 5, availability: 'returned' },
-      { localDate: '2026-07-13', value: 9, availability: 'returned' },
+      { localDate: '2026-09-07', value: 4, availability: 'returned' },
+      { localDate: '2026-09-08', value: 7, availability: 'returned' },
+      { localDate: '2026-09-09', value: 5, availability: 'returned' },
+      { localDate: '2026-09-10', value: 9, availability: 'returned' },
     ],
   },
 ]
 
-function report(preset: PropertyPerformancePreset): PropertyGooglePerformanceReportV1 {
+const retrievedAt = new Date(Date.now() - 4 * 60_000).toISOString()
+
+function report(
+  preset: PropertyPerformancePreset,
+  state: PropertyGooglePerformanceReportV1['sourceHealth']['state'] = 'ready',
+): PropertyGooglePerformanceReportV1 {
+  const dataLagDays = state === 'delayed' ? 5 : state === 'stale' ? 8 : 0
+  const latestCompleteCoreLocalDate =
+    state === 'delayed' ? '2026-09-05' : state === 'stale' ? '2026-09-02' : '2026-09-10'
+  const partial = state === 'partial'
+
   return Object.freeze({
     contractVersion: 1,
     catalogVersion: '2026-08-05',
     sourceLabel: 'Google Business Profile',
-    retrievedAt: '2026-08-12T12:20:00.000Z',
+    retrievedAt,
     contentExpiresAt: '2030-08-12T12:35:00.000Z',
     contentTtlSeconds: 900,
     authorizationLease: {
@@ -102,23 +112,28 @@ function report(preset: PropertyPerformancePreset): PropertyGooglePerformanceRep
     period: {
       preset,
       timezone: 'America/New_York',
-      currentStartLocalDate: '2026-07-10',
-      currentEndLocalDate: '2026-08-08',
-      priorStartLocalDate: '2026-06-10',
-      priorEndLocalDate: '2026-07-09',
+      currentStartLocalDate: '2026-08-12',
+      currentEndLocalDate: '2026-09-10',
+      priorStartLocalDate: '2026-07-13',
+      priorEndLocalDate: '2026-08-11',
     },
     sourceHealth: {
-      state: 'partial' as const,
-      providerCheckedThroughLocalDate: '2026-08-08',
-      latestReturnedDataLocalDate: '2026-08-08',
-      latestCompleteCoreLocalDate: '2026-08-07',
-      dataLagDays: 1,
+      state,
+      providerCheckedThroughLocalDate: '2026-09-10',
+      latestReturnedDataLocalDate: latestCompleteCoreLocalDate,
+      latestCompleteCoreLocalDate,
+      dataLagDays,
     },
     headlines: {
       totalProfileImpressions: metric('Profile impressions', 4872, 4310),
       websiteClicks: metric('Website clicks', 318, 284),
       callClicks: metric('Call clicks', 86, 91),
-      directionRequests: metric('Direction requests', 204, null, 'partial'),
+      directionRequests: metric(
+        'Direction requests',
+        204,
+        null,
+        partial ? 'partial' : 'ready',
+      ),
     },
     discoverySeries,
     actionSeries,
@@ -136,6 +151,27 @@ const getReadyPerformance = fn(
     data: report(input.data.preset),
   }),
 ) as unknown as typeof getPropertyGooglePerformance
+
+const getPartialPerformance = (async (input: {
+  data: { preset: PropertyPerformancePreset }
+}) => ({
+  status: 'ready' as const,
+  data: report(input.data.preset, 'partial'),
+})) as unknown as typeof getPropertyGooglePerformance
+
+const getDelayedPerformance = (async (input: {
+  data: { preset: PropertyPerformancePreset }
+}) => ({
+  status: 'ready' as const,
+  data: report(input.data.preset, 'delayed'),
+})) as unknown as typeof getPropertyGooglePerformance
+
+const getStalePerformance = (async (input: {
+  data: { preset: PropertyPerformancePreset }
+}) => ({
+  status: 'ready' as const,
+  data: report(input.data.preset, 'stale'),
+})) as unknown as typeof getPropertyGooglePerformance
 
 const renewLease = fn(async (input: { data: { leaseRef: string } }) => ({
   ok: true as const,
@@ -172,7 +208,11 @@ const getNoData = (async (input: { data: { preset: PropertyPerformancePreset } }
       }),
       discoverySeries: [],
       actionSeries: [],
-      additionalInteractions: [],
+      additionalInteractions: [
+        metric('Conversations', 0, 0),
+        metric('Bookings', 0, 0),
+        metric('Menu clicks', 0, 0),
+      ],
     }),
   }
 }) as unknown as typeof getPropertyGooglePerformance
@@ -274,6 +314,7 @@ const meta = {
   args: {
     propertyId: PROPERTY_ID,
     preset: '30d',
+    range: '30d',
     serverFns: {
       getPerformance: getReadyPerformance,
       renewLease,
@@ -285,10 +326,69 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const LiveReport: Story = {
-  play: async ({ canvas }) => {
+  play: async ({ canvas, canvasElement }) => {
     await expect(canvas.findByText('4,872')).resolves.toBeVisible()
-    await expect(canvas.getByText('Source: Google Business Profile')).toBeVisible()
+    await expect(canvas.getByText('Profile views')).toBeVisible()
+    await expect(canvas.getByText(/4 min ago · Google data through Sep 10/)).toBeVisible()
+    await expect(canvas.queryByText('Current')).not.toBeInTheDocument()
+    await expect(
+      canvas.queryByText(/Source: Google Business Profile/),
+    ).not.toBeInTheDocument()
+
+    const documentBody = within(canvasElement.ownerDocument.body)
+    const refresh = canvas.getByRole('button', { name: 'Refresh from Google' })
+    await userEvent.hover(refresh)
+    await expect(documentBody.findByRole('tooltip')).resolves.toHaveTextContent(
+      'Refresh from Google',
+    )
+    await userEvent.unhover(refresh)
+
+    await userEvent.click(
+      canvas.getByRole('button', { name: /Google source details\. Current\./ }),
+    )
+    const sourceDetails = documentBody.getByRole('dialog', {
+      name: 'Google source details',
+    })
+    await expect(within(sourceDetails).getByText('Google Business Profile')).toBeVisible()
+    await expect(within(sourceDetails).getByText('Current')).toBeVisible()
     await expect(getReadyPerformance).toHaveBeenCalled()
+  },
+}
+
+export const PartialCoverage: Story = {
+  args: {
+    serverFns: { getPerformance: getPartialPerformance, renewLease },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    await expect(canvas.findByText('Partial coverage')).resolves.toBeVisible()
+    await expect(canvas.getAllByText('30 current / 30 prior complete days')).toHaveLength(
+      1,
+    )
+    await userEvent.click(canvas.getByRole('button', { name: /Google source details/ }))
+    const sourceDetails = within(canvasElement.ownerDocument.body).getByRole('dialog', {
+      name: 'Google source details',
+    })
+    await expect(within(sourceDetails).getByText('Partial coverage')).toBeVisible()
+  },
+}
+
+export const DelayedSource: Story = {
+  args: {
+    serverFns: { getPerformance: getDelayedPerformance, renewLease },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.findByText('Delayed')).resolves.toBeVisible()
+    await expect(canvas.getByText(/Google data through Sep 5/)).toBeVisible()
+  },
+}
+
+export const StaleSource: Story = {
+  args: {
+    serverFns: { getPerformance: getStalePerformance, renewLease },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.findByText('Stale')).resolves.toBeVisible()
+    await expect(canvas.getByText(/Google data through Sep 2/)).toBeVisible()
   },
 }
 
@@ -362,7 +462,7 @@ export const AuthorizationStale: Story = {
         'This live report needs a fresh authorization. Select Refresh to request it.',
       ),
     ).resolves.toBeVisible()
-    const refresh = canvas.getByRole('button', { name: 'Refresh' })
+    const refresh = canvas.getByRole('button', { name: 'Refresh from Google' })
     await expect(refresh).toBeVisible()
     await expect(refresh).toBeEnabled()
   },
@@ -372,7 +472,7 @@ export const RefreshFailureRetainsReport: Story = {
   render: (args) => <RefreshFailurePerformanceSection {...args} />,
   play: async ({ canvas }) => {
     await expect(canvas.findByText('4,872')).resolves.toBeVisible()
-    await userEvent.click(canvas.getByRole('button', { name: 'Refresh' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Refresh from Google' }))
     await expect(
       canvas.findByText('Showing the last successful report'),
     ).resolves.toBeVisible()
@@ -448,10 +548,8 @@ export const LightTheme: Story = {
 export const Compact320: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
   play: async ({ canvas }) => {
-    // The range control moved to the page header; what this section still owns
-    // on a narrow screen is the refresh, and it has to stay tappable.
-    const refresh = await canvas.findByRole('button', { name: 'Refresh' })
-    await expect(refresh.getBoundingClientRect().height).toBeGreaterThanOrEqual(44)
+    const refresh = await canvas.findByRole('button', { name: 'Refresh from Google' })
+    await expect(refresh).toHaveClass('size-11')
     await userEvent.click(refresh)
     await waitFor(() => expect(getReadyPerformance).toHaveBeenCalled())
   },
