@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, vi } from 'vitest'
 
+// `@storybook/react` reads `globalThis.FRAMEWORK_OPTIONS` once at module load
+// to decide whether to mount stories under <StrictMode>. The Vite builder
+// injects it by rewriting iframe.html, which this Vitest browser project never
+// loads, so `framework.options.strictMode` in main.ts is silently ignored here.
+// Define it before any story module is imported: the app mounts under
+// StrictMode (src/client.tsx) and the component gate must too.
+Object.assign(globalThis, { FRAMEWORK_OPTIONS: { strictMode: true } })
+
 type ConsoleErrorAllowlistEntry = Readonly<{
   id: string
   pattern: RegExp | string
