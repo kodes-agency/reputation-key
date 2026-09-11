@@ -208,11 +208,14 @@ test.describe('Critical workflow: live Google Performance', () => {
       }),
     ).toHaveLength(callsBeforeRenewal.length)
 
-    await page.goto(`/properties/${propertyId}?timeRange=all&performanceRange=30d`)
-    await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
-    const performanceRegion = page.getByRole('region', {
-      name: 'Google Business Profile performance',
-    })
+    // The report has its own page now, with the dashboard's shared range
+    // (docs/plan/dashboard-redesign.md rows 2, 6) — it is no longer the third
+    // section of the property overview, and `performanceRange` is gone.
+    await page.goto(`/properties/${propertyId}/google?range=30d`)
+    await expect(
+      page.getByRole('heading', { name: 'Google Business Profile', level: 1 }),
+    ).toBeVisible()
+    const performanceRegion = page.getByRole('main')
     await expect(performanceRegion).toBeVisible()
     await expect(
       performanceRegion.getByText('Website clicks', { exact: true }).first(),
@@ -235,7 +238,9 @@ test.describe('Critical workflow: live Google Performance', () => {
     await expect(
       performanceRegion.getByText('390', { exact: true }).first(),
     ).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Google Business Profile', level: 1 }),
+    ).toBeVisible()
   })
 
   test('fails provider faults closed and preserves zero/partial semantics', async ({
