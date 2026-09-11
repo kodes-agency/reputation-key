@@ -35,6 +35,8 @@ import {
   type AiPropertyProfileResult,
 } from '../../domain/types'
 import {
+  AI_PROVIDER_ATTEMPT_BUDGET,
+  AI_PROVIDER_CAPACITY_CODES,
   aiRequestFingerprint,
   aiRetryAt,
   aiReviewSourceProvenance,
@@ -58,6 +60,12 @@ const PROFILE = AI_OPERATION_PROFILES.find(
  * terminal settlement path below.
  */
 export const AI_ANALYSIS_OPERATION_HORIZON_MILLIS = 15 * 60 * 1_000
+/**
+ * A backfill re-analyses a property's whole history in one burst, so the
+ * provider's per-minute capacity, not the event's age, sets its pace. Its
+ * operations get a day: a rate-limited tail is deferred, never abandoned.
+ */
+export const AI_BACKFILL_OPERATION_HORIZON_MILLIS = 24 * 60 * 60 * 1_000
 /** Advisory spacing recorded on a deferred (pre-provider-attempt) retry. */
 const DEFERRED_RETRY_DELAY_MILLIS = 30_000
 
@@ -76,6 +84,8 @@ export type AnalyzeReviewEventInput = Readonly<{
    * envelopes, where the claimed operation's `createdAt` anchors it instead.
    */
   eventRecordedAtEpochMillis: number | null
+  /** How long an operation for this event may stay open, by event kind. */
+  operationHorizonMillis: number
 }>
 
 export type AnalyzeReviewEventResult =
@@ -363,7 +373,7 @@ export function createAnalyzeReviewEvent(
     const eventHorizonEpochMillis =
       input.eventRecordedAtEpochMillis === null
         ? null
-        : input.eventRecordedAtEpochMillis + AI_ANALYSIS_OPERATION_HORIZON_MILLIS
+        : input.eventRecordedAtEpochMillis + input.operationHorizonMillis
     const authorization =
       await dependencies.authorization.readMerchantAuthorization(input)
     // No enablement row means no AI lineage: the merchant has never enabled AI
@@ -601,16 +611,19 @@ export function createAnalyzeReviewEvent(
       return { status: 'replayed' }
     }
     async function executeClaimedAnalysis(): Promise<AnalyzeReviewEventResult> {
-      // Once an operation exists it gets the plan's full 15 minutes from its own
-      // `createdAt`, so a relay backlog cannot cut short work that has already
-      // started. The provider-attempt cap (4, below) terminates this path
-      // independently; only the quota/lease deferrals rely on this horizon.
+      // Once an operation exists it gets its event kind's full horizon from its
+      // own `createdAt`, so a relay backlog cannot cut short work that has
+      // already started. The provider-attempt budget below terminates this
+      // path independently, except after a capacity answer: a provider that
+      // said "later" has not judged this review, so only the horizon bounds
+      // how long we keep asking.
       const operationHorizonEpochMillis = Math.max(
         eventHorizonEpochMillis ?? 0,
-        operation.createdAtEpochMillis + AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
+        operation.createdAtEpochMillis + input.operationHorizonMillis,
       )
       const expectedAttempt = operation.executionAttempt + 1
-      if (expectedAttempt > 4) {
+      const budgetApplies = !AI_PROVIDER_CAPACITY_CODES.has(operation.failureCode ?? '')
+      if (budgetApplies && expectedAttempt > AI_PROVIDER_ATTEMPT_BUDGET) {
         return settleWithoutResult(
           input,
           reviewAnalysisEpoch,
@@ -686,6 +699,7 @@ export function createAnalyzeReviewEvent(
             expectedAttempt,
             failedAtEpochMillis,
             response.retryAfterEpochMillis,
+            !AI_PROVIDER_CAPACITY_CODES.has(response.code),
           )
           await dependencies.operations.recordFailure({
             operationId: execution.id,

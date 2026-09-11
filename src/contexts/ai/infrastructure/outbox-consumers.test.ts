@@ -5,6 +5,7 @@ import { DISPATCH_JOB_OPTIONS } from '#/shared/outbox/dispatch-job-options'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import {
   AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
+  AI_BACKFILL_OPERATION_HORIZON_MILLIS,
   type AnalyzeReviewEventResult,
 } from '../application/use-cases/analyze-review-event'
 import {
@@ -147,6 +148,7 @@ describe('AI review outbox consumer', () => {
       eventEnvelopeId: EVENT_ID,
       disposition: 'pending',
       eventRecordedAtEpochMillis: Date.parse(RECORDED_AT),
+      operationHorizonMillis: AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
     })
     expect(test.insertReceipt).toHaveBeenCalledWith(
       EVENT_ID,
@@ -154,6 +156,24 @@ describe('AI review outbox consumer', () => {
       'applied',
     )
   })
+
+  it('gives a backfill event the backfill horizon', async () => {
+    const test = harness({ status: 'completed' })
+
+    await expect(
+      handleAiReviewEvent(
+        test.dependencies,
+        event('ai.review_analysis.backfill_requested'),
+      ),
+    ).resolves.toEqual({ status: 'applied' })
+    expect(test.analyzeReviewEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        disposition: 'pending',
+        operationHorizonMillis: AI_BACKFILL_OPERATION_HORIZON_MILLIS,
+      }),
+    )
+  })
+
   it('receipts an already-handled replay as applied', async () => {
     const test = harness({ status: 'replayed' })
 

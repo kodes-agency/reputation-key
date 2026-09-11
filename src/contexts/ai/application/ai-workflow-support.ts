@@ -64,12 +64,27 @@ export async function resolveAiExecutionStopFence(
   }
 }
 
+/**
+ * Provider answers that describe the provider's capacity, not this request:
+ * retrying the same review later is expected to succeed. They never spend the
+ * request's attempt budget; the operation horizon bounds them instead. Every
+ * other failure (refused, invalid output, timeout) may be the review's own and
+ * stays budgeted.
+ */
+export const AI_PROVIDER_CAPACITY_CODES: ReadonlySet<string> = new Set([
+  'provider_rate_limited',
+  'provider_unavailable',
+])
+
+export const AI_PROVIDER_ATTEMPT_BUDGET = 4
+
 export function aiRetryAt(
   attempt: number,
   nowEpochMillis: number,
   retryAfterEpochMillis: number | null,
+  exhaustible = true,
 ): number | null {
-  if (attempt >= 4) return null
+  if (exhaustible && attempt >= AI_PROVIDER_ATTEMPT_BUDGET) return null
   const exponential = nowEpochMillis + Math.min(30_000, 1_000 * 2 ** (attempt - 1))
   return retryAfterEpochMillis === null
     ? exponential

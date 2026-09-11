@@ -561,6 +561,41 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     ])
   })
 
+  it('abandons a pending analysis at its own horizon, not the execution horizon', async () => {
+    // A backfill operation waiting on a rate-limited provider: created at NOW,
+    // open for a day. Fifteen minutes of age is not abandonment.
+    await db
+      .update(aiOperations)
+      .set({
+        state: 'pending',
+        failureCode: 'provider_rate_limited',
+        nextAttemptAt: new Date(NOW.getTime() + 20 * 60_000),
+        updatedAt: NOW,
+      })
+      .where(eq(aiOperations.id, OPERATION_ID))
+    const operations = createAiOperationStoreAdapter(db, () => {
+      throw new Error('Recovery does not create operation ids')
+    })
+    const executionHorizonMillis = 15 * 60_000
+
+    await expect(
+      operations.listExpiredExecutions({
+        nowEpochMillis: NOW.getTime() + executionHorizonMillis + 1,
+        executionHorizonMillis,
+        limit: 10,
+      }),
+    ).resolves.toEqual([])
+    await expect(
+      operations.listExpiredExecutions({
+        nowEpochMillis: OPERATION_EXPIRES_AT.getTime(),
+        executionHorizonMillis,
+        limit: 10,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({ operationId: OPERATION_ID, state: 'pending' }),
+    ])
+  })
+
   it('reads current v1 analysis evidence with no aspect children', async () => {
     await expect(storeReviewA()).resolves.toBe(true)
     await db

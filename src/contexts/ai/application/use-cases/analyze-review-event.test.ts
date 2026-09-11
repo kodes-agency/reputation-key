@@ -9,9 +9,11 @@ import type { AiPropertyProfileResult } from '../../domain/types'
 import type { AnalyzeReviewEventDependencies } from './analyze-review-event'
 import {
   AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
+  AI_BACKFILL_OPERATION_HORIZON_MILLIS,
   createAnalyzeReviewEvent,
   derivePrimaryCategoryV1,
 } from './analyze-review-event'
+import type { AiErrorCode } from '../../domain/errors'
 import type { AiOperationId } from '../../domain/types'
 import {
   AI_REVIEW_LANGUAGE_ICU_VERSION,
@@ -98,11 +100,17 @@ const input = Object.freeze({
   eventEnvelopeId: '71000000-0000-4000-8000-000000000106',
   disposition: 'pending' as const,
   eventRecordedAtEpochMillis: NOW,
+  operationHorizonMillis: AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
 })
 /** The same event, redelivered after its bounded operation horizon elapsed. */
 const elapsedInput = Object.freeze({
   ...input,
   eventRecordedAtEpochMillis: NOW - AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
+})
+/** A backfill event as old as the live horizon: still well inside its own. */
+const agedBackfillInput = Object.freeze({
+  ...elapsedInput,
+  operationHorizonMillis: AI_BACKFILL_OPERATION_HORIZON_MILLIS,
 })
 
 function createHarness(
@@ -120,6 +128,12 @@ function createHarness(
     consumeStatus?: 'accepted' | 'duplicate' | 'generation_changed'
     /** No merchant_ai_enablement row: the property has never enabled AI. */
     authorization?: 'absent'
+    /** Redelivery of an operation that already ran this many provider attempts. */
+    operationExecutionAttempt?: number
+    /** The failure code the last of those attempts recorded. */
+    operationFailureCode?: AiErrorCode
+    /** Make the provider answer with this error instead of a result. */
+    providerError?: Readonly<{ code: AiErrorCode; retryAfterEpochMillis: number | null }>
   }> = {},
 ) {
   let claimedOperation: AiOperationRecord | undefined
@@ -133,17 +147,18 @@ function createHarness(
       sourceProvenance: null,
       state: options.operationState ?? 'pending',
       executionAttempt:
-        options.operationState === 'succeeded_pending_delivery' ||
+        options.operationExecutionAttempt ??
+        (options.operationState === 'succeeded_pending_delivery' ||
         options.operationState === 'succeeded'
           ? 1
-          : 0,
+          : 0),
       executionPermitId:
         options.operationState === 'succeeded_pending_delivery' ||
         options.operationState === 'succeeded'
           ? PERMIT_ID
           : null,
       nextAttemptAtEpochMillis: null,
-      failureCode: null,
+      failureCode: options.operationFailureCode ?? null,
       createdAtEpochMillis:
         options.operationCreatedAtEpochMillis ?? request.nowEpochMillis,
       updatedAtEpochMillis: request.nowEpochMillis,
@@ -156,7 +171,7 @@ function createHarness(
     claimedOperation = {
       ...claimedOperation,
       state: 'executing',
-      executionAttempt: 1,
+      executionAttempt: claimedOperation.executionAttempt + 1,
       executionPermitId: PERMIT_ID,
     }
     return claimedOperation
@@ -178,33 +193,42 @@ function createHarness(
     status: 'applied' as const,
     aggregateRevision: 4,
   }))
-  const analyzeReview = vi.fn(async () => ({
-    route: 'review-analysis' as const,
-    status: 'success' as const,
-    result: options.analysisResult ?? VALID_ANALYSIS_RESULT,
-    settlementReceipt: {
-      version: 'ai-settlement-receipt-v1' as const,
-      receiptKid: 'receipt_v1',
-      grantKid: 'grant_v1',
-      operationId: OPERATION_ID,
-      permitId: PERMIT_ID,
-      attemptNumber: 1,
-      nonce: 'AQIDBA',
-      requestBindingHmac: 'A'.repeat(43),
-      disposition: 'success' as const,
-      reportedDisposition: 'success' as const,
-      providerRetryable: false,
-      usageKnown: true,
-      inputTokens: 100,
-      cachedInputTokens: 10,
-      outputTokens: 20,
-      reasoningTokens: 5,
-      costMicros: 42,
-      settledAtEpochMillis: NOW + 1_000,
-      settlementState: 'settled' as const,
-      receiptSignature: 'A'.repeat(86),
-    },
-  }))
+  const analyzeReview = vi.fn(async () =>
+    options.providerError
+      ? {
+          route: 'review-analysis' as const,
+          status: 'error' as const,
+          code: options.providerError.code,
+          retryAfterEpochMillis: options.providerError.retryAfterEpochMillis,
+        }
+      : {
+          route: 'review-analysis' as const,
+          status: 'success' as const,
+          result: options.analysisResult ?? VALID_ANALYSIS_RESULT,
+          settlementReceipt: {
+            version: 'ai-settlement-receipt-v1' as const,
+            receiptKid: 'receipt_v1',
+            grantKid: 'grant_v1',
+            operationId: OPERATION_ID,
+            permitId: PERMIT_ID,
+            attemptNumber: 1,
+            nonce: 'AQIDBA',
+            requestBindingHmac: 'A'.repeat(43),
+            disposition: 'success' as const,
+            reportedDisposition: 'success' as const,
+            providerRetryable: false,
+            usageKnown: true,
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 20,
+            reasoningTokens: 5,
+            costMicros: 42,
+            settledAtEpochMillis: NOW + 1_000,
+            settlementState: 'settled' as const,
+            receiptSignature: 'A'.repeat(86),
+          },
+        },
+  )
   const release = vi.fn(async () => {})
   const readReviewSource = vi.fn(async () => ({
     status: 'available' as const,
@@ -627,6 +651,85 @@ describe('analyze review event', () => {
         }),
       )
       expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledOnce()
+    })
+
+    it('keeps deferring a quota denial for a backfill long after the live horizon', async () => {
+      const harness = createHarness({
+        quotaCode: 'quota_exhausted',
+        operationCreatedAtEpochMillis: NOW - AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
+      })
+
+      await expect(harness.analyze(agedBackfillInput)).resolves.toMatchObject({
+        status: 'retry',
+        code: 'quota_exhausted',
+      })
+      expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
+    })
+
+    describe('provider capacity', () => {
+      // A rate limit describes the provider, not the review. A batch backfill
+      // under a per-minute token cap saw every fourth answer arrive within
+      // seconds and settled half of a property's history as never analysable.
+      it('retries a rate limit at the provider retry-after even on the last budgeted attempt', async () => {
+        const harness = createHarness({
+          operationExecutionAttempt: 3,
+          operationFailureCode: 'provider_rate_limited',
+          providerError: {
+            code: 'provider_rate_limited',
+            retryAfterEpochMillis: NOW + 20_000,
+          },
+        })
+
+        await expect(harness.analyze(input)).resolves.toEqual({
+          status: 'retry',
+          retryAtEpochMillis: NOW + 20_000,
+          code: 'provider_rate_limited',
+        })
+        expect(harness.mocks.recordFailure).toHaveBeenCalledWith(
+          expect.objectContaining({
+            failureCode: 'provider_rate_limited',
+            retryAtEpochMillis: NOW + 20_000,
+          }),
+        )
+        expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
+      })
+
+      it('keeps asking the provider past the budget while its last answer was capacity', async () => {
+        const harness = createHarness({
+          operationExecutionAttempt: 6,
+          operationFailureCode: 'provider_unavailable',
+        })
+
+        await expect(harness.analyze(input)).resolves.toEqual({ status: 'completed' })
+        expect(harness.mocks.analyzeReview).toHaveBeenCalledOnce()
+      })
+
+      it('still terminal-settles a review the provider itself failed four times', async () => {
+        const harness = createHarness({
+          operationExecutionAttempt: 4,
+          operationFailureCode: 'output_invalid',
+        })
+
+        await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
+        expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
+        expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledOnce()
+      })
+
+      it('terminal-settles a refusal on the last budgeted attempt', async () => {
+        const harness = createHarness({
+          operationExecutionAttempt: 3,
+          providerError: { code: 'provider_refused', retryAfterEpochMillis: null },
+        })
+
+        await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
+        expect(harness.mocks.recordFailure).toHaveBeenCalledWith(
+          expect.objectContaining({
+            failureCode: 'provider_refused',
+            retryAtEpochMillis: null,
+          }),
+        )
+        expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledOnce()
+      })
     })
   })
 
