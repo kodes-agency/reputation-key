@@ -613,10 +613,14 @@ export const createAiOperationStoreAdapter = (
                 lte(aiOperations.updatedAt, horizonDeadline),
               ),
             ),
+            // A pending analysis waits for its next attempt. Its own
+            // `expires_at` carries the event kind's horizon (a day for a
+            // backfill), so a rate-limited tail is not abandoned at the
+            // execution horizon meant for a stuck attempt.
             and(
               eq(aiOperations.command, 'analysis'),
               eq(aiOperations.state, 'pending'),
-              lte(aiOperations.createdAt, horizonDeadline),
+              lte(aiOperations.expiresAt, now),
             ),
             and(
               eq(aiOperations.command, 'analysis'),

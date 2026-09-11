@@ -6,9 +6,11 @@ import type {
   OutboxRepository,
 } from '#/shared/outbox'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import type {
-  AnalyzeReviewEventInput,
-  AnalyzeReviewEventResult,
+import {
+  AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
+  AI_BACKFILL_OPERATION_HORIZON_MILLIS,
+  type AnalyzeReviewEventInput,
+  type AnalyzeReviewEventResult,
 } from '../application/use-cases/analyze-review-event'
 import type {
   AiAuthorizationLifecycleApplyResult,
@@ -116,6 +118,10 @@ export async function handleAiReviewEvent(
     eventEnvelopeId: event.eventId,
     disposition: dispositionFor(event, payload.change),
     eventRecordedAtEpochMillis: envelopeRecordedAtEpochMillis(event),
+    operationHorizonMillis:
+      event.eventType === 'ai.review_analysis.backfill_requested'
+        ? AI_BACKFILL_OPERATION_HORIZON_MILLIS
+        : AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
   })
 
   if (result.status === 'retry') {
