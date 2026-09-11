@@ -118,6 +118,8 @@ function createHarness(
     analysisResult?: unknown
     rating?: 1 | 2 | 3 | 4 | 5
     consumeStatus?: 'accepted' | 'duplicate' | 'generation_changed'
+    /** No merchant_ai_enablement row: the property has never enabled AI. */
+    authorization?: 'absent'
   }> = {},
 ) {
   let claimedOperation: AiOperationRecord | undefined
@@ -240,32 +242,45 @@ function createHarness(
       : { status: options.profileStatus },
   )
 
+  const consumeNext = vi.fn(async () =>
+    options.consumeStatus === 'generation_changed'
+      ? { status: 'generation_changed' as const }
+      : {
+          status: options.consumeStatus ?? ('accepted' as const),
+          consumedSequence: 7,
+          terminalAnalysisSequence: 6,
+        },
+  )
   const dependencies = {
     authorization: {
-      readMerchantAuthorization: vi.fn(async () => ({
-        organizationId: ORGANIZATION_ID,
-        propertyId: PROPERTY_ID,
-        state: 'enabled' as const,
-        stateVersion: 1,
-        authorizationLineageId: LINEAGE_ID,
-        authorizedSourceEpoch: 2,
-        capabilities: ['review_analysis'] as const,
-        capabilityRuntimeProfileVersions: {
-          review_analysis: 'review-analysis-runtime-v1',
-        },
-        capabilityEpochs: {
-          review_analysis: { epoch: 1, changedAtEpochMillis: NOW },
-          reply_drafting: { epoch: 1, changedAtEpochMillis: NOW },
-          property_trends: { epoch: 1, changedAtEpochMillis: NOW },
-        },
-        reviewAnalysisStartSequence: 1,
-        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-        noticeDigest: SHA,
-        sourcePolicyId: 'google-business-profile-source-policy-v1',
-        sourceCanonicalizerDigest: SHA,
-        redactionProfileFamily: 'gbp-review-global-v1',
-        providerDeploymentProfileVersion: 'private-beta-global-v1',
-      })),
+      readMerchantAuthorization: vi.fn(async () =>
+        options.authorization === 'absent'
+          ? null
+          : {
+              organizationId: ORGANIZATION_ID,
+              propertyId: PROPERTY_ID,
+              state: 'enabled' as const,
+              stateVersion: 1,
+              authorizationLineageId: LINEAGE_ID,
+              authorizedSourceEpoch: 2,
+              capabilities: ['review_analysis'] as const,
+              capabilityRuntimeProfileVersions: {
+                review_analysis: 'review-analysis-runtime-v1',
+              },
+              capabilityEpochs: {
+                review_analysis: { epoch: 1, changedAtEpochMillis: NOW },
+                reply_drafting: { epoch: 1, changedAtEpochMillis: NOW },
+                property_trends: { epoch: 1, changedAtEpochMillis: NOW },
+              },
+              reviewAnalysisStartSequence: 1,
+              noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+              noticeDigest: SHA,
+              sourcePolicyId: 'google-business-profile-source-policy-v1',
+              sourceCanonicalizerDigest: SHA,
+              redactionProfileFamily: 'gbp-review-global-v1',
+              providerDeploymentProfileVersion: 'private-beta-global-v1',
+            },
+      ),
     },
     control: {
       readHeads: vi.fn(async () => [
@@ -332,15 +347,7 @@ function createHarness(
       release,
     },
     reviewEvents: {
-      consumeNext: vi.fn(async () =>
-        options.consumeStatus === 'generation_changed'
-          ? { status: 'generation_changed' as const }
-          : {
-              status: options.consumeStatus ?? ('accepted' as const),
-              consumedSequence: 7,
-              terminalAnalysisSequence: 6,
-            },
-      ),
+      consumeNext,
       settleOutcome,
     },
     reviewSources: {
@@ -371,6 +378,7 @@ function createHarness(
       release,
       readReviewSource,
       readProcessingProfile,
+      consumeNext,
     },
   }
 }
@@ -705,5 +713,27 @@ describe('analyze review event', () => {
       )
       expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledOnce()
     })
+  })
+
+  describe('before the property has ever enabled AI', () => {
+    // The first enable creates the lineage at epoch 1 with its watermark at
+    // the allocator head; everything allocated before it sits below that
+    // watermark and is re-allocated by the enrollment backfill. A derivative
+    // written under an invented epoch 1 would count against that lineage's
+    // coverage and break the exact-count invariant the moment AI is enabled.
+    it.each(['pending', 'provider_deleted'] as const)(
+      'acknowledges a %s review event without writing a derivative',
+      async (disposition) => {
+        const harness = createHarness({ authorization: 'absent' })
+
+        await expect(harness.analyze({ ...input, disposition })).resolves.toEqual({
+          status: 'replayed',
+        })
+        expect(harness.mocks.consumeNext).not.toHaveBeenCalled()
+        expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
+        expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
+        expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
+      },
+    )
   })
 })

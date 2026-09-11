@@ -32,6 +32,7 @@ import {
   DERIVATIVE_RETENTION_MILLIS,
   type AiExecutionBinding,
   type AiOperationIdentity,
+  type AiPropertyProfileResult,
 } from '../../domain/types'
 import {
   aiRequestFingerprint,
@@ -327,6 +328,36 @@ export function createAnalyzeReviewEvent(
     }
   }
 
+  /**
+   * `not_found` is a profile row that has not been written yet and
+   * `policy_unavailable` is a transient read failure. Neither is a merchant
+   * decision, so neither may permanently terminal-skip this review.
+   */
+  function settleUnavailableProfile(
+    input: AnalyzeReviewEventInput,
+    reviewAnalysisEpoch: number,
+    propertyProfileVersion: number,
+    status: Exclude<AiPropertyProfileResult['status'], 'available'>,
+    nowEpochMillis: number,
+    horizonEpochMillis: number | null,
+  ): Promise<AnalyzeReviewEventResult> {
+    return status === 'not_found' || status === 'policy_unavailable'
+      ? deferOrSettle(
+          input,
+          reviewAnalysisEpoch,
+          propertyProfileVersion,
+          `property_profile_${status}`,
+          nowEpochMillis,
+          horizonEpochMillis,
+        )
+      : settleWithoutResult(
+          input,
+          reviewAnalysisEpoch,
+          propertyProfileVersion,
+          'policy_disabled',
+        )
+  }
+
   return async (input) => {
     const nowEpochMillis = dependencies.nowEpochMillis()
     const eventHorizonEpochMillis =
@@ -335,14 +366,23 @@ export function createAnalyzeReviewEvent(
         : input.eventRecordedAtEpochMillis + AI_ANALYSIS_OPERATION_HORIZON_MILLIS
     const authorization =
       await dependencies.authorization.readMerchantAuthorization(input)
-    const reviewAnalysisEpoch = authorization?.capabilityEpochs.review_analysis.epoch ?? 1
+    // No enablement row means no AI lineage: the merchant has never enabled AI
+    // for this property. The first enable seeds epoch 1 with its watermark at
+    // the allocator head, so every sequence allocated before it sits at or
+    // below that watermark by construction, and the enrollment backfill
+    // re-allocates the eligible reviews fresh sequences inside the lineage.
+    // Acknowledge exactly as consumeNext acknowledges a below-watermark
+    // event: a derivative written under an invented epoch 1 would be counted
+    // by the lineage the first enable creates and break its exact coverage.
+    if (authorization === null) return { status: 'replayed' }
+    const reviewAnalysisEpoch = authorization.capabilityEpochs.review_analysis.epoch
     const consumed = await dependencies.reviewEvents.consumeNext({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       reviewId: input.reviewId,
       sourceEpoch: input.sourceEpoch,
       reviewAnalysisEpoch,
-      analysisStartSequence: authorization?.reviewAnalysisStartSequence ?? 0,
+      analysisStartSequence: authorization.reviewAnalysisStartSequence,
       analysisSequence: input.analysisSequence,
       eventEnvelopeId: input.eventEnvelopeId,
       disposition: input.disposition,
@@ -366,16 +406,8 @@ export function createAnalyzeReviewEvent(
         input.disposition,
       )
     }
-    if (authorization === null || authorization.authorizationLineageId === null) {
-      return settleWithoutResult(
-        input,
-        reviewAnalysisEpoch,
-        profileVersionForSettle,
-        'policy_disabled',
-      )
-    }
-    const authorizationLineageId = authorization.authorizationLineageId
     if (
+      authorization.authorizationLineageId === null ||
       ![
         authorization.state === 'enabled',
         authorization.authorizedSourceEpoch === input.sourceEpoch,
@@ -391,25 +423,16 @@ export function createAnalyzeReviewEvent(
         'policy_disabled',
       )
     }
+    const authorizationLineageId = authorization.authorizationLineageId
     if (runtime.status !== 'available') {
-      // `not_found` is a profile row that has not been written yet and
-      // `policy_unavailable` is a transient read failure. Neither is a merchant
-      // decision, so neither may permanently terminal-skip this review.
-      return runtime.status === 'not_found' || runtime.status === 'policy_unavailable'
-        ? deferOrSettle(
-            input,
-            reviewAnalysisEpoch,
-            profileVersionForSettle,
-            `property_profile_${runtime.status}`,
-            nowEpochMillis,
-            eventHorizonEpochMillis,
-          )
-        : settleWithoutResult(
-            input,
-            reviewAnalysisEpoch,
-            profileVersionForSettle,
-            'policy_disabled',
-          )
+      return settleUnavailableProfile(
+        input,
+        reviewAnalysisEpoch,
+        profileVersionForSettle,
+        runtime.status,
+        nowEpochMillis,
+        eventHorizonEpochMillis,
+      )
     }
     const profile = runtime.profile
 
