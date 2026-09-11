@@ -1162,11 +1162,11 @@ test.describe('Critical: beta-local-1 product journeys', () => {
 
     await p1Row.click()
     // S4: the property dashboard opens on the bounded, comparable 30-day
-    // period, not the unbounded all-time one.
+    // period, not the unbounded all-time one. `performanceRange` is gone —
+    // the Google report has its own page with the shared range now
+    // (docs/plan/dashboard-redesign.md rows 2, 6).
     await expect(page).toHaveURL(
-      new RegExp(
-        `/properties/${seed.p1PropertyId}\\?timeRange=30d&performanceRange=30d$`,
-      ),
+      new RegExp(`/properties/${seed.p1PropertyId}\\?timeRange=30d$`),
     )
     await page.goBack()
     const p1ReviewCountAfterReturn = await extractReviewCount(p1Row)
