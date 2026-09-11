@@ -18,8 +18,10 @@ const TONE_CLASS: Record<Tone, string> = {
     'border-amber-500/30 bg-amber-500/10 text-amber-700 hover:bg-amber-500/15 dark:text-amber-400',
 }
 
+// min-h-11 = 44 px: these are the page's most-tapped links and they were 30 px
+// tall (docs/plan/dashboard-redesign.md row 13).
 const CHIP_BASE =
-  'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors'
+  'inline-flex min-h-11 items-center gap-1.5 rounded-full border px-4 py-1 text-sm font-medium transition-colors'
 
 function ChipContent({
   icon: Icon,

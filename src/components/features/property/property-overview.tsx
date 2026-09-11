@@ -200,7 +200,7 @@ export function PropertyOverview({
           <h2 id="overview-recent" className="text-lg font-semibold tracking-tight">
             Latest reviews
           </h2>
-          <Button variant="outline" size="sm" asChild>
+          <Button variant="outline" asChild className="h-11">
             <Link to="/inbox" search={{ propertyId }}>
               All reviews
             </Link>

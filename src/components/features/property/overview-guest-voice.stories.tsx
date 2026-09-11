@@ -74,7 +74,8 @@ export const TopPraiseAndComplaint: Story = {
     expect(canvas.getByText('×11')).toBeVisible()
     expect(canvas.getByText('Complaints')).toBeVisible()
     expect(canvas.getByText('Parking')).toBeVisible()
-    expect(canvas.getByRole('link', { name: 'Guest voice' })).toBeVisible()
+    // "Guest voice" duplicated the section heading directly above it.
+    expect(canvas.getByRole('link', { name: 'All topics' })).toBeVisible()
   },
 }
 
