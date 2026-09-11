@@ -119,7 +119,7 @@ export function PulseDelta({
   if (percent === 0) return <>No change {suffix}</>
   const up = percent > 0
   return (
-    <span className={up ? 'text-positive' : 'text-destructive'}>
+    <span className={up ? 'text-positive' : 'text-negative'}>
       {up ? '↑' : '↓'} {Math.abs(percent)}% {suffix}
     </span>
   )

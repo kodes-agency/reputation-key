@@ -1166,9 +1166,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // (docs/plan/dashboard-redesign.md row 5). The 30-day default that used to
     // be asserted here is now a property of the page rather than the link, and
     // the scorecard's caption states it.
-    await expect(page).toHaveURL(
-      new RegExp(`/properties/${seed.p1PropertyId}$`),
-    )
+    await expect(page).toHaveURL(new RegExp(`/properties/${seed.p1PropertyId}$`))
     await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible()
     await expect(
       page.getByText('Last 30 days against the 30 before · rating is all-time.'),

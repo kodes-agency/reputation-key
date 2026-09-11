@@ -69,7 +69,7 @@ function ratingTile(lifetime: DashboardData, pulse: DashboardData, propertyId: s
         {same ? (
           'unchanged'
         ) : (
-          <span className={up ? 'text-positive' : 'text-destructive'}>
+          <span className={up ? 'text-positive' : 'text-negative'}>
             {up ? '↑' : '↓'} {Math.abs(recent.comparison).toFixed(1)} vs the 30 before
           </span>
         )}
