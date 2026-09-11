@@ -1,5 +1,14 @@
 import { Link } from '@tanstack/react-router'
-import { Badge } from '#/components/ui/badge'
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '#/components/ui/table'
+import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import type {
   AiPropertyInsightAspect,
   AiPropertyInsightsAllTimeReady,
@@ -8,272 +17,297 @@ import type {
 import { cn } from '#/lib/utils'
 import { ASPECT_LABELS } from '#/shared/aspect-labels'
 
+const VISIBLE_TOPIC_COUNT = 10
+
+type PropertyInsightsEvidence =
+  AiPropertyInsightsAllTimeReady | AiPropertyInsightsPresetReady
+
+type TopicRow = {
+  aspect: AiPropertyInsightAspect['aspect']
+  praise: number
+  complaints: number
+  impact: number
+  mentionDelta: number
+  impactDelta: number
+}
+
 function signedInteger(value: number): string {
   if (value === 0) return '0'
   return `${value > 0 ? '+' : '−'}${Math.abs(value)}`
 }
 
 function signedImpact(value: number): string {
-  if (value === 0) return '0.00'
-  return `${value > 0 ? '+' : '−'}${Math.abs(value).toFixed(2)}`
+  if (value === 0) return '0.0'
+  return `${value > 0 ? '+' : '−'}${Math.abs(value).toFixed(1)}`
 }
 
-function polarityLabel(polarity: AiPropertyInsightAspect['polarity']): string {
-  if (polarity === 'negative') return 'Complaints'
-  if (polarity === 'positive') return 'Praise'
-  return 'Neutral'
+function rowsByTopic(evidence: PropertyInsightsEvidence): TopicRow[] {
+  const topics = new Map<AiPropertyInsightAspect['aspect'], TopicRow>()
+  for (const entry of evidence.aspects) {
+    const row = topics.get(entry.aspect) ?? {
+      aspect: entry.aspect,
+      praise: 0,
+      complaints: 0,
+      impact: 0,
+      mentionDelta: 0,
+      impactDelta: 0,
+    }
+    if (entry.polarity === 'positive') row.praise += entry.mentionCount
+    if (entry.polarity === 'negative') row.complaints += entry.mentionCount
+    row.impact += entry.impact
+    if ('comparison' in entry) {
+      row.mentionDelta += entry.comparison.mentionCountDelta
+      row.impactDelta += entry.comparison.impactDelta
+    }
+    topics.set(entry.aspect, row)
+  }
+  return [...topics.values()].sort(
+    (left, right) =>
+      Math.abs(right.impact) - Math.abs(left.impact) ||
+      ASPECT_LABELS[left.aspect].localeCompare(ASPECT_LABELS[right.aspect]),
+  )
 }
 
-function polarityBadgeVariant(
-  polarity: AiPropertyInsightAspect['polarity'],
-): 'destructive' | 'default' | 'outline' {
-  if (polarity === 'negative') return 'destructive'
-  if (polarity === 'positive') return 'default'
-  return 'outline'
-}
-
-type PropertyInsightsEvidence =
-  AiPropertyInsightsAllTimeReady | AiPropertyInsightsPresetReady
-
-export function PropertyInsightsAspectTable({
+function CountLink({
   propertyId,
-  evidence,
+  row,
+  polarity,
 }: Readonly<{
   propertyId: string
-  evidence: PropertyInsightsEvidence
+  row: TopicRow
+  polarity: 'positive' | 'negative'
 }>) {
-  const { aspects, aspectEvidenceState } = evidence
-  const comparisonAvailable = evidence.range !== 'all' && !evidence.provisional
-  if (aspectEvidenceState === 'predates_aspect_analysis') {
-    return (
-      <p className="text-sm text-muted-foreground">
-        These reviews were analysed before aspect analysis existed, so aspect mentions and
-        impact cannot be reported.
-      </p>
-    )
-  }
-  if (aspectEvidenceState === 'not_analyzed') {
-    return (
-      <p className="text-sm text-muted-foreground">
-        There are no analysed text reviews in this period, so aspect mentions and impact
-        cannot be reported.
-      </p>
-    )
-  }
-  if (aspectEvidenceState === 'no_mentions' || aspects.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        No aspect mentions were identified among the analysed reviews in this period.
-      </p>
-    )
-  }
-  const comparisonsByAspect =
-    evidence.range !== 'all' && !evidence.provisional
-      ? new Map(
-          evidence.aspects.map((aspect) => [
-            `${aspect.aspect}:${aspect.polarity}`,
-            aspect.comparison,
-          ]),
-        )
-      : null
-
-  const busiest = aspects.reduce(
-    (maximum, aspect) => Math.max(maximum, aspect.mentionCount),
-    1,
-  )
-  const strongestImpact = aspects.reduce(
-    (maximum, aspect) => Math.max(maximum, Math.abs(aspect.impact)),
-    1,
-  )
-
+  const count = polarity === 'positive' ? row.praise : row.complaints
+  const label = polarity === 'positive' ? 'praise' : 'complaint'
   return (
-    <div className="min-w-0">
-      <div
-        aria-hidden="true"
+    <Link
+      to="/inbox"
+      search={{ propertyId, aspect: row.aspect, polarity }}
+      aria-label={`${count} ${label} ${count === 1 ? 'mention' : 'mentions'} for ${ASPECT_LABELS[row.aspect]}; open in inbox`}
+      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-2 font-medium tabular-nums text-link underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+    >
+      {count}
+    </Link>
+  )
+}
+
+function ImpactMeter({ value, maximum }: Readonly<{ value: number; maximum: number }>) {
+  const width = `${(Math.abs(value) / maximum) * 50}%`
+  return (
+    <span className="flex min-w-0 items-center gap-3 md:min-w-48">
+      <span className="relative block h-2 min-w-24 flex-1 overflow-hidden rounded-full bg-muted">
+        <span
+          aria-hidden="true"
+          className="absolute inset-y-0 left-1/2 w-px bg-muted-foreground/50"
+        />
+        {value === 0 ? null : (
+          <span
+            aria-hidden="true"
+            className={cn(
+              'absolute inset-y-0',
+              value > 0 ? 'left-1/2 bg-positive' : 'right-1/2 bg-destructive',
+            )}
+            style={{ width }}
+          />
+        )}
+      </span>
+      <span
         className={cn(
-          'mb-2 hidden gap-5 border-b px-3 pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid',
-          comparisonAvailable
-            ? 'grid-cols-[minmax(11rem,1.45fr)_minmax(8rem,1fr)_minmax(8rem,1fr)_minmax(9rem,1fr)]'
-            : 'grid-cols-[minmax(11rem,1.45fr)_minmax(8rem,1fr)_minmax(8rem,1fr)]',
+          'w-12 shrink-0 text-right font-medium tabular-nums',
+          value > 0
+            ? 'text-positive'
+            : value < 0
+              ? 'text-destructive'
+              : 'text-foreground',
         )}
       >
-        <span>Aspect</span>
-        <span>Mentions</span>
-        <span>Weighted impact</span>
-        {comparisonAvailable && <span>Change vs previous</span>}
-      </div>
-      <ul className="flex min-w-0 flex-col gap-1">
-        {aspects.map((aspect) => {
-          const countWidth =
-            aspect.mentionCount === 0 ? 0 : (aspect.mentionCount / busiest) * 100
-          const impactWidth =
-            aspect.impact === 0 ? 0 : (Math.abs(aspect.impact) / strongestImpact) * 100
-          const comparison = comparisonsByAspect?.get(
-            `${aspect.aspect}:${aspect.polarity}`,
-          )
-          return (
-            <li key={`${aspect.aspect}:${aspect.polarity}`} className="min-w-0">
-              <Link
-                to="/inbox"
-                search={{
-                  propertyId,
-                  aspect: aspect.aspect,
-                  polarity: aspect.polarity,
-                }}
-                className={cn(
-                  'group grid min-h-11 min-w-0 gap-3 rounded-lg border border-transparent px-3 py-3 transition-colors hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:items-center md:gap-5',
-                  comparisonAvailable
-                    ? 'md:grid-cols-[minmax(11rem,1.45fr)_minmax(8rem,1fr)_minmax(8rem,1fr)_minmax(9rem,1fr)]'
-                    : 'md:grid-cols-[minmax(11rem,1.45fr)_minmax(8rem,1fr)_minmax(8rem,1fr)]',
-                )}
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="truncate text-sm font-medium">
-                    {ASPECT_LABELS[aspect.aspect]}
-                  </span>
-                  <Badge variant={polarityBadgeVariant(aspect.polarity)}>
-                    {polarityLabel(aspect.polarity)}
-                  </Badge>
-                </span>
+        {signedImpact(value)}
+      </span>
+    </span>
+  )
+}
 
-                <span className="min-w-0">
-                  <span className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground md:sr-only">
-                    <span>Mentions</span>
-                    <span>{aspect.mentionCount}</span>
-                  </span>
-                  <span className="flex items-center gap-3">
-                    <span className="hidden w-7 shrink-0 text-sm font-medium tabular-nums md:inline">
-                      {aspect.mentionCount}
-                    </span>
-                    <span className="block h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                      <span
-                        className="block h-full rounded-full bg-[var(--chart-1)]"
-                        style={{ width: `${countWidth}%` }}
-                      />
-                    </span>
-                  </span>
-                </span>
+function Change({ row }: Readonly<{ row: TopicRow }>) {
+  return (
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm tabular-nums text-muted-foreground">
+      <span>
+        {signedInteger(row.mentionDelta)}{' '}
+        {Math.abs(row.mentionDelta) === 1 ? 'mention' : 'mentions'}
+      </span>
+      <span aria-hidden="true">·</span>
+      <span>{signedImpact(row.impactDelta)} impact</span>
+    </span>
+  )
+}
 
-                <span className="min-w-0">
-                  <span className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground md:sr-only">
-                    <span>Weighted impact</span>
-                    <span>{signedImpact(aspect.impact)}</span>
-                  </span>
-                  <span className="flex items-center gap-3">
-                    <span className="hidden w-12 shrink-0 text-sm font-medium tabular-nums md:inline">
-                      {signedImpact(aspect.impact)}
-                    </span>
-                    <span className="block h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                      <span
-                        className={cn(
-                          'block h-full rounded-full',
-                          aspect.polarity === 'negative'
-                            ? 'bg-destructive'
-                            : aspect.polarity === 'positive'
-                              ? 'bg-primary'
-                              : 'bg-muted-foreground',
-                        )}
-                        style={{ width: `${impactWidth}%` }}
-                      />
-                    </span>
-                  </span>
-                </span>
+function Label({
+  label,
+  term,
+  define,
+}: Readonly<{
+  label: 'Praise' | 'Complaints' | 'Impact'
+  term: 'praise-and-complaints' | 'impact'
+  define: boolean
+}>) {
+  return define ? <GlossaryTerm term={term}>{label}</GlossaryTerm> : label
+}
 
-                {comparison !== undefined && (
-                  <>
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs tabular-nums text-muted-foreground">
-                      <span>
-                        {signedInteger(comparison.mentionCountDelta)}{' '}
-                        {Math.abs(comparison.mentionCountDelta) === 1
-                          ? 'mention'
-                          : 'mentions'}
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <span>{signedImpact(comparison.impactDelta)} impact</span>
-                    </span>
-                    <span className="sr-only">
-                      Previous period: {comparison.precedingMentionCount} mentions and{' '}
-                      {signedImpact(comparison.precedingImpact)} weighted impact. Open
-                      matching reviews in the inbox.
-                    </span>
-                  </>
-                )}
-              </Link>
-            </li>
-          )
-        })}
-      </ul>
+function TopicTable({
+  propertyId,
+  rows,
+  maximum,
+  comparisonAvailable,
+  defineTerms,
+  label,
+}: Readonly<{
+  propertyId: string
+  rows: readonly TopicRow[]
+  maximum: number
+  comparisonAvailable: boolean
+  defineTerms: boolean
+  label: string
+}>) {
+  return (
+    <div className="overflow-hidden rounded-lg border">
+      <Table aria-label={label} className="block md:table">
+        <TableCaption className="sr-only">
+          Praise, complaints, impact and period change for each topic.
+        </TableCaption>
+        <TableHeader className="hidden md:table-header-group">
+          <TableRow>
+            <TableHead className="pl-4">Topic</TableHead>
+            <TableHead className="text-right">
+              <Label label="Praise" term="praise-and-complaints" define={defineTerms} />
+            </TableHead>
+            <TableHead className="text-right">
+              <Label
+                label="Complaints"
+                term="praise-and-complaints"
+                define={defineTerms}
+              />
+            </TableHead>
+            <TableHead className="min-w-60">
+              <Label label="Impact" term="impact" define={defineTerms} />
+            </TableHead>
+            {comparisonAvailable ? <TableHead>Change</TableHead> : null}
+          </TableRow>
+        </TableHeader>
+        <TableBody className="block md:table-row-group">
+          {rows.map((row, index) => (
+            <TableRow
+              key={row.aspect}
+              className="block p-4 last:border-b-0 md:table-row md:p-0"
+            >
+              <TableCell className="block p-0 pb-2 font-medium whitespace-normal md:table-cell md:p-2 md:pl-4">
+                {ASPECT_LABELS[row.aspect]}
+              </TableCell>
+              <TableCell className="flex min-h-11 items-center justify-between p-0 md:table-cell md:p-2 md:text-right">
+                <span className="text-muted-foreground md:hidden">
+                  <Label
+                    label="Praise"
+                    term="praise-and-complaints"
+                    define={defineTerms && index === 0}
+                  />
+                </span>
+                <CountLink propertyId={propertyId} row={row} polarity="positive" />
+              </TableCell>
+              <TableCell className="flex min-h-11 items-center justify-between p-0 md:table-cell md:p-2 md:text-right">
+                <span className="text-muted-foreground md:hidden">
+                  <Label
+                    label="Complaints"
+                    term="praise-and-complaints"
+                    define={defineTerms && index === 0}
+                  />
+                </span>
+                <CountLink propertyId={propertyId} row={row} polarity="negative" />
+              </TableCell>
+              <TableCell className="block min-h-11 p-0 py-2 md:table-cell md:p-2">
+                <span className="mb-2 block text-muted-foreground md:hidden">
+                  <Label
+                    label="Impact"
+                    term="impact"
+                    define={defineTerms && index === 0}
+                  />
+                </span>
+                <ImpactMeter value={row.impact} maximum={maximum} />
+              </TableCell>
+              {comparisonAvailable ? (
+                <TableCell className="block min-h-11 p-0 pt-2 whitespace-normal md:table-cell md:p-2">
+                  <span className="mb-1 block text-muted-foreground md:hidden">
+                    Change
+                  </span>
+                  <Change row={row} />
+                </TableCell>
+              ) : null}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   )
 }
 
-type PropertyInsightsIssueEvidence = PropertyInsightsEvidence
-
-export function PropertyInsightsEmergingIssues({
+export function PropertyInsightsTopicTable({
+  propertyId,
   evidence,
-}: Readonly<{
-  evidence: PropertyInsightsIssueEvidence
-}>) {
-  const issues = evidence.emergingIssues
-  const readyAnalysisCount =
-    evidence.basis.analyzedReviewCount + evidence.basis.preAspectAnalysisCount
-  const comparisonsByIssue =
-    evidence.range !== 'all' && !evidence.provisional
-      ? new Map(evidence.emergingIssues.map((issue) => [issue.label, issue.comparison]))
-      : null
-  if (readyAnalysisCount === 0) {
+}: Readonly<{ propertyId: string; evidence: PropertyInsightsEvidence }>) {
+  if (evidence.aspectEvidenceState === 'predates_aspect_analysis') {
     return (
       <p className="text-sm text-muted-foreground">
-        There are no analysed text reviews in this period, so emerging issues cannot be
-        assessed.
+        These reviews were not analysed for topics, so topics and impact cannot be
+        reported.
       </p>
     )
   }
-  if (issues.length === 0) {
+  if (evidence.aspectEvidenceState === 'not_analyzed') {
     return (
       <p className="text-sm text-muted-foreground">
-        No recurring issue labels were found among the analysed reviews in this period.
+        There are no analysed reviews with text in this period, so topics and impact
+        cannot be reported.
       </p>
     )
   }
+  if (evidence.aspectEvidenceState === 'no_mentions' || evidence.aspects.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No topic mentions were identified among the analysed reviews in this period.
+      </p>
+    )
+  }
+
+  const rows = rowsByTopic(evidence)
+  const visible = rows.slice(0, VISIBLE_TOPIC_COUNT)
+  const additional = rows.slice(VISIBLE_TOPIC_COUNT)
+  const maximum = Math.max(1, ...rows.map((row) => Math.abs(row.impact)))
+  const comparisonAvailable = evidence.range !== 'all' && !evidence.provisional
 
   return (
-    <ul className="flex flex-col gap-2">
-      {issues.map((issue) => {
-        const comparison = comparisonsByIssue?.get(issue.label)
-        return (
-          <li
-            key={issue.label}
-            className="flex min-h-11 items-center justify-between gap-4 rounded-lg border bg-background px-3 py-2.5"
-          >
-            <span className="min-w-0 truncate text-sm font-medium">{issue.label}</span>
-            <span className="flex shrink-0 items-center gap-2">
-              <span className="text-sm font-semibold tabular-nums">
-                {issue.count}
-                <span className="sr-only">
-                  {' '}
-                  {issue.count === 1 ? 'review' : 'reviews'}
-                </span>
-              </span>
-              {comparison !== undefined && (
-                <Badge
-                  variant={
-                    comparison.delta > 0
-                      ? 'destructive'
-                      : comparison.delta < 0
-                        ? 'secondary'
-                        : 'outline'
-                  }
-                >
-                  {comparison.delta === 0
-                    ? 'No change'
-                    : `${signedInteger(comparison.delta)} vs previous`}
-                </Badge>
-              )}
-            </span>
-          </li>
-        )
-      })}
-    </ul>
+    <div className="flex min-w-0 flex-col gap-3">
+      <TopicTable
+        propertyId={propertyId}
+        rows={visible}
+        maximum={maximum}
+        comparisonAvailable={comparisonAvailable}
+        defineTerms
+        label="Topics"
+      />
+      {additional.length > 0 ? (
+        <details className="rounded-lg border px-3">
+          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-link outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            Show all topics
+          </summary>
+          <div className="pb-3">
+            <TopicTable
+              propertyId={propertyId}
+              rows={additional}
+              maximum={maximum}
+              comparisonAvailable={comparisonAvailable}
+              defineTerms={false}
+              label="More topics"
+            />
+          </div>
+        </details>
+      ) : null}
+    </div>
   )
 }
