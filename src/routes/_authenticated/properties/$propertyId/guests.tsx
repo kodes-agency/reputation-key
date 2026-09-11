@@ -1,8 +1,9 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
-import { PropertyInsightsReport } from '#/components/features/property/property-insights-report'
+import { PropertyGuestVoicePage } from '#/components/features/property/property-guest-voice-page'
 import { getPropertyInsightsFn } from '#/contexts/ai/server/property-insights'
+import { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -52,12 +53,13 @@ function PropertyGuestsRoute() {
   }
 
   return (
-    <PropertyInsightsReport
+    <PropertyGuestVoicePage
       propertyId={propertyId}
       propertyName={propertyData.property.name}
       range={range}
       onRangeChange={onRangeChange}
       result={result}
+      serverFns={{ getTrend: getPropertyAiTrendFn }}
     />
   )
 }
