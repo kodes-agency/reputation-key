@@ -3,12 +3,13 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import {
   createMemoryHistory,
-  createRootRoute,
+  createRootRouteWithContext,
   createRoute,
   createRouter,
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router'
+import type { Role } from '#/shared/domain/roles'
 import type {
   AiPropertyInsightsPresetReady,
   AiPropertyInsightsRead,
@@ -252,22 +253,35 @@ function StoryReport({ result }: Readonly<{ result: AiPropertyInsightsRead }>) {
   )
 }
 
-function ReportHarness({ result }: Readonly<{ result: AiPropertyInsightsRead }>) {
+function ReportHarness({
+  result,
+  role = 'AccountAdmin',
+}: Readonly<{ result: AiPropertyInsightsRead; role?: Role }>) {
   const [router] = useState(() => {
-    const rootRoute = createRootRoute({ component: Outlet })
-    const reportRoute = createRoute({
+    // The report reads the authenticated layout's role (usePermissions), so the
+    // harness mirrors the app's pathless `/_authenticated` route.
+    const rootRoute = createRootRouteWithContext<{ role: Role }>()({ component: Outlet })
+    const authedRoute = createRoute({
       getParentRoute: () => rootRoute,
+      id: '/_authenticated',
+      component: Outlet,
+    })
+    const reportRoute = createRoute({
+      getParentRoute: () => authedRoute,
       path: '/',
       component: () => <StoryReport result={result} />,
     })
     const inboxRoute = createRoute({
-      getParentRoute: () => rootRoute,
+      getParentRoute: () => authedRoute,
       path: '/inbox',
       component: () => <p>Inbox link target</p>,
     })
     return createRouter({
-      routeTree: rootRoute.addChildren([reportRoute, inboxRoute]),
+      routeTree: rootRoute.addChildren([
+        authedRoute.addChildren([reportRoute, inboxRoute]),
+      ]),
       history: createMemoryHistory({ initialEntries: ['/'] }),
+      context: { role },
     })
   })
   return <RouterProvider router={router} />
@@ -385,11 +399,26 @@ export const InsufficientData: Story = {
 export const DisabledCapability: Story = {
   render: () => <ReportHarness result={{ status: 'disabled' }} />,
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
     expect(
-      await within(canvasElement).findByText(
-        'Insights are not available for this property',
-      ),
+      await canvas.findByText('Insights are not available for this property'),
     ).toBeVisible()
+    expect(canvas.getByRole('link', { name: 'Enable AI analysis' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/settings/ai?propertyId='),
+    )
+  },
+}
+
+/** A member who cannot manage AI is told who can, not shown a link that redirects. */
+export const DisabledCapabilityForMember: Story = {
+  render: () => <ReportHarness result={{ status: 'disabled' }} role="Member" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(await canvas.findByText(/an account admin can enable it/i)).toBeVisible()
+    expect(
+      canvas.queryByRole('link', { name: 'Enable AI analysis' }),
+    ).not.toBeInTheDocument()
   },
 }
 
