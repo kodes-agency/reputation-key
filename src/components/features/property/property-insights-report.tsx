@@ -1,4 +1,6 @@
+import { Link } from '@tanstack/react-router'
 import { BarChart3, Clock, Info, SearchX } from 'lucide-react'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import {
@@ -130,24 +132,46 @@ function PropertyInsightsBasisLine({
   )
 }
 
+function DisabledInsightsState({ propertyId }: Readonly<{ propertyId: string }>) {
+  const { can } = usePermissions()
+  // The second door to AI analysis after the import flow's own step: a
+  // merchant who skipped it, or one whose property predates it, must not
+  // land on a dead end here.
+  return (
+    <Alert>
+      <Info aria-hidden="true" />
+      <AlertTitle>Insights are not available for this property</AlertTitle>
+      <AlertDescription className="flex flex-col gap-3">
+        <p>
+          Review Analysis is off for this property, so this report has no evidence to
+          show. Nothing is sent to the AI provider until it is enabled.
+        </p>
+        {can('ai.manage') ? (
+          <div>
+            <Button asChild size="sm">
+              <Link to="/settings/ai" search={{ propertyId }}>
+                Enable AI analysis
+              </Link>
+            </Button>
+          </div>
+        ) : (
+          <p>An account admin can enable it from Settings → AI &amp; replies.</p>
+        )}
+      </AlertDescription>
+    </Alert>
+  )
+}
+
 function ReportState({
   status,
   range,
+  propertyId,
 }: Readonly<{
   status: 'disabled' | 'preparing' | 'insufficient_data'
   range: PropertyInsightsRange
+  propertyId: string
 }>) {
-  if (status === 'disabled') {
-    return (
-      <Alert>
-        <Info aria-hidden="true" />
-        <AlertTitle>Insights are not available for this property</AlertTitle>
-        <AlertDescription>
-          Review Analysis is currently disabled, so this report has no evidence to show.
-        </AlertDescription>
-      </Alert>
-    )
-  }
+  if (status === 'disabled') return <DisabledInsightsState propertyId={propertyId} />
   if (status === 'preparing') {
     return (
       <Alert>
@@ -201,7 +225,7 @@ export function PropertyInsightsReport({
       />
 
       {result.status !== 'ready' ? (
-        <ReportState status={result.status} range={range} />
+        <ReportState status={result.status} range={range} propertyId={propertyId} />
       ) : (
         <>
           {result.provisional && (
