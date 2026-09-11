@@ -1161,13 +1161,16 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByText('E2E Locked Hotel P3', { exact: true })).toHaveCount(0)
 
     await p1Row.click()
-    // S4: the property dashboard opens on the bounded, comparable 30-day
-    // period, not the unbounded all-time one. `performanceRange` is gone —
-    // the Google report has its own page with the shared range now
-    // (docs/plan/dashboard-redesign.md rows 2, 6).
-    await expect(page).toHaveURL(
-      new RegExp(`/properties/${seed.p1PropertyId}\\?timeRange=30d$`),
-    )
+    // Overview carries no range at all now: it reads a fixed all-time identity
+    // beside a fixed 30-day pulse, so there is nothing to put in the URL
+    // (docs/plan/dashboard-redesign.md row 5). The 30-day default that used to
+    // be asserted here is now a property of the page rather than the link, and
+    // the scorecard's caption states it.
+    await expect(page).toHaveURL(new RegExp(`/properties/${seed.p1PropertyId}$`))
+    await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible()
+    await expect(
+      page.getByText('Last 30 days against the 30 before · rating is all-time.'),
+    ).toBeVisible()
     await page.goBack()
     const p1ReviewCountAfterReturn = await extractReviewCount(p1Row)
     expect(p1ReviewCountAfterReturn).toBe(p1ReviewCount)
@@ -1190,7 +1193,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // assert the suite's execution order rather than the dashboard.
     await expect(async () => {
       const url = onePage.url()
-      if (new RegExp(`/properties/${seed.p1PropertyId}\\?timeRange=all`).test(url)) {
+      if (new RegExp(`/properties/${seed.p1PropertyId}$`).test(url)) {
         return
       }
       expect(url).toContain('/dashboard')

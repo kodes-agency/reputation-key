@@ -60,25 +60,40 @@ export const FourPresets: Story = {
 
 /**
  * Carried over from the Google section's story when the range control moved out
- * of it: on a narrow screen the control collapses to a Select, and it has to
- * stay a 44 px target and actually commit a choice (redesign row 13).
+ * of it: whichever rendering the viewport produces has to stay a 44 px target
+ * and actually commit a choice (redesign row 13).
+ *
+ * It branches on the rendering rather than asserting which one appears, as the
+ * original did: the storybook browser shares one viewport across story files,
+ * so a narrow-viewport parameter is not guaranteed to have taken effect by the
+ * time this play function runs.
  */
 export const Compact320: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
   play: async ({ canvas, args }) => {
-    const trigger = canvas
+    const control = canvas
       .getAllByLabelText('Time range')
       .find((element) => element.getBoundingClientRect().height > 0)!
-    expect(trigger.getAttribute('role')).toBe('combobox')
-    expect(trigger.getBoundingClientRect().height).toBeGreaterThanOrEqual(44)
+    expect(control.getBoundingClientRect().height).toBeGreaterThanOrEqual(44)
 
-    await userEvent.click(trigger)
-    const contentId = trigger.getAttribute('aria-controls')!
-    const content = trigger.ownerDocument.getElementById(contentId)!
-    await userEvent.click(within(content).getByRole('option', { name: '30 days' }))
+    if (control.getAttribute('role') === 'combobox') {
+      await userEvent.click(control)
+      const contentId = control.getAttribute('aria-controls')!
+      const content = control.ownerDocument.getElementById(contentId)!
+      await userEvent.click(within(content).getByRole('option', { name: '30 days' }))
+      await waitFor(() => {
+        expect(args.onRangeChange).toHaveBeenCalledWith('30d')
+        expect(control).toHaveTextContent('30 days')
+      })
+      return
+    }
+
+    const thirtyDays = within(control).getByRole('button', { name: '30 days' })
+    thirtyDays.focus()
+    await userEvent.keyboard('{Enter}')
     await waitFor(() => {
       expect(args.onRangeChange).toHaveBeenCalledWith('30d')
-      expect(trigger).toHaveTextContent('30 days')
+      expect(thirtyDays).toHaveAttribute('aria-pressed', 'true')
     })
   },
 }

@@ -1,23 +1,25 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
-import { z } from 'zod/v4'
 import { getPropertyOverviewFn } from '#/contexts/reporting/server/dashboard'
+import {
+  getPropertyGooglePerformance,
+  renewPropertyGooglePerformanceLease,
+} from '#/contexts/integration/server/google-performance'
 import { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
 import { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-aggregates'
-import { PropertyDashboard } from '#/components/features/property/property-dashboard'
+import { PropertyOverview } from '#/components/features/property/property-overview'
 import { dashboardKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
-import {
-  timeRangePreset,
-  type TimeRangePreset,
-} from '#/contexts/reporting/application/dto/dashboard.dto'
+import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 
-// `performanceRange` is gone: the Google report has its own page with the
-// shared range (redesign rows 2, 6). A stale bookmark carrying it still loads —
-// unknown search keys are ignored, not rejected.
-const propertyDashboardSearch = z.object({
-  timeRange: timeRangePreset.default('30d'),
-})
+/**
+ * Overview has no range control and no `?range=` (redesign row 5): it reads two
+ * fixed windows and shows each tile's identity beside its pulse. Two entries of
+ * one read model, both cached 60 s and both primed by the loader — no new
+ * contract, and the topic pages' own ranges stay separate cache entries.
+ */
+const LIFETIME: TimeRangePreset = 'all'
+const PULSE: TimeRangePreset = '30d'
 
 const overviewQuery = (propertyId: string, timeRange: TimeRangePreset) =>
   queryOptions({
@@ -27,37 +29,39 @@ const overviewQuery = (propertyId: string, timeRange: TimeRangePreset) =>
   })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/')({
-  validateSearch: propertyDashboardSearch,
   staleTime: 60_000,
-  loaderDeps: ({ search }) => ({ timeRange: search.timeRange }),
-  loader: async ({ params: { propertyId }, deps: { timeRange }, context }) => {
-    await context.queryClient.ensureQueryData(overviewQuery(propertyId, timeRange))
+  loader: async ({ params: { propertyId }, context }) => {
+    await Promise.all([
+      context.queryClient.ensureQueryData(overviewQuery(propertyId, LIFETIME)),
+      context.queryClient.ensureQueryData(overviewQuery(propertyId, PULSE)),
+    ])
   },
-  component: PropertyDashboardRoute,
+  component: PropertyOverviewRoute,
 })
 
-function PropertyDashboardRoute() {
+function PropertyOverviewRoute() {
   const { propertyId } = Route.useParams()
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
-  const property = propData.property
-  const { timeRange } = Route.useSearch()
-  const { data: overview } = useSuspenseQuery(overviewQuery(propertyId, timeRange))
-  const navigate = Route.useNavigate()
-
-  const onTimeRangeChange = (value: TimeRangePreset) => {
-    navigate({ search: (previous) => ({ ...previous, timeRange: value }) })
-  }
+  const { data: lifetime } = useSuspenseQuery(overviewQuery(propertyId, LIFETIME))
+  const { data: pulse } = useSuspenseQuery(overviewQuery(propertyId, PULSE))
 
   return (
-    <PropertyDashboard
-      property={property}
-      dashboard={overview.dashboard}
-      signals={overview.signals}
+    <PropertyOverview
+      property={propData.property}
       propertyId={propertyId}
-      timeRange={timeRange}
-      onTimeRangeChange={onTimeRangeChange}
-      getAiTrend={getPropertyAiTrendFn}
-      getAiAggregates={getPropertyAiAggregatesFn}
+      lifetime={lifetime.dashboard}
+      pulse={pulse.dashboard}
+      // Attention is a standing count, not a windowed one — the all-time read
+      // carries the same signals, so the pulse read's copy is redundant.
+      signals={lifetime.signals}
+      guestVoiceFns={{
+        getTrend: getPropertyAiTrendFn,
+        getAggregates: getPropertyAiAggregatesFn,
+      }}
+      profileViewsFns={{
+        getPerformance: getPropertyGooglePerformance,
+        renewLease: renewPropertyGooglePerformanceLease,
+      }}
     />
   )
 }
