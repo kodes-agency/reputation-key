@@ -139,13 +139,16 @@ export function axisTicks<T>(
   return [...picked]
 }
 
-export const MIN_CHART_BUCKETS = 3
-
 /**
  * A chart earns its place at three or more buckets carrying data. Below that
  * the page prints the figures as a sentence (row 9) — two points drawn as a
  * line invite a reading of a trend that is not there.
+ *
+ * Module-private: callers ask `hasEnoughEvidence`, they do not re-implement
+ * the comparison.
  */
+const MIN_CHART_BUCKETS = 3
+
 export function hasEnoughEvidence<T>(buckets: ReadonlyArray<Bucket<T>>): boolean {
   return buckets.filter((bucket) => bucket.rows.length > 0).length >= MIN_CHART_BUCKETS
 }

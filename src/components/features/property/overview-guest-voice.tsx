@@ -27,6 +27,10 @@ export type OverviewGuestVoiceServerFns = Readonly<{
   getAggregates: typeof getPropertyAiAggregatesFn
 }>
 
+type Aggregates = Awaited<ReturnType<typeof getPropertyAiAggregatesFn>>
+type ReadyAggregates = Extract<Aggregates, { status: 'ready' }>
+type AiAspectAggregate = ReadyAggregates['aspects'][number]
+
 function Row({
   children,
   action,
@@ -60,11 +64,89 @@ function ReadMore({ propertyId }: Readonly<{ propertyId: string }>) {
   )
 }
 
+function AnalysisOff({ propertyId }: Readonly<{ propertyId: string }>) {
+  const { can } = usePermissions()
+  const canManage = can('ai.manage')
+  return (
+    <Row
+      action={
+        canManage ? (
+          <Button asChild size="sm" className="shrink-0">
+            <Link to="/settings/ai" search={{ propertyId }}>
+              Turn on AI analysis
+            </Link>
+          </Button>
+        ) : undefined
+      }
+    >
+      <p className="text-sm">
+        Turn on AI analysis to see what guests praise and complain about.
+      </p>
+      {canManage ? null : (
+        <p className="text-sm text-muted-foreground">
+          An account admin can turn it on in Settings → AI &amp; replies.
+        </p>
+      )}
+    </Row>
+  )
+}
+
+function TopicChip({
+  tone,
+  entry,
+}: Readonly<{ tone: 'praise' | 'complaint'; entry: AiAspectAggregate }>) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <Badge variant={tone === 'praise' ? 'secondary' : 'destructive'}>
+        {tone === 'praise' ? 'Praise' : 'Complaints'}
+      </Badge>
+      {ASPECT_LABELS[entry.aspect]}
+      <span className="tabular-nums text-muted-foreground">×{entry.mentionCount}</span>
+    </span>
+  )
+}
+
+function TopicSummary({
+  read,
+  headline,
+  propertyId,
+}: Readonly<{
+  read: ReadyAggregates
+  /** The trend narrative's sentence, when there is one. */
+  headline: string | null | undefined
+  propertyId: string
+}>) {
+  const mentioned = read.aspects.filter((entry) => entry.mentionCount > 0)
+  const praise = mentioned.find((entry) => entry.polarity === 'positive')
+  const complaint = mentioned.find((entry) => entry.polarity === 'negative')
+
+  if (!praise && !complaint) {
+    return (
+      <Row action={<ReadMore propertyId={propertyId} />}>
+        <p className="text-sm">
+          {read.analyzedReviewCount === 0
+            ? 'No reviews with text have been analysed yet, so there are no topics to report.'
+            : 'No topics were mentioned often enough to report yet.'}
+        </p>
+      </Row>
+    )
+  }
+
+  return (
+    <Row action={<ReadMore propertyId={propertyId} />}>
+      {headline === null ? null : <p className="text-sm font-medium">{headline}</p>}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+        {praise ? <TopicChip tone="praise" entry={praise} /> : null}
+        {complaint ? <TopicChip tone="complaint" entry={complaint} /> : null}
+      </div>
+    </Row>
+  )
+}
+
 export function OverviewGuestVoice({
   propertyId,
   serverFns,
 }: Readonly<{ propertyId: string; serverFns: OverviewGuestVoiceServerFns }>) {
-  const { can } = usePermissions()
   const trend = useQuery({
     queryKey: aiKeys.propertyTrend(propertyId),
     queryFn: () => serverFns.getTrend({ data: { propertyId } }),
@@ -98,31 +180,8 @@ export function OverviewGuestVoice({
   }
 
   const read = aggregates.data
-  const analysisOff = read?.status === 'disabled' || trend.data?.status === 'disabled'
-
-  if (analysisOff) {
-    return (
-      <Row
-        action={
-          can('ai.manage') ? (
-            <Button asChild size="sm" className="shrink-0">
-              <Link to="/settings/ai" search={{ propertyId }}>
-                Turn on AI analysis
-              </Link>
-            </Button>
-          ) : undefined
-        }
-      >
-        <p className="text-sm">
-          Turn on AI analysis to see what guests praise and complain about.
-        </p>
-        {can('ai.manage') ? null : (
-          <p className="text-sm text-muted-foreground">
-            An account admin can turn it on in Settings → AI &amp; replies.
-          </p>
-        )}
-      </Row>
-    )
+  if (read?.status === 'disabled' || trend.data?.status === 'disabled') {
+    return <AnalysisOff propertyId={propertyId} />
   }
 
   if (read?.status !== 'ready') {
@@ -135,46 +194,11 @@ export function OverviewGuestVoice({
     )
   }
 
-  const mentioned = read.aspects.filter((entry) => entry.mentionCount > 0)
-  const praise = mentioned.find((entry) => entry.polarity === 'positive')
-  const complaint = mentioned.find((entry) => entry.polarity === 'negative')
-  const headline = trend.data?.status === 'ready' ? trend.data.report.headline : null
-
-  if (!praise && !complaint) {
-    return (
-      <Row action={<ReadMore propertyId={propertyId} />}>
-        <p className="text-sm">
-          {read.analyzedReviewCount === 0
-            ? 'No reviews with text have been analysed yet, so there are no topics to report.'
-            : 'No topics were mentioned often enough to report yet.'}
-        </p>
-      </Row>
-    )
-  }
-
   return (
-    <Row action={<ReadMore propertyId={propertyId} />}>
-      {headline === null ? null : <p className="text-sm font-medium">{headline}</p>}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-        {praise ? (
-          <span className="flex items-center gap-1.5">
-            <Badge variant="secondary">Praise</Badge>
-            {ASPECT_LABELS[praise.aspect]}
-            <span className="text-muted-foreground tabular-nums">
-              ×{praise.mentionCount}
-            </span>
-          </span>
-        ) : null}
-        {complaint ? (
-          <span className="flex items-center gap-1.5">
-            <Badge variant="destructive">Complaints</Badge>
-            {ASPECT_LABELS[complaint.aspect]}
-            <span className="text-muted-foreground tabular-nums">
-              ×{complaint.mentionCount}
-            </span>
-          </span>
-        ) : null}
-      </div>
-    </Row>
+    <TopicSummary
+      read={read}
+      headline={trend.data?.status === 'ready' ? trend.data.report.headline : null}
+      propertyId={propertyId}
+    />
   )
 }

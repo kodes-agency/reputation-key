@@ -141,9 +141,14 @@ export const NoTopicsYet: Story = {
 export const Unavailable: Story = {
   args: {
     serverFns: {
-      getTrend: trend(Promise.reject(new Error('down'))),
+      // Both islands must fail for the row to give up. A rejected promise built
+      // at module scope would be unhandled before any story mounts, which the
+      // storybook runner reports as a failure in whichever story ran first.
+      getTrend: (() => {
+        throw new Error('trend unavailable')
+      }) as unknown as typeof getPropertyAiTrendFn,
       getAggregates: (() => {
-        throw new Error('down')
+        throw new Error('aggregates unavailable')
       }) as unknown as typeof getPropertyAiAggregatesFn,
     },
   },
