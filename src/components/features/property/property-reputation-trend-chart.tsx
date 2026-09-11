@@ -1,50 +1,81 @@
 import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 import {
-  ChartContainer,
   ChartLegend,
   ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
 } from '#/components/ui/chart'
+import { ChartFrame, ChartTooThin } from '#/components/features/shared/chart-frame'
 import type {
   RatingTrendPoint,
   ReviewVolumePoint,
 } from '#/contexts/reporting/application/public-api'
-import { buildPropertyReputationTrendData } from './property-reputation-trend-chart-data'
+import { axisTicks, hasEnoughEvidence } from '#/shared/chart-buckets'
+import {
+  bucketUnitForRange,
+  DASHBOARD_RANGE_LABELS,
+  type DashboardRange,
+} from '#/shared/dashboard-range'
+import {
+  buildPropertyReputationTrendData,
+  type PropertyReputationTrendDatum,
+} from './property-reputation-trend-chart-data'
 
 const config = {
-  count: { label: 'Reviews', color: 'var(--chart-1)' },
-  avgRating: { label: 'Avg rating', color: 'var(--chart-2)' },
+  newReviews: { label: 'New reviews', color: 'var(--muted-foreground)' },
+  runningAverage: { label: 'Running average', color: 'var(--foreground)' },
 } satisfies ChartConfig
 
-/** YYYY-MM-DD read as a calendar date, not shifted into the viewer's zone. */
-const shortDate = (value: string): string => {
-  const [, month, day] = value.split('-')
-  return month && day ? `${Number(month)}/${Number(day)}` : value
+function formatRating(value: number): string {
+  return value.toFixed(1)
+}
+
+function reviewCountLabel(count: number): string {
+  return `${count.toLocaleString()} new ${count === 1 ? 'review' : 'reviews'}`
+}
+
+function trendCaption(
+  range: DashboardRange,
+  points: readonly PropertyReputationTrendDatum[],
+): string {
+  const ratings = points.flatMap((point) =>
+    point.runningAverage === undefined ? [] : [point.runningAverage],
+  )
+  const reviewCount = points.reduce((sum, point) => sum + point.newReviews, 0)
+  const period = DASHBOARD_RANGE_LABELS[range].toLowerCase()
+  const first = ratings[0]
+  const last = ratings[ratings.length - 1]
+
+  if (first === undefined || last === undefined) {
+    return `${reviewCountLabel(reviewCount)} over ${period} · rating average unavailable`
+  }
+  if (ratings.length === 1) {
+    return `${formatRating(last)} over ${period} · ${reviewCountLabel(reviewCount)}`
+  }
+  return `${formatRating(first)} → ${formatRating(last)} over ${period} · ${reviewCountLabel(reviewCount)}`
 }
 
 /**
- * Reputation over time: review volume as bars, average rating as a line on its
- * own 0-5 axis.
- *
- * `ratingTrend` and `reviewVolume` were already computed by
- * `getDashboardData`, serialised into the browser, and then never drawn — the
- * property dashboard rendered only the hand-rolled rating distribution. This is
- * the wiring, not a new pipeline.
+ * New-review volume and the weighted running rating for the selected period.
+ * Independent daily series are merged by date before they are bucketed.
  */
 export function PropertyReputationTrendChart({
   ratingTrend,
   reviewVolume,
+  range,
 }: Readonly<{
   ratingTrend: readonly RatingTrendPoint[]
   reviewVolume: readonly ReviewVolumePoint[]
+  range: DashboardRange
 }>) {
-  // Volume and rating are independent series over the same calendar days, and
-  // either can be sparse. Merge on date so neither series silently truncates.
-  const data = buildPropertyReputationTrendData(ratingTrend, reviewVolume)
+  const { buckets, points } = buildPropertyReputationTrendData(
+    ratingTrend,
+    reviewVolume,
+    bucketUnitForRange(range),
+  )
 
-  if (data.length === 0) {
+  if (points.length === 0) {
     return (
       <p className="text-sm text-muted-foreground" data-testid="reputation-trend-empty">
         No reviews in this period yet, so there is no trend to show.
@@ -52,62 +83,126 @@ export function PropertyReputationTrendChart({
     )
   }
 
-  // `aspect-video` is ChartContainer's default, which measured 810px tall at a
-  // 1440px viewport — it would have owned the whole dashboard fold. Fixed height
-  // instead, so the section stays a band regardless of width.
+  const caption = trendCaption(range, points)
+  if (!hasEnoughEvidence(buckets)) {
+    return (
+      <div data-testid="reputation-trend-too-thin">
+        <ChartTooThin>
+          {caption}. More review history is needed before a trend is useful.
+        </ChartTooThin>
+      </div>
+    )
+  }
+
+  const labels = new Map(points.map((point) => [point.date, point.label]))
+  const ticks = axisTicks(buckets)
+  const hasReviewVolume = points.some((point) => point.newReviews > 0)
+  const hasRunningAverage = points.some((point) => point.runningAverage !== undefined)
+  const series = [
+    ...(hasReviewVolume ? ['review-volume'] : []),
+    ...(hasRunningAverage ? ['average-rating'] : []),
+  ].join(',')
+
   return (
-    <ChartContainer
-      config={config}
-      className="aspect-auto h-[280px] w-full"
+    <div
+      className="min-w-0"
       data-testid="reputation-trend-chart"
-      data-point-count={data.length}
-      data-series="review-volume,average-rating"
+      data-point-count={points.length}
+      data-series={series}
     >
-      <ComposedChart data={data} margin={{ left: 0, right: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-        <XAxis
-          dataKey="date"
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={shortDate}
-          minTickGap={16}
-        />
-        <YAxis yAxisId="count" tickLine={false} axisLine={false} allowDecimals={false} />
-        <YAxis
-          yAxisId="rating"
-          orientation="right"
-          domain={[0, 5]}
-          ticks={[0, 1, 2, 3, 4, 5]}
-          tickLine={false}
-          axisLine={false}
-        />
-        <ChartTooltip
-          content={
-            <ChartTooltipContent
-              labelFormatter={(label) =>
-                typeof label === 'string' ? shortDate(label) : label
-              }
-            />
-          }
-        />
-        <ChartLegend content={<ChartLegendContent />} />
-        <Bar
-          yAxisId="count"
-          dataKey="count"
-          fill="var(--color-count)"
-          radius={[4, 4, 0, 0]}
-        />
-        <Line
-          yAxisId="rating"
-          type="monotone"
-          dataKey="avgRating"
-          stroke="var(--color-avgRating)"
-          strokeWidth={2}
-          // A single day would draw an invisible zero-length line without this.
-          dot={data.length === 1}
-          connectNulls
-        />
-      </ComposedChart>
-    </ChartContainer>
+      <ChartFrame
+        label="Rating over time"
+        caption={caption}
+        size="standard"
+        config={config}
+      >
+        <ComposedChart
+          accessibilityLayer
+          data={points}
+          margin={{ left: 0, right: 0, top: 4 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="date"
+            ticks={ticks}
+            interval={0}
+            tickLine={false}
+            axisLine={false}
+            minTickGap={12}
+            tickFormatter={(value: string) => labels.get(value) ?? value}
+          />
+          <YAxis
+            yAxisId="count"
+            tickLine={false}
+            axisLine={false}
+            allowDecimals={false}
+            width={32}
+          />
+          <YAxis
+            yAxisId="rating"
+            orientation="right"
+            domain={[1, 5]}
+            ticks={[1, 2, 3, 4, 5]}
+            tickLine={false}
+            axisLine={false}
+            width={32}
+            hide={!hasRunningAverage}
+          />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                labelFormatter={(label) =>
+                  typeof label === 'string' ? (labels.get(label) ?? label) : label
+                }
+              />
+            }
+          />
+          {hasReviewVolume && hasRunningAverage ? (
+            <ChartLegend content={<ChartLegendContent />} />
+          ) : null}
+          <Bar
+            yAxisId="count"
+            dataKey="newReviews"
+            fill="var(--color-newReviews)"
+            radius={[4, 4, 0, 0]}
+          />
+          <Line
+            yAxisId="rating"
+            type="monotone"
+            dataKey="runningAverage"
+            stroke="var(--color-runningAverage)"
+            strokeWidth={2}
+            dot={points.length === 1}
+            connectNulls
+          />
+        </ComposedChart>
+      </ChartFrame>
+
+      <details className="mt-2 text-sm">
+        <summary className="flex min-h-11 cursor-pointer items-center text-muted-foreground">
+          View chart values
+        </summary>
+        <dl className="max-h-72 divide-y overflow-y-auto border-y">
+          {points.map((point) => (
+            <div
+              key={point.date}
+              className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 py-2"
+            >
+              <dt className="font-medium">{point.label}</dt>
+              <dd className="text-right tabular-nums">
+                {point.newReviews.toLocaleString()} new{' '}
+                {point.newReviews === 1 ? 'review' : 'reviews'}
+              </dd>
+              <dt className="text-muted-foreground">Running average</dt>
+              <dd className="text-right tabular-nums text-muted-foreground">
+                {point.runningAverage === undefined
+                  ? 'Not available yet'
+                  : `${formatRating(point.runningAverage)} ★`}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </details>
+    </div>
   )
 }
