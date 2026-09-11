@@ -1122,40 +1122,40 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByText('Disconnected').first()).toBeVisible()
   })
 
-  test('Dashboard proves many, one, and zero-property states with tenant-safe values', async ({
+  test('Properties proves many, one, and zero-property states with tenant-safe values', async ({
     page,
     browser,
   }) => {
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    // `/dashboard` is a redirect now — following it proves the bookmark every
+    // manager has still lands somewhere (docs/plan/dashboard-redesign.md row 3).
     await page.goto('/dashboard')
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+    await expect(page).toHaveURL(/\/properties$/)
+    await expect(
+      page.getByRole('heading', { name: 'Properties', level: 1 }),
+    ).toBeVisible()
     const p1Row = page.getByRole('link').filter({ hasText: 'E2E Beta Hotel P1' })
     const p2Row = page.getByRole('link').filter({ hasText: 'E2E Beta Hotel P2' })
 
-    // The row renders with the property name first and the aggregate review
-    // count arrives with its query, so a bare innerText() reads a row that is
-    // attached but not yet complete — observed on main as
-    // `Expected review count in row text: E2E Beta Hotel P1`, passing on
-    // re-run. toContainText retries until the count is actually there, which
-    // is the same web-first form this test already uses at the round-trip
-    // assertion below. Nothing is weakened: every value below is still
-    // asserted, and a count that never renders still fails here.
-    const REVIEW_COUNT = /(\d+)\s+reviews/i
-    const extractReviewCount = async (row: Locator) => {
-      await expect(row).toContainText(REVIEW_COUNT)
+    // The row renders its name and slug immediately; the comparison figures
+    // arrive with their own query, so this waits for the figure rather than
+    // reading a row that is attached but not yet complete. A figure that never
+    // renders still fails here.
+    const RATING = /(\d\.\d)\s*★/
+    const extractRating = async (row: Locator) => {
+      await expect(row).toContainText(RATING)
       const text = (await row.innerText()) ?? ''
-      const match = text.match(REVIEW_COUNT)
+      const match = text.match(RATING)
       if (!match) {
-        throw new Error(`Expected review count in row text: ${text}`)
+        throw new Error(`Expected a rating in row text: ${text}`)
       }
-      return Number.parseInt(match[1]!, 10)
+      return Number.parseFloat(match[1]!)
     }
 
-    const p1ReviewCount = await extractReviewCount(p1Row)
-    const p2ReviewCount = await extractReviewCount(p2Row)
-    expect(p1ReviewCount).toBeGreaterThan(p2ReviewCount)
-    expect(p1ReviewCount).toBeGreaterThan(10)
-    expect(p2ReviewCount).toBeGreaterThan(0)
+    const p1Rating = await extractRating(p1Row)
+    const p2Rating = await extractRating(p2Row)
+    expect(p1Rating).toBeGreaterThan(0)
+    expect(p2Rating).toBeGreaterThan(0)
 
     await expect(page.getByText('E2E Bounded Property 1', { exact: true })).toBeVisible()
     await expect(page.getByText('E2E Locked Hotel P3', { exact: true })).toHaveCount(0)
@@ -1172,9 +1172,8 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       page.getByText('Last 30 days against the 30 before · rating is all-time.'),
     ).toBeVisible()
     await page.goBack()
-    const p1ReviewCountAfterReturn = await extractReviewCount(p1Row)
-    expect(p1ReviewCountAfterReturn).toBe(p1ReviewCount)
-    await expect(p1Row).toContainText(`${p1ReviewCount} reviews`)
+    await expect(page).toHaveURL(/\/properties$/)
+    expect(await extractRating(p1Row)).toBe(p1Rating)
 
     const oneContext = await browser.newContext({ baseURL: BASE_ORIGIN })
     const onePage = await oneContext.newPage()
@@ -1185,23 +1184,15 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       BASE_ORIGIN,
     )
     await onePage.goto('/dashboard')
-    // The one-property state has TWO legitimate renderings, chosen by whether
-    // the setup checklist is complete: a redirect straight into the property,
-    // or that property's setup landing. Both are "this manager sees exactly
-    // their one property" — and the checklist depends on Google-binding state
-    // that other journeys legitimately move, so pinning one branch made this
-    // assert the suite's execution order rather than the dashboard.
-    await expect(async () => {
-      const url = onePage.url()
-      if (new RegExp(`/properties/${seed.p1PropertyId}$`).test(url)) {
-        return
-      }
-      expect(url).toContain('/dashboard')
-      await expect(onePage.getByRole('link', { name: 'Manage portals' })).toHaveAttribute(
-        'href',
-        new RegExp(`/properties/${seed.p1PropertyId}`),
-      )
-    }).toPass({ timeout: 15_000 })
+    // The one-property state had TWO legitimate renderings on the fleet page —
+    // a redirect into the property, or that property's setup landing, chosen by
+    // whether the checklist was complete — so this test used to assert the
+    // suite's execution order. One list renders every case now, checklist or
+    // not, and the banner carries the next step.
+    await expect(onePage).toHaveURL(/\/properties$/)
+    await expect(
+      onePage.getByRole('link').filter({ hasText: 'E2E Beta Hotel P1' }),
+    ).toHaveAttribute('href', new RegExp(`/properties/${seed.p1PropertyId}$`))
     await expect(onePage.getByText('E2E Beta Hotel P2', { exact: true })).toHaveCount(0)
     await oneContext.close()
 

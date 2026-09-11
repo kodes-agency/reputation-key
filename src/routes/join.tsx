@@ -13,7 +13,7 @@ export const Route = createFileRoute('/join')({
   beforeLoad: async () => {
     const session = await getSession()
     if (session) {
-      throw redirect({ to: '/dashboard' })
+      throw redirect({ to: '/properties' })
     }
   },
   component: JoinPage,

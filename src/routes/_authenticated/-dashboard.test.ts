@@ -1,111 +1,34 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { Route } from './dashboard'
 
-const PROPERTY_ID = '10000000-0000-4000-8000-000000000001'
-const COMPLETE_CHECKLIST = { state: 'complete' }
-
-function ensureRouteData(properties: readonly { id: string; name: string }[]) {
-  return vi.fn(async (options: { queryKey?: readonly unknown[] }) =>
-    options.queryKey?.includes('setup-checklist') ? COMPLETE_CHECKLIST : { properties },
-  )
-}
-
-const dashboardLoader = () => {
-  const loader = Route.options.loader
-  if (typeof loader !== 'function') {
-    throw new Error('Dashboard route must define a loader function')
-  }
-  return loader
-}
-
-describe('Dashboard route access', () => {
-  it('sends a role without fleet access to the unavailable page', async () => {
+/**
+ * The fleet page is gone (docs/plan/dashboard-redesign.md row 3). What was
+ * tested here — the 0 / 1 / 2+ property branch, the single-property redirect,
+ * and priming fleet data only for multi-property organizations — went with it:
+ * `/properties` renders every one of those cases as one list, and its own
+ * figures are failure-isolated `useQuery` enrichments rather than loader work
+ * with a branch to get wrong.
+ *
+ * What is still worth pinning is that the path a manager has bookmarked, and
+ * that every capability denial used to fall back to, still lands somewhere.
+ */
+describe('Dashboard path', () => {
+  it('redirects to the properties list', async () => {
     const beforeLoad = Route.options.beforeLoad
-    if (!beforeLoad) throw new Error('Dashboard route must define beforeLoad')
+    if (!beforeLoad) throw new Error('The dashboard route must define beforeLoad')
 
     await expect(
-      Promise.resolve().then(() => beforeLoad({ context: { role: 'Member' } } as never)),
+      Promise.resolve().then(() => beforeLoad({} as never)),
     ).rejects.toMatchObject({
-      options: {
-        to: '/unavailable',
-        search: { feature: 'Dashboard' },
-      },
+      options: { to: '/properties', replace: true },
     })
   })
-})
 
-describe('Dashboard route loader', () => {
-  it('redirects a single-property organization before rendering', async () => {
-    const ensureInfiniteQueryData = vi.fn()
-
-    await expect(
-      dashboardLoader()({
-        context: {
-          queryClient: {
-            ensureQueryData: ensureRouteData([{ id: PROPERTY_ID, name: 'Meridian' }]),
-            ensureInfiniteQueryData,
-          },
-        },
-        deps: { timeRange: '30d' },
-      } as never),
-    ).rejects.toMatchObject({
-      options: {
-        to: '/properties/$propertyId',
-        params: { propertyId: PROPERTY_ID },
-      },
-    })
-    expect(ensureInfiniteQueryData).not.toHaveBeenCalled()
-  })
-
-  it('primes fleet data only for multi-property organizations', async () => {
-    const ensureInfiniteQueryData = vi.fn().mockResolvedValue(undefined)
-
-    await dashboardLoader()({
-      context: {
-        queryClient: {
-          ensureQueryData: ensureRouteData([
-            { id: PROPERTY_ID, name: 'Meridian' },
-            { id: '10000000-0000-4000-8000-000000000002', name: 'Harbor' },
-          ]),
-          ensureInfiniteQueryData,
-        },
-      },
-      deps: { timeRange: '30d' },
-    } as never)
-
-    expect(ensureInfiniteQueryData).toHaveBeenCalledOnce()
-  })
-
-  it('does not fetch fleet data for an empty organization', async () => {
-    const ensureInfiniteQueryData = vi.fn()
-
-    await dashboardLoader()({
-      context: {
-        queryClient: {
-          ensureQueryData: ensureRouteData([]),
-          ensureInfiniteQueryData,
-        },
-      },
-      deps: { timeRange: '30d' },
-    } as never)
-
-    expect(ensureInfiniteQueryData).not.toHaveBeenCalled()
-  })
-
-  it('keeps an incomplete single-property setup resumable on the Dashboard', async () => {
-    const ensureInfiniteQueryData = vi.fn()
-    const ensureQueryData = vi.fn(async (options: { queryKey?: readonly unknown[] }) =>
-      options.queryKey?.includes('setup-checklist')
-        ? { state: 'in_progress' }
-        : { properties: [{ id: PROPERTY_ID, name: 'Meridian' }] },
-    )
-
-    await expect(
-      dashboardLoader()({
-        context: { queryClient: { ensureQueryData, ensureInfiniteQueryData } },
-        deps: { timeRange: '30d' },
-      } as never),
-    ).resolves.toBeUndefined()
-    expect(ensureInfiniteQueryData).not.toHaveBeenCalled()
+  it('carries no loader, no search, and no capability gate of its own', () => {
+    // A redirect that gated on `dashboard.fleet_read` would bounce a manager to
+    // /unavailable on their way to a list they are allowed to read; the
+    // destination applies its own gate.
+    expect(Route.options.loader).toBeUndefined()
+    expect(Route.options.validateSearch).toBeUndefined()
   })
 })

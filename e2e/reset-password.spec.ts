@@ -122,6 +122,9 @@ test.describe('Password Reset', () => {
     await page.getByLabel('Email').fill(testEmail)
     await page.getByLabel('Password').fill(newPassword)
     await clickWhenReady(page.getByRole('button', { name: /^sign in$/i }))
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 })
+    // Sign-in lands on the properties list; `/dashboard` was deleted
+    // (docs/plan/dashboard-redesign.md row 3). What this proves is unchanged:
+    // the new password gets the user all the way into the app.
+    await expect(page).toHaveURL(/\/properties/, { timeout: 20_000 })
   })
 })

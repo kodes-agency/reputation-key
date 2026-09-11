@@ -20,7 +20,7 @@ type UnavailableSearch = z.infer<typeof unavailableSearch>
 type UnavailableLink =
   | Readonly<{
       label: string
-      to: '/accept-invitation' | '/dashboard'
+      to: '/accept-invitation' | '/properties'
     }>
   | Readonly<{
       label: string
@@ -64,7 +64,7 @@ export function unavailablePageContent({
             to: '/properties/$propertyId/settings',
             params: { propertyId },
           }
-        : { label: 'Back to dashboard', to: '/dashboard' }
+        : { label: 'Back to properties', to: '/properties' }
 
     return {
       title: copy.title(feature ?? 'This feature'),
@@ -82,7 +82,7 @@ export function unavailablePageContent({
       ? `${feature} is not part of the current beta experience.`
       : 'This part of the product is disabled for the internal beta.',
     guidance: null,
-    link: { label: 'Back to dashboard', to: '/dashboard' },
+    link: { label: 'Back to properties', to: '/properties' },
   }
 }
 

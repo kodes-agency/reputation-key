@@ -49,7 +49,7 @@ test.describe('Critical a11y: axe page scans', () => {
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 
-  test('fleet dashboard (/dashboard, 2 properties) is axe-clean', async ({ page }) => {
+  test('properties list (/dashboard, 2 properties) is axe-clean', async ({ page }) => {
     // The fleet view only renders with 2+ properties (1 → deep-dive redirect).
     // Grant the seeded manager access explicitly: these tests assert on fleet
     // CONTENT, and property_access_grant is the sole scope source. Without the
@@ -62,12 +62,14 @@ test.describe('Critical a11y: axe page scans', () => {
       grantAccessToUserId: seed.managerUserId,
     })
     await signIn(page)
-    await page.goto('/dashboard')
-    await expect(page.getByText('Needs attention')).toBeVisible({ timeout: 15_000 })
-    await assertNoAxeViolations(page, 'fleet dashboard (/dashboard)')
+    await page.goto('/properties')
+    await expect(page.getByRole('heading', { name: 'Properties', level: 1 })).toBeVisible(
+      { timeout: 15_000 },
+    )
+    await assertNoAxeViolations(page, 'properties list (/properties)')
   })
 
-  test('fleet dashboard in LIGHT theme is axe-clean', async ({ page }) => {
+  test('properties list in LIGHT theme is axe-clean', async ({ page }) => {
     await seedProperty({
       organizationId: seed.organizationId,
       name: 'A11y Fleet Annex',
@@ -80,15 +82,17 @@ test.describe('Critical a11y: axe page scans', () => {
       window.localStorage.setItem('theme', 'light')
     })
     await signIn(page)
-    await page.goto('/dashboard')
-    await expect(page.getByText('Needs attention')).toBeVisible({ timeout: 15_000 })
+    await page.goto('/properties')
+    await expect(page.getByRole('heading', { name: 'Properties', level: 1 })).toBeVisible(
+      { timeout: 15_000 },
+    )
     // Light theme actually applied (not .dark).
     const themeState = await page.evaluate(() => ({
       isDark: document.documentElement.classList.contains('dark'),
       colorScheme: document.documentElement.style.colorScheme,
     }))
     expect(themeState).toEqual({ isDark: false, colorScheme: 'light' })
-    await assertNoAxeViolations(page, 'fleet dashboard (/dashboard, light theme)')
+    await assertNoAxeViolations(page, 'properties list (/dashboard, light theme)')
   })
 
   test('property deep-dive (/properties/$id) is axe-clean', async ({ page }) => {
@@ -494,7 +498,7 @@ test.describe('Critical a11y: zoom reflow', () => {
     expect(reflow.scrollWidth).toBeLessThanOrEqual(reflow.clientWidth + 8)
   })
 
-  test('fleet dashboard reflows at the 400%-zoom-equivalent 320px viewport', async ({
+  test('properties list reflows at the 400%-zoom-equivalent 320px viewport', async ({
     page,
   }) => {
     await seedProperty({
@@ -513,8 +517,8 @@ test.describe('Critical a11y: zoom reflow', () => {
     // 320px viewport. The style.zoom mechanism is exercised on /inbox above.
     await page.setViewportSize({ width: 320, height: 900 })
     await signIn(page)
-    await page.goto('/dashboard')
-    const heading = page.getByText('Needs attention')
+    await page.goto('/properties')
+    const heading = page.getByRole('heading', { name: 'Properties', level: 1 })
     await expect(heading).toBeVisible({ timeout: 15_000 })
 
     const report = await page.evaluate(() => {

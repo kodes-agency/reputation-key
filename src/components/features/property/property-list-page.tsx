@@ -1,4 +1,15 @@
-// Property list page — extracted from route for testability and separation of concerns
+// Properties — the one place "all my properties" lives (redesign row 3).
+//
+// `/dashboard` used to be a second multi-property page: the same list again,
+// with a 13-row × 3-badge provenance table, an org setup checklist pinned above
+// the fold on every visit, and a time-range picker rendered outside the page
+// shell. It was not in the sidebar, reachable only by redirect or URL.
+//
+// This page absorbs what was worth keeping — the comparison figures and the
+// checklist while it is incomplete — and nothing else. The figures are an
+// enrichment, not the spine: the list is a management surface (it shows removed
+// properties, and it must render for a manager whose fleet read is denied or
+// slow), so a row without metrics is a normal row, not a broken one.
 import { Link } from '@tanstack/react-router'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
@@ -6,7 +17,10 @@ import { Badge } from '#/components/ui/badge'
 import { Plus, ChevronRight } from 'lucide-react'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import { partitionWorkspaceProperties } from './property-workspace'
+import { SetupChecklistBanner } from '#/components/features/dashboard/setup-checklist-banner'
+import type { SetupChecklist } from '#/contexts/reporting/application/public-api'
 
 interface Property {
   id: string
@@ -16,20 +30,80 @@ interface Property {
   lifecycleState: string
 }
 
+/**
+ * What the fleet read adds to a row. Identity and pulse, as on Overview: the
+ * rating a manager recognises is all-time, the review count worth comparing is
+ * recent (row 5).
+ */
+export type PropertyComparison = Readonly<{
+  /** All-time, so the figure matches the Google profile and the Overview tile. */
+  avgRating: number | null
+  /** Reviews in the last 30 days. */
+  recentReviewCount: number
+  /** Distinct attention work, never the sum of overlapping signal counts. */
+  totalAttention: number
+}>
+
 export interface PropertyListPageProps {
   properties: ReadonlyArray<Property>
+  /** Keyed by property id. Absent keys render without figures, by design. */
+  comparison?: ReadonlyMap<string, PropertyComparison>
+  /** Omitted, or complete, renders no banner. */
+  checklist?: SetupChecklist
+}
+
+function ComparisonFigures({
+  comparison,
+}: Readonly<{ comparison: PropertyComparison | undefined }>) {
+  if (!comparison) return null
+
+  return (
+    <dl className="flex shrink-0 items-center gap-4 text-sm sm:gap-6">
+      <div className="text-right">
+        <dt className="text-xs text-muted-foreground">Rating</dt>
+        <dd className="font-semibold tabular-nums">
+          {comparison.avgRating === null ? (
+            <span className="text-sm font-normal text-muted-foreground">No ratings</span>
+          ) : (
+            `${comparison.avgRating.toFixed(1)} ★`
+          )}
+        </dd>
+      </div>
+      <div className="hidden text-right sm:block">
+        <dt className="text-xs text-muted-foreground">Reviews, 30 days</dt>
+        <dd className="font-semibold tabular-nums">{comparison.recentReviewCount}</dd>
+      </div>
+      <div className="text-right">
+        <dt className="text-xs text-muted-foreground">Needs attention</dt>
+        <dd
+          className={
+            comparison.totalAttention > 0
+              ? 'font-semibold tabular-nums text-destructive'
+              : 'font-semibold tabular-nums'
+          }
+        >
+          {comparison.totalAttention}
+        </dd>
+      </div>
+    </dl>
+  )
 }
 
 function PropertyRow({
   property,
   removed,
-}: Readonly<{ property: Property; removed: boolean }>) {
+  comparison,
+}: Readonly<{
+  property: Property
+  removed: boolean
+  comparison: PropertyComparison | undefined
+}>) {
   return (
     <div className="flex items-stretch overflow-hidden rounded-lg border">
       <Link
         to="/properties/$propertyId"
         params={{ propertyId: property.id }}
-        className="flex min-w-0 flex-1 items-center justify-between p-4 outline-none transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="flex min-w-0 flex-1 items-center justify-between gap-4 p-4 outline-none transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
       >
         <div className="flex min-w-0 flex-col gap-1">
           <p className="truncate font-semibold">{property.name}</p>
@@ -41,21 +115,27 @@ function PropertyRow({
             </span>
           </div>
         </div>
-        <ChevronRight className="ml-3 size-4 shrink-0 text-muted-foreground" />
+        {removed ? null : <ComparisonFigures comparison={comparison} />}
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
       </Link>
     </div>
   )
 }
 
-export function PropertyListPage({ properties }: PropertyListPageProps) {
+export function PropertyListPage({
+  properties,
+  comparison,
+  checklist,
+}: PropertyListPageProps) {
   const { can } = usePermissions()
   const { workspace, removed } = partitionWorkspaceProperties(properties)
+  const anyFigures = comparison !== undefined && comparison.size > 0
 
   return (
-    <PageShell>
+    <PageShell tier="dashboard">
       <PageHeader
         title="Properties"
-        description="Manage your organization's properties and locations."
+        description="Every property you manage, side by side."
         breadcrumbs={[{ label: 'Properties' }]}
         actions={
           can('property.import_gbp_v2') ? (
@@ -68,6 +148,8 @@ export function PropertyListPage({ properties }: PropertyListPageProps) {
           ) : undefined
         }
       />
+
+      {checklist === undefined ? null : <SetupChecklistBanner checklist={checklist} />}
 
       {workspace.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
@@ -83,10 +165,23 @@ export function PropertyListPage({ properties }: PropertyListPageProps) {
       ) : (
         <div className="flex flex-col gap-2">
           {workspace.map((property) => (
-            <PropertyRow key={property.id} property={property} removed={false} />
+            <PropertyRow
+              key={property.id}
+              property={property}
+              removed={false}
+              comparison={comparison?.get(property.id)}
+            />
           ))}
         </div>
       )}
+
+      {anyFigures ? (
+        <p className="text-sm text-muted-foreground">
+          Ratings are all-time. Reviews cover the last 30 days.{' '}
+          <GlossaryTerm term="needs-attention">Needs attention</GlossaryTerm> counts work
+          waiting on you.
+        </p>
+      ) : null}
 
       {removed.length > 0 ? (
         <details className="mt-8 rounded-lg border border-dashed">
@@ -95,7 +190,12 @@ export function PropertyListPage({ properties }: PropertyListPageProps) {
           </summary>
           <div className="flex flex-col gap-2 border-t p-4">
             {removed.map((property) => (
-              <PropertyRow key={property.id} property={property} removed />
+              <PropertyRow
+                key={property.id}
+                property={property}
+                removed
+                comparison={undefined}
+              />
             ))}
           </div>
         </details>

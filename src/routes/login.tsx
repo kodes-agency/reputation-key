@@ -26,7 +26,7 @@ export const Route = createFileRoute('/login')({
   beforeLoad: async () => {
     const session = await getSession()
     if (session) {
-      throw redirect({ to: '/dashboard' })
+      throw redirect({ to: '/properties' })
     }
   },
   component: LoginPage,
@@ -46,7 +46,7 @@ function LoginPage() {
       if (search.redirect) {
         router.history.push(search.redirect)
       } else {
-        await navigate({ to: '/dashboard' })
+        await navigate({ to: '/properties' })
       }
     })
   })
