@@ -247,7 +247,12 @@ function RefreshFailurePerformanceSection(
   const serverFns = useMemo(() => {
     const getPerformance = (async (input: {
       data: { preset: PropertyPerformancePreset }
+      signal?: AbortSignal
     }) => {
+      // StrictMode aborts the mount fetch and issues a fresh one; only calls
+      // that survive to completion count, exactly like a real request.
+      await Promise.resolve()
+      if (input.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
       calls.current += 1
       if (calls.current === 1) {
         return {

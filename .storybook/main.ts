@@ -44,7 +44,11 @@ const config: StorybookConfig = {
   addons: ['@storybook/addon-a11y', '@storybook/addon-docs', '@storybook/addon-vitest'],
   framework: {
     name: '@storybook/react-vite',
-    options: {},
+    // The app mounts under <StrictMode> (src/client.tsx). Stories must too:
+    // StrictMode's mount → cleanup → mount pass is where an effect cleanup
+    // that removes a live query strands the observer, and that only shows on
+    // a client-side navigation, which no story or e2e path exercised.
+    options: { strictMode: true },
   },
   // Belt-and-suspenders for storybook#33747: strip any TanStack/Nitro/devtools
   // plugin that slipped past the `isStorybook` gate in vite.config.ts.
