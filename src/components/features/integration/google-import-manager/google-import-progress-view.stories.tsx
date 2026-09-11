@@ -1,11 +1,16 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
+import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 import type {
   ImportProgressDto,
   ImportProgressItemDto,
 } from '#/contexts/integration/application/public-api'
+import { consentToAi } from '#/components/features/settings/merchant-ai-consent.stories.play'
+import { aiEnabled, createAiFnsFixture } from './google-import-ai.stories.fixtures'
 import { GoogleImportProgressView } from './google-import-progress-view'
+
+const aiFns = createAiFnsFixture()
 
 const items: readonly ImportProgressItemDto[] = [
   {
@@ -18,6 +23,7 @@ const items: readonly ImportProgressItemDto[] = [
     retryable: false,
     retryRevision: 0,
     userAction: 'none',
+    propertyId: '10000000-0000-4000-8000-000000000011',
   },
   {
     itemId: '10000000-0000-4000-8000-000000000020',
@@ -29,6 +35,7 @@ const items: readonly ImportProgressItemDto[] = [
     retryable: true,
     retryRevision: 2,
     userAction: 'retry',
+    propertyId: null,
   },
 ]
 
@@ -55,12 +62,19 @@ const processing: ImportProgressDto = {
   updatedAt: '2026-08-12T10:00:00.000Z',
 }
 
-function ProgressHarness({ snapshot = processing }: { snapshot?: ImportProgressDto }) {
+function ProgressHarness({
+  snapshot = processing,
+  ai = aiFns,
+}: {
+  snapshot?: ImportProgressDto
+  ai?: ReturnType<typeof createAiFnsFixture>
+}) {
   const [retried, setRetried] = useState(false)
   return (
     <>
       <GoogleImportProgressView
         progress={snapshot}
+        aiFns={ai}
         isPollingError={false}
         isRefreshing={false}
         isCancelling={false}
@@ -78,9 +92,145 @@ const meta: Meta<typeof GoogleImportProgressView> = {
   title: 'Integration/GoogleImport/ProgressView',
   component: GoogleImportProgressView,
   parameters: { layout: 'padded' },
+  decorators: [AuthedRouterDecorator],
+  args: { aiFns },
 }
 export default meta
 type Story = StoryObj<typeof GoogleImportProgressView>
+
+/** A freshly committed import: nothing processed, but visibly alive. */
+export const Queued: Story = {
+  render: () => (
+    <ProgressHarness
+      snapshot={{
+        ...processing,
+        status: 'queued',
+        processedCount: 0,
+        counts: { ...processing.counts, pending: 4, imported: 0, failed: 0 },
+        items: processing.items.map((item) => ({
+          ...item,
+          status: 'pending' as const,
+          outcomeCode: null,
+          messageKey: 'property_import.pending' as const,
+          retryable: false,
+          userAction: 'none' as const,
+          propertyId: null,
+        })),
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const bar = canvas.getByRole('progressbar')
+    await expect(bar).not.toHaveAttribute('aria-valuenow')
+    await expect(bar).toHaveAttribute('aria-valuetext', expect.stringMatching(/queued/i))
+    await expect(canvas.getByText(/import worker picks this up/i)).toBeVisible()
+    await expect(canvas.queryByText(/0% complete/)).not.toBeInTheDocument()
+  },
+}
+
+/**
+ * The AI-analysis step: the imported property gets the same consent card as
+ * Settings, enabling it records the decision and hands over to insights.
+ */
+export const ImportedWithAiOnboarding: Story = {
+  render: () => {
+    const ai = createAiFnsFixture()
+    return (
+      <ProgressHarness
+        ai={ai}
+        snapshot={{
+          ...processing,
+          status: 'completed_with_issues',
+          processedCount: 4,
+          pollAfterMs: null,
+          counts: { ...processing.counts, pending: 0, imported: 3 },
+        }}
+      />
+    )
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const steps = within(canvas.getByRole('navigation', { name: /import steps/i }))
+    await expect(steps.getByText('AI analysis')).toHaveAttribute('aria-current', 'page')
+    const propertyLinks = canvas.getAllByRole('link', {
+      name: /view property the meridian grand resort/i,
+    })
+    await expect(propertyLinks.some((link) => link.checkVisibility())).toBe(true)
+
+    await consentToAi(canvasElement)
+
+    await expect(
+      canvas.findByText(/ai analysis is on for the meridian grand resort/i),
+    ).resolves.toBeVisible()
+    await expect(canvas.getByRole('link', { name: /view insights/i })).toBeVisible()
+    await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
+  },
+}
+
+/** Declining keeps the property exactly as an import without this step would. */
+export const AiOnboardingSkipped: Story = {
+  render: () => (
+    <ProgressHarness
+      ai={createAiFnsFixture()}
+      snapshot={{
+        ...processing,
+        status: 'completed',
+        processedCount: 4,
+        pollAfterMs: null,
+        counts: { ...processing.counts, pending: 0, imported: 4, failed: 0 },
+        items: [processing.items[0]!],
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      await canvas.findByRole('button', {
+        name: /not now for the meridian grand resort/i,
+      }),
+    )
+    await expect(canvas.getByText(/ai analysis stays off/i)).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: /reconsider/i }))
+    await expect(
+      canvas.findByLabelText(/confirm with your password/i),
+    ).resolves.toBeVisible()
+  },
+}
+
+/** A property that already consented shows the hand-off, not a second card. */
+export const AiAlreadyEnabled: Story = {
+  render: () => (
+    <ProgressHarness
+      ai={createAiFnsFixture(aiEnabled)}
+      snapshot={{
+        ...processing,
+        status: 'completed',
+        processedCount: 1,
+        totalCount: 1,
+        pollAfterMs: null,
+        counts: { ...processing.counts, pending: 0, imported: 0, relinked: 1, failed: 0 },
+        items: [
+          {
+            ...processing.items[0]!,
+            action: 'relink',
+            status: 'relinked',
+            outcomeCode: 'relinked',
+            messageKey: 'property_import.relinked',
+          },
+        ],
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.findByText(/ai analysis is on for/i)).resolves.toBeVisible()
+    await expect(
+      canvas.queryByLabelText(/confirm with your password/i),
+    ).not.toBeInTheDocument()
+    await waitFor(() => expect(aiFns.enableMerchantAi).not.toHaveBeenCalled())
+  },
+}
 
 export const Processing: Story = {
   render: () => <ProgressHarness />,

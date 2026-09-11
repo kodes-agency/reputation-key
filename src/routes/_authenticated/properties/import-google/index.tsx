@@ -4,7 +4,7 @@ import { z } from 'zod/v4'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { integrationKeys } from '#/shared/queries/query-keys'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
-import { importFns } from './-import-fns'
+import { importAiFns, importFns } from './-import-fns'
 import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
@@ -85,6 +85,7 @@ function ImportPage() {
         initialRequestId={search.requestId}
         initialError={search.error}
         importFns={importFns}
+        aiFns={importAiFns}
       />
     </PageShell>
   )

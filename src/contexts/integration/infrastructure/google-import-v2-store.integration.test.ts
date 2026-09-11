@@ -642,6 +642,75 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     })
   })
 
+  it('keeps the produced Property on an imported item until its own deletion sweep', async () => {
+    await resetIntent()
+
+    await expect(
+      store.reconcileFromReceipt({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        destinationPropertyId: PROPERTY_ID,
+        outcomeCode: 'imported',
+        now: NOW,
+      }),
+    ).resolves.toBe('completed')
+
+    // Provider identifiers and fences are gone; the Property reference stays
+    // and the progress read hands it to the merchant.
+    const [imported] = await db
+      .select()
+      .from(gbpImportRequestItems)
+      .where(eq(gbpImportRequestItems.id, ITEM_ID))
+    expect(imported).toMatchObject({
+      status: 'imported',
+      destinationPropertyId: PROPERTY_ID,
+      connectionId: null,
+      providerAccountSuffix: null,
+      providerLocationSuffix: null,
+      expectedCredentialGeneration: null,
+    })
+    const progress = await store.getProgress(ORG_ID, USER_ID, REQUEST_ID)
+    expect(progress?.items[0]).toMatchObject({
+      status: 'imported',
+      propertyId: PROPERTY_ID,
+    })
+
+    // A connection or user sweep holds no authority over a plain reference.
+    for (const scope of [
+      {
+        kind: 'connection' as const,
+        organizationId: ORG_ID,
+        connectionId: CONNECTION_ID,
+      },
+      { kind: 'user' as const, organizationId: ORG_ID, userId: USER_ID },
+    ]) {
+      await expect(store.listLifecycleScopeItems(scope, 100)).resolves.toEqual([])
+      await expect(store.countLifecycleScopeItems(scope, 100)).resolves.toBe(0)
+    }
+
+    // Deleting the Property must still find and clear the reference.
+    const propertyScope = {
+      kind: 'property' as const,
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+    }
+    await expect(store.listLifecycleScopeItems(propertyScope, 100)).resolves.toEqual([
+      {
+        organizationId: ORG_ID,
+        importJobId: REQUEST_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        active: false,
+      },
+    ])
+    await expect(
+      store.scrubLifecycleItems({ organizationId: ORG_ID, itemIds: [ITEM_ID], now: NOW }),
+    ).resolves.toBe(1)
+    await expect(store.listLifecycleScopeItems(propertyScope, 100)).resolves.toEqual([])
+    const afterSweep = await store.getProgress(ORG_ID, USER_ID, REQUEST_ID)
+    expect(afterSweep?.items[0]).toMatchObject({ status: 'imported', propertyId: null })
+  })
+
   it('sweeps expired items and atomically releases retention before parent cascade', async () => {
     await resetIntent()
     const effectDeadline = intent().items[0]!.effectDeadlineAt

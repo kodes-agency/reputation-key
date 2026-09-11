@@ -47,10 +47,11 @@
         "invitations",
         "userInvitations",
         "organizationInvitations",
-        "outstandingResponsibilities"
+        "outstandingResponsibilities",
+        "merchantAiAuthorization"
       ],
       "owner": "Identity query lifecycle",
-      "policy": "Active-organization reads live under the identity root. Login, sign-out, and successful invitation acceptance clear the complete QueryClient at the confirmed session/tenant transition, so no unscoped identity or sibling context cache crosses tenants. Personal and organization invitation response shapes are disjoint siblings below the invitation prefix. The departing member's outstanding-responsibility worklist is a separate leaf under the same root: it describes the caller's current standing rather than the directory, is read at staleTime 0, and is invalidated by leave mutations alone."
+      "policy": "Active-organization reads live under the identity root. Login, sign-out, and successful invitation acceptance clear the complete QueryClient at the confirmed session/tenant transition, so no unscoped identity or sibling context cache crosses tenants. Personal and organization invitation response shapes are disjoint siblings below the invitation prefix. The departing member's outstanding-responsibility worklist is a separate leaf under the same root: it describes the caller's current standing rather than the directory, is read at staleTime 0, and is invalidated by leave mutations alone. The per-property merchant AI consent snapshot is another leaf, keyed by the globally unique propertyId: the import flow's AI-analysis step reads it, a successful enable replaces it locally from the command result, and the AI settings route reads the same snapshot through its loader rather than through this key."
     },
     {
       "id": "propertyKeys",

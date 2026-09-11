@@ -689,6 +689,7 @@ describe('Google import transaction', () => {
           retryable: true,
           retryRevision: 0,
           userAction: 'retry',
+          propertyId: null,
         },
       ],
       canRetry: true,

@@ -23,6 +23,7 @@ export function GoogleImportManager({
   initialRequestId,
   initialError,
   importFns,
+  aiFns,
 }: GoogleImportManagerProps) {
   const navigate = useNavigate()
   const mounted = useRef(true)
@@ -81,13 +82,15 @@ export function GoogleImportManager({
     },
     [importFns],
   )
+  // Provider content is cleared by the discovery hook's unmount cleanup when
+  // the route changes; clearing it here first reset the step to discovery and
+  // flashed the empty discovery panel between the click and the progress view.
   const openProgress = useCallback(
     async (importJobId: string) => {
-      await discovery.lifecycle.clear('route_left')
       await loadProgress(importJobId)
       if (mounted.current) setStartError(null)
     },
-    [discovery.lifecycle, loadProgress],
+    [loadProgress],
   )
   useEffect(() => {
     if (
@@ -175,6 +178,7 @@ export function GoogleImportManager({
     return (
       <GoogleImportProgressView
         progress={progress.progress}
+        aiFns={aiFns}
         isPollingError={progress.pollingError}
         isRefreshing={progress.isRefreshing}
         retryingItemId={progress.retryingItemId}

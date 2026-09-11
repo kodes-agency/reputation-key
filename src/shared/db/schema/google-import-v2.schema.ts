@@ -288,6 +288,12 @@ export const gbpImportRequestItems = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('no action'),
+    // `destination_property_id` is the Property an `imported`/`relinked` item
+    // produced. Unlike the provider identifiers and authorization fences, which
+    // terminal writes scrub, it is an internal reference the import flow needs
+    // to hand the merchant straight to the Property (dashboard, AI onboarding).
+    // No FK: a `create` item names its destination before the Property exists.
+    // Property deletion clears it through the property-scoped lifecycle sweep.
     index('gbp_import_request_items_parent_status_idx').on(
       t.organizationId,
       t.importJobId,
@@ -315,7 +321,7 @@ export const gbpImportRequestItems = pgTable(
           ${t.status} NOT IN ('pending', 'processing')
           AND ${t.outcomeCode} <> 'temporarily_unavailable'
           AND ${t.existingPropertyId} IS NULL
-          AND ${t.destinationPropertyId} IS NULL
+          AND (${t.status} IN ('imported', 'relinked') OR ${t.destinationPropertyId} IS NULL)
           AND ${t.expectedSourceEpoch} IS NULL
           AND ${t.expectedProfileVersion} IS NULL
         )

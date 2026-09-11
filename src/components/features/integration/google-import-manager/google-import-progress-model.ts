@@ -98,3 +98,20 @@ export function importProgressSummary(
     remaining: counts.pending + counts.processing,
   }
 }
+
+export type ImportedPropertyForAi = Readonly<{ propertyId: string; propertyName: string }>
+
+/**
+ * The Properties this import produced, in item order: the AI-analysis step
+ * offers one consent card each. An item whose Property was deleted since (its
+ * reference swept) is not offered.
+ */
+export function importedPropertiesForAi(
+  progress: ImportProgressDto,
+): readonly ImportedPropertyForAi[] {
+  return progress.items.flatMap((item) =>
+    item.propertyId === null
+      ? []
+      : [{ propertyId: item.propertyId, propertyName: item.propertyName }],
+  )
+}
