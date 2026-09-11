@@ -56,10 +56,10 @@ const removedProperty = {
 }
 
 const comparison: ReadonlyMap<string, PropertyComparison> = new Map([
-  ['prop-1', { avgRating: 4.3, recentReviewCount: 12, totalAttention: 7 }],
-  ['prop-2', { avgRating: 3.1, recentReviewCount: 2, totalAttention: 0 }],
+  ['prop-1', { avgRating: 4.3, reviewCount: 412, totalAttention: 7 }],
+  ['prop-2', { avgRating: 3.1, reviewCount: 26, totalAttention: 0 }],
   // No ratings yet: a week-one property in a fleet of established ones.
-  ['prop-3', { avgRating: null, recentReviewCount: 0, totalAttention: 0 }],
+  ['prop-3', { avgRating: null, reviewCount: 0, totalAttention: 0 }],
 ])
 
 const incompleteChecklist = {
@@ -134,9 +134,7 @@ export const WithComparisonFigures: Story = {
     expect(canvas.getByText('No ratings')).toBeVisible()
     expect(canvas.queryByText('—')).toBeNull()
     expect(
-      canvas.getByText('Ratings are all-time. Reviews cover the last 30 days.', {
-        exact: false,
-      }),
+      canvas.getByText('Ratings and review counts are all-time.', { exact: false }),
     ).toBeVisible()
     // No provenance badges: the fleet rows used to carry three per property,
     // with tooltips exposing definition ids and ISO watermarks (row 8).
@@ -151,7 +149,7 @@ export const FleetReadUnavailable: Story = {
     // The figures are an enrichment: without them this is still the list a
     // manager came for, not a broken page.
     expect(canvas.getByText('Harborline Suites')).toBeVisible()
-    expect(canvas.queryByText(/Ratings are all-time/)).toBeNull()
+    expect(canvas.queryByText(/Ratings and review counts/)).toBeNull()
   },
 }
 
