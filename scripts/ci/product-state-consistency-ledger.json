@@ -349,6 +349,12 @@
       "policy": "The lazy Date.now value is a client clock tick used only to render a retry countdown."
     },
     {
+      "id": "src/components/features/property/google-performance-report.tsx:useState(now)",
+      "classification": "local_runtime",
+      "owner": "Google performance freshness clock",
+      "policy": "The lazy Date initializer is a client clock tick used only to keep the visible retrieval age current; report data remains owned by the query result."
+    },
+    {
       "id": "src/components/features/staff/portal-responsibilities-modal.tsx:useState(supportingPortalIds)",
       "classification": "server_draft",
       "owner": "Staff portal-responsibility editor",

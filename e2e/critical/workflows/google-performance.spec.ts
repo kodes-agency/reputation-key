@@ -223,15 +223,23 @@ test.describe('Critical workflow: live Google Performance', () => {
     await expect(
       performanceRegion.getByText('390', { exact: true }).first(),
     ).toBeVisible()
+    // The log line is gone: `Current · Source: … · Retrieved … · Timezone … ·
+    // Period … · Google data lag … · Available until …` is one freshness mark
+    // now, with the rest behind its popover (redesign rows 7b, 8).
+    await expect(performanceRegion.getByText(/Updated/).first()).toBeVisible()
     await expect(
-      performanceRegion.getByText('Source: Google Business Profile', { exact: true }),
+      performanceRegion.getByText(/Google (data|checked) through/).first(),
     ).toBeVisible()
 
     await gbpStubControl.setPerformanceBehavior(LOCATION_NAME, {
       mode: 'status',
       status: 503,
     })
-    await performanceRegion.getByRole('button', { name: 'Refresh', exact: true }).click()
+    // Refresh is an icon button beside the freshness mark; its accessible name
+    // carries what the icon cannot say.
+    await performanceRegion
+      .getByRole('button', { name: 'Refresh from Google', exact: true })
+      .click()
     await expect(
       performanceRegion.getByText('Showing the last successful report'),
     ).toBeVisible()

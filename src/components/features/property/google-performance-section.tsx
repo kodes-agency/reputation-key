@@ -5,11 +5,21 @@ import type {
   PropertyGooglePerformanceResultV1,
   PropertyPerformancePreset,
 } from '#/shared/google-performance-report-contract'
+import type { DashboardRange } from '#/shared/dashboard-range'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '#/components/ui/tooltip'
 import { cn } from '#/lib/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { GooglePerformanceReport } from './google-performance-report'
+import {
+  GooglePerformanceReport,
+  GooglePerformanceSourceStatus,
+} from './google-performance-report'
 import {
   GooglePerformanceError,
   GooglePerformanceSkeleton,
@@ -34,6 +44,7 @@ type GooglePerformanceContentProps = Readonly<{
   report: PropertyGooglePerformanceReportV1 | null
   result: PropertyGooglePerformanceResultV1 | null
   errorResult: ErrorPerformanceResult | null
+  range: DashboardRange
   isPending: boolean
   isFetching: boolean
   authorizationLost: boolean
@@ -88,14 +99,6 @@ function GooglePerformanceUnavailable({
   )
 }
 
-/**
- * Refresh only. The range used to live here as a second picker on the same page
- * as the overview's own, with prose conceding that the two were unrelated:
- * "This range is independent from the Dashboard range above." The Google page
- * now owns one shared range in its header (redesign rows 6, 7b), so this
- * section keeps the one control that is genuinely its own — the lease refresh,
- * with its cooldown.
- */
 function GooglePerformanceRefresh({
   isFetching,
   retryAfterSeconds,
@@ -106,22 +109,41 @@ function GooglePerformanceRefresh({
   onRefresh: () => void
 }>) {
   const retryDisabled = retryAfterSeconds > 0 || isFetching
+  const stateLabel = isFetching
+    ? 'Refreshing'
+    : retryAfterSeconds > 0
+      ? `Retry in ${retryAfterSeconds}s`
+      : null
+  const accessibleLabel = stateLabel ?? 'Refresh from Google'
 
   return (
-    <Button
-      type="button"
-      className="h-11"
-      variant="outline"
-      disabled={retryDisabled}
-      onClick={onRefresh}
-    >
-      <RefreshCw data-icon="inline-start" aria-hidden="true" />
-      {isFetching
-        ? 'Refreshing'
-        : retryAfterSeconds > 0
-          ? `Retry in ${retryAfterSeconds}s`
-          : 'Refresh'}
-    </Button>
+    <div className="flex shrink-0 items-center gap-2">
+      {stateLabel ? (
+        <span aria-live="polite" className="text-sm text-muted-foreground">
+          {stateLabel}
+        </span>
+      ) : null}
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex">
+              <Button
+                type="button"
+                size="icon"
+                className="size-11"
+                variant="outline"
+                aria-label={accessibleLabel}
+                disabled={retryDisabled}
+                onClick={onRefresh}
+              >
+                <RefreshCw aria-hidden="true" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top">Refresh from Google</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
   )
 }
 
@@ -129,6 +151,7 @@ function GooglePerformanceContent({
   report,
   result,
   errorResult,
+  range,
   isPending,
   isFetching,
   authorizationLost,
@@ -157,23 +180,24 @@ function GooglePerformanceContent({
   if (!report) return null
 
   return (
-    <div className={cn('flex flex-col gap-4', isFetching && 'opacity-80')}>
-      <GooglePerformanceReport report={report} />
+    <div className={cn(isFetching && 'opacity-80')}>
+      <GooglePerformanceReport report={report} range={range} />
     </div>
   )
 }
 
 /**
- * The Google report, and the refresh that owns its lease. The page supplies the
- * range and the heading; this section contributes no header of its own, only
- * the one control that is genuinely its own.
+ * The page owns the range and heading. This section owns the leased report,
+ * its inline freshness details, and the refresh cooldown.
  */
 export function GooglePerformanceSection({
   propertyId,
+  range,
   preset,
   serverFns,
 }: Readonly<{
   propertyId: string
+  range: DashboardRange
   preset: PropertyPerformancePreset
   serverFns: GooglePerformanceServerFns
 }>) {
@@ -181,7 +205,15 @@ export function GooglePerformanceSection({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+      <div
+        className={cn(
+          'flex min-h-11 flex-wrap items-center gap-2',
+          performance.retainedReport ? 'justify-start' : 'justify-end',
+        )}
+      >
+        {performance.retainedReport ? (
+          <GooglePerformanceSourceStatus report={performance.retainedReport} />
+        ) : null}
         <GooglePerformanceRefresh
           isFetching={performance.isFetching}
           retryAfterSeconds={performance.retryAfterSeconds}
@@ -197,6 +229,7 @@ export function GooglePerformanceSection({
         report={performance.retainedReport}
         result={performance.result}
         errorResult={performance.errorResult}
+        range={range}
         isPending={performance.isPending}
         isFetching={performance.isFetching}
         authorizationLost={performance.authorizationLost}

@@ -38,7 +38,9 @@ const meta = {
   parameters: { layout: 'padded' },
   args: {
     title: 'How people found you',
-    description: 'Search and Maps profile impressions by device.',
+    description: 'Search and Maps profile views by device.',
+    valueLabel: 'profile views',
+    range: '30d',
     series,
   },
 } satisfies Meta<typeof GooglePerformanceChart>
@@ -48,12 +50,11 @@ type Story = StoryObj<typeof meta>
 
 export const WithDailyValues: Story = {
   play: async ({ canvas }) => {
-    await expect(
-      canvas.getByRole('figure', { name: 'How people found you' }),
-    ).toBeVisible()
+    await expect(canvas.getByRole('img', { name: 'How people found you' })).toBeVisible()
     await expect(
       canvas.getByRole('heading', { name: 'How people found you' }),
     ).toBeVisible()
+    await expect(canvas.getByText(/profile views across 4 days/)).toBeVisible()
     const disclosure = canvas.getByText('View daily values')
     await userEvent.click(disclosure)
     await expect(disclosure).toHaveFocus()
