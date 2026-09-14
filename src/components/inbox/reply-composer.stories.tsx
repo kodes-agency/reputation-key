@@ -1054,7 +1054,7 @@ export const SuggestionAwaitingAdoption: Story = {
 }
 
 /**
- * Past the 4096-character limit. The counter turns destructive, the field is
+ * Past the 4096-byte limit. The counter turns destructive, the field is
  * `aria-invalid`, and the one primary refuses. The cap that keeps the footer
  * reachable is on the textarea rather than the region (the region is `shrink-0`
  * inside an `overflow-hidden` column, so anything it cannot fit is clipped and

@@ -247,13 +247,91 @@ export const Saving: Story = {
   },
 }
 
-// Over the 4096-char limit → destructive counter + disabled actions (validation).
+// Over the 4096-byte limit → destructive counter + disabled actions (validation).
 export const OverLimit: Story = {
   args: { initialText: 'x'.repeat(5000) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/5000\/4096/)).toHaveClass('text-destructive')
     expect(canvas.getByRole('button', { name: /submit for approval/i })).toBeDisabled()
+  },
+}
+
+// The story above cannot tell bytes from characters: an ASCII letter is one of
+// each. Google's limit is 4,096 UTF-8 bytes and a Cyrillic letter is two, so
+// 2,049 letters (4,098 bytes) read `2049/4096` in the neutral colour with
+// Submit enabled, and the worker could not send them (`reply-comment.ts`).
+const CYRILLIC_OVER_LIMIT = 'Б'.repeat(2_049)
+const CYRILLIC_AT_LIMIT = 'Б'.repeat(2_048)
+
+export const OverLimitInBytes: Story = {
+  args: { initialText: CYRILLIC_OVER_LIMIT },
+  play: async ({ canvas }) => {
+    expect(canvas.getByText('4098/4096')).toHaveClass('text-destructive')
+    expect(canvas.getByRole('button', { name: /submit for approval/i })).toBeDisabled()
+  },
+}
+
+export const AtTheByteLimit: Story = {
+  args: { initialText: CYRILLIC_AT_LIMIT },
+  play: async ({ canvas }) => {
+    const counter = canvas.getByText('4096/4096')
+    expect(counter).toHaveClass('text-muted-foreground')
+    expect(counter).not.toHaveClass('text-destructive')
+    expect(canvas.getByRole('button', { name: /submit for approval/i })).toBeEnabled()
+  },
+}
+
+// An AI draft is held to the same rule before it is offered: under 4,096
+// characters is not under Google's 4,096 bytes (`use-reply-suggestion.ts`).
+const onGenerateOverByteLimit = fn(async () => ({
+  ...readySuggestion(),
+  replyText: CYRILLIC_OVER_LIMIT,
+}))
+
+export const AiDraftOverTheByteLimitIsRefused: Story = {
+  args: { onGenerateSuggestion: onGenerateOverByteLimit },
+  play: async ({ canvas }) => {
+    onGenerateOverByteLimit.mockClear()
+    onSaveDraft.mockClear()
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+    await expect(
+      canvas.findByText('The AI draft could not be verified. Try again.'),
+    ).resolves.toBeVisible()
+    expect(onGenerateOverByteLimit).toHaveBeenCalledOnce()
+    expect(canvas.queryByRole('button', { name: /use draft/i })).toBeNull()
+    expect(canvas.getByRole('textbox')).toHaveValue('')
+    expect(onSaveDraft).not.toHaveBeenCalled()
+  },
+}
+
+// A loaded template is held to it too (`use-reply-template.ts`): the server
+// refuses to render one over the byte limit, and the client must not adopt one.
+const onLoadOverByteLimit = fn(async (templateId: string) => ({
+  text: CYRILLIC_OVER_LIMIT,
+  replyLanguageTag: 'en-Latn-US',
+  templateId,
+  templateVersion: 3,
+}))
+
+export const TemplateOverTheByteLimitIsRefused: Story = {
+  args: {
+    propertyDefaultReplyLanguage: 'en-Latn-US',
+    reviewReplyLanguage: null,
+    reviewLanguageReadiness: 'no_review_text',
+    onListTemplates: onListLibraryTemplates,
+    onLoadTemplate: onLoadOverByteLimit,
+  },
+  play: async ({ canvas }) => {
+    onLoadOverByteLimit.mockClear()
+    onSaveDraft.mockClear()
+    await userEvent.click(canvas.getByRole('button', { name: 'Template' }))
+    await waitFor(() => expect(onLoadOverByteLimit).toHaveBeenCalledOnce())
+    await expect(
+      canvas.findByText('The loaded template could not be verified.'),
+    ).resolves.toBeVisible()
+    expect(canvas.getByRole('textbox')).toHaveValue('')
+    expect(onSaveDraft).not.toHaveBeenCalled()
   },
 }
 

@@ -16,9 +16,10 @@ import {
   requireAccessibleReview,
   requireReplyManager as requireManager,
 } from './reply-access'
+import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import {
   assertReplySlotsFilled,
-  MAX_REPLY_LENGTH,
+  replyTextProblemMessage,
   transitionReply,
 } from '../../domain/rules'
 import {
@@ -232,6 +233,18 @@ async function reconcileUncertainPublicationBeforeRetry(
   )
 }
 
+/**
+ * Refuse, synchronously and in words, any text the provider route would refuse
+ * at compile time. Without this, draft/submit/approve accepted text the worker
+ * could never send (route-catalogue.ts `reviews.reply`), and the failure only
+ * surfaced as a publication nobody could explain.
+ */
+function assertReplyTextSendable(text: string): void {
+  const problem = replyCommentProblem(text)
+  if (problem !== null)
+    throw reviewError('invalid_reply', replyTextProblemMessage(problem))
+}
+
 export type DraftReply = ReturnType<typeof draftReply>
 export type SubmitReply = ReturnType<typeof submitReply>
 export type ApproveReply = ReturnType<typeof approveReply>
@@ -257,15 +270,7 @@ export const draftReply =
   async (input: DraftReplyInput, ctx: AuthContext): Promise<Reply> => {
     requireManager(ctx)
 
-    if (!input.text.trim()) {
-      throw reviewError('invalid_reply', 'Reply text cannot be empty')
-    }
-    if (input.text.length > MAX_REPLY_LENGTH) {
-      throw reviewError(
-        'invalid_reply',
-        `Reply text exceeds ${MAX_REPLY_LENGTH} characters`,
-      )
-    }
+    assertReplyTextSendable(input.text)
     if (
       (input.templateId === undefined) !== (input.templateVersion === undefined) ||
       (input.templateVersion !== undefined && input.templateVersion < 1)
@@ -390,6 +395,9 @@ export const submitReply =
       input.reviewId,
       'No draft reply found for this review',
     )
+    // Stored text is checked again: a draft saved under the old character cap
+    // can still be too long in bytes.
+    assertReplyTextSendable(reply.text)
     assertReplySlotsFilled(reply.text)
     await assertCurrentAiDraftBinding(deps, ctx, reply)
 
@@ -426,6 +434,7 @@ export const approveReply =
   async (input: ApproveReplyInput, ctx: AuthContext): Promise<Reply> => {
     // D6-001: scope reply mutations to the caller's assigned properties.
     const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
+    assertReplyTextSendable(reply.text)
     assertReplySlotsFilled(reply.text)
     await assertCurrentAiDraftBinding(deps, ctx, reply)
 
@@ -489,15 +498,7 @@ export const editPublishedReply =
     requireManager(ctx)
 
     const text = input.text.trim()
-    if (text.length === 0) {
-      throw reviewError('invalid_reply', 'Reply text cannot be empty')
-    }
-    if (text.length > MAX_REPLY_LENGTH) {
-      throw reviewError(
-        'invalid_reply',
-        `Reply text exceeds ${MAX_REPLY_LENGTH} characters`,
-      )
-    }
+    assertReplyTextSendable(text)
     assertReplySlotsFilled(text)
 
     const reply = await deps.replyRepo.findInternalByReviewId(

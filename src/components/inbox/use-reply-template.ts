@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
+import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
 import type { ReplyLanguageTarget } from './reply-language-options'
 import type { LoadedReplyTemplateDraft } from './reply-suggestion-contract'
@@ -241,8 +241,7 @@ export function useReplyTemplate(input: Input) {
         const reply = await onLoad(templateId, target)
         if (!isLive(requestSequence) || baseRevision !== revision.current) return
         if (
-          !reply.text.trim() ||
-          reply.text.length > MAX_REPLY_LENGTH ||
+          replyCommentProblem(reply.text) !== null ||
           !reply.replyLanguageTag ||
           reply.templateId !== templateId ||
           reply.templateVersion === null

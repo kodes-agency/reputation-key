@@ -20,7 +20,8 @@ type Props = Readonly<{
  *
  * This preview mounts inside region 4 — the pinned composer
  * (`reply-composer.tsx`) — and prints the WHOLE proposed reply, up to
- * `MAX_REPLY_LENGTH`, 4096 characters, about seventy wrapped lines. The
+ * Google's 4096-byte reply limit (`reply-comment.ts`), at most 4096 Latin
+ * characters, about seventy wrapped lines. The
  * region's own cap reaches textareas only (`[&_textarea]:max-h-80`) and this is
  * a `<p>`, so without a cap here the proposal is what grows.
  *

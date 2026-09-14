@@ -61,7 +61,7 @@ creates a separate row and never overwrites the renamed template.
 3. Serving reads deny provider content at its fetch-based hard expiry. Confirmed deletion/expiry removes the current cache and redacts provider-controlled values while preserving stable identity and manager history.
 4. Provider-subject HMAC mappings, not erased Google identifiers, reconnect a
    re-observation. A collision fails closed.
-5. Reply text is capped at `MAX_REPLY_LENGTH` (4096).
+5. Reply text must pass `replyCommentProblem` (`src/shared/google-provider-control/reply-comment.ts`): not blank, at most 4096 UTF-8 bytes (Google's documented limit), no C0 control other than line feed, carriage return and tab, no DEL, no lone surrogate. Draft save, submit, approve and edit-published refuse anything else with `invalid_reply`.
 6. A changed grounded Brand Profile invalidates the pending AI operation and creates no draft; legacy provenance verification remains compatible.
 7. Every publication cycle atomically commits Reply state and its identifier-only
    intent. Older cycles cannot admit or acknowledge newer work.

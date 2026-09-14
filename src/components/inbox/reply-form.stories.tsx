@@ -144,7 +144,7 @@ export const Draft: Story = {
   },
 }
 
-// Over the 4096-char limit → destructive counter + disabled actions (validation).
+// Over the 4096-byte limit → destructive counter + disabled actions (validation).
 export const DraftOverLimit: Story = {
   args: { reply: makeReply({ status: 'draft', text: 'x'.repeat(5000) }) },
 }

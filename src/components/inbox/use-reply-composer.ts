@@ -1,8 +1,10 @@
 import { useMemo, useRef, useState } from 'react'
+import { unfilledReplySlotsMessage } from '#/contexts/review/application/public-api'
 import {
-  MAX_REPLY_LENGTH,
-  unfilledReplySlotsMessage,
-} from '#/contexts/review/application/public-api'
+  GOOGLE_REPLY_COMMENT_MAX_BYTES,
+  replyCommentByteLength,
+  replyCommentProblem,
+} from '#/shared/google-provider-control/reply-comment'
 import {
   AUTO_DETECT_REVIEW_LANGUAGE,
   defaultReplyLanguageTag,
@@ -33,8 +35,10 @@ export type { ReplyDraftOrigin } from './reply-draft-origin'
 export type { ReplyAssistScope } from './use-reply-suggestion'
 export { assistTargetFor, draftInLanguage } from './reply-composer-transitions'
 
-const validDraft = (draft: ReplyDraftSnapshot) =>
-  draft.text.trim().length > 0 && draft.text.length <= MAX_REPLY_LENGTH
+// Google's one reply-comment rule (bytes, allowed characters), the same one the
+// server DTO, the use cases and the provider route apply: a draft this refuses
+// is a draft the server would refuse on save.
+const validDraft = (draft: ReplyDraftSnapshot) => replyCommentProblem(draft.text) === null
 
 function useReplyComposerHistory() {
   const [count, setCount] = useState(0)
@@ -306,7 +310,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
     hasAiDraft,
     submitError,
     historyCount: history.count,
-    overLimit: draft.text.length > MAX_REPLY_LENGTH,
+    overLimit: replyCommentByteLength(draft.text) > GOOGLE_REPLY_COMMENT_MAX_BYTES,
     canSubmit:
       !isAutoDetectingLanguage &&
       validDraft(draft) &&

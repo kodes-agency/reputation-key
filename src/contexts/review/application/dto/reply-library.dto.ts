@@ -1,11 +1,8 @@
 import { z } from 'zod/v4'
 import { ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
 import { parseCanonicalReplyLanguageTag } from '#/shared/reply-language-catalogue'
-import {
-  MAX_REPLY_LENGTH,
-  REPLY_TEMPLATE_SLOT_TOKENS,
-  unknownReplyTemplateSlots,
-} from '../../domain/rules'
+import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
+import { REPLY_TEMPLATE_SLOT_TOKENS, unknownReplyTemplateSlots } from '../../domain/rules'
 
 export const REPLY_LIBRARY_FIELD_LIMITS = Object.freeze({
   greeting: 120,
@@ -14,7 +11,14 @@ export const REPLY_LIBRARY_FIELD_LIMITS = Object.freeze({
   title: 120,
   openLabel: 80,
   languageTag: 35,
-  body: MAX_REPLY_LENGTH,
+  /**
+   * UTF-16 units: the textarea's `maxLength` and the DB CHECK
+   * (`char_length(body) <= 4096`, reply-library.schema.ts). Not the limit a body
+   * must meet to be sendable — that is Google's 4,096 UTF-8 bytes, checked in
+   * `replyTemplateBodySchema` — and never tighter than it, because no text has
+   * fewer UTF-8 bytes than UTF-16 units.
+   */
+  body: 4096,
 })
 
 function supportedSlotsTextSchema(maximum: number, label: string) {
@@ -111,6 +115,22 @@ export const replyTemplateBodySchema = supportedSlotsTextSchema(
 )
   .trim()
   .min(1, 'Template body is required')
+  // The body is loaded as a reply comment, and `loadReplyTemplate` refuses one
+  // Google cannot take (reply-template-operations.ts). Checking the same rule
+  // on the stored, trimmed body here means a template that saves is one that
+  // can load; before, 2,049 Cyrillic letters saved and then never loaded.
+  .superRefine((body, ctx) => {
+    const problem = replyCommentProblem(body)
+    // `empty` is the `.min(1)` issue above, reported once.
+    if (problem === null || problem === 'empty') return
+    ctx.addIssue({
+      code: 'custom',
+      message:
+        problem === 'too_long'
+          ? 'Template body is too long for Google. Shorten it to 4,096 bytes or fewer.'
+          : "Template body contains a character Google doesn't accept. Remove any unusual control characters and try again.",
+    })
+  })
 
 export const replyTemplateValuesSchema = z
   .object({

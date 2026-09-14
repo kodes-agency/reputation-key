@@ -13,7 +13,8 @@ import { isReviewError } from '../domain/errors'
 import type { ReviewErrorCode } from '../domain/errors'
 import { reviewId } from '#/shared/domain/ids'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { MAX_REPLY_LENGTH } from '../domain/rules'
+import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
+import { replyTextProblemMessage } from '../domain/rules'
 import { parseCanonicalReplyLanguageTag } from '#/shared/reply-language-catalogue'
 
 // ── Error → HTTP status mapping ──────────────────────────────────────
@@ -52,7 +53,15 @@ export const reviewIdDto = z.object({ reviewId: z.uuid() })
 
 export const draftReplyDto = z.object({
   reviewId: z.uuid(),
-  text: z.string().min(1).max(MAX_REPLY_LENGTH),
+  // Google's byte rule, not a character cap: `.max(4096)` counted UTF-16 units
+  // and let 2049 Cyrillic letters (4098 bytes) reach a worker that cannot send
+  // them. The use case checks the same rule and says why in words.
+  text: z.string().superRefine((text, ctx) => {
+    const problem = replyCommentProblem(text)
+    if (problem !== null) {
+      ctx.addIssue({ code: 'custom', message: replyTextProblemMessage(problem) })
+    }
+  }),
   replyLanguageTag: z
     .string()
     .min(7)

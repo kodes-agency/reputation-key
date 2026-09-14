@@ -1689,3 +1689,118 @@ describe('reply ops — property-assignment scoping (D6-001)', () => {
     expect(result?.status).toBe('draft')
   })
 })
+
+// ── Google's reply comment rule (bytes, not characters) ────────────────
+
+describe('reply ops — refuse text Google cannot be sent', () => {
+  // 2049 Cyrillic letters are 2049 UTF-16 units but 4098 UTF-8 bytes: under
+  // the old character cap they were approved and then failed compile in the
+  // worker, where nobody saw why (route-catalogue.ts reviews.reply body).
+  const TOO_LONG_CYRILLIC = 'Б'.repeat(2_049)
+  const TOO_LONG =
+    'This reply is too long for Google. Shorten it to 4,096 bytes or fewer.'
+  const BAD_CHARACTER =
+    "This reply contains a character Google doesn't accept. Remove any unusual control characters and try again."
+  const MULTI_LINE = 'Hi Jane,\n\nThank you for staying with us.\tSee you soon!\r\n'
+
+  it('draftReply refuses 2049 Cyrillic letters before any read or write', async () => {
+    const deps = makeDeps()
+    await expect(
+      draftReply(deps)({ reviewId: REVIEW_ID, text: TOO_LONG_CYRILLIC }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_reply', message: TOO_LONG })
+    expect(deps.reviewRepo.findById).not.toHaveBeenCalled()
+    expect(deps.replyRepo.upsert).not.toHaveBeenCalled()
+  })
+
+  it('draftReply refuses a control character and a lone surrogate', async () => {
+    const deps = makeDeps()
+    for (const text of ['Thanks\u001B', 'Thanks \uD83D']) {
+      await expect(
+        draftReply(deps)({ reviewId: REVIEW_ID, text }, MANAGER_CTX),
+      ).rejects.toMatchObject({ code: 'invalid_reply', message: BAD_CHARACTER })
+    }
+    expect(deps.replyRepo.upsert).not.toHaveBeenCalled()
+  })
+
+  it('draftReply saves 2048 Cyrillic letters and multi-line text', async () => {
+    const deps = makeDeps()
+    for (const text of ['Б'.repeat(2_048), MULTI_LINE]) {
+      const saved = await draftReply(deps)({ reviewId: REVIEW_ID, text }, MANAGER_CTX)
+      expect(saved.text).toBe(text)
+    }
+  })
+
+  it('submitReply refuses a stored draft Google cannot take, with no transition', async () => {
+    const deps = makeDeps({
+      replyRepo: replyRepoWith(makeReply({ status: 'draft', text: TOO_LONG_CYRILLIC })),
+    })
+    await expect(
+      submitReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_reply', message: TOO_LONG })
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
+  })
+
+  it('approveReply refuses a stored reply Google cannot take, reserving no publication', async () => {
+    const deps = makeDeps({
+      replyRepo: replyRepoWith(
+        makeReply({ status: 'pending_approval', text: TOO_LONG_CYRILLIC }),
+      ),
+    })
+    await expect(
+      approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_reply', message: TOO_LONG })
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
+  })
+
+  it('submitReply and approveReply accept multi-line text', async () => {
+    const draftDeps = makeDeps({
+      replyRepo: replyRepoWith(makeReply({ status: 'draft', text: MULTI_LINE })),
+    })
+    const submitted = await submitReply(draftDeps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
+    expect(submitted.status).toBe('pending_approval')
+
+    const pendingDeps = makeDeps({
+      replyRepo: replyRepoWith(
+        makeReply({ status: 'pending_approval', text: MULTI_LINE }),
+      ),
+    })
+    const approved = await approveReply(pendingDeps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
+    expect(approved.status).toBe('approved')
+    expect(pendingDeps.queue.addPublishJob).toHaveBeenCalledTimes(1)
+  })
+
+  it('editPublishedReply refuses 2049 Cyrillic letters before reply or provider work', async () => {
+    const deps = makeDeps()
+    await expect(
+      editPublishedReply(deps)(
+        { reviewId: REVIEW_ID, text: TOO_LONG_CYRILLIC },
+        MANAGER_CTX,
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_reply', message: TOO_LONG })
+    expect(deps.replyRepo.findInternalByReviewId).not.toHaveBeenCalled()
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+  })
+
+  it('editPublishedReply republishes multi-line text', async () => {
+    const deps = makeDeps({
+      replyRepo: replyRepoWith(
+        makeReply({
+          status: 'published',
+          text: 'Old public reply',
+          publicationState: 'published',
+          publicationAttempts: 1,
+          publishedAt: NOW,
+        }),
+      ),
+    })
+    const result = await editPublishedReply(deps)(
+      { reviewId: REVIEW_ID, text: 'Hi Jane,\n\nThank you.' },
+      MANAGER_CTX,
+    )
+    expect(result.text).toBe('Hi Jane,\n\nThank you.')
+    expect(deps.queue.addPublishJob).toHaveBeenCalledTimes(1)
+  })
+})

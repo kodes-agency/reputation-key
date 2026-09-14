@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   compileGoogleProviderRequest,
+  parseGoogleProviderRouteDescriptor,
 } from './route-catalogue'
 
 const bindCredential = (value: string) =>
@@ -206,6 +207,80 @@ describe('Google provider route catalogue', () => {
         bindCredential,
       ),
     ).toThrow('provider route input is invalid')
+  })
+
+  describe('reviews.reply comment', () => {
+    const reviewName = [
+      'accounts',
+      'account-1',
+      'locations',
+      'location-1',
+      'reviews',
+      'review-1',
+    ].join('/')
+    const compileReply = (comment: string) =>
+      compileGoogleProviderRequest(
+        { routeKey: 'reviews.reply', accessToken: 'access-token', reviewName, comment },
+        bindCredential,
+      )
+    const parseReply = (comment: string) =>
+      parseGoogleProviderRouteDescriptor({
+        routeKey: 'reviews.reply',
+        accessToken: 'access-token',
+        reviewName,
+        comment,
+      })
+
+    // Incident b129e390: a three-paragraph reply never reached Google because
+    // the header/URL field rule refused its line feeds at compile time.
+    it('compiles a multi-line comment and the JSON body round-trips the exact text', () => {
+      const comment = 'Hi,\n\nThanks\tbye'
+      const compiled = compileReply(comment)
+
+      if (compiled.body === null) throw new Error('expected reply JSON body')
+      expect(JSON.parse(new TextDecoder().decode(compiled.body))).toEqual({ comment })
+      expect(compiled.method).toBe('PUT')
+      expect(parseReply(comment)).toMatchObject({ comment })
+    })
+
+    it('measures the comment in UTF-8 bytes: 2048 Cyrillic letters compile, 2049 do not', () => {
+      expect(compileReply('Б'.repeat(2_048)).admission.requestBodyBytes).toBe(4_096 + 14)
+      expect(parseReply('Б'.repeat(2_048))).toMatchObject({ routeKey: 'reviews.reply' })
+      expect(() => compileReply('Б'.repeat(2_049))).toThrow(
+        'provider route input is invalid',
+      )
+      expect(() => parseReply('Б'.repeat(2_049))).toThrow(
+        'provider route input is invalid',
+      )
+    })
+
+    it('still refuses NUL, escape, delete, a lone surrogate and 4097 bytes', () => {
+      for (const comment of [
+        'Thanks\u0000',
+        'Thanks\u001B[0m',
+        'Thanks\u007F',
+        'Thanks \uD83D',
+        'x'.repeat(4_097),
+        ' \n ',
+      ]) {
+        expect(() => compileReply(comment)).toThrow('provider route input is invalid')
+        expect(() => parseReply(comment)).toThrow('provider route input is invalid')
+      }
+    })
+
+    it('keeps refusing control characters in the header-bound access token', () => {
+      expect(() =>
+        compileGoogleProviderRequest(
+          {
+            routeKey: 'reviews.reply',
+            accessToken: 'access\ntoken',
+            reviewName,
+            comment: 'Thanks',
+          },
+          bindCredential,
+        ),
+      ).toThrow('provider route input is invalid')
+    })
   })
 
   it('rejects malformed route fields before constructing an upstream request', () => {

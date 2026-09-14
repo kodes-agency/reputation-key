@@ -178,3 +178,80 @@ export const PublishedEditWhileSaving: Story = {
     expect(review).not.toHaveAttribute('aria-describedby')
   },
 }
+
+const byteLimitReply = (text: string) => ({
+  text,
+  publishedAt: PUBLISHED_AT,
+  rejectionReason: null,
+})
+
+/**
+ * Google's reply limit is 4,096 UTF-8 BYTES, and a Cyrillic letter is two of
+ * them. 2,049 letters are 4,098 bytes: counted in characters this read
+ * `2049/4096` in the neutral colour with the update enabled, and the worker
+ * then could not send the text (`reply-comment.ts`, route-catalogue.ts
+ * `reviews.reply`).
+ */
+export const PublishedEditCountsBytesNotCharacters: Story = {
+  args: {
+    reply: byteLimitReply('Б'.repeat(2_049)),
+    isSaving: false,
+    onSave,
+    onCancel,
+  },
+  play: async ({ canvas }) => {
+    onSave.mockClear()
+    expect(canvas.getByText('4098/4096')).toHaveClass('text-destructive')
+    const review = canvas.getByRole('button', { name: /review update/i })
+    expect(review).toHaveAttribute('aria-disabled', 'true')
+
+    await userEvent.click(review)
+    expect(within(document.body).queryByRole('alertdialog')).toBeNull()
+    expect(onSave).not.toHaveBeenCalled()
+  },
+}
+
+/** Exactly at the limit in bytes: the counter is neutral and the update allowed. */
+export const PublishedEditAtTheByteLimit: Story = {
+  args: {
+    reply: byteLimitReply('Б'.repeat(2_048)),
+    isSaving: false,
+    onSave,
+    onCancel,
+  },
+  play: async ({ canvas }) => {
+    const counter = canvas.getByText('4096/4096')
+    expect(counter).toHaveClass('text-muted-foreground')
+    expect(counter).not.toHaveClass('text-destructive')
+    expect(canvas.getByRole('button', { name: /review update/i })).toHaveAttribute(
+      'aria-disabled',
+      'false',
+    )
+  },
+}
+
+/**
+ * The counter, the block and the save all measure the text as typed — the
+ * string `editPublishedReplyFn`'s DTO validates (reply-read.ts `draftReplyDto`,
+ * untrimmed). Gating on the trimmed text let a pasted trailing line feed put a
+ * red `4097/4096` beside an enabled update the server then refused, and the
+ * refusal was swallowed, so the click did nothing visible.
+ */
+export const PublishedEditTrailingLineFeedOverTheLimit: Story = {
+  args: {
+    reply: byteLimitReply(`${'x'.repeat(4_096)}\n`),
+    isSaving: false,
+    onSave,
+    onCancel,
+  },
+  play: async ({ canvas }) => {
+    onSave.mockClear()
+    expect(canvas.getByText('4097/4096')).toHaveClass('text-destructive')
+    const review = canvas.getByRole('button', { name: /review update/i })
+    expect(review).toHaveAttribute('aria-disabled', 'true')
+
+    await userEvent.click(review)
+    expect(within(document.body).queryByRole('alertdialog')).toBeNull()
+    expect(onSave).not.toHaveBeenCalled()
+  },
+}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
+import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import type { ReplyDraftSnapshot } from './use-reply-autosave'
 import {
   replySuggestionFixTarget,
@@ -114,7 +114,7 @@ export function useReplySuggestion(input: Input) {
         )
         if (
           !result.replyText ||
-          result.replyText.length > MAX_REPLY_LENGTH ||
+          replyCommentProblem(result.replyText) !== null ||
           (result.status === 'ready' &&
             (result.profileVersion !== 'reply-draft-v2' ||
               result.expiresAtEpochMillis <= Date.now())) ||
