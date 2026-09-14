@@ -38,6 +38,13 @@ import { createAiReviewEventStoreAdapter } from './infrastructure/adapters/ai-re
 import { createPropertyProcessingProfileAdapter } from './infrastructure/adapters/property-processing-profile.adapter'
 import { createReviewAnalysisEnrollmentAdapter } from './infrastructure/adapters/ai-review-analysis-enrollment.adapter'
 import { createRedisAiLaneAdmissionAdapter } from './infrastructure/adapters/ai-lane-admission.adapter'
+import { createAiReviewAnalysisBacklogAdapter } from './infrastructure/adapters/ai-review-analysis-backlog.adapter'
+import { createDrainReviewAnalysisBacklog } from './application/use-cases/drain-review-analysis-backlog'
+import { createReadReviewAnalysisProgress } from './application/use-cases/read-review-analysis-progress'
+import {
+  createRequestReviewAnalysisNow,
+  type RequestReviewAnalysisNowDependencies,
+} from './application/use-cases/request-review-analysis-now'
 import { createAiOrganizationExportContributor } from './infrastructure/adapters/ai-organization-export.adapter'
 import { createAiOrganizationLifecycleContributor } from './infrastructure/adapters/ai-organization-lifecycle.adapter'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
@@ -95,6 +102,8 @@ export type AiContextBuildInput = Readonly<{
   subjectHmac?: AiSubjectHmacPort
   resolveReplyLanguage?: GenerateReplySuggestionDependencies['resolveReplyLanguage']
   enqueuePropertyTrend?: RegisterAiConsumersInput['enqueuePropertyTrend']
+  /** Hands one waiting review to the worker's on-demand analysis job. */
+  enqueueReviewAnalysisNow?: RequestReviewAnalysisNowDependencies['enqueueReviewAnalysisNow']
   idGen: () => string
   nowEpochMillis: () => number
 }>
@@ -110,6 +119,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
   const schedules = createAiPropertyTrendScheduleStore(input.db, input.idGen)
   const calendar = createAiPropertyCalendarAdapter(input.db)
   const reviewEvents = createAiReviewEventStoreAdapter(input.db)
+  const backlog = createAiReviewAnalysisBacklogAdapter(input.db)
   const enrollments = createReviewAnalysisEnrollmentAdapter(input.db, input.idGen)
   const processingProfiles = createPropertyProcessingProfileAdapter(input.db, clock)
   const inference = input.inference ?? unavailableInference
@@ -162,6 +172,27 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       control,
       enrollments,
     })
+  const drainReviewAnalysisBacklog = createDrainReviewAnalysisBacklog({
+    backlog,
+    analyzeReviewEvent,
+    nowEpochMillis,
+  })
+  const readReviewAnalysisProgress = createReadReviewAnalysisProgress({
+    authorization,
+    processingProfiles,
+    backlog,
+    readEnrollmentReadiness: readReviewAnalysisEnrollmentReadiness,
+  })
+  const requestReviewAnalysisNow = createRequestReviewAnalysisNow({
+    authorization,
+    processingProfiles,
+    backlog,
+    enqueueReviewAnalysisNow:
+      input.enqueueReviewAnalysisNow ??
+      (async () => {
+        throw new Error('AI on-demand review analysis queue is unavailable')
+      }),
+  })
   const generatePropertyTrend = createGeneratePropertyTrend({
     authorization,
     aggregates,
@@ -200,6 +231,8 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       analyzeReviewEvent,
       applyAiAuthorizationLifecycle,
       receipts: input.outboxRepo,
+      backlog,
+      nowEpochMillis,
     })
   }
 
@@ -220,6 +253,8 @@ export const buildAiContext = (input: AiContextBuildInput) => {
         nowEpochMillis,
       }),
       readReviewAnalysis: createReadReviewAnalysis(readDependencies),
+      readReviewAnalysisProgress,
+      requestReviewAnalysisNow,
       readPropertyTrend: createReadPropertyTrend(readDependencies),
       findCurrentReviewIdsByAttention: (
         request: Omit<
@@ -272,6 +307,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       generatePropertyTrend,
       schedulePropertyTrends,
       advanceReviewAnalysisEnrollments,
+      drainReviewAnalysisBacklog,
       reapAiOperations,
     }),
     internal: Object.freeze({

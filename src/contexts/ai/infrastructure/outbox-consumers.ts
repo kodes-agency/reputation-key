@@ -16,6 +16,10 @@ import type {
   AiAuthorizationLifecycleApplyResult,
   AiAuthorizationLifecycleTrigger,
 } from '../application/ports/ai-review-analysis-enrollment.port'
+import type {
+  AiReviewAnalysisBacklogOrigin,
+  AiReviewAnalysisBacklogPort,
+} from '../application/ports/ai-review-analysis-backlog.port'
 
 export const AI_REVIEW_ANALYSIS_CONSUMER = 'ai.analyze-review-event'
 export const AI_PROPERTY_TREND_GENERATION_CONSUMER = 'ai.generate-property-trend'
@@ -37,6 +41,9 @@ const reviewEventPayloadSchema = z.object({
   sourceRevision: z.number().int().positive(),
   analysisSequence: z.number().int().positive(),
   change: z.enum(['source_expired', 'provider_deleted']).optional(),
+  observationOrigin: z
+    .enum(['ongoing', 'historical_onboarding', 'legacy_unknown'])
+    .optional(),
 })
 const propertyTrendEventPayloadSchema = z.object({
   scheduleId: z.uuid(),
@@ -63,6 +70,9 @@ export type RegisterAiConsumersInput = Readonly<{
     input: AnalyzeReviewEventInput,
   ) => Promise<AnalyzeReviewEventResult>
   receipts: OutboxRepository
+  /** Where analysis that waits for the background lane is queued (ADR 0058). */
+  backlog: Pick<AiReviewAnalysisBacklogPort, 'enqueue'>
+  nowEpochMillis: () => number
   enqueuePropertyTrend: (scheduleId: string) => Promise<void>
   /**
    * Apply the Identity authorization trigger through the AI command store.
@@ -103,11 +113,31 @@ function envelopeRecordedAtEpochMillis(event: ConsumerEvent): number | null {
   return null
 }
 
+/**
+ * History is paced, not fanned out. A first-enablement backfill and a review
+ * observed while a property's history is imported both queue their provider
+ * work for the background lane; only ongoing reviews try the lane on delivery.
+ */
+function backlogOriginFor(
+  event: ConsumerEvent,
+  payload: z.infer<typeof reviewEventPayloadSchema>,
+): AiReviewAnalysisBacklogOrigin | null {
+  if (event.eventType === 'ai.review_analysis.backfill_requested') return 'backfill'
+  if (
+    (event.eventType === 'review.created' || event.eventType === 'review.updated') &&
+    payload.observationOrigin === 'historical_onboarding'
+  ) {
+    return 'historical_onboarding'
+  }
+  return null
+}
+
 export async function handleAiReviewEvent(
   dependencies: RegisterAiConsumersInput,
   event: ConsumerEvent,
 ): Promise<ConsumerResult> {
   const payload = reviewEventPayloadSchema.parse(event.payload)
+  const origin = backlogOriginFor(event, payload)
   const result = await dependencies.analyzeReviewEvent({
     organizationId: organizationId(payload.organizationId),
     propertyId: propertyId(payload.propertyId),
@@ -122,7 +152,35 @@ export async function handleAiReviewEvent(
       event.eventType === 'ai.review_analysis.backfill_requested'
         ? AI_BACKFILL_OPERATION_HORIZON_MILLIS
         : AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
+    execution: origin === null ? 'execute' : 'defer',
+    lane: 'background',
   })
+
+  // Provider work that must wait: queued history, or a live review whose lane
+  // was busy. The backlog row becomes the durable authority for that work, so
+  // the event is receipted now instead of redelivered on BullMQ backoff.
+  if (
+    result.status === 'deferred' ||
+    (result.status === 'retry' && result.code === 'admission_busy')
+  ) {
+    await dependencies.backlog.enqueue({
+      eventEnvelopeId: event.eventId,
+      organizationId: organizationId(payload.organizationId),
+      propertyId: propertyId(payload.propertyId),
+      reviewId: reviewId(payload.reviewId),
+      sourceEpoch: payload.sourceEpoch,
+      sourceRevision: payload.sourceRevision,
+      analysisSequence: payload.analysisSequence,
+      origin: origin ?? 'deferred_live',
+      nowEpochMillis: dependencies.nowEpochMillis(),
+    })
+    await dependencies.receipts.insertReceipt(
+      event.eventId,
+      AI_REVIEW_ANALYSIS_CONSUMER,
+      'applied',
+    )
+    return { status: 'applied' }
+  }
 
   if (result.status === 'retry') {
     // BullMQ owns the finite dispatch retry budget (exponential 30s backoff,

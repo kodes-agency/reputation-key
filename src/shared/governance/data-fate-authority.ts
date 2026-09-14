@@ -150,6 +150,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'aiPropertyProcessingProfiles',
       'aiPropertyTrendSchedulerHeads',
       'aiPropertyTrendSchedules',
+      'aiReviewAnalysisBacklog',
       'aiReviewAnalysisEnrollments',
     ],
     owner: 'ai',

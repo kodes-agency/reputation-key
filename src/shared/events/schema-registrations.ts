@@ -29,6 +29,9 @@ const reviewCreatedSchema = z.object({
   sourceEpoch: z.number().int().nonnegative().default(0),
   sourceRevision: z.number().int().positive(),
   analysisSequence: z.number().int().positive(),
+  observationOrigin: z
+    .enum(['ongoing', 'historical_onboarding', 'legacy_unknown'])
+    .optional(),
   occurredAt: z.string().optional(),
 })
 

@@ -7,6 +7,7 @@ import { InboxReopenDialog } from './inbox-reopen-dialog'
 import { offeredModes } from './composer-policy'
 import { resolveReplyView } from './reply-status-view'
 import { useReplyActions } from './use-reply-actions'
+import { useOnDemandReviewAnalysis } from './use-on-demand-review-analysis'
 import {
   useInboxComposerController,
   type ComposerFocusBox,
@@ -95,6 +96,12 @@ export function InboxDetailContent({
 }: DetailContentProps) {
   const queryClient = useQueryClient()
   const { can } = usePermissions()
+  useOnDemandReviewAnalysis({
+    inboxItemId: currentItem.id,
+    reviewId: currentItem.sourceType === 'review' ? currentItem.sourceId : null,
+    analysisStatus: detail?.analysis?.status ?? null,
+    request: detailFns.requestReviewAnalysisNow,
+  })
   const [reopenOpen, setReopenOpen] = useState(false)
   /**
    * The half-typed internal note, and the item it was typed about.

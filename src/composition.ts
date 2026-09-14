@@ -62,6 +62,7 @@ import { configureReviewProviderSubjectWriterKeys } from '#/contexts/review/appl
 import { buildInboxContext } from '#/contexts/inbox/build'
 import { buildAiContext } from '#/contexts/ai/build'
 import { GENERATE_PROPERTY_TREND_JOB_NAME } from '#/contexts/ai/infrastructure/jobs/generate-property-trend.job'
+import { ANALYZE_REVIEW_NOW_JOB_NAME } from '#/contexts/ai/infrastructure/jobs/analyze-review-now.job'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import {
   applyProviderEndpointOverrides,
@@ -459,6 +460,21 @@ function buildContainer(
             {
               jobId: `ai-trend-${scheduleId}`,
               ...jobEnqueueOptions(GENERATE_PROPERTY_TREND_JOB_NAME),
+              removeOnComplete: true,
+              removeOnFail: { count: 50 },
+            },
+          )
+        }
+      : undefined,
+    enqueueReviewAnalysisNow: infra.jobQueue
+      ? async ({ organizationId, propertyId, reviewId }) => {
+          await infra.jobQueue!.add(
+            ANALYZE_REVIEW_NOW_JOB_NAME,
+            { organizationId, propertyId, reviewId },
+            {
+              // One waiting request per review: repeated opens coalesce.
+              jobId: `ai-analysis-now-${reviewId}`,
+              ...jobEnqueueOptions(ANALYZE_REVIEW_NOW_JOB_NAME),
               removeOnComplete: true,
               removeOnFail: { count: 50 },
             },

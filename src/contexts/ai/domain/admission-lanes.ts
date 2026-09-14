@@ -5,7 +5,7 @@
 // lanes. Interactive work (a manager waiting on a reply draft, or an analysis
 // requested for the review on screen) and background work (review analysis
 // backlogs) have independent buckets in every scope, so a property's backlog can
-// never consume the capacity a manager's draft needs. ADR 0057 records these
+// never consume the capacity a manager's draft needs. ADR 0058 records these
 // numbers; change them here and in the ADR together.
 
 export const AI_ADMISSION_LANES = ['interactive', 'background'] as const

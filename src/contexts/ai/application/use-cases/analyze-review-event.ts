@@ -21,6 +21,7 @@ import type { AiOutputStorePort } from '../ports/ai-output-store.port'
 import { issueLabelReproducesSource } from '#/shared/ai-issue-label'
 import type { AiPropertyAggregateStorePort } from '../ports/ai-property-aggregate-store.port'
 import type { AiAdmissionPort } from '../ports/ai-admission.port'
+import type { AiAdmissionLane } from '../../domain/admission-lanes'
 import type {
   AiReviewAnalysisTerminalDisposition,
   AiReviewEventDisposition,
@@ -86,11 +87,23 @@ export type AnalyzeReviewEventInput = Readonly<{
   eventRecordedAtEpochMillis: number | null
   /** How long an operation for this event may stay open, by event kind. */
   operationHorizonMillis: number
+  /**
+   * `defer` runs every check and settlement that needs no provider call, then
+   * stops before claiming an operation and answers `deferred`, so the caller
+   * can queue the provider work for the background lane. Defaults to `execute`.
+   */
+  execution?: 'execute' | 'defer'
+  /** Admission lane for the provider call. Defaults to `background`. */
+  lane?: AiAdmissionLane
+  /** Slots to leave free in the lane (on-demand analysis protects reply drafts). */
+  admissionHeadroom?: number
 }>
 
 export type AnalyzeReviewEventResult =
   | Readonly<{ status: 'completed' | 'replayed' | 'terminal' | 'generation_changed' }>
   | Readonly<{ status: 'retry'; retryAtEpochMillis: number; code: string }>
+  /** Provider work is still needed and the caller asked to queue it. */
+  | Readonly<{ status: 'deferred' }>
 
 /** Content-free record of a governed refusal. Carries identifiers and the rule
  *  only: the refused label and the matched excerpt are deliberately absent. */
@@ -517,6 +530,9 @@ export function createAnalyzeReviewEvent(
         'policy_disabled',
       )
     }
+    // Everything above settles without a provider call. From here on the
+    // review needs one, so a deferring caller queues it for its lane instead.
+    if (input.execution === 'defer') return { status: 'deferred' }
     const subject = dependencies.subjectHmac.sign(input.reviewId)
     const identity: AiOperationIdentity = {
       subjectKind: 'property',
@@ -634,8 +650,11 @@ export function createAnalyzeReviewEvent(
       const admission = await dependencies.admission.acquire({
         organizationId: input.organizationId,
         propertyId: input.propertyId,
-        lane: 'background',
+        lane: input.lane ?? 'background',
         nowEpochMillis,
+        ...(input.admissionHeadroom === undefined
+          ? {}
+          : { headroom: input.admissionHeadroom }),
       })
       if (!admission.ok) {
         if (admission.code === 'admission_busy') {

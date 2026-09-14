@@ -1293,3 +1293,63 @@ export const aiReviewAnalysisEnrollments = pgTable(
     ),
   ],
 )
+
+/**
+ * Review Analysis work that waits for the background lane (ADR 0058). One row
+ * per origin event: a historical onboarding observation, a first-enablement
+ * backfill, or a live event whose lane was busy. The origin event is receipted
+ * when its row is written, so this table — not BullMQ redelivery — is the
+ * durable authority for the remaining work. Rows are identifier-only and
+ * deleted when the analysis reaches any settled outcome.
+ */
+export const aiReviewAnalysisBacklog = pgTable(
+  'ai_review_analysis_backlog',
+  {
+    eventEnvelopeId: uuid('event_envelope_id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    reviewId: uuid('review_id')
+      .notNull()
+      .references(() => reviews.id, { onDelete: 'cascade' }),
+    sourceEpoch: integer('source_epoch').notNull(),
+    sourceRevision: integer('source_revision').notNull(),
+    analysisSequence: bigint('analysis_sequence', { mode: 'number' }).notNull(),
+    origin: varchar('origin', { length: 32 }).notNull(),
+    priority: varchar('priority', { length: 16 }).default('background').notNull(),
+    state: varchar('state', { length: 16 }).default('queued').notNull(),
+    attempts: integer('attempts').default(0).notNull(),
+    nextAttemptAt: timestamptz('next_attempt_at').notNull(),
+    claimedUntil: timestamptz('claimed_until'),
+    firstStartedAt: timestamptz('first_started_at'),
+    createdAt: timestamptz('created_at').defaultNow().notNull(),
+    updatedAt: timestamptz('updated_at').defaultNow().notNull(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+      name: 'ai_review_analysis_backlog_tenant_fk',
+    }).onDelete('cascade'),
+    index('ai_review_analysis_backlog_ready_idx').on(
+      t.propertyId,
+      t.state,
+      t.nextAttemptAt,
+    ),
+    index('ai_review_analysis_backlog_review_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.reviewId,
+    ),
+    check(
+      'ai_review_analysis_backlog_values_valid',
+      sql`${t.origin} IN ('historical_onboarding', 'backfill', 'deferred_live')
+        AND ${t.priority} IN ('background', 'interactive')
+        AND ${t.state} IN ('queued', 'claimed')
+        AND (${t.state} = 'claimed') = (${t.claimedUntil} IS NOT NULL)
+        AND ${t.attempts} BETWEEN 0 AND 2147483647
+        AND ${t.sourceEpoch} BETWEEN 0 AND 2147483647
+        AND ${t.sourceRevision} BETWEEN 1 AND 2147483647
+        AND ${t.analysisSequence} BETWEEN 1 AND '9007199254740991'::bigint`,
+    ),
+  ],
+)

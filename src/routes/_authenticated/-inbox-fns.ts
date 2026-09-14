@@ -42,6 +42,7 @@ import {
 import { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { InboxServerFns } from '#/components/inbox/types'
 import { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
+import { requestReviewAnalysisNowFn } from '#/contexts/ai/server/review-analysis'
 
 export const inboxFns: InboxServerFns = {
   get getInboxItems() {
@@ -94,5 +95,8 @@ export const inboxFns: InboxServerFns = {
   },
   get generateReplySuggestion() {
     return generateReplySuggestionFn
+  },
+  get requestReviewAnalysisNow() {
+    return requestReviewAnalysisNowFn
   },
 }

@@ -398,6 +398,7 @@ export const createAtomicReviewCommandStore = (
             platform: observation.review.platform,
             sourceEpoch: observation.review.sourceEpoch,
             sourceRevision: observation.review.sourceRevision,
+            ...(observationOrigin == null ? {} : { observationOrigin }),
             analysisSequence: observation.review.analysisSequence,
             occurredAt,
           })

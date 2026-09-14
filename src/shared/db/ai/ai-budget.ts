@@ -44,7 +44,7 @@ export type AiBudgetControl = Readonly<{
 /**
  * Budget control no longer rate-limits. Per-minute and in-flight capacity is
  * admitted once, atomically and per lane, by the AI context before an
- * operation's execution attempt is claimed (ADR 0057); by the time a request
+ * operation's execution attempt is claimed (ADR 0058); by the time a request
  * reaches this gateway it has already been admitted. What remains here is the
  * provider kill switch and the organization's monthly cost reservation.
  */

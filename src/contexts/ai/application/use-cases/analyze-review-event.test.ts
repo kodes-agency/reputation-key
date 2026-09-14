@@ -413,6 +413,7 @@ function createHarness(
       readReviewSource,
       readProcessingProfile,
       consumeNext,
+      claim,
       claimExecution,
       acquire: dependencies.admission.acquire,
     },
@@ -474,6 +475,39 @@ describe('analyze review event', () => {
         }),
       )
       expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledOnce()
+    })
+
+    it('defers provider work to the caller without claiming an operation', async () => {
+      const harness = createHarness()
+
+      await expect(harness.analyze({ ...input, execution: 'defer' })).resolves.toEqual({
+        status: 'deferred',
+      })
+      expect(harness.mocks.claim).not.toHaveBeenCalled()
+      expect(harness.mocks.acquire).not.toHaveBeenCalled()
+      expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
+      expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
+    })
+
+    it('still settles a review with nothing to analyse when deferring', async () => {
+      const harness = createHarness({ languageCode: 'sw-Latn' })
+
+      await expect(harness.analyze({ ...input, execution: 'defer' })).resolves.toEqual({
+        status: 'terminal',
+      })
+      expect(harness.mocks.claim).not.toHaveBeenCalled()
+      expect(harness.mocks.settleOutcome).toHaveBeenCalledOnce()
+    })
+
+    it('admits an on-demand analysis in the requested lane with its headroom', async () => {
+      const harness = createHarness()
+
+      await expect(
+        harness.analyze({ ...input, lane: 'interactive', admissionHeadroom: 1 }),
+      ).resolves.toEqual({ status: 'completed' })
+      expect(harness.mocks.acquire).toHaveBeenCalledWith(
+        expect.objectContaining({ lane: 'interactive', headroom: 1 }),
+      )
     })
 
     it('stores, aggregates, and delivers one successful analysis', async () => {

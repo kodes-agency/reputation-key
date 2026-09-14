@@ -195,6 +195,7 @@ const verifyPurgeReadiness = async (
  * aggregate heads so a later sweep cannot rebuild the derivative.
  */
 const PURGE_DELETE_TABLES = Object.freeze([
+  'ai_review_analysis_backlog',
   'ai_review_analysis_enrollments',
   'ai_property_trend_outcomes',
   'ai_property_trend_schedules',

@@ -41,3 +41,5 @@ export type {
   AiPropertyTrendGenerationRequested,
   AiReviewAnalysisBackfillRequested,
 } from '../domain/events'
+export type { ReviewAnalysisProgress } from './use-cases/read-review-analysis-progress'
+export type { RequestReviewAnalysisNowResult } from './use-cases/request-review-analysis-now'

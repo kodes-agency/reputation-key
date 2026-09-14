@@ -285,7 +285,13 @@ describe.sequential('Review Analysis first-enable lineage (real PostgreSQL)', ()
     for (let sequence = 1; sequence <= IMPORTED_REVIEWS; sequence += 1) {
       await expect(
         handleAiReviewEvent(
-          { analyzeReviewEvent, receipts, enqueuePropertyTrend: async () => {} },
+          {
+            analyzeReviewEvent,
+            receipts,
+            enqueuePropertyTrend: async () => {},
+            backlog: { enqueue: async () => {} },
+            nowEpochMillis: () => Date.now(),
+          },
           reviewCreated(sequence),
         ),
       ).resolves.toEqual({ status: 'applied' })

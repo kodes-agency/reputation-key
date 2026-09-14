@@ -129,6 +129,8 @@ const dependencies = {
   analyzeReviewEvent: settleWithoutProvider,
   receipts,
   enqueuePropertyTrend: async () => {},
+  backlog: { enqueue: async () => {} },
+  nowEpochMillis: () => Date.now(),
 } satisfies RegisterAiConsumersInput
 
 async function resetSettlementState(): Promise<void> {

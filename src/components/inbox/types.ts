@@ -28,6 +28,7 @@ import type {
 } from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
+import type { requestReviewAnalysisNowFn } from '#/contexts/ai/server/review-analysis'
 
 export type InboxServerFns = Readonly<{
   getInboxItems: typeof getInboxItemsFn
@@ -47,6 +48,7 @@ export type InboxServerFns = Readonly<{
   markFeedbackHandled: typeof markFeedbackHandledFn
   correctFeedbackHandlingOutcome: typeof correctFeedbackHandlingOutcomeFn
   generateReplySuggestion?: typeof generateReplySuggestionFn
+  requestReviewAnalysisNow?: typeof requestReviewAnalysisNowFn
 }>
 
 /** Functions consumed by the Inbox detail content subtree. */
@@ -57,4 +59,5 @@ export type InboxDetailFns = Pick<
   | 'getActivityTimeline'
   | 'addInboxNote'
   | 'generateReplySuggestion'
+  | 'requestReviewAnalysisNow'
 >

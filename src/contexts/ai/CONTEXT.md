@@ -38,7 +38,16 @@ and output lineage pin authorization, source, policy, model, and lifecycle fence
 Identity's merchant-AI fact drives one durable lifecycle command. The unconditional
 five-minute enrollment sweep recovers first-enablement intent; outbox receipts and
 operation state, not BullMQ delivery or in-process callbacks, are recovery
-authority. Reply Draft provider output remains session-ephemeral until an explicit,
+authority.
+
+Provider calls are admitted once per lane before an execution attempt is
+claimed (ADR 0058): interactive work (reply drafts, on-demand analysis) and
+background work (history) have independent global, organization and property
+buckets. Historical and backfill analysis events queue their provider work in
+`ai_review_analysis_backlog`, which a 30-second drain empties newest review
+first; a review opened in the Inbox is analysed ahead of the queue.
+`readReviewAnalysisProgress` reports queued, running, analysed and
+not-analysable counts. Reply Draft provider output remains session-ephemeral until an explicit,
 atomically revalidated adoption creates Review-owned draft content.
 
 Property Trends compare the latest 30 complete Property-local days with the prior 30. Readiness requires at least 20 analyzed text Reviews, at least 90% coverage,
