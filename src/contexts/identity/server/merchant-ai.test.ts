@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   revoke: vi.fn(),
   defer: vi.fn(),
   listOverview: vi.fn(),
+  enableForProperties: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
 }))
@@ -23,6 +24,7 @@ vi.mock('#/composition', () => ({
           revoke: mocks.revoke,
           defer: mocks.defer,
           listOverview: mocks.listOverview,
+          enableForProperties: mocks.enableForProperties,
         },
       },
     },
@@ -44,6 +46,7 @@ vi.mock('#/shared/observability/traced-server-fn', () => ({
 import {
   changeMerchantAiCapabilitiesFn,
   deferMerchantAiDecisionFn,
+  enableMerchantAiForPropertiesFn,
   enableMerchantAiFn,
   getMerchantAiAuthorizationFn,
   listMerchantAiOverviewFn,
@@ -323,5 +326,61 @@ describe('Merchant AI server functions', () => {
       'execution denied',
     )
     expect(mocks.listOverview).not.toHaveBeenCalled()
+  })
+
+  it('gates every property of a ceremony and forwards one command for all of them', async () => {
+    const SECOND_PROPERTY_ID = '00000000-0000-4000-8000-000000000003'
+    mocks.enableForProperties.mockResolvedValue([])
+
+    await withStartContext(() =>
+      enableMerchantAiForPropertiesFn({
+        data: {
+          propertyIds: [PROPERTY_ID, SECOND_PROPERTY_ID],
+          capabilities: ['review_analysis', 'reply_drafting'],
+          acknowledgement: ACKNOWLEDGEMENT,
+          idempotencyKey: 'ceremony-key-1',
+        },
+      }),
+    )
+
+    expect(mocks.requireExecutionAllowed.mock.calls.map(([gate]) => gate)).toEqual([
+      { actor, action: 'ai.manage' },
+      { actor, action: 'ai.manage', propertyId: PROPERTY_ID },
+      { actor, action: 'ai.manage', propertyId: SECOND_PROPERTY_ID },
+    ])
+    expect(mocks.enableForProperties).toHaveBeenCalledOnce()
+    expect(mocks.enableForProperties).toHaveBeenCalledWith({
+      organizationId: actor.organizationId,
+      actorUserId: actor.userId,
+      propertyIds: [PROPERTY_ID, SECOND_PROPERTY_ID],
+      capabilities: ['review_analysis', 'reply_drafting'],
+      acknowledgement: ACKNOWLEDGEMENT,
+      idempotencyKey: 'ceremony-key-1',
+      requestHeaders: expect.any(Headers),
+      reasonCode: 'merchant_enabled',
+    })
+  })
+
+  it('stops a ceremony when the execution gate denies any one property', async () => {
+    const DENIED_PROPERTY_ID = '00000000-0000-4000-8000-000000000004'
+    mocks.requireExecutionAllowed.mockImplementation(
+      async (gate: { propertyId?: string }) => {
+        if (gate.propertyId === DENIED_PROPERTY_ID) throw new Error('execution denied')
+      },
+    )
+
+    await expect(
+      withStartContext(() =>
+        enableMerchantAiForPropertiesFn({
+          data: {
+            propertyIds: [PROPERTY_ID, DENIED_PROPERTY_ID],
+            capabilities: ['review_analysis'],
+            acknowledgement: ACKNOWLEDGEMENT,
+            idempotencyKey: 'ceremony-key-2',
+          },
+        }),
+      ),
+    ).rejects.toThrow('execution denied')
+    expect(mocks.enableForProperties).not.toHaveBeenCalled()
   })
 })

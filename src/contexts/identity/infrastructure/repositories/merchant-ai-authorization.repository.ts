@@ -24,6 +24,7 @@ import {
   runMerchantAiMutation,
   type SnapshotRow,
 } from './merchant-ai-transition'
+import { runMerchantAiConsentCeremony } from './merchant-ai-consent-ceremony'
 
 export type MerchantAiAuthorizationFence = Readonly<{
   authorizationLineageId: string
@@ -121,6 +122,8 @@ export const createMerchantAiAuthorizationStore = (
     getSnapshot: (input) => getMerchantAiAuthorizationSnapshot(db, input),
 
     mutate: (input) => db.transaction((tx) => runMerchantAiMutation(tx, input, idGen)),
+
+    enableForProperties: (input) => runMerchantAiConsentCeremony(db, input, idGen),
 
     async restoreReset(input) {
       const requestHash = createHash('sha256')

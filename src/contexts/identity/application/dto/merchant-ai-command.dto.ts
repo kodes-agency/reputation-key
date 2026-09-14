@@ -46,3 +46,14 @@ export const merchantAiCapabilityChangeInputSchema =
   merchantAiConsentCommandInputSchema.extend({
     capabilities: z.array(merchantAiCapabilityInputSchema).min(1).max(3),
   })
+
+/**
+ * One consent ceremony for several Properties: an import batch at most. The use
+ * case refuses a Property listed twice.
+ */
+export const merchantAiEnableForPropertiesInputSchema = z.object({
+  propertyIds: z.array(z.uuid()).min(1).max(100),
+  capabilities: z.array(merchantAiCapabilityInputSchema).min(1).max(3),
+  acknowledgement: merchantAiNoticeAcknowledgementSchema,
+  idempotencyKey: z.string().min(8).max(128),
+})

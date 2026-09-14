@@ -717,6 +717,11 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
         input.capability,
       ).allowed
     },
+    isCurrentAccountAdmin: ({ organizationId: orgId, actorUserId }) =>
+      managerMembershipRepo.isCurrentAccountAdmin({
+        organizationId: orgId,
+        userId: actorUserId,
+      }),
     verifyStepUp: async (input) =>
       input.requestHeaders !== undefined &&
       (await deps.authSession.verifyPassword({
@@ -893,6 +898,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   const merchantAiRequestApi = Object.freeze({
     get: useCases.merchantAiAuthorization.get,
     enable: useCases.merchantAiAuthorization.enable,
+    enableForProperties: useCases.merchantAiAuthorization.enableForProperties,
     change: useCases.merchantAiAuthorization.change,
     revoke: useCases.merchantAiAuthorization.revoke,
     defer: useCases.merchantAiDecisionDeferral.defer,

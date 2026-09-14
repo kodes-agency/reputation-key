@@ -4,12 +4,16 @@ import {
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
 import { resolveAiRuntimeCapabilitySet } from '#/shared/ai-runtime-capability-contract'
+import { planMerchantAiConsentTransition } from '../../domain/merchant-ai-authorization'
 import {
   createMerchantAiAuthorization,
   CURRENT_MERCHANT_AI_CAPABILITIES,
+  MerchantAiAuthorizationStoreError,
   type MerchantAiAuthorizationDeps,
   type MerchantAiAuthorizationStore,
   type MerchantAiCapability,
+  type MerchantAiConsentCeremonyInput,
+  type MerchantAiPropertyConsentResult,
   type MerchantAiSnapshot,
 } from './merchant-ai-authorization'
 import type { MerchantAiDecisionDeferral } from './merchant-ai-decision-deferral'
@@ -88,6 +92,7 @@ function makeHarness(
       if (input.state === 'enabled') deferral = null
       return next
     }),
+    enableForProperties: vi.fn(async () => []),
     restoreReset: vi.fn(async () => BASE_SNAPSHOT),
   }
   const authorize = vi.fn<MerchantAiAuthorizationDeps['authorize']>(async () => true)
@@ -106,6 +111,7 @@ function makeHarness(
     decisionDeferrals,
     authorize,
     authorizeManagement,
+    isCurrentAccountAdmin: async () => true,
     verifyStepUp,
     clock: () => NOW,
     idGen,
@@ -366,5 +372,320 @@ describe('Merchant AI authorization', () => {
       stateVersion: 8,
     })
     expect(verifyStepUp).not.toHaveBeenCalled()
+  })
+})
+
+const PROPERTY_A = '00000000-0000-4000-8000-00000000000a'
+const PROPERTY_B = '00000000-0000-4000-8000-00000000000b'
+const PROPERTY_C = '00000000-0000-4000-8000-00000000000c'
+const PREVIOUS_NOTICE_VERSION = 'merchant-ai-notice-2026-09-09.v1'
+
+function enabledSnapshot(
+  propertyId: string,
+  overrides: Partial<MerchantAiSnapshot> = {},
+): MerchantAiSnapshot {
+  return {
+    ...BASE_SNAPSHOT,
+    propertyId,
+    state: 'enabled',
+    authorizationLineageId: LINEAGE_ID,
+    capabilities: CURRENT_MERCHANT_AI_CAPABILITIES,
+    capabilityRuntimeProfileVersions: resolveAiRuntimeCapabilitySet(
+      CURRENT_MERCHANT_AI_CAPABILITIES,
+    ),
+    capabilityEpochs: { review_analysis: 1, reply_drafting: 1, property_trends: 1 },
+    authorizedSourceEpoch: 1,
+    stateVersion: 1,
+    ...overrides,
+  }
+}
+
+/**
+ * An in-memory ceremony store with the real store's contract: the domain plan
+ * decides each Property's transition, a refusal for any Property leaves every
+ * grant as it was, and a repeated idempotency key replays without writing.
+ */
+function makeCeremonyHarness(initialHeads: Readonly<Record<string, MerchantAiSnapshot>>) {
+  const heads = new Map(Object.entries(initialHeads))
+  const committed = new Map<
+    string,
+    Readonly<{
+      ceremony: MerchantAiConsentCeremonyInput
+      results: ReadonlyArray<MerchantAiPropertyConsentResult>
+    }>
+  >()
+  const refusals = new Map<string, MerchantAiAuthorizationStoreError>()
+  let writes = 0
+
+  const enableForProperties = vi.fn(async (ceremony: MerchantAiConsentCeremonyInput) => {
+    const replay = committed.get(ceremony.idempotencyKey)
+    if (replay) return replay.results
+    const staged = new Map(heads)
+    const results = ceremony.propertyIds.map((propertyId) => {
+      const refusal = refusals.get(propertyId)
+      if (refusal) throw refusal
+      const current = staged.get(propertyId) ?? null
+      const capabilityRuntimeProfileVersions = resolveAiRuntimeCapabilitySet(
+        ceremony.capabilities,
+      )
+      const plan = planMerchantAiConsentTransition(current, {
+        ...ceremony,
+        capabilityRuntimeProfileVersions,
+        authorizedSourceEpoch: current?.authorizedSourceEpoch ?? 1,
+      })
+      if (plan.kind === 'unchanged') {
+        return { propertyId, outcome: 'unchanged' as const, snapshot: plan.current }
+      }
+      const next = enabledSnapshot(propertyId, {
+        capabilities: ceremony.capabilities,
+        capabilityRuntimeProfileVersions,
+        stateVersion: (current?.stateVersion ?? 0) + 1,
+        noticeVersion: ceremony.noticeVersion,
+        noticeDigest: ceremony.noticeDigest,
+      })
+      staged.set(propertyId, next)
+      return {
+        propertyId,
+        outcome: plan.kind === 'enable' ? ('enabled' as const) : ('changed' as const),
+        snapshot: next,
+      }
+    })
+    // Commit only once every Property has passed.
+    for (const [propertyId, head] of staged) heads.set(propertyId, head)
+    writes += results.filter((result) => result.outcome !== 'unchanged').length
+    committed.set(ceremony.idempotencyKey, { ceremony, results })
+    return results
+  })
+
+  const store: MerchantAiAuthorizationStore = {
+    getSnapshot: vi.fn(async ({ propertyId }) => heads.get(propertyId) ?? null),
+    mutate: vi.fn(async () => {
+      throw new Error('a ceremony never runs the single-property mutation')
+    }),
+    enableForProperties,
+    restoreReset: vi.fn(async () => BASE_SNAPSHOT),
+  }
+  const authorize = vi.fn<MerchantAiAuthorizationDeps['authorize']>(async () => true)
+  const authorizeManagement = vi.fn<MerchantAiAuthorizationDeps['authorizeManagement']>(
+    async () => true,
+  )
+  const isCurrentAccountAdmin = vi.fn<
+    MerchantAiAuthorizationDeps['isCurrentAccountAdmin']
+  >(async () => true)
+  const verifyStepUp = vi.fn<MerchantAiAuthorizationDeps['verifyStepUp']>(
+    async () => true,
+  )
+  let ceremonySequence = 0
+  const service = createMerchantAiAuthorization({
+    store,
+    decisionDeferrals: { findDecisionDeferral: vi.fn(async () => null) },
+    authorize,
+    authorizeManagement,
+    isCurrentAccountAdmin,
+    verifyStepUp,
+    clock: () => NOW,
+    idGen: () =>
+      `c1000000-0000-4000-8000-${String(++ceremonySequence).padStart(12, '0')}`,
+    noticeVersion: BASE_SNAPSHOT.noticeVersion,
+    noticeDigest: BASE_SNAPSHOT.noticeDigest,
+    sourcePolicyId: BASE_SNAPSHOT.sourcePolicyId,
+    routingPolicyVersion: BASE_SNAPSHOT.routingPolicyVersion,
+    providerDeploymentProfileVersion: BASE_SNAPSHOT.providerDeploymentProfileVersion,
+    redactionProfileFamily: BASE_SNAPSHOT.redactionProfileFamily,
+  })
+  return {
+    service,
+    heads,
+    refusals,
+    writes: () => writes,
+    enableForProperties,
+    authorize,
+    authorizeManagement,
+    isCurrentAccountAdmin,
+    verifyStepUp,
+  }
+}
+
+const ceremonyCommand = {
+  organizationId: BASE_SNAPSHOT.organizationId,
+  actorUserId: 'user-1',
+  propertyIds: [PROPERTY_A, PROPERTY_B, PROPERTY_C],
+  capabilities: CURRENT_MERCHANT_AI_CAPABILITIES,
+  acknowledgement: CURRENT_ACKNOWLEDGEMENT,
+  idempotencyKey: 'ceremony-0001',
+  reasonCode: 'merchant_enabled',
+} as const
+
+describe('Merchant AI consent ceremony for several properties', () => {
+  beforeEach(() => vi.restoreAllMocks())
+
+  it('enables, re-grants, and leaves current grants unchanged under one ceremony id', async () => {
+    const harness = makeCeremonyHarness({
+      // PROPERTY_A has never been enabled.
+      [PROPERTY_B]: enabledSnapshot(PROPERTY_B, {
+        noticeVersion: PREVIOUS_NOTICE_VERSION,
+      }),
+      [PROPERTY_C]: enabledSnapshot(PROPERTY_C),
+    })
+
+    const results = await harness.service.enableForProperties(ceremonyCommand)
+
+    expect(results.map(({ propertyId, outcome }) => ({ propertyId, outcome }))).toEqual([
+      { propertyId: PROPERTY_A, outcome: 'enabled' },
+      { propertyId: PROPERTY_B, outcome: 'changed' },
+      { propertyId: PROPERTY_C, outcome: 'unchanged' },
+    ])
+    expect(
+      results.every(
+        ({ snapshot }) => snapshot.noticeVersion === MERCHANT_AI_NOTICE_VERSION,
+      ),
+    ).toBe(true)
+    expect(harness.enableForProperties).toHaveBeenCalledOnce()
+    expect(harness.enableForProperties).toHaveBeenCalledWith(
+      expect.objectContaining({
+        propertyIds: [PROPERTY_A, PROPERTY_B, PROPERTY_C],
+        capabilities: CURRENT_MERCHANT_AI_CAPABILITIES,
+        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+        ceremonyId: 'c1000000-0000-4000-8000-000000000001',
+        now: NOW,
+      }),
+    )
+    // Every Property passes the same checks as a single enable.
+    expect(harness.authorizeManagement).toHaveBeenCalledTimes(3)
+    expect(harness.authorize).toHaveBeenCalledTimes(9)
+    expect(harness.verifyStepUp).not.toHaveBeenCalled()
+  })
+
+  it('replays a repeated ceremony without writing again', async () => {
+    const harness = makeCeremonyHarness({})
+
+    const first = await harness.service.enableForProperties(ceremonyCommand)
+    const writesAfterFirst = harness.writes()
+    const replayed = await harness.service.enableForProperties(ceremonyCommand)
+
+    expect(replayed).toEqual(first)
+    expect(writesAfterFirst).toBe(3)
+    expect(harness.writes()).toBe(writesAfterFirst)
+  })
+
+  it('applies nothing when the store refuses one property', async () => {
+    const harness = makeCeremonyHarness({})
+    harness.refusals.set(
+      PROPERTY_C,
+      new MerchantAiAuthorizationStoreError(
+        'property_inactive',
+        'Property and Google source must be active',
+        PROPERTY_C,
+      ),
+    )
+
+    await expect(
+      harness.service.enableForProperties(ceremonyCommand),
+    ).rejects.toMatchObject({
+      code: 'property_inactive',
+      propertyId: PROPERTY_C,
+    })
+    expect(harness.heads.size).toBe(0)
+    expect(harness.writes()).toBe(0)
+  })
+
+  it('refuses the whole ceremony before the store when any property is not authorized', async () => {
+    const managementDenied = makeCeremonyHarness({})
+    managementDenied.authorizeManagement.mockImplementation(
+      async ({ propertyId }) => propertyId !== PROPERTY_B,
+    )
+    await expect(
+      managementDenied.service.enableForProperties(ceremonyCommand),
+    ).rejects.toMatchObject({ code: 'capability_denied', propertyId: PROPERTY_B })
+    expect(managementDenied.enableForProperties).not.toHaveBeenCalled()
+
+    const capabilityDenied = makeCeremonyHarness({})
+    capabilityDenied.authorize.mockImplementation(
+      async ({ propertyId, capability }) =>
+        !(propertyId === PROPERTY_C && capability === 'ai.detect_trends'),
+    )
+    await expect(
+      capabilityDenied.service.enableForProperties(ceremonyCommand),
+    ).rejects.toMatchObject({ code: 'capability_denied', propertyId: PROPERTY_C })
+    expect(capabilityDenied.enableForProperties).not.toHaveBeenCalled()
+  })
+
+  it('is an account admin decision and refuses a stale notice first', async () => {
+    const notAdmin = makeCeremonyHarness({})
+    notAdmin.isCurrentAccountAdmin.mockResolvedValue(false)
+    await expect(
+      notAdmin.service.enableForProperties(ceremonyCommand),
+    ).rejects.toMatchObject({
+      code: 'capability_denied',
+    })
+    expect(notAdmin.authorizeManagement).not.toHaveBeenCalled()
+    expect(notAdmin.enableForProperties).not.toHaveBeenCalled()
+
+    const stale = makeCeremonyHarness({})
+    await expect(
+      stale.service.enableForProperties({
+        ...ceremonyCommand,
+        acknowledgement: {
+          ...CURRENT_ACKNOWLEDGEMENT,
+          noticeVersion: PREVIOUS_NOTICE_VERSION,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'notice_mismatch' })
+    expect(stale.isCurrentAccountAdmin).not.toHaveBeenCalled()
+    expect(stale.authorizeManagement).not.toHaveBeenCalled()
+    expect(stale.enableForProperties).not.toHaveBeenCalled()
+  })
+
+  it('validates the property list and capabilities like a single enable', async () => {
+    const { service, enableForProperties } = makeCeremonyHarness({})
+    const tooMany = Array.from(
+      { length: 101 },
+      (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+    )
+    const refusals: ReadonlyArray<
+      Readonly<{
+        change: Partial<typeof ceremonyCommand> | Record<string, unknown>
+        code: string
+      }>
+    > = [
+      { change: { propertyIds: [] }, code: 'invalid_command' },
+      { change: { propertyIds: tooMany }, code: 'invalid_command' },
+      { change: { propertyIds: ['not-a-property'] }, code: 'invalid_command' },
+      {
+        change: { propertyIds: [PROPERTY_A, PROPERTY_A.toUpperCase()] },
+        code: 'invalid_command',
+      },
+      { change: { idempotencyKey: 'short' }, code: 'invalid_command' },
+      { change: { capabilities: [] }, code: 'capabilities_required' },
+      {
+        change: { capabilities: ['property_trends'] },
+        code: 'invalid_capability_dependency',
+      },
+      {
+        change: { capabilities: ['review_analysis', 'unknown'] },
+        code: 'unsupported_capability',
+      },
+    ]
+    for (const { change, code } of refusals) {
+      await expect(
+        service.enableForProperties({ ...ceremonyCommand, ...change } as Parameters<
+          typeof service.enableForProperties
+        >[0]),
+      ).rejects.toMatchObject({ code })
+    }
+    expect(enableForProperties).not.toHaveBeenCalled()
+
+    await service.enableForProperties({
+      ...ceremonyCommand,
+      propertyIds: [PROPERTY_A.toUpperCase()],
+      capabilities: ['property_trends', 'review_analysis'],
+    })
+    expect(enableForProperties).toHaveBeenCalledWith(
+      expect.objectContaining({
+        propertyIds: [PROPERTY_A],
+        capabilities: ['review_analysis', 'property_trends'],
+      }),
+    )
   })
 })

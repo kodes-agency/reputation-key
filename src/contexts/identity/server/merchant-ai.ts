@@ -16,6 +16,7 @@ import {
   merchantAiCapabilityChangeInputSchema,
   merchantAiCommandInputSchema,
   merchantAiConsentCommandInputSchema,
+  merchantAiEnableForPropertiesInputSchema,
   merchantAiPropertyInputSchema,
 } from '../application/dto/merchant-ai-command.dto'
 
@@ -24,6 +25,11 @@ function merchantAiErrorStatus(code: MerchantAiAuthorizationError['code']): numb
   // A stale notice is a conflict with the served state: reload, then retry.
   if (code === 'notice_mismatch') return 409
   return 400
+}
+
+/** Logged, never sent: which Property of a ceremony refused. */
+function refusalContext(propertyId: string | undefined) {
+  return propertyId === undefined ? {} : { context: { propertyId } }
 }
 
 function mapMerchantAiError(error: unknown): never {
@@ -38,7 +44,7 @@ function mapMerchantAiError(error: unknown): never {
     const status = merchantAiErrorStatus(error.code)
     throwContextError(
       'MerchantAiAuthorizationError',
-      { code: error.code, message: error.message },
+      { code: error.code, message: error.message, ...refusalContext(error.propertyId) },
       status,
     )
   }
@@ -51,7 +57,7 @@ function mapMerchantAiError(error: unknown): never {
           : 400
     throwContextError(
       'MerchantAiAuthorizationError',
-      { code: error.code, message: error.message },
+      { code: error.code, message: error.message, ...refusalContext(error.propertyId) },
       status,
     )
   }
@@ -120,6 +126,42 @@ export const enableMerchantAiFn = createServerFn({ method: 'POST' })
       },
       'POST',
       'identity.enableMerchantAi',
+    ),
+  )
+
+/**
+ * One consent ceremony for several Properties at once, such as an import
+ * batch. Every Property passes the same execution gate as a single enable; the
+ * use case requires an AccountAdmin and commits all Properties or none.
+ */
+export const enableMerchantAiForPropertiesFn = createServerFn({ method: 'POST' })
+  .validator(merchantAiEnableForPropertiesInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const { headers, actor } = await managementContext(undefined)
+        for (const propertyId of data.propertyIds) {
+          await requireExecutionAllowed({ actor, action: 'ai.manage', propertyId })
+        }
+        try {
+          return await getContainer().identityPublicApi.requests.merchantAiAuthorization.enableForProperties(
+            {
+              organizationId: actor.organizationId as string,
+              actorUserId: actor.userId as string,
+              propertyIds: data.propertyIds,
+              capabilities: data.capabilities,
+              acknowledgement: data.acknowledgement,
+              idempotencyKey: data.idempotencyKey,
+              requestHeaders: headers,
+              reasonCode: 'merchant_enabled',
+            },
+          )
+        } catch (error) {
+          mapMerchantAiError(error)
+        }
+      },
+      'POST',
+      'identity.enableMerchantAiForProperties',
     ),
   )
 

@@ -89,6 +89,7 @@ describe('Identity public API', () => {
       'change',
       'defer',
       'enable',
+      'enableForProperties',
       'get',
       'listOverview',
       'revoke',

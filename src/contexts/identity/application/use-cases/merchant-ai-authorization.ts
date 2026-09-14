@@ -58,6 +58,40 @@ export type MerchantAiRestoreResetInput = Readonly<{
   now: Date
 }>
 
+/** Most Properties one consent ceremony may cover: one import batch. */
+export const MAX_MERCHANT_AI_CEREMONY_PROPERTIES = 100
+
+export type MerchantAiConsentOutcome = 'enabled' | 'changed' | 'unchanged'
+
+export type MerchantAiPropertyConsentResult = Readonly<{
+  propertyId: string
+  outcome: MerchantAiConsentOutcome
+  snapshot: MerchantAiSnapshot
+}>
+
+/**
+ * One consent ceremony over several Properties, validated and authorized by the
+ * use case. The store applies it in one transaction.
+ */
+export type MerchantAiConsentCeremonyInput = Readonly<{
+  organizationId: string
+  actorUserId: string
+  /** Unique, lowercase, in the caller's order. */
+  propertyIds: ReadonlyArray<string>
+  /** Normalized: unique and in catalogue order. */
+  capabilities: ReadonlyArray<MerchantAiCapability>
+  idempotencyKey: string
+  reasonCode: string
+  noticeVersion: string
+  noticeDigest: string
+  sourcePolicyId: string
+  routingPolicyVersion: number
+  providerDeploymentProfileVersion: 'private-beta-global-v1'
+  redactionProfileFamily: string
+  now: Date
+  ceremonyId: string
+}>
+
 export type MerchantAiAuthorizationStore = Readonly<{
   getSnapshot(input: {
     organizationId: string
@@ -65,6 +99,13 @@ export type MerchantAiAuthorizationStore = Readonly<{
   }): Promise<MerchantAiSnapshot | null>
   /** An enable also deletes the Property's standing decision deferral, atomically. */
   mutate(input: MerchantAiMutationInput): Promise<MerchantAiSnapshot>
+  /**
+   * Atomic: every Property's enablement, evidence and outbox fact commit
+   * together or not at all. Results follow `propertyIds` order.
+   */
+  enableForProperties(
+    input: MerchantAiConsentCeremonyInput,
+  ): Promise<ReadonlyArray<MerchantAiPropertyConsentResult>>
   restoreReset(input: MerchantAiRestoreResetInput): Promise<MerchantAiSnapshot>
 }>
 
@@ -85,6 +126,8 @@ export class MerchantAiAuthorizationStoreError extends Error {
   constructor(
     readonly code: MerchantAiAuthorizationStoreErrorCode,
     message: string,
+    /** The Property that refused, when a ceremony covers several. */
+    readonly propertyId?: string,
   ) {
     super(message)
     this.name = 'MerchantAiAuthorizationStoreError'
@@ -103,6 +146,8 @@ export class MerchantAiAuthorizationError extends Error {
   constructor(
     readonly code: MerchantAiAuthorizationErrorCode,
     message: string,
+    /** The Property that refused, when a ceremony covers several. */
+    readonly propertyId?: string,
   ) {
     super(message)
     this.name = 'MerchantAiAuthorizationError'
@@ -125,6 +170,11 @@ export type MerchantAiAuthorizationDeps = Readonly<{
     actorUserId: string
     capability: MerchantAiPurpose
     now: Date
+  }): Promise<boolean>
+  /** A multi-Property consent ceremony is an AccountAdmin decision. */
+  isCurrentAccountAdmin(input: {
+    organizationId: string
+    actorUserId: string
   }): Promise<boolean>
   /**
    * Reserved hook for a future step-up proof. Consent does not call it: since
@@ -182,6 +232,23 @@ export type MerchantAiNoticeAcknowledgement = Readonly<{
 export type MerchantAiConsentCommandInput = MerchantAiCommandInput &
   Readonly<{ acknowledgement: MerchantAiNoticeAcknowledgement }>
 
+/**
+ * One consent ceremony for several Properties. Every Property ends enabled with
+ * exactly `capabilities` under the served notice; one already there is left
+ * unchanged.
+ */
+export type MerchantAiEnableForPropertiesInput = Readonly<{
+  organizationId: string
+  actorUserId: string
+  propertyIds: ReadonlyArray<string>
+  capabilities: ReadonlyArray<MerchantAiCapability>
+  acknowledgement: MerchantAiNoticeAcknowledgement
+  idempotencyKey: string
+  reasonCode: string
+  /** Forwarded for the reserved step-up hook; consent does not read it. */
+  requestHeaders?: Headers
+}>
+
 export type MerchantAiAuthorization = ReturnType<typeof createMerchantAiAuthorization>
 
 const RUNTIME_BY_CAPABILITY = new Map(
@@ -191,6 +258,7 @@ const CURRENT_CAPABILITY_SET: ReadonlySet<string> = new Set(
   CURRENT_MERCHANT_AI_CAPABILITIES,
 )
 const REASON_CODE_PATTERN = /^[a-z][a-z0-9_]{2,63}$/
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function zeroCapabilityEpochs() {
   return Object.freeze({
@@ -255,6 +323,65 @@ function normalizeCapabilities(
   return normalized
 }
 
+function requireCapabilities(
+  capabilities: ReadonlyArray<MerchantAiCapability>,
+): ReadonlyArray<MerchantAiCapability> {
+  const normalized = normalizeCapabilities(capabilities)
+  if (normalized.length === 0) {
+    throw new MerchantAiAuthorizationError(
+      'capabilities_required',
+      'Enabled Merchant AI requires at least one current capability',
+    )
+  }
+  return normalized
+}
+
+function validateIdempotencyAndReason(
+  input: Readonly<{ idempotencyKey: string; reasonCode: string }>,
+): void {
+  if (input.idempotencyKey.length < 8 || input.idempotencyKey.length > 128) {
+    throw new MerchantAiAuthorizationError('invalid_command', 'Invalid idempotency key')
+  }
+  if (!REASON_CODE_PATTERN.test(input.reasonCode)) {
+    throw new MerchantAiAuthorizationError('invalid_command', 'Invalid reason code')
+  }
+}
+
+/** Returns the ceremony's Property ids, lowercase and in the caller's order. */
+function validateCeremonyCommand(
+  input: MerchantAiEnableForPropertiesInput,
+): ReadonlyArray<string> {
+  if (input.organizationId.length === 0 || input.actorUserId.length === 0) {
+    throw new MerchantAiAuthorizationError(
+      'invalid_command',
+      'Organization and actor are required',
+    )
+  }
+  validateIdempotencyAndReason(input)
+  if (
+    input.propertyIds.length === 0 ||
+    input.propertyIds.length > MAX_MERCHANT_AI_CEREMONY_PROPERTIES
+  ) {
+    throw new MerchantAiAuthorizationError(
+      'invalid_command',
+      `A consent ceremony covers 1 to ${MAX_MERCHANT_AI_CEREMONY_PROPERTIES} properties`,
+    )
+  }
+  const propertyIds = input.propertyIds.map((propertyId) => {
+    if (!UUID_PATTERN.test(propertyId)) {
+      throw new MerchantAiAuthorizationError('invalid_command', 'Invalid property id')
+    }
+    return propertyId.toLowerCase()
+  })
+  if (new Set(propertyIds).size !== propertyIds.length) {
+    throw new MerchantAiAuthorizationError(
+      'invalid_command',
+      'A consent ceremony names each property once',
+    )
+  }
+  return propertyIds
+}
+
 function validateCommand(input: MerchantAiCommandInput): void {
   if (
     input.organizationId.length === 0 ||
@@ -266,9 +393,6 @@ function validateCommand(input: MerchantAiCommandInput): void {
       'Organization, property, and actor are required',
     )
   }
-  if (input.idempotencyKey.length < 8 || input.idempotencyKey.length > 128) {
-    throw new MerchantAiAuthorizationError('invalid_command', 'Invalid idempotency key')
-  }
   if (
     !Number.isSafeInteger(input.expectedStateVersion) ||
     input.expectedStateVersion < 0
@@ -278,9 +402,7 @@ function validateCommand(input: MerchantAiCommandInput): void {
       'Invalid expected state version',
     )
   }
-  if (!REASON_CODE_PATTERN.test(input.reasonCode)) {
-    throw new MerchantAiAuthorizationError('invalid_command', 'Invalid reason code')
-  }
+  validateIdempotencyAndReason(input)
 }
 
 function requireCurrentNotice(
@@ -298,9 +420,32 @@ function requireCurrentNotice(
   }
 }
 
+type PropertyActor = Readonly<{
+  organizationId: string
+  propertyId: string
+  actorUserId: string
+}>
+
 export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps) {
+  async function requireManagement(target: PropertyActor, now: Date): Promise<void> {
+    if (
+      !(await deps.authorizeManagement({
+        organizationId: target.organizationId,
+        propertyId: target.propertyId,
+        actorUserId: target.actorUserId,
+        now,
+      }))
+    ) {
+      throw new MerchantAiAuthorizationError(
+        'capability_denied',
+        'Merchant AI management is denied',
+        target.propertyId,
+      )
+    }
+  }
+
   async function authorizeCapabilities(
-    input: MerchantAiCommandInput,
+    input: PropertyActor,
     capabilities: ReadonlyArray<MerchantAiCapability>,
     now: Date,
   ): Promise<void> {
@@ -323,6 +468,7 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
         throw new MerchantAiAuthorizationError(
           'capability_denied',
           `Merchant AI capability '${capability}' is denied`,
+          input.propertyId,
         )
       }
     }
@@ -339,19 +485,7 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
     if (capabilities.length > 0) resolveAiRuntimeCapabilitySet(capabilities)
     if (acknowledgement !== null) requireCurrentNotice(deps, acknowledgement)
     const now = deps.clock()
-    if (
-      !(await deps.authorizeManagement({
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        actorUserId: input.actorUserId,
-        now,
-      }))
-    ) {
-      throw new MerchantAiAuthorizationError(
-        'capability_denied',
-        'Merchant AI management is denied',
-      )
-    }
+    await requireManagement(input, now)
     await authorizeCapabilities(input, capabilities, now)
     const snapshot = await deps.store.mutate({
       organizationId: input.organizationId,
@@ -423,14 +557,61 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
         capabilities: ReadonlyArray<MerchantAiCapability>
       },
     ): Promise<MerchantAiSnapshot> {
-      const capabilities = normalizeCapabilities(input.capabilities)
-      if (capabilities.length === 0) {
+      const capabilities = requireCapabilities(input.capabilities)
+      return mutate(input, 'change', 'enabled', capabilities, input.acknowledgement)
+    },
+
+    /**
+     * One consent ceremony over several Properties (decision 3): the same
+     * authorization, Google-binding and state checks as a single enable, run
+     * for every Property, then one atomic store transaction that shares a
+     * ceremony id. AccountAdmin only. A replay by idempotency key returns the
+     * committed result without writing.
+     */
+    async enableForProperties(
+      input: MerchantAiEnableForPropertiesInput,
+    ): Promise<ReadonlyArray<MerchantAiPropertyConsentResult>> {
+      const propertyIds = validateCeremonyCommand(input)
+      const capabilities = requireCapabilities(input.capabilities)
+      resolveAiRuntimeCapabilitySet(capabilities)
+      requireCurrentNotice(deps, input.acknowledgement)
+      const now = deps.clock()
+      if (
+        !(await deps.isCurrentAccountAdmin({
+          organizationId: input.organizationId,
+          actorUserId: input.actorUserId,
+        }))
+      ) {
         throw new MerchantAiAuthorizationError(
-          'capabilities_required',
-          'Enabled Merchant AI requires at least one current capability',
+          'capability_denied',
+          'Consent for several properties at once requires an account admin',
         )
       }
-      return mutate(input, 'change', 'enabled', capabilities, input.acknowledgement)
+      for (const propertyId of propertyIds) {
+        const target = {
+          organizationId: input.organizationId,
+          propertyId,
+          actorUserId: input.actorUserId,
+        }
+        await requireManagement(target, now)
+        await authorizeCapabilities(target, capabilities, now)
+      }
+      return deps.store.enableForProperties({
+        organizationId: input.organizationId,
+        actorUserId: input.actorUserId,
+        propertyIds,
+        capabilities,
+        idempotencyKey: input.idempotencyKey,
+        reasonCode: input.reasonCode,
+        noticeVersion: deps.noticeVersion,
+        noticeDigest: deps.noticeDigest,
+        sourcePolicyId: deps.sourcePolicyId,
+        routingPolicyVersion: deps.routingPolicyVersion,
+        providerDeploymentProfileVersion: deps.providerDeploymentProfileVersion,
+        redactionProfileFamily: deps.redactionProfileFamily,
+        now,
+        ceremonyId: deps.idGen(),
+      })
     },
 
     /** Withdrawing consent needs no acknowledgement. */

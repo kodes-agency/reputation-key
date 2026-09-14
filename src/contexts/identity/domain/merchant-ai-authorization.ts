@@ -120,3 +120,24 @@ export function isMerchantAiGrantCurrent(
     isMerchantAiExecutionContractCurrent(current, desired)
   )
 }
+
+/**
+ * How one consent ceremony brings a single Property to the desired grant:
+ * enable a disabled or revoked grant, re-grant an enabled one that differs
+ * (older notice, other capabilities, rebound source, or policy drift), or
+ * leave an identical enabled grant alone.
+ */
+export type MerchantAiConsentTransition =
+  | Readonly<{ kind: 'enable' }>
+  | Readonly<{ kind: 'change' }>
+  | Readonly<{ kind: 'unchanged'; current: MerchantAiSnapshot }>
+
+export function planMerchantAiConsentTransition(
+  current: MerchantAiSnapshot | null,
+  desired: MerchantAiDesiredGrant,
+): MerchantAiConsentTransition {
+  if (current === null || current.state !== 'enabled') return { kind: 'enable' }
+  return isMerchantAiGrantCurrent(current, desired)
+    ? { kind: 'unchanged', current }
+    : { kind: 'change' }
+}

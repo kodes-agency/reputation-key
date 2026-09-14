@@ -3,6 +3,7 @@ import {
   merchantAiCapabilityChangeInputSchema,
   merchantAiCommandInputSchema,
   merchantAiConsentCommandInputSchema,
+  merchantAiEnableForPropertiesInputSchema,
 } from './merchant-ai-command.dto'
 
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000001'
@@ -56,5 +57,30 @@ describe('Merchant AI command DTOs', () => {
     expect(change(['review_analysis', 'property_trends'])).toBe(true)
     expect(change([])).toBe(false)
     expect(change(['review_analysis', 'unknown'])).toBe(false)
+  })
+
+  it('bounds one consent ceremony to between one and a hundred properties', () => {
+    const propertyIds = (count: number) =>
+      Array.from(
+        { length: count },
+        (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+      )
+    const ceremony = (overrides: Record<string, unknown>) =>
+      merchantAiEnableForPropertiesInputSchema.safeParse({
+        propertyIds: propertyIds(2),
+        capabilities: ['review_analysis'],
+        acknowledgement: ACKNOWLEDGEMENT,
+        idempotencyKey: 'ceremony-key-1',
+        ...overrides,
+      }).success
+
+    expect(ceremony({})).toBe(true)
+    expect(ceremony({ propertyIds: propertyIds(100) })).toBe(true)
+    expect(ceremony({ propertyIds: [] })).toBe(false)
+    expect(ceremony({ propertyIds: propertyIds(101) })).toBe(false)
+    expect(ceremony({ propertyIds: ['not-a-uuid'] })).toBe(false)
+    expect(ceremony({ capabilities: [] })).toBe(false)
+    expect(ceremony({ acknowledgement: undefined })).toBe(false)
+    expect(ceremony({ idempotencyKey: 'short' })).toBe(false)
   })
 })

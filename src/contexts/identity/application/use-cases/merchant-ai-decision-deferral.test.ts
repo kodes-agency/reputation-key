@@ -84,6 +84,9 @@ function makeWorld() {
       if (mutation.state === 'enabled') deferrals.delete(mutation.propertyId)
       return head
     }),
+    enableForProperties: vi.fn(async () => {
+      throw new Error('a consent ceremony is not exercised here')
+    }),
     restoreReset: vi.fn(async () => {
       throw new Error('restore reset is not exercised here')
     }),
@@ -100,6 +103,7 @@ function makeWorld() {
     store: authorizationStore,
     decisionDeferrals: deferralStore,
     authorizeManagement,
+    isCurrentAccountAdmin: async () => true,
     authorize: async () => true,
     verifyStepUp: async () => true,
     clock,
