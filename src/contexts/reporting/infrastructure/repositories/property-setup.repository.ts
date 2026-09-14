@@ -82,28 +82,39 @@ function propertyScopeSql(propertyIds: readonly string[] | null): SQL {
 
 /**
  * One statement, so every fact comes from a single snapshot. Each source is
- * bound to the Organization as well as correlated to the Property row.
+ * bound to the Organization as well as to the scoped Property rows.
  *
  * - Reviews are synced when a completed provider snapshot run exists for the
  *   Property's current source epoch — the evidence the Organization checklist
  *   reads for its initial review sync. Terminal runs are retained for 30 days
- *   and sync recurs within hours, so a healthy Property keeps it.
+ *   and sync recurs within hours, so a healthy Property keeps it. No index
+ *   serves completed runs by Property, so the runs are read once for the whole
+ *   scope in a CTE instead of once per Property in a correlated subquery.
  * - A Portal counts as published when the tenant published it and its current
  *   publication activation is still open; Portal health is not a setup step.
+ * - The remaining per-Property lookups are index-backed correlated subqueries.
  */
 function propertyFactsSql(organizationId: OrganizationId, scope: SQL): SQL {
   return sql`
+    WITH scoped_properties AS MATERIALIZED (
+      SELECT p.id, p.source_epoch, p.google_binding_state, p.default_reply_language
+      FROM ${properties} p
+      WHERE p.organization_id = ${organizationId}
+        AND p.deleted_at IS NULL
+        AND ${scope}
+    ), synced_properties AS (
+      SELECT DISTINCT run.property_id
+      FROM ${reviewProviderSnapshotRuns} run
+      JOIN scoped_properties p
+        ON p.id = run.property_id
+        AND p.source_epoch = run.source_epoch
+      WHERE run.organization_id = ${organizationId}
+        AND run.state = 'completed'
+    )
     SELECT
       p.id::text AS property_id,
       (p.google_binding_state = 'active') AS google_binding_active,
-      EXISTS (
-        SELECT 1
-        FROM ${reviewProviderSnapshotRuns} run
-        WHERE run.organization_id = ${organizationId}
-          AND run.property_id = p.id
-          AND run.source_epoch = p.source_epoch
-          AND run.state = 'completed'
-      ) AS reviews_synced,
+      (synced.property_id IS NOT NULL) AS reviews_synced,
       (p.default_reply_language IS NOT NULL) AS reply_language_chosen,
       enablement.state AS merchant_ai_state,
       EXISTS (
@@ -138,13 +149,11 @@ function propertyFactsSql(organizationId: OrganizationId, scope: SQL): SQL {
           AND portal.deleted_at IS NULL
           AND portal.publication_state = 'published'
       ) AS portal_published
-    FROM ${properties} p
+    FROM scoped_properties p
+    LEFT JOIN synced_properties synced ON synced.property_id = p.id
     LEFT JOIN ${merchantAiEnablement} enablement
-      ON enablement.organization_id = p.organization_id
+      ON enablement.organization_id = ${organizationId}
       AND enablement.property_id = p.id
-    WHERE p.organization_id = ${organizationId}
-      AND p.deleted_at IS NULL
-      AND ${scope}
     ORDER BY p.id
   `
 }
