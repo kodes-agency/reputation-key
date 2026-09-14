@@ -483,7 +483,7 @@ export const NoDefaultManagerGetsTheFix: Story = {
     await openMenu(TEMPLATE_TRIGGER)
     const fixInTemplates = item('Set property language')
     await expect(fixInTemplates).toHaveAccessibleDescription(reason)
-    await expect(fixInTemplates.getAttribute('href')).toContain('/settings/ai')
+    await expect(fixInTemplates.getAttribute('href')).toContain('/settings/replies')
     await expect(fixInTemplates.getAttribute('href')).toContain(args.propertyId)
     await closeMenu()
 

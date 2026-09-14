@@ -1115,7 +1115,7 @@ export const NoPropertyDefaultAt720: Story = atPane({
     const fix = writeIn.getByRole('menuitem', { name: 'Set property language' })
     expect(fix).toHaveAttribute(
       'href',
-      expect.stringContaining(`propertyId=${PROPERTY_ID}`),
+      expect.stringContaining(`/properties/${PROPERTY_ID}/settings/replies`),
     )
     expect(fix).toHaveAccessibleDescription(reason)
     await closeMenu()

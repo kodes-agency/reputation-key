@@ -77,9 +77,15 @@
     },
     {
       "id": "aiKeys",
-      "members": ["all", "propertyTrend", "propertyAggregates", "propertyInsights"],
+      "members": [
+        "all",
+        "propertyTrend",
+        "propertyAggregates",
+        "propertyInsights",
+        "reviewAnalysisProgress"
+      ],
       "owner": "AI read-model query lifecycle",
-      "policy": "Trend, aggregate, and insights projections are independent property-scoped siblings under the AI root; insights also keys the selected day range, and globally unique propertyId prevents cross-property reuse."
+      "policy": "Trend, aggregate, and insights projections are independent property-scoped siblings under the AI root; insights also keys the selected day range, and globally unique propertyId prevents cross-property reuse. Review-analysis progress is another property-scoped sibling: it polls only while analysis is running and is invalidated when the property's AI authorization changes."
     },
     {
       "id": "goalKeys",
@@ -254,16 +260,16 @@
       "policy": "An effect reconciles new normalized server assignments against the prior server selection while preserving independent local edits."
     },
     {
-      "id": "src/components/features/settings/merchant-ai-settings-page.tsx:useState(snapshot)",
+      "id": "src/components/features/settings/merchant-ai-property-authorization.tsx:useState(snapshot)",
       "classification": "server_snapshot",
       "owner": "Merchant AI authorization settings",
-      "policy": "Seed from the selected property's snapshot and replace with confirmed command results; the route keys MerchantAiSettingsPage by propertyId, so changing property creates a fresh snapshot owner."
+      "policy": "Seed from the property's snapshot and replace with confirmed command results; every caller keys MerchantAiPropertyAuthorization by propertyId (and the property AI section also by state version), so changing property or a confirmed command from elsewhere creates a fresh snapshot owner."
     },
     {
-      "id": "src/components/features/settings/merchant-ai-settings-page.tsx:useState(selectedCapabilities)",
+      "id": "src/components/features/settings/merchant-ai-property-authorization.tsx:useState(selectedCapabilities)",
       "classification": "server_draft",
       "owner": "Merchant AI authorization settings",
-      "policy": "Seed from the current authorization or notice defaults and retain local capability edits until a command result replaces them; the propertyId-keyed route remount prevents drafts crossing properties."
+      "policy": "Seed from the current authorization or notice defaults and retain local capability edits until a command result replaces them; the propertyId-keyed remount prevents drafts crossing properties."
     },
     {
       "id": "src/components/features/settings/quiet-hours-editor.tsx:useState(nextStart)",

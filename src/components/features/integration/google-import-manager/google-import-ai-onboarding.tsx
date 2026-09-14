@@ -229,7 +229,10 @@ function EnabledPanel({ property }: Readonly<{ property: ImportedPropertyForAi }
             </Link>
           </Button>
           <Button asChild size="sm" variant="outline">
-            <Link to="/settings/ai" search={{ propertyId: property.propertyId }}>
+            <Link
+              to="/properties/$propertyId/settings/ai"
+              params={{ propertyId: property.propertyId }}
+            >
               AI settings
             </Link>
           </Button>

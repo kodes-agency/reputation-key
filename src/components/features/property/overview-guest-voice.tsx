@@ -72,7 +72,7 @@ function AnalysisOff({ propertyId }: Readonly<{ propertyId: string }>) {
       action={
         canManage ? (
           <Button asChild className="h-11 shrink-0">
-            <Link to="/settings/ai" search={{ propertyId }}>
+            <Link to="/properties/$propertyId/settings/ai" params={{ propertyId }}>
               Turn on AI analysis
             </Link>
           </Button>

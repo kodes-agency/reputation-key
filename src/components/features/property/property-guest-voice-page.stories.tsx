@@ -391,7 +391,7 @@ export const AnalysisOff: Story = {
     expect(await canvas.findByText('AI analysis is off for this property')).toBeVisible()
     expect(canvas.getByRole('link', { name: 'Enable AI analysis' })).toHaveAttribute(
       'href',
-      expect.stringContaining('/settings/ai?propertyId='),
+      expect.stringMatching(/\/properties\/[^/]+\/settings\/ai$/),
     )
   },
 }

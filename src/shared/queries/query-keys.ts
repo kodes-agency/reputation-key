@@ -161,6 +161,9 @@ export const aiKeys = {
     [...aiKeys.all, 'property-aggregates', propertyId] as const,
   propertyInsights: (propertyId: string, range: number | 'all') =>
     [...aiKeys.all, 'property-insights', propertyId, range] as const,
+  /** Paced Review Analysis counts for one property (ADR 0058). */
+  reviewAnalysisProgress: (propertyId: string) =>
+    [...aiKeys.all, 'review-analysis-progress', propertyId] as const,
 }
 
 // ── Goals ────────────────────────────────────────────────────────────────

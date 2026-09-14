@@ -116,18 +116,18 @@ export function ReplySuggestionControls(props: Props) {
           className={cn(
             'basis-full text-xs',
             // Busy is our own capacity, not a failure: it reads as a wait.
-            props.aiBusyUntil !== null && !props.templateError
+            props.aiBusyUntil != null && !props.templateError
               ? 'text-muted-foreground'
               : 'text-destructive',
           )}
         >
           {props.templateError && <p>{props.templateError}</p>}
           {props.aiError && <p>{props.aiError}</p>}
-          {(props.aiBusyUntil !== null || props.aiOffersTemplate) && (
+          {(props.aiBusyUntil != null || props.aiOffersTemplate) && (
             // A refusal is never answered with a substitute: the manager
             // chooses between waiting for AI and the governed template.
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-              {props.aiBusyUntil !== null && (
+              {props.aiBusyUntil != null && (
                 <RetryAfterButton
                   key={props.aiBusyUntil}
                   retryAtEpochMillis={props.aiBusyUntil}
@@ -154,7 +154,7 @@ export function ReplySuggestionControls(props: Props) {
             (canManagePortalBrand ? (
               <Button asChild size="xs" variant="link" className="max-md:min-h-9">
                 <Link
-                  to="/properties/$propertyId/settings"
+                  to="/properties/$propertyId/settings/profile"
                   params={{ propertyId: props.propertyId }}
                 >
                   Set the public display name
@@ -168,7 +168,10 @@ export function ReplySuggestionControls(props: Props) {
           {props.errorFixTarget === 'ai_settings' &&
             (canManageAi ? (
               <Button asChild size="xs" variant="link" className="max-md:min-h-9">
-                <Link to="/settings/ai" search={{ propertyId: props.propertyId }}>
+                <Link
+                  to="/properties/$propertyId/settings/ai"
+                  params={{ propertyId: props.propertyId }}
+                >
                   Enable AI replies
                 </Link>
               </Button>

@@ -1,281 +1,47 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import type { AuthRouteContext } from '#/routes/_authenticated'
-import { can } from '#/shared/domain/permissions'
-import {
-  propertyKeys,
-  identityKeys,
-  inboxKeys,
-  portalKeys,
-  reviewKeys,
-} from '#/shared/queries/query-keys'
-import { propertyQuery } from '#/routes/-queries/route-queries'
-import { listMembers } from '#/contexts/identity/server/organizations'
-import {
-  listPropertyResponsibleManagers,
-  updatePropertyResponsibleManagers,
-} from '#/contexts/property/server/property-responsible-managers'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import {
-  removePropertyFromWorkspace,
-  type RemovePropertyInput,
-} from '#/components/features/property/remove-property-from-workspace'
-import { PageShell } from '#/components/layout/page-shell'
+import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
-import { PropertyResponsibleManagersCard } from '#/components/features/property/property-responsible-managers-card'
-import { PropertyLifecycleCard } from '#/components/features/property/property-lifecycle-card'
-import {
-  archiveProperty,
-  disconnectPropertyGoogleBinding,
-  restoreProperty,
-} from '#/contexts/property/server/properties'
-import { toast } from 'sonner'
-import {
-  getResponseTargetPolicySettingsFn,
-  setResponseTargetPolicyFn,
-} from '#/contexts/inbox/server/inbox'
-import { PrivateFeedbackTargetCard } from '#/components/features/property/private-feedback-target-card'
-import { PropertyPublicDisplayNameCard } from '#/components/features/property/property-public-display-name-card'
-import {
-  getPropertyPortalExperience,
-  savePropertyPortalBrandProfile,
-} from '#/contexts/portal/server/portals'
-import {
-  getPropertyReplyLibraryFn,
-  savePropertyReplyProfileFn,
-  savePropertyReplyTemplateFn,
-  setPropertyReplyTemplateEnabledFn,
-} from '#/contexts/review/server/reply'
-import { PropertyReplyProfileCard } from '#/components/features/property/property-reply-profile-card'
-import { PropertyReplyTemplateLibraryCard } from '#/components/features/property/property-reply-template-library-card'
-
-const responsibleManagersQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: propertyKeys.responsibleManagers(propertyId),
-    queryFn: () => listPropertyResponsibleManagers({ data: { propertyId } }),
-    staleTime: 30_000,
-  })
-
-const membersQuery = queryOptions({
-  queryKey: identityKeys.members(),
-  queryFn: () => listMembers(),
-  staleTime: 30_000,
-})
-
-const responseTargetPolicyQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: inboxKeys.responseTargetPolicies(propertyId),
-    queryFn: () => getResponseTargetPolicySettingsFn({ data: { propertyId } }),
-    staleTime: 60_000,
-  })
-
-const propertyPortalExperienceQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: portalKeys.propertyExperience(propertyId),
-    queryFn: () => getPropertyPortalExperience({ data: { propertyId } }),
-    staleTime: 30_000,
-  })
-const propertyReplyLibraryQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: reviewKeys.replyLibrary(propertyId),
-    queryFn: () => getPropertyReplyLibraryFn({ data: { propertyId } }),
-    staleTime: 30_000,
-  })
+import { PageShell } from '#/components/layout/page-shell'
+import { PropertySettingsNav } from '#/components/features/property/settings/property-settings-nav'
+import { visiblePropertySettingsSections } from '#/components/features/property/settings/property-settings-sections'
+import type { AuthRouteContext } from '#/routes/_authenticated'
+import { propertyQuery } from '#/routes/-queries/route-queries'
+import { can } from '#/shared/domain/permissions'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/settings')({
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'property.read')) throw redirect({ to: '/properties' })
   },
-  staleTime: 30_000,
-  loader: async ({ params: { propertyId }, context }) => {
-    const { role } = context as AuthRouteContext
-    await Promise.all([
-      context.queryClient.ensureQueryData(propertyQuery(propertyId)),
-      context.queryClient.ensureQueryData(responsibleManagersQuery(propertyId)),
-      context.queryClient.ensureQueryData(membersQuery),
-      ...(can(role, 'organization.update')
-        ? [context.queryClient.ensureQueryData(responseTargetPolicyQuery(propertyId))]
-        : []),
-      ...(can(role, 'portal.read')
-        ? [context.queryClient.ensureQueryData(propertyPortalExperienceQuery(propertyId))]
-        : []),
-      ...(can(role, 'reply.manage')
-        ? [context.queryClient.ensureQueryData(propertyReplyLibraryQuery(propertyId))]
-        : []),
-    ])
-  },
-  component: PropertySettingsRoute,
+  loader: ({ params: { propertyId }, context }) =>
+    context.queryClient.ensureQueryData(propertyQuery(propertyId)),
+  component: PropertySettingsLayout,
 })
 
-function PropertyReplyLibrarySettings({
-  propertyId,
-  role,
-}: Readonly<{ propertyId: string; role: AuthRouteContext['role'] }>) {
-  const { data: library } = useQuery({
-    ...propertyReplyLibraryQuery(propertyId),
-    enabled: can(role, 'reply.manage'),
-  })
-  const invalidateKeys = [reviewKeys.replyLibrary(propertyId)]
-  const saveProfile = useActionMutation(savePropertyReplyProfileFn, {
-    successMessage: 'Reply profile saved',
-    invalidateKeys,
-  })
-  const saveTemplate = useActionMutation(savePropertyReplyTemplateFn, {
-    successMessage: 'Reply template saved',
-    invalidateKeys,
-  })
-  const setTemplateEnabled = useActionMutation(setPropertyReplyTemplateEnabledFn, {
-    successMessage: 'Reply template availability updated',
-    invalidateKeys,
-  })
-
-  return (
-    <>
-      <PropertyReplyProfileCard
-        key={`${propertyId}:${library?.profile?.version ?? 0}`}
-        propertyId={propertyId}
-        profile={library?.profile ?? null}
-        action={saveProfile}
-      />
-      <PropertyReplyTemplateLibraryCard
-        propertyId={propertyId}
-        profile={library?.profile ?? null}
-        templates={library?.templates ?? []}
-        defaultLanguageTag={library?.defaultLanguageTag ?? null}
-        saveAction={saveTemplate}
-        toggleAction={setTemplateEnabled}
-      />
-    </>
-  )
-}
-
-function PropertySettingsRoute() {
+function PropertySettingsLayout() {
   const { propertyId } = Route.useParams()
   const { role } = Route.useRouteContext() as AuthRouteContext
-  const { data: propertyData } = useSuspenseQuery(propertyQuery(propertyId))
-  const { data: responsibleManagers } = useSuspenseQuery(
-    responsibleManagersQuery(propertyId),
-  )
-  const { data: membersData } = useSuspenseQuery(membersQuery)
-  const canManageResponseTargets = can(role, 'organization.update')
-  const { data: responseTargetSettings } = useQuery({
-    ...responseTargetPolicyQuery(propertyId),
-    enabled: canManageResponseTargets,
-  })
-  const canReadPortalBrand = can(role, 'portal.read')
-  const { data: portalExperience } = useQuery({
-    ...propertyPortalExperienceQuery(propertyId),
-    enabled: canReadPortalBrand,
-  })
-  const updateAction = useActionMutation(updatePropertyResponsibleManagers, {
-    successMessage: 'Responsible managers updated',
-    invalidateKeys: [
-      propertyKeys.detail(propertyId),
-      propertyKeys.responsibleManagers(propertyId),
-    ],
-  })
-  const lifecycleInvalidateKeys = [propertyKeys.detail(propertyId), propertyKeys.list()]
-  const archiveAction = useActionMutation(archiveProperty, {
-    successMessage: 'Property archived. Its settings and history are retained.',
-    invalidateKeys: lifecycleInvalidateKeys,
-  })
-  const restoreAction = useActionMutation(restoreProperty, {
-    invalidateKeys: lifecycleInvalidateKeys,
-    onSuccess: (result) => {
-      if (result.googleBindingReadiness === 'reconnect_required') {
-        toast.success(
-          'Property restored. Reconnect Google before restarting provider work.',
-        )
-      } else {
-        toast.success('Property restored. Google is ready for this Property.')
-      }
-    },
-  })
-  const removeAction = useActionMutation(
-    (input: RemovePropertyInput) =>
-      removePropertyFromWorkspace(input, {
-        archive: archiveProperty,
-        disconnect: disconnectPropertyGoogleBinding,
-      }),
-    {
-      invalidateKeys: lifecycleInvalidateKeys,
-      onSuccess: (result) => {
-        if (result.googleDisconnected) {
-          toast.success(
-            'Property removed. Restore it from the Removed list within 30 days.',
-          )
-        } else {
-          toast.warning(
-            'Property removed, but its Google connection could not be disconnected. Open the Property to disconnect it.',
-          )
-        }
-      },
-    },
-  )
-  const disconnectAction = useActionMutation(disconnectPropertyGoogleBinding, {
-    successMessage:
-      'This Property is disconnected. The Organization Google connection is unchanged.',
-    invalidateKeys: lifecycleInvalidateKeys,
-  })
-  const updateResponseTargetPolicy = useActionMutation(setResponseTargetPolicyFn, {
-    successMessage: 'Property response target updated',
-    invalidateKeys: [inboxKeys.responseTargetPolicies(propertyId)],
-  })
-  const savePublicDisplayName = useActionMutation(savePropertyPortalBrandProfile, {
-    successMessage: 'Public display name saved',
-    invalidateKeys: [portalKeys.propertyExperience(propertyId)],
-  })
+  const { data } = useSuspenseQuery(propertyQuery(propertyId))
+  const sections = visiblePropertySettingsSections((permission) => can(role, permission))
 
   return (
     <PageShell>
       <PageHeader
         title="Property settings"
-        description={propertyData.property.name}
+        description={data.property.name}
         breadcrumbs={[
           { label: 'Properties', to: '/properties' },
-          { label: propertyData.property.name, to: `/properties/${propertyId}` },
+          { label: data.property.name, to: `/properties/${propertyId}` },
           { label: 'Settings' },
         ]}
       />
-      <div className="space-y-6">
-        {portalExperience ? (
-          <PropertyPublicDisplayNameCard
-            key={propertyId}
-            propertyId={propertyId}
-            profile={portalExperience.profile}
-            action={savePublicDisplayName}
-          />
-        ) : null}
-        <PropertyReplyLibrarySettings propertyId={propertyId} role={role} />
-        <PropertyResponsibleManagersCard
-          propertyId={propertyId}
-          state={responsibleManagers}
-          members={membersData.members}
-          updateAction={updateAction}
-          disabled={!can(role, 'property.update')}
-        />
-        {canManageResponseTargets && responseTargetSettings ? (
-          <PrivateFeedbackTargetCard
-            settings={responseTargetSettings}
-            updatePolicy={updateResponseTargetPolicy}
-          />
-        ) : null}
-        <PropertyLifecycleCard
-          property={propertyData.property}
-          responsibilityNeeded={responsibleManagers.responsibilityNeeded}
-          actions={{
-            archive: archiveAction,
-            remove: removeAction,
-            restore: restoreAction,
-            disconnect: disconnectAction,
-          }}
-          permissions={{
-            archive: can(role, 'property.archive'),
-            restore: can(role, 'property.restore'),
-            disconnect: can(role, 'property.disconnect'),
-          }}
-        />
+      <div className="grid gap-6 md:grid-cols-[14rem_minmax(0,1fr)] md:items-start">
+        <div className="md:sticky md:top-4">
+          <PropertySettingsNav propertyId={propertyId} sections={sections} />
+        </div>
+        <div className="flex min-w-0 flex-col gap-6">
+          <Outlet />
+        </div>
       </div>
     </PageShell>
   )

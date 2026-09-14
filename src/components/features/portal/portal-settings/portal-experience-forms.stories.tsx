@@ -99,15 +99,18 @@ export const CommandsUseSharedDtos: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
 
-    const displayName = canvas.getByLabelText(/public display name/i)
-    await userEvent.clear(displayName)
-    await userEvent.type(displayName, '  Grand Hotel  ')
-    await userEvent.click(canvas.getByRole('button', { name: /save property brand/i }))
+    // The name is owned by Property settings → Profile; the brand editor
+    // shows it, links there, and saves colours with the name unchanged.
+    expect(canvas.getByText('Example Hotel')).toBeVisible()
+    expect(
+      canvas.getByRole('link', { name: /change in property profile/i }),
+    ).toHaveAttribute('href', '/properties/property-1/settings/profile')
+    await userEvent.click(canvas.getByRole('button', { name: /save brand colours/i }))
     await waitFor(() =>
       expect(args.actions.saveProfile).toHaveBeenCalledWith({
         data: {
           propertyId: 'property-1',
-          displayName: 'Grand Hotel',
+          displayName: 'Example Hotel',
           primaryColor: '#2563EB',
           backgroundColor: '#FFFFFF',
           textColor: '#111827',

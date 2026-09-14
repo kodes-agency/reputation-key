@@ -1,4 +1,3 @@
-import { useMemo, useState } from 'react'
 import { BrainCircuit } from 'lucide-react'
 import type {
   CurrentMerchantAiCapability,
@@ -10,7 +9,7 @@ import {
   MerchantAiPropertySelector,
   type MerchantAiPropertyOption,
 } from './merchant-ai-settings-content'
-import { MerchantAiAuthorizationCard } from './merchant-ai-authorization-card'
+import { MerchantAiPropertyAuthorization } from './merchant-ai-property-authorization'
 import {
   PropertyReplyLanguageCard,
   type PropertyReplyLanguageUpdateAction,
@@ -43,15 +42,10 @@ type Props = Readonly<{
   updateProperty: PropertyReplyLanguageUpdateAction
 }>
 
-function mutationErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) return error.message
-  return 'The AI setting could not be saved. Reload the property and try again.'
-}
-
 export function MerchantAiSettingsPage({
   properties,
   propertyId,
-  snapshot: initialSnapshot,
+  snapshot,
   notice,
   onPropertyChange,
   enable,
@@ -59,81 +53,7 @@ export function MerchantAiSettingsPage({
   revoke,
   updateProperty,
 }: Props) {
-  const [snapshot, setSnapshot] = useState(initialSnapshot)
-  const [password, setPassword] = useState('')
-  const [pending, setPending] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [selectedCapabilities, setSelectedCapabilities] = useState<
-    ReadonlyArray<CurrentMerchantAiCapability>
-  >(
-    initialSnapshot?.state === 'enabled'
-      ? initialSnapshot.capabilities
-      : notice.payload.capabilities.map((capability) => capability.id),
-  )
-
   const property = properties.find((candidate) => candidate.id === propertyId)
-  const state = snapshot?.state ?? 'disabled'
-  const sourceActive = property?.googleBindingState === 'active'
-  const selectionChanged = useMemo(() => {
-    if (!snapshot) return false
-    return notice.payload.capabilities.some(
-      ({ id }) =>
-        selectedCapabilities.includes(id) !== snapshot.capabilities.includes(id),
-    )
-  }, [notice.payload.capabilities, selectedCapabilities, snapshot])
-  // A re-versioned notice is a real change even when the capability set is
-  // identical: the server's `executionContractChanged` accepts it, and consent
-  // has to be re-granted against the notice actually on screen. Without this the
-  // Save button stays disabled and the only way through is to drop a capability
-  // and re-add it — which revokes it briefly, writes an extra evidence row and
-  // bumps that capability's epoch twice. Mirrors the notice half of
-  // `executionContractChanged` in merchant-ai-authorization.repository.ts.
-  const contractChanged =
-    snapshot !== null &&
-    (snapshot.noticeVersion !== notice.version || snapshot.noticeDigest !== notice.digest)
-
-  const toggleCapability = (
-    capability: CurrentMerchantAiCapability,
-    checked: boolean,
-  ) => {
-    setSelectedCapabilities((current) => {
-      const next = new Set(current)
-      if (checked) {
-        next.add(capability)
-        if (capability === 'property_trends') next.add('review_analysis')
-      } else {
-        next.delete(capability)
-        if (capability === 'review_analysis') next.delete('property_trends')
-      }
-      return notice.payload.capabilities
-        .map((candidate) => candidate.id)
-        .filter((candidate) => next.has(candidate))
-    })
-  }
-
-  const commandData = () => ({
-    propertyId: propertyId!,
-    expectedStateVersion: snapshot?.stateVersion ?? 0,
-    idempotencyKey: crypto.randomUUID(),
-    password,
-  })
-
-  const run = async (operation: () => Promise<MerchantAiSnapshot>) => {
-    setPending(true)
-    setErrorMessage(null)
-    try {
-      const next = await operation()
-      setSnapshot(next)
-      setSelectedCapabilities(next.capabilities)
-    } catch (error) {
-      setErrorMessage(mutationErrorMessage(error))
-    } finally {
-      setPassword('')
-      setPending(false)
-    }
-  }
-
-  const canSubmit = Boolean(propertyId && sourceActive && password && !pending)
 
   return (
     <div className="flex w-full min-w-0 max-w-4xl flex-col gap-6">
@@ -161,35 +81,14 @@ export function MerchantAiSettingsPage({
           </p>
         </EmptyState>
       ) : (
-        <MerchantAiAuthorizationCard
-          propertyName={property.name}
-          state={state}
-          sourceActive={sourceActive}
+        <MerchantAiPropertyAuthorization
+          key={property.id}
+          property={property}
+          snapshot={snapshot}
           notice={notice}
-          selectedCapabilities={selectedCapabilities}
-          password={password}
-          pending={pending}
-          errorMessage={errorMessage}
-          canSubmit={canSubmit}
-          canSave={
-            canSubmit &&
-            (selectionChanged || contractChanged) &&
-            selectedCapabilities.length > 0
-          }
-          onToggleCapability={toggleCapability}
-          onPasswordChange={setPassword}
-          onEnable={() => void run(() => enable({ data: commandData() }))}
-          onChange={() =>
-            void run(() =>
-              change({
-                data: {
-                  ...commandData(),
-                  capabilities: [...selectedCapabilities],
-                },
-              }),
-            )
-          }
-          onRevoke={() => void run(() => revoke({ data: commandData() }))}
+          enable={enable}
+          change={change}
+          revoke={revoke}
         />
       )}
     </div>

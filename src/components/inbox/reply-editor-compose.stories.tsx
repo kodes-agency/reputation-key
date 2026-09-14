@@ -423,7 +423,9 @@ export const AiDetectsMissingReviewLanguage: Story = {
     const fix = writeIn().getByRole('menuitem', { name: 'Set property language' })
     await expect(fix).toHaveAttribute(
       'href',
-      expect.stringContaining('propertyId=10000000-0000-4000-8000-000000000101'),
+      expect.stringContaining(
+        '/properties/10000000-0000-4000-8000-000000000101/settings/replies',
+      ),
     )
     await expect(fix).toHaveAccessibleDescription(
       'We’ll detect this review’s language for this draft. Set a property default so future replies start in your local language.',
@@ -838,10 +840,11 @@ export const AiRepliesNotEnabled: Story = {
       ).toBeVisible(),
     )
     const link = canvas.getByRole('link', { name: /enable ai replies/i })
-    expect(link).toHaveAttribute('href', expect.stringContaining('/settings/ai'))
     expect(link).toHaveAttribute(
       'href',
-      expect.stringContaining('propertyId=10000000-0000-4000-8000-000000000101'),
+      expect.stringContaining(
+        '/properties/10000000-0000-4000-8000-000000000101/settings/ai',
+      ),
     )
   },
 }
@@ -982,7 +985,7 @@ export const PublicDisplayNameMissing: Story = {
     ).toHaveAttribute(
       'href',
       expect.stringContaining(
-        '/properties/10000000-0000-4000-8000-000000000101/settings',
+        '/properties/10000000-0000-4000-8000-000000000101/settings/profile',
       ),
     )
   },

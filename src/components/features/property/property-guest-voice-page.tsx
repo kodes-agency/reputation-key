@@ -145,12 +145,12 @@ function DisabledGuestVoice({ propertyId }: Readonly<{ propertyId: string }>) {
         </p>
         {can('ai.manage') ? (
           <Button asChild size="sm">
-            <Link to="/settings/ai" search={{ propertyId }}>
+            <Link to="/properties/$propertyId/settings/ai" params={{ propertyId }}>
               Enable AI analysis
             </Link>
           </Button>
         ) : (
-          <p>An account admin can enable it from Settings → AI &amp; replies.</p>
+          <p>An account admin can enable it from this property&rsquo;s AI settings.</p>
         )}
       </AlertDescription>
     </Alert>
