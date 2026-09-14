@@ -22,6 +22,7 @@ import {
   escalateInboxItemDto,
   resolveEscalationDto,
   addInboxNoteDto,
+  assignInboxItemDto,
   bulkUpdateStatusDto,
   bulkAssignInboxItemsDto,
   stampLastInboxViewDto,
@@ -35,12 +36,13 @@ import type {
   getInboxItemDetailFn,
   getInboxNotesFn,
   getInboxItemHistoryFn,
-  getInboxFolderCountsFn,
+  getInboxQueueCountsFn,
   stampLastInboxViewFn,
   updateInboxStatusFn,
   escalateInboxItemFn,
   resolveEscalationFn,
   addInboxNoteFn,
+  assignInboxItemFn,
   bulkUpdateInboxStatusFn,
   bulkAssignInboxItemsFn,
   markFeedbackHandledFn,
@@ -60,6 +62,7 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
     getInboxItems: (async ({ data }: { data: z.infer<typeof getInboxItemsDto> }) =>
       container.inboxPublicApi.getInboxItems(
         {
+          queue: data.queue,
           filters: {
             propertyId: data.propertyId ? propertyId(data.propertyId) : undefined,
             status: data.status,
@@ -128,13 +131,11 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
         ctx,
       )) as unknown as typeof getInboxItemHistoryFn,
 
-    // Folder counts are org-wide (no filters in the DTO); the real use-case
-    // computes the per-folder tally over the seeded repo.
-    getInboxFolderCounts: (async () =>
-      container.inboxPublicApi.getInboxFolderCounts(
-        {},
+    getInboxQueueCounts: (async ({ data }: { data?: { propertyId?: string } }) =>
+      container.inboxPublicApi.getInboxQueueCounts(
+        { propertyId: data?.propertyId },
         ctx,
-      )) as unknown as typeof getInboxFolderCountsFn,
+      )) as unknown as typeof getInboxQueueCountsFn,
 
     stampLastInboxView: (async ({
       data,
@@ -193,6 +194,16 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
         },
         ctx,
       )) as unknown as typeof addInboxNoteFn,
+
+    assignInboxItem: (async ({ data }: { data: z.infer<typeof assignInboxItemDto> }) =>
+      container.inboxPublicApi.assignInboxItem(
+        {
+          inboxItemId: inboxItemId(data.inboxItemId),
+          assignedToUserId: data.assignedToUserId ? userId(data.assignedToUserId) : null,
+          expectedCommandRevision: data.expectedCommandRevision,
+        },
+        ctx,
+      )) as unknown as typeof assignInboxItemFn,
 
     bulkUpdateInboxStatus: (async ({
       data,

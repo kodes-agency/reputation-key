@@ -1,6 +1,6 @@
 // Page-level story: composes the full InboxPageV2 three-panel layout against the
 // in-memory container. The list + folder sidebar render with REAL use-case
-// logic (getInboxItems + getInboxFolderCounts compute over seeded data); the
+// logic (getInboxItems + getInboxQueueCounts compute over seeded data); the
 // detail-only fns are wired but only fire on item selection. Demonstrates the
 // Phase-1 prop channel end-to-end: a route-shaped fn bundle, no server/RPC.
 import type { Meta, StoryObj } from '@storybook/react'
@@ -51,11 +51,6 @@ container.seed([
 // Empty repo → getInboxItems returns [] → the list empty state.
 const emptyContainer = createInboxContainer()
 
-const properties = [
-  { id: String(inboxTestIds.PROP), name: 'Acme Hotel' },
-  { id: 'prop-00000000-0000-0000-0000-000000000002', name: 'Globex HQ' },
-]
-
 const orgCtx: InboxCtx = { activeOrganization: { id: String(inboxTestIds.ORG) } }
 
 // getInboxItems never settles → the list stays in its loading (skeleton) state.
@@ -77,13 +72,11 @@ const loadingFns: InboxServerFns = {
  */
 function InboxPageHarness({
   ctx,
-  properties: props,
   inboxFns,
   initialSearch = {},
   recordInboxVisit = true,
 }: {
   ctx: InboxCtx
-  properties?: ReadonlyArray<{ id: string; name: string }>
   inboxFns: InboxServerFns
   initialSearch?: InboxSearchParams
   recordInboxVisit?: boolean
@@ -95,10 +88,10 @@ function InboxPageHarness({
     <InboxPageV2
       ctx={ctx}
       search={search}
-      properties={props}
       onNavigate={onNavigate}
       inboxFns={inboxFns}
       recordInboxVisit={recordInboxVisit}
+      scopeLabel={initialSearch.propertyId ? 'Hotel Elegance' : 'All properties'}
     />
   )
 }
@@ -126,13 +119,7 @@ export default meta
 type Story = StoryObj<typeof InboxPageV2>
 
 export const Default: Story = {
-  render: () => (
-    <InboxPageHarness
-      ctx={orgCtx}
-      properties={properties}
-      inboxFns={makeInboxFns(container)}
-    />
-  ),
+  render: () => <InboxPageHarness ctx={orgCtx} inboxFns={makeInboxFns(container)} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // All seeded rows share reviewerName 'Jane Doe' → multiple matches; click the first.
@@ -230,6 +217,9 @@ const approvedDetail: InboxItemDetailResult = {
     'A comfortable place to stay, rarely seen in Bulgaria, and includes breakfast.',
   reviewerProfilePhotoUrl: null,
   reviewContentStatus: 'available',
+  // Plan row 7: the stars come from the detail payload, not the item row —
+  // the projection NULLs a review row's own copy (`inbox-command-store.ts:936`).
+  reviewRating: 4,
   feedbackComment: null,
   feedbackRatingValue: null,
   propertyDefaultReplyLanguage: 'bg-Cyrl',
@@ -303,7 +293,6 @@ export const ApprovedPanels: Story = {
   render: () => (
     <InboxPageHarness
       ctx={orgCtx}
-      properties={approvedProperties}
       inboxFns={approvedFns}
       initialSearch={{ itemId: APPROVED_ITEM_ID }}
     />
@@ -311,24 +300,28 @@ export const ApprovedPanels: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.findAllByText('Hotel Elegance')).resolves.not.toHaveLength(0)
-    await expect(canvas.findByText('Rila Grand Hotel')).resolves.toBeVisible()
     await expect(
       canvas.findByRole('textbox', { name: 'Public reply' }),
     ).resolves.toHaveValue(approvedDetail.reply!.text)
-    const languageSelect = await canvas.findByRole('combobox', {
-      name: 'Reply language',
-    })
-    await expect(languageSelect).toHaveTextContent(/^Bulgarian\s*·\s*Property default$/i)
-    await userEvent.click(languageSelect)
-    // findBy resolves the moment the option EXISTS, which is while the Select
+    // Plan v2.1 row 17: the language is a group inside `Draft with AI ▾`, not
+    // a combobox. Opened, because the language moving is the thing to prove.
+    const chevron = await canvas.findByRole('button', { name: /^AI tone and language/ })
+    await userEvent.click(chevron)
+    // findBy resolves the moment the item EXISTS, which is while the menu
     // content is still animating in from opacity 0 — assert visibility with a
     // retry rather than on whichever frame the machine happened to be on.
-    const englishOption = await screen.findByRole('option', {
-      name: /review language · english/i,
+    const writeIn = await screen.findByRole('group', { name: 'Write in' })
+    const bulgarian = within(writeIn).getByRole('menuitem', {
+      name: 'Bulgarian · property default',
     })
-    await waitFor(() => expect(englishOption).toBeVisible())
+    await expect(bulgarian).toHaveAttribute('aria-current', 'true')
+    const englishItem = within(writeIn).getByRole('menuitem', {
+      name: 'English · review language',
+    })
+    await waitFor(() => expect(englishItem).toBeVisible())
     await userEvent.keyboard('{Escape}')
-    languageSelect.blur()
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    chevron.blur()
   },
 }
 
@@ -337,9 +330,8 @@ export const EscalatedFolder: Story = {
   render: () => (
     <InboxPageHarness
       ctx={orgCtx}
-      properties={properties}
       inboxFns={makeInboxFns(container)}
-      initialSearch={{ folder: 'escalated' }}
+      initialSearch={{ queue: 'escalated' }}
     />
   ),
 }
@@ -349,21 +341,14 @@ export const NoOrg: Story = {
   render: () => (
     <InboxPageHarness
       ctx={{ activeOrganization: null }}
-      properties={properties}
       inboxFns={makeInboxFns(container)}
     />
   ),
 }
 
-// Empty list → the use-case returns [] → the "No inbox items" empty state.
+// Empty list → the queue-specific empty state.
 export const EmptyList: Story = {
-  render: () => (
-    <InboxPageHarness
-      ctx={orgCtx}
-      properties={properties}
-      inboxFns={makeInboxFns(emptyContainer)}
-    />
-  ),
+  render: () => <InboxPageHarness ctx={orgCtx} inboxFns={makeInboxFns(emptyContainer)} />,
 }
 
 const visitContainer = createInboxContainer()
@@ -372,13 +357,7 @@ visitContainer.seed([
 ])
 
 export const SuccessfulLoadStampsVisit: Story = {
-  render: () => (
-    <InboxPageHarness
-      ctx={orgCtx}
-      properties={properties}
-      inboxFns={makeInboxFns(visitContainer)}
-    />
-  ),
+  render: () => <InboxPageHarness ctx={orgCtx} inboxFns={makeInboxFns(visitContainer)} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await canvas.findByRole('button', { name: /Open review from Jane Doe/i })
@@ -397,9 +376,7 @@ const failedVisitFns: InboxServerFns = {
 }
 
 export const FailedLoadPreservesVisitWatermark: Story = {
-  render: () => (
-    <InboxPageHarness ctx={orgCtx} properties={properties} inboxFns={failedVisitFns} />
-  ),
+  render: () => <InboxPageHarness ctx={orgCtx} inboxFns={failedVisitFns} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await canvas.findByText('Failed to load inbox. Try again.')
@@ -416,7 +393,6 @@ export const PropertyScopedLoadPreservesOrganizationWatermark: Story = {
   render: () => (
     <InboxPageHarness
       ctx={orgCtx}
-      properties={properties}
       inboxFns={makeInboxFns(propertyVisitContainer)}
       initialSearch={{ propertyId: String(inboxTestIds.PROP) }}
       recordInboxVisit={false}
@@ -431,57 +407,53 @@ export const PropertyScopedLoadPreservesOrganizationWatermark: Story = {
 
 // getInboxItems never resolves → the list stays in its loading (skeleton) state.
 export const Loading: Story = {
-  render: () => (
-    <InboxPageHarness ctx={orgCtx} properties={properties} inboxFns={loadingFns} />
-  ),
+  render: () => <InboxPageHarness ctx={orgCtx} inboxFns={loadingFns} />,
 }
 
-// `parameters.viewport` only resizes the preview iframe from the Storybook
-// manager, so the authoritative runner — which drives iframe.html directly at a
-// fixed 1280×720 page — never sees a narrow window. Pin the one media query the
-// layout branches on (`useIsMobile`) so the mobile composition renders in every
-// runner; other queries (reduced motion, color scheme) stay real.
-const MOBILE_BREAKPOINT_QUERY = '(max-width: 767px)'
-
-function pinMobileBreakpoint(): () => void {
-  const realMatchMedia = window.matchMedia.bind(window)
-  const alwaysMatches = (query: string): MediaQueryList => ({
-    matches: true,
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  })
-  window.matchMedia = (query: string) =>
-    query === MOBILE_BREAKPOINT_QUERY ? alwaysMatches(query) : realMatchMedia(query)
-  return () => {
-    window.matchMedia = realMatchMedia
-  }
-}
-
-// Mobile viewport (390×844 → matches the app's `max-width: 767px` breakpoint):
-// the three-panel desktop layout collapses to list + drawer sidebar + detail sheet.
+// Mobile viewport (390×844): list + queue strip + detail sheet.
+//
+// This story used to install a `pinMobileBreakpoint` helper, under a comment
+// saying `parameters.viewport` "only resizes the preview iframe from the
+// Storybook manager" and that the runner "never sees a narrow window". That was
+// the widely-copied source of the claim in this folder, and it is no longer
+// true: `@storybook/addon-vitest@10.6` awaits `page.viewport(w, h)` before
+// every composed story (`dist/vitest-plugin/test-utils.js:51-71, 120`).
+// Measured in this runner on 2026-09-12 — `mobileStaff` is a real 390×844
+// window and `matchMedia('(max-width: 767px)')` matches in it; a story with no
+// viewport parameter is reset to 1200×900, so widths do not leak between
+// stories either. `useIsMobile` is therefore the real query answering, and the
+// patch is deleted rather than left standing: a stub that always returns true
+// would keep this story green even if the layout stopped consulting the hook.
+// The full measurement is written up in `inbox-mobile-390.stories.tsx`.
 export const MobileViewport: Story = {
-  render: () => (
-    <InboxPageHarness
-      ctx={orgCtx}
-      properties={properties}
-      inboxFns={makeInboxFns(container)}
-    />
-  ),
+  render: () => <InboxPageHarness ctx={orgCtx} inboxFns={makeInboxFns(container)} />,
   parameters: {
     viewport: { defaultViewport: 'mobileStaff' },
   },
-  beforeEach: () => pinMobileBreakpoint(),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: 'Open folders' }))
+    const queues = await canvas.findByRole('navigation', { name: 'Queues' })
+    await expect(within(queues).findByText(/needs reply/i)).resolves.toBeVisible()
     await expect(
-      await screen.findByRole('combobox', { name: 'Filter by property' }),
-    ).toBeVisible()
+      canvas.findByRole('button', { name: 'Select items' }),
+    ).resolves.toBeVisible()
+  },
+}
+
+// The desktop workspace needs 48 px app rail + 224 px queue rail + 320 px list,
+// a 6 px separator, and 480 px detail. Until that 1078 px floor, use the
+// strip/sheet composition.
+export const TabletViewport: Story = {
+  render: () => <InboxPageHarness ctx={orgCtx} inboxFns={makeInboxFns(container)} />,
+  parameters: {
+    viewport: { defaultViewport: 'tablet' },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.findByRole('button', { name: 'Select items' }),
+    ).resolves.toBeVisible()
+    expect(canvasElement.querySelector('[data-inbox-queue-rail]')).toBeNull()
   },
 }
 
@@ -515,11 +487,7 @@ longContentContainer.seed([
 
 export const LongContent: Story = {
   render: () => (
-    <InboxPageHarness
-      ctx={orgCtx}
-      properties={properties}
-      inboxFns={makeInboxFns(longContentContainer)}
-    />
+    <InboxPageHarness ctx={orgCtx} inboxFns={makeInboxFns(longContentContainer)} />
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

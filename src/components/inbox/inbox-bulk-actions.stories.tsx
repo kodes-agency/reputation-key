@@ -262,15 +262,9 @@ export const AssignSelected: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /^assign$/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /^assign 3 items$/i }))
     const body = within(document.body)
-    await userEvent.click(await body.findByRole('combobox', { name: /^assignment$/i }))
-    await userEvent.click(await body.findByRole('option', { name: /morgan manager/i }))
-    await userEvent.click(
-      within(await body.findByRole('dialog')).getByRole('button', {
-        name: /apply to all/i,
-      }),
-    )
+    await userEvent.click(await body.findByRole('menuitem', { name: /morgan manager/i }))
     await waitFor(() => {
       expect(assignmentSpy).toHaveBeenCalledWith(
         expect.objectContaining({

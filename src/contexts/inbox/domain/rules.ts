@@ -36,7 +36,7 @@ export const validateTransition = (
 
 /** Returns the timestamp field to stamp when an item enters `status`.
  *  Pure derivation — used by the single-item and bulk status use cases.
- *  Per ADR 0023: only `closedAt` (one field, not four). */
+ *  Per ADR 0055: only `closedAt` (one field, not four). */
 export const timestampFieldsForStatus = (
   status: InboxStatus,
   now: Date,

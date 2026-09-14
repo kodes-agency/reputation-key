@@ -46,6 +46,8 @@ export type { InboxNoteView } from './use-cases/get-inbox-notes'
 export type { InboxError } from '../domain/errors'
 export { INBOX_BULK_LIMIT } from './dto/inbox.dto'
 export type { Cursor, InboxSort } from './ports/inbox.repository'
+export { INBOX_QUEUES, replyStageForStatus, type InboxQueue } from './inbox-queues'
+export type { InboxQueueCounts } from './use-cases/get-inbox-queue-counts'
 export type {
   InboxReviewAnalysis,
   ReviewAnalysisAspect,
@@ -68,7 +70,7 @@ export type InboxPublicApi = Readonly<{
   getInboxItemDetail: import('./use-cases/get-inbox-item-detail').GetInboxItemDetail
   getInboxNotes: import('./use-cases/get-inbox-notes').GetInboxNotes
   getInboxItemHistory: import('./use-cases/get-inbox-item-history').GetInboxItemHistory
-  getInboxFolderCounts: import('./use-cases/get-folder-counts').GetInboxFolderCounts
+  getInboxQueueCounts: import('./use-cases/get-inbox-queue-counts').GetInboxQueueCounts
   markFeedbackHandled: import('./use-cases/mark-feedback-handled').MarkFeedbackHandled
   correctFeedbackHandlingOutcome: import('./use-cases/correct-feedback-handling-outcome').CorrectFeedbackHandlingOutcome
   getGoogleReviewTargetAnalytics: import('./use-cases/get-response-targets').GetGoogleReviewTargetAnalytics

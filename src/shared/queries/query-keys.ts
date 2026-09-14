@@ -20,6 +20,10 @@ export const inboxKeys = {
   detail: (id: string) => [...inboxKeys.details(), id] as const,
   notes: (id: string) => [...inboxKeys.detail(id), 'notes'] as const,
   activity: (id: string) => [...inboxKeys.detail(id), 'activity'] as const,
+  // Handling History is written in the SAME transaction as the command that
+  // caused it, unlike the activity feed's ~2.5s BullMQ insert lag, so this key
+  // may be invalidated the instant a command resolves.
+  history: (id: string) => [...inboxKeys.detail(id), 'history'] as const,
   responseTargetPolicies: (propertyId?: string) =>
     [...inboxKeys.all, 'response-target-policies', propertyId ?? 'organization'] as const,
   privateFeedbackTargetAnalytics: (propertyId?: string) =>

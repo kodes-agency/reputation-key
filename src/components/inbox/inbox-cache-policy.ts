@@ -1,9 +1,11 @@
 // InboxCachePolicy — deep module owning the inbox cache-invalidation policy.
 //
 // The inbox hooks/pages no longer know:
-//   - the query-key prefix topology (detail(id) ⊃ notes(id)/activity(id))
+//   - the query-key prefix topology (detail(id) ⊃ notes(id)/activity(id)/history(id))
 //   - the BullMQ activity-lag constant (the activity row is inserted ~2s after
-//     a status change, so activity is re-invalidated on a delay)
+//     a status change, so activity is re-invalidated on a delay) versus
+//     Handling History, which commits in the command's own transaction and so
+//     is invalidated immediately
 //   - which folder caches (lists / counts / last-visit-count) go stale when an
 //     item moves between folders
 //   - the reply-poll predicate (poll while a reply publish is pending)
@@ -48,7 +50,7 @@ export const POLLED_PUBLICATION_STATES: Readonly<Record<string, true>> = {
 
 type ReplyPollingCandidate = Readonly<{
   status: string
-  publicationState: string | null
+  publicationState?: string | null
   updatedAt: Date | string
 }>
 
@@ -123,6 +125,18 @@ function invalidateActivityAfterLag(qc: QueryClient, id: string): void {
   )
 }
 
+/**
+ * The Handling History row is written in the SAME transaction as the command
+ * that caused it, so by the time a command's `onSuccess` runs the new event is
+ * already readable — no lag, unlike the activity feed. The detail thread reads
+ * `history(id)` and nothing else refreshes it: `detail(id)` is only ever
+ * write-through patched here, never invalidated, so the prefix does not carry
+ * the refresh for us.
+ */
+function invalidateHistory(qc: QueryClient, id: string): void {
+  qc.invalidateQueries({ queryKey: inboxKeys.history(id) })
+}
+
 function patchReply(
   qc: QueryClient,
   id: string,
@@ -173,9 +187,15 @@ export const inboxCachePolicy = {
     invalidateFolderCaches(qc)
   },
 
-  /** A status command returned the authoritative Inbox item snapshot. */
+  /**
+   * A status command returned the authoritative Inbox item snapshot. Close,
+   * reopen, assign, escalate and resolve-escalation all land here, and every
+   * one of them appends a Handling History row, so the detail thread is stale
+   * the moment this resolves.
+   */
   onItemStatusChanged(qc: QueryClient, item: InboxItem): void {
     patchItem(qc, item)
+    invalidateHistory(qc, item.id)
     invalidateActivityAfterLag(qc, item.id)
     invalidateFolderCaches(qc)
   },
@@ -199,6 +219,10 @@ export const inboxCachePolicy = {
           }
         : old,
     )
+    // A correction writes a new append-only outcome revision without moving
+    // folders, so history goes stale on BOTH branches — before the early
+    // return, not after it.
+    invalidateHistory(qc, result.item.id)
     if (!statusChanged) return
     invalidateActivityAfterLag(qc, result.item.id)
     invalidateFolderCaches(qc)
@@ -213,6 +237,7 @@ export const inboxCachePolicy = {
     patchReply(qc, id, change.reply)
     if (change.kind === 'state_changed') {
       qc.invalidateQueries({ queryKey: inboxKeys.lists() })
+      qc.invalidateQueries({ queryKey: inboxKeys.counts() })
     }
   },
 
@@ -250,9 +275,13 @@ export const inboxCachePolicy = {
 
   /**
    * The item's status changed server-side (detected while polling — e.g. a
-   * published reply auto-closed the item). Only the folder caches are stale.
+   * published reply auto-closed the item). The server wrote that transition's
+   * Handling History row in the same transaction as the status flip, so the
+   * thread is stale too — and polling stops the moment the reply settles, so
+   * nothing later would refetch it.
    */
-  onItemFolderChanged(qc: QueryClient): void {
+  onItemFolderChanged(qc: QueryClient, id: string): void {
+    invalidateHistory(qc, id)
     invalidateFolderCaches(qc)
   },
 } as const

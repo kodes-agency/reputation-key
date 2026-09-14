@@ -5,20 +5,25 @@ import type {
   Cursor,
   InboxItem,
   InboxSort,
+  InboxQueue,
 } from '#/contexts/inbox/application/public-api'
 import { InboxListV2 } from '#/components/inbox/inbox-list-v2'
 import { InboxBulkActions } from '#/components/inbox/inbox-bulk-actions'
 import { Button } from '#/components/ui/button'
 import type { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 import type { bulkAssignInboxItemsFn } from '#/contexts/inbox/server/inbox'
-import type { InboxAssignmentOption } from './inbox-bulk-assignment-dialog'
+import type { InboxAssignmentOption } from './inbox-owner-view'
 import { Loader2 } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 import type { InboxListFilterValues } from './inbox-filters'
 import { InboxListEmpty, InboxListError, InboxListSkeleton } from './inbox-list-states'
+import type { InboxCurrentUser } from './inbox-case-toolbar-props'
+import { countActiveInboxFilters } from './inbox-filters'
 
 export interface InboxListPanelProps {
-  folderLabel: string
+  queue: InboxQueue
+  queueLabel: string
+  scopeLabel: string
   totalCount: number
   searchQ: string | undefined
   filters: InboxListFilterValues
@@ -39,13 +44,17 @@ export interface InboxListPanelProps {
   onSelectAll: () => void
   onDeselectAll: () => void
   onRowClick: (item: InboxItem) => void
-  /** Opens the folder sidebar drawer (mobile only). */
-  onOpenSidebar?: () => void
   onLoadMore: (cursor?: Cursor) => Promise<void>
   onBulkDone: () => void
   bulkUpdateFn: typeof bulkUpdateInboxStatusFn
   bulkAssignFn: typeof bulkAssignInboxItemsFn
   assignmentOptions: ReadonlyArray<InboxAssignmentOption>
+  currentUser?: InboxCurrentUser
+  viewedUpTo: Date | null
+  isCompactLayout: boolean
+  selectionMode?: boolean
+  onStartSelection?: () => void
+  queueStrip?: ReactNode
 }
 
 /** Picks the scroll-area content (skeleton / error / empty / list). Kept as a
@@ -53,7 +62,14 @@ export interface InboxListPanelProps {
 export function renderListContent(props: InboxListPanelProps): ReactNode {
   if (props.isLoading) return <InboxListSkeleton />
   if (props.error) return <InboxListError error={props.error} onRetry={props.onRetry} />
-  if (props.items.length === 0) return <InboxListEmpty folderLabel={props.folderLabel} />
+  if (props.items.length === 0) {
+    return (
+      <InboxListEmpty
+        queue={props.queue}
+        isFiltered={!!props.searchQ || countActiveInboxFilters(props.filters) > 0}
+      />
+    )
+  }
   return (
     <InboxListV2
       items={props.items}
@@ -61,6 +77,11 @@ export function renderListContent(props: InboxListPanelProps): ReactNode {
       activeItemId={props.activeItemId}
       onToggleSelect={props.onToggleSelect}
       onRowClick={props.onRowClick}
+      selectionMode={props.selectionMode}
+      allProperties={props.scopeLabel === 'All properties'}
+      assignmentOptions={props.assignmentOptions}
+      currentUser={props.currentUser}
+      viewedUpTo={props.viewedUpTo}
     />
   )
 }
@@ -68,18 +89,25 @@ export function renderListContent(props: InboxListPanelProps): ReactNode {
 /** Renders nothing until there is a next page and the initial load is done. */
 export function LoadMoreButton({
   nextCursor,
+  loadedCount,
+  totalCount,
   isLoading,
   loadAction,
   onLoadMore,
 }: {
   nextCursor: Cursor | null
+  loadedCount: number
+  totalCount: number
   isLoading: boolean
   loadAction: { isPending: boolean }
   onLoadMore: (cursor?: Cursor) => Promise<void>
 }) {
   if (!nextCursor || isLoading) return null
   return (
-    <div className="flex justify-center py-4">
+    <div className="flex flex-col items-center justify-center gap-2 py-4">
+      <span className="text-xs tabular-nums text-muted-foreground">
+        {loadedCount} of {totalCount}
+      </span>
       <Button
         variant="outline"
         size="sm"

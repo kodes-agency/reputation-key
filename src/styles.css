@@ -36,6 +36,34 @@
      surface and muted/30. Always paired with a sign or arrow, never alone. */
   --positive: oklch(0.5 0.15 155);
   --negative: oklch(0.54 0.22 25);
+  /* Warning / private amber (inbox detail v2.1, docs/plan/inbox-detail-v2.md
+     rows 12 and 19). The app shipped no amber token, so every warning borrowed
+     raw Tailwind `amber-*` (`attention-band.tsx`, the case toolbar, the reply
+     chip) and each picked its own shade. One family now, four roles:
+     --warn is TEXT-grade ink, --warn-muted the surface it sits on, --warn-line
+     the hairline that draws that surface's edge, --warn-track the note
+     segment's track in the composer.
+
+     Neither the surface nor its edge is a boundary anyone can rely on. PR 3's
+     review read them back composited over the phone sheet: the surface is
+     1.01:1 against the pane, and --warn-line 1.47:1 (light) / 2.17:1 (dark) —
+     under WCAG 1.4.11's 3:1. They are atmosphere. So no consumer may let them
+     carry a meaning alone: the internal note says "private" in its accessible
+     name, its printed label and a dashed edge (`note-message.tsx`), and these
+     values stay as the contract pinned them rather than being pushed to 3:1 —
+     a louder amber would still be colour carrying the meaning.
+
+     Contrast, measured by painting the tokens into an sRGB canvas and reading
+     the pixels back in Chromium and WebKit (both clip the slightly out-of-gamut
+     values to the same bytes, #a45f00 on #fff6dd): --warn on --warn-muted
+     4.62:1; on --background 4.69:1; on --surface 4.97:1. It is 4.44:1 on
+     --muted, which FAILS 4.5:1 — never set warn text on a muted fill. Nor on
+     --warn-track composited over --background (4.13:1), which is why the
+     attention band's hover moves the border rather than the fill. */
+  --warn: oklch(0.55 0.14 70);
+  --warn-muted: oklch(0.975 0.035 88);
+  --warn-line: oklch(0.78 0.13 82 / 0.6);
+  --warn-track: oklch(0.8 0.12 82 / 0.22);
   --ring: oklch(0.58 0.16 290);
   --radius: 0.375rem;
 
@@ -99,6 +127,13 @@
      and elevated backgrounds at 8.1:1 and 5.7:1. */
   --positive: oklch(0.72 0.15 155);
   --negative: oklch(0.68 0.22 25);
+  /* Same readback as the light block (#f5af20 on #231806): --warn on
+     --warn-muted 9.16:1, on --background 10.59:1, on --surface 9.91:1, on
+     --muted 9.10:1, on --warn-track over --background 8.76:1. */
+  --warn: oklch(0.8 0.16 78);
+  --warn-muted: oklch(0.22 0.035 78);
+  --warn-line: oklch(0.6 0.12 78 / 0.45);
+  --warn-track: oklch(0.6 0.12 78 / 0.2);
   --ring: oklch(0.52 0.16 290);
   --radius: 0.375rem;
 
@@ -165,6 +200,14 @@
   --color-positive-muted: var(--success-muted);
   --color-negative: var(--negative);
   --color-negative-muted: var(--destructive-muted);
+  /* The amber family as utilities — `text-warn`, `bg-warn-muted`,
+     `border-warn-line`, `bg-warn-track`. Added with its first consumer, the
+     internal note (plan v2.1 PR 3); the composer's note mode (PR 4) reuses
+     these and adds none of its own. */
+  --color-warn: var(--warn);
+  --color-warn-muted: var(--warn-muted);
+  --color-warn-line: var(--warn-line);
+  --color-warn-track: var(--warn-track);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

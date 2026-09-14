@@ -1,20 +1,17 @@
-// Inbox search schema — extracted from inbox-page-v2 for reuse.
-// Per ADR 0023: 3 folders (Open, Escalated, Closed). The Escalated folder
-// filters by the active escalation flag, not a status value.
+// Inbox search schema. `queue` is the public workspace vocabulary; the input
+// still accepts `folder` long enough to preserve old bookmarks (ADR 0057).
 import { z } from 'zod/v4'
-import type { InboxStatus } from '#/contexts/inbox/application/public-api'
+import { INBOX_QUEUES } from '#/contexts/inbox/application/public-api'
 import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
 
 export const INBOX_PAGE_SIZE = 50
 
-export type InboxFolder = 'open' | 'escalated' | 'closed'
-
 export const inboxSearchObjectSchema = z.object({
+  queue: z.enum(INBOX_QUEUES).optional(),
   folder: z.enum(['open', 'escalated', 'closed']).optional(),
   itemId: z.uuid().optional(),
   propertyId: z.string().optional(),
   sourceType: z.enum(['review', 'feedback']).optional(),
-  platform: z.string().optional(),
   ratingMin: z.coerce.number().int().min(1).max(5).optional(),
   ratingMax: z.coerce.number().int().min(1).max(5).optional(),
   attention: z.enum(['urgent', 'high', 'medium', 'low']).optional(),
@@ -45,21 +42,16 @@ export function normalizeInboxRatingPreset(search: InboxSearchObject): InboxSear
   return rest
 }
 
-export const inboxSearchSchema = inboxSearchObjectSchema.transform(
-  normalizeInboxRatingPreset,
-)
+const LEGACY_FOLDER_QUEUE = {
+  open: 'reply',
+  escalated: 'escalated',
+  closed: 'closed',
+} as const
+
+export const inboxSearchSchema = inboxSearchObjectSchema.transform((input) => {
+  const { folder, ...search } = normalizeInboxRatingPreset(input)
+  const queue = search.queue ?? (folder ? LEGACY_FOLDER_QUEUE[folder] : undefined)
+  return queue ? { ...search, queue } : search
+})
 
 export type InboxSearchParams = z.infer<typeof inboxSearchSchema>
-
-/** Map folder slug to status filter. The Escalated folder is NOT a status —
- *  it filters by the active escalation flag (see folderIsEscalated). The default
- *  folder (undefined — the sidebar navigates with `key || undefined`, so the
- *  empty-string key becomes undefined in the route) is the Open working view. */
-export function folderToStatus(folder: string | undefined): InboxStatus | undefined {
-  if (!folder || folder === 'open') return 'open'
-  if (folder === 'closed') return 'closed'
-  return undefined
-}
-export function folderIsEscalated(folder: string | undefined): boolean {
-  return folder === 'escalated'
-}

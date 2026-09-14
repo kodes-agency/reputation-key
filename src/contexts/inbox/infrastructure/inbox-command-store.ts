@@ -672,7 +672,7 @@ async function appendEscalationHistory(
 /**
  * Read the complete escalation history of one Inbox item.
  *
- * Escalation is an independent workflow dimension (ADR 0023): this read grants
+ * Escalation is an independent workflow dimension (ADR 0055): this read grants
  * no access and never reports a status. An item whose flags predate migration
  * 0169 is still readable — it is reported as `legacy_unknown` so a manager
  * sees "escalated, provenance unknown" instead of a fabricated actor/time.

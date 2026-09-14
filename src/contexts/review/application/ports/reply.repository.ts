@@ -6,7 +6,7 @@ import type {
   PersistedPublicationState,
   PublicationFailureClass,
 } from '../../domain/reply-publication-workflow'
-import type { OrganizationId, ReplyId, ReviewId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, ReplyId, ReviewId } from '#/shared/domain/ids'
 
 /** Content-free reply lifecycle projection used by foreign read models. */
 export type ReplyMilestoneRow = Readonly<{
@@ -23,6 +23,13 @@ export type ReplyStateRow = Readonly<{
   publicationState: PersistedPublicationState | null
   publicationLastErrorClass: PublicationFailureClass | null
   updatedAt: Date
+}>
+
+/** Content-free reply candidate used to partition effective queue stages. */
+export type ReplyStageRow = Readonly<{
+  reviewId: ReviewId
+  source: ReplySource
+  stage: 'needs_reply' | 'awaiting' | 'waiting'
 }>
 
 /** Exact attempt key used to load content-free propagation timing evidence. */
@@ -88,6 +95,10 @@ export type ReplyRepository = Readonly<{
     reviewIds: ReadonlyArray<ReviewId>,
     organizationId: OrganizationId,
   ): Promise<ReadonlyArray<ReplyStateRow>>
+  findReviewIdsByReplyStage(
+    organizationId: OrganizationId,
+    propertyIds?: ReadonlyArray<PropertyId>,
+  ): Promise<ReadonlyArray<ReplyStageRow>>
   findGoogleSyncByReviewId(
     reviewId: ReviewId,
     organizationId: OrganizationId,

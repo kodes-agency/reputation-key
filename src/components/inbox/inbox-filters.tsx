@@ -1,6 +1,5 @@
 import type {
   InboxSort,
-  InboxStatus,
   ReviewAspect,
   ReviewAspectPolarity,
   SourceType,
@@ -8,10 +7,7 @@ import type {
 
 export type InboxFilterValues = Readonly<{
   propertyId: string | undefined
-  status: InboxStatus | ReadonlyArray<InboxStatus> | undefined
-  isEscalated: boolean | undefined
   sourceType: SourceType | undefined
-  platform: string | undefined
   ratingMin: number | undefined
   ratingMax: number | undefined
   attention: 'urgent' | 'high' | 'medium' | 'low' | undefined

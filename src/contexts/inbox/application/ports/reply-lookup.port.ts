@@ -4,22 +4,30 @@
 // Mirrors review-lookup.port.ts: a self-contained DTO that does NOT import
 // review context's internal types (ADR 0008).
 
-import type { OrganizationId, ReplyId, ReviewId, UserId } from '#/shared/domain/ids'
+import type {
+  OrganizationId,
+  PropertyId,
+  ReplyId,
+  ReviewId,
+  UserId,
+} from '#/shared/domain/ids'
 import type {
   InboxItemReplyState,
   ReplyPublicationFailureClass,
   ReplyPublicationState,
   ReplyStatus,
 } from '../../domain/types'
+import type { InboxReplyStages } from '../inbox-queues'
 
-// Self-contained copy of the review ReplySource union. ReplyView remains
-// structurally identical to review's Reply without importing that context.
+// Self-contained copy of the review ReplySource union. ReplyEntityView remains
+// structurally identical to review's Reply apart from its Inbox-owned
+// discriminant, without importing that context.
 export type ReplySource = 'google_sync' | 'internal'
 
-/** Lightweight DTO — mirrors review's Reply shape without importing it.
- *  Structurally identical to `Awaited<ReturnType<typeof getReplyFn>>` so the
- *  client needs no mapper. */
-export type ReplyView = Readonly<{
+/** Review Reply projected into Inbox's presentation contract. */
+export type ReplyEntityView = Readonly<{
+  /** Present on adapter results; optional for write-through Reply cache patches. */
+  kind?: 'reply'
   id: ReplyId
   reviewId: ReviewId
   organizationId: OrganizationId
@@ -50,11 +58,31 @@ export type ReplyView = Readonly<{
   updatedAt: Date
 }>
 
+/**
+ * Provider-owned current reply content. This is deliberately not padded into
+ * a Review Reply: an observation has no Reply id, actor, approval lifecycle,
+ * publication attempt count, or edit authority.
+ */
+export type GoogleObservedReplyView = Readonly<{
+  kind: 'google_observation'
+  id: string
+  reviewId: ReviewId
+  organizationId: OrganizationId
+  text: string
+  status: 'published'
+  source: 'google_sync'
+  publishedAt: Date
+  updatedAt: Date
+}>
+
+/** The effective public-reply message Inbox may present. */
+export type ReplyView = ReplyEntityView | GoogleObservedReplyView
+
 export type ReplyLookupPort = Readonly<{
-  /** Returns the EFFECTIVE reply for a review: the internal reply when present,
-   *  otherwise the google_sync mirror (a reply published via the GBP UI or
-   *  synced in). The inbox detail needs this — without it, mirror-only replies
-   *  are invisible and the UI renders a compose box over an existing reply. */
+  /** Returns the EFFECTIVE reply for a review: a confirmed internal reply,
+   *  otherwise the governed current Google observation, then a legacy
+   *  google_sync mirror. Without provider truth, the UI can render a compose
+   *  box over a reply that already exists on Google. */
   getEffectiveReplyByReviewId(
     id: ReviewId,
     orgId: OrganizationId,
@@ -76,6 +104,11 @@ export type ReplyLookupPort = Readonly<{
     ids: ReadonlyArray<ReviewId>,
     orgId: OrganizationId,
   ): Promise<ReadonlyMap<string, InboxItemReplyState>>
+  /** Effective reply-stage ids for queue filtering, content-free and tenant-scoped. */
+  findReviewIdsByReplyStage(
+    orgId: OrganizationId,
+    propertyIds?: ReadonlyArray<PropertyId>,
+  ): Promise<InboxReplyStages>
 }>
 
 /** Earliest reply timestamps for a review — rebuild stamps these on items. */

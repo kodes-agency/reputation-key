@@ -71,6 +71,25 @@ describe('inboxSearchSchema sort param', () => {
   })
 })
 
+describe('inboxSearchSchema queue params', () => {
+  it('accepts queues and maps legacy folder links', () => {
+    expect(inboxSearchSchema.parse({ queue: 'approval' })).toEqual({
+      queue: 'approval',
+    })
+    expect(inboxSearchSchema.parse({ folder: 'open' })).toEqual({ queue: 'reply' })
+    expect(inboxSearchSchema.parse({ folder: 'escalated' })).toEqual({
+      queue: 'escalated',
+    })
+    expect(inboxSearchSchema.parse({ folder: 'closed' })).toEqual({ queue: 'closed' })
+  })
+
+  it('prefers an explicit queue and drops retired platform state', () => {
+    expect(
+      inboxSearchSchema.parse({ queue: 'mine', folder: 'closed', platform: 'google' }),
+    ).toEqual({ queue: 'mine' })
+  })
+})
+
 describe('inboxSearchSchema rating presets', () => {
   it.each([
     [{ ratingMin: 5 }, { ratingMin: 5, ratingMax: 5 }],

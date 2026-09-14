@@ -28,6 +28,14 @@ type Props = Readonly<{
   rows?: number
   disabled?: boolean
   maxLength?: number
+  /**
+   * Merged onto the label and the textarea (`cn` in each primitive). Optional,
+   * and absent by default, so every form that does not pass them renders
+   * exactly as before. The inbox note form passes both to sit inside the
+   * composer's dock as a borderless text row (`composer-dock-rows.ts`).
+   */
+  labelClassName?: string
+  textareaClassName?: string
 }>
 
 export function FormTextarea({
@@ -38,14 +46,19 @@ export function FormTextarea({
   rows = 3,
   disabled,
   maxLength,
+  labelClassName,
+  textareaClassName,
 }: Props) {
   const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
 
   return (
     <Field data-invalid={isInvalid}>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <FieldLabel htmlFor={id} className={labelClassName}>
+        {label}
+      </FieldLabel>
       <Textarea
         id={id}
+        className={textareaClassName}
         name={field.name}
         value={field.state.value ?? ''}
         onBlur={field.handleBlur}

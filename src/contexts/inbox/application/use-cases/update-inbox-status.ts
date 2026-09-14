@@ -1,5 +1,5 @@
 // Inbox context — update inbox status use case
-// Governed manual reopen path (ADR 0023/0055). Closing is source-specific:
+// Governed manual reopen path (ADR 0055). Closing is source-specific:
 // provider observation closes Review work and an explicit manager outcome
 // closes private feedback.
 // Escalation is a separate, orthogonal action.

@@ -2,11 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { INBOX_BULK_LIMIT } from '#/contexts/inbox/application/public-api'
 import { inboxItemId } from '#/shared/domain/ids'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
-import {
-  itemMatchesActiveFolder,
-  removeInboxSelection,
-  toggleInboxSelection,
-} from './inbox-selection'
+import { removeInboxSelection, toggleInboxSelection } from './inbox-selection'
+import { itemMatchesQueue } from './inbox-queues'
 
 describe('toggleInboxSelection', () => {
   it('adds and removes selected IDs', () => {
@@ -31,22 +28,35 @@ describe('selection reconciliation', () => {
     expect(removeInboxSelection(['two'], 'missing')).toEqual(['two'])
   })
 
-  it('matches status and active escalation folder semantics', () => {
+  it('matches all queue semantics', () => {
     const item = {
       id: inboxItemId('00000000-0000-4000-8000-000000000001'),
       status: 'open',
+      sourceType: 'review',
+      assignedTo: null,
       isEscalated: true,
       escalationResolvedAt: null,
     } as InboxItem
-    expect(itemMatchesActiveFolder(item, { status: 'open' })).toBe(true)
-    expect(itemMatchesActiveFolder(item, { status: 'closed' })).toBe(false)
-    expect(itemMatchesActiveFolder(item, { isEscalated: true })).toBe(true)
+    const mine = { ...item, assignedTo: 'viewer' } as InboxItem
+    const feedback = { ...item, sourceType: 'feedback' } as InboxItem
+    const approval = {
+      ...item,
+      replyState: { status: 'pending_approval' },
+    } as InboxItem
+    const waiting = { ...item, replyState: { status: 'approved' } } as InboxItem
+    expect(itemMatchesQueue(item, 'reply', 'viewer')).toBe(true)
+    expect(itemMatchesQueue(approval, 'approval', 'viewer')).toBe(true)
+    expect(itemMatchesQueue(waiting, 'waiting', 'viewer')).toBe(true)
+    expect(itemMatchesQueue(feedback, 'feedback', 'viewer')).toBe(true)
+    expect(itemMatchesQueue(item, 'escalated', 'viewer')).toBe(true)
+    expect(itemMatchesQueue(mine, 'mine', 'viewer')).toBe(true)
+    expect(itemMatchesQueue({ ...item, status: 'closed' }, 'closed', 'viewer')).toBe(true)
+    expect(itemMatchesQueue(item, 'open', 'viewer')).toBe(true)
     expect(
-      itemMatchesActiveFolder(
+      itemMatchesQueue(
         { ...item, escalationResolvedAt: new Date() },
-        {
-          isEscalated: true,
-        },
+        'escalated',
+        'viewer',
       ),
     ).toBe(false)
   })

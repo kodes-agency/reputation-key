@@ -74,15 +74,22 @@ function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
   }
 }
 
-function makeDetail(item: InboxItem): InboxItemDetail {
+/** `overrides` stands in for what the repository's snippet enrichment decided —
+ *  the use case never reaches the review lookup itself. */
+function makeDetail(
+  item: InboxItem,
+  overrides: Partial<InboxItemDetail> = {},
+): InboxItemDetail {
   return {
     item: { ...item, reviewerName: 'Test Reviewer' },
     reviewText: 'Test review',
     reviewTranslatedText: null,
     reviewerProfilePhotoUrl: null,
     reviewContentStatus: 'available',
+    reviewRating: 4,
     feedbackComment: null,
     feedbackRatingValue: null,
+    ...overrides,
   }
 }
 
@@ -147,6 +154,7 @@ const setup = (
     stampReplyMilestones: async () => storedDetail!.item,
     updateAssignment: async () => storedDetail!.item,
     countByStatus: async () => 0,
+    countFiltered: async () => 0,
     findByIds: async () => [],
     setEscalation: vi.fn(),
     resolveEscalation: vi.fn(),
@@ -164,6 +172,7 @@ const setup = (
     },
     getReplyMilestonesByReviewIds: async () => new Map(),
     getReplyStatesByReviewIds: async () => new Map(),
+    findReviewIdsByReplyStage: async () => ({ awaiting: [], waiting: [] }),
   }
   return {
     repo,
@@ -208,6 +217,80 @@ describe('getInboxItemDetail', () => {
     // AccountAdmin holds reply.manage → reply is attached for review items.
     expect(result.reply).toEqual(reply)
     expect(replyCalls).toHaveLength(1)
+  })
+
+  // ── reviewRating on the payload ─────────────────────────────────────
+  // The eligibility rule itself (null for `expired` / `not_found`) belongs to
+  // the repository, which is the only thing holding the `ReviewSnippet`, and is
+  // proved against the real mapper in `inbox.repository.test.ts` — asserting it
+  // here would only assert this file's own stub. What the use case owns is the
+  // payload contract the pane depends on: the key is always there, its value is
+  // always `number | null`, and it is never quietly refilled from `item.rating`.
+
+  it('carries the rating the repository read off the review snippet', async () => {
+    const { repo, staffApi, replyLookup, setDetail } = setup()
+    setDetail(makeDetail(makeItem(), { reviewRating: 5 }))
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    expect(result.reviewRating).toBe(5)
+  })
+
+  it('carries a null rating for an available review that has none', async () => {
+    const { repo, staffApi, replyLookup, setDetail } = setup()
+    setDetail(makeDetail(makeItem(), { reviewRating: null }))
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    // Still an available review — the words arrive, the stars do not.
+    expect(result.reviewText).toBe('Test review')
+    expect(result.reviewRating).toBeNull()
+  })
+
+  it('returns an explicit null rather than undefined when the detail omits the rating', async () => {
+    const { repo, staffApi, replyLookup, setDetail } = setup()
+    const { reviewRating: _omitted, ...withoutRating } = makeDetail(makeItem())
+    setDetail(withoutRating)
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    // `reviewRating` is optional on `InboxItemDetail` only so that fixtures
+    // predating it still compile. The payload a client reads must not inherit
+    // that softness: `'reviewRating' in detail` has to answer the same way for
+    // every repository implementation.
+    expect(result.reviewRating).toBeNull()
+    expect(Object.hasOwn(result, 'reviewRating')).toBe(true)
+  })
+
+  it('leaves the rating null for a feedback item that carries its own rating', async () => {
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { repo, staffApi, replyLookup, setDetail } = setup(scopedApi)
+    setDetail(
+      makeDetail(
+        // `rating` survives the projection for feedback (it is nulled only for
+        // reviews — `inbox-command-store.ts:936`), so this is the row shape that
+        // would catch a `reviewRating` quietly sourced from `item.rating`.
+        makeItem({
+          sourceType: 'feedback',
+          sourceId: feedbackId('fb-private'),
+          rating: 3,
+        }),
+        { reviewContentStatus: null, reviewRating: null, feedbackRatingValue: 3 },
+      ),
+    )
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase(
+      { inboxItemId: ITEM_ID },
+      ctxWith('inbox.read', 'feedback.read'),
+    )
+
+    expect(result.item.rating).toBe(3)
+    expect(result.feedbackRatingValue).toBe(3)
+    expect(result.reviewRating).toBeNull()
   })
 
   it('attaches only the current property-scoped review analysis', async () => {

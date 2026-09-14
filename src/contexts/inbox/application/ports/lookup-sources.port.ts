@@ -9,9 +9,10 @@ import type {
   FeedbackId,
   OrganizationId,
   PropertyId,
+  ReplyId,
   ReviewId,
 } from '#/shared/domain/ids'
-import type { ReplyMilestones, ReplyView } from './reply-lookup.port'
+import type { ReplyEntityView, ReplyMilestones } from './reply-lookup.port'
 import type { FeedbackContentFilter } from './feedback-lookup.port'
 import type { InboxItemReplyState } from '../../domain/types'
 
@@ -87,7 +88,22 @@ export type ReplyLookupSource = Readonly<{
   findByReviewId: (
     id: ReviewId,
     orgId: OrganizationId,
-  ) => Promise<ReadonlyArray<ReplyView>>
+  ) => Promise<ReadonlyArray<Omit<ReplyEntityView, 'kind'>>>
+  /** Governed current Google observation; null when absent or ineligible. */
+  getCurrentGoogleReplyByReviewId: (
+    id: ReviewId,
+    orgId: OrganizationId,
+  ) => Promise<Readonly<{
+    id: string
+    reviewId: ReviewId
+    organizationId: OrganizationId
+    text: string
+    observationRevision: number
+    provenance: 'repkey_confirmed' | 'external_or_unknown'
+    matchedReplyId: ReplyId | null
+    providerUpdatedAt: Date | null
+    observedAt: Date
+  }> | null>
   /** Content-free, one-query lifecycle aggregation for projection repair. */
   findMilestonesByReviewIds: (
     ids: ReadonlyArray<ReviewId>,
@@ -102,9 +118,22 @@ export type ReplyLookupSource = Readonly<{
       Readonly<
         {
           reviewId: ReviewId
-          source: ReplyView['source']
+          source: ReplyEntityView['source']
         } & InboxItemReplyState
       >
+    >
+  >
+  /** Content-free reply state candidates for queue-stage partitioning. */
+  findReviewIdsByReplyStage: (
+    orgId: OrganizationId,
+    propertyIds?: ReadonlyArray<PropertyId>,
+  ) => Promise<
+    ReadonlyArray<
+      Readonly<{
+        reviewId: ReviewId
+        source: ReplyEntityView['source']
+        stage: 'needs_reply' | 'awaiting' | 'waiting'
+      }>
     >
   >
 }>

@@ -11,7 +11,8 @@
 // operations, not content serving.
 
 import type { ReviewRepository } from './ports/review.repository'
-import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
+import type { GoogleReplyObservationLookup } from './ports/google-reply-observation-store.port'
+import type { OrganizationId, ReplyId, ReviewId } from '#/shared/domain/ids'
 import { isContentEligibleForRead } from './source-content-lifecycle'
 
 /** Content DTO for serving reads — no review-context internals. */
@@ -38,7 +39,20 @@ export type EligibleReviewContentFilter = Readonly<{
   textQuery?: string
 }>
 
-export type EligibleReads = Readonly<{
+/** Current Google reply content that remains eligible to serve. */
+export type EligibleGoogleReply = Readonly<{
+  id: string
+  reviewId: ReviewId
+  organizationId: OrganizationId
+  text: string
+  observationRevision: number
+  provenance: 'repkey_confirmed' | 'external_or_unknown'
+  matchedReplyId: ReplyId | null
+  providerUpdatedAt: Date | null
+  observedAt: Date
+}>
+
+export type EligibleReviewReads = Readonly<{
   /** Single eligible read — typed unavailable outcome. */
   getReviewSnippetById(
     id: ReviewId,
@@ -58,10 +72,20 @@ export type EligibleReads = Readonly<{
   getEligibleRatingById(id: ReviewId, orgId: OrganizationId): Promise<number | null>
 }>
 
+export type EligibleGoogleReplyReads = Readonly<{
+  /** Current live Google reply, or null when absent, expired, or erased. */
+  getCurrentGoogleReplyByReviewId(
+    id: ReviewId,
+    orgId: OrganizationId,
+  ): Promise<EligibleGoogleReply | null>
+}>
+
+export type EligibleReads = EligibleReviewReads & EligibleGoogleReplyReads
+
 export const createEligibleReads = (deps: {
   reviewRepo: ReviewRepository
   clock: () => Date
-}): EligibleReads => ({
+}): EligibleReviewReads => ({
   getReviewSnippetById: async (id, orgId) => {
     const r = await deps.reviewRepo.findById(id, orgId)
     if (!r) return { status: 'not_found' } satisfies EligibleReviewSnippetResult
@@ -108,5 +132,35 @@ export const createEligibleReads = (deps: {
     const r = await deps.reviewRepo.findById(id, orgId)
     if (!r || !isContentEligibleForRead(r.contentExpiresAt, deps.clock())) return null
     return r.rating
+  },
+})
+
+export const createEligibleGoogleReplyReads = (deps: {
+  googleReplyObservations: GoogleReplyObservationLookup
+  clock: () => Date
+}): EligibleGoogleReplyReads => ({
+  getCurrentGoogleReplyByReviewId: async (id, orgId) => {
+    const current = await deps.googleReplyObservations.findCurrentByReviewId(id, orgId)
+    if (
+      !current ||
+      current.state !== 'live' ||
+      current.provenance === 'none' ||
+      current.normalizedText === null ||
+      current.contentState !== 'active' ||
+      !isContentEligibleForRead(current.contentExpiresAt, deps.clock())
+    ) {
+      return null
+    }
+    return {
+      id: current.id,
+      reviewId: current.reviewId,
+      organizationId: current.organizationId,
+      text: current.normalizedText,
+      observationRevision: current.observationRevision,
+      provenance: current.provenance,
+      matchedReplyId: current.matchedReplyId,
+      providerUpdatedAt: current.providerUpdatedAt,
+      observedAt: current.observedAt,
+    }
   },
 })

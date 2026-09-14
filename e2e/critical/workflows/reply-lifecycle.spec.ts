@@ -181,8 +181,53 @@ test.describe('Critical workflow: reply lifecycle', () => {
       { timeoutMs: 15_000, description: 'edited draft autosaved' },
     )
 
+    // The reply language lives in the assist menus now (plan v2.1 rows 17-18),
+    // not in a select above the box or a repeated standalone control. Proven in the real app, on the
+    // one choice that is load-bearing for a HAND-TYPED reply: GBP records no
+    // review language, so `review language` here is `Detect automatically`,
+    // which stops autosave and Submit until a language is chosen again. The
+    // step picks it from `Draft with AI ▾` → `Write in`, asserts the menu trigger
+    // and Submit say so, then returns to the property default through the same
+    // menu before submitting. (No AI draft is generated: this spec
+    // configures no AI provider for the property, so the result tag — which
+    // only an adopted assist action prints — is covered in Storybook.)
+    const submit = page.getByRole('button', { name: 'Submit for approval' })
+    const unresolved =
+      'This reply has no language yet. Choose a reply language to save and submit it.'
+    await expect(
+      page.getByRole('button', { name: 'AI tone and language: Professional, English' }),
+    ).toBeVisible()
+    await expect(page.getByRole('button', { name: /^Reply language:/ })).toHaveCount(0)
+    await page
+      .getByRole('button', { name: 'AI tone and language: Professional, English' })
+      .click()
+    await page
+      .getByRole('group', { name: 'Write in' })
+      .getByRole('menuitem', { name: 'Detect automatically' })
+      .click()
+    await expect(
+      page.getByRole('button', {
+        name: 'AI tone and language: Professional, Detect automatically',
+      }),
+    ).toBeVisible()
+    await expect(submit).toBeDisabled()
+    await expect(submit).toHaveAccessibleDescription(unresolved)
+    await page
+      .getByRole('button', {
+        name: 'AI tone and language: Professional, Detect automatically',
+      })
+      .click()
+    await page
+      .getByRole('group', { name: 'Write in' })
+      .getByRole('menuitem', { name: 'English · property default' })
+      .click()
+    await expect(
+      page.getByRole('button', { name: 'AI tone and language: Professional, English' }),
+    ).toBeVisible()
+    await expect(submit).toBeEnabled()
+
     // Submit for approval.
-    await page.getByRole('button', { name: 'Submit for approval' }).click()
+    await submit.click()
     await waitFor(
       async () => {
         const reply = await getReplyForReview(s.reviewId)
@@ -190,7 +235,18 @@ test.describe('Critical workflow: reply lifecycle', () => {
       },
       { timeoutMs: 10_000, description: 'reply pending approval' },
     )
-    await expect(page.getByText('Awaiting Approval').first()).toBeVisible()
+    const awaitingApprovalQueue = page.getByRole('button', {
+      name: /^Awaiting approval(?: \d+)?$/,
+    })
+    await expect(awaitingApprovalQueue).toBeVisible()
+
+    // Submitting moves the item out of Needs reply, so the workspace closes
+    // the detail instead of pinning an item that no longer belongs to its list.
+    // Follow the same queue transition a manager does before approving it.
+    await awaitingApprovalQueue.click()
+    await page
+      .getByRole('button', { name: /^Open review from Reply Reviewer happy/ })
+      .click()
 
     // Approve → the publish job runs (worker) → published.
     // Approval is a two-step confirmation now: the trigger opens a dialog that
@@ -258,11 +314,11 @@ test.describe('Critical workflow: reply lifecycle', () => {
       { timeoutMs: 30_000, description: 'inbox item auto-closed by the observation' },
     )
     await page.goto(
-      `/inbox?folder=closed&propertyId=${s.propertyId}&itemId=${s.inboxItemId}`,
+      `/inbox?queue=closed&propertyId=${s.propertyId}&itemId=${s.inboxItemId}`,
     )
-    // The badge names the PROVIDER-confirmed state, not the internal status:
+    // The chip names the PROVIDER-confirmed state, not the internal status:
     // 'published' here means Google's own read-back showed the reply.
-    await expect(page.getByText('Confirmed on Google').first()).toBeVisible({
+    await expect(page.getByText('Live on Google').first()).toBeVisible({
       timeout: 15_000,
     })
 
@@ -330,7 +386,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
     expect(putsBeforeCheck).toHaveLength(1)
 
     await page.goto(`/inbox?propertyId=${s.propertyId}&itemId=${s.inboxItemId}`)
-    await expect(page.getByText('Google status unconfirmed').first()).toBeVisible({
+    await expect(page.getByText('Needs a check').first()).toBeVisible({
       timeout: 15_000,
     })
     await expect(
@@ -439,7 +495,11 @@ test.describe('Critical workflow: reply lifecycle', () => {
     // uncertain 500 it is safe to offer a fresh user-authorized publication
     // cycle rather than a check-only action.
     await page.goto(`/inbox?propertyId=${s.propertyId}&itemId=${s.inboxItemId}`)
-    await expect(page.getByText('Google rejected update').first()).toBeVisible({
+    // Every publish failure that is not ambiguous now reads `Not published`, so
+    // the chip alone no longer names the failure CLASS. The description below
+    // it is what distinguishes a provider rejection from a retryable stop, and
+    // the check-only/retry action split below that is what proves the policy.
+    await expect(page.getByText('Not published').first()).toBeVisible({
       timeout: 15_000,
     })
     await expect(

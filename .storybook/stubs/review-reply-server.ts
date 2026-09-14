@@ -6,12 +6,14 @@
 // is aliased ONLY in the Storybook Vite build (see .storybook/main.ts
 // viteFinal); tsc still resolves the real module for type-checking.
 //
-// Why it's safe: the sole value-importer is reply-form.tsx — the sanctioned
-// 5+-mutation exception (CONTEXT.md:48) — which renders inside the inbox
-// detail pane on review selection. The inbox-page story can reach it
-// (InboxPageV2 → inbox-detail-content → ReplyEditor), but these no-ops return
-// undefined gracefully; they exist primarily so the static import resolves in
-// the browser bundle.
+// Why it's safe: the sole value-importer is use-reply-actions.ts — the
+// sanctioned 5+-mutation exception (src/components/CONTEXT.md "Server-function
+// boundary", and the one inbox entry in scripts/check-component-boundaries.mjs).
+// The pane now calls that hook from two places, so the inbox-page story reaches
+// it on both paths (InboxPageV2 → inbox-detail-content directly for the
+// approve/reject/check/retry family, and → ReplyEditor for the draft and the
+// open editor). These no-ops return undefined gracefully; they exist primarily
+// so the static import resolves in the browser bundle.
 const noop = async () => undefined
 
 export const draftReplyFn = noop

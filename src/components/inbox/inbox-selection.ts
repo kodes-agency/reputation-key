@@ -1,6 +1,5 @@
 import { INBOX_BULK_LIMIT } from '#/contexts/inbox/application/public-api'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
-import type { InboxFilters } from '#/contexts/inbox/application/ports/inbox.repository'
 
 export function toggleInboxSelection(
   previous: ReadonlyArray<string>,
@@ -16,22 +15,6 @@ export function removeInboxSelection(
   id: string,
 ): ReadonlyArray<string> {
   return previous.includes(id) ? previous.filter((selected) => selected !== id) : previous
-}
-
-export function itemMatchesActiveFolder(
-  item: InboxItem,
-  filters: Partial<Pick<InboxFilters, 'status' | 'isEscalated'>>,
-): boolean {
-  const statusMatches = !filters.status
-    ? true
-    : Array.isArray(filters.status)
-      ? filters.status.includes(item.status)
-      : filters.status === item.status
-  if (!statusMatches) return false
-  if (filters.isEscalated === undefined) return true
-  return filters.isEscalated
-    ? item.isEscalated && item.escalationResolvedAt === null
-    : !item.isEscalated
 }
 
 export function reconcileInboxPageItems(
@@ -50,6 +33,8 @@ export function reconcileInboxPageItems(
           escalatedBy: updated.escalatedBy,
           escalationResolvedAt: updated.escalationResolvedAt,
           escalationResolvedBy: updated.escalationResolvedBy,
+          assignedTo: updated.assignedTo,
+          replyState: updated.replyState,
           updatedAt: updated.updatedAt,
         }
       : item,

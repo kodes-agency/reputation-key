@@ -11,17 +11,24 @@ export type InboxNavigate = (opts: {
   search: (prev: InboxSearchParams) => Partial<InboxSearchParams>
 }) => void
 
-/** True when the selected item is no longer present in the loaded list — the
- *  detail panel should close in that case. */
-export const isSelectedItemMissing = (
+export type SelectedItemPresenceAction = 'keep' | 'remember' | 'close' | 'reset'
+
+/**
+ * Distinguish an item that left a queue from a direct link whose item was
+ * never in that queue. The latter still has an independently authorized
+ * detail read and must remain open while that read resolves.
+ */
+export const selectedItemPresenceAction = (
+  seenSelectedId: string | undefined,
   selectedId: string | undefined,
   isLoading: boolean,
   items: ReadonlyArray<InboxItem>,
-): boolean =>
-  !!selectedId &&
-  !isLoading &&
-  items.length > 0 &&
-  !items.some((i) => i.id === selectedId)
+): SelectedItemPresenceAction => {
+  if (!selectedId) return 'reset'
+  if (items.some((item) => item.id === selectedId)) return 'remember'
+  if (!isLoading && seenSelectedId === selectedId) return 'close'
+  return 'keep'
+}
 
 /** Stable row-click / close-detail callbacks derived from the navigate fn. */
 export function useInboxNavigation(onNavigate: InboxNavigate) {

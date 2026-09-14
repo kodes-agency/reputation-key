@@ -1,22 +1,19 @@
-// Server import exception per src/components/CONTEXT.md "Server-function boundary" —
-// this editor coordinates the reply command family plus template-list/load actions.
-// Value imports stay centralized here to avoid prop drilling through every status view.
+// Inbox detail — reply orchestrator. The reply command family lives in
+// `use-reply-actions.ts`, which carries the sanctioned server-import exception
+// (src/components/CONTEXT.md "Server-function boundary"): the read-only states
+// render in the thread while the draft lives in the composer, so the mutations
+// cannot belong to either one. This file only routes the current reply state to
+// its view and hands the actions on.
+//
+// It does NOT build those actions. `useReplyActions` is called once, by
+// `inbox-detail-content.tsx`, and the bag arrives here as a prop: the thread's
+// message and this editor are co-mounted whenever an editor is open, and two
+// `useMutation` sets would give them two independent `isSaving` flags — a write
+// started in one surface leaving the other's buttons live on the same reply.
 
-import {
-  draftReplyFn,
-  submitReplyFn,
-  approveReplyFn,
-  rejectReplyFn,
-  deleteReplyFn,
-  retryPublishFn,
-  editPublishedReplyFn,
-  listReplyTemplatesFn,
-  loadReplyTemplateFn,
-} from '#/contexts/review/server/reply'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { ReplyStatusView, resolveReplyView } from './reply-status-view'
-import type { ReplyData } from './reply-status-view'
-import type { InboxReplyCacheChange } from './inbox-cache-policy'
+import type { ReplyData, ReplyEditTarget } from './reply-status-view'
+import type { ReplyActions } from './use-reply-actions'
 import type { ReviewLanguageReadiness } from './reply-language-options'
 
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
@@ -30,7 +27,17 @@ type ReplyEditorProps = Readonly<{
   propertyDefaultReplyLanguage: string | null
   reviewReplyLanguage: string | null
   reviewLanguageReadiness: ReviewLanguageReadiness
-  onReplyChanged: (change: InboxReplyCacheChange) => void
+  /** Which existing reply this editor is opened on — the pane's state, not
+   *  this component's: the thread's message is what raises it. */
+  editTarget: ReplyEditTarget
+  /** Bumped when the pane is asked to put the caret in the composer — by a
+   *  click in the thread or by the `r` shortcut. A counter, not a flag, so the
+   *  same ask can be repeated: the composer is mounted for every draft, and
+   *  only the pane knows which of those the user actually asked for. */
+  caretRequest: number
+  /** The pane's single reply command family — never rebuilt here. */
+  actions: ReplyActions
+  onEditDone: () => void
   generateReplySuggestion?: typeof generateReplySuggestionFn
 }>
 
@@ -42,89 +49,36 @@ export function ReplyEditor({
   propertyDefaultReplyLanguage,
   reviewReplyLanguage,
   reviewLanguageReadiness,
-  onReplyChanged,
+  editTarget,
+  caretRequest,
+  actions,
+  onEditDone,
   generateReplySuggestion,
 }: ReplyEditorProps) {
-  const draft = useActionMutation(draftReplyFn, {
-    onSuccess: (reply) => onReplyChanged({ kind: 'draft_saved', reply }),
-  })
-  const submit = useActionMutation(submitReplyFn, {
-    successMessage: 'Submitted for approval',
-    onSuccess: (reply) => onReplyChanged({ kind: 'state_changed', reply }),
-  })
-  const approve = useActionMutation(approveReplyFn, {
-    successMessage: 'Confirmation recorded. Waiting for Google',
-    onSuccess: (reply) => onReplyChanged({ kind: 'state_changed', reply }),
-  })
-  const reject = useActionMutation(rejectReplyFn, {
-    successMessage: 'Reply rejected',
-    onSuccess: (reply) => onReplyChanged({ kind: 'state_changed', reply }),
-  })
-  const del = useActionMutation(deleteReplyFn, {
-    successMessage: 'Reply deleted',
-    onSuccess: () => onReplyChanged({ kind: 'state_changed', reply: null }),
-  })
-  const check = useActionMutation(retryPublishFn, {
-    successMessage: 'Google check complete',
-    onSuccess: (reply) => onReplyChanged({ kind: 'state_changed', reply }),
-  })
-  const retry = useActionMutation(retryPublishFn, {
-    successMessage: 'Publishing restarted',
-    onSuccess: (reply) => onReplyChanged({ kind: 'state_changed', reply }),
-  })
-  const edit = useActionMutation(editPublishedReplyFn, {
-    successMessage: 'Update confirmed. Waiting for Google',
-    onSuccess: (reply) => onReplyChanged({ kind: 'state_changed', reply }),
-  })
-  const listTemplates = useActionMutation(listReplyTemplatesFn)
-  const loadTemplate = useActionMutation(loadReplyTemplateFn, {
-    onSuccess: (reply) => onReplyChanged({ kind: 'draft_saved', reply }),
-  })
-  const isSaving = [submit, approve, reject, del, check, retry, edit].some(
-    (mutation) => mutation.isPending,
-  )
-
   if (loading) {
-    return (
-      <div className="border-t pt-4">
-        <p className="text-sm text-muted-foreground">Loading reply...</p>
-      </div>
-    )
+    // No `border-t` any more: this placeholder sits inside region 4, which
+    // draws the rule that used to separate the composer from the thread.
+    return <p className="text-sm text-muted-foreground">Loading reply...</p>
   }
 
   return (
     <ReplyStatusView
       propertyId={propertyId}
       view={resolveReplyView(reply)}
-      isSaving={isSaving}
+      editTarget={editTarget}
+      caretRequest={caretRequest}
+      isSaving={actions.isSaving}
       propertyDefaultReplyLanguage={propertyDefaultReplyLanguage}
       reviewReplyLanguage={reviewReplyLanguage}
       reviewLanguageReadiness={reviewLanguageReadiness}
-      onSaveDraft={(text, provenanceToken, replyLanguageTag) =>
-        draft({
-          data: {
-            reviewId,
-            text,
-            ...(replyLanguageTag ? { replyLanguageTag } : {}),
-            ...(provenanceToken ? { provenanceToken } : {}),
-          },
-        })
-      }
-      onSubmitReply={() => submit({ data: { reviewId } })}
-      onDeleteDraft={reply ? () => del({ data: { reviewId } }) : undefined}
-      onApprove={() => approve({ data: { reviewId } })}
-      onReject={(reason) => reject({ data: { reviewId, reason } })}
-      onCheck={() => check({ data: { reviewId } })}
-      onRetry={() => retry({ data: { reviewId } })}
-      onSaveEdit={(text) => edit({ data: { reviewId, text } })}
-      onListTemplates={(targetLanguage) =>
-        listTemplates({ data: { reviewId, targetLanguage } })
-      }
-      onLoadTemplate={(templateId, targetLanguage) =>
-        loadTemplate({
-          data: { reviewId, templateId, targetLanguage },
-        })
-      }
+      onSaveDraft={actions.saveDraft}
+      onSubmitReply={actions.submitReply}
+      // A missing reply has no draft to delete, so the composer shows no Delete.
+      onDeleteDraft={reply ? actions.deleteDraft : undefined}
+      onSaveEdit={actions.saveEdit}
+      onEditDone={onEditDone}
+      onListTemplates={actions.listTemplates}
+      onLoadTemplate={actions.loadTemplate}
       onGenerateSuggestion={
         generateReplySuggestion
           ? (tone, targetLanguage, templateOnly) =>

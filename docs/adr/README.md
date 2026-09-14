@@ -27,3 +27,4 @@ Missing numbers are retired, merged, or never issued: `0001–0006`, `0009–001
 | [0053](0053-production-redis-workload-isolation.md)                       | Production Redis workload posture                            | accepted | —             |
 | [0055](0055-stable-review-and-inbox-handling-cycles.md)                   | Stable Review identity and Inbox Handling Cycles             | accepted | —             |
 | [0056](0056-operational-action-history-integrity-claims.md)               | Operational Action History integrity claims                  | accepted | —             |
+| [0057](0057-inbox-queues.md)                                              | Inbox queues                                                 | accepted | —             |

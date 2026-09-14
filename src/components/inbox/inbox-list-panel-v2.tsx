@@ -14,7 +14,8 @@ export type { InboxListPanelProps } from './inbox-list-panel-parts'
 
 export function InboxListPanel(props: InboxListPanelProps) {
   const {
-    folderLabel,
+    queueLabel,
+    scopeLabel,
     totalCount,
     searchQ,
     filters,
@@ -34,14 +35,17 @@ export function InboxListPanel(props: InboxListPanelProps) {
     bulkUpdateFn,
     bulkAssignFn,
     assignmentOptions,
+    isCompactLayout,
     onLoadMore,
-    onOpenSidebar,
+    onStartSelection,
+    queueStrip,
   } = props
 
   return (
     <div className="flex h-full flex-col overflow-hidden border-r">
       <InboxListHeader
-        folderLabel={folderLabel}
+        queueLabel={queueLabel}
+        scopeLabel={scopeLabel}
         totalCount={totalCount}
         searchQ={searchQ}
         onSearchChange={onSearchChange}
@@ -49,7 +53,8 @@ export function InboxListPanel(props: InboxListPanelProps) {
         onFiltersChange={onFiltersChange}
         sort={sort}
         onSortChange={onSortChange}
-        onOpenSidebar={onOpenSidebar}
+        onStartSelection={onStartSelection}
+        isCompactLayout={isCompactLayout}
         selectionToolbar={
           selectedIds.length > 0 ? (
             <BulkActionBar
@@ -65,10 +70,13 @@ export function InboxListPanel(props: InboxListPanelProps) {
           ) : undefined
         }
       />
+      {queueStrip}
       <div ref={listRef} className="flex-1 overflow-y-auto min-h-0">
         {renderListContent(props)}
         <LoadMoreButton
           nextCursor={nextCursor}
+          loadedCount={items.length}
+          totalCount={totalCount}
           isLoading={isLoading}
           loadAction={loadAction}
           onLoadMore={onLoadMore}

@@ -261,7 +261,12 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
 
     // CLAIM the live private-feedback item.
     await page.goto(`/inbox?itemId=${handled.inboxItemId}`)
-    await expect(page.getByText('Feedback handling')).toBeVisible({ timeout: 15_000 })
+    // The deleted card's heading was the load gate here. The pane has no
+    // section headings any more (PR 5), so the gate is the control this journey
+    // is about to use — strictly tighter than a heading beside it.
+    await expect(page.getByRole('button', { name: 'Mark as handled' })).toBeVisible({
+      timeout: 15_000,
+    })
     const unclaimed = await getInboxItemById(handled.inboxItemId)
     await callServerFn(page, {
       file: 'src/contexts/inbox/server/inbox-item-actions.ts',
@@ -282,7 +287,9 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
 
     // MARK AS HANDLED — one approved outcome closes the cycle.
     await page.reload()
-    await expect(page.getByText('Feedback handling')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('button', { name: 'Mark as handled' })).toBeVisible({
+      timeout: 15_000,
+    })
     await page.getByRole('button', { name: 'Mark as handled' }).click()
     const markDialog = page.getByRole('dialog')
     await expect(markDialog.getByText('Mark feedback as handled')).toBeVisible()
@@ -305,8 +312,12 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
 
     // CORRECT THE OUTCOME — a superseding fact. The completion time and the
     // timing result are the two things a correction must never rewrite.
-    await page.goto(`/inbox?folder=closed&itemId=${handled.inboxItemId}`)
-    await expect(page.getByText('Current outcome')).toBeVisible({ timeout: 15_000 })
+    await page.goto(`/inbox?queue=closed&itemId=${handled.inboxItemId}`)
+    // `Current outcome` was the card's outcome box; the recorded outcome is a
+    // thread event now, and the gate is the correction control itself.
+    await expect(page.getByRole('button', { name: 'Correct outcome' })).toBeVisible({
+      timeout: 15_000,
+    })
     await page.getByRole('button', { name: 'Correct outcome' }).click()
     const correctDialog = page.getByRole('dialog')
     await expect(correctDialog.getByText('Correct handling outcome')).toBeVisible()
@@ -328,15 +339,35 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
     expect(correction.completion_at).toEqual(original.completion_at)
     expect(correction.deadline_result).toBe(original.deadline_result)
     // Both facts are shown; the original is never overwritten.
-    await expect(page.getByText('Marked as handled', { exact: false })).toBeVisible()
-    // The middle dot scopes this to the HISTORY entry. Without it the toast
-    // ("Handling outcome corrected") also matches and the strict locator fails,
-    // which would say nothing about whether the fact was recorded.
-    await expect(page.getByText('Outcome corrected ·', { exact: false })).toBeVisible()
+    // Both are thread events now, not rows of the deleted card's `Outcome
+    // history` list, so the sentences are the ones
+    // `presentFeedbackHandlingOutcomeEvent` builds: the first completion names
+    // the outcome it recorded, the correction names the one that replaced it.
+    // Naming the outcome is also what keeps the second locator off the toast
+    // ("Handling outcome corrected"), which the old `·` suffix was there for.
+    //
+    // Plan v2.1 row 11 leads a line with the person who acted, so with the
+    // manager's display name resolved these read `<name> handled — Follow-up
+    // completed` and `<name> corrected the outcome — Handled with the team`
+    // (`history-event-line.ts`); with no name they keep the capitalised forms
+    // above. `exact: false` is case-insensitive, so the first locator already
+    // matches both leads. A correction's led form is not its actor-less form
+    // lowered — `outcome corrected` cannot follow a name — so the second
+    // accepts exactly those two wordings and nothing looser.
+    await expect(
+      page.getByText('Handled — Follow-up completed', { exact: false }),
+    ).toBeVisible()
+    await expect(
+      page.getByText(
+        /(?:Outcome corrected|corrected the outcome) — Handled with the team/,
+      ),
+    ).toBeVisible()
 
     // MANUAL REOPEN with reason 'other' plus a short explanation.
-    await page.getByRole('combobox', { name: 'Work status' }).click()
-    await page.getByRole('option', { name: 'Open', exact: true }).click()
+    // Work status is now a case-strip chip BUTTON whose menu offers `Reopen`
+    // (role `menuitem`, not `option`) — see inbox-triage.spec.ts.
+    await page.getByRole('button', { name: 'Work status' }).click()
+    await page.getByRole('menuitem', { name: 'Reopen' }).click()
     await expect(page.getByRole('dialog').getByText('Reopen work')).toBeVisible()
     await page.getByRole('combobox', { name: 'Reason for reopening' }).click()
     await page.getByRole('option', { name: 'Other', exact: true }).click()
@@ -366,7 +397,7 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
     ).toBe(true)
 
     // WITHDRAWN — a separate item that must claim no manager handling at all.
-    await page.goto(`/inbox?folder=closed&itemId=${withdrawn.inboxItemId}`)
+    await page.goto(`/inbox?queue=closed&itemId=${withdrawn.inboxItemId}`)
     await expect(
       page.getByText(
         'This feedback was withdrawn by the guest. No manager outcome was recorded.',
@@ -397,12 +428,16 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
 
     await signIn(page)
     await page.goto(`/inbox?itemId=${item.inboxItemId}`)
-    await expect(page.getByText('Feedback handling')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('button', { name: 'Mark as handled' })).toBeVisible({
+      timeout: 15_000,
+    })
 
     // The second tab loads the SAME revision, then the first tab moves on.
     const stale = await context.newPage()
     await stale.goto(`/inbox?itemId=${item.inboxItemId}`)
-    await expect(stale.getByText('Feedback handling')).toBeVisible({ timeout: 15_000 })
+    await expect(stale.getByRole('button', { name: 'Mark as handled' })).toBeVisible({
+      timeout: 15_000,
+    })
 
     await page.getByRole('button', { name: 'Mark as handled' }).click()
     const dialog = page.getByRole('dialog')
@@ -437,7 +472,7 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
 
     // Reloading the stale tab shows the CURRENT state, not its own attempt.
     await stale.reload()
-    await stale.goto(`/inbox?folder=closed&itemId=${item.inboxItemId}`)
+    await stale.goto(`/inbox?queue=closed&itemId=${item.inboxItemId}`)
     await expect(stale.getByText('Follow-up completed').first()).toBeVisible({
       timeout: 15_000,
     })
@@ -471,7 +506,10 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
     // Selecting work reveals the bulk toolbar. Bulk Reopen and Assign exist;
     // Bulk Close is deliberately absent until it has per-cycle compatibility
     // preview and settled closure outcomes.
-    await page.getByRole('checkbox').first().check()
+    await page
+      .getByRole('checkbox', { name: /^select item from/i })
+      .first()
+      .check()
     await expect(page.getByRole('button', { name: 'Reopen' })).toBeVisible()
     for (const forbidden of ['Close', 'Close selected', 'Mark as closed', 'Bulk close']) {
       await expect(

@@ -125,12 +125,12 @@ const EXPECTED_INBOX_PUBLIC_API_KEYS = [
   // S5: per-property overdue Response Target counts — the Dashboard's only
   // response-timer authority.
   'getGoogleReviewTargetCountsByProperty',
-  'getInboxFolderCounts',
   'getInboxItemDetail',
   // IBX-01-T5: the manager Handling History read.
   'getInboxItemHistory',
   'getInboxItems',
   'getInboxNotes',
+  'getInboxQueueCounts',
   'getLastVisitCount',
   'getPrivateFeedbackTargetAnalytics',
   'getResponseTargetPolicySettings',

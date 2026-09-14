@@ -7,6 +7,7 @@ import { z } from 'zod/v4'
 import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
 import { SAFE_OPAQUE_IDENTIFIER_PATTERN } from '#/shared/domain/safe-identifier'
 import { PRIVATE_FEEDBACK_HANDLING_OUTCOMES } from '../../domain/feedback-handling'
+import { INBOX_QUEUES } from '../inbox-queues'
 
 export const INBOX_BULK_LIMIT = 100
 const commandRevisionSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
@@ -28,6 +29,7 @@ const inboxManualReopenReasonSchema = z.enum([
 
 // GET inbox items — query params
 export const getInboxItemsDto = z.object({
+  queue: z.enum(INBOX_QUEUES).optional(),
   propertyId: z.string().optional(),
   status: z
     .union([z.enum(['open', 'closed']), z.array(z.enum(['open', 'closed']))])
@@ -57,7 +59,7 @@ export const getInboxItemsDto = z.object({
   sort: z.enum(['newest', 'oldest']).default('newest'),
 })
 
-// POST update status (open ⇄ closed — ADR 0023)
+// POST update status (open ⇄ closed — ADR 0055)
 export const updateStatusDto = z
   .object({
     inboxItemId: z.uuid(),
@@ -281,10 +283,8 @@ export const getInboxItemHistoryDto = z.object({
   inboxItemId: z.uuid(),
 })
 
-// GET folder counts — for the email-style sidebar (open, escalated, closed).
-// propertyId scopes the counts to one property (permission-checked); omitted
-// means every accessible property (org-wide for org-wide roles).
-export const getInboxFolderCountsDto = z.object({
+// GET queue counts — the workspace rail uses the same property scope contract.
+export const getInboxQueueCountsDto = z.object({
   propertyId: z.string().optional(),
 })
 

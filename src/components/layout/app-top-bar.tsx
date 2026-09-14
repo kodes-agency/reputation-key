@@ -23,6 +23,7 @@ type Props = Readonly<{
   organizationId: string
   notificationFns: NotificationServerFns
   submitBetaFeedback?: SubmitBetaFeedback
+  sidebarLocked?: boolean
 }>
 
 export function AppTopBar({
@@ -30,6 +31,7 @@ export function AppTopBar({
   organizationId,
   notificationFns,
   submitBetaFeedback,
+  sidebarLocked = false,
 }: Props) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -48,7 +50,7 @@ export function AppTopBar({
 
   return (
     <header className="flex h-13 shrink-0 items-center gap-2 border-b px-4">
-      <SidebarTrigger className="-ml-1" />
+      <SidebarTrigger className={sidebarLocked ? '-ml-1 md:hidden' : '-ml-1'} />
 
       <div className="flex-1" />
 

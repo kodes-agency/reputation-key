@@ -1,6 +1,9 @@
 // Inbox context — query server functions (list, counts)
 
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
+import {
+  getExecutionPolicy,
+  requireExecutionAllowed,
+} from '#/shared/auth/execution-policy'
 import {
   createServerFn,
   isInboxError,
@@ -16,9 +19,10 @@ import {
   getInboxItemsDto,
   getLastVisitCountDto,
   stampLastInboxViewDto,
-  getInboxFolderCountsDto,
+  getInboxQueueCountsDto,
 } from '../application/dto/inbox.dto'
 import { decodeInboxCursor } from '../application/inbox-cursor'
+import { REPLY_STAGE_QUEUES } from '../application/inbox-queues'
 
 // ── getInboxItems ──────────────────────────────────────────────────
 
@@ -34,6 +38,13 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
           action: 'inbox.read',
           propertyId: data.propertyId,
         })
+        if (data.queue && REPLY_STAGE_QUEUES.has(data.queue)) {
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'reply.manage',
+            propertyId: data.propertyId,
+          })
+        }
         const { inboxPublicApi, logger } = getContainer()
         try {
           const cursor = data.cursor ? decodeInboxCursor(data.cursor) : null
@@ -43,6 +54,7 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
           }
           return await inboxPublicApi.getInboxItems(
             {
+              queue: data.queue,
               filters: {
                 propertyId: data.propertyId ? propertyId(data.propertyId) : undefined,
                 status: data.status,
@@ -138,20 +150,32 @@ export const stampLastInboxViewFn = createServerFn({ method: 'POST' })
     ),
   )
 
-// ── getInboxFolderCounts ──────────────────────────────────────────
+// ── getInboxQueueCounts ───────────────────────────────────────────
 
-export const getInboxFolderCountsFn = createServerFn({ method: 'GET' })
-  .validator(getInboxFolderCountsDto)
+export const getInboxQueueCountsFn = createServerFn({ method: 'GET' })
+  .validator(getInboxQueueCountsDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'inbox.read',
+          propertyId: data?.propertyId,
+        })
+        const replyDecision = await getExecutionPolicy().decide({
+          principal: { kind: 'user', ctx },
+          action: 'reply.manage',
+          organizationId: ctx.organizationId,
+          propertyId: data?.propertyId,
+          executionKind: 'interactive',
+          now: new Date(),
+        })
         const { inboxPublicApi } = getContainer()
         try {
-          return await inboxPublicApi.getInboxFolderCounts(
-            { propertyId: data?.propertyId },
+          return await inboxPublicApi.getInboxQueueCounts(
+            { propertyId: data?.propertyId, replyQueuesEnabled: replyDecision.allowed },
             ctx,
           )
         } catch (e) {
@@ -161,6 +185,6 @@ export const getInboxFolderCountsFn = createServerFn({ method: 'GET' })
         }
       },
       'GET',
-      'inbox.getInboxFolderCounts',
+      'inbox.getInboxQueueCounts',
     ),
   )

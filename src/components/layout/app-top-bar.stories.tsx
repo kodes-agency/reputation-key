@@ -102,3 +102,19 @@ export const NoNotifications: Story = {
     ).toBeInTheDocument()
   },
 }
+
+// Inbox routes hold the desktop sidebar in icon mode. The trigger remains for
+// the phone sheet, but disappears once the desktop navigation is visible.
+export const SidebarLocked: Story = {
+  args: {
+    user,
+    notificationFns: makeNotificationFns(0),
+    sidebarLocked: true,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(await canvas.findByRole('button', { name: /toggle sidebar/i })).toHaveClass(
+      'md:hidden',
+    )
+  },
+}

@@ -15,6 +15,10 @@ import type { Review, Reply } from '../../domain/types'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import {
+  REPLY_CHIP_WORDS,
+  resolveReplyStateCopy,
+} from '#/components/inbox/reply-state-copy'
 
 const ORG_A = organizationId('org-rpl-test-aaaa-3333333333333333')
 const ORG_B = organizationId('org-rpl-test-bbbb-4444444444444444')
@@ -361,6 +365,136 @@ describe.sequential('replyRepository (integration)', () => {
       const repo = createReplyRepository(getDb(), () => now)
 
       await expect(repo.findStatesByReviewIds([], ORG_A)).resolves.toEqual([])
+    })
+  })
+
+  describe('findReviewIdsByReplyStage', () => {
+    it('returns content-free source candidates within tenant and property scope', async () => {
+      const db = getDb()
+      const firstReview = await seedReview(db)
+      const secondReview = await seedReview(db, {
+        id: reviewId('3a000000-0000-0000-0000-000000000002'),
+        externalId: 'rpl-stage-ext-002',
+      })
+      const repo = createReplyRepository(db, () => now)
+      await repo.upsert(
+        makeReply({
+          reviewId: firstReview.id,
+          status: 'pending_approval',
+          source: 'internal',
+        }),
+        now,
+      )
+      await repo.upsert(
+        makeReply({
+          id: '2a000000-0000-0000-0000-000000000002',
+          reviewId: secondReview.id,
+          status: 'approved',
+          source: 'internal',
+        }),
+        now,
+      )
+
+      const rows = await repo.findReviewIdsByReplyStage(ORG_A, [PROP_A])
+
+      expect(rows).toEqual([
+        {
+          reviewId: firstReview.id,
+          source: 'internal',
+          stage: 'awaiting',
+        },
+        { reviewId: secondReview.id, source: 'internal', stage: 'waiting' },
+      ])
+      expect(Object.keys(rows[0]!)).toEqual(['reviewId', 'source', 'stage'])
+      await expect(
+        repo.findReviewIdsByReplyStage(ORG_A, [
+          propertyId('2a000000-0000-0000-0000-000000000099'),
+        ]),
+      ).resolves.toEqual([])
+      await expect(repo.findReviewIdsByReplyStage(ORG_B)).resolves.toEqual([])
+    })
+
+    it('keeps the SQL stage partition aligned with reply copy for every persisted state', async () => {
+      const statuses = [
+        'draft',
+        'pending_approval',
+        'approved',
+        'published',
+        'rejected',
+        'publish_failed',
+      ] as const satisfies ReadonlyArray<Reply['status']>
+      const publicationStates = [
+        null,
+        'requested',
+        'authorized',
+        'sending',
+        'pending_observation',
+        'published',
+        'terminal',
+        'ambiguous',
+        'cancelled',
+      ] as const satisfies ReadonlyArray<Reply['publicationState']>
+      const matrix = statuses.flatMap((status) =>
+        publicationStates.map((publicationState) => ({ status, publicationState })),
+      )
+      const db = getDb()
+      const repo = createReplyRepository(db, () => now)
+
+      for (const [index, state] of matrix.entries()) {
+        const suffix = String(index + 1).padStart(12, '0')
+        const id = reviewId(`3c000000-0000-4000-8000-${suffix}`)
+        await seedReview(db, {
+          id,
+          externalId: `rpl-stage-matrix-${index}`,
+        })
+        await repo.upsert(
+          makeReply({
+            id: `2c000000-0000-4000-8000-${suffix}`,
+            reviewId: id,
+            source: 'internal',
+            status: state.status,
+            publicationState: state.publicationState,
+          }),
+          now,
+        )
+      }
+
+      const sqlStageByReview = new Map(
+        (await repo.findReviewIdsByReplyStage(ORG_A, [PROP_A])).map((row) => [
+          row.reviewId,
+          row.stage,
+        ]),
+      )
+      expect(sqlStageByReview.size).toBe(matrix.length)
+
+      for (const [index, state] of matrix.entries()) {
+        const suffix = String(index + 1).padStart(12, '0')
+        const stage = sqlStageByReview.get(reviewId(`3c000000-0000-4000-8000-${suffix}`))
+        const copy = resolveReplyStateCopy({
+          ...state,
+          publicationLastErrorClass: null,
+          updatedAt: now,
+        })
+
+        if (stage === 'awaiting') {
+          expect(copy.badge).toBe(REPLY_CHIP_WORDS.awaitingApproval)
+        } else if (stage === 'waiting') {
+          expect([
+            REPLY_CHIP_WORDS.waitingForGoogle,
+            REPLY_CHIP_WORDS.liveOnGoogle,
+          ]).toContain(copy.badge)
+        } else {
+          expect(copy.badge).not.toBe(REPLY_CHIP_WORDS.awaitingApproval)
+          expect(copy.badge).not.toBe(REPLY_CHIP_WORDS.waitingForGoogle)
+          expect(copy.badge).not.toBe(REPLY_CHIP_WORDS.liveOnGoogle)
+        }
+      }
+    })
+
+    it('does not query for an empty property scope', async () => {
+      const repo = createReplyRepository(getDb(), () => now)
+
+      await expect(repo.findReviewIdsByReplyStage(ORG_A, [])).resolves.toEqual([])
     })
   })
 

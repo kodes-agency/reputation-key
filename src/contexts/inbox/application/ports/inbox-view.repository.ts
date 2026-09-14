@@ -2,9 +2,9 @@
 // Per architecture: "Ports are TypeScript interfaces, not classes."
 //
 // Stores the per-user `lastInboxView` timestamp that replaces the former
-// org-level "new" badge (ADR 0023). The badge shows "N open items created
+// org-level "new" badge (ADR 0057). The badge shows "N open items created
 // since your last visit" — a per-user, time-based signal instead of the
-// broken shared-column read-tracking it replaces.
+// broken shared-column read-tracking it replaces (ADR 0057).
 
 import type { OrganizationId, UserId } from '#/shared/domain/ids'
 

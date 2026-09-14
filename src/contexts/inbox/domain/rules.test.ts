@@ -1,4 +1,4 @@
-// Inbox context — domain rules tests (ADR 0023: open/closed 2-state machine)
+// Inbox context — domain rules tests (ADR 0055: open/closed 2-state machine)
 
 import { describe, it, expect } from 'vitest'
 import {
@@ -16,7 +16,7 @@ import type { InboxStatus } from './types'
 describe('canTransition', () => {
   const ALL_STATUSES: InboxStatus[] = ['open', 'closed']
 
-  // Valid transitions — the only two edges in the 2-state machine (ADR 0023)
+  // Valid transitions — the only two edges in the 2-state machine (ADR 0055)
   describe('valid transitions', () => {
     const validCases: ReadonlyArray<[InboxStatus, InboxStatus]> = [
       ['open', 'closed'],
@@ -92,7 +92,7 @@ describe('timestampFieldsForStatus', () => {
   })
 
   it('CLEARS closedAt when an item reopens, rather than leaving the old one', () => {
-    // ADR 0023: one field, not four. Reopening has to null it — a stale
+    // ADR 0055: one field, not four. Reopening has to null it — a stale
     // closedAt on an open item is what makes an SLA report lie.
     expect(timestampFieldsForStatus('open', NOW)).toEqual({ closedAt: null })
   })

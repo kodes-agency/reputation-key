@@ -6,10 +6,10 @@ describe('replaceInboxSearch', () => {
     const command = replaceInboxSearch('service')
 
     expect(command.replace).toBe(true)
-    expect(command.search({ q: 'old', itemId: 'item-1', folder: 'open' })).toEqual({
+    expect(command.search({ q: 'old', itemId: 'item-1', queue: 'reply' })).toEqual({
       q: 'service',
       itemId: undefined,
-      folder: 'open',
+      queue: 'reply',
     })
   })
 })

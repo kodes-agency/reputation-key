@@ -1,6 +1,6 @@
 // Inbox last-visit count badge — for sidebar nav.
 // Shows the count of open items created since the user's last inbox visit
-// (ADR 0023). Replaces the former org-level "new" badge.
+// (ADR 0057). Replaces the former org-level "new" badge.
 // Receives the getLastVisitCount server fn as a prop per src/components/CONTEXT.md.
 // Non-critical: a zero/undefined count renders nothing; a load failure falls
 // back to null.

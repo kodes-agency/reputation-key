@@ -16,6 +16,7 @@ import {
   CategoryNavSubItem,
   InertNavItem,
   LinkNavItem,
+  type NavLinkTarget,
 } from './nav-items-shared'
 import type { Capability } from '#/shared/auth/beta-capabilities'
 import { REFUSAL_COPY } from '#/shared/auth/capability-refusal-category'
@@ -119,11 +120,17 @@ function ManagerNavRow({
 }>) {
   const isUnavailable = item.capability !== undefined && !has(item.capability)
   const category = item.capability === undefined ? null : refusal(item.capability)
+  const isOrganizationInbox = item.key === 'reviews' && activeSection === 'inbox'
+  const link: NavLinkTarget | null = isOrganizationInbox
+    ? { to: '/inbox' }
+    : propertyId
+      ? { to: item.to, params: { propertyId } }
+      : null
 
   // Same disabled affordance the no-property case already uses — an
   // eligible-by-role manager sees why the destination is inert instead
   // of navigating into /unavailable.
-  if (!propertyId || isUnavailable) {
+  if (link === null || isUnavailable) {
     return (
       <InertNavItem
         icon={item.icon}
@@ -139,8 +146,8 @@ function ManagerNavRow({
     <LinkNavItem
       icon={item.icon}
       label={item.label}
-      isActive={activeSection === item.key}
-      link={{ to: item.to, params: { propertyId } }}
+      isActive={activeSection === item.key || isOrganizationInbox}
+      link={link}
       badge={
         item.key === 'reviews' && (
           <SidebarMenuBadge>

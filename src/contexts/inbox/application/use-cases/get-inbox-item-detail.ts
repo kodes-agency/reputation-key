@@ -55,7 +55,16 @@ export type GetInboxItemDetailDeps = Readonly<{
  *  The reply is filled in the use case — not the repo — because only the use
  *  case has the AuthContext to permission-gate it (reply.manage). Intentional
  *  asymmetry with the review/feedback/property lookups, which enrich inside
- *  the repo (no auth needed for snippets). */
+ *  the repo (no auth needed for snippets).
+ *
+ *  `reviewRating` is one of those repo-enriched fields and is inherited from
+ *  `InboxItemDetail` rather than re-declared here, so the eligibility rule it
+ *  obeys is documented in exactly one place (`domain/types.ts`). What this use
+ *  case adds is a wire guarantee: the returned payload always carries the key
+ *  with a `number | null` value, never `undefined`, whatever the repository
+ *  implementation handed it. The pane reads `detail.reviewRating` as its only
+ *  rating source — never `item.rating`, which the detail read nulls for every
+ *  row (`inbox.mapper.ts:37`). */
 export type InboxItemDetailResult = Readonly<
   InboxItemDetail & {
     reply: ReplyView | null
@@ -105,9 +114,10 @@ export const getInboxItemDetail =
       })
     }
 
-    // Attach the review's effective reply (internal, else the google_sync
-    // mirror — without the mirror fallback, replies published via the GBP UI
-    // are invisible and the panel renders a compose box over them). Primary
+    // Attach the review's effective reply (confirmed internal, otherwise the
+    // current governed Google observation, with a legacy mirror fallback).
+    // Without provider truth, replies published via the GBP UI are invisible
+    // and the panel renders a compose box over them. Primary
     // authorization is inbox.read (above); reply.manage is a field-level
     // scope so Staff (who lack it) never receive reply data. Mild tension
     // with ADR 0009 §6 ("each use case maps to exactly one permission") —
@@ -181,6 +191,14 @@ export const getInboxItemDetail =
 
     return {
       ...detail,
+      // Normalise, do not source: the repo already applied the eligibility rule
+      // (null for `expired` / `not_found`, null for feedback) when it read the
+      // snippet. Re-reading the review here would mean a second authorized
+      // fetch of the same source, and under ADR 0031 a successful fetch is what
+      // advances the staleness clock — one detail open must not count twice.
+      // All this line does is collapse a `reviewRating`-less detail (the
+      // in-memory repo's peers, hand-built fixtures) to an explicit `null`.
+      reviewRating: detail.reviewRating ?? null,
       reply,
       analysis,
       propertyDefaultReplyLanguage,

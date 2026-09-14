@@ -4,9 +4,27 @@
 // fn() spies. isSaving and the over-limit counter are DIRECT props here — these
 // are the authoritative coverage for the pending + validation surfaces that
 // ReplyEditor derives internally.
+//
+// Plan v2.1 PR 4 (rows 14, 17, 18). `ReplyCompose` is the dock's TEXT and FOOT
+// rows now, rendered here without the dock around them (the region and its
+// head are `reply-composer.stories.tsx` / `composer-dock.stories.tsx`). The
+// reply language is no longer a combobox: it is the `Write in` group inside
+// `Draft with AI ▾` and the `Templates in` switch inside `Template ▾`, and the
+// language an assist action actually used is printed by the result tag at the
+// top of the text (`AI draft · English`, `Template · <title> · English`).
+// Every language assertion below therefore OPENS a menu — a story that only
+// checked the old combobox was gone would pass with the language deleted.
+//
+// Reply language stays inside those two assist menus; it is not repeated as a
+// separate control beside them. The stories at the end of this file pin the
+// review's other findings in the real composer: a regenerate that does not
+// commit its language, Undo restoring provenance, the caret after `Use draft`,
+// the template menu's loading state surviving a switch back, and a detected
+// review language surviving a template load.
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { ReplyCompose, type ReplySuggestionResult } from './reply-editor-compose'
+import type { ReplyLanguageTarget } from './reply-language-options'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
 
@@ -116,6 +134,14 @@ const onGenerateMissingTemplateLanguage = fn(
     retryAfterEpochMillis: null,
   }),
 )
+/** Answers in the language of the target it was asked for (row 18's regenerate). */
+const onGenerateByTarget = fn(
+  async (_tone: string, target: ReplyLanguageTarget): Promise<ReplySuggestionResult> => ({
+    ...readySuggestion(),
+    replyText: target.kind === 'property_default' ? BULGARIAN_TEMPLATE : SUGGESTED_REPLY,
+    concreteLanguageTag: target.kind === 'property_default' ? 'bg-Cyrl' : 'en-Latn-US',
+  }),
+)
 let resolveDelayedSuggestion: ((result: ReplySuggestionResult) => void) | undefined
 const onGenerateDelayed = fn(
   () =>
@@ -129,20 +155,54 @@ const resolveDelayed = (result: ReplySuggestionResult): void => {
   resolveDelayedSuggestion(result)
 }
 
+/** Menus portal to `document.body`, outside the story canvas. */
+const page = () => within(document.body)
+
+const AI_TRIGGER = /^AI tone and language:/
+const TEMPLATE_TRIGGER = 'Choose a reply template'
+
+async function openMenu(trigger: string | RegExp): Promise<void> {
+  await userEvent.click(page().getByRole('button', { name: trigger }))
+  const menu = await page().findByRole('menu')
+  await waitFor(() => expect(menu).toBeVisible())
+}
+
+async function closeMenu(): Promise<void> {
+  await userEvent.keyboard('{Escape}')
+  await waitFor(() => expect(page().queryByRole('menu')).toBeNull())
+}
+
+/** The `Write in` rows of the open AI menu. */
+const writeIn = () => within(page().getByRole('group', { name: 'Write in' }))
+
+/**
+ * The result tag as printed text (row 18). Matched on the element's whole
+ * text because the tag is three spans — the lead word and two quiet parts.
+ */
+const tagText = (text: string) => (_: string, element: Element | null) =>
+  element !== null &&
+  ['P', 'BUTTON'].includes(element.tagName) &&
+  element.textContent === text
+
+/**
+ * A review whose language cannot be detected: `Detect automatically` is
+ * listed in `Write in` but disabled, and says why in its own name — the
+ * reason a screen reader could never have hovered a tooltip for. When a
+ * property default exists it is the checked row.
+ */
 async function expectDisabledAutomaticDetection(
-  canvasElement: HTMLElement,
   optionName: RegExp,
   propertyDefaultSelected: boolean,
 ): Promise<void> {
-  const canvas = within(canvasElement)
-  const languageSelect = canvas.getByRole('combobox', { name: 'Reply language' })
+  await openMenu(AI_TRIGGER)
   if (propertyDefaultSelected) {
-    expect(languageSelect).toHaveTextContent(/Bulgarian\s*·\s*Property default/i)
+    await expect(
+      writeIn().getByRole('menuitem', { name: 'Bulgarian · property default' }),
+    ).toHaveAttribute('aria-current', 'true')
   }
-  await userEvent.click(languageSelect)
-  const autoDetect = await screen.findByRole('option', { name: optionName })
-  expect(autoDetect).toHaveAttribute('aria-disabled', 'true')
-  await userEvent.keyboard('{Escape}')
+  const autoDetect = writeIn().getByRole('menuitem', { name: optionName })
+  await expect(autoDetect).toHaveAttribute('aria-disabled', 'true')
+  await closeMenu()
 }
 
 const meta: Meta<typeof ReplyCompose> = {
@@ -263,6 +323,8 @@ export const AiSuggestionAdoption: Story = {
     await expect(canvas.findByText(SUGGESTED_REPLY)).resolves.toBeVisible()
     expect(canvas.getByRole('textbox')).not.toHaveValue(SUGGESTED_REPLY)
     expect(onSaveDraft).not.toHaveBeenCalled()
+    // A preview is not a draft: no result tag until it is adopted.
+    expect(canvas.queryByText(tagText('AI draft · English'))).toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: /use draft/i }))
     await waitFor(() => expect(canvas.getByRole('textbox')).toHaveValue(SUGGESTED_REPLY))
     await waitFor(() =>
@@ -272,6 +334,11 @@ export const AiSuggestionAdoption: Story = {
         'en-Latn',
       ),
     )
+    // Row 18: the tag names the language the draft was made in. The property
+    // default and the review language are the same language here, so there is
+    // no OTHER target to regenerate in and the tag is a fact, not a menu.
+    await expect(canvas.findByText(tagText('AI draft · English'))).resolves.toBeVisible()
+    expect(canvas.queryByRole('button', { name: 'AI draft · English' })).toBeNull()
   },
 }
 
@@ -301,12 +368,12 @@ export const LocalSafeMenuUsesCataloguePath: Story = {
   play: async ({ canvas }) => {
     onGenerateFallback.mockClear()
 
-    await userEvent.click(
-      canvas.getByRole('button', { name: /choose a reply template/i }),
-    )
-    await userEvent.click(
-      await screen.findByRole('menuitem', { name: 'Local safe template' }),
-    )
+    // One language here (the review's folds into the property default), so
+    // there is nothing to switch between and no switch is drawn.
+    expect(canvas.queryByRole('button', { name: /^Reply language:/ })).toBeNull()
+    await openMenu(TEMPLATE_TRIGGER)
+    expect(page().queryByRole('group', { name: 'Templates in' })).toBeNull()
+    await userEvent.click(page().getByRole('menuitem', { name: 'Local safe template' }))
 
     await waitFor(() =>
       expect(onGenerateFallback).toHaveBeenCalledWith(
@@ -316,6 +383,10 @@ export const LocalSafeMenuUsesCataloguePath: Story = {
       ),
     )
     await expect(canvas.findByText('Local safe starting point')).resolves.toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: /use draft/i }))
+    // Row 18: a local safe template has no library id and so no title — the
+    // tag says `Template` and the language, and invents nothing between them.
+    await expect(canvas.findByText(tagText('Template · English'))).resolves.toBeVisible()
   },
 }
 
@@ -332,13 +403,23 @@ export const AiDetectsMissingReviewLanguage: Story = {
     onGenerateDetectedSuggestion.mockClear()
     onSaveDraft.mockClear()
 
-    expect(canvas.getByRole('combobox', { name: 'Reply language' })).toHaveTextContent(
-      /Review language\s*·\s*Detect automatically/i,
-    )
-    expect(canvas.getByRole('link', { name: /set property language/i })).toHaveAttribute(
+    // No property default and no recorded review language: automatic
+    // detection is the selection, and the chevron's name says so.
+    await openMenu('AI tone and language: Professional, Detect automatically')
+    await expect(
+      writeIn().getByRole('menuitem', { name: 'Detect automatically' }),
+    ).toHaveAttribute('aria-current', 'true')
+    // The `Property reply language not set` alert is a row in the menu now
+    // (row 18), carrying the same fix for a manager with `ai.manage`.
+    const fix = writeIn().getByRole('menuitem', { name: 'Set property language' })
+    await expect(fix).toHaveAttribute(
       'href',
       expect.stringContaining('propertyId=10000000-0000-4000-8000-000000000101'),
     )
+    await expect(fix).toHaveAccessibleDescription(
+      'We’ll detect this review’s language for this draft. Set a property default so future replies start in your local language.',
+    )
+    await closeMenu()
     const aiButton = canvas.getByRole('button', { name: /draft with ai/i })
     expect(aiButton).toBeEnabled()
     await userEvent.click(aiButton)
@@ -357,11 +438,14 @@ export const AiDetectsMissingReviewLanguage: Story = {
         'en-Latn',
       ),
     )
-    await waitFor(() =>
-      expect(canvas.getByRole('combobox', { name: 'Reply language' })).toHaveTextContent(
-        /English\s*·\s*Review language/i,
-      ),
-    )
+    // The detected language becomes the review language: the tag names it and
+    // `Write in` checks it.
+    await expect(canvas.findByText(tagText('AI draft · English'))).resolves.toBeVisible()
+    await openMenu('AI tone and language: Professional, English')
+    await expect(
+      writeIn().getByRole('menuitem', { name: 'English · review language' }),
+    ).toHaveAttribute('aria-current', 'true')
+    await closeMenu()
 
     await userEvent.click(canvas.getByRole('button', { name: /^undo$/i }))
     await waitFor(() =>
@@ -376,9 +460,16 @@ export const AiDetectsMissingReviewLanguage: Story = {
         'en-Latn',
       ),
     )
-    expect(canvas.getByRole('combobox', { name: 'Reply language' })).toHaveTextContent(
-      /English\s*·\s*Review language/i,
-    )
+    // Undo restores the text, not the detection: the language stays known.
+    await openMenu('AI tone and language: Professional, English')
+    await expect(
+      writeIn().getByRole('menuitem', { name: 'English · review language' }),
+    ).toHaveAttribute('aria-current', 'true')
+    await closeMenu()
+    // ...and it restores the text's PROVENANCE: the manager's own words carry
+    // no `AI draft · English` tag (PR 4 review — the tag outlived the Undo).
+    expect(canvas.queryByText(tagText('AI draft · English'))).toBeNull()
+    expect(canvas.queryByRole('button', { name: 'AI draft · English' })).toBeNull()
   },
 }
 
@@ -392,21 +483,22 @@ export const ChooseReviewLanguageWhenMetadataIsMissing: Story = {
   },
   play: async ({ canvas }) => {
     onGenerateDetectedSuggestion.mockClear()
-    const languageSelect = canvas.getByRole('combobox', { name: 'Reply language' })
 
-    expect(languageSelect).toHaveTextContent(/Bulgarian\s*·\s*Property default/i)
-    await userEvent.click(languageSelect)
+    await openMenu('AI tone and language: Professional, Bulgarian')
+    await expect(
+      writeIn().getByRole('menuitem', { name: 'Bulgarian · property default' }),
+    ).toHaveAttribute('aria-current', 'true')
+    // Picking a language switches it and does NOT draft (reply-ai-menu.tsx).
     await userEvent.click(
-      await screen.findByRole('option', {
-        name: /Review language · Detect automatically/i,
+      writeIn().getByRole('menuitem', { name: 'Detect automatically' }),
+    )
+    await waitFor(() => expect(page().queryByRole('menu')).toBeNull())
+    expect(onGenerateDetectedSuggestion).not.toHaveBeenCalled()
+    await expect(
+      canvas.getByRole('button', {
+        name: 'AI tone and language: Professional, Detect automatically',
       }),
-    )
-    expect(languageSelect).toHaveTextContent(
-      /Review language\s*·\s*Detect automatically/i,
-    )
-    const languageContainer = languageSelect.closest('[data-slot="reply-language"]')
-    if (!languageContainer) throw new Error('Reply language container was not rendered')
-    await waitFor(() => expect(languageContainer).not.toHaveAttribute('aria-hidden'))
+    ).toBeVisible()
 
     await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
     await waitFor(() =>
@@ -416,8 +508,75 @@ export const ChooseReviewLanguageWhenMetadataIsMissing: Story = {
     )
     await userEvent.click(canvas.getByRole('button', { name: /use draft/i }))
     await waitFor(() =>
-      expect(languageSelect).toHaveTextContent(/English\s*·\s*Review language/i),
+      expect(
+        canvas.getByRole('button', {
+          name: 'AI tone and language: Professional, English',
+        }),
+      ).toBeVisible(),
     )
+  },
+}
+
+/**
+ * Row 18: `AI draft · English ▾` regenerates in the OTHER target. Here the
+ * property default is Bulgarian, so after an English (review-language) draft
+ * the tag is a menu with one row, `Regenerate in Bulgarian`, and choosing it
+ * requests the draft for `property_default` without selecting it
+ * (`regenerateScope`); the language commits when the preview is adopted.
+ */
+export const AiDraftTagRegeneratesInTheOtherLanguage: Story = {
+  tags: ['ai-language-regression'],
+  args: {
+    propertyDefaultReplyLanguage: 'bg-Cyrl',
+    reviewReplyLanguage: 'en-Latn-US',
+    reviewLanguageReadiness: 'detectable',
+    onGenerateSuggestion: onGenerateByTarget,
+  },
+  play: async ({ canvas }) => {
+    const generate = onGenerateByTarget
+    generate.mockClear()
+
+    await openMenu('AI tone and language: Professional, Bulgarian')
+    await userEvent.click(
+      writeIn().getByRole('menuitem', { name: 'English · review language' }),
+    )
+    await waitFor(() => expect(page().queryByRole('menu')).toBeNull())
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+    await userEvent.click(await canvas.findByRole('button', { name: /use draft/i }))
+    await waitFor(() => expect(canvas.getByRole('textbox')).toHaveValue(SUGGESTED_REPLY))
+
+    const tag = await canvas.findByRole('button', { name: 'AI draft · English' })
+    expect(tag).toHaveAttribute('aria-haspopup', 'menu')
+    await userEvent.click(tag)
+    await waitFor(() => expect(page().getByRole('menu')).toBeVisible())
+    // Only the other target: the language the draft is already in is not a row.
+    expect(
+      page()
+        .getAllByRole('menuitem')
+        .map((row) => row.textContent),
+    ).toEqual(['Regenerate in Bulgarian · property default'])
+    await userEvent.click(
+      page().getByRole('menuitem', {
+        name: 'Regenerate in Bulgarian · property default',
+      }),
+    )
+    await waitFor(() =>
+      expect(generate).toHaveBeenLastCalledWith('professional', {
+        kind: 'property_default',
+      }),
+    )
+    // Still a preview: nothing replaces the text until it is adopted.
+    await expect(canvas.findByText(BULGARIAN_TEMPLATE)).resolves.toBeVisible()
+    expect(canvas.getByRole('textbox')).toHaveValue(SUGGESTED_REPLY)
+    await userEvent.click(canvas.getByRole('button', { name: /use draft/i }))
+    await expect(
+      canvas.findByRole('button', { name: 'AI draft · Bulgarian' }),
+    ).resolves.toBeVisible()
+    await expect(
+      canvas.getByRole('button', {
+        name: 'AI tone and language: Professional, Bulgarian',
+      }),
+    ).toBeVisible()
   },
 }
 
@@ -436,12 +595,11 @@ export const RatingOnlyUsesPropertyTemplate: Story = {
     onSaveDraft.mockClear()
     const canvas = within(canvasElement)
     await expectDisabledAutomaticDetection(
-      canvasElement,
-      /Review language · Detect automatically — This review has no text to detect\./i,
+      /^Detect automatically — This review has no text to detect\.$/,
       true,
     )
 
-    const templateButton = canvas.getByRole('button', { name: /load template/i })
+    const templateButton = canvas.getByRole('button', { name: 'Template' })
     expect(templateButton).toBeEnabled()
     expect(canvas.getByRole('button', { name: /draft with ai/i })).toBeDisabled()
     await userEvent.click(templateButton)
@@ -488,12 +646,11 @@ export const ShortReviewUsesPropertyTemplate: Story = {
     onGenerateShortTemplate.mockClear()
     const canvas = within(canvasElement)
     await expectDisabledAutomaticDetection(
-      canvasElement,
-      /Review language · Detect automatically — This review is too short to detect its language\./i,
+      /^Detect automatically — This review is too short to detect its language\.$/,
       true,
     )
 
-    await userEvent.click(canvas.getByRole('button', { name: /load template/i }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Template' }))
     await waitFor(() =>
       expect(onListShortTemplate).toHaveBeenCalledWith({
         kind: 'property_default',
@@ -525,18 +682,27 @@ export const LibraryTemplateLoadsAsManualDraft: Story = {
     onLoadLibraryTemplate.mockClear()
     onSaveDraft.mockClear()
 
-    expect(canvas.getByRole('button', { name: /load template/i })).toBeEnabled()
+    expect(canvas.getByRole('button', { name: 'Template' })).toBeEnabled()
     expect(canvas.getByRole('button', { name: /draft with ai/i })).toBeVisible()
-    await userEvent.click(
-      canvas.getByRole('button', { name: /choose a reply template/i }),
-    )
+    await openMenu(TEMPLATE_TRIGGER)
+    // Detection can never filter the library, so the template menu does not
+    // list it — refused or otherwise — and with the property default left
+    // alone there is no switch. `Write in` still lists it with its reason.
+    expect(page().queryByRole('group', { name: 'Templates in' })).toBeNull()
+    expect(page().queryByRole('menuitem', { name: /^Detect automatically/ })).toBeNull()
+    // The list is headed, in words, by the language the server returned it in.
+    const listGroup = await page().findByRole('group', { name: 'Templates in English' })
     await expect(
-      screen.findByRole('menuitem', { name: 'Guest appreciation' }),
+      within(listGroup).findByText('Templates in English'),
     ).resolves.toBeVisible()
-    expect(screen.getByRole('menuitem', { name: 'Local safe template' })).toBeVisible()
-    await userEvent.keyboard('{Escape}')
+    const list = within(listGroup)
+    await expect(
+      list.findByRole('menuitem', { name: 'Guest appreciation' }),
+    ).resolves.toBeVisible()
+    expect(page().getByRole('menuitem', { name: 'Local safe template' })).toBeVisible()
+    await closeMenu()
 
-    await userEvent.click(canvas.getByRole('button', { name: /load template/i }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Template' }))
 
     await waitFor(() =>
       expect(onLoadLibraryTemplate).toHaveBeenCalledWith(LIBRARY_TEMPLATE_ID, {
@@ -544,7 +710,16 @@ export const LibraryTemplateLoadsAsManualDraft: Story = {
       }),
     )
     await waitFor(() => expect(canvas.getByRole('textbox')).toHaveValue(LIBRARY_REPLY))
-    expect(canvas.getByText('Template loaded: Guest appreciation')).toBeVisible()
+    // Row 18: the tag names the template by the title it was loaded under, and
+    // its language. The old `Template loaded: …` line is still announced to a
+    // screen reader, but no longer printed beside a tag that says the same.
+    await expect(
+      canvas.findByText(tagText('Template · Guest appreciation · English')),
+    ).resolves.toBeVisible()
+    expect(canvas.getByText('Template loaded: Guest appreciation')).toHaveAttribute(
+      'role',
+      'status',
+    )
     await waitFor(() =>
       expect(onSaveDraft).toHaveBeenCalledWith(LIBRARY_REPLY, undefined, 'en-Latn-US'),
     )
@@ -563,18 +738,24 @@ export const ShortReviewNeedsPropertyLanguage: Story = {
   play: async ({ canvasElement }) => {
     onGenerateMissingTemplateLanguage.mockClear()
     const canvas = within(canvasElement)
-    expect(
-      canvas.getByText(
-        'This review is too short to detect its language. Set a property default to load a local template.',
-      ),
-    ).toBeVisible()
+    const reason =
+      'This review is too short to detect its language. Set a property default to load a local template.'
+    // Row 18: the standing alert above the box is gone — the sentence is not
+    // printed in the composer at all until a menu is opened.
+    expect(canvas.queryByText(reason)).toBeNull()
+    expect(canvas.queryByText('Property reply language not set')).toBeNull()
     await expectDisabledAutomaticDetection(
-      canvasElement,
-      /Review language · Detect automatically — This review is too short to detect its language\./i,
+      /^Detect automatically — This review is too short to detect its language\.$/,
       false,
     )
+    // ...and it is a row in BOTH menus, beside the language it explains.
+    await openMenu(TEMPLATE_TRIGGER)
+    await expect(
+      page().getByRole('menuitem', { name: 'Set property language' }),
+    ).toHaveAccessibleDescription(reason)
+    await closeMenu()
 
-    const templateButton = canvas.getByRole('button', { name: /load template/i })
+    const templateButton = canvas.getByRole('button', { name: 'Template' })
     expect(templateButton).toBeEnabled()
     await userEvent.click(templateButton)
     await waitFor(() =>
@@ -702,5 +883,276 @@ export const PublicDisplayNameMissingForManager: Story = {
     expect(
       canvas.queryByRole('link', { name: /set the public display name/i }),
     ).toBeNull()
+  },
+}
+
+// ── PR 4 review: the language, provenance and focus in the real composer ────
+
+const TYPED_REPLY = 'Thank you for staying with us — we hope to see you again.'
+const TURKISH_REPLY =
+  'Harika yorumunuz için teşekkür ederiz. Sizi tekrar ağırlamayı umuyoruz.'
+const BULGARIAN_LIBRARY_ID = '73000000-0000-4000-8000-0000000000b1'
+const BULGARIAN_LIBRARY_TITLE = 'Благодарност'
+
+/**
+ * `Detect automatically` on a Bulgarian property whose review language is NOT
+ * recorded (the production case): the AI boundary answers in the detected
+ * Turkish; the template library answers the way `resolveTargetLanguage` does
+ * — for EITHER target it can only return the property default's templates,
+ * stamped `bg`.
+ */
+const onGenerateDetectsTurkish = fn(
+  async (_tone: string, target: ReplyLanguageTarget): Promise<ReplySuggestionResult> => ({
+    ...readySuggestion(),
+    replyText: target.kind === 'review_language' ? TURKISH_REPLY : BULGARIAN_TEMPLATE,
+    concreteLanguageTag: target.kind === 'review_language' ? 'tr-Latn-TR' : 'bg-Cyrl',
+  }),
+)
+const bulgarianLibrary = (): ReplyTemplateListResult => ({
+  profile: null,
+  groups: [
+    {
+      languageGroup: 'bg-Cyrl',
+      templates: [
+        {
+          id: BULGARIAN_LIBRARY_ID,
+          title: BULGARIAN_LIBRARY_TITLE,
+          aspect: null,
+          openLabel: null,
+          languageTag: 'bg-Cyrl',
+          version: 1,
+        },
+      ],
+    },
+  ],
+  recommendedTemplateId: BULGARIAN_LIBRARY_ID,
+})
+const onListFallsBackToProperty = fn(async () => bulgarianLibrary())
+const onLoadFallsBackToProperty = fn(async (templateId: string) => ({
+  text: BULGARIAN_TEMPLATE,
+  replyLanguageTag: 'bg-Cyrl',
+  templateId,
+  templateVersion: 1,
+}))
+
+/**
+ * Finding 5. A Turkish AI draft teaches the composer the review's language;
+ * a library template loaded afterwards must not UN-teach it.
+ *
+ * The template menu offers no `Templates in` switch — neither detection nor a
+ * detected (unrecorded) language can filter the library — and heads its list
+ * with the language the server returned, `Templates in Bulgarian`, where it
+ * used to say `Templates in Turkish` over Bulgarian templates. Loading one
+ * tags the draft Bulgarian, and `Turkish · review language` stays on the
+ * language lists: the old adoption rule took the template's `bg` for the
+ * review's language and folded Turkish away for the rest of the visit.
+ */
+export const DetectedLanguageSurvivesATemplate: Story = {
+  tags: ['ai-language-regression'],
+  args: {
+    propertyDefaultReplyLanguage: 'bg-Cyrl',
+    reviewReplyLanguage: null,
+    reviewLanguageReadiness: 'detectable',
+    onGenerateSuggestion: onGenerateDetectsTurkish,
+    onListTemplates: onListFallsBackToProperty,
+    onLoadTemplate: onLoadFallsBackToProperty,
+  },
+  play: async ({ canvas }) => {
+    await openMenu(AI_TRIGGER)
+    await userEvent.click(
+      writeIn().getByRole('menuitem', { name: 'Detect automatically' }),
+    )
+    await waitFor(() => expect(page().queryByRole('menu')).toBeNull())
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+    await userEvent.click(await canvas.findByRole('button', { name: /use draft/i }))
+    await expect(
+      canvas.findByRole('button', { name: 'AI draft · Turkish' }),
+    ).resolves.toBeVisible()
+
+    await openMenu(TEMPLATE_TRIGGER)
+    expect(page().queryByRole('group', { name: 'Templates in' })).toBeNull()
+    expect(page().queryByRole('group', { name: 'Templates in Turkish' })).toBeNull()
+    const list = within(
+      await page().findByRole('group', { name: 'Templates in Bulgarian' }),
+    )
+    await userEvent.click(
+      await list.findByRole('menuitem', { name: BULGARIAN_LIBRARY_TITLE }),
+    )
+
+    await waitFor(() =>
+      expect(canvas.getByRole('textbox')).toHaveValue(BULGARIAN_TEMPLATE),
+    )
+    await expect(
+      canvas.findByText(tagText(`Template · ${BULGARIAN_LIBRARY_TITLE} · Bulgarian`)),
+    ).resolves.toBeVisible()
+    expect(canvas.queryByRole('button', { name: /^Reply language:/ })).toBeNull()
+    await openMenu(AI_TRIGGER)
+    await expect(
+      writeIn().getByRole('menuitem', { name: 'Turkish · review language' }),
+    ).not.toHaveAttribute('aria-current')
+    await closeMenu()
+  },
+}
+
+/**
+ * Finding 3, the template half. A hand-typed reply, then the recommended
+ * template, then Undo: the manager's words come back WITHOUT `Template ·
+ * Guest appreciation · English` over them. (The AI half is the end of
+ * `AiDetectsMissingReviewLanguage`.)
+ */
+export const UndoAfterATemplateDropsItsTag: Story = {
+  args: {
+    initialText: TYPED_REPLY,
+    initialLanguageTag: 'en-Latn',
+    onListTemplates: onListLibraryTemplates,
+    onLoadTemplate: onLoadLibraryTemplate,
+  },
+  play: async ({ canvas }) => {
+    await userEvent.click(canvas.getByRole('button', { name: 'Template' }))
+    await waitFor(() => expect(canvas.getByRole('textbox')).toHaveValue(LIBRARY_REPLY))
+    const templateTag = tagText('Template · Guest appreciation · English')
+    await expect(canvas.findByText(templateTag)).resolves.toBeVisible()
+
+    await userEvent.click(canvas.getByRole('button', { name: /^undo$/i }))
+    await waitFor(() => expect(canvas.getByRole('textbox')).toHaveValue(TYPED_REPLY))
+    expect(canvas.queryByText(templateTag)).toBeNull()
+  },
+}
+
+/**
+ * Finding 4. A regenerate row asks in the other language WITHOUT committing
+ * it. The Bulgarian preview names its language; dismissing it leaves the
+ * English draft exactly as it was — its text, its tag, its saved language (no
+ * save went out at all) and the language the ghost control and `Draft with
+ * AI` use — and the tag's menu still offers the way to Bulgarian.
+ */
+export const RegenerateDismissedChangesNothing: Story = {
+  tags: ['ai-language-regression'],
+  args: {
+    propertyDefaultReplyLanguage: 'bg-Cyrl',
+    reviewReplyLanguage: 'en-Latn-US',
+    reviewLanguageReadiness: 'detectable',
+    onGenerateSuggestion: onGenerateByTarget,
+  },
+  play: async ({ canvas }) => {
+    await openMenu('AI tone and language: Professional, Bulgarian')
+    await userEvent.click(
+      writeIn().getByRole('menuitem', { name: 'English · review language' }),
+    )
+    await waitFor(() => expect(page().queryByRole('menu')).toBeNull())
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+    await userEvent.click(await canvas.findByRole('button', { name: /use draft/i }))
+    const tag = await canvas.findByRole('button', { name: 'AI draft · English' })
+    onSaveDraft.mockClear()
+    onGenerateByTarget.mockClear()
+
+    await userEvent.click(tag)
+    await userEvent.click(
+      await page().findByRole('menuitem', {
+        name: 'Regenerate in Bulgarian · property default',
+      }),
+    )
+    const preview = await canvas.findByRole('region', { name: 'Draft suggestion' })
+    await waitFor(() => expect(preview).toHaveTextContent(BULGARIAN_TEMPLATE))
+    expect(preview).toHaveTextContent(/Personalized AI suggestion\s*· Bulgarian/)
+    expect(onGenerateByTarget).toHaveBeenCalledWith('professional', {
+      kind: 'property_default',
+    })
+    expect(canvas.queryByRole('button', { name: /^Reply language:/ })).toBeNull()
+
+    await userEvent.click(within(preview).getByRole('button', { name: 'Dismiss' }))
+    await waitFor(() =>
+      expect(canvas.queryByRole('region', { name: 'Draft suggestion' })).toBeNull(),
+    )
+    expect(canvas.getByRole('textbox')).toHaveValue(SUGGESTED_REPLY)
+    expect(onSaveDraft).not.toHaveBeenCalled()
+    expect(canvas.queryByRole('button', { name: /^Reply language:/ })).toBeNull()
+    expect(
+      canvas.getByRole('button', { name: 'AI tone and language: Professional, English' }),
+    ).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'AI draft · English' }))
+    await expect(
+      page().findByRole('menuitem', {
+        name: 'Regenerate in Bulgarian · property default',
+      }),
+    ).resolves.toBeVisible()
+    await closeMenu()
+  },
+}
+
+/**
+ * Finding 9. `Use draft` from the keyboard unmounts the preview — and the
+ * focused button with it — so the caret is put into the text the adoption
+ * produced instead of falling to `<body>`.
+ */
+export const UseDraftReturnsTheCaretToTheText: Story = {
+  args: { onGenerateSuggestion },
+  play: async ({ canvas }) => {
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+    const useDraft = await canvas.findByRole('button', { name: /use draft/i })
+    useDraft.focus()
+    await userEvent.keyboard('{Enter}')
+    const text = canvas.getByRole('textbox', { name: 'Public reply' })
+    await waitFor(() => expect(text).toHaveValue(SUGGESTED_REPLY))
+    await waitFor(() => expect(text).toHaveFocus())
+  },
+}
+
+let resolveEnglishLibrary: ((result: ReplyTemplateListResult) => void) | undefined
+/** The property list answers at once; the review-language list waits for the play. */
+const onListEnglishLater = fn((target: ReplyLanguageTarget) =>
+  target.kind === 'property_default'
+    ? Promise.resolve(bulgarianLibrary())
+    : new Promise<ReplyTemplateListResult>((resolve) => {
+        resolveEnglishLibrary = resolve
+      }),
+)
+const resolveEnglish = (result: ReplyTemplateListResult): void => {
+  if (!resolveEnglishLibrary) throw new Error('The English list was never requested')
+  resolveEnglishLibrary(result)
+}
+
+/**
+ * Finding 1. Inside `Template ▾`: the Bulgarian list loads; `English` starts
+ * the review-language fetch; a tap back on `Bulgarian` is answered from the
+ * cache before English returns. The English fetch is discarded — and the
+ * loading state with it. It used to stay `true` for good, which disabled the
+ * textarea, Submit and every assist trigger until the manager left the item.
+ */
+export const TemplateSwitchBackWhileLoadingKeepsTheComposerLive: Story = {
+  args: {
+    initialText: TYPED_REPLY,
+    initialLanguageTag: 'bg-Cyrl',
+    propertyDefaultReplyLanguage: 'bg-Cyrl',
+    reviewReplyLanguage: 'en-Latn-US',
+    reviewLanguageReadiness: 'detectable',
+    onListTemplates: onListEnglishLater,
+  },
+  play: async ({ canvas }) => {
+    await openMenu(TEMPLATE_TRIGGER)
+    await expect(
+      page().findByRole('menuitem', { name: BULGARIAN_LIBRARY_TITLE }),
+    ).resolves.toBeVisible()
+    const switchGroup = () => within(page().getByRole('group', { name: 'Templates in' }))
+
+    await userEvent.click(
+      switchGroup().getByRole('menuitem', { name: 'English · review language' }),
+    )
+    await expect(
+      page().findByRole('menuitem', { name: 'Loading property templates…' }),
+    ).resolves.toBeVisible()
+    await userEvent.click(
+      switchGroup().getByRole('menuitem', { name: 'Bulgarian · property default' }),
+    )
+    await expect(
+      page().findByRole('menuitem', { name: BULGARIAN_LIBRARY_TITLE }),
+    ).resolves.toBeVisible()
+    resolveEnglish({ profile: null, groups: [], recommendedTemplateId: null })
+    await closeMenu()
+
+    await waitFor(() => expect(canvas.getByRole('textbox')).toBeEnabled())
+    expect(canvas.getByRole('button', { name: 'Template' })).toBeEnabled()
+    expect(canvas.getByRole('button', { name: /^AI tone and language/ })).toBeEnabled()
+    expect(canvas.queryByRole('button', { name: /^Reply language:/ })).toBeNull()
   },
 }

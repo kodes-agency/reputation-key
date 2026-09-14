@@ -6,7 +6,10 @@ export type ReplyDraftSnapshot = Readonly<{
 export type ReplyAutosaveStatus =
   'idle' | 'pending' | 'saving' | 'saved' | 'unsaved' | 'error'
 
-type State = Readonly<{ status: ReplyAutosaveStatus; error: string | null }>
+export type ReplyAutosaveState = Readonly<{
+  status: ReplyAutosaveStatus
+  error: string | null
+}>
 type SaveDraft = (
   snapshot: ReplyDraftSnapshot,
   provenanceToken?: string,
@@ -19,7 +22,7 @@ export function createReplyAutosaveCoordinator(
   input: Readonly<{
     initial: ReplyDraftSnapshot
     save: SaveDraft
-    onState: (state: State) => void
+    onState: (state: ReplyAutosaveState) => void
     delayMs?: number
   }>,
 ) {
@@ -30,10 +33,16 @@ export function createReplyAutosaveCoordinator(
   let timer: ReturnType<typeof setTimeout> | null = null
   let draining: Promise<void> | null = null
   let accepting: Promise<void> | null = null
-  let disposed = false
   let save = input.save
+  // The status channel is a replaceable slot, not a one-way latch. React
+  // StrictMode tears the mount down and mounts it again against the SAME
+  // coordinator — the one `useState` keeps — so an irreversible teardown flag
+  // would drop every status for the rest of the component's life, `unsaved`
+  // and `error` included. `dispose()` detaches the listener; `subscribe()`
+  // re-attaches it.
+  let listener: ((state: ReplyAutosaveState) => void) | null = input.onState
   const emit = (status: ReplyAutosaveStatus, error: string | null = null) => {
-    if (!disposed) input.onState({ status, error })
+    listener?.({ status, error })
   }
   const cancelTimer = () => {
     if (timer !== null) clearTimeout(timer)
@@ -80,6 +89,16 @@ export function createReplyAutosaveCoordinator(
   }
 
   return {
+    /**
+     * Attach the status listener, replacing any current one, and return its
+     * detach. Detaching is idempotent and re-subscribing re-arms the channel.
+     */
+    subscribe(next: (state: ReplyAutosaveState) => void) {
+      listener = next
+      return () => {
+        if (listener === next) listener = null
+      }
+    },
     setSave(nextSave: SaveDraft) {
       save = nextSave
     },
@@ -128,7 +147,7 @@ export function createReplyAutosaveCoordinator(
       if (failed) await enqueue(failed)
     },
     dispose() {
-      disposed = true
+      listener = null
       cancelTimer()
       pending = null
     },

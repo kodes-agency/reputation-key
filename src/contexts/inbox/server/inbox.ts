@@ -3,7 +3,7 @@ export {
   getInboxItemsFn,
   getLastVisitCountFn,
   stampLastInboxViewFn,
-  getInboxFolderCountsFn,
+  getInboxQueueCountsFn,
 } from './inbox-queries'
 export {
   updateInboxStatusFn,

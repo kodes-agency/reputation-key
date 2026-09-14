@@ -26,7 +26,15 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from '#/components/ui/sidebar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '#/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '#/components/ui/tooltip'
 
 /** Destination of a live row: path plus whichever of params/search it needs. */
 export type NavLinkTarget = Readonly<{
@@ -106,6 +114,33 @@ export function CategoryNavItem({
   link: NavLinkTarget
   children: ReactNode
 }>) {
+  const { isMobile, state } = useSidebar()
+
+  if (state === 'collapsed' && !isMobile) {
+    return (
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton isActive={isActive}>
+                  <Icon />
+                  <span>{label}</span>
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="right" align="center">
+              {label}
+            </TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent side="right" align="start">
+            {children}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    )
+  }
+
   return (
     <Collapsible asChild defaultOpen={isActive} className="group/collapsible">
       <SidebarMenuItem>
@@ -133,6 +168,25 @@ export function CategoryNavSubItem({
   isActive,
   link,
 }: Readonly<{ label: string; isActive: boolean; link: NavLinkTarget }>) {
+  const { isMobile, state } = useSidebar()
+
+  if (state === 'collapsed' && !isMobile) {
+    return (
+      <DropdownMenuItem
+        asChild
+        className={
+          isActive
+            ? 'bg-accent font-semibold text-(--accent) focus:text-(--accent)'
+            : undefined
+        }
+      >
+        <Link {...link} aria-current={isActive ? 'page' : undefined}>
+          {label}
+        </Link>
+      </DropdownMenuItem>
+    )
+  }
+
   return (
     <SidebarMenuSubItem>
       <SidebarMenuSubButton asChild isActive={isActive}>

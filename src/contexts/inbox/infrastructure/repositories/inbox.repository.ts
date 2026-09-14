@@ -17,6 +17,7 @@ import {
   isNotNull,
   isNull,
   lte,
+  not,
   or,
   sql,
 } from 'drizzle-orm'
@@ -256,6 +257,25 @@ async function resolveContentNarrowing(
   return [sourceMatches.length === 1 ? sourceMatches[0]! : or(...sourceMatches)!]
 }
 
+/** Resolve every governed list/count predicate through the same path. */
+async function resolveFilterConditions(
+  ports: LookupPorts,
+  orgId: OrganizationId,
+  filters: InboxFilters,
+): Promise<SQL[] | null> {
+  const conditions = buildFilterConditions(filters, orgId)
+  if (conditions === null) return null
+
+  const contentNarrowing = await resolveContentNarrowing(ports, orgId, filters)
+  if (contentNarrowing === null) return null
+  conditions.push(...contentNarrowing)
+
+  const aiNarrowing = await resolveAiNarrowing(ports, orgId, filters)
+  if (aiNarrowing === null) return null
+  conditions.push(...aiNarrowing)
+  return conditions
+}
+
 export const createInboxRepository = (
   db: Database,
   ports: LookupPorts,
@@ -336,23 +356,9 @@ export const createInboxRepository = (
       return trace('inbox.findFilteredPaginated', async () => {
         const start = runtime.clock().getTime()
         log.debug({ limit }, 'querying inbox findFilteredPaginated')
-        const conditions = buildFilterConditions(filters, orgId)
+        const conditions = await resolveFilterConditions(ports, orgId, filters)
         if (conditions === null)
           return { items: [], nextCursor: null, totalCount: 0 } as PaginatedResult
-
-        // Rating/text predicates are resolved by each source-owning context.
-        // Source type is correlated with each id set so a UUID collision between
-        // storage generations cannot leak or falsely match another source.
-        const contentNarrowing = await resolveContentNarrowing(ports, orgId, filters)
-        if (contentNarrowing === null)
-          return { items: [], nextCursor: null, totalCount: 0 } as PaginatedResult
-        conditions.push(...contentNarrowing)
-        // AI-derived narrowing (attention / aspect mention). Kept separate so
-        // every filter resolves through the same current-analysis boundary.
-        const aiNarrowing = await resolveAiNarrowing(ports, orgId, filters)
-        if (aiNarrowing === null)
-          return { items: [], nextCursor: null, totalCount: 0 } as PaginatedResult
-        conditions.push(...aiNarrowing)
 
         const pageConditions = [...conditions]
         const sort = filters.sort ?? 'newest'
@@ -461,6 +467,19 @@ export const createInboxRepository = (
         )
 
         return { items, nextCursor, totalCount } as PaginatedResult
+      })
+    },
+
+    countFiltered: async (filters: InboxFilters, orgId: OrganizationId) => {
+      return trace('inbox.countFiltered', async () => {
+        const conditions = await resolveFilterConditions(ports, orgId, filters)
+        if (conditions === null) return 0
+        const rows = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(inboxItems)
+          .leftJoin(inboxHandlingCycleHeads, activeHandlingCycleJoin)
+          .where(and(...conditions))
+        return Number(rows[0]?.count ?? 0)
       })
     },
 
@@ -785,6 +804,14 @@ export const createInboxRepository = (
             reviewTranslatedText: snippet?.translatedText ?? null,
             reviewerProfilePhotoUrl: snippet?.reviewerProfilePhotoUrl ?? null,
             reviewContentStatus: result.status,
+            // The stars ride with the words. `snippet` is already null unless
+            // `result.status === 'available'`, so this expression gives the
+            // same eligibility answer the four fields around it give — an
+            // ineligible source asserts no rating. It is deliberately NOT
+            // written onto `item.rating`: the projection NULLs that column on
+            // purpose (`inbox-command-store.ts:936`, `:1416`) and the list
+            // reads it, so the governed number stays a detail-only field.
+            reviewRating: snippet?.rating ?? null,
             feedbackComment: null,
             feedbackRatingValue: null,
           }
@@ -805,12 +832,52 @@ export const createInboxRepository = (
           reviewTranslatedText: null,
           reviewerProfilePhotoUrl: null,
           reviewContentStatus: null,
+          // Private feedback has no review to rate. Its own number is
+          // `feedbackRatingValue` below, from the feedback lookup; leaving
+          // `reviewRating` null keeps the two sources from being confused by a
+          // consumer that reads one field for both.
+          reviewRating: null,
           feedbackComment: snippet?.comment ?? null,
           feedbackRatingValue: snippet?.ratingValue ?? null,
         }
       })
     },
   }
+}
+
+function propertyFilterCondition(filters: InboxFilters): SQL | null | undefined {
+  if (filters.propertyIds?.length === 0) return null
+  if (filters.propertyId) return eq(inboxItems.propertyId, filters.propertyId)
+  if (filters.propertyIds) {
+    return inArray(inboxItems.propertyId, [...filters.propertyIds] as string[])
+  }
+  return undefined
+}
+
+function statusFilterCondition(filters: InboxFilters): SQL | undefined {
+  if (!filters.status) return undefined
+  return typeof filters.status === 'string'
+    ? sql`${effectiveInboxStatus} = ${filters.status}`
+    : sql`${effectiveInboxStatus} = ANY(${sql.param([...filters.status])}::inbox_status[])`
+}
+
+function escalationFilterConditions(filters: InboxFilters): SQL[] {
+  if (filters.isEscalated === undefined) return []
+  const conditions = [eq(inboxItems.isEscalated, filters.isEscalated)]
+  if (filters.isEscalated) conditions.push(isNull(inboxItems.escalationResolvedAt))
+  return conditions
+}
+
+function replyStageFilterConditions(filters: InboxFilters): SQL[] | null {
+  if (!filters.replyStage) return []
+  const conditions = [eq(inboxItems.sourceType, 'review')]
+  if (filters.replyStage.match === 'include') {
+    if (filters.replyStage.reviewIds.length === 0) return null
+    conditions.push(inboxSourceIdMatchesAny(filters.replyStage.reviewIds))
+  } else if (filters.replyStage.reviewIds.length > 0) {
+    conditions.push(not(inboxSourceIdMatchesAny(filters.replyStage.reviewIds)))
+  }
+  return conditions
 }
 
 /** Builds the WHERE conditions for the inbox list query. Returns `null` when
@@ -824,34 +891,24 @@ const buildFilterConditions = (
     hasActiveHandlingAuthority,
   ]
 
-  // Property filter — an empty propertyIds list provably matches no rows.
-  if (filters.propertyIds?.length === 0) return null
-  if (filters.propertyId) conditions.push(eq(inboxItems.propertyId, filters.propertyId))
-  else if (filters.propertyIds)
-    conditions.push(inArray(inboxItems.propertyId, [...filters.propertyIds] as string[]))
+  const propertyCondition = propertyFilterCondition(filters)
+  if (propertyCondition === null) return null
+  if (propertyCondition) conditions.push(propertyCondition)
 
   const sourceScope = sourceScopeCondition(filters.sourceScopes)
   if (sourceScope === null) return null
   if (sourceScope) conditions.push(sourceScope)
 
-  // Status filter — single value or set
-  if (filters.status)
-    conditions.push(
-      typeof filters.status === 'string'
-        ? sql`${effectiveInboxStatus} = ${filters.status}`
-        : sql`${effectiveInboxStatus} = ANY(${sql.param([...filters.status])}::inbox_status[])`,
-    )
-
-  // Escalation flag filter (Escalated folder shows active flags)
-  if (filters.isEscalated !== undefined) {
-    conditions.push(eq(inboxItems.isEscalated, filters.isEscalated))
-    if (filters.isEscalated) {
-      conditions.push(isNull(inboxItems.escalationResolvedAt))
-    }
-  }
+  const statusCondition = statusFilterCondition(filters)
+  if (statusCondition) conditions.push(statusCondition)
+  conditions.push(...escalationFilterConditions(filters))
 
   // Simple equality / range filters
   if (filters.sourceType) conditions.push(eq(inboxItems.sourceType, filters.sourceType))
+  if (filters.assignedTo) conditions.push(eq(inboxItems.assignedTo, filters.assignedTo))
+  const replyStageConditions = replyStageFilterConditions(filters)
+  if (replyStageConditions === null) return null
+  conditions.push(...replyStageConditions)
   if (filters.platform) conditions.push(eq(inboxItems.platform, filters.platform))
   // BQC-1.2: rating range and free-text search are applied via
   // reviewLookup.findEligibleReviewIds at the call site — never against

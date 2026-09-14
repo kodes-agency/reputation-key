@@ -7,6 +7,17 @@ import type {
 import type { InboxItem } from '#/contexts/inbox/domain/types'
 import { unbrandAll } from '#/shared/domain/ids'
 
+/**
+ * Stand-in star rating for the `available` review branch of `findDetailById`,
+ * the sibling of its `'Test review text'`. The real repository reads this from
+ * `ReviewSnippet.rating` (`inbox.repository.ts` `findDetailById`); this double
+ * has no review lookup to read, so it states a value rather than reusing
+ * `item.rating` — the projection NULLs that column for every review
+ * (`inbox-command-store.ts:936`), so reusing it would make the double claim
+ * "available review with no rating", a legal but unrepresentative state.
+ */
+const IN_MEMORY_REVIEW_RATING = 4
+
 const matchesSourceScopes = (
   item: InboxItem,
   scopes: Parameters<InboxRepository['countByStatus']>[3],
@@ -47,6 +58,98 @@ function matchesAnalysisNarrowing(
   )
 }
 
+function applyScalarFilters(
+  items: ReadonlyArray<InboxItem>,
+  filters: InboxFilters,
+): InboxItem[] {
+  let filtered = [...items]
+  if (filters.status) {
+    filtered = filtered.filter((item) =>
+      Array.isArray(filters.status)
+        ? filters.status.includes(item.status)
+        : item.status === filters.status,
+    )
+  }
+  if (filters.propertyId) {
+    filtered = filtered.filter((item) => item.propertyId === filters.propertyId)
+  }
+  if (filters.propertyIds) {
+    filtered =
+      filters.propertyIds.length === 0
+        ? []
+        : filtered.filter((item) => filters.propertyIds!.includes(item.propertyId))
+  }
+  if (filters.sourceType) {
+    filtered = filtered.filter((item) => item.sourceType === filters.sourceType)
+  }
+  if (filters.assignedTo) {
+    filtered = filtered.filter((item) => item.assignedTo === filters.assignedTo)
+  }
+  if (filters.platform) {
+    filtered = filtered.filter((item) => item.platform === filters.platform)
+  }
+  if (filters.ratingMin !== undefined) {
+    filtered = filtered.filter(
+      (item) => item.rating !== null && item.rating >= filters.ratingMin!,
+    )
+  }
+  if (filters.ratingMax !== undefined) {
+    filtered = filtered.filter(
+      (item) => item.rating !== null && item.rating <= filters.ratingMax!,
+    )
+  }
+  return filtered
+}
+
+function applyReplyStageFilter(
+  items: ReadonlyArray<InboxItem>,
+  filters: InboxFilters,
+): InboxItem[] {
+  if (!filters.replyStage) return [...items]
+  const reviewIds = new Set(unbrandAll(filters.replyStage.reviewIds))
+  return items.filter(
+    (item) =>
+      item.sourceType === 'review' &&
+      (filters.replyStage!.match === 'include'
+        ? reviewIds.has(item.sourceId)
+        : !reviewIds.has(item.sourceId)),
+  )
+}
+
+function applyContentFilters(
+  items: ReadonlyArray<InboxItem>,
+  filters: InboxFilters,
+  analysisAspects: ReadonlyMap<string, readonly ReviewAspectMention[]>,
+): InboxItem[] {
+  let filtered = [...items]
+  if (filters.q) {
+    const query = filters.q.toLocaleLowerCase()
+    filtered = filtered.filter((item) =>
+      (item.snippet ?? '').toLocaleLowerCase().includes(query),
+    )
+  }
+  if (filters.attention?.length) {
+    filtered = filtered.filter(
+      (item) => item.attention !== null && filters.attention!.includes(item.attention!),
+    )
+  }
+  return filtered.filter((item) =>
+    matchesAnalysisNarrowing(item, filters, analysisAspects),
+  )
+}
+
+function applyEscalationFilter(
+  items: ReadonlyArray<InboxItem>,
+  filters: InboxFilters,
+): InboxItem[] {
+  if (filters.isEscalated === undefined) return [...items]
+  return items.filter((item) =>
+    filters.isEscalated
+      ? item.isEscalated && item.escalationResolvedAt === null
+      : !item.isEscalated,
+  )
+}
+
 export function createInMemoryInboxRepo(): InboxRepository & {
   items: InboxItem[]
   analysisAspects: Map<string, readonly ReviewAspectMention[]>
@@ -69,52 +172,12 @@ export function createInMemoryInboxRepo(): InboxRepository & {
       ) ?? null,
     findFilteredPaginated: async (filters, orgId, cursor, limit = 50) => {
       let filtered = items.filter((i) => i.organizationId === orgId)
-      if (filters.status)
-        filtered = filtered.filter((i) =>
-          Array.isArray(filters.status)
-            ? filters.status.includes(i.status)
-            : i.status === filters.status,
-        )
-      if (filters.propertyId)
-        filtered = filtered.filter((i) => i.propertyId === filters.propertyId)
-      if (filters.propertyIds)
-        filtered =
-          filters.propertyIds.length === 0
-            ? []
-            : filtered.filter((i) => filters.propertyIds!.includes(i.propertyId))
-      if (filters.sourceType)
-        filtered = filtered.filter((i) => i.sourceType === filters.sourceType)
+      filtered = applyScalarFilters(filtered, filters)
+      filtered = applyReplyStageFilter(filtered, filters)
       if (filters.sourceScopes)
         filtered = filtered.filter((i) => matchesSourceScopes(i, filters.sourceScopes))
-      if (filters.platform)
-        filtered = filtered.filter((i) => i.platform === filters.platform)
-      if (filters.ratingMin !== undefined)
-        filtered = filtered.filter(
-          (i) => i.rating !== null && i.rating >= filters.ratingMin!,
-        )
-      if (filters.ratingMax !== undefined)
-        filtered = filtered.filter(
-          (i) => i.rating !== null && i.rating <= filters.ratingMax!,
-        )
-      if (filters.q) {
-        const query = filters.q.toLocaleLowerCase()
-        filtered = filtered.filter((i) =>
-          (i.snippet ?? '').toLocaleLowerCase().includes(query),
-        )
-      }
-      if (filters.attention?.length)
-        filtered = filtered.filter(
-          (i) => i.attention !== null && filters.attention!.includes(i.attention!),
-        )
-      filtered = filtered.filter((item) =>
-        matchesAnalysisNarrowing(item, filters, analysisAspects),
-      )
-      if (filters.isEscalated !== undefined)
-        filtered = filtered.filter((i) =>
-          filters.isEscalated
-            ? i.isEscalated && i.escalationResolvedAt === null
-            : !i.isEscalated,
-        )
+      filtered = applyContentFilters(filtered, filters, analysisAspects)
+      filtered = applyEscalationFilter(filtered, filters)
       const direction = filters.sort === 'oldest' ? 1 : -1
       filtered.sort(
         (a, b) =>
@@ -140,6 +203,8 @@ export function createInMemoryInboxRepo(): InboxRepository & {
         totalCount,
       }
     },
+    countFiltered: async (filters, orgId) =>
+      (await repo.findFilteredPaginated(filters, orgId, undefined, 1)).totalCount,
     create: async (item) => {
       items.push(item)
       return item
@@ -312,6 +377,7 @@ export function createInMemoryInboxRepo(): InboxRepository & {
           reviewTranslatedText: null,
           reviewerProfilePhotoUrl: null,
           reviewContentStatus: 'available' as const,
+          reviewRating: IN_MEMORY_REVIEW_RATING,
           feedbackComment: null,
           feedbackRatingValue: null,
         }
@@ -322,6 +388,8 @@ export function createInMemoryInboxRepo(): InboxRepository & {
         reviewTranslatedText: null,
         reviewerProfilePhotoUrl: null,
         reviewContentStatus: null,
+        // Feedback has no review to rate; its number is `feedbackRatingValue`.
+        reviewRating: null,
         feedbackComment: 'Test feedback comment',
         feedbackRatingValue: item.rating,
       }

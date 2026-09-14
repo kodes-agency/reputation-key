@@ -1,28 +1,18 @@
-// Inbox page v2 — three-panel email-style layout with resizable panels.
-// Sidebar (folder nav) | List (review previews) | Detail (full review).
+// Inbox workspace: fixed queue rail, resizable list, and the v2.1 detail pane.
 import type { InboxCtx } from './inbox-types'
 import {
   InboxListPanel,
   type InboxListPanelProps,
 } from '#/components/inbox/inbox-list-panel-v2'
-import { InboxSidebar } from '#/components/layout/inbox-sidebar'
 import { useInboxPage, type InboxPageNav } from './use-inbox-page'
 import { replaceInboxSearch } from './inbox-navigation'
 import type { InboxServerFns } from './types'
 import { useRef, useState } from 'react'
 import { Group, Panel, useDefaultLayout } from 'react-resizable-panels'
 import { useHydrated } from '#/components/hooks/use-hydrated'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '#/components/ui/sheet'
 import type { InboxSearchParams } from './inbox-search-schema'
 import {
   ResizeHandle,
-  folderLabelFor,
   InboxNoOrgState,
   InboxDetailPane,
   INBOX_PANEL_IDS,
@@ -31,63 +21,59 @@ import {
   inboxLayoutStorage,
 } from './inbox-page-parts'
 import { InboxDetailSheet } from './inbox-detail-sheet'
-import type { InboxAssignmentOption } from './inbox-bulk-assignment-dialog'
+import type { InboxAssignmentOption } from './inbox-owner-view'
+import { InboxQueueRail } from './inbox-queue-rail'
+import { InboxQueueStrip } from './inbox-queue-strip'
+import { InboxShortcutsDialog } from './inbox-shortcuts-dialog'
+import { queueLabel } from './inbox-queues'
 
 export function InboxPageV2({
   ctx,
   search,
-  properties,
   onNavigate,
   inboxFns,
   recordInboxVisit = false,
-  onPropertyChange,
   activePropertyId,
   assignmentOptions = [],
+  scopeLabel = activePropertyId ? 'Property' : 'All properties',
 }: {
   ctx: InboxCtx
   search: InboxSearchParams
-  properties?: ReadonlyArray<{ id: string; name: string }>
   onNavigate: InboxPageNav
   inboxFns: InboxServerFns
   /** True only for the Organization-wide /inbox route. */
   recordInboxVisit?: boolean
-  /** Override for the property-switcher dropdown. */
-  onPropertyChange?: (propertyId: string | undefined) => void
   /** Active property — from route param on /reviews, from search on /inbox. */
   activePropertyId?: string
   assignmentOptions?: ReadonlyArray<InboxAssignmentOption>
+  scopeLabel?: string
 }) {
   const s = useInboxPage(
     ctx.activeOrganization?.id,
+    ctx.user?.id,
     { ...search, propertyId: activePropertyId ?? search.propertyId },
     onNavigate,
     inboxFns,
     recordInboxVisit,
   )
   const listRef = useRef<HTMLDivElement>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [selectionMode, setSelectionMode] = useState(false)
   // Replaces the v2 `autoSaveId` prop, which v4 dropped in favour of an
   // explicit hook. Must run before the no-org early return below. The saved
   // layout is read only after hydration (see `inboxLayoutStorage`); the Group
   // is keyed on it because `defaultLayout` is consumed at mount.
   const hydrated = useHydrated()
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: 'inbox-layout',
+    id: 'inbox-layout-v2',
     storage: hydrated ? inboxLayoutStorage : HYDRATING_LAYOUT_STORAGE,
   })
 
   if (!ctx.activeOrganization?.id) return <InboxNoOrgState />
 
-  const handlePropertyChange =
-    onPropertyChange ??
-    ((id: string | undefined) =>
-      onNavigate({
-        to: '.',
-        search: (p) => ({ ...p, propertyId: id, itemId: undefined }),
-      }))
-
   const listPanelProps: InboxListPanelProps = {
-    folderLabel: folderLabelFor(s.folder),
+    queue: s.queue,
+    queueLabel: queueLabel(s.queue),
+    scopeLabel,
     totalCount: s.totalCount,
     searchQ: search.q,
     filters: {
@@ -118,46 +104,46 @@ export function InboxPageV2({
       onNavigate({ to: '.', search: (p) => ({ ...p, sort, itemId: undefined }) }),
     onToggleSelect: s.handleToggleSelect,
     onSelectAll: s.handleSelectAll,
-    onDeselectAll: s.handleDeselectAll,
+    onDeselectAll: () => {
+      setSelectionMode(false)
+      s.handleDeselectAll()
+    },
     onRowClick: s.handleRowClick,
     onLoadMore: s.loadMore,
     onBulkDone: s.handleBulkDone,
     bulkUpdateFn: inboxFns.bulkUpdateInboxStatus,
     bulkAssignFn: inboxFns.bulkAssignInboxItems,
     assignmentOptions,
+    currentUser: ctx.user,
+    viewedUpTo: s.viewedUpTo,
+    isCompactLayout: s.isCompactLayout,
+    selectionMode,
+    onStartSelection: () => setSelectionMode(true),
   }
 
-  // Mobile: the list fills the viewport. Folders/categories live in a left
-  // drawer (opened from the list header); the detail opens as a right sheet.
-  // The desktop 3-panel PanelGroup would cramp to unusable widths below md.
-  if (s.isMobile) {
+  const changeQueue = (queue: typeof s.queue) => {
+    setSelectionMode(false)
+    s.handleDeselectAll()
+    onNavigate({
+      to: '.',
+      search: (previous) => ({ ...previous, queue, itemId: undefined }),
+    })
+  }
+
+  if (s.isCompactLayout) {
     return (
       <div className="flex h-full w-full flex-col overflow-hidden">
-        <InboxListPanel {...listPanelProps} onOpenSidebar={() => setSidebarOpen(true)} />
-        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-          <SheetContent
-            side="left"
-            className="w-[280px] gap-0 p-0"
-            showCloseButton={false}
-          >
-            <SheetHeader className="sr-only">
-              <SheetTitle>Folders &amp; categories</SheetTitle>
-              <SheetDescription>
-                Switch inbox folders and filter by platform.
-              </SheetDescription>
-            </SheetHeader>
-            <InboxSidebar
-              propertyId={activePropertyId ?? search.propertyId}
-              properties={properties}
-              onPropertyChange={(id) => {
-                handlePropertyChange(id)
-                setSidebarOpen(false)
-              }}
-              onNavigate={() => setSidebarOpen(false)}
-              getInboxFolderCounts={inboxFns.getInboxFolderCounts}
+        <InboxListPanel
+          {...listPanelProps}
+          queueStrip={
+            <InboxQueueStrip
+              queue={s.queue}
+              counts={s.queueCounts}
+              canManageReplies={s.canManageReplies}
+              onQueueChange={changeQueue}
             />
-          </SheetContent>
-        </Sheet>
+          }
+        />
         <InboxDetailSheet
           open={!!s.selectedItem}
           onOpenChange={(o) => {
@@ -166,53 +152,52 @@ export function InboxPageV2({
           item={s.selectedItem}
           detailState={s.detailState}
           detailFns={inboxFns}
-          currentUserId={ctx.user?.id}
+          currentUser={ctx.user}
+          assignmentOptions={assignmentOptions}
+          composerFocusRef={s.composerFocusRef}
         />
+        <InboxShortcutsDialog open={s.shortcutsOpen} onOpenChange={s.setShortcutsOpen} />
       </div>
     )
   }
 
   return (
-    <Group
-      key={defaultLayout ? 'saved-layout' : 'default-layout'}
-      orientation="horizontal"
-      defaultLayout={defaultLayout}
-      onLayoutChanged={onLayoutChanged}
-      className="h-full"
-    >
-      <Panel
-        id={INBOX_PANEL_IDS.sidebar}
-        defaultSize="20%"
-        minSize="15%"
-        maxSize="30%"
-        style={CLIP_PANEL_CONTENT}
-      >
-        <InboxSidebar
-          propertyId={activePropertyId ?? search.propertyId}
-          properties={properties}
-          onPropertyChange={handlePropertyChange}
-          getInboxFolderCounts={inboxFns.getInboxFolderCounts}
-        />
-      </Panel>
-      <ResizeHandle />
-      <Panel
-        id={INBOX_PANEL_IDS.list}
-        defaultSize="30%"
-        minSize="20%"
-        maxSize="50%"
-        style={CLIP_PANEL_CONTENT}
-      >
-        <InboxListPanel {...listPanelProps} />
-      </Panel>
-      <ResizeHandle />
-      <InboxDetailPane
-        selectedItem={s.selectedItem}
-        detailState={s.detailState}
-        isMobile={s.isMobile}
-        onClose={s.closeDetail}
-        detailFns={inboxFns}
-        currentUserId={ctx.user?.id}
+    <div className="flex h-full min-w-0">
+      <InboxQueueRail
+        queue={s.queue}
+        counts={s.queueCounts}
+        canManageReplies={s.canManageReplies}
+        onQueueChange={changeQueue}
+        onOpenShortcuts={() => s.setShortcutsOpen(true)}
       />
-    </Group>
+      <Group
+        key={defaultLayout ? 'saved-layout' : 'default-layout'}
+        orientation="horizontal"
+        defaultLayout={defaultLayout}
+        onLayoutChanged={onLayoutChanged}
+        className="h-full min-w-0 flex-1"
+      >
+        <Panel
+          id={INBOX_PANEL_IDS.list}
+          defaultSize={400}
+          minSize={320}
+          maxSize="50%"
+          style={CLIP_PANEL_CONTENT}
+        >
+          <InboxListPanel {...listPanelProps} />
+        </Panel>
+        <ResizeHandle />
+        <InboxDetailPane
+          selectedItem={s.selectedItem}
+          detailState={s.detailState}
+          onClose={s.closeDetail}
+          detailFns={inboxFns}
+          currentUser={ctx.user}
+          assignmentOptions={assignmentOptions}
+          composerFocusRef={s.composerFocusRef}
+        />
+      </Group>
+      <InboxShortcutsDialog open={s.shortcutsOpen} onOpenChange={s.setShortcutsOpen} />
+    </div>
   )
 }

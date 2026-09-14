@@ -579,7 +579,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       resolvedAt,
     )
 
-    // Escalation stays orthogonal to status (ADR 0023).
+    // Escalation stays orthogonal to status (ADR 0055).
     expect(escalated.status).toBe('open')
     expect(resolved.status).toBe('open')
     expect(escalated.commandRevision).toBe(2)
@@ -1737,10 +1737,13 @@ describe.sequential('rebuildInboxProjection (integration)', () => {
       }),
       replyLookup: createReplyLookupAdapter({
         findByReviewId: (id, orgId) => replyRepo.findByReviewId(id, orgId),
+        getCurrentGoogleReplyByReviewId: async () => null,
         findMilestonesByReviewIds: (ids, orgId) =>
           replyRepo.findMilestonesByReviewIds(ids, orgId),
         findStatesByReviewIds: (ids, orgId) =>
           replyRepo.findStatesByReviewIds(ids, orgId),
+        findReviewIdsByReplyStage: (orgId, propertyIds) =>
+          replyRepo.findReviewIdsByReplyStage(orgId, propertyIds),
       }),
       idGen: () => inboxItemId(crypto.randomUUID()),
       clock: () => NOW,

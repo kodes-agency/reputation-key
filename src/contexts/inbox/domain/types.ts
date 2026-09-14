@@ -161,7 +161,7 @@ export type InboxItem = Readonly<{
   sourceType: SourceType
   sourceId: ReviewId | FeedbackId
   status: InboxStatus
-  // Escalation flag — orthogonal to status (ADR 0023). An item can be
+  // Escalation flag — orthogonal to status (ADR 0055). An item can be
   // closed + still flagged. Lifecycle: not flagged -> flagged -> acknowledged.
   isEscalated: boolean
   escalatedAt: Date | null
@@ -211,6 +211,35 @@ export type InboxItemDetail = Readonly<{
   reviewerProfilePhotoUrl: string | null
   /** BQC-1.2: typed eligibility outcome of the authorized review read. */
   reviewContentStatus: 'available' | 'expired' | 'not_found' | null
+  /**
+   * The guest's star rating, carried from the SAME `ReviewSnippet` that feeds
+   * `reviewText` / `reviewTranslatedText` / `reviewerProfilePhotoUrl` above
+   * (`review-lookup.port.ts:18`), and therefore governed by the same rule:
+   * `null` for `expired` and `not_found`. A review whose content we are no
+   * longer eligible to serve may not assert a rating either — the number is
+   * provider-owned content exactly like the words are (BQC-1.2).
+   *
+   * This is NOT `item.rating`, and `item.rating` is no fallback for it. The
+   * projection NULLs the row's own column on review projection and on source
+   * transition (`inbox-command-store.ts:936`, `:1416` — "rating/snippet/
+   * reviewer name stay with Review"), and the read path is stricter still:
+   * `inboxItemFromRow` sets `rating: null` for EVERY row, feedback included
+   * (`inbox.mapper.ts:37`, "Legacy column values must not be served"), and
+   * `findDetailById` never writes it back. So `detail.item.rating` is null for
+   * both sources — which is why the detail pane could never draw stars. Only
+   * the LIST projection re-populates `rating`, from the same eligible lookup
+   * (`inbox.repository.ts:433`). Feedback's number has its own field
+   * (`feedbackRatingValue` below); `reviewRating` is null for feedback.
+   *
+   * Optional rather than required ONLY because hand-built detail fixtures
+   * predate the field (9 literal sites, 7 of them `src/components/inbox`
+   * stories). Every producer sets it — `inbox.repository.ts` `findDetailById`
+   * on both branches, `in-memory-inbox-repo.ts` on both — and
+   * `getInboxItemDetail` coerces a missing one to `null`, so the payload a
+   * client reads always carries the key with a `number | null` value. Tighten
+   * to required once those fixtures name it.
+   */
+  reviewRating?: number | null
   // Feedback-specific (null for reviews)
   feedbackComment: string | null
   feedbackRatingValue: number | null
