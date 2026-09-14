@@ -15,6 +15,10 @@ import {
 import type { MerchantAiDecisionDeferral } from './merchant-ai-decision-deferral'
 
 const NOW = new Date('2026-08-15T12:00:00.000Z')
+const CURRENT_ACKNOWLEDGEMENT = Object.freeze({
+  noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+  noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+})
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000001'
 const LINEAGE_ID = '10000000-0000-4000-8000-000000000001'
 const BASE_SNAPSHOT: MerchantAiSnapshot = {
@@ -93,6 +97,10 @@ function makeHarness(
   const verifyStepUp = vi.fn<MerchantAiAuthorizationDeps['verifyStepUp']>(
     async () => true,
   )
+  let ceremonySequence = 0
+  const idGen = vi.fn(
+    () => `c0000000-0000-4000-8000-${String(++ceremonySequence).padStart(12, '0')}`,
+  )
   const service = createMerchantAiAuthorization({
     store,
     decisionDeferrals,
@@ -100,6 +108,7 @@ function makeHarness(
     authorizeManagement,
     verifyStepUp,
     clock: () => NOW,
+    idGen,
     noticeVersion: BASE_SNAPSHOT.noticeVersion,
     noticeDigest: BASE_SNAPSHOT.noticeDigest,
     sourcePolicyId: BASE_SNAPSHOT.sourcePolicyId,
@@ -114,6 +123,7 @@ function makeHarness(
     authorize,
     authorizeManagement,
     verifyStepUp,
+    idGen,
   }
 }
 
@@ -123,7 +133,7 @@ const baseCommand = {
   actorUserId: 'user-1',
   idempotencyKey: 'command-0001',
   expectedStateVersion: 0,
-  stepUpProof: 'opaque-step-up-proof',
+  acknowledgement: CURRENT_ACKNOWLEDGEMENT,
   reasonCode: 'merchant_enabled',
 } as const
 
@@ -186,7 +196,7 @@ describe('Merchant AI authorization', () => {
     expect(decisionDeferrals.findDecisionDeferral).not.toHaveBeenCalled()
   })
 
-  it('enables the fixed current capability bundle after management, policy, and step-up checks', async () => {
+  it('enables the fixed current capability bundle on an acknowledgement of the served notice', async () => {
     const { service, store, authorize, verifyStepUp } = makeHarness()
 
     await expect(service.enable(baseCommand)).resolves.toMatchObject({
@@ -195,52 +205,85 @@ describe('Merchant AI authorization', () => {
       stateVersion: 1,
     })
     expect(authorize).toHaveBeenCalledTimes(3)
-    expect(verifyStepUp).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorUserId: 'user-1',
-        organizationId: BASE_SNAPSHOT.organizationId,
-        proof: 'opaque-step-up-proof',
-        now: NOW,
-      }),
-    )
+    // The step-up port is a reserved hook: consent never asks for a proof.
+    expect(verifyStepUp).not.toHaveBeenCalled()
     expect(store.mutate).toHaveBeenCalledWith(
       expect.objectContaining({
         operation: 'enable',
+        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
         noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
         providerDeploymentProfileVersion: 'private-beta-global-v1',
         capabilities: CURRENT_MERCHANT_AI_CAPABILITIES,
+        ceremonyId: 'c0000000-0000-4000-8000-000000000001',
       }),
     )
   })
 
-  it('fails before step-up or persistence when management is denied', async () => {
-    const { service, authorizeManagement, authorize, verifyStepUp, store } = makeHarness()
+  it('refuses consent to any notice but the one served now', async () => {
+    const staleAcknowledgements = [
+      { ...CURRENT_ACKNOWLEDGEMENT, noticeVersion: 'merchant-ai-notice-2026-09-09.v1' },
+      { ...CURRENT_ACKNOWLEDGEMENT, noticeDigest: '0'.repeat(64) },
+    ]
+    for (const acknowledgement of staleAcknowledgements) {
+      const { service, store, authorize, authorizeManagement } =
+        makeHarness(BASE_SNAPSHOT)
+      await expect(
+        service.enable({ ...baseCommand, acknowledgement }),
+      ).rejects.toMatchObject({ code: 'notice_mismatch' })
+      await expect(
+        service.change({
+          ...baseCommand,
+          acknowledgement,
+          capabilities: ['review_analysis'],
+        }),
+      ).rejects.toMatchObject({ code: 'notice_mismatch' })
+      expect(authorizeManagement).not.toHaveBeenCalled()
+      expect(authorize).not.toHaveBeenCalled()
+      expect(store.mutate).not.toHaveBeenCalled()
+    }
+  })
+
+  it('fails before policy checks or persistence when management is denied', async () => {
+    const { service, authorizeManagement, authorize, store } = makeHarness()
     authorizeManagement.mockResolvedValue(false)
 
     await expect(service.enable(baseCommand)).rejects.toMatchObject({
       code: 'capability_denied',
     })
-    expect(verifyStepUp).not.toHaveBeenCalled()
     expect(authorize).not.toHaveBeenCalled()
     expect(store.mutate).not.toHaveBeenCalled()
   })
 
-  it('fails closed when a capability or fresh step-up is denied', async () => {
-    const capabilityDenied = makeHarness()
-    capabilityDenied.authorize.mockImplementation(
+  it('fails closed when a capability is denied', async () => {
+    const { service, authorize, store } = makeHarness()
+    authorize.mockImplementation(
       async ({ capability }) => capability !== 'ai.generate_reply',
     )
-    await expect(capabilityDenied.service.enable(baseCommand)).rejects.toMatchObject({
+
+    await expect(service.enable(baseCommand)).rejects.toMatchObject({
       code: 'capability_denied',
     })
-    expect(capabilityDenied.store.mutate).not.toHaveBeenCalled()
+    expect(store.mutate).not.toHaveBeenCalled()
+  })
 
-    const stepUpDenied = makeHarness()
-    stepUpDenied.verifyStepUp.mockResolvedValue(false)
-    await expect(stepUpDenied.service.enable(baseCommand)).rejects.toMatchObject({
-      code: 'step_up_required',
+  it('mints a fresh ceremony for every single-property command', async () => {
+    const { service, store } = makeHarness()
+
+    const enabled = await service.enable(baseCommand)
+    await service.change({
+      ...baseCommand,
+      idempotencyKey: 'command-0002',
+      expectedStateVersion: enabled.stateVersion,
+      capabilities: ['review_analysis'],
     })
-    expect(stepUpDenied.store.mutate).not.toHaveBeenCalled()
+
+    const ceremonies = vi
+      .mocked(store.mutate)
+      .mock.calls.map(([input]) => input.ceremonyId)
+    expect(ceremonies).toEqual([
+      'c0000000-0000-4000-8000-000000000001',
+      'c0000000-0000-4000-8000-000000000002',
+    ])
   })
 
   it('rejects unknown, duplicate, empty, and dependency-invalid change sets', async () => {
@@ -288,7 +331,7 @@ describe('Merchant AI authorization', () => {
     ).resolves.toMatchObject({ capabilities: ['review_analysis', 'property_trends'] })
   })
 
-  it('revokes to an empty capability set and still requires fresh step-up', async () => {
+  it('revokes to an empty capability set without an acknowledgement or step-up', async () => {
     const enabled: MerchantAiSnapshot = {
       ...BASE_SNAPSHOT,
       state: 'enabled',
@@ -310,7 +353,10 @@ describe('Merchant AI authorization', () => {
 
     await expect(
       service.revoke({
-        ...baseCommand,
+        organizationId: baseCommand.organizationId,
+        propertyId: baseCommand.propertyId,
+        actorUserId: baseCommand.actorUserId,
+        idempotencyKey: baseCommand.idempotencyKey,
         expectedStateVersion: 7,
         reasonCode: 'merchant_revoked',
       }),
@@ -319,6 +365,6 @@ describe('Merchant AI authorization', () => {
       capabilities: [],
       stateVersion: 8,
     })
-    expect(verifyStepUp).toHaveBeenCalledTimes(1)
+    expect(verifyStepUp).not.toHaveBeenCalled()
   })
 })

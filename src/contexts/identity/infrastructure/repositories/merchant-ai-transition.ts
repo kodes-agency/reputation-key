@@ -527,7 +527,8 @@ export async function commitMerchantAiTransition(
         ${input.reasonCode},
         ${input.idempotencyKey},
         ${requestHash},
-        ${input.now}
+        ${input.now},
+        ${input.ceremonyId}::uuid
       )
     ).*
   `)

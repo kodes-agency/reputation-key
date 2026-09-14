@@ -44,8 +44,10 @@ vi.mock('#/shared/observability/traced-server-fn', () => ({
 import {
   changeMerchantAiCapabilitiesFn,
   deferMerchantAiDecisionFn,
+  enableMerchantAiFn,
   getMerchantAiAuthorizationFn,
   listMerchantAiOverviewFn,
+  revokeMerchantAiFn,
 } from './merchant-ai'
 import { MerchantAiAuthorizationError } from '../application/use-cases/merchant-ai-authorization'
 import { merchantAiDecisionError } from '../domain/merchant-ai-decision-errors'
@@ -58,6 +60,10 @@ function withStartContext<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000001'
+const ACKNOWLEDGEMENT = {
+  noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
+  noticeDigest: 'a'.repeat(64),
+}
 const actor = {
   organizationId: '00000000-0000-4000-8000-000000000002',
   userId: 'user-1',
@@ -99,7 +105,7 @@ describe('Merchant AI server functions', () => {
     expect(mocks.get).not.toHaveBeenCalled()
   })
 
-  it('forwards only validated capability changes with step-up proof', async () => {
+  it('forwards only validated capability changes with the notice acknowledgement', async () => {
     const changed = { state: 'enabled', stateVersion: 4 }
     mocks.change.mockResolvedValue(changed)
 
@@ -109,7 +115,7 @@ describe('Merchant AI server functions', () => {
           propertyId: PROPERTY_ID,
           idempotencyKey: 'request-key-1',
           expectedStateVersion: 3,
-          password: 'step-up-secret',
+          acknowledgement: ACKNOWLEDGEMENT,
           capabilities: ['review_analysis', 'property_trends'],
         },
       }),
@@ -121,12 +127,76 @@ describe('Merchant AI server functions', () => {
         actorUserId: actor.userId,
         idempotencyKey: 'request-key-1',
         expectedStateVersion: 3,
-        stepUpProof: 'step-up-secret',
+        acknowledgement: ACKNOWLEDGEMENT,
         reasonCode: 'capabilities_changed',
         capabilities: ['review_analysis', 'property_trends'],
         requestHeaders: expect.any(Headers),
       }),
     )
+    expect(mocks.change.mock.calls[0]?.[0]).not.toHaveProperty('stepUpProof')
+  })
+
+  it('enables on an acknowledgement and revokes without one; neither takes a password', async () => {
+    mocks.enable.mockResolvedValue({ state: 'enabled', stateVersion: 1 })
+    mocks.revoke.mockResolvedValue({ state: 'revoked', stateVersion: 2 })
+
+    await withStartContext(() =>
+      enableMerchantAiFn({
+        data: {
+          propertyId: PROPERTY_ID,
+          idempotencyKey: 'request-key-2',
+          expectedStateVersion: 0,
+          acknowledgement: ACKNOWLEDGEMENT,
+        },
+      }),
+    )
+    await withStartContext(() =>
+      revokeMerchantAiFn({
+        data: {
+          propertyId: PROPERTY_ID,
+          idempotencyKey: 'request-key-3',
+          expectedStateVersion: 1,
+        },
+      }),
+    )
+
+    expect(mocks.enable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        propertyId: PROPERTY_ID,
+        acknowledgement: ACKNOWLEDGEMENT,
+        reasonCode: 'merchant_enabled',
+      }),
+    )
+    const revoked = mocks.revoke.mock.calls[0]?.[0]
+    expect(revoked).toMatchObject({
+      propertyId: PROPERTY_ID,
+      expectedStateVersion: 1,
+      reasonCode: 'merchant_revoked',
+    })
+    expect(revoked).not.toHaveProperty('acknowledgement')
+    expect(revoked).not.toHaveProperty('stepUpProof')
+  })
+
+  it('reports a stale notice acknowledgement as a conflict to reload', async () => {
+    mocks.enable.mockRejectedValue(
+      new MerchantAiAuthorizationError(
+        'notice_mismatch',
+        'The AI data-use notice changed.',
+      ),
+    )
+
+    await expect(
+      withStartContext(() =>
+        enableMerchantAiFn({
+          data: {
+            propertyId: PROPERTY_ID,
+            idempotencyKey: 'request-key-5',
+            expectedStateVersion: 0,
+            acknowledgement: ACKNOWLEDGEMENT,
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'notice_mismatch', status: 409 })
   })
 
   it('stops mutation when the management execution gate denies the request', async () => {
@@ -139,7 +209,7 @@ describe('Merchant AI server functions', () => {
             propertyId: PROPERTY_ID,
             idempotencyKey: 'request-key-1',
             expectedStateVersion: 3,
-            password: 'step-up-secret',
+            acknowledgement: ACKNOWLEDGEMENT,
             capabilities: ['review_analysis'],
           },
         }),

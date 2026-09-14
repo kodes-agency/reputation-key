@@ -39,6 +39,8 @@ export type MerchantAiMutationInput = Readonly<{
   providerDeploymentProfileVersion: 'private-beta-global-v1'
   redactionProfileFamily: string
   now: Date
+  /** The consent ceremony that asked for this transition; not part of replay identity. */
+  ceremonyId: string
 }>
 
 export type MerchantAiRestoreResetInput = Readonly<{
@@ -91,7 +93,7 @@ export class MerchantAiAuthorizationStoreError extends Error {
 
 export type MerchantAiAuthorizationErrorCode =
   | 'capability_denied'
-  | 'step_up_required'
+  | 'notice_mismatch'
   | 'unsupported_capability'
   | 'capabilities_required'
   | 'invalid_capability_dependency'
@@ -124,6 +126,14 @@ export type MerchantAiAuthorizationDeps = Readonly<{
     capability: MerchantAiPurpose
     now: Date
   }): Promise<boolean>
+  /**
+   * Reserved hook for a future step-up proof. Consent does not call it: since
+   * merchant-ai-notice-2026-09-15.v1 consent is the served notice, an explicit
+   * acknowledgement of it, and the evidence row (decision 4 in
+   * docs/plan/property-setup-exploration.md). A policy that brings a proof back
+   * calls it from the consent commands in the same change that bumps the notice
+   * and sets `requiresStepUp`.
+   */
   verifyStepUp(input: {
     actorUserId: string
     organizationId: string
@@ -132,6 +142,8 @@ export type MerchantAiAuthorizationDeps = Readonly<{
     requestHeaders?: Headers
   }): Promise<boolean>
   clock: () => Date
+  /** Mints a consent ceremony id. */
+  idGen: () => string
   noticeVersion: string
   noticeDigest: string
   sourcePolicyId: string
@@ -152,10 +164,23 @@ export type MerchantAiCommandInput = Readonly<{
   actorUserId: string
   idempotencyKey: string
   expectedStateVersion: number
-  stepUpProof: string
+  /** Forwarded for the reserved step-up hook; consent does not read it. */
   requestHeaders?: Headers
   reasonCode: string
 }>
+
+/**
+ * The notice the merchant read and acknowledged, as served to them. Consent is
+ * refused unless it is exactly the notice the application serves now.
+ */
+export type MerchantAiNoticeAcknowledgement = Readonly<{
+  noticeVersion: string
+  noticeDigest: string
+}>
+
+/** A command that grants consent: enable or change. A revoke withdraws it. */
+export type MerchantAiConsentCommandInput = MerchantAiCommandInput &
+  Readonly<{ acknowledgement: MerchantAiNoticeAcknowledgement }>
 
 export type MerchantAiAuthorization = ReturnType<typeof createMerchantAiAuthorization>
 
@@ -256,8 +281,20 @@ function validateCommand(input: MerchantAiCommandInput): void {
   if (!REASON_CODE_PATTERN.test(input.reasonCode)) {
     throw new MerchantAiAuthorizationError('invalid_command', 'Invalid reason code')
   }
-  if (input.stepUpProof.length < 1 || input.stepUpProof.length > 256) {
-    throw new MerchantAiAuthorizationError('invalid_command', 'Invalid step-up proof')
+}
+
+function requireCurrentNotice(
+  deps: MerchantAiAuthorizationDeps,
+  acknowledgement: MerchantAiNoticeAcknowledgement,
+): void {
+  if (
+    acknowledgement.noticeVersion !== deps.noticeVersion ||
+    acknowledgement.noticeDigest !== deps.noticeDigest
+  ) {
+    throw new MerchantAiAuthorizationError(
+      'notice_mismatch',
+      'The AI data-use notice changed. Reload it, review it, and confirm again.',
+    )
   }
 }
 
@@ -296,9 +333,11 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
     operation: MerchantAiMutationInput['operation'],
     state: MerchantAiMutationInput['state'],
     capabilities: ReadonlyArray<MerchantAiCapability>,
+    acknowledgement: MerchantAiNoticeAcknowledgement | null,
   ): Promise<MerchantAiSnapshot> {
     validateCommand(input)
     if (capabilities.length > 0) resolveAiRuntimeCapabilitySet(capabilities)
+    if (acknowledgement !== null) requireCurrentNotice(deps, acknowledgement)
     const now = deps.clock()
     if (
       !(await deps.authorizeManagement({
@@ -311,20 +350,6 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
       throw new MerchantAiAuthorizationError(
         'capability_denied',
         'Merchant AI management is denied',
-      )
-    }
-    if (
-      !(await deps.verifyStepUp({
-        actorUserId: input.actorUserId,
-        organizationId: input.organizationId,
-        proof: input.stepUpProof,
-        now,
-        requestHeaders: input.requestHeaders,
-      }))
-    ) {
-      throw new MerchantAiAuthorizationError(
-        'step_up_required',
-        'Fresh step-up is required',
       )
     }
     await authorizeCapabilities(input, capabilities, now)
@@ -345,6 +370,7 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
       providerDeploymentProfileVersion: deps.providerDeploymentProfileVersion,
       redactionProfileFamily: deps.redactionProfileFamily,
       now,
+      ceremonyId: deps.idGen(),
     })
     // Enable deletes a standing deferral inside the mutation transaction, and
     // change and revoke start from an enabled head, which never carries one.
@@ -382,12 +408,18 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
       })
     },
 
-    enable(input: MerchantAiCommandInput): Promise<MerchantAiSnapshot> {
-      return mutate(input, 'enable', 'enabled', CURRENT_MERCHANT_AI_CAPABILITIES)
+    enable(input: MerchantAiConsentCommandInput): Promise<MerchantAiSnapshot> {
+      return mutate(
+        input,
+        'enable',
+        'enabled',
+        CURRENT_MERCHANT_AI_CAPABILITIES,
+        input.acknowledgement,
+      )
     },
 
     async change(
-      input: MerchantAiCommandInput & {
+      input: MerchantAiConsentCommandInput & {
         capabilities: ReadonlyArray<MerchantAiCapability>
       },
     ): Promise<MerchantAiSnapshot> {
@@ -398,11 +430,12 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
           'Enabled Merchant AI requires at least one current capability',
         )
       }
-      return mutate(input, 'change', 'enabled', capabilities)
+      return mutate(input, 'change', 'enabled', capabilities, input.acknowledgement)
     },
 
+    /** Withdrawing consent needs no acknowledgement. */
     revoke(input: MerchantAiCommandInput): Promise<MerchantAiSnapshot> {
-      return mutate(input, 'revoke', 'revoked', Object.freeze([]))
+      return mutate(input, 'revoke', 'revoked', Object.freeze([]), null)
     },
   } as const
 }

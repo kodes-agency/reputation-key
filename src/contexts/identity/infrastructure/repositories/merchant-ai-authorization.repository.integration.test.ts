@@ -63,6 +63,7 @@ function command(overrides: Record<string, unknown> = {}) {
     providerDeploymentProfileVersion: 'private-beta-global-v1' as const,
     redactionProfileFamily: 'gbp-review-global-v1',
     now: NOW,
+    ceremonyId: randomUUID(),
     ...overrides,
   }
 }
@@ -431,6 +432,126 @@ describe('Merchant AI authorization store', () => {
         (SELECT count(*)::int FROM outbox_events WHERE organization_id = ${ORG}) AS events
     `)
     expect(counts.rows[0]).toEqual({ evidence: 1, events: 1 })
+  })
+
+  it('records each command under its own ceremony and keeps the first ceremony on replay', async () => {
+    const enableCeremony = randomUUID()
+    const changeCeremony = randomUUID()
+    const enabled = await store.mutate(command({ ceremonyId: enableCeremony }))
+    // A retried command mints a new ceremony id; replay identity ignores it.
+    await expect(store.mutate(command({ ceremonyId: randomUUID() }))).resolves.toEqual(
+      enabled,
+    )
+    await store.mutate(
+      command({
+        operation: 'change',
+        idempotencyKey: 'ceremony-change',
+        expectedStateVersion: enabled.stateVersion,
+        capabilities: ['review_analysis'],
+        reasonCode: 'capabilities_changed',
+        ceremonyId: changeCeremony,
+      }),
+    )
+
+    const evidence = await db.execute(sql`
+      SELECT idempotency_key, ceremony_id
+      FROM merchant_ai_consent_evidence
+      WHERE organization_id = ${ORG}
+      ORDER BY state_version
+    `)
+    expect(evidence.rows).toEqual([
+      { idempotency_key: 'merchant-command-0001', ceremony_id: enableCeremony },
+      { idempotency_key: 'ceremony-change', ceremony_id: changeCeremony },
+    ])
+  })
+
+  it('accepts the current notice in both contract CHECKs and refuses an unknown or mixed pair', async () => {
+    const enabled = await store.mutate(command())
+    const recorded = await db.execute(sql`
+      SELECT
+        (SELECT notice_version FROM merchant_ai_enablement WHERE organization_id = ${ORG}) AS head_version,
+        (SELECT notice_digest FROM merchant_ai_enablement WHERE organization_id = ${ORG}) AS head_digest,
+        (SELECT notice_version FROM merchant_ai_consent_evidence WHERE organization_id = ${ORG}) AS evidence_version
+    `)
+    expect(recorded.rows[0]).toEqual({
+      head_version: 'merchant-ai-notice-2026-09-15.v1',
+      head_digest: MERCHANT_AI_NOTICE_DIGEST,
+      evidence_version: 'merchant-ai-notice-2026-09-15.v1',
+    })
+
+    const refusedPairs = [
+      { version: 'merchant-ai-notice-2099-01-01.v1', digest: MERCHANT_AI_NOTICE_DIGEST },
+      // A known version never borrows another version's digest.
+      { version: MERCHANT_AI_NOTICE_VERSION, digest: PREVIOUS_NOTICE_DIGEST },
+    ]
+    for (const [index, pair] of refusedPairs.entries()) {
+      await expect(
+        db.execute(sql`
+          SELECT apply_merchant_ai_transition_v1(
+            ${enabled.authorizationLineageId}::uuid,
+            ${enabled.stateVersion},
+            ${enabled.stateVersion + 1},
+            ${ORG},
+            ${PROPERTY}::uuid,
+            'change',
+            'enabled',
+            ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[],
+            ${JSON.stringify(enabled.capabilityRuntimeProfileVersions)}::jsonb,
+            ${enabled.capabilityEpochs.review_analysis + 1},
+            ${enabled.capabilityEpochs.reply_drafting + 1},
+            ${enabled.capabilityEpochs.property_trends + 1},
+            ${enabled.authorizedSourceEpoch},
+            ${enabled.analysisStartSequence},
+            ${pair.version},
+            ${pair.digest},
+            'google-business-profile-source-policy-v1',
+            1,
+            'global',
+            'private-beta-global-v1',
+            'gbp-review-global-v1',
+            ${USER},
+            'capabilities_changed',
+            ${`unknown-notice-${index}`},
+            ${'d'.repeat(64)},
+            ${NOW},
+            ${randomUUID()}::uuid
+          )
+        `),
+      ).rejects.toMatchObject({
+        cause: expect.objectContaining({
+          code: '23514',
+          constraint: 'merchant_ai_consent_evidence_contract_valid',
+        }),
+      })
+    }
+
+    // The head carries its own CHECK. Its transition guard would refuse the
+    // write first, so the guard is set aside inside a transaction that the
+    // refusal rolls back, trigger state included.
+    await expect(
+      db.transaction(async (tx) => {
+        await tx.execute(sql`
+          ALTER TABLE merchant_ai_enablement
+          DISABLE TRIGGER merchant_ai_enablement_transition_guard
+        `)
+        await tx.execute(sql`
+          UPDATE merchant_ai_enablement
+          SET notice_version = 'merchant-ai-notice-2099-01-01.v1'
+          WHERE organization_id = ${ORG}
+        `)
+      }),
+    ).rejects.toMatchObject({
+      cause: expect.objectContaining({
+        code: '23514',
+        constraint: 'merchant_ai_enablement_contract_valid',
+      }),
+    })
+    const guard = await db.execute(sql`
+      SELECT tgenabled
+      FROM pg_trigger
+      WHERE tgname = 'merchant_ai_enablement_transition_guard'
+    `)
+    expect(guard.rows).toEqual([{ tgenabled: 'O' }])
   })
 
   it('enforces transition, optimistic-version, and material-change rules', async () => {
@@ -911,6 +1032,17 @@ describe('Merchant AI authorization store', () => {
       { transition_kind: 'enable', count: 1 },
       { transition_kind: 'restore_reset', count: 1 },
     ])
+    // A restore reset is not a merchant's consent, so it names no ceremony.
+    const ceremonies = await db.execute(sql`
+      SELECT transition_kind, ceremony_id IS NOT NULL AS has_ceremony
+      FROM merchant_ai_consent_evidence
+      WHERE organization_id = ${ORG}
+      ORDER BY transition_kind
+    `)
+    expect(ceremonies.rows).toEqual([
+      { transition_kind: 'enable', has_ceremony: true },
+      { transition_kind: 'restore_reset', has_ceremony: false },
+    ])
   })
 
   it('uses typed store errors', () => {
@@ -1049,6 +1181,7 @@ describe('Merchant AI authorization store at source epoch 0', () => {
       providerDeploymentProfileVersion: 'private-beta-global-v1' as const,
       redactionProfileFamily: 'gbp-review-global-v1',
       now: EPOCH_ZERO_NOW,
+      ceremonyId: randomUUID(),
     }) satisfies Parameters<typeof store.mutate>[0]
 
   it('enables AI on a property at the domain default source epoch of 0', async () => {

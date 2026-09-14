@@ -103,6 +103,7 @@ function makeWorld() {
     authorize: async () => true,
     verifyStepUp: async () => true,
     clock,
+    idGen: () => 'c0000000-0000-4000-8000-0000000000d1',
     noticeVersion: MERCHANT_AI_NOTICE_VERSION,
     noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
     sourcePolicyId: 'google-business-profile-source-policy-v1',
@@ -124,7 +125,10 @@ function makeWorld() {
         ...input,
         idempotencyKey: 'enable-command-0001',
         expectedStateVersion: head?.stateVersion ?? 0,
-        stepUpProof: 'proof',
+        acknowledgement: {
+          noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+          noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+        },
         reasonCode: 'merchant_enabled',
       }),
     loseAuthority: () => {

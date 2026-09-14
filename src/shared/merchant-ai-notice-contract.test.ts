@@ -1,9 +1,12 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
+  formatMerchantAiPropertyNames,
   MERCHANT_AI_NOTICE_DIGEST,
+  MERCHANT_AI_NOTICE_PAYLOAD,
   MERCHANT_AI_NOTICE_VERSION,
   parseMerchantAiNoticeCatalogueEntry,
+  renderMerchantAiNoticeCta,
 } from './merchant-ai-notice-contract'
 import { canonicalizeRfc8785 } from './canonical-json'
 
@@ -49,7 +52,7 @@ describe('Merchant AI notice contract', () => {
   })
 
   it('binds the immutable notice version and structured payload into the digest', () => {
-    expect(MERCHANT_AI_NOTICE_VERSION).toBe('merchant-ai-notice-2026-09-09.v1')
+    expect(MERCHANT_AI_NOTICE_VERSION).toBe('merchant-ai-notice-2026-09-15.v1')
     expect(MERCHANT_AI_NOTICE_DIGEST).toMatch(/^[0-9a-f]{64}$/)
     expect(MERCHANT_AI_NOTICE_DIGEST).toBe(
       createHash('sha256')
@@ -66,7 +69,34 @@ describe('Merchant AI notice contract', () => {
         .digest('hex'),
     )
     expect(MERCHANT_AI_NOTICE_DIGEST).toBe(
-      'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1',
+      '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+    )
+  })
+
+  it('consents by acknowledgement, for one or several properties, without a step-up', () => {
+    expect(MERCHANT_AI_NOTICE_PAYLOAD.requiresStepUp).toBe(false)
+    expect(MERCHANT_AI_NOTICE_PAYLOAD.ctaTemplate).toBe(
+      'Enable AI features for {propertyNames}',
+    )
+    expect(MERCHANT_AI_NOTICE_PAYLOAD.summary).not.toMatch(/this property/i)
+  })
+
+  it('renders the call to action with a human list of property names', () => {
+    expect(formatMerchantAiPropertyNames(['Hotel A'])).toBe('Hotel A')
+    expect(formatMerchantAiPropertyNames(['Hotel A', 'Hotel B'])).toBe(
+      'Hotel A and Hotel B',
+    )
+    expect(formatMerchantAiPropertyNames(['Hotel A', 'Hotel B', 'Cafe C'])).toBe(
+      'Hotel A, Hotel B and Cafe C',
+    )
+    expect(() => formatMerchantAiPropertyNames([])).toThrow(/at least one property/)
+
+    expect(
+      renderMerchantAiNoticeCta(MERCHANT_AI_NOTICE_PAYLOAD, ['Hotel A', 'Cafe C']),
+    ).toBe('Enable AI features for Hotel A and Cafe C')
+    // A name is inserted literally, never read as a replacement pattern.
+    expect(renderMerchantAiNoticeCta(MERCHANT_AI_NOTICE_PAYLOAD, ['Bar $& Grill'])).toBe(
+      'Enable AI features for Bar $& Grill',
     )
   })
 

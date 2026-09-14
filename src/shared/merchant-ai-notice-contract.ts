@@ -1,13 +1,30 @@
 import { z } from 'zod/v4'
 export { canonicalizeRfc8785 } from './canonical-json'
 
-// Bumped from merchant-ai-notice-2026-09-08.v1 because Review Analysis now
-// persists controlled aspect/polarity/intensity metadata and one optional
-// generic issue label. A new version re-collects consent for that processing.
-// Historical consent stays recorded at its own version — see the known-version
-// set in the enablement/evidence CHECKs
-// (merchant-ai-authorization.schema.ts).
-export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-09-09.v1' as const
+// Changelog — every entry is a new version; the newest is first.
+//
+// merchant-ai-notice-2026-09-15.v1 — the consent ceremony (decisions 3 and 4 in
+// docs/plan/property-setup-exploration.md §6):
+//   - One ceremony may authorize AI for several Properties at once, such as an
+//     import batch. The call to action names every Property it covers
+//     (`{propertyNames}`). Enablement and evidence stay per Property; the rows
+//     one ceremony writes share its ceremony id.
+//   - The password step-up is removed from AI consent everywhere, deliberately,
+//     as a change to consent assurance rather than an oversight. Consent is now
+//     the notice rendered at this version and digest, an explicit acknowledgement
+//     of it by the manager who grants it (an AccountAdmin for a multi-Property
+//     ceremony), and the evidence row that records the actor, notice version,
+//     digest, and ceremony id. `requiresStepUp` is false; the step-up port stays
+//     in the use case as a reserved hook for a future proof.
+//
+// merchant-ai-notice-2026-09-09.v1 — Review Analysis persists controlled
+// aspect/polarity/intensity metadata and one optional generic issue label.
+//
+// Historical consent stays valid at its own version: the enablement and evidence
+// CHECKs keep every known (version, digest) pair
+// (merchant-ai-authorization.schema.ts), and a head granted under an earlier
+// version is re-granted, not rewritten.
+export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-09-15.v1' as const
 
 const capabilitySchema = z
   .object({
@@ -53,8 +70,8 @@ const noticePayloadSchema = z
       retentionRowSchema,
     ]),
     risks: z.array(z.string().min(1)).min(1),
-    ctaTemplate: z.literal('Enable all three AI features for {propertyName}'),
-    requiresStepUp: z.literal(true),
+    ctaTemplate: z.literal('Enable AI features for {propertyNames}'),
+    requiresStepUp: z.literal(false),
     processingRegion: z.literal('global'),
   })
   .strict()
@@ -72,7 +89,7 @@ export type MerchantAiNoticePayload = DeepReadonly<z.infer<typeof noticePayloadS
 export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze({
   title: 'Merchant AI data-use notice',
   summary:
-    'Choose which AI-assisted features RepKey may run for this property after reviewing how Google review data is minimized, retained, and sent to OpenAI.',
+    'Choose which AI-assisted features RepKey may run for each selected property after reviewing how Google review data is minimized, retained, and sent to OpenAI.',
   sections: Object.freeze([
     Object.freeze({
       id: 'data_and_features',
@@ -170,14 +187,38 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
     'AI analysis and suggestions can be inaccurate.',
     'Provider retention has no guaranteed per-request deletion date.',
   ]),
-  ctaTemplate: 'Enable all three AI features for {propertyName}',
-  requiresStepUp: true,
+  ctaTemplate: 'Enable AI features for {propertyNames}',
+  requiresStepUp: false,
   processingRegion: 'global',
 })
 noticePayloadSchema.parse(MERCHANT_AI_NOTICE_PAYLOAD)
 
 export const MERCHANT_AI_NOTICE_DIGEST =
-  'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1' as const
+  '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c' as const
+
+/**
+ * Join Property names the way the call to action reads them: "Hotel A",
+ * "Hotel A and Hotel B", "Hotel A, Hotel B and Cafe C".
+ */
+export function formatMerchantAiPropertyNames(
+  propertyNames: ReadonlyArray<string>,
+): string {
+  if (propertyNames.length === 0) {
+    throw new TypeError('The Merchant AI call to action names at least one property')
+  }
+  if (propertyNames.length === 1) return propertyNames[0]!
+  return `${propertyNames.slice(0, -1).join(', ')} and ${propertyNames.at(-1)!}`
+}
+
+/** The notice's call to action for every Property one consent ceremony covers. */
+export function renderMerchantAiNoticeCta(
+  payload: Pick<MerchantAiNoticePayload, 'ctaTemplate'>,
+  propertyNames: ReadonlyArray<string>,
+): string {
+  const names = formatMerchantAiPropertyNames(propertyNames)
+  // A replacer function: a name containing `$&` must not be read as a pattern.
+  return payload.ctaTemplate.replace('{propertyNames}', () => names)
+}
 function isLowercaseSha256(value: string): boolean {
   if (value.length !== 64) return false
   for (let index = 0; index < value.length; index += 1) {

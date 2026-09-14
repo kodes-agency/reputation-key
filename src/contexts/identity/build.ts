@@ -724,6 +724,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
         password: input.proof,
       })),
     clock: deps.clock,
+    idGen: deps.idGen,
     noticeVersion: MERCHANT_AI_NOTICE_VERSION,
     noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
     sourcePolicyId: MERCHANT_AI_SOURCE_POLICY_ID,

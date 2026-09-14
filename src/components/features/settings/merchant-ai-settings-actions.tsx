@@ -15,22 +15,23 @@ import { CardFooter } from '#/components/ui/card'
 
 export function MerchantAiSettingsActions({
   propertyName,
+  enableCallToAction,
   canRevoke,
   isEnabled,
   canEnable,
   canSave,
-  passwordPresent,
   pending,
   onEnable,
   onChange,
   onRevoke,
 }: Readonly<{
   propertyName: string
+  /** The notice's call to action, rendered for this property. */
+  enableCallToAction: string
   canRevoke: boolean
   isEnabled: boolean
   canEnable: boolean
   canSave: boolean
-  passwordPresent: boolean
   pending: boolean
   onEnable: () => void
   onChange: () => void
@@ -45,7 +46,7 @@ export function MerchantAiSettingsActions({
               <Button
                 variant="outline"
                 className="min-h-11 w-full sm:w-auto"
-                disabled={!passwordPresent || pending}
+                disabled={pending}
               >
                 Turn off AI features
               </Button>
@@ -94,9 +95,7 @@ export function MerchantAiSettingsActions({
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>
-                Enable all AI features for {propertyName}?
-              </AlertDialogTitle>
+              <AlertDialogTitle>{enableCallToAction}?</AlertDialogTitle>
               <AlertDialogDescription>
                 You confirm the data-handling notice above and authorize review analysis,
                 editable reply drafting, and de-identified property trends for this

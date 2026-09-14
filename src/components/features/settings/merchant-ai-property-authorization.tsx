@@ -7,17 +7,25 @@ import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/me
 import type { MerchantAiPropertyOption } from './merchant-ai-settings-content'
 import { MerchantAiAuthorizationCard } from './merchant-ai-authorization-card'
 
-type CommandInput = Readonly<{
-  data: Readonly<{
-    propertyId: string
-    expectedStateVersion: number
-    idempotencyKey: string
-    password: string
-  }>
+type CommandData = Readonly<{
+  propertyId: string
+  expectedStateVersion: number
+  idempotencyKey: string
 }>
 
-type ChangeInput = Readonly<{
-  data: CommandInput['data'] & {
+/** A revoke withdraws consent, so it carries no acknowledgement. */
+export type MerchantAiRevokeInput = Readonly<{ data: CommandData }>
+
+/** An enable names the notice the merchant acknowledged on screen. */
+export type MerchantAiEnableInput = Readonly<{
+  data: CommandData &
+    Readonly<{
+      acknowledgement: Readonly<{ noticeVersion: string; noticeDigest: string }>
+    }>
+}>
+
+export type MerchantAiChangeInput = Readonly<{
+  data: MerchantAiEnableInput['data'] & {
     capabilities: CurrentMerchantAiCapability[]
   }
 }>
@@ -26,9 +34,9 @@ export type MerchantAiPropertyAuthorizationProps = Readonly<{
   property: MerchantAiPropertyOption
   snapshot: MerchantAiSnapshot
   notice: MerchantAiNoticeDto
-  enable: (input: CommandInput) => Promise<MerchantAiSnapshot>
-  change: (input: ChangeInput) => Promise<MerchantAiSnapshot>
-  revoke: (input: CommandInput) => Promise<MerchantAiSnapshot>
+  enable: (input: MerchantAiEnableInput) => Promise<MerchantAiSnapshot>
+  change: (input: MerchantAiChangeInput) => Promise<MerchantAiSnapshot>
+  revoke: (input: MerchantAiRevokeInput) => Promise<MerchantAiSnapshot>
   /** Told about every accepted command, so a surrounding page can refresh. */
   onChanged?: (snapshot: MerchantAiSnapshot) => void
 }>
@@ -53,7 +61,7 @@ export function MerchantAiPropertyAuthorization({
   onChanged,
 }: MerchantAiPropertyAuthorizationProps) {
   const [snapshot, setSnapshot] = useState(initialSnapshot)
-  const [password, setPassword] = useState('')
+  const [acknowledged, setAcknowledged] = useState(false)
   const [pending, setPending] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [selectedCapabilities, setSelectedCapabilities] = useState<
@@ -104,7 +112,11 @@ export function MerchantAiPropertyAuthorization({
     propertyId: property.id,
     expectedStateVersion: snapshot.stateVersion,
     idempotencyKey: crypto.randomUUID(),
-    password,
+  })
+  // Consent names the notice on screen; the server refuses any other one.
+  const consentData = () => ({
+    ...commandData(),
+    acknowledgement: { noticeVersion: notice.version, noticeDigest: notice.digest },
   })
 
   const run = async (operation: () => Promise<MerchantAiSnapshot>) => {
@@ -118,12 +130,13 @@ export function MerchantAiPropertyAuthorization({
     } catch (error) {
       setErrorMessage(mutationErrorMessage(error))
     } finally {
-      setPassword('')
+      // Every consent is its own acknowledgement: the next one is asked again.
+      setAcknowledged(false)
       setPending(false)
     }
   }
 
-  const canSubmit = Boolean(sourceActive && password && !pending)
+  const canSubmit = Boolean(sourceActive && acknowledged && !pending)
 
   return (
     <MerchantAiAuthorizationCard
@@ -132,7 +145,7 @@ export function MerchantAiPropertyAuthorization({
       sourceActive={sourceActive}
       notice={notice}
       selectedCapabilities={selectedCapabilities}
-      password={password}
+      acknowledged={acknowledged}
       pending={pending}
       errorMessage={errorMessage}
       canSubmit={canSubmit}
@@ -142,13 +155,13 @@ export function MerchantAiPropertyAuthorization({
         selectedCapabilities.length > 0
       }
       onToggleCapability={toggleCapability}
-      onPasswordChange={setPassword}
-      onEnable={() => void run(() => enable({ data: commandData() }))}
+      onAcknowledgedChange={setAcknowledged}
+      onEnable={() => void run(() => enable({ data: consentData() }))}
       onChange={() =>
         void run(() =>
           change({
             data: {
-              ...commandData(),
+              ...consentData(),
               capabilities: [...selectedCapabilities],
             },
           }),

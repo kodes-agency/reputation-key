@@ -1,5 +1,4 @@
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod/v4'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -12,15 +11,20 @@ import {
 } from '../application/use-cases/merchant-ai-authorization'
 import { MERCHANT_AI_NOTICE } from '../application/dto/merchant-ai-notice.dto'
 import { isMerchantAiDecisionError } from '../domain/merchant-ai-decision-errors'
+import {
+  merchantAiAuthorizationInputSchema,
+  merchantAiCapabilityChangeInputSchema,
+  merchantAiCommandInputSchema,
+  merchantAiConsentCommandInputSchema,
+  merchantAiPropertyInputSchema,
+} from '../application/dto/merchant-ai-command.dto'
 
-const propertyInputSchema = z.object({ propertyId: z.uuid() })
-const authorizationInputSchema = z.object({ propertyId: z.uuid().optional() })
-const commandSchema = propertyInputSchema.extend({
-  idempotencyKey: z.string().min(8).max(128),
-  expectedStateVersion: z.number().int().safe().nonnegative(),
-  password: z.string().min(1).max(256),
-})
-const capabilitySchema = z.enum(['review_analysis', 'reply_drafting', 'property_trends'])
+function merchantAiErrorStatus(code: MerchantAiAuthorizationError['code']): number {
+  if (code === 'capability_denied') return 403
+  // A stale notice is a conflict with the served state: reload, then retry.
+  if (code === 'notice_mismatch') return 409
+  return 400
+}
 
 function mapMerchantAiError(error: unknown): never {
   if (isMerchantAiDecisionError(error)) {
@@ -31,7 +35,7 @@ function mapMerchantAiError(error: unknown): never {
     )
   }
   if (error instanceof MerchantAiAuthorizationError) {
-    const status = error.code === 'capability_denied' ? 403 : 400
+    const status = merchantAiErrorStatus(error.code)
     throwContextError(
       'MerchantAiAuthorizationError',
       { code: error.code, message: error.message },
@@ -66,7 +70,7 @@ async function managementContext(propertyId: string | undefined) {
 }
 
 export const getMerchantAiAuthorizationFn = createServerFn({ method: 'GET' })
-  .validator(authorizationInputSchema)
+  .validator(merchantAiAuthorizationInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -92,7 +96,7 @@ export const getMerchantAiAuthorizationFn = createServerFn({ method: 'GET' })
   )
 
 export const enableMerchantAiFn = createServerFn({ method: 'POST' })
-  .validator(commandSchema)
+  .validator(merchantAiConsentCommandInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -105,7 +109,7 @@ export const enableMerchantAiFn = createServerFn({ method: 'POST' })
               actorUserId: actor.userId as string,
               idempotencyKey: data.idempotencyKey,
               expectedStateVersion: data.expectedStateVersion,
-              stepUpProof: data.password,
+              acknowledgement: data.acknowledgement,
               requestHeaders: headers,
               reasonCode: 'merchant_enabled',
             },
@@ -120,11 +124,7 @@ export const enableMerchantAiFn = createServerFn({ method: 'POST' })
   )
 
 export const changeMerchantAiCapabilitiesFn = createServerFn({ method: 'POST' })
-  .validator(
-    commandSchema.extend({
-      capabilities: z.array(capabilitySchema).min(1).max(3),
-    }),
-  )
+  .validator(merchantAiCapabilityChangeInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -137,7 +137,7 @@ export const changeMerchantAiCapabilitiesFn = createServerFn({ method: 'POST' })
               actorUserId: actor.userId as string,
               idempotencyKey: data.idempotencyKey,
               expectedStateVersion: data.expectedStateVersion,
-              stepUpProof: data.password,
+              acknowledgement: data.acknowledgement,
               requestHeaders: headers,
               reasonCode: 'capabilities_changed',
               capabilities: data.capabilities,
@@ -153,7 +153,7 @@ export const changeMerchantAiCapabilitiesFn = createServerFn({ method: 'POST' })
   )
 
 export const revokeMerchantAiFn = createServerFn({ method: 'POST' })
-  .validator(commandSchema)
+  .validator(merchantAiCommandInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -166,7 +166,6 @@ export const revokeMerchantAiFn = createServerFn({ method: 'POST' })
               actorUserId: actor.userId as string,
               idempotencyKey: data.idempotencyKey,
               expectedStateVersion: data.expectedStateVersion,
-              stepUpProof: data.password,
               requestHeaders: headers,
               reasonCode: 'merchant_revoked',
             },
@@ -185,7 +184,7 @@ export const revokeMerchantAiFn = createServerFn({ method: 'POST' })
  * step-up proof: nothing is authorized, so there is nothing to re-verify.
  */
 export const deferMerchantAiDecisionFn = createServerFn({ method: 'POST' })
-  .validator(propertyInputSchema)
+  .validator(merchantAiPropertyInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

@@ -6,7 +6,10 @@ import {
 } from '../../../../.storybook/AuthedRouterDecorator'
 import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import type { MerchantAiSnapshot } from '#/contexts/identity/application/public-api'
-import { consentToAi } from './merchant-ai-consent.stories.play'
+import {
+  AI_CONSENT_ACKNOWLEDGEMENT,
+  consentToAi,
+} from './merchant-ai-consent.stories.play'
 import { MerchantAiSettingsPage } from './merchant-ai-settings-page'
 import type { PropertyReplyLanguageUpdateAction } from './property-reply-language-card'
 
@@ -69,19 +72,26 @@ type ChangeActionInput = {
     propertyId: string
     expectedStateVersion: number
     idempotencyKey: string
-    password: string
+    acknowledgement: { noticeVersion: string; noticeDigest: string }
     capabilities: Array<'review_analysis' | 'reply_drafting' | 'property_trends'>
   }
 }
 
+const SERVED_NOTICE = {
+  noticeVersion: MERCHANT_AI_NOTICE.version,
+  noticeDigest: MERCHANT_AI_NOTICE.digest,
+}
+// Anchored: the trends description itself mentions review analysis.
+const CAPABILITY_LABELS = [/^review analysis/i, /^reply drafting/i, /^property trends/i]
+
 const noOpPropertyChange = fn()
-const enableAction = fn(async () => enabled)
+const enableAction = fn(async (_input: { data: { acknowledgement: unknown } }) => enabled)
 const changeAction = fn(async (input: ChangeActionInput) => ({
   ...enabled,
   capabilities: input.data.capabilities,
   stateVersion: enabled.stateVersion + 1,
 }))
-const revokeAction = fn(async () => ({
+const revokeAction = fn(async (_input: { data: Record<string, unknown> }) => ({
   ...enabled,
   state: 'revoked' as const,
   capabilities: [],
@@ -141,10 +151,21 @@ export const AwaitingConsent: Story = {
   play: async ({ canvasElement }) => {
     enableAction.mockClear()
     const canvas = within(canvasElement)
+    await expect(canvas.queryByLabelText(/password/i)).not.toBeInTheDocument()
+    await expect(
+      canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
+    ).toHaveAccessibleName(
+      `I have read this notice and, as an account admin, agree to this data use for ${properties[0]!.name}`,
+    )
     await consentToAi(canvasElement)
     await waitFor(() => expect(enableAction).toHaveBeenCalledOnce())
+    // Consent names the notice that was on screen, not a password.
+    expect(enableAction.mock.calls[0]?.[0].data.acknowledgement).toEqual(SERVED_NOTICE)
     expect(await canvas.findByText('On')).toBeInTheDocument()
-    expect(canvas.getByLabelText(/confirm with your password/i)).toHaveValue('')
+    // The next consent is acknowledged afresh.
+    expect(
+      canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
+    ).not.toBeChecked()
   },
 }
 
@@ -154,17 +175,17 @@ export const EnabledSelectiveControls: Story = {
     changeAction.mockClear()
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByLabelText(/property trends/i))
-    await userEvent.type(
-      canvas.getByLabelText(/confirm with your password/i),
-
-      'correct-password',
+    const save = canvas.getByRole('button', { name: /save feature access/i })
+    await expect(save).toBeDisabled()
+    await userEvent.click(
+      canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
     )
-    await userEvent.click(canvas.getByRole('button', { name: /save feature access/i }))
+    await userEvent.click(save)
     await waitFor(() => expect(changeAction).toHaveBeenCalledOnce())
-    expect(changeAction.mock.calls[0]?.[0].data.capabilities).toEqual([
-      'review_analysis',
-      'reply_drafting',
-    ])
+    expect(changeAction.mock.calls[0]?.[0].data).toMatchObject({
+      capabilities: ['review_analysis', 'reply_drafting'],
+      acknowledgement: SERVED_NOTICE,
+    })
   },
 }
 
@@ -185,12 +206,11 @@ export const ReconsentAfterNoticeReversion: Story = {
   play: async ({ canvasElement }) => {
     changeAction.mockClear()
     const canvas = within(canvasElement)
-    for (const checkbox of canvas.getAllByRole('checkbox')) {
-      expect(checkbox).toBeChecked()
+    for (const label of CAPABILITY_LABELS) {
+      expect(canvas.getByRole('checkbox', { name: label })).toBeChecked()
     }
-    await userEvent.type(
-      canvas.getByLabelText(/confirm with your password/i),
-      'correct-password',
+    await userEvent.click(
+      canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
     )
     const save = canvas.getByRole('button', { name: /save feature access/i })
     expect(save).toBeEnabled()
@@ -228,9 +248,31 @@ export const Revoked: Story = {
     expect(
       canvas.queryByRole('button', { name: /turn off ai features/i }),
     ).not.toBeInTheDocument()
-    for (const checkbox of canvas.getAllByRole('checkbox')) {
-      expect(checkbox).toBeChecked()
+    for (const label of CAPABILITY_LABELS) {
+      expect(canvas.getByRole('checkbox', { name: label })).toBeChecked()
     }
+    expect(
+      canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
+    ).not.toBeChecked()
+  },
+}
+
+// Withdrawing consent needs no acknowledgement; only granting it does.
+export const TurnOffWithoutAcknowledgement: Story = {
+  args: { snapshot: enabled },
+  play: async ({ canvasElement }) => {
+    revokeAction.mockClear()
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
+    ).not.toBeChecked()
+    await userEvent.click(canvas.getByRole('button', { name: /turn off ai features/i }))
+    const page = within(canvasElement.ownerDocument.body)
+    await userEvent.click(page.getByRole('button', { name: /^turn off$/i }))
+    await waitFor(() => expect(revokeAction).toHaveBeenCalledOnce())
+    expect(revokeAction.mock.calls[0]?.[0]).toEqual({
+      data: expect.not.objectContaining({ acknowledgement: expect.anything() }),
+    })
   },
 }
 

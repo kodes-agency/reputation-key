@@ -52,6 +52,7 @@ function enableCommand(propertyId: string, idempotencyKey: string) {
     routingPolicyVersion: 1,
     providerDeploymentProfileVersion: 'private-beta-global-v1' as const,
     redactionProfileFamily: 'gbp-review-global-v1',
+    ceremonyId: randomUUID(),
     now: FIRST_DEFERRAL,
   }
 }

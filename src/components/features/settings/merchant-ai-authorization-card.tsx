@@ -3,6 +3,7 @@ import type {
   MerchantAiState,
 } from '#/contexts/identity/application/public-api'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
+import { renderMerchantAiNoticeCta } from '#/shared/merchant-ai-notice-contract'
 import { Badge } from '#/components/ui/badge'
 import {
   Card,
@@ -26,13 +27,13 @@ type Props = Readonly<{
   sourceActive: boolean
   notice: MerchantAiNoticeDto
   selectedCapabilities: ReadonlyArray<CurrentMerchantAiCapability>
-  password: string
+  acknowledged: boolean
   pending: boolean
   errorMessage: string | null
   canSubmit: boolean
   canSave: boolean
   onToggleCapability: (capability: CurrentMerchantAiCapability, checked: boolean) => void
-  onPasswordChange: (password: string) => void
+  onAcknowledgedChange: (acknowledged: boolean) => void
   onEnable: () => void
   onChange: () => void
   onRevoke: () => void
@@ -52,23 +53,26 @@ export function MerchantAiAuthorizationCard(props: Props) {
       </CardHeader>
 
       <MerchantAiSettingsContent
+        propertyName={props.propertyName}
         sourceActive={props.sourceActive}
         state={props.state}
         notice={props.notice}
         selectedCapabilities={props.selectedCapabilities}
-        password={props.password}
+        acknowledged={props.acknowledged}
         pending={props.pending}
         errorMessage={props.errorMessage}
         onToggleCapability={props.onToggleCapability}
-        onPasswordChange={props.onPasswordChange}
+        onAcknowledgedChange={props.onAcknowledgedChange}
       />
       <MerchantAiSettingsActions
         propertyName={props.propertyName}
+        enableCallToAction={renderMerchantAiNoticeCta(props.notice.payload, [
+          props.propertyName,
+        ])}
         canRevoke={props.state === 'enabled'}
         isEnabled={props.state === 'enabled'}
         canEnable={props.canSubmit}
         canSave={props.canSave}
-        passwordPresent={Boolean(props.password)}
         pending={props.pending}
         onEnable={props.onEnable}
         onChange={props.onChange}

@@ -1,34 +1,21 @@
 import { BrainCircuit } from 'lucide-react'
-import type {
-  CurrentMerchantAiCapability,
-  MerchantAiSnapshot,
-} from '#/contexts/identity/application/public-api'
+import type { MerchantAiSnapshot } from '#/contexts/identity/application/public-api'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import { EmptyState } from '#/components/ui/empty-state'
 import {
   MerchantAiPropertySelector,
   type MerchantAiPropertyOption,
 } from './merchant-ai-settings-content'
-import { MerchantAiPropertyAuthorization } from './merchant-ai-property-authorization'
+import {
+  MerchantAiPropertyAuthorization,
+  type MerchantAiChangeInput,
+  type MerchantAiEnableInput,
+  type MerchantAiRevokeInput,
+} from './merchant-ai-property-authorization'
 import {
   PropertyReplyLanguageCard,
   type PropertyReplyLanguageUpdateAction,
 } from './property-reply-language-card'
-
-type CommandInput = Readonly<{
-  data: Readonly<{
-    propertyId: string
-    expectedStateVersion: number
-    idempotencyKey: string
-    password: string
-  }>
-}>
-
-type ChangeInput = Readonly<{
-  data: CommandInput['data'] & {
-    capabilities: CurrentMerchantAiCapability[]
-  }
-}>
 
 type Props = Readonly<{
   properties: ReadonlyArray<MerchantAiPropertyOption>
@@ -36,9 +23,9 @@ type Props = Readonly<{
   snapshot: MerchantAiSnapshot | null
   notice: MerchantAiNoticeDto
   onPropertyChange: (propertyId: string) => void
-  enable: (input: CommandInput) => Promise<MerchantAiSnapshot>
-  change: (input: ChangeInput) => Promise<MerchantAiSnapshot>
-  revoke: (input: CommandInput) => Promise<MerchantAiSnapshot>
+  enable: (input: MerchantAiEnableInput) => Promise<MerchantAiSnapshot>
+  change: (input: MerchantAiChangeInput) => Promise<MerchantAiSnapshot>
+  revoke: (input: MerchantAiRevokeInput) => Promise<MerchantAiSnapshot>
   updateProperty: PropertyReplyLanguageUpdateAction
 }>
 

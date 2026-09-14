@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, within } from 'storybook/test'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
+import { AI_CONSENT_ACKNOWLEDGEMENT } from '#/components/features/settings/merchant-ai-consent.stories.play'
 import type {
   GoogleConnectionDto,
   ImportProgressDto,
@@ -120,7 +121,7 @@ export const ProgressRoute: Story = {
     })
     await expect(propertyLinks.some((link) => link.checkVisibility())).toBe(true)
     await expect(
-      canvas.findByLabelText(/confirm with your password/i),
+      canvas.findByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
     ).resolves.toBeVisible()
   },
 }

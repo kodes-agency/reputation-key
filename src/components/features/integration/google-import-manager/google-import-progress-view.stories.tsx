@@ -6,7 +6,10 @@ import type {
   ImportProgressDto,
   ImportProgressItemDto,
 } from '#/contexts/integration/application/public-api'
-import { consentToAi } from '#/components/features/settings/merchant-ai-consent.stories.play'
+import {
+  AI_CONSENT_ACKNOWLEDGEMENT,
+  consentToAi,
+} from '#/components/features/settings/merchant-ai-consent.stories.play'
 import { aiEnabled, createAiFnsFixture } from './google-import-ai.stories.fixtures'
 import { GoogleImportProgressView } from './google-import-progress-view'
 
@@ -193,7 +196,7 @@ export const AiOnboardingSkipped: Story = {
     await expect(canvas.getByText(/ai analysis stays off/i)).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: /reconsider/i }))
     await expect(
-      canvas.findByLabelText(/confirm with your password/i),
+      canvas.findByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
     ).resolves.toBeVisible()
   },
 }
@@ -226,7 +229,7 @@ export const AiAlreadyEnabled: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.findByText(/ai analysis is on for/i)).resolves.toBeVisible()
     await expect(
-      canvas.queryByLabelText(/confirm with your password/i),
+      canvas.queryByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
     ).not.toBeInTheDocument()
     await waitFor(() => expect(aiFns.enableMerchantAi).not.toHaveBeenCalled())
   },

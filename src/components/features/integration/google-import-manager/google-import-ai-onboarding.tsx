@@ -27,10 +27,11 @@ function mutationErrorMessage(error: unknown): string {
 
 /**
  * The AI-analysis step of the import flow: one consent card per Property the
- * import produced, rendered with the same notice, capability set and password
- * step-up as Settings → AI & replies, so the evidence recorded is identical
- * whichever door the merchant used. Nothing is analysed until they enable it;
- * skipping leaves the property exactly as an import without this step would.
+ * import produced, rendered with the same notice, capability set and
+ * acknowledgement as Settings → AI & replies, so the evidence recorded is
+ * identical whichever door the merchant used. Nothing is analysed until they
+ * enable it; skipping leaves the property exactly as an import without this
+ * step would.
  */
 export function GoogleImportAiOnboarding({ properties, aiFns }: Props) {
   if (properties.length === 0) return null
@@ -149,7 +150,7 @@ function ConsentCard({
   onEnabled: (snapshot: MerchantAiSnapshot) => void
   onSkip: () => void
 }>) {
-  const [password, setPassword] = useState('')
+  const [acknowledged, setAcknowledged] = useState(false)
   const [pending, setPending] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   // The onboarding card enables the full capability set the notice describes;
@@ -166,14 +167,14 @@ function ConsentCard({
           propertyId: property.propertyId,
           expectedStateVersion: snapshot?.stateVersion ?? 0,
           idempotencyKey: crypto.randomUUID(),
-          password,
+          acknowledgement: { noticeVersion: notice.version, noticeDigest: notice.digest },
         },
       })
       onEnabled(next)
     } catch (error) {
       setErrorMessage(mutationErrorMessage(error))
     } finally {
-      setPassword('')
+      setAcknowledged(false)
       setPending(false)
     }
   }
@@ -188,13 +189,13 @@ function ConsentCard({
         sourceActive
         notice={notice}
         selectedCapabilities={selectedCapabilities}
-        password={password}
+        acknowledged={acknowledged}
         pending={pending}
         errorMessage={errorMessage}
-        canSubmit={Boolean(password) && !pending}
+        canSubmit={acknowledged && !pending}
         canSave={false}
         onToggleCapability={() => undefined}
-        onPasswordChange={setPassword}
+        onAcknowledgedChange={setAcknowledged}
         onEnable={() => void runEnable()}
         onChange={() => undefined}
         onRevoke={() => undefined}
