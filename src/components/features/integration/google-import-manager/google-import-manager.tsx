@@ -7,9 +7,11 @@ import { GoogleImportRecoveryStatus } from './google-import-loading-rows'
 import {
   connectionCallbackErrorMessage,
   startErrorMessage,
+  startErrorRequiresNewRequest,
 } from './google-import-error-messages'
 import { buildConfirmedImportItems } from './google-import-review-model'
 import type { ImportReviewDraft } from './google-import-review-model'
+import { startGoogleImport } from './google-import-start'
 import { useGoogleImport } from './use-google-import'
 import { useGoogleImportProgress } from './use-google-import-progress'
 
@@ -29,6 +31,9 @@ export function GoogleImportManager({
   const mounted = useRef(true)
   const startInFlight = useRef(false)
   const ownedRequestId = useRef<string | null>(null)
+  // The idempotency handle for the confirmed import being started. It survives
+  // a failed attempt so a retry replays a request that may have committed.
+  const pendingRequestId = useRef<string | null>(null)
   const recoveryStartedRequestId = useRef<string | null>(null)
   const [startPending, setStartPending] = useState(false)
   // Mirrors the route banner so the same callback never reads as two outcomes.
@@ -127,44 +132,44 @@ export function GoogleImportManager({
   }, [initialProgress, initialRequestId, openProgress, recoverRequest])
   const submitImport = async (reviewDraft: ImportReviewDraft) => {
     if (startInFlight.current) return
+    const submittedItems = buildConfirmedImportItems(reviewDraft)
     startInFlight.current = true
-    const requestId = crypto.randomUUID()
     const submittedEpoch = discovery.lifecycle.epoch()
-    const submittedItems = [...buildConfirmedImportItems(reviewDraft)]
+    pendingRequestId.current ??= crypto.randomUUID()
+    const requestId = pendingRequestId.current
     ownedRequestId.current = requestId
     setStartPending(true)
     setStartError(null)
     try {
-      await navigate({
-        to: '/properties/import-google',
-        search: { requestId },
-        replace: true,
-      })
-      const result = await importFns.startPropertyImportV2({
-        data: {
-          requestId,
-          items: submittedItems,
-          confirmation: 'apply',
+      const outcome = await startGoogleImport({
+        requestId,
+        items: submittedItems,
+        start: importFns.startPropertyImportV2,
+        recover: recoverRequest,
+        isCurrent: () =>
+          mounted.current && discovery.lifecycle.epoch() === submittedEpoch,
+        navigateToRequest: async (committedRequestId) => {
+          await navigate({
+            to: '/properties/import-google',
+            search: { requestId: committedRequestId },
+            replace: true,
+          })
         },
+        openProgress,
       })
-      if (result.requestId !== requestId) throw new Error('import_request_mismatch')
-      if (mounted.current && discovery.lifecycle.epoch() === submittedEpoch) {
-        await openProgress(result.importJobId)
+      if (outcome.kind === 'failed') {
+        if (startErrorRequiresNewRequest(outcome.error)) pendingRequestId.current = null
+        setStartError(startErrorMessage(outcome.error))
+      } else if (outcome.kind !== 'abandoned') {
+        pendingRequestId.current = null
       }
-    } catch (error) {
-      const recoveredId = await recoverRequest(requestId)
-      if (
-        recoveredId &&
-        mounted.current &&
-        discovery.lifecycle.epoch() === submittedEpoch
-      ) {
-        await openProgress(recoveredId)
-      } else if (
-        !recoveredId &&
-        mounted.current &&
-        discovery.lifecycle.epoch() === submittedEpoch
-      ) {
-        setStartError(startErrorMessage(error))
+    } catch {
+      // The import committed and the URL already names it; only opening its
+      // progress failed, and a reload recovers it from the request id.
+      if (mounted.current) {
+        setStartError(
+          'The import started, but its progress could not be loaded. Refresh this page to open it.',
+        )
       }
     } finally {
       startInFlight.current = false

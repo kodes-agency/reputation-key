@@ -86,6 +86,15 @@ export function discoveryErrorMessage(error: unknown): string {
   }
 }
 
+/**
+ * Whether a start failure used up its request id. Every other failure keeps the
+ * id, so retrying replays an import that may have committed instead of
+ * starting a second one next to it.
+ */
+export function startErrorRequiresNewRequest(error: unknown): boolean {
+  return errorCode(error) === 'request_conflict'
+}
+
 export function startErrorMessage(error: unknown): string {
   switch (errorCode(error)) {
     case 'request_conflict':

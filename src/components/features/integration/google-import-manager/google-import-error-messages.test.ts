@@ -7,6 +7,7 @@ import {
   discoveryErrorMessage,
   leaseRenewalFailureIsFinal,
   startErrorMessage,
+  startErrorRequiresNewRequest,
 } from './google-import-error-messages'
 
 /**
@@ -112,6 +113,16 @@ describe('startErrorMessage', () => {
     expect(message).toMatch(/contact support/i)
     expect(message).toMatch(/cannot be retried/i)
     expect(message).not.toMatch(/recover it|try again|try shortly/i)
+  })
+})
+
+describe('startErrorRequiresNewRequest', () => {
+  it('retires the request id only when the server says it was used elsewhere', () => {
+    expect(startErrorRequiresNewRequest(coded('request_conflict'))).toBe(true)
+    // A retry after these must replay the same id: the first call may have committed.
+    expect(startErrorRequiresNewRequest(coded('temporarily_unavailable'))).toBe(false)
+    expect(startErrorRequiresNewRequest(coded('invalid_reference'))).toBe(false)
+    expect(startErrorRequiresNewRequest(new TypeError('Failed to fetch'))).toBe(false)
   })
 })
 
