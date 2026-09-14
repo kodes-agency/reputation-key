@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   enable: vi.fn(),
   change: vi.fn(),
   revoke: vi.fn(),
+  defer: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
 }))
@@ -19,6 +20,7 @@ vi.mock('#/composition', () => ({
           enable: mocks.enable,
           change: mocks.change,
           revoke: mocks.revoke,
+          defer: mocks.defer,
         },
       },
     },
@@ -39,8 +41,10 @@ vi.mock('#/shared/observability/traced-server-fn', () => ({
 
 import {
   changeMerchantAiCapabilitiesFn,
+  deferMerchantAiDecisionFn,
   getMerchantAiAuthorizationFn,
 } from './merchant-ai'
+import { merchantAiDecisionError } from '../domain/merchant-ai-decision-errors'
 
 const START_KEY = Symbol.for('tanstack-start:start-storage-context')
 function withStartContext<T>(fn: () => Promise<T>): Promise<T> {
@@ -138,5 +142,71 @@ describe('Merchant AI server functions', () => {
       ),
     ).rejects.toThrow('execution denied')
     expect(mocks.change).not.toHaveBeenCalled()
+  })
+
+  it('defers for the resolved tenant actor behind the property-scoped management gate', async () => {
+    mocks.defer.mockResolvedValue({
+      propertyId: PROPERTY_ID,
+      decisionDeferredAt: '2026-09-15T08:00:00.000Z',
+    })
+
+    // Outside the server runtime the wrapper resolves to undefined, so the
+    // contract is asserted on the gate and the forwarded command.
+    await withStartContext(() =>
+      deferMerchantAiDecisionFn({ data: { propertyId: PROPERTY_ID } }),
+    )
+    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
+      actor,
+      action: 'ai.manage',
+      propertyId: PROPERTY_ID,
+    })
+    // No step-up proof and no request headers: a deferral authorizes nothing.
+    expect(mocks.defer).toHaveBeenCalledWith({
+      organizationId: actor.organizationId,
+      propertyId: PROPERTY_ID,
+      actorUserId: actor.userId,
+    })
+  })
+
+  it('maps an already-enabled refusal to a conflict', async () => {
+    mocks.defer.mockRejectedValue(
+      merchantAiDecisionError(
+        'already_enabled',
+        'AI is already enabled for this property',
+      ),
+    )
+
+    await expect(
+      withStartContext(() =>
+        deferMerchantAiDecisionFn({ data: { propertyId: PROPERTY_ID } }),
+      ),
+    ).rejects.toMatchObject({
+      name: 'MerchantAiDecisionError',
+      code: 'already_enabled',
+      status: 409,
+    })
+  })
+
+  it('maps a Property outside the Organization to not found', async () => {
+    mocks.defer.mockRejectedValue(
+      merchantAiDecisionError('property_not_found', 'Property was not found'),
+    )
+
+    await expect(
+      withStartContext(() =>
+        deferMerchantAiDecisionFn({ data: { propertyId: PROPERTY_ID } }),
+      ),
+    ).rejects.toMatchObject({ code: 'property_not_found', status: 404 })
+  })
+
+  it('does not defer when the management execution gate denies the request', async () => {
+    mocks.requireExecutionAllowed.mockRejectedValue(new Error('execution denied'))
+
+    await expect(
+      withStartContext(() =>
+        deferMerchantAiDecisionFn({ data: { propertyId: PROPERTY_ID } }),
+      ),
+    ).rejects.toThrow('execution denied')
+    expect(mocks.defer).not.toHaveBeenCalled()
   })
 })

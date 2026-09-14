@@ -11,6 +11,7 @@ import {
   MerchantAiAuthorizationStoreError,
 } from '../application/use-cases/merchant-ai-authorization'
 import { MERCHANT_AI_NOTICE } from '../application/dto/merchant-ai-notice.dto'
+import { isMerchantAiDecisionError } from '../domain/merchant-ai-decision-errors'
 
 const propertyInputSchema = z.object({ propertyId: z.uuid() })
 const authorizationInputSchema = z.object({ propertyId: z.uuid().optional() })
@@ -22,6 +23,13 @@ const commandSchema = propertyInputSchema.extend({
 const capabilitySchema = z.enum(['review_analysis', 'reply_drafting', 'property_trends'])
 
 function mapMerchantAiError(error: unknown): never {
+  if (isMerchantAiDecisionError(error)) {
+    throwContextError(
+      'MerchantAiDecisionError',
+      error,
+      error.code === 'already_enabled' ? 409 : 404,
+    )
+  }
   if (error instanceof MerchantAiAuthorizationError) {
     const status = error.code === 'capability_denied' ? 403 : 400
     throwContextError(
@@ -169,5 +177,32 @@ export const revokeMerchantAiFn = createServerFn({ method: 'POST' })
       },
       'POST',
       'identity.revokeMerchantAi',
+    ),
+  )
+
+/**
+ * Record "not now" for a Property's AI decision. It carries no consent and no
+ * step-up proof: nothing is authorized, so there is nothing to re-verify.
+ */
+export const deferMerchantAiDecisionFn = createServerFn({ method: 'POST' })
+  .validator(propertyInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const { actor } = await managementContext(data.propertyId)
+        try {
+          return await getContainer().identityPublicApi.requests.merchantAiAuthorization.defer(
+            {
+              organizationId: actor.organizationId as string,
+              propertyId: data.propertyId,
+              actorUserId: actor.userId as string,
+            },
+          )
+        } catch (error) {
+          mapMerchantAiError(error)
+        }
+      },
+      'POST',
+      'identity.deferMerchantAiDecision',
     ),
   )
