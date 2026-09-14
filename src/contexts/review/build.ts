@@ -105,7 +105,11 @@ import {
 import { reconcileReplyPublication } from './application/use-cases/reconcile-reply-publication'
 import { cancelPublicationsForConnection } from './application/use-cases/cancel-publications'
 import { getStaffRecentActivity } from './application/use-cases/get-staff-recent-activity'
-import { createEligibleReads, type EligibleReads } from './application/eligible-reads'
+import {
+  createEligibleGoogleReplyReads,
+  createEligibleReads,
+  type EligibleReads,
+} from './application/eligible-reads'
 import { reviewId, replyId } from '#/shared/domain/ids'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
@@ -564,7 +568,14 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
 
   return {
     publicApi: {
-      ...createEligibleReads({ reviewRepo, clock: input.clock }),
+      ...createEligibleReads({
+        reviewRepo,
+        clock: input.clock,
+      }),
+      ...createEligibleGoogleReplyReads({
+        googleReplyObservations: googleReplyObservationStore,
+        clock: input.clock,
+      }),
       replyObservationAuthority,
       responseTargetAuthority,
       sourceTransitionAuthority,

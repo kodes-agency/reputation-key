@@ -126,6 +126,7 @@ const noopReplyLookup: ReplyLookupPort = {
   getEffectiveReplyByReviewId: async () => null,
   getReplyMilestonesByReviewIds: async () => new Map(),
   getReplyStatesByReviewIds: async () => new Map(),
+  findReviewIdsByReplyStage: async () => ({ awaiting: [], waiting: [] }),
 }
 
 const noopReviewSourceLookup: ReviewSourceLookupPort = {
@@ -278,7 +279,7 @@ export function createInboxContainer() {
     getInboxItemDetail: useCases.getInboxItemDetail,
     getInboxNotes: useCases.getInboxNotes,
     getInboxItemHistory: useCases.getInboxItemHistory,
-    getInboxFolderCounts: useCases.getInboxFolderCounts,
+    getInboxQueueCounts: useCases.getInboxQueueCounts,
     markFeedbackHandled: useCases.markFeedbackHandled,
     correctFeedbackHandlingOutcome: useCases.correctFeedbackHandlingOutcome,
     getGoogleReviewTargetAnalytics: useCases.getGoogleReviewTargetAnalytics,

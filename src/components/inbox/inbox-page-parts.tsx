@@ -2,10 +2,12 @@
 // inbox-page-v2.tsx for line-count compliance.
 
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import type { ComposerFocusBox } from './inbox-detail-content'
+import type { InboxAssignmentOption } from './inbox-owner-view'
+import type { InboxCurrentUser } from './inbox-case-toolbar-props'
 import type { InboxDetailState } from './use-inbox-detail'
 import type { InboxDetailFns } from './types'
 import { InboxDetailPanel } from '#/components/inbox/inbox-detail-panel'
-import { InboxDetailSheet } from '#/components/inbox/inbox-detail-sheet'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { Panel, Separator, type LayoutStorage } from 'react-resizable-panels'
@@ -20,7 +22,6 @@ import { Inbox } from 'lucide-react'
  * releases.
  */
 export const INBOX_PANEL_IDS = {
-  sidebar: 'inbox-sidebar',
   list: 'inbox-list',
   detail: 'inbox-detail',
 } as const
@@ -61,15 +62,6 @@ export const ResizeHandle = () => (
   <Separator className="w-1.5 bg-border/50 hover:bg-primary/30 active:bg-primary/50 transition-colors" />
 )
 
-const FOLDER_LABELS: Record<string, string> = {
-  open: 'Open reviews',
-  escalated: 'Escalated reviews',
-  closed: 'Closed reviews',
-}
-
-export const folderLabelFor = (folder: string | undefined): string =>
-  FOLDER_LABELS[folder ?? 'open'] ?? 'Open reviews'
-
 export function InboxNoOrgState() {
   return (
     <PageShell>
@@ -98,50 +90,54 @@ function EmptyDetailPlaceholder() {
 type InboxDetailPaneProps = Readonly<{
   selectedItem: InboxItem | null
   detailState: InboxDetailState
-  isMobile: boolean
   onClose: () => void
   detailFns: InboxDetailFns
-  currentUserId?: string
+  currentUser?: InboxCurrentUser
+  assignmentOptions?: ReadonlyArray<InboxAssignmentOption>
+  /** Where the pane's composer publishes its focus for `r` / `n`. */
+  composerFocusRef?: ComposerFocusBox
 }>
 
+/**
+ * The third Panel of the DESKTOP layout, and only that.
+ *
+ * `InboxPageV2` returns its mobile branch before it ever reaches the `Group`
+ * this lives in, so every render of this component is a render at `md` and
+ * above. It used to mount an `InboxDetailSheet` beside the Panel, keyed
+ * `open={isMobile && !!selectedItem}`; `isMobile` is false by construction on
+ * this branch, so that sheet had been permanently closed — Radix renders no
+ * portal and no children for a closed dialog, so it had never put a node in the
+ * document either. Its cost was that it made "the sheet" ambiguous: an edit to
+ * the mobile surface could land on the copy that is never open and appear to do
+ * nothing. PR 6 deleted it; the live one is mounted by `InboxPageV2` directly.
+ *
+ * `isMobile` went with it rather than staying as an unread prop — the one
+ * sentence that keeps this honest is that the mobile branch never gets here.
+ */
 export function InboxDetailPane({
   selectedItem,
   detailState,
-  isMobile,
   onClose,
   detailFns,
-  currentUserId,
+  currentUser,
+  assignmentOptions,
+  composerFocusRef,
 }: InboxDetailPaneProps) {
   return (
-    <>
-      <Panel
-        id={INBOX_PANEL_IDS.detail}
-        defaultSize="50%"
-        minSize="30%"
-        style={CLIP_PANEL_CONTENT}
-      >
-        {selectedItem ? (
-          <InboxDetailPanel
-            selectedItem={selectedItem}
-            detailState={detailState}
-            onClose={onClose}
-            detailFns={detailFns}
-            currentUserId={currentUserId}
-          />
-        ) : (
-          <EmptyDetailPlaceholder />
-        )}
-      </Panel>
-      <InboxDetailSheet
-        open={isMobile && !!selectedItem}
-        onOpenChange={(o) => {
-          if (!o) onClose()
-        }}
-        item={selectedItem}
-        detailState={detailState}
-        detailFns={detailFns}
-        currentUserId={currentUserId}
-      />
-    </>
+    <Panel id={INBOX_PANEL_IDS.detail} minSize={480} style={CLIP_PANEL_CONTENT}>
+      {selectedItem ? (
+        <InboxDetailPanel
+          selectedItem={selectedItem}
+          detailState={detailState}
+          onClose={onClose}
+          detailFns={detailFns}
+          currentUser={currentUser}
+          assignmentOptions={assignmentOptions}
+          composerFocusRef={composerFocusRef}
+        />
+      ) : (
+        <EmptyDetailPlaceholder />
+      )}
+    </Panel>
   )
 }

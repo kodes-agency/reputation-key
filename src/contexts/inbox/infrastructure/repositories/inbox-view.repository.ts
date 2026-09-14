@@ -1,5 +1,5 @@
 // Inbox context — Drizzle inbox-view repository implementation
-// Stores the per-user lastInboxView timestamp (ADR 0023).
+// Stores the per-user lastInboxView timestamp (ADR 0057).
 
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'

@@ -79,7 +79,17 @@ export function FeedbackHandlingForm(props: Props) {
               </SelectTrigger>
               <SelectContent>
                 {PRIVATE_FEEDBACK_HANDLING_OUTCOMES.map((outcome) => (
-                  <SelectItem key={outcome} value={outcome}>
+                  // A MENU ITEM, so it keeps v1's 44 px floor below `md` while
+                  // the trigger above and the footer's buttons are 36 (row 20):
+                  // five options stacked edge to edge with no gap, where a thumb
+                  // that misses one records the neighbouring outcome. These
+                  // options render into a Radix portal at `document.body`, so
+                  // they are NOT descendants of `DialogContent` and no call-site
+                  // selector on the dialog can reach them — the class has to sit
+                  // on the item itself. `min-h-`, not `h-`, because `Reviewed —
+                  // no additional step` wraps at 320 px. Same spelling as
+                  // `inbox-reopen-dialog.tsx`.
+                  <SelectItem key={outcome} className="max-md:min-h-11" value={outcome}>
                     {feedbackHandlingOutcomeLabel(outcome)}
                   </SelectItem>
                 ))}

@@ -6,8 +6,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createReplyLookupAdapter } from './reply-lookup.adapter'
 import type {
+  ReplyEntityView,
   ReplyLookupPort,
-  ReplyView,
 } from '../../application/ports/reply-lookup.port'
 import type { ReplyLookupSource } from '../../application/ports/lookup-sources.port'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
@@ -17,7 +17,7 @@ const REVIEW = reviewId('d4000000-0000-4000-8000-000000000010')
 
 const NOW = new Date('2026-07-19T12:00:00Z')
 
-function makeReply(overrides: Partial<ReplyView> = {}): ReplyView {
+function makeReply(overrides: Partial<ReplyEntityView> = {}): ReplyEntityView {
   return {
     id: replyId('reply-1'),
     reviewId: REVIEW,
@@ -47,11 +47,13 @@ function makeReply(overrides: Partial<ReplyView> = {}): ReplyView {
   }
 }
 
-const setup = (replies: ReadonlyArray<ReplyView>) =>
+const setup = (replies: ReadonlyArray<ReplyEntityView>) =>
   createReplyLookupAdapter({
     findByReviewId: async () => replies,
+    getCurrentGoogleReplyByReviewId: async () => null,
     findMilestonesByReviewIds: async () => [],
     findStatesByReviewIds: async () => [],
+    findReviewIdsByReplyStage: async () => [],
   })
 
 describe('getEffectiveReplyByReviewId', () => {
@@ -81,6 +83,66 @@ describe('getEffectiveReplyByReviewId', () => {
     const adapter = setup([])
 
     await expect(adapter.getEffectiveReplyByReviewId(REVIEW, ORG)).resolves.toBeNull()
+  })
+
+  it('serves a current external Google observation after its legacy mirror is removed', async () => {
+    const observedAt = new Date('2026-07-19T11:00:00Z')
+    const providerUpdatedAt = new Date('2026-07-14T09:30:00Z')
+    const adapter = createReplyLookupAdapter({
+      findByReviewId: async () => [],
+      getCurrentGoogleReplyByReviewId: async () => ({
+        id: 'observation-1',
+        reviewId: REVIEW,
+        organizationId: ORG,
+        text: 'Thank you for your review.',
+        observationRevision: 3,
+        provenance: 'external_or_unknown',
+        matchedReplyId: null,
+        providerUpdatedAt,
+        observedAt,
+      }),
+      findMilestonesByReviewIds: async () => [],
+      findStatesByReviewIds: async () => [],
+      findReviewIdsByReplyStage: async () => [],
+    })
+
+    const result = await adapter.getEffectiveReplyByReviewId(REVIEW, ORG)
+
+    expect(result).toMatchObject({
+      kind: 'google_observation',
+      id: 'observation-1',
+      source: 'google_sync',
+      status: 'published',
+      text: 'Thank you for your review.',
+      publishedAt: providerUpdatedAt,
+      updatedAt: observedAt,
+    })
+  })
+
+  it('keeps the internal reply when the current Google observation confirms it', async () => {
+    const internal = makeReply({ id: replyId('internal-1') })
+    const adapter = createReplyLookupAdapter({
+      findByReviewId: async () => [internal],
+      getCurrentGoogleReplyByReviewId: async () => ({
+        id: 'observation-1',
+        reviewId: REVIEW,
+        organizationId: ORG,
+        text: internal.text,
+        observationRevision: 2,
+        provenance: 'repkey_confirmed',
+        matchedReplyId: internal.id,
+        providerUpdatedAt: NOW,
+        observedAt: NOW,
+      }),
+      findMilestonesByReviewIds: async () => [],
+      findStatesByReviewIds: async () => [],
+      findReviewIdsByReplyStage: async () => [],
+    })
+
+    await expect(adapter.getEffectiveReplyByReviewId(REVIEW, ORG)).resolves.toEqual({
+      kind: 'reply',
+      ...internal,
+    })
   })
 })
 
@@ -157,8 +219,10 @@ describe('getReplyStatesByReviewIds', () => {
     const findByReviewId = vi.fn(async () => [])
     const adapter = createReplyLookupAdapter({
       findByReviewId,
+      getCurrentGoogleReplyByReviewId: async () => null,
       findMilestonesByReviewIds: async () => [],
       findStatesByReviewIds,
+      findReviewIdsByReplyStage: async () => [],
     })
 
     const result = await adapter.getReplyStatesByReviewIds([REVIEW, secondReview], ORG)
@@ -188,5 +252,47 @@ describe('getReplyStatesByReviewIds', () => {
         ],
       ]),
     )
+  })
+})
+
+describe('findReviewIdsByReplyStage', () => {
+  it('partitions effective replies and gives internal state precedence', async () => {
+    const waitingReview = reviewId('d4000000-0000-4000-8000-000000000011')
+    const needsReplyReview = reviewId('d4000000-0000-4000-8000-000000000012')
+    const findReviewIdsByReplyStage = vi.fn(async () => [
+      { reviewId: REVIEW, source: 'google_sync' as const, stage: 'waiting' as const },
+      {
+        reviewId: REVIEW,
+        source: 'internal' as const,
+        stage: 'awaiting' as const,
+      },
+      {
+        reviewId: waitingReview,
+        source: 'google_sync' as const,
+        stage: 'waiting' as const,
+      },
+      {
+        reviewId: needsReplyReview,
+        source: 'google_sync' as const,
+        stage: 'waiting' as const,
+      },
+      {
+        reviewId: needsReplyReview,
+        source: 'internal' as const,
+        stage: 'needs_reply' as const,
+      },
+    ])
+    const adapter = createReplyLookupAdapter({
+      findByReviewId: async () => [],
+      getCurrentGoogleReplyByReviewId: async () => null,
+      findMilestonesByReviewIds: async () => [],
+      findStatesByReviewIds: async () => [],
+      findReviewIdsByReplyStage,
+    })
+
+    const result = await adapter.findReviewIdsByReplyStage(ORG)
+
+    expect(findReviewIdsByReplyStage).toHaveBeenCalledWith(ORG, undefined)
+    expect(result).toEqual({ awaiting: [REVIEW], waiting: [waitingReview] })
   })
 })

@@ -1,219 +1,79 @@
-import { useId } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ChevronDown, RotateCcw, ShieldCheck, Sparkles, Undo2 } from 'lucide-react'
+import { RotateCcw, Undo2 } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
-import { ButtonGroup } from '#/components/ui/button-group'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
+import { ReplyAiMenu, type ReplyAiMenuProps } from './reply-ai-menu'
 import type { ReplySuggestionFixTarget } from './reply-suggestion-contract'
-import type { ReplyTone } from './use-reply-suggestion'
+import { ReplyTemplateMenu, type ReplyTemplateMenuProps } from './reply-template-menu'
 
 type SuggestionMode = 'ai' | 'template'
 
-type TemplateOption = Readonly<{ id: string; title: string }>
+/**
+ * Everything the two menus take, minus `isPrimary` (derived here from
+ * `primaryMode`), plus what this row owns itself: the order, `Undo`, and the
+ * error line with its fix. The props the menus share — `disabled`,
+ * `propertyId`, `primaryExplanation`, `languageChoices` and
+ * `reviewLanguageReadiness` — have one type in both menus, so one value feeds
+ * them both.
+ */
+type Props = Omit<ReplyAiMenuProps & ReplyTemplateMenuProps, 'isPrimary'> &
+  Readonly<{
+    primaryMode: SuggestionMode
+    canUndo: boolean
+    hasAiDraft: boolean
+    aiError: string | null
+    templateError: string | null
+    errorFixTarget?: ReplySuggestionFixTarget | null
+    onUndo: () => void
+  }>
 
-type Props = Readonly<{
-  tone: ReplyTone
-  primaryMode: SuggestionMode
-  primaryExplanation: string
-  disabled: boolean
-  templateDisabled: boolean
-  aiDisabled: boolean
-  templateUnavailableReason: string | null
-  aiUnavailableReason: string | null
-  isGenerating: boolean
-  isLoadingTemplate: boolean
-  hasAiDraft: boolean
-  canUndo: boolean
-  aiError: string | null
-  templateError: string | null
-  errorFixTarget?: ReplySuggestionFixTarget | null
-  propertyId: string
-  templates: readonly TemplateOption[]
-  onToneChange: (tone: ReplyTone) => void
-  onRequestAi: (tone?: ReplyTone) => Promise<void>
-  onPrepareTemplateMenu: () => void
-  onLoadRecommended: () => Promise<void>
-  onLoadTemplate: (templateId: string, title: string) => Promise<void>
-  onLoadLocalSafe: () => Promise<void>
-  onUndo: () => void
-}>
-
-const toneLabel: Record<ReplyTone, string> = {
-  professional: 'Professional',
-  friendly: 'Friendly',
-  casual: 'Casual',
-}
-
-function AiControls(
-  props: Pick<
-    Props,
-    | 'tone'
-    | 'primaryMode'
-    | 'disabled'
-    | 'aiDisabled'
-    | 'aiUnavailableReason'
-    | 'isGenerating'
-    | 'onToneChange'
-    | 'onRequestAi'
-  >,
-) {
-  const reasonId = useId()
-  const disabled = props.disabled || props.aiDisabled
-  return (
-    <>
-      <ButtonGroup>
-        <Button
-          type="button"
-          size="sm"
-          variant={props.primaryMode === 'ai' ? 'default' : 'outline'}
-          disabled={disabled}
-          aria-describedby={props.aiUnavailableReason ? reasonId : undefined}
-          onClick={() => void props.onRequestAi()}
-        >
-          <Sparkles data-icon="inline-start" />
-          {props.isGenerating ? 'Drafting…' : 'Draft with AI'}
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              size="icon-sm"
-              variant={props.primaryMode === 'ai' ? 'default' : 'outline'}
-              disabled={disabled}
-              aria-label={`AI tone: ${toneLabel[props.tone]}`}
-              aria-describedby={props.aiUnavailableReason ? reasonId : undefined}
-            >
-              <ChevronDown data-icon="inline-start" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuGroup>
-              {(Object.keys(toneLabel) as ReplyTone[]).map((option) => (
-                <DropdownMenuItem
-                  key={option}
-                  onSelect={() => props.onToneChange(option)}
-                >
-                  {toneLabel[option]}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </ButtonGroup>
-      {props.aiUnavailableReason && (
-        <span id={reasonId} className="sr-only">
-          {props.aiUnavailableReason}
-        </span>
-      )}
-    </>
-  )
-}
-
-function TemplateControls(
-  props: Pick<
-    Props,
-    | 'primaryMode'
-    | 'disabled'
-    | 'templateDisabled'
-    | 'templateUnavailableReason'
-    | 'isLoadingTemplate'
-    | 'templates'
-    | 'onPrepareTemplateMenu'
-    | 'onLoadRecommended'
-    | 'onLoadTemplate'
-    | 'onLoadLocalSafe'
-  >,
-) {
-  const reasonId = useId()
-  const disabled = props.disabled || props.templateDisabled
-  const variant = props.primaryMode === 'template' ? 'default' : 'outline'
-  return (
-    <>
-      <ButtonGroup>
-        <Button
-          type="button"
-          size="sm"
-          variant={variant}
-          disabled={disabled}
-          aria-describedby={props.templateUnavailableReason ? reasonId : undefined}
-          onClick={() => void props.onLoadRecommended()}
-        >
-          <ShieldCheck data-icon="inline-start" />
-          {props.isLoadingTemplate ? 'Loading…' : 'Load template'}
-        </Button>
-        <DropdownMenu
-          onOpenChange={(open) => {
-            if (open) props.onPrepareTemplateMenu()
-          }}
-        >
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              size="icon-sm"
-              variant={variant}
-              disabled={disabled}
-              aria-label="Choose a reply template"
-              aria-describedby={props.templateUnavailableReason ? reasonId : undefined}
-            >
-              <ChevronDown data-icon="inline-start" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuGroup>
-              {props.templates.map((template) => (
-                <DropdownMenuItem
-                  key={template.id}
-                  onSelect={() => void props.onLoadTemplate(template.id, template.title)}
-                >
-                  {template.title}
-                </DropdownMenuItem>
-              ))}
-              {props.templates.length === 0 && (
-                <DropdownMenuItem disabled>
-                  {props.isLoadingTemplate
-                    ? 'Loading property templates…'
-                    : 'No library templates for this review'}
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => void props.onLoadLocalSafe()}>
-                Local safe template
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </ButtonGroup>
-      {props.templateUnavailableReason && (
-        <span id={reasonId} className="sr-only">
-          {props.templateUnavailableReason}
-        </span>
-      )}
-    </>
-  )
-}
-
+/*
+ * The dock's assist tools (plan v2.1 row 14, the foot row's left half).
+ *
+ * This file used to BE both split buttons, at 294 of 300 counted lines, and
+ * could not take the language when row 17 moved it out of the composer chrome
+ * and into the menus. It split along the seam the plan names: `Draft with AI ▾`
+ * is `reply-ai-menu.tsx`, `Template ▾` is `reply-template-menu.tsx`, and the
+ * words both print are `reply-assist-language.ts` / `reply-assist-menu-parts.tsx`.
+ * What stays here is what is about the ROW, not either tool: which tool comes
+ * first, the one-click actions for an adopted AI draft, `Undo`, and the error
+ * line with its fix target. Language remains inside the two assist menus; it
+ * is not repeated as a separate control beside them.
+ *
+ * Mobile (row 20): 36 px, not v1's 44. WCAG 2.5.8 AA asks for 24 px, and 44 on
+ * every half of two split buttons is what turned the phone's composer into a
+ * block of large buttons (plan finding 6). `max-md:h-9` on `Undo` (a `size="sm"`
+ * button), `max-md:min-h-9` on the link-styled fix buttons, which wrap rather
+ * than sit on one line; menu ITEMS inside the two menus keep `max-md:min-h-11`
+ * — stacked edge to edge with no gap, they are a different target class. `max-md:`,
+ * not unconditional: the desktop pane is dense on purpose.
+ */
 export function ReplySuggestionControls(props: Props) {
   const { can } = usePermissions()
   const canManagePortalBrand = can('portal.admin')
   const canManageAi = can('ai.manage')
+  // The recommended path leads. `primaryMode` is `template` whenever the review
+  // has no detectable language (`reply-editor-compose.tsx`, `usesTemplatePath`),
+  // where AI drafting cannot verify its output's language anyway.
+  const ai = <ReplyAiMenu key="ai" {...props} isPrimary={props.primaryMode === 'ai'} />
+  const template = (
+    <ReplyTemplateMenu
+      key="template"
+      {...props}
+      isPrimary={props.primaryMode === 'template'}
+    />
+  )
+
   return (
     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-      <TemplateControls {...props} />
-      <AiControls {...props} />
+      {props.primaryMode === 'ai' ? [ai, template] : [template, ai]}
       {props.hasAiDraft && (
         <>
           <Button
             type="button"
             size="sm"
             variant="outline"
+            className="max-md:h-9"
             disabled={props.disabled || props.aiDisabled}
             onClick={() => void props.onRequestAi('friendly')}
           >
@@ -223,10 +83,11 @@ export function ReplySuggestionControls(props: Props) {
             type="button"
             size="sm"
             variant="outline"
+            className="max-md:h-9"
             disabled={props.disabled || props.aiDisabled}
             onClick={() => void props.onRequestAi()}
           >
-            <RotateCcw data-icon="inline-start" /> Try again
+            <RotateCcw data-icon="inline-start" aria-hidden="true" /> Try again
           </Button>
         </>
       )}
@@ -235,22 +96,20 @@ export function ReplySuggestionControls(props: Props) {
           type="button"
           size="sm"
           variant="ghost"
+          className="max-md:h-9"
           disabled={props.disabled}
           onClick={props.onUndo}
         >
           <Undo2 data-icon="inline-start" /> Undo
         </Button>
       )}
-      <p className="basis-full text-xs text-muted-foreground">
-        {props.primaryExplanation}
-      </p>
       {(props.templateError || props.aiError) && (
         <div role="status" className="basis-full text-xs text-destructive">
           {props.templateError && <p>{props.templateError}</p>}
           {props.aiError && <p>{props.aiError}</p>}
           {props.errorFixTarget === 'public_display_name' &&
             (canManagePortalBrand ? (
-              <Button asChild size="xs" variant="link">
+              <Button asChild size="xs" variant="link" className="max-md:min-h-9">
                 <Link
                   to="/properties/$propertyId/settings"
                   params={{ propertyId: props.propertyId }}
@@ -265,7 +124,7 @@ export function ReplySuggestionControls(props: Props) {
             ))}
           {props.errorFixTarget === 'ai_settings' &&
             (canManageAi ? (
-              <Button asChild size="xs" variant="link">
+              <Button asChild size="xs" variant="link" className="max-md:min-h-9">
                 <Link to="/settings/ai" search={{ propertyId: props.propertyId }}>
                   Enable AI replies
                 </Link>

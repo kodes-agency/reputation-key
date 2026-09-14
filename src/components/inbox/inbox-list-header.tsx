@@ -1,22 +1,22 @@
-import type { ReactNode } from 'react'
-import { Menu, Search } from 'lucide-react'
-import { Badge } from '#/components/ui/badge'
+import { useState, type ReactNode } from 'react'
+import { ArrowUpDown, Search } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '#/components/ui/input-group'
+import { ButtonGroup } from '#/components/ui/button-group'
 import {
   Select,
   SelectContent,
   SelectGroup,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '#/components/ui/select'
 import type { InboxSort } from '#/contexts/inbox/application/public-api'
 import { InboxFilterPopover } from './inbox-filter-popover'
 import type { InboxListFilterValues } from './inbox-filters'
+import { InboxListSearch } from './inbox-list-search'
 
 type Props = Readonly<{
-  folderLabel: string
+  queueLabel: string
+  scopeLabel: string
   totalCount: number
   searchQ: string | undefined
   filters: InboxListFilterValues
@@ -24,12 +24,14 @@ type Props = Readonly<{
   onSearchChange: (q: string | undefined) => void
   onFiltersChange: (patch: Partial<InboxListFilterValues>) => void
   onSortChange: (sort: InboxSort) => void
-  onOpenSidebar?: () => void
+  onStartSelection?: () => void
+  isCompactLayout?: boolean
   selectionToolbar?: ReactNode
 }>
 
 export function InboxListHeader({
-  folderLabel,
+  queueLabel,
+  scopeLabel,
   totalCount,
   searchQ,
   filters,
@@ -37,63 +39,83 @@ export function InboxListHeader({
   onSearchChange,
   onFiltersChange,
   onSortChange,
-  onOpenSidebar,
+  onStartSelection,
+  isCompactLayout = false,
   selectionToolbar,
 }: Props) {
-  return (
-    <header className="shrink-0 border-b px-5 py-4">
-      <div className="flex min-w-0 items-center gap-3">
-        {/* The drawer trigger is mobile-only because only the mobile branch of
-            InboxPageV2 passes onOpenSidebar; a second CSS-breakpoint gate would
-            duplicate that decision (and hide the control from viewport-less
-            component runners). */}
-        {onOpenSidebar && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="-ml-2"
-            onClick={onOpenSidebar}
-            aria-label="Open folders"
-          >
-            <Menu />
-          </Button>
-        )}
-        <h1 className="truncate text-xl font-semibold tracking-tight">{folderLabel}</h1>
-        <Badge variant="secondary" className="tabular-nums">
-          {totalCount}
-        </Badge>
-      </div>
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchVisible = searchOpen || searchQ !== undefined
 
-      {selectionToolbar ?? (
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <InputGroup className="h-10 min-w-48 flex-1 basis-64">
-            <InputGroupInput
-              aria-label="Search reviews"
-              placeholder="Search reviews..."
-              value={searchQ ?? ''}
-              onChange={(event) => onSearchChange(event.target.value || undefined)}
-            />
-            <InputGroupAddon>
-              <Search aria-hidden="true" />
-            </InputGroupAddon>
-          </InputGroup>
-          <InboxFilterPopover value={filters} onChange={onFiltersChange} />
-          <Select
-            value={sort}
-            onValueChange={(value) => onSortChange(value as InboxSort)}
-          >
-            <SelectTrigger className="h-10 w-32" aria-label="Sort reviews">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper">
-              <SelectGroup>
-                <SelectItem value="newest">Newest</SelectItem>
-                <SelectItem value="oldest">Oldest</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+  return (
+    <header
+      data-inbox-list-header
+      className="flex h-14 shrink-0 items-center border-b px-3 max-md:h-11 max-md:px-2"
+    >
+      {selectionToolbar ??
+        (searchVisible ? (
+          <InboxListSearch
+            value={searchQ}
+            totalCount={totalCount}
+            onChange={onSearchChange}
+            onClose={() => setSearchOpen(false)}
+          />
+        ) : (
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-2 max-md:hidden">
+                <h1 className="truncate text-sm font-semibold">{queueLabel}</h1>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {totalCount}
+                </span>
+              </div>
+              <p className="truncate text-xs text-muted-foreground">{scopeLabel}</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="max-md:size-9"
+              aria-label="Search"
+              onClick={() => setSearchOpen(true)}
+            >
+              <Search />
+            </Button>
+            <ButtonGroup>
+              <InboxFilterPopover value={filters} onChange={onFiltersChange} />
+              <Select
+                value={sort}
+                onValueChange={(value) => onSortChange(value as InboxSort)}
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="max-md:size-9 max-md:px-0"
+                  aria-label="Sort reviews"
+                >
+                  <ArrowUpDown className="size-4" aria-hidden="true" />
+                  <span className="max-md:sr-only">
+                    {sort === 'newest' ? 'Newest' : 'Oldest'}
+                  </span>
+                </SelectTrigger>
+                <SelectContent position="popper">
+                  <SelectGroup>
+                    <SelectItem value="newest">Newest</SelectItem>
+                    <SelectItem value="oldest">Oldest</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </ButtonGroup>
+            {isCompactLayout && onStartSelection && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 px-2"
+                aria-label="Select items"
+                onClick={onStartSelection}
+              >
+                Select
+              </Button>
+            )}
+          </div>
+        ))}
     </header>
   )
 }

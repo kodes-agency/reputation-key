@@ -13,7 +13,9 @@ import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { replyId, userId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type {
+  CurrentGoogleReplyObservation,
   GoogleReplyObservationResult,
+  GoogleReplyObservationLookup,
   GoogleReplyObservationStore,
   GoogleReplyPublicationTarget,
   RecordGoogleReplyObservation,
@@ -716,8 +718,41 @@ async function settleSupersededPublication(
  * both durable facts. */
 export const createGoogleReplyObservationStore = (
   db: Database,
-): GoogleReplyObservationStore => {
+): GoogleReplyObservationStore & GoogleReplyObservationLookup => {
   return {
+    findCurrentByReviewId: (reviewId, organizationId) =>
+      trace('review.googleReplyObservation.findCurrentByReviewId', async () => {
+        const rows = await db
+          .select({ observation: googleReplyObservations })
+          .from(googleReplyObservationHeads)
+          .innerJoin(
+            googleReplyObservations,
+            eq(googleReplyObservations.id, googleReplyObservationHeads.observationId),
+          )
+          .where(
+            and(
+              eq(googleReplyObservationHeads.organizationId, organizationId),
+              eq(googleReplyObservationHeads.reviewId, reviewId),
+            ),
+          )
+          .limit(1)
+        const row = rows[0]?.observation
+        if (!row) return null
+        return {
+          id: row.id,
+          organizationId,
+          reviewId,
+          observationRevision: row.observationRevision,
+          state: row.state as CurrentGoogleReplyObservation['state'],
+          provenance: row.provenance as CurrentGoogleReplyObservation['provenance'],
+          normalizedText: row.normalizedText,
+          matchedReplyId: row.matchedReplyId ? replyId(row.matchedReplyId) : null,
+          providerUpdatedAt: row.providerUpdatedAt,
+          observedAt: row.observedAt,
+          contentExpiresAt: row.contentExpiresAt,
+          contentState: row.contentState as CurrentGoogleReplyObservation['contentState'],
+        }
+      }),
     allocateReadGeneration: () =>
       trace('review.googleReplyObservation.allocateReadGeneration', async () => {
         const result = await db.execute(

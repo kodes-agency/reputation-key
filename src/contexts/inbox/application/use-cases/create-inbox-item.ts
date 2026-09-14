@@ -53,7 +53,7 @@ export const createInboxItem =
       })
     }
 
-    // 2. Build domain object (created as 'open', escalation flag clear — ADR 0023)
+    // 2. Build domain object (created as 'open', escalation flag clear — ADR 0055)
     const result = buildInboxItem({
       id: deps.idGen(),
       organizationId: input.organizationId,

@@ -6,8 +6,8 @@
 //
 // Transitions verified: notification row + activity rows exist for the right
 // resources, and NEITHER surface ever carries the review's text or reviewer
-// name — at rest (DB payloads) and rendered (notification popover, inbox
-// activity timeline).
+// name — at rest (DB payloads) and rendered (notification popover, and the
+// Handling History rows in the inbox thread).
 
 import { test, expect } from '../../helpers/error-detection'
 import { signIn } from '../../helpers/auth'
@@ -140,9 +140,11 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
     )
     // Reopen through the real manager path: work-status select → reason →
     // confirm. A reopen without a stated reason is refused by the dialog.
-    await page.goto(`/inbox?folder=closed&itemId=${inboxItem.id}`)
-    await page.getByRole('combobox', { name: 'Work status' }).click()
-    await page.getByRole('option', { name: 'Open', exact: true }).click()
+    await page.goto(`/inbox?queue=closed&itemId=${inboxItem.id}`)
+    // Work status is now a case-strip chip BUTTON whose menu offers `Reopen`
+    // (role `menuitem`, not `option`) — see inbox-triage.spec.ts.
+    await page.getByRole('button', { name: 'Work status' }).click()
+    await page.getByRole('menuitem', { name: 'Reopen' }).click()
     await page.getByRole('combobox', { name: 'Reason for reopening' }).click()
     await page.getByRole('option', { name: 'New information', exact: true }).click()
     await page
@@ -158,7 +160,10 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
     )
     await page.goto(`/inbox?itemId=${inboxItem.id}`)
     await expect(page.getByText(SENSITIVE_NAME).first()).toBeVisible({ timeout: 15_000 })
-    // The note thread lives behind the composer's Internal note tab.
+    // Filed from the pinned composer's Note mode. The notes THEMSELVES are
+    // messages in the thread now; what sits behind the `Internal note` segment
+    // is the write form. The segment kept the `tab` role and this exact name
+    // across the composer rebuild (see inbox-triage.spec.ts).
     await page.getByRole('tab', { name: 'Internal note' }).click()
     await page.getByPlaceholder('Add a note…').fill('Fact-check note body')
     await page.getByRole('button', { name: 'Add note', exact: true }).click()
@@ -212,20 +217,27 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
       'SENSITIVE-REVIEWER-NAME-MARKER',
     )
 
-    // Rendered surfaces: the activity timeline shows the facts…
-    // The timeline is collapsed by default behind its event-count trigger.
+    // Rendered surfaces: the pane reads the reopen from Handling History in the
+    // thread now, not from the Recent Activity feed — that collapsible was
+    // deleted with the detail-pane rebuild. The activity FACTS asserted above
+    // are still written; only the UI that displayed them is gone, and the
+    // thread is always expanded, so there is no trigger left to click.
+    //
+    // The manager's REOPEN is the status change under test; the close was the
+    // source authority's. The reopen dialog above picked `New information`,
+    // which the thread renders as the sentence below — see
+    // `MANUAL_REOPEN_WORDS.new_information` in
+    // `src/components/inbox/history-event-line.ts`. A reopen by a named manager
+    // leads with the name (plan v2.1 row 11: `<name> reopened — new
+    // information`); `getByText` without `exact` is a case-insensitive
+    // substring match, so this locator reads both leads.
+    await expect(page.getByText('Reopened — new information').first()).toBeVisible({
+      timeout: 15_000,
+    })
+    // …and the notification popover shows the content-safe fact… The bell's
+    // feed head only refreshes on a 30 s poll, so reload to be sure the row the
+    // DB assertion just confirmed has reached the client.
     await page.reload()
-    await page
-      .getByRole('button', { name: /^Activity \d+ events?$/ })
-      .first()
-      .click()
-    // The manager's REOPEN is the status change the timeline records; the
-    // close was the source authority's, which is a cycle transition rather
-    // than an operator activity fact.
-    await expect(
-      page.getByText(/status changed from closed to open/i).first(),
-    ).toBeVisible({ timeout: 15_000 })
-    // …and the notification popover shows the content-safe fact…
     await page
       .getByRole('button', { name: /notifications/i })
       .first()

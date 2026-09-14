@@ -264,9 +264,8 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     const { review, reply } = await seedReviewAndReply({})
     expect(reply.publicationState).toBe('pending_observation')
 
-    const result = await createGoogleReplyObservationStore(getDb()).record(
-      observationInput(review),
-    )
+    const store = createGoogleReplyObservationStore(getDb())
+    const result = await store.record(observationInput(review))
 
     expect(result).toMatchObject({
       duplicate: false,
@@ -274,6 +273,16 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
       resolution: 'confirmed_on_google',
       matchedReplyId: REPLY_A,
       matchedPublicationCycle: 1,
+    })
+    await expect(store.findCurrentByReviewId(REVIEW_A, ORG)).resolves.toMatchObject({
+      reviewId: REVIEW_A,
+      organizationId: ORG,
+      state: 'live',
+      provenance: 'repkey_confirmed',
+      normalizedText: 'Thank you for your review!',
+      matchedReplyId: REPLY_A,
+      observationRevision: 1,
+      contentState: 'active',
     })
     const persisted = await createReplyRepository(getDb(), () => new Date()).findById(
       REPLY_A,

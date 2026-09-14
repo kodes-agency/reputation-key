@@ -125,6 +125,20 @@ export const isInboxSourcePropertyWithinScopes = (
       (scope.propertyIds === undefined || scope.propertyIds.includes(propertyId)),
   )
 
+/** Property ids safe to pass to one source-owned bounded lookup. */
+export const propertyIdsForInboxSource = (
+  scopes: ReadonlyArray<InboxSourceScope>,
+  sourceType: SourceType,
+  narrowed?: ReadonlyArray<PropertyId>,
+): ReadonlyArray<PropertyId> | undefined => {
+  const sourceScope = scopes.find((scope) => scope.sourceType === sourceType)
+  if (!sourceScope) return []
+  if (sourceScope.propertyIds === undefined) return narrowed
+  if (narrowed === undefined) return sourceScope.propertyIds
+  const allowed = new Set(sourceScope.propertyIds)
+  return narrowed.filter((id) => allowed.has(id))
+}
+
 /** Finds an inbox item by id, throwing `not_found` when it does not exist. */
 export const loadInboxItemOrThrow = async (
   repo: InboxRepository,

@@ -3,10 +3,11 @@
 // closed); filters run against eligible rows only.
 
 import { describe, it, expect, vi } from 'vitest'
-import { createEligibleReads } from './eligible-reads'
+import { createEligibleGoogleReplyReads, createEligibleReads } from './eligible-reads'
 import type { ReviewRepository } from './ports/review.repository'
 import type { Review } from '../domain/types'
 import { organizationId, reviewId } from '#/shared/domain/ids'
+import type { CurrentGoogleReplyObservation } from './ports/google-reply-observation-store.port'
 
 const ORG = organizationId('org-1')
 const NOW = new Date('2026-07-17T12:00:00Z')
@@ -22,12 +23,16 @@ function makeReview(overrides: Record<string, unknown> = {}): Review {
     translatedText: null,
     reviewerProfilePhotoUrl: 'https://photo.example/j.jpg',
     rating: 5,
+    languageCode: null,
     contentExpiresAt: FRESH_EXPIRY,
     ...overrides,
   } as Review
 }
 
-function makeDeps(rowOverrides: Record<string, unknown> | null = {}) {
+function makeDeps(
+  rowOverrides: Record<string, unknown> | null = {},
+  currentObservation: CurrentGoogleReplyObservation | null = null,
+) {
   const reviewRepo = {
     findById: vi.fn(async () =>
       rowOverrides === null ? null : makeReview(rowOverrides),
@@ -37,10 +42,18 @@ function makeDeps(rowOverrides: Record<string, unknown> | null = {}) {
     ),
     findIdsByContentFilter: vi.fn(async () => ['rev-1', 'rev-2']),
   }
-  const reads = createEligibleReads({
-    reviewRepo: reviewRepo as unknown as ReviewRepository,
-    clock: () => NOW,
-  })
+  const reads = {
+    ...createEligibleReads({
+      reviewRepo: reviewRepo as unknown as ReviewRepository,
+      clock: () => NOW,
+    }),
+    ...createEligibleGoogleReplyReads({
+      googleReplyObservations: {
+        findCurrentByReviewId: vi.fn(async () => currentObservation),
+      },
+      clock: () => NOW,
+    }),
+  }
   return { reads, reviewRepo }
 }
 
@@ -56,6 +69,7 @@ describe('eligible reads (BQC-1.4)', () => {
       translatedText: null,
       reviewerProfilePhotoUrl: 'https://photo.example/j.jpg',
       rating: 5,
+      languageCode: null,
     })
   })
 
@@ -123,6 +137,50 @@ describe('eligible reads (BQC-1.4)', () => {
     expect(
       await makeDeps(null).reads.getEligibleRatingById(reviewId('rev-x'), ORG),
     ).toBeNull()
+  })
+
+  it('serves only current live and unexpired Google reply observations', async () => {
+    const current: CurrentGoogleReplyObservation = {
+      id: 'observation-1',
+      reviewId: reviewId('rev-1'),
+      organizationId: ORG,
+      observationRevision: 4,
+      state: 'live',
+      provenance: 'external_or_unknown',
+      normalizedText: 'Reply already on Google',
+      matchedReplyId: null,
+      providerUpdatedAt: new Date('2026-07-16T10:00:00Z'),
+      observedAt: new Date('2026-07-17T10:00:00Z'),
+      contentExpiresAt: FRESH_EXPIRY,
+      contentState: 'active',
+    }
+
+    await expect(
+      makeDeps({}, current).reads.getCurrentGoogleReplyByReviewId(reviewId('rev-1'), ORG),
+    ).resolves.toMatchObject({
+      id: 'observation-1',
+      text: 'Reply already on Google',
+      observationRevision: 4,
+    })
+
+    await expect(
+      makeDeps(
+        {},
+        { ...current, contentExpiresAt: STALE_EXPIRY },
+      ).reads.getCurrentGoogleReplyByReviewId(reviewId('rev-1'), ORG),
+    ).resolves.toBeNull()
+    await expect(
+      makeDeps(
+        {},
+        { ...current, contentState: 'provider_deleted' },
+      ).reads.getCurrentGoogleReplyByReviewId(reviewId('rev-1'), ORG),
+    ).resolves.toBeNull()
+    await expect(
+      makeDeps(
+        {},
+        { ...current, state: 'absent', provenance: 'none', normalizedText: null },
+      ).reads.getCurrentGoogleReplyByReviewId(reviewId('rev-1'), ORG),
+    ).resolves.toBeNull()
   })
 
   it('findEligibleReviewIds delegates to the repository eligible query with the clock', async () => {

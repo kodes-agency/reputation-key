@@ -7,15 +7,18 @@ import {
   googleReplyObservations,
   replies,
   replyPublicationAttempts,
+  reviews,
 } from '#/shared/db/schema/review.schema'
 import type {
   ReplyRepository,
+  ReplyStageRow,
   ReplyStateRow,
 } from '../../application/ports/reply.repository'
 import type { Reply, ReplySource } from '../../domain/types'
 import {
   reviewId as toReviewId,
   type OrganizationId,
+  type PropertyId,
   type ReplyId,
   type ReviewId,
 } from '#/shared/domain/ids'
@@ -153,6 +156,46 @@ export const createReplyRepository = (
         publicationState: row.publicationState as ReplyStateRow['publicationState'],
         publicationLastErrorClass:
           row.publicationLastErrorClass as ReplyStateRow['publicationLastErrorClass'],
+      }))
+    })
+  },
+
+  findReviewIdsByReplyStage: async (
+    organizationId: OrganizationId,
+    propertyIds?: ReadonlyArray<PropertyId>,
+  ) => {
+    return trace('reply.findReviewIdsByReplyStage', async () => {
+      if (propertyIds?.length === 0) return []
+      const rows = await db
+        .select({
+          reviewId: replies.reviewId,
+          source: replies.source,
+          stage: sql<ReplyStageRow['stage']>`CASE
+            WHEN ${replies.status} = 'pending_approval' THEN 'awaiting'
+            WHEN ${replies.status} IN ('approved', 'published') THEN 'waiting'
+            ELSE 'needs_reply'
+          END`,
+        })
+        .from(replies)
+        .innerJoin(
+          reviews,
+          and(
+            eq(reviews.id, replies.reviewId),
+            eq(reviews.organizationId, replies.organizationId),
+          ),
+        )
+        .where(
+          and(
+            eq(replies.organizationId, organizationId),
+            propertyIds
+              ? inArray(reviews.propertyId, [...propertyIds] as string[])
+              : undefined,
+          ),
+        )
+        .orderBy(asc(replies.reviewId), asc(replies.source))
+      return rows.map((row): ReplyStageRow => ({
+        ...row,
+        reviewId: toReviewId(row.reviewId),
       }))
     })
   },

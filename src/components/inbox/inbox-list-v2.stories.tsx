@@ -22,6 +22,7 @@ function makeItem(opts: {
   reviewLanguageCode?: string
   attention?: InboxItem['attention']
   replyState?: InboxItem['replyState']
+  assignedTo?: string | null
 }): InboxItem {
   return {
     id: opts.id as InboxItem['id'],
@@ -34,7 +35,7 @@ function makeItem(opts: {
     sourceDate: new Date('2025-01-01'),
     platform: 'google',
     snippet: opts.snippet ?? 'Great service, highly recommend!',
-    assignedTo: null,
+    assignedTo: (opts.assignedTo ?? null) as InboxItem['assignedTo'],
     reviewerName: opts.reviewerName ?? 'Anonymous',
     propertyName: opts.propertyName ?? 'Acme Hotel',
     reviewLanguageCode: opts.reviewLanguageCode,
@@ -125,7 +126,7 @@ export const AwaitingApprovalReply: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('Awaiting Approval')).toBeVisible()
+    expect(canvas.getByText(/Awaiting approval/)).toBeVisible()
     expect(
       canvas.getByRole('button', {
         name: /open review from approval reviewer, awaiting approval/i,
@@ -153,7 +154,7 @@ export const WaitingForGoogleReply: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('Waiting for Google')).toBeVisible()
+    expect(canvas.getByText(/Waiting for Google/)).toBeVisible()
     expect(
       canvas.getByRole('button', {
         name: /open review from waiting reviewer, waiting for google/i,
@@ -162,14 +163,14 @@ export const WaitingForGoogleReply: Story = {
   },
 }
 
-export const GoogleStatusUnconfirmedReply: Story = {
+export const NeedsCheckReply: Story = {
   args: {
     ...baseArgs,
     items: [
       makeItem({
-        id: 'rev-unconfirmed-google',
+        id: 'rev-needs-check',
         sourceType: 'review',
-        reviewerName: 'Unconfirmed Reviewer',
+        reviewerName: 'Ambiguous Reviewer',
         replyState: {
           status: 'publish_failed',
           publicationState: 'ambiguous',
@@ -181,23 +182,23 @@ export const GoogleStatusUnconfirmedReply: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('Google status unconfirmed')).toBeVisible()
+    expect(canvas.getByText(/Needs a check/)).toBeVisible()
     expect(
       canvas.getByRole('button', {
-        name: /open review from unconfirmed reviewer, google status unconfirmed/i,
+        name: /open review from ambiguous reviewer, needs a check/i,
       }),
     ).toBeVisible()
   },
 }
 
-export const PublishingStoppedReply: Story = {
+export const NotPublishedReply: Story = {
   args: {
     ...baseArgs,
     items: [
       makeItem({
-        id: 'rev-publishing-stopped',
+        id: 'rev-not-published',
         sourceType: 'review',
-        reviewerName: 'Stopped Reviewer',
+        reviewerName: 'Retryable Reviewer',
         replyState: {
           status: 'publish_failed',
           publicationState: 'terminal',
@@ -209,10 +210,10 @@ export const PublishingStoppedReply: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('Publishing stopped')).toBeVisible()
+    expect(canvas.getByText(/Not published/)).toBeVisible()
     expect(
       canvas.getByRole('button', {
-        name: /open review from stopped reviewer, publishing stopped/i,
+        name: /open review from retryable reviewer, not published/i,
       }),
     ).toBeVisible()
   },
@@ -226,6 +227,27 @@ export const Empty: Story = {
 // One row checked for a bulk action.
 export const WithSelection: Story = {
   args: { ...baseArgs, selectedIds: ['rev-1'] },
+}
+
+export const AssignedOwnerIsDescribed: Story = {
+  args: {
+    ...baseArgs,
+    items: [
+      makeItem({
+        id: 'rev-assigned',
+        sourceType: 'review',
+        reviewerName: 'Assigned Reviewer',
+        assignedTo: 'owner-1',
+      }),
+    ],
+    assignmentOptions: [{ userId: 'owner-1', name: 'Ada Owner' }],
+  },
+  play: async ({ canvasElement }) => {
+    const row = within(canvasElement).getByRole('button', {
+      name: 'Open review from Assigned Reviewer',
+    })
+    expect(row).toHaveAccessibleDescription('Assigned to Ada Owner')
+  },
 }
 
 // Opening a row is independent of selecting it for a bulk action.

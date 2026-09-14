@@ -22,6 +22,7 @@ import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import type { Role } from '#/shared/domain/roles'
 import { isInboxError } from '../../domain/errors'
 import type { ReplyLookupPort } from '../ports/reply-lookup.port'
+import type { InboxViewRepository } from '../ports/inbox-view.repository'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
@@ -77,6 +78,7 @@ function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): I
 const setup = (
   peopleApi: StaffPublicApi = adminStaffApi,
   replyStates: ReadonlyMap<string, InboxItemReplyState> = new Map(),
+  viewedUpTo: Date | null = null,
 ) => {
   const repo = createInMemoryInboxRepo()
   const getReplyStatesByReviewIds = vi.fn(async () => replyStates)
@@ -84,15 +86,21 @@ const setup = (
     getEffectiveReplyByReviewId: vi.fn(async () => null),
     getReplyMilestonesByReviewIds: vi.fn(async () => new Map()),
     getReplyStatesByReviewIds,
+    findReviewIdsByReplyStage: vi.fn(async () => ({ awaiting: [], waiting: [] })),
+  }
+  const viewRepo: InboxViewRepository = {
+    getLastInboxView: vi.fn(async () => viewedUpTo),
+    stampLastInboxView: vi.fn(async (_orgId, _userId, now) => now ?? FIXED_TIME),
   }
   const deps = {
     repo,
     staffPublicApi: peopleApi,
     replyLookup,
+    viewRepo,
     clock: () => FIXED_TIME,
   }
   const useCase = getInboxItems(deps)
-  return { useCase, repo, getReplyStatesByReviewIds }
+  return { useCase, repo, getReplyStatesByReviewIds, replyLookup, viewRepo }
 }
 
 const adminCtx = {
@@ -135,6 +143,99 @@ describe('getInboxItems', () => {
     expect(result.totalCount).toBe(2)
     expect(result.nextCursor).toBeDefined()
     expect(result.responseCutoff).toEqual(FIXED_TIME)
+    expect(result.viewedUpTo).toBeNull()
+  })
+
+  it('returns the caller watermark captured with the page', async () => {
+    const viewedUpTo = new Date('2026-04-14T09:00:00Z')
+    const { useCase, repo } = setup(adminStaffApi, new Map(), viewedUpTo)
+    repo.items.push(seedItem({ id: 'ii-viewed-up-to' }))
+
+    const result = await useCase({ filters: {} }, adminCtx)
+
+    expect(result.viewedUpTo).toEqual(viewedUpTo)
+  })
+
+  it('reads the visit watermark only for the first page', async () => {
+    const cursorItem = seedItem({ id: 'ii-watermark-cursor' })
+    const { useCase, viewRepo } = setup(
+      adminStaffApi,
+      new Map(),
+      new Date('2026-04-14T09:00:00Z'),
+    )
+
+    const result = await useCase(
+      {
+        filters: {},
+        cursor: { sourceDate: cursorItem.sourceDate, id: cursorItem.id },
+      },
+      adminCtx,
+    )
+
+    expect(result.viewedUpTo).toBeNull()
+    expect(viewRepo.getLastInboxView).not.toHaveBeenCalled()
+  })
+
+  it('applies a reply queue through its effective stage ids', async () => {
+    const awaiting = seedItem({ id: 'ii-awaiting' })
+    const needsReply = seedItem({ id: 'ii-needs-reply' })
+    const { useCase, repo, replyLookup } = setup()
+    repo.items.push(awaiting, needsReply)
+    vi.mocked(replyLookup.findReviewIdsByReplyStage).mockResolvedValue({
+      awaiting: [awaiting.sourceId as ReturnType<typeof reviewId>],
+      waiting: [],
+    })
+
+    const result = await useCase({ filters: {}, queue: 'approval' }, adminCtx)
+
+    expect(result.items.map((item) => item.id)).toEqual([awaiting.id])
+    expect(replyLookup.findReviewIdsByReplyStage).toHaveBeenCalledWith(ORG_ID, undefined)
+  })
+
+  it('intersects a cross-source queue with the active source filter', async () => {
+    const review = seedItem({ id: 'ii-open-review' })
+    const feedback = seedItem({
+      id: 'ii-open-feedback',
+      sourceType: 'feedback',
+      sourceId: feedbackId('fb-open-feedback'),
+    })
+    const { useCase, repo } = setup()
+    repo.items.push(review, feedback)
+
+    const result = await useCase(
+      { filters: { sourceType: 'feedback' }, queue: 'open' },
+      adminCtx,
+    )
+
+    expect(result.items.map((item) => item.id)).toEqual([feedback.id])
+  })
+
+  it('returns no rows when a queue contradicts the active source filter', async () => {
+    const feedback = seedItem({
+      id: 'ii-feedback-queue',
+      sourceType: 'feedback',
+      sourceId: feedbackId('fb-feedback-queue'),
+    })
+    const { useCase, repo } = setup()
+    repo.items.push(feedback)
+
+    const result = await useCase(
+      { filters: { sourceType: 'review' }, queue: 'feedback' },
+      adminCtx,
+    )
+
+    expect(result.items).toEqual([])
+    expect(result.totalCount).toBe(0)
+  })
+
+  it('refuses a reply-stage queue without reply.manage', async () => {
+    const { useCase } = setup()
+
+    await expect(
+      useCase({ filters: {}, queue: 'reply' }, dynamicCtx('inbox.read', 'review.read')),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
   })
 
   it('omits reply state when the actor lacks reply.manage', async () => {
@@ -309,6 +410,7 @@ describe('getInboxItems', () => {
       nextCursor: null,
       totalCount: 0,
       responseCutoff: FIXED_TIME,
+      viewedUpTo: null,
     })
   })
 
@@ -323,6 +425,7 @@ describe('getInboxItems', () => {
       nextCursor: null,
       totalCount: 0,
       responseCutoff: FIXED_TIME,
+      viewedUpTo: null,
     })
   })
 

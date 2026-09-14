@@ -81,6 +81,12 @@ describe('getInboxItemsDto', () => {
   it('rejects unsupported sort orders', () => {
     expect(getInboxItemsDto.safeParse({ sort: 'highest' }).success).toBe(false)
   })
+
+  it('accepts only the governed queue vocabulary', () => {
+    expect(getInboxItemsDto.parse({ queue: 'reply' }).queue).toBe('reply')
+    expect(getInboxItemsDto.parse({ queue: 'open' }).queue).toBe('open')
+    expect(getInboxItemsDto.safeParse({ queue: 'sent' }).success).toBe(false)
+  })
 })
 
 describe('stampLastInboxViewDto', () => {

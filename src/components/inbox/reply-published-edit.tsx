@@ -1,27 +1,33 @@
-import { useState } from 'react'
-import { ReviewReplyPublished, ReviewReplyPublishedEditor } from './reply-editor-views'
+import { ReviewReplyPublishedEditor } from './reply-editor-views'
 import type { ReplyData } from './reply-status-view'
 
+type ReplyEntity = Exclude<NonNullable<ReplyData>, { kind: 'google_observation' }>
+
 type Props = Readonly<{
-  reply: NonNullable<ReplyData>
+  reply: ReplyEntity
   isSaving: boolean
   onSaveEdit: (text: string) => Promise<unknown>
+  onClose: () => void
 }>
 
-export function ReplyPublishedWithEdit({ reply, isSaving, onSaveEdit }: Props) {
-  const [editing, setEditing] = useState(false)
-  if (!editing) {
-    return <ReviewReplyPublished reply={reply} onEdit={() => setEditing(true)} />
-  }
+/**
+ * The edit-and-republish editor for a reply that already reached Google. It no
+ * longer renders a read-only view first — the thread carries the message, and
+ * keeps carrying it while this editor is open — so whether it is open is the
+ * pane's `editTarget`, not a local flag. That flag could not survive its own
+ * save anyway: the cache patch that follows a republish re-resolves the reply
+ * to `approved` and unmounts this subtree mid-`setState`.
+ */
+export function ReplyPublishedEditor({ reply, isSaving, onSaveEdit, onClose }: Props) {
   return (
     <ReviewReplyPublishedEditor
       reply={reply}
       isSaving={isSaving}
       onSave={async (text) => {
         await onSaveEdit(text)
-        setEditing(false)
+        onClose()
       }}
-      onCancel={() => setEditing(false)}
+      onCancel={onClose}
     />
   )
 }

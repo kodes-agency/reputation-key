@@ -50,12 +50,31 @@ function useActiveSection(): string {
   })
 }
 
+function searchAfterInboxScopeChange(search: unknown) {
+  if (search === null || typeof search !== 'object') return {}
+
+  return Object.fromEntries(
+    Object.entries(search).filter(([key]) => key !== 'itemId' && key !== 'propertyId'),
+  )
+}
+
 export function ManagerSidebar({ properties, getLastVisitCount }: Props) {
   const propertyId = usePropertyId()
   const activeSection = useActiveSection()
   const navigate = useNavigate()
+  const currentSearch = useRouterState({ select: (state) => state.location.search })
+  const isInboxSection = activeSection === 'inbox' || activeSection === 'reviews'
 
   function handlePropertySwitch(newPropertyId: string) {
+    if (isInboxSection) {
+      navigate({
+        to: '/properties/$propertyId/reviews',
+        params: { propertyId: newPropertyId },
+        search: searchAfterInboxScopeChange(currentSearch),
+      })
+      return
+    }
+
     navigate({
       to: '/properties/$propertyId',
       params: { propertyId: newPropertyId },
@@ -76,6 +95,19 @@ export function ManagerSidebar({ properties, getLastVisitCount }: Props) {
             properties={properties}
             propertyId={propertyId ?? undefined}
             onSwitch={handlePropertySwitch}
+            scope={{
+              all:
+                isInboxSection && properties.length > 1
+                  ? {
+                      isActive: propertyId === null,
+                      onSelect: () =>
+                        navigate({
+                          to: '/inbox',
+                          search: searchAfterInboxScopeChange(currentSearch),
+                        }),
+                    }
+                  : null,
+            }}
           />
         </SidebarHeader>
 

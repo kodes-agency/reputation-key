@@ -27,10 +27,11 @@ Routes are the normal runtime import site for context server functions. A route
 creates an `Action` with `useActionMutation` or `useAction`, then passes it to the
 component. Type-only server imports are allowed to spell those props.
 
-A component with five or more closely related mutations may value-import its
-server functions when prop drilling would obscure one cohesive workflow. Document
-the exception in the component and add it to the checker allowlist; do not widen
-the exception to its whole feature without the same mutation density.
+A component — or the single hook that owns its mutations — with five or more
+closely related mutations may value-import its server functions when prop
+drilling would obscure one cohesive workflow. Document the exception in that file
+and add it to the checker allowlist; do not widen the exception to its whole
+feature without the same mutation density.
 
 Component/server value-import rules and their allowlist are enforced by `scripts/check-component-boundaries.mjs`; database and context-layer boundaries are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-controls.mjs`.
 

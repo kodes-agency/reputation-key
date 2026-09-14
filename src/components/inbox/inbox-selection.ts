@@ -1,6 +1,7 @@
 import { INBOX_BULK_LIMIT } from '#/contexts/inbox/application/public-api'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
-import type { InboxFilters } from '#/contexts/inbox/application/ports/inbox.repository'
+import type { InboxQueue } from '#/contexts/inbox/application/public-api'
+import { itemMatchesQueue as matchesQueue } from './inbox-queues'
 
 export function toggleInboxSelection(
   previous: ReadonlyArray<string>,
@@ -18,21 +19,11 @@ export function removeInboxSelection(
   return previous.includes(id) ? previous.filter((selected) => selected !== id) : previous
 }
 
-export function itemMatchesActiveFolder(
+export const itemMatchesQueue = (
   item: InboxItem,
-  filters: Partial<Pick<InboxFilters, 'status' | 'isEscalated'>>,
-): boolean {
-  const statusMatches = !filters.status
-    ? true
-    : Array.isArray(filters.status)
-      ? filters.status.includes(item.status)
-      : filters.status === item.status
-  if (!statusMatches) return false
-  if (filters.isEscalated === undefined) return true
-  return filters.isEscalated
-    ? item.isEscalated && item.escalationResolvedAt === null
-    : !item.isEscalated
-}
+  queue: InboxQueue,
+  viewerId: string | undefined,
+) => matchesQueue(item, queue, viewerId)
 
 export function reconcileInboxPageItems(
   items: ReadonlyArray<InboxItem>,
@@ -50,6 +41,8 @@ export function reconcileInboxPageItems(
           escalatedBy: updated.escalatedBy,
           escalationResolvedAt: updated.escalationResolvedAt,
           escalationResolvedBy: updated.escalationResolvedBy,
+          assignedTo: updated.assignedTo,
+          replyState: updated.replyState,
           updatedAt: updated.updatedAt,
         }
       : item,

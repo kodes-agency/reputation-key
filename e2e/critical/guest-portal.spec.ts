@@ -220,9 +220,11 @@ test.describe('Critical: public Portal basics', () => {
 
     await signIn(page)
     await page.goto(`/inbox?itemId=${inboxItem.id}`)
-    await expect(
-      page.getByRole('heading', { name: 'Feedback handling', exact: true }),
-    ).toBeVisible({ timeout: 15_000 })
+    // The pane has no `Feedback handling` heading any more (PR 5 deleted the
+    // section it titled); the load gate is the control this journey uses.
+    await expect(page.getByRole('button', { name: 'Mark as handled' })).toBeVisible({
+      timeout: 15_000,
+    })
     await page.getByRole('button', { name: 'Mark as handled' }).click()
     const markDialog = page.getByRole('dialog')
     await expect(markDialog.getByText('Mark feedback as handled')).toBeVisible()

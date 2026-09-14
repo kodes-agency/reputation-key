@@ -1,5 +1,5 @@
 // Inbox context — stamp last-visit timestamp use case
-// Called on inbox page load (ADR 0023). Updates the per-user `lastInboxView`
+// Called on inbox page load (ADR 0057). Updates the per-user `lastInboxView`
 // so the sidebar badge subsequently reflects only items newer than this visit.
 
 import type { InboxViewRepository } from '../ports/inbox-view.repository'

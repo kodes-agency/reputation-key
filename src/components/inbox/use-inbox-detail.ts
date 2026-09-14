@@ -23,6 +23,7 @@ import type {
   updateInboxStatusFn,
   escalateInboxItemFn,
   resolveEscalationFn,
+  assignInboxItemFn,
   markFeedbackHandledFn,
   correctFeedbackHandlingOutcomeFn,
 } from '#/contexts/inbox/server/inbox'
@@ -110,6 +111,7 @@ export function withFreshCommandRevision<TInput extends RevisionedCommandInput, 
 
 export type UseInboxDetailOptions = Readonly<{
   autoMarkRead?: boolean
+  selectedItemId?: string
   onItemStatusChanged?: (updated: InboxItem) => void
 }>
 
@@ -122,6 +124,7 @@ export type InboxDetailState = Readonly<{
   updateStatus: Action<Parameters<typeof updateInboxStatusFn>[0], InboxItem>
   escalate: Action<Parameters<typeof escalateInboxItemFn>[0], InboxItem>
   resolveEscalation: Action<Parameters<typeof resolveEscalationFn>[0], InboxItem>
+  assign: Action<Parameters<typeof assignInboxItemFn>[0], InboxItem>
   markFeedbackHandled: Action<
     Parameters<typeof markFeedbackHandledFn>[0],
     FeedbackHandlingCommandResult
@@ -144,16 +147,20 @@ function useInboxAutoCloseDetection(
 ): void {
   useEffect(() => {
     if (id && observer.observe({ itemId: id, status: polledStatus })) {
-      inboxCachePolicy.onItemFolderChanged(qc)
+      inboxCachePolicy.onItemFolderChanged(qc, id)
     }
   }, [id, observer, polledStatus, qc])
 }
 
-/** The three status mutations sharing one success handler (policy + list sync). */
+/**
+ * The item commands sharing one success handler (policy + list sync). Assign
+ * belongs here despite leaving the status untouched: it returns the same
+ * authoritative snapshot, so it needs the same fence, cache write and list sync.
+ */
 function useInboxStatusMutations(
   inboxFns: Pick<
     InboxServerFns,
-    'updateInboxStatus' | 'escalateInboxItem' | 'resolveEscalation'
+    'updateInboxStatus' | 'escalateInboxItem' | 'resolveEscalation' | 'assignInboxItem'
   >,
   id: string,
   qc: QueryClient,
@@ -189,7 +196,14 @@ function useInboxStatusMutations(
       onSuccess: handleStatusChanged,
     },
   )
-  return { updateStatus, escalate, resolveEscalation }
+  const assign = useActionMutation(
+    withFreshCommandRevision(qc, id, inboxFns.assignInboxItem),
+    {
+      successMessage: 'Assignment updated',
+      onSuccess: handleStatusChanged,
+    },
+  )
+  return { updateStatus, escalate, resolveEscalation, assign }
 }
 
 function useInboxDetailQueries(
@@ -236,15 +250,16 @@ export function useInboxDetail(
     | 'updateInboxStatus'
     | 'escalateInboxItem'
     | 'resolveEscalation'
+    | 'assignInboxItem'
     | 'markFeedbackHandled'
     | 'correctFeedbackHandlingOutcome'
   >,
   options?: UseInboxDetailOptions,
 ): InboxDetailState {
   const qc = useQueryClient()
-  const { onItemStatusChanged } = options ?? {}
-  const id = item?.id ?? ''
-  const enabled = active && !!item
+  const { onItemStatusChanged, selectedItemId } = options ?? {}
+  const id = selectedItemId ?? item?.id ?? ''
+  const enabled = active && !!id
   const [statusObserver] = useState(createInboxItemStatusObserver)
 
   const queries = useInboxDetailQueries(inboxFns, id, enabled, item)
@@ -278,6 +293,7 @@ export function useInboxDetail(
     updateStatus: mutations.updateStatus,
     escalate: mutations.escalate,
     resolveEscalation: mutations.resolveEscalation,
+    assign: mutations.assign,
     markFeedbackHandled: feedbackMutations.markFeedbackHandled,
     correctFeedbackHandlingOutcome: feedbackMutations.correctFeedbackHandlingOutcome,
     refetch: queries.refetch,

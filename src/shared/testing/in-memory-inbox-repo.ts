@@ -7,6 +7,17 @@ import type {
 import type { InboxItem } from '#/contexts/inbox/domain/types'
 import { unbrandAll } from '#/shared/domain/ids'
 
+/**
+ * Stand-in star rating for the `available` review branch of `findDetailById`,
+ * the sibling of its `'Test review text'`. The real repository reads this from
+ * `ReviewSnippet.rating` (`inbox.repository.ts` `findDetailById`); this double
+ * has no review lookup to read, so it states a value rather than reusing
+ * `item.rating` — the projection NULLs that column for every review
+ * (`inbox-command-store.ts:936`), so reusing it would make the double claim
+ * "available review with no rating", a legal but unrepresentative state.
+ */
+const IN_MEMORY_REVIEW_RATING = 4
+
 const matchesSourceScopes = (
   item: InboxItem,
   scopes: Parameters<InboxRepository['countByStatus']>[3],
@@ -84,6 +95,18 @@ export function createInMemoryInboxRepo(): InboxRepository & {
             : filtered.filter((i) => filters.propertyIds!.includes(i.propertyId))
       if (filters.sourceType)
         filtered = filtered.filter((i) => i.sourceType === filters.sourceType)
+      if (filters.assignedTo)
+        filtered = filtered.filter((i) => i.assignedTo === filters.assignedTo)
+      if (filters.replyStage) {
+        const reviewIds = new Set(unbrandAll(filters.replyStage.reviewIds))
+        filtered = filtered.filter(
+          (item) =>
+            item.sourceType === 'review' &&
+            (filters.replyStage!.match === 'include'
+              ? reviewIds.has(item.sourceId)
+              : !reviewIds.has(item.sourceId)),
+        )
+      }
       if (filters.sourceScopes)
         filtered = filtered.filter((i) => matchesSourceScopes(i, filters.sourceScopes))
       if (filters.platform)
@@ -140,6 +163,8 @@ export function createInMemoryInboxRepo(): InboxRepository & {
         totalCount,
       }
     },
+    countFiltered: async (filters, orgId) =>
+      (await repo.findFilteredPaginated(filters, orgId, undefined, 1)).totalCount,
     create: async (item) => {
       items.push(item)
       return item
@@ -312,6 +337,7 @@ export function createInMemoryInboxRepo(): InboxRepository & {
           reviewTranslatedText: null,
           reviewerProfilePhotoUrl: null,
           reviewContentStatus: 'available' as const,
+          reviewRating: IN_MEMORY_REVIEW_RATING,
           feedbackComment: null,
           feedbackRatingValue: null,
         }
@@ -322,6 +348,8 @@ export function createInMemoryInboxRepo(): InboxRepository & {
         reviewTranslatedText: null,
         reviewerProfilePhotoUrl: null,
         reviewContentStatus: null,
+        // Feedback has no review to rate; its number is `feedbackRatingValue`.
+        reviewRating: null,
         feedbackComment: 'Test feedback comment',
         feedbackRatingValue: item.rating,
       }

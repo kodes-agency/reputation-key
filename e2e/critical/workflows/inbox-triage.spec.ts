@@ -104,12 +104,18 @@ test.describe('Critical workflow: inbox triage persists', () => {
     })
 
     // 3. Reopen from the Closed folder — through the reason dialog, durable.
-    await page.goto(`/inbox?folder=closed&itemId=${inboxItemId}`)
+    await page.goto(`/inbox?queue=closed&itemId=${inboxItemId}`)
     await expect(page.getByText('Triage Reviewer').first()).toBeVisible({
       timeout: 15_000,
     })
-    await page.getByRole('combobox', { name: 'Work status' }).click()
-    await page.getByRole('option', { name: 'Open', exact: true }).click()
+    // The work-status control moved out of the header and into the case strip:
+    // it is a chip BUTTON (a dropdown trigger, `aria-label="Work status"`) that
+    // exists only while the item is closed, and its menu offers `Reopen`. Radix
+    // menu items are role `menuitem`, so this no longer matches `option` — and
+    // `Reopen` here cannot collide with the dialog's confirm button below,
+    // which is role `button`.
+    await page.getByRole('button', { name: 'Work status' }).click()
+    await page.getByRole('menuitem', { name: 'Reopen' }).click()
     await expect(page.getByRole('dialog').getByText('Reopen work')).toBeVisible()
     await page.getByRole('combobox', { name: 'Reason for reopening' }).click()
     await page.getByRole('option', { name: 'Guest follow-up is still needed' }).click()
@@ -159,10 +165,20 @@ test.describe('Critical workflow: inbox triage persists', () => {
     })
 
     // 5. Add a note (UI) — durable.
-    // The composer is tabbed since "feat(ui): rebuild product surfaces on
-    // context-owned reads and product-state boundaries"; Public reply is
-    // selected by default, so the note field is not in the document until the
-    // Internal note tab is opened.
+    //
+    // The note form now lives in the pinned composer (region 4), behind its
+    // Reply / Note mode segment. That segment is still a real Radix tab set —
+    // `composer-mode-row.tsx` kept the `tab` role and the `Internal note`
+    // name deliberately, because the ARIA pattern fits and because these three
+    // selectors are pinned by row 17 of the rebuild contract. Only the LOOK
+    // changed (a pill segment instead of an underlined strip).
+    //
+    // Public reply is the default mode, and both panels are force-mounted, so
+    // the note field IS in the document — `hidden`, hence not visible and out
+    // of the accessibility tree. The click below is therefore load-bearing for
+    // a different reason than it used to be: `fill()` waits for visibility, so
+    // reaching for the placeholder first would time out on a hidden node
+    // rather than fail fast on a missing one.
     await page.getByRole('tab', { name: 'Internal note' }).click()
     await page.getByPlaceholder('Add a note…').fill('Triage note: called the guest back.')
     await page.getByRole('button', { name: 'Add Note' }).click()
@@ -202,14 +218,20 @@ test.describe('Critical workflow: inbox triage persists', () => {
       timeout: 15_000,
     })
     // Open work shows the Open badge, never a manager close control.
-    await expect(page.getByText('Open', { exact: true }).first()).toBeVisible()
+    await expect(
+      page
+        .getByRole('region', { name: 'Case status' })
+        .getByText('Open', { exact: true }),
+    ).toBeVisible()
     await expect(page.getByRole('button', { name: 'Close', exact: true })).toHaveCount(0)
     // escalation resolved → the Escalate action is offered again
     await expect(
       page.getByRole('button', { name: 'Escalate', exact: true }),
     ).toBeVisible()
-    // the note survived — behind the Internal note tab again, because a reload
-    // returns the composer to its default Public reply tab.
+    // the note survived. Two things are being read here: the note itself is now
+    // a message in the thread (it renders without opening anything), and the
+    // mode segment still works after a reload — the composer's mode is session
+    // state, so a reload returns it to the default Public reply.
     await page.getByRole('tab', { name: 'Internal note' }).click()
     await expect(page.getByText('Triage note: called the guest back.')).toBeVisible()
 

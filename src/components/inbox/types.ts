@@ -7,19 +7,20 @@
 // type-only (used in `typeof` positions), which the boundary gate allows.
 //
 // Note: getLastVisitCountFn is NOT here — InboxVisitBadge mounts in the global
-// manager layout (routes/_authenticated.tsx), not via InboxPageV2. listProperties is
-// also not here — PropertyFilterSelect consumes pre-loaded `properties` data instead.
+// manager layout (routes/_authenticated.tsx), not via InboxPageV2. Property scope
+// options are likewise route data, not an inbox server-function dependency.
 import type {
   getInboxItemsFn,
   getInboxItemDetailFn,
   getInboxNotesFn,
   getInboxItemHistoryFn,
-  getInboxFolderCountsFn,
+  getInboxQueueCountsFn,
   stampLastInboxViewFn,
   updateInboxStatusFn,
   escalateInboxItemFn,
   resolveEscalationFn,
   addInboxNoteFn,
+  assignInboxItemFn,
   bulkUpdateInboxStatusFn,
   bulkAssignInboxItemsFn,
   markFeedbackHandledFn,
@@ -34,12 +35,13 @@ export type InboxServerFns = Readonly<{
   getInboxNotes: typeof getInboxNotesFn
   getInboxItemHistory: typeof getInboxItemHistoryFn
   getActivityTimeline: typeof getActivityTimelineFn
-  getInboxFolderCounts: typeof getInboxFolderCountsFn
+  getInboxQueueCounts: typeof getInboxQueueCountsFn
   stampLastInboxView: typeof stampLastInboxViewFn
   updateInboxStatus: typeof updateInboxStatusFn
   escalateInboxItem: typeof escalateInboxItemFn
   resolveEscalation: typeof resolveEscalationFn
   addInboxNote: typeof addInboxNoteFn
+  assignInboxItem: typeof assignInboxItemFn
   bulkUpdateInboxStatus: typeof bulkUpdateInboxStatusFn
   bulkAssignInboxItems: typeof bulkAssignInboxItemsFn
   markFeedbackHandled: typeof markFeedbackHandledFn
@@ -51,6 +53,7 @@ export type InboxServerFns = Readonly<{
 export type InboxDetailFns = Pick<
   InboxServerFns,
   | 'getInboxItemDetail'
+  | 'getInboxItemHistory'
   | 'getActivityTimeline'
   | 'addInboxNote'
   | 'generateReplySuggestion'

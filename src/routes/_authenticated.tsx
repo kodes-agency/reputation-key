@@ -30,6 +30,7 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
 import { partitionWorkspaceProperties } from '#/components/features/property/property-workspace'
 import { submitBetaFeedbackFn } from '#/contexts/identity/server/beta-feedback'
+import { useState } from 'react'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -193,10 +194,16 @@ function AuthenticatedLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isSettings = pathname.startsWith('/settings')
   const isInbox = pathname.startsWith('/inbox') || pathname.includes('/reviews')
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
   const content = (
-    <SidebarProvider>
-      {isInbox ? null : isSettings ? (
+    <SidebarProvider
+      open={isInbox ? false : sidebarOpen}
+      onOpenChange={(next) => {
+        if (!isInbox) setSidebarOpen(next)
+      }}
+    >
+      {isSettings ? (
         <SettingsSidebar />
       ) : hasRole(ctx.role, 'PropertyManager') ? (
         <ManagerSidebar properties={properties} getLastVisitCount={getLastVisitCountFn} />
@@ -218,6 +225,7 @@ function AuthenticatedLayout() {
       >
         <AppTopBar
           user={ctx.user}
+          sidebarLocked={isInbox}
           organizationId={ctx.activeOrganization?.id ?? 'no-active-organization'}
           notificationFns={notificationFns}
           submitBetaFeedback={

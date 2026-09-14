@@ -1,5 +1,5 @@
 // Inbox context — Drizzle schema for inbox_items, inbox_notes & inbox_user_views
-// Per ADR 0023: status is open/closed; escalation is an orthogonal flag.
+// Per ADR 0055: status is open/closed; escalation is an orthogonal flag.
 
 import { sql } from 'drizzle-orm'
 import { createdAtColumn, updatedAtColumn } from '../columns'
@@ -44,7 +44,7 @@ export const inboxItems = pgTable(
     sourceType: inboxSourceTypeEnum('source_type').notNull(),
     sourceId: uuid('source_id').notNull(),
     status: inboxStatusEnum('status').notNull().default('open'),
-    // Escalation flag — orthogonal to status (ADR 0023)
+    // Escalation flag — orthogonal to status (ADR 0055)
     isEscalated: boolean('is_escalated').notNull().default(false),
     escalatedAt: timestamp('escalated_at', { withTimezone: true }),
     escalatedBy: varchar('escalated_by', { length: 255 }),
@@ -79,6 +79,7 @@ export const inboxItems = pgTable(
       t.propertyId,
       t.status,
     ),
+    index('inbox_items_org_assigned_to_idx').on(t.organizationId, t.assignedTo),
     // Escalated-folder count: active flag (is_escalated AND escalation_resolved_at IS NULL)
     index('inbox_items_org_escalated_active_idx').on(
       t.organizationId,
@@ -879,7 +880,7 @@ export const inboxAssignmentHistory = pgTable(
  * the resulting item command revision is the history identity, so a row here
  * always names the exact command that committed the flag change.
  *
- * Per ADR 0023 escalation is orthogonal to status: this table intentionally
+ * Per ADR 0055 escalation is orthogonal to status: this table intentionally
  * holds no status, no assignee and no permission, and writing to it neither
  * grants access nor moves an item between open and closed.
  *
@@ -943,7 +944,7 @@ export const inboxNotes = pgTable(
   (t) => [index('inbox_notes_item_idx').on(t.inboxItemId)],
 )
 
-// Per-user last-visit timestamp (ADR 0023) — replaces the org-level "new" badge.
+// Per-user last-visit timestamp (ADR 0057) — replaces the org-level "new" badge.
 export const inboxUserViews = pgTable(
   'inbox_user_views',
   {

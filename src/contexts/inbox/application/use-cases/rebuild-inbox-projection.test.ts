@@ -95,6 +95,7 @@ function setup(opts: {
     getEffectiveReplyByReviewId: vi.fn(async () => null),
     getReplyMilestonesByReviewIds: vi.fn(async () => opts.milestones ?? new Map()),
     getReplyStatesByReviewIds: vi.fn(async () => new Map()),
+    findReviewIdsByReplyStage: vi.fn(async () => ({ awaiting: [], waiting: [] })),
   }
   const deps = {
     repo,

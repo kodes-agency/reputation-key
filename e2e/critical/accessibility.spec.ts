@@ -19,8 +19,20 @@
 //     drawer pattern
 //
 // Registered as unsupported-by-design (no code, see slice report):
-//   high-contrast (no forced-colors support), RTL, 44px touch-target
-//   convention (design-system decision — button heights are 36/32px).
+//   high-contrast (no forced-colors support), RTL, and the 44px touch-target
+//   convention OUTSIDE the inbox detail pane (design-system decision — button
+//   heights are 36/32px).
+//
+//   Narrowed 2026-09-12: row 15 of docs/plan/inbox-detail-redesign.md reverses
+//   that decision INSIDE the pane, and it now holds — 188 focusable controls
+//   across 20 pane states measured at 390x844, none under 44 px. Nothing here
+//   gates it: the storybook runner compiles no Tailwind, so a story can assert
+//   a control's role and name but not its height, and the measurement lives in
+//   a scratchpad harness (real styles.css compiled by tailwindcss, real class
+//   strings, headless Chromium). A `boundingBox()` sweep over the mobile pane
+//   in THIS spec is the natural home for it and is not written yet; the
+//   The workspace revision now gives every phone header control a 36 px target;
+//   the separate Storybook metrics gate measures those list surfaces.
 //
 // IBX-01-T9 — every Inbox item seeded here is scanned THROUGH the product (the
 // list rows, the detail panel, the keyboard journey), so all of them use
@@ -225,8 +237,11 @@ test.describe('Critical a11y: keyboard', () => {
     const listOrder = await page
       .getByRole('button', { name: /^open review from /i })
       .evaluateAll((rows) =>
-        rows.map((row) =>
-          (row.getAttribute('aria-label') ?? '').replace(/^Open review from /i, ''),
+        rows.map(
+          (row) =>
+            (row.getAttribute('aria-label') ?? '')
+              .replace(/^Open review from /i, '')
+              .split(',')[0],
         ),
       )
     expect(listOrder.slice(0, 2).length).toBe(2)
@@ -474,7 +489,7 @@ test.describe('Critical a11y: zoom reflow', () => {
     })
     await signIn(page)
     await page.goto('/inbox')
-    const heading = page.getByRole('heading', { name: /^open reviews$/i }).first()
+    const heading = page.getByRole('heading', { name: /^needs reply$/i }).first()
     await expect(heading).toBeVisible({ timeout: 15_000 })
     const row = page.getByRole('button', { name: /open review from zoom reviewer/i })
     await expect(row).toBeVisible()
@@ -489,7 +504,7 @@ test.describe('Critical a11y: zoom reflow', () => {
     await assertZoomReflow(page)
 
     await page.setViewportSize({ width: 320, height: 900 })
-    await expect(heading).toBeVisible()
+    await expect(page.getByRole('button', { name: /^needs reply/i })).toBeVisible()
     await expect(row).toBeVisible()
     const reflow = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,

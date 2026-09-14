@@ -230,9 +230,12 @@ function makeReplyLookup() {
   const replyRepo = createReplyRepository(db, () => new Date())
   return createReplyLookupAdapter({
     findByReviewId: (id, orgId) => replyRepo.findByReviewId(id, orgId),
+    getCurrentGoogleReplyByReviewId: async () => null,
     findMilestonesByReviewIds: (ids, orgId) =>
       replyRepo.findMilestonesByReviewIds(ids, orgId),
     findStatesByReviewIds: (ids, orgId) => replyRepo.findStatesByReviewIds(ids, orgId),
+    findReviewIdsByReplyStage: (orgId, propertyIds) =>
+      replyRepo.findReviewIdsByReplyStage(orgId, propertyIds),
   })
 }
 

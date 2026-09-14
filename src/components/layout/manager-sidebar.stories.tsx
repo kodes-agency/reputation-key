@@ -15,7 +15,7 @@
 // a plain callable cast to the fn brand resolves without RPC — the same
 // double-cast every inbox story uses. No value import from #/contexts/*/server/**.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import {
   createMemoryHistory,
   createRootRouteWithContext,
@@ -23,6 +23,7 @@ import {
   createRouter,
   Outlet,
   RouterProvider,
+  useRouterState,
 } from '@tanstack/react-router'
 import { useRef, useState, type ReactNode } from 'react'
 import type { Role } from '#/shared/domain/roles'
@@ -60,8 +61,11 @@ const meta: Meta<typeof ManagerSidebar> = {
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
   decorators: [
-    (Story) => (
-      <SidebarProvider style={{ minHeight: '100vh' }}>
+    (Story, context) => (
+      <SidebarProvider
+        defaultOpen={context.parameters.sidebarDefaultOpen !== false}
+        style={{ minHeight: '100vh' }}
+      >
         <Story />
       </SidebarProvider>
     ),
@@ -87,12 +91,35 @@ function withRoleAt(role: Role, initialUrl: string) {
         id: '/_authenticated',
         component: Outlet,
       })
+      function StorySurface() {
+        const location = useRouterState({
+          select: (state) => `${state.location.pathname}${state.location.searchStr}`,
+        })
+        return (
+          <>
+            <output data-testid="story-location" className="sr-only">
+              {location}
+            </output>
+            {storyRef.current()}
+          </>
+        )
+      }
       const index = createRoute({
         getParentRoute: () => authed,
         path: '/',
-        component: () => <>{storyRef.current()}</>,
+        component: StorySurface,
       })
-      const tree = root.addChildren([authed.addChildren([index])])
+      const inbox = createRoute({
+        getParentRoute: () => authed,
+        path: '/inbox',
+        component: StorySurface,
+      })
+      const reviews = createRoute({
+        getParentRoute: () => authed,
+        path: '/properties/$propertyId/reviews',
+        component: StorySurface,
+      })
+      const tree = root.addChildren([authed.addChildren([index, inbox, reviews])])
       return createRouter({
         routeTree: tree,
         history: createMemoryHistory({ initialEntries: [initialUrl] }),
@@ -156,5 +183,91 @@ export const EmptyProperties: Story = {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/select property/i)).toBeInTheDocument()
     expect(await canvas.findByText(/^dashboard$/i)).toBeInTheDocument()
+  },
+}
+
+// The organization-wide inbox has no property id by design. Its app switcher
+// names that scope, and Reviews remains the active destination.
+export const InboxAllProperties: Story = {
+  args: { properties, getLastVisitCount: lastVisitCountZero },
+  decorators: [withRoleAt('PropertyManager', '/inbox')],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(await canvas.findByText(/^all properties$/i)).toBeInTheDocument()
+    expect(await canvas.findByRole('link', { name: /^reviews$/i })).toHaveAttribute(
+      'data-active',
+      'true',
+    )
+  },
+}
+
+// Icon mode keeps the property identity visible without exposing Dashboard's
+// sub-list until the user asks for it.
+export const Collapsed: Story = {
+  args: { properties, getLastVisitCount: lastVisitCountZero },
+  decorators: [withRoleAt('PropertyManager', `/?propertyId=${properties[0].id}`)],
+  parameters: { sidebarDefaultOpen: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(await canvas.findByText(/^ah$/i)).toBeInTheDocument()
+    expect(await canvas.findByRole('button', { name: /^dashboard$/i })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+  },
+}
+
+// Dashboard's hidden sub-list becomes a stable menu beside the collapsed rail.
+export const CollapsedDashboardMenuOpen: Story = {
+  args: { properties, getLastVisitCount: lastVisitCountZero },
+  decorators: [withRoleAt('PropertyManager', `/?propertyId=${properties[0].id}`)],
+  parameters: { sidebarDefaultOpen: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('button', { name: /^dashboard$/i }))
+    const page = within(canvasElement.ownerDocument.body)
+    for (const label of ['Overview', 'Ratings', 'Google', 'Guest voice']) {
+      expect(await page.findByRole('menuitem', { name: label })).toBeInTheDocument()
+    }
+    expect(page.getByRole('menuitem', { name: 'Overview' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+  },
+}
+
+// Changing scope inside the inbox stays in the same work surface. It keeps the
+// queue/filter state, but an item opened under the old scope cannot survive.
+export const InboxPropertySwitch: Story = {
+  args: { properties, getLastVisitCount: lastVisitCountZero },
+  decorators: [
+    withRoleAt(
+      'PropertyManager',
+      `/inbox?queue=closed&itemId=20000000-0000-4000-8000-000000000001&propertyId=${properties[0].id}`,
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('button', { name: /acme hotel/i }))
+    const page = within(canvasElement.ownerDocument.body)
+    await userEvent.click(await page.findByRole('menuitem', { name: /globex hq/i }))
+
+    await waitFor(() =>
+      expect(canvas.getByTestId('story-location')).toHaveTextContent(
+        `/properties/${properties[1].id}/reviews?queue=closed`,
+      ),
+    )
+    expect(canvas.getByTestId('story-location')).not.toHaveTextContent('itemId=')
+    expect(canvas.getByTestId('story-location')).not.toHaveTextContent('propertyId=')
+
+    await userEvent.click(await canvas.findByRole('button', { name: /globex hq/i }))
+    await userEvent.click(
+      await page.findByRole('menuitem', { name: /^all properties$/i }),
+    )
+    await waitFor(() =>
+      expect(canvas.getByTestId('story-location')).toHaveTextContent(
+        '/inbox?queue=closed',
+      ),
+    )
   },
 }

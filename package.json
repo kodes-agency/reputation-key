@@ -44,6 +44,7 @@
     "prepare": "husky",
     "storybook": "storybook dev -p 6006",
     "test:storybook": "REPKEY_STORYBOOK_TESTS=true vitest run --project=storybook",
+    "test:storybook:metrics": "playwright test --config=playwright.storybook.config.ts",
     "perf:catalog": "tsx scripts/perf/load-test.ts --list",
     "perf:run": "tsx scripts/perf/load-test.ts",
     "perf:seed-scale": "tsx scripts/perf/seed-scale.ts",

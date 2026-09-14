@@ -29,7 +29,7 @@ import { addInboxNote } from './application/use-cases/add-inbox-note'
 import { getLastVisitCount } from './application/use-cases/get-last-visit-count'
 import { stampLastInboxView } from './application/use-cases/stamp-last-inbox-view'
 import { getInboxItemDetail } from './application/use-cases/get-inbox-item-detail'
-import { getInboxFolderCounts } from './application/use-cases/get-folder-counts'
+import { getInboxQueueCounts } from './application/use-cases/get-inbox-queue-counts'
 import { getInboxNotes } from './application/use-cases/get-inbox-notes'
 import { getInboxItemHistory } from './application/use-cases/get-inbox-item-history'
 import { rebuildInboxProjection } from './application/use-cases/rebuild-inbox-projection'
@@ -127,6 +127,7 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
       staffPublicApi: input.staffPublicApi,
       clock: input.clock,
       replyLookup: input.replyLookup,
+      viewRepo: input.inboxViewRepo,
     }),
     addInboxNote: addInboxNote({
       repo: input.inboxRepo,
@@ -166,9 +167,10 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
       staffPublicApi: input.staffPublicApi,
       actorDirectory: input.actorDirectory,
     }),
-    getInboxFolderCounts: getInboxFolderCounts({
+    getInboxQueueCounts: getInboxQueueCounts({
       repo: input.inboxRepo,
       staffPublicApi: input.staffPublicApi,
+      replyLookup: input.replyLookup,
     }),
     rebuildInboxProjection: rebuildInboxProjection({
       repo: input.inboxRepo,

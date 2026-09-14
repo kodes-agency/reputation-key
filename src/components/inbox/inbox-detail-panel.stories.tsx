@@ -2,15 +2,23 @@
 // isLoading → skeleton, error → retry CTA, otherwise renders InboxDetailContent
 // (which itself is permission-gated). Stories build a mock InboxDetailState to
 // hit each branch. The panel uses `hidden md:flex`, so a desktop viewport is
-// required for it to be visible.
+// required for it to be visible. The populated story also pins the assignment
+// thread: the member directory reaches the list panel on its own, and only the
+// page hands it to the pane, so an owner control with an empty menu here means
+// the prop was dropped somewhere between InboxPageV2 and the case toolbar.
 import type { Meta, StoryObj } from '@storybook/react'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { InboxDetailPanel } from './inbox-detail-panel'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import type { Action } from '#/components/hooks/use-action'
 import type { InboxDetailState } from './use-inbox-detail'
-import type { addInboxNoteFn, getInboxItemDetailFn } from '#/contexts/inbox/server/inbox'
+import type {
+  addInboxNoteFn,
+  getInboxItemDetailFn,
+  getInboxItemHistoryFn,
+} from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 
@@ -25,6 +33,13 @@ type StatusInput = {
   }
 }
 type IdInput = { data: { inboxItemId: string; expectedCommandRevision: number } }
+type AssignInput = {
+  data: {
+    inboxItemId: string
+    assignedToUserId: string | null
+    expectedCommandRevision: number
+  }
+}
 
 function makeStatusAction(
   overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
@@ -42,6 +57,18 @@ function makeIdAction(
   overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
 ): Action<IdInput, InboxItem> {
   const impl = async (_input: IdInput): Promise<InboxItem> => item
+  return Object.assign(impl, {
+    isPending: overrides.isPending ?? false,
+    error: overrides.error ?? null,
+    isSuccess: overrides.isSuccess ?? false,
+    data: null,
+  })
+}
+
+function makeAssignAction(
+  overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
+): Action<AssignInput, InboxItem> {
+  const impl = async (_input: AssignInput): Promise<InboxItem> => item
   return Object.assign(impl, {
     isPending: overrides.isPending ?? false,
     error: overrides.error ?? null,
@@ -69,6 +96,11 @@ const detailFns = {
   addInboxNote: mockServerFn(async () => ({
     ok: true,
   })) as unknown as typeof addInboxNoteFn,
+  getInboxItemHistory: mockServerFn(async () => ({
+    inboxItemId: item.id,
+    entries: [],
+    truncated: false,
+  })) as unknown as typeof getInboxItemHistoryFn,
 }
 
 const item = makeInboxItem({
@@ -77,6 +109,12 @@ const item = makeInboxItem({
   status: 'open',
   rating: 4,
 })
+
+const VIEWER_ID = 'user-panel-viewer'
+const assignmentOptions = [
+  { userId: 'user-grace', name: 'Grace Hopper' },
+  { userId: 'user-ada', name: 'Ada Lovelace' },
+]
 
 // Faithful InboxDetailState (the useInboxDetail return shape, post-5.7) —
 // every key the hook returns, no dead keys, no casts.
@@ -89,6 +127,7 @@ function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetail
     updateStatus: makeStatusAction(),
     escalate: makeIdAction(),
     resolveEscalation: makeIdAction(),
+    assign: makeAssignAction(),
     markFeedbackHandled: unusedFeedbackAction,
     correctFeedbackHandlingOutcome: unusedFeedbackAction,
     refetch: () => {},
@@ -124,6 +163,8 @@ export const Populated: Story = {
         reviewTranslatedText: null,
         reviewerProfilePhotoUrl: null,
         reviewContentStatus: 'available',
+        // Plan row 7: the stars come from the detail payload, not the item row.
+        reviewRating: 4,
         feedbackComment: null,
         feedbackRatingValue: null,
         reply: null,
@@ -135,6 +176,20 @@ export const Populated: Story = {
     }),
     onClose: () => {},
     detailFns,
+    currentUser: { id: VIEWER_ID },
+    assignmentOptions,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Assignment: Unassigned' }))
+    const body = within(document.body)
+    const first = await body.findByRole('menuitem', { name: 'Assign to me' })
+    await waitFor(() => expect(first).toBeVisible())
+    // The directory arrived intact, not as the empty default.
+    await expect(body.getByRole('menuitem', { name: 'Grace Hopper' })).toBeVisible()
+
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(body.queryByRole('menuitem')).toBeNull())
   },
 }
 

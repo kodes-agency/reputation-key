@@ -1,5 +1,5 @@
 // Inbox context — get last-visit count use case
-// Replaces the former org-level "new" badge (ADR 0023). Returns the count of
+// Replaces the former org-level "new" badge (ADR 0057). Returns the count of
 // `open` items created since the caller's per-user `lastInboxView` timestamp.
 // Per-user — no shared org-level counter corruption.
 

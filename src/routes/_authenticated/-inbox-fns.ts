@@ -27,12 +27,13 @@ import {
   getInboxItemDetailFn,
   getInboxNotesFn,
   getInboxItemHistoryFn,
-  getInboxFolderCountsFn,
+  getInboxQueueCountsFn,
   stampLastInboxViewFn,
   updateInboxStatusFn,
   escalateInboxItemFn,
   resolveEscalationFn,
   addInboxNoteFn,
+  assignInboxItemFn,
   bulkUpdateInboxStatusFn,
   bulkAssignInboxItemsFn,
   markFeedbackHandledFn,
@@ -58,8 +59,8 @@ export const inboxFns: InboxServerFns = {
   get getActivityTimeline() {
     return getActivityTimelineFn
   },
-  get getInboxFolderCounts() {
-    return getInboxFolderCountsFn
+  get getInboxQueueCounts() {
+    return getInboxQueueCountsFn
   },
   get stampLastInboxView() {
     return stampLastInboxViewFn
@@ -75,6 +76,9 @@ export const inboxFns: InboxServerFns = {
   },
   get addInboxNote() {
     return addInboxNoteFn
+  },
+  get assignInboxItem() {
+    return assignInboxItemFn
   },
   get bulkUpdateInboxStatus() {
     return bulkUpdateInboxStatusFn

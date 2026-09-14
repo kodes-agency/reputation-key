@@ -47,9 +47,13 @@ afterEach(() => {
 // ── Key topology the policy relies on ───────────────────────────
 
 describe('inbox key topology (pinned)', () => {
-  it('detail(id) is a prefix of notes(id) and activity(id)', () => {
+  it('detail(id) is a prefix of notes(id), activity(id) and history(id)', () => {
     const detail = inboxKeys.detail(ID)
-    for (const child of [inboxKeys.notes(ID), inboxKeys.activity(ID)]) {
+    for (const child of [
+      inboxKeys.notes(ID),
+      inboxKeys.activity(ID),
+      inboxKeys.history(ID),
+    ]) {
       expect(child.slice(0, detail.length)).toEqual(detail)
     }
   })
@@ -146,6 +150,20 @@ describe('inboxCachePolicy.onItemStatusChanged', () => {
     vi.advanceTimersByTime(BULLMQ_ACTIVITY_LAG_MS)
     expect(invalidated).toContainEqual(inboxKeys.activity(ID))
   })
+
+  // Close, reopen, assign, escalate and resolve-escalation all resolve through
+  // this handler and all append a Handling History row in the command's own
+  // transaction, so the detail thread must refetch without waiting for a lag.
+  it('invalidates handling history immediately, not after the BullMQ lag', () => {
+    const { qc, invalidated } = makeFakeQc()
+
+    inboxCachePolicy.onItemStatusChanged(qc, updated)
+
+    expect(invalidated).toContainEqual(inboxKeys.history(ID))
+    // Pin the contrast with activity: history is already readable, so waiting
+    // would leave the thread a row behind the strip for 2.5s.
+    expect(invalidated).not.toContainEqual(inboxKeys.activity(ID))
+  })
 })
 
 describe('inboxCachePolicy.onFeedbackHandlingChanged', () => {
@@ -223,6 +241,10 @@ describe('inboxCachePolicy.onFeedbackHandlingChanged', () => {
     expect(invalidated).not.toContainEqual(inboxKeys.lists())
     expect(invalidated).not.toContainEqual(inboxKeys.counts())
     expect(invalidated).not.toContainEqual(inboxKeys.lastVisitCount())
+    // The correction is exactly what the thread has to show: a second outcome
+    // revision on a row that never moved folders. History is stale even though
+    // nothing else is, so it must be invalidated before the early return.
+    expect(invalidated).toContainEqual(inboxKeys.history(ID))
   })
 })
 
@@ -243,7 +265,7 @@ describe('inboxCachePolicy reply changes', () => {
     const old = { item: { id: ID }, reply: null, notes: [] }
     expect(setDataCalls[0].updater(old)).toEqual({ ...old, reply })
     expect(setDataCalls[0].updater(undefined)).toBeUndefined()
-    expect(invalidated).toEqual([inboxKeys.lists()])
+    expect(invalidated).toEqual([inboxKeys.lists(), inboxKeys.counts()])
   })
 
   it('does not make folder data stale when an autosave returns a draft', () => {
@@ -294,15 +316,28 @@ describe('inboxCachePolicy.onNoteAdded', () => {
 // ── onItemFolderChanged ─────────────────────────────────────────
 
 describe('inboxCachePolicy.onItemFolderChanged', () => {
-  it('invalidates exactly the list/count caches', () => {
+  it('invalidates the thread history alongside the list/count caches', () => {
     const { qc, invalidated } = makeFakeQc()
 
-    inboxCachePolicy.onItemFolderChanged(qc)
+    inboxCachePolicy.onItemFolderChanged(qc, ID)
 
-    expect(invalidated).toHaveLength(3)
+    // The server-side close (a reply confirmed on Google) appends its
+    // `cycle_transition` row in the same transaction as the status flip, and
+    // polling stops once the reply settles — so if the thread is not
+    // invalidated here, nothing ever refetches it.
+    expect(invalidated).toContainEqual(inboxKeys.history(ID))
     expect(invalidated).toContainEqual(inboxKeys.lists())
     expect(invalidated).toContainEqual(inboxKeys.counts())
     expect(invalidated).toContainEqual(inboxKeys.lastVisitCount())
+    expect(invalidated).toHaveLength(4)
+  })
+
+  it('does not invalidate the detail query it only ever write-through patches', () => {
+    const { qc, invalidated } = makeFakeQc()
+
+    inboxCachePolicy.onItemFolderChanged(qc, ID)
+
+    expect(invalidated).not.toContainEqual(inboxKeys.detail(ID))
   })
 })
 

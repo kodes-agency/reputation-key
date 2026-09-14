@@ -500,6 +500,49 @@ describe('inbox repository — status transitions', () => {
   })
 })
 
+describe('inbox repository — queue predicates', () => {
+  const repo = createInboxRepository(db, stubPorts)
+
+  it('uses one predicate path for list totals and standalone counts', async () => {
+    const included = makeInboxItem({ assignedTo: USER_A })
+    const excluded = makeInboxItem()
+    await repo.create(included, ORG_A)
+    await repo.create(excluded, ORG_A)
+
+    const filters = {
+      status: 'open' as const,
+      sourceType: 'review' as const,
+      assignedTo: USER_A,
+      replyStage: {
+        match: 'include' as const,
+        reviewIds: [reviewId(included.sourceId)],
+      },
+    }
+
+    const [page, count] = await Promise.all([
+      repo.findFilteredPaginated(filters, ORG_A),
+      repo.countFiltered(filters, ORG_A),
+    ])
+
+    expect(page.items.map((item) => item.id)).toEqual([included.id])
+    expect(page.totalCount).toBe(1)
+    expect(count).toBe(page.totalCount)
+    await expect(
+      repo.countFiltered(
+        {
+          status: 'open',
+          sourceType: 'review',
+          replyStage: {
+            match: 'exclude',
+            reviewIds: [reviewId(included.sourceId)],
+          },
+        },
+        ORG_A,
+      ),
+    ).resolves.toBe(1)
+  })
+})
+
 describe('inbox repository — assignment', () => {
   const repo = createInboxRepository(db, stubPorts)
 
@@ -874,6 +917,128 @@ describe('inbox repository — detail view', () => {
   it('findDetailById returns null for non-existent item', async () => {
     const detail = await repo.findDetailById(inboxItemId(crypto.randomUUID()), ORG_A)
     expect(detail).toBeNull()
+  })
+
+  // ── reviewRating ────────────────────────────────────────────────────
+  // The rating is the fifth field carried off `ReviewSnippet`, beside
+  // `reviewText` / `reviewTranslatedText` / `reviewerProfilePhotoUrl` /
+  // `reviewerName`, and it has to obey the same eligibility rule those four
+  // already prove above: an ineligible source serves nothing. These cases
+  // also fix the boundary that made the field necessary — `item.rating` is a
+  // different number with a different owner, and the two must not track each
+  // other.
+
+  /** Same repository, different answer from the one governed input that
+   *  decides both the content status and the rating. */
+  const repoAnswering = (result: ReviewSnippetResult) =>
+    createInboxRepository(db, {
+      ...stubPorts,
+      reviewLookup: {
+        ...stubPorts.reviewLookup,
+        getReviewSnippetById: async (): Promise<ReviewSnippetResult> => result,
+      },
+    })
+
+  const availableWithRating = (rating: number | null): ReviewSnippetResult => ({
+    status: 'available',
+    snippet: {
+      reviewerName: 'Jane',
+      text: 'Wonderful stay.',
+      translatedText: null,
+      reviewerProfilePhotoUrl: null,
+      rating,
+      languageCode: 'en',
+    },
+  })
+
+  const createdReviewItem = async () => {
+    const item = makeInboxItem({
+      sourceType: 'review',
+      sourceId: reviewId(crypto.randomUUID()),
+    })
+    await repo.create(item, ORG_A)
+    return item
+  }
+
+  it('findDetailById carries the rating of an available review', async () => {
+    const item = await createdReviewItem()
+
+    const detail = await repoAnswering(availableWithRating(5)).findDetailById(
+      item.id,
+      ORG_A,
+    )
+    expect(detail!.reviewContentStatus).toBe('available')
+    expect(detail!.reviewRating).toBe(5)
+    // And the projection's own column is still null on the very same payload —
+    // `makeInboxItem` seeds `rating: 4`, the review creation path drops it
+    // (`inbox-command-store.ts:936`, ":1416"). `reviewRating` is therefore the
+    // ONLY place a review's stars exist on the detail; a pane reading
+    // `item.rating` alone renders no stars at all, which is the defect row 7
+    // of `docs/plan/inbox-detail-v2.md` describes.
+    expect(detail!.item.rating).toBeNull()
+  })
+
+  it('findDetailById reports null when an available review carries no rating', async () => {
+    const item = await createdReviewItem()
+
+    // A rating-less review is a real Google state, and it is NOT the same fact
+    // as unavailable content: the words are still served below.
+    const detail = await repoAnswering(availableWithRating(null)).findDetailById(
+      item.id,
+      ORG_A,
+    )
+    expect(detail!.reviewContentStatus).toBe('available')
+    expect(detail!.reviewText).toBe('Wonderful stay.')
+    expect(detail!.reviewRating).toBeNull()
+  })
+
+  it('findDetailById withholds the rating of an expired review', async () => {
+    const item = await createdReviewItem()
+
+    const detail = await repoAnswering({ status: 'expired' }).findDetailById(
+      item.id,
+      ORG_A,
+    )
+    expect(detail!.reviewContentStatus).toBe('expired')
+    // The rating goes silent with the text it belongs to, not independently.
+    expect(detail!.reviewText).toBeNull()
+    expect(detail!.reviewRating).toBeNull()
+  })
+
+  it('findDetailById withholds the rating of a not_found review', async () => {
+    const item = await createdReviewItem()
+
+    // `repo` itself is wired to the not_found stub (see `stubPorts`).
+    const detail = await repo.findDetailById(item.id, ORG_A)
+    expect(detail!.reviewContentStatus).toBe('not_found')
+    expect(detail!.reviewRating).toBeNull()
+  })
+
+  it('findDetailById leaves reviewRating null for a feedback item', async () => {
+    const item = makeInboxItem({
+      sourceType: 'feedback',
+      sourceId: feedbackId(crypto.randomUUID()),
+    })
+    await repo.create(item, ORG_A)
+
+    const feedbackRepo = createInboxRepository(db, {
+      ...stubPorts,
+      feedbackLookup: {
+        ...stubPorts.feedbackLookup,
+        getFeedbackSnippetById: async () => ({
+          comment: 'The room was too warm.',
+          ratingValue: 2,
+        }),
+      },
+    })
+
+    // Private feedback rates the stay, not a review. Its number stays in
+    // `feedbackRatingValue`; a consumer that reads `reviewRating` for both
+    // would print Google stars over a private score.
+    const detail = await feedbackRepo.findDetailById(item.id, ORG_A)
+    expect(detail!.feedbackRatingValue).toBe(2)
+    expect(detail!.reviewRating).toBeNull()
+    expect(detail!.reviewContentStatus).toBeNull()
   })
 })
 

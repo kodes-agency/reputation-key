@@ -11,11 +11,21 @@ export interface AttentionBandProps {
 
 type Tone = 'destructive' | 'warning'
 
+/**
+ * `warning` sits on the warn tokens (`styles.css`), not raw Tailwind amber: it
+ * was `amber-700` / `amber-400` on an `amber-500/10` tint, a shade no other
+ * surface agreed on, and the inbox's warning text borrowed it from here.
+ *
+ * Its hover darkens the BORDER, not the fill, unlike `destructive` beside it.
+ * The analogous fill (`bg-warn-track` over the page) measured 4.13:1 for
+ * `text-warn` in the light theme — below 4.5:1 for this 14 px label — while
+ * `--warn-muted` holds it at 4.62:1, so the rest state's fill has to stay put.
+ * `--warn` against `--warn-line` is still a visible step under the pointer.
+ */
 const TONE_CLASS: Record<Tone, string> = {
   destructive:
     'border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/15',
-  warning:
-    'border-amber-500/30 bg-amber-500/10 text-amber-700 hover:bg-amber-500/15 dark:text-amber-400',
+  warning: 'border-warn-line bg-warn-muted text-warn hover:border-warn',
 }
 
 // min-h-11 = 44 px: these are the page's most-tapped links and they were 30 px
@@ -70,7 +80,7 @@ export function AttentionBand({ signals, propertyId }: AttentionBandProps) {
       <Link
         key="itemsToTriage"
         to="/inbox"
-        search={{ propertyId, folder: 'open' }}
+        search={{ propertyId, queue: 'reply' }}
         className={cn(CHIP_BASE, TONE_CLASS.warning)}
       >
         <ChipContent
@@ -118,7 +128,7 @@ export function AttentionBand({ signals, propertyId }: AttentionBandProps) {
       <Link
         key="escalated"
         to="/inbox"
-        search={{ propertyId, folder: 'escalated' }}
+        search={{ propertyId, queue: 'escalated' }}
         className={cn(CHIP_BASE, TONE_CLASS.destructive)}
       >
         <ChipContent

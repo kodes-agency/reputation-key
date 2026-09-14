@@ -1,5 +1,5 @@
 // Inbox context — resolve escalation use case
-// Clears the orthogonal escalation flag (ADR 0023). Independent of status.
+// Clears the orthogonal escalation flag (ADR 0055). Independent of status.
 // Records the standalone `inbox.inbox_item.escalation_resolved` event.
 
 import type { InboxRepository } from '../ports/inbox.repository'

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createReplyAutosaveCoordinator,
+  type ReplyAutosaveState,
   type ReplyDraftSnapshot,
 } from './reply-autosave-coordinator'
 
@@ -131,5 +132,84 @@ describe('reply autosave coordinator', () => {
 
     expect(originalSave).not.toHaveBeenCalled()
     expect(updatedSave).toHaveBeenCalledWith(changed)
+  })
+
+  it('emits the error status and its retry copy to a subscriber when a save fails', async () => {
+    vi.useFakeTimers()
+    const save = vi
+      .fn<(snapshot: ReplyDraftSnapshot) => Promise<void>>()
+      .mockRejectedValue(new Error('offline'))
+    const observed: ReplyAutosaveState[] = []
+    const coordinator = createReplyAutosaveCoordinator({
+      initial,
+      save,
+      onState: vi.fn(),
+    })
+    coordinator.subscribe((state) => observed.push(state))
+
+    coordinator.schedule(changed)
+    await vi.advanceTimersByTimeAsync(700)
+
+    expect(save).toHaveBeenCalledWith(changed)
+    expect(observed.at(-1)).toEqual({
+      status: 'error',
+      error: 'Draft could not be saved. Retry before submitting.',
+    })
+  })
+
+  // StrictMode mounts, tears the mount down and mounts again against the SAME
+  // coordinator — the one `useState` keeps — so teardown must be reversible.
+  // While it latched the channel shut, `unsaved` and `error` (and with them
+  // `Draft not saved` and `Retry save`) were unreachable in dev and in stories.
+  it('keeps reporting status through a subscribe → unsubscribe → subscribe cycle', async () => {
+    vi.useFakeTimers()
+    const save = vi
+      .fn<(snapshot: ReplyDraftSnapshot) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue(undefined)
+    const observed: ReplyAutosaveState[] = []
+    const listener = (state: ReplyAutosaveState) => observed.push(state)
+    const coordinator = createReplyAutosaveCoordinator({
+      initial,
+      save,
+      onState: listener,
+    })
+
+    const detach = coordinator.subscribe(listener)
+    detach()
+    coordinator.dispose()
+    coordinator.subscribe(listener)
+
+    coordinator.schedule(changed)
+    await vi.advanceTimersByTimeAsync(700)
+
+    expect(observed.map((state) => state.status)).toEqual(['pending', 'saving', 'error'])
+    expect(observed.at(-1)?.error).toBe(
+      'Draft could not be saved. Retry before submitting.',
+    )
+
+    await coordinator.retry()
+
+    expect(observed.at(-1)).toEqual({ status: 'saved', error: null })
+  })
+
+  it('stays silent after teardown until something subscribes again', () => {
+    const observed: ReplyAutosaveState[] = []
+    const listener = (state: ReplyAutosaveState) => observed.push(state)
+    const coordinator = createReplyAutosaveCoordinator({
+      initial,
+      save: vi.fn(async () => undefined),
+      onState: listener,
+    })
+
+    coordinator.dispose()
+    coordinator.schedule(changed, false)
+
+    expect(observed).toEqual([])
+
+    coordinator.subscribe(listener)
+    coordinator.schedule(changed, false)
+
+    expect(observed).toEqual([{ status: 'unsaved', error: null }])
   })
 })

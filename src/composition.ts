@@ -542,7 +542,10 @@ function buildContainer(
         findEligibleLegacyFeedbackIds: guest.snippets.findEligibleLegacyFeedbackIds,
       },
       property: property.publicApi,
-      reply: review.lookups.reply,
+      reply: {
+        ...review.lookups.reply,
+        getCurrentGoogleReplyByReviewId: review.publicApi.getCurrentGoogleReplyByReviewId,
+      },
       review: review.lookups.review,
       replyObservationAuthority: review.publicApi.replyObservationAuthority,
       responseTargetAuthority: review.publicApi.responseTargetAuthority,

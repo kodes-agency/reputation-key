@@ -52,6 +52,34 @@ export type GoogleReplyObservationHeadFence = Readonly<{
   materialReviewRevision: number
 }>
 
+/**
+ * Current provider-reply content before the serving eligibility rule is
+ * applied. The observation store owns the head join; `eligible-reads.ts` owns
+ * whether its provider-controlled text may leave Review.
+ */
+export type CurrentGoogleReplyObservation = Readonly<{
+  id: string
+  organizationId: OrganizationId
+  reviewId: ReviewId
+  observationRevision: number
+  state: 'live' | 'absent'
+  provenance: 'repkey_confirmed' | 'external_or_unknown' | 'none'
+  normalizedText: string | null
+  matchedReplyId: ReplyId | null
+  providerUpdatedAt: Date | null
+  observedAt: Date
+  contentExpiresAt: Date
+  contentState: 'active' | 'source_expired' | 'provider_deleted'
+}>
+
+/** Read side exposed only to Review's governed serving service. */
+export type GoogleReplyObservationLookup = Readonly<{
+  findCurrentByReviewId(
+    reviewId: ReviewId,
+    organizationId: OrganizationId,
+  ): Promise<CurrentGoogleReplyObservation | null>
+}>
+
 /** Atomic observation history/head writer and the sole authority allowed to
  * confirm a local Reply as published. */
 export type GoogleReplyObservationStore = Readonly<{

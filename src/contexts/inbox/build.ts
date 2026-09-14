@@ -54,7 +54,7 @@ import type { StampLastInboxView } from './application/use-cases/stamp-last-inbo
 import type { GetInboxItemDetail } from './application/use-cases/get-inbox-item-detail'
 import type { GetInboxNotes } from './application/use-cases/get-inbox-notes'
 import type { GetInboxItemHistory } from './application/use-cases/get-inbox-item-history'
-import type { GetInboxFolderCounts } from './application/use-cases/get-folder-counts'
+import type { GetInboxQueueCounts } from './application/use-cases/get-inbox-queue-counts'
 import type { RebuildInboxProjection } from './application/use-cases/rebuild-inbox-projection'
 import type { StartReviewHandlingCycle } from './application/use-cases/start-review-handling-cycle'
 import type { MarkFeedbackHandled } from './application/use-cases/mark-feedback-handled'
@@ -137,7 +137,7 @@ type InboxUseCases = Readonly<{
   getInboxItemDetail: GetInboxItemDetail
   getInboxNotes: GetInboxNotes
   getInboxItemHistory: GetInboxItemHistory
-  getInboxFolderCounts: GetInboxFolderCounts
+  getInboxQueueCounts: GetInboxQueueCounts
   rebuildInboxProjection: RebuildInboxProjection
   startReviewHandlingCycle: StartReviewHandlingCycle
   markFeedbackHandled: MarkFeedbackHandled
@@ -166,7 +166,7 @@ type InboxRequestApi = Readonly<
     | 'getInboxItemDetail'
     | 'getInboxNotes'
     | 'getInboxItemHistory'
-    | 'getInboxFolderCounts'
+    | 'getInboxQueueCounts'
     | 'markFeedbackHandled'
     | 'correctFeedbackHandlingOutcome'
     | 'getGoogleReviewTargetAnalytics'
@@ -262,10 +262,14 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   })
   const replyLookup: ReplyLookupPort = createReplyLookupAdapter({
     findByReviewId: (id, orgId) => input.sources.reply.findByReviewId(id, orgId),
+    getCurrentGoogleReplyByReviewId: (id, orgId) =>
+      input.sources.reply.getCurrentGoogleReplyByReviewId(id, orgId),
     findMilestonesByReviewIds: (ids, orgId) =>
       input.sources.reply.findMilestonesByReviewIds(ids, orgId),
     findStatesByReviewIds: (ids, orgId) =>
       input.sources.reply.findStatesByReviewIds(ids, orgId),
+    findReviewIdsByReplyStage: (orgId, propertyIds) =>
+      input.sources.reply.findReviewIdsByReplyStage(orgId, propertyIds),
   })
   // BQC-3.4: projection source metadata (review.updated consumer + rebuild).
   const reviewSourceLookup: ReviewSourceLookupPort = createReviewSourceLookupAdapter({
@@ -355,7 +359,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     getInboxItemDetail: useCases.getInboxItemDetail,
     getInboxNotes: useCases.getInboxNotes,
     getInboxItemHistory: useCases.getInboxItemHistory,
-    getInboxFolderCounts: useCases.getInboxFolderCounts,
+    getInboxQueueCounts: useCases.getInboxQueueCounts,
     markFeedbackHandled: useCases.markFeedbackHandled,
     correctFeedbackHandlingOutcome: useCases.correctFeedbackHandlingOutcome,
     getGoogleReviewTargetAnalytics: useCases.getGoogleReviewTargetAnalytics,

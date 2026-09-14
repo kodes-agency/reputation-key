@@ -14,15 +14,41 @@ type ReplyStateCopy = Readonly<{
   description: string | ((publicationAttempts: number) => string) | null
 }>
 
-const queuedForGoogle: ReplyStateCopy = {
-  badge: 'Queued for Google',
+/**
+ * The reply vocabulary itself (plan row 14): sentence case, and one word list
+ * that the thread message's chip and the inbox row both read from, so the two
+ * surfaces describing the same reply can no longer disagree — the row used to
+ * say `Queued for Google` while the detail said `Confirmed on Google`.
+ *
+ * Keyed by what the word MEANS rather than by a status, because several states
+ * share one word: `approved`, `requested`, `authorized`, `sending` and
+ * `pending_observation` all read `Waiting for Google`. A manager is waiting on
+ * Google in every one of them; which stage the publication machine is in is
+ * the description's job, not the chip's.
+ */
+export const REPLY_CHIP_WORDS = {
+  awaitingApproval: 'Awaiting approval',
+  waitingForGoogle: 'Waiting for Google',
+  liveOnGoogle: 'Live on Google',
+  notPublished: 'Not published',
+  /**
+   * An ambiguous publication is the one publish failure that is NOT `Not
+   * published`: Google may well have taken the reply and RepKey could not
+   * verify it, so the word must ask for a read rather than assert an outcome.
+   */
+  needsCheck: 'Needs a check',
+  rejected: 'Rejected',
+} as const
+
+const waitingForGoogle: ReplyStateCopy = {
+  badge: REPLY_CHIP_WORDS.waitingForGoogle,
   showInRow: true,
   description:
     'Your confirmation is recorded. RepKey will start publishing this reply shortly.',
 }
 
-const publishingStopped: ReplyStateCopy = {
-  badge: 'Publishing stopped',
+const notPublished: ReplyStateCopy = {
+  badge: REPLY_CHIP_WORDS.notPublished,
   showInRow: true,
   description: (publicationAttempts) =>
     publicationAttempts === 0
@@ -40,47 +66,49 @@ const publishingStopped: ReplyStateCopy = {
 export const REPLY_STATE_COPY: Readonly<Record<ReplyCopyKey, ReplyStateCopy>> = {
   draft: { badge: null, showInRow: false, description: null },
   pending_approval: {
-    badge: 'Awaiting Approval',
+    badge: REPLY_CHIP_WORDS.awaitingApproval,
     showInRow: true,
     description: null,
   },
-  approved: queuedForGoogle,
+  approved: waitingForGoogle,
   published: {
-    badge: 'Confirmed on Google',
+    badge: REPLY_CHIP_WORDS.liveOnGoogle,
     showInRow: false,
     description: null,
   },
-  rejected: { badge: 'Rejected', showInRow: true, description: null },
-  publish_failed: publishingStopped,
-  requested: queuedForGoogle,
-  authorized: queuedForGoogle,
+  rejected: { badge: REPLY_CHIP_WORDS.rejected, showInRow: true, description: null },
+  publish_failed: notPublished,
+  requested: waitingForGoogle,
+  authorized: waitingForGoogle,
   sending: {
-    badge: 'Sending to Google',
+    badge: REPLY_CHIP_WORDS.waitingForGoogle,
     showInRow: true,
     description:
       'RepKey is sending this reply to Google. It will keep checking until the exact reply is confirmed live.',
   },
   pending_observation: {
-    badge: 'Waiting for Google',
+    badge: REPLY_CHIP_WORDS.waitingForGoogle,
     showInRow: true,
     description:
       'Google accepted the update. RepKey is checking until this exact reply is confirmed live.',
   },
-  terminal: publishingStopped,
+  terminal: notPublished,
   ambiguous: {
-    badge: 'Google status unconfirmed',
+    badge: REPLY_CHIP_WORDS.needsCheck,
     showInRow: true,
     description:
       'Google may have accepted this reply, but RepKey could not verify it. To avoid posting twice, RepKey will only check Google—it will not send this reply again.',
   },
-  cancelled: publishingStopped,
+  cancelled: notPublished,
+  // A provider rejection is still "not published" to the manager reading the
+  // chip; what Google said about it is the description's business.
   terminal_rejection: {
-    badge: 'Google rejected update',
+    badge: REPLY_CHIP_WORDS.notPublished,
     showInRow: true,
     description:
       'Google rejected this update before it could be published. Check the Google Business Profile connection and permissions, then try again.',
   },
-  retryable: publishingStopped,
+  retryable: notPublished,
 }
 
 export function approvedReplyStateCopy(publicationState: string | null): ReplyStateCopy {
@@ -89,7 +117,7 @@ export function approvedReplyStateCopy(publicationState: string | null): ReplySt
     : REPLY_STATE_COPY.approved
 }
 
-function resolveReplyStateCopy(state: InboxItemReplyState): ReplyStateCopy {
+export function resolveReplyStateCopy(state: InboxItemReplyState): ReplyStateCopy {
   if (
     state.status === 'draft' ||
     state.status === 'pending_approval' ||

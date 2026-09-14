@@ -1,14 +1,21 @@
 // Inbox detail sheet — the mobile slide-over detail view. Same detailState
 // branching as the desktop panel (loading / error / populated), mounted inside
 // a Sheet. Renders InboxDetailContent when loaded, which is permission-gated.
+// The sheet is a Radix portal, so its markup lives on document.body rather than
+// in the story canvas — queries below are scoped accordingly.
 import type { Meta, StoryObj } from '@storybook/react'
+import { expect, within } from 'storybook/test'
 import { InboxDetailSheet } from './inbox-detail-sheet'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import type { Action } from '#/components/hooks/use-action'
 import type { InboxDetailState } from './use-inbox-detail'
-import type { addInboxNoteFn, getInboxItemDetailFn } from '#/contexts/inbox/server/inbox'
+import type {
+  addInboxNoteFn,
+  getInboxItemDetailFn,
+  getInboxItemHistoryFn,
+} from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 
@@ -23,6 +30,13 @@ type StatusInput = {
   }
 }
 type IdInput = { data: { inboxItemId: string; expectedCommandRevision: number } }
+type AssignInput = {
+  data: {
+    inboxItemId: string
+    assignedToUserId: string | null
+    expectedCommandRevision: number
+  }
+}
 
 function makeStatusAction(
   overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
@@ -40,6 +54,18 @@ function makeIdAction(
   overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
 ): Action<IdInput, InboxItem> {
   const impl = async (_input: IdInput): Promise<InboxItem> => item
+  return Object.assign(impl, {
+    isPending: overrides.isPending ?? false,
+    error: overrides.error ?? null,
+    isSuccess: overrides.isSuccess ?? false,
+    data: null,
+  })
+}
+
+function makeAssignAction(
+  overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
+): Action<AssignInput, InboxItem> {
+  const impl = async (_input: AssignInput): Promise<InboxItem> => item
   return Object.assign(impl, {
     isPending: overrides.isPending ?? false,
     error: overrides.error ?? null,
@@ -67,6 +93,11 @@ const detailFns = {
   addInboxNote: mockServerFn(async () => ({
     ok: true,
   })) as unknown as typeof addInboxNoteFn,
+  getInboxItemHistory: mockServerFn(async () => ({
+    inboxItemId: item.id,
+    entries: [],
+    truncated: false,
+  })) as unknown as typeof getInboxItemHistoryFn,
 }
 
 const item = makeInboxItem({
@@ -75,6 +106,9 @@ const item = makeInboxItem({
   status: 'open',
   rating: 4,
 })
+
+const VIEWER_ID = 'user-sheet-viewer'
+const assignmentOptions = [{ userId: 'user-grace', name: 'Grace Hopper' }]
 
 // Faithful InboxDetailState (the useInboxDetail return shape, post-5.7) —
 // every key the hook returns, no dead keys, no casts.
@@ -87,6 +121,7 @@ function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetail
     updateStatus: makeStatusAction(),
     escalate: makeIdAction(),
     resolveEscalation: makeIdAction(),
+    assign: makeAssignAction(),
     markFeedbackHandled: unusedFeedbackAction,
     correctFeedbackHandlingOutcome: unusedFeedbackAction,
     refetch: () => {},
@@ -125,6 +160,8 @@ export const Open: Story = {
         reviewTranslatedText: null,
         reviewerProfilePhotoUrl: null,
         reviewContentStatus: 'available',
+        // Plan row 7: the stars come from the detail payload, not the item row.
+        reviewRating: 4,
         feedbackComment: null,
         feedbackRatingValue: null,
         reply: null,
@@ -135,6 +172,23 @@ export const Open: Story = {
       notes: [],
     }),
     detailFns,
+    currentUser: { id: VIEWER_ID },
+    assignmentOptions,
+  },
+  play: async () => {
+    const body = within(document.body)
+    // The case toolbar rides inside the sheet's bounded column, above the
+    // single scroller, and the assignment directory reaches it through the
+    // sheet.
+    const toolbar = within(body.getByRole('region', { name: 'Case status' }))
+    await expect(
+      toolbar.getByRole('button', { name: 'Assignment: Unassigned' }),
+    ).toBeVisible()
+    // Plan v2.1 row 5: Escalate is the toolbar's third member now, not a
+    // header button — and the ONLY one in the sheet, so the e2e journeys'
+    // page-wide `exact` lookup still resolves to a single control.
+    await expect(toolbar.getByRole('button', { name: 'Escalate' })).toBeVisible()
+    await expect(body.getAllByRole('button', { name: 'Escalate' })).toHaveLength(1)
   },
 }
 

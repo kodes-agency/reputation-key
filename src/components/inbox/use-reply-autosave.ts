@@ -1,22 +1,53 @@
 import { useEffect, useState } from 'react'
 import {
   createReplyAutosaveCoordinator,
+  type ReplyAutosaveState,
   type ReplyAutosaveStatus,
   type ReplyDraftSnapshot,
 } from './reply-autosave-coordinator'
 
-export type { ReplyAutosaveStatus, ReplyDraftSnapshot }
+export type { ReplyAutosaveState, ReplyAutosaveStatus, ReplyDraftSnapshot }
 
 type SaveDraft = (
   snapshot: ReplyDraftSnapshot,
   provenanceToken?: string,
 ) => Promise<unknown>
 
+/** The slice of the coordinator one mount of the composer owns. */
+type AutosaveLifecycle = Readonly<{
+  subscribe: (listener: (state: ReplyAutosaveState) => void) => () => void
+  dispose: () => void
+}>
+
+/**
+ * One mount of the autosave status channel: subscribe, and on teardown detach
+ * the listener and cancel queued work.
+ *
+ * Teardown must leave the coordinator usable. StrictMode runs mount → teardown
+ * → mount against the same instance (the one `useState` keeps), and before this
+ * was reversible the teardown latched the channel shut before the first
+ * keystroke, so `unsaved` and `error` — and with them `Draft not saved` and
+ * `Retry save` — never reached the footer in development or in any story.
+ *
+ * Exported because the unit project runs in Node with no renderer: this is the
+ * effect body itself, so a test can drive the StrictMode cycle directly.
+ */
+export function attachReplyAutosave(
+  coordinator: AutosaveLifecycle,
+  onState: (state: ReplyAutosaveState) => void,
+) {
+  const unsubscribe = coordinator.subscribe(onState)
+  return () => {
+    unsubscribe()
+    coordinator.dispose()
+  }
+}
+
 export function useReplyAutosave(initial: ReplyDraftSnapshot, saveDraft: SaveDraft) {
-  const [state, setState] = useState<{
-    status: ReplyAutosaveStatus
-    error: string | null
-  }>({ status: 'idle', error: null })
+  const [state, setState] = useState<ReplyAutosaveState>({
+    status: 'idle',
+    error: null,
+  })
   const [coordinator] = useState(() =>
     createReplyAutosaveCoordinator({
       initial,
@@ -26,7 +57,7 @@ export function useReplyAutosave(initial: ReplyDraftSnapshot, saveDraft: SaveDra
   )
 
   useEffect(() => coordinator.setSave(saveDraft), [coordinator, saveDraft])
-  useEffect(() => () => coordinator.dispose(), [coordinator])
+  useEffect(() => attachReplyAutosave(coordinator, setState), [coordinator])
 
   return {
     status: state.status,

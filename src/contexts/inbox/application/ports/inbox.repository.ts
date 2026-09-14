@@ -7,7 +7,13 @@ import type {
   InboxStatus,
   SourceType,
 } from '../../domain/types'
-import type { InboxItemId, OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
+import type {
+  InboxItemId,
+  OrganizationId,
+  PropertyId,
+  ReviewId,
+  UserId,
+} from '#/shared/domain/ids'
 import type {
   ReviewAspect,
   ReviewAspectPolarity,
@@ -38,6 +44,11 @@ export type InboxFilters = Readonly<{
   status?: InboxStatus | ReadonlyArray<InboxStatus>
   isEscalated?: boolean
   sourceType?: SourceType
+  assignedTo?: UserId
+  replyStage?: Readonly<{
+    match: 'include' | 'exclude'
+    reviewIds: ReadonlyArray<ReviewId>
+  }>
   /** Authorization-owned source/property predicates; never client supplied. */
   sourceScopes?: ReadonlyArray<InboxSourceScope>
   platform?: string
@@ -81,6 +92,8 @@ export type InboxRepository = Readonly<{
     cursor?: Cursor,
     limit?: number,
   ): Promise<PaginatedResult>
+  /** Count rows using the exact same governed predicates as the list. */
+  countFiltered(filters: InboxFilters, orgId: OrganizationId): Promise<number>
   create(item: InboxItem, orgId: OrganizationId): Promise<InboxItem>
   /**
    * RETAINED for the receipt-coordinated command store only. Nothing in the

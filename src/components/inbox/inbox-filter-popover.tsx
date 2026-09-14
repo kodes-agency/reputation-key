@@ -1,4 +1,3 @@
-import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { FieldGroup } from '#/components/ui/field'
 import {
@@ -55,10 +54,16 @@ export function InboxFilterPopover({ value, onChange }: Props) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="h-10">
-          <Filter data-icon="inline-start" />
-          Filters
-          {activeCount > 0 && <Badge variant="secondary">{activeCount}</Badge>}
+        <Button
+          variant="outline"
+          size="icon-sm"
+          className="relative max-md:size-9"
+          aria-label={activeCount > 0 ? `Filters, ${activeCount} active` : 'Filters'}
+        >
+          <Filter />
+          {activeCount > 0 && (
+            <span className="absolute top-1 right-1 size-1.5 rounded-full bg-foreground" />
+          )}
         </Button>
       </PopoverTrigger>
       {/* role="dialog" with no accessible name fails axe (aria-dialog-name).

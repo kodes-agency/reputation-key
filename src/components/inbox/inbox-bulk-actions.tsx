@@ -1,5 +1,6 @@
-import { RotateCcw, UserRoundCog, X } from 'lucide-react'
+import { RotateCcw, X } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { ButtonGroup } from '#/components/ui/button-group'
 import { Checkbox } from '#/components/ui/checkbox'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
@@ -8,10 +9,8 @@ import type { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 import { toast } from 'sonner'
 import { buildBulkReopenCommands, bulkReopenNotice } from './inbox-bulk-policy'
 import { InboxReopenDialog } from './inbox-reopen-dialog'
-import {
-  InboxBulkAssignmentDialog,
-  type InboxAssignmentOption,
-} from './inbox-bulk-assignment-dialog'
+import type { InboxAssignmentOption } from './inbox-owner-view'
+import { InboxBulkAssignMenu } from './inbox-bulk-assign-menu'
 import type { bulkAssignInboxItemsFn } from '#/contexts/inbox/server/inbox'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 
@@ -101,44 +100,35 @@ export function InboxBulkActions({
   }
 
   return (
-    <div className="mt-4 space-y-2">
-      <div className="flex min-h-10 flex-wrap items-center gap-2">
-        <Checkbox
-          checked={allSelectableSelected ? true : 'indeterminate'}
-          onCheckedChange={(checked) =>
-            checked === true ? onSelectAll() : onClearSelection()
-          }
-          aria-label={
-            items.length > INBOX_BULK_LIMIT
-              ? `Select first ${INBOX_BULK_LIMIT} loaded reviews`
-              : 'Select all loaded reviews'
-          }
-        />
-        <span className="text-sm font-medium tabular-nums">
-          {selectedIds.length} selected
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <Checkbox
+        checked={allSelectableSelected ? true : 'indeterminate'}
+        onCheckedChange={(checked) =>
+          checked === true ? onSelectAll() : onClearSelection()
+        }
+        aria-label={
+          items.length > INBOX_BULK_LIMIT
+            ? `Select first ${INBOX_BULK_LIMIT} loaded reviews`
+            : 'Select all loaded reviews'
+        }
+      />
+      <span className="shrink-0 text-sm font-medium tabular-nums">
+        {selectedIds.length} selected
+      </span>
+      {(items.length > INBOX_BULK_LIMIT || selectedIds.length >= INBOX_BULK_LIMIT) && (
+        <span className="hidden text-xs text-muted-foreground lg:inline">
+          {INBOX_BULK_LIMIT} maximum
         </span>
-        {(items.length > INBOX_BULK_LIMIT || selectedIds.length >= INBOX_BULK_LIMIT) && (
-          <span className="text-xs text-muted-foreground">
-            {INBOX_BULK_LIMIT} maximum
-          </span>
-        )}
-        <div className="ml-auto flex items-center gap-2">
+      )}
+      <div className="ml-auto flex min-w-0 items-center gap-2">
+        <ButtonGroup>
           {canManageAssignments ? (
-            <InboxBulkAssignmentDialog
+            <InboxBulkAssignMenu
               itemCount={selected.length}
               options={assignmentOptions}
               pending={assignmentMutation.isPending}
-              onConfirm={handleAssignment}
-            >
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={assignmentMutation.isPending || selected.length === 0}
-              >
-                <UserRoundCog data-icon="inline-start" />
-                Assign
-              </Button>
-            </InboxBulkAssignmentDialog>
+              onAssign={(userId) => void handleAssignment(userId)}
+            />
           ) : null}
           <InboxReopenDialog
             itemCount={selected.length}
@@ -148,24 +138,28 @@ export function InboxBulkActions({
             <Button
               variant="outline"
               size="sm"
+              className="max-md:size-9 max-md:px-0"
               disabled={bulkMutation.isPending || !hasClosed}
+              aria-label="Reopen"
             >
-              <RotateCcw data-icon="inline-start" />
-              Reopen
+              <RotateCcw />
+              <span className="max-md:sr-only">Reopen</span>
             </Button>
           </InboxReopenDialog>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onClearSelection}
-            aria-label="Clear selection"
-          >
-            <X />
-          </Button>
-        </div>
+        </ButtonGroup>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onClearSelection}
+          aria-label="Clear selection"
+        >
+          <X />
+        </Button>
       </div>
-      <FormErrorBanner error={bulkMutation.error} />
-      <FormErrorBanner error={assignmentMutation.error} />
+      <div className="sr-only" aria-live="polite">
+        <FormErrorBanner error={bulkMutation.error} />
+        <FormErrorBanner error={assignmentMutation.error} />
+      </div>
     </div>
   )
 }
