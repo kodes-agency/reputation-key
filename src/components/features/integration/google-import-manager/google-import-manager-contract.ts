@@ -135,7 +135,6 @@ export type GoogleImportContentOptions = Readonly<{
   organizationId: string
   connectionId: string | null
   accountRef: string | null
-  step: GoogleImportStep
   enabled: boolean
   importFns: Pick<
     GoogleImportFns,

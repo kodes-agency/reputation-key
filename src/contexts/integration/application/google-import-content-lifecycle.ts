@@ -1,9 +1,14 @@
+/**
+ * Why provider content left the browser. Hiding the tab is deliberately not a
+ * reason: the page keeps its selection while the authorization lease is renewed
+ * in the background, and clears only when access, scope, or a deadline ends
+ * (ADR 0050 §3, amended 2026-09-15).
+ */
 export type GoogleImportClearReason =
   | 'authorization_revoked'
   | 'connection_changed'
   | 'content_expired'
   | 'lease_expired'
-  | 'page_hidden'
   | 'route_left'
   | 'tenant_changed'
 

@@ -57,8 +57,9 @@ export function GoogleImportManagerView({
         <CardHeader>
           <CardTitle>Google Business Profile connection</CardTitle>
           <CardDescription>
-            Location details are cleared from this screen when it is hidden. You can
-            resume within a temporary discovery window that expires within 24 hours.
+            Location details stay on this page while it is open, including when you switch
+            to another tab, for at most 24 hours. They are cleared when you leave the
+            page, change the Google account, or your access changes.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">

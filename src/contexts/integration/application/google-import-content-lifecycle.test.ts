@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { GoogleImportClearReason } from './google-import-content-lifecycle'
 import { createGoogleImportContentLifecycle, contentExpiryDelayMs } from './public-api'
 
 describe('Google import provider-content lifecycle', () => {
@@ -43,12 +44,12 @@ describe('Google import provider-content lifecycle', () => {
     const deferred = Promise.withResolvers<{ items: string[] }>()
     const guarded = lifecycle.guard(requestEpoch, deferred.promise)
 
-    lifecycle.clear('page_hidden')
+    lifecycle.clear('lease_expired')
     deferred.resolve({ items: ['provider content'] })
 
     await expect(guarded).resolves.toEqual({
       _tag: 'stale_google_import_view',
-      clearReason: 'page_hidden',
+      clearReason: 'lease_expired',
       currentEpoch: 1,
       requestEpoch: 0,
     })
@@ -60,16 +61,31 @@ describe('Google import provider-content lifecycle', () => {
       clearContent: vi.fn(),
     })
 
-    lifecycle.clear('page_hidden')
+    lifecycle.clear('lease_expired')
     lifecycle.clear('content_expired')
 
     expect(lifecycle.epoch()).toBe(2)
     await expect(lifecycle.guard(0, Promise.resolve('late'))).resolves.toEqual({
       _tag: 'stale_google_import_view',
-      clearReason: 'page_hidden',
+      clearReason: 'lease_expired',
       currentEpoch: 2,
       requestEpoch: 0,
     })
+  })
+
+  it('does not treat a hidden tab as a reason to clear the selection', () => {
+    const reasons = [
+      'authorization_revoked',
+      'connection_changed',
+      'content_expired',
+      'lease_expired',
+      'route_left',
+      'tenant_changed',
+    ] as const satisfies readonly GoogleImportClearReason[]
+    // @ts-expect-error hiding the tab keeps provider content (ADR 0050 §3, amended 2026-09-15)
+    const hidden: GoogleImportClearReason = 'page_hidden'
+
+    expect(reasons).not.toContain(hidden)
   })
 
   it('uses the current callback while active', () => {

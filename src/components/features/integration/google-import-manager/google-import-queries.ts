@@ -12,6 +12,8 @@ import type {
 import { integrationKeys } from '#/shared/queries/query-keys'
 import { isImportParentTerminal } from './google-import-progress-model'
 
+const GOOGLE_IMPORT_LEASE_RENEW_INTERVAL_MS = 10_000
+
 type AwaitedReturn<T extends (...args: never[]) => unknown> = Awaited<
   globalThis.ReturnType<T>
 >
@@ -55,26 +57,14 @@ export function googleImportContentExpiry(
 }
 
 type ContentLifecycle = Readonly<{
-  clear: (reason: 'content_expired' | 'lease_expired' | 'page_hidden') => void
+  clear: (reason: 'content_expired' | 'lease_expired') => void
 }>
 
-export function subscribeToGoogleImportVisibility(
-  lifecycle: ContentLifecycle,
-): () => void {
-  const clearHiddenContent = () => {
-    if (document.visibilityState === 'hidden') lifecycle.clear('page_hidden')
-  }
-  const clearExitedContent = () => lifecycle.clear('page_hidden')
-  document.addEventListener('visibilitychange', clearHiddenContent)
-  document.addEventListener('freeze', clearExitedContent)
-  window.addEventListener('pagehide', clearExitedContent)
-  return () => {
-    document.removeEventListener('visibilitychange', clearHiddenContent)
-    document.removeEventListener('freeze', clearExitedContent)
-    window.removeEventListener('pagehide', clearExitedContent)
-  }
-}
-
+/**
+ * The deadlines that clear provider content without a server answer: the
+ * checkpoint's absolute content deadline and the last renewed lease expiry. The
+ * lease timer is also the backstop for a renewal that failed transiently.
+ */
 export function scheduleGoogleImportExpiries(
   lifecycle: ContentLifecycle,
   contentExpiresAt: string | null,
@@ -129,6 +119,8 @@ export function googleImportAccountsQuery(input: {
         : undefined,
     select: currentViewInfiniteData<AccountsPage, string | undefined>,
     enabled: input.enabled && input.connectionId !== null,
+    // A discovery page is fetched once per view epoch. It never refetches in the
+    // background or when a hidden tab returns: that would call Google again.
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 0,
     retry: false,
@@ -184,13 +176,18 @@ export function googleImportCandidatesQuery(input: {
   })
 }
 
+/**
+ * Renews the 30-second authorization lease every 10 seconds for as long as the
+ * import page holds provider content, including while the tab is hidden, so a
+ * manager who switches tabs comes back to the same selection. Renewal
+ * revalidates current access on the server and never calls Google.
+ */
 export function googleImportLeaseQuery(input: {
   organizationId: string
   connectionId: string | null
   leaseRef: string | null
   enabled: boolean
   hasProviderContent: boolean
-  pageVisible: boolean
   epoch: number
   guard: GoogleImportContentGuard
   renewLease: typeof renewImportAuthorizationLease
@@ -218,10 +215,9 @@ export function googleImportLeaseQuery(input: {
       input.enabled &&
       input.connectionId !== null &&
       input.leaseRef !== null &&
-      input.hasProviderContent &&
-      input.pageVisible,
-    refetchInterval: 10_000,
-    refetchIntervalInBackground: false,
+      input.hasProviderContent,
+    refetchInterval: GOOGLE_IMPORT_LEASE_RENEW_INTERVAL_MS,
+    refetchIntervalInBackground: true,
     retry: false,
     staleTime: 0,
     gcTime: 0,

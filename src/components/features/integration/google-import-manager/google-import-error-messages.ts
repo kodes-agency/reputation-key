@@ -41,6 +41,23 @@ export function discoveryErrorIsRecoverable(error: unknown): boolean {
   )
 }
 
+/** Renewal failures that may clear by themselves: the lease can still be valid. */
+const TRANSIENT_RENEWAL_CODES: ReadonlySet<string> = new Set([
+  'temporarily_unavailable',
+  'provider_unavailable',
+])
+
+/**
+ * Whether a failed lease renewal means the lease is gone for good: the server
+ * refused it (expired, not found, access changed). A network failure or an
+ * outage carries no such verdict, so the page keeps its content until the
+ * lease's own expiry.
+ */
+export function leaseRenewalFailureIsFinal(error: unknown): boolean {
+  const code = errorCode(error)
+  return code !== null && !TRANSIENT_RENEWAL_CODES.has(code)
+}
+
 export function connectionCallbackErrorMessage(
   error: 'connection_failed' | 'denied' | 'account_already_connected' | undefined,
 ): string | null {
