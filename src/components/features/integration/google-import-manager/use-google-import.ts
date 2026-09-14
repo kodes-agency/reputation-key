@@ -37,7 +37,10 @@ import {
   toggleLoadedCandidates,
   toggleSelectedCandidate,
 } from './google-import-selection'
-const EMPTY_REVIEW: GoogleImportReviewDraftInput = { items: [] }
+const EMPTY_REVIEW: GoogleImportReviewDraftInput = {
+  items: [],
+  profileAcknowledged: false,
+}
 
 export function useGoogleImportReviewForm({
   initialDraft,
@@ -254,11 +257,10 @@ export function useGoogleImport({
     const candidates = content.candidates.filter((candidate) =>
       state.selectedIds.has(candidate.candidateId),
     )
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
     dispatch({
       type: 'review',
       candidates,
-      draft: createImportReviewDraft(candidates, timezone),
+      draft: createImportReviewDraft(candidates),
     })
     window.scrollTo({ top: 0, behavior: 'auto' })
   }

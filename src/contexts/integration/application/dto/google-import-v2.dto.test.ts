@@ -44,24 +44,60 @@ describe('Google import v2 DTOs', () => {
           address: '',
           countryCode: 'ZZ',
           timezone: 'Mars/Olympus',
-          countryConfirmed: false,
-          timezoneConfirmed: false,
+          updateExistingProfile: true,
+        },
+        {
+          candidateId: 'candidate-b',
+          candidateRef: CANDIDATE_B,
+          action: 'create',
+          existingPropertyId: null,
+          name: 'Harbor Hotel',
+          address: '',
+          countryCode: '',
+          timezone: '',
           updateExistingProfile: true,
         },
       ],
+      profileAcknowledged: false,
     })
 
     expect(result.success).toBe(false)
     if (result.success) return
-    expect(result.error.issues.map((issue) => issue.path)).toEqual(
-      expect.arrayContaining([
-        ['items', 0, 'name'],
-        ['items', 0, 'countryCode'],
-        ['items', 0, 'timezone'],
-        ['items', 0, 'countryConfirmed'],
-        ['items', 0, 'timezoneConfirmed'],
-      ]),
-    )
+    expect(result.error.issues.map((issue) => [issue.path, issue.message])).toEqual([
+      [['items', 0, 'name'], 'Enter a property name.'],
+      [['items', 0, 'countryCode'], 'Select a valid country.'],
+      [['items', 0, 'timezone'], 'Select a valid IANA timezone.'],
+      [['items', 1, 'countryCode'], 'Choose a country.'],
+      [['items', 1, 'timezone'], 'Choose a timezone.'],
+      [['profileAcknowledged'], 'Confirm that you have checked these details.'],
+    ])
+  })
+
+  it('asks for one batch acknowledgement instead of per-row confirmations', () => {
+    const item = {
+      candidateId: 'candidate-a',
+      candidateRef: CANDIDATE_A,
+      action: 'create' as const,
+      existingPropertyId: null,
+      name: 'Harbor Hotel',
+      address: '',
+      countryCode: 'GB',
+      timezone: 'Europe/London',
+      updateExistingProfile: true,
+    }
+
+    expect(
+      googleImportReviewDraftSchema.safeParse({
+        items: [item],
+        profileAcknowledged: true,
+      }).success,
+    ).toBe(true)
+    expect(
+      googleImportReviewDraftSchema.safeParse({
+        items: [{ ...item, countryConfirmed: true, timezoneConfirmed: true }],
+        profileAcknowledged: true,
+      }).success,
+    ).toBe(false)
   })
 
   it('requires only editable profile fields when reviewing a relink', () => {
@@ -74,15 +110,19 @@ describe('Google import v2 DTOs', () => {
       address: '',
       countryCode: '',
       timezone: 'Europe/Sofia',
-      countryConfirmed: false,
-      timezoneConfirmed: true,
       updateExistingProfile: false,
     }
 
-    expect(googleImportReviewDraftSchema.safeParse({ items: [base] }).success).toBe(true)
+    expect(
+      googleImportReviewDraftSchema.safeParse({
+        items: [base],
+        profileAcknowledged: true,
+      }).success,
+    ).toBe(true)
     expect(
       googleImportReviewDraftSchema.safeParse({
         items: [{ ...base, updateExistingProfile: true }],
+        profileAcknowledged: true,
       }).success,
     ).toBe(false)
   })

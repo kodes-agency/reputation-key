@@ -89,7 +89,11 @@ const startItemSchema = z.discriminatedUnion('action', [
     .strict(),
 ])
 
-const googleImportReviewItemSchema = z
+/**
+ * One editable row of the confirm-details table. Completeness is checked while
+ * the manager edits, so every issue carries the path of the control that fixes it.
+ */
+export const googleImportReviewItemSchema = z
   .object({
     candidateId: z.string().min(1),
     candidateRef: z.string().min(1),
@@ -99,8 +103,6 @@ const googleImportReviewItemSchema = z
     address: z.string(),
     countryCode: z.string(),
     timezone: z.string(),
-    countryConfirmed: z.boolean(),
-    timezoneConfirmed: z.boolean(),
     updateExistingProfile: z.boolean(),
   })
   .strict()
@@ -134,14 +136,10 @@ const googleImportReviewItemSchema = z
         context.addIssue({
           code: 'custom',
           path: ['countryCode'],
-          message: 'Select a valid country.',
-        })
-      }
-      if (!item.countryConfirmed) {
-        context.addIssue({
-          code: 'custom',
-          path: ['countryConfirmed'],
-          message: 'Confirm the selected country.',
+          message:
+            item.countryCode.trim().length === 0
+              ? 'Choose a country.'
+              : 'Select a valid country.',
         })
       }
     } else if (
@@ -158,14 +156,10 @@ const googleImportReviewItemSchema = z
       context.addIssue({
         code: 'custom',
         path: ['timezone'],
-        message: 'Select a valid IANA timezone.',
-      })
-    }
-    if (!item.timezoneConfirmed) {
-      context.addIssue({
-        code: 'custom',
-        path: ['timezoneConfirmed'],
-        message: 'Confirm the selected timezone.',
+        message:
+          item.timezone.trim().length === 0
+            ? 'Choose a timezone.'
+            : 'Select a valid IANA timezone.',
       })
     }
   })
@@ -174,10 +168,20 @@ const googleImportReviewItemSchema = z
  * Editable review shape used before the durable import command is constructed.
  * Field-level issue paths are part of the form contract: TanStack Form uses them
  * to associate submit-time errors with the corresponding row control.
+ *
+ * `profileAcknowledged` is the single batch acknowledgement that the manager
+ * checked every row. It replaces per-row country and timezone confirmations;
+ * the durable command still records `confirmed: true` on each item it covers.
  */
 export const googleImportReviewDraftSchema = z
   .object({
     items: z.array(googleImportReviewItemSchema).min(1),
+    profileAcknowledged: z
+      .boolean()
+      .refine(
+        (acknowledged) => acknowledged,
+        'Confirm that you have checked these details.',
+      ),
   })
   .strict()
 
