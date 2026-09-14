@@ -138,6 +138,17 @@ export const NeedsTimezone: Story = {
   },
 }
 
+/** The flagged row's tint and messages must keep their contrast on light surfaces. */
+export const NeedsTimezoneLight: Story = {
+  render: () => <ReviewHarness />,
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Choose a timezone.')).toBeVisible()
+    await expect(canvas.getByRole('button', { name: /start import/i })).toBeDisabled()
+  },
+}
+
 /** Picking the zone clears the flag, in the row and in the summary. */
 export const PickingTheTimezoneClearsTheFlag: Story = {
   render: () => <ReviewHarness />,
