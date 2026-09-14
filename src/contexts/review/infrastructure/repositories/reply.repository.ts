@@ -27,6 +27,30 @@ import { buildReplySetClause } from '../reply-set-clause'
 import { assertCurrentAiDraftBinding } from '../ai-draft-binding'
 import { reviewError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
+import {
+  AWAITING_REPLY_STATUSES,
+  UNCERTAIN_REPLY_STILL_CHECKED,
+  WAITING_REPLY_STATUSES,
+} from '#/shared/domain/reply-queue-stage'
+
+/**
+ * D8: SQL form of `replyQueueStage` (`#/shared/domain/reply-queue-stage.ts`),
+ * built from the same constants so the queue lists/counts and the browser's
+ * optimistic matcher cannot drift. `status` is a pg enum, hence the text casts.
+ * reply.repository.test.ts enumerates every status × publication state × due
+ * time against the shared rule and the client helper.
+ */
+const replyQueueStageSql = sql<ReplyStageRow['stage']>`CASE
+  WHEN ${replies.status}::text = ANY(${sql.param([...AWAITING_REPLY_STATUSES])}::text[])
+    THEN 'awaiting'
+  WHEN ${replies.status}::text = ANY(${sql.param([...WAITING_REPLY_STATUSES])}::text[])
+    THEN 'waiting'
+  WHEN ${replies.status}::text = ${UNCERTAIN_REPLY_STILL_CHECKED.status}
+    AND ${replies.publicationState} = ${UNCERTAIN_REPLY_STILL_CHECKED.publicationState}
+    AND ${replies.reconcileDueAt} IS NOT NULL
+    THEN 'waiting'
+  ELSE 'needs_reply'
+END`
 
 type DuePublicationState =
   'requested' | 'authorized' | 'sending' | 'pending_observation' | 'ambiguous'
@@ -140,6 +164,7 @@ export const createReplyRepository = (
           status: replies.status,
           publicationState: replies.publicationState,
           publicationLastErrorClass: replies.publicationLastErrorClass,
+          reconcileDueAt: replies.reconcileDueAt,
           updatedAt: replies.updatedAt,
         })
         .from(replies)
@@ -170,11 +195,7 @@ export const createReplyRepository = (
         .select({
           reviewId: replies.reviewId,
           source: replies.source,
-          stage: sql<ReplyStageRow['stage']>`CASE
-            WHEN ${replies.status} = 'pending_approval' THEN 'awaiting'
-            WHEN ${replies.status} IN ('approved', 'published') THEN 'waiting'
-            ELSE 'needs_reply'
-          END`,
+          stage: replyQueueStageSql,
         })
         .from(replies)
         .innerJoin(

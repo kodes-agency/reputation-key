@@ -1,5 +1,6 @@
 import {
   approvedReplyStateCopy,
+  isCheckingGoogleAutomatically,
   REPLY_CHIP_WORDS,
   REPLY_STATE_COPY,
   replyStateDescription,
@@ -84,14 +85,42 @@ function failedRetryView(reply: ReplyEntity): ReplyMessageView {
 }
 
 /**
+ * A publication RepKey cannot confirm. Check is its ONLY action in both
+ * readings: `retryPublish` refuses a reply descended from an uncertain attempt
+ * unless dispatch evidence proves it never left (`reply-operations.ts`), so a
+ * resend offered here could only fail.
+ *
+ * What differs is whether a person is needed. While the automatic read ladder
+ * runs, the reply sits in the Waiting for Google queue and reads the same word
+ * in the neutral tone; once it has ended, the word asks for a check in the
+ * accent tone. `reconcileDueAt` is what tells the two apart — the domain clears
+ * it exactly when automatic checks stop.
+ */
+function failedCheckView(reply: ReplyEntity): ReplyMessageView {
+  const isChecking = isCheckingGoogleAutomatically(reply)
+  return {
+    chip: isChecking ? REPLY_CHIP_WORDS.waitingForGoogle : REPLY_CHIP_WORDS.needsCheck,
+    tone: isChecking ? 'neutral' : 'accent',
+    meta: meta('Confirmed', reply.approvedAt),
+    // The one sentence a manager must read before touching this reply:
+    // RepKey will only ever re-read Google, never send a second copy.
+    detail: replyStateDescription(
+      isChecking ? REPLY_STATE_COPY.ambiguous : REPLY_STATE_COPY.ambiguous_stopped,
+    ),
+    reason: null,
+    actions: ['check'],
+  }
+}
+
+/**
  * One reply, one message shape (plan row 6). `null` means the thread renders
  * nothing: a draft — and the absence of a reply — lives in the composer, never
  * in the thread, so a manager is never editing one thing in two places.
  *
  * `accent` is the tone for "this reply is waiting on a person here", which is
- * true of exactly `pending` and `failed-check`. It is deliberately not
- * `negative`: an ambiguous publication may well be live on Google, and red
- * would assert a failure the domain says is unknown.
+ * true of exactly `pending` and a `failed-check` whose automatic reads have
+ * ended. It is deliberately not `negative`: an ambiguous publication may well
+ * be live on Google, and red would assert a failure the domain says is unknown.
  */
 export function presentReplyMessage(view: ResolvedReplyView): ReplyMessageView | null {
   switch (view.kind) {
@@ -142,16 +171,7 @@ export function presentReplyMessage(view: ResolvedReplyView): ReplyMessageView |
         actions: [],
       }
     case 'failed-check':
-      return {
-        chip: REPLY_CHIP_WORDS.needsCheck,
-        tone: 'accent',
-        meta: meta('Confirmed', view.reply.approvedAt),
-        // The one sentence a manager must read before touching this reply:
-        // RepKey will only ever re-read Google, never send a second copy.
-        detail: replyStateDescription(REPLY_STATE_COPY.ambiguous),
-        reason: null,
-        actions: ['check'],
-      }
+      return failedCheckView(view.reply)
     case 'failed-retry':
       return failedRetryView(view.reply)
     case 'rejected':

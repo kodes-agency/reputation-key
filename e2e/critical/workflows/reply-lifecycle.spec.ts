@@ -13,11 +13,13 @@
 //       again" is refused, and no second provider write is issued
 //   (c) approve → terminal 403 → publish_failed/terminal; a fresh, safe retry
 //       is rejected again by the provider
-//   (d) ambiguous publication + provider shows the reply → "Check Google
-//       again" heals to published with ZERO re-sends
+//   (d) ambiguous publication + provider shows the reply → pressing "Check
+//       Google again" in the inbox heals to published, says so, and issues
+//       ZERO re-sends
 
 import { test, expect } from '../../helpers/error-detection'
 import { signIn } from '../../helpers/auth'
+import { clickWhenReady, dismissToasts } from '../../helpers/interaction'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import { gbpStubControl, type StubReview } from '../../fixtures/gbp-stub'
 import {
@@ -589,32 +591,39 @@ test.describe('Critical workflow: reply lifecycle', () => {
 
     // "Check Google again" runs the read INLINE (worker-free): the attempt is
     // too recent for dispatch evidence to settle it, the provider shows the
-    // reply → heal to published, no enqueue, no resend.
-    //
+    // reply → heal to published, no enqueue, no resend. It is pressed in the
+    // inbox, because the defect this guards was a click that reported nothing:
+    // the check's answer has to reach the manager, not only the database.
+    await page.goto(`/inbox?propertyId=${s.propertyId}&itemId=${s.inboxItemId}`)
+    const checkButton = page.getByRole('button', { name: 'Check Google again' })
+    const toasts = page.locator('[data-sonner-toast]')
+    const liveToast = toasts.filter({ hasText: 'Your reply is live on Google.' })
+    const unreachableToast = toasts.filter({
+      hasText: "couldn't reach Google to check this reply",
+    })
+    // The sweep may heal the seeded row before the pane loads. Then there is
+    // nothing left to press, and the reply already reads Live on Google.
+    await expect(
+      checkButton.or(page.getByText('Live on Google', { exact: true })).first(),
+    ).toBeVisible({ timeout: 15_000 })
+
     // The reads share ONE provider quota with the whole suite, so a run that
-    // follows a read-heavy spec can be admission-denied here. That is a
-    // transient the operator answers by clicking again, and the assertion
-    // below is about the reconcile outcome — not about winning the quota on
-    // the first try.
-    const check = await waitFor(
+    // follows a read-heavy spec can be admission-denied here. The check says
+    // so in a toast and re-enables, which is a transient the operator answers
+    // by clicking again, and the assertions below are about the reconcile
+    // outcome — not about winning the quota on the first try.
+    await waitFor(
       async () => {
-        try {
-          return await callServerFn<{ outcome: string }>(page, {
-            file: REPLY_FILE_OPS,
-            exportName: 'checkReplyPublicationFn',
-            data: { reviewId: s.reviewId },
-          })
-        } catch (error) {
-          if (!/couldn't reach Google to check this reply/i.test(String(error))) {
-            throw error
-          }
-          return null
-        }
+        if ((await checkButton.count()) === 0) return 'healed_before_check'
+        await dismissToasts(page)
+        await clickWhenReady(checkButton)
+        await expect(liveToast.or(unreachableToast).first()).toBeVisible({
+          timeout: 15_000,
+        })
+        return (await liveToast.count()) > 0 ? 'checked_live' : null
       },
       { timeoutMs: 30_000, description: 'check admitted by the provider quota' },
     )
-    // The sweep may heal the seeded row first; the check then reports it live.
-    expect(check.outcome).toBe('live_on_google')
     const healed = await waitFor(
       async () => {
         const reply = await getReplyForReview(s.reviewId)

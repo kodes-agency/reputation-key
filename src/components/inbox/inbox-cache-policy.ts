@@ -8,13 +8,18 @@
 //     is invalidated immediately
 //   - which folder caches (lists / counts / last-visit-count) go stale when an
 //     item moves between folders
-//   - the reply-poll predicate (poll while a reply publish is pending)
+//   - the reply-poll predicate (poll while a reply publish is pending; while
+//     automatic Google checks still own an uncertain publish, the detail polls
+//     each minute and the list reads at the next automatic check's due time)
+//   - where a reply command's result belongs: the cached item of the review
+//     the command named, not whichever item is open when it settles
 //
 // Lives in components/inbox/ (not shared/queries/) because the write-through
 // reply type comes from the inbox context — shared must not import a context.
 
 import type { QueryClient } from '@tanstack/react-query'
 import { inboxKeys } from '#/shared/queries/query-keys'
+import { isUncertainReplyStillChecked } from '#/shared/domain/reply-queue-stage'
 import type {
   FeedbackHandlingCommandResult,
   InboxItem,
@@ -24,6 +29,14 @@ import type {
 export type InboxReplyCacheChange = Readonly<{
   kind: 'draft_saved' | 'state_changed'
   reply: InboxItemDetailResult['reply']
+  /**
+   * The review the command was issued for, read from the command's own input.
+   * Never the pane's current item: the pane builds one reply command family
+   * and is not remounted per item, so a pending mutation settles through the
+   * options of whatever item is open by then (query-core mutationObserver.ts
+   * `setOptions` hands a pending mutation the new options).
+   */
+  reviewId: string
 }>
 
 /** BullMQ inserts the activity row ~2s after a status change — re-invalidate on a lag. */
@@ -38,7 +51,31 @@ export const REPLY_POLL_INTERVAL_MS = 3000
  */
 export const INBOX_LIST_REPLY_POLL_INTERVAL_MS = 15_000
 
-/** Browser-side ceiling: the worker/reconciler contract settles within 25 minutes. */
+/**
+ * D8: cadence while an uncertain publish (publish_failed + ambiguous) still has
+ * a reconcile_due_at. The server reads Google on a ladder of 15 minutes to 72
+ * hours (`AMBIGUOUS_RECONCILE_LADDER_MS`), so a one-minute read is ample and
+ * cheap; the in-flight age ceiling does not apply because the due time itself
+ * says a background owner remains, and each read refreshes that evidence.
+ */
+export const UNCERTAIN_REPLY_POLL_INTERVAL_MS = 60_000
+
+/**
+ * How long past its due time a still-checked row keeps the LIST polling: two
+ * runs of the sweep that advances it (`reconcile-ambiguous-publications`,
+ * `schedule: 'every:300000'` in event-job-catalogue.ts). A row still unmoved
+ * after that has a stalled sweep, which no browser read can advance.
+ */
+export const UNCERTAIN_REPLY_LIST_DUE_SLACK_MS = 10 * 60_000
+
+/**
+ * Browser-side ceiling for in-flight polling. An approved publication leaves
+ * the in-flight states within about 25 minutes: the 15-minute propagation grace
+ * for an uncertain send or an accepted write
+ * (`UNCERTAIN_SEND_PROPAGATION_GRACE_MS`, `PROVIDER_OBSERVATION_PROPAGATION_GRACE_MS`)
+ * or the 20-minute recovery delay, plus the five-minute sweep. After that it is
+ * published, not published, or an uncertain publish with its own slower cadence.
+ */
 export const REPLY_POLL_MAX_AGE_MS = 30 * 60 * 1000
 
 export const POLLED_PUBLICATION_STATES: Readonly<Record<string, true>> = {
@@ -51,8 +88,17 @@ export const POLLED_PUBLICATION_STATES: Readonly<Record<string, true>> = {
 type ReplyPollingCandidate = Readonly<{
   status: string
   publicationState?: string | null
+  /** Absent on a Google-observed reply, which nothing polls. */
+  reconcileDueAt?: Date | string | null
   updatedAt: Date | string
 }>
+
+function isReplyStillCheckedAutomatically(reply: ReplyPollingCandidate): boolean {
+  return isUncertainReplyStillChecked({
+    ...reply,
+    publicationState: reply.publicationState ?? null,
+  })
+}
 
 /** Active publication ownership, without applying the browser age ceiling. */
 export function isReplyPublicationInFlight(
@@ -65,41 +111,142 @@ export function isReplyPublicationInFlight(
   )
 }
 
+/**
+ * Any background owner still advancing the reply, in flight or on the
+ * automatic read ladder, without the browser age ceiling. List settlement
+ * detection uses it: a row leaving this set may have changed queues.
+ */
+export function isReplyPolled(reply: ReplyPollingCandidate | null | undefined): boolean {
+  return (
+    !!reply &&
+    (isReplyPublicationInFlight(reply) || isReplyStillCheckedAutomatically(reply))
+  )
+}
+
+function timeMs(value: Date | string): number {
+  return value instanceof Date ? value.getTime() : Date.parse(value)
+}
+
 function isReplyWithinPollingAge(reply: ReplyPollingCandidate, nowMs: number): boolean {
-  const updatedAtMs =
-    reply.updatedAt instanceof Date
-      ? reply.updatedAt.getTime()
-      : Date.parse(reply.updatedAt)
+  const updatedAtMs = timeMs(reply.updatedAt)
   return Number.isFinite(updatedAtMs) && nowMs - updatedAtMs < REPLY_POLL_MAX_AGE_MS
 }
 
 // Poll only while a registered background component can still advance the
 // publication. The worker/reconciler deadline is 25 minutes; the browser stops
-// after 30 minutes even if a stale cache snapshot never observes settlement.
+// in-flight polling after 30 minutes even if a stale cache snapshot never
+// observes settlement. An uncertain publish still on the automatic read ladder
+// polls every minute; terminal ambiguity and every other state do not poll.
 export function replyRefetchInterval(
   reply: ReplyPollingCandidate | null | undefined,
   nowMs = Date.now(),
 ): number | false {
-  return reply &&
-    isReplyPublicationInFlight(reply) &&
-    isReplyWithinPollingAge(reply, nowMs)
-    ? REPLY_POLL_INTERVAL_MS
+  if (!reply) return false
+  if (isReplyPublicationInFlight(reply)) {
+    return isReplyWithinPollingAge(reply, nowMs) ? REPLY_POLL_INTERVAL_MS : false
+  }
+  return isReplyStillCheckedAutomatically(reply)
+    ? UNCERTAIN_REPLY_POLL_INTERVAL_MS
     : false
 }
 
-/** Poll the loaded pages only while at least one governed row is in flight. */
+/**
+ * A still-checked row changes only when the sweep reads it at its due time, so
+ * the list reads then rather than every minute: a list read re-reads every
+ * loaded page, and a 72-hour ladder at one read a minute is ~4,300 of them. At
+ * or past the due time it reads each minute while the sweep takes the row, and
+ * stops once the row is `UNCERTAIN_REPLY_LIST_DUE_SLACK_MS` overdue. The open
+ * detail pane keeps D8's one-minute cadence (`replyRefetchInterval`): it is
+ * one cheap read, and it is where a manager watches the reply.
+ */
+function listRowRefetchInterval(
+  reply: ReplyPollingCandidate | null | undefined,
+  nowMs: number,
+): number | false {
+  if (!reply) return false
+  if (isReplyPublicationInFlight(reply)) {
+    return isReplyWithinPollingAge(reply, nowMs)
+      ? INBOX_LIST_REPLY_POLL_INTERVAL_MS
+      : false
+  }
+  if (!isReplyStillCheckedAutomatically(reply) || !reply.reconcileDueAt) return false
+  const untilDueMs = timeMs(reply.reconcileDueAt) - nowMs
+  if (!Number.isFinite(untilDueMs) || untilDueMs < -UNCERTAIN_REPLY_LIST_DUE_SLACK_MS) {
+    return false
+  }
+  return Math.max(UNCERTAIN_REPLY_POLL_INTERVAL_MS, untilDueMs)
+}
+
+/** Poll the loaded rows at the fastest cadence any one of them needs. */
 export function inboxListReplyRefetchInterval(
   items: ReadonlyArray<Pick<InboxItem, 'replyState'>> | null | undefined,
   nowMs = Date.now(),
 ): number | false {
-  return items?.some(
-    ({ replyState }) =>
-      !!replyState &&
-      isReplyPublicationInFlight(replyState) &&
-      isReplyWithinPollingAge(replyState, nowMs),
+  let interval: number | false = false
+  for (const { replyState } of items ?? []) {
+    const rowInterval = listRowRefetchInterval(replyState, nowMs)
+    if (rowInterval !== false && (interval === false || rowInterval < interval)) {
+      interval = rowInterval
+    }
+  }
+  return interval
+}
+
+/**
+ * Every loaded page at once. Taking the first page that polls let a slow
+ * still-checked row on page 1 set the cadence for an in-flight row on page 2.
+ */
+export function inboxListPagesRefetchInterval(
+  pages:
+    | ReadonlyArray<Readonly<{ items: ReadonlyArray<Pick<InboxItem, 'replyState'>> }>>
+    | undefined,
+  nowMs = Date.now(),
+): number | false {
+  return inboxListReplyRefetchInterval(
+    (pages ?? []).flatMap((page) => page.items),
+    nowMs,
   )
-    ? INBOX_LIST_REPLY_POLL_INTERVAL_MS
-    : false
+}
+
+/** What a polled detail read said about its reply, for change detection. */
+export type ReplyPublicationObservation = Readonly<{
+  itemId: string
+  status: string | null
+  publicationState: string | null
+  isPolled: boolean
+}>
+
+export function observeReplyPublication(
+  itemId: string,
+  reply: ReplyPollingCandidate | null | undefined,
+): ReplyPublicationObservation {
+  return {
+    itemId,
+    status: reply?.status ?? null,
+    publicationState: reply?.publicationState ?? null,
+    isPolled: isReplyPolled(reply),
+  }
+}
+
+/**
+ * True when a background read moved a reply a background owner was advancing
+ * (in flight or still checked, `isReplyPolled`): its status or publication
+ * state changed on the same item. That can move the item
+ * between queues (Waiting for Google ⇄ Needs reply), so lists and counts are
+ * stale. First reads, selection changes and replies nothing polls are not
+ * transitions; mutation results are recorded before they reach the cache.
+ */
+export function polledReplyPublicationChanged(
+  previous: ReplyPublicationObservation | null,
+  current: ReplyPublicationObservation,
+): boolean {
+  return (
+    previous !== null &&
+    previous.isPolled &&
+    previous.itemId === current.itemId &&
+    (previous.status !== current.status ||
+      previous.publicationState !== current.publicationState)
+  )
 }
 
 // ── Folder caches ───────────────────────────────────────────────
@@ -137,14 +284,31 @@ function invalidateHistory(qc: QueryClient, id: string): void {
   qc.invalidateQueries({ queryKey: inboxKeys.history(id) })
 }
 
-function patchReply(
-  qc: QueryClient,
-  id: string,
-  reply: InboxItemDetailResult['reply'],
-): void {
-  qc.setQueryData<InboxItemDetailResult>(inboxKeys.detail(id), (old) =>
-    old ? { ...old, reply } : old,
-  )
+/** `detail(id)` itself, not the notes/activity/history entries nested under it. */
+const DETAIL_KEY_LENGTH = inboxKeys.detail('').length
+
+/**
+ * The ids of the cached items whose review is `reviewId`. A reply belongs to a
+ * review, so this is where a reply command's result goes — found by the
+ * detail's own `item.sourceId`, the same field the pane reads the command's
+ * `reviewId` from (inbox-detail-content.tsx `useReplyActions`).
+ */
+function cachedItemIdsForReview(qc: QueryClient, reviewId: string): string[] {
+  return qc
+    .getQueriesData<InboxItemDetailResult>({
+      queryKey: inboxKeys.details(),
+      predicate: (query) => query.queryKey.length === DETAIL_KEY_LENGTH,
+    })
+    .filter(([, detail]) => detail?.item.sourceId === reviewId)
+    .map(([key]) => String(key[DETAIL_KEY_LENGTH - 1]))
+}
+
+function patchReply(qc: QueryClient, change: InboxReplyCacheChange): void {
+  for (const itemId of cachedItemIdsForReview(qc, change.reviewId)) {
+    qc.setQueryData<InboxItemDetailResult>(inboxKeys.detail(itemId), (old) =>
+      old ? { ...old, reply: change.reply } : old,
+    )
+  }
 }
 /**
  * Command snapshots deliberately omit list/detail enrichments. They are
@@ -233,12 +397,39 @@ export const inboxCachePolicy = {
    * autosaves remain detail-only; every workflow transition refreshes governed
    * list state so approval chips and publication polling start immediately.
    */
-  onReplyChanged(qc: QueryClient, id: string, change: InboxReplyCacheChange): void {
-    patchReply(qc, id, change.reply)
+  onReplyChanged(qc: QueryClient, change: InboxReplyCacheChange): void {
+    patchReply(qc, change)
     if (change.kind === 'state_changed') {
       qc.invalidateQueries({ queryKey: inboxKeys.lists() })
       qc.invalidateQueries({ queryKey: inboxKeys.counts() })
     }
+  },
+
+  /**
+   * Whether a reply command's result is about the item `id` — the one the
+   * pane has open when the command settles. False when the manager moved to
+   * another item while it was in flight, so nothing about that result may be
+   * recorded or said as if it were this item's.
+   */
+  isReplyChangeForItem(qc: QueryClient, id: string, change: InboxReplyCacheChange) {
+    const detail = qc.getQueryData<InboxItemDetailResult>(inboxKeys.detail(id))
+    return detail?.item.sourceId === change.reviewId
+  },
+
+  /**
+   * "Check Google again" was refused or failed. The usual cause of a refusal is
+   * a pane that is behind: another manager or tab already moved the reply out
+   * of every checkable state (`check-reply-publication.ts` NOTHING_TO_CHECK),
+   * and nothing polls a reply that needs a check (`replyRefetchInterval`). So
+   * the review's detail, the lists and the counts are re-read, and the pane
+   * shows the reply as it is next to the toast.
+   */
+  onReplyCheckFailed(qc: QueryClient, reviewId: string): void {
+    for (const itemId of cachedItemIdsForReview(qc, reviewId)) {
+      qc.invalidateQueries({ queryKey: inboxKeys.detail(itemId), exact: true })
+    }
+    qc.invalidateQueries({ queryKey: inboxKeys.lists() })
+    qc.invalidateQueries({ queryKey: inboxKeys.counts() })
   },
 
   /**
@@ -263,6 +454,16 @@ export const inboxCachePolicy = {
     )
     qc.invalidateQueries({ queryKey: inboxKeys.notes(id) })
     invalidateActivityAfterLag(qc, id)
+  },
+
+  /**
+   * A detail poll saw its reply change status or publication state (D8). The
+   * item may have moved queues, so the lists and queue counts are stale; the
+   * detail query already holds the new read and is not invalidated.
+   */
+  onPolledReplyChanged(qc: QueryClient): void {
+    qc.invalidateQueries({ queryKey: inboxKeys.lists() })
+    qc.invalidateQueries({ queryKey: inboxKeys.counts() })
   },
 
   /**

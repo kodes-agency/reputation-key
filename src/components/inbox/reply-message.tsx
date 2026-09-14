@@ -6,15 +6,18 @@ import {
   TimelineIndicator,
   TimelineItem,
 } from '#/components/ui/timeline'
+import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
 import { cn } from '#/lib/utils'
 import { MESSAGE_PROSE_CLASS } from './guest-message'
 import { INBOX_CHIP_STATIC_CLASS } from './inbox-chip'
 import { personInitials } from './person-initials'
+import { ReplyCheckStatus } from './reply-check-status'
 import { ReplyMessageActions } from './reply-message-actions'
 import { presentReplyMessage, type ReplyMessageTone } from './reply-message-view'
 import { resolveReplyView, type ReplyData } from './reply-status-view'
+import { useReplyCheckRun } from './use-reply-check-run'
 import { formatDateTime, formatRelativeTime } from './utils'
-import type { ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 
 /**
  * Chip tone. `accent` is NOT the purple `--accent` token: purple is
@@ -103,7 +106,8 @@ type Props = Readonly<{
   isEditing: boolean
   onApprove: () => Promise<unknown>
   onReject: (reason?: string) => Promise<unknown>
-  onCheck: () => Promise<unknown>
+  /** Resolves what the check found; see `useReplyCheckRun`. */
+  onCheck: () => Promise<ReplyPublicationCheckResult>
   onRetry: () => Promise<unknown>
   onEditPublished: () => void
   onEditRejected: () => void
@@ -144,7 +148,10 @@ type Props = Readonly<{
  * `ReplyMessageActions` is keyed by reply identity because this message sits at
  * a fixed position under a thread row keyed by the constant `'reply'`: without
  * the key React carries its local state — a half-typed rejection reason —
- * across a reply-state change and across a change of item.
+ * across a reply-state change and across a change of item. The check's pending
+ * state, status line and focus repair live HERE, above that key, for the same
+ * reason in reverse: they must survive the remount the check's own result
+ * causes, and put focus back when that remount takes the focused button.
  */
 export function ReplyMessage({
   reply,
@@ -159,6 +166,8 @@ export function ReplyMessage({
   onEditRejected,
 }: Props): ReactNode {
   const view = presentReplyMessage(resolveReplyView(reply))
+  const articleRef = useRef<HTMLElement>(null)
+  const checkRun = useReplyCheckRun(reply, onCheck, articleRef)
   // A draft lives in the composer, so it is not a thread message at all.
   if (!view || !reply) return null
 
@@ -174,6 +183,7 @@ export function ReplyMessage({
       <TimelineConnector />
       <TimelineContent>
         <article
+          ref={articleRef}
           aria-label={`Reply from ${author}`}
           className="min-w-0 rounded-lg border bg-muted/30 px-4 py-3"
         >
@@ -236,14 +246,16 @@ export function ReplyMessage({
             actions={view.actions}
             text={reply.text}
             isSaving={isSaving}
+            isChecking={checkRun.isChecking}
             isEditing={isEditing}
             onApprove={onApprove}
             onReject={onReject}
-            onCheck={onCheck}
+            onCheck={checkRun.check}
             onRetry={onRetry}
             onEditPublished={onEditPublished}
             onEditRejected={onEditRejected}
           />
+          <ReplyCheckStatus message={checkRun.statusMessage} />
         </article>
       </TimelineContent>
     </TimelineItem>

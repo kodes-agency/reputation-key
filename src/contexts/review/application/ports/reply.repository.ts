@@ -22,6 +22,8 @@ export type ReplyStateRow = Readonly<{
   status: ReplyStatus
   publicationState: PersistedPublicationState | null
   publicationLastErrorClass: PublicationFailureClass | null
+  /** D8: set while automatic checks continue; decides the uncertain reply's queue. */
+  reconcileDueAt: Date | null
   updatedAt: Date
 }>
 

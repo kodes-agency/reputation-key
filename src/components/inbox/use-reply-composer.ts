@@ -27,6 +27,7 @@ import {
   draftInLanguage,
   regenerateScope,
   restoreSnapshot,
+  submitAfterSave,
   type LanguageContext,
   type ReplyComposerSnapshot,
 } from './reply-composer-transitions'
@@ -287,12 +288,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
       setSubmitError(submitBlockedReason)
       return
     }
-    try {
-      await autosave.flush(draft)
-      await input.onSubmit()
-    } catch {
-      setSubmitError('Save the draft successfully before submitting it.')
-    }
+    setSubmitError(await submitAfterSave(() => autosave.flush(draft), input.onSubmit))
   }
 
   return {

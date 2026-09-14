@@ -1,7 +1,10 @@
 import type { InboxFilters } from './ports/inbox.repository'
 import type { ReviewId, UserId } from '#/shared/domain/ids'
 import { inboxError } from '../domain/errors'
-import type { ReplyStatus } from '../domain/types'
+import {
+  replyQueueStage,
+  type ReplyQueueStage as InboxReplyStage,
+} from '#/shared/domain/reply-queue-stage'
 
 export const INBOX_QUEUES = [
   'reply',
@@ -15,13 +18,10 @@ export const INBOX_QUEUES = [
 ] as const
 
 export type InboxQueue = (typeof INBOX_QUEUES)[number]
-export type InboxReplyStage = 'needs_reply' | 'awaiting' | 'waiting'
 
-export function replyStageForStatus(status: ReplyStatus): InboxReplyStage {
-  if (status === 'pending_approval') return 'awaiting'
-  if (status === 'approved' || status === 'published') return 'waiting'
-  return 'needs_reply'
-}
+// One reply-stage rule for the server stage lookup and the browser queue
+// matcher; see its module header for why it lives in shared/domain.
+export { replyQueueStage, type InboxReplyStage }
 
 export type InboxReplyStages = Readonly<{
   awaiting: ReadonlyArray<ReviewId>

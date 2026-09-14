@@ -248,39 +248,7 @@ describe('inboxCachePolicy.onFeedbackHandlingChanged', () => {
   })
 })
 
-// ── onReplyMutated ──────────────────────────────────────────────
-
-describe('inboxCachePolicy reply changes', () => {
-  it('patches the detail and refreshes governed list state after a workflow change', () => {
-    const { qc, invalidated, setDataCalls } = makeFakeQc()
-    const reply = {
-      id: 'reply-1',
-      status: 'pending_approval',
-    } as unknown as InboxItemDetailResult['reply']
-
-    inboxCachePolicy.onReplyChanged(qc, ID, { kind: 'state_changed', reply })
-
-    expect(setDataCalls).toHaveLength(1)
-    expect(setDataCalls[0].key).toEqual(inboxKeys.detail(ID))
-    const old = { item: { id: ID }, reply: null, notes: [] }
-    expect(setDataCalls[0].updater(old)).toEqual({ ...old, reply })
-    expect(setDataCalls[0].updater(undefined)).toBeUndefined()
-    expect(invalidated).toEqual([inboxKeys.lists(), inboxKeys.counts()])
-  })
-
-  it('does not make folder data stale when an autosave returns a draft', () => {
-    const { qc, invalidated } = makeFakeQc()
-    const reply = {
-      id: 'reply-1',
-      status: 'draft',
-    } as unknown as InboxItemDetailResult['reply']
-
-    inboxCachePolicy.onReplyChanged(qc, ID, { kind: 'draft_saved', reply })
-    vi.advanceTimersByTime(BULLMQ_ACTIVITY_LAG_MS + 1000)
-
-    expect(invalidated).toEqual([])
-  })
-})
+// ── onReplyChanged / onReplyCheckFailed: reply-result-routing.test.ts ──
 
 // ── onNoteAdded ─────────────────────────────────────────────────
 

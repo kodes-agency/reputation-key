@@ -6,6 +6,7 @@
 // and the disclosure relationship between a trigger here and an editor that
 // mounts in a different subtree at the foot of the pane's scroller.
 
+import { Loader2 } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import {
   AlertDialog,
@@ -54,6 +55,12 @@ export type ReplyMessageActionsProps = Readonly<{
   text: string
   isSaving: boolean
   /**
+   * This reply's check is in flight. Separate from `isSaving`, which is true
+   * while ANY reply write in the pane is: only the check itself may say
+   * `Checking Google…`.
+   */
+  isChecking: boolean
+  /**
    * Whether the pane is currently showing the published reply's editor. This is
    * the pane's `editTarget`, not a flag either surface owns: the editor mounts
    * at the foot of the scroller, in a different subtree from the trigger below
@@ -62,7 +69,8 @@ export type ReplyMessageActionsProps = Readonly<{
   isEditing: boolean
   onApprove: () => Promise<unknown>
   onReject: (reason?: string) => Promise<unknown>
-  onCheck: () => Promise<unknown>
+  /** Starts the check; its answer is reported by `ReplyMessage`, not here. */
+  onCheck: () => void
   onRetry: () => Promise<unknown>
   onEditPublished: () => void
   onEditRejected: () => void
@@ -77,6 +85,7 @@ export type ReplyMessageActionsProps = Readonly<{
 function SimpleAction({
   action,
   isSaving,
+  isChecking,
   isEditing,
   onCheck,
   onRetry,
@@ -89,10 +98,15 @@ function SimpleAction({
         <Button
           size="sm"
           className={TOUCH}
-          disabled={isSaving}
-          onClick={() => void onCheck().catch(() => undefined)}
+          disabled={isSaving || isChecking}
+          // A read of Google takes seconds. `aria-busy` and the name change say
+          // the click was taken; the spinner is the same glyph the form submit
+          // button uses (`forms/submit-button.tsx`), still for reduced motion.
+          aria-busy={isChecking}
+          onClick={onCheck}
         >
-          {isSaving ? 'Checking Google…' : 'Check Google again'}
+          {isChecking && <Loader2 aria-hidden className="motion-safe:animate-spin" />}
+          {isChecking ? 'Checking Google…' : 'Check Google again'}
         </Button>
       )
     case 'retry':
@@ -101,6 +115,8 @@ function SimpleAction({
           size="sm"
           className={TOUCH}
           disabled={isSaving}
+          // The retry mutation toasts a refusal (use-reply-actions.ts
+          // `errorMessage`); the catch only keeps the rejection handled.
           onClick={() => void onRetry().catch(() => undefined)}
         >
           {isSaving ? 'Starting…' : 'Try publishing again'}
@@ -187,7 +203,9 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
 
   return (
     <>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      {/* `data-reply-actions`: where `useReplyCheckRun` returns a focus a
+          check's own answer took away by unmounting the focused button. */}
+      <div data-reply-actions className="mt-3 flex flex-wrap items-center gap-2">
         {canApprove && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -235,6 +253,8 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
                 <AlertDialogCancel>Keep reviewing</AlertDialogCancel>
                 <AlertDialogAction
                   disabled={isSaving || publishBlockedReason !== null}
+                  // Toasted by the approve mutation's `errorMessage`; the catch
+                  // only keeps the rejection handled.
                   onClick={() => void onApprove().catch(() => undefined)}
                 >
                   {isSaving ? 'Confirming…' : 'Confirm & Publish'}
@@ -286,7 +306,9 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
               variant="destructive"
               disabled={isSaving}
               // `Action` is `mutateAsync`, so an unguarded call turns a server
-              // error into an unhandled rejection — the toast already reports it.
+              // error into an unhandled rejection. The catch only guards: the
+              // reject mutation's `errorMessage` (use-reply-actions.ts) is what
+              // reports the refusal — before it, nothing did.
               onClick={() =>
                 void onReject(rejectReason || undefined).catch(() => undefined)
               }

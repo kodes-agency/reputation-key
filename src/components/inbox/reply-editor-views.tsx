@@ -240,6 +240,10 @@ export function ReviewReplyPublishedEditor({
                 <AlertDialogCancel>Keep editing</AlertDialogCancel>
                 <AlertDialogAction
                   disabled={!canSave}
+                  // A refused update is toasted by the edit mutation's
+                  // `errorMessage` (use-reply-actions.ts) and the editor stays
+                  // open on the text (`reply-published-edit.tsx` closes only
+                  // after a save resolves); the catch only keeps it handled.
                   onClick={() => void onSave(text).catch(() => undefined)}
                 >
                   {isSaving ? 'Confirming…' : 'Confirm & Update'}
