@@ -184,6 +184,8 @@ async function consentForProperty(
     actorUserId: input.actorUserId,
     now: input.now,
   }
+  // A ceremony never revokes, and the lock steps only distinguish a revoke, so
+  // it fences as an enable before the locked head decides enable or change.
   const discoveredSourceEpoch = await lockProviderSource(tx, target, 'enable')
   const lockedPropertySourceEpoch = await lockTransitionProperty(
     tx,
@@ -259,6 +261,8 @@ export function runMerchantAiConsentCeremony(
   }
   return db.transaction(async (tx) => {
     await lockCeremonyKey(tx, input)
+    // Like a single-Property replay, this answers before the authority
+    // re-checks below; the use case has already authorized the current actor.
     const replay = await replayCeremony(tx, input, facts)
     if (replay) return replay
 

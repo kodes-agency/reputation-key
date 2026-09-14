@@ -101,7 +101,9 @@ export type MerchantAiAuthorizationStore = Readonly<{
   mutate(input: MerchantAiMutationInput): Promise<MerchantAiSnapshot>
   /**
    * Atomic: every Property's enablement, evidence and outbox fact commit
-   * together or not at all. Results follow `propertyIds` order.
+   * together or not at all. Results follow `propertyIds` order. A retry with
+   * the same idempotency key replays what the ceremony wrote; a Property it
+   * left unchanged wrote nothing, so its replayed result is its live grant.
    */
   enableForProperties(
     input: MerchantAiConsentCeremonyInput,

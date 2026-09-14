@@ -312,6 +312,44 @@ describe('Merchant AI consent ceremony store', () => {
     expect(await counts()).toEqual(committed)
   })
 
+  it('replays a Property the ceremony left unchanged as its live grant', async () => {
+    await enableSingle(PROPERTY_B, {
+      version: MERCHANT_AI_NOTICE_VERSION,
+      digest: MERCHANT_AI_NOTICE_DIGEST,
+    })
+    const first = await store.enableForProperties(ceremony())
+    expect(first.map(({ outcome }) => outcome)).toEqual(['enabled', 'unchanged'])
+    // B is turned off after the ceremony committed. Its unchanged result wrote
+    // no row, so nothing but the live grant is left to replay it from.
+    await store.mutate({
+      organizationId: ORG,
+      propertyId: PROPERTY_B,
+      actorUserId: OWNER,
+      idempotencyKey: 'single-revoke-after-ceremony',
+      expectedStateVersion: first[1]!.snapshot.stateVersion,
+      operation: 'revoke',
+      state: 'revoked',
+      capabilities: [],
+      reasonCode: 'merchant_revoked',
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+      ...POLICY,
+      now: NOW,
+      ceremonyId: randomUUID(),
+    })
+    const settled = await counts()
+
+    const replayed = await store.enableForProperties(ceremony())
+
+    expect(replayed[0]).toEqual(first[0])
+    expect(replayed[1]).toMatchObject({
+      propertyId: PROPERTY_B,
+      outcome: 'unchanged',
+      snapshot: { state: 'revoked' },
+    })
+    expect(await counts()).toEqual(settled)
+  })
+
   it('serializes concurrent attempts of one ceremony so exactly one writes', async () => {
     const attempts = await Promise.all([
       store.enableForProperties(ceremony()),
