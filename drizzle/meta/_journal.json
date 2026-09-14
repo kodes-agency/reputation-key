@@ -113,6 +113,13 @@
       "when": 1789600000000,
       "tag": "0016_merchant_ai_notice_v2_ceremony",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1789700000000,
+      "tag": "0017_import_outcome_details",
+      "breakpoints": true
     }
   ]
 }

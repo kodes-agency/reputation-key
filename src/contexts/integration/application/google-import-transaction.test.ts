@@ -690,6 +690,7 @@ describe('Google import transaction', () => {
           retryRevision: 0,
           userAction: 'retry',
           propertyId: null,
+          invalidProfileField: null,
         },
       ],
       canRetry: true,

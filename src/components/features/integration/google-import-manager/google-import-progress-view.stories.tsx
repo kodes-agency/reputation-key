@@ -27,6 +27,7 @@ const items: readonly ImportProgressItemDto[] = [
     retryRevision: 0,
     userAction: 'none',
     propertyId: '10000000-0000-4000-8000-000000000011',
+    invalidProfileField: null,
   },
   {
     itemId: '10000000-0000-4000-8000-000000000020',
@@ -39,6 +40,7 @@ const items: readonly ImportProgressItemDto[] = [
     retryRevision: 2,
     userAction: 'retry',
     propertyId: null,
+    invalidProfileField: null,
   },
 ]
 

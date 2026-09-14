@@ -58,6 +58,7 @@ export const googleImportV2OutcomeEnum = pgEnum('google_import_v2_outcome', [
   'temporarily_unavailable',
   'cleanup_required',
   'internal_error',
+  'tenant_profile_invalid',
 ])
 
 const replayVersion = (name: string) => varchar(name, { length: 32 })
@@ -254,6 +255,9 @@ export const gbpImportRequestItems = pgTable(
     timezone: varchar('timezone', { length: 64 }).notNull(),
     status: googleImportV2ItemStatusEnum('status').notNull().default('pending'),
     outcomeCode: googleImportV2OutcomeEnum('outcome_code'),
+    // The confirmed profile field a `tenant_profile_invalid` item was rejected
+    // for (migration 0017). Content-free: a field name, never the value.
+    invalidProfileField: varchar('invalid_profile_field', { length: 16 }),
     effectDeadlineAt: timestamptz('effect_deadline_at').notNull(),
     retryRevision: integer('retry_revision').notNull().default(0),
     highestAttemptForRevision: integer('highest_attempt_for_revision')
@@ -289,9 +293,11 @@ export const gbpImportRequestItems = pgTable(
       .onDelete('restrict')
       .onUpdate('no action'),
     // `destination_property_id` is the Property an `imported`/`relinked` item
-    // produced. Unlike the provider identifiers and authorization fences, which
-    // terminal writes scrub, it is an internal reference the import flow needs
-    // to hand the merchant straight to the Property (dashboard, AI onboarding).
+    // produced, or the same-Organization Property that already holds an
+    // `already_exists` item's location (migration 0017). Unlike the provider
+    // identifiers and authorization fences, which terminal writes scrub, it is an
+    // internal reference the import flow needs to hand the merchant straight to
+    // the Property (dashboard, AI onboarding).
     // No FK: a `create` item names its destination before the Property exists.
     // Property deletion clears it through the property-scoped lifecycle sweep.
     index('gbp_import_request_items_parent_status_idx').on(
@@ -321,7 +327,7 @@ export const gbpImportRequestItems = pgTable(
           ${t.status} NOT IN ('pending', 'processing')
           AND ${t.outcomeCode} <> 'temporarily_unavailable'
           AND ${t.existingPropertyId} IS NULL
-          AND (${t.status} IN ('imported', 'relinked') OR ${t.destinationPropertyId} IS NULL)
+          AND (${t.status} IN ('imported', 'relinked', 'already_exists') OR ${t.destinationPropertyId} IS NULL)
           AND ${t.expectedSourceEpoch} IS NULL
           AND ${t.expectedProfileVersion} IS NULL
         )
@@ -385,13 +391,20 @@ export const gbpImportRequestItems = pgTable(
         OR (${t.status} = 'imported' AND ${t.outcomeCode} = 'imported')
         OR (${t.status} = 'relinked' AND ${t.outcomeCode} = 'relinked')
         OR (${t.status} = 'already_exists' AND ${t.outcomeCode} = 'already_exists')
-        OR (${t.status} = 'failed' AND ${t.outcomeCode} IN ('active_binding_conflict', 'stale_binding', 'reauthentication_required', 'reconnect_required', 'temporarily_unavailable', 'cleanup_required', 'internal_error'))
+        OR (${t.status} = 'failed' AND ${t.outcomeCode}::text IN ('active_binding_conflict', 'stale_binding', 'reauthentication_required', 'reconnect_required', 'temporarily_unavailable', 'cleanup_required', 'internal_error', 'tenant_profile_invalid'))
         OR (${t.status} = 'cancelled' AND ${t.outcomeCode}::text IN ('authorization_changed', 'user_cancelled', 'policy_disabled', 'organization_suspended', 'property_suspended', 'property_deleted'))
       )`,
     ),
     check(
       'gbp_import_request_items_terminal_valid',
       sql`${t.outcomeCode} IS NULL OR ${t.firstTerminalAt} IS NOT NULL`,
+    ),
+    check(
+      'gbp_import_request_items_invalid_profile_field_valid',
+      sql`(
+        (${t.invalidProfileField} IS NULL AND (${t.outcomeCode} IS NULL OR ${t.outcomeCode}::text <> 'tenant_profile_invalid'))
+        OR (${t.outcomeCode}::text = 'tenant_profile_invalid' AND ${t.invalidProfileField} IN ('name', 'timezone', 'country'))
+      )`,
     ),
     check(
       'gbp_import_request_items_deadline_valid',

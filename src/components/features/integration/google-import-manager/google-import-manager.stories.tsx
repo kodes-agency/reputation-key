@@ -55,6 +55,7 @@ const completed: ImportProgressDto = {
       retryRevision: 0,
       userAction: 'none',
       propertyId: IMPORTED_PROPERTY_ID,
+      invalidProfileField: null,
     },
   ],
   canRetry: false,

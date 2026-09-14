@@ -33,6 +33,7 @@ const OUTCOME_MESSAGES: Record<ImportOutcomeCode, string> = {
   temporarily_unavailable: 'Google is temporarily unavailable. Retry this item.',
   cleanup_required: 'Import could not finish safely. Contact support.',
   internal_error: 'Import could not be completed.',
+  tenant_profile_invalid: 'A property detail was rejected. Correct it and import again.',
 }
 
 const PARENT_MESSAGES: Record<ImportParentStatus, string> = {

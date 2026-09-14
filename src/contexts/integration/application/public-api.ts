@@ -43,6 +43,7 @@ export {
   GOOGLE_PROPERTY_IMPORT_ITEM_JOB,
   IMPORT_OUTCOME_CODES,
   IMPORT_PARENT_STATUSES,
+  IMPORT_PROFILE_FIELDS,
 } from './google-import-v2-contract'
 export type {
   GbpImportItemStatus,
@@ -52,6 +53,7 @@ export type {
   ImportCandidatePageDto,
   ImportOutcomeCode,
   ImportParentStatus,
+  ImportProfileField,
   ImportProgressDto,
   ImportProgressItemDto,
   StartPropertyImportItemInput,
