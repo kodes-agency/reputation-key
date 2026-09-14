@@ -5,6 +5,7 @@ import {
   identityKeys,
   integrationKeys,
   portalKeys,
+  propertyKeys,
 } from './query-keys'
 
 describe('identity query keys', () => {
@@ -15,6 +16,26 @@ describe('identity query keys', () => {
     expect(personal).not.toEqual(organization)
     expect(personal.slice(0, -1)).toEqual(identityKeys.invitations())
     expect(organization.slice(0, -1)).toEqual(identityKeys.invitations())
+  })
+})
+
+describe('property setup query keys', () => {
+  it('nests one Property setup under its detail and the summaries under the list', () => {
+    expect(propertyKeys.setup('property-1')).toEqual([
+      'properties',
+      'detail',
+      'property-1',
+      'setup',
+    ])
+    expect(propertyKeys.setup('property-1').slice(0, -1)).toEqual(
+      propertyKeys.detail('property-1'),
+    )
+    expect(propertyKeys.setupSummaries()).toEqual([
+      'properties',
+      'list',
+      'setup-summaries',
+    ])
+    expect(propertyKeys.setupSummaries().slice(0, -1)).toEqual(propertyKeys.list())
   })
 })
 

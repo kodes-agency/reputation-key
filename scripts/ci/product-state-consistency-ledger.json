@@ -56,9 +56,16 @@
     },
     {
       "id": "propertyKeys",
-      "members": ["all", "list", "detail", "responsibleManagers"],
+      "members": [
+        "all",
+        "list",
+        "setupSummaries",
+        "detail",
+        "responsibleManagers",
+        "setup"
+      ],
       "owner": "Property query lifecycle",
-      "policy": "The list is active-tenant data; globally unique propertyId scopes detail data, and responsible managers descend from that detail so property-level invalidation includes the assignment projection."
+      "policy": "The list is active-tenant data; globally unique propertyId scopes detail data, and responsible managers descend from that detail so property-level invalidation includes the assignment projection. Per-Property setup steps descend from the same detail and the accessible setup summaries descend from the list, so every existing Property detail or list invalidation also refreshes the setup read derived from those facts."
     },
     {
       "id": "dashboardKeys",

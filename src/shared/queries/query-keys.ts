@@ -108,9 +108,16 @@ export const identityKeys = {
 export const propertyKeys = {
   all: ['properties'] as const,
   list: () => [...propertyKeys.all, 'list'] as const,
+  /**
+   * Setup attention counts for the accessible Properties. Below the list, so
+   * any list invalidation (a Property created, archived, reconfigured) refreshes them.
+   */
+  setupSummaries: () => [...propertyKeys.list(), 'setup-summaries'] as const,
   detail: (propertyId: string) => [...propertyKeys.all, 'detail', propertyId] as const,
   responsibleManagers: (propertyId: string) =>
     [...propertyKeys.detail(propertyId), 'responsible-managers'] as const,
+  /** One Property's setup steps. Below its detail, so Property invalidation reaches them. */
+  setup: (propertyId: string) => [...propertyKeys.detail(propertyId), 'setup'] as const,
 }
 
 // ── Dashboard (fleet + per-property + staff) ─────────────────────────────
