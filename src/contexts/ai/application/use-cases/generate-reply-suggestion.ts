@@ -39,7 +39,7 @@ import type { AiControlPort } from '../ports/ai-control.port'
 import type { AiInferencePort } from '../ports/ai-inference.port'
 import type { AiOperationStorePort } from '../ports/ai-operation-store.port'
 import type { AiOutputStorePort } from '../ports/ai-output-store.port'
-import type { AiQuotaPort } from '../ports/ai-quota.port'
+import type { AiAdmissionPort } from '../ports/ai-admission.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
 import type {
   AiExecutionBinding,
@@ -110,6 +110,8 @@ export type GenerateReplySuggestionResult =
         | 'policy_unavailable'
         | 'completed_without_delivery'
         | 'provider_unavailable'
+        // Our own interactive AI capacity is in use; retry at the given time.
+        | 'busy'
       retryAfterEpochMillis: number | null
     }>
 
@@ -119,7 +121,7 @@ export type GenerateReplySuggestionDependencies = Readonly<{
   inference: AiInferencePort
   operations: AiOperationStorePort
   outputs: AiOutputStorePort
-  quota: AiQuotaPort
+  admission: AiAdmissionPort
   reviewSources: AiReviewSourcePort
   processingProfiles: PropertyProcessingProfilePort
   propertyReplyLanguages: Readonly<{
@@ -528,13 +530,19 @@ export function createGenerateReplySuggestion(
     }
     const expectedAttempt = claimed.operation.executionAttempt + 1
     if (expectedAttempt > 4) return unavailable('provider_unavailable')
-    const quota = await dependencies.quota.acquire({
+    // Admission comes before the execution claim: a busy lane is never an
+    // attempt, and a manager's draft is admitted in the interactive lane, which
+    // a review-analysis backlog cannot consume.
+    const admission = await dependencies.admission.acquire({
+      organizationId: input.organizationId,
       propertyId: input.propertyId,
-      capability: 'reply_drafting',
+      lane: 'interactive',
       nowEpochMillis,
     })
-    if (!quota.ok) {
-      return unavailable('provider_unavailable', nowEpochMillis + 5_000)
+    if (!admission.ok) {
+      return admission.code === 'admission_busy'
+        ? unavailable('busy', admission.retryAfterEpochMillis)
+        : unavailable('provider_unavailable', nowEpochMillis + 5_000)
     }
     try {
       const execution = await dependencies.operations.claimExecution({
@@ -656,7 +664,7 @@ export function createGenerateReplySuggestion(
         concreteLanguageTag: targetReplyLanguage.tag,
       }
     } finally {
-      await dependencies.quota.release({ quotaId: quota.quotaId })
+      await dependencies.admission.release({ admissionId: admission.admissionId })
     }
   }
 }

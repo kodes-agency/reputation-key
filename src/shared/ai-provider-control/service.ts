@@ -143,8 +143,9 @@ function denialCode(code: string): AiGatewayErrorCode {
     case 'control_disabled':
     case 'circuit_open':
       return 'execution_suspended'
-    case 'rate_limited':
-      return 'provider_rate_limited'
+    // No admission denial maps to `provider_rate_limited`: that code is the
+    // provider's own 429 (see dispositionCode). Our capacity is admitted per
+    // lane before the call is claimed and answers `admission_busy` there.
     case 'concurrency_exhausted':
     case 'quota_exhausted':
       return 'quota_exhausted'

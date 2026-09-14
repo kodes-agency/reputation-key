@@ -13,11 +13,7 @@ import type {
   AiAdmissionDenialCode,
   AiSettlementDenialCode,
 } from '#/shared/ai-provider-control/admission-service'
-import {
-  createAiBudgetControl,
-  type AiAdmissionRateLimiter,
-  type AiBudgetControl,
-} from './ai-budget'
+import { createAiBudgetControl, type AiBudgetControl } from './ai-budget'
 
 const KEY_ID = /^[a-z][a-z0-9_-]{0,31}$/
 
@@ -29,8 +25,6 @@ type PropertyDenial = Exclude<
 type Dependencies = Readonly<{
   pool: Pool
   signingKid: string
-  /** Ignored when `budgetControl` is supplied. */
-  rateLimiter: AiAdmissionRateLimiter
   budgetControl?: AiBudgetControl
   now?: () => Date
   nonce?: () => string
@@ -43,13 +37,11 @@ function profileForRoute(route: string) {
 }
 
 function admissionDenial(
-  code: 'kill_switch' | 'rate_limited' | 'budget_exhausted' | 'capability_unavailable',
+  code: 'kill_switch' | 'budget_exhausted' | 'capability_unavailable',
 ): PropertyDenial {
   switch (code) {
     case 'kill_switch':
       return 'control_disabled'
-    case 'rate_limited':
-      return 'rate_limited'
     case 'budget_exhausted':
       return 'quota_exhausted'
     case 'capability_unavailable':
@@ -73,9 +65,7 @@ export function createPostgresAiAdmissionAuthority(
   }
   const db = drizzle(input.pool) as Database
   const now = input.now ?? (() => new Date())
-  const budget =
-    input.budgetControl ??
-    createAiBudgetControl({ rateLimiter: input.rateLimiter, idGen: randomUUID, now })
+  const budget = input.budgetControl ?? createAiBudgetControl({ idGen: randomUUID, now })
   const nonce = input.nonce ?? (() => randomBytes(18).toString('base64url'))
 
   return Object.freeze({

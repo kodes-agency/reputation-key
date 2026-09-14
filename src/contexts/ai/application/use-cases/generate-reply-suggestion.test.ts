@@ -75,6 +75,8 @@ function createHarness(
     }> | null
     settleEphemeralReplyResult?: boolean
     assertCurrentStatus?: 'current' | 'stale'
+    /** The interactive lane is full until this instant. */
+    admissionBusyUntil?: number
     gatewayErrorCode?:
       | 'provider_unavailable'
       | 'provider_rate_limited'
@@ -280,8 +282,20 @@ function createHarness(
       readAnalysisForDelivery: vi.fn(),
       readTrendReportForDelivery: vi.fn(),
     },
-    quota: {
-      acquire: vi.fn(async () => ({ ok: true as const, quotaId: 'quota-1' })),
+    admission: {
+      acquire: vi.fn(async () =>
+        options.admissionBusyUntil === undefined
+          ? {
+              ok: true as const,
+              admissionId: 'admission-1',
+              expiresAtEpochMillis: NOW + 90_000,
+            }
+          : {
+              ok: false as const,
+              code: 'admission_busy' as const,
+              retryAfterEpochMillis: options.admissionBusyUntil,
+            },
+      ),
       release,
     },
     reviewSources: {
@@ -352,7 +366,7 @@ function createHarness(
       claim,
       claimExecution,
       readHeads: dependencies.control.readHeads,
-      acquire: dependencies.quota.acquire,
+      acquire: dependencies.admission.acquire,
       generateReply,
       settleEphemeralReply,
       markDelivered,
@@ -607,7 +621,7 @@ describe('generate reply suggestion', () => {
       expectedAttempt: 1,
       deliveredAtEpochMillis: NOW,
     })
-    expect(harness.mocks.release).toHaveBeenCalledWith({ quotaId: 'quota-1' })
+    expect(harness.mocks.release).toHaveBeenCalledWith({ admissionId: 'admission-1' })
     expect(harness.mocks.generateReply).toHaveBeenCalledWith(
       expect.objectContaining({
         replyProfileVersion: 'reply-draft-v2',
@@ -620,6 +634,22 @@ describe('generate reply suggestion', () => {
       expect.any(AbortSignal),
     )
     expect(harness.mocks.readCurrentAiReplyBrandProfile).toHaveBeenCalledTimes(2)
+  })
+
+  it('answers busy from a full interactive lane without claiming an attempt', async () => {
+    const harness = createHarness({ admissionBusyUntil: NOW + 12_000 })
+
+    await expect(harness.generate(INPUT)).resolves.toEqual({
+      status: 'unavailable',
+      code: 'busy',
+      retryAfterEpochMillis: NOW + 12_000,
+    })
+    expect(harness.mocks.acquire).toHaveBeenCalledWith(
+      expect.objectContaining({ lane: 'interactive', propertyId: PROPERTY_ID }),
+    )
+    expect(harness.mocks.claimExecution).not.toHaveBeenCalled()
+    expect(harness.mocks.generateReply).not.toHaveBeenCalled()
+    expect(harness.mocks.release).not.toHaveBeenCalled()
   })
 
   it('withholds a provider result when the public Brand Profile changes in flight', async () => {
@@ -679,7 +709,7 @@ describe('generate reply suggestion', () => {
     })
     expect(harness.mocks.settleEphemeralReply).not.toHaveBeenCalled()
     expect(harness.mocks.markDelivered).not.toHaveBeenCalled()
-    expect(harness.mocks.release).toHaveBeenCalledWith({ quotaId: 'quota-1' })
+    expect(harness.mocks.release).toHaveBeenCalledWith({ admissionId: 'admission-1' })
   })
 
   it('withholds the local fallback when the Review changes during provider work', async () => {

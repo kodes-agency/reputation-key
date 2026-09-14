@@ -120,7 +120,7 @@ function createHarness(
     settleOutcome?: boolean
     aggregateStatus?: 'applied' | 'stale' | 'unavailable'
     profileStatus?: Exclude<AiPropertyProfileResult['status'], 'available'>
-    quotaCode?: string
+    admissionCode?: 'admission_busy' | 'admission_unavailable'
     /** Simulates a redelivery of an operation claimed in an earlier attempt. */
     operationCreatedAtEpochMillis?: number
     analysisResult?: unknown
@@ -362,11 +362,21 @@ function createHarness(
       advanceWithoutAnalysis,
       readWindow: vi.fn(),
     },
-    quota: {
+    admission: {
       acquire: vi.fn(async () =>
-        options.quotaCode === undefined
-          ? { ok: true as const, quotaId: 'quota-1' }
-          : { ok: false as const, code: options.quotaCode },
+        options.admissionCode === undefined
+          ? {
+              ok: true as const,
+              admissionId: 'admission-1',
+              expiresAtEpochMillis: NOW + 90_000,
+            }
+          : options.admissionCode === 'admission_busy'
+            ? {
+                ok: false as const,
+                code: 'admission_busy' as const,
+                retryAfterEpochMillis: NOW + 15_000,
+              }
+            : { ok: false as const, code: 'admission_unavailable' as const },
       ),
       release,
     },
@@ -403,6 +413,8 @@ function createHarness(
       readReviewSource,
       readProcessingProfile,
       consumeNext,
+      claimExecution,
+      acquire: dependencies.admission.acquire,
     },
   }
 }
@@ -484,7 +496,7 @@ describe('analyze review event', () => {
       )
       expect(harness.mocks.applyReviewAnalysis).toHaveBeenCalledOnce()
       expect(harness.mocks.markDelivered).toHaveBeenCalledOnce()
-      expect(harness.mocks.release).toHaveBeenCalledWith({ quotaId: 'quota-1' })
+      expect(harness.mocks.release).toHaveBeenCalledWith({ admissionId: 'admission-1' })
     })
 
     it.each([
@@ -609,34 +621,34 @@ describe('analyze review event', () => {
       expect(harness.mocks.markDelivered).not.toHaveBeenCalled()
     })
 
-    it('defers a quota denial instead of terminal-settling the outcome', async () => {
-      const harness = createHarness({ quotaCode: 'quota_exhausted' })
+    it('defers an unavailable admission store instead of terminal-settling the outcome', async () => {
+      const harness = createHarness({ admissionCode: 'admission_unavailable' })
 
       await expect(harness.analyze(input)).resolves.toEqual({
         status: 'retry',
         retryAtEpochMillis: NOW + 30_000,
-        code: 'quota_exhausted',
+        code: 'admission_unavailable',
       })
       expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
       expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
       expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
     })
 
-    it('keeps deferring a quota denial while the operation is inside its own horizon', async () => {
+    it('keeps deferring an unavailable admission while the operation is inside its own horizon', async () => {
       // A relay backlog must not cut short work that has already been claimed:
       // once an operation exists it gets the full horizon from its own createdAt.
-      const harness = createHarness({ quotaCode: 'quota_exhausted' })
+      const harness = createHarness({ admissionCode: 'admission_unavailable' })
 
       await expect(harness.analyze(elapsedInput)).resolves.toMatchObject({
         status: 'retry',
-        code: 'quota_exhausted',
+        code: 'admission_unavailable',
       })
       expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
     })
 
-    it('terminal-settles a quota denial once the operation horizon has elapsed', async () => {
+    it('terminal-settles an unavailable admission once the operation horizon has elapsed', async () => {
       const harness = createHarness({
-        quotaCode: 'quota_exhausted',
+        admissionCode: 'admission_unavailable',
         operationCreatedAtEpochMillis: NOW - AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
       })
 
@@ -653,16 +665,35 @@ describe('analyze review event', () => {
       expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledOnce()
     })
 
-    it('keeps deferring a quota denial for a backfill long after the live horizon', async () => {
+    it('keeps deferring an unavailable admission for a backfill long after the live horizon', async () => {
       const harness = createHarness({
-        quotaCode: 'quota_exhausted',
+        admissionCode: 'admission_unavailable',
         operationCreatedAtEpochMillis: NOW - AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
       })
 
       await expect(harness.analyze(agedBackfillInput)).resolves.toMatchObject({
         status: 'retry',
-        code: 'quota_exhausted',
+        code: 'admission_unavailable',
       })
+      expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
+    })
+
+    it('waits for a busy background lane even after the operation horizon', async () => {
+      const harness = createHarness({
+        admissionCode: 'admission_busy',
+        operationCreatedAtEpochMillis: NOW - AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
+      })
+
+      await expect(harness.analyze(elapsedInput)).resolves.toEqual({
+        status: 'retry',
+        retryAtEpochMillis: NOW + 15_000,
+        code: 'admission_busy',
+      })
+      expect(harness.mocks.acquire).toHaveBeenCalledWith(
+        expect.objectContaining({ lane: 'background' }),
+      )
+      expect(harness.mocks.claimExecution).not.toHaveBeenCalled()
+      expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
       expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
     })
 

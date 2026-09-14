@@ -7,7 +7,7 @@ import {
   resolveConcreteReplyLanguage,
 } from '#/shared/ai-reply-language-verifier'
 import type { AiInferencePort } from './application/ports/ai-inference.port'
-import type { AiQuotaPort } from './application/ports/ai-quota.port'
+import type { AiAdmissionPort } from './application/ports/ai-admission.port'
 import type { AiSubjectHmacPort } from './application/ports/ai-subject-hmac.port'
 import { createAnalyzeReviewEvent } from './application/use-cases/analyze-review-event'
 import { createAiOperationExecutionReaper } from './application/ai-operation-execution-reaper'
@@ -37,7 +37,7 @@ import { createAiPropertyTrendScheduleStore } from './infrastructure/adapters/ai
 import { createAiReviewEventStoreAdapter } from './infrastructure/adapters/ai-review-event-store.adapter'
 import { createPropertyProcessingProfileAdapter } from './infrastructure/adapters/property-processing-profile.adapter'
 import { createReviewAnalysisEnrollmentAdapter } from './infrastructure/adapters/ai-review-analysis-enrollment.adapter'
-import { createRedisAiQuotaAdapter } from './infrastructure/adapters/ai-quota.adapter'
+import { createRedisAiLaneAdmissionAdapter } from './infrastructure/adapters/ai-lane-admission.adapter'
 import { createAiOrganizationExportContributor } from './infrastructure/adapters/ai-organization-export.adapter'
 import { createAiOrganizationLifecycleContributor } from './infrastructure/adapters/ai-organization-lifecycle.adapter'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
@@ -69,10 +69,10 @@ const unavailableInference: AiInferencePort = Object.freeze({
   }),
 })
 
-const unavailableQuota: AiQuotaPort = Object.freeze({
+const unavailableAdmission: AiAdmissionPort = Object.freeze({
   acquire: async () => ({
     ok: false as const,
-    code: 'provider_unavailable' as const,
+    code: 'admission_unavailable' as const,
   }),
   release: async () => {},
 })
@@ -91,7 +91,7 @@ export type AiContextBuildInput = Readonly<{
   propertyReplyLanguages: GenerateReplySuggestionDependencies['propertyReplyLanguages']
   replyBrandProfiles: PortalAiReplyBrandProfilePublicApi
   inference?: AiInferencePort
-  quota?: AiQuotaPort
+  admission?: AiAdmissionPort
   subjectHmac?: AiSubjectHmacPort
   resolveReplyLanguage?: GenerateReplySuggestionDependencies['resolveReplyLanguage']
   enqueuePropertyTrend?: RegisterAiConsumersInput['enqueuePropertyTrend']
@@ -113,9 +113,11 @@ export const buildAiContext = (input: AiContextBuildInput) => {
   const enrollments = createReviewAnalysisEnrollmentAdapter(input.db, input.idGen)
   const processingProfiles = createPropertyProcessingProfileAdapter(input.db, clock)
   const inference = input.inference ?? unavailableInference
-  const quota =
-    input.quota ??
-    (input.redis ? createRedisAiQuotaAdapter(input.redis, input.idGen) : unavailableQuota)
+  const admission =
+    input.admission ??
+    (input.redis
+      ? createRedisAiLaneAdmissionAdapter(input.redis, input.idGen)
+      : unavailableAdmission)
   const analyzeReviewEvent = createAnalyzeReviewEvent({
     authorization,
     control,
@@ -123,7 +125,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     operations,
     outputs,
     aggregates,
-    quota,
+    admission,
     reviewEvents,
     reviewSources: input.reviewSources,
     processingProfiles,
@@ -209,7 +211,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
         inference,
         operations,
         outputs,
-        quota,
+        admission,
         reviewSources: input.reviewSources,
         processingProfiles,
         propertyReplyLanguages: input.propertyReplyLanguages,

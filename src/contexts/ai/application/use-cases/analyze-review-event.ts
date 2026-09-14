@@ -20,7 +20,7 @@ import type { AiOperationStorePort } from '../ports/ai-operation-store.port'
 import type { AiOutputStorePort } from '../ports/ai-output-store.port'
 import { issueLabelReproducesSource } from '#/shared/ai-issue-label'
 import type { AiPropertyAggregateStorePort } from '../ports/ai-property-aggregate-store.port'
-import type { AiQuotaPort } from '../ports/ai-quota.port'
+import type { AiAdmissionPort } from '../ports/ai-admission.port'
 import type {
   AiReviewAnalysisTerminalDisposition,
   AiReviewEventDisposition,
@@ -114,7 +114,7 @@ export type AnalyzeReviewEventDependencies = Readonly<{
   operations: AiOperationStorePort
   outputs: AiOutputStorePort
   aggregates: AiPropertyAggregateStorePort
-  quota: AiQuotaPort
+  admission: AiAdmissionPort
   reviewEvents: AiReviewEventStorePort
   reviewSources: AiReviewSourcePort
   processingProfiles: PropertyProcessingProfilePort
@@ -631,17 +631,28 @@ export function createAnalyzeReviewEvent(
           'policy_disabled',
         )
       }
-      const quota = await dependencies.quota.acquire({
+      const admission = await dependencies.admission.acquire({
+        organizationId: input.organizationId,
         propertyId: input.propertyId,
-        capability: 'review_analysis',
+        lane: 'background',
         nowEpochMillis,
       })
-      if (!quota.ok) {
+      if (!admission.ok) {
+        if (admission.code === 'admission_busy') {
+          // Our own lane is full. Nothing was consumed and no attempt was
+          // claimed, so a busy lane is never a reason to abandon this review:
+          // it waits for capacity regardless of the operation horizon.
+          return {
+            status: 'retry',
+            retryAtEpochMillis: admission.retryAfterEpochMillis,
+            code: admission.code,
+          }
+        }
         return deferOrSettle(
           input,
           reviewAnalysisEpoch,
           profile.profileVersion,
-          quota.code,
+          admission.code,
           nowEpochMillis,
           operationHorizonEpochMillis,
         )
@@ -823,7 +834,7 @@ export function createAnalyzeReviewEvent(
         })
         return { status: 'completed' }
       } finally {
-        await dependencies.quota.release({ quotaId: quota.quotaId })
+        await dependencies.admission.release({ admissionId: admission.admissionId })
       }
     }
     return executeClaimedAnalysis()
