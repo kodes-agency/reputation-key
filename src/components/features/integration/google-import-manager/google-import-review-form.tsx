@@ -118,19 +118,31 @@ export function GoogleImportReviewForm({
                 <BulkTimezone form={form} disabled={isSubmitting} />
 
                 <div className="overflow-hidden rounded-xl border bg-card">
+                  {/* Below md the table reflows into one block per property. Explicit
+                      roles keep the table, row and cell semantics that a changed CSS
+                      display would otherwise drop from the accessibility tree. */}
                   <Table
+                    role="table"
                     aria-labelledby="import-review-heading"
                     className="block md:table"
                   >
-                    <TableHeader className="hidden md:table-header-group">
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="px-3 md:w-[28%]">Property name</TableHead>
-                        <TableHead className="px-3 md:w-[30%]">Address</TableHead>
-                        <TableHead className="px-3">Country</TableHead>
-                        <TableHead className="px-3">Timezone</TableHead>
+                    <TableHeader role="rowgroup" className="hidden md:table-header-group">
+                      <TableRow role="row" className="hover:bg-transparent">
+                        <TableHead role="columnheader" className="px-3 md:w-[28%]">
+                          Property name
+                        </TableHead>
+                        <TableHead role="columnheader" className="px-3 md:w-[30%]">
+                          Address
+                        </TableHead>
+                        <TableHead role="columnheader" className="px-3">
+                          Country
+                        </TableHead>
+                        <TableHead role="columnheader" className="px-3">
+                          Timezone
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
-                    <TableBody className="block md:table-row-group">
+                    <TableBody role="rowgroup" className="block md:table-row-group">
                       {items.map((item, index) => (
                         <GoogleImportReviewRow
                           key={item.candidateId}

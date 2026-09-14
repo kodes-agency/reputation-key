@@ -236,6 +236,10 @@ export const PhoneWidth: Story = {
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    // Explicit roles keep the table navigable once CSS reflows it into blocks.
+    const table = canvas.getByRole('table', { name: 'Confirm details' })
+    await expect(within(table).getAllByRole('row')).toHaveLength(4)
+    await expect(within(table).getAllByRole('cell')).toHaveLength(12)
     for (const row of [1, 2, 3]) {
       await expect(
         canvas.getByRole('textbox', { name: `Property name, row ${row}` }),

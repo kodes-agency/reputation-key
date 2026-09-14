@@ -84,10 +84,11 @@ export function GoogleImportReviewRow({ form, item, index, disabled }: Props) {
 
   return (
     <TableRow
+      role="row"
       data-flagged={flagged}
       className="block p-4 data-[flagged=true]:bg-destructive/5 data-[flagged=true]:hover:bg-destructive/10 md:table-row md:p-0"
     >
-      <TableCell className={CELL}>
+      <TableCell role="cell" className={CELL}>
         <CellLabel htmlFor={control('name').id} label="Property name" index={index} />
         <form.Field name={`items[${index}].name`}>
           {(field) => (
@@ -129,7 +130,7 @@ export function GoogleImportReviewRow({ form, item, index, disabled }: Props) {
         ) : null}
       </TableCell>
 
-      <TableCell className={CELL}>
+      <TableCell role="cell" className={CELL}>
         <CellLabel htmlFor={control('address').id} label="Address" index={index} />
         <form.Field name={`items[${index}].address`}>
           {(field) => (
@@ -147,7 +148,7 @@ export function GoogleImportReviewRow({ form, item, index, disabled }: Props) {
         <RowIssue item={item} field="address" message={issues.address} />
       </TableCell>
 
-      <TableCell className={CELL}>
+      <TableCell role="cell" className={CELL}>
         {item.action === 'create' ? (
           <>
             <CellLabel
@@ -205,7 +206,7 @@ export function GoogleImportReviewRow({ form, item, index, disabled }: Props) {
         )}
       </TableCell>
 
-      <TableCell className={CELL}>
+      <TableCell role="cell" className={CELL}>
         <CellLabel htmlFor={control('timezone').id} label="Timezone" index={index} />
         <form.Field name={`items[${index}].timezone`}>
           {(field) => (
