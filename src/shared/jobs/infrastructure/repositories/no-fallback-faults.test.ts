@@ -567,6 +567,11 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       googleReviewApi,
       googleReplyObservationStore: createGoogleReplyObservationStore(db),
       replyCommandStore,
+      // A 503 is Google's answer, so the real request started a
+      // `reviews.reply` permit. The fake write creates none, and the real
+      // evidence reader would read that as never dispatched; this proof is
+      // about the uncertain path, so the evidence says what production would.
+      dispatchEvidence: { findDispatchEvidence: async () => 'possibly_dispatched' },
       clock: () => PROVIDER_OBSERVED_AT_C,
       logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
       idGen: () => replyId('4d000000-0000-0000-0000-000000000099'),

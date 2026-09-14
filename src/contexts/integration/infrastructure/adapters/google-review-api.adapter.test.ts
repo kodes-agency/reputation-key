@@ -442,6 +442,61 @@ describe('GoogleReviewApiAdapter', () => {
     expect(page.reviews[0]?.replyText).toBe('Thank you for the kind words.')
   })
 
+  // D6: a translation-only reply envelope carries no recoverable original. Read
+  // as `replyText: null` alone, it looked exactly like "Google has no reply", and
+  // reconciliation treats absence as the answer that keeps a send uncertain.
+  it.each([
+    [
+      'a translation-only envelope',
+      { comment: '(Translated by Google) Thank you for staying with us.' },
+      { replyText: null, replyUnreadable: true },
+    ],
+    [
+      'a normal envelope',
+      { comment: '(Translated by Google) Thank you.\n\n(Original)\nБлагодарим.' },
+      { replyText: 'Благодарим.', replyUnreadable: false },
+    ],
+    [
+      'a plain reply',
+      { comment: 'Thank you for the kind words.' },
+      { replyText: 'Thank you for the kind words.', replyUnreadable: false },
+    ],
+    ['no reply', undefined, { replyText: null, replyUnreadable: false }],
+  ])('getReview maps %s to its readable reply state', async (_label, reply, expected) => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        contentType: 'application/json; charset=utf-8',
+        cacheControl: null,
+        retryAfter: null,
+      },
+      body: new TextEncoder().encode(
+        JSON.stringify({
+          ...providerReview(),
+          ...(reply
+            ? { reviewReply: { ...reply, updateTime: '2026-09-09T09:01:28.000Z' } }
+            : {}),
+        }),
+      ),
+    })
+    const { api } = createAdapter({ execute })
+
+    const result = await api.getReview({
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      connectionId: CONNECTION_ID,
+      sourceEpoch: 17,
+      locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+      reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+    })
+
+    expect(result).toEqual({
+      status: 'found',
+      review: expect.objectContaining(expected),
+    })
+  })
+
   it('leaves an unwrapped Google comment as the review text', async () => {
     const execute = vi.fn().mockResolvedValue({
       ok: true,

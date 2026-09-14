@@ -28,12 +28,22 @@ export type ReconcileReplyPublicationInput = Readonly<{
 }>
 
 export type ReconcilePublicationOutcome = Readonly<{
+  /**
+   * `unreadable`: Google answered, but the read can neither confirm nor rule out
+   * this attempt. Callers treat it like a failed read (check again later); it is
+   * never evidence that the reply is absent. `diverged` stays in the union for
+   * callers that name it, but this use case reports that resolution as
+   * `unreadable` (see below).
+   */
   outcome:
     | 'confirmed_on_google'
     | 'external_current_live'
     | 'diverged'
     | 'absent'
     | 'provider_review_missing'
+    | 'unreadable'
+  /** Content-free cause of an `unreadable` outcome, for the caller's log line. */
+  reason?: 'reply_unreadable' | 'whitespace_only_difference'
 }>
 
 function isReconciliableReply(status: string, publicationState: string | null): boolean {
@@ -99,6 +109,15 @@ export const reconcileReplyPublication =
     if (result.status === 'not_found') {
       return ok({ outcome: 'provider_review_missing' })
     }
+    // Google shows a reply whose original text could not be recovered (a
+    // translation-only envelope, google-review-comment.ts). Recording it would
+    // write `absent` - a false provider fact that the observation authority
+    // treats as a deletion and that ends a legacy uncertain send
+    // (google-reply-observation-store.ts settleLegacyUnattributedAttempt). Record
+    // nothing, so the attempt stays exactly as uncertain as it was.
+    if (result.review.replyUnreadable === true) {
+      return ok({ outcome: 'unreadable', reason: 'reply_unreadable' })
+    }
 
     // Generations order acquired provider responses, not request starts. A
     // slower earlier request must therefore allocate only after its response
@@ -140,6 +159,13 @@ export const reconcileReplyPublication =
       contentExpiresAt: contentExpiresAtFromFetch(observedAt),
     })
 
+    // `diverged` is the observation authority's answer for live text that
+    // differs from this in-flight attempt only by whitespace
+    // (google-reply-observation.ts): not RepKey's exact write, not another
+    // author's reply. The attempt is untouched, so the check decided nothing.
+    if (observation.resolution === 'diverged') {
+      return ok({ outcome: 'unreadable', reason: 'whitespace_only_difference' })
+    }
     const outcome =
       observation.resolution === 'unchanged'
         ? result.review.replyText === null

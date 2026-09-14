@@ -167,13 +167,53 @@ export type ReplyCommandStore = Readonly<{
    * BQC-3.8: a non-confirming provider outcome from `sending` or
    * `pending_observation` — status → publish_failed +
    * publication_state='ambiguous' + last_error_class='ambiguous' +
-   * reconcile_due_at = now + AMBIGUOUS_RECONCILE_DELAY_MS + the optional
-   * publish_failed fact, one transaction.
+   * reconcile_due_at + the optional publish_failed fact, one transaction.
+   * D3: callers pass `dueAt` from nextAmbiguousReconcileDueAt (the ladder is
+   * measured from the attempt start, which the store does not read); without
+   * it the row is due at now + AMBIGUOUS_RECONCILE_DELAY_MS.
    */
   markPublicationAmbiguous(
     reply: Reply,
     event: ReviewReplyPublishFailed | null,
     now?: Date,
+    dueAt?: Date,
+  ): Promise<Reply | null>
+  /**
+   * D3: keep an uncertain send `approved`/`sending` inside its propagation
+   * grace and move only reconcile_due_at to `dueAt`. Compare-and-set on
+   * status, publication_state, publication_cycle and publication_attempts; no
+   * fact, no attempt change, no provider-write authority (the claim still
+   * needs `authorized`). Null when the CAS lost.
+   */
+  deferUncertainSend(reply: Reply, dueAt: Date, now: Date): Promise<Reply | null>
+  /**
+   * D3: keep a `publish_failed`/`ambiguous` row on the read ladder by moving
+   * only reconcile_due_at to `dueAt`. Same compare-and-set as
+   * deferUncertainSend; no fact. Null when the CAS lost.
+   */
+  rescheduleAmbiguousReconciliation(
+    reply: Reply,
+    dueAt: Date,
+    now: Date,
+  ): Promise<Reply | null>
+  /**
+   * D4: the caller holds positive evidence that the current attempt never
+   * reached Google. From approved/sending, publish_failed/ambiguous, or
+   * publish_failed/terminal with last error class `ambiguous` →
+   * publish_failed / terminal / last error class `retryable` /
+   * reconcile_due_at NULL, current attempt outcome `retryable_failure`, and
+   * the publish_failed fact only when the row was not already publish_failed
+   * (a manager saw that failure once already). Same compare-and-set as
+   * deferUncertainSend. The caller's evidence is only a nomination: the
+   * implementation locks the attempt row (which permit admission share-locks)
+   * and re-reads the dispatch evidence before writing. Null when the CAS lost
+   * or that re-read finds a permit or a later restore; the row is then untouched.
+   * Approved/ambiguous (a restore-fenced row) is never settleable.
+   */
+  settleNeverDispatchedAttempt(
+    reply: Reply,
+    event: ReviewReplyPublishFailed | null,
+    now: Date,
   ): Promise<Reply | null>
   /**
    * BQC-3.8: classified safe-to-retry failure — publication_state 'sending' →

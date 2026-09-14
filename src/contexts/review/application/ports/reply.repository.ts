@@ -123,6 +123,15 @@ export type ReplyRepository = Readonly<{
     attempt: PublicationAttemptReference,
   ): Promise<PublicationAttemptObservationProgress | null>
   /**
+   * D3/D4: when the exact attempt row was created
+   * (reply_publication_attempts.created_at), the clock for the uncertain-send
+   * grace, the ambiguous read ladder and the dispatch-evidence window. Null
+   * when no such attempt exists, so callers fail closed.
+   */
+  findCurrentPublicationAttemptStartedAt(
+    attempt: PublicationAttemptReference,
+  ): Promise<Date | null>
+  /**
    * BQC-3.8: replies in an active publication state
    * (requested/authorized/sending/pending_observation) for the given reviews —
    * the rows the disconnect/policy cancellation flow must cancel. Bounded by

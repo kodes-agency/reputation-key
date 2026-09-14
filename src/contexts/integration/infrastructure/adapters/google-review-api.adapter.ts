@@ -1,13 +1,15 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
 import type {
-  GoogleReview,
   GoogleReviewApiError,
   GoogleReviewApiErrorCode,
   GoogleReviewApiPort,
   StarRating,
 } from '#/contexts/review/application/public-api'
-import type { GoogleReviewApiFailure } from '#/contexts/review/application/ports/google-review-api.port'
+import type {
+  GoogleReviewApiFailure,
+  GoogleReviewRead,
+} from '#/contexts/review/application/ports/google-review-api.port'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GoogleConnectionRepository } from '../../application/ports/google-connection.repository'
@@ -25,7 +27,10 @@ import {
   parseReviewProviderResource,
   type ReviewProviderResource,
 } from '#/shared/review-provider-subject-contract'
-import { parseGoogleReviewComment } from '#/shared/google-review-comment'
+import {
+  parseGoogleReplyComment,
+  parseGoogleReviewComment,
+} from '#/shared/google-review-comment'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import {
   executeGoogleProviderJson,
@@ -509,7 +514,10 @@ function parseDate(value: string): Date {
   return parsed
 }
 
-function mapReview(raw: GbpReviewItem, locationName: string): GoogleReview {
+function mapReview(
+  raw: GbpReviewItem,
+  locationName: string,
+): GoogleReviewRead & Readonly<{ replyUnreadable: boolean }> {
   let resource: ReviewProviderResource
   try {
     resource = parseReviewProviderResource(raw.name)
@@ -528,6 +536,7 @@ function mapReview(raw: GbpReviewItem, locationName: string): GoogleReview {
   // whole AI reply plane read it, and the blob made 8 Bulgarian reviews look
   // like reliable English.
   const comment = parseGoogleReviewComment(raw.comment)
+  const reply = parseGoogleReplyComment(raw.reviewReply?.comment)
   return {
     reviewName: raw.name,
     externalId: resource.reviewId,
@@ -550,7 +559,10 @@ function mapReview(raw: GbpReviewItem, locationName: string): GoogleReview {
     // 09:01:28Z could not be confirmed, so it settled as "Google status
     // unconfirmed" and no reply on a translated review could ever reach
     // Published.
-    replyText: parseGoogleReviewComment(raw.reviewReply?.comment).original,
+    replyText: reply.text,
+    // A reply Google shows without a recoverable original (translation-only
+    // envelope) is not "no reply": reconciliation must not read it as absent.
+    replyUnreadable: reply.unreadable,
     replyUpdatedAt: raw.reviewReply?.updateTime
       ? parseDate(raw.reviewReply.updateTime)
       : null,

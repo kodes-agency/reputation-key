@@ -220,6 +220,9 @@ export const createReplyRepository = (
     })
   },
 
+  // D3 keeps a deferred uncertain send approved/sending with a one-minute
+  // reconcile_due_at, so `sending` must stay in this list for the sweep to
+  // read it again.
   findDuePublicationReconciliationBatch: (now, cursor, limit) =>
     trace('reply.findDuePublicationReconciliationBatch', () =>
       findDuePublicationBatch(
@@ -277,6 +280,26 @@ export const createReplyRepository = (
         .groupBy(replyPublicationAttempts.createdAt)
         .limit(1)
       return rows[0] ?? null
+    }),
+
+  findCurrentPublicationAttemptStartedAt: (attempt) =>
+    trace('reply.findCurrentPublicationAttemptStartedAt', async () => {
+      // markPublicationSending inserts this row in the claim transaction with
+      // created_at = the claim time, so it is the durable start of the send.
+      const rows = await db
+        .select({ attemptStartedAt: replyPublicationAttempts.createdAt })
+        .from(replyPublicationAttempts)
+        .where(
+          and(
+            eq(replyPublicationAttempts.organizationId, attempt.organizationId),
+            eq(replyPublicationAttempts.reviewId, attempt.reviewId),
+            eq(replyPublicationAttempts.replyId, attempt.replyId),
+            eq(replyPublicationAttempts.publicationCycle, attempt.publicationCycle),
+            eq(replyPublicationAttempts.attemptNumber, attempt.attemptNumber),
+          ),
+        )
+        .limit(1)
+      return rows[0]?.attemptStartedAt ?? null
     }),
 
   findPublicationActiveByReviewIds: async (reviewIds, organizationId) => {

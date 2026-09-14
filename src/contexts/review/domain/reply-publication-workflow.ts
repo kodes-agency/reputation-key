@@ -281,12 +281,77 @@ export function nextPublicationState(
 }
 
 /**
- * Delay before an ambiguous publication becomes reconcile-due (BQC-3.8).
- * markPublicationAmbiguous sets reconcile_due_at = now + this delay; the
- * reconcile-ambiguous-publications sweep processes due rows. 15 minutes
- * gives the provider read path time to converge after an ambiguous send.
+ * Default delay before an ambiguous publication becomes reconcile-due
+ * (BQC-3.8), used by markPublicationAmbiguous when the caller passes no
+ * ladder time. Measured from now, it is never earlier than the ladder's first
+ * rung (fifteen minutes from an attempt start that is at or before now).
  */
 export const AMBIGUOUS_RECONCILE_DELAY_MS = 15 * 60 * 1000
+
+const MINUTE_MS = 60_000
+const HOUR_MS = 60 * MINUTE_MS
+
+/**
+ * D3: a send whose outcome is unknown (no success response was persisted and
+ * no dispatch evidence says it stayed local) gets the same fifteen-minute
+ * propagation window as an accepted write before RepKey calls it ambiguous.
+ * Incident b129e390 was declared ambiguous 30 s after approval on ONE absent
+ * read, well inside the window in which Google may not echo a reply yet.
+ */
+export const UNCERTAIN_SEND_PROPAGATION_GRACE_MS = 15 * MINUTE_MS
+
+/** Earliest next read while an uncertain send waits, and the floor for every
+ * ladder rung, so a check landing just before a rung never re-reads at once. */
+export const UNCERTAIN_SEND_RECHECK_DELAY_MS = MINUTE_MS
+
+/**
+ * D3: when an ambiguous publication is read again, as offsets from the
+ * attempt's durable start (reply_publication_attempts.created_at). Every read
+ * is read-only toward Google. Past the last rung automatic checks stop and the
+ * row becomes terminal ambiguity; one absent read never ends the ladder.
+ */
+export const AMBIGUOUS_RECONCILE_LADDER_MS: readonly number[] = Object.freeze([
+  15 * MINUTE_MS,
+  30 * MINUTE_MS,
+  HOUR_MS,
+  2 * HOUR_MS,
+  4 * HOUR_MS,
+  8 * HOUR_MS,
+  24 * HOUR_MS,
+  48 * HOUR_MS,
+  72 * HOUR_MS,
+])
+
+type AttemptClock = Readonly<{ attemptStartedAt: Date; now: Date }>
+
+/**
+ * True while an uncertain send is inside the propagation grace. A start after
+ * now, or an unreadable time, fails closed to the ambiguity path, as
+ * canDeferPendingProviderObservation does.
+ */
+export function canDeferUncertainSend(input: AttemptClock): boolean {
+  const ageMs = input.now.getTime() - input.attemptStartedAt.getTime()
+  return (
+    Number.isFinite(ageMs) && ageMs >= 0 && ageMs < UNCERTAIN_SEND_PROPAGATION_GRACE_MS
+  )
+}
+
+/**
+ * The next ladder read for an ambiguous publication: the first rung strictly
+ * after the attempt's current age, never sooner than now + one minute. Null
+ * once the attempt is 72 hours old (or its times are unreadable), which is the
+ * only way the ladder ends. A start after now anchors the ladder at now, so
+ * clock disagreement can only bring a read closer, never push it past 72 hours.
+ */
+export function nextAmbiguousReconcileDueAt(input: AttemptClock): Date | null {
+  const nowMs = input.now.getTime()
+  const startMs = Math.min(input.attemptStartedAt.getTime(), nowMs)
+  if (!Number.isFinite(nowMs) || !Number.isFinite(startMs)) return null
+  const ageMs = nowMs - startMs
+  const rung = AMBIGUOUS_RECONCILE_LADDER_MS.find((offsetMs) => offsetMs > ageMs)
+  if (rung === undefined) return null
+  return new Date(Math.max(startMs + rung, nowMs + UNCERTAIN_SEND_RECHECK_DELAY_MS))
+}
 
 /** A successful write response still needs a provider read after a short
  * convergence window before it can become published. */
@@ -318,6 +383,22 @@ export function canDeferPendingProviderObservation(
     Number.isSafeInteger(input.absentObservationCount) &&
     input.absentObservationCount >= 1 &&
     input.absentObservationCount <= PROVIDER_OBSERVATION_PROPAGATION_GRACE_MAX_READS
+  )
+}
+
+/**
+ * D6: Google acknowledged the write but echoes a reply RepKey cannot read (a
+ * translation-only envelope, or the text with only whitespace reformatted). The
+ * read records no observation, so the absent-read cap above cannot count it;
+ * the propagation window alone bounds the wait. Without this the first such
+ * read ended the grace, where the same echo read as absent before D6 did not.
+ */
+export function canDeferUnreadablePendingObservation(input: AttemptClock): boolean {
+  const ageMs = input.now.getTime() - input.attemptStartedAt.getTime()
+  return (
+    Number.isFinite(ageMs) &&
+    ageMs >= 0 &&
+    ageMs < PROVIDER_OBSERVATION_PROPAGATION_GRACE_MS
   )
 }
 
