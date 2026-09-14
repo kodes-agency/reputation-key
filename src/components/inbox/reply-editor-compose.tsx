@@ -18,8 +18,10 @@ import type {
 import { ReplySuggestionControls } from './reply-suggestion-controls'
 import { ReplySuggestionPreview } from './reply-suggestion-preview'
 import { useReplyComposer } from './use-reply-composer'
-import type { ReplySuggestionResult, ReplyTone } from './use-reply-suggestion'
-import type { LoadedReplyTemplateDraft } from './reply-suggestion-contract'
+import type {
+  LoadedReplyTemplateDraft,
+  ReplySuggestionGenerate,
+} from './reply-suggestion-contract'
 
 export type { ReplySuggestionResult, ReplyTone } from './use-reply-suggestion'
 
@@ -40,11 +42,7 @@ export type ReplyComposeProps = Readonly<{
   ) => Promise<unknown>
   onSubmit: () => Promise<unknown>
   onDelete?: () => Promise<unknown>
-  onGenerateSuggestion?: (
-    tone: ReplyTone,
-    target: ReplyLanguageTarget,
-    templateOnly?: boolean,
-  ) => Promise<ReplySuggestionResult>
+  onGenerateSuggestion?: ReplySuggestionGenerate
   onListTemplates?: (target: ReplyLanguageTarget) => Promise<ReplyTemplateListResult>
   onLoadTemplate?: (
     templateId: string,
@@ -250,6 +248,9 @@ export function ReplyCompose(props: ReplyComposeProps) {
             hasAiDraft={state.hasAiDraft}
             canUndo={state.historyCount > 0}
             aiError={state.ai.error}
+            aiBusyUntil={state.ai.busyUntil}
+            aiOffersTemplate={state.ai.offersTemplate}
+            onUseTemplateInstead={() => void state.ai.requestTemplate()}
             templateError={state.templates.error}
             errorFixTarget={state.ai.errorFixTarget}
             propertyId={props.propertyId}

@@ -84,20 +84,6 @@ export const ReplySuggestionPreview = (props: Props) => {
       <p className={PROPOSAL_CLASS} tabIndex={0}>
         {props.suggestion.draft.text}
       </p>
-      {props.suggestion.kind === 'local_fallback' &&
-        props.suggestion.reason === 'provider_or_output_unavailable' && (
-          // Deliberately does not blame the provider. This sentence used to read
-          // "The AI service was unavailable", but a local fallback is offered for
-          // any reason a personalized draft could not be produced - including our
-          // own output checks refusing the model's answer, which accounted for 11
-          // of 26 real draft requests on the beta property. Naming the provider
-          // sent the operator to retry a service that was working.
-          <p className="mt-2 text-xs text-muted-foreground">
-            A personalized draft was not available, so this general wording was prepared
-            locally. Try again for a personalized draft, or review and edit this one
-            before publishing.
-          </p>
-        )}
       {templateLoadedMessage !== null && (
         <p className="mt-2 text-xs text-muted-foreground">{templateLoadedMessage}</p>
       )}

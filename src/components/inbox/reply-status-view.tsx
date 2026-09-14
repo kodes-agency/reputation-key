@@ -11,11 +11,8 @@ import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-
 import { putCaretIn } from './composer-caret'
 import { ReplyCompose, type ReplyComposeProps } from './reply-editor-compose'
 import { ReplyPublishedEditor } from './reply-published-edit'
-import type { ReplyTone, ReplySuggestionResult } from './reply-editor-compose'
-import type {
-  ReplyLanguageTarget,
-  ReviewLanguageReadiness,
-} from './reply-language-options'
+import type { ReplySuggestionGenerate } from './reply-suggestion-contract'
+import type { ReviewLanguageReadiness } from './reply-language-options'
 
 export type ReplyData = InboxItemDetailResult['reply']
 type GoogleObservedReplyView = Extract<
@@ -106,11 +103,7 @@ type ReplyStatusViewProps = Readonly<{
   onSaveEdit: (text: string) => Promise<unknown>
   /** The editor closed itself — saved or cancelled. Clears the edit target. */
   onEditDone: () => void
-  onGenerateSuggestion?: (
-    tone: ReplyTone,
-    target: ReplyLanguageTarget,
-    templateOnly?: boolean,
-  ) => Promise<ReplySuggestionResult>
+  onGenerateSuggestion?: ReplySuggestionGenerate
   onListTemplates: NonNullable<ReplyComposeProps['onListTemplates']>
   onLoadTemplate: NonNullable<ReplyComposeProps['onLoadTemplate']>
 }>

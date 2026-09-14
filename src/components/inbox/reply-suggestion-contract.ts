@@ -16,6 +16,19 @@ import type { ReplyDraftSnapshot } from './use-reply-autosave'
 export type ReplyTone = GenerateReplySuggestionInput['tone']
 export type ReplySuggestionResult = GenerateReplySuggestionResult
 
+/**
+ * One assist request. `idempotencyKey` belongs to the compose session: the
+ * composer reuses it for a retry after a busy answer and for a repeated click
+ * while the same draft is being written, and mints a new one for Regenerate
+ * or once a request has finished (`use-reply-suggestion.ts`).
+ */
+export type ReplySuggestionGenerate = (
+  tone: ReplyTone,
+  target: ReplyLanguageTarget,
+  templateOnly: boolean,
+  idempotencyKey: string,
+) => Promise<ReplySuggestionResult>
+
 type FallbackSuggestionResult = Extract<ReplySuggestionResult, { status: 'fallback' }>
 
 export type PendingReplySuggestion =
@@ -52,11 +65,7 @@ export type ReplyComposerInput = Readonly<{
     replyLanguageTag?: string,
   ) => Promise<unknown>
   onSubmit: () => Promise<unknown>
-  onGenerate?: (
-    tone: ReplyTone,
-    target: ReplyLanguageTarget,
-    templateOnly?: boolean,
-  ) => Promise<ReplySuggestionResult>
+  onGenerate?: ReplySuggestionGenerate
   onListTemplates?: (target: ReplyLanguageTarget) => Promise<ReplyTemplateListResult>
   onLoadTemplate?: (
     templateId: string,
@@ -87,7 +96,8 @@ export const replyTemplateLoadedMessage = (
   >,
   propertyLanguage: string | null,
 ): string | null => {
-  if (suggestion.reason === 'provider_or_output_unavailable') return null
+  // The manager asked for the template; there is nothing to explain.
+  if (suggestion.reason === 'template_requested') return null
   const languageName =
     languageDisplayName(suggestion.concreteLanguageTag) ?? suggestion.concreteLanguageTag
   const languageSource =
@@ -95,6 +105,9 @@ export const replyTemplateLoadedMessage = (
     equivalentReplyLanguageTags(suggestion.concreteLanguageTag, propertyLanguage)
       ? 'property default'
       : 'selected language'
+  if (suggestion.reason === 'language_not_personalized') {
+    return `Personalized drafts aren't available in ${languageName} yet — template loaded (${languageSource}).`
+  }
   return suggestion.reason === 'language_undetermined'
     ? `Review language couldn't be detected — template loaded in ${languageName} (${languageSource}).`
     : `This review has no text — template loaded in ${languageName} (${languageSource}).`
@@ -112,5 +125,15 @@ export const replySuggestionUnavailableMessage = (code: string): string => {
     return "Reply suggestions need this property's public display name before they can be generated."
   if (code === 'brand_profile_changed')
     return "This property's display name was updated. Generate the suggestion again to use the latest name."
+  if (code === 'busy') return 'AI drafting is handling other requests for this property.'
+  if (code === 'provider_unavailable')
+    return "AI couldn't write a personalized draft this time."
   return 'AI drafting is unavailable right now. Try again.'
 }
+
+/**
+ * The refusals after which the governed template is still a sound starting
+ * point, offered as the manager's explicit choice — never substituted.
+ */
+export const replySuggestionOffersTemplate = (code: string): boolean =>
+  code === 'busy' || code === 'provider_unavailable' || code === 'not_authorized'

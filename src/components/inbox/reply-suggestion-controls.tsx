@@ -1,10 +1,12 @@
 import { Link } from '@tanstack/react-router'
-import { RotateCcw, Undo2 } from 'lucide-react'
+import { FileText, RotateCcw, Undo2 } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
+import { cn } from '#/lib/utils'
 import { ReplyAiMenu, type ReplyAiMenuProps } from './reply-ai-menu'
 import type { ReplySuggestionFixTarget } from './reply-suggestion-contract'
 import { ReplyTemplateMenu, type ReplyTemplateMenuProps } from './reply-template-menu'
+import { useRetryCountdown } from './use-retry-countdown'
 
 type SuggestionMode = 'ai' | 'template'
 
@@ -22,6 +24,11 @@ type Props = Omit<ReplyAiMenuProps & ReplyTemplateMenuProps, 'isPrimary'> &
     canUndo: boolean
     hasAiDraft: boolean
     aiError: string | null
+    /** Our own AI capacity is busy until this instant (`use-reply-suggestion.ts`). */
+    aiBusyUntil: number | null
+    /** The refusal leaves the governed template as an explicit alternative. */
+    aiOffersTemplate: boolean
+    onUseTemplateInstead: () => void
     templateError: string | null
     errorFixTarget?: ReplySuggestionFixTarget | null
     onUndo: () => void
@@ -104,9 +111,45 @@ export function ReplySuggestionControls(props: Props) {
         </Button>
       )}
       {(props.templateError || props.aiError) && (
-        <div role="status" className="basis-full text-xs text-destructive">
+        <div
+          role="status"
+          className={cn(
+            'basis-full text-xs',
+            // Busy is our own capacity, not a failure: it reads as a wait.
+            props.aiBusyUntil !== null && !props.templateError
+              ? 'text-muted-foreground'
+              : 'text-destructive',
+          )}
+        >
           {props.templateError && <p>{props.templateError}</p>}
           {props.aiError && <p>{props.aiError}</p>}
+          {(props.aiBusyUntil !== null || props.aiOffersTemplate) && (
+            // A refusal is never answered with a substitute: the manager
+            // chooses between waiting for AI and the governed template.
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+              {props.aiBusyUntil !== null && (
+                <RetryAfterButton
+                  key={props.aiBusyUntil}
+                  retryAtEpochMillis={props.aiBusyUntil}
+                  disabled={props.disabled || props.aiDisabled}
+                  onRetry={() => void props.onRequestAi()}
+                />
+              )}
+              {props.aiOffersTemplate && (
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="link"
+                  className="px-0 max-md:min-h-9"
+                  disabled={props.disabled}
+                  onClick={props.onUseTemplateInstead}
+                >
+                  <FileText data-icon="inline-start" aria-hidden="true" />
+                  Use a template instead
+                </Button>
+              )}
+            </div>
+          )}
           {props.errorFixTarget === 'public_display_name' &&
             (canManagePortalBrand ? (
               <Button asChild size="xs" variant="link" className="max-md:min-h-9">
@@ -135,5 +178,34 @@ export function ReplySuggestionControls(props: Props) {
         </div>
       )}
     </div>
+  )
+}
+
+function RetryAfterButton(
+  props: Readonly<{
+    retryAtEpochMillis: number
+    disabled: boolean
+    onRetry: () => void
+  }>,
+) {
+  const seconds = useRetryCountdown(props.retryAtEpochMillis)
+  return (
+    <Button
+      type="button"
+      size="xs"
+      variant="link"
+      className="px-0 max-md:min-h-9"
+      disabled={props.disabled || seconds > 0}
+      onClick={props.onRetry}
+    >
+      <RotateCcw data-icon="inline-start" aria-hidden="true" />
+      {seconds > 0 ? (
+        <span>
+          Try again in <span className="tabular-nums">{seconds}s</span>
+        </span>
+      ) : (
+        'Try again'
+      )}
+    </Button>
   )
 }

@@ -48,7 +48,15 @@ const onGenerateSuggestion = fn(async () => readySuggestion())
 const onGenerateFallback = fn(async (): Promise<ReplySuggestionResult> => ({
   status: 'fallback',
   kind: 'local_safe_template',
-  reason: 'provider_or_output_unavailable',
+  reason: 'template_requested',
+  languageSource: 'explicit',
+  replyText: FALLBACK_REPLY,
+  concreteLanguageTag: 'en-Latn',
+}))
+const onGenerateNotPersonalized = fn(async (): Promise<ReplySuggestionResult> => ({
+  status: 'fallback',
+  kind: 'local_safe_template',
+  reason: 'language_not_personalized',
   languageSource: 'explicit',
   replyText: FALLBACK_REPLY,
   concreteLanguageTag: 'en-Latn',
@@ -343,9 +351,9 @@ export const AiSuggestionAdoption: Story = {
 }
 
 export const LocalFallbackRequiresAdoption: Story = {
-  args: { onGenerateSuggestion: onGenerateFallback },
+  args: { onGenerateSuggestion: onGenerateNotPersonalized },
   play: async ({ canvas }) => {
-    onGenerateFallback.mockClear()
+    onGenerateNotPersonalized.mockClear()
     onSaveDraft.mockClear()
 
     await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
@@ -380,6 +388,7 @@ export const LocalSafeMenuUsesCataloguePath: Story = {
         'professional',
         { kind: 'property_default' },
         true,
+        expect.any(String),
       ),
     )
     await expect(canvas.findByText('Local safe starting point')).resolves.toBeVisible()
@@ -425,9 +434,12 @@ export const AiDetectsMissingReviewLanguage: Story = {
     await userEvent.click(aiButton)
 
     await waitFor(() =>
-      expect(onGenerateDetectedSuggestion).toHaveBeenCalledWith('professional', {
-        kind: 'review_language',
-      }),
+      expect(onGenerateDetectedSuggestion).toHaveBeenCalledWith(
+        'professional',
+        { kind: 'review_language' },
+        false,
+        expect.any(String),
+      ),
     )
     expect(onSaveDraft).not.toHaveBeenCalled()
     await userEvent.click(canvas.getByRole('button', { name: /use draft/i }))
@@ -502,9 +514,12 @@ export const ChooseReviewLanguageWhenMetadataIsMissing: Story = {
 
     await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
     await waitFor(() =>
-      expect(onGenerateDetectedSuggestion).toHaveBeenCalledWith('professional', {
-        kind: 'review_language',
-      }),
+      expect(onGenerateDetectedSuggestion).toHaveBeenCalledWith(
+        'professional',
+        { kind: 'review_language' },
+        false,
+        expect.any(String),
+      ),
     )
     await userEvent.click(canvas.getByRole('button', { name: /use draft/i }))
     await waitFor(() =>
@@ -561,9 +576,12 @@ export const AiDraftTagRegeneratesInTheOtherLanguage: Story = {
       }),
     )
     await waitFor(() =>
-      expect(generate).toHaveBeenLastCalledWith('professional', {
-        kind: 'property_default',
-      }),
+      expect(generate).toHaveBeenLastCalledWith(
+        'professional',
+        { kind: 'property_default' },
+        false,
+        expect.any(String),
+      ),
     )
     // Still a preview: nothing replaces the text until it is adopted.
     await expect(canvas.findByText(BULGARIAN_TEMPLATE)).resolves.toBeVisible()
@@ -628,6 +646,7 @@ export const RatingOnlyUsesPropertyTemplate: Story = {
       'professional',
       { kind: 'property_default' },
       true,
+      expect.any(String),
     )
   },
 }
@@ -660,6 +679,7 @@ export const ShortReviewUsesPropertyTemplate: Story = {
       'professional',
       { kind: 'property_default' },
       true,
+      expect.any(String),
     )
     await expect(
       canvas.findByText(
@@ -769,6 +789,7 @@ export const ShortReviewNeedsPropertyLanguage: Story = {
       'professional',
       { kind: 'review_language' },
       true,
+      expect.any(String),
     )
   },
 }
@@ -822,6 +843,111 @@ export const AiRepliesNotEnabled: Story = {
       'href',
       expect.stringContaining('propertyId=10000000-0000-4000-8000-000000000101'),
     )
+  },
+}
+
+// A busy interactive lane is our own capacity, not a failure: the composer
+// says so, counts down to the retry time the server gave, and offers the
+// governed template as a separate choice. Nothing is substituted.
+const onGenerateBusy = fn(
+  async (
+    _tone: string,
+    _target: ReplyLanguageTarget,
+    templateOnly: boolean,
+    _idempotencyKey: string,
+  ): Promise<ReplySuggestionResult> =>
+    templateOnly
+      ? {
+          status: 'fallback',
+          kind: 'local_safe_template',
+          reason: 'template_requested',
+          languageSource: 'explicit',
+          replyText: FALLBACK_REPLY,
+          concreteLanguageTag: 'en-Latn',
+        }
+      : {
+          status: 'unavailable',
+          code: 'busy',
+          retryAfterEpochMillis: Date.now() + 20_000,
+        },
+).mockName('onGenerateBusy')
+
+export const BusyOffersRetryAndTemplate: Story = {
+  args: {
+    initialText: 'Thank you for sharing your experience.',
+    onGenerateSuggestion: onGenerateBusy,
+  },
+  play: async ({ canvas }) => {
+    onGenerateBusy.mockClear()
+
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+
+    await expect(
+      canvas.findByText('AI drafting is handling other requests for this property.'),
+    ).resolves.toBeVisible()
+    expect(canvas.getByRole('button', { name: /try again in \d+s/i })).toBeDisabled()
+    expect(canvas.getByRole('textbox')).toHaveValue(
+      'Thank you for sharing your experience.',
+    )
+    expect(canvas.queryByText('Local safe starting point')).toBeNull()
+
+    await userEvent.click(canvas.getByRole('button', { name: /use a template instead/i }))
+
+    await waitFor(() =>
+      expect(onGenerateBusy).toHaveBeenLastCalledWith(
+        'professional',
+        { kind: 'property_default' },
+        true,
+        expect.any(String),
+      ),
+    )
+    await expect(canvas.findByText('Local safe starting point')).resolves.toBeVisible()
+  },
+}
+
+// A repeated click on the same draft reuses the same idempotency key, so the
+// server coalesces it; a busy answer keeps the key for the retry.
+export const BusyRetryReusesTheRequest: Story = {
+  args: {
+    initialText: 'Thank you for sharing your experience.',
+    onGenerateSuggestion: onGenerateBusy,
+  },
+  play: async ({ canvas }) => {
+    onGenerateBusy.mockClear()
+
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+    await canvas.findByText('AI drafting is handling other requests for this property.')
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+
+    await waitFor(() => expect(onGenerateBusy).toHaveBeenCalledTimes(2))
+    const [first, second] = onGenerateBusy.mock.calls
+    expect(first?.[3]).toEqual(expect.any(String))
+    expect(second?.[3]).toBe(first?.[3])
+  },
+}
+
+const onGenerateProviderFailure = fn(async (): Promise<ReplySuggestionResult> => ({
+  status: 'unavailable',
+  code: 'provider_unavailable',
+  retryAfterEpochMillis: Date.now() + 1_000,
+})).mockName('onGenerateProviderFailure')
+
+export const ProviderFailureOffersTemplate: Story = {
+  args: {
+    initialText: 'Thank you for sharing your experience.',
+    onGenerateSuggestion: onGenerateProviderFailure,
+  },
+  play: async ({ canvas }) => {
+    onGenerateProviderFailure.mockClear()
+
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+
+    await expect(
+      canvas.findByText("AI couldn't write a personalized draft this time."),
+    ).resolves.toBeVisible()
+    expect(canvas.getByRole('button', { name: /use a template instead/i })).toBeVisible()
+    expect(canvas.queryByRole('button', { name: /try again in/i })).toBeNull()
+    expect(canvas.queryByText('Local safe starting point')).toBeNull()
   },
 }
 
@@ -1055,9 +1181,12 @@ export const RegenerateDismissedChangesNothing: Story = {
     const preview = await canvas.findByRole('region', { name: 'Draft suggestion' })
     await waitFor(() => expect(preview).toHaveTextContent(BULGARIAN_TEMPLATE))
     expect(preview).toHaveTextContent(/Personalized AI suggestion\s*· Bulgarian/)
-    expect(onGenerateByTarget).toHaveBeenCalledWith('professional', {
-      kind: 'property_default',
-    })
+    expect(onGenerateByTarget).toHaveBeenCalledWith(
+      'professional',
+      { kind: 'property_default' },
+      false,
+      expect.any(String),
+    )
     expect(canvas.queryByRole('button', { name: /^Reply language:/ })).toBeNull()
 
     await userEvent.click(within(preview).getByRole('button', { name: 'Dismiss' }))

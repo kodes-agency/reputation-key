@@ -260,12 +260,13 @@ const onGenerateByTarget = fn(
     _tone: ReplyTone,
     target: ReplyLanguageTarget,
     templateOnly?: boolean,
+    _idempotencyKey?: string,
   ): Promise<ReplySuggestionResult> => {
     if (templateOnly) {
       return {
         status: 'fallback',
         kind: 'local_safe_template',
-        reason: 'provider_or_output_unavailable',
+        reason: 'template_requested',
         languageSource: 'explicit',
         replyText: BG_SAFE_TEXT,
         concreteLanguageTag: BULGARIAN,
@@ -331,6 +332,7 @@ type ComposerInPaneProps = Readonly<{
         tone: ReplyTone,
         target: ReplyLanguageTarget,
         templateOnly?: boolean,
+        _idempotencyKey?: string,
       ) => Promise<ReplySuggestionResult>)
     | undefined
   /**
@@ -1970,9 +1972,12 @@ export const AiDraftTagAt720: Story = atPane({
 
     await userEvent.click(canvas.getByRole('button', { name: 'Draft with AI' }))
     await waitFor(() =>
-      expect(onGenerateByTarget).toHaveBeenLastCalledWith('professional', {
-        kind: 'property_default',
-      }),
+      expect(onGenerateByTarget).toHaveBeenLastCalledWith(
+        'professional',
+        { kind: 'property_default' },
+        false,
+        expect.any(String),
+      ),
     )
     await userEvent.click(await canvas.findByRole('button', { name: 'Use draft' }))
     await waitFor(() =>
@@ -1998,9 +2003,12 @@ export const AiDraftTagAt720: Story = atPane({
       page().getByRole('menuitem', { name: 'Regenerate in Turkish · review language' }),
     )
     await waitFor(() =>
-      expect(onGenerateByTarget).toHaveBeenLastCalledWith('professional', {
-        kind: 'review_language',
-      }),
+      expect(onGenerateByTarget).toHaveBeenLastCalledWith(
+        'professional',
+        { kind: 'review_language' },
+        false,
+        expect.any(String),
+      ),
     )
     await expect(canvas.findByText(TR_AI_TEXT)).resolves.toBeVisible()
     // A preview: the Bulgarian text is untouched until the manager adopts,
@@ -2105,6 +2113,7 @@ export const LocalSafeTemplateTagAt720: Story = atPane({
         'professional',
         { kind: 'property_default' },
         true,
+        expect.any(String),
       ),
     )
     await expect(canvas.findByText('Local safe starting point')).resolves.toBeVisible()
