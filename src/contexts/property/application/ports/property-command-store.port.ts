@@ -5,9 +5,9 @@
 // The production implementation commits the properties state write and the
 // outbox_events fact in ONE PostgreSQL transaction, then emits on the
 // in-process bus after commit (expand-phase dual path until the durable
-// switch). All three property.created producers (user create, GBP import,
-// and — via propertyApi.importProperty — the integration import job) route
-// through this store so the fact records atomically with the property row.
+// switch). property.created has two producers, each committing the fact
+// atomically with the property row: a manual create through this store, and a
+// Google import through PropertyGoogleBindingStore.createBoundProperty.
 
 import type { OrganizationId } from '#/shared/domain/ids'
 import type { Property, PropertyId } from '../../domain/types'

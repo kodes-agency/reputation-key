@@ -31,7 +31,7 @@ import {
   type PropertyOperationOutcome,
   type PropertyOperationReceipt,
 } from '../application/ports/property-google-binding.port'
-import { propertyGoogleBindingChanged } from '../domain/events'
+import { propertyCreated, propertyGoogleBindingChanged } from '../domain/events'
 import { propertyToRow } from './mappers/property.mapper'
 import {
   awaitingRefreshGoogleReviewDestination,
@@ -366,6 +366,15 @@ export const createPropertyGoogleBindingStore = (
       })
       const connectionIdValue = input.property.googleConnectionId
       if (!connectionIdValue) deny('invalid_binding')
+      // An imported Property is a created Property: Recent Activity learns of it
+      // from the same fact a manual create records, committed with the row.
+      const created = propertyCreated({
+        organizationId: input.organizationId,
+        propertyId: input.property.id,
+        name: input.property.name,
+        slug: input.property.slug,
+        occurredAt: input.now,
+      })
       const event = propertyGoogleBindingChanged({
         organizationId: input.organizationId,
         propertyId: input.property.id,
@@ -425,6 +434,7 @@ export const createPropertyGoogleBindingStore = (
               }),
               recordedAt: input.now,
             })
+            await insertOutboxRow(tx, created)
             await insertOutboxRow(tx, event)
             return {
               propertyId: input.property.id,
