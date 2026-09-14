@@ -31,7 +31,7 @@ const QUEUE_ITEMS: Readonly<Record<InboxQueue, InboxQueueItem>> = {
   open: { key: 'open', label: 'Open', icon: Inbox },
 }
 
-export const MANAGER_INBOX_QUEUES = [
+const MANAGER_INBOX_QUEUES = [
   QUEUE_ITEMS.reply,
   QUEUE_ITEMS.approval,
   QUEUE_ITEMS.waiting,
@@ -40,7 +40,7 @@ export const MANAGER_INBOX_QUEUES = [
   QUEUE_ITEMS.mine,
 ] as const
 
-export const MEMBER_INBOX_QUEUES = [
+const MEMBER_INBOX_QUEUES = [
   QUEUE_ITEMS.open,
   QUEUE_ITEMS.feedback,
   QUEUE_ITEMS.escalated,

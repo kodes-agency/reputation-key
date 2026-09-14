@@ -308,7 +308,7 @@
       "policy": "The lazy initializer constructs one component-lifetime transition observer used to reconcile polled and locally confirmed status changes; it contains no server-owned record or durable product state."
     },
     {
-      "id": "src/components/inbox/use-inbox-state.ts:useState(viewedUpToLatch)",
+      "id": "src/components/inbox/use-inbox-state.ts:useState(latch)",
       "classification": "server_snapshot",
       "owner": "Inbox new-item watermark",
       "policy": "Latch the first successful list page's viewedUpTo value for the active organization and ignore later visit-stamp refetches, so rows that were new when the workspace opened keep their marker for that visit. An organization change clears the rendered value immediately and the reconciliation effect seeds the new organization's first page; the query result remains the server authority for every other list field."
@@ -416,13 +416,13 @@
       "policy": "The transfer choices the departing member is composing, keyed by responsibility. Seeded empty rather than from `outstanding`, which stays the server-owned prop the unassigned list is derived from, so a refreshed worklist can never be overwritten by a stale local copy. Submitted once and then discarded with the dialog."
     },
     {
-      "id": "src/components/inbox/inbox-detail-content.tsx:useState(replyEdit)",
+      "id": "src/components/inbox/use-inbox-composer-controller.ts:useState(replyEdit)",
       "classification": "local_runtime",
       "owner": "Inbox detail pane reply edit target",
       "policy": "Which reply editor the pane has opened ('published', else null) plus the status of the rejected-to-draft reopen round trip. 'published' is now the only target: a 'rejected' one was unreachable, because `useActionMutation` awaits the write-through patch that lands `status: 'draft'` before `mutateAsync` resolves, so the reply has already re-resolved to `compose` by the time the pane could raise it. It holds no reply field: the reply itself stays server-owned in the detail query, and the editors seed their text from that payload, never from here. `itemId` records the selection this target was raised on, so a different item rebases to a closed editor rather than carrying one over. The rendered target is `liveEditTarget(replyView.kind, target)`, which is derived from the server's current reply status on every render, so a republish or a reopen closes the editor without this state being written back."
     },
     {
-      "id": "src/components/inbox/inbox-detail-content.tsx:useState(caret)",
+      "id": "src/components/inbox/use-inbox-composer-controller.ts:useState(caret)",
       "classification": "local_runtime",
       "owner": "Inbox detail pane composer caret request",
       "policy": "A request counter \u2014 `{ itemId, mode, seq }` \u2014 meaning \"put the caret in this composer surface of this item\", raised by the `r` / `n` shortcuts and by the thread's Edit actions. It holds no server-owned record of any kind: `seq` is a monotonic tally of asks, `mode` names a client surface and `itemId` names the selection that asked. A counter rather than a flag because a latched boolean fires its effect only on the rising edge, which would let each shortcut work exactly once per mounted pane; `seq: 0` is the initial \"nobody has asked\". `itemId` is what keeps a change of selection from stealing the caret, and it is load-bearing rather than descriptive: the two consuming effects (`reply-status-view.tsx`, `inbox-notes-thread.tsx`) are keyed by item and fire on MOUNT whenever the counter they are handed is non-zero, so a `seq === 0` early-return alone does not bound them \u2014 the pane outlives the selection change, and without the fence one `r` followed by a `j` down the list handed the caret to the next item's reply box and autosaved the following keystrokes onto a review nobody had opened. The reader (`caretFor`) therefore hands a surface `seq` only while `itemId` matches the current item, and `0` otherwise."

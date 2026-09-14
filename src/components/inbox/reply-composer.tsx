@@ -277,6 +277,40 @@ function resolveBarSurface(
   return modes.find((mode) => hasSlot(mode)) ?? null
 }
 
+function useComposerCollapse({
+  active,
+  availableModes,
+  collapse,
+  hasSlot,
+  isMobile,
+  lockedTo,
+}: Readonly<{
+  active: ComposerMode
+  availableModes: readonly ComposerMode[]
+  collapse: ComposerCollapse | undefined
+  hasSlot: (mode: ComposerMode) => boolean
+  isMobile: boolean
+  lockedTo: ComposerMode | undefined
+}>) {
+  const [expandedFor, setExpandedFor] = useState<string | null>(null)
+  const forcedOpen = lockedTo !== undefined || (collapse?.hasPendingWork ?? false)
+  const collapsedBar =
+    isMobile && collapse !== undefined && !forcedOpen && expandedFor !== collapse.itemId
+      ? resolveBarSurface(active, availableModes, hasSlot)
+      : null
+  const collapsed = collapsedBar !== null
+  const expand = (surface: ComposerMode) => {
+    if (collapse === undefined || !hasSlot(surface)) return
+    setExpandedFor(collapse.itemId)
+    collapse.onExpand(surface)
+  }
+  const latchOpen = () => {
+    if (collapse !== undefined && !collapsed) setExpandedFor(collapse.itemId)
+  }
+
+  return { collapsed, collapsedBar, expand, latchOpen }
+}
+
 /**
  * Row 9's band. One line, and deliberately not a heading: the editor in the
  * slot below titles itself, and a second `h2` saying the same thing would read
@@ -386,6 +420,126 @@ export type ReplyComposerProps = Readonly<{
   collapse?: ComposerCollapse
 }>
 
+type ComposerLayoutProps = Readonly<{
+  active: ComposerMode
+  availableModes: readonly ComposerMode[]
+  band: ReactNode
+  collapsed: boolean
+  collapsedRow: ReactNode
+  head: ReactNode
+  isPrivate: boolean
+  latchOpen: () => void
+  noteSlot: ReactNode
+  onModeChange: (mode: ComposerMode) => void
+  onSaveStateChange: (status: ReplyAutosaveStatus | null) => void
+  replySlot: ReactNode
+  lockedTo: ComposerMode | undefined
+}>
+
+function SingleModeComposerLayout({
+  active,
+  band,
+  collapsed,
+  collapsedRow,
+  head,
+  isPrivate,
+  latchOpen,
+  noteSlot,
+  onSaveStateChange,
+  replySlot,
+  primary,
+}: Omit<ComposerLayoutProps, 'availableModes' | 'lockedTo' | 'onModeChange'> &
+  Readonly<{ primary: ReactNode }>): ReactNode {
+  return (
+    <ComposerSaveStateScope onSaveStateChange={onSaveStateChange}>
+      <div
+        className={collapsed ? COLLAPSED_REGION_CLASS : REGION_CLASS}
+        onFocus={latchOpen}
+      >
+        <div className="flex min-h-0 min-w-0 flex-col gap-4">
+          {collapsedRow ?? band}
+          <div
+            hidden={collapsed}
+            data-private={isPrivate ? '' : undefined}
+            className={cn(
+              SINGLE_DOCK_CLASS,
+              primary !== null && 'grow',
+              isPrivate && PRIVATE_DOCK_CLASS,
+            )}
+          >
+            {head}
+            <div
+              role={isPrivate ? 'group' : undefined}
+              aria-label={isPrivate ? NOTE_SURFACE_NAME : undefined}
+              className={primary === null ? SLOT_CLASS : SCROLLED_SLOT_CLASS}
+            >
+              {active === 'reply' ? replySlot : noteSlot}
+            </div>
+          </div>
+          {primary}
+        </div>
+      </div>
+    </ComposerSaveStateScope>
+  )
+}
+
+function TabbedComposerLayout({
+  active,
+  availableModes,
+  band,
+  collapsed,
+  collapsedRow,
+  head,
+  isPrivate,
+  latchOpen,
+  lockedTo,
+  noteSlot,
+  onModeChange,
+  onSaveStateChange,
+  replySlot,
+}: ComposerLayoutProps): ReactNode {
+  const handleModeChange = (next: string) => {
+    if (lockedTo !== undefined) return
+    if (!isComposerMode(next) || !availableModes.includes(next)) return
+    onModeChange(next)
+  }
+
+  return (
+    <ComposerSaveStateScope onSaveStateChange={onSaveStateChange}>
+      <div
+        className={collapsed ? COLLAPSED_REGION_CLASS : REGION_CLASS}
+        onFocus={latchOpen}
+      >
+        {band}
+        <Tabs
+          value={active}
+          onValueChange={handleModeChange}
+          data-private={!collapsed && isPrivate ? '' : undefined}
+          className={
+            collapsed
+              ? 'min-h-0 grow basis-auto gap-4'
+              : cn(DOCK_CLASS, isPrivate && PRIVATE_DOCK_CLASS)
+          }
+        >
+          {collapsedRow ?? head}
+          {availableModes.map((composerMode) => (
+            <TabsContent
+              key={composerMode}
+              value={composerMode}
+              forceMount
+              hidden={collapsed || composerMode !== active}
+              className={SLOT_CLASS}
+              {...(composerMode === 'note' ? NOTE_PANEL_NAMING : {})}
+            >
+              {composerMode === 'reply' ? replySlot : noteSlot}
+            </TabsContent>
+          ))}
+        </Tabs>
+      </div>
+    </ComposerSaveStateScope>
+  )
+}
+
 /**
  * The composer region.
  *
@@ -443,22 +597,6 @@ export function ReplyComposer({
   const lockedTo: ComposerMode | undefined = editTarget !== null ? 'reply' : undefined
   const active = resolveMode(mode, availableModes, lockedTo)
   /**
-   * Which item the manager has opened the composer for — the whole of row 15's
-   * "sticky for the item", as one id rather than a flag.
-   *
-   * It lives HERE and not in the pane, unlike `mode` and `editTarget`, because
-   * it has exactly one reader: this region. The pane's two pieces of composer
-   * state are shared — the thread's reply actions write `editTarget` and the
-   * page's shortcuts write `mode` — so they have to sit above everything that
-   * touches them. Nothing outside this file can open, close or read the
-   * collapse, no mutation is fenced on it and no slot is keyed by it, so
-   * putting it in the pane would be a third piece of pane state with no second
-   * consumer. An id rather than a boolean is what survives a change of
-   * selection correctly: the pane hands the next item's id down, it stops
-   * matching, and the next item opens collapsed with no reset to forget.
-   */
-  const [expandedFor, setExpandedFor] = useState<string | null>(null)
-  /**
    * The reply surface's autosave status, as the head row prints it (row 16).
    *
    * Held HERE because this is where it is shown and nowhere else: the head is
@@ -477,66 +615,14 @@ export function ReplyComposer({
    * on saying `Saved` about a draft that has left the region.
    */
   const [saveState, setSaveState] = useState<ReplyAutosaveStatus | null>(null)
-  /**
-   * The two states that outrank the bar, ORed here rather than by the caller.
-   *
-   * `editTarget` is row 9's, and the region already derives its lock from it:
-   * an open edit forces the composer open and, because there is no control
-   * that closes it again, cannot be collapsed at all. `hasPendingWork` is
-   * everything of the same kind the region cannot see for itself.
-   */
-  const forcedOpen = lockedTo !== undefined || (collapse?.hasPendingWork ?? false)
-  /**
-   * The bar's surface, and — because a region with no surface has nothing to
-   * put behind a bar — the collapse itself, as one nullable value.
-   *
-   * One expression rather than a boolean beside a mode, so the two cannot
-   * disagree: `collapsed` is exactly "there is a bar", and wherever the bar is
-   * rendered the surface it opens is already narrowed to a real mode.
-   */
-  const collapsedBar: ComposerMode | null =
-    isMobile && collapse !== undefined && !forcedOpen && expandedFor !== collapse.itemId
-      ? resolveBarSurface(active, availableModes, hasSlot)
-      : null
-  const collapsed = collapsedBar !== null
-  /**
-   * Open on `surface`, latch the item, and let the pane take the caret.
-   *
-   * Refuses a surface this region does not have. Normally such a mode has
-   * already been removed from `availableModes`; the guard also protects a
-   * stale click while the slots change during a detail refresh.
-   */
-  const expand = (surface: ComposerMode) => {
-    if (collapse === undefined || !hasSlot(surface)) return
-    setExpandedFor(collapse.itemId)
-    collapse.onExpand(surface)
-  }
-  /**
-   * What KEEPS the region open once it is: any focus landing inside an open
-   * composer latches it to this item. React's `onFocus` is the bubbling
-   * `focusin`, so this catches the textarea, the toolbar and the footer — every
-   * route by which a manager can be about to type something.
-   *
-   * Without it the region would shut under their hands. `hasPendingWork` is a
-   * fact about the item on arrival, so an item that opened forced-open on a
-   * saved draft would collapse the moment they cleared the box to start again —
-   * and it is also why nothing below the region has to report its draft upward:
-   * the first focus is always earlier than the first keystroke.
-   *
-   * `!collapsed` is not an optimisation. Focus is not how a COLLAPSED region
-   * opens — the bar and the segment do that themselves, and both need to
-   * survive long enough to say which surface to open onto. The browser focuses
-   * a button on `mousedown`, which is before `click`: latching here as well
-   * unmounted the bar between the two, React's `onClick` never ran, and the
-   * composer opened with the caret left on `document.body`. The story
-   * `MobileBarExpandsOntoReply` is that bug.
-   *
-   * Not gated on `isMobile` on purpose — a tablet rotated below the breakpoint
-   * after the manager has touched the composer should keep it open.
-   */
-  const latchOpen = () => {
-    if (collapse !== undefined && !collapsed) setExpandedFor(collapse.itemId)
-  }
+  const { collapsed, collapsedBar, expand, latchOpen } = useComposerCollapse({
+    active,
+    availableModes,
+    collapse,
+    hasSlot,
+    isMobile,
+    lockedTo,
+  })
   // Per instance, not a module constant: the desktop panel is `hidden md:flex`
   // rather than unmounted, so it and the mobile sheet can both be in the
   // document at once and a fixed id would point the second band's
@@ -570,161 +656,26 @@ export function ReplyComposer({
       lockedById={bandId}
     />
   )
-  // One mode is not a choice, so it gets no control to make it with — the
-  // region is its border, its band, its dock (whose head keeps the state slot
-  // and drops the segment) and, for row 10's feedback items, the one primary
-  // that has no surface to come from (PR 5).
-  if (availableModes.length < 2) {
-    // Dropped on the reply surface, wherever that surface came from: the panel
-    // there ships `ReplyComposerFooter`, so the region already has its primary
-    // and a second one below the scroller would be two.
-    const primary = active === 'reply' ? null : (singleModePrimarySlot ?? null)
-    return (
-      <ComposerSaveStateScope onSaveStateChange={setSaveState}>
-        {/* The column is unchanged — no `grow`, no new bound — and the dock
-            inside it is a transparent link (`flex min-h-0 basis-auto flex-col`,
-            `grow` only beside a primary), so the geometry measured across PR
-            4's 90 states is the same chain in every state that has no primary.
-            Where there is one, the region's cap reaches the scroller the way it
-            reaches the reply panel's: this column shrinks (`min-h-0`, shrink 1),
-            the dock and the scroller in it absorb all of it, and the primary
-            keeps its content height and stays at the foot. */}
-        <div
-          className={collapsed ? COLLAPSED_REGION_CLASS : REGION_CLASS}
-          onFocus={latchOpen}
-        >
-          <div className="flex min-h-0 min-w-0 flex-col gap-4">
-            {collapsedRow ?? band}
-            {/* `hidden`, never unmounted — the same rule as the two-mode panels
-                below, and the reason the primary underneath stays put. A
-                feedback item's `Mark as handled` (row 10) is the ONE thing in
-                this region that is not a writing surface, so it keeps its place
-                OUTSIDE the dock and beside the bar: collapsing must give the
-                manager back the viewport, not take away the action the item
-                exists for. */}
-            <div
-              hidden={collapsed}
-              data-private={isPrivate ? '' : undefined}
-              className={cn(
-                SINGLE_DOCK_CLASS,
-                primary !== null && 'grow',
-                isPrivate && PRIVATE_DOCK_CLASS,
-              )}
-            >
-              {head}
-              {/* A `group` only to carry the note's name: a bare `div` may not
-                  take an `aria-label`, and this surface has no tab panel to
-                  be named for it the way the two-mode note panel is. */}
-              <div
-                role={isPrivate ? 'group' : undefined}
-                aria-label={isPrivate ? NOTE_SURFACE_NAME : undefined}
-                className={primary === null ? SLOT_CLASS : SCROLLED_SLOT_CLASS}
-              >
-                {active === 'reply' ? replySlot : noteSlot}
-              </div>
-            </div>
-            {primary}
-          </div>
-        </div>
-      </ComposerSaveStateScope>
-    )
+  const layoutProps: ComposerLayoutProps = {
+    active,
+    availableModes,
+    band,
+    collapsed,
+    collapsedRow,
+    head,
+    isPrivate,
+    latchOpen,
+    lockedTo,
+    noteSlot,
+    onModeChange,
+    onSaveStateChange: setSaveState,
+    replySlot,
   }
 
-  return (
-    <ComposerSaveStateScope onSaveStateChange={setSaveState}>
-      <div
-        className={collapsed ? COLLAPSED_REGION_CLASS : REGION_CLASS}
-        onFocus={latchOpen}
-      >
-        {/* Above the dock, not in it (see `REGION_CLASS`). Collapsed, there is
-            no band to show: an edit target forces the region open. */}
-        {band}
-        <Tabs
-          value={active}
-          // Controlled, and the refusal lives here rather than in the pane, so
-          // the pane's `mode` can never disagree with what is on screen: a locked
-          // switch is dropped before it reaches `onModeChange`, whichever way it
-          // was attempted (Radix activates on focus by default, so an arrow key
-          // onto the locked segment would otherwise move the selection).
-          //
-          // It owns the MODE and nothing else. Opening a collapsed region used
-          // to hang off it too, on the belief that Radix fires this on
-          // `mousedown` for either half of the toggle; both halves of that were
-          // measured false at 390x844 — the mousedown unmounted the trigger
-          // before the browser's default focus reached it, and the guard in
-          // Radix's controllable state means the ALREADY-SELECTED trigger never
-          // arrives here at all. The collapsed segment carries its own
-          // per-trigger `onClick` now (`composer-mode-row.tsx`), which is the
-          // bar's pattern and the one that measurably works.
-          onValueChange={(next) => {
-            if (lockedTo !== undefined) return
-            if (!isComposerMode(next) || !availableModes.includes(next)) return
-            onModeChange(next)
-          }}
-          // `min-h-0 grow basis-auto`: the tab set is the region's flexible
-          // child, so the bound on the region reaches the slot through it. An
-          // auto basis, not `flex-1`'s zero, for the reason in `SLOT_CLASS`.
-          // Expanded, it is also the dock itself (`DOCK_CLASS`); collapsed, it
-          // is the plain column it always was around the bar.
-          //
-          // `data-private` mirrors the tone for the Storybook project, which
-          // compiles no Tailwind and so can read the attribute but not the
-          // dashed edge the class draws.
-          data-private={!collapsed && isPrivate ? '' : undefined}
-          className={
-            collapsed
-              ? 'min-h-0 grow basis-auto gap-4'
-              : cn(DOCK_CLASS, isPrivate && PRIVATE_DOCK_CLASS)
-          }
-        >
-          {/* Collapsed, the segment comes with the bar and carries no lock: an
-              edit target is one of the two things that force the region open,
-              so a collapsed composer is by construction one with no edit in
-              it. Expanded, it is the dock's head. */}
-          {collapsedRow ?? head}
-          {/* `forceMount` with an explicit `hidden`: BOTH panels stay mounted and
-              the inactive one is display-none'd. Radix unmounts the panel it is
-              not showing, and everything the manager has typed in it goes with
-              it — a reply draft lives in `useReplyComposer`'s state, the
-              unmounting cancels the autosave timer before it fires
-              (`dispose()` → `cancelTimer(); pending = null`), and Radix activates
-              a trigger on `mousedown`, so the textarea is detached before
-              `focusout` and the flush-on-blur never runs either. With an
-              auto-detect reply language nothing is ever scheduled at all, so one
-              click on Internal note discarded the whole draft however long it had
-              been sitting there. The note half of the same defect is what the
-              pane's hoisted `noteDraft` exists for; this is the reply half, and
-              it fixes both at the source.
+  if (availableModes.length < 2) {
+    const primary = active === 'reply' ? null : (singleModePrimarySlot ?? null)
+    return <SingleModeComposerLayout {...layoutProps} primary={primary} />
+  }
 
-              Collapsing hides the panels here rather than removing them, for
-              the same reason and for two more: the segment's `aria-controls`
-              still resolves to a real element, and the caret the pane bumps as
-              it expands lands in a field that was already mounted when the
-              handler ran. Nothing is lost by it — a hidden panel is zero pixels
-              tall, which is the whole of what row 15 is asking for.
-
-              The `hidden` is not optional: `forceMount` makes Radix compute its
-              own `hidden={!present}` as `false`, and `{...contentProps}` spreads
-              after it, so ours is what lands on the element. It is also what
-              keeps the inactive panel out of the tab order and out of every
-              `getByRole` query the e2e specs use.
-
-              The note panel is also NAMED for what it is — see
-              `NOTE_PANEL_NAMING`. */}
-          {availableModes.map((composerMode) => (
-            <TabsContent
-              key={composerMode}
-              value={composerMode}
-              forceMount
-              hidden={collapsed || composerMode !== active}
-              className={SLOT_CLASS}
-              {...(composerMode === 'note' ? NOTE_PANEL_NAMING : {})}
-            >
-              {composerMode === 'reply' ? replySlot : noteSlot}
-            </TabsContent>
-          ))}
-        </Tabs>
-      </div>
-    </ComposerSaveStateScope>
-  )
+  return <TabbedComposerLayout {...layoutProps} />
 }

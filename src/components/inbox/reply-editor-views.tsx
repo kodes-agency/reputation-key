@@ -65,7 +65,7 @@ import {
  * one this surface pins no scroller of its own, so the region's backstop is
  * the box that moves.
  */
-export function useEditorOpenFocus(active = true) {
+function useEditorOpenFocus(active = true) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!active) return

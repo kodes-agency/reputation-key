@@ -36,6 +36,20 @@ export { assistTargetFor, draftInLanguage } from './reply-composer-transitions'
 const validDraft = (draft: ReplyDraftSnapshot) =>
   draft.text.trim().length > 0 && draft.text.length <= MAX_REPLY_LENGTH
 
+function useReplyComposerHistory() {
+  const [count, setCount] = useState(0)
+  const entries = useRef<ReadonlyArray<ReplyComposerSnapshot>>([])
+  const revision = useRef(0)
+  const replace = (next: ReadonlyArray<ReplyComposerSnapshot>) => {
+    entries.current = next
+    setCount(next.length)
+  }
+  const advanceRevision = () => {
+    revision.current += 1
+  }
+  return { count, entries, revision, replace, advanceRevision }
+}
+
 /**
  * Everything the language controls need to choose the language the assist
  * actions act in (rows 17, 18), as one value rather than loose fields on the
@@ -131,9 +145,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
   // seeded from the saved reply is `replyDraftOrigin`'s comment.
   const [adoption, setAdoption] = useState<ReplyDraftAdoption | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [historyCount, setHistoryCount] = useState(0)
-  const history = useRef<ReadonlyArray<ReplyComposerSnapshot>>([])
-  const revision = useRef(0)
+  const history = useReplyComposerHistory()
   const options = useMemo(
     () =>
       replyLanguageOptions({
@@ -168,9 +180,8 @@ export function useReplyComposer(input: ReplyComposerInput) {
     kind: ReplyDraftAdoption['kind'],
     template: LoadedReplyTemplate | null = null,
   ) => {
-    history.current = [...history.current, { draft, adoption, hasAiDraft }]
-    setHistoryCount(history.current.length)
-    revision.current += 1
+    history.replace([...history.entries.current, { draft, adoption, hasAiDraft }])
+    history.advanceRevision()
     const next = { kind, languageTag: nextDraft.languageTag, template }
     if (adoptionRevealsReviewLanguage(next, input.propertyLanguage))
       setEffectiveReviewLanguage(nextDraft.languageTag)
@@ -181,7 +192,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
   }
   const ai = useReplySuggestion({
     draft,
-    revision,
+    revision: history.revision,
     target,
     onFlush: async (snapshot) => {
       if (validDraft(snapshot) && !isAutoDetectingLanguage) await autosave.flush(snapshot)
@@ -195,7 +206,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
   })
   const templates = useReplyTemplate({
     target,
-    revision,
+    revision: history.revision,
     onList: input.onListTemplates,
     onLoad: input.onLoadTemplate,
     onAccept: (nextDraft) => autosave.flush(nextDraft),
@@ -206,7 +217,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
   const updateDraft = (next: ReplyDraftSnapshot, nextSelection = selectedLanguage) => {
     ai.dismiss()
     templates.clearLoadedMessage()
-    revision.current += 1
+    history.advanceRevision()
     setDraft(next)
     autosave.schedule(
       next,
@@ -216,10 +227,9 @@ export function useReplyComposer(input: ReplyComposerInput) {
   // Undo puts back the draft AND its provenance (`ReplyComposerSnapshot`), so
   // the result tag never names the source of the draft that was undone.
   const undo = () => {
-    const previous = history.current.at(-1)
+    const previous = history.entries.current.at(-1)
     if (!previous) return
-    history.current = history.current.slice(0, -1)
-    setHistoryCount(history.current.length)
+    history.replace(history.entries.current.slice(0, -1))
     const restored = restoreSnapshot(previous, {
       detectedReviewLanguage: effectiveReviewLanguage,
       reviewLanguageReadiness: input.reviewLanguageReadiness,
@@ -241,7 +251,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
     templates.clearLoadedMessage()
     const next = draftInLanguage(draft, languageTag)
     setSelectedLanguage(languageTag)
-    revision.current += 1
+    history.advanceRevision()
     setDraft(next)
     const hasText = next.text.trim().length > 0
     const canSave = languageTag !== AUTO_DETECT_REVIEW_LANGUAGE && validDraft(next)
@@ -295,7 +305,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
     target,
     hasAiDraft,
     submitError,
-    historyCount,
+    historyCount: history.count,
     overLimit: draft.text.length > MAX_REPLY_LENGTH,
     canSubmit:
       !isAutoDetectingLanguage &&

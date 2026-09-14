@@ -71,6 +71,7 @@
 // combobox is gone proves nothing on its own.
 import type { Decorator, Meta, StoryObj } from '@storybook/react'
 import { useRef, useState } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
   feedbackId,
@@ -372,6 +373,117 @@ type ComposerInPaneProps = Readonly<{
   canHandle?: boolean
 }>
 
+type StoryReplySlotProps = Readonly<{
+  view: ReturnType<typeof resolveReplyView>
+  editTarget: ReplyEditTarget
+  isSaving: boolean
+  propertyDefaultReplyLanguage: string | null
+  reviewReplyLanguage: string | null
+  reviewLanguageReadiness: ReviewLanguageReadiness
+  generate: ComposerInPaneProps['onGenerateSuggestion']
+  library: boolean
+  saved: Reply | null
+  saveDraft: ComponentProps<typeof ReplyStatusView>['onSaveDraft']
+}>
+
+function storyReplySlot(props: StoryReplySlotProps): ReactNode {
+  const { view, editTarget } = props
+  if (view.kind !== 'compose' && editTarget === null) return null
+
+  return (
+    <ReplyStatusView
+      propertyId={PROPERTY_ID}
+      view={view}
+      editTarget={editTarget}
+      caretRequest={0}
+      isSaving={props.isSaving}
+      propertyDefaultReplyLanguage={props.propertyDefaultReplyLanguage}
+      reviewReplyLanguage={props.reviewReplyLanguage}
+      reviewLanguageReadiness={props.reviewLanguageReadiness}
+      onSaveDraft={props.saveDraft}
+      onSubmitReply={onSubmitReply}
+      onDeleteDraft={props.saved ? onDeleteDraft : undefined}
+      onSaveEdit={onSaveEdit}
+      onEditDone={onEditDone}
+      onGenerateSuggestion={props.generate}
+      onListTemplates={props.library ? onListByTarget : onListTemplates}
+      onLoadTemplate={props.library ? onLoadByTarget : onLoadTemplate}
+    />
+  )
+}
+
+function storyCollapse(
+  collapsible: boolean,
+  view: ReturnType<typeof resolveReplyView>,
+  noteText: string,
+  onExpand: (mode: ComposerMode) => void,
+): NonNullable<ComponentProps<typeof ReplyComposer>['collapse']> | undefined {
+  if (!collapsible) return undefined
+  return {
+    itemId: ITEM_ID,
+    hasPendingWork: hasPendingComposerWork({
+      itemId: ITEM_ID,
+      replyView: view,
+      noteDraft: { itemId: ITEM_ID, text: noteText },
+      reopen: 'idle',
+    }),
+    onExpand,
+  }
+}
+
+function storyFeedbackPrimary(
+  handling: FeedbackHandlingState | undefined,
+  canHandle: boolean,
+): ReactNode {
+  if (!handling) return null
+  return (
+    <FeedbackHandlingBody
+      state={handling}
+      canHandle={canHandle}
+      onMark={onMark}
+      onCorrect={onCorrect}
+    />
+  )
+}
+
+function itemActionTakesAccent(
+  modes: readonly ComposerMode[] | undefined,
+  handling: FeedbackHandlingState | undefined,
+  canHandle: boolean,
+): boolean {
+  return (
+    modes?.length === 1 &&
+    modes[0] === 'note' &&
+    canHandle &&
+    handling !== undefined &&
+    feedbackHandlingAction(handling) === 'correct'
+  )
+}
+
+function useStoryReplyState(reply: Reply | null, saveFailures: number) {
+  const attempts = useRef(0)
+  const [saved, setSaved] = useState<Reply | null>(reply)
+  const saveDraft: ComponentProps<typeof ReplyStatusView>['onSaveDraft'] = async (
+    text,
+    provenanceToken,
+    replyLanguageTag,
+  ) => {
+    await onSaveDraft(text)
+    attempts.current += 1
+    if (attempts.current <= saveFailures) throw new Error('Draft could not be saved')
+    setSaved((current) =>
+      makeReply({
+        ...(current ?? {}),
+        text,
+        status: 'draft',
+        replyLanguageTag: replyLanguageTag ?? null,
+        aiGenerated: provenanceToken !== undefined,
+      }),
+    )
+  }
+  return { saved, saveDraft }
+}
+
 function ComposerInPane({
   modes,
   startMode = 'reply',
@@ -395,17 +507,14 @@ function ComposerInPane({
   // destroyed by a glance at the reply box; what this still carries is a note
   // across a change of selection, because the form is keyed by item.
   const [noteText, setNoteText] = useState('')
-  const attempts = useRef(0)
   // The saved reply, standing in for the detail cache. `onSaveDraft` patches it
   // the way `onReplyChanged({ kind: 'draft_saved' })` patches the query cache,
   // so a compose box that does remount seeds from the saved text. It no longer
   // remounts on a mode flip — that is what force-mounting the panels fixed —
   // but it still does on a change of selection, where the pane keys it by item.
-  const [saved, setSaved] = useState<Reply | null>(reply)
+  const storyReply = useStoryReplyState(reply, saveFailures)
+  const { saved } = storyReply
   const view = resolveReplyView(saved)
-  // The pane's gate: the region is mounted in every reply state, and only the
-  // reply SLOT is gated on there being something writable.
-  const showReplySlot = view.kind === 'compose' || editTarget !== null
   // The pane's pairing, mirrored (`inbox-detail-content.tsx:433`): `correct`
   // — and ONLY `correct` — demotes `Add note` to `outline` and keeps the
   // region's accent to itself.
@@ -429,12 +538,8 @@ function ComposerInPane({
   // demoting the note submit there would leave the region with no accent at
   // all. Both drop-cases are pinned by the two stories at the end of this
   // block.
-  const itemActionTakesTheAccentAlone =
-    modes?.length === 1 &&
-    modes[0] === 'note' &&
-    canHandle &&
-    handling !== undefined &&
-    feedbackHandlingAction(handling) === 'correct'
+  const itemActionTakesTheAccentAlone = itemActionTakesAccent(modes, handling, canHandle)
+  const collapse = storyCollapse(collapsible, view, noteText, setMode)
 
   return (
     <div style={width === undefined ? undefined : { width }} className="flex flex-col">
@@ -446,60 +551,19 @@ function ComposerInPane({
         editTarget={editTarget}
         // The pane's own wiring (`inbox-detail-content.tsx`), including its
         // pending-work rule, read from the same two pieces of host state.
-        collapse={
-          collapsible
-            ? {
-                itemId: ITEM_ID,
-                hasPendingWork: hasPendingComposerWork({
-                  itemId: ITEM_ID,
-                  replyView: view,
-                  noteDraft: { itemId: ITEM_ID, text: noteText },
-                  reopen: 'idle',
-                }),
-                onExpand: setMode,
-              }
-            : undefined
-        }
-        replySlot={
-          showReplySlot ? (
-            <ReplyStatusView
-              propertyId={PROPERTY_ID}
-              view={view}
-              editTarget={editTarget}
-              caretRequest={0}
-              isSaving={isSaving}
-              propertyDefaultReplyLanguage={propertyDefaultReplyLanguage}
-              reviewReplyLanguage={reviewReplyLanguage}
-              reviewLanguageReadiness={reviewLanguageReadiness}
-              onSaveDraft={async (text, provenanceToken, replyLanguageTag) => {
-                await onSaveDraft(text)
-                attempts.current += 1
-                if (attempts.current <= saveFailures) {
-                  // Nothing is patched into the stand-in cache: a save that
-                  // failed left no draft on the server, which is the whole
-                  // reason the footer has to say so.
-                  throw new Error('Draft could not be saved')
-                }
-                setSaved((current) =>
-                  makeReply({
-                    ...(current ?? {}),
-                    text,
-                    status: 'draft',
-                    replyLanguageTag: replyLanguageTag ?? null,
-                    aiGenerated: provenanceToken !== undefined,
-                  }),
-                )
-              }}
-              onSubmitReply={onSubmitReply}
-              onDeleteDraft={saved ? onDeleteDraft : undefined}
-              onSaveEdit={onSaveEdit}
-              onEditDone={onEditDone}
-              onGenerateSuggestion={generate}
-              onListTemplates={library ? onListByTarget : onListTemplates}
-              onLoadTemplate={library ? onLoadByTarget : onLoadTemplate}
-            />
-          ) : null
-        }
+        collapse={collapse}
+        replySlot={storyReplySlot({
+          view,
+          editTarget,
+          isSaving,
+          propertyDefaultReplyLanguage,
+          reviewReplyLanguage,
+          reviewLanguageReadiness,
+          generate,
+          library,
+          saved,
+          saveDraft: storyReply.saveDraft,
+        })}
         noteSlot={
           <InboxNotesThread
             inboxItemId={ITEM_ID}
@@ -522,16 +586,7 @@ function ComposerInPane({
         // these stories can assert that a click reaches the command the state
         // chose; that the dialog then opens is proven where the wiring lives, at
         // the pane level in `inbox-feedback-pane.stories.tsx`.
-        singleModePrimarySlot={
-          handling ? (
-            <FeedbackHandlingBody
-              state={handling}
-              canHandle={canHandle}
-              onMark={onMark}
-              onCorrect={onCorrect}
-            />
-          ) : null
-        }
+        singleModePrimarySlot={storyFeedbackPrimary(handling, canHandle)}
       />
     </div>
   )

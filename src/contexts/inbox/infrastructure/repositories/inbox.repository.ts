@@ -845,6 +845,41 @@ export const createInboxRepository = (
   }
 }
 
+function propertyFilterCondition(filters: InboxFilters): SQL | null | undefined {
+  if (filters.propertyIds?.length === 0) return null
+  if (filters.propertyId) return eq(inboxItems.propertyId, filters.propertyId)
+  if (filters.propertyIds) {
+    return inArray(inboxItems.propertyId, [...filters.propertyIds] as string[])
+  }
+  return undefined
+}
+
+function statusFilterCondition(filters: InboxFilters): SQL | undefined {
+  if (!filters.status) return undefined
+  return typeof filters.status === 'string'
+    ? sql`${effectiveInboxStatus} = ${filters.status}`
+    : sql`${effectiveInboxStatus} = ANY(${sql.param([...filters.status])}::inbox_status[])`
+}
+
+function escalationFilterConditions(filters: InboxFilters): SQL[] {
+  if (filters.isEscalated === undefined) return []
+  const conditions = [eq(inboxItems.isEscalated, filters.isEscalated)]
+  if (filters.isEscalated) conditions.push(isNull(inboxItems.escalationResolvedAt))
+  return conditions
+}
+
+function replyStageFilterConditions(filters: InboxFilters): SQL[] | null {
+  if (!filters.replyStage) return []
+  const conditions = [eq(inboxItems.sourceType, 'review')]
+  if (filters.replyStage.match === 'include') {
+    if (filters.replyStage.reviewIds.length === 0) return null
+    conditions.push(inboxSourceIdMatchesAny(filters.replyStage.reviewIds))
+  } else if (filters.replyStage.reviewIds.length > 0) {
+    conditions.push(not(inboxSourceIdMatchesAny(filters.replyStage.reviewIds)))
+  }
+  return conditions
+}
+
 /** Builds the WHERE conditions for the inbox list query. Returns `null` when
  *  the filter is provably empty (an empty propertyIds list matches no rows). */
 const buildFilterConditions = (
@@ -856,44 +891,24 @@ const buildFilterConditions = (
     hasActiveHandlingAuthority,
   ]
 
-  // Property filter — an empty propertyIds list provably matches no rows.
-  if (filters.propertyIds?.length === 0) return null
-  if (filters.propertyId) conditions.push(eq(inboxItems.propertyId, filters.propertyId))
-  else if (filters.propertyIds)
-    conditions.push(inArray(inboxItems.propertyId, [...filters.propertyIds] as string[]))
+  const propertyCondition = propertyFilterCondition(filters)
+  if (propertyCondition === null) return null
+  if (propertyCondition) conditions.push(propertyCondition)
 
   const sourceScope = sourceScopeCondition(filters.sourceScopes)
   if (sourceScope === null) return null
   if (sourceScope) conditions.push(sourceScope)
 
-  // Status filter — single value or set
-  if (filters.status)
-    conditions.push(
-      typeof filters.status === 'string'
-        ? sql`${effectiveInboxStatus} = ${filters.status}`
-        : sql`${effectiveInboxStatus} = ANY(${sql.param([...filters.status])}::inbox_status[])`,
-    )
-
-  // Escalation flag filter (Escalated folder shows active flags)
-  if (filters.isEscalated !== undefined) {
-    conditions.push(eq(inboxItems.isEscalated, filters.isEscalated))
-    if (filters.isEscalated) {
-      conditions.push(isNull(inboxItems.escalationResolvedAt))
-    }
-  }
+  const statusCondition = statusFilterCondition(filters)
+  if (statusCondition) conditions.push(statusCondition)
+  conditions.push(...escalationFilterConditions(filters))
 
   // Simple equality / range filters
   if (filters.sourceType) conditions.push(eq(inboxItems.sourceType, filters.sourceType))
   if (filters.assignedTo) conditions.push(eq(inboxItems.assignedTo, filters.assignedTo))
-  if (filters.replyStage) {
-    conditions.push(eq(inboxItems.sourceType, 'review'))
-    if (filters.replyStage.match === 'include') {
-      if (filters.replyStage.reviewIds.length === 0) return null
-      conditions.push(inboxSourceIdMatchesAny(filters.replyStage.reviewIds))
-    } else if (filters.replyStage.reviewIds.length > 0) {
-      conditions.push(not(inboxSourceIdMatchesAny(filters.replyStage.reviewIds)))
-    }
-  }
+  const replyStageConditions = replyStageFilterConditions(filters)
+  if (replyStageConditions === null) return null
+  conditions.push(...replyStageConditions)
   if (filters.platform) conditions.push(eq(inboxItems.platform, filters.platform))
   // BQC-1.2: rating range and free-text search are applied via
   // reviewLookup.findEligibleReviewIds at the call site — never against

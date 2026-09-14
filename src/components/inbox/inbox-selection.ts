@@ -1,7 +1,5 @@
 import { INBOX_BULK_LIMIT } from '#/contexts/inbox/application/public-api'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
-import type { InboxQueue } from '#/contexts/inbox/application/public-api'
-import { itemMatchesQueue as matchesQueue } from './inbox-queues'
 
 export function toggleInboxSelection(
   previous: ReadonlyArray<string>,
@@ -18,12 +16,6 @@ export function removeInboxSelection(
 ): ReadonlyArray<string> {
   return previous.includes(id) ? previous.filter((selected) => selected !== id) : previous
 }
-
-export const itemMatchesQueue = (
-  item: InboxItem,
-  queue: InboxQueue,
-  viewerId: string | undefined,
-) => matchesQueue(item, queue, viewerId)
 
 export function reconcileInboxPageItems(
   items: ReadonlyArray<InboxItem>,

@@ -4,6 +4,7 @@
 
 import type {
   InboxRepository,
+  InboxSourceScope,
   Cursor,
   InboxFilters,
   PaginatedResult,
@@ -47,6 +48,107 @@ export type InboxPageResult = PaginatedResult &
     viewedUpTo: Date | null
   }>
 
+const emptyInboxPage = (
+  responseCutoff: Date,
+  viewedUpTo: Date | null,
+): InboxPageResult => ({
+  items: [],
+  nextCursor: null,
+  totalCount: 0,
+  responseCutoff,
+  viewedUpTo,
+})
+
+async function scopedPropertyIds(
+  deps: GetInboxItemsDeps,
+  input: GetInboxItemsInput,
+  ctx: AuthContext,
+): Promise<ReadonlyArray<PropertyId> | null | undefined> {
+  const visible = await resolveVisiblePropertyIds(deps.staffPublicApi, ctx, 'inbox.read')
+  if (visible === 'none') return null
+  if (visible === 'all') return undefined
+  if (
+    input.filters.propertyId &&
+    !visible.includes(input.filters.propertyId as PropertyId)
+  ) {
+    throw inboxError('forbidden', 'No access to this property', {
+      propertyId: input.filters.propertyId,
+    })
+  }
+  return visible
+}
+
+async function queueFiltersForRequest(
+  deps: GetInboxItemsDeps,
+  input: GetInboxItemsInput,
+  ctx: AuthContext,
+  sourceScopes: ReadonlyArray<InboxSourceScope>,
+  readableSources: ReadonlyArray<InboxSourceScope['sourceType']>,
+  propertyIds: ReadonlyArray<PropertyId> | undefined,
+  canManageReplies: boolean,
+): Promise<InboxFilters | null | undefined> {
+  let replyStages: InboxReplyStages = { awaiting: [], waiting: [] }
+  let queueFilters = input.queue
+    ? queueToFilters(input.queue, {
+        viewerId: ctx.userId,
+        canManageReplies,
+        replyStages,
+      })
+    : undefined
+  const requestedSourceType = input.filters.sourceType
+  const queueSourceType = queueFilters?.sourceType
+  if (
+    queueSourceType !== undefined &&
+    requestedSourceType !== undefined &&
+    queueSourceType !== requestedSourceType
+  ) {
+    return null
+  }
+  const initialSourceType = queueSourceType ?? requestedSourceType
+  if (initialSourceType !== undefined && !readableSources.includes(initialSourceType)) {
+    return null
+  }
+  if (input.queue && REPLY_STAGE_QUEUES.has(input.queue)) {
+    const narrowed = input.filters.propertyId ? [input.filters.propertyId] : propertyIds
+    replyStages = await deps.replyLookup.findReviewIdsByReplyStage(
+      ctx.organizationId,
+      propertyIdsForInboxSource(sourceScopes, 'review', narrowed),
+    )
+    queueFilters = queueToFilters(input.queue, {
+      viewerId: ctx.userId,
+      canManageReplies,
+      replyStages,
+    })
+  }
+  return queueFilters
+}
+
+async function pageWithReplyStates(
+  deps: GetInboxItemsDeps,
+  page: PaginatedResult,
+  ctx: AuthContext,
+  responseCutoff: Date,
+  viewedUpTo: Date | null,
+): Promise<InboxPageResult> {
+  if (!canForContext(ctx, 'reply.manage')) {
+    return { ...page, responseCutoff, viewedUpTo }
+  }
+  const reviewIds = page.items.flatMap((item) =>
+    item.sourceType === 'review' ? [item.sourceId as ReviewId] : [],
+  )
+  if (reviewIds.length === 0) return { ...page, responseCutoff, viewedUpTo }
+  const replyStates = await deps.replyLookup.getReplyStatesByReviewIds(
+    reviewIds,
+    ctx.organizationId,
+  )
+  const items = page.items.map((item) =>
+    item.sourceType === 'review'
+      ? { ...item, replyState: replyStates.get(item.sourceId) ?? null }
+      : item,
+  )
+  return { ...page, items, responseCutoff, viewedUpTo }
+}
+
 export const getInboxItems =
   (deps: GetInboxItemsDeps) =>
   async (input: GetInboxItemsInput, ctx: AuthContext): Promise<InboxPageResult> => {
@@ -57,78 +159,29 @@ export const getInboxItems =
     const viewedUpTo = input.cursor
       ? null
       : await deps.viewRepo.getLastInboxView(ctx.organizationId, ctx.userId)
-    const emptyPage = (): InboxPageResult => ({
-      items: [],
-      nextCursor: null,
-      totalCount: 0,
-      responseCutoff,
-      viewedUpTo,
-    })
     const sourceScopes = await resolveInboxSourceScopes(deps.staffPublicApi, ctx, 'read')
     const readableSources = sourceScopes.map((scope) => scope.sourceType)
-    if (readableSources.length === 0) return emptyPage()
+    if (readableSources.length === 0) return emptyInboxPage(responseCutoff, viewedUpTo)
 
     // Property scoping resolved per-permission: org-wide scope (AccountAdmin) →
     // 'all'; assigned scope (PropertyManager/Staff) → their staff_assignment
     // set; 'none' → fail-closed empty page (a scoped user with no assignments
     // must not see org-wide items).
-    const visible = await resolveVisiblePropertyIds(
-      deps.staffPublicApi,
-      ctx,
-      'inbox.read',
-    )
-    if (visible === 'none') {
-      return emptyPage()
-    }
-
-    let propertyIds: ReadonlyArray<PropertyId> | undefined
-    if (visible !== 'all') {
-      if (
-        input.filters.propertyId &&
-        !visible.includes(input.filters.propertyId as PropertyId)
-      ) {
-        throw inboxError('forbidden', 'No access to this property', {
-          propertyId: input.filters.propertyId,
-        })
-      }
-      propertyIds = visible
-    }
+    const propertyIds = await scopedPropertyIds(deps, input, ctx)
+    if (propertyIds === null) return emptyInboxPage(responseCutoff, viewedUpTo)
 
     const canManageReplies = canForContext(ctx, 'reply.manage')
-    let replyStages: InboxReplyStages = { awaiting: [], waiting: [] }
-    let queueFilters = input.queue
-      ? queueToFilters(input.queue, {
-          viewerId: ctx.userId,
-          canManageReplies,
-          replyStages,
-        })
-      : undefined
-    const requestedSourceType = input.filters.sourceType
-    const queueSourceType = queueFilters?.sourceType
-    if (
-      queueSourceType !== undefined &&
-      requestedSourceType !== undefined &&
-      queueSourceType !== requestedSourceType
-    ) {
-      return emptyPage()
-    }
-    const initialSourceType = queueSourceType ?? requestedSourceType
-    if (initialSourceType !== undefined && !readableSources.includes(initialSourceType)) {
-      return emptyPage()
-    }
-    if (input.queue && REPLY_STAGE_QUEUES.has(input.queue)) {
-      const narrowed = input.filters.propertyId ? [input.filters.propertyId] : propertyIds
-      replyStages = await deps.replyLookup.findReviewIdsByReplyStage(
-        ctx.organizationId,
-        propertyIdsForInboxSource(sourceScopes, 'review', narrowed),
-      )
-      queueFilters = queueToFilters(input.queue, {
-        viewerId: ctx.userId,
-        canManageReplies,
-        replyStages,
-      })
-    }
-    const sourceType = queueFilters?.sourceType ?? requestedSourceType
+    const queueFilters = await queueFiltersForRequest(
+      deps,
+      input,
+      ctx,
+      sourceScopes,
+      readableSources,
+      propertyIds,
+      canManageReplies,
+    )
+    if (queueFilters === null) return emptyInboxPage(responseCutoff, viewedUpTo)
+    const sourceType = queueFilters?.sourceType ?? input.filters.sourceType
 
     const mergedFilters: InboxFilters = {
       ...input.filters,
@@ -154,27 +207,7 @@ export const getInboxItems =
       input.cursor,
       input.limit,
     )
-    if (!canForContext(ctx, 'reply.manage')) {
-      return { ...page, responseCutoff, viewedUpTo }
-    }
-
-    const reviewIds = page.items.flatMap((item) =>
-      item.sourceType === 'review' ? [item.sourceId as ReviewId] : [],
-    )
-    if (reviewIds.length === 0) {
-      return { ...page, responseCutoff, viewedUpTo }
-    }
-
-    const replyStates = await deps.replyLookup.getReplyStatesByReviewIds(
-      reviewIds,
-      ctx.organizationId,
-    )
-    const items = page.items.map((item) =>
-      item.sourceType === 'review'
-        ? { ...item, replyState: replyStates.get(item.sourceId) ?? null }
-        : item,
-    )
-    return { ...page, items, responseCutoff, viewedUpTo }
+    return pageWithReplyStates(deps, page, ctx, responseCutoff, viewedUpTo)
   }
 
 export type GetInboxItems = ReturnType<typeof getInboxItems>

@@ -2,11 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { INBOX_BULK_LIMIT } from '#/contexts/inbox/application/public-api'
 import { inboxItemId } from '#/shared/domain/ids'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
-import {
-  itemMatchesQueue,
-  removeInboxSelection,
-  toggleInboxSelection,
-} from './inbox-selection'
+import { removeInboxSelection, toggleInboxSelection } from './inbox-selection'
+import { itemMatchesQueue } from './inbox-queues'
 
 describe('toggleInboxSelection', () => {
   it('adds and removes selected IDs', () => {

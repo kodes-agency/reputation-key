@@ -6,13 +6,13 @@ import { formatCompactAge } from './utils'
 
 export type InboxRowSignal = 'Escalated' | 'Urgent' | string
 
-export function inboxRowName(item: InboxItem): string {
+function inboxRowName(item: InboxItem): string {
   return (
     item.reviewerName ?? (item.sourceType === 'feedback' ? 'Guest feedback' : 'Anonymous')
   )
 }
 
-export function inboxRowContent(item: InboxItem): string {
+function inboxRowContent(item: InboxItem): string {
   if (item.contentAvailability === 'rating_only') {
     return 'Rating only — the guest left no text'
   }
@@ -20,7 +20,7 @@ export function inboxRowContent(item: InboxItem): string {
   return item.snippet?.trim() || 'Content unavailable'
 }
 
-export function inboxRowSignals(item: InboxItem): ReadonlyArray<InboxRowSignal> {
+function inboxRowSignals(item: InboxItem): ReadonlyArray<InboxRowSignal> {
   const signals: string[] = []
   const reply = replyStateRowLabel(item.replyState)
   if (reply) signals.push(reply)
@@ -29,7 +29,7 @@ export function inboxRowSignals(item: InboxItem): ReadonlyArray<InboxRowSignal> 
   return signals
 }
 
-export function isInboxRowNew(item: InboxItem, viewedUpTo: Date | null): boolean {
+function isInboxRowNew(item: InboxItem, viewedUpTo: Date | null): boolean {
   return viewedUpTo !== null && new Date(item.createdAt).getTime() > viewedUpTo.getTime()
 }
 

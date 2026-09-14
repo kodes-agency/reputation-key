@@ -138,6 +138,45 @@ export function retargetTemplateRequests(
   return { ledger: { sequence: ledger.sequence + 1, liveKind: null }, discarded: true }
 }
 
+function useTemplateRequestLedger(
+  targetKind: TargetKind | null,
+  setIsLoading: (loading: boolean) => void,
+) {
+  const requests = useRef<TemplateRequestLedger>(INITIAL_TEMPLATE_REQUESTS)
+
+  useEffect(() => {
+    const moved = retargetTemplateRequests(requests.current, targetKind)
+    requests.current = moved.ledger
+    if (moved.discarded) setIsLoading(false)
+  }, [setIsLoading, targetKind])
+
+  useEffect(
+    () => () => {
+      requests.current = { sequence: requests.current.sequence + 1, liveKind: null }
+    },
+    [],
+  )
+
+  const begin = useCallback((kind: TargetKind): number => {
+    requests.current = startTemplateRequest(requests.current, kind)
+    return requests.current.sequence
+  }, [])
+  const isLive = useCallback(
+    (requestSequence: number) => isLiveTemplateRequest(requests.current, requestSequence),
+    [],
+  )
+  const settle = useCallback(
+    (requestSequence: number) => {
+      if (!isLiveTemplateRequest(requests.current, requestSequence)) return
+      requests.current = settleTemplateRequest(requests.current, requestSequence)
+      setIsLoading(false)
+    },
+    [setIsLoading],
+  )
+
+  return { begin, isLive, settle }
+}
+
 export function useReplyTemplate(input: Input) {
   const {
     target,
@@ -155,39 +194,8 @@ export function useReplyTemplate(input: Input) {
   const [errorState, setErrorState] = useState<Tagged<string> | null>(null)
   const [loadedState, setLoadedState] = useState<Tagged<string> | null>(null)
   const cache = useRef<Tagged<ReplyTemplateListResult> | null>(null)
-  const requests = useRef<TemplateRequestLedger>(INITIAL_TEMPLATE_REQUESTS)
   const targetKind = target?.kind ?? null
-
-  // A target change discards a request made for a DIFFERENT target, and clears
-  // `isLoading` when it does — see `retargetTemplateRequests` for the A → B → A
-  // sequence that used to leave the whole composer disabled.
-  useEffect(() => {
-    const moved = retargetTemplateRequests(requests.current, targetKind)
-    requests.current = moved.ledger
-    if (moved.discarded) setIsLoading(false)
-  }, [targetKind])
-
-  useEffect(
-    () => () => {
-      requests.current = { sequence: requests.current.sequence + 1, liveKind: null }
-    },
-    [],
-  )
-
-  // Ref-only helpers, so they are stable and every callback below can list them.
-  const begin = useCallback((kind: TargetKind): number => {
-    requests.current = startTemplateRequest(requests.current, kind)
-    return requests.current.sequence
-  }, [])
-  const isLive = useCallback(
-    (requestSequence: number) => isLiveTemplateRequest(requests.current, requestSequence),
-    [],
-  )
-  const settle = useCallback((requestSequence: number) => {
-    if (!isLiveTemplateRequest(requests.current, requestSequence)) return
-    requests.current = settleTemplateRequest(requests.current, requestSequence)
-    setIsLoading(false)
-  }, [])
+  const { begin, isLive, settle } = useTemplateRequestLedger(targetKind, setIsLoading)
 
   const ensureLibrary = useCallback(
     async (
