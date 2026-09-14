@@ -5,9 +5,7 @@ import { listPropertyResponsibleManagers } from '#/contexts/property/server/prop
 import { getResponseTargetPolicySettingsFn } from '#/contexts/inbox/server/inbox'
 import { getPropertyPortalExperience } from '#/contexts/portal/server/portals'
 import { getPropertyReplyLibraryFn } from '#/contexts/review/server/reply'
-import { getReviewAnalysisProgressFn } from '#/contexts/ai/server/review-analysis'
 import {
-  aiKeys,
   identityKeys,
   inboxKeys,
   portalKeys,
@@ -57,12 +55,4 @@ export const merchantAiAuthorizationQuery = (propertyId: string) =>
     staleTime: 0,
   })
 
-export const reviewAnalysisProgressQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: aiKeys.reviewAnalysisProgress(propertyId),
-    queryFn: () => getReviewAnalysisProgressFn({ data: { propertyId } }),
-    staleTime: 10_000,
-    // While history is being read the counts move every few seconds.
-    refetchInterval: (query) =>
-      query.state.data?.status === 'analysing' ? 15_000 : false,
-  })
+export { reviewAnalysisProgressQuery } from '#/routes/-queries/route-queries'

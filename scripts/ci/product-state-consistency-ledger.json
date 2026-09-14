@@ -90,10 +90,11 @@
         "propertyTrend",
         "propertyAggregates",
         "propertyInsights",
-        "reviewAnalysisProgress"
+        "reviewAnalysisProgress",
+        "organizationSpend"
       ],
       "owner": "AI read-model query lifecycle",
-      "policy": "Trend, aggregate, and insights projections are independent property-scoped siblings under the AI root; insights also keys the selected day range, and globally unique propertyId prevents cross-property reuse. Review-analysis progress is another property-scoped sibling: it polls only while analysis is running and is invalidated when the property's AI authorization changes."
+      "policy": "Trend, aggregate, and insights projections are independent property-scoped siblings under the AI root; insights also keys the selected day range, and globally unique propertyId prevents cross-property reuse. Review-analysis progress is another property-scoped sibling: it polls only while analysis is running and is invalidated when the property's AI authorization changes. Organization spend is the one organization-scoped leaf: a monthly amount read by the AI overview, stale after a minute and never mutated by the client."
     },
     {
       "id": "goalKeys",

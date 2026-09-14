@@ -1,3 +1,4 @@
+import type { OrganizationId } from '#/shared/domain/ids'
 import type { Database } from '#/shared/db'
 import type { Redis } from 'ioredis'
 import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
@@ -39,6 +40,7 @@ import { createPropertyProcessingProfileAdapter } from './infrastructure/adapter
 import { createReviewAnalysisEnrollmentAdapter } from './infrastructure/adapters/ai-review-analysis-enrollment.adapter'
 import { createRedisAiLaneAdmissionAdapter } from './infrastructure/adapters/ai-lane-admission.adapter'
 import { createAiReviewAnalysisBacklogAdapter } from './infrastructure/adapters/ai-review-analysis-backlog.adapter'
+import { createAiOrganizationSpendAdapter } from './infrastructure/adapters/ai-organization-spend.adapter'
 import { createDrainReviewAnalysisBacklog } from './application/use-cases/drain-review-analysis-backlog'
 import { createReadReviewAnalysisProgress } from './application/use-cases/read-review-analysis-progress'
 import {
@@ -120,6 +122,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
   const calendar = createAiPropertyCalendarAdapter(input.db)
   const reviewEvents = createAiReviewEventStoreAdapter(input.db)
   const backlog = createAiReviewAnalysisBacklogAdapter(input.db)
+  const organizationSpend = createAiOrganizationSpendAdapter(input.db)
   const enrollments = createReviewAnalysisEnrollmentAdapter(input.db, input.idGen)
   const processingProfiles = createPropertyProcessingProfileAdapter(input.db, clock)
   const inference = input.inference ?? unavailableInference
@@ -255,6 +258,11 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       readReviewAnalysis: createReadReviewAnalysis(readDependencies),
       readReviewAnalysisProgress,
       requestReviewAnalysisNow,
+      readOrganizationAiSpend: (request: Readonly<{ organizationId: OrganizationId }>) =>
+        organizationSpend.readCurrentMonth({
+          organizationId: request.organizationId,
+          nowEpochMillis: nowEpochMillis(),
+        }),
       readPropertyTrend: createReadPropertyTrend(readDependencies),
       findCurrentReviewIdsByAttention: (
         request: Omit<

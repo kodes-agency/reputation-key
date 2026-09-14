@@ -53,7 +53,7 @@ type AiBudgetDependencies = Readonly<{
   now: () => Date
 }>
 
-const ORGANIZATION_MONTHLY_CAP_MICROS = 50_000_000
+export const ORGANIZATION_MONTHLY_CAP_MICROS = 50_000_000
 const RESERVATION_TTL_INTERVAL = '15 minutes'
 
 function profileForRoute(routeKey: string) {

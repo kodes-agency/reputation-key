@@ -131,3 +131,7 @@ export type IdentityPublicApi = Readonly<{
   people: StaffPublicApi
   requests: IdentityRequestApi
 }>
+export type {
+  MerchantAiOverview,
+  MerchantAiOverviewEntry,
+} from './use-cases/merchant-ai-overview'
