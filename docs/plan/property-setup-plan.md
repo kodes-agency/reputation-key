@@ -167,6 +167,33 @@ list and the inbox composer all read, and one place to configure a property. Dec
   shows "AI is off for this property" with a link to the AI section instead of the current
   `not_authorized` wording.
 
+**Implemented on `wip/ps-identity-setup` (2026-09-15), with these departures:**
+
+- **Deferral is a side table, not columns.** `merchant_ai_enablement` is a fenced consent head:
+  each row references a consent-evidence head, carries a notice version/digest and capability
+  and source epochs, and is written only by `apply_merchant_ai_transition_v1`. A deferral has
+  none of those, so it lives in `merchant_ai_decision_deferrals` (migration 0015): one row per
+  Property, both foreign keys cascading with the Property. The defer command
+  (`deferMerchantAiDecisionFn`) reuses enable's authorization, locks the Property row enable also
+  locks first, refuses with `already_enabled` while AI is enabled and keeps the first deferral on
+  a repeat; enable deletes the row in its own transaction. The snapshot DTO gains
+  `decisionDeferredAt`.
+- **No milestones for the per-Property model.** Statuses derive from current facts on every read;
+  a step that stops holding needs attention again. `derivePropertySetupSteps` (reporting domain)
+  also returns `asked` and `section` per step, and `attentionCount` counts `pending` and
+  `needs_admin`.
+- **Evidence choices.** `reviews_synced` reads a completed `review_provider_snapshot_runs` row for
+  the current source epoch, the evidence behind the org checklist's initial sync. Terminal runs
+  are retained 30 days and sync recurs within hours. No index covers completed runs by Property
+  yet, so a partial index on completed runs by organization, Property and source epoch is a
+  candidate follow-up. `portal_published` needs a `published` Portal with an open publication
+  activation; Portal health is not a setup step.
+- **Open question: who holds `ai.manage`.** Decision 8 keeps the AI decision AccountAdmin-only,
+  and the setup rule reports `needs_admin` to a PropertyManager as agreed. The permission table
+  and the transition function, however, also give a PropertyManager `ai.manage` on granted
+  Properties, and defer and the B3 overview reuse that authority unchanged. Narrowing it is a
+  permission change for C2 or a follow-up, not part of this slice.
+
 ### B2. Settings hub as child routes (decisions 10, 11)
 
 - `routes/_authenticated/properties/$propertyId/settings.tsx` becomes the layout with the
@@ -194,6 +221,10 @@ list and the inbox composer all read, and one place to configure a property. Dec
   and month spend against the org cap from `ai_cost_windows`. Rows link to the property's AI
   section. New identity server function `listMerchantAiOverview`; the route stops calling
   `getMerchantAiAuthorizationFn` and the snapshot `useState` goes.
+- **Read implemented on `wip/ps-identity-setup` (2026-09-15):** `listMerchantAiOverviewFn()`
+  returns `{ properties }` (state, capabilities, notice version, `reconsentRequired`,
+  `decisionDeferredAt`, `googleBindingActive`) so coverage and spend can join the same object
+  later; `identityKeys.merchantAiOverview()` is its cache key. The route and table are not built.
 
 ### B4. Settings sidebar (decision 12)
 
