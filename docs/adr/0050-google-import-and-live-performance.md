@@ -7,6 +7,8 @@ date: 2026-08-10
 
 Accepted 2026-08-10 and amended 2026-08-12 under the former `railway_closed_beta_exception_accepted` release state; the machine-bound approval state was later removed, while the external Google contracts below remain.
 
+**Amended 2026-09-15.** §3 "Import discovery" now describes the model the code has run since commit `5007e70b` (2026-08-28): a durable 24-hour pre-confirmation checkpoint gated by a 30-second authorization lease, replacing the 15-minute Redis-only envelope. That commit moved discovery to server-side checkpoints because "Select all eligible locations" must page through an arbitrarily large fleet before confirmation, which a fixed 2,000-record, 15-minute envelope could not hold, while authorization stays exact on every page, renewal and claim. The amendment also records that hiding the import tab keeps the selection. Live Performance keeps its 15-minute limit.
+
 ## Context
 
 This decision preserves the external Google content, OAuth, provider-route, and
@@ -22,9 +24,17 @@ Management and Business Information endpoints.
 
 #### Import discovery
 
-Discovery Content may exist only in request/browser memory and a dedicated provider-ephemeral Redis service for at most 15 minutes. That service has no volume, AOF, RDB snapshot, persistence-capable replication/backlog, backup, export, restore, or new outbound network path. It is not the general BullMQ/quota Redis.
+_Amended 2026-09-15; see the note at the top._
 
-Browser DTOs carry 256-bit random opaque account, candidate, cursor, and lease handles. Provider Redis keys and indexes use audience-separated, versioned HMACs of those handles. Browser code never receives account IDs, location IDs, provider page tokens, OAuth tokens, resource paths, or self-contained provider claims.
+Discovery Content is fetched from Google one bounded page at a time. It may exist only in request/browser memory and in a durable pre-confirmation checkpoint: each page is committed as normalized rows in the credential-home PostgreSQL database behind opaque handles, with an absolute content deadline of at most 24 hours. Expired rows are swept, and a confirmed import consumes the rows it claimed. Rows grow linearly with the fleet and have no aggregate record cap.
+
+Every published page issues a 30-second authorization lease in the dedicated provider-ephemeral Redis service. The lease is bound to the Organization, the initiating user, the connection principal and the authorization fence, and never outlives the content deadline. The import page renews it every 10 seconds while the page is open, including while its tab is hidden. Renewal revalidates membership, permissions and connection generations and never calls Google. Current authorization is revalidated on every page, every lease renewal and every confirmation claim. An expired lease cannot be renewed, and there is no path that re-issues a lease for an existing checkpoint without fetching from Google again.
+
+The browser keeps the selection while the page is open, including in a hidden tab. It clears provider content when the manager leaves the page, the tenant or Google connection changes, authorization is revoked, the content deadline passes, or the lease lapses. A renewal the server refuses clears at once; a renewal that fails in transit clears at the lease's own expiry unless a later renewal succeeds. Browsers throttle timers in background tabs, so a tab hidden for long enough can still return to cleared content.
+
+The provider-ephemeral Redis service has no volume, AOF, RDB snapshot, persistence-capable replication/backlog, backup, export, restore, or new outbound network path. It is not the general BullMQ/quota Redis.
+
+Browser DTOs carry 256-bit random opaque account, candidate, cursor, and lease handles. Checkpoint rows and lease keys use audience-separated, versioned HMACs of those handles. Browser code never receives account IDs, location IDs, provider page tokens, OAuth tokens, resource paths, or self-contained provider claims.
 
 A durable import stores the manager's explicitly confirmed RepKey profile. Provider display fields may prefill review UI, but are not durable mutation/routing authority and are cleared with the discovery epoch.
 
@@ -115,7 +125,8 @@ The frozen presentation result is `PropertyGooglePerformanceResultV1`. Base Dash
 
 ## Consequences
 
-- Import discovery remains content-minimized and short-lived; live Performance
-  values never become durable application data.
+- Import discovery remains content-minimized and bounded to a 24-hour,
+  lease-gated checkpoint; live Performance values never become durable
+  application data.
 - Unknown routes, metrics, scopes, state bindings, or report coverage fail only
   the affected Google operation and do not invent provider truth.
