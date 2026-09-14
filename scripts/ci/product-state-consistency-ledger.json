@@ -296,6 +296,12 @@
       "policy": "A minute-granularity wall clock: the lazy initializer reads the mounting instant and a 60 s interval advances it only while the target is active and the caller supplied no clock. It holds no server-owned record \u2014 the deadline itself comes from the response-target payload and is only formatted against this value."
     },
     {
+      "id": "src/components/inbox/use-retry-countdown.ts:useState(now)",
+      "classification": "local_runtime",
+      "owner": "Reply composer busy-lane retry countdown",
+      "policy": "The lazy Date.now initializer reads the mounting instant and a one-second interval advances it until the retry time the server returned. The consumer is keyed by that retry time, so a new busy answer is a new countdown; the value only formats 'Try again in Ns' and holds no server-owned record."
+    },
+    {
       "id": "src/components/inbox/reply-editor-views.tsx:useState(text)",
       "classification": "server_draft",
       "owner": "Published reply editor",
