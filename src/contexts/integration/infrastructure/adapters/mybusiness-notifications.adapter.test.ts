@@ -108,7 +108,7 @@ describe('createMyBusinessNotificationsAdapter', () => {
 
   it('reconciles an ambiguous subscribe by readback without repeating the write', async () => {
     const harness = setup([
-      { ok: false, code: 'transport_error', retryAfterMs: 0 },
+      { ok: false, code: 'transport_error', dispatch: 'unknown', retryAfterMs: 0 },
       providerJson(setting()),
     ])
 
@@ -128,7 +128,7 @@ describe('createMyBusinessNotificationsAdapter', () => {
 
   it('preserves an ambiguous outcome when authoritative readback does not match', async () => {
     const harness = setup([
-      { ok: false, code: 'transport_error', retryAfterMs: 0 },
+      { ok: false, code: 'transport_error', dispatch: 'unknown', retryAfterMs: 0 },
       providerJson(setting({ pubsubTopic: 'projects/other/topics/topic' })),
     ])
 

@@ -1,8 +1,20 @@
 // Review context — BullMQ job handler for publishing replies to Google.
-// Retries up to five times with the catalogue's bounded exponential backoff.
+//
+// BullMQ grants at most five executions (event-job-catalogue.ts publish-reply:
+// `retryAttempts: 5`, `exponential:30000`; job-policy.ts adds 0.5 jitter, so
+// the gaps are roughly 15-30 s, 30-60 s, 60-120 s and 120-240 s). Only a
+// RETRYABLE failure spends them on further provider writes. A terminal
+// rejection resolves on the attempt that saw it. An AMBIGUOUS failure gets one
+// more execution, and that one never writes: it reads Google once and then
+// records what it saw or marks the reply ambiguous for the reconciliation
+// sweep, which ends the job (a publish_failed row is no longer claimable).
 //
 // BQC-3.3: provider outcomes are classified via the reply-publication saga
-// (classifyPublicationFailure).
+// (classifyPublicationFailure), from the dispatch the provider plane recorded
+// (D2): `not_sent` is the only evidence that lets a failed write be retried.
+// Every classified failure is logged as { attempt, failureClass,
+// executionCode, dispatch, providerStatus, errorName, errorCode } and nothing
+// else: the last two only when identifier-shaped, never the error message.
 //
 // BQC-3.8: the publication state machine is DURABLE (replies.publication_state,
 // migration 0015). The handler:
@@ -23,7 +35,9 @@
 //      pending_observation. It is never publication proof; only a later exact,
 //      current provider read may publish the local Reply.
 //   5. failure → classified:
-//        terminal_rejection  → markPublicationTerminal (no retry burn)
+//        terminal_rejection  → markPublicationTerminal, resolve (no retry burn);
+//                              includes a request RepKey refused before
+//                              sending (invalid input, compile refusal)
 //        retryable non-final → markPublicationRetryQueued + rethrow
 //        retryable final     → markPublicationTerminal + rethrow
 //        ambiguous non-final → rethrow; the next attempt performs one targeted
@@ -46,7 +60,10 @@ import type { Reply, Review } from '../../domain/types'
 import { replyId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
-import { classifyPublicationFailure } from '../../domain/reply-publication-workflow'
+import {
+  classifyPublicationFailure,
+  publicationFailureEvidence,
+} from '../../domain/reply-publication-workflow'
 import { reviewReplyPublishFailed } from '../../domain/events'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
@@ -390,6 +407,29 @@ async function reconcileUncertainAttempt(
   }
 }
 
+// Names are class-like identifiers (`DatabaseError`, `GoogleReviewApiError`);
+// codes are closed-union words or SQLSTATEs (`provider_unavailable`, `40001`).
+// Anything else is dropped rather than trusted: both fields come from an
+// `unknown` rejection, and a free-form value could carry reply text.
+const CONTENT_FREE_ERROR_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/u
+const CONTENT_FREE_ERROR_CODE = /^[A-Za-z0-9_]{1,64}$/u
+
+function contentFreeErrorIdentity(
+  err: unknown,
+): Readonly<{ errorName: string | null; errorCode: string | null }> {
+  if (!(err instanceof Error)) return { errorName: null, errorCode: null }
+  const code: unknown = 'code' in err ? err.code : undefined
+  const codeText =
+    typeof code === 'number' && Number.isSafeInteger(code) ? String(code) : code
+  return {
+    errorName: CONTENT_FREE_ERROR_NAME.test(err.name) ? err.name : null,
+    errorCode:
+      typeof codeText === 'string' && CONTENT_FREE_ERROR_CODE.test(codeText)
+        ? codeText
+        : null,
+  }
+}
+
 /** BQC-3.3/3.8: classified failure handling — see the header table. */
 async function handlePublishFailure(
   deps: PublishHandlerDeps,
@@ -402,13 +442,26 @@ async function handlePublishFailure(
   const failure = classifyPublicationFailure(err)
   const attempt = job.attemptsMade + 1
   const finalAttempt = attempt >= MAX_ATTEMPTS
+  // Content-free by construction: codes, dispatch, status, and the error's own
+  // identifier-shaped name and code — never its message. Before D2 the
+  // incident's compile refusal logged no code at all, so "never reached Google"
+  // and "may have reached Google" looked identical. The error identity is what
+  // separates the failures that carry no dispatch evidence: a Postgres error
+  // after Google's 200 (`DatabaseError`/`40001`) from a transport failure.
+  const fields = {
+    attempt,
+    failureClass: failure,
+    ...publicationFailureEvidence(err),
+    ...contentFreeErrorIdentity(err),
+  }
 
   if (failure === 'terminal_rejection') {
-    // Permanent provider answer (4xx / connection gone): retrying cannot
-    // succeed. Mark terminal and resolve — remaining attempts must not burn.
+    // A 4xx answer, a gone connection/authorization, or a request RepKey
+    // refused before sending it: retrying cannot succeed. Mark terminal and
+    // resolve — remaining attempts must not burn.
     logger.error(
-      { err, attempt },
-      'Reply rejected terminally by Google — marked publish_failed without retry',
+      fields,
+      'Reply publish failed terminally — marked publish_failed without retry',
     )
     await deps.replyCommandStore.markPublicationTerminal(
       claimed,
@@ -422,7 +475,7 @@ async function handlePublishFailure(
     // Explicit pre-dispatch transients and provider rate-limit responses prove
     // this attempt did not publish. Let BullMQ retry within its finite budget;
     // after the last attempt, expose a terminal failure the operator can retry.
-    logger.error({ err, attempt }, 'Reply publish failed (retryable)')
+    logger.error(fields, 'Reply publish failed (retryable)')
     if (finalAttempt) {
       await deps.replyCommandStore.markPublicationTerminal(
         claimed,
@@ -441,7 +494,7 @@ async function handlePublishFailure(
     // publish_failed + publication_state='ambiguous' + reconcile_due_at; the
     // reconciliation sweep and operator control are both read-only.
     logger.error(
-      { err, attempt, reconcile: 'read-only' },
+      fields,
       'Ambiguous publish outcome on final attempt — marked publish_failed for read-only reconciliation',
     )
     await deps.replyCommandStore.markPublicationAmbiguous(
@@ -455,6 +508,6 @@ async function handlePublishFailure(
   // one targeted readback. That next execution may confirm/supersede the
   // attempt, but it never interprets a missing echo as permission for another
   // provider write.
-  logger.error({ err, attempt }, 'Reply publish outcome ambiguous — retrying')
+  logger.error(fields, 'Reply publish outcome ambiguous — next attempt reads back only')
   throw err
 }

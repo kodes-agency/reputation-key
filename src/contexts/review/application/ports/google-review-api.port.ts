@@ -2,6 +2,7 @@
 // Integration owns provider pagination tokens and exposes only opaque cursor references.
 
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { GoogleProviderDispatch } from '#/shared/google-provider-control/egress-gateway'
 import type { GoogleReview } from '../../domain/types'
 
 export type GoogleReviewPage = Readonly<{
@@ -25,11 +26,27 @@ export type GoogleReviewApiErrorCode =
   | 'provider_rate_limited'
   | 'provider_unavailable'
 
+/**
+ * Content-free evidence about one failed provider request. The reply
+ * publication classifier decides retry safety from `dispatch` (only `not_sent`
+ * proves no request reached Google); codes and the status are for logs and
+ * BullMQ's failedReason.
+ */
+export type GoogleReviewApiFailure = Readonly<{
+  /** Executor/gateway code (the admission code when one was given). */
+  executionCode: string | null
+  dispatch: GoogleProviderDispatch
+  providerStatus: number | null
+}>
+
 export type GoogleReviewApiError = Error &
   Readonly<{
     _tag: 'GoogleReviewApiError'
     code: GoogleReviewApiErrorCode
     recoverable: boolean
+    retryAfterMs?: number
+    /** Absent when the error carries no dispatch evidence (treated as unknown). */
+    failure?: GoogleReviewApiFailure
   }>
 
 export type GoogleReviewPageRequest = Readonly<{

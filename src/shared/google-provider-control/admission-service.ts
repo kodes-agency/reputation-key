@@ -71,6 +71,8 @@ export type GoogleAdmissionStartResult =
       ok: false
       code:
         | 'malformed_request'
+        /** The start deadline had already elapsed; nothing about the request is wrong. */
+        | 'deadline_exceeded'
         | 'permit_unknown'
         | 'permit_expired'
         | 'gateway_mismatch'
@@ -214,10 +216,15 @@ export function createGoogleExecutionAdmissionService(
         !SAFE_ID.test(input.gatewayIdentity) ||
         !validAdmissionMetadata(input.admission) ||
         !Number.isSafeInteger(input.deadlineMs) ||
-        input.deadlineMs <= nowMs ||
         input.deadlineMs > nowMs + 60_000
       ) {
         return { ok: false, code: 'malformed_request', retryAfterMs: 0 }
+      }
+      // Distinct from `malformed_request`, which callers treat as deterministic:
+      // the gateway checked this deadline before the call, and only the time
+      // spent reaching admission used it up.
+      if (input.deadlineMs <= nowMs) {
+        return { ok: false, code: 'deadline_exceeded', retryAfterMs: 0 }
       }
       const permit = await deps.authority.load(input.permitId)
       if (!permit || !validPermitSnapshot(permit)) {

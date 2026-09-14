@@ -147,20 +147,27 @@ export function nextPublicationCycle(current: number): number {
 
 // ── BQC-3.3: provider outcome classification ─────────────────────────
 //
-// The publish job sends one PUT per attempt. What happened on Google after a
-// failure determines whether retrying is safe, pointless, or dangerous:
+// The publish job sends at most one PUT per attempt. What happened on Google
+// after a failure determines whether retrying is safe, pointless, or dangerous:
 //
-//   terminal_rejection — Google answered 4xx (or the connection is gone).
+//   terminal_rejection — Google answered 4xx (not 429), the connection or
+//                        authorization is gone, or RepKey itself refused the
+//                        request before sending it (invalid input, or the
+//                        executor's compile step said `malformed_request`).
 //                        Retrying cannot succeed: mark publish_failed without
 //                        burning BullMQ attempts.
-//   retryable          — a provably pre-dispatch transient failure (for
-//                        example token refresh/admission) or an explicit
-//                        provider rate-limit answer. The next attempt may send.
-//   ambiguous          — transport rejection, executor failure/deadline after
-//                        execution started, 5xx, timeout/abort, or any unknown
-//                        post-dispatch outcome. The reply may exist on Google;
-//                        preserve `sending` so the next attempt performs a
-//                        targeted read before any repeat write.
+//   retryable          — a failure the provider plane recorded as `not_sent`
+//                        (the gateway returned before `fetch`), token refresh,
+//                        or a 429 rate-limit answer. The next attempt may send.
+//   ambiguous          — `unknown` dispatch (fetch threw or aborted), 5xx,
+//                        timeout/abort, or no dispatch evidence at all. The
+//                        reply may exist on Google; preserve `sending` so the
+//                        next attempt performs a targeted read before any
+//                        repeat write.
+//
+// Order (D2): abort → pre-request codes → `not_sent` → `answered` status →
+// rate-limit code → ambiguous. Dispatch evidence comes from the gateway, never
+// from the absence of a reply on a Google read.
 
 export type PublicationFailureClass = 'terminal_rejection' | 'retryable' | 'ambiguous'
 
@@ -413,6 +420,119 @@ function classifyGbpApiError(context: unknown): PublicationFailureClass {
   return 'ambiguous'
 }
 
+/** Mirrors the gateway's `GoogleProviderDispatch`; the domain may not import it. */
+export type PublicationFailureDispatch = 'not_sent' | 'answered' | 'unknown'
+
+/**
+ * What the provider plane recorded about one failed attempt. Codes and a
+ * status only, so the publish job can log it and BullMQ can keep it.
+ */
+export type PublicationFailureEvidence = Readonly<{
+  executionCode: string | null
+  dispatch: PublicationFailureDispatch
+  providerStatus: number | null
+}>
+
+const NO_EVIDENCE: PublicationFailureEvidence = Object.freeze({
+  executionCode: null,
+  dispatch: 'unknown',
+  providerStatus: null,
+})
+
+function readDispatch(value: unknown): PublicationFailureDispatch {
+  return value === 'not_sent' || value === 'answered' ? value : 'unknown'
+}
+
+function readCode(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function readStatus(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) ? value : null
+}
+
+function fieldOf(value: unknown, key: string): unknown {
+  return typeof value === 'object' && value !== null && key in value
+    ? (value as Record<string, unknown>)[key]
+    : undefined
+}
+
+/**
+ * Structural read of the dispatch evidence on either provider error shape: the
+ * review port's `failure` record, or the gateway GbpApiError's own fields
+ * (where the admission code is the more specific of its two codes).
+ */
+export function publicationFailureEvidence(err: unknown): PublicationFailureEvidence {
+  if (isReviewApiErrorShape(err)) {
+    const failure = fieldOf(err, 'failure')
+    if (typeof failure !== 'object' || failure === null) return NO_EVIDENCE
+    return {
+      executionCode: readCode(fieldOf(failure, 'executionCode')),
+      dispatch: readDispatch(fieldOf(failure, 'dispatch')),
+      providerStatus: readStatus(fieldOf(failure, 'providerStatus')),
+    }
+  }
+  if (isGbpApiErrorShape(err)) {
+    return {
+      executionCode:
+        readCode(fieldOf(err, 'executionAdmissionCode')) ??
+        readCode(fieldOf(err, 'executionCode')),
+      dispatch: readDispatch(fieldOf(err, 'dispatch')),
+      providerStatus: readStatus(fieldOf(err, 'providerStatus')),
+    }
+  }
+  return NO_EVIDENCE
+}
+
+/**
+ * D2 rules 3-4. Null means the evidence decides nothing and the caller's
+ * code-based rules apply. Only `not_sent` (the gateway returned before
+ * `fetch`) may make a failure retryable; absence on a Google read never can.
+ */
+function classifyByDispatch(
+  evidence: PublicationFailureEvidence,
+): PublicationFailureClass | null {
+  if (evidence.dispatch === 'not_sent') {
+    // A compile refusal is a pure function of the reply: resending the same
+    // descriptor is refused the same way, so retries would only burn attempts.
+    return evidence.executionCode === 'malformed_request'
+      ? 'terminal_rejection'
+      : 'retryable'
+  }
+  if (evidence.dispatch === 'answered') {
+    const status = evidence.providerStatus
+    if (status === 429) return 'retryable'
+    if (status !== null && status >= 400 && status < 500) return 'terminal_rejection'
+    return 'ambiguous'
+  }
+  return null
+}
+
+function classifyGatewayError(err: GbpApiErrorShape): PublicationFailureClass {
+  // A refusal stays terminal before the dispatch rules, as
+  // `authorization_changed` does for the review port (rule 2): retrying a
+  // permission decision cannot turn it into an acceptance.
+  if (err.kind === 'auth_failed' || err.kind === 'permission_denied') {
+    return 'terminal_rejection'
+  }
+  const byDispatch = classifyByDispatch(publicationFailureEvidence(err))
+  if (byDispatch) return byDispatch
+  if (err.kind === 'rate_limited') return 'retryable'
+  return 'ambiguous'
+}
+
+function classifyReviewApiError(
+  err: Readonly<{ code: string }>,
+): PublicationFailureClass {
+  if (PRE_REQUEST_TERMINAL_CODES.has(err.code) || err.code === 'invalid_request') {
+    return 'terminal_rejection'
+  }
+  const byDispatch = classifyByDispatch(publicationFailureEvidence(err))
+  if (byDispatch) return byDispatch
+  if (err.code === 'provider_rate_limited') return 'retryable'
+  return 'ambiguous'
+}
+
 /**
  * Classify a provider failure from the publish attempt. See the table above.
  * Structural inspection only — no integration-context imports.
@@ -420,18 +540,8 @@ function classifyGbpApiError(context: unknown): PublicationFailureClass {
 export function classifyPublicationFailure(err: unknown): PublicationFailureClass {
   // Timeout/abort: the PUT may have landed — outcome is honestly unknown.
   if (isAbortError(err)) return 'ambiguous'
-  if (isGbpApiErrorShape(err)) {
-    if (err.kind === 'auth_failed' || err.kind === 'permission_denied') {
-      return 'terminal_rejection'
-    }
-    if (err.kind === 'rate_limited') return 'retryable'
-    return 'ambiguous'
-  }
-  if (isReviewApiErrorShape(err)) {
-    if (PRE_REQUEST_TERMINAL_CODES.has(err.code)) return 'terminal_rejection'
-    if (err.code === 'provider_rate_limited') return 'retryable'
-    return 'ambiguous'
-  }
+  if (isGbpApiErrorShape(err)) return classifyGatewayError(err)
+  if (isReviewApiErrorShape(err)) return classifyReviewApiError(err)
   if (!isIntegrationErrorShape(err)) {
     // A transport rejection provides no evidence that the provider did not
     // accept the PUT. Conservatively preserve the uncertain in-flight state.

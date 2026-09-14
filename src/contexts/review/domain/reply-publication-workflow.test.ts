@@ -8,6 +8,7 @@ import {
   requiresManualReview,
   buildIdempotencyKey,
   classifyPublicationFailure,
+  publicationFailureEvidence,
   nextPublicationCycle,
   nextPublicationState,
   canDeferPendingProviderObservation,
@@ -354,6 +355,277 @@ describe('reply-publication-workflow (B1.10)', () => {
       expect(classifyPublicationFailure('weird string')).toBe('ambiguous')
       expect(classifyPublicationFailure(null)).toBe('ambiguous')
     })
+  })
+
+  // D2: the incident reply (three line feeds) was refused by the executor's
+  // compile step with no permit and no fetch, yet the review adapter reported
+  // `provider_unavailable` with no dispatch evidence and this classifier called
+  // it ambiguous, so attempt 2 read Google once and parked the reply in
+  // "Needs a check". The dispatch the gateway recorded decides instead.
+  describe('classifyPublicationFailure by recorded dispatch (D2)', () => {
+    type Failure = Readonly<{
+      executionCode: string | null
+      dispatch: 'not_sent' | 'answered' | 'unknown'
+      providerStatus: number | null
+    }>
+    const reviewApiError = (code: string, failure?: Failure) =>
+      Object.assign(new Error('Google review API request failed'), {
+        _tag: 'GoogleReviewApiError',
+        code,
+        recoverable: false,
+        ...(failure === undefined ? {} : { failure }),
+      })
+    const abort = () => {
+      const err = new Error('The operation was aborted')
+      err.name = 'AbortError'
+      return err
+    }
+
+    it.each([
+      [
+        'rule 1: AbortError, even with not_sent evidence attached',
+        Object.assign(abort(), {
+          _tag: 'GoogleReviewApiError',
+          code: 'provider_unavailable',
+          failure: { executionCode: null, dispatch: 'not_sent', providerStatus: null },
+        }),
+        'ambiguous',
+      ],
+      ['rule 1: bare AbortError', abort(), 'ambiguous'],
+      [
+        'rule 2: invalid_request (refused before the executor)',
+        reviewApiError('invalid_request', {
+          executionCode: null,
+          dispatch: 'not_sent',
+          providerStatus: null,
+        }),
+        'terminal_rejection',
+      ],
+      [
+        'rule 2: invalid_request without failure evidence',
+        reviewApiError('invalid_request'),
+        'terminal_rejection',
+      ],
+      [
+        'rule 2: authorization_changed wins over not_sent',
+        reviewApiError('authorization_changed', {
+          executionCode: 'authorization_denied',
+          dispatch: 'not_sent',
+          providerStatus: null,
+        }),
+        'terminal_rejection',
+      ],
+      [
+        'rule 3: not_sent + malformed_request (deterministic compile refusal)',
+        reviewApiError('provider_unavailable', {
+          executionCode: 'malformed_request',
+          dispatch: 'not_sent',
+          providerStatus: null,
+        }),
+        'terminal_rejection',
+      ],
+      [
+        'rule 3: not_sent + coordination_unavailable',
+        reviewApiError('provider_unavailable', {
+          executionCode: 'coordination_unavailable',
+          dispatch: 'not_sent',
+          providerStatus: null,
+        }),
+        'retryable',
+      ],
+      [
+        // The gateway and admission report an elapsed deadline as this code,
+        // not `malformed_request`, so slow permit issuance stays retryable.
+        'rule 3: not_sent + deadline_exceeded',
+        reviewApiError('provider_unavailable', {
+          executionCode: 'deadline_exceeded',
+          dispatch: 'not_sent',
+          providerStatus: null,
+        }),
+        'retryable',
+      ],
+      [
+        'rule 4: answered 401 (a 401 refresh retry refused before its own fetch)',
+        reviewApiError('provider_rate_limited', {
+          executionCode: 'quota_exhausted',
+          dispatch: 'answered',
+          providerStatus: 401,
+        }),
+        'terminal_rejection',
+      ],
+      [
+        'rule 4: answered 404',
+        reviewApiError('provider_unavailable', {
+          executionCode: null,
+          dispatch: 'answered',
+          providerStatus: 404,
+        }),
+        'terminal_rejection',
+      ],
+      [
+        'rule 4: answered 429',
+        reviewApiError('provider_rate_limited', {
+          executionCode: null,
+          dispatch: 'answered',
+          providerStatus: 429,
+        }),
+        'retryable',
+      ],
+      [
+        'rule 4: answered 503',
+        reviewApiError('provider_unavailable', {
+          executionCode: null,
+          dispatch: 'answered',
+          providerStatus: 503,
+        }),
+        'ambiguous',
+      ],
+      [
+        'rule 4: answered without a status',
+        reviewApiError('provider_unavailable', {
+          executionCode: 'response_too_large',
+          dispatch: 'answered',
+          providerStatus: null,
+        }),
+        'ambiguous',
+      ],
+      [
+        'rule 5: provider_rate_limited with unknown dispatch',
+        reviewApiError('provider_rate_limited', {
+          executionCode: 'transport_error',
+          dispatch: 'unknown',
+          providerStatus: null,
+        }),
+        'retryable',
+      ],
+      [
+        'rule 6: unknown dispatch',
+        reviewApiError('provider_unavailable', {
+          executionCode: 'transport_error',
+          dispatch: 'unknown',
+          providerStatus: null,
+        }),
+        'ambiguous',
+      ],
+      [
+        'rule 6: missing failure evidence',
+        reviewApiError('provider_unavailable'),
+        'ambiguous',
+      ],
+      [
+        'rule 6: an unrecognised dispatch value is not evidence',
+        reviewApiError('provider_unavailable', {
+          executionCode: 'malformed_request',
+          dispatch: 'maybe' as never,
+          providerStatus: null,
+        }),
+        'ambiguous',
+      ],
+    ])('%s', (_label, err, expected) => {
+      expect(classifyPublicationFailure(err)).toBe(expected)
+    })
+
+    it.each([
+      [
+        'not_sent + malformed_request',
+        { dispatch: 'not_sent', executionCode: 'malformed_request' },
+        'terminal_rejection',
+      ],
+      [
+        'not_sent + admission coordination outage',
+        {
+          dispatch: 'not_sent',
+          executionCode: 'admission_denied',
+          executionAdmissionCode: 'coordination_unavailable',
+        },
+        'retryable',
+      ],
+      [
+        'answered 404',
+        { dispatch: 'answered', providerStatus: 404 },
+        'terminal_rejection',
+      ],
+      ['answered 503', { dispatch: 'answered', providerStatus: 503 }, 'ambiguous'],
+      [
+        'unknown dispatch keeps the kind rule',
+        { dispatch: 'unknown', executionCode: 'transport_error' },
+        'ambiguous',
+      ],
+      ['no dispatch field keeps the kind rule', {}, 'ambiguous'],
+    ])('gateway GbpApiError upstream_error with %s', (_label, fields, expected) => {
+      const err = Object.assign(
+        new Error('GBP API reviews.reply failed (upstream_error)'),
+        {
+          _tag: 'GbpApiError',
+          kind: 'upstream_error',
+          ...fields,
+        },
+      )
+      expect(classifyPublicationFailure(err)).toBe(expected)
+    })
+
+    it('a GbpApiError refusal stays terminal even when it was refused before dispatch', () => {
+      const err = Object.assign(
+        new Error('GBP API reviews.reply failed (permission_denied)'),
+        {
+          _tag: 'GbpApiError',
+          kind: 'permission_denied',
+          dispatch: 'not_sent',
+          executionCode: 'admission_denied',
+          executionAdmissionCode: 'authorization_denied',
+        },
+      )
+      expect(classifyPublicationFailure(err)).toBe('terminal_rejection')
+    })
+  })
+
+  describe('publicationFailureEvidence', () => {
+    it('reads the content-free dispatch evidence from a review API error', () => {
+      const err = Object.assign(new Error('Google review API request failed'), {
+        _tag: 'GoogleReviewApiError',
+        code: 'provider_unavailable',
+        failure: {
+          executionCode: 'malformed_request',
+          dispatch: 'not_sent',
+          providerStatus: null,
+        },
+      })
+      expect(publicationFailureEvidence(err)).toEqual({
+        executionCode: 'malformed_request',
+        dispatch: 'not_sent',
+        providerStatus: null,
+      })
+    })
+
+    it('reads the most specific code from a gateway GbpApiError', () => {
+      const err = Object.assign(
+        new Error('GBP API reviews.reply failed (upstream_error)'),
+        {
+          _tag: 'GbpApiError',
+          kind: 'upstream_error',
+          dispatch: 'answered',
+          executionCode: 'admission_denied',
+          executionAdmissionCode: 'coordination_unavailable',
+          providerStatus: 502,
+        },
+      )
+      expect(publicationFailureEvidence(err)).toEqual({
+        executionCode: 'coordination_unavailable',
+        dispatch: 'answered',
+        providerStatus: 502,
+      })
+    })
+
+    it.each([new TypeError('fetch failed'), null, 'text', { failure: 'nope' }])(
+      'reports unknown dispatch without evidence: %o',
+      (err) => {
+        expect(publicationFailureEvidence(err)).toEqual({
+          executionCode: null,
+          dispatch: 'unknown',
+          providerStatus: null,
+        })
+      },
+    )
   })
 })
 

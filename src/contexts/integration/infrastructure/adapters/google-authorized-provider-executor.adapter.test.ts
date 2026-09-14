@@ -89,6 +89,7 @@ describe('createGoogleAuthorizedProviderExecutor', () => {
       ok: false,
       code: 'admission_denied',
       admissionCode: 'authorization_denied',
+      dispatch: 'not_sent',
       retryAfterMs: 0,
     })
     expect(gateway.execute).not.toHaveBeenCalled()
@@ -113,6 +114,7 @@ describe('createGoogleAuthorizedProviderExecutor', () => {
       ok: false,
       code: 'admission_denied',
       admissionCode: 'credential_unavailable',
+      dispatch: 'not_sent',
       retryAfterMs: 0,
     })
     expect(admit).not.toHaveBeenCalled()
@@ -143,6 +145,7 @@ describe('createGoogleAuthorizedProviderExecutor', () => {
       ok: false,
       code: 'admission_denied',
       admissionCode: code,
+      dispatch: 'not_sent',
       retryAfterMs: 0,
     })
     expect(gateway.execute).not.toHaveBeenCalled()
@@ -178,6 +181,7 @@ describe('createGoogleAuthorizedProviderExecutor', () => {
       execute: vi.fn(async () => ({
         ok: false as const,
         code: 'transport_error' as const,
+        dispatch: 'unknown' as const,
         retryAfterMs: 0,
       })),
     }
@@ -215,6 +219,118 @@ describe('createGoogleAuthorizedProviderExecutor', () => {
     expect(acquireDispatch.mock.invocationCallOrder[0]).toBeLessThan(
       gateway.execute.mock.invocationCallOrder[0]!,
     )
+  })
+
+  it('reports not_sent without admitting a permit when the descriptor does not compile', async () => {
+    // Compilation runs before permit admission, so a rejected descriptor is
+    // positive evidence that nothing could have reached Google.
+    const { admit, gateway, executor } = setup()
+
+    await expect(
+      executor.execute(
+        { routeKey: 'account-management.accounts.list', accessToken: '' },
+        { authorization, deadlineMs: Date.parse('2026-08-12T10:00:15.000Z') },
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      code: 'malformed_request',
+      dispatch: 'not_sent',
+      retryAfterMs: 0,
+    })
+    expect(admit).not.toHaveBeenCalled()
+    expect(gateway.execute).not.toHaveBeenCalled()
+  })
+
+  it('reports not_sent when permit admission throws', async () => {
+    const gateway = { execute: vi.fn() }
+    const executor = createGoogleAuthorizedProviderExecutor({
+      bindCredential,
+      admit: async () => {
+        throw new Error('permit issuer unavailable')
+      },
+      gateway,
+    })
+
+    await expect(
+      executor.execute(descriptor, {
+        authorization,
+        deadlineMs: Date.parse('2026-08-12T10:00:15.000Z'),
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      code: 'admission_denied',
+      dispatch: 'not_sent',
+      retryAfterMs: 0,
+    })
+    expect(gateway.execute).not.toHaveBeenCalled()
+  })
+
+  it('reports not_sent when the caller aborted before the gateway opened', async () => {
+    const { admit, gateway, executor } = setup()
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      executor.execute(descriptor, {
+        authorization,
+        deadlineMs: Date.parse('2026-08-12T10:00:15.000Z'),
+        signal: controller.signal,
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      code: 'deadline_exceeded',
+      dispatch: 'not_sent',
+      retryAfterMs: 0,
+    })
+    expect(admit).not.toHaveBeenCalled()
+    expect(gateway.execute).not.toHaveBeenCalled()
+  })
+
+  it('reports unknown when the gateway call itself throws', async () => {
+    // The gateway may have called fetch before throwing; nothing proves it did not.
+    const executor = createGoogleAuthorizedProviderExecutor({
+      bindCredential,
+      admit: async () => ({ ok: true, permitId: 'permit-1' }),
+      gateway: {
+        execute: async () => {
+          throw new Error('gateway crashed')
+        },
+      },
+    })
+
+    await expect(
+      executor.execute(descriptor, {
+        authorization,
+        deadlineMs: Date.parse('2026-08-12T10:00:15.000Z'),
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      code: 'transport_error',
+      dispatch: 'unknown',
+      retryAfterMs: 0,
+    })
+  })
+
+  it('passes the gateway dispatch evidence through unchanged', async () => {
+    const answered = Object.freeze({
+      ok: false as const,
+      code: 'response_too_large' as const,
+      dispatch: 'answered' as const,
+      providerStatus: 502,
+      retryAfterMs: 0,
+    })
+    const executor = createGoogleAuthorizedProviderExecutor({
+      bindCredential,
+      admit: async () => ({ ok: true, permitId: 'permit-1' }),
+      gateway: { execute: async () => answered },
+    })
+
+    await expect(
+      executor.execute(descriptor, {
+        authorization,
+        deadlineMs: Date.parse('2026-08-12T10:00:15.000Z'),
+      }),
+    ).resolves.toBe(answered)
   })
 
   it('does not open the gateway when durable disconnect dispatch acquisition fails', async () => {
