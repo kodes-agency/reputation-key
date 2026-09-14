@@ -46,11 +46,14 @@ export const AsAccountAdmin: Story = {
     expect(canvas.getByText(/^security$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^preferences$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^notifications$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^organization$/i)).toBeInTheDocument()
+    expect(canvas.getByRole('link', { name: /^organization$/i })).toBeInTheDocument()
     expect(canvas.getByText(/^members$/i)).toBeInTheDocument()
     expect(canvas.queryByText(/^recognition$/i)).toBeNull()
-    expect(canvas.getByText(/^ai & replies$/i)).toBeInTheDocument()
+    expect(canvas.getByText(/^ai overview$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^integrations$/i)).toBeInTheDocument()
+    // Scope is labelled: account pages under You, shared pages under Organization.
+    expect(canvas.getByText(/^you$/i)).toBeInTheDocument()
+    expect(canvas.getAllByText(/^organization$/i)).toHaveLength(2)
   },
 }
 
@@ -61,10 +64,12 @@ export const AsPropertyManager: Story = {
   decorators: [withRole('PropertyManager')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(await canvas.findByText(/^organization$/i)).toBeInTheDocument()
+    expect(
+      await canvas.findByRole('link', { name: /^organization$/i }),
+    ).toBeInTheDocument()
     expect(canvas.getByText(/^members$/i)).toBeInTheDocument()
     expect(canvas.queryByText(/^recognition$/i)).toBeNull()
-    expect(canvas.getByText(/^ai & replies$/i)).toBeInTheDocument()
+    expect(canvas.getByText(/^ai overview$/i)).toBeInTheDocument()
     expect(canvas.queryByText(/^integrations$/i)).toBeNull()
   },
 }
@@ -84,7 +89,7 @@ export const AsMember: Story = {
     expect(canvas.queryByText(/^organization$/i)).toBeNull()
     expect(canvas.queryByText(/^members$/i)).toBeNull()
     expect(canvas.queryByText(/^recognition$/i)).toBeNull()
-    expect(canvas.queryByText(/^ai & replies$/i)).toBeNull()
+    expect(canvas.queryByText(/^ai overview$/i)).toBeNull()
     expect(canvas.queryByText(/^integrations$/i)).toBeNull()
   },
 }
