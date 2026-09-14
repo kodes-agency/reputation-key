@@ -85,6 +85,51 @@ async function deferralRows(propertyId: string): Promise<number> {
   return Number((result.rows[0] as { rows: number }).rows)
 }
 
+/**
+ * Wait until `count` sessions in this database are queued on a lock. The
+ * integration project runs files serially, so every waiter is this file's.
+ */
+async function waitForLockWaiters(count: number): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const result = await db.execute(sql`
+      SELECT count(*)::int AS waiting
+      FROM pg_stat_activity
+      WHERE datname = current_database()
+        AND wait_event_type = 'Lock'
+    `)
+    if (Number((result.rows[0] as { waiting: number }).waiting) >= count) return
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  throw new Error(`Expected ${count} Merchant AI command(s) blocked on the Property lock`)
+}
+
+/**
+ * Hold the Property row lock that both commands take first, start them in the
+ * given order, and release them together once both are queued behind it.
+ */
+async function raceBehindPropertyLock<A, B>(
+  first: () => Promise<A>,
+  second: () => Promise<B>,
+): Promise<[A, B]> {
+  const blocker = await cleanupPool.connect()
+  try {
+    await blocker.query('BEGIN')
+    await blocker.query(
+      'SELECT id FROM properties WHERE organization_id = $1 AND id = $2 FOR UPDATE',
+      [ORG, PROPERTY],
+    )
+    const firstResult = first()
+    await waitForLockWaiters(1)
+    const secondResult = second()
+    await waitForLockWaiters(2)
+    await blocker.query('COMMIT')
+    return await Promise.all([firstResult, secondResult])
+  } finally {
+    await blocker.query('ROLLBACK')
+    blocker.release()
+  }
+}
+
 async function removeProperties(): Promise<void> {
   for (const organizationId of [ORG, OTHER_ORG]) {
     await db.execute(
@@ -298,6 +343,42 @@ describe('Merchant AI decision deferral store', () => {
       }),
     ).resolves.toEqual({ outcome: 'property_not_found' })
     expect(await deferralRows(OTHER_PROPERTY)).toBe(0)
+  })
+
+  it('lets an enable queued behind a concurrent deferral delete the row it committed', async () => {
+    const [deferred, enabled] = await raceBehindPropertyLock(
+      () =>
+        deferrals.deferDecision({
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          actorUserId: OWNER,
+          now: FIRST_DEFERRAL,
+        }),
+      () =>
+        authorizations.mutate(enableCommand(PROPERTY, `deferral-race-${randomUUID()}`)),
+    )
+
+    expect(deferred.outcome).toBe('deferred')
+    expect(enabled.state).toBe('enabled')
+    expect(await deferralRows(PROPERTY)).toBe(0)
+  })
+
+  it('refuses a deferral queued behind a concurrent enable', async () => {
+    const [enabled, deferred] = await raceBehindPropertyLock(
+      () =>
+        authorizations.mutate(enableCommand(PROPERTY, `deferral-race-${randomUUID()}`)),
+      () =>
+        deferrals.deferDecision({
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          actorUserId: OWNER,
+          now: LATER,
+        }),
+    )
+
+    expect(enabled.state).toBe('enabled')
+    expect(deferred).toEqual({ outcome: 'already_enabled' })
+    expect(await deferralRows(PROPERTY)).toBe(0)
   })
 
   it('is removed by the Property cascade that Organization purge relies on', async () => {
