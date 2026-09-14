@@ -12,6 +12,7 @@ import {
   type MerchantAiCapability,
   type MerchantAiSnapshot,
 } from './merchant-ai-authorization'
+import type { MerchantAiDecisionDeferral } from './merchant-ai-decision-deferral'
 
 const NOW = new Date('2026-08-15T12:00:00.000Z')
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000001'
@@ -40,8 +41,15 @@ const BASE_SNAPSHOT: MerchantAiSnapshot = {
   redactionProfileFamily: 'gbp-review-global-v1',
 }
 
-function makeHarness(snapshot: MerchantAiSnapshot | null = null) {
+function makeHarness(
+  snapshot: MerchantAiSnapshot | null = null,
+  standingDeferral: MerchantAiDecisionDeferral | null = null,
+) {
   let current = snapshot
+  let deferral = standingDeferral
+  const decisionDeferrals = {
+    findDecisionDeferral: vi.fn(async () => deferral),
+  }
   const store: MerchantAiAuthorizationStore = {
     getSnapshot: vi.fn(async () => current),
     mutate: vi.fn(async (input) => {
@@ -72,6 +80,8 @@ function makeHarness(snapshot: MerchantAiSnapshot | null = null) {
         redactionProfileFamily: input.redactionProfileFamily,
       }
       current = next
+      // The store contract: an enable deletes the standing deferral atomically.
+      if (input.state === 'enabled') deferral = null
       return next
     }),
     restoreReset: vi.fn(async () => BASE_SNAPSHOT),
@@ -85,6 +95,7 @@ function makeHarness(snapshot: MerchantAiSnapshot | null = null) {
   )
   const service = createMerchantAiAuthorization({
     store,
+    decisionDeferrals,
     authorize,
     authorizeManagement,
     verifyStepUp,
@@ -96,7 +107,14 @@ function makeHarness(snapshot: MerchantAiSnapshot | null = null) {
     providerDeploymentProfileVersion: BASE_SNAPSHOT.providerDeploymentProfileVersion,
     redactionProfileFamily: BASE_SNAPSHOT.redactionProfileFamily,
   })
-  return { service, store, authorize, authorizeManagement, verifyStepUp }
+  return {
+    service,
+    store,
+    decisionDeferrals,
+    authorize,
+    authorizeManagement,
+    verifyStepUp,
+  }
 }
 
 const baseCommand = {
@@ -121,7 +139,51 @@ describe('Merchant AI authorization', () => {
         propertyId: BASE_SNAPSHOT.propertyId,
         actorUserId: 'user-1',
       }),
-    ).resolves.toEqual(BASE_SNAPSHOT)
+    ).resolves.toEqual({ ...BASE_SNAPSHOT, decisionDeferredAt: null })
+  })
+
+  it('surfaces a standing "not now" on a snapshot that is not enabled', async () => {
+    const deferredAt = new Date('2026-08-14T09:30:00.000Z')
+    const { service } = makeHarness(null, {
+      organizationId: BASE_SNAPSHOT.organizationId,
+      propertyId: BASE_SNAPSHOT.propertyId,
+      deferredBy: 'user-1',
+      deferredAt,
+    })
+
+    await expect(
+      service.get({
+        organizationId: BASE_SNAPSHOT.organizationId,
+        propertyId: BASE_SNAPSHOT.propertyId,
+        actorUserId: 'user-1',
+      }),
+    ).resolves.toMatchObject({
+      state: 'disabled',
+      decisionDeferredAt: deferredAt.toISOString(),
+    })
+  })
+
+  it('never reads a deferral beside an enabled head, and an enable reports none', async () => {
+    const { service, decisionDeferrals } = makeHarness(null, {
+      organizationId: BASE_SNAPSHOT.organizationId,
+      propertyId: BASE_SNAPSHOT.propertyId,
+      deferredBy: 'user-1',
+      deferredAt: new Date('2026-08-14T09:30:00.000Z'),
+    })
+
+    await expect(service.enable(baseCommand)).resolves.toMatchObject({
+      state: 'enabled',
+      decisionDeferredAt: null,
+    })
+    decisionDeferrals.findDecisionDeferral.mockClear()
+    await expect(
+      service.get({
+        organizationId: BASE_SNAPSHOT.organizationId,
+        propertyId: BASE_SNAPSHOT.propertyId,
+        actorUserId: 'user-1',
+      }),
+    ).resolves.toMatchObject({ state: 'enabled', decisionDeferredAt: null })
+    expect(decisionDeferrals.findDecisionDeferral).not.toHaveBeenCalled()
   })
 
   it('enables the fixed current capability bundle after management, policy, and step-up checks', async () => {

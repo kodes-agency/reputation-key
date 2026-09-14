@@ -17,6 +17,7 @@ import { organizationId } from '#/shared/domain/ids'
 import { deleteAiDraftsForAuthorization } from '#/shared/db/ai/ai-draft-purge'
 import { identityMerchantAiChanged } from '../../domain/events'
 import { decideMemberPropertyAuthority } from './member-property-authority'
+import { deleteMerchantAiDecisionDeferral } from './merchant-ai-decision.repository'
 import type {
   MerchantAiCapabilityEpochs,
   MerchantAiSnapshot,
@@ -658,6 +659,15 @@ export const createMerchantAiAuthorizationStore = (
           organizationId: input.organizationId,
           propertyId: input.propertyId,
         })
+        if (input.state === 'enabled') {
+          // The decision is made: a standing "not now" ends with the enable
+          // that supersedes it, in the same transaction (a change starts from
+          // an enabled head, so this deletes nothing there).
+          await deleteMerchantAiDecisionDeferral(tx, {
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+          })
+        }
         const snapshot = mapSnapshot(evidence)
         const event = identityMerchantAiChanged({
           organizationId: organizationId(input.organizationId),

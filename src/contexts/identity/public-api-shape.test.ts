@@ -87,6 +87,7 @@ describe('Identity public API', () => {
     expect(Object.keys(api.requests).sort()).toEqual(EXPECTED_REQUEST_KEYS)
     expect(Object.keys(api.requests.merchantAiAuthorization).sort()).toEqual([
       'change',
+      'defer',
       'enable',
       'get',
       'revoke',

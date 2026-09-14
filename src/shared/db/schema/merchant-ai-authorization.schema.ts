@@ -300,5 +300,38 @@ export const merchantAiEnablement = pgTable(
   ],
 )
 
+/**
+ * A standing "not now" for one Property's AI decision (migration 0015).
+ *
+ * It lives beside `merchant_ai_enablement` rather than on it: an enablement
+ * head must reference a consent-evidence head and carry a notice
+ * version/digest and capability/source epochs, and a deferral records no
+ * consent, evidence or epoch. Identity's defer command writes at most one row
+ * per Property and refuses while AI is enabled; a successful enable deletes the
+ * row in the same transaction. Both foreign keys cascade with the Property, so
+ * Organization purge removes the row together with the Property rows.
+ */
+export const merchantAiDecisionDeferrals = pgTable(
+  'merchant_ai_decision_deferrals',
+  {
+    propertyId: uuid('property_id')
+      .primaryKey()
+      .references(() => properties.id, { onDelete: 'cascade' }),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    deferredBy: varchar('deferred_by', { length: 255 }).notNull(),
+    deferredAt: timestamptz('deferred_at').notNull(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+      name: 'merchant_ai_decision_deferrals_tenant_fk',
+    }).onDelete('cascade'),
+    index('merchant_ai_decision_deferrals_org_idx').on(t.organizationId),
+  ],
+)
+
 export type MerchantAiEnablementRow = typeof merchantAiEnablement.$inferSelect
 export type MerchantAiConsentEvidenceRow = typeof merchantAiConsentEvidence.$inferSelect
+export type MerchantAiDecisionDeferralRow =
+  typeof merchantAiDecisionDeferrals.$inferSelect

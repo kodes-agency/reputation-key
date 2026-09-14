@@ -46,6 +46,9 @@ adapter; no other context reads its tables directly.
   AccountAdmin. Purging is irreversible and Closed is terminal.
 - Exports are deterministic, encrypted, time-bounded, and assembled from exactly one
   contribution per stable data-owner slot; raw retrieval tokens are never stored.
+- A Merchant AI decision deferral ("not now") is a per-Property marker, not consent:
+  it records no evidence, notice or epoch, is refused while AI is enabled, keeps the
+  first deferral on a repeat, and is deleted in the same transaction as an enable.
 
 ## Runtime seams
 

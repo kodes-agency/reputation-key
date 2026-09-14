@@ -4,6 +4,12 @@
 // `property_access_grants` (legacy people access) and
 // `property_access_grant` (current access). Both are erased.
 //
+// It also erases `merchant_ai_decision_deferrals`, the standing "not now" AI
+// decision that only Identity's defer command writes. The data-fate authority
+// files it with the Merchant AI authorization (AI-01), but it is disposable
+// decision state that names the deferring manager, not consent evidence: the
+// consent history in `merchant_ai_consent_evidence` is retained and untouched.
+//
 // THE TWO DELIBERATE EXCLUSIONS, and why each would be wrong to erase:
 //
 //   backup_erasure_ledger  is the evidence that an erasure happened. Destroying
@@ -28,6 +34,7 @@ import type {
   PropertyEraseInventoryEntry,
   PropertyEraseScope,
 } from '#/contexts/property/application/ports/property-erase-contributor.port'
+import { merchantAiDecisionDeferrals } from '#/shared/db/schema/merchant-ai-authorization.schema'
 import { propertyAccessGrants } from '#/shared/db/schema/people-access.schema'
 import { propertyAccessGrant } from '#/shared/db/schema/policy.schema'
 import type { Tx } from '#/shared/outbox/commit'
@@ -41,6 +48,11 @@ import type { Tx } from '#/shared/outbox/commit'
  * even if that ever stops being true.
  */
 const IDENTITY_PROPERTY_ERASE_PLAN = Object.freeze([
+  {
+    table: merchantAiDecisionDeferrals,
+    name: 'merchant_ai_decision_deferrals',
+    organizationScoped: true,
+  },
   {
     table: propertyAccessGrants,
     name: 'property_access_grants',

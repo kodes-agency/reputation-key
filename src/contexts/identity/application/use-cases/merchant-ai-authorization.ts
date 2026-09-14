@@ -9,6 +9,7 @@ import {
   type MerchantAiSnapshot,
   type MerchantAiState,
 } from '../../domain/merchant-ai-authorization'
+import type { MerchantAiDecisionDeferralReader } from './merchant-ai-decision-deferral'
 
 export {
   CURRENT_MERCHANT_AI_CAPABILITIES,
@@ -60,6 +61,7 @@ export type MerchantAiAuthorizationStore = Readonly<{
     organizationId: string
     propertyId: string
   }): Promise<MerchantAiSnapshot | null>
+  /** An enable also deletes the Property's standing decision deferral, atomically. */
   mutate(input: MerchantAiMutationInput): Promise<MerchantAiSnapshot>
   restoreReset(input: MerchantAiRestoreResetInput): Promise<MerchantAiSnapshot>
 }>
@@ -107,6 +109,8 @@ export class MerchantAiAuthorizationError extends Error {
 
 export type MerchantAiAuthorizationDeps = Readonly<{
   store: MerchantAiAuthorizationStore
+  /** Standing "not now" decisions, surfaced on the snapshot read. */
+  decisionDeferrals: MerchantAiDecisionDeferralReader
   authorizeManagement(input: {
     organizationId: string
     propertyId: string
@@ -324,7 +328,7 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
       )
     }
     await authorizeCapabilities(input, capabilities, now)
-    return deps.store.mutate({
+    const snapshot = await deps.store.mutate({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       actorUserId: input.actorUserId,
@@ -342,6 +346,9 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
       redactionProfileFamily: deps.redactionProfileFamily,
       now,
     })
+    // Enable deletes a standing deferral inside the mutation transaction, and
+    // change and revoke start from an enabled head, which never carries one.
+    return Object.freeze({ ...snapshot, decisionDeferredAt: null })
   }
 
   return {
@@ -359,7 +366,20 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
           'Merchant AI read is denied',
         )
       }
-      return (await deps.store.getSnapshot(input)) ?? defaultSnapshot(deps, input)
+      const scope = { organizationId: input.organizationId, propertyId: input.propertyId }
+      const snapshot =
+        (await deps.store.getSnapshot(scope)) ?? defaultSnapshot(deps, scope)
+      // Read after the head: an enable committing in between deletes the
+      // deferral, so the pair may be stale together but never shows an enabled
+      // head beside a standing deferral. An enabled head carries none.
+      const deferral =
+        snapshot.state === 'enabled'
+          ? null
+          : await deps.decisionDeferrals.findDecisionDeferral(scope)
+      return Object.freeze({
+        ...snapshot,
+        decisionDeferredAt: deferral?.deferredAt.toISOString() ?? null,
+      })
     },
 
     enable(input: MerchantAiCommandInput): Promise<MerchantAiSnapshot> {
