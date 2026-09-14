@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { getPropertyOverviewFn } from '#/contexts/reporting/server/dashboard'
 import {
   getPropertyGooglePerformance,
@@ -9,7 +9,8 @@ import { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
 import { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-aggregates'
 import { PropertyOverview } from '#/components/features/property/property-overview'
 import { dashboardKeys } from '#/shared/queries/query-keys'
-import { propertyQuery } from '#/routes/-queries/route-queries'
+import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queries'
+import { PropertySetupStrip } from '#/components/features/property/settings/property-setup-strip'
 import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 
 /**
@@ -44,6 +45,7 @@ function PropertyOverviewRoute() {
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: lifetime } = useSuspenseQuery(overviewQuery(propertyId, LIFETIME))
   const { data: pulse } = useSuspenseQuery(overviewQuery(propertyId, PULSE))
+  const { data: setup } = useQuery(propertySetupQuery(propertyId))
 
   return (
     <PropertyOverview
@@ -54,6 +56,7 @@ function PropertyOverviewRoute() {
       // Attention is a standing count, not a windowed one — the all-time read
       // carries the same signals, so the pulse read's copy is redundant.
       signals={lifetime.signals}
+      setupStrip={<PropertySetupStrip propertyId={propertyId} setup={setup} />}
       guestVoiceFns={{
         getTrend: getPropertyAiTrendFn,
         getAggregates: getPropertyAiAggregatesFn,

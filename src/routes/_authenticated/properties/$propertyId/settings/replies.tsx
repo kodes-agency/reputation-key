@@ -45,7 +45,10 @@ function PropertyRepliesSettings() {
       inboxKeys.details(),
     ],
   })
-  const libraryKeys = [reviewKeys.replyLibrary(propertyId)]
+  const libraryKeys = [
+    reviewKeys.replyLibrary(propertyId),
+    propertyKeys.setup(propertyId),
+  ]
   const saveProfile = useActionMutation(savePropertyReplyProfileFn, {
     successMessage: 'Reply profile saved',
     invalidateKeys: libraryKeys,

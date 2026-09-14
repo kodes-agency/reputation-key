@@ -11,6 +11,10 @@
 // BQC-5.1: lives under routes/-queries (route-layer plumbing) because it imports
 // context server functions — shared/ must not depend on context implementations.
 
+import {
+  getPropertySetupFn,
+  listPropertySetupSummariesFn,
+} from '#/contexts/reporting/server/property-setup'
 import { queryOptions } from '@tanstack/react-query'
 import { listProperties, getProperty } from '#/contexts/property/server/properties'
 import { listMembers } from '#/contexts/identity/server/organizations'
@@ -38,3 +42,18 @@ export function propertyQuery(propertyId: string) {
     staleTime: 60_000,
   })
 }
+
+export function propertySetupQuery(propertyId: string) {
+  return queryOptions({
+    queryKey: propertyKeys.setup(propertyId),
+    queryFn: () => getPropertySetupFn({ data: { propertyId } }),
+    staleTime: 30_000,
+  })
+}
+
+export const propertySetupSummariesQuery = queryOptions({
+  queryKey: propertyKeys.setupSummaries(),
+  queryFn: () => listPropertySetupSummariesFn(),
+  staleTime: 30_000,
+  retry: false,
+})

@@ -7,6 +7,9 @@ import { PropertyProfileCard } from './property-profile-card'
 import { PropertySettingsNav } from './property-settings-nav'
 import { visiblePropertySettingsSections } from './property-settings-sections'
 import { ReviewAnalysisProgressCard } from './review-analysis-progress-card'
+import { PropertySetupStrip } from './property-setup-strip'
+import type { PropertySetup } from '#/contexts/reporting/application/public-api'
+import { propertyId as toPropertyId } from '#/shared/domain/ids'
 
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000101'
 
@@ -194,5 +197,83 @@ export const AnalysisCaughtUp: Story = {
   ),
   play: async ({ canvasElement }) => {
     expect(within(canvasElement).getByText('Up to date')).toBeVisible()
+  },
+}
+
+const freshlyImported: PropertySetup = {
+  propertyId: toPropertyId(PROPERTY_ID),
+  attentionCount: 4,
+  steps: [
+    { key: 'google_linked', status: 'complete', asked: false, section: 'google' },
+    { key: 'reviews_synced', status: 'waiting', asked: false, section: null },
+    { key: 'reply_language', status: 'pending', asked: true, section: 'replies' },
+    { key: 'ai_decision', status: 'pending', asked: true, section: 'ai' },
+    { key: 'responsible_manager', status: 'pending', asked: true, section: 'people' },
+    { key: 'reply_voice', status: 'complete', asked: false, section: 'replies' },
+    { key: 'portal_published', status: 'pending', asked: false, section: 'portals' },
+  ],
+}
+
+export const SetupStripAfterImport: Story = {
+  render: () => <PropertySetupStrip propertyId={PROPERTY_ID} setup={freshlyImported} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('2 of 7 done')).toBeVisible()
+    expect(canvas.getByText('Reviews are syncing')).toBeVisible()
+    expect(
+      canvas.getByRole('link', { name: /choose a reply language/i }),
+    ).toHaveAttribute('href', `/properties/${PROPERTY_ID}/settings/replies`)
+    expect(canvas.getByRole('link', { name: /publish a portal/i })).toHaveAttribute(
+      'href',
+      `/properties/${PROPERTY_ID}/portals`,
+    )
+  },
+}
+
+export const SetupStripForAPropertyManager: Story = {
+  decorators: [withRole('PropertyManager')],
+  render: () => (
+    <PropertySetupStrip
+      propertyId={PROPERTY_ID}
+      setup={{
+        ...freshlyImported,
+        attentionCount: 1,
+        steps: freshlyImported.steps.map((step) =>
+          step.key === 'ai_decision'
+            ? { ...step, status: 'needs_admin' }
+            : step.key === 'reviews_synced'
+              ? { ...step, status: 'complete' }
+              : step.status === 'pending'
+                ? { ...step, status: 'complete' }
+                : step,
+        ),
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('An account admin decides on AI')).toBeVisible()
+    expect(canvas.queryByRole('link', { name: /decide on ai/i })).toBeNull()
+  },
+}
+
+export const SetupStripHiddenWhenDone: Story = {
+  render: () => (
+    <div data-testid="strip-host">
+      <PropertySetupStrip
+        propertyId={PROPERTY_ID}
+        setup={{
+          ...freshlyImported,
+          attentionCount: 0,
+          steps: freshlyImported.steps.map((step) => ({
+            ...step,
+            status: step.key === 'ai_decision' ? 'deferred' : 'complete',
+          })),
+        }}
+      />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    expect(within(canvasElement).getByTestId('strip-host')).toBeEmptyDOMElement()
   },
 }

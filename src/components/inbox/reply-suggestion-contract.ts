@@ -118,8 +118,7 @@ export const replySuggestionUnavailableMessage = (code: string): string => {
     return 'AI drafting is unavailable for this review language.'
   if (code === 'target_language_unavailable')
     return 'Set a property default reply language in property settings before loading a template.'
-  if (code === 'not_authorized')
-    return 'AI reply drafting is not enabled for this property.'
+  if (code === 'not_authorized') return 'AI is off for this property.'
   if (code === 'source_changed') return 'The review changed. Reload and try again.'
   if (code === 'brand_profile_unavailable')
     return "Reply suggestions need this property's public display name before they can be generated."

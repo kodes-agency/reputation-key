@@ -52,6 +52,8 @@ export interface PropertyListPageProps {
   comparison?: ReadonlyMap<string, PropertyComparison>
   /** Omitted, or complete, renders no banner. */
   checklist?: SetupChecklist
+  /** Setup steps needing this viewer, keyed by property id. Absent means unknown. */
+  setupAttention?: ReadonlyMap<string, number>
 }
 
 function ComparisonFigures({
@@ -97,10 +99,12 @@ function PropertyRow({
   property,
   removed,
   comparison,
+  setupAttention,
 }: Readonly<{
   property: Property
   removed: boolean
   comparison: PropertyComparison | undefined
+  setupAttention: number | undefined
 }>) {
   return (
     <div className="flex items-stretch overflow-hidden rounded-lg border">
@@ -114,6 +118,11 @@ function PropertyRow({
           <div className="flex min-w-0 items-center gap-2">
             <Badge variant="secondary">{property.slug}</Badge>
             {removed ? <Badge variant="outline">Removed</Badge> : null}
+            {!removed && setupAttention !== undefined && setupAttention > 0 ? (
+              <Badge variant="outline" className="border-primary/30 text-primary">
+                {setupAttention === 1 ? '1 setup step' : `${setupAttention} setup steps`}
+              </Badge>
+            ) : null}
             <span className="truncate text-sm text-muted-foreground">
               {property.timezone}
             </span>
@@ -130,6 +139,7 @@ export function PropertyListPage({
   properties,
   comparison,
   checklist,
+  setupAttention,
 }: PropertyListPageProps) {
   const { can } = usePermissions()
   const { workspace, removed } = partitionWorkspaceProperties(properties)
@@ -174,6 +184,7 @@ export function PropertyListPage({
               property={property}
               removed={false}
               comparison={comparison?.get(property.id)}
+              setupAttention={setupAttention?.get(property.id)}
             />
           ))}
         </div>
@@ -199,6 +210,7 @@ export function PropertyListPage({
                 property={property}
                 removed
                 comparison={undefined}
+                setupAttention={undefined}
               />
             ))}
           </div>

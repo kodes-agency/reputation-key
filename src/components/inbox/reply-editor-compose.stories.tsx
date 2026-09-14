@@ -835,9 +835,7 @@ export const AiRepliesNotEnabled: Story = {
     await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
 
     await waitFor(() =>
-      expect(
-        canvas.getByText(/AI reply drafting is not enabled for this property/i),
-      ).toBeVisible(),
+      expect(canvas.getByText(/AI is off for this property/i)).toBeVisible(),
     )
     const link = canvas.getByRole('link', { name: /enable ai replies/i })
     expect(link).toHaveAttribute(

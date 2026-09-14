@@ -11,7 +11,12 @@ import {
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { can } from '#/shared/domain/permissions'
-import { aiKeys, identityKeys, inboxKeys } from '#/shared/queries/query-keys'
+import {
+  aiKeys,
+  identityKeys,
+  inboxKeys,
+  propertyKeys,
+} from '#/shared/queries/query-keys'
 import {
   merchantAiAuthorizationQuery,
   reviewAnalysisProgressQuery,
@@ -41,7 +46,10 @@ function PropertyAiSettings() {
   const { data: progress } = useQuery(reviewAnalysisProgressQuery(propertyId))
   const afterChange = [
     identityKeys.merchantAiAuthorization(propertyId),
+    identityKeys.merchantAiOverview(),
     aiKeys.reviewAnalysisProgress(propertyId),
+    propertyKeys.setup(propertyId),
+    propertyKeys.setupSummaries(),
     inboxKeys.details(),
   ]
   const enable = useActionMutation(enableMerchantAiFn, {

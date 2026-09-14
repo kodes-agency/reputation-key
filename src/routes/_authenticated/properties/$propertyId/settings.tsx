@@ -1,11 +1,12 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
 import { PropertySettingsNav } from '#/components/features/property/settings/property-settings-nav'
 import { visiblePropertySettingsSections } from '#/components/features/property/settings/property-settings-sections'
+import { PropertySetupStrip } from '#/components/features/property/settings/property-setup-strip'
 import type { AuthRouteContext } from '#/routes/_authenticated'
-import { propertyQuery } from '#/routes/-queries/route-queries'
+import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queries'
 import { can } from '#/shared/domain/permissions'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/settings')({
@@ -22,6 +23,7 @@ function PropertySettingsLayout() {
   const { propertyId } = Route.useParams()
   const { role } = Route.useRouteContext() as AuthRouteContext
   const { data } = useSuspenseQuery(propertyQuery(propertyId))
+  const { data: setup } = useQuery(propertySetupQuery(propertyId))
   const sections = visiblePropertySettingsSections((permission) => can(role, permission))
 
   return (
@@ -40,6 +42,7 @@ function PropertySettingsLayout() {
           <PropertySettingsNav propertyId={propertyId} sections={sections} />
         </div>
         <div className="flex min-w-0 flex-col gap-6">
+          <PropertySetupStrip propertyId={propertyId} setup={setup} />
           <Outlet />
         </div>
       </div>
