@@ -307,6 +307,48 @@ export const AllAlreadyLinked: Story = {
   },
 }
 
+/**
+ * The Property context rejected a confirmed detail. The row names the field and
+ * sends the manager back to import the location again; a retry could not help.
+ */
+export const RejectedProfile: Story = {
+  render: () => (
+    <ProgressHarness
+      snapshot={{
+        ...processing,
+        status: 'failed',
+        totalCount: 1,
+        processedCount: 1,
+        pollAfterMs: null,
+        canRetry: false,
+        counts: { ...processing.counts, pending: 0, imported: 0, failed: 1 },
+        items: [
+          {
+            ...items[1]!,
+            outcomeCode: 'tenant_profile_invalid',
+            messageKey: 'property_import.tenant_profile_invalid',
+            retryable: false,
+            userAction: 'none',
+            invalidProfileField: 'timezone',
+          },
+        ],
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const messages = canvas.getAllByText(
+      'The timezone was rejected. Choose a valid timezone and import this location again.',
+    )
+    await expect(messages.some((message) => message.checkVisibility())).toBe(true)
+    const links = canvas.getAllByRole('link', {
+      name: /import juniper street café again/i,
+    })
+    await expect(links[0]).toHaveAttribute('href', '/properties/import-google')
+    await expect(canvas.queryByRole('button', { name: /retry/i })).toBeNull()
+  },
+}
+
 export const LiveUpdatesPaused: Story = {
   args: {
     progress: processing,

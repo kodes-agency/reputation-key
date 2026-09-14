@@ -633,6 +633,65 @@ describe('GoogleImportV2Processor', () => {
     )
   })
 
+  it.each([
+    ['name', 'invalid_name'],
+    ['timezone', 'invalid_timezone'],
+    ['country', 'invalid_country'],
+  ] as const)(
+    'ends a rejected %s as tenant_profile_invalid naming the field',
+    async (field, code) => {
+      const harness = setup({
+        createError: Object.assign(new Error('rejected profile'), {
+          code,
+          _tag: 'PropertyError',
+        }),
+      })
+
+      await harness.processor.process({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        attemptOrdinal: 1,
+      })
+
+      // Terminal on the first attempt: the same profile cannot succeed later.
+      expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
+      expect(harness.completeClaim).toHaveBeenCalledExactlyOnceWith({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        claimFence: CLAIM_FENCE,
+        outcomeCode: 'tenant_profile_invalid',
+        retainRetryState: false,
+        now: NOW,
+        detail: { kind: 'invalid_profile_field', field },
+      })
+    },
+  )
+
+  it('names the field when the Property builder itself rejects the confirmed profile', async () => {
+    const item = claimedItem({ timezone: 'Mars/Olympus' })
+    const harness = setup({ claim: { kind: 'claimed', item } })
+
+    await harness.processor.process({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+    })
+
+    expect(harness.createBoundProperty).not.toHaveBeenCalled()
+    expect(harness.completeClaim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcomeCode: 'tenant_profile_invalid',
+        detail: { kind: 'invalid_profile_field', field: 'timezone' },
+      }),
+    )
+    const logged = JSON.stringify(harness.logger.warn.mock.calls)
+    expect(logged).toContain('tenant_profile_invalid')
+    expect(logged).not.toContain('Mars/Olympus')
+  })
+
   it('logs the originating error before folding it into a content-free outcome', async () => {
     const harness = setup({
       createError: Object.assign(new Error('slug already taken'), {

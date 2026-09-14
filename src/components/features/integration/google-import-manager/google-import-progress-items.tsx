@@ -17,7 +17,10 @@ import {
   TableHeader,
   TableRow,
 } from '#/components/ui/table'
-import { importItemMessage } from './google-import-progress-model'
+import {
+  importItemMessage,
+  importItemNeedsReimport,
+} from './google-import-progress-model'
 
 type Props = Readonly<{
   items: readonly ImportProgressItemDto[]
@@ -72,7 +75,10 @@ function RetryButton({
   )
 }
 
-/** Imported and relinked items link straight to the Property they produced. */
+/**
+ * Imported and relinked items link straight to the Property they produced; a
+ * rejected profile sends the manager back to import the location again.
+ */
 function NextStep({
   item,
   retryingItemId,
@@ -84,6 +90,24 @@ function NextStep({
   mobile?: boolean
   onRetry: (item: ImportProgressItemDto) => void
 }>) {
+  if (importItemNeedsReimport(item)) {
+    return (
+      <Button
+        asChild
+        size="sm"
+        variant="outline"
+        className={mobile ? 'w-full' : undefined}
+      >
+        <Link
+          to="/properties/import-google"
+          aria-label={`Import ${item.propertyName} again`}
+        >
+          Import again
+          <ArrowRight aria-hidden="true" />
+        </Link>
+      </Button>
+    )
+  }
   if (item.propertyId !== null) {
     return (
       <Button

@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   GBP_IMPORT_ITEM_STATUSES,
   IMPORT_OUTCOME_CODES,
+  IMPORT_PROFILE_FIELDS,
   type ImportProgressDto,
 } from '#/contexts/integration/application/public-api'
 import {
   importItemMessage,
+  importItemNeedsReimport,
   importProgressPercent,
   importProgressSummary,
   isImportParentTerminal,
@@ -43,6 +45,30 @@ describe('Google import progress presentation', () => {
     for (const outcomeCode of IMPORT_OUTCOME_CODES) {
       expect(importItemMessage({ status: 'failed', outcomeCode })).not.toMatch(/_/u)
     }
+  })
+
+  it('names the rejected field and sends the manager back to import again', () => {
+    for (const field of IMPORT_PROFILE_FIELDS) {
+      const message = importItemMessage({
+        status: 'failed',
+        outcomeCode: 'tenant_profile_invalid',
+        invalidProfileField: field,
+      })
+      expect(message).toMatch(/import this location again/u)
+      expect(message).not.toMatch(/_/u)
+    }
+    expect(
+      importItemMessage({
+        status: 'failed',
+        outcomeCode: 'tenant_profile_invalid',
+        invalidProfileField: 'country',
+      }),
+    ).toMatch(/^The country was rejected/u)
+    expect(importItemNeedsReimport({ outcomeCode: 'tenant_profile_invalid' })).toBe(true)
+    expect(importItemNeedsReimport({ outcomeCode: 'temporarily_unavailable' })).toBe(
+      false,
+    )
+    expect(importItemNeedsReimport({ outcomeCode: null })).toBe(false)
   })
 
   it('treats every final parent status as terminal and processing states as live', () => {

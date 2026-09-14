@@ -2,6 +2,7 @@ import type {
   GbpImportItemStatus,
   ImportOutcomeCode,
   ImportParentStatus,
+  ImportProfileField,
   ImportProgressDto,
 } from '#/contexts/integration/application/public-api'
 
@@ -33,7 +34,16 @@ const OUTCOME_MESSAGES: Record<ImportOutcomeCode, string> = {
   temporarily_unavailable: 'Google is temporarily unavailable. Retry this item.',
   cleanup_required: 'Import could not finish safely. Contact support.',
   internal_error: 'Import could not be completed.',
-  tenant_profile_invalid: 'A property detail was rejected. Correct it and import again.',
+  tenant_profile_invalid:
+    'A property detail was rejected. Correct it and import this location again.',
+}
+
+const PROFILE_FIELD_MESSAGES: Record<ImportProfileField, string> = {
+  name: 'The property name was rejected. Correct it and import this location again.',
+  timezone:
+    'The timezone was rejected. Choose a valid timezone and import this location again.',
+  country:
+    'The country was rejected. Choose a valid country and import this location again.',
 }
 
 const PARENT_MESSAGES: Record<ImportParentStatus, string> = {
@@ -49,11 +59,22 @@ export function importItemMessage(
   item: Readonly<{
     status: GbpImportItemStatus
     outcomeCode: ImportOutcomeCode | null
+    invalidProfileField?: ImportProfileField | null
   }>,
 ): string {
+  if (item.outcomeCode === 'tenant_profile_invalid' && item.invalidProfileField) {
+    return PROFILE_FIELD_MESSAGES[item.invalidProfileField]
+  }
   return item.outcomeCode
     ? OUTCOME_MESSAGES[item.outcomeCode]
     : ITEM_STATUS_MESSAGES[item.status]
+}
+
+/** A rejected profile is fixed by importing the location again, not by a retry. */
+export function importItemNeedsReimport(
+  item: Readonly<{ outcomeCode: ImportOutcomeCode | null }>,
+): boolean {
+  return item.outcomeCode === 'tenant_profile_invalid'
 }
 
 export function parentStatusMessage(status: ImportParentStatus): string {

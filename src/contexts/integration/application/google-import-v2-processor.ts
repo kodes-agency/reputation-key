@@ -17,12 +17,14 @@ import {
   GOOGLE_PROPERTY_IMPORT_ITEM_JOB,
   reconciledOutcomeCode,
   type ImportOutcomeCode,
+  type ImportProfileField,
 } from './google-import-v2-contract'
 import type { ManageNotificationsApi } from './use-cases/manage-notifications'
 import {
   GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS,
   GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
   type GoogleImportV2ClaimedItem,
+  type GoogleImportV2OutcomeDetail,
   type GoogleImportV2Store,
 } from './ports/google-import-v2-store.port'
 import {
@@ -57,7 +59,17 @@ type ImportFollowUpTarget = Readonly<{
   locationId: string
 }>
 
-function propertyOutcome(error: unknown): ImportOutcomeCode | null {
+type TerminalOutcome = Readonly<{
+  outcomeCode: ImportOutcomeCode
+  detail?: GoogleImportV2OutcomeDetail
+}>
+
+const profileRejected = (field: ImportProfileField): TerminalOutcome => ({
+  outcomeCode: 'tenant_profile_invalid',
+  detail: { kind: 'invalid_profile_field', field },
+})
+
+function propertyOutcome(error: unknown): TerminalOutcome | null {
   // Explicit BEFORE the domain switch: pool exhaustion and lock/session
   // timeouts share no code space with Property's domain errors, so leaving
   // them on the `default` fallthrough made their transient handling
@@ -66,23 +78,30 @@ function propertyOutcome(error: unknown): ImportOutcomeCode | null {
   if (isTransientGoogleImportInfrastructureError(error)) return null
   switch (googleImportErrorCode(error)) {
     case 'location_already_bound':
-      return 'already_exists'
+      return { outcomeCode: 'already_exists' }
     case 'active_binding_conflict':
-      return 'active_binding_conflict'
+      return { outcomeCode: 'active_binding_conflict' }
     case 'stale_binding':
     case 'stale_profile':
-      return 'stale_binding'
+      return { outcomeCode: 'stale_binding' }
     case 'property_deleted':
     case 'property_not_found':
-      return 'property_deleted'
+      return { outcomeCode: 'property_deleted' }
+    // The confirmed profile broke a Property rule. Retrying the same profile
+    // cannot succeed; the manager has to correct the field and import again.
+    case 'invalid_name':
+      return profileRejected('name')
+    case 'invalid_timezone':
+      return profileRejected('timezone')
+    case 'invalid_country':
+      return profileRejected('country')
+    // The slug is generated from the import item id, not confirmed by the
+    // manager, so a rejected slug is RepKey's defect rather than a profile fix.
+    case 'invalid_slug':
     case 'invalid_binding':
     case 'invalid_transition':
-    case 'invalid_name':
-    case 'invalid_slug':
-    case 'invalid_timezone':
-    case 'invalid_country':
     case 'idempotency_conflict':
-      return 'internal_error'
+      return { outcomeCode: 'internal_error' }
     default:
       return null
   }
@@ -287,6 +306,7 @@ export function createGoogleImportV2Processor(
     item: GoogleImportV2ClaimedItem,
     outcomeCode: ImportOutcomeCode,
     retainRetryState = false,
+    detail?: GoogleImportV2OutcomeDetail,
   ): Promise<void> => {
     const now = deps.clock()
     if (await reconcileReceipt(item.organizationId, item.itemId, now)) return
@@ -298,6 +318,7 @@ export function createGoogleImportV2Processor(
       outcomeCode,
       retainRetryState,
       now,
+      ...(detail ? { detail } : {}),
     })
   }
 
@@ -516,11 +537,13 @@ export function createGoogleImportV2Processor(
           retryRevision: item.retryRevision,
           errorName: error instanceof Error ? error.name : 'unknown',
           errorCode: googleImportErrorCode(error),
-          outcome: outcome ?? 'transient',
+          outcome: outcome?.outcomeCode ?? 'transient',
         },
         'Google import item effect failed',
       )
-      return outcome ? complete(item, outcome) : transientFailure(item, error)
+      return outcome
+        ? complete(item, outcome.outcomeCode, false, outcome.detail)
+        : transientFailure(item, error)
     }
   }
 
