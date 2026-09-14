@@ -39,3 +39,84 @@ export type MerchantAiSnapshot = Readonly<{
    */
   decisionDeferredAt?: string | null
 }>
+
+/** The notice and processing policy a grant is recorded under. */
+export type MerchantAiExecutionContract = Readonly<{
+  noticeVersion: string
+  noticeDigest: string
+  sourcePolicyId: string
+  routingPolicyVersion: number
+  providerDeploymentProfileVersion: 'private-beta-global-v1'
+  redactionProfileFamily: string
+}>
+
+/** What a consent command asks a Property's grant to be. */
+export type MerchantAiDesiredGrant = MerchantAiExecutionContract &
+  Readonly<{
+    /** Normalized: unique and in catalogue order. */
+    capabilities: ReadonlyArray<MerchantAiCapability>
+    capabilityRuntimeProfileVersions: CapabilityRuntimeProfileVersions
+    authorizedSourceEpoch: number
+  }>
+
+export function isMerchantAiExecutionContractCurrent(
+  recorded: MerchantAiExecutionContract,
+  served: MerchantAiExecutionContract,
+): boolean {
+  return (
+    recorded.noticeVersion === served.noticeVersion &&
+    recorded.noticeDigest === served.noticeDigest &&
+    recorded.sourcePolicyId === served.sourcePolicyId &&
+    recorded.routingPolicyVersion === served.routingPolicyVersion &&
+    recorded.providerDeploymentProfileVersion ===
+      served.providerDeploymentProfileVersion &&
+    recorded.redactionProfileFamily === served.redactionProfileFamily
+  )
+}
+
+function sameCapabilities(
+  left: ReadonlyArray<MerchantAiCapability>,
+  right: ReadonlyArray<MerchantAiCapability>,
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((capability, index) => capability === right[index])
+  )
+}
+
+function sameRuntimeProfiles(
+  left: CapabilityRuntimeProfileVersions,
+  right: CapabilityRuntimeProfileVersions,
+): boolean {
+  const leftKeys = Object.keys(left).sort()
+  const rightKeys = Object.keys(right).sort()
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      (key, index) =>
+        key === rightKeys[index] &&
+        left[key as MerchantAiCapability] === right[key as MerchantAiCapability],
+    )
+  )
+}
+
+/**
+ * True when a grant already records exactly the desired one: the same
+ * capabilities, runtime profiles, source epoch, and execution contract.
+ * Recording it again would be a transition that changes nothing, so it never
+ * bumps an epoch or writes evidence. Callers check the grant's state.
+ */
+export function isMerchantAiGrantCurrent(
+  current: MerchantAiSnapshot,
+  desired: MerchantAiDesiredGrant,
+): boolean {
+  return (
+    sameCapabilities(current.capabilities, desired.capabilities) &&
+    sameRuntimeProfiles(
+      current.capabilityRuntimeProfileVersions,
+      desired.capabilityRuntimeProfileVersions,
+    ) &&
+    current.authorizedSourceEpoch === desired.authorizedSourceEpoch &&
+    isMerchantAiExecutionContractCurrent(current, desired)
+  )
+}
