@@ -543,3 +543,60 @@ export const createMemberPropertyAuthorityLookup = (
     return decision.allowed
   }
 }
+
+export type MemberPermissionPropertyScope =
+  | Readonly<{ kind: 'organization' }>
+  | Readonly<{ kind: 'properties'; propertyIds: readonly string[] }>
+  | Readonly<{ kind: 'denied' }>
+
+/**
+ * Every Property a member may act on for one permission, resolved in one pass:
+ * the list-shaped counterpart of {@link decideMemberPropertyAuthority}.
+ * Organization scope needs no grant read; assigned scope is exactly the
+ * member's current grants. It takes no locks, so it serves reads only — a
+ * write must still decide per Property inside its own transaction.
+ */
+export async function resolveMemberPermissionPropertyScope(
+  db: MemberPropertyAuthorityDatabase,
+  input: Readonly<{
+    organizationId: string
+    userId: string
+    permission: Permission
+    at: Date
+  }>,
+): Promise<MemberPermissionPropertyScope> {
+  const member = await db.execute(sql`
+    SELECT role
+    FROM member
+    WHERE "organizationId" = ${input.organizationId}
+      AND "userId" = ${input.userId}
+    LIMIT 1
+  `)
+  const memberRole = member.rows[0]?.role
+  if (typeof memberRole !== 'string' || memberRole.length === 0) {
+    return { kind: 'denied' }
+  }
+
+  const { context } = await resolveMemberAuthContextWithDatabase(db, {
+    organizationId: input.organizationId,
+    userId: input.userId,
+    memberRole,
+  })
+  const requirement = propertyAuthorityRequirement(context, input.permission)
+  if (requirement === 'deny') return { kind: 'denied' }
+  if (requirement === 'organization') return { kind: 'organization' }
+
+  const grants = await db.execute(sql`
+    SELECT DISTINCT property_id::text AS property_id
+    FROM property_access_grant
+    WHERE organization_id = ${input.organizationId}
+      AND user_id = ${input.userId}
+      AND revoked_at IS NULL
+      AND (expires_at IS NULL OR expires_at > ${input.at})
+    ORDER BY property_id
+  `)
+  return {
+    kind: 'properties',
+    propertyIds: grants.rows.map((row) => String(row.property_id)),
+  }
+}

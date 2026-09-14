@@ -206,3 +206,27 @@ export const deferMerchantAiDecisionFn = createServerFn({ method: 'POST' })
       'identity.deferMerchantAiDecision',
     ),
   )
+
+/**
+ * Read-only Organization AI overview: every Property the actor may manage AI
+ * for, with its authorization state, re-consent flag and standing deferral.
+ */
+export const listMerchantAiOverviewFn = createServerFn({ method: 'GET' }).handler(
+  tracedHandler(
+    async () => {
+      const { actor } = await managementContext(undefined)
+      try {
+        return await getContainer().identityPublicApi.requests.merchantAiAuthorization.listOverview(
+          {
+            organizationId: actor.organizationId as string,
+            actorUserId: actor.userId as string,
+          },
+        )
+      } catch (error) {
+        mapMerchantAiError(error)
+      }
+    },
+    'GET',
+    'identity.listMerchantAiOverview',
+  ),
+)

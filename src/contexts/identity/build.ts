@@ -54,8 +54,10 @@ import {
 } from '#/shared/auth/beta-capabilities'
 import { createMerchantAiAuthorization } from './application/use-cases/merchant-ai-authorization'
 import { createMerchantAiDecisionDeferral } from './application/use-cases/merchant-ai-decision-deferral'
+import { listMerchantAiOverview } from './application/use-cases/merchant-ai-overview'
 import { createMerchantAiAuthorizationStore } from './infrastructure/repositories/merchant-ai-authorization.repository'
 import { createMerchantAiDecisionDeferralStore } from './infrastructure/repositories/merchant-ai-decision.repository'
+import { createMerchantAiOverviewReader } from './infrastructure/repositories/merchant-ai-overview.repository'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -115,6 +117,7 @@ import {
   decideCurrentManagerPropertyAuthority,
   decideCurrentMemberPropertyAuthority,
   decideMemberPropertyAuthority,
+  resolveMemberPermissionPropertyScope,
   type ManagerPropertyAuthorityRequirement,
   type MemberPropertyAuthorityDatabase,
 } from './infrastructure/repositories/member-property-authority'
@@ -686,6 +689,20 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     authorizeManagement: authorizeMerchantAiManagement,
     clock: deps.clock,
   })
+  const listMerchantAiOverviewRead = listMerchantAiOverview({
+    reader: createMerchantAiOverviewReader(deps.db),
+    // The same ai.manage authority as each Property command, resolved once.
+    resolveManagementScope: (input) =>
+      resolveMemberPermissionPropertyScope(deps.db, {
+        organizationId: input.organizationId,
+        userId: input.actorUserId,
+        permission: 'ai.manage',
+        at: input.now,
+      }),
+    clock: deps.clock,
+    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+  })
   const merchantAiAuthorization = createMerchantAiAuthorization({
     store: createMerchantAiAuthorizationStore(deps.db, deps.idGen),
     decisionDeferrals: merchantAiDecisionDeferrals,
@@ -868,6 +885,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     deleteCustomRole: deleteCustomRole({ identity: deps.identityPort }),
     merchantAiAuthorization,
     merchantAiDecisionDeferral,
+    listMerchantAiOverview: listMerchantAiOverviewRead,
     organizationLifecycle,
   } as const
 
@@ -877,6 +895,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     change: useCases.merchantAiAuthorization.change,
     revoke: useCases.merchantAiAuthorization.revoke,
     defer: useCases.merchantAiDecisionDeferral.defer,
+    listOverview: useCases.listMerchantAiOverview,
   })
   const requestApi = Object.freeze({
     inviteMember: useCases.inviteMember,

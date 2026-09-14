@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   change: vi.fn(),
   revoke: vi.fn(),
   defer: vi.fn(),
+  listOverview: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
 }))
@@ -21,6 +22,7 @@ vi.mock('#/composition', () => ({
           change: mocks.change,
           revoke: mocks.revoke,
           defer: mocks.defer,
+          listOverview: mocks.listOverview,
         },
       },
     },
@@ -43,7 +45,9 @@ import {
   changeMerchantAiCapabilitiesFn,
   deferMerchantAiDecisionFn,
   getMerchantAiAuthorizationFn,
+  listMerchantAiOverviewFn,
 } from './merchant-ai'
+import { MerchantAiAuthorizationError } from '../application/use-cases/merchant-ai-authorization'
 import { merchantAiDecisionError } from '../domain/merchant-ai-decision-errors'
 
 const START_KEY = Symbol.for('tanstack-start:start-storage-context')
@@ -208,5 +212,46 @@ describe('Merchant AI server functions', () => {
       ),
     ).rejects.toThrow('execution denied')
     expect(mocks.defer).not.toHaveBeenCalled()
+  })
+
+  it('lists the overview for the resolved actor behind the organization-level management gate', async () => {
+    mocks.listOverview.mockResolvedValue({ properties: [] })
+
+    await withStartContext(() => listMerchantAiOverviewFn())
+
+    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
+      actor,
+      action: 'ai.manage',
+    })
+    expect(mocks.listOverview).toHaveBeenCalledWith({
+      organizationId: actor.organizationId,
+      actorUserId: actor.userId,
+    })
+  })
+
+  it('maps a denied overview to forbidden', async () => {
+    mocks.listOverview.mockRejectedValue(
+      new MerchantAiAuthorizationError(
+        'capability_denied',
+        'Merchant AI overview is denied',
+      ),
+    )
+
+    await expect(
+      withStartContext(() => listMerchantAiOverviewFn()),
+    ).rejects.toMatchObject({
+      name: 'MerchantAiAuthorizationError',
+      code: 'capability_denied',
+      status: 403,
+    })
+  })
+
+  it('does not read the overview when the management gate denies the request', async () => {
+    mocks.requireExecutionAllowed.mockRejectedValue(new Error('execution denied'))
+
+    await expect(withStartContext(() => listMerchantAiOverviewFn())).rejects.toThrow(
+      'execution denied',
+    )
+    expect(mocks.listOverview).not.toHaveBeenCalled()
   })
 })

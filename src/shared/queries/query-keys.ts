@@ -102,6 +102,8 @@ export const identityKeys = {
   /** Merchant AI consent snapshot for one property (import onboarding). */
   merchantAiAuthorization: (propertyId: string) =>
     [...identityKeys.all, 'merchant-ai', propertyId] as const,
+  /** Read-only Organization AI overview across the Properties the viewer manages. */
+  merchantAiOverview: () => [...identityKeys.all, 'merchant-ai-overview'] as const,
 }
 
 // ── Properties ──────────────────────────────────────────────────────────

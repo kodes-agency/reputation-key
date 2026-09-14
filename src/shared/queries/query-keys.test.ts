@@ -9,6 +9,16 @@ import {
 } from './query-keys'
 
 describe('identity query keys', () => {
+  it('keeps the organization AI overview beside, not inside, per-property consent snapshots', () => {
+    expect(identityKeys.merchantAiOverview()).toEqual([
+      'identity',
+      'merchant-ai-overview',
+    ])
+    expect(identityKeys.merchantAiAuthorization('property-1').slice(0, 2)).not.toEqual(
+      identityKeys.merchantAiOverview(),
+    )
+  })
+
   it('keeps personal and organization invitation response shapes disjoint', () => {
     const personal = identityKeys.userInvitations()
     const organization = identityKeys.organizationInvitations()
