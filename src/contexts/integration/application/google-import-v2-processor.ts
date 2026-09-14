@@ -322,6 +322,37 @@ export function createGoogleImportV2Processor(
     })
   }
 
+  /**
+   * The Property that already holds an `already_exists` item's location, so the
+   * progress view can link to it. The lookup is scoped to the item's own
+   * Organization (location bindings are unique per Organization), and a holder
+   * from anywhere else is ignored, so another tenant's Property id is never
+   * recorded. A failed lookup loses only the link, never the outcome.
+   */
+  const existingPropertyDetail = async (
+    item: GoogleImportV2ClaimedItem,
+  ): Promise<GoogleImportV2OutcomeDetail | undefined> => {
+    try {
+      const [holder] = await deps.propertyBindingApi.readByLocationIds(
+        organizationId(item.organizationId),
+        [item.providerLocationSuffix],
+      )
+      return holder && holder.organizationId === item.organizationId
+        ? { kind: 'existing_property', propertyId: holder.propertyId }
+        : undefined
+    } catch (error) {
+      deps.logger.warn(
+        {
+          itemId: item.itemId,
+          errorName: error instanceof Error ? error.name : 'unknown',
+          errorCode: googleImportErrorCode(error),
+        },
+        'Google import could not resolve the Property that already holds the location',
+      )
+      return undefined
+    }
+  }
+
   const transientFailure = async (
     item: GoogleImportV2ClaimedItem,
     error?: unknown,
@@ -541,9 +572,12 @@ export function createGoogleImportV2Processor(
         },
         'Google import item effect failed',
       )
-      return outcome
-        ? complete(item, outcome.outcomeCode, false, outcome.detail)
-        : transientFailure(item, error)
+      if (!outcome) return transientFailure(item, error)
+      const detail =
+        outcome.outcomeCode === 'already_exists'
+          ? await existingPropertyDetail(item)
+          : outcome.detail
+      return complete(item, outcome.outcomeCode, false, detail)
     }
   }
 

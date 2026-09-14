@@ -349,6 +349,54 @@ export const RejectedProfile: Story = {
   },
 }
 
+/**
+ * A location that was already bound links to the Property that holds it. It is
+ * not this import's Property, so it gets no AI consent card.
+ */
+export const AlreadyLinkedProperty: Story = {
+  render: () => (
+    <ProgressHarness
+      snapshot={{
+        ...processing,
+        status: 'completed_with_issues',
+        totalCount: 1,
+        processedCount: 1,
+        pollAfterMs: null,
+        canRetry: false,
+        counts: {
+          ...processing.counts,
+          pending: 0,
+          imported: 0,
+          failed: 0,
+          already_exists: 1,
+        },
+        items: [
+          {
+            ...items[0]!,
+            status: 'already_exists',
+            outcomeCode: 'already_exists',
+            messageKey: 'property_import.already_exists',
+            propertyId: '10000000-0000-4000-8000-000000000031',
+          },
+        ],
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const links = canvas.getAllByRole('link', {
+      name: /view the existing property for the meridian grand resort/i,
+    })
+    await expect(links[0]).toHaveAttribute(
+      'href',
+      '/properties/10000000-0000-4000-8000-000000000031',
+    )
+    await expect(
+      canvas.queryByLabelText(/confirm with your password/i),
+    ).not.toBeInTheDocument()
+  },
+}
+
 export const LiveUpdatesPaused: Story = {
   args: {
     progress: processing,

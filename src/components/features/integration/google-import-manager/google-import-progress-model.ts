@@ -126,13 +126,14 @@ export type ImportedPropertyForAi = Readonly<{ propertyId: string; propertyName:
 /**
  * The Properties this import produced, in item order: the AI-analysis step
  * offers one consent card each. An item whose Property was deleted since (its
- * reference swept) is not offered.
+ * reference swept) is not offered, and neither is the Property an
+ * `already_exists` item links to: this import did not produce it.
  */
 export function importedPropertiesForAi(
   progress: ImportProgressDto,
 ): readonly ImportedPropertyForAi[] {
   return progress.items.flatMap((item) =>
-    item.propertyId === null
+    item.propertyId === null || (item.status !== 'imported' && item.status !== 'relinked')
       ? []
       : [{ propertyId: item.propertyId, propertyName: item.propertyName }],
   )

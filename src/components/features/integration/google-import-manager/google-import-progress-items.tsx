@@ -76,8 +76,9 @@ function RetryButton({
 }
 
 /**
- * Imported and relinked items link straight to the Property they produced; a
- * rejected profile sends the manager back to import the location again.
+ * Imported and relinked items link straight to the Property they produced and
+ * an already-bound location to the Property that holds it; a rejected profile
+ * sends the manager back to import the location again.
  */
 function NextStep({
   item,
@@ -109,6 +110,9 @@ function NextStep({
     )
   }
   if (item.propertyId !== null) {
+    // An already-bound location links to the Property that holds it, which may
+    // carry a different name than the one confirmed for this import.
+    const existing = item.status === 'already_exists'
     return (
       <Button
         asChild
@@ -119,9 +123,13 @@ function NextStep({
         <Link
           to="/properties/$propertyId"
           params={{ propertyId: item.propertyId }}
-          aria-label={`View property ${item.propertyName}`}
+          aria-label={
+            existing
+              ? `View the existing property for ${item.propertyName}`
+              : `View property ${item.propertyName}`
+          }
         >
-          View property
+          {existing ? 'View existing property' : 'View property'}
           <ArrowRight aria-hidden="true" />
         </Link>
       </Button>

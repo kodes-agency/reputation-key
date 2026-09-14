@@ -10,6 +10,7 @@ import {
   importItemNeedsReimport,
   importProgressPercent,
   importProgressSummary,
+  importedPropertiesForAi,
   isImportParentTerminal,
   parentStatusMessage,
 } from './google-import-progress-model'
@@ -125,5 +126,33 @@ describe('Google import progress presentation', () => {
       issues: 0,
       remaining: 0,
     })
+  })
+
+  it('offers AI only for Properties this import produced, not ones it found already linked', () => {
+    const item = {
+      itemId: '10000000-0000-4000-8000-000000000010',
+      propertyName: 'Harbor Hotel',
+      action: 'create' as const,
+      outcomeCode: null,
+      messageKey: 'property_import.imported' as const,
+      retryable: false,
+      retryRevision: 0,
+      userAction: 'none' as const,
+      invalidProfileField: null,
+    }
+    const snapshot: ImportProgressDto = {
+      ...progress(3, 3),
+      items: [
+        { ...item, status: 'imported', propertyId: 'property-imported' },
+        { ...item, status: 'already_exists', propertyId: 'property-existing' },
+        { ...item, status: 'relinked', propertyId: 'property-relinked' },
+        { ...item, status: 'imported', propertyId: null },
+      ],
+    }
+
+    expect(importedPropertiesForAi(snapshot).map((entry) => entry.propertyId)).toEqual([
+      'property-imported',
+      'property-relinked',
+    ])
   })
 })
