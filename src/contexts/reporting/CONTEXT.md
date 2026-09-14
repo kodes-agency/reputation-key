@@ -11,7 +11,8 @@ metric authority.
 - Maintain anonymous Portal lifetime aggregates and Current on Google snapshots.
 - Resolve governed metric availability, provenance, completeness, and correction impact.
 - Create, revise, assign, schedule, evaluate, and close monthly Goal Programs.
-- Produce property, fleet, staff, Portal analytics, attention, and setup-checklist reads.
+- Produce property, fleet, staff, Portal analytics, attention, setup-checklist, and
+  per-Property setup reads.
 - Register metric projection consumers, Goal correction consumers, and Goal maintenance.
 - Contribute Reporting-owned records to organization export and lifecycle operations.
 
@@ -24,6 +25,9 @@ metric authority.
 - **Goal monthly result**: evaluation head with append-only revision evidence.
 - **Dashboard read model**: content-minimal presentation assembled from governed sources.
 - **Portal lifetime aggregate**: anonymous all-time values with rebuild and seal evidence.
+- **Property setup**: seven per-Property steps derived at read time from current facts
+  (Google binding, first sync, reply language, AI decision, responsible manager, reply
+  voice, published Portal). It records no milestones, unlike the Organization checklist.
 
 ## Invariants
 
