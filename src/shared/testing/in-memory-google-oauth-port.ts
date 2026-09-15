@@ -19,7 +19,11 @@ export type InMemoryGoogleOAuthPort = GoogleOAuthPort &
 
 export const createInMemoryGoogleOAuthPort = (): InMemoryGoogleOAuthPort => {
   let exchangeResult: GoogleOAuthResult = {
-    identity: { kind: 'oidc', googleSubject: 'google-subject-123' },
+    identity: {
+      kind: 'oidc',
+      googleSubject: 'google-subject-123',
+      email: 'owner@example.com',
+    },
     accessToken: 'mock-access-token',
     refreshToken: 'mock-refresh-token',
     expiresIn: 3600,

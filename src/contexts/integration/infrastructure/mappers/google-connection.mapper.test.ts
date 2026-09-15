@@ -15,6 +15,7 @@ const sampleRow: GoogleConnectionRow = {
   id: 'conn-uuid-001',
   organizationId: 'org-uuid-001',
   googleSubject: 'signed-subject-123',
+  googleAccountEmail: 'owner@example.com',
   encryptedAccessToken: 'enc-access-token',
   encryptedRefreshToken: 'enc-refresh-token',
   tokenExpiresAt: now,

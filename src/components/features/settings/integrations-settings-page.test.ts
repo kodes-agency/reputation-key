@@ -24,6 +24,7 @@ function connection(status: GoogleConnectionDto['status']): GoogleConnectionDto 
   return {
     id: 'connection-7',
     organizationId: 'organization-1',
+    accountEmail: null,
     scopes: [],
     connectedBy: 'user-1',
     visibility: 'organization',

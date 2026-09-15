@@ -19,6 +19,7 @@ const IMPORT_JOB_ID = '10000000-0000-4000-8000-000000000001'
 const connection: GoogleConnectionDto = {
   id: '10000000-0000-4000-8000-000000000003',
   organizationId: ORGANIZATION_ID,
+  accountEmail: 'reviews@meridian-hotels.example',
   scopes: ['https://www.googleapis.com/auth/business.manage'],
   connectedBy: 'user-story',
   visibility: 'organization',
@@ -181,5 +182,9 @@ export const DiscoveryListsAccounts: Story = {
     await expect(
       canvas.queryByText(/no accessible business profile accounts were found/i),
     ).toBeNull()
+    // The connection is named by its Google account, not "Organization Google account".
+    await expect(
+      canvas.getByRole('combobox', { name: /connected google account/i }),
+    ).toHaveTextContent('reviews@meridian-hotels.example')
   },
 }

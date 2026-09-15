@@ -39,6 +39,7 @@ export type ReconnectGoogleAccountCommand = Readonly<{
   connectionId: GoogleConnectionId
   encryptedAccessToken: string
   googleSubject: string
+  googleAccountEmail: string | null
   scopes: ReadonlyArray<string>
   encryptedRefreshToken: string
   tokenExpiresAt: Date

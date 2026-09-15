@@ -5,6 +5,7 @@ import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/g
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
 
 const BUSINESS_MANAGE_SCOPE = 'https://www.googleapis.com/auth/business.manage'
+const EMAIL_SCOPE = 'https://www.googleapis.com/auth/userinfo.email'
 const CONFIG = {
   clientId: 'rep-key-client',
   clientSecret: 'client-secret',
@@ -50,6 +51,8 @@ describe('createGoogleOAuthAdapter', () => {
       azp?: string
       includeIssuedAt?: boolean
       audience?: string | string[]
+      email?: string
+      emailVerified?: boolean | string
     }> = {},
   ) {
     const { publicKey, privateKey } = await generateKeyPair('RS256')
@@ -57,6 +60,10 @@ describe('createGoogleOAuthAdapter', () => {
     let builder = new SignJWT({
       nonce,
       ...(options.azp === undefined ? {} : { azp: options.azp }),
+      ...(options.email === undefined ? {} : { email: options.email }),
+      ...(options.emailVerified === undefined
+        ? {}
+        : { email_verified: options.emailVerified }),
     })
       .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
       .setIssuer('https://accounts.google.com')
@@ -92,6 +99,7 @@ describe('createGoogleOAuthAdapter', () => {
     expect(result.identity).toEqual({
       kind: 'oidc',
       googleSubject: 'signed-google-subject',
+      email: null,
     })
     expect(result.scopes).toEqual([BUSINESS_MANAGE_SCOPE, 'openid'])
     expect(fetchMock).toHaveBeenCalledTimes(2)
@@ -160,6 +168,71 @@ describe('createGoogleOAuthAdapter', () => {
     })
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(fetchMock.mock.calls[1]![0]).toBe(CONFIG.jwksUrl)
+  })
+
+  it('reads the verified email of a grant with the email scope as a label, not an identity', async () => {
+    const exchange = async (
+      scope: string,
+      claims: Readonly<{ email?: string; emailVerified?: boolean | string }>,
+    ) => {
+      const { token, jwks } = await signedIdToken('oidc-nonce', claims)
+      fetchMock
+        .mockReset()
+        .mockResolvedValueOnce(
+          jsonResponse({
+            access_token: 'access-token',
+            refresh_token: 'refresh-token',
+            expires_in: 3600,
+            scope,
+            id_token: token,
+          }),
+        )
+        .mockResolvedValueOnce(jsonResponse(jwks))
+      return createGoogleOAuthAdapter(CONFIG).exchangeCode({
+        contractVersion: 'v2',
+        code: 'authorization-code',
+        redirectUri: 'https://app.example.test/api/auth/google/callback',
+        codeVerifier: 'pkce-verifier',
+        oidcNonce: 'oidc-nonce',
+      })
+    }
+
+    const granted = await exchange(`openid ${EMAIL_SCOPE} ${BUSINESS_MANAGE_SCOPE}`, {
+      email: 'owner@meridian.example',
+      emailVerified: true,
+    })
+    expect(granted.identity).toEqual({
+      kind: 'oidc',
+      googleSubject: 'signed-google-subject',
+      email: 'owner@meridian.example',
+    })
+    expect(granted.scopes).toEqual([BUSINESS_MANAGE_SCOPE, EMAIL_SCOPE, 'openid'])
+
+    const shortForm = await exchange(`email openid ${BUSINESS_MANAGE_SCOPE}`, {
+      email: 'owner@meridian.example',
+      emailVerified: 'true',
+    })
+    expect(shortForm.identity.email).toBe('owner@meridian.example')
+    expect(shortForm.scopes).toEqual([BUSINESS_MANAGE_SCOPE, EMAIL_SCOPE, 'openid'])
+
+    const unverified = await exchange(`openid ${EMAIL_SCOPE} ${BUSINESS_MANAGE_SCOPE}`, {
+      email: 'owner@meridian.example',
+      emailVerified: false,
+    })
+    expect(unverified.identity.email).toBeNull()
+
+    await expect(
+      exchange(`openid ${EMAIL_SCOPE} ${BUSINESS_MANAGE_SCOPE} profile`, {
+        email: 'owner@meridian.example',
+        emailVerified: true,
+      }),
+    ).rejects.toMatchObject({ code: 'oauth_failed' })
+    await expect(
+      exchange(`openid ${EMAIL_SCOPE}`, {
+        email: 'owner@meridian.example',
+        emailVerified: true,
+      }),
+    ).rejects.toMatchObject({ code: 'oauth_failed' })
   })
 
   it('fails closed when the signed nonce or exact granted scopes do not match', async () => {

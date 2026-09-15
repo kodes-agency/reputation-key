@@ -9,6 +9,8 @@ Accepted 2026-08-10 and amended 2026-08-12 under the former `railway_closed_beta
 
 **Amended 2026-09-15.** §3 "Import discovery" now describes the model the code has run since commit `5007e70b` (2026-08-28): a durable 24-hour pre-confirmation checkpoint gated by a 30-second authorization lease, replacing the 15-minute Redis-only envelope. That commit moved discovery to server-side checkpoints because "Select all eligible locations" must page through an arbitrarily large fleet before confirmation, which a fixed 2,000-record, 15-minute envelope could not hold, while authorization stays exact on every page, renewal and claim. The amendment also records that hiding the import tab keeps the selection. Live Performance keeps its 15-minute limit.
 
+**Amended 2026-09-15 (connection label).** §5 now also requests the basic `email` scope. Connections read "Organization Google account" everywhere because `sub` was all RepKey knew, and merchants could not tell which Google account they had connected. The verified `email` claim of the same signed ID token is stored on the connection as a display label only; `sub` stays the sole identity, and the address is redacted wherever `sub` is.
+
 ## Context
 
 This decision preserves the external Google content, OAuth, provider-route, and
@@ -63,7 +65,7 @@ The initiating-session binding is a versioned, audience-separated HMAC of the st
 - do not mutate or disclose tenant state; and
 - use one fixed generic redirect.
 
-V2 requests exactly `openid` and `https://www.googleapis.com/auth/business.manage`; the normalized granted set must match exactly. Signed OIDC `sub` is the sole Google connection identity. `googleSubject` replaces the misleading `googleAccountId`; it is distinct from a Business Profile account suffix. V1 state/event support exists only for the measured compatibility window and is drained before contract removal. There is no dual emit or downgrade.
+V2 requests exactly `openid`, `email` and `https://www.googleapis.com/auth/business.manage`; the normalized granted set must match exactly (Google reports `email` as `https://www.googleapis.com/auth/userinfo.email`). The earlier `openid` + `business.manage` grant stays accepted for a ceremony that started before the amendment. Signed OIDC `sub` is the sole Google connection identity. The ID token's `email` claim, only when `email_verified` is true, is kept in `google_connections.google_account_email` as the label people see; it never selects, matches or authorizes a connection, it is excluded from the Organization export like `sub`, and every disconnect, departure and purge nulls it with `sub` (a CHECK refuses an address without a subject). Connections made before the amendment show their connection date until an AccountAdmin authorizes them again with the same Google account. `googleSubject` replaces the misleading `googleAccountId`; it is distinct from a Business Profile account suffix. V1 state/event support exists only for the measured compatibility window and is drained before contract removal. There is no dual emit or downgrade.
 
 Initial exchange never calls `/revoke`: before the subject is authoritative, the returned credential cannot be proven safe to revoke without risking another valid authority. Credential lifecycle and cleanup instead use the serialized source/guard/child contract below.
 

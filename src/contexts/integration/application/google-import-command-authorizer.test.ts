@@ -29,6 +29,7 @@ const connection = (overrides: Partial<GoogleConnection> = {}): GoogleConnection
   id: connectionId,
   organizationId: actor.organizationId,
   googleSubject: 'subject',
+  googleAccountEmail: null,
   encryptedAccessToken: 'encrypted-access',
   encryptedRefreshToken: 'encrypted-refresh',
   tokenExpiresAt: new Date('2026-08-12T11:00:00.000Z'),

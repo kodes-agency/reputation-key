@@ -75,6 +75,7 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
         encryptedAccessToken: 'redacted',
         encryptedRefreshToken: 'redacted',
         googleSubject: null,
+        googleAccountEmail: null,
         scopes: [],
         credentialUseState: 'none',
         cleanupMaterialDeadlineAt: null,
@@ -158,12 +159,14 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
       scopes,
       credentialAuthorizedBy,
       credentialAuthorizedAt,
+      googleAccountEmail,
     ) => {
       const existing = store.get(id as string)
       if (!existing || !byOrg(orgId)(existing)) return
       store.set(id as string, {
         ...existing,
         googleSubject,
+        googleAccountEmail,
         encryptedAccessToken,
         encryptedRefreshToken,
         tokenExpiresAt,

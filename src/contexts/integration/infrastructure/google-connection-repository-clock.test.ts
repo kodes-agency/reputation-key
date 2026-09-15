@@ -71,6 +71,7 @@ describe('Google connection repository time authority', () => {
       ['scope-a'],
       ACTOR,
       new Date('2099-01-01T12:30:00.000Z'),
+      'owner@example.com',
     )
 
     expect(clock).toHaveBeenCalledTimes(6)

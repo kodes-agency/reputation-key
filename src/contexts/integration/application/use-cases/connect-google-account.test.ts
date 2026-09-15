@@ -105,7 +105,11 @@ const setup = (authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer) => {
   const exchangeCode = vi.fn(async (request: Parameters<typeof originalExchange>[0]) => {
     if (request.preservedResult) {
       return {
-        identity: { kind: 'oidc' as const, googleSubject: 'google-subject-123' },
+        identity: {
+          kind: 'oidc' as const,
+          googleSubject: 'google-subject-123',
+          email: 'owner@example.com',
+        },
         accessToken: request.preservedResult.accessToken,
         refreshToken: request.preservedResult.refreshToken,
         expiresIn: request.preservedResult.expiresIn,
@@ -164,6 +168,7 @@ describe('connectGoogleAccount', () => {
 
     expect(connectionRepo.all()).toHaveLength(1)
     expect(result.googleSubject).toBe('google-subject-123')
+    expect(result.googleAccountEmail).toBe('owner@example.com')
     expect(result.status).toBe('active')
     expect(result.organizationId).toBe(ctx.organizationId)
     expect(oauth.exchangeVerifierCalls()).toEqual([VERIFIER])
@@ -253,6 +258,7 @@ describe('connectGoogleAccount', () => {
     expect(result).toMatchObject({
       id: existing.id,
       googleSubject: 'google-subject-123',
+      googleAccountEmail: 'owner@example.com',
       status: 'active',
       visibility: 'organization',
       scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
@@ -335,7 +341,7 @@ describe('connectGoogleAccount', () => {
   it('derives token expiry and normalizes legacy visibility to Organization ownership', async () => {
     const { useCase, connectionRepo, oauth } = setup()
     oauth.setExchangeResult({
-      identity: { kind: 'oidc', googleSubject: 'google-subject-123' },
+      identity: { kind: 'oidc', googleSubject: 'google-subject-123', email: null },
       accessToken: 'mock-access-token',
       refreshToken: 'mock-refresh-token',
       expiresIn: 7200,

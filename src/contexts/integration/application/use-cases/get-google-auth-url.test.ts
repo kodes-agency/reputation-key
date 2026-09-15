@@ -56,7 +56,7 @@ describe('getGoogleAuthUrl', () => {
     expect(parsed.searchParams.get('access_type')).toBe('offline')
     expect(parsed.searchParams.get('prompt')).toBe('consent')
     expect(parsed.searchParams.get('scope')).toBe(
-      'openid https://www.googleapis.com/auth/business.manage',
+      'openid email https://www.googleapis.com/auth/business.manage',
     )
     expect(parsed.searchParams.get('code_challenge_method')).toBe('S256')
     expect(parsed.searchParams.get('nonce')).toMatch(/^[A-Za-z0-9_-]{43}$/)

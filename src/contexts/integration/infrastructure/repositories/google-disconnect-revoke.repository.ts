@@ -356,6 +356,7 @@ async function redactConnection(
       encryptedAccessToken: 'redacted',
       encryptedRefreshToken: 'redacted',
       googleSubject: null,
+      googleAccountEmail: null,
       scopes: [],
       lifecycleVersion: attempt.expectedLifecycleVersion + 1,
       accessVersion: attempt.expectedAccessVersion + 1,

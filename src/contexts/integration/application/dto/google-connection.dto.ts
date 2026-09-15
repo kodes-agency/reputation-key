@@ -11,6 +11,8 @@ import type {
 export type GoogleConnectionDto = Readonly<{
   id: string
   organizationId: string
+  /** The connected Google account's verified address; null until it re-consents. */
+  accountEmail: string | null
   scopes: ReadonlyArray<string>
   connectedBy: string
   visibility: GoogleConnectionVisibility
@@ -24,6 +26,7 @@ export function toGoogleConnectionDto(conn: GoogleConnection): GoogleConnectionD
   return {
     id: conn.id,
     organizationId: conn.organizationId,
+    accountEmail: conn.googleAccountEmail,
     scopes: conn.scopes,
     connectedBy: conn.connectedBy,
     visibility: conn.visibility,

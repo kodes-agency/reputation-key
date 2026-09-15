@@ -38,6 +38,7 @@ function makeConnection(overrides: Partial<GoogleConnection> = {}): GoogleConnec
     id: CONN_ID,
     organizationId: ORG_ID,
     googleSubject: 'subject-intcmd-1',
+    googleAccountEmail: null,
     encryptedAccessToken: 'enc-a',
     encryptedRefreshToken: 'enc-r',
     tokenExpiresAt: new Date('2026-06-01T13:00:00.000Z'),
@@ -284,6 +285,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
       organizationId: ORG_ID,
       connectionId: CONN_ID,
       googleSubject: 'google-subject-2',
+      googleAccountEmail: 'owner-2@example.com',
       scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
       encryptedAccessToken: 'enc-a2',
       encryptedRefreshToken: 'enc-r2',
@@ -294,15 +296,17 @@ describe.sequential('integrationCommandStore (integration)', () => {
 
     expect(updated).toMatchObject({
       googleSubject: 'google-subject-2',
+      googleAccountEmail: 'owner-2@example.com',
       scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
       visibility: 'organization',
     })
     const rows = await pool.query(
-      'SELECT google_subject, encrypted_access_token, scopes, visibility, status FROM google_connections WHERE id = $1',
+      'SELECT google_subject, google_account_email, encrypted_access_token, scopes, visibility, status FROM google_connections WHERE id = $1',
       [CONN_ID],
     )
     expect(rows.rows[0]).toMatchObject({
       google_subject: 'google-subject-2',
+      google_account_email: 'owner-2@example.com',
       encrypted_access_token: 'enc-a2',
       scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
       visibility: 'organization',
@@ -319,7 +323,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
   it('disconnectGoogleAccount commits status + redaction + fact in one transaction', async () => {
     const store = createAtomicIntegrationCommandStore(db, () => NOW)
     await store.connectGoogleAccount({
-      connection: makeConnection(),
+      connection: makeConnection({ googleAccountEmail: 'owner@example.com' }),
       event: connectedEvent(),
     })
     const event = integrationGoogleAccountDisconnected({
@@ -336,13 +340,14 @@ describe.sequential('integrationCommandStore (integration)', () => {
 
     expect(result.status).toBe('disconnected')
     const rows = await pool.query(
-      'SELECT status, encrypted_access_token, google_subject, scopes FROM google_connections WHERE id = $1',
+      'SELECT status, encrypted_access_token, google_subject, google_account_email, scopes FROM google_connections WHERE id = $1',
       [CONN_ID],
     )
     expect(rows.rows[0]).toMatchObject({
       status: 'disconnected',
       encrypted_access_token: 'redacted',
       google_subject: null,
+      google_account_email: null,
       scopes: [],
     })
     const facts = await pool.query(

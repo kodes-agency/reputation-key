@@ -145,6 +145,7 @@ export const createAtomicIntegrationCommandStore = (
             const now = clock()
             const rows = await updateConnectionRow(tx, command, {
               googleSubject: command.googleSubject,
+              googleAccountEmail: command.googleAccountEmail,
               encryptedAccessToken: command.encryptedAccessToken,
               encryptedRefreshToken: command.encryptedRefreshToken,
               tokenExpiresAt: command.tokenExpiresAt,
@@ -204,6 +205,7 @@ export const createAtomicIntegrationCommandStore = (
             encryptedAccessToken: 'redacted',
             encryptedRefreshToken: 'redacted',
             googleSubject: null,
+            googleAccountEmail: null,
             scopes: [],
             credentialUseState: 'none',
             cleanupMaterialDeadlineAt: null,
