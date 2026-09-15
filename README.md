@@ -87,7 +87,11 @@ on the host against those services; every feature runs, including Google
 import/sync through the sandbox, the AI pipeline (the stub synthesizes answers
 for unscripted requests) and email. `http://127.0.0.1:3000`; sign in as
 `test@example.com` (password `E2E_TEST_PASSWORD` in `e2e/stack.env`) or
-`staff@example.com` / `password123`. Ctrl-C stops both processes;
+`staff@example.com` / `password123`. To sign in as yourself, set
+`LOCAL_ADMIN_EMAIL` (and optionally `LOCAL_ADMIN_NAME`, `LOCAL_ADMIN_PASSWORD`)
+in the environment or in `local.env`: every seed makes that address an
+AccountAdmin of the seeded organization, with the `test@example.com` password
+unless you set one. Ctrl-C stops both processes;
 `pnpm local:down` removes the services and their volumes. The host processes
 resolve the Compose service names to loopback through
 `scripts/local/loopback-hosts.mjs` because `local-provider-fetch.ts`
