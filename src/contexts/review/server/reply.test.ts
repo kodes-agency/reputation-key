@@ -65,6 +65,24 @@ describe('draftReplyDto', () => {
     expect(result.success).toBe(true)
   })
 
+  it('caps text in UTF-8 bytes: 2048 Cyrillic letters pass, 2049 do not', () => {
+    expect(
+      draftReplyDto.safeParse({ ...validInput, text: 'Б'.repeat(2_048) }).success,
+    ).toBe(true)
+    expect(
+      draftReplyDto.safeParse({ ...validInput, text: 'Б'.repeat(2_049) }).success,
+    ).toBe(false)
+  })
+
+  it('accepts multi-line text and refuses control characters Google does not take', () => {
+    expect(
+      draftReplyDto.safeParse({ ...validInput, text: 'Hi,\n\nThanks\tbye\r\n' }).success,
+    ).toBe(true)
+    expect(draftReplyDto.safeParse({ ...validInput, text: 'Thanks\u0000' }).success).toBe(
+      false,
+    )
+  })
+
   it('accepts only canonical supported reply-language tags', () => {
     expect(
       draftReplyDto.safeParse({

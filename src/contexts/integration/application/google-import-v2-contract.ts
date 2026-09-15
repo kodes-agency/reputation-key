@@ -61,8 +61,24 @@ export const IMPORT_OUTCOME_CODES = [
   'temporarily_unavailable',
   'cleanup_required',
   'internal_error',
+  'tenant_profile_invalid',
 ] as const
 export type ImportOutcomeCode = (typeof IMPORT_OUTCOME_CODES)[number]
+
+/**
+ * The confirmed profile field the Property context rejected on a
+ * `tenant_profile_invalid` item. Content-free: it names the field, never its
+ * value. The generated slug is not listed because no manager can correct it.
+ */
+export const IMPORT_PROFILE_FIELDS = ['name', 'timezone', 'country'] as const
+export type ImportProfileField = (typeof IMPORT_PROFILE_FIELDS)[number]
+
+export function isImportProfileField(value: unknown): value is ImportProfileField {
+  return (
+    typeof value === 'string' &&
+    (IMPORT_PROFILE_FIELDS as readonly string[]).includes(value)
+  )
+}
 
 /**
  * The outcome codes a property-operation receipt can reconcile an import item
@@ -93,7 +109,13 @@ export function reconciledOutcomeCode(
 }
 
 export type ImportItemUserAction =
-  'none' | 'rediscover' | 'reauthenticate' | 'reconnect' | 'retry'
+  | 'none'
+  | 'rediscover'
+  | 'reauthenticate'
+  | 'reconnect'
+  | 'retry'
+  /** Correct the rejected detail and import the location again. */
+  | 'correct_profile'
 
 export type ImportReducerClass = 'success' | 'benign_skip' | 'failure' | 'cancellation'
 export type ImportOutcomePresentation = Readonly<{
@@ -199,6 +221,12 @@ export const IMPORT_OUTCOME_PRESENTATION = {
     reducerClass: 'failure',
     retryable: false,
     userAction: 'none',
+  },
+  tenant_profile_invalid: {
+    status: 'failed',
+    reducerClass: 'failure',
+    retryable: false,
+    userAction: 'correct_profile',
   },
 } as const satisfies Readonly<Record<ImportOutcomeCode, ImportOutcomePresentation>>
 
@@ -314,9 +342,12 @@ export type StartPropertyImportInput = Readonly<{
 }>
 
 /**
- * `propertyId` is the Property an `imported`/`relinked` item produced and is
- * null for every other status. Provider identifiers never appear here:
- * terminal writes scrub them, and this reference is internal.
+ * `propertyId` is the Property an `imported`/`relinked` item produced, or for
+ * `already_exists` the Property in the same Organization that already holds
+ * the location; it is null for every other status. `invalidProfileField` names
+ * the rejected field of a `tenant_profile_invalid` item and is null otherwise.
+ * Provider identifiers never appear here: terminal writes scrub them, and these
+ * references are internal.
  */
 export type ImportProgressItemDto = Readonly<{
   itemId: string
@@ -329,6 +360,7 @@ export type ImportProgressItemDto = Readonly<{
   retryRevision: number
   userAction: ImportItemUserAction
   propertyId: string | null
+  invalidProfileField: ImportProfileField | null
 }>
 
 export type ImportProgressDto = Readonly<{

@@ -9,6 +9,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { ReviewReplyPublishedEditor } from './reply-editor-views'
+import { expectNeutralCounterAtTheByteLimit } from './reply-editor.stories.play'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 
 const onSave = fn(async (_text: string) => undefined)
@@ -59,6 +60,25 @@ export const PublishedEditRequiresConfirmation: Story = {
   },
 }
 
+/** A blocked update refuses the click before its confirmation, so nothing is saved. */
+async function expectUpdateClickRefused(review: HTMLElement): Promise<void> {
+  await userEvent.click(review)
+  expect(within(document.body).queryByRole('alertdialog')).toBeNull()
+  expect(onSave).not.toHaveBeenCalled()
+}
+
+/** Over the limit in bytes: the counter turns red and the update is blocked. */
+async function expectBlockedOverTheByteLimit(
+  canvas: ReturnType<typeof within>,
+  counter: string,
+): Promise<void> {
+  onSave.mockClear()
+  expect(canvas.getByText(counter)).toHaveClass('text-destructive')
+  const review = canvas.getByRole('button', { name: /review update/i })
+  expect(review).toHaveAttribute('aria-disabled', 'true')
+  await expectUpdateClickRefused(review)
+}
+
 /**
  * A template slot left unfilled blocks the republish AND has to say why, on the
  * control — which means the control stays reachable. Natively disabled, it left
@@ -98,9 +118,7 @@ export const PublishedEditWithUnfilledSlot: Story = {
     expect(document.getElementById(reason.id)).toHaveTextContent(UNFILLED_SLOT_MESSAGE)
 
     // Focusable is not permitted: the click is refused before the dialog.
-    await userEvent.click(review)
-    expect(within(document.body).queryByRole('alertdialog')).toBeNull()
-    expect(onSave).not.toHaveBeenCalled()
+    await expectUpdateClickRefused(review)
   },
 }
 
@@ -176,5 +194,66 @@ export const PublishedEditWhileSaving: Story = {
     const review = canvas.getByRole('button', { name: /review update/i })
     expect(review).toBeDisabled()
     expect(review).not.toHaveAttribute('aria-describedby')
+  },
+}
+
+const byteLimitReply = (text: string) => ({
+  text,
+  publishedAt: PUBLISHED_AT,
+  rejectionReason: null,
+})
+
+/**
+ * Google's reply limit is 4,096 UTF-8 BYTES, and a Cyrillic letter is two of
+ * them. 2,049 letters are 4,098 bytes: counted in characters this read
+ * `2049/4096` in the neutral colour with the update enabled, and the worker
+ * then could not send the text (`reply-comment.ts`, route-catalogue.ts
+ * `reviews.reply`).
+ */
+export const PublishedEditCountsBytesNotCharacters: Story = {
+  args: {
+    reply: byteLimitReply('Б'.repeat(2_049)),
+    isSaving: false,
+    onSave,
+    onCancel,
+  },
+  play: async ({ canvas }) => {
+    await expectBlockedOverTheByteLimit(canvas, '4098/4096')
+  },
+}
+
+/** Exactly at the limit in bytes: the counter is neutral and the update allowed. */
+export const PublishedEditAtTheByteLimit: Story = {
+  args: {
+    reply: byteLimitReply('Б'.repeat(2_048)),
+    isSaving: false,
+    onSave,
+    onCancel,
+  },
+  play: async ({ canvas }) => {
+    expectNeutralCounterAtTheByteLimit(canvas)
+    expect(canvas.getByRole('button', { name: /review update/i })).toHaveAttribute(
+      'aria-disabled',
+      'false',
+    )
+  },
+}
+
+/**
+ * The counter, the block and the save all measure the text as typed — the
+ * string `editPublishedReplyFn`'s DTO validates (reply-read.ts `draftReplyDto`,
+ * untrimmed). Gating on the trimmed text let a pasted trailing line feed put a
+ * red `4097/4096` beside an enabled update the server then refused, and the
+ * refusal was swallowed, so the click did nothing visible.
+ */
+export const PublishedEditTrailingLineFeedOverTheLimit: Story = {
+  args: {
+    reply: byteLimitReply(`${'x'.repeat(4_096)}\n`),
+    isSaving: false,
+    onSave,
+    onCancel,
+  },
+  play: async ({ canvas }) => {
+    await expectBlockedOverTheByteLimit(canvas, '4097/4096')
   },
 }

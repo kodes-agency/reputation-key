@@ -3,6 +3,7 @@ import {
   adoptionRevealsReviewLanguage,
   regenerateScope,
   restoreSnapshot,
+  submitAfterSave,
   type ReplyComposerSnapshot,
 } from './reply-composer-transitions'
 import { AUTO_DETECT_REVIEW_LANGUAGE } from './reply-language-options'
@@ -157,5 +158,30 @@ describe('the scope of a regenerate from the result tag', () => {
       draft: { text: 'Благодарим ви', languageTag: null },
       target: { kind: 'review_language' },
     })
+  })
+})
+
+describe('what a submit leaves inline', () => {
+  const refused = () => Promise.reject(new Error('refused'))
+  const resolved = () => Promise.resolve(undefined)
+
+  it('asks for a successful save when the draft could not be saved', async () => {
+    let submitted = false
+    const inline = await submitAfterSave(refused, async () => {
+      submitted = true
+    })
+
+    expect(inline).toBe('Save the draft successfully before submitting it.')
+    expect(submitted).toBe(false)
+  })
+
+  it('leaves nothing inline when the saved draft is refused on submit', async () => {
+    // The submit mutation's own toast reports the refusal with the server's
+    // sentence; a save sentence under it would be a second, wrong report.
+    expect(await submitAfterSave(resolved, refused)).toBeNull()
+  })
+
+  it('leaves nothing inline when the submit goes through', async () => {
+    expect(await submitAfterSave(resolved, resolved)).toBeNull()
   })
 })

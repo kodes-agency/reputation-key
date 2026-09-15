@@ -57,7 +57,6 @@ import {
   type AiExecutionAdmissionService,
 } from '#/shared/ai-provider-control/admission-service'
 import { createPostgresAiAdmissionAuthority } from '#/shared/db/ai/postgres-admission-authority'
-import type { AiAdmissionRateLimiter } from '#/shared/db/ai/ai-budget'
 import { createAiGatewayRoutePreparer } from '#/shared/ai-provider-control/route-preparer'
 import { createOpenAiConnector } from '#/shared/ai-provider-control/openai-connector'
 import { createLocalAiProviderFetch } from '#/shared/ai-provider-control/local-provider-fetch'
@@ -154,7 +153,6 @@ export function createAiEgressRuntime(
   input: Readonly<{
     env: Env
     pool: Pool
-    admissionRateLimiter: AiAdmissionRateLimiter
     clock: () => Date
     runtimeEnvironment: Readonly<Record<string, string | undefined>>
   }>,
@@ -224,7 +222,6 @@ export function createAiEgressRuntime(
         database: createPostgresAiAdmissionAuthority({
           pool: input.pool,
           signingKid: admissionKid,
-          rateLimiter: input.admissionRateLimiter,
           now: input.clock,
         }),
       }),

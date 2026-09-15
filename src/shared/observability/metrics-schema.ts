@@ -377,6 +377,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     labels: {},
     snapshotPath: [
       'jobs.missingObservations',
+      'jobs.invalidObservations',
       'jobs.handlerMissing',
       'jobs.schedulerMissing',
       'jobs.forbiddenDarkWork',

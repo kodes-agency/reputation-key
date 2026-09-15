@@ -180,7 +180,7 @@ export function PropertyLanguageMissingItem({
         aria-describedby={reasonId}
         className="flex-col items-start gap-0.5 max-md:min-h-11"
       >
-        <Link to="/settings/ai" search={{ propertyId }}>
+        <Link to="/properties/$propertyId/settings/replies" params={{ propertyId }}>
           <span className="flex items-center gap-2">
             <Languages aria-hidden="true" />
             Set property language

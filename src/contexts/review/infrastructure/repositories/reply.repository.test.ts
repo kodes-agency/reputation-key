@@ -10,15 +10,31 @@ import { createPublicationReconciliationCandidateQuery } from './publication-rec
 import { createReviewRepository } from './review.repository'
 import { getDb } from '#/shared/db'
 import { replies } from '#/shared/db/schema/review.schema'
-import { organizationId, propertyId, reviewId, replyId } from '#/shared/domain/ids'
+import {
+  inboxItemId,
+  organizationId,
+  propertyId,
+  reviewId,
+  replyId,
+  userId,
+} from '#/shared/domain/ids'
 import type { Review, Reply } from '../../domain/types'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
-  REPLY_CHIP_WORDS,
-  resolveReplyStateCopy,
-} from '#/components/inbox/reply-state-copy'
+  REPLY_QUEUE_PUBLICATION_STATES,
+  REPLY_QUEUE_STATUSES,
+  replyQueueStage,
+  type ReplyQueueStage,
+} from '#/shared/domain/reply-queue-stage'
+import { itemMatchesQueue } from '#/components/inbox/inbox-queues'
+import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
+import { getInboxQueueCounts } from '#/contexts/inbox/application/use-cases/get-inbox-queue-counts'
+import { getInboxItems } from '#/contexts/inbox/application/use-cases/get-inbox-items'
+import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import type { AuthContext } from '#/shared/domain/auth-context'
 
 const ORG_A = organizationId('org-rpl-test-aaaa-3333333333333333')
 const ORG_B = organizationId('org-rpl-test-bbbb-4444444444444444')
@@ -336,6 +352,7 @@ describe.sequential('replyRepository (integration)', () => {
           status: 'published',
           publicationState: 'published',
           publicationLastErrorClass: null,
+          reconcileDueAt: null,
           updatedAt: providerReply.updatedAt,
         },
         {
@@ -344,6 +361,7 @@ describe.sequential('replyRepository (integration)', () => {
           status: 'approved',
           publicationState: 'pending_observation',
           publicationLastErrorClass: null,
+          reconcileDueAt: now,
           updatedAt: internalReply.updatedAt,
         },
       ])
@@ -353,6 +371,7 @@ describe.sequential('replyRepository (integration)', () => {
         'status',
         'publicationState',
         'publicationLastErrorClass',
+        'reconcileDueAt',
         'updatedAt',
       ])
       expect(JSON.stringify(states)).not.toContain('reply text')
@@ -414,31 +433,15 @@ describe.sequential('replyRepository (integration)', () => {
       await expect(repo.findReviewIdsByReplyStage(ORG_B)).resolves.toEqual([])
     })
 
-    it('keeps the SQL stage partition aligned with reply copy for every persisted state', async () => {
-      const statuses = [
-        'draft',
-        'pending_approval',
-        'approved',
-        'published',
-        'rejected',
-        'publish_failed',
-      ] as const satisfies ReadonlyArray<Reply['status']>
-      const publicationStates = [
-        null,
-        'requested',
-        'authorized',
-        'sending',
-        'pending_observation',
-        'published',
-        'terminal',
-        'ambiguous',
-        'cancelled',
-      ] as const satisfies ReadonlyArray<Reply['publicationState']>
-      const matrix = statuses.flatMap((status) =>
-        publicationStates.map((publicationState) => ({ status, publicationState })),
+    it('agrees with the shared rule and the client queue helper for every status × publication state × due time', async () => {
+      const matrix = REPLY_QUEUE_STATUSES.flatMap((status) =>
+        [null, ...REPLY_QUEUE_PUBLICATION_STATES].flatMap((publicationState) =>
+          [true, false].map((hasDueTime) => ({ status, publicationState, hasDueTime })),
+        ),
       )
       const db = getDb()
       const repo = createReplyRepository(db, () => now)
+      const dueAt = new Date('2025-06-01T12:15:00Z')
 
       for (const [index, state] of matrix.entries()) {
         const suffix = String(index + 1).padStart(12, '0')
@@ -454,6 +457,7 @@ describe.sequential('replyRepository (integration)', () => {
             source: 'internal',
             status: state.status,
             publicationState: state.publicationState,
+            reconcileDueAt: state.hasDueTime ? dueAt : null,
           }),
           now,
         )
@@ -467,28 +471,141 @@ describe.sequential('replyRepository (integration)', () => {
       )
       expect(sqlStageByReview.size).toBe(matrix.length)
 
-      for (const [index, state] of matrix.entries()) {
-        const suffix = String(index + 1).padStart(12, '0')
-        const stage = sqlStageByReview.get(reviewId(`3c000000-0000-4000-8000-${suffix}`))
-        const copy = resolveReplyStateCopy({
-          ...state,
-          publicationLastErrorClass: null,
-          updatedAt: now,
-        })
-
-        if (stage === 'awaiting') {
-          expect(copy.badge).toBe(REPLY_CHIP_WORDS.awaitingApproval)
-        } else if (stage === 'waiting') {
-          expect([
-            REPLY_CHIP_WORDS.waitingForGoogle,
-            REPLY_CHIP_WORDS.liveOnGoogle,
-          ]).toContain(copy.badge)
-        } else {
-          expect(copy.badge).not.toBe(REPLY_CHIP_WORDS.awaitingApproval)
-          expect(copy.badge).not.toBe(REPLY_CHIP_WORDS.waitingForGoogle)
-          expect(copy.badge).not.toBe(REPLY_CHIP_WORDS.liveOnGoogle)
-        }
+      const clientStage = (replyState: InboxItem['replyState']): ReplyQueueStage => {
+        const item = {
+          status: 'open',
+          sourceType: 'review',
+          replyState,
+        } as InboxItem
+        if (itemMatchesQueue(item, 'approval', undefined)) return 'awaiting'
+        if (itemMatchesQueue(item, 'waiting', undefined)) return 'waiting'
+        expect(itemMatchesQueue(item, 'reply', undefined)).toBe(true)
+        return 'needs_reply'
       }
+
+      const disagreements = matrix.flatMap((state, index) => {
+        const suffix = String(index + 1).padStart(12, '0')
+        const replyState = {
+          status: state.status,
+          publicationState: state.publicationState,
+          publicationLastErrorClass: null,
+          reconcileDueAt: state.hasDueTime ? dueAt : null,
+          updatedAt: now,
+        }
+        const stages = {
+          sql: sqlStageByReview.get(reviewId(`3c000000-0000-4000-8000-${suffix}`)),
+          rule: replyQueueStage(replyState),
+          client: clientStage(replyState),
+        }
+        return stages.sql === stages.rule && stages.rule === stages.client
+          ? []
+          : [{ ...state, ...stages }]
+      })
+      expect(disagreements).toEqual([])
+    })
+
+    it('counts and lists an uncertain publish under Waiting for Google only while checks continue', async () => {
+      const db = getDb()
+      const checked = await seedReview(db, {
+        id: reviewId('3d000000-0000-4000-8000-000000000001'),
+        externalId: 'rpl-stage-uncertain-checked',
+      })
+      const stopped = await seedReview(db, {
+        id: reviewId('3d000000-0000-4000-8000-000000000002'),
+        externalId: 'rpl-stage-uncertain-stopped',
+      })
+      const repo = createReplyRepository(db, () => now)
+      for (const [review, reconcileDueAt, suffix] of [
+        [checked, new Date('2025-06-01T12:15:00Z'), '1'],
+        [stopped, null, '2'],
+      ] as const) {
+        await repo.upsert(
+          makeReply({
+            id: `2d000000-0000-4000-8000-00000000000${suffix}`,
+            reviewId: review.id,
+            source: 'internal',
+            status: 'publish_failed',
+            publicationState: 'ambiguous',
+            publicationLastErrorClass: 'ambiguous',
+            publicationAttempts: 1,
+            publicationCycle: 1,
+            reconcileDueAt,
+            publishedAt: null,
+          }),
+          now,
+        )
+      }
+      const replyLookup = createReplyLookupAdapter({
+        findByReviewId: (id, orgId) => repo.findByReviewId(id, orgId),
+        getCurrentGoogleReplyByReviewId: async () => null,
+        findMilestonesByReviewIds: (ids, orgId) =>
+          repo.findMilestonesByReviewIds(ids, orgId),
+        findStatesByReviewIds: (ids, orgId) => repo.findStatesByReviewIds(ids, orgId),
+        findReviewIdsByReplyStage: (orgId, propertyIds) =>
+          repo.findReviewIdsByReplyStage(orgId, propertyIds),
+      })
+      const inboxRepo = createInMemoryInboxRepo()
+      const inboxItem = (id: string, review: Review): InboxItem => ({
+        id: inboxItemId(id),
+        organizationId: ORG_A,
+        propertyId: PROP_A,
+        sourceType: 'review',
+        sourceId: review.id,
+        status: 'open',
+        isEscalated: false,
+        escalatedAt: null,
+        escalatedBy: null,
+        escalationResolvedAt: null,
+        escalationResolvedBy: null,
+        rating: null,
+        sourceDate: reviewedAt,
+        platform: 'google',
+        snippet: null,
+        assignedTo: null,
+        reviewerName: null,
+        propertyName: null,
+        closedAt: null,
+        firstReplySubmittedAt: null,
+        firstReplyPublishedAt: null,
+        commandRevision: 1,
+        createdAt: now,
+        updatedAt: now,
+      })
+      inboxRepo.items.push(
+        inboxItem('4d000000-0000-4000-8000-000000000001', checked),
+        inboxItem('4d000000-0000-4000-8000-000000000002', stopped),
+      )
+      const staffPublicApi = {
+        getAccessiblePropertyIds: async () => null,
+        getAssignedPortals: async () => [],
+      }
+      const manager: AuthContext = {
+        organizationId: ORG_A,
+        userId: userId('user-rpl-stage-manager'),
+        role: 'AccountAdmin',
+      }
+
+      const counts = await getInboxQueueCounts({
+        repo: inboxRepo,
+        staffPublicApi,
+        replyLookup,
+      })({}, manager)
+      const list = getInboxItems({
+        repo: inboxRepo,
+        staffPublicApi,
+        replyLookup,
+        viewRepo: {
+          getLastInboxView: async () => null,
+          stampLastInboxView: async () => now,
+        },
+        clock: () => now,
+      })
+      const listed = async (queue: 'waiting' | 'reply') =>
+        (await list({ filters: {}, queue }, manager)).items.map((item) => item.sourceId)
+
+      expect(counts).toMatchObject({ waiting: 1, reply: 1, approval: 0 })
+      await expect(listed('waiting')).resolves.toEqual([checked.id])
+      await expect(listed('reply')).resolves.toEqual([stopped.id])
     })
 
     it('does not query for an empty property scope', async () => {

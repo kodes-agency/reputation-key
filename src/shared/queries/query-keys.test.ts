@@ -5,9 +5,20 @@ import {
   identityKeys,
   integrationKeys,
   portalKeys,
+  propertyKeys,
 } from './query-keys'
 
 describe('identity query keys', () => {
+  it('keeps the organization AI overview beside, not inside, per-property consent snapshots', () => {
+    expect(identityKeys.merchantAiOverview()).toEqual([
+      'identity',
+      'merchant-ai-overview',
+    ])
+    expect(identityKeys.merchantAiAuthorization('property-1').slice(0, 2)).not.toEqual(
+      identityKeys.merchantAiOverview(),
+    )
+  })
+
   it('keeps personal and organization invitation response shapes disjoint', () => {
     const personal = identityKeys.userInvitations()
     const organization = identityKeys.organizationInvitations()
@@ -15,6 +26,26 @@ describe('identity query keys', () => {
     expect(personal).not.toEqual(organization)
     expect(personal.slice(0, -1)).toEqual(identityKeys.invitations())
     expect(organization.slice(0, -1)).toEqual(identityKeys.invitations())
+  })
+})
+
+describe('property setup query keys', () => {
+  it('nests one Property setup under its detail and the summaries under the list', () => {
+    expect(propertyKeys.setup('property-1')).toEqual([
+      'properties',
+      'detail',
+      'property-1',
+      'setup',
+    ])
+    expect(propertyKeys.setup('property-1').slice(0, -1)).toEqual(
+      propertyKeys.detail('property-1'),
+    )
+    expect(propertyKeys.setupSummaries()).toEqual([
+      'properties',
+      'list',
+      'setup-summaries',
+    ])
+    expect(propertyKeys.setupSummaries().slice(0, -1)).toEqual(propertyKeys.list())
   })
 })
 

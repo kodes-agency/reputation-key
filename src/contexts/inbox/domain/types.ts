@@ -151,6 +151,14 @@ export type InboxItemReplyState = Readonly<{
   status: ReplyStatus
   publicationState: ReplyPublicationState | null
   publicationLastErrorClass: ReplyPublicationFailureClass | null
+  /**
+   * Set while RepKey's automatic Google checks still own the publication. An
+   * uncertain publish with a due time waits for Google; without one it needs a
+   * person (D8, `#/shared/domain/reply-queue-stage.ts`). Every list read carries
+   * it; it is optional only so hand-built snapshots that predate D8 stay valid,
+   * and a missing value reads as "no automatic check scheduled".
+   */
+  reconcileDueAt?: Date | null
   updatedAt: Date
 }>
 

@@ -9,6 +9,12 @@ export {
 export type { GoogleProviderRouteKey } from '#/shared/google-provider-control/contracts'
 export const GOOGLE_BUSINESS_MANAGE_SCOPE =
   'https://www.googleapis.com/auth/business.manage'
+/**
+ * Google's granted form of the basic `email` scope. It only lets the ID token
+ * carry the account's verified address, which is shown to people as the
+ * connection's label (ADR 0050, amended 2026-09-15).
+ */
+export const GOOGLE_EMAIL_SCOPE = 'https://www.googleapis.com/auth/userinfo.email'
 export const GOOGLE_OIDC_ISSUERS = [
   'https://accounts.google.com',
   'accounts.google.com',

@@ -1,6 +1,6 @@
 import { useForm } from '@tanstack/react-form'
+import { Link } from '@tanstack/react-router'
 import { submitHandler } from '#/components/forms/form-submit'
-import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FieldGroup } from '#/components/ui/field'
@@ -37,6 +37,9 @@ export function PortalPropertyBrandEditor({
     },
   })
   const readOnly = disabled || !experience.canManagePropertyBrand
+  // The public display name is owned by Property settings → Profile. It is
+  // still sent unchanged, because the brand profile saves as one record.
+  const displayName = experience.profile?.displayName ?? ''
 
   return (
     <form className="space-y-3 rounded-md border p-4" onSubmit={submitHandler(form)}>
@@ -50,17 +53,17 @@ export function PortalPropertyBrandEditor({
         </p>
       </div>
       <FieldGroup>
-        <form.Field name="displayName">
-          {(field: BaseFieldApi) => (
-            <FormTextField
-              field={field}
-              id="portal-brand-display-name"
-              label="Public display name"
-              maxLength={120}
-              disabled={readOnly || action.isPending}
-            />
-          )}
-        </form.Field>
+        <p className="text-sm">
+          <span className="text-muted-foreground">Public display name · </span>
+          {displayName || 'Not set'}{' '}
+          <Link
+            to="/properties/$propertyId/settings/profile"
+            params={{ propertyId }}
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
+            {displayName ? 'Change in property profile' : 'Set it in property profile'}
+          </Link>
+        </p>
         <div className="grid gap-3 sm:grid-cols-3">
           {(['primaryColor', 'backgroundColor', 'textColor'] as const).map(
             (name, index) => (
@@ -77,9 +80,9 @@ export function PortalPropertyBrandEditor({
           )}
         </div>
       </FieldGroup>
-      {!readOnly ? (
+      {!readOnly && displayName ? (
         <SubmitButton mutation={action} form={form} variant="outline">
-          Save property brand
+          Save brand colours
         </SubmitButton>
       ) : null}
       <PortalExperienceActionError action={action} />

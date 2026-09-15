@@ -711,6 +711,171 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     expect(afterSweep?.items[0]).toMatchObject({ status: 'imported', propertyId: null })
   })
 
+  const claimForTerminal = async (claimFence: string) => {
+    await expect(
+      store.claimItem({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        attemptOrdinal: 1,
+        claimFence,
+        now: NOW,
+        leaseExpiresAt: new Date(NOW.getTime() + 30_000),
+      }),
+    ).resolves.toMatchObject({ kind: 'claimed' })
+    return {
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      claimFence,
+      retainRetryState: false,
+      now: NOW,
+    } as const
+  }
+
+  it('names the rejected profile field on a terminal tenant_profile_invalid item', async () => {
+    await resetIntent()
+    const terminal = await claimForTerminal('10000000-0000-4000-8000-000000000015')
+
+    await expect(
+      store.completeClaim({ ...terminal, outcomeCode: 'tenant_profile_invalid' }),
+    ).rejects.toThrow(/requires the rejected profile field/)
+    await expect(
+      store.completeClaim({
+        ...terminal,
+        outcomeCode: 'internal_error',
+        detail: { kind: 'invalid_profile_field', field: 'name' },
+      }),
+    ).rejects.toThrow(/cannot carry this detail/)
+    await expect(
+      store.completeClaim({
+        ...terminal,
+        outcomeCode: 'tenant_profile_invalid',
+        detail: { kind: 'invalid_profile_field', field: 'timezone' },
+      }),
+    ).resolves.toBe('completed')
+
+    const [item] = await db
+      .select()
+      .from(gbpImportRequestItems)
+      .where(eq(gbpImportRequestItems.id, ITEM_ID))
+    expect(item).toMatchObject({
+      status: 'failed',
+      outcomeCode: 'tenant_profile_invalid',
+      invalidProfileField: 'timezone',
+      destinationPropertyId: null,
+      connectionId: null,
+      providerAccountSuffix: null,
+      providerLocationSuffix: null,
+    })
+    const progress = await store.getProgress(ORG_ID, USER_ID, REQUEST_ID)
+    expect(progress).toMatchObject({ status: 'failed', canRetry: false })
+    expect(progress?.items[0]).toMatchObject({
+      status: 'failed',
+      outcomeCode: 'tenant_profile_invalid',
+      invalidProfileField: 'timezone',
+      retryable: false,
+      propertyId: null,
+    })
+
+    // The schema refuses a field on any other outcome, and any other field.
+    await expect(
+      db
+        .update(gbpImportRequestItems)
+        .set({ outcomeCode: 'internal_error' })
+        .where(eq(gbpImportRequestItems.id, ITEM_ID)),
+    ).rejects.toMatchObject({
+      cause: {
+        code: '23514',
+        constraint: 'gbp_import_request_items_invalid_profile_field_valid',
+      },
+    })
+    await expect(
+      db
+        .update(gbpImportRequestItems)
+        .set({ invalidProfileField: 'slug' })
+        .where(eq(gbpImportRequestItems.id, ITEM_ID)),
+    ).rejects.toMatchObject({ cause: { code: '23514' } })
+  })
+
+  it('links an already_exists item to the Property that holds its location', async () => {
+    await resetIntent()
+    const existingPropertyId = '10000000-0000-4000-8000-000000000017'
+    const terminal = await claimForTerminal('10000000-0000-4000-8000-000000000016')
+
+    await expect(
+      store.completeClaim({
+        ...terminal,
+        outcomeCode: 'internal_error',
+        detail: { kind: 'existing_property', propertyId: existingPropertyId },
+      }),
+    ).rejects.toThrow(/cannot carry this detail/)
+    await expect(
+      store.completeClaim({
+        ...terminal,
+        outcomeCode: 'already_exists',
+        detail: { kind: 'existing_property', propertyId: existingPropertyId },
+      }),
+    ).resolves.toBe('completed')
+
+    const [item] = await db
+      .select()
+      .from(gbpImportRequestItems)
+      .where(eq(gbpImportRequestItems.id, ITEM_ID))
+    expect(item).toMatchObject({
+      status: 'already_exists',
+      destinationPropertyId: existingPropertyId,
+      invalidProfileField: null,
+      connectionId: null,
+      providerLocationSuffix: null,
+    })
+    const progress = await store.getProgress(ORG_ID, USER_ID, REQUEST_ID)
+    expect(progress?.items[0]).toMatchObject({
+      status: 'already_exists',
+      propertyId: existingPropertyId,
+      invalidProfileField: null,
+    })
+
+    // Deleting that Property finds and clears the reference like an import's.
+    const propertyScope = {
+      kind: 'property' as const,
+      organizationId: ORG_ID,
+      propertyId: existingPropertyId,
+    }
+    await expect(store.listLifecycleScopeItems(propertyScope, 100)).resolves.toEqual([
+      {
+        organizationId: ORG_ID,
+        importJobId: REQUEST_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        active: false,
+      },
+    ])
+    await expect(
+      store.scrubLifecycleItems({ organizationId: ORG_ID, itemIds: [ITEM_ID], now: NOW }),
+    ).resolves.toBe(1)
+    const afterSweep = await store.getProgress(ORG_ID, USER_ID, REQUEST_ID)
+    expect(afterSweep?.items[0]).toMatchObject({
+      status: 'already_exists',
+      propertyId: null,
+    })
+  })
+
+  it('records an already_exists item without a Property when none was named', async () => {
+    await resetIntent()
+    const terminal = await claimForTerminal('10000000-0000-4000-8000-000000000018')
+
+    await expect(
+      store.completeClaim({ ...terminal, outcomeCode: 'already_exists' }),
+    ).resolves.toBe('completed')
+
+    const progress = await store.getProgress(ORG_ID, USER_ID, REQUEST_ID)
+    expect(progress?.items[0]).toMatchObject({
+      status: 'already_exists',
+      propertyId: null,
+    })
+  })
+
   it('sweeps expired items and atomically releases retention before parent cascade', async () => {
     await resetIntent()
     const effectDeadline = intent().items[0]!.effectDeadlineAt

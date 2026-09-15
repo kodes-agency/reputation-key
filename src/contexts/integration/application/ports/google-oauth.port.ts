@@ -8,6 +8,11 @@ import type { GoogleConnectionId, OrganizationId, UserId } from '#/shared/domain
 export type GoogleOAuthIdentity = Readonly<{
   kind: 'oidc'
   googleSubject: string
+  /**
+   * The ID token's `email` claim when Google marked it verified; a label shown
+   * to people, never an identity. Null for a grant without the email scope.
+   */
+  email: string | null
 }>
 
 export type GoogleOAuthResult = Readonly<{

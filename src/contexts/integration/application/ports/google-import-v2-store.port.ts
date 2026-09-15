@@ -1,4 +1,8 @@
-import type { ImportOutcomeCode, ImportProgressDto } from '../google-import-v2-contract'
+import type {
+  ImportOutcomeCode,
+  ImportProfileField,
+  ImportProgressDto,
+} from '../google-import-v2-contract'
 import type { ImportDiscoveryAuthorization } from './google-import-reference-store.port'
 import type { GoogleImportReplayDigest } from '../google-import-replay'
 
@@ -77,6 +81,16 @@ export type GoogleImportV2ClaimResult =
         | 'effect_expired'
     }>
 
+/**
+ * What a terminal outcome may record beyond its code. A `tenant_profile_invalid`
+ * item names the rejected field; an `already_exists` item may name the Property
+ * in the same Organization that already holds its location. Both are internal,
+ * content-free references and never provider identifiers.
+ */
+export type GoogleImportV2OutcomeDetail =
+  | Readonly<{ kind: 'invalid_profile_field'; field: ImportProfileField }>
+  | Readonly<{ kind: 'existing_property'; propertyId: string }>
+
 export type GoogleImportV2TerminalInput = Readonly<{
   organizationId: string
   itemId: string
@@ -85,6 +99,7 @@ export type GoogleImportV2TerminalInput = Readonly<{
   outcomeCode: ImportOutcomeCode
   retainRetryState: boolean
   now: Date
+  detail?: GoogleImportV2OutcomeDetail
 }>
 
 export type GoogleImportV2Intent = Readonly<{

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
-import { usePageVisible } from '#/components/hooks/use-page-visible'
 import {
   createGoogleImportContentLifecycle,
   type ImportCandidateDto,
@@ -25,8 +24,8 @@ import {
   googleImportContentExpiry,
   googleImportLeaseQuery,
   scheduleGoogleImportExpiries,
-  subscribeToGoogleImportVisibility,
 } from './google-import-queries'
+import { leaseRenewalFailureIsFinal } from './google-import-error-messages'
 import { createImportReviewDraft } from './google-import-review-model'
 import {
   activeGoogleImportConnectionId,
@@ -37,7 +36,10 @@ import {
   toggleLoadedCandidates,
   toggleSelectedCandidate,
 } from './google-import-selection'
-const EMPTY_REVIEW: GoogleImportReviewDraftInput = { items: [] }
+const EMPTY_REVIEW: GoogleImportReviewDraftInput = {
+  items: [],
+  profileAcknowledged: false,
+}
 
 export function useGoogleImportReviewForm({
   initialDraft,
@@ -54,13 +56,11 @@ function useGoogleImportContent({
   organizationId,
   connectionId,
   accountRef,
-  step,
   enabled,
   importFns,
   clearProviderState,
 }: GoogleImportContentOptions) {
   const queryClient = useQueryClient()
-  const pageVisible = usePageVisible()
   const organizationIdRef = useRef(organizationId)
   const [epoch, setEpoch] = useState(0)
   const [lifecycle] = useState(() =>
@@ -108,7 +108,6 @@ function useGoogleImportContent({
       leaseRef: authorizationLease?.leaseRef ?? null,
       enabled,
       hasProviderContent: accounts.length > 0 || candidates.length > 0,
-      pageVisible,
       epoch,
       guard: lifecycle.guard,
       renewLease: importFns.renewImportAuthorizationLease,
@@ -125,15 +124,8 @@ function useGoogleImportContent({
   }, [clearProviderState, lifecycle])
   useEffect(() => {
     lifecycle.activate()
-    return () => {
-      lifecycle.deactivate()
-      lifecycle.clear('route_left')
-    }
+    return () => lifecycle.leave()
   }, [lifecycle])
-  useEffect(() => {
-    if (!enabled || (step !== 'discover' && step !== 'review')) return
-    return subscribeToGoogleImportVisibility(lifecycle)
-  }, [enabled, lifecycle, step])
   useEffect(() => {
     if (!enabled) return
     return scheduleGoogleImportExpiries(lifecycle, contentExpiresAt, leaseExpiresAt)
@@ -143,8 +135,13 @@ function useGoogleImportContent({
     organizationIdRef.current = organizationId
     lifecycle.clear('tenant_changed')
   }, [lifecycle, organizationId])
+  // Only a refusal the server decided clears content at once. A renewal that
+  // failed in transit may still leave a valid lease; the scheduled lease expiry
+  // clears it if no later renewal succeeds.
   useEffect(() => {
-    if (leaseQuery.error) lifecycle.clear('lease_expired')
+    if (leaseQuery.error && leaseRenewalFailureIsFinal(leaseQuery.error)) {
+      lifecycle.clear('lease_expired')
+    }
   }, [leaseQuery.error, lifecycle])
 
   return { accounts, candidates, accountsQuery, candidatesQuery, lifecycle }
@@ -179,7 +176,6 @@ export function useGoogleImport({
     organizationId,
     connectionId: state.connectionId,
     accountRef: state.accountRef,
-    step: state.step,
     enabled: state.contentActive,
     importFns,
     clearProviderState,
@@ -254,11 +250,10 @@ export function useGoogleImport({
     const candidates = content.candidates.filter((candidate) =>
       state.selectedIds.has(candidate.candidateId),
     )
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
     dispatch({
       type: 'review',
       candidates,
-      draft: createImportReviewDraft(candidates, timezone),
+      draft: createImportReviewDraft(candidates),
     })
     window.scrollTo({ top: 0, behavior: 'auto' })
   }

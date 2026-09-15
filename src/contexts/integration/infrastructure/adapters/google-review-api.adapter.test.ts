@@ -442,6 +442,61 @@ describe('GoogleReviewApiAdapter', () => {
     expect(page.reviews[0]?.replyText).toBe('Thank you for the kind words.')
   })
 
+  // D6: a translation-only reply envelope carries no recoverable original. Read
+  // as `replyText: null` alone, it looked exactly like "Google has no reply", and
+  // reconciliation treats absence as the answer that keeps a send uncertain.
+  it.each([
+    [
+      'a translation-only envelope',
+      { comment: '(Translated by Google) Thank you for staying with us.' },
+      { replyText: null, replyUnreadable: true },
+    ],
+    [
+      'a normal envelope',
+      { comment: '(Translated by Google) Thank you.\n\n(Original)\nБлагодарим.' },
+      { replyText: 'Благодарим.', replyUnreadable: false },
+    ],
+    [
+      'a plain reply',
+      { comment: 'Thank you for the kind words.' },
+      { replyText: 'Thank you for the kind words.', replyUnreadable: false },
+    ],
+    ['no reply', undefined, { replyText: null, replyUnreadable: false }],
+  ])('getReview maps %s to its readable reply state', async (_label, reply, expected) => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        contentType: 'application/json; charset=utf-8',
+        cacheControl: null,
+        retryAfter: null,
+      },
+      body: new TextEncoder().encode(
+        JSON.stringify({
+          ...providerReview(),
+          ...(reply
+            ? { reviewReply: { ...reply, updateTime: '2026-09-09T09:01:28.000Z' } }
+            : {}),
+        }),
+      ),
+    })
+    const { api } = createAdapter({ execute })
+
+    const result = await api.getReview({
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      connectionId: CONNECTION_ID,
+      sourceEpoch: 17,
+      locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+      reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+    })
+
+    expect(result).toEqual({
+      status: 'found',
+      review: expect.objectContaining(expected),
+    })
+  })
+
   it('leaves an unwrapped Google comment as the review text', async () => {
     const execute = vi.fn().mockResolvedValue({
       ok: true,
@@ -882,6 +937,247 @@ describe('GoogleReviewApiAdapter', () => {
     await expect(
       api.replyToReview({ ...publicationInput(), text: 'different reply' }),
     ).rejects.toMatchObject({ code: 'authorization_changed', recoverable: false })
+    expect(execute).not.toHaveBeenCalled()
+  })
+})
+
+// D2: the incident reply was refused by the executor's compile step with no
+// permit and no fetch, but `executorErrorToReviewApiError` dropped the code and
+// the dispatch, so the publish job read it as ambiguous. The review error now
+// carries the dispatch the provider plane recorded, and a content-free message
+// that reaches BullMQ's `failedReason`.
+describe('GoogleReviewApiAdapter reply failure evidence (D2)', () => {
+  const REPLY_TEXT = 'Thank you, Maria.\nSee you again soon!'
+
+  function replyAdapter(execute: Mock) {
+    return createAdapter({
+      execute,
+      authorizeReplyPublicationProviderCall: vi.fn().mockResolvedValue({
+        accessToken: 'access-token',
+        authorization: {
+          ...publicationAuthorization,
+          authorizationVector: {
+            ...publicationAuthorization.authorizationVector,
+            expectedReplyDigest: googleReplyTextDigest(REPLY_TEXT),
+          },
+        },
+      }),
+    }).api
+  }
+
+  const replyInput = () => ({ ...publicationInput(), text: REPLY_TEXT })
+
+  async function rejection(promise: Promise<unknown>): Promise<Error> {
+    const outcome = await promise.then(
+      () => null,
+      (error: unknown) => error,
+    )
+    expect(outcome).toBeInstanceOf(Error)
+    return outcome as Error
+  }
+
+  it('carries a compile refusal as not_sent malformed_request with no reply text', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: false,
+      code: 'malformed_request',
+      dispatch: 'not_sent',
+      retryAfterMs: 0,
+    })
+
+    const error = await rejection(replyAdapter(execute).replyToReview(replyInput()))
+
+    expect(error).toMatchObject({
+      _tag: 'GoogleReviewApiError',
+      failure: {
+        executionCode: 'malformed_request',
+        dispatch: 'not_sent',
+        providerStatus: null,
+      },
+    })
+    expect(error.message).toContain('malformed_request; not_sent')
+    expect(error.message).not.toContain('Maria')
+    expect(JSON.stringify(error)).not.toContain('Maria')
+  })
+
+  it('names the admission code when the gateway refused before dispatch', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: false,
+      code: 'admission_denied',
+      admissionCode: 'coordination_unavailable',
+      dispatch: 'not_sent',
+      retryAfterMs: 0,
+    })
+
+    const error = await rejection(replyAdapter(execute).replyToReview(replyInput()))
+
+    expect(error).toMatchObject({
+      code: 'provider_unavailable',
+      failure: {
+        executionCode: 'coordination_unavailable',
+        dispatch: 'not_sent',
+        providerStatus: null,
+      },
+    })
+    expect(error.message).toBe(
+      'Google review API request failed (coordination_unavailable; not_sent)',
+    )
+  })
+
+  it('carries the answered status of a provider error response', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 503,
+      headers: { contentType: 'application/json', cacheControl: null, retryAfter: null },
+      body: new TextEncoder().encode('{"error":{"message":"backend error"}}'),
+    })
+
+    const error = await rejection(replyAdapter(execute).replyToReview(replyInput()))
+
+    expect(error).toMatchObject({
+      code: 'provider_unavailable',
+      failure: { executionCode: null, dispatch: 'answered', providerStatus: 503 },
+    })
+    expect(error.message).toBe(
+      'Google review API request failed (upstream_error; answered; status 503)',
+    )
+    expect(error.message).not.toContain('backend error')
+  })
+
+  it('keeps the rate-limit hint alongside the answered 429', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 429,
+      headers: { contentType: 'application/json', cacheControl: null, retryAfter: '7' },
+      body: new Uint8Array(),
+    })
+
+    const error = await rejection(replyAdapter(execute).replyToReview(replyInput()))
+
+    expect(error).toMatchObject({
+      code: 'provider_rate_limited',
+      retryAfterMs: expect.any(Number),
+      failure: { dispatch: 'answered', providerStatus: 429 },
+    })
+  })
+
+  it('reports an executor that threw as an unknown dispatch', async () => {
+    const execute = vi.fn().mockRejectedValue(new Error('socket reset'))
+
+    const error = await rejection(replyAdapter(execute).replyToReview(replyInput()))
+
+    expect(error).toMatchObject({
+      code: 'provider_unavailable',
+      failure: { dispatch: 'unknown', providerStatus: null },
+    })
+    expect(error.message).not.toContain('socket reset')
+  })
+
+  it('accepts a 200 answer whose body is not JSON: Google took the write', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        contentType: 'text/html; charset=utf-8',
+        cacheControl: null,
+        retryAfter: null,
+        providerCorrelationId: 'provider-request-2',
+      },
+      body: new TextEncoder().encode('<html></html>'),
+    })
+
+    await expect(replyAdapter(execute).replyToReview(replyInput())).resolves.toEqual({
+      providerCorrelationId: null,
+    })
+    expect(execute).toHaveBeenCalledOnce()
+  })
+
+  it('does not read an oversized 200 answer from the gateway as an accepted write', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: false,
+      code: 'response_too_large',
+      dispatch: 'answered',
+      providerStatus: 200,
+      retryAfterMs: 0,
+    })
+
+    const error = await rejection(replyAdapter(execute).replyToReview(replyInput()))
+
+    expect(error).toMatchObject({
+      code: 'provider_unavailable',
+      failure: {
+        executionCode: 'response_too_large',
+        dispatch: 'answered',
+        providerStatus: 200,
+      },
+    })
+    expect(error.message).toBe(
+      'Google review API request failed (response_too_large; answered; status 200)',
+    )
+  })
+
+  it.each([
+    ['an empty reply', { text: '' }],
+    ['a non-UUID reply id', { replyId: 'reply-1' }],
+    ['a reply over 4,096 UTF-8 bytes', { text: 'Ж'.repeat(2_049) }],
+  ])('refuses %s before the executor, as not_sent', async (_label, override) => {
+    const execute = vi.fn()
+
+    const error = await rejection(
+      replyAdapter(execute).replyToReview({ ...replyInput(), ...override }),
+    )
+
+    expect(error).toMatchObject({
+      code: 'invalid_request',
+      failure: { executionCode: null, dispatch: 'not_sent', providerStatus: null },
+    })
+    expect(error.message).toBe(
+      'Google review API request failed (invalid_request; not_sent)',
+    )
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('lets line feeds, carriage returns and tabs through its own input check', async () => {
+    const text = 'Thank you.\r\n\tSee you soon.'
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { contentType: 'application/json', cacheControl: null, retryAfter: null },
+      body: new TextEncoder().encode('{}'),
+    })
+    const { api } = createAdapter({
+      execute,
+      authorizeReplyPublicationProviderCall: vi.fn().mockResolvedValue({
+        accessToken: 'access-token',
+        authorization: {
+          ...publicationAuthorization,
+          authorizationVector: {
+            ...publicationAuthorization.authorizationVector,
+            expectedReplyDigest: googleReplyTextDigest(text),
+          },
+        },
+      }),
+    })
+
+    await expect(api.replyToReview({ ...publicationInput(), text })).resolves.toEqual({
+      providerCorrelationId: null,
+    })
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({ comment: text }),
+      expect.anything(),
+    )
+  })
+
+  it('refuses a control character the reply rule rejects, before the executor', async () => {
+    const execute = vi.fn()
+
+    const error = await rejection(
+      replyAdapter(execute).replyToReview({ ...replyInput(), text: 'Thanks' }),
+    )
+
+    expect(error).toMatchObject({
+      code: 'invalid_request',
+      failure: { dispatch: 'not_sent' },
+    })
     expect(execute).not.toHaveBeenCalled()
   })
 })

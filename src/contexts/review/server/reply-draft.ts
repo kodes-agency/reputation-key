@@ -3,14 +3,9 @@
 import { createServerFn } from '@tanstack/react-start'
 import { setResponseHeader } from '@tanstack/react-start/server'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { getContainer } from '#/composition'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
-import { isReviewError } from '../domain/errors'
 import { reviewId } from '#/shared/domain/ids'
-import { reviewErrorStatus, reviewIdDto, draftReplyDto } from './reply-read'
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
+import { reviewIdDto, draftReplyDto } from './reply-read'
+import { runReplyCommand } from './reply-command'
 
 // ── draftReply ───────────────────────────────────────────────────────
 
@@ -22,12 +17,8 @@ export const draftReplyFn = createServerFn({ method: 'POST' })
         setResponseHeader('Cache-Control', 'private, no-store, max-age=0')
         setResponseHeader('Pragma', 'no-cache')
         setResponseHeader('Expires', '0')
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
-        const { reviewPublicApi } = getContainer()
-        try {
-          return await reviewPublicApi.reply.draft(
+        return runReplyCommand((reply, ctx) =>
+          reply.draft(
             {
               reviewId: reviewId(data.reviewId),
               text: data.text,
@@ -35,12 +26,8 @@ export const draftReplyFn = createServerFn({ method: 'POST' })
               provenanceToken: data.provenanceToken,
             },
             ctx,
-          )
-        } catch (e) {
-          if (isReviewError(e))
-            throwContextError('ReviewError', e, reviewErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+          ),
+        )
       },
       'POST',
       'review.draftReply',
@@ -53,22 +40,10 @@ export const submitReplyFn = createServerFn({ method: 'POST' })
   .validator(reviewIdDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
-        const { reviewPublicApi } = getContainer()
-        try {
-          return await reviewPublicApi.reply.submit(
-            { reviewId: reviewId(data.reviewId) },
-            ctx,
-          )
-        } catch (e) {
-          if (isReviewError(e))
-            throwContextError('ReviewError', e, reviewErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
+      async ({ data }) =>
+        runReplyCommand((reply, ctx) =>
+          reply.submit({ reviewId: reviewId(data.reviewId) }, ctx),
+        ),
       'POST',
       'review.submitReply',
     ),
@@ -80,22 +55,10 @@ export const approveReplyFn = createServerFn({ method: 'POST' })
   .validator(reviewIdDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
-        const { reviewPublicApi } = getContainer()
-        try {
-          return await reviewPublicApi.reply.approve(
-            { reviewId: reviewId(data.reviewId) },
-            ctx,
-          )
-        } catch (e) {
-          if (isReviewError(e))
-            throwContextError('ReviewError', e, reviewErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
+      async ({ data }) =>
+        runReplyCommand((reply, ctx) =>
+          reply.approve({ reviewId: reviewId(data.reviewId) }, ctx),
+        ),
       'POST',
       'review.approveReply',
     ),
@@ -110,22 +73,13 @@ export const editPublishedReplyFn = createServerFn({ method: 'POST' })
   .validator(draftReplyDto)
   .handler(
     tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
-        const { reviewPublicApi } = getContainer()
-        try {
-          return await reviewPublicApi.reply.editPublished(
+      async ({ data }) =>
+        runReplyCommand((reply, ctx) =>
+          reply.editPublished(
             { reviewId: reviewId(data.reviewId), text: data.text },
             ctx,
-          )
-        } catch (e) {
-          if (isReviewError(e))
-            throwContextError('ReviewError', e, reviewErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
+          ),
+        ),
       'POST',
       'review.editPublishedReply',
     ),

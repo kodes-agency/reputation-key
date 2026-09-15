@@ -1,16 +1,27 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, waitFor, within } from 'storybook/test'
+import { expect, userEvent, within } from 'storybook/test'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 import type {
   ImportProgressDto,
   ImportProgressItemDto,
 } from '#/contexts/integration/application/public-api'
-import { consentToAi } from '#/components/features/settings/merchant-ai-consent.stories.play'
-import { aiEnabled, createAiFnsFixture } from './google-import-ai.stories.fixtures'
+import { SetupPropertiesStep } from '#/components/features/property-setup'
+import {
+  createSetupFnsFixture,
+  STORY_ADMIN,
+  STORY_MANAGER,
+  type StorySetupProperty,
+} from '#/components/features/property-setup/setup.stories.fixtures'
 import { GoogleImportProgressView } from './google-import-progress-view'
+import { importedPropertiesForAi } from './google-import-progress-model'
+import { openImportDetailsForProperty } from './google-import.stories.play'
 
-const aiFns = createAiFnsFixture()
+const MERIDIAN: StorySetupProperty = {
+  propertyId: '10000000-0000-4000-8000-000000000011',
+  name: 'The Meridian Grand Resort',
+  countryCode: 'GB',
+}
 
 const items: readonly ImportProgressItemDto[] = [
   {
@@ -24,6 +35,7 @@ const items: readonly ImportProgressItemDto[] = [
     retryRevision: 0,
     userAction: 'none',
     propertyId: '10000000-0000-4000-8000-000000000011',
+    invalidProfileField: null,
   },
   {
     itemId: '10000000-0000-4000-8000-000000000020',
@@ -36,6 +48,7 @@ const items: readonly ImportProgressItemDto[] = [
     retryRevision: 2,
     userAction: 'retry',
     propertyId: null,
+    invalidProfileField: null,
   },
 ]
 
@@ -62,19 +75,35 @@ const processing: ImportProgressDto = {
   updatedAt: '2026-08-12T10:00:00.000Z',
 }
 
+/** Settled with one failed row, so the rows stay open under the setup step. */
+const completedWithIssues: ImportProgressDto = {
+  ...processing,
+  status: 'completed_with_issues',
+  processedCount: 4,
+  pollAfterMs: null,
+  counts: { ...processing.counts, pending: 0, imported: 3 },
+}
+
 function ProgressHarness({
   snapshot = processing,
-  ai = aiFns,
+  property = MERIDIAN,
 }: {
   snapshot?: ImportProgressDto
-  ai?: ReturnType<typeof createAiFnsFixture>
+  property?: StorySetupProperty
 }) {
   const [retried, setRetried] = useState(false)
+  const [fns] = useState(() => createSetupFnsFixture({ properties: [property] }))
   return (
     <>
       <GoogleImportProgressView
         progress={snapshot}
-        aiFns={ai}
+        setupStep={
+          <SetupPropertiesStep
+            properties={importedPropertiesForAi(snapshot)}
+            fns={fns}
+            viewerUserId={STORY_ADMIN.userId}
+          />
+        }
         isPollingError={false}
         isRefreshing={false}
         isCancelling={false}
@@ -93,7 +122,7 @@ const meta: Meta<typeof GoogleImportProgressView> = {
   component: GoogleImportProgressView,
   parameters: { layout: 'padded' },
   decorators: [AuthedRouterDecorator],
-  args: { aiFns },
+  args: { setupStep: null },
 }
 export default meta
 type Story = StoryObj<typeof GoogleImportProgressView>
@@ -130,79 +159,65 @@ export const Queued: Story = {
 }
 
 /**
- * The AI-analysis step: the imported property gets the same consent card as
- * Settings, enabling it records the decision and hands over to insights.
+ * The import settled with a property: the wizard's last step opens under the
+ * summary, and the import's rows stay open because one needs attention.
  */
-export const ImportedWithAiOnboarding: Story = {
-  render: () => {
-    const ai = createAiFnsFixture()
-    return (
-      <ProgressHarness
-        ai={ai}
-        snapshot={{
-          ...processing,
-          status: 'completed_with_issues',
-          processedCount: 4,
-          pollAfterMs: null,
-          counts: { ...processing.counts, pending: 0, imported: 3 },
-        }}
-      />
-    )
-  },
+export const ImportedThenSetUp: Story = {
+  render: () => <ProgressHarness snapshot={completedWithIssues} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const steps = within(canvas.getByRole('navigation', { name: /import steps/i }))
-    await expect(steps.getByText('AI analysis')).toHaveAttribute('aria-current', 'page')
+    await expect(
+      canvas.findByRole('heading', { name: 'Set up properties' }),
+    ).resolves.toBeVisible()
+    await expect(
+      canvas.findByRole('textbox', { name: 'Public display name' }),
+    ).resolves.toHaveValue('The Meridian Grand Resort')
     const propertyLinks = canvas.getAllByRole('link', {
       name: /view property the meridian grand resort/i,
     })
     await expect(propertyLinks.some((link) => link.checkVisibility())).toBe(true)
-
-    await consentToAi(canvasElement)
-
-    await expect(
-      canvas.findByText(/ai analysis is on for the meridian grand resort/i),
-    ).resolves.toBeVisible()
-    await expect(canvas.getByRole('link', { name: /view insights/i })).toBeVisible()
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
   },
 }
 
-/** Declining keeps the property exactly as an import without this step would. */
-export const AiOnboardingSkipped: Story = {
+/** Without issues the finished rows fold away behind "Import details". */
+export const ImportDetailsFolded: Story = {
   render: () => (
     <ProgressHarness
-      ai={createAiFnsFixture()}
       snapshot={{
         ...processing,
         status: 'completed',
-        processedCount: 4,
+        processedCount: 1,
+        totalCount: 1,
         pollAfterMs: null,
-        counts: { ...processing.counts, pending: 0, imported: 4, failed: 0 },
+        counts: { ...processing.counts, pending: 0, imported: 1, failed: 0 },
         items: [processing.items[0]!],
       }}
     />
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(
-      await canvas.findByRole('button', {
-        name: /not now for the meridian grand resort/i,
-      }),
-    )
-    await expect(canvas.getByText(/ai analysis stays off/i)).toBeVisible()
-    await userEvent.click(canvas.getByRole('button', { name: /reconsider/i }))
     await expect(
-      canvas.findByLabelText(/confirm with your password/i),
-    ).resolves.toBeVisible()
+      canvas.queryByRole('link', { name: /view property the meridian grand resort/i }),
+    ).toBeNull()
+    await openImportDetailsForProperty(
+      canvasElement,
+      /view property the meridian grand resort/i,
+    )
   },
 }
 
-/** A property that already consented shows the hand-off, not a second card. */
-export const AiAlreadyEnabled: Story = {
+/** A relinked property that is already configured is not asked again. */
+export const RelinkedPropertyAlreadySetUp: Story = {
   render: () => (
     <ProgressHarness
-      ai={createAiFnsFixture(aiEnabled)}
+      property={{
+        ...MERIDIAN,
+        publicDisplayNameConfirmed: true,
+        defaultReplyLanguage: 'en-Latn',
+        aiEnabled: true,
+        managerIds: [STORY_MANAGER.userId],
+      }}
       snapshot={{
         ...processing,
         status: 'completed',
@@ -224,11 +239,8 @@ export const AiAlreadyEnabled: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.findByText(/ai analysis is on for/i)).resolves.toBeVisible()
-    await expect(
-      canvas.queryByLabelText(/confirm with your password/i),
-    ).not.toBeInTheDocument()
-    await waitFor(() => expect(aiFns.enableMerchantAi).not.toHaveBeenCalled())
+    await expect(canvas.findByText('Nothing left to ask')).resolves.toBeVisible()
+    await expect(canvas.queryByRole('radio')).toBeNull()
   },
 }
 
@@ -245,17 +257,7 @@ export const Processing: Story = {
 }
 
 export const CompletedWithIssues: Story = {
-  render: () => (
-    <ProgressHarness
-      snapshot={{
-        ...processing,
-        status: 'completed_with_issues',
-        processedCount: 4,
-        pollAfterMs: null,
-        counts: { ...processing.counts, pending: 0, imported: 3 },
-      }}
-    />
-  ),
+  render: () => <ProgressHarness snapshot={completedWithIssues} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('link', { name: /view properties/i })).toBeVisible()
@@ -299,6 +301,94 @@ export const AllAlreadyLinked: Story = {
     await expect(figure(/^Need attention$/)).toBe('0')
     await expect(figure(/^Remaining$/)).toBe('0')
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
+  },
+}
+
+/**
+ * The Property context rejected a confirmed detail. The row names the field and
+ * sends the manager back to import the location again; a retry could not help.
+ */
+export const RejectedProfile: Story = {
+  render: () => (
+    <ProgressHarness
+      snapshot={{
+        ...processing,
+        status: 'failed',
+        totalCount: 1,
+        processedCount: 1,
+        pollAfterMs: null,
+        canRetry: false,
+        counts: { ...processing.counts, pending: 0, imported: 0, failed: 1 },
+        items: [
+          {
+            ...items[1]!,
+            outcomeCode: 'tenant_profile_invalid',
+            messageKey: 'property_import.tenant_profile_invalid',
+            retryable: false,
+            userAction: 'none',
+            invalidProfileField: 'timezone',
+          },
+        ],
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const messages = canvas.getAllByText(
+      'The timezone was rejected. Choose a valid timezone and import this location again.',
+    )
+    await expect(messages.some((message) => message.checkVisibility())).toBe(true)
+    const links = canvas.getAllByRole('link', {
+      name: /import juniper street café again/i,
+    })
+    await expect(links[0]).toHaveAttribute('href', '/properties/import-google')
+    await expect(canvas.queryByRole('button', { name: /retry/i })).toBeNull()
+  },
+}
+
+/**
+ * A location that was already bound links to the Property that holds it. It is
+ * not this import's Property, so the import has nothing to set up.
+ */
+export const AlreadyLinkedProperty: Story = {
+  render: () => (
+    <ProgressHarness
+      snapshot={{
+        ...processing,
+        status: 'completed_with_issues',
+        totalCount: 1,
+        processedCount: 1,
+        pollAfterMs: null,
+        canRetry: false,
+        counts: {
+          ...processing.counts,
+          pending: 0,
+          imported: 0,
+          failed: 0,
+          already_exists: 1,
+        },
+        items: [
+          {
+            ...items[0]!,
+            status: 'already_exists',
+            outcomeCode: 'already_exists',
+            messageKey: 'property_import.already_exists',
+            propertyId: '10000000-0000-4000-8000-000000000031',
+          },
+        ],
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const links = canvas.getAllByRole('link', {
+      name: /view the existing property for the meridian grand resort/i,
+    })
+    await expect(links[0]).toHaveAttribute(
+      'href',
+      '/properties/10000000-0000-4000-8000-000000000031',
+    )
+    await expect(canvas.queryByRole('heading', { name: 'Set up properties' })).toBeNull()
   },
 }
 

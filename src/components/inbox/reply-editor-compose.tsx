@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { Textarea } from '#/components/ui/textarea'
-import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
+import {
+  GOOGLE_REPLY_COMMENT_MAX_BYTES,
+  replyCommentByteLength,
+} from '#/shared/google-provider-control/reply-comment'
 import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
 import { cn } from '#/lib/utils'
 import {
@@ -18,8 +21,10 @@ import type {
 import { ReplySuggestionControls } from './reply-suggestion-controls'
 import { ReplySuggestionPreview } from './reply-suggestion-preview'
 import { useReplyComposer } from './use-reply-composer'
-import type { ReplySuggestionResult, ReplyTone } from './use-reply-suggestion'
-import type { LoadedReplyTemplateDraft } from './reply-suggestion-contract'
+import type {
+  LoadedReplyTemplateDraft,
+  ReplySuggestionGenerate,
+} from './reply-suggestion-contract'
 
 export type { ReplySuggestionResult, ReplyTone } from './use-reply-suggestion'
 
@@ -40,11 +45,7 @@ export type ReplyComposeProps = Readonly<{
   ) => Promise<unknown>
   onSubmit: () => Promise<unknown>
   onDelete?: () => Promise<unknown>
-  onGenerateSuggestion?: (
-    tone: ReplyTone,
-    target: ReplyLanguageTarget,
-    templateOnly?: boolean,
-  ) => Promise<ReplySuggestionResult>
+  onGenerateSuggestion?: ReplySuggestionGenerate
   onListTemplates?: (target: ReplyLanguageTarget) => Promise<ReplyTemplateListResult>
   onLoadTemplate?: (
     templateId: string,
@@ -250,6 +251,9 @@ export function ReplyCompose(props: ReplyComposeProps) {
             hasAiDraft={state.hasAiDraft}
             canUndo={state.historyCount > 0}
             aiError={state.ai.error}
+            aiBusyUntil={state.ai.busyUntil}
+            aiOffersTemplate={state.ai.offersTemplate}
+            onUseTemplateInstead={() => void state.ai.requestTemplate()}
             templateError={state.templates.error}
             errorFixTarget={state.ai.errorFixTarget}
             propertyId={props.propertyId}
@@ -274,7 +278,7 @@ export function ReplyCompose(props: ReplyComposeProps) {
             state.overLimit ? 'text-destructive' : 'text-muted-foreground',
           )}
         >
-          {state.draft.text.length}/{MAX_REPLY_LENGTH}
+          {replyCommentByteLength(state.draft.text)}/{GOOGLE_REPLY_COMMENT_MAX_BYTES}
         </span>
         {/* `ml-auto` keeps the primary against the trailing edge whether the
             foot fits one line or wraps; the footer brings `Delete draft`,

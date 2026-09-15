@@ -9,6 +9,7 @@ import { isValidVisibility } from './rules'
 type BuildConnectionIdentity = Readonly<{
   kind: 'oidc'
   googleSubject: string
+  email: string | null
 }>
 
 type BuildConnectionArgs = Readonly<{
@@ -38,6 +39,7 @@ export const buildGoogleConnection = (args: BuildConnectionArgs) => {
     id: args.id,
     organizationId: args.organizationId,
     googleSubject: args.identity.googleSubject,
+    googleAccountEmail: args.identity.email,
     encryptedAccessToken: args.encryptedAccessToken,
     encryptedRefreshToken: args.encryptedRefreshToken,
     tokenExpiresAt: args.tokenExpiresAt,

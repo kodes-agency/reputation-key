@@ -40,9 +40,7 @@ const RESERVED = maximumCostMicros(profile, PAYLOAD_BYTES)
 describe.sequential('AI budget ledger (real PostgreSQL)', () => {
   const db = getDb()
   let fixture: AiOperationFixture
-  let limiterAllows = true
   const budget = createAiBudgetControl({
-    rateLimiter: { check: async () => ({ allowed: limiterAllows }) },
     idGen: randomUUID,
     now: () => NOW,
   })
@@ -145,19 +143,6 @@ describe.sequential('AI budget ledger (real PostgreSQL)', () => {
       settledMicros: 7,
     })
     await db.transaction((tx) => budget.settleAiOperation(tx, second, 0))
-  })
-
-  it('refuses a throttled admission before touching the window', async () => {
-    const id = await fixture.seedOperation()
-    limiterAllows = false
-    try {
-      await expect(
-        db.transaction((tx) => budget.admitAiOperation(tx, admission(id))),
-      ).resolves.toEqual({ ok: false, code: 'rate_limited' })
-    } finally {
-      limiterAllows = true
-    }
-    await expect(operation(id)).resolves.toMatchObject({ reservedMicros: 0 })
   })
 
   it('reaps only reservations older than the TTL and gives their micros back to the window', async () => {

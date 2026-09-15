@@ -5,7 +5,9 @@ import {
   connectionCallbackErrorMessage,
   discoveryErrorIsRecoverable,
   discoveryErrorMessage,
+  leaseRenewalFailureIsFinal,
   startErrorMessage,
+  startErrorRequiresNewRequest,
 } from './google-import-error-messages'
 
 /**
@@ -114,6 +116,16 @@ describe('startErrorMessage', () => {
   })
 })
 
+describe('startErrorRequiresNewRequest', () => {
+  it('retires the request id only when the server says it was used elsewhere', () => {
+    expect(startErrorRequiresNewRequest(coded('request_conflict'))).toBe(true)
+    // A retry after these must replay the same id: the first call may have committed.
+    expect(startErrorRequiresNewRequest(coded('temporarily_unavailable'))).toBe(false)
+    expect(startErrorRequiresNewRequest(coded('invalid_reference'))).toBe(false)
+    expect(startErrorRequiresNewRequest(new TypeError('Failed to fetch'))).toBe(false)
+  })
+})
+
 describe('connectionCallbackErrorMessage', () => {
   it('keeps callback outcomes distinct and has no message without an error', () => {
     expect(connectionCallbackErrorMessage('account_already_connected')).toMatch(
@@ -122,5 +134,26 @@ describe('connectionCallbackErrorMessage', () => {
     expect(connectionCallbackErrorMessage('denied')).toMatch(/cancelled/i)
     expect(connectionCallbackErrorMessage('connection_failed')).toMatch(/failed/i)
     expect(connectionCallbackErrorMessage(undefined)).toBeNull()
+  })
+})
+
+describe('leaseRenewalFailureIsFinal', () => {
+  it.each(['reference_invalid', 'unauthorized', 'invalid_request'])(
+    'clears content when the server refuses the renewal with %s',
+    (code) => {
+      expect(leaseRenewalFailureIsFinal(coded(code))).toBe(true)
+      expect(leaseRenewalFailureIsFinal({ code })).toBe(true)
+    },
+  )
+
+  it('keeps content through an outage, leaving the lease expiry to decide', () => {
+    expect(leaseRenewalFailureIsFinal(coded('temporarily_unavailable'))).toBe(false)
+    expect(leaseRenewalFailureIsFinal(coded('provider_unavailable'))).toBe(false)
+  })
+
+  it('keeps content through a failure that carries no server verdict', () => {
+    // A suspended laptop or a dropped connection rejects with a bare TypeError.
+    expect(leaseRenewalFailureIsFinal(new TypeError('Failed to fetch'))).toBe(false)
+    expect(leaseRenewalFailureIsFinal(null)).toBe(false)
   })
 })

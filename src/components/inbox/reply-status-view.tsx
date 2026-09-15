@@ -11,11 +11,8 @@ import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-
 import { putCaretIn } from './composer-caret'
 import { ReplyCompose, type ReplyComposeProps } from './reply-editor-compose'
 import { ReplyPublishedEditor } from './reply-published-edit'
-import type { ReplyTone, ReplySuggestionResult } from './reply-editor-compose'
-import type {
-  ReplyLanguageTarget,
-  ReviewLanguageReadiness,
-} from './reply-language-options'
+import type { ReplySuggestionGenerate } from './reply-suggestion-contract'
+import type { ReviewLanguageReadiness } from './reply-language-options'
 
 export type ReplyData = InboxItemDetailResult['reply']
 type GoogleObservedReplyView = Extract<
@@ -65,6 +62,9 @@ export function resolveReplyView(reply: ReplyData | null): ResolvedReplyView {
   if (reply.source === 'google_sync') return { kind: 'mirror', reply }
   if (reply.status === 'published') return { kind: 'published', reply }
   if (reply.status === 'publish_failed') {
+    // One kind for every ambiguous-descended reply, whether the automatic read
+    // ladder still runs (`reconcileDueAt` set) or has ended: both offer only
+    // Check. The presenter (`reply-message-view.ts`) splits the words and tone.
     return reply.publicationState === 'ambiguous' ||
       reply.publicationLastErrorClass === 'ambiguous'
       ? { kind: 'failed-check', reply }
@@ -106,11 +106,7 @@ type ReplyStatusViewProps = Readonly<{
   onSaveEdit: (text: string) => Promise<unknown>
   /** The editor closed itself — saved or cancelled. Clears the edit target. */
   onEditDone: () => void
-  onGenerateSuggestion?: (
-    tone: ReplyTone,
-    target: ReplyLanguageTarget,
-    templateOnly?: boolean,
-  ) => Promise<ReplySuggestionResult>
+  onGenerateSuggestion?: ReplySuggestionGenerate
   onListTemplates: NonNullable<ReplyComposeProps['onListTemplates']>
   onLoadTemplate: NonNullable<ReplyComposeProps['onLoadTemplate']>
 }>

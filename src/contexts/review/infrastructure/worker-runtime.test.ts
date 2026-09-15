@@ -41,6 +41,7 @@ describe('registerReviewWorkerJobs', () => {
       runTargetedFetch: vi.fn(),
       runSourceContentLifecycle: vi.fn(),
       reconcileReplyPublication: vi.fn(),
+      dispatchEvidence: { findDispatchEvidence: vi.fn() },
       clock: () => new Date('2026-08-28T00:00:00.000Z'),
       idGen: () => '00000000-0000-4000-8000-000000000001',
       logger: createMockLogger(),

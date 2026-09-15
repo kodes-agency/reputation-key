@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  replySuggestionOffersTemplate,
   replySuggestionUnavailableMessage,
   replyTemplateLoadedMessage,
 } from './reply-suggestion-contract'
@@ -53,16 +54,46 @@ describe('replyTemplateLoadedMessage', () => {
     ).toBe('This review has no text — template loaded in Bulgarian (property default).')
   })
 
-  it('keeps provider fallbacks on their existing explanation', () => {
+  it('explains nothing for a template the manager asked for', () => {
     expect(
       replyTemplateLoadedMessage(
         {
-          reason: 'provider_or_output_unavailable',
+          reason: 'template_requested',
           languageSource: 'explicit',
           concreteLanguageTag: 'en-Latn',
         },
         null,
       ),
     ).toBeNull()
+  })
+
+  it('says a template was loaded because the language has no personalized drafting', () => {
+    expect(
+      replyTemplateLoadedMessage(
+        {
+          reason: 'language_not_personalized',
+          languageSource: 'explicit',
+          concreteLanguageTag: 'en-Latn',
+        },
+        null,
+      ),
+    ).toMatch(/Personalized drafts aren't available in English/)
+  })
+
+  it('offers the template only after refusals it can still help with', () => {
+    expect(replySuggestionOffersTemplate('busy')).toBe(true)
+    expect(replySuggestionOffersTemplate('provider_unavailable')).toBe(true)
+    expect(replySuggestionOffersTemplate('not_authorized')).toBe(true)
+    expect(replySuggestionOffersTemplate('source_changed')).toBe(false)
+    expect(replySuggestionOffersTemplate('target_language_unavailable')).toBe(false)
+  })
+
+  it('names busy and provider failures without blaming anyone', () => {
+    expect(replySuggestionUnavailableMessage('busy')).toBe(
+      'AI drafting is handling other requests for this property.',
+    )
+    expect(replySuggestionUnavailableMessage('provider_unavailable')).toBe(
+      "AI couldn't write a personalized draft this time.",
+    )
   })
 })

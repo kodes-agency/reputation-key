@@ -215,6 +215,8 @@ export type JobRuntimeQueueJob = Readonly<{
   timestamp?: number
   /** BullMQ delay from timestamp; only overdue delayed work contributes age. */
   delay?: number
+  /** Add-time options. BullMQ zeroes `delay` on promotion; `opts.delay` keeps it. */
+  opts?: Readonly<{ delay?: number }>
   processedOn?: number
   finishedOn?: number
 }>
@@ -244,6 +246,28 @@ type QueueEvidence = {
 function dateFromEpoch(value: number | undefined): Date | null {
   if (!Number.isSafeInteger(value) || value === undefined || value < 0) return null
   return new Date(value)
+}
+
+function positiveDelay(value: number | undefined): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : 0
+}
+
+type QueuedJobState = 'waiting' | 'delayed' | 'prioritized' | 'waiting-children'
+
+/**
+ * When queued work became runnable. BullMQ keeps a job's creation `timestamp`
+ * through delays and retries, and zeroes `delay` when it promotes a delayed job
+ * to waiting, so the add-time `opts.delay` places a first attempt. A job that
+ * has started before was requeued by a retry whose due time BullMQ does not
+ * record: it gives no queue age rather than a false one, and its failures
+ * already surface as repair or stall reasons.
+ */
+function runnableSince(job: JobRuntimeQueueJob, state: QueuedJobState): Date | null {
+  const timestamp = dateFromEpoch(job.timestamp)
+  if (!timestamp || dateFromEpoch(job.processedOn) !== null) return null
+  const delay =
+    state === 'delayed' ? positiveDelay(job.delay) : positiveDelay(job.opts?.delay)
+  return new Date(timestamp.getTime() + delay)
 }
 
 function keepLatest(map: Map<string, Date>, name: string, candidate: Date | null): void {
@@ -293,19 +317,9 @@ async function readQueueEvidence(
         ...(['waiting', 'delayed', 'prioritized', 'waiting-children'] as const).map(
           (state) =>
             scanState(queue, state, (job) => {
-              const timestamp = dateFromEpoch(job.timestamp)
-              if (!timestamp) return
-              const rawDelay = job.delay
-              const delay =
-                state === 'delayed' &&
-                typeof rawDelay === 'number' &&
-                Number.isSafeInteger(rawDelay) &&
-                rawDelay > 0
-                  ? rawDelay
-                  : 0
-              const dueAt = new Date(timestamp.getTime() + delay)
+              const dueAt = runnableSince(job, state)
               // A future delayed job is scheduled work, not queue backlog.
-              if (dueAt.getTime() <= now.getTime()) {
+              if (dueAt && dueAt.getTime() <= now.getTime()) {
                 keepOldest(evidence.oldestWaitingAt, job.name, dueAt)
               }
             }),
@@ -388,6 +402,8 @@ export type JobRuntimeReport = Readonly<{
   quarantined: number
   failing: number
   missingObservations: number
+  /** Heads whose timestamps lie in the future or whose counts are malformed. */
+  invalidObservations: number
   handlerMissing: number
   schedulerMissing: number
   forbiddenDarkWork: number
@@ -428,17 +444,21 @@ export function createJobRuntimeReportReader(
 ): Readonly<{ read(): Promise<JobRuntimeReport> }> {
   return {
     async read() {
-      const now = input.clock()
+      const collectedFrom = input.clock()
       const queues = [input.queues.default, input.queues.background].filter(
         (queue): queue is JobRuntimeQueuePort => queue !== null,
       )
       const [evidence, deadLetters, stored] = await Promise.all([
-        readQueueEvidence(queues, now),
+        readQueueEvidence(queues, collectedFrom),
         deadLettersByJob(input.quarantine),
         Promise.all(
           input.contracts.map((contract) => input.store.read(contract.jobName)),
         ),
       ])
+      // Work keeps starting and finishing while the scans run. Judge the evidence
+      // against a clock read after it was collected, so a job that finished
+      // mid-read is not mistaken for a timestamp from the future.
+      const now = input.clock()
       const rows = input.contracts.map((contract, index): JobRuntimeReportRow => {
         const record = stored[index] ?? null
         const observation = record
@@ -504,6 +524,7 @@ export function createJobRuntimeReportReader(
         ).length,
         failing: rows.filter((row) => !row.ready).length,
         missingObservations: countReason(rows, 'observation_missing'),
+        invalidObservations: countReason(rows, 'invalid_observation'),
         handlerMissing: countReason(rows, 'handler_missing'),
         schedulerMissing: countReason(rows, 'scheduler_missing'),
         forbiddenDarkWork: rows.filter((row) =>

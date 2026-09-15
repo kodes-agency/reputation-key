@@ -225,6 +225,7 @@ export function buildTestGoogleConnection(
     id,
     organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
     googleSubject: 'google-subject-123',
+    googleAccountEmail: null,
     encryptedAccessToken: 'enc:access-token',
     encryptedRefreshToken: 'enc:refresh-token',
     tokenExpiresAt: new Date('2026-12-31T23:59:59Z'),

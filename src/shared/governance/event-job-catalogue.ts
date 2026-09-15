@@ -535,6 +535,30 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     { retryBackoff: 'exponential:30000' },
   ),
   job(
+    'ai-review-analysis-backlog-drain',
+    'src/contexts/ai/infrastructure/jobs/drain-review-analysis-backlog.job.ts',
+    {
+      queue: 'background',
+      capability: 'ai.analyze',
+      action: 'system:ai.review_analysis_backlog_drain',
+      schedule: 'every:30000',
+      registration: 'enabled',
+    },
+    { retryBackoff: 'fixed:5000', timeoutMs: 120_000 },
+  ),
+  job(
+    'ai-review-analysis-on-demand',
+    'src/contexts/ai/infrastructure/jobs/analyze-review-now.job.ts',
+    {
+      queue: 'default',
+      capability: 'ai.analyze',
+      action: 'system:ai.review_analysis_on_demand',
+      schedule: 'none',
+      registration: 'enabled',
+    },
+    { retryAttempts: 1, timeoutMs: 120_000 },
+  ),
+  job(
     'schedule-property-ai-trends',
     'src/contexts/ai/infrastructure/jobs/schedule-property-trends.job.ts',
     {

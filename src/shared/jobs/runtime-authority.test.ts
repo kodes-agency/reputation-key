@@ -208,6 +208,26 @@ describe('job runtime authority', () => {
     })
   })
 
+  it('tolerates a second of clock skew between hosts, not a head from the future', () => {
+    const assess = (lastSucceededAt: Date, runtimeStartedAt = STARTED) =>
+      assessJobRuntime({
+        contract: scheduledContract(),
+        observation: observation({ lastSucceededAt }),
+        runtimeStartedAt,
+        now: NOW,
+      })
+    const skewed = new Date(NOW.getTime() + 500)
+    const future = new Date(NOW.getTime() + 5_000)
+
+    expect(assess(skewed)).toEqual({ ready: true, reasons: [] })
+    expect(assess(future)).toEqual({ ready: false, reasons: ['invalid_observation'] })
+    expect(assess(NOW, skewed)).toEqual({ ready: true, reasons: [] })
+    expect(assess(NOW, future)).toEqual({
+      ready: false,
+      reasons: ['invalid_observation'],
+    })
+  })
+
   it('keeps a poison item visible until a later repair is observed', () => {
     const failedAt = new Date('2026-08-27T02:58:00.000Z')
     const poisoned = observation({

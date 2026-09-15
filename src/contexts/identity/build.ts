@@ -53,7 +53,11 @@ import {
   type CapabilityPolicyEnv,
 } from '#/shared/auth/beta-capabilities'
 import { createMerchantAiAuthorization } from './application/use-cases/merchant-ai-authorization'
+import { createMerchantAiDecisionDeferral } from './application/use-cases/merchant-ai-decision-deferral'
+import { listMerchantAiOverview } from './application/use-cases/merchant-ai-overview'
 import { createMerchantAiAuthorizationStore } from './infrastructure/repositories/merchant-ai-authorization.repository'
+import { createMerchantAiDecisionDeferralStore } from './infrastructure/repositories/merchant-ai-decision.repository'
+import { createMerchantAiOverviewReader } from './infrastructure/repositories/merchant-ai-overview.repository'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -113,6 +117,7 @@ import {
   decideCurrentManagerPropertyAuthority,
   decideCurrentMemberPropertyAuthority,
   decideMemberPropertyAuthority,
+  resolveMemberPermissionPropertyScope,
   type ManagerPropertyAuthorityRequirement,
   type MemberPropertyAuthorityDatabase,
 } from './infrastructure/repositories/member-property-authority'
@@ -654,25 +659,54 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       policyStore,
       managerMembershipRepo,
     })
+  const merchantAiDecisionDeferrals = createMerchantAiDecisionDeferralStore(deps.db)
+  const authorizeMerchantAiManagement = async (
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      actorUserId: string
+      now: Date
+    }>,
+  ): Promise<boolean> => {
+    const role = await getMemberRole(deps.db, input.organizationId, input.actorUserId)
+    if (!role) return false
+    try {
+      const decision = await decideMemberPropertyAuthority(deps.db, {
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        userId: input.actorUserId,
+        memberRole: role,
+        permission: 'ai.manage',
+        at: input.now,
+      })
+      return decision.allowed
+    } catch {
+      return false
+    }
+  }
+  const merchantAiDecisionDeferral = createMerchantAiDecisionDeferral({
+    store: merchantAiDecisionDeferrals,
+    authorizeManagement: authorizeMerchantAiManagement,
+    clock: deps.clock,
+  })
+  const listMerchantAiOverviewRead = listMerchantAiOverview({
+    reader: createMerchantAiOverviewReader(deps.db),
+    // The same ai.manage authority as each Property command, resolved once.
+    resolveManagementScope: (input) =>
+      resolveMemberPermissionPropertyScope(deps.db, {
+        organizationId: input.organizationId,
+        userId: input.actorUserId,
+        permission: 'ai.manage',
+        at: input.now,
+      }),
+    clock: deps.clock,
+    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+  })
   const merchantAiAuthorization = createMerchantAiAuthorization({
     store: createMerchantAiAuthorizationStore(deps.db, deps.idGen),
-    authorizeManagement: async (input) => {
-      const role = await getMemberRole(deps.db, input.organizationId, input.actorUserId)
-      if (!role) return false
-      try {
-        const decision = await decideMemberPropertyAuthority(deps.db, {
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          userId: input.actorUserId,
-          memberRole: role,
-          permission: 'ai.manage',
-          at: input.now,
-        })
-        return decision.allowed
-      } catch {
-        return false
-      }
-    },
+    decisionDeferrals: merchantAiDecisionDeferrals,
+    authorizeManagement: authorizeMerchantAiManagement,
     authorize: async (input) => {
       await policyStore.refreshRequired()
       return checkScopedCapability(
@@ -683,6 +717,11 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
         input.capability,
       ).allowed
     },
+    isCurrentAccountAdmin: ({ organizationId: orgId, actorUserId }) =>
+      managerMembershipRepo.isCurrentAccountAdmin({
+        organizationId: orgId,
+        userId: actorUserId,
+      }),
     verifyStepUp: async (input) =>
       input.requestHeaders !== undefined &&
       (await deps.authSession.verifyPassword({
@@ -690,6 +729,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
         password: input.proof,
       })),
     clock: deps.clock,
+    idGen: deps.idGen,
     noticeVersion: MERCHANT_AI_NOTICE_VERSION,
     noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
     sourcePolicyId: MERCHANT_AI_SOURCE_POLICY_ID,
@@ -850,14 +890,19 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     updateCustomRole: updateCustomRole({ identity: deps.identityPort }),
     deleteCustomRole: deleteCustomRole({ identity: deps.identityPort }),
     merchantAiAuthorization,
+    merchantAiDecisionDeferral,
+    listMerchantAiOverview: listMerchantAiOverviewRead,
     organizationLifecycle,
   } as const
 
   const merchantAiRequestApi = Object.freeze({
     get: useCases.merchantAiAuthorization.get,
     enable: useCases.merchantAiAuthorization.enable,
+    enableForProperties: useCases.merchantAiAuthorization.enableForProperties,
     change: useCases.merchantAiAuthorization.change,
     revoke: useCases.merchantAiAuthorization.revoke,
+    defer: useCases.merchantAiDecisionDeferral.defer,
+    listOverview: useCases.listMerchantAiOverview,
   })
   const requestApi = Object.freeze({
     inviteMember: useCases.inviteMember,

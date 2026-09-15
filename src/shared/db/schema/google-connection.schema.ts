@@ -41,6 +41,9 @@ export const googleConnections = pgTable(
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     googleSubject: varchar('google_subject', { length: 255 }),
     // Canonical signed OIDC subject.
+    // Verified `email` claim of the same ID token, a display label only; nulled
+    // with google_subject (migration 0018).
+    googleAccountEmail: varchar('google_account_email', { length: 320 }),
     encryptedAccessToken: text('encrypted_access_token').notNull(),
     encryptedRefreshToken: text('encrypted_refresh_token').notNull(),
     tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }).notNull(),
@@ -83,6 +86,10 @@ export const googleConnections = pgTable(
     check(
       'google_connections_identity_check',
       sql`${t.googleSubject} IS NOT NULL OR ${t.status} = 'disconnected'`,
+    ),
+    check(
+      'google_connections_account_email_check',
+      sql`${t.googleAccountEmail} IS NULL OR ${t.googleSubject} IS NOT NULL`,
     ),
     check(
       'google_connections_versions_check',

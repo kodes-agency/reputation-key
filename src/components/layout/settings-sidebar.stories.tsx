@@ -36,21 +36,36 @@ const meta: Meta<typeof SettingsSidebar> = {
 export default meta
 type Story = StoryObj<typeof SettingsSidebar>
 
+/** The four entries every role gets, waiting for the sidebar to render. */
+async function expectAlwaysOnEntries(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  expect(await canvas.findByText(/^profile$/i)).toBeInTheDocument()
+  for (const entry of [/^security$/i, /^preferences$/i, /^notifications$/i]) {
+    expect(canvas.getByText(entry)).toBeInTheDocument()
+  }
+}
+
+/** Members and AI overview come with managing; Recognition stays out of this beta. */
+function expectManagerEntries(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  expect(canvas.getByText(/^members$/i)).toBeInTheDocument()
+  expect(canvas.queryByText(/^recognition$/i)).toBeNull()
+  expect(canvas.getByText(/^ai overview$/i)).toBeInTheDocument()
+}
+
 // Owner role → every gated beta item (Organization, Members,
 // Integrations) renders alongside the four always-on entries.
 export const AsAccountAdmin: Story = {
   decorators: [withRole('AccountAdmin')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(await canvas.findByText(/^profile$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^security$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^preferences$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^notifications$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^organization$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^members$/i)).toBeInTheDocument()
-    expect(canvas.queryByText(/^recognition$/i)).toBeNull()
-    expect(canvas.getByText(/^ai & replies$/i)).toBeInTheDocument()
+    await expectAlwaysOnEntries(canvasElement)
+    expect(canvas.getByRole('link', { name: /^organization$/i })).toBeInTheDocument()
+    expectManagerEntries(canvasElement)
     expect(canvas.getByText(/^integrations$/i)).toBeInTheDocument()
+    // Scope is labelled: account pages under You, shared pages under Organization.
+    expect(canvas.getByText(/^you$/i)).toBeInTheDocument()
+    expect(canvas.getAllByText(/^organization$/i)).toHaveLength(2)
   },
 }
 
@@ -61,10 +76,10 @@ export const AsPropertyManager: Story = {
   decorators: [withRole('PropertyManager')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(await canvas.findByText(/^organization$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^members$/i)).toBeInTheDocument()
-    expect(canvas.queryByText(/^recognition$/i)).toBeNull()
-    expect(canvas.getByText(/^ai & replies$/i)).toBeInTheDocument()
+    expect(
+      await canvas.findByRole('link', { name: /^organization$/i }),
+    ).toBeInTheDocument()
+    expectManagerEntries(canvasElement)
     expect(canvas.queryByText(/^integrations$/i)).toBeNull()
   },
 }
@@ -76,15 +91,16 @@ export const AsMember: Story = {
   decorators: [withRole('Member')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(await canvas.findByText(/^profile$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^security$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^preferences$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^notifications$/i)).toBeInTheDocument()
+    await expectAlwaysOnEntries(canvasElement)
     // Gated entries must NOT render for Member.
-    expect(canvas.queryByText(/^organization$/i)).toBeNull()
-    expect(canvas.queryByText(/^members$/i)).toBeNull()
-    expect(canvas.queryByText(/^recognition$/i)).toBeNull()
-    expect(canvas.queryByText(/^ai & replies$/i)).toBeNull()
-    expect(canvas.queryByText(/^integrations$/i)).toBeNull()
+    for (const gated of [
+      /^organization$/i,
+      /^members$/i,
+      /^recognition$/i,
+      /^ai overview$/i,
+      /^integrations$/i,
+    ]) {
+      expect(canvas.queryByText(gated)).toBeNull()
+    }
   },
 }

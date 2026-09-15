@@ -25,7 +25,7 @@ export type AiBudgetAdmissionResult =
   | Readonly<{ ok: true; operationId: string; reservedMicros: number }>
   | Readonly<{
       ok: false
-      code: 'kill_switch' | 'rate_limited' | 'budget_exhausted' | 'capability_unavailable'
+      code: 'kill_switch' | 'budget_exhausted' | 'capability_unavailable'
     }>
 
 export type AiBudgetControl = Readonly<{
@@ -41,43 +41,25 @@ export type AiBudgetControl = Readonly<{
   reapStaleReservations(tx: AiBudgetTx): Promise<number>
 }>
 
-/** The slice of the shared rate limiter admission needs; composition passes the real one. */
-export type AiAdmissionRateLimiter = Readonly<{
-  check(
-    key: string,
-    options: Readonly<{ maxRequests: number; windowSeconds: number }>,
-  ): Promise<Readonly<{ allowed: boolean }>>
-}>
-
+/**
+ * Budget control no longer rate-limits. Per-minute and in-flight capacity is
+ * admitted once, atomically and per lane, by the AI context before an
+ * operation's execution attempt is claimed (ADR 0058); by the time a request
+ * reaches this gateway it has already been admitted. What remains here is the
+ * provider kill switch and the organization's monthly cost reservation.
+ */
 type AiBudgetDependencies = Readonly<{
-  rateLimiter: AiAdmissionRateLimiter
   idGen: () => string
   now: () => Date
 }>
 
-const ORGANIZATION_MONTHLY_CAP_MICROS = 50_000_000
+export const ORGANIZATION_MONTHLY_CAP_MICROS = 50_000_000
 const RESERVATION_TTL_INTERVAL = '15 minutes'
 
 function profileForRoute(routeKey: string) {
   return AI_OPERATION_PROFILES.find(
     (profile) => profile.sourceRoute === routeKey && profile.capability !== null,
   )
-}
-
-async function withinRateLimits(
-  limiter: AiAdmissionRateLimiter,
-  input: AiBudgetAdmissionInput,
-): Promise<boolean> {
-  for (const [key, maxRequests] of [
-    ['global', 16],
-    ['provider', 16],
-    [`org:${input.organizationId}`, 8],
-    [`property:${input.propertyId}`, 4],
-  ] as const) {
-    const result = await limiter.check(key, { maxRequests, windowSeconds: 60 })
-    if (!result.allowed) return false
-  }
-  return true
 }
 
 export function createAiBudgetControl(
@@ -151,9 +133,6 @@ export function createAiBudgetControl(
         )
       ) {
         return { ok: false, code: 'kill_switch' }
-      }
-      if (!(await withinRateLimits(dependencies.rateLimiter, input))) {
-        return { ok: false, code: 'rate_limited' }
       }
 
       const reservedMicros = maximumCostMicros(profile, input.providerPayloadBytes)

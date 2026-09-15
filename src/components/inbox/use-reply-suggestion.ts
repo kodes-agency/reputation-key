@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
+import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import type { ReplyDraftSnapshot } from './use-reply-autosave'
 import {
   replySuggestionFixTarget,
+  replySuggestionOffersTemplate,
   replySuggestionUnavailableMessage,
   type PendingReplySuggestion,
   type ReplySuggestionFixTarget,
-  type ReplySuggestionResult,
+  type ReplySuggestionGenerate,
   type ReplyTone,
 } from './reply-suggestion-contract'
 import {
@@ -52,12 +53,21 @@ type Input = Readonly<{
   onFlush: (draft: ReplyDraftSnapshot) => Promise<void>
   onAccept: (draft: ReplyDraftSnapshot, provenanceToken: string | null) => Promise<void>
   onAdopt: (draft: ReplyDraftSnapshot, kind: 'personalized' | 'local_fallback') => void
-  onGenerate?: (
-    tone: ReplyTone,
-    target: ReplyLanguageTarget,
-    templateOnly?: boolean,
-  ) => Promise<ReplySuggestionResult>
+  onGenerate?: ReplySuggestionGenerate
 }>
+
+/**
+ * Which draft a request is for. A request with the same identity reuses its
+ * idempotency key, so the server coalesces it onto the operation already
+ * waiting or running; a different tone or language target is another draft.
+ */
+function requestIdentity(
+  tone: ReplyTone,
+  target: ReplyLanguageTarget,
+  templateOnly: boolean,
+): string {
+  return `${templateOnly ? 'template' : 'ai'}:${tone}:${target.kind}`
+}
 
 export function useReplySuggestion(input: Input) {
   const [tone, setTone] = useState<ReplyTone>('professional')
@@ -68,7 +78,15 @@ export function useReplySuggestion(input: Input) {
     null,
   )
   const [suggestion, setSuggestion] = useState<PendingReplySuggestion | null>(null)
+  /** Set when our own AI capacity is busy; the retry time the server gave. */
+  const [busyUntil, setBusyUntil] = useState<number | null>(null)
+  /** The last refusal leaves the governed template as a sound, explicit choice. */
+  const [offersTemplate, setOffersTemplate] = useState(false)
   const sequence = useRef(0)
+  const idempotencyKeys = useRef(new Map<string, string>())
+  const inFlight = useRef<Readonly<{ identity: string; promise: Promise<void> }> | null>(
+    null,
+  )
 
   useEffect(
     () => () => {
@@ -78,80 +96,112 @@ export function useReplySuggestion(input: Input) {
   )
 
   const request = useCallback(
-    async (
+    (
       requestedTone: ReplyTone = tone,
       templateOnly = false,
       scope?: ReplyAssistScope,
-    ) => {
+    ): Promise<void> => {
       const target = scope ? scope.target : input.target
-      if (!input.onGenerate || !target) return
+      const onGenerate = input.onGenerate
+      if (!onGenerate || !target) return Promise.resolve()
+      const identity = requestIdentity(requestedTone, target, templateOnly)
+      // A repeated click while the same draft is being written joins it
+      // instead of racing it: the later answer would otherwise win.
+      if (inFlight.current?.identity === identity) return inFlight.current.promise
       const requestSequence = ++sequence.current
       const baseRevision = input.revision.current
       const baseDraft = scope ? scope.draft : input.draft
+      const idempotencyKey = idempotencyKeys.current.get(identity) ?? crypto.randomUUID()
+      idempotencyKeys.current.set(identity, idempotencyKey)
       setTone(requestedTone)
       setIsGenerating(true)
       setError(null)
       setErrorFixTarget(null)
-      try {
-        await input.onFlush(input.draft)
-        const result = templateOnly
-          ? await input.onGenerate(requestedTone, target, true)
-          : await input.onGenerate(requestedTone, target)
-        if (
-          requestSequence !== sequence.current ||
-          baseRevision !== input.revision.current
-        )
-          return
-        if (result.status === 'unavailable') {
-          setError(replySuggestionUnavailableMessage(result.code))
-          setErrorFixTarget(replySuggestionFixTarget(result.code))
-          return
+      setBusyUntil(null)
+      setOffersTemplate(false)
+      const run = async () => {
+        try {
+          await input.onFlush(input.draft)
+          const result = await onGenerate(
+            requestedTone,
+            target,
+            templateOnly,
+            idempotencyKey,
+          )
+          // Busy is the only answer that keeps the key: the retry belongs to
+          // the same request. Everything else finished that request, so the
+          // next click (including Regenerate) is a new draft.
+          if (result.status !== 'unavailable' || result.code !== 'busy') {
+            idempotencyKeys.current.delete(identity)
+          }
+          if (
+            requestSequence !== sequence.current ||
+            baseRevision !== input.revision.current
+          )
+            return
+          if (result.status === 'unavailable') {
+            setError(replySuggestionUnavailableMessage(result.code))
+            setErrorFixTarget(replySuggestionFixTarget(result.code))
+            setOffersTemplate(!templateOnly && replySuggestionOffersTemplate(result.code))
+            if (result.code === 'busy' && result.retryAfterEpochMillis !== null) {
+              setBusyUntil(result.retryAfterEpochMillis)
+            }
+            return
+          }
+          const verifiedLanguageTag = resolveSuggestedReplyLanguageTag(
+            result.concreteLanguageTag,
+            baseDraft.languageTag,
+            target,
+          )
+          if (
+            !result.replyText ||
+            replyCommentProblem(result.replyText) !== null ||
+            (result.status === 'ready' &&
+              (result.profileVersion !== 'reply-draft-v2' ||
+                result.expiresAtEpochMillis <= Date.now())) ||
+            verifiedLanguageTag === null
+          ) {
+            setError('The AI draft could not be verified. Try again.')
+            return
+          }
+          const nextDraft = {
+            text: result.replyText,
+            languageTag: verifiedLanguageTag,
+          }
+          setSuggestion(
+            result.status === 'ready'
+              ? {
+                  draft: nextDraft,
+                  kind: 'personalized',
+                  provenanceToken: result.provenanceToken,
+                }
+              : {
+                  draft: nextDraft,
+                  kind: 'local_fallback',
+                  provenanceToken: null,
+                  reason: result.reason,
+                  languageSource: result.languageSource,
+                },
+          )
+        } catch {
+          idempotencyKeys.current.delete(identity)
+          if (requestSequence === sequence.current) {
+            setError('The draft suggestion could not be generated. Try again.')
+          }
+        } finally {
+          if (inFlight.current?.identity === identity) inFlight.current = null
+          if (requestSequence === sequence.current) setIsGenerating(false)
         }
-        const verifiedLanguageTag = resolveSuggestedReplyLanguageTag(
-          result.concreteLanguageTag,
-          baseDraft.languageTag,
-          target,
-        )
-        if (
-          !result.replyText ||
-          result.replyText.length > MAX_REPLY_LENGTH ||
-          (result.status === 'ready' &&
-            (result.profileVersion !== 'reply-draft-v2' ||
-              result.expiresAtEpochMillis <= Date.now())) ||
-          verifiedLanguageTag === null
-        ) {
-          setError('The AI draft could not be verified. Try again.')
-          return
-        }
-        const nextDraft = {
-          text: result.replyText,
-          languageTag: verifiedLanguageTag,
-        }
-        setSuggestion(
-          result.status === 'ready'
-            ? {
-                draft: nextDraft,
-                kind: 'personalized',
-                provenanceToken: result.provenanceToken,
-              }
-            : {
-                draft: nextDraft,
-                kind: 'local_fallback',
-                provenanceToken: null,
-                reason: result.reason,
-                languageSource: result.languageSource,
-              },
-        )
-      } catch {
-        if (requestSequence === sequence.current) {
-          setError('The draft suggestion could not be generated. Try again.')
-        }
-      } finally {
-        if (requestSequence === sequence.current) setIsGenerating(false)
       }
+      const promise = run()
+      inFlight.current = { identity, promise }
+      return promise
     },
     [input, tone],
   )
+
+  /** The explicit choice after a refusal: the governed template, never a substitute. */
+  const requestTemplate = useCallback(() => request(tone, true), [request, tone])
 
   const dismiss = useCallback(() => {
     sequence.current += 1
@@ -181,8 +231,11 @@ export function useReplySuggestion(input: Input) {
     isAdopting,
     error,
     errorFixTarget,
+    busyUntil,
+    offersTemplate,
     suggestion,
     request,
+    requestTemplate,
     adopt,
     dismiss,
   }

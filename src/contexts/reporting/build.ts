@@ -95,6 +95,15 @@ import {
   getSetupChecklist,
   type GetSetupChecklist,
 } from './application/use-cases/get-setup-checklist'
+import { createPropertySetupRepository } from './infrastructure/repositories/property-setup.repository'
+import {
+  getPropertySetup,
+  type GetPropertySetup,
+} from './application/use-cases/get-property-setup'
+import {
+  listPropertySetupSummaries,
+  type ListPropertySetupSummaries,
+} from './application/use-cases/list-property-setup-summaries'
 
 export type ReportingContextBuildInput = Readonly<{
   db: Database
@@ -325,6 +334,7 @@ function buildDashboardModule(
   const staffPortalResolver = createStaffPortalResolverAdapter(input.staffPublicApi)
   const dashboardRepo = createDashboardRepository(input.reviewServingStats, metricStats)
   const setupChecklistRepo = createSetupChecklistRepository(input.db)
+  const propertySetupRepo = createPropertySetupRepository(input.db)
   const getDashboard = getDashboardData({ repo: dashboardRepo })
   const getPortal = getPortalAnalytics({
     portalMetrics,
@@ -362,6 +372,11 @@ function buildDashboardModule(
   const getSetup: GetSetupChecklist = getSetupChecklist({
     repository: setupChecklistRepo,
   })
+  const getPropertySetupRead: GetPropertySetup = getPropertySetup({
+    repository: propertySetupRepo,
+  })
+  const listPropertySetupSummariesRead: ListPropertySetupSummaries =
+    listPropertySetupSummaries({ repository: propertySetupRepo })
 
   return {
     publicApi: {
@@ -372,11 +387,13 @@ function buildDashboardModule(
       getPropertyOverview: getOverview,
       getFleetOverview: getFleet,
       getSetupChecklist: getSetup,
+      getPropertySetup: getPropertySetupRead,
+      listPropertySetupSummaries: listPropertySetupSummariesRead,
     },
     organizationExport: createDashboardOrganizationExportAdapter(input.db),
     organizationLifecycle: createDashboardOrganizationLifecycleAdapter(input.db),
     internal: {
-      repos: { dashboardRepo, setupChecklistRepo },
+      repos: { dashboardRepo, setupChecklistRepo, propertySetupRepo },
       useCases: {
         getDashboardData: getDashboard,
         getPortalAnalytics: getPortal,
@@ -385,6 +402,8 @@ function buildDashboardModule(
         getPropertyOverview: getOverview,
         getFleetOverview: getFleet,
         getSetupChecklist: getSetup,
+        getPropertySetup: getPropertySetupRead,
+        listPropertySetupSummaries: listPropertySetupSummariesRead,
       },
     },
   } as const

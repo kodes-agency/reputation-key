@@ -20,7 +20,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const componentsDir = join(__dirname, '..', 'src', 'components')
 
 // Files allowed to value-import from contexts/*/server.
-// - inbox/use-reply-actions.ts: 9 mutations (documented under src/components/CONTEXT.md "Server-function boundary").
+// - inbox/use-reply-actions.ts: 10 server functions (8 reply commands + 2 template reads) (documented under src/components/CONTEXT.md "Server-function boundary").
 // - features/portal/link-tree/**: the link-tree bundle (8 mutations, documented).
 const ALLOWLIST = new Set([
   'inbox/use-reply-actions.ts',

@@ -15,12 +15,25 @@ import {
   listGoogleConnections,
 } from '#/contexts/integration/server/google-connections'
 import {
-  enableMerchantAiFn,
+  deferMerchantAiDecisionFn,
+  enableMerchantAiForPropertiesFn,
   getMerchantAiAuthorizationFn,
+  listMerchantAiOverviewFn,
 } from '#/contexts/identity/server/merchant-ai'
+import { listMembers } from '#/contexts/identity/server/organizations'
+import { listProperties, updateProperty } from '#/contexts/property/server/properties'
+import {
+  listPropertyResponsibleManagers,
+  updatePropertyResponsibleManagers,
+} from '#/contexts/property/server/property-responsible-managers'
+import { getReviewAnalysisProgressFn } from '#/contexts/ai/server/review-analysis'
+import {
+  getPropertyPortalExperience,
+  savePropertyPublicDisplayName,
+} from '#/contexts/portal/server/portals'
 import type {
-  GoogleImportAiFns,
   GoogleImportFns,
+  GoogleImportSetupFns,
 } from '#/components/features/integration/google-import-manager/google-import-manager-contract'
 
 export const importFns: GoogleImportFns = {
@@ -56,11 +69,41 @@ export const importFns: GoogleImportFns = {
   },
 }
 
-export const importAiFns: GoogleImportAiFns = {
+export const importSetupFns: GoogleImportSetupFns = {
+  get listProperties() {
+    return listProperties
+  },
+  get listMembers() {
+    return listMembers
+  },
+  get listPropertyResponsibleManagers() {
+    return listPropertyResponsibleManagers
+  },
+  get listMerchantAiOverview() {
+    return listMerchantAiOverviewFn
+  },
   get getMerchantAiAuthorization() {
     return getMerchantAiAuthorizationFn
   },
-  get enableMerchantAi() {
-    return enableMerchantAiFn
+  get getReviewAnalysisProgress() {
+    return getReviewAnalysisProgressFn
+  },
+  get getPropertyPortalExperience() {
+    return getPropertyPortalExperience
+  },
+  get savePropertyPublicDisplayName() {
+    return savePropertyPublicDisplayName
+  },
+  get updateProperty() {
+    return updateProperty
+  },
+  get updatePropertyResponsibleManagers() {
+    return updatePropertyResponsibleManagers
+  },
+  get enableMerchantAiForProperties() {
+    return enableMerchantAiForPropertiesFn
+  },
+  get deferMerchantAiDecision() {
+    return deferMerchantAiDecisionFn
   },
 }

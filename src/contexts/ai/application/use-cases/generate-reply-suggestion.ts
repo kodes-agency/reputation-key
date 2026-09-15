@@ -39,7 +39,7 @@ import type { AiControlPort } from '../ports/ai-control.port'
 import type { AiInferencePort } from '../ports/ai-inference.port'
 import type { AiOperationStorePort } from '../ports/ai-operation-store.port'
 import type { AiOutputStorePort } from '../ports/ai-output-store.port'
-import type { AiQuotaPort } from '../ports/ai-quota.port'
+import type { AiAdmissionPort } from '../ports/ai-admission.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
 import type {
   AiExecutionBinding,
@@ -55,6 +55,12 @@ import {
 } from '../ai-workflow-support'
 
 const REPLY_OPERATION_PROFILE_VERSION = 'reply-suggestion-v1' as const
+/**
+ * How long a draft request may wait for an interactive slot before answering
+ * busy. Short enough that the manager is never left staring at a spinner, long
+ * enough to absorb a slot that frees within the same request.
+ */
+const REPLY_ADMISSION_WAIT_MILLIS = 4_000
 const PROFILE = AI_OPERATION_PROFILES.find(
   (candidate) => candidate.profileVersion === REPLY_OPERATION_PROFILE_VERSION,
 )!
@@ -90,7 +96,13 @@ export type GenerateReplySuggestionResult =
       /** Local, deterministic copy — never represented as provider-generated. */
       kind: 'local_safe_template'
       reason:
-        'provider_or_output_unavailable' | 'language_undetermined' | 'no_review_text'
+        // The manager explicitly asked for the governed catalogue template.
+        | 'template_requested'
+        // The target language has catalogue templates but no personalized
+        // drafting profile, so a template is the only draft available.
+        | 'language_not_personalized'
+        | 'language_undetermined'
+        | 'no_review_text'
       languageSource: 'explicit' | 'property_default'
       replyText: string
       concreteLanguageTag: string
@@ -110,6 +122,8 @@ export type GenerateReplySuggestionResult =
         | 'policy_unavailable'
         | 'completed_without_delivery'
         | 'provider_unavailable'
+        // Our own interactive AI capacity is in use; retry at the given time.
+        | 'busy'
       retryAfterEpochMillis: number | null
     }>
 
@@ -119,7 +133,7 @@ export type GenerateReplySuggestionDependencies = Readonly<{
   inference: AiInferencePort
   operations: AiOperationStorePort
   outputs: AiOutputStorePort
-  quota: AiQuotaPort
+  admission: AiAdmissionPort
   reviewSources: AiReviewSourcePort
   processingProfiles: PropertyProcessingProfilePort
   propertyReplyLanguages: Readonly<{
@@ -141,6 +155,8 @@ export type GenerateReplySuggestionDependencies = Readonly<{
     }>,
   ): Promise<ConcreteReplyLanguageResult>
   nowEpochMillis: () => number
+  /** Injected for tests; defaults to a timer. */
+  sleep?: (milliseconds: number) => Promise<void>
 }>
 
 function unavailable(
@@ -188,14 +204,38 @@ function localFallback(
   }
 }
 
-function canOfferLocalFallback(code: string): boolean {
-  return (
-    code === 'provider_unavailable' ||
-    code === 'provider_rate_limited' ||
-    code === 'provider_refused' ||
-    code === 'output_invalid' ||
-    code === 'output_truncated'
-  )
+const defaultSleep = (milliseconds: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
+
+/**
+ * Take an interactive slot, waiting up to REPLY_ADMISSION_WAIT_MILLIS when the
+ * lane says one frees in time. A busy answer consumes nothing, so asking again
+ * is free; a slot that frees later than the wait allows is reported as busy
+ * with its retry time rather than waited for.
+ */
+async function admitInteractiveDraft(
+  dependencies: Pick<
+    GenerateReplySuggestionDependencies,
+    'admission' | 'nowEpochMillis' | 'sleep'
+  >,
+  input: Pick<GenerateReplySuggestionInput, 'organizationId' | 'propertyId'>,
+  startedAtEpochMillis: number,
+) {
+  const sleep = dependencies.sleep ?? defaultSleep
+  const deadline = startedAtEpochMillis + REPLY_ADMISSION_WAIT_MILLIS
+  let nowEpochMillis = startedAtEpochMillis
+  for (;;) {
+    const claim = await dependencies.admission.acquire({
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      lane: 'interactive',
+      nowEpochMillis,
+    })
+    if (claim.ok || claim.code !== 'admission_busy') return claim
+    if (claim.retryAfterEpochMillis > deadline) return claim
+    await sleep(Math.max(50, claim.retryAfterEpochMillis - nowEpochMillis))
+    nowEpochMillis = Math.max(nowEpochMillis + 1, dependencies.nowEpochMillis())
+  }
 }
 
 type ResolvedTargetReplyLanguage = Readonly<{
@@ -398,12 +438,15 @@ export function createGenerateReplySuggestion(
     )
     if (target === null) return unavailable('target_language_unavailable')
     const targetReplyLanguage = target.language
-    if (
-      input.templateOnly ||
-      !PERSONALIZED_LANGUAGE_SET.has(targetReplyLanguage.templateGroup)
-    ) {
+    if (input.templateOnly) {
       return localFallback(input, targetReplyLanguage, observation.rating, {
-        reason: 'provider_or_output_unavailable',
+        reason: 'template_requested',
+        languageSource: target.languageSource,
+      })
+    }
+    if (!PERSONALIZED_LANGUAGE_SET.has(targetReplyLanguage.templateGroup)) {
+      return localFallback(input, targetReplyLanguage, observation.rating, {
+        reason: 'language_not_personalized',
         languageSource: target.languageSource,
       })
     }
@@ -528,23 +571,28 @@ export function createGenerateReplySuggestion(
     }
     const expectedAttempt = claimed.operation.executionAttempt + 1
     if (expectedAttempt > 4) return unavailable('provider_unavailable')
-    const quota = await dependencies.quota.acquire({
-      propertyId: input.propertyId,
-      capability: 'reply_drafting',
-      nowEpochMillis,
-    })
-    if (!quota.ok) {
-      return unavailable('provider_unavailable', nowEpochMillis + 5_000)
+    // Admission comes before the execution claim: a busy lane is never an
+    // attempt, and a manager's draft is admitted in the interactive lane, which
+    // a review-analysis backlog cannot consume.
+    const admission = await admitInteractiveDraft(dependencies, input, nowEpochMillis)
+    if (!admission.ok) {
+      return admission.code === 'admission_busy'
+        ? unavailable('busy', admission.retryAfterEpochMillis)
+        : unavailable('provider_unavailable', nowEpochMillis + 5_000)
     }
     try {
+      const admittedAtEpochMillis = Math.max(
+        nowEpochMillis,
+        dependencies.nowEpochMillis(),
+      )
       const execution = await dependencies.operations.claimExecution({
         operationId: claimed.operation.id,
         organizationId: input.organizationId,
         expectedAttempt,
-        nowEpochMillis,
+        nowEpochMillis: admittedAtEpochMillis,
       })
       if (execution === null || execution.executionPermitId === null) {
-        return unavailable('provider_unavailable', nowEpochMillis + 1_000)
+        return unavailable('provider_unavailable', admittedAtEpochMillis + 1_000)
       }
       const response = await dependencies.inference.generateReply(
         {
@@ -559,7 +607,7 @@ export function createGenerateReplySuggestion(
           internalSubjectId: input.reviewId,
           actorId: input.actorUserId,
           binding,
-          deadlineEpochMillis: nowEpochMillis + PROFILE.requestDeadlineMs,
+          deadlineEpochMillis: admittedAtEpochMillis + PROFILE.requestDeadlineMs,
           redactionCountry: profile.countryCode,
           observedContentExpiresAtEpochMillis: observation.contentExpiresAtEpochMillis,
           tone: input.tone,
@@ -581,20 +629,9 @@ export function createGenerateReplySuggestion(
           failureCode: response.code,
           providerRetryAfterEpochMillis: response.retryAfterEpochMillis,
         })
-        if (canOfferLocalFallback(response.code)) {
-          const currentness = await isReplySuggestionStillCurrent(
-            dependencies,
-            input,
-            currentnessFence,
-          )
-          if (currentness !== 'current') {
-            return unavailable(currentness)
-          }
-          return localFallback(input, targetReplyLanguage, observation.rating, {
-            reason: 'provider_or_output_unavailable',
-            languageSource: target.languageSource,
-          })
-        }
+        // Never substitute a template here. A manager who asked for a
+        // personalized draft is told it could not be written; using the
+        // governed template is their explicit choice (`templateOnly`).
         return unavailable('provider_unavailable', retryAtEpochMillis)
       }
       const currentness = await isReplySuggestionStillCurrent(
@@ -656,7 +693,7 @@ export function createGenerateReplySuggestion(
         concreteLanguageTag: targetReplyLanguage.tag,
       }
     } finally {
-      await dependencies.quota.release({ quotaId: quota.quotaId })
+      await dependencies.admission.release({ admissionId: admission.admissionId })
     }
   }
 }

@@ -13,6 +13,7 @@ import {
   GOOGLE_PROPERTY_IMPORT_CONTRACT_VERSION,
   PROPERTY_IMPORT_RETENTION_RELEASED_EVENT,
   getImportOutcomePresentation,
+  isImportProfileField,
   type GbpImportItemStatus,
   type ImportOutcomeCode,
   type ImportProgressDto,
@@ -23,6 +24,7 @@ import {
   type GoogleImportV2ClaimedItem,
   type GoogleImportV2Intent,
   type GoogleImportV2LifecycleScope,
+  type GoogleImportV2OutcomeDetail,
   type GoogleImportV2Store,
 } from '../application/ports/google-import-v2-store.port'
 import { reduceGoogleImportParent } from '../application/google-import-v2-reducer'
@@ -276,6 +278,28 @@ async function reduceParentFromItems(
 }
 
 /**
+ * The detail a terminal outcome is allowed to carry. `tenant_profile_invalid`
+ * must name its field; an existing Property is recorded only for
+ * `already_exists`. Anything else is a programming error, refused before the
+ * write rather than left to the CHECK constraint.
+ */
+function assertOutcomeDetail(
+  outcomeCode: ImportOutcomeCode,
+  detail: GoogleImportV2OutcomeDetail | undefined,
+): void {
+  if (outcomeCode === 'tenant_profile_invalid') {
+    if (detail?.kind !== 'invalid_profile_field' || !isImportProfileField(detail.field)) {
+      throw new Error('tenant_profile_invalid requires the rejected profile field')
+    }
+    return
+  }
+  if (detail?.kind === 'existing_property' && outcomeCode === 'already_exists') return
+  if (detail !== undefined) {
+    throw new Error(`google import outcome ${outcomeCode} cannot carry this detail`)
+  }
+}
+
+/**
  * The terminal patch for an import item. `retainRetryState` leaves the protected
  * intent and expectation columns untouched; callers only set it for a retryable
  * failure.
@@ -286,17 +310,25 @@ function terminalItemPatch(
     outcomeCode: ImportOutcomeCode
     retainRetryState: boolean
     now: Date
+    detail?: GoogleImportV2OutcomeDetail
   }>,
 ) {
   const protectedState = input.retainRetryState ? undefined : null
   // The Property an `imported`/`relinked` item produced is an internal
   // reference the import flow hands the merchant to; it outlives the terminal
-  // scrub of provider identifiers and fences (see the schema comment).
+  // scrub of provider identifiers and fences (see the schema comment). An
+  // `already_exists` item instead records the Property that holds its location.
   const producedProperty =
-    input.status === 'imported' || input.status === 'relinked' ? undefined : null
+    input.status === 'imported' || input.status === 'relinked'
+      ? undefined
+      : input.detail?.kind === 'existing_property'
+        ? input.detail.propertyId
+        : null
   return {
     status: input.status,
     outcomeCode: input.outcomeCode,
+    invalidProfileField:
+      input.detail?.kind === 'invalid_profile_field' ? input.detail.field : null,
     connectionId: protectedState,
     existingPropertyId: protectedState,
     destinationPropertyId: input.retainRetryState ? undefined : producedProperty,
@@ -400,8 +432,15 @@ function progressItemFromRow(row: GoogleImportItemRow): ImportProgressItemDto {
     retryRevision: row.retryRevision,
     userAction: retryable ? (presentation?.userAction ?? 'none') : 'none',
     propertyId:
-      row.status === 'imported' || row.status === 'relinked'
+      row.status === 'imported' ||
+      row.status === 'relinked' ||
+      row.status === 'already_exists'
         ? row.destinationPropertyId
+        : null,
+    invalidProfileField:
+      row.outcomeCode === 'tenant_profile_invalid' &&
+      isImportProfileField(row.invalidProfileField)
+        ? row.invalidProfileField
         : null,
   }
 }
@@ -1264,6 +1303,7 @@ export const createGoogleImportV2Store = (
           .set({
             status: presentation.status,
             outcomeCode: input.outcomeCode,
+            invalidProfileField: null,
             connectionId: null,
             existingPropertyId: null,
             destinationPropertyId:
@@ -1328,6 +1368,7 @@ export const createGoogleImportV2Store = (
             'protected google import state may only survive retryable failure',
           )
         }
+        assertOutcomeDetail(input.outcomeCode, input.detail)
         await tx
           .update(gbpImportRequestItems)
           .set(
@@ -1336,6 +1377,7 @@ export const createGoogleImportV2Store = (
               outcomeCode: input.outcomeCode,
               retainRetryState: input.retainRetryState,
               now: input.now,
+              ...(input.detail ? { detail: input.detail } : {}),
             }),
           )
           .where(

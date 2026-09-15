@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
+  type AnyPgColumn,
   bigint,
   check,
   foreignKey,
@@ -47,6 +48,45 @@ const validRuntimeProfileMap = (
     OR ("${capabilities.name}" = ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[] AND "${runtimeProfiles.name}" = '{"reply_drafting": "reply-drafting-runtime-v1", "property_trends": "property-trends-runtime-v1", "review_analysis": "review-analysis-runtime-v1"}'::jsonb)
   )`)
 
+/**
+ * The execution contract a consent row or enablement head may record. Each
+ * known notice version is pinned to its own digest, so a row may never mix a
+ * version with another version's digest, and the source, routing and redaction
+ * profiles are fixed. The set grows by one arm per notice version; the
+ * constants live in merchant-ai-notice-contract.ts. Both tables admit exactly
+ * this set, so it is declared once. Column references render table-qualified,
+ * exactly as the migrations recorded them.
+ */
+const validExecutionContract = (
+  t: Readonly<
+    Record<
+      | 'noticeVersion'
+      | 'noticeDigest'
+      | 'sourcePolicyId'
+      | 'routingPolicyVersion'
+      | 'redactionProfileFamily',
+      AnyPgColumn
+    >
+  >,
+) =>
+  sql`(
+          (${t.noticeVersion} = 'merchant-ai-notice-2026-08-15.v1'
+            AND ${t.noticeDigest} = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b')
+          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-08-19.v1'
+            AND ${t.noticeDigest} = 'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31')
+          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-06.v1'
+            AND ${t.noticeDigest} = '7bb8d9bddbec630d90f546ba4d0f308076840e25786389a19e1c651dd21434a8')
+          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-08.v1'
+            AND ${t.noticeDigest} = 'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865')
+          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-09.v1'
+            AND ${t.noticeDigest} = 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1')
+          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-15.v1'
+            AND ${t.noticeDigest} = '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c')
+        )
+        AND ${t.sourcePolicyId} = 'google-business-profile-source-policy-v1'
+        AND ${t.routingPolicyVersion} = 1
+        AND ${t.redactionProfileFamily} = 'gbp-review-global-v1'`
+
 export const merchantAiConsentEvidence = pgTable(
   'merchant_ai_consent_evidence',
   {
@@ -83,6 +123,11 @@ export const merchantAiConsentEvidence = pgTable(
     idempotencyKey: varchar('idempotency_key', { length: 128 }).notNull(),
     requestHash: varchar('request_hash', { length: 64 }).notNull(),
     occurredAt: timestamptz('occurred_at').notNull(),
+    // The consent ceremony that wrote the row: fresh for a single-Property
+    // command, shared by every row of a multi-Property ceremony. Null on rows
+    // written before notice 2026-09-15 and on restore resets, which are not a
+    // merchant's consent.
+    ceremonyId: uuid('ceremony_id'),
   },
   (t) => [
     primaryKey({
@@ -147,28 +192,8 @@ export const merchantAiConsentEvidence = pgTable(
       sql`${t.noticeDigest} ~ '^[0-9a-f]{64}$'`,
     ),
     // Consent evidence is append-only, so a notice re-version must not
-    // invalidate consent already recorded under the previous notice. Each
-    // known version is pinned to its own digest — a row may never mix a
-    // version with another version's digest. The set grows by one arm per
-    // notice version; the constants live in merchant-ai-notice-contract.ts.
-    check(
-      'merchant_ai_consent_evidence_contract_valid',
-      sql`(
-          (${t.noticeVersion} = 'merchant-ai-notice-2026-08-15.v1'
-            AND ${t.noticeDigest} = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b')
-          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-08-19.v1'
-            AND ${t.noticeDigest} = 'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31')
-          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-06.v1'
-            AND ${t.noticeDigest} = '7bb8d9bddbec630d90f546ba4d0f308076840e25786389a19e1c651dd21434a8')
-          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-08.v1'
-            AND ${t.noticeDigest} = 'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865')
-          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-09.v1'
-            AND ${t.noticeDigest} = 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1')
-        )
-        AND ${t.sourcePolicyId} = 'google-business-profile-source-policy-v1'
-        AND ${t.routingPolicyVersion} = 1
-        AND ${t.redactionProfileFamily} = 'gbp-review-global-v1'`,
-    ),
+    // invalidate consent already recorded under the previous notice.
+    check('merchant_ai_consent_evidence_contract_valid', validExecutionContract(t)),
     check(
       'merchant_ai_consent_evidence_capabilities_valid',
       validCapabilitySet(t.state, t.capabilities),
@@ -270,24 +295,7 @@ export const merchantAiEnablement = pgTable(
     // Same known-version set as the evidence table: an enablement row granted
     // under an earlier notice stays valid until the owner re-consents under the
     // current one; the settings page re-enables Save when the versions differ.
-    check(
-      'merchant_ai_enablement_contract_valid',
-      sql`(
-          (${t.noticeVersion} = 'merchant-ai-notice-2026-08-15.v1'
-            AND ${t.noticeDigest} = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b')
-          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-08-19.v1'
-            AND ${t.noticeDigest} = 'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31')
-          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-06.v1'
-            AND ${t.noticeDigest} = '7bb8d9bddbec630d90f546ba4d0f308076840e25786389a19e1c651dd21434a8')
-          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-08.v1'
-            AND ${t.noticeDigest} = 'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865')
-          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-09.v1'
-            AND ${t.noticeDigest} = 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1')
-        )
-        AND ${t.sourcePolicyId} = 'google-business-profile-source-policy-v1'
-        AND ${t.routingPolicyVersion} = 1
-        AND ${t.redactionProfileFamily} = 'gbp-review-global-v1'`,
-    ),
+    check('merchant_ai_enablement_contract_valid', validExecutionContract(t)),
     check(
       'merchant_ai_enablement_capabilities_valid',
       validCapabilitySet(t.state, t.capabilities),
@@ -300,5 +308,38 @@ export const merchantAiEnablement = pgTable(
   ],
 )
 
+/**
+ * A standing "not now" for one Property's AI decision (migration 0015).
+ *
+ * It lives beside `merchant_ai_enablement` rather than on it: an enablement
+ * head must reference a consent-evidence head and carry a notice
+ * version/digest and capability/source epochs, and a deferral records no
+ * consent, evidence or epoch. Identity's defer command writes at most one row
+ * per Property and refuses while AI is enabled; a successful enable deletes the
+ * row in the same transaction. Both foreign keys cascade with the Property, so
+ * Organization purge removes the row together with the Property rows.
+ */
+export const merchantAiDecisionDeferrals = pgTable(
+  'merchant_ai_decision_deferrals',
+  {
+    propertyId: uuid('property_id')
+      .primaryKey()
+      .references(() => properties.id, { onDelete: 'cascade' }),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    deferredBy: varchar('deferred_by', { length: 255 }).notNull(),
+    deferredAt: timestamptz('deferred_at').notNull(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+      name: 'merchant_ai_decision_deferrals_tenant_fk',
+    }).onDelete('cascade'),
+    index('merchant_ai_decision_deferrals_org_idx').on(t.organizationId),
+  ],
+)
+
 export type MerchantAiEnablementRow = typeof merchantAiEnablement.$inferSelect
 export type MerchantAiConsentEvidenceRow = typeof merchantAiConsentEvidence.$inferSelect
+export type MerchantAiDecisionDeferralRow =
+  typeof merchantAiDecisionDeferrals.$inferSelect

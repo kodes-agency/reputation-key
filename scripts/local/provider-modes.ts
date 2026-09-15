@@ -25,6 +25,7 @@
 // buys real inference on a real account.
 
 import { readFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation-profiles'
 
 /** Every endpoint `applyProviderEndpointOverrides` may override. */
@@ -76,6 +77,48 @@ export function parseEnvOverlay(text: string): ReadonlyMap<string, string | unde
     overlay.set(key, value.length === 0 ? undefined : value)
   }
   return overlay
+}
+
+/**
+ * The overlays a local stack reads, weakest first: the developer's own
+ * `~/.config/repkey/local.env`, shared by every checkout and worktree, then the
+ * checkout's gitignored `local.env`, which wins. A new worktree therefore starts
+ * with the developer's real provider credentials and local admin, instead of
+ * silently falling back to the sandbox until a file is copied in.
+ */
+export function localEnvOverlayPaths(
+  checkoutRoot: string,
+  home: string,
+): readonly string[] {
+  return [
+    join(home, '.config', 'repkey', 'local.env'),
+    resolve(checkoutRoot, 'local.env'),
+  ]
+}
+
+/** One key as the overlays resolve it; undefined when unset or never set. */
+export function localEnvSetting(
+  key: string,
+  paths: readonly string[],
+): string | undefined {
+  let value: string | undefined
+  for (const path of paths) {
+    let text: string
+    try {
+      text = readFileSync(path, 'utf8')
+    } catch {
+      continue
+    }
+    const overlay = parseEnvOverlay(text)
+    if (overlay.has(key)) value = overlay.get(key)
+  }
+  return value
+}
+
+/** The host port the web dev server listens on: the stack origin's own port. */
+export function stackWebPort(env: NodeJS.ProcessEnv): string {
+  const origin = new URL(env.BETTER_AUTH_URL ?? 'http://127.0.0.1:3000')
+  return origin.port || (origin.protocol === 'https:' ? '443' : '80')
 }
 
 /** Apply an overlay file if it exists; returns the keys it touched. */

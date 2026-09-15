@@ -174,8 +174,19 @@ export function validateJobOperationalContracts(
   }
 }
 
+/**
+ * How far past the reader's clock an observation may lie. Workers stamp their
+ * heads with their own clocks, and a little skew between hosts is not a corrupt
+ * head; anything later still marks the observation invalid.
+ */
+const OBSERVATION_CLOCK_SKEW_TOLERANCE_MS = 1_000
+
 function after(left: Date | null, right: Date | null): boolean {
   return left !== null && (right === null || left.getTime() > right.getTime())
+}
+
+function fromTheFuture(value: Date, now: Date): boolean {
+  return value.getTime() > now.getTime() + OBSERVATION_CLOCK_SKEW_TOLERANCE_MS
 }
 
 function invalidObservation(observation: JobRuntimeObservation, now: Date): boolean {
@@ -190,7 +201,7 @@ function invalidObservation(observation: JobRuntimeObservation, now: Date): bool
   return (
     !Number.isSafeInteger(observation.deadLetterCount) ||
     observation.deadLetterCount < 0 ||
-    dates.some((value) => value !== null && value.getTime() > now.getTime())
+    dates.some((value) => value !== null && fromTheFuture(value, now))
   )
 }
 
@@ -279,10 +290,7 @@ export function assessJobRuntime(
   if (observation === null || observation.jobName !== contract.jobName) {
     return { ready: false, reasons: ['observation_missing'] }
   }
-  if (
-    invalidObservation(observation, now) ||
-    runtimeStartedAt.getTime() > now.getTime()
-  ) {
+  if (invalidObservation(observation, now) || fromTheFuture(runtimeStartedAt, now)) {
     return { ready: false, reasons: ['invalid_observation'] }
   }
 

@@ -18,11 +18,45 @@
 import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { toast } from 'sonner'
+import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import type { Action } from './use-action'
+
+/** What a failed action says when the server's own words cannot be shown. */
+export const GENERIC_ACTION_ERROR_MESSAGE = 'Something went wrong. Try again.'
+
+/**
+ * The toast for a rejected action: the server's sentence for a 4xx refusal, a
+ * generic one for anything else.
+ *
+ * A 4xx `ServerFunctionError` is a domain refusal whose message the context
+ * wrote for the person who clicked (`throwContextError`, server-errors.ts:18,
+ * sends `e.message` verbatim with the status the context mapped, e.g.
+ * `reviewErrorStatus` in review/server/reply-read.ts). A 5xx or an untagged
+ * error is a failure whose message was never written for a reader and may name
+ * internal state, so it is replaced rather than shown. Recognition is by shape
+ * (`isServerFunctionError`), because the class can load twice in dev.
+ */
+export function actionErrorMessage(error: unknown): string {
+  if (isServerFunctionError(error) && error.status >= 400 && error.status < 500) {
+    return error.message
+  }
+  return GENERIC_ACTION_ERROR_MESSAGE
+}
 
 export interface ActionMutationOptions<TInput, TOutput> {
   /** Shown via toast.success on success. Omit for a silent mutation. */
   successMessage?: string
+  /**
+   * Shown via toast.error when the mutation rejects (after any recovery). Omit
+   * for a caller that reports failure itself. Pass `actionErrorMessage` for the
+   * default wording, or a function of the error to special-case one refusal.
+   *
+   * Opt-in because `Action` is `mutateAsync`: every rejection also reaches the
+   * caller, and a caller that already renders the error inline must not get a
+   * second report. A caller that only guards the promise against an unhandled
+   * rejection (`.catch(() => undefined)`) says nothing unless it opts in here.
+   */
+  errorMessage?: string | ((error: unknown) => string)
   /** Query keys to invalidate on success (targeted — never router.invalidate()). */
   invalidateKeys?: QueryKey[]
   /**
@@ -41,6 +75,13 @@ export interface ActionMutationOptions<TInput, TOutput> {
   recover?: (input: TInput, error: unknown) => Promise<TInput | null>
   /** Runs AFTER invalidation + toast. Receives the output + the submitted input. */
   onSuccess?: (output: TOutput, input: TInput) => void | Promise<void>
+  /**
+   * Runs after a rejection's rollback and toast, with the SUBMITTED input — for
+   * a caller whose cache may be what the refusal is about. Like `onSuccess`,
+   * it reaches a mutation still pending when the options change, so it must
+   * act on the input, not on whatever the caller's closure has open by then.
+   */
+  onError?: (error: unknown, input: TInput) => void
   /** Navigate after success (create-and-redirect flows build params from output). */
   navigateTo?: {
     to: string
@@ -57,8 +98,14 @@ export function useActionMutation<TInput, TOutput>(
 ): Action<TInput, TOutput> {
   const qc = useQueryClient()
   const router = useRouter()
-  const { successMessage, invalidateKeys, optimistic, onSuccess, navigateTo } =
-    options ?? {}
+  const {
+    successMessage,
+    errorMessage,
+    invalidateKeys,
+    optimistic,
+    onSuccess,
+    navigateTo,
+  } = options ?? {}
 
   const mutation = useMutation<TOutput, Error, TInput, Rollback>({
     mutationFn: async (input) => {
@@ -74,8 +121,12 @@ export function useActionMutation<TInput, TOutput>(
     onMutate: (input) => ({ undo: optimistic?.(input) }),
     // The optimistic write is undone only on failure; on success the
     // invalidation below reconciles it against the server.
-    onError: (_error, _input, context) => {
+    onError: (error, input, context) => {
       context?.undo?.()
+      if (errorMessage !== undefined) {
+        toast.error(typeof errorMessage === 'string' ? errorMessage : errorMessage(error))
+      }
+      options?.onError?.(error, input)
     },
     onSuccess: async (output, input) => {
       if (invalidateKeys && invalidateKeys.length > 0) {

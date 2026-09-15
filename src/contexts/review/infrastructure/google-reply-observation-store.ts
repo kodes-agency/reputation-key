@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   googleReplyObservationHeads,
@@ -324,7 +324,9 @@ async function loadPublicationEvidence(
 
 /** A different current-live provider reply closes the handling target with
  * external/unknown provenance, so the in-flight RepKey attempt for the same
- * source must be fenced at this same observation boundary. */
+ * source must be fenced at this same observation boundary. A `diverged` echo
+ * (the attempt's text with only whitespace reformatted) is deliberately not
+ * `external_current_live`, so it never reaches this fence. */
 function supersedesCurrentAttempt(
   resolution: string,
   candidate: GoogleReplyPublicationCandidate | null,
@@ -405,7 +407,19 @@ async function supersedeExternalCurrentAttempt(
         eq(replies.publicationCycle, attempt.publicationCycle),
         eq(replies.publicationAttempts, attempt.attemptNumber),
         inArray(replies.status, [...CLAIMABLE_PUBLICATION_STATUSES]),
-        inArray(replies.publicationState, [...UNCERTAIN_PUBLICATION_STATES]),
+        // Terminal ambiguity only stopped automatic checks; its attempt is as
+        // uncertain as before (outcome `ambiguous`), and confirmReplyOnGoogle
+        // already accepts it. Without it, a different reply on Google made
+        // "Check Google again" (D5) and every snapshot import of the Review
+        // throw here. Any other terminal row already says what happened and
+        // has no attempt this decision could supersede.
+        or(
+          inArray(replies.publicationState, [...UNCERTAIN_PUBLICATION_STATES]),
+          and(
+            eq(replies.publicationState, 'terminal'),
+            eq(replies.publicationLastErrorClass, 'ambiguous'),
+          ),
+        ),
       ),
     )
     .returning({ id: replies.id })
@@ -568,6 +582,16 @@ async function confirmReplyOnGoogle(
 
 type ObservationDecision = ReturnType<typeof decideGoogleReplyObservation>
 
+/** A `diverged` echo whose text is the unchanged head acts on nothing (no
+ * confirmation, no supersede, no Inbox close), so re-reading it is as silent as
+ * an `unchanged` read; otherwise every snapshot run would append it again. */
+function isRestatingResolution(decision: ObservationDecision): boolean {
+  return (
+    decision.resolution === 'unchanged' ||
+    (decision.resolution === 'diverged' && decision.change === 'unchanged')
+  )
+}
+
 /** Append the new observation and replace the Review's head with it. */
 /**
  * A re-read that restates the current head has nothing to say: it records no
@@ -595,7 +619,7 @@ function restatesCurrentHead(
   const { input, decision, head, supersedes, evidence } = args
   if (head === undefined) return false
   if (input.source !== 'provider_snapshot') return false
-  if (decision.resolution !== 'unchanged') return false
+  if (!isRestatingResolution(decision)) return false
   if (supersedes || settlesLegacyUnattributedAttempt(evidence)) return false
   return (
     head.state === decision.state &&
@@ -831,6 +855,9 @@ export const createGoogleReplyObservationStore = (
                   sourceEpoch: attempt.sourceEpoch,
                   materialReviewRevision: attempt.materialReviewRevision,
                   expectedReplyDigest: attempt.expectedReplyDigest,
+                  // Lets the decision recognise a whitespace-reformatted echo;
+                  // it is ignored unless it digests to the attempt's digest.
+                  expectedReplyText: internal.text,
                   outcome: attempt.outcome as GoogleReplyPublicationCandidate['outcome'],
                 }
               : null

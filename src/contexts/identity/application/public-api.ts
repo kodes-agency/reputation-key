@@ -21,6 +21,8 @@ import type { CreateCustomRole } from './use-cases/create-custom-role'
 import type { UpdateCustomRole } from './use-cases/update-custom-role'
 import type { DeleteCustomRole } from './use-cases/delete-custom-role'
 import type { MerchantAiAuthorization } from './use-cases/merchant-ai-authorization'
+import type { MerchantAiDecisionDeferralService } from './use-cases/merchant-ai-decision-deferral'
+import type { ListMerchantAiOverview } from './use-cases/merchant-ai-overview'
 
 export type {
   IdentityOrganizationCreated,
@@ -75,6 +77,18 @@ export type IdentityAccountAdminAuthorityPublicApi = Readonly<{
   ) => Promise<boolean>
 }>
 
+/**
+ * Merchant AI management: the per-Property authorization snapshot and its
+ * consent commands, the durable "not now" decision, and the read-only
+ * Organization overview across every Property the actor manages AI for.
+ */
+export type MerchantAiRequestApi = Readonly<
+  Pick<MerchantAiAuthorization, 'get' | 'enable' | 'change' | 'revoke'> &
+    Pick<MerchantAiDecisionDeferralService, 'defer'> & {
+      listOverview: ListMerchantAiOverview
+    }
+>
+
 /** Request-facing Identity operations. Infrastructure and worker controls stay private. */
 export type IdentityRequestApi = Readonly<{
   inviteMember: InviteMember
@@ -95,7 +109,7 @@ export type IdentityRequestApi = Readonly<{
   createCustomRole: CreateCustomRole
   updateCustomRole: UpdateCustomRole
   deleteCustomRole: DeleteCustomRole
-  merchantAiAuthorization: MerchantAiAuthorization
+  merchantAiAuthorization: MerchantAiRequestApi
 }>
 
 /**
@@ -117,3 +131,7 @@ export type IdentityPublicApi = Readonly<{
   people: StaffPublicApi
   requests: IdentityRequestApi
 }>
+export type {
+  MerchantAiOverview,
+  MerchantAiOverviewEntry,
+} from './use-cases/merchant-ai-overview'

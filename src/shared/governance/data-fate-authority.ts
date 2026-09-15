@@ -150,6 +150,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'aiPropertyProcessingProfiles',
       'aiPropertyTrendSchedulerHeads',
       'aiPropertyTrendSchedules',
+      'aiReviewAnalysisBacklog',
       'aiReviewAnalysisEnrollments',
     ],
     owner: 'ai',
@@ -330,7 +331,12 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'merchant-ai-authorization.schema.ts',
-    exportNames: ['merchantAiEnablement'],
+    // The decision deferral is Merchant AI authorization state beside the
+    // head: organization-scoped (so the tenant-predicate canary governs it),
+    // removed by the Property cascade on Organization purge, erased by
+    // Identity's Property Erase contributor (its only writer), and withheld
+    // from export with the rest of the authorization control plane.
+    exportNames: ['merchantAiDecisionDeferrals', 'merchantAiEnablement'],
     owner: 'ai',
     disposition: 'active_authority',
     authority: 'AI-01',

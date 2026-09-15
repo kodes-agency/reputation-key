@@ -34,6 +34,7 @@ import {
   nextPublicationCycle,
   nextPublicationState,
   type PersistedPublicationState,
+  type PublicationFailureClass,
   type PublicationStateEvent,
 } from '../domain/reply-publication-workflow'
 import { replyFromRow, replyToRow } from './mappers/reply.mapper'
@@ -51,6 +52,7 @@ import type { PublicationAuthorizationFacts } from '../application/ports/reply-c
 import { googleReplyTextDigest } from '../domain/google-reply-observation'
 import { lockReplyTruthScope } from './reply-truth-serialization'
 import { reviewReplyPublicationCancelled } from '../domain/events'
+import { attemptMayHaveDispatched } from './reply-publication-dispatch-evidence'
 
 /**
  * Identity-owned, transaction-bound decision injected at composition. The
@@ -293,11 +295,14 @@ type PublicationAttemptStart = Parameters<ReplyCommandStore['markPublicationSend
 type PublicationAuthorizationRow = typeof replyPublicationAuthorizations.$inferSelect
 
 /** Update the attempt row the Reply currently points at. Its absence means the
- * append-only publication evidence and the Reply have diverged. */
+ * append-only publication evidence and the Reply have diverged. `fromOutcomes`
+ * additionally refuses to rewrite an attempt that already reached any other
+ * outcome (the transaction then rolls back with the Reply write). */
 const updateCurrentAttempt = async (
   tx: Tx,
   reply: Reply,
   set: Record<string, unknown>,
+  fromOutcomes?: ReadonlyArray<string>,
 ): Promise<void> => {
   const rows = await tx
     .update(replyPublicationAttempts)
@@ -308,6 +313,9 @@ const updateCurrentAttempt = async (
         eq(replyPublicationAttempts.organizationId, reply.organizationId),
         eq(replyPublicationAttempts.publicationCycle, reply.publicationCycle),
         eq(replyPublicationAttempts.attemptNumber, reply.publicationAttempts),
+        fromOutcomes
+          ? inArray(replyPublicationAttempts.outcome, [...fromOutcomes])
+          : undefined,
       ),
     )
     .returning({ id: replyPublicationAttempts.id })
@@ -317,6 +325,140 @@ const updateCurrentAttempt = async (
       'Reply publication attempt evidence is missing',
     )
   }
+}
+
+/** A (status, publication_state[, last error class]) an uncertain-send command
+ * may start from. */
+type UncertainSendSnapshot = Readonly<{
+  status: Reply['status']
+  publicationState: PersistedPublicationState
+  lastErrorClass?: PublicationFailureClass
+}>
+
+/** D3: only a send still in flight waits out the propagation grace. */
+const DEFERRABLE_SEND: ReadonlyArray<UncertainSendSnapshot> = [
+  { status: 'approved', publicationState: 'sending' },
+]
+
+/** D3: only automatic-check ambiguity moves along the read ladder. */
+const LADDER_AMBIGUITY: ReadonlyArray<UncertainSendSnapshot> = [
+  { status: 'publish_failed', publicationState: 'ambiguous' },
+]
+
+/** D4: every state whose attempt may or may not have reached Google. A
+ * terminal row qualifies only when it is terminal ambiguity; a rejection or
+ * an exhausted retry already says what happened. */
+const NEVER_DISPATCHED_SETTLEABLE: ReadonlyArray<UncertainSendSnapshot> = [
+  { status: 'approved', publicationState: 'sending' },
+  { status: 'publish_failed', publicationState: 'ambiguous' },
+  { status: 'publish_failed', publicationState: 'terminal', lastErrorClass: 'ambiguous' },
+]
+
+function uncertainSnapshotFor(
+  reply: Reply,
+  allowed: ReadonlyArray<UncertainSendSnapshot>,
+): UncertainSendSnapshot | null {
+  return (
+    allowed.find(
+      (snapshot) =>
+        snapshot.status === reply.status &&
+        snapshot.publicationState === reply.publicationState &&
+        (snapshot.lastErrorClass === undefined ||
+          snapshot.lastErrorClass === reply.publicationLastErrorClass),
+    ) ?? null
+  )
+}
+
+/** A due time in the past would put the row back into the sweep run that is
+ * reading it, which is a second provider read with nothing learned. */
+function assertDueAfter(dueAt: Date, now: Date): void {
+  if (
+    !Number.isFinite(dueAt.getTime()) ||
+    !Number.isFinite(now.getTime()) ||
+    dueAt.getTime() <= now.getTime()
+  ) {
+    throw reviewError('invalid_input', 'Reply reconciliation must be due after now')
+  }
+}
+
+/**
+ * D3/D4 compare-and-set for the current attempt: the row must still have the
+ * snapshot's status, publication state, cycle, attempt number and state
+ * revision (and, for terminal ambiguity, its last error class). A later
+ * attempt, a new cycle, a heal, a cancellation or another settlement all miss.
+ */
+function uncertainAttemptWhere(reply: Reply, snapshot: UncertainSendSnapshot) {
+  return and(
+    eq(replies.id, reply.id),
+    eq(replies.organizationId, reply.organizationId),
+    eq(replies.status, snapshot.status),
+    eq(replies.publicationState, snapshot.publicationState),
+    eq(replies.publicationCycle, reply.publicationCycle),
+    eq(replies.publicationAttempts, reply.publicationAttempts),
+    eq(replies.stateRevision, reply.stateRevision),
+    snapshot.lastErrorClass
+      ? eq(replies.publicationLastErrorClass, snapshot.lastErrorClass)
+      : undefined,
+  )
+}
+
+async function casUncertainAttempt(
+  run: Pick<Database, 'update'>,
+  reply: Reply,
+  snapshot: UncertainSendSnapshot,
+  set: Record<string, unknown>,
+): Promise<Reply | null> {
+  const result = await run
+    .update(replies)
+    .set(set)
+    .where(uncertainAttemptWhere(reply, snapshot))
+    .returning()
+  return result[0] ? replyFromRow(result[0]) : null
+}
+
+/** Outcomes an uncertain attempt row can still carry. */
+const UNCERTAIN_ATTEMPT_OUTCOMES = ['sending', 'ambiguous'] as const
+
+/**
+ * D4 under lock: the Reply row (same order as every other publication write,
+ * Reply before attempt), then the attempt row. The permit issuer holds FOR SHARE
+ * on that attempt row until its permit commits, so once this returns no permit
+ * can be admitted for the attempt without this transaction seeing it.
+ * Null when the snapshot lost the compare-and-set.
+ */
+async function lockUncertainAttempt(
+  tx: Tx,
+  reply: Reply,
+  snapshot: UncertainSendSnapshot,
+): Promise<Readonly<{ startedAt: Date }> | null> {
+  const locked = await tx
+    .select({ id: replies.id })
+    .from(replies)
+    .where(uncertainAttemptWhere(reply, snapshot))
+    .for('update')
+    .limit(1)
+  if (!locked[0]) return null
+  const attempts = await tx
+    .select({ createdAt: replyPublicationAttempts.createdAt })
+    .from(replyPublicationAttempts)
+    .where(
+      and(
+        eq(replyPublicationAttempts.replyId, reply.id),
+        eq(replyPublicationAttempts.organizationId, reply.organizationId),
+        eq(replyPublicationAttempts.publicationCycle, reply.publicationCycle),
+        eq(replyPublicationAttempts.attemptNumber, reply.publicationAttempts),
+        inArray(replyPublicationAttempts.outcome, [...UNCERTAIN_ATTEMPT_OUTCOMES]),
+      ),
+    )
+    .for('update')
+    .limit(1)
+  if (!attempts[0]) {
+    throw reviewError(
+      'invalid_transition',
+      'Reply publication attempt evidence is missing',
+    )
+  }
+  return { startedAt: attempts[0].createdAt }
 }
 
 /**
@@ -776,19 +918,23 @@ export const createAtomicReplyCommandStore = (
         },
       ),
 
-    markPublicationAmbiguous: (reply, event, now) =>
+    markPublicationAmbiguous: (reply, event, now, dueAt) =>
       publicationTransition(
         'reply.commandStore.markPublicationAmbiguous',
         reply,
         'fail_ambiguous',
         ['sending', 'pending_observation'],
-        (target, at) => ({
-          status: 'publish_failed',
-          publicationState: target,
-          publicationLastErrorClass: 'ambiguous',
-          reconcileDueAt: new Date(at.getTime() + AMBIGUOUS_RECONCILE_DELAY_MS),
-          updatedAt: at,
-        }),
+        (target, at) => {
+          if (dueAt) assertDueAfter(dueAt, at)
+          return {
+            status: 'publish_failed',
+            publicationState: target,
+            publicationLastErrorClass: 'ambiguous',
+            reconcileDueAt:
+              dueAt ?? new Date(at.getTime() + AMBIGUOUS_RECONCILE_DELAY_MS),
+            updatedAt: at,
+          }
+        },
         event,
         now,
         (tx, saved, at) =>
@@ -797,6 +943,86 @@ export const createAtomicReplyCommandStore = (
             updatedAt: at,
           }),
       ),
+
+    // D3: an uncertain send waits inside its propagation grace. Only the due
+    // time moves: no fact, no attempt change, and `sending` stays unclaimable.
+    deferUncertainSend: async (reply, dueAt, now) => {
+      const snapshot = uncertainSnapshotFor(reply, DEFERRABLE_SEND)
+      if (!snapshot) return null
+      assertDueAfter(dueAt, now)
+      return trace('reply.commandStore.deferUncertainSend', () =>
+        casUncertainAttempt(db, reply, snapshot, {
+          reconcileDueAt: dueAt,
+          updatedAt: now,
+        }),
+      )
+    },
+
+    // D3: ambiguity moves to its next ladder read. A failed or unreadable read
+    // lands here too, so it can never end automatic checks on its own.
+    rescheduleAmbiguousReconciliation: async (reply, dueAt, now) => {
+      const snapshot = uncertainSnapshotFor(reply, LADDER_AMBIGUITY)
+      if (!snapshot) return null
+      assertDueAfter(dueAt, now)
+      return trace('reply.commandStore.rescheduleAmbiguousReconciliation', () =>
+        casUncertainAttempt(db, reply, snapshot, {
+          reconcileDueAt: dueAt,
+          updatedAt: now,
+        }),
+      )
+    },
+
+    // D4: positive evidence that this attempt never reached Google makes it an
+    // ordinary not-published failure a manager may retry (a new cycle through
+    // the normal authorization). The fact records a failure the manager has
+    // not been told about yet; an ambiguous row already carried one.
+    //
+    // The caller's evidence was read before this transaction, so a permit
+    // admitted since then would be invisible to it. The evidence is asked
+    // again here, after the attempt row is locked; a permit or a restore found
+    // then leaves the attempt untouched and returns null like a lost CAS.
+    settleNeverDispatchedAttempt: async (reply, event, now) => {
+      const snapshot = uncertainSnapshotFor(reply, NEVER_DISPATCHED_SETTLEABLE)
+      if (!snapshot) return null
+      if (reply.publicationCycle < 1 || reply.publicationAttempts < 1) {
+        throw reviewError(
+          'invalid_transition',
+          'Reply publication attempt evidence is missing',
+        )
+      }
+      return trace('reply.commandStore.settleNeverDispatchedAttempt', () =>
+        db.transaction(async (tx) => {
+          const attempt = await lockUncertainAttempt(tx, reply, snapshot)
+          if (!attempt) return null
+          const mayHaveDispatched = await attemptMayHaveDispatched(tx, {
+            organizationId: reply.organizationId,
+            replyId: reply.id,
+            publicationCycle: reply.publicationCycle,
+            attemptNumber: reply.publicationAttempts,
+            attemptStartedAt: attempt.startedAt,
+          })
+          if (mayHaveDispatched) return null
+          const saved = await casUncertainAttempt(tx, reply, snapshot, {
+            status: 'publish_failed',
+            publicationState: 'terminal',
+            publicationLastErrorClass: 'retryable',
+            reconcileDueAt: null,
+            updatedAt: now,
+          })
+          if (!saved) return null
+          await updateCurrentAttempt(
+            tx,
+            saved,
+            { outcome: 'retryable_failure', updatedAt: now },
+            UNCERTAIN_ATTEMPT_OUTCOMES,
+          )
+          if (event && snapshot.status !== 'publish_failed') {
+            await insertOutboxRow(tx, event)
+          }
+          return saved
+        }),
+      )
+    },
 
     // BQC-3.8: retryable failure — back to 'authorized' (next attempt or
     // quarantine redrive re-claims); last_error_class/attempts preserved.
@@ -998,6 +1224,21 @@ export const createSequentialReplyCommandStore = (deps: {
     return saved
   }
 
+  const sequentialUncertainUpdate = (
+    reply: Reply,
+    snapshot: UncertainSendSnapshot,
+    updates: ConditionalReplyUpdate,
+    now: Date,
+  ): Promise<Reply | null> => {
+    if (!deps.publicationUpdate) {
+      throw reviewError(
+        'build_config_error',
+        'publicationUpdate dep is required for uncertain-send commands',
+      )
+    }
+    return deps.publicationUpdate(reply, [snapshot.publicationState], updates, now)
+  }
+
   return {
     submitReply: (reply, updates, event, now) => transition(reply, updates, event, now),
     rejectReply: (reply, updates, event, now) => transition(reply, updates, event, now),
@@ -1104,7 +1345,7 @@ export const createSequentialReplyCommandStore = (deps: {
         now,
       ),
 
-    markPublicationAmbiguous: (reply, event, now) =>
+    markPublicationAmbiguous: (reply, event, now, dueAt) =>
       publicationTransition(
         reply,
         'fail_ambiguous',
@@ -1113,13 +1354,49 @@ export const createSequentialReplyCommandStore = (deps: {
           status: 'publish_failed',
           publicationState: 'ambiguous',
           publicationLastErrorClass: 'ambiguous',
-          reconcileDueAt: new Date(
-            (now ?? deps.clock()).getTime() + AMBIGUOUS_RECONCILE_DELAY_MS,
-          ),
+          reconcileDueAt:
+            dueAt ??
+            new Date((now ?? deps.clock()).getTime() + AMBIGUOUS_RECONCILE_DELAY_MS),
         },
         event,
         now,
       ),
+
+    // The fake's publicationUpdate guards on the state list only, so the
+    // snapshot pre-check stands in for the atomic store's full CAS.
+    deferUncertainSend: async (reply, dueAt, now) => {
+      const snapshot = uncertainSnapshotFor(reply, DEFERRABLE_SEND)
+      if (!snapshot) return null
+      assertDueAfter(dueAt, now)
+      return sequentialUncertainUpdate(reply, snapshot, { reconcileDueAt: dueAt }, now)
+    },
+
+    rescheduleAmbiguousReconciliation: async (reply, dueAt, now) => {
+      const snapshot = uncertainSnapshotFor(reply, LADDER_AMBIGUITY)
+      if (!snapshot) return null
+      assertDueAfter(dueAt, now)
+      return sequentialUncertainUpdate(reply, snapshot, { reconcileDueAt: dueAt }, now)
+    },
+
+    settleNeverDispatchedAttempt: async (reply, event, now) => {
+      const snapshot = uncertainSnapshotFor(reply, NEVER_DISPATCHED_SETTLEABLE)
+      if (!snapshot) return null
+      const saved = await sequentialUncertainUpdate(
+        reply,
+        snapshot,
+        {
+          status: 'publish_failed',
+          publicationState: 'terminal',
+          publicationLastErrorClass: 'retryable',
+          reconcileDueAt: null,
+        },
+        now,
+      )
+      if (saved && event && snapshot.status !== 'publish_failed') {
+        await recordOutbox(event)
+      }
+      return saved
+    },
 
     markPublicationRetryQueued: (reply, now) =>
       publicationTransition(

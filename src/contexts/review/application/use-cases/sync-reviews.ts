@@ -324,6 +324,9 @@ async function persistObservation(
       sourceEpoch: persisted.sourceEpoch,
       sourceRevision: persisted.sourceRevision,
       analysisSequence: persisted.analysisSequence,
+      ...(state.observationOrigin === undefined
+        ? {}
+        : { observationOrigin: state.observationOrigin }),
       occurredAt: now,
     }
     return state.isNew ? reviewCreated(payload) : reviewUpdated(payload)

@@ -10,6 +10,7 @@ import { integrationError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
 import {
   GOOGLE_BUSINESS_MANAGE_SCOPE,
+  GOOGLE_EMAIL_SCOPE,
   GOOGLE_OIDC_ISSUERS,
 } from '../../application/google-provider-contract'
 
@@ -117,6 +118,15 @@ async function readBoundedJson(response: Response, maxBytes: number): Promise<un
   }
 }
 
+/**
+ * The exact v2 grants: the current one with the email scope, and the one
+ * issued before it, still valid for a ceremony that started before the change.
+ */
+const EXACT_V2_GRANTS: ReadonlyArray<ReadonlySet<string>> = [
+  new Set(['openid', GOOGLE_EMAIL_SCOPE, GOOGLE_BUSINESS_MANAGE_SCOPE]),
+  new Set(['openid', GOOGLE_BUSINESS_MANAGE_SCOPE]),
+]
+
 function parseGrantedScopes(
   raw: string | undefined,
   exactV2: boolean,
@@ -124,20 +134,41 @@ function parseGrantedScopes(
   if (!raw) {
     throw integrationError('oauth_failed', 'Google OAuth granted scopes were missing')
   }
-  const scopes = raw.trim().split(/\s+/).filter(Boolean)
+  // Google reports the basic `email` scope by its full name; accept both.
+  const scopes = raw
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((scope) => (scope === 'email' ? GOOGLE_EMAIL_SCOPE : scope))
   const unique = new Set(scopes)
   if (unique.size !== scopes.length) {
     throw integrationError('oauth_failed', 'Google OAuth granted scopes were duplicated')
   }
   if (
     exactV2 &&
-    (unique.size !== 2 ||
-      !unique.has('openid') ||
-      !unique.has(GOOGLE_BUSINESS_MANAGE_SCOPE))
+    !EXACT_V2_GRANTS.some(
+      (grant) =>
+        grant.size === unique.size && [...grant].every((scope) => unique.has(scope)),
+    )
   ) {
     throw integrationError('oauth_failed', 'Google OAuth granted scopes did not match')
   }
   return Object.freeze([...unique].sort())
+}
+
+const MAX_EMAIL_LENGTH = 320
+
+/** The verified address a signed ID token carries, or null. */
+function verifiedEmailClaim(email: unknown, emailVerified: unknown): string | null {
+  if (emailVerified !== true && emailVerified !== 'true') return null
+  if (typeof email !== 'string') return null
+  const address = email.trim()
+  if (address.length === 0 || address.length > MAX_EMAIL_LENGTH) return null
+  const at = address.indexOf('@')
+  if (at <= 0 || at !== address.lastIndexOf('@') || at === address.length - 1) {
+    return null
+  }
+  return address
 }
 
 // BQC-4.3: endpoint URLs arrive via construction config from the composition
@@ -355,10 +386,10 @@ export const createGoogleOAuthAdapter = (config: {
    * Signature, issuer, audience, nonce, lifetime and freshness of the ID token.
    * Every failure collapses to the same opaque validation error.
    */
-  const verifiedGoogleSubject = async (
+  const verifiedGoogleIdentity = async (
     idToken: string,
     oidcNonce: string,
-  ): Promise<string> => {
+  ): Promise<Readonly<{ googleSubject: string; email: string | null }>> => {
     try {
       const jwks = await loadJwks()
       const now = clock()
@@ -389,7 +420,13 @@ export const createGoogleOAuthAdapter = (config: {
       ) {
         throw new Error('oidc_claim_mismatch')
       }
-      return sub
+      return {
+        googleSubject: sub,
+        email: verifiedEmailClaim(
+          verified.payload.email,
+          verified.payload.email_verified,
+        ),
+      }
     } catch {
       throw integrationError('oauth_failed', 'Google ID token validation failed')
     }
@@ -424,9 +461,9 @@ export const createGoogleOAuthAdapter = (config: {
         idToken: data.id_token,
       })
     }
-    const googleSubject = await verifiedGoogleSubject(data.id_token, input.oidcNonce)
+    const identity = await verifiedGoogleIdentity(data.id_token, input.oidcNonce)
     return {
-      identity: { kind: 'oidc', googleSubject },
+      identity: { kind: 'oidc', ...identity },
       accessToken: data.access_token,
       refreshToken: data.refresh_token,
       expiresIn: data.expires_in,

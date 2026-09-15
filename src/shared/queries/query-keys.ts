@@ -102,15 +102,26 @@ export const identityKeys = {
   /** Merchant AI consent snapshot for one property (import onboarding). */
   merchantAiAuthorization: (propertyId: string) =>
     [...identityKeys.all, 'merchant-ai', propertyId] as const,
+  /** Read-only Organization AI overview across the Properties the viewer manages. */
+  merchantAiOverview: () => [...identityKeys.all, 'merchant-ai-overview'] as const,
+  /** The Merchant AI notice currently served, independent of any Property. */
+  merchantAiNotice: () => [...identityKeys.all, 'merchant-ai-notice'] as const,
 }
 
 // ── Properties ──────────────────────────────────────────────────────────
 export const propertyKeys = {
   all: ['properties'] as const,
   list: () => [...propertyKeys.all, 'list'] as const,
+  /**
+   * Setup attention counts for the accessible Properties. Below the list, so
+   * any list invalidation (a Property created, archived, reconfigured) refreshes them.
+   */
+  setupSummaries: () => [...propertyKeys.list(), 'setup-summaries'] as const,
   detail: (propertyId: string) => [...propertyKeys.all, 'detail', propertyId] as const,
   responsibleManagers: (propertyId: string) =>
     [...propertyKeys.detail(propertyId), 'responsible-managers'] as const,
+  /** One Property's setup steps. Below its detail, so Property invalidation reaches them. */
+  setup: (propertyId: string) => [...propertyKeys.detail(propertyId), 'setup'] as const,
 }
 
 // ── Dashboard (fleet + per-property + staff) ─────────────────────────────
@@ -161,6 +172,11 @@ export const aiKeys = {
     [...aiKeys.all, 'property-aggregates', propertyId] as const,
   propertyInsights: (propertyId: string, range: number | 'all') =>
     [...aiKeys.all, 'property-insights', propertyId, range] as const,
+  /** Paced Review Analysis counts for one property (ADR 0058). */
+  reviewAnalysisProgress: (propertyId: string) =>
+    [...aiKeys.all, 'review-analysis-progress', propertyId] as const,
+  /** The organization's AI spend this month; amounts only. */
+  organizationSpend: () => [...aiKeys.all, 'organization-spend'] as const,
 }
 
 // ── Goals ────────────────────────────────────────────────────────────────

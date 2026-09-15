@@ -160,6 +160,50 @@ export const WithDeletableDraft: Story = {
 }
 
 /**
+ * A refused delete is reported by the delete mutation's toast
+ * (`use-reply-actions.ts`), so the footer only has to settle the promise: an
+ * unsettled one surfaced as an unhandled rejection, which the browser logs and
+ * the test runner fails on.
+ */
+const refusedDeletes: Error[] = []
+
+export const DeleteDraftRefused: Story = {
+  args: {
+    status: 'saved',
+    // A plain function, not `fn()`: the spy attaches its own handler to every
+    // promise it returns to record the outcome, which would mark the
+    // rejection handled and hide exactly what this story looks for.
+    onDelete: () => {
+      const refusal = new Error('refused')
+      refusedDeletes.push(refusal)
+      return Promise.reject(refusal)
+    },
+  },
+  play: async ({ canvasElement }) => {
+    refusedDeletes.length = 0
+    const unhandled: unknown[] = []
+    const record = (event: PromiseRejectionEvent) => {
+      event.preventDefault()
+      unhandled.push(event.reason)
+    }
+    window.addEventListener('unhandledrejection', record)
+    try {
+      await userEvent.click(
+        within(canvasElement).getByRole('button', { name: 'Delete draft' }),
+      )
+      expect(refusedDeletes).toHaveLength(1)
+      // `unhandledrejection` is dispatched from a task queued after the
+      // microtask checkpoint, so wait out two task turns before reading it.
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(unhandled).toEqual([])
+    } finally {
+      window.removeEventListener('unhandledrejection', record)
+    }
+  },
+}
+
+/**
  * An unfilled template placeholder blocks the submit, and the reason reaches
  * the reader through the button's `aria-describedby` rather than by being
  * merely visible near it.

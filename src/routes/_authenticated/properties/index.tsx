@@ -20,7 +20,10 @@ import {
   PropertyListPage,
   type PropertyComparison,
 } from '#/components/features/property/property-list-page'
-import { propertiesQuery } from '#/routes/-queries/route-queries'
+import {
+  propertiesQuery,
+  propertySetupSummariesQuery,
+} from '#/routes/-queries/route-queries'
 import { getFleetOverviewFn } from '#/contexts/reporting/server/fleet-overview'
 import { getSetupChecklistFn } from '#/contexts/reporting/server/setup-checklist'
 import { dashboardKeys } from '#/shared/queries/query-keys'
@@ -75,6 +78,7 @@ function PropertyListRoute() {
   const { data: propsData } = useSuspenseQuery(propertiesQuery)
   const fleet = useInfiniteQuery(fleetQuery(LIFETIME))
   const checklist = useQuery(setupChecklistQuery)
+  const setupSummaries = useQuery(propertySetupSummariesQuery)
 
   const comparison = new Map<string, PropertyComparison>()
   for (const page of fleet.data?.pages ?? []) {
@@ -92,6 +96,16 @@ function PropertyListRoute() {
       properties={propsData.properties}
       comparison={comparison.size > 0 ? comparison : undefined}
       checklist={checklist.data}
+      setupAttention={
+        setupSummaries.data
+          ? new Map(
+              setupSummaries.data.map((entry) => [
+                entry.propertyId,
+                entry.attentionCount,
+              ]),
+            )
+          : undefined
+      }
     />
   )
 }

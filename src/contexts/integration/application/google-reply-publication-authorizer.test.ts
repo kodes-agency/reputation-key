@@ -53,6 +53,7 @@ function connection(overrides: Partial<GoogleConnection> = {}): GoogleConnection
     id: CONNECTION_ID,
     organizationId: ORG_ID,
     googleSubject: 'provider-subject',
+    googleAccountEmail: null,
     encryptedAccessToken: 'encrypted-access',
     encryptedRefreshToken: 'encrypted-refresh',
     tokenExpiresAt: new Date('2026-08-27T12:00:00.000Z'),

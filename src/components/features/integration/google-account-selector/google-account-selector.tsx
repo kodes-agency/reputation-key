@@ -6,6 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
+import { googleConnectionLabel } from './google-connection-label'
 
 type Props = Readonly<{
   connections: readonly GoogleConnectionDto[]
@@ -30,7 +31,7 @@ function connectionLabel(connection: GoogleConnectionDto): string {
     connection.status === 'active'
       ? ''
       : ` — ${CONNECTION_STATUS_LABELS[connection.status]}`
-  return `Organization Google account${statusLabel}`
+  return `${googleConnectionLabel(connection)}${statusLabel}`
 }
 export function GoogleAccountSelector({
   connections,
@@ -40,7 +41,7 @@ export function GoogleAccountSelector({
 }: Props) {
   return (
     <Select value={value} onValueChange={onValueChange} disabled={disabled}>
-      <SelectTrigger className="w-full max-w-[300px]" id="google-account-select">
+      <SelectTrigger className="w-full max-w-[360px]" id="google-account-select">
         <SelectValue placeholder="Select Google account" />
       </SelectTrigger>
       <SelectContent>

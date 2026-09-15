@@ -4,6 +4,7 @@
 // click remains unambiguous. Routing and permissions come from decorators.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
+import { withRole } from '../../../../.storybook/AuthedRouterDecorator'
 import type { SetupChecklist } from '#/contexts/reporting/application/public-api'
 import { PropertyListPage, type PropertyComparison } from './property-list-page'
 
@@ -92,6 +93,51 @@ const incompleteChecklist = {
   ],
 } as unknown as SetupChecklist
 
+// A new organization: nothing connected, so Google is the step to act on.
+const newOrganizationChecklist = {
+  state: 'in_progress',
+  steps: [
+    {
+      key: 'google_connection',
+      status: 'incomplete',
+      firstCompletedAt: null,
+      action: { kind: 'manage_google', propertyId: null },
+    },
+    {
+      key: 'initial_review_sync',
+      status: 'incomplete',
+      firstCompletedAt: null,
+      action: { kind: 'manage_google', propertyId: null },
+    },
+    {
+      key: 'published_portal',
+      status: 'incomplete',
+      firstCompletedAt: null,
+      action: null,
+    },
+    {
+      key: 'responsible_managers',
+      status: 'incomplete',
+      firstCompletedAt: null,
+      action: null,
+    },
+  ],
+} as unknown as SetupChecklist
+
+const managersPendingChecklist = {
+  state: 'in_progress',
+  steps: incompleteChecklist.steps.map((step) =>
+    step.key === 'published_portal'
+      ? {
+          ...step,
+          status: 'complete',
+          firstCompletedAt: new Date('2026-06-03T00:00:00Z'),
+          action: null,
+        }
+      : step,
+  ),
+} as unknown as SetupChecklist
+
 const completeChecklist = {
   state: 'complete',
   steps: incompleteChecklist.steps.map((step) => ({
@@ -174,6 +220,32 @@ export const SetupComplete: Story = {
   },
 }
 
+// The Google step opens the import flow, where Google gets connected.
+export const SetupNeedsGoogle: Story = {
+  args: { properties: [], checklist: newOrganizationChecklist },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Next: Connect Google.')).toBeVisible()
+    expect(canvas.getByRole('link', { name: 'Import from Google' })).toHaveAttribute(
+      'href',
+      '/properties/import-google',
+    )
+  },
+}
+
+// Responsible managers live in the People section of the property's settings.
+export const SetupNeedsManagers: Story = {
+  args: { properties, comparison, checklist: managersPendingChecklist },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Next: Assign responsible managers.')).toBeVisible()
+    expect(canvas.getByRole('link', { name: 'Assign managers' })).toHaveAttribute(
+      'href',
+      '/properties/prop-1/settings/people',
+    )
+  },
+}
+
 export const Compact390: Story = {
   args: { properties, comparison, checklist: incompleteChecklist },
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
@@ -186,13 +258,41 @@ export const SingleProperty: Story = {
   },
 }
 
-// Empty state — first-run CTA copy.
+// First run — Google import is the only way a property is created (decision 7).
 export const Empty: Story = {
   args: { properties: [] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/no properties yet/i)).toBeVisible()
-    expect(canvas.getByText(/add your first property to get started/i)).toBeVisible()
+    expect(
+      canvas.getByRole('link', { name: 'Import your first property from Google' }),
+    ).toHaveAttribute('href', '/properties/import-google')
+  },
+}
+
+// The call to action is long: on the narrowest phone, inside the app's gutter,
+// it wraps onto two balanced lines.
+export const EmptyAt320: Story = {
+  args: { properties: [] },
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+  decorators: [
+    (Story) => (
+      <div className="px-4 py-5">
+        <Story />
+      </div>
+    ),
+  ],
+}
+
+// A manager who cannot import is not sent to a flow that turns them away.
+export const EmptyWithoutImportPermission: Story = {
+  args: { properties: [] },
+  decorators: [withRole('PropertyManager')],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText(/no properties yet/i)).toBeVisible()
+    expect(canvas.getByText(/ask an account admin to import a property/i)).toBeVisible()
+    expect(canvas.queryByRole('link', { name: /import/i })).not.toBeInTheDocument()
   },
 }
 
@@ -216,6 +316,8 @@ export const AllRemoved: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/no active properties/i)).toBeVisible()
-    expect(canvas.queryByText(/add your first property/i)).not.toBeInTheDocument()
+    expect(
+      canvas.queryByRole('link', { name: /import your first property/i }),
+    ).not.toBeInTheDocument()
   },
 }

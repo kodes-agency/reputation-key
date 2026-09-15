@@ -43,6 +43,7 @@ import {
   type ReplyPublicationActorAuthority,
 } from './infrastructure/reply-command-store'
 import { createGoogleReplyObservationStore } from './infrastructure/google-reply-observation-store'
+import { createReplyPublicationDispatchEvidence } from './infrastructure/reply-publication-dispatch-evidence'
 import { createReviewReplyObservationAuthority } from './infrastructure/reply-observation-authority'
 import { createReviewResponseTargetAuthority } from './infrastructure/response-target-authority'
 import type { ReviewReplyObservationAuthority } from './application/ports/reply-observation-authority.port'
@@ -103,6 +104,10 @@ import {
   type SetPropertyReplyTemplateEnabled,
 } from './application/use-cases/reply-library-operations'
 import { reconcileReplyPublication } from './application/use-cases/reconcile-reply-publication'
+import {
+  checkReplyPublication,
+  type CheckReplyPublication,
+} from './application/use-cases/check-reply-publication'
 import { cancelPublicationsForConnection } from './application/use-cases/cancel-publications'
 import { getStaffRecentActivity } from './application/use-cases/get-staff-recent-activity'
 import {
@@ -183,6 +188,8 @@ export type ReviewContextApi = Readonly<{
         delete: ReturnType<typeof deleteReply>
         get: ReturnType<typeof getReply>
         retryPublish: ReturnType<typeof retryPublish>
+        /** D5: read-only "Check Google again"; never authorizes or enqueues. */
+        checkPublication: CheckReplyPublication
         listTemplates: ListReplyTemplates
         loadTemplate: LoadReplyTemplate
         getPropertyLibrary: GetPropertyReplyLibrary
@@ -262,6 +269,7 @@ export type ReviewContextApi = Readonly<{
       deleteReply: ReturnType<typeof deleteReply>
       getReply: ReturnType<typeof getReply>
       retryPublish: ReturnType<typeof retryPublish>
+      checkReplyPublication: CheckReplyPublication
       listReplyTemplates: ListReplyTemplates
       loadReplyTemplate: LoadReplyTemplate
       getPropertyReplyLibrary: GetPropertyReplyLibrary
@@ -386,7 +394,11 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
           removeOnComplete: { count: 100 },
           removeOnFail: { count: 50 },
           // BQC-3.6: attempts/backoff+jitter/timeout from the job catalogue
-          // (exponential:5000 + 120s timeout for publish-reply).
+          // (event-job-catalogue.ts publish-reply: 5 attempts, exponential
+          // from 30 s; job-policy.ts 0.5 jitter, so the first retry lands
+          // 15-30 s later; 120 s timeout). Only a retryable failure spends
+          // them on another write; an uncertain send is re-read on the D3
+          // schedule and never written again.
           ...jobEnqueueOptions('publish-reply'),
         },
       )
@@ -406,6 +418,9 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     input.publicationActorAuthority,
   )
   const googleReplyObservationStore = createGoogleReplyObservationStore(input.db)
+  // D4: one reader of the non-dispatch evidence for the manager commands, the
+  // publish job's readback and the reconciliation sweep.
+  const dispatchEvidence = createReplyPublicationDispatchEvidence(input.db)
   const replyObservationAuthority = createReviewReplyObservationAuthority(input.db)
   const responseTargetAuthority = createReviewResponseTargetAuthority(input.db)
   const sourceTransitionAuthority = createReviewSourceTransitionAuthority(input.db)
@@ -422,7 +437,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
           input.replyBrandProfiles,
         )
       : undefined,
-    googleReviewApi: input.googleReviewApi,
+    dispatchEvidence,
     googleReplyObservationStore,
     clock: input.clock,
     idGen: () => replyId(input.idGen()),
@@ -460,6 +475,13 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     input.targetedReviewReferences ?? {
       resolve: async () => ({ status: 'obsolete' }),
     }
+  const reconcileReplyPublicationUseCase = reconcileReplyPublication({
+    replyRepo,
+    reviewRepo,
+    googleReviewApi: input.googleReviewApi,
+    observationStore: googleReplyObservationStore,
+    clock: input.clock,
+  })
   const useCases = {
     runReviewProviderSnapshot: runReviewProviderSnapshot({
       repository: createReviewProviderSnapshotRepository(
@@ -492,6 +514,16 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     deleteReply: deleteReply(replyDeps),
     getReply: getReply(replyDeps),
     retryPublish: retryPublish(replyDeps),
+    checkReplyPublication: checkReplyPublication({
+      replyRepo,
+      reviewRepo,
+      staffPublicApi: input.staffPublicApi,
+      commandStore: replyCommandStore,
+      dispatchEvidence,
+      reconcileReplyPublication: reconcileReplyPublicationUseCase,
+      clock: input.clock,
+      logger: input.logger,
+    }),
     editPublishedReply: editPublishedReply(replyDeps),
     listReplyTemplates: listReplyTemplates(replyTemplateDeps),
     loadReplyTemplate: loadReplyTemplate({
@@ -502,13 +534,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     savePropertyReplyProfile: savePropertyReplyProfile(replyTemplateDeps),
     savePropertyReplyTemplate: savePropertyReplyTemplate(replyTemplateDeps),
     setPropertyReplyTemplateEnabled: setPropertyReplyTemplateEnabled(replyTemplateDeps),
-    reconcileReplyPublication: reconcileReplyPublication({
-      replyRepo,
-      reviewRepo,
-      googleReviewApi: input.googleReviewApi,
-      observationStore: googleReplyObservationStore,
-      clock: input.clock,
-    }),
+    reconcileReplyPublication: reconcileReplyPublicationUseCase,
     getStaffRecentActivity: getStaffRecentActivity({
       reviewRepo,
       staffPublicApi: input.staffPublicApi,
@@ -559,6 +585,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       runTargetedFetch: useCases.runTargetedGoogleReviewFetch,
       runSourceContentLifecycle: useCases.runReviewSourceContentLifecycle,
       reconcileReplyPublication: useCases.reconcileReplyPublication,
+      dispatchEvidence,
       clock: input.clock,
       idGen: input.idGen,
       logger: input.logger,
@@ -593,6 +620,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         delete: useCases.deleteReply,
         get: useCases.getReply,
         retryPublish: useCases.retryPublish,
+        checkPublication: useCases.checkReplyPublication,
         listTemplates: useCases.listReplyTemplates,
         loadTemplate: useCases.loadReplyTemplate,
         getPropertyLibrary: useCases.getPropertyReplyLibrary,

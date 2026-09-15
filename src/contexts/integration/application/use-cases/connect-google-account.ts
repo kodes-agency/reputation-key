@@ -192,6 +192,7 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
           organizationId: ctx.organizationId,
           connectionId: googleConnectionId(facts.connectionId),
           googleSubject: oauthResult.identity.googleSubject,
+          googleAccountEmail: oauthResult.identity.email,
           encryptedAccessToken,
           encryptedRefreshToken,
           tokenExpiresAt,

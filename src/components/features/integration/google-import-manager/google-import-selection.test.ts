@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
+import { createImportReviewDraft } from './google-import-review-model'
 import {
+  isConfirmingDetails,
   selectAllEligibleCandidates,
   filterLoadedCandidates,
   selectionCheckState,
@@ -97,5 +99,15 @@ describe('Google import loaded-row selection', () => {
     expect(filterLoadedCandidates(loaded, 'bakery')).toEqual([loaded[0]])
     expect(filterLoadedCandidates(loaded, 'oak')).toEqual([loaded[0]])
     expect(filterLoadedCandidates(loaded, 'secret-reference')).toEqual([])
+  })
+})
+
+describe('Google import confirm screen', () => {
+  it('is on only for the review step with a draft of the chosen locations', () => {
+    const draft = createImportReviewDraft([candidate('chosen')])
+
+    expect(isConfirmingDetails({ step: 'review', reviewDraft: draft })).toBe(true)
+    expect(isConfirmingDetails({ step: 'review', reviewDraft: null })).toBe(false)
+    expect(isConfirmingDetails({ step: 'discover', reviewDraft: draft })).toBe(false)
   })
 })

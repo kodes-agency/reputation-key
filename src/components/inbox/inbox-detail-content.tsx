@@ -7,6 +7,7 @@ import { InboxReopenDialog } from './inbox-reopen-dialog'
 import { offeredModes } from './composer-policy'
 import { resolveReplyView } from './reply-status-view'
 import { useReplyActions } from './use-reply-actions'
+import { useOnDemandReviewAnalysis } from './use-on-demand-review-analysis'
 import {
   useInboxComposerController,
   type ComposerFocusBox,
@@ -95,6 +96,11 @@ export function InboxDetailContent({
 }: DetailContentProps) {
   const queryClient = useQueryClient()
   const { can } = usePermissions()
+  useOnDemandReviewAnalysis({
+    item: currentItem,
+    detail,
+    request: detailFns.requestReviewAnalysisNow,
+  })
   const [reopenOpen, setReopenOpen] = useState(false)
   /**
    * The half-typed internal note, and the item it was typed about.
@@ -129,7 +135,8 @@ export function InboxDetailContent({
     reviewId: currentItem.sourceId,
     onReplyChanged: onReplyMutated,
   })
-  const replyView = resolveReplyView(detail?.reply ?? null)
+  const reply = detail?.reply ?? null
+  const replyView = resolveReplyView(reply)
   const {
     mode,
     setMode,
@@ -142,7 +149,7 @@ export function InboxDetailContent({
   } = useInboxComposerController({
     itemId: currentItem.id,
     modes,
-    reply: detail?.reply ?? null,
+    reply,
     replyKind: replyView.kind,
     replyActions,
     composerFocusRef,

@@ -9,6 +9,7 @@ import {
   transitionReply,
   MAX_REPLY_LENGTH,
   REPLY_TEMPLATE_SLOT_TOKENS,
+  replyTextProblemMessage,
   unfilledReplySlots,
   unknownReplyTemplateSlots,
   unfilledReplySlotsMessage,
@@ -287,7 +288,26 @@ describe('transitionReply — BQC-3.8 AI-draft publication proof', () => {
 })
 
 describe('MAX_REPLY_LENGTH', () => {
-  it('is 4096', () => {
+  it('is 4096, the byte limit Google documents for a reply comment', () => {
     expect(MAX_REPLY_LENGTH).toBe(4096)
+  })
+})
+
+describe('replyTextProblemMessage', () => {
+  it('names bytes, not characters, when a reply is too long for Google', () => {
+    expect(replyTextProblemMessage('too_long')).toBe(
+      'This reply is too long for Google. Shorten it to 4,096 bytes or fewer.',
+    )
+  })
+
+  it('gives one sentence for a control character and for broken Unicode', () => {
+    const sentence =
+      "This reply contains a character Google doesn't accept. Remove any unusual control characters and try again."
+    expect(replyTextProblemMessage('invalid_character')).toBe(sentence)
+    expect(replyTextProblemMessage('malformed_unicode')).toBe(sentence)
+  })
+
+  it('keeps the existing empty-reply message', () => {
+    expect(replyTextProblemMessage('empty')).toBe('Reply text cannot be empty')
   })
 })

@@ -170,6 +170,7 @@ function healthySnapshot(): MutableSnapshot {
       quarantined: 0,
       failing: 0,
       missingObservations: 0,
+      invalidObservations: 0,
       handlerMissing: 0,
       schedulerMissing: 0,
       forbiddenDarkWork: 0,

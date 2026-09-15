@@ -105,6 +105,7 @@ import { getExecutionPolicy, type DecisionRequest } from '#/shared/auth/executio
 import { createActiveMemberAuthResolver } from './infrastructure/active-member-auth.adapter'
 import { parseGbpNotificationSubscriptionConfig } from './application/notification-subscription-config'
 import type { SourceContentPurge } from '#/contexts/review/application/public-api'
+import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/application/public-api'
 import { googleConnectionId, propertyId } from '#/shared/domain/ids'
 import type { HandleGbpNotificationDeps } from './application/use-cases/handle-gbp-notification'
 import { createProviderAuthorizationInvalidationFanout } from '#/shared/provider-ephemeral/authorization-invalidation'
@@ -128,6 +129,7 @@ import type { GooglePerformanceDependencyDescriptor } from '#/shared/architectur
 import { createIntegrationOrganizationExportContributor } from './infrastructure/adapters/integration-organization-export.adapter'
 import { createIntegrationOrganizationLifecycleContributor } from './infrastructure/adapters/integration-organization-lifecycle.adapter'
 import { createGoogleOrganizationClosureProvider } from './infrastructure/adapters/google-organization-closure-provider.adapter'
+import { sameRecordEntries } from '#/shared/domain/record-entries'
 
 export type GoogleProviderEndpoints = Readonly<{
   gbpApiBaseUrl: string
@@ -192,15 +194,10 @@ function sameAuthorizationVectorExceptCredentialGeneration(
   left: Readonly<Record<string, string | number | boolean | null>>,
   right: Readonly<Record<string, string | number | boolean | null>>,
 ): boolean {
-  const leftKeys = Object.keys(left).sort()
-  const rightKeys = Object.keys(right).sort()
-  return (
-    leftKeys.length === rightKeys.length &&
-    leftKeys.every(
-      (key, index) =>
-        key === rightKeys[index] &&
-        (key === 'credentialGeneration' || left[key] === right[key]),
-    )
+  return sameRecordEntries(
+    left,
+    right,
+    (key) => key === 'credentialGeneration' || left[key] === right[key],
   )
 }
 
@@ -215,6 +212,8 @@ type IntegrationContextDeps = Readonly<{
   propertyBindingApi?: PropertyGoogleBindingPublicApi
   enqueueReviewSync?: ReviewQueuePort['addSyncJob']
   enqueueTargetedReviewFetch?: TargetedGoogleReviewQueuePort['addTargetedFetchJob']
+  /** Starts an imported Property's public display name as its confirmed name. */
+  defaultPublicDisplayName?: PortalPublicDisplayNameDefaultPublicApi['ensureDefaultPublicDisplayName']
   logger: LoggerPort
   /** BQC-1.7: bounded lifecycle purge of a revoked connection's source
    * content. Constructed once by the composition root (the only layer that
@@ -775,6 +774,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       // The one place a Google-backed property becomes live. `subscribe` is a
       // best-effort idempotent PATCH and no-ops when GBP_PUBSUB_TOPIC is empty.
       subscribeToNotifications: manageNotificationsUseCase.subscribe,
+      defaultPublicDisplayName: deps.defaultPublicDisplayName,
       resolveActor: resolveActiveMember,
       clock: deps.clock,
       newClaimFence: deps.idGen,

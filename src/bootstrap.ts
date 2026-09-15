@@ -65,6 +65,14 @@ import {
   createSchedulePropertyTrendsJobHandler,
   SCHEDULE_PROPERTY_TRENDS_JOB_NAME,
 } from '#/contexts/ai/infrastructure/jobs/schedule-property-trends.job'
+import {
+  createDrainReviewAnalysisBacklogJobHandler,
+  DRAIN_REVIEW_ANALYSIS_BACKLOG_JOB_NAME,
+} from '#/contexts/ai/infrastructure/jobs/drain-review-analysis-backlog.job'
+import {
+  ANALYZE_REVIEW_NOW_JOB_NAME,
+  createAnalyzeReviewNowJobHandler,
+} from '#/contexts/ai/infrastructure/jobs/analyze-review-now.job'
 import { GoalProgramError } from '#/contexts/reporting/application/public-api'
 import {
   createRevalidateApprovedDestinationsHandler,
@@ -358,6 +366,26 @@ export async function bootstrap(
   logger.info(
     { job: SCHEDULE_PROPERTY_TRENDS_JOB_NAME },
     'registered property AI trend scheduler job handler',
+  )
+
+  // ── AI Review Analysis backlog (ADR 0058) ───────────────────────────
+  // History waits in a durable backlog and drains at the background lane's
+  // pace; a review a manager opens is analysed ahead of it on the interactive
+  // lane. Both re-check authorization and controls inside the use case.
+  registerCapabilityGatedJob(
+    DRAIN_REVIEW_ANALYSIS_BACKLOG_JOB_NAME,
+    'ai.analyze',
+    createDrainReviewAnalysisBacklogJobHandler({
+      drain: container.aiWorkerRuntime.drainReviewAnalysisBacklog.drain,
+      logger,
+    }),
+  )
+  registerCapabilityGatedJob(
+    ANALYZE_REVIEW_NOW_JOB_NAME,
+    'ai.analyze',
+    createAnalyzeReviewNowJobHandler({
+      drainReview: container.aiWorkerRuntime.drainReviewAnalysisBacklog.drainReview,
+    }),
   )
 
   // ── Canonical monthly Goal Program maintenance ───────────────────

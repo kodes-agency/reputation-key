@@ -62,3 +62,31 @@ export function parseGoogleReviewComment(
     translation: trimmedOrNull(wrapped.slice(0, marker)),
   }
 }
+
+export type GoogleReplyComment = Readonly<{
+  /** The reply's own words, or null when there is no reply or none survive. */
+  text: string | null
+  /** A reply comment is present but carries no recoverable original text. */
+  unreadable: boolean
+}>
+
+/**
+ * Reads an echoed `reviews[].reviewReply.comment` without ever turning a reply
+ * RepKey can't read into "no reply".
+ *
+ * `parseGoogleReviewComment` reports `original: null` for three different
+ * provider facts: no comment, a blank comment, and a translation-only envelope
+ * (`(Translated by Google) X` with no `(Original)` marker — see the
+ * `marker < 0` branch above). For review text that is harmless. For a reply it
+ * is not: reconciliation read `replyText: null` as "Google has no reply", so a
+ * reply Google did show, in a form we could not read back, counted as absent
+ * (google-review-api.adapter.ts `mapReview`). Absence is never evidence about a
+ * publication, so the unreadable case is reported on its own.
+ */
+export function parseGoogleReplyComment(
+  comment: string | null | undefined,
+): GoogleReplyComment {
+  if (comment == null) return { text: null, unreadable: false }
+  const { original } = parseGoogleReviewComment(comment)
+  return { text: original, unreadable: original === null }
+}

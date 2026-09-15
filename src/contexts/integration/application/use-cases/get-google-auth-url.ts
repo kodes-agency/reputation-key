@@ -27,8 +27,11 @@ export type GetGoogleAuthUrlResult = Readonly<{
   url: string
 }>
 
-/** Exact v2 OAuth contract: signed OIDC identity plus GBP management. */
-const GBP_OAUTH_SCOPES = ['openid', GOOGLE_BUSINESS_MANAGE_SCOPE]
+/**
+ * Exact v2 OAuth contract: signed OIDC identity, the account's verified email
+ * as its display label, and GBP management (ADR 0050, amended 2026-09-15).
+ */
+const GBP_OAUTH_SCOPES = ['openid', 'email', GOOGLE_BUSINESS_MANAGE_SCOPE]
 
 /** Concrete use case instance type — named, not derived via ReturnType. */
 export type GetGoogleAuthUrl = (

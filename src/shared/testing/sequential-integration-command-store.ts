@@ -32,6 +32,7 @@ export function createSequentialIntegrationCommandStore(deps: {
         command.scopes,
         command.event.userId,
         command.event.occurredAt,
+        command.googleAccountEmail,
       )
       const updated = await deps.connectionRepo.findById(
         command.organizationId,

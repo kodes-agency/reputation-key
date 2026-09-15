@@ -57,9 +57,14 @@ const config = defineConfig(({ mode }) => {
   // devtools console-pipe — it mirrors browser console into the server
   // terminal (and server logs back into the browser via SSE), so one client
   // console.error multiplies into unbounded [Client]/[Server] echo on stderr,
-  // which Playwright pipes into the CI job log. Local `pnpm dev` (no flag)
-  // keeps the pipe for DX.
+  // which Playwright pipes into the CI job log.
   const isE2E = !!process.env.E2E
+  // Local dev leaves the pipe off too unless REPKEY_DEVTOOLS_CONSOLE_PIPE=1.
+  // Every open tab holds its SSE stream (`/__tsd/console-pipe/sse`) for as long
+  // as it is open, and browsers allow six HTTP/1.1 connections per origin: the
+  // sixth tab of the app got its server-rendered HTML but never its scripts, so
+  // a refresh "did not load", and a seventh tab never loaded at all.
+  const consolePipingEnabled = !isE2E && process.env.REPKEY_DEVTOOLS_CONSOLE_PIPE === '1'
   if (isBuild && !isStorybook && !process.env.SENTRY_AUTH_TOKEN) {
     console.warn('[sentry] SENTRY_AUTH_TOKEN is unset; skipping source-map upload')
   }
@@ -124,7 +129,9 @@ const config = defineConfig(({ mode }) => {
     resolve: { tsconfigPaths: true },
     plugins: [
       zodJitlessPlugin(),
-      ...(isStorybook ? [] : [devtools({ consolePiping: { enabled: !isE2E } })]),
+      ...(isStorybook
+        ? []
+        : [devtools({ consolePiping: { enabled: consolePipingEnabled } })]),
       ...(isBuild && !isStorybook
         ? [
             nitro({

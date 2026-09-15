@@ -99,8 +99,10 @@ export function getLogger(destination?: pino.DestinationStream): pino.Logger {
         // Mixin merges request-scoped span attrs (role/useCase — content-free,
         // loggers. Read dynamically from ALS at log-call time, so attrs
         // enriched after logger creation (e.g. after resolveTenantContext)
-        // still appear.
-        mixin: () => getSpanAttrs(),
+        // still appear. A copy: pino merges each call's fields into the object
+        // the mixin returns, so the live attrs would carry them into every
+        // later line of the same request or job.
+        mixin: () => ({ ...getSpanAttrs() }),
         // The resolved path, not the bare name: pino resolves a bare target
         // from its callers' stack files, and under the Vite dev module runner
         // those are `eval` frames when the first logger is created inside a

@@ -17,7 +17,10 @@ import {
   TableHeader,
   TableRow,
 } from '#/components/ui/table'
-import { importItemMessage } from './google-import-progress-model'
+import {
+  importItemMessage,
+  importItemNeedsReimport,
+} from './google-import-progress-model'
 
 type Props = Readonly<{
   items: readonly ImportProgressItemDto[]
@@ -72,7 +75,11 @@ function RetryButton({
   )
 }
 
-/** Imported and relinked items link straight to the Property they produced. */
+/**
+ * Imported and relinked items link straight to the Property they produced and
+ * an already-bound location to the Property that holds it; a rejected profile
+ * sends the manager back to import the location again.
+ */
 function NextStep({
   item,
   retryingItemId,
@@ -84,7 +91,28 @@ function NextStep({
   mobile?: boolean
   onRetry: (item: ImportProgressItemDto) => void
 }>) {
+  if (importItemNeedsReimport(item)) {
+    return (
+      <Button
+        asChild
+        size="sm"
+        variant="outline"
+        className={mobile ? 'w-full' : undefined}
+      >
+        <Link
+          to="/properties/import-google"
+          aria-label={`Import ${item.propertyName} again`}
+        >
+          Import again
+          <ArrowRight aria-hidden="true" />
+        </Link>
+      </Button>
+    )
+  }
   if (item.propertyId !== null) {
+    // An already-bound location links to the Property that holds it, which may
+    // carry a different name than the one confirmed for this import.
+    const existing = item.status === 'already_exists'
     return (
       <Button
         asChild
@@ -95,9 +123,13 @@ function NextStep({
         <Link
           to="/properties/$propertyId"
           params={{ propertyId: item.propertyId }}
-          aria-label={`View property ${item.propertyName}`}
+          aria-label={
+            existing
+              ? `View the existing property for ${item.propertyName}`
+              : `View property ${item.propertyName}`
+          }
         >
-          View property
+          {existing ? 'View existing property' : 'View property'}
           <ArrowRight aria-hidden="true" />
         </Link>
       </Button>

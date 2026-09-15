@@ -57,9 +57,9 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  * - `google_connections.encrypted_access_token` / `encrypted_refresh_token` /
  *   `token_expires_at` / `encryption_key_id` are the credential itself, its
  *   validity window and the key that opens it — bullet 7's first exclusion.
- * - `google_connections.google_subject` and `scopes` are the Google-controlled
- *   identity of the grant and the exact provider authority it carries. Neither
- *   is a fact about the tenant's own records.
+ * - `google_connections.google_subject`, `google_account_email` and `scopes` are
+ *   the Google-controlled identity of the grant, its display label, and the exact
+ *   provider authority it carries. None is a fact about the tenant's own records.
  * - `gbp_import_request_items` is read only as **counts grouped by state**. Its
  *   rows carry `provider_account_suffix`, `provider_location_suffix` and
  *   `google_review_uri`: provider-controlled identifiers and a Google-owned

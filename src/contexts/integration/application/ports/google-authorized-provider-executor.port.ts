@@ -1,3 +1,4 @@
+import type { GoogleProviderDispatch } from '#/shared/google-provider-control/egress-gateway'
 import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
 import type { GoogleProviderCallAuthorization } from '../google-provider-contract'
 
@@ -8,6 +9,7 @@ import type { GoogleProviderCallAuthorization } from '../google-provider-contrac
  */
 export type GoogleProviderGatewayAdmissionCode =
   | 'malformed_request'
+  | 'deadline_exceeded'
   | 'permit_unknown'
   | 'permit_expired'
   | 'gateway_mismatch'
@@ -64,6 +66,14 @@ export type GoogleProviderExecutionResult =
         | 'response_too_large'
       /** Content-free execution-admission denial reason for `admission_denied`. */
       admissionCode?: GoogleProviderAdmissionCode
+      /**
+       * Whether the request could have reached Google. Only `not_sent` is
+       * evidence a write did not happen; the code cannot say this on its own
+       * (see `GoogleProviderDispatch`).
+       */
+      dispatch: GoogleProviderDispatch
+      /** The provider's HTTP status; present only when `dispatch` is `answered`. */
+      providerStatus?: number
       retryAfterMs: number
     }>
 

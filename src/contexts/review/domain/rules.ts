@@ -103,8 +103,45 @@ export const transitionReply = (
   })
 }
 
-/** Shared across domain, server functions, and UI. */
+/**
+ * Google's reply comment limit, in UTF-8 BYTES — not characters. The rule that
+ * enforces it (bytes, allowed characters, well-formed Unicode) is
+ * `replyCommentProblem` in `src/shared/google-provider-control/reply-comment.ts`;
+ * a `text.length` comparison against this number lets 2049 Cyrillic letters
+ * (4098 bytes) through and is not this limit.
+ */
 export const MAX_REPLY_LENGTH = 4096
+
+/**
+ * Mirrors `ReplyCommentProblem` (`shared/google-provider-control/reply-comment.ts`).
+ * The domain layer may import only `shared/domain` (eslint.config.js, the
+ * `domain` boundary policy), so the application layer asks the shared rule and
+ * the domain words the answer. A problem the shared rule adds and this union
+ * lacks fails typecheck at the call site in `reply-operations.ts`.
+ */
+export type ReplyTextProblem =
+  'empty' | 'too_long' | 'invalid_character' | 'malformed_unicode'
+
+const REPLY_TEXT_UNACCEPTED_CHARACTER =
+  "This reply contains a character Google doesn't accept. Remove any unusual control characters and try again."
+
+/**
+ * The manager-facing sentence for text Google cannot be sent. "Bytes", because
+ * the composer's counter counts bytes: a Cyrillic letter is two of them.
+ */
+export function replyTextProblemMessage(problem: ReplyTextProblem): string {
+  switch (problem) {
+    case 'empty':
+      return 'Reply text cannot be empty'
+    case 'too_long':
+      return 'This reply is too long for Google. Shorten it to 4,096 bytes or fewer.'
+    case 'invalid_character':
+    case 'malformed_unicode':
+      // A lone surrogate is invisible in the textarea; to the manager it is one
+      // more character Google won't take, not a Unicode lesson.
+      return REPLY_TEXT_UNACCEPTED_CHARACTER
+  }
+}
 
 export const REPLY_TEMPLATE_SLOT_TOKENS = Object.freeze([
   '{guest_name}',

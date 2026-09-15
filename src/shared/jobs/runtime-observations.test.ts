@@ -364,4 +364,137 @@ describe('durable job runtime observations', () => {
       'dark_execution_observed',
     ])
   })
+
+  describe('while work runs during the read', () => {
+    async function bootedHealthCheck() {
+      const redis = new MemoryRedis()
+      const store = createJobRuntimeObservationStore({ redis })
+      const contracts = [contract()]
+      await store.recordBoot({
+        contracts,
+        registeredHandlers: new Set(['health-check']),
+        registeredSchedulers: new Set(['health-check']),
+        runtimeStartedAt: new Date('2026-08-27T05:59:00.000Z'),
+      })
+      return { store, contracts }
+    }
+
+    const scheduled = [{ key: 'health-check-recurring', name: 'health-check' }]
+
+    it('does not mistake work that finished mid-read for a timestamp from the future', async () => {
+      const { store, contracts } = await bootedHealthCheck()
+      // The scans take three seconds; a job finishes two seconds in.
+      const clockReads = [NOW, new Date(NOW.getTime() + 3_000)]
+
+      const report = await createJobRuntimeReportReader({
+        contracts,
+        store,
+        queues: {
+          default: null,
+          background: queue({
+            schedulers: scheduled,
+            jobs: {
+              completed: [
+                {
+                  name: 'health-check',
+                  timestamp: NOW.getTime() - 1_000,
+                  processedOn: NOW.getTime() + 1_000,
+                  finishedOn: NOW.getTime() + 2_000,
+                },
+              ],
+            },
+          }),
+        },
+        quarantine: null,
+        clock: () => clockReads.shift() ?? new Date(NOW.getTime() + 3_000),
+      }).read()
+
+      expect(report).toMatchObject({ ready: true, invalidObservations: 0 })
+    })
+
+    it('still counts a head from the future as invalid', async () => {
+      const { store, contracts } = await bootedHealthCheck()
+      await store.recordSucceeded({
+        queue: 'background',
+        jobName: 'health-check',
+        jobId: 'from-the-future',
+        repair: false,
+        at: new Date(NOW.getTime() + 10 * 60_000),
+      })
+
+      const report = await createJobRuntimeReportReader({
+        contracts,
+        store,
+        queues: { default: null, background: queue({ schedulers: scheduled }) },
+        quarantine: null,
+        clock: () => NOW,
+      }).read()
+
+      expect(report).toMatchObject({ ready: false, failing: 1, invalidObservations: 1 })
+      expect(report.rows[0]?.reasons).toEqual(['invalid_observation'])
+    })
+
+    it('ages a delayed job from when it became due, not from when it was added', async () => {
+      const { store, contracts } = await bootedHealthCheck()
+
+      // Added 19 minutes ago with a 15-minute delay; BullMQ zeroed `delay` when it
+      // promoted the job to waiting four minutes ago.
+      const report = await createJobRuntimeReportReader({
+        contracts,
+        store,
+        queues: {
+          default: null,
+          background: queue({
+            schedulers: scheduled,
+            jobs: {
+              waiting: [
+                {
+                  name: 'health-check',
+                  timestamp: NOW.getTime() - 19 * 60_000,
+                  delay: 0,
+                  opts: { delay: 15 * 60_000 },
+                },
+              ],
+            },
+          }),
+        },
+        quarantine: null,
+        clock: () => NOW,
+      }).read()
+
+      expect(report.rows[0]).toMatchObject({
+        ready: true,
+        oldestWaitingAt: new Date(NOW.getTime() - 4 * 60_000).toISOString(),
+      })
+    })
+
+    it('gives a job requeued by a retry no queue age', async () => {
+      const { store, contracts } = await bootedHealthCheck()
+
+      const report = await createJobRuntimeReportReader({
+        contracts,
+        store,
+        queues: {
+          default: null,
+          background: queue({
+            schedulers: scheduled,
+            jobs: {
+              waiting: [
+                {
+                  name: 'health-check',
+                  timestamp: NOW.getTime() - 60 * 60_000,
+                  delay: 0,
+                  processedOn: NOW.getTime() - 55 * 60_000,
+                },
+              ],
+            },
+          }),
+        },
+        quarantine: null,
+        clock: () => NOW,
+      }).read()
+
+      expect(report.rows[0]).toMatchObject({ ready: true, oldestWaitingAt: null })
+    })
+  })
 })

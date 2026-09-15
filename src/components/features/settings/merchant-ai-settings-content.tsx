@@ -7,24 +7,9 @@ import type {
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '#/components/ui/card'
+import { CardContent } from '#/components/ui/card'
 import { Checkbox } from '#/components/ui/checkbox'
 import { Field, FieldError, FieldGroup, FieldLabel } from '#/components/ui/field'
-import { Input } from '#/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { MerchantAiDataHandling } from './merchant-ai-data-handling'
 
@@ -35,50 +20,6 @@ export type MerchantAiPropertyOption = Readonly<{
   googleBindingState:
     'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
 }>
-
-export function MerchantAiPropertySelector({
-  properties,
-  propertyId,
-  onPropertyChange,
-}: Readonly<{
-  properties: ReadonlyArray<MerchantAiPropertyOption>
-  propertyId?: string
-  onPropertyChange: (propertyId: string) => void
-}>) {
-  return (
-    <Card className="min-w-0">
-      <CardHeader className="border-b">
-        <CardTitle>Property</CardTitle>
-        <CardDescription>
-          Reply defaults and AI data-use authorization are independent for every property.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Field>
-          <FieldLabel htmlFor="merchant-ai-property">Property</FieldLabel>
-          <Select value={propertyId} onValueChange={onPropertyChange}>
-            <SelectTrigger
-              id="merchant-ai-property"
-              className="h-11 min-h-11 w-full min-w-0 max-w-full"
-              aria-label="Property"
-            >
-              <SelectValue placeholder="Select a property" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {properties.map((candidate) => (
-                  <SelectItem key={candidate.id} value={candidate.id}>
-                    {candidate.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </Field>
-      </CardContent>
-    </Card>
-  )
-}
 
 function MerchantAiGoogleSourceUnavailable() {
   const { can } = usePermissions()
@@ -120,25 +61,27 @@ function MerchantAiGoogleSourceUnavailable() {
 }
 
 export function MerchantAiSettingsContent({
+  propertyName,
   sourceActive,
   state,
   notice,
   selectedCapabilities,
-  password,
+  acknowledged,
   pending,
   errorMessage,
   onToggleCapability,
-  onPasswordChange,
+  onAcknowledgedChange,
 }: Readonly<{
+  propertyName: string
   sourceActive: boolean
   state: MerchantAiState
   notice: MerchantAiNoticeDto
   selectedCapabilities: ReadonlyArray<CurrentMerchantAiCapability>
-  password: string
+  acknowledged: boolean
   pending: boolean
   errorMessage: string | null
   onToggleCapability: (capability: CurrentMerchantAiCapability, checked: boolean) => void
-  onPasswordChange: (password: string) => void
+  onAcknowledgedChange: (acknowledged: boolean) => void
 }>) {
   const isEnabled = state === 'enabled'
   const showsInitialEnablement = state === 'disabled' || state === 'revoked'
@@ -189,25 +132,35 @@ export function MerchantAiSettingsContent({
         })}
       </FieldGroup>
 
-      <Field data-invalid={Boolean(errorMessage)}>
-        <FieldLabel htmlFor="merchant-ai-password">Confirm with your password</FieldLabel>
-        <Input
-          id="merchant-ai-password"
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          className="min-h-11"
-          disabled={pending}
-          aria-invalid={Boolean(errorMessage)}
-          aria-describedby="merchant-ai-password-help"
-          onChange={(event) => onPasswordChange(event.target.value)}
-        />
-        <p id="merchant-ai-password-help" className="text-sm text-muted-foreground">
-          Required for every enable, change, or turn-off action. The password is not
-          stored.
+      <div className="flex flex-col gap-2">
+        <Field
+          orientation="horizontal"
+          className="items-start"
+          data-invalid={Boolean(errorMessage)}
+        >
+          <Checkbox
+            id="merchant-ai-acknowledgement"
+            className="mt-0.5"
+            checked={acknowledged}
+            disabled={pending}
+            aria-invalid={Boolean(errorMessage)}
+            aria-describedby="merchant-ai-acknowledgement-help"
+            onCheckedChange={(next) => onAcknowledgedChange(next === true)}
+          />
+          <FieldLabel htmlFor="merchant-ai-acknowledgement" className="min-w-0">
+            I have read this notice and agree to this data use for {propertyName} on
+            behalf of my organization.
+          </FieldLabel>
+        </Field>
+        <p
+          id="merchant-ai-acknowledgement-help"
+          className="text-sm text-muted-foreground"
+        >
+          Required to enable or change AI features. RepKey records who agreed and the
+          notice version they read. Turning features off does not need it.
         </p>
         {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
-      </Field>
+      </div>
     </CardContent>
   )
 }

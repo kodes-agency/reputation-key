@@ -67,6 +67,7 @@ const JOB_RUNTIME = {
   quarantined: 0,
   failing: 1,
   missingObservations: 0,
+  invalidObservations: 0,
   handlerMissing: 0,
   schedulerMissing: 1,
   forbiddenDarkWork: 0,

@@ -88,6 +88,7 @@ import { FeedbackHandlingBody } from './feedback-handling-body'
 import { feedbackHandlingAction } from './feedback-handling-presentation'
 import { InboxNotesThread } from './inbox-notes-thread'
 import { ReplyComposer } from './reply-composer'
+import { LOCAL_SAFE_TEMPLATE_REQUEST } from './reply-editor.stories.play'
 import { ReplyStatusView, resolveReplyView } from './reply-status-view'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
@@ -260,12 +261,13 @@ const onGenerateByTarget = fn(
     _tone: ReplyTone,
     target: ReplyLanguageTarget,
     templateOnly?: boolean,
+    _idempotencyKey?: string,
   ): Promise<ReplySuggestionResult> => {
     if (templateOnly) {
       return {
         status: 'fallback',
         kind: 'local_safe_template',
-        reason: 'provider_or_output_unavailable',
+        reason: 'template_requested',
         languageSource: 'explicit',
         replyText: BG_SAFE_TEXT,
         concreteLanguageTag: BULGARIAN,
@@ -331,6 +333,7 @@ type ComposerInPaneProps = Readonly<{
         tone: ReplyTone,
         target: ReplyLanguageTarget,
         templateOnly?: boolean,
+        _idempotencyKey?: string,
       ) => Promise<ReplySuggestionResult>)
     | undefined
   /**
@@ -1054,7 +1057,7 @@ export const SuggestionAwaitingAdoption: Story = {
 }
 
 /**
- * Past the 4096-character limit. The counter turns destructive, the field is
+ * Past the 4096-byte limit. The counter turns destructive, the field is
  * `aria-invalid`, and the one primary refuses. The cap that keeps the footer
  * reachable is on the textarea rather than the region (the region is `shrink-0`
  * inside an `overflow-hidden` column, so anything it cannot fit is clipped and
@@ -1113,7 +1116,7 @@ export const NoPropertyDefaultAt720: Story = atPane({
     const fix = writeIn.getByRole('menuitem', { name: 'Set property language' })
     expect(fix).toHaveAttribute(
       'href',
-      expect.stringContaining(`propertyId=${PROPERTY_ID}`),
+      expect.stringContaining(`/properties/${PROPERTY_ID}/settings/replies`),
     )
     expect(fix).toHaveAccessibleDescription(reason)
     await closeMenu()
@@ -1970,9 +1973,12 @@ export const AiDraftTagAt720: Story = atPane({
 
     await userEvent.click(canvas.getByRole('button', { name: 'Draft with AI' }))
     await waitFor(() =>
-      expect(onGenerateByTarget).toHaveBeenLastCalledWith('professional', {
-        kind: 'property_default',
-      }),
+      expect(onGenerateByTarget).toHaveBeenLastCalledWith(
+        'professional',
+        { kind: 'property_default' },
+        false,
+        expect.any(String),
+      ),
     )
     await userEvent.click(await canvas.findByRole('button', { name: 'Use draft' }))
     await waitFor(() =>
@@ -1998,9 +2004,12 @@ export const AiDraftTagAt720: Story = atPane({
       page().getByRole('menuitem', { name: 'Regenerate in Turkish · review language' }),
     )
     await waitFor(() =>
-      expect(onGenerateByTarget).toHaveBeenLastCalledWith('professional', {
-        kind: 'review_language',
-      }),
+      expect(onGenerateByTarget).toHaveBeenLastCalledWith(
+        'professional',
+        { kind: 'review_language' },
+        false,
+        expect.any(String),
+      ),
     )
     await expect(canvas.findByText(TR_AI_TEXT)).resolves.toBeVisible()
     // A preview: the Bulgarian text is untouched until the manager adopts,
@@ -2101,11 +2110,7 @@ export const LocalSafeTemplateTagAt720: Story = atPane({
     await openMenu(TEMPLATE_TRIGGER)
     await userEvent.click(page().getByRole('menuitem', { name: 'Local safe template' }))
     await waitFor(() =>
-      expect(onGenerateByTarget).toHaveBeenLastCalledWith(
-        'professional',
-        { kind: 'property_default' },
-        true,
-      ),
+      expect(onGenerateByTarget).toHaveBeenLastCalledWith(...LOCAL_SAFE_TEMPLATE_REQUEST),
     )
     await expect(canvas.findByText('Local safe starting point')).resolves.toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Use draft' }))

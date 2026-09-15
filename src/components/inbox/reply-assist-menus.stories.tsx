@@ -483,7 +483,7 @@ export const NoDefaultManagerGetsTheFix: Story = {
     await openMenu(TEMPLATE_TRIGGER)
     const fixInTemplates = item('Set property language')
     await expect(fixInTemplates).toHaveAccessibleDescription(reason)
-    await expect(fixInTemplates.getAttribute('href')).toContain('/settings/ai')
+    await expect(fixInTemplates.getAttribute('href')).toContain('/settings/replies')
     await expect(fixInTemplates.getAttribute('href')).toContain(args.propertyId)
     await closeMenu()
 
@@ -560,7 +560,7 @@ export const UndoAndError: Story = {
   args: {
     canUndo: true,
     hasAiDraft: true,
-    aiError: 'AI reply drafting is not enabled for this property.',
+    aiError: 'AI is off for this property.',
     errorFixTarget: 'ai_settings',
   },
   play: async ({ canvasElement, args }) => {
@@ -572,9 +572,7 @@ export const UndoAndError: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Undo' }))
     await expect(args.onUndo).toHaveBeenCalledOnce()
     const status = canvas.getByRole('status')
-    await expect(status).toHaveTextContent(
-      'AI reply drafting is not enabled for this property.',
-    )
+    await expect(status).toHaveTextContent('AI is off for this property.')
     await expect(
       within(status).getByRole('link', { name: 'Enable AI replies' }),
     ).toBeVisible()

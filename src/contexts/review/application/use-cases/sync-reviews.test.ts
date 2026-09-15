@@ -204,6 +204,24 @@ describe('Review provider observation identity', () => {
     expect(upsert).not.toHaveBeenCalled()
   })
 
+  it('marks the recorded review event with the observation origin', async () => {
+    const existing = scopeReview({ sourceEpoch: 3 })
+    const { writer, upsertAndRecord } = scopeWriter(existing)
+
+    await writer.persist(
+      scopeObservation({ sourceEpoch: 4, observationOrigin: 'historical_onboarding' }),
+    )
+
+    const eventFor = (upsertAndRecord.mock.calls[0] as unknown as unknown[])[1] as (
+      persisted: Review,
+    ) => Readonly<{ _tag: string; observationOrigin?: string }>
+    const persisted = await upsertAndRecord.mock.results[0]?.value
+    expect(eventFor(persisted)).toMatchObject({
+      _tag: 'review.updated',
+      observationOrigin: 'historical_onboarding',
+    })
+  })
+
   it('carries an expired Review forward through the re-observation path', async () => {
     const existing = scopeReview({
       sourceEpoch: 3,

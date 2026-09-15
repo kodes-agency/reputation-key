@@ -201,6 +201,49 @@ describe.sequential('Property Google binding store', () => {
     })
     expect(outbox.rows[0].payload).not.toHaveProperty('accountId')
     expect(outbox.rows[0].payload).not.toHaveProperty('locationId')
+
+    // Recent Activity sees an imported Property through the same fact a manual
+    // create records, committed once with the row and never on replay.
+    const created = await pool.query(
+      `SELECT payload FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'property.created'`,
+      [ORG_ID],
+    )
+    expect(created.rows).toHaveLength(1)
+    expect(created.rows[0].payload).toMatchObject({
+      organizationId: ORG_ID,
+      propertyId: property.id,
+      name: property.name,
+      slug: property.slug,
+    })
+    expect(created.rows[0].payload).not.toHaveProperty('connectionId')
+    expect(created.rows[0].payload).not.toHaveProperty('locationId')
+  })
+
+  it('records no created fact when a create is refused', async () => {
+    const store = createPropertyGoogleBindingStore(db)
+    await store.createBoundProperty({
+      organizationId: ORG_ID,
+      idempotencyKey: '20000000-0000-4000-8000-000000000021',
+      property: makeActiveProperty('21', 'contested-location'),
+      now: NOW,
+    })
+
+    await expect(
+      store.createBoundProperty({
+        organizationId: ORG_ID,
+        idempotencyKey: '20000000-0000-4000-8000-000000000022',
+        property: makeActiveProperty('22', 'contested-location'),
+        now: NOW,
+      }),
+    ).rejects.toSatisfy(bindingError('location_already_bound'))
+
+    const created = await pool.query(
+      `SELECT payload->>'propertyId' AS property_id FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'property.created'`,
+      [ORG_ID],
+    )
+    expect(created.rows).toEqual([{ property_id: makeActiveProperty('21', 'x').id }])
   })
   it('reads a bounded tenant-scoped import discovery view by location suffix', async () => {
     const store = createPropertyGoogleBindingStore(db)
@@ -364,6 +407,14 @@ describe.sequential('Property Google binding store', () => {
         expectedProfileVersion: 4,
       }),
     ).rejects.toSatisfy(bindingError('active_binding_conflict'))
+
+    // Relinking changes an existing Property's binding; nothing was created.
+    const created = await pool.query(
+      `SELECT 1 FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'property.created'`,
+      [ORG_ID],
+    )
+    expect(created.rows).toHaveLength(0)
   })
 
   it('disconnects then scrubs provider identity while preserving profile generations', async () => {

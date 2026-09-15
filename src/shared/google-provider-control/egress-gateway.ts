@@ -21,6 +21,23 @@ export type GoogleEgressGatewayRequest = Readonly<{
   deadlineMs: number
 }>
 
+/**
+ * What a failed provider call proves about the request reaching Google.
+ *
+ * - `not_sent`: `fetch` was never called for this call. The only value that is
+ *   positive evidence a write did not happen, so the only one a caller may use
+ *   to treat a failed write as safe to send again.
+ * - `answered`: Google returned a response (its status is `providerStatus`).
+ * - `unknown`: `fetch` was called and no response was observed (it threw, was
+ *   aborted, or the caller stopped waiting). Google may have acted on it.
+ *
+ * The error code alone cannot say this: `admission_denied` is reported both
+ * before any request and when completion bookkeeping fails after Google
+ * answered (see `execute` below), and on 2026-09-14 a request refused by
+ * compilation was classified as an ambiguous send.
+ */
+export type GoogleProviderDispatch = 'not_sent' | 'answered' | 'unknown'
+
 export type GoogleEgressGatewayResult =
   | Readonly<{
       ok: true
@@ -48,6 +65,9 @@ export type GoogleEgressGatewayResult =
        * policy fences, which are not rate limiting.
        */
       admissionCode?: AdmissionDenialCode
+      dispatch: GoogleProviderDispatch
+      /** The provider's HTTP status; present only when `dispatch` is `answered`. */
+      providerStatus?: number
       retryAfterMs: number
     }>
 
@@ -104,6 +124,14 @@ async function readBoundedResponse(
   return body
 }
 
+type GatewayFailure = Extract<GoogleEgressGatewayResult, { ok: false }>
+type DispatchEvidence = Pick<GatewayFailure, 'dispatch' | 'providerStatus'>
+
+/** A refusal decided before `fetch` was invoked for this call. */
+function notSent(code: GatewayFailure['code']): GatewayFailure {
+  return { ok: false, code, dispatch: 'not_sent', retryAfterMs: 0 }
+}
+
 function providerOutcome(status: number): GoogleProviderOutcome {
   if (status === 429) return 'rate_limited'
   if (status >= 500) return 'provider_5xx'
@@ -147,11 +175,15 @@ export function createGoogleEgressGateway(
       if (
         !SAFE_PERMIT_ID.test(input.permitId) ||
         !Number.isSafeInteger(input.deadlineMs) ||
-        input.deadlineMs <= nowMs ||
         input.deadlineMs > nowMs + 60_000
       ) {
-        return { ok: false, code: 'malformed_request', retryAfterMs: 0 }
+        return notSent('malformed_request')
       }
+      // Elapsed time, not a malformed request: the executor spends this same
+      // deadline on credential admission and permit issuance first. The reply
+      // workflow stops retrying `malformed_request` as deterministic
+      // (reply-publication-workflow.ts classifyByDispatch).
+      if (input.deadlineMs <= nowMs) return notSent('deadline_exceeded')
       let compiled: CompiledGoogleProviderRequest
       try {
         compiled = compileGoogleProviderRequest(
@@ -160,7 +192,7 @@ export function createGoogleEgressGateway(
           deps.routeTarget,
         )
       } catch {
-        return { ok: false, code: 'malformed_request', retryAfterMs: 0 }
+        return notSent('malformed_request')
       }
       const admissionInput: GoogleAdmissionStartInput = Object.freeze({
         permitId: input.permitId,
@@ -195,6 +227,7 @@ export function createGoogleEgressGateway(
           ok: false,
           code: 'admission_denied',
           admissionCode: 'coordination_unavailable',
+          dispatch: 'not_sent',
           retryAfterMs: 0,
         }
       }
@@ -216,6 +249,7 @@ export function createGoogleEgressGateway(
           ok: false,
           code: 'admission_denied',
           admissionCode: started.code,
+          dispatch: 'not_sent',
           retryAfterMs: started.retryAfterMs,
         }
       }
@@ -229,7 +263,7 @@ export function createGoogleEgressGateway(
         started.grant.credentialBinding !== compiled.admission.credentialBinding ||
         started.grant.expiresAtMs <= deps.nowMs()
       ) {
-        return { ok: false, code: 'admission_mismatch', retryAfterMs: 0 }
+        return notSent('admission_mismatch')
       }
       let redeemed: GoogleAdmissionRedeemResult
       try {
@@ -239,34 +273,38 @@ export function createGoogleEgressGateway(
           admission: compiled.admission,
         })
       } catch {
-        return { ok: false, code: 'admission_mismatch', retryAfterMs: 0 }
+        return notSent('admission_mismatch')
       }
       if (!redemptionAccepted(redeemed)) {
-        return { ok: false, code: 'admission_mismatch', retryAfterMs: 0 }
+        return notSent('admission_mismatch')
       }
 
       let outcome: GoogleProviderOutcome = 'caller_abandoned'
       let retryAfterMs: number | null = null
-      let result: GoogleEgressGatewayResult = {
-        ok: false,
-        code: 'transport_error',
-        retryAfterMs: 0,
-      }
+      // What this attempt proves about reaching Google, updated at the two
+      // moments that change it: just before `fetch` is invoked (a missing
+      // response is now `unknown`) and when a response object arrives
+      // (`answered`). Every failure below, including the completion failure
+      // after the call, reports it rather than a per-branch guess.
+      let evidence: DispatchEvidence = { dispatch: 'not_sent' }
+      let result: GoogleEgressGatewayResult | null = null
       try {
         const remainingMs = input.deadlineMs - deps.nowMs()
         if (remainingMs <= 0) {
           outcome = 'deadline_exceeded'
-          result = { ok: false, code: 'deadline_exceeded', retryAfterMs: 0 }
+          result = notSent('deadline_exceeded')
         } else {
           let response: Response | null = null
           try {
-            response = await deps.fetch(compiled.url, {
+            const init: RequestInit = {
               method: compiled.method,
               headers: compiled.headers,
               body: compiled.body === null ? null : Buffer.from(compiled.body),
               redirect: 'error',
               signal: AbortSignal.timeout(remainingMs),
-            })
+            }
+            evidence = { dispatch: 'unknown' }
+            response = await deps.fetch(compiled.url, init)
           } catch {
             outcome =
               deps.nowMs() >= input.deadlineMs ? 'deadline_exceeded' : 'transport_error'
@@ -274,10 +312,12 @@ export function createGoogleEgressGateway(
               ok: false,
               code:
                 outcome === 'deadline_exceeded' ? 'deadline_exceeded' : 'transport_error',
+              ...evidence,
               retryAfterMs: 0,
             }
           }
           if (response) {
+            evidence = { dispatch: 'answered', providerStatus: response.status }
             outcome = providerOutcome(response.status)
             retryAfterMs = parseGoogleRetryAfterMs(
               response.headers.get('retry-after'),
@@ -303,6 +343,7 @@ export function createGoogleEgressGateway(
               result = {
                 ok: false,
                 code: 'response_too_large',
+                ...evidence,
                 retryAfterMs: 0,
               }
             }
@@ -310,7 +351,15 @@ export function createGoogleEgressGateway(
         }
       } catch {
         outcome = 'transport_error'
-        result = { ok: false, code: 'transport_error', retryAfterMs: 0 }
+        result = { ok: false, code: 'transport_error', ...evidence, retryAfterMs: 0 }
+      }
+      // `fetch` resolving to nothing leaves no branch assigned; the evidence
+      // still says the call was made.
+      const settled = result ?? {
+        ok: false,
+        code: 'transport_error',
+        ...evidence,
+        retryAfterMs: 0,
       }
       const completed = await deps.admission
         .complete({
@@ -319,7 +368,13 @@ export function createGoogleEgressGateway(
           retryAfterMs,
         })
         .catch(() => false)
-      return completed ? result : { ok: false, code: 'admission_denied', retryAfterMs: 0 }
+      // The code stays `admission_denied` for existing callers, but once fetch
+      // was invoked Google may already have answered (or received) the request,
+      // so the evidence reports what happened rather than implying a refusal
+      // before dispatch.
+      return completed
+        ? settled
+        : { ok: false, code: 'admission_denied', ...evidence, retryAfterMs: 0 }
     },
   })
 }

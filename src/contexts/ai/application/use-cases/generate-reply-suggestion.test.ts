@@ -75,6 +75,11 @@ function createHarness(
     }> | null
     settleEphemeralReplyResult?: boolean
     assertCurrentStatus?: 'current' | 'stale'
+    /** The interactive lane is full until this instant. */
+    admissionBusyUntil?: number
+    /** The first admission answers busy until this instant; later ones admit. */
+    admissionBusyOnceUntil?: number
+    sleep?: (milliseconds: number) => Promise<void>
     gatewayErrorCode?:
       | 'provider_unavailable'
       | 'provider_rate_limited'
@@ -83,6 +88,7 @@ function createHarness(
       | 'output_truncated'
   }> = {},
 ) {
+  let admissionCalls = 0
   const currentReplyStateRevision = options.currentReplyStateRevision ?? 3
   const initialBrandProfile =
     options.brandProfile === undefined
@@ -280,10 +286,26 @@ function createHarness(
       readAnalysisForDelivery: vi.fn(),
       readTrendReportForDelivery: vi.fn(),
     },
-    quota: {
-      acquire: vi.fn(async () => ({ ok: true as const, quotaId: 'quota-1' })),
+    admission: {
+      acquire: vi.fn(async () => {
+        const busyUntil =
+          options.admissionBusyUntil ??
+          (admissionCalls++ === 0 ? options.admissionBusyOnceUntil : undefined)
+        return busyUntil === undefined
+          ? {
+              ok: true as const,
+              admissionId: 'admission-1',
+              expiresAtEpochMillis: NOW + 90_000,
+            }
+          : {
+              ok: false as const,
+              code: 'admission_busy' as const,
+              retryAfterEpochMillis: busyUntil,
+            }
+      }),
       release,
     },
+    ...(options.sleep ? { sleep: options.sleep } : {}),
     reviewSources: {
       readForAi: vi.fn(async () => ({
         status: 'available' as const,
@@ -352,7 +374,7 @@ function createHarness(
       claim,
       claimExecution,
       readHeads: dependencies.control.readHeads,
-      acquire: dependencies.quota.acquire,
+      acquire: dependencies.admission.acquire,
       generateReply,
       settleEphemeralReply,
       markDelivered,
@@ -426,7 +448,7 @@ describe('generate reply suggestion', () => {
     ).resolves.toMatchObject({
       status: 'fallback',
       kind: 'local_safe_template',
-      reason: 'provider_or_output_unavailable',
+      reason: 'template_requested',
       languageSource: 'explicit',
     })
     expectNoAiExecution(
@@ -607,7 +629,7 @@ describe('generate reply suggestion', () => {
       expectedAttempt: 1,
       deliveredAtEpochMillis: NOW,
     })
-    expect(harness.mocks.release).toHaveBeenCalledWith({ quotaId: 'quota-1' })
+    expect(harness.mocks.release).toHaveBeenCalledWith({ admissionId: 'admission-1' })
     expect(harness.mocks.generateReply).toHaveBeenCalledWith(
       expect.objectContaining({
         replyProfileVersion: 'reply-draft-v2',
@@ -620,6 +642,22 @@ describe('generate reply suggestion', () => {
       expect.any(AbortSignal),
     )
     expect(harness.mocks.readCurrentAiReplyBrandProfile).toHaveBeenCalledTimes(2)
+  })
+
+  it('answers busy from a full interactive lane without claiming an attempt', async () => {
+    const harness = createHarness({ admissionBusyUntil: NOW + 12_000 })
+
+    await expect(harness.generate(INPUT)).resolves.toEqual({
+      status: 'unavailable',
+      code: 'busy',
+      retryAfterEpochMillis: NOW + 12_000,
+    })
+    expect(harness.mocks.acquire).toHaveBeenCalledWith(
+      expect.objectContaining({ lane: 'interactive', propertyId: PROPERTY_ID }),
+    )
+    expect(harness.mocks.claimExecution).not.toHaveBeenCalled()
+    expect(harness.mocks.generateReply).not.toHaveBeenCalled()
+    expect(harness.mocks.release).not.toHaveBeenCalled()
   })
 
   it('withholds a provider result when the public Brand Profile changes in flight', async () => {
@@ -665,36 +703,47 @@ describe('generate reply suggestion', () => {
     'provider_refused',
     'output_invalid',
     'output_truncated',
-  ] as const)('offers a labelled local fallback for %s', async (gatewayErrorCode) => {
-    const harness = createHarness({ gatewayErrorCode })
+  ] as const)(
+    'reports %s as unavailable instead of substituting a template',
+    async (gatewayErrorCode) => {
+      const harness = createHarness({ gatewayErrorCode })
 
-    await expect(harness.generate(INPUT)).resolves.toEqual({
-      status: 'fallback',
-      kind: 'local_safe_template',
-      reason: 'provider_or_output_unavailable',
-      languageSource: 'explicit',
-      replyText:
-        'Thank you for sharing this positive review. We are pleased that your experience was enjoyable.',
-      concreteLanguageTag: 'en-Latn',
-    })
-    expect(harness.mocks.settleEphemeralReply).not.toHaveBeenCalled()
-    expect(harness.mocks.markDelivered).not.toHaveBeenCalled()
-    expect(harness.mocks.release).toHaveBeenCalledWith({ quotaId: 'quota-1' })
+      const result = await harness.generate(INPUT)
+
+      expect(result).toMatchObject({
+        status: 'unavailable',
+        code: 'provider_unavailable',
+      })
+      expect(harness.mocks.recordFailure).toHaveBeenCalledWith(
+        expect.objectContaining({ failureCode: gatewayErrorCode, expectedAttempt: 1 }),
+      )
+      expect(harness.mocks.settleEphemeralReply).not.toHaveBeenCalled()
+      expect(harness.mocks.markDelivered).not.toHaveBeenCalled()
+      expect(harness.mocks.release).toHaveBeenCalledWith({ admissionId: 'admission-1' })
+    },
+  )
+
+  it('waits briefly for an interactive slot that frees within the request', async () => {
+    const sleep = vi.fn(async () => {})
+    const harness = createHarness({ admissionBusyOnceUntil: NOW + 1_500, sleep })
+
+    await expect(harness.generate(INPUT)).resolves.toMatchObject({ status: 'ready' })
+    expect(sleep).toHaveBeenCalledWith(1_500)
+    expect(harness.mocks.acquire).toHaveBeenCalledTimes(2)
+    expect(harness.mocks.claimExecution).toHaveBeenCalledOnce()
   })
 
-  it('withholds the local fallback when the Review changes during provider work', async () => {
-    const harness = createHarness({
-      gatewayErrorCode: 'output_invalid',
-      assertCurrentStatus: 'stale',
-    })
+  it('answers busy without waiting when the slot frees after the wait allows', async () => {
+    const sleep = vi.fn(async () => {})
+    const harness = createHarness({ admissionBusyUntil: NOW + 30_000, sleep })
 
     await expect(harness.generate(INPUT)).resolves.toEqual({
       status: 'unavailable',
-      code: 'source_changed',
-      retryAfterEpochMillis: null,
+      code: 'busy',
+      retryAfterEpochMillis: NOW + 30_000,
     })
-    expect(harness.mocks.settleEphemeralReply).not.toHaveBeenCalled()
-    expect(harness.mocks.markDelivered).not.toHaveBeenCalled()
+    expect(sleep).not.toHaveBeenCalled()
+    expect(harness.mocks.acquire).toHaveBeenCalledOnce()
   })
 
   it('resolves a property-default target from tenant-scoped server data', async () => {
@@ -789,7 +838,7 @@ describe('generate reply suggestion', () => {
     await expect(harness.generate(INPUT)).resolves.toEqual({
       status: 'fallback',
       kind: 'local_safe_template',
-      reason: 'provider_or_output_unavailable',
+      reason: 'language_not_personalized',
       languageSource: 'explicit',
       replyText:
         'Bu olumlu değerlendirmeyi paylaştığınız için teşekkür ederiz. Deneyiminizin keyifli geçmesine sevindik.',

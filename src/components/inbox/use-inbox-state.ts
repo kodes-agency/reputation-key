@@ -19,7 +19,9 @@ import { inboxKeys } from '#/shared/queries/query-keys'
 import {
   selectedItemPresenceAction,
   useInboxNavigation,
+  useSelectedItemDeparture,
   type InboxNavigate,
+  type SelectedItemDeparture,
 } from './inbox-state-helpers'
 import { reconcileInboxPageItems, removeInboxSelection } from './inbox-selection'
 import { itemMatchesQueue } from './inbox-queues'
@@ -27,8 +29,8 @@ import { useDebouncedValue } from './use-debounced-value'
 import { useScopedInboxSelection } from './use-scoped-inbox-selection'
 import {
   inboxCachePolicy,
-  inboxListReplyRefetchInterval,
-  isReplyPublicationInFlight,
+  inboxListPagesRefetchInterval,
+  isReplyPolled,
 } from './inbox-cache-policy'
 
 type InboxPage = {
@@ -42,7 +44,7 @@ type InboxPage = {
 type ReplyPollObservation = Readonly<{
   organizationId: string | undefined
   filters: InboxFilterValues
-  inFlightItemIds: ReadonlySet<string>
+  polledItemIds: ReadonlySet<string>
 }>
 
 function useViewedUpToLatch(
@@ -77,9 +79,9 @@ function useReplySettlementInvalidation(
   const observation = useRef<ReplyPollObservation | null>(null)
 
   useEffect(() => {
-    const inFlightItemIds = new Set<string>()
+    const polledItemIds = new Set<string>()
     for (const item of items) {
-      if (isReplyPublicationInFlight(item.replyState)) inFlightItemIds.add(item.id)
+      if (isReplyPolled(item.replyState)) polledItemIds.add(item.id)
     }
     const previous = observation.current
     const sameScope =
@@ -87,22 +89,24 @@ function useReplySettlementInvalidation(
       previous.organizationId === organizationId &&
       previous.filters === filters
     if (sameScope) {
-      for (const id of previous.inFlightItemIds) {
-        if (!inFlightItemIds.has(id)) {
+      for (const id of previous.polledItemIds) {
+        if (!polledItemIds.has(id)) {
           inboxCachePolicy.onListReplySettled(queryClient)
           break
         }
       }
     }
-    observation.current = { organizationId, filters, inFlightItemIds }
+    observation.current = { organizationId, filters, polledItemIds }
   }, [filters, items, organizationId, queryClient])
 }
 
 function useSelectedItemPresence(
+  qc: QueryClient,
   selectedId: string | undefined,
   items: ReadonlyArray<InboxItem>,
   isPending: boolean,
   onNavigate: InboxNavigate,
+  departure: SelectedItemDeparture,
 ): void {
   const seenSelectedId = useRef<string | undefined>(undefined)
   useEffect(() => {
@@ -111,14 +115,20 @@ function useSelectedItemPresence(
       selectedId,
       isPending,
       items,
+      departure,
     )
     if (action === 'reset') seenSelectedId.current = undefined
     if (action === 'remember') seenSelectedId.current = selectedId
+    // The re-read's own cache update re-runs this effect with a fresh answer:
+    // `fetching` keeps the pane meanwhile, so it is issued once.
+    if (action === 'refresh' && selectedId) {
+      void qc.refetchQueries({ queryKey: inboxKeys.detail(selectedId), exact: true })
+    }
     if (action === 'close') {
       seenSelectedId.current = undefined
       onNavigate({ to: '.', search: (previous) => ({ ...previous, itemId: undefined }) })
     }
-  }, [selectedId, items, isPending, onNavigate])
+  }, [qc, selectedId, items, isPending, onNavigate, departure])
 }
 
 export function useInboxState(
@@ -152,15 +162,8 @@ export function useInboxState(
     initialPageParam: undefined as Cursor | undefined,
     getNextPageParam: (last: InboxPage) => last.nextCursor ?? undefined,
     enabled: !!orgId,
-    refetchInterval: (activeQuery) => {
-      const loadedPages = activeQuery.state.data?.pages
-      if (!loadedPages) return false
-      for (const page of loadedPages) {
-        const interval = inboxListReplyRefetchInterval(page.items)
-        if (interval !== false) return interval
-      }
-      return false
-    },
+    refetchInterval: (activeQuery) =>
+      inboxListPagesRefetchInterval(activeQuery.state.data?.pages),
   })
 
   const pages = query.data?.pages
@@ -179,8 +182,10 @@ export function useInboxState(
 
   // Close only an item that was visible and then left this queue. A direct
   // itemId may legitimately name an item outside the queue and loads detail
-  // through its independently authorized query.
-  useSelectedItemPresence(selectedId, items, query.isPending, onNavigate)
+  // through its independently authorized query. An open item whose own reply
+  // moved it to another reply queue stays open (D8, `selectedItemDeparture`).
+  const departure = useSelectedItemDeparture(qc, queue, selectedId, query.dataUpdatedAt)
+  useSelectedItemPresence(qc, selectedId, items, query.isPending, onNavigate, departure)
 
   // Optimistic in-place patch after a detail status change (mark-read / escalate /
   // archive): update the item across all loaded pages, or drop it if its new

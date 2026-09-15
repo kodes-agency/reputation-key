@@ -15,7 +15,7 @@ import type {
 import type { ReviewRepository } from '../ports/review.repository'
 import type { DraftReply } from './reply-operations'
 import type { Reply, Review } from '../../domain/types'
-import { MAX_REPLY_LENGTH } from '../../domain/rules'
+import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import { reviewError } from '../../domain/errors'
 import { requireAccessibleReview, requireReplyManager } from './reply-access'
 
@@ -291,7 +291,9 @@ export const loadReplyTemplate =
       )
     }
     const text = renderReplyTemplate(template, profile, review.rating)
-    if (!text.trim() || text.length > MAX_REPLY_LENGTH) {
+    // Google's reply-comment rule (UTF-8 bytes, allowed characters), not a
+    // UTF-16 length: the same rule draftReply and the provider route apply.
+    if (replyCommentProblem(text) !== null) {
       throw reviewError(
         'invalid_reply',
         'Rendered reply template is outside reply limits',

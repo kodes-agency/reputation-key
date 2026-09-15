@@ -52,6 +52,8 @@ export interface PropertyListPageProps {
   comparison?: ReadonlyMap<string, PropertyComparison>
   /** Omitted, or complete, renders no banner. */
   checklist?: SetupChecklist
+  /** Setup steps needing this viewer, keyed by property id. Absent means unknown. */
+  setupAttention?: ReadonlyMap<string, number>
 }
 
 function ComparisonFigures({
@@ -97,10 +99,12 @@ function PropertyRow({
   property,
   removed,
   comparison,
+  setupAttention,
 }: Readonly<{
   property: Property
   removed: boolean
   comparison: PropertyComparison | undefined
+  setupAttention: number | undefined
 }>) {
   return (
     <div className="flex items-stretch overflow-hidden rounded-lg border">
@@ -114,6 +118,11 @@ function PropertyRow({
           <div className="flex min-w-0 items-center gap-2">
             <Badge variant="secondary">{property.slug}</Badge>
             {removed ? <Badge variant="outline">Removed</Badge> : null}
+            {!removed && setupAttention !== undefined && setupAttention > 0 ? (
+              <Badge variant="outline" className="border-primary/30 text-primary">
+                {setupAttention === 1 ? '1 setup step' : `${setupAttention} setup steps`}
+              </Badge>
+            ) : null}
             <span className="truncate text-sm text-muted-foreground">
               {property.timezone}
             </span>
@@ -126,10 +135,53 @@ function PropertyRow({
   )
 }
 
+/**
+ * Google import is the only way a property is created (decision 7), so a first
+ * run opens it. A manager who cannot import is not sent to a flow that turns
+ * them away, and a list whose properties were all removed is not a first run:
+ * restoring one is the way back.
+ */
+function EmptyPropertyList({
+  allRemoved,
+  canImport,
+}: Readonly<{ allRemoved: boolean; canImport: boolean }>) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-12 text-center">
+      {allRemoved ? (
+        <>
+          <p className="text-muted-foreground">No active properties.</p>
+          <p className="text-sm text-muted-foreground">
+            Every property you have is currently removed. Restore one to start working
+            again.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-muted-foreground">No properties yet.</p>
+          {canImport ? (
+            // At 320 px the label is wider than the box, so it wraps, balanced.
+            <Button asChild className="h-auto min-h-9 whitespace-normal text-balance">
+              <Link to="/properties/import-google">
+                Import your first property from Google
+              </Link>
+            </Button>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Ask an account admin to import a property from Google or give you access to
+              one.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 export function PropertyListPage({
   properties,
   comparison,
   checklist,
+  setupAttention,
 }: PropertyListPageProps) {
   const { can } = usePermissions()
   const { workspace, removed } = partitionWorkspaceProperties(properties)
@@ -156,16 +208,10 @@ export function PropertyListPage({
       {checklist === undefined ? null : <SetupChecklistBanner checklist={checklist} />}
 
       {workspace.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
-          <p className="text-muted-foreground">
-            {removed.length === 0 ? 'No properties yet.' : 'No active properties.'}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {removed.length === 0
-              ? 'Add your first property to get started.'
-              : 'Every property you have is currently removed. Restore one to start working again.'}
-          </p>
-        </div>
+        <EmptyPropertyList
+          allRemoved={removed.length > 0}
+          canImport={can('property.import_gbp_v2')}
+        />
       ) : (
         <div className="flex flex-col gap-2">
           {workspace.map((property) => (
@@ -174,6 +220,7 @@ export function PropertyListPage({
               property={property}
               removed={false}
               comparison={comparison?.get(property.id)}
+              setupAttention={setupAttention?.get(property.id)}
             />
           ))}
         </div>
@@ -199,6 +246,7 @@ export function PropertyListPage({
                 property={property}
                 removed
                 comparison={undefined}
+                setupAttention={undefined}
               />
             ))}
           </div>

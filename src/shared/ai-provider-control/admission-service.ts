@@ -20,7 +20,6 @@ export type AiAdmissionDenialCode =
   | 'authorization_changed'
   | 'control_disabled'
   | 'circuit_open'
-  | 'rate_limited'
   | 'concurrency_exhausted'
   | 'quota_exhausted'
   | 'permit_unknown'

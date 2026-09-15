@@ -7,6 +7,7 @@ import {
   discoveryErrorMessage,
 } from './google-import-error-messages'
 import { GoogleImportReviewForm } from './google-import-review-form'
+import { isConfirmingDetails } from './google-import-selection'
 import type {
   GoogleImportDiscoveryController,
   GoogleImportReviewFormApi,
@@ -31,9 +32,9 @@ function ClearedContentNotice({ onResume }: Readonly<{ onResume: () => void }>) 
       <AlertTitle>Google location details were cleared</AlertTitle>
       <AlertDescription className="space-y-3">
         <p>
-          RepKey cleared location details from this screen because the page was hidden or
-          the temporary authorization changed. Rediscovery remains available only within
-          the bounded window, which expires within 24 hours.
+          RepKey cleared location details from this screen because its temporary
+          authorization lapsed, your access changed, or the 24-hour discovery window
+          ended. Rediscover locations to load them again.
         </p>
         <Button type="button" variant="outline" onClick={onResume}>
           Rediscover locations
@@ -61,8 +62,8 @@ export function GoogleImportManagerBody({
       <Alert>
         <AlertTitle>Connect Google to import properties</AlertTitle>
         <AlertDescription>
-          Use the connection button above. RepKey displays location details only while
-          this page is active, with a temporary resume window of up to 24 hours.
+          Use the connection button above. RepKey keeps location details only while this
+          page is open, for at most 24 hours.
         </AlertDescription>
       </Alert>
     )
@@ -84,7 +85,7 @@ export function GoogleImportManagerBody({
     return <ClearedContentNotice onResume={discovery.resumeDiscovery} />
   }
 
-  if (discovery.step === 'review' && discovery.reviewDraft) {
+  if (isConfirmingDetails(discovery)) {
     return (
       <GoogleImportReviewForm
         form={reviewForm}

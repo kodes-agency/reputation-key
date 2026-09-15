@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { GoogleConnectionStatus } from '#/contexts/integration/application/public-api'
 import {
+  accountEmailConsentForConnection,
   NEW_GOOGLE_CONNECTION_AUTHORIZATION,
   reauthorizationForConnection,
 } from './google-connection-authorization'
@@ -36,5 +37,33 @@ describe('Google connection settings authorization actions', () => {
     'failed',
   ])('does not offer reauthorization for %s connections', (status) => {
     expect(reauthorizationForConnection({ id: 'connection-7', status })).toBeNull()
+  })
+
+  it('offers an active connection without an account email one more authorization', () => {
+    expect(
+      accountEmailConsentForConnection({
+        id: 'connection-7',
+        status: 'active',
+        accountEmail: null,
+      }),
+    ).toEqual({
+      visibility: 'organization',
+      connectionMode: 'reauth',
+      targetConnectionId: 'connection-7',
+    })
+    expect(
+      accountEmailConsentForConnection({
+        id: 'connection-7',
+        status: 'active',
+        accountEmail: 'reviews@meridian.example',
+      }),
+    ).toBeNull()
+    expect(
+      accountEmailConsentForConnection({
+        id: 'connection-7',
+        status: 'reauth_required',
+        accountEmail: null,
+      }),
+    ).toBeNull()
   })
 })

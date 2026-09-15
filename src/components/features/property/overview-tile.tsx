@@ -30,10 +30,11 @@ type TileLink =
         | '/properties/$propertyId/ratings'
         | '/properties/$propertyId/google'
         | '/properties/$propertyId/guests'
+        | '/properties/$propertyId/settings/ai'
       params: Readonly<{ propertyId: string }>
     }>
   | Readonly<{
-      to: '/settings/integrations' | '/settings/ai'
+      to: '/settings/integrations'
       search: Readonly<{ propertyId: string }>
     }>
 

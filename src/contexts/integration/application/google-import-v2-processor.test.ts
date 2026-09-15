@@ -118,8 +118,11 @@ function setup(
     >[]
     createError?: unknown
     relinkError?: unknown
+    locationHolders?: readonly Readonly<{ organizationId: string; propertyId: string }>[]
+    locationLookupError?: unknown
     enqueueReviewSyncError?: unknown
     subscribeToNotificationsError?: unknown
+    defaultPublicDisplayNameError?: unknown
   } = {},
 ) {
   const item = claimedItem()
@@ -188,9 +191,13 @@ function setup(
     timezone: 'America/New_York',
     lifecycleState: 'active',
   })
+  const readByLocationIds = over.locationLookupError
+    ? vi.fn().mockRejectedValue(over.locationLookupError)
+    : vi.fn().mockResolvedValue(over.locationHolders ?? [])
   const propertyBindingApi = {
     readReceipt,
     readInternal,
+    readByLocationIds,
     createBoundProperty,
     relink,
   } as unknown as PropertyGoogleBindingPublicApi
@@ -208,6 +215,9 @@ function setup(
   const subscribeToNotifications = over.subscribeToNotificationsError
     ? vi.fn().mockRejectedValue(over.subscribeToNotificationsError)
     : vi.fn().mockResolvedValue('subscribed')
+  const defaultPublicDisplayName = over.defaultPublicDisplayNameError
+    ? vi.fn().mockRejectedValue(over.defaultPublicDisplayNameError)
+    : vi.fn().mockResolvedValue(true)
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -224,6 +234,7 @@ function setup(
     newClaimFence: () => CLAIM_FENCE,
     enqueueReviewSync,
     subscribeToNotifications,
+    defaultPublicDisplayName,
     logger,
   })
   return {
@@ -237,12 +248,14 @@ function setup(
     completeClaim,
     readReceipt,
     readInternal,
+    readByLocationIds,
     createBoundProperty,
     relink,
     authorize,
     resolveActor,
     enqueueReviewSync,
     subscribeToNotifications,
+    defaultPublicDisplayName,
     logger,
   }
 }
@@ -633,6 +646,161 @@ describe('GoogleImportV2Processor', () => {
     )
   })
 
+  it.each([
+    ['name', 'invalid_name'],
+    ['timezone', 'invalid_timezone'],
+    ['country', 'invalid_country'],
+  ] as const)(
+    'ends a rejected %s as tenant_profile_invalid naming the field',
+    async (field, code) => {
+      const harness = setup({
+        createError: Object.assign(new Error('rejected profile'), {
+          code,
+          _tag: 'PropertyError',
+        }),
+      })
+
+      await harness.processor.process({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        attemptOrdinal: 1,
+      })
+
+      // Terminal on the first attempt: the same profile cannot succeed later.
+      expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
+      expect(harness.completeClaim).toHaveBeenCalledExactlyOnceWith({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        claimFence: CLAIM_FENCE,
+        outcomeCode: 'tenant_profile_invalid',
+        retainRetryState: false,
+        now: NOW,
+        detail: { kind: 'invalid_profile_field', field },
+      })
+    },
+  )
+
+  it('names the field when the Property builder itself rejects the confirmed profile', async () => {
+    const item = claimedItem({ timezone: 'Mars/Olympus' })
+    const harness = setup({ claim: { kind: 'claimed', item } })
+
+    await harness.processor.process({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+    })
+
+    expect(harness.createBoundProperty).not.toHaveBeenCalled()
+    expect(harness.completeClaim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcomeCode: 'tenant_profile_invalid',
+        detail: { kind: 'invalid_profile_field', field: 'timezone' },
+      }),
+    )
+    const logged = JSON.stringify(harness.logger.warn.mock.calls)
+    expect(logged).toContain('tenant_profile_invalid')
+    expect(logged).not.toContain('Mars/Olympus')
+  })
+
+  describe('when the location is already bound to a Property', () => {
+    const EXISTING_PROPERTY_ID = '00000000-0000-4000-8000-000000000009'
+    const alreadyBound = Object.assign(new Error('Property Google binding rejected'), {
+      code: 'location_already_bound',
+      name: 'PropertyGoogleBindingError',
+    })
+    const run = (harness: ReturnType<typeof setup>) =>
+      harness.processor.process({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        attemptOrdinal: 1,
+      })
+
+    it('links the item to the Property in its own Organization that holds it', async () => {
+      const harness = setup({
+        createError: alreadyBound,
+        locationHolders: [{ organizationId: ORG_ID, propertyId: EXISTING_PROPERTY_ID }],
+      })
+
+      await run(harness)
+
+      expect(harness.readByLocationIds).toHaveBeenCalledWith(ORG_ID, [
+        PROVIDER_LOCATION_ID,
+      ])
+      expect(harness.completeClaim).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          outcomeCode: 'already_exists',
+          retainRetryState: false,
+          detail: { kind: 'existing_property', propertyId: EXISTING_PROPERTY_ID },
+        }),
+      )
+    })
+
+    it('never records a holder from another Organization', async () => {
+      const harness = setup({
+        createError: alreadyBound,
+        locationHolders: [{ organizationId: 'org-2', propertyId: EXISTING_PROPERTY_ID }],
+      })
+
+      await run(harness)
+
+      const [terminal] = harness.completeClaim.mock.calls[0]!
+      expect(terminal).toMatchObject({ outcomeCode: 'already_exists' })
+      expect(terminal).not.toHaveProperty('detail')
+      expect(JSON.stringify(harness.completeClaim.mock.calls)).not.toContain(
+        EXISTING_PROPERTY_ID,
+      )
+    })
+
+    it('keeps already_exists without a link when no holder is found', async () => {
+      const harness = setup({ createError: alreadyBound, locationHolders: [] })
+
+      await run(harness)
+
+      const [terminal] = harness.completeClaim.mock.calls[0]!
+      expect(terminal).toMatchObject({ outcomeCode: 'already_exists' })
+      expect(terminal).not.toHaveProperty('detail')
+    })
+
+    it('keeps already_exists when the lookup fails, and logs it without content', async () => {
+      const harness = setup({
+        createError: alreadyBound,
+        locationLookupError: Object.assign(new Error('pool exhausted'), {
+          code: '53300',
+        }),
+      })
+
+      await run(harness)
+
+      expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
+      const [terminal] = harness.completeClaim.mock.calls[0]!
+      expect(terminal).toMatchObject({ outcomeCode: 'already_exists' })
+      expect(terminal).not.toHaveProperty('detail')
+      expect(harness.logger.warn).toHaveBeenCalledWith(
+        { itemId: ITEM_ID, errorName: 'Error', errorCode: '53300' },
+        'Google import could not resolve the Property that already holds the location',
+      )
+      const logged = JSON.stringify(harness.logger.warn.mock.calls)
+      expect(logged).not.toContain(PROVIDER_LOCATION_ID)
+      expect(logged).not.toContain(ORG_ID)
+    })
+
+    it('looks up the holder only for already_exists', async () => {
+      const harness = setup({
+        createError: Object.assign(new Error('conflict'), {
+          code: 'active_binding_conflict',
+        }),
+      })
+
+      await run(harness)
+
+      expect(harness.readByLocationIds).not.toHaveBeenCalled()
+    })
+  })
+
   it('logs the originating error before folding it into a content-free outcome', async () => {
     const harness = setup({
       createError: Object.assign(new Error('slug already taken'), {
@@ -757,6 +925,57 @@ describe('GoogleImportV2Processor', () => {
     )
   })
 
+  // Reply drafting refuses a Property without a public display name, so a live
+  // import starts it as the name the manager just confirmed.
+  it('starts the public display name as the confirmed name when a property goes live', async () => {
+    const harness = setup({ receipts: [null, null, importedReceipt()] })
+
+    await harness.processor.process({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+    })
+
+    expect(harness.defaultPublicDisplayName).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      displayName: 'Acme Hotel',
+    })
+    expect(harness.defaultPublicDisplayName.mock.invocationCallOrder[0]).toBeLessThan(
+      harness.reconcileFromReceipt.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('imports the property even when the public display name default fails', async () => {
+    const harness = setup({
+      receipts: [null, null, importedReceipt()],
+      defaultPublicDisplayNameError: new Error(
+        'brand profile store for Acme Hotel is down',
+      ),
+    })
+
+    await harness.processor.process({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+    })
+
+    expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
+    expect(harness.subscribeToNotifications).toHaveBeenCalledOnce()
+    expect(harness.reconcileFromReceipt).toHaveBeenCalledWith(
+      expect.objectContaining({ outcomeCode: 'imported' }),
+    )
+    expect(harness.logger.warn).toHaveBeenCalledWith(
+      { itemId: ITEM_ID, errorName: 'Error' },
+      expect.stringContaining('Public display name default failed after import'),
+    )
+    const logged = JSON.stringify(harness.logger.warn.mock.calls)
+    expect(logged).not.toContain('Acme Hotel')
+    expect(logged).not.toContain(ORG_ID)
+  })
+
   it('does not subscribe when the receipt is not an imported/relinked live property', async () => {
     const harness = setup({
       receipt: {
@@ -780,6 +999,7 @@ describe('GoogleImportV2Processor', () => {
     })
 
     expect(harness.subscribeToNotifications).not.toHaveBeenCalled()
+    expect(harness.defaultPublicDisplayName).not.toHaveBeenCalled()
   })
 
   // Push is an optimization over the discovery sweep, never a correctness gate:

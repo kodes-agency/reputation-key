@@ -11,6 +11,7 @@ import type { ReplyRepository } from '../application/ports/reply.repository'
 import type { ReplyCommandStore } from '../application/ports/reply-command-store.port'
 import type { ReviewQueuePort } from '../application/ports/review-queue.port'
 import type { GoogleReviewApiPort } from '../application/ports/google-review-api.port'
+import type { ReplyPublicationDispatchEvidencePort } from '../application/ports/reply-publication-dispatch-evidence.port'
 import {
   createSyncPropertyReviewsHandler,
   JOB_NAME as SYNC_REVIEWS_JOB_NAME,
@@ -72,6 +73,8 @@ export type ReviewWorkerRegistrationInput = Readonly<{
   runTargetedFetch: SyncHandlerDependencies['runTargetedFetch']
   runSourceContentLifecycle: PurgeHandlerDependencies['runLifecycle']
   reconcileReplyPublication: ReconcileHandlerDependencies['reconcileReplyPublication']
+  /** D4: the same non-dispatch evidence reader the manager commands use. */
+  dispatchEvidence: ReplyPublicationDispatchEvidencePort
   clock: () => Date
   idGen: () => string
   logger: LoggerPort
@@ -235,6 +238,7 @@ export async function registerReviewWorkerJobs(
     googleReviewApi: input.googleReviewApi,
     googleReplyObservationStore: createGoogleReplyObservationStore(input.db),
     replyCommandStore: input.replyCommandStore,
+    dispatchEvidence: input.dispatchEvidence,
     clock: input.clock,
     logger: input.logger,
     idGen: () => replyId(input.idGen()),
@@ -255,6 +259,7 @@ export async function registerReviewWorkerJobs(
     reviewRepo: input.reviewRepo,
     replyCommandStore: input.replyCommandStore,
     reconcileReplyPublication: input.reconcileReplyPublication,
+    dispatchEvidence: input.dispatchEvidence,
     clock: input.clock,
     logger: input.logger,
     runLease: createPublicationReconciliationRunLease(input.pool),

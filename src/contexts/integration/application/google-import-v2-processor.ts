@@ -4,12 +4,14 @@ import {
   organizationId,
   propertyId,
   type GoogleConnectionId,
+  type PropertyId,
 } from '#/shared/domain/ids'
 import {
   buildGoogleImportedProperty,
   type PropertyGoogleBindingPublicApi,
 } from '#/contexts/property/application/public-api'
 import type { ReviewQueuePort } from '#/contexts/review/application/public-api'
+import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { jobRetryDelayUpperBoundMs } from '#/shared/jobs/job-policy'
 import type { GoogleImportCommandAuthorizer } from './google-import-discovery'
@@ -17,12 +19,14 @@ import {
   GOOGLE_PROPERTY_IMPORT_ITEM_JOB,
   reconciledOutcomeCode,
   type ImportOutcomeCode,
+  type ImportProfileField,
 } from './google-import-v2-contract'
 import type { ManageNotificationsApi } from './use-cases/manage-notifications'
 import {
   GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS,
   GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
   type GoogleImportV2ClaimedItem,
+  type GoogleImportV2OutcomeDetail,
   type GoogleImportV2Store,
 } from './ports/google-import-v2-store.port'
 import {
@@ -55,9 +59,21 @@ type ImportFollowUpTarget = Readonly<{
   connectionId: GoogleConnectionId
   accountId: string
   locationId: string
+  /** The name the import confirmed; the public display name starts as it. */
+  propertyName: string
 }>
 
-function propertyOutcome(error: unknown): ImportOutcomeCode | null {
+type TerminalOutcome = Readonly<{
+  outcomeCode: ImportOutcomeCode
+  detail?: GoogleImportV2OutcomeDetail
+}>
+
+const profileRejected = (field: ImportProfileField): TerminalOutcome => ({
+  outcomeCode: 'tenant_profile_invalid',
+  detail: { kind: 'invalid_profile_field', field },
+})
+
+function propertyOutcome(error: unknown): TerminalOutcome | null {
   // Explicit BEFORE the domain switch: pool exhaustion and lock/session
   // timeouts share no code space with Property's domain errors, so leaving
   // them on the `default` fallthrough made their transient handling
@@ -66,23 +82,30 @@ function propertyOutcome(error: unknown): ImportOutcomeCode | null {
   if (isTransientGoogleImportInfrastructureError(error)) return null
   switch (googleImportErrorCode(error)) {
     case 'location_already_bound':
-      return 'already_exists'
+      return { outcomeCode: 'already_exists' }
     case 'active_binding_conflict':
-      return 'active_binding_conflict'
+      return { outcomeCode: 'active_binding_conflict' }
     case 'stale_binding':
     case 'stale_profile':
-      return 'stale_binding'
+      return { outcomeCode: 'stale_binding' }
     case 'property_deleted':
     case 'property_not_found':
-      return 'property_deleted'
+      return { outcomeCode: 'property_deleted' }
+    // The confirmed profile broke a Property rule. Retrying the same profile
+    // cannot succeed; the manager has to correct the field and import again.
+    case 'invalid_name':
+      return profileRejected('name')
+    case 'invalid_timezone':
+      return profileRejected('timezone')
+    case 'invalid_country':
+      return profileRejected('country')
+    // The slug is generated from the import item id, not confirmed by the
+    // manager, so a rejected slug is RepKey's defect rather than a profile fix.
+    case 'invalid_slug':
     case 'invalid_binding':
     case 'invalid_transition':
-    case 'invalid_name':
-    case 'invalid_slug':
-    case 'invalid_timezone':
-    case 'invalid_country':
     case 'idempotency_conflict':
-      return 'internal_error'
+      return { outcomeCode: 'internal_error' }
     default:
       return null
   }
@@ -148,6 +171,13 @@ export function createGoogleImportV2Processor(
      * correctness gate, so a failure is logged and the import proceeds.
      */
     subscribeToNotifications?: ManageNotificationsApi['subscribe']
+    /**
+     * Gives the Property its confirmed name as its public display name when it
+     * has none, so AI reply drafts are not refused straight after the import.
+     * Never replaces a name. Best-effort like the subscribe: the setup wizard
+     * and the Property's Profile settings can still set it.
+     */
+    defaultPublicDisplayName?: PortalPublicDisplayNameDefaultPublicApi['ensureDefaultPublicDisplayName']
     resolveActor: (organizationId: string, userId: string) => Promise<AuthContext | null>
     clock: () => Date
     newClaimFence: () => string
@@ -160,10 +190,11 @@ export function createGoogleImportV2Processor(
   }>,
 ): GoogleImportV2Processor {
   /**
-   * Resolve the binding that post-import follow-up (review backfill + GBP
-   * push subscribe) should target, or null when there is nothing to follow up
-   * on: no follow-up dependency is wired, the receipt is not a live import,
-   * or the binding is not an active one matching the receipt's source epoch.
+   * Resolve the binding that post-import follow-up (review backfill, public
+   * display name, GBP push subscribe) should target, or null when there is
+   * nothing to follow up on: no follow-up dependency is wired, the receipt is
+   * not a live import, or the binding is not an active one matching the
+   * receipt's source epoch.
    *
    * The epoch match is what makes follow-up safe to run at all — a binding
    * that moved on since the receipt was written belongs to a later operation.
@@ -172,7 +203,13 @@ export function createGoogleImportV2Processor(
     organizationIdValue: string,
     receipt: PropertyReceipt,
   ): Promise<ImportFollowUpTarget | null> => {
-    if (!deps.enqueueReviewSync && !deps.subscribeToNotifications) return null
+    if (
+      !deps.enqueueReviewSync &&
+      !deps.subscribeToNotifications &&
+      !deps.defaultPublicDisplayName
+    ) {
+      return null
+    }
     if (receipt.tombstone || receipt.destinationPropertyId === null) return null
     if (receipt.outcome !== 'imported' && receipt.outcome !== 'relinked') return null
 
@@ -193,6 +230,34 @@ export function createGoogleImportV2Processor(
       connectionId: binding.connectionId,
       accountId: binding.accountId,
       locationId: binding.locationId,
+      propertyName: binding.name,
+    }
+  }
+
+  /**
+   * Start the public display name as the confirmed Property name. Swallows its
+   * own failure: reply drafting then asks for the name, which the setup wizard
+   * and Profile settings both set.
+   */
+  const defaultPublicDisplayNameBestEffort = async (
+    organizationIdValue: string,
+    itemId: string,
+    destinationPropertyId: PropertyId,
+    propertyName: string,
+  ): Promise<void> => {
+    if (!deps.defaultPublicDisplayName) return
+    try {
+      await deps.defaultPublicDisplayName({
+        organizationId: organizationId(organizationIdValue),
+        propertyId: destinationPropertyId,
+        displayName: propertyName,
+      })
+    } catch (error) {
+      // Content-free: the name itself is a Property profile field.
+      deps.logger.warn(
+        { itemId, errorName: error instanceof Error ? error.name : 'unknown' },
+        'Public display name default failed after import — reply drafting asks for the name until setup or Profile settings saves one',
+      )
     }
   }
 
@@ -251,6 +316,12 @@ export function createGoogleImportV2Processor(
           },
         )
       }
+      await defaultPublicDisplayNameBestEffort(
+        organizationIdValue,
+        itemId,
+        receipt.destinationPropertyId,
+        target.propertyName,
+      )
       // Runs AFTER the sync enqueue so a subscribe outage cannot delay the
       // backfill that makes the property usable.
       await subscribeToNotificationsBestEffort(
@@ -287,6 +358,7 @@ export function createGoogleImportV2Processor(
     item: GoogleImportV2ClaimedItem,
     outcomeCode: ImportOutcomeCode,
     retainRetryState = false,
+    detail?: GoogleImportV2OutcomeDetail,
   ): Promise<void> => {
     const now = deps.clock()
     if (await reconcileReceipt(item.organizationId, item.itemId, now)) return
@@ -298,7 +370,39 @@ export function createGoogleImportV2Processor(
       outcomeCode,
       retainRetryState,
       now,
+      ...(detail ? { detail } : {}),
     })
+  }
+
+  /**
+   * The Property that already holds an `already_exists` item's location, so the
+   * progress view can link to it. The lookup is scoped to the item's own
+   * Organization (location bindings are unique per Organization), and a holder
+   * from anywhere else is ignored, so another tenant's Property id is never
+   * recorded. A failed lookup loses only the link, never the outcome.
+   */
+  const existingPropertyDetail = async (
+    item: GoogleImportV2ClaimedItem,
+  ): Promise<GoogleImportV2OutcomeDetail | undefined> => {
+    try {
+      const [holder] = await deps.propertyBindingApi.readByLocationIds(
+        organizationId(item.organizationId),
+        [item.providerLocationSuffix],
+      )
+      return holder && holder.organizationId === item.organizationId
+        ? { kind: 'existing_property', propertyId: holder.propertyId }
+        : undefined
+    } catch (error) {
+      deps.logger.warn(
+        {
+          itemId: item.itemId,
+          errorName: error instanceof Error ? error.name : 'unknown',
+          errorCode: googleImportErrorCode(error),
+        },
+        'Google import could not resolve the Property that already holds the location',
+      )
+      return undefined
+    }
   }
 
   const transientFailure = async (
@@ -516,11 +620,16 @@ export function createGoogleImportV2Processor(
           retryRevision: item.retryRevision,
           errorName: error instanceof Error ? error.name : 'unknown',
           errorCode: googleImportErrorCode(error),
-          outcome: outcome ?? 'transient',
+          outcome: outcome?.outcomeCode ?? 'transient',
         },
         'Google import item effect failed',
       )
-      return outcome ? complete(item, outcome) : transientFailure(item, error)
+      if (!outcome) return transientFailure(item, error)
+      const detail =
+        outcome.outcomeCode === 'already_exists'
+          ? await existingPropertyDetail(item)
+          : outcome.detail
+      return complete(item, outcome.outcomeCode, false, detail)
     }
   }
 

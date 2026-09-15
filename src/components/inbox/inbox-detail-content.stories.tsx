@@ -24,6 +24,9 @@ import type {
 } from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
+import type { requestReviewAnalysisNowFn } from '#/contexts/ai/server/review-analysis'
+import { fn } from 'storybook/test'
+import { ON_DEMAND_ANALYSIS_DWELL_MILLIS } from './use-on-demand-review-analysis'
 import type {
   InboxItem,
   InboxItemDetailResult,
@@ -247,6 +250,36 @@ export const ReviewAsPropertyManager: Story = {
     onNoteAdded: () => {},
     onReplyMutated: () => {},
     detailFns,
+  },
+}
+
+// A review whose analysis still waits in the backlog (`analysis: none`) is
+// hurried once the manager has had it open for the dwell time.
+const requestReviewAnalysisNow = fn(async () => ({ status: 'queued' as const }))
+
+export const WaitingAnalysisIsRequestedAfterDwell: Story = {
+  decorators: [withRole('PropertyManager')],
+  args: {
+    ...ReviewAsPropertyManager.args,
+    detail: { ...reviewDetail, analysis: { status: 'none' } },
+    detailFns: {
+      ...detailFns,
+      requestReviewAnalysisNow:
+        requestReviewAnalysisNow as unknown as typeof requestReviewAnalysisNowFn,
+    },
+  },
+  play: async () => {
+    requestReviewAnalysisNow.mockClear()
+    expect(requestReviewAnalysisNow).not.toHaveBeenCalled()
+
+    await waitFor(
+      () =>
+        expect(requestReviewAnalysisNow).toHaveBeenCalledWith({
+          data: { reviewId: reviewItem.sourceId },
+        }),
+      { timeout: ON_DEMAND_ANALYSIS_DWELL_MILLIS + 2_000 },
+    )
+    expect(requestReviewAnalysisNow).toHaveBeenCalledOnce()
   },
 }
 

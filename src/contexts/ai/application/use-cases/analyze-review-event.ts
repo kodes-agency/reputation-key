@@ -16,11 +16,15 @@ import type { AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiControlPort } from '../ports/ai-control.port'
 import type { AiInferencePort } from '../ports/ai-inference.port'
-import type { AiOperationStorePort } from '../ports/ai-operation-store.port'
+import type {
+  AiOperationRecord,
+  AiOperationStorePort,
+} from '../ports/ai-operation-store.port'
 import type { AiOutputStorePort } from '../ports/ai-output-store.port'
 import { issueLabelReproducesSource } from '#/shared/ai-issue-label'
 import type { AiPropertyAggregateStorePort } from '../ports/ai-property-aggregate-store.port'
-import type { AiQuotaPort } from '../ports/ai-quota.port'
+import type { AiAdmissionClaim, AiAdmissionPort } from '../ports/ai-admission.port'
+import type { AiAdmissionLane } from '../../domain/admission-lanes'
 import type {
   AiReviewAnalysisTerminalDisposition,
   AiReviewEventDisposition,
@@ -86,11 +90,23 @@ export type AnalyzeReviewEventInput = Readonly<{
   eventRecordedAtEpochMillis: number | null
   /** How long an operation for this event may stay open, by event kind. */
   operationHorizonMillis: number
+  /**
+   * `defer` runs every check and settlement that needs no provider call, then
+   * stops before claiming an operation and answers `deferred`, so the caller
+   * can queue the provider work for the background lane. Defaults to `execute`.
+   */
+  execution?: 'execute' | 'defer'
+  /** Admission lane for the provider call. Defaults to `background`. */
+  lane?: AiAdmissionLane
+  /** Slots to leave free in the lane (on-demand analysis protects reply drafts). */
+  admissionHeadroom?: number
 }>
 
 export type AnalyzeReviewEventResult =
   | Readonly<{ status: 'completed' | 'replayed' | 'terminal' | 'generation_changed' }>
   | Readonly<{ status: 'retry'; retryAtEpochMillis: number; code: string }>
+  /** Provider work is still needed and the caller asked to queue it. */
+  | Readonly<{ status: 'deferred' }>
 
 /** Content-free record of a governed refusal. Carries identifiers and the rule
  *  only: the refused label and the matched excerpt are deliberately absent. */
@@ -114,7 +130,7 @@ export type AnalyzeReviewEventDependencies = Readonly<{
   operations: AiOperationStorePort
   outputs: AiOutputStorePort
   aggregates: AiPropertyAggregateStorePort
-  quota: AiQuotaPort
+  admission: AiAdmissionPort
   reviewEvents: AiReviewEventStorePort
   reviewSources: AiReviewSourcePort
   processingProfiles: PropertyProcessingProfilePort
@@ -368,6 +384,90 @@ export function createAnalyzeReviewEvent(
         )
   }
 
+  /**
+   * A claim can hand back an operation an earlier attempt already brought to
+   * success. Its analysis is stored, so it only needs settling and marking
+   * delivered; the provider is not asked again.
+   */
+  async function replaySucceededOperation(
+    input: AnalyzeReviewEventInput,
+    reviewAnalysisEpoch: number,
+    propertyProfileVersion: number,
+    operation: Pick<AiOperationRecord, 'id' | 'executionAttempt'>,
+    nowEpochMillis: number,
+  ): Promise<AnalyzeReviewEventResult> {
+    const settled = await settleReviewAnalysisWithResult(settlementDependencies, {
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      reviewId: input.reviewId,
+      sourceEpoch: input.sourceEpoch,
+      sourceRevision: input.sourceRevision,
+      reviewAnalysisEpoch,
+      analysisSequence: input.analysisSequence,
+      propertyProfileVersion,
+      operationId: operation.id,
+    })
+    if (settled.status === 'generation_changed') {
+      return { status: 'generation_changed' }
+    }
+    await dependencies.operations.markDelivered({
+      operationId: operation.id,
+      organizationId: input.organizationId,
+      expectedAttempt: operation.executionAttempt,
+      deliveredAtEpochMillis: nowEpochMillis,
+    })
+    return { status: 'replayed' }
+  }
+
+  /** The provider call's admission, in the caller's lane and with its headroom. */
+  function acquireAdmission(
+    input: AnalyzeReviewEventInput,
+    nowEpochMillis: number,
+  ): Promise<AiAdmissionClaim> {
+    return dependencies.admission.acquire({
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      lane: input.lane ?? 'background',
+      nowEpochMillis,
+      ...(input.admissionHeadroom === undefined
+        ? {}
+        : { headroom: input.admissionHeadroom }),
+    })
+  }
+
+  /**
+   * An admission the provider call did not get. An unavailable admission store
+   * is transient, so it defers inside the operation horizon like any other wait
+   * that comes before an attempt.
+   */
+  async function settleAdmissionRefusal(
+    input: AnalyzeReviewEventInput,
+    reviewAnalysisEpoch: number,
+    propertyProfileVersion: number,
+    refusal: Extract<AiAdmissionClaim, { ok: false }>,
+    nowEpochMillis: number,
+    horizonEpochMillis: number,
+  ): Promise<AnalyzeReviewEventResult> {
+    if (refusal.code === 'admission_busy') {
+      // Our own lane is full. Nothing was consumed and no attempt was
+      // claimed, so a busy lane is never a reason to abandon this review:
+      // it waits for capacity regardless of the operation horizon.
+      return {
+        status: 'retry',
+        retryAtEpochMillis: refusal.retryAfterEpochMillis,
+        code: refusal.code,
+      }
+    }
+    return deferOrSettle(
+      input,
+      reviewAnalysisEpoch,
+      propertyProfileVersion,
+      refusal.code,
+      nowEpochMillis,
+      horizonEpochMillis,
+    )
+  }
+
   return async (input) => {
     const nowEpochMillis = dependencies.nowEpochMillis()
     const eventHorizonEpochMillis =
@@ -517,6 +617,9 @@ export function createAnalyzeReviewEvent(
         'policy_disabled',
       )
     }
+    // Everything above settles without a provider call. From here on the
+    // review needs one, so a deferring caller queues it for its lane instead.
+    if (input.execution === 'defer') return { status: 'deferred' }
     const subject = dependencies.subjectHmac.sign(input.reviewId)
     const identity: AiOperationIdentity = {
       subjectKind: 'property',
@@ -588,27 +691,13 @@ export function createAnalyzeReviewEvent(
     }
     const operation = claimed.operation
     if (['succeeded', 'succeeded_pending_delivery'].includes(operation.state)) {
-      const settled = await settleReviewAnalysisWithResult(settlementDependencies, {
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        reviewId: input.reviewId,
-        sourceEpoch: input.sourceEpoch,
-        sourceRevision: input.sourceRevision,
+      return replaySucceededOperation(
+        input,
         reviewAnalysisEpoch,
-        analysisSequence: input.analysisSequence,
-        propertyProfileVersion: profile.profileVersion,
-        operationId: operation.id,
-      })
-      if (settled.status === 'generation_changed') {
-        return { status: 'generation_changed' }
-      }
-      await dependencies.operations.markDelivered({
-        operationId: operation.id,
-        organizationId: input.organizationId,
-        expectedAttempt: operation.executionAttempt,
-        deliveredAtEpochMillis: nowEpochMillis,
-      })
-      return { status: 'replayed' }
+        profile.profileVersion,
+        operation,
+        nowEpochMillis,
+      )
     }
     async function executeClaimedAnalysis(): Promise<AnalyzeReviewEventResult> {
       // Once an operation exists it gets its event kind's full horizon from its
@@ -631,17 +720,13 @@ export function createAnalyzeReviewEvent(
           'policy_disabled',
         )
       }
-      const quota = await dependencies.quota.acquire({
-        propertyId: input.propertyId,
-        capability: 'review_analysis',
-        nowEpochMillis,
-      })
-      if (!quota.ok) {
-        return deferOrSettle(
+      const admission = await acquireAdmission(input, nowEpochMillis)
+      if (!admission.ok) {
+        return settleAdmissionRefusal(
           input,
           reviewAnalysisEpoch,
           profile.profileVersion,
-          quota.code,
+          admission,
           nowEpochMillis,
           operationHorizonEpochMillis,
         )
@@ -823,7 +908,7 @@ export function createAnalyzeReviewEvent(
         })
         return { status: 'completed' }
       } finally {
-        await dependencies.quota.release({ quotaId: quota.quotaId })
+        await dependencies.admission.release({ admissionId: admission.admissionId })
       }
     }
     return executeClaimedAnalysis()

@@ -1,5 +1,6 @@
 import type { GoogleContentCapability } from './google-content-capability'
 import type { AuthContext } from './auth-context'
+import { sameRecordEntries } from './record-entries'
 import { sha256Hex } from './sha256'
 
 export type GoogleContentAuthorizationVector = Readonly<
@@ -71,12 +72,7 @@ export function sameGoogleContentAuthorizationVector(
   left: AuthorizationVector,
   right: AuthorizationVector,
 ): boolean {
-  const leftKeys = Object.keys(left).sort()
-  const rightKeys = Object.keys(right).sort()
-  return (
-    leftKeys.length === rightKeys.length &&
-    leftKeys.every((key, index) => key === rightKeys[index] && left[key] === right[key])
-  )
+  return sameRecordEntries(left, right)
 }
 
 /**

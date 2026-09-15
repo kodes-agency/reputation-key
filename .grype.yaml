@@ -34,13 +34,23 @@ ignore:
   - vulnerability: CVE-2026-8376 # wont-fix
   - vulnerability: CVE-2026-9538 # wont-fix
 
-  # ── Debian trixie base packages, glibc 2.41-12+deb13u3 (3 CVEs) ────────
+  # ── Debian trixie base packages, glibc 2.41-12+deb13u3 (4 CVEs) ────────
   # owner: platform — reason: won't-fix by Debian triage (assessed not
   # exploitable in practice); no patched trixie package exists.
+  # CVE-2026-19499 (added 2026-09-15, first reported by the grype DB built
+  # that morning): `libc-bin`/`libc6` 2.41-12+deb13u3 (won't fix) deb
+  # CVE-2026-19499 High. An out-of-bounds write in `strfmon`/`strfmon_l` when a
+  # conversion uses right-justified width padding (glibc 2.38–2.44). The
+  # Debian tracker (read 2026-09-15) marks it a minor issue, no-dsa for trixie
+  # and postponed for bookworm; only sid/forky carry the fix (2.43-5). Nothing
+  # in the image calls strfmon: the CMD is node, which formats money and
+  # numbers through its bundled ICU (`Intl`), not the C locale's monetary
+  # functions. Drop this entry at the first trixie glibc update that fixes it.
   # expiresAt: 2026-12-07
   - vulnerability: CVE-2026-5450 # wont-fix (critical per NVD, wont-fix per Debian)
   - vulnerability: CVE-2026-5435 # wont-fix
   - vulnerability: CVE-2026-5928 # wont-fix
+  - vulnerability: CVE-2026-19499 # strfmon overflow, no-dsa minor issue on trixie
 
   # ── Debian trixie base packages, misc (7 CVEs) ─────────────────────────
   # owner: platform — reason: won't-fix by Debian triage; the binaries/libs

@@ -623,6 +623,7 @@ describe('Google Business Information adapter', () => {
         ok: false,
         code: 'admission_denied',
         admissionCode: 'quota_exhausted',
+        dispatch: 'not_sent',
         retryAfterMs: 9_000,
       }),
     }
@@ -646,6 +647,7 @@ describe('Google Business Information adapter', () => {
         ok: false,
         code: 'admission_denied',
         admissionCode: 'permit_expired',
+        dispatch: 'not_sent',
         retryAfterMs: 0,
       }),
     }

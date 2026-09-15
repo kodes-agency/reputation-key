@@ -66,6 +66,17 @@ export function createGoogleImportDiscoveryState(
   }
 }
 
+/**
+ * The confirm screen is on once the chosen locations have a review draft. The
+ * Google connection belongs to the steps before it, choosing the account and
+ * its locations, so the screen hides it.
+ */
+export function isConfirmingDetails(
+  state: Pick<GoogleImportDiscoveryState, 'step' | 'reviewDraft'>,
+): boolean {
+  return state.step === 'review' && state.reviewDraft !== null
+}
+
 export function reduceGoogleImportDiscoveryState(
   state: GoogleImportDiscoveryState,
   action: GoogleImportDiscoveryAction,

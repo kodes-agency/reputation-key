@@ -108,6 +108,14 @@ export type {
   SetupChecklistAction,
   SetupChecklistStep,
 } from './use-cases/get-setup-checklist'
+export type {
+  PropertySetup,
+  PropertySetupSection,
+  PropertySetupStep,
+  PropertySetupStepKey,
+  PropertySetupStepStatus,
+} from '../domain/property-setup'
+export type { PropertySetupSummary } from './use-cases/list-property-setup-summaries'
 export type { DashboardError } from '../domain/dashboard-errors'
 export {
   GOOGLE_PERFORMANCE_ERROR_CODES,

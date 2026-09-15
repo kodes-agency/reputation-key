@@ -165,6 +165,7 @@ export const createGoogleConnectionRepository = (
           encryptedAccessToken: 'redacted',
           encryptedRefreshToken: 'redacted',
           googleSubject: null,
+          googleAccountEmail: null,
           scopes: [],
           credentialUseState: 'none',
           cleanupMaterialDeadlineAt: null,
@@ -205,12 +206,14 @@ export const createGoogleConnectionRepository = (
     scopes,
     credentialAuthorizedBy,
     credentialAuthorizedAt,
+    googleAccountEmail,
   ) => {
     return trace('googleConnection.updateReconnection', async () => {
       await db
         .update(googleConnections)
         .set({
           googleSubject,
+          googleAccountEmail,
           encryptedAccessToken: accessToken,
           encryptedRefreshToken: refreshToken,
           tokenExpiresAt: expiresAt,

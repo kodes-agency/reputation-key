@@ -339,4 +339,31 @@ describe('loadReplyTemplate', () => {
     expect(manual.assertCurrentBinding).not.toHaveBeenCalled()
     expect(manual.providerRead).not.toHaveBeenCalled()
   })
+
+  it('refuses a rendered template Google cannot take in bytes before any draft save', async () => {
+    // 2,100 Cyrillic letters are 4,200 UTF-8 bytes but under 4,096 UTF-16
+    // units, so a character cap let this through to a worker that could never
+    // compile it (reply-comment.ts, route-catalogue.ts reviews.reply).
+    const review = makeReview()
+    const template = makeTemplate({ body: 'Б'.repeat(2_100) })
+    const { repository, reviewRepo } = makeRepository({ review, templates: [template] })
+    const saveDraft = vi.fn()
+
+    await expect(
+      loadReplyTemplate({
+        repository,
+        reviewRepo,
+        staffPublicApi: makeStaffApi(),
+        draftReply: saveDraft,
+      })(
+        {
+          reviewId: REVIEW,
+          templateId: template.id,
+          targetLanguage: { kind: 'review_language' },
+        },
+        MANAGER,
+      ),
+    ).rejects.toMatchObject({ _tag: 'ReviewError', code: 'invalid_reply' })
+    expect(saveDraft).not.toHaveBeenCalled()
+  })
 })

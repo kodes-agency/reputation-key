@@ -1,3 +1,4 @@
+import type { OrganizationId } from '#/shared/domain/ids'
 import type { Database } from '#/shared/db'
 import type { Redis } from 'ioredis'
 import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
@@ -7,7 +8,7 @@ import {
   resolveConcreteReplyLanguage,
 } from '#/shared/ai-reply-language-verifier'
 import type { AiInferencePort } from './application/ports/ai-inference.port'
-import type { AiQuotaPort } from './application/ports/ai-quota.port'
+import type { AiAdmissionPort } from './application/ports/ai-admission.port'
 import type { AiSubjectHmacPort } from './application/ports/ai-subject-hmac.port'
 import { createAnalyzeReviewEvent } from './application/use-cases/analyze-review-event'
 import { createAiOperationExecutionReaper } from './application/ai-operation-execution-reaper'
@@ -37,7 +38,15 @@ import { createAiPropertyTrendScheduleStore } from './infrastructure/adapters/ai
 import { createAiReviewEventStoreAdapter } from './infrastructure/adapters/ai-review-event-store.adapter'
 import { createPropertyProcessingProfileAdapter } from './infrastructure/adapters/property-processing-profile.adapter'
 import { createReviewAnalysisEnrollmentAdapter } from './infrastructure/adapters/ai-review-analysis-enrollment.adapter'
-import { createRedisAiQuotaAdapter } from './infrastructure/adapters/ai-quota.adapter'
+import { createRedisAiLaneAdmissionAdapter } from './infrastructure/adapters/ai-lane-admission.adapter'
+import { createAiReviewAnalysisBacklogAdapter } from './infrastructure/adapters/ai-review-analysis-backlog.adapter'
+import { createAiOrganizationSpendAdapter } from './infrastructure/adapters/ai-organization-spend.adapter'
+import { createDrainReviewAnalysisBacklog } from './application/use-cases/drain-review-analysis-backlog'
+import { createReadReviewAnalysisProgress } from './application/use-cases/read-review-analysis-progress'
+import {
+  createRequestReviewAnalysisNow,
+  type RequestReviewAnalysisNowDependencies,
+} from './application/use-cases/request-review-analysis-now'
 import { createAiOrganizationExportContributor } from './infrastructure/adapters/ai-organization-export.adapter'
 import { createAiOrganizationLifecycleContributor } from './infrastructure/adapters/ai-organization-lifecycle.adapter'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
@@ -69,10 +78,10 @@ const unavailableInference: AiInferencePort = Object.freeze({
   }),
 })
 
-const unavailableQuota: AiQuotaPort = Object.freeze({
+const unavailableAdmission: AiAdmissionPort = Object.freeze({
   acquire: async () => ({
     ok: false as const,
-    code: 'provider_unavailable' as const,
+    code: 'admission_unavailable' as const,
   }),
   release: async () => {},
 })
@@ -91,10 +100,12 @@ export type AiContextBuildInput = Readonly<{
   propertyReplyLanguages: GenerateReplySuggestionDependencies['propertyReplyLanguages']
   replyBrandProfiles: PortalAiReplyBrandProfilePublicApi
   inference?: AiInferencePort
-  quota?: AiQuotaPort
+  admission?: AiAdmissionPort
   subjectHmac?: AiSubjectHmacPort
   resolveReplyLanguage?: GenerateReplySuggestionDependencies['resolveReplyLanguage']
   enqueuePropertyTrend?: RegisterAiConsumersInput['enqueuePropertyTrend']
+  /** Hands one waiting review to the worker's on-demand analysis job. */
+  enqueueReviewAnalysisNow?: RequestReviewAnalysisNowDependencies['enqueueReviewAnalysisNow']
   idGen: () => string
   nowEpochMillis: () => number
 }>
@@ -110,12 +121,16 @@ export const buildAiContext = (input: AiContextBuildInput) => {
   const schedules = createAiPropertyTrendScheduleStore(input.db, input.idGen)
   const calendar = createAiPropertyCalendarAdapter(input.db)
   const reviewEvents = createAiReviewEventStoreAdapter(input.db)
+  const backlog = createAiReviewAnalysisBacklogAdapter(input.db)
+  const organizationSpend = createAiOrganizationSpendAdapter(input.db)
   const enrollments = createReviewAnalysisEnrollmentAdapter(input.db, input.idGen)
   const processingProfiles = createPropertyProcessingProfileAdapter(input.db, clock)
   const inference = input.inference ?? unavailableInference
-  const quota =
-    input.quota ??
-    (input.redis ? createRedisAiQuotaAdapter(input.redis, input.idGen) : unavailableQuota)
+  const admission =
+    input.admission ??
+    (input.redis
+      ? createRedisAiLaneAdmissionAdapter(input.redis, input.idGen)
+      : unavailableAdmission)
   const analyzeReviewEvent = createAnalyzeReviewEvent({
     authorization,
     control,
@@ -123,7 +138,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     operations,
     outputs,
     aggregates,
-    quota,
+    admission,
     reviewEvents,
     reviewSources: input.reviewSources,
     processingProfiles,
@@ -160,6 +175,27 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       control,
       enrollments,
     })
+  const drainReviewAnalysisBacklog = createDrainReviewAnalysisBacklog({
+    backlog,
+    analyzeReviewEvent,
+    nowEpochMillis,
+  })
+  const readReviewAnalysisProgress = createReadReviewAnalysisProgress({
+    authorization,
+    processingProfiles,
+    backlog,
+    readEnrollmentReadiness: readReviewAnalysisEnrollmentReadiness,
+  })
+  const requestReviewAnalysisNow = createRequestReviewAnalysisNow({
+    authorization,
+    processingProfiles,
+    backlog,
+    enqueueReviewAnalysisNow:
+      input.enqueueReviewAnalysisNow ??
+      (async () => {
+        throw new Error('AI on-demand review analysis queue is unavailable')
+      }),
+  })
   const generatePropertyTrend = createGeneratePropertyTrend({
     authorization,
     aggregates,
@@ -198,6 +234,8 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       analyzeReviewEvent,
       applyAiAuthorizationLifecycle,
       receipts: input.outboxRepo,
+      backlog,
+      nowEpochMillis,
     })
   }
 
@@ -209,7 +247,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
         inference,
         operations,
         outputs,
-        quota,
+        admission,
         reviewSources: input.reviewSources,
         processingProfiles,
         propertyReplyLanguages: input.propertyReplyLanguages,
@@ -218,6 +256,13 @@ export const buildAiContext = (input: AiContextBuildInput) => {
         nowEpochMillis,
       }),
       readReviewAnalysis: createReadReviewAnalysis(readDependencies),
+      readReviewAnalysisProgress,
+      requestReviewAnalysisNow,
+      readOrganizationAiSpend: (request: Readonly<{ organizationId: OrganizationId }>) =>
+        organizationSpend.readCurrentMonth({
+          organizationId: request.organizationId,
+          nowEpochMillis: nowEpochMillis(),
+        }),
       readPropertyTrend: createReadPropertyTrend(readDependencies),
       findCurrentReviewIdsByAttention: (
         request: Omit<
@@ -270,6 +315,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       generatePropertyTrend,
       schedulePropertyTrends,
       advanceReviewAnalysisEnrollments,
+      drainReviewAnalysisBacklog,
       reapAiOperations,
     }),
     internal: Object.freeze({

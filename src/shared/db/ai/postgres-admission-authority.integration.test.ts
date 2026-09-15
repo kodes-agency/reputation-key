@@ -147,7 +147,6 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
   const authority = createPostgresAiAdmissionAuthority({
     pool: getPool(),
     signingKid: SIGNING_KID,
-    rateLimiter: { check: async () => ({ allowed: true }) },
     now: () => NOW,
   })
 

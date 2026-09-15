@@ -125,6 +125,7 @@ function healthy(): MutableSnapshot {
       quarantined: 0,
       failing: 0,
       missingObservations: 0,
+      invalidObservations: 0,
       handlerMissing: 0,
       schedulerMissing: 0,
       forbiddenDarkWork: 0,
@@ -275,6 +276,7 @@ describe('worker.job-runtime-unready', () => {
       quarantined: 0,
       failing: 1,
       missingObservations: 0,
+      invalidObservations: 0,
       handlerMissing: 0,
       schedulerMissing: 1,
       forbiddenDarkWork: 0,
@@ -296,6 +298,8 @@ describe('worker.job-runtime-unready', () => {
       threshold: 0,
     })
     expect(event!.detail).toContain('schedulerMissing=1')
+    // Every unready reason has a counter; none can hide behind a detail of zeros.
+    expect(event!.detail).toContain('invalidObservations=0')
     expect(event!.detail).toContain('missedObjectives=1')
   })
 
@@ -309,6 +313,7 @@ describe('worker.job-runtime-unready', () => {
       quarantined: 0,
       failing: 0,
       missingObservations: 0,
+      invalidObservations: 0,
       handlerMissing: 0,
       schedulerMissing: 0,
       forbiddenDarkWork: 0,

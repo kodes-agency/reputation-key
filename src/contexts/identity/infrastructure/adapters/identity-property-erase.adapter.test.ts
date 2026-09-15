@@ -13,10 +13,18 @@ import type { Tx } from '#/shared/outbox/commit'
 const ORG = 'org-identity-erase'
 const PROPERTY = '60000000-0000-4000-8000-000000000001'
 
-/** The two live authority tables the adapter must cover. */
-const ERASED_TABLES = ['property_access_grants', 'property_access_grant'] as const
+/** The live authority and decision tables the adapter must cover. */
+const ERASED_TABLES = [
+  'merchant_ai_decision_deferrals',
+  'property_access_grants',
+  'property_access_grant',
+] as const
 
-const EXCLUDED_TABLES = ['backup_erasure_ledger', 'privacy_requests'] as const
+const EXCLUDED_TABLES = [
+  'backup_erasure_ledger',
+  'privacy_requests',
+  'merchant_ai_consent_evidence',
+] as const
 
 type Rendered = Readonly<{ sql: string; params: readonly unknown[] }>
 
@@ -103,7 +111,7 @@ describe('identity property-erase contributor', () => {
     expect(createIdentityPropertyEraseContributor().context).toBe('identity')
   })
 
-  it('inventories exactly the two erasable Identity tables, and no archive table', async () => {
+  it('inventories exactly the erasable Identity tables, and no archive table', async () => {
     const { tx, executed } = harness(3)
 
     const entries = await createIdentityPropertyEraseContributor().inventory(tx, {
@@ -144,7 +152,7 @@ describe('identity property-erase contributor', () => {
 
     // Every statement must narrow on property_id. Without this, an erase
     // preview would count a sibling Property's rows.
-    expect(executed).toHaveLength(2)
+    expect(executed).toHaveLength(ERASED_TABLES.length)
     for (const query of executed) {
       expect(query.sql).toContain('property_id =')
       expect(query.params).toContain(PROPERTY)
@@ -160,11 +168,11 @@ describe('identity property-erase contributor', () => {
     })
 
     const orgScoped = executed.filter((q) => q.sql.includes('organization_id ='))
-    expect(orgScoped).toHaveLength(2)
+    expect(orgScoped).toHaveLength(ERASED_TABLES.length)
     for (const query of orgScoped) expect(query.params).toContain(ORG)
   })
 
-  it('deletes from both tables and returns the total row count', async () => {
+  it('deletes from every planned table and returns the total row count', async () => {
     const { tx, deleted } = harness(2)
 
     const erased = await createIdentityPropertyEraseContributor().erase(tx, {
@@ -172,8 +180,8 @@ describe('identity property-erase contributor', () => {
       propertyId: PROPERTY,
     })
 
-    expect(deleted).toHaveLength(2)
-    expect(erased).toBe(4)
+    expect(deleted).toHaveLength(ERASED_TABLES.length)
+    expect(erased).toBe(ERASED_TABLES.length * 2)
   })
 
   it('binds every delete to this Property, so a sibling Property is untouched', async () => {
@@ -189,6 +197,8 @@ describe('identity property-erase contributor', () => {
     for (const statement of deleted) {
       expect(statement.params).toContain(PROPERTY)
     }
-    expect(deleted.filter((s) => s.params.includes(ORG))).toHaveLength(2)
+    expect(deleted.filter((s) => s.params.includes(ORG))).toHaveLength(
+      ERASED_TABLES.length,
+    )
   })
 })

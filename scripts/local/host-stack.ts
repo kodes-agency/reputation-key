@@ -8,9 +8,16 @@
 // behaves like the deployed cell, against the sandbox or against real Google
 // (`REPKEY_LOCAL_GOOGLE=real`; see ./provider-modes.ts).
 import { spawn, type ChildProcess } from 'node:child_process'
+import { homedir } from 'node:os'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { aiProviderMode, applyEnvOverlay, googleProviderMode } from './provider-modes'
+import {
+  aiProviderMode,
+  applyEnvOverlay,
+  googleProviderMode,
+  localEnvOverlayPaths,
+  stackWebPort,
+} from './provider-modes'
 
 const root = process.cwd()
 
@@ -20,7 +27,10 @@ function required(name: string): string {
   return value
 }
 
-const overlaid = applyEnvOverlay(process.env, resolve(root, 'local.env'))
+const overlaid = localEnvOverlayPaths(root, homedir()).flatMap((path) =>
+  applyEnvOverlay(process.env, path).map((key) => `${key} (${path})`),
+)
+const webPort = stackWebPort(process.env)
 const google = googleProviderMode(process.env)
 const ai = aiProviderMode(process.env)
 
@@ -36,7 +46,7 @@ const processes: Array<{ name: string; child: ChildProcess }> = [
     name: 'web',
     child: spawn(
       'pnpm',
-      ['exec', 'vite', 'dev', '--host', '127.0.0.1', '--port', '3000'],
+      ['exec', 'vite', 'dev', '--host', '127.0.0.1', '--port', webPort],
       {
         cwd: root,
         env: hostEnv,
@@ -101,7 +111,7 @@ process.on('SIGTERM', () => shutdown('SIGTERM', 0))
 
 process.stdout.write(
   [
-    '[local] web http://127.0.0.1:3000 (the BETTER_AUTH_URL origin) - manager test@example.com',
+    `[local] web http://127.0.0.1:${webPort} (the BETTER_AUTH_URL origin) - manager test@example.com`,
     '        (password: E2E_TEST_PASSWORD in e2e/stack.env), staff staff@example.com / password123',
     ...(overlaid.length > 0
       ? [`[local] local.env overlay applied: ${overlaid.join(', ')}`]

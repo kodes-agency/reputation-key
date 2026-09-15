@@ -1,5 +1,6 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
+import { sameRecordEntries } from '#/shared/domain/record-entries'
 import type { ProviderAuthorizationLeaseResult } from '#/shared/provider-ephemeral/authorization-lease'
 import type {
   PropertyGooglePerformanceResultV1,
@@ -148,15 +149,10 @@ function sameAuthorizationVectorExceptCredentialGeneration(
   current: GooglePerformanceAuthorizationSnapshot['authorizationVector'],
   expected: GooglePerformanceAuthorizationSnapshot['authorizationVector'],
 ): boolean {
-  const currentKeys = Object.keys(current).sort()
-  const expectedKeys = Object.keys(expected).sort()
-  return (
-    currentKeys.length === expectedKeys.length &&
-    currentKeys.every(
-      (key, index) =>
-        key === expectedKeys[index] &&
-        (key === 'credentialGeneration' || current[key] === expected[key]),
-    )
+  return sameRecordEntries(
+    current,
+    expected,
+    (key) => key === 'credentialGeneration' || current[key] === expected[key],
   )
 }
 

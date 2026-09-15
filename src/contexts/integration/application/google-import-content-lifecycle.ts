@@ -1,9 +1,14 @@
+/**
+ * Why provider content left the browser. Hiding the tab is deliberately not a
+ * reason: the page keeps its selection while the authorization lease is renewed
+ * in the background, and clears only when access, scope, or a deadline ends
+ * (ADR 0050 §3, amended 2026-09-15).
+ */
 export type GoogleImportClearReason =
   | 'authorization_revoked'
   | 'connection_changed'
   | 'content_expired'
   | 'lease_expired'
-  | 'page_hidden'
   | 'route_left'
   | 'tenant_changed'
 
@@ -23,7 +28,14 @@ type LifecycleDependencies = Readonly<{
   /** Removes the provider-content queries; removal cancels any in-flight fetch. */
   removeQueries: () => void
   clearContent: () => void
+  /** Runs `run` after the current task; returns a cancel. Tests inject their own. */
+  schedule?: (run: () => void) => () => void
 }>
+
+function scheduleAfterCurrentTask(run: () => void): () => void {
+  const timeout = setTimeout(run, 0)
+  return () => clearTimeout(timeout)
+}
 
 const MAX_TIMER_DELAY_MS = 2_147_483_647
 
@@ -37,6 +49,8 @@ export function createGoogleImportContentLifecycle(deps: LifecycleDependencies) 
   let viewEpoch = 0
   let active = true
   let clearContent = deps.clearContent
+  let cancelPendingLeave: (() => void) | null = null
+  const schedule = deps.schedule ?? scheduleAfterCurrentTask
   const invalidationReasons: GoogleImportClearReason[] = []
 
   // Synchronous on purpose. Removing a query destroys it, which cancels an
@@ -78,9 +92,28 @@ export function createGoogleImportContentLifecycle(deps: LifecycleDependencies) 
     epoch: () => viewEpoch,
     activate: () => {
       active = true
+      cancelPendingLeave?.()
+      cancelPendingLeave = null
     },
     deactivate: () => {
       active = false
+    },
+    /**
+     * The owning view unmounted. StrictMode and Fast Refresh unmount a view and
+     * mount it again at once, keeping this lifecycle and the view's own epoch.
+     * Clearing right away advanced the lifecycle past that epoch, so every
+     * answer the re-mounted view then fetched came back stale and was dropped:
+     * the connected account's Business Profile accounts read as "none found"
+     * until a reload. The clear waits one task, and an activation in between
+     * (the re-mount) cancels it; a view that really left is cleared as before.
+     */
+    leave: () => {
+      active = false
+      cancelPendingLeave?.()
+      cancelPendingLeave = schedule(() => {
+        cancelPendingLeave = null
+        clear('route_left')
+      })
     },
     setClearContent: (next: () => void) => {
       clearContent = next

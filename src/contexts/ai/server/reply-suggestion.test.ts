@@ -183,6 +183,7 @@ const UNAVAILABLE_RETRY_AFTER: Readonly<Record<UnavailableCode, number | null>> 
   brand_profile_changed: null,
   language_not_supported: null,
   target_language_unavailable: null,
+  busy: RETRY_AT,
   completed_without_delivery: null,
   policy_unavailable: RETRY_AT,
   provider_unavailable: RETRY_AT,

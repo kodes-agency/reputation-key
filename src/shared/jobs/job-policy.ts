@@ -23,8 +23,11 @@ import {
 
 /**
  * Backoff jitter fraction (BullMQ BackoffOptions.jitter: "percentage of
- * jitter usage", 0–1). 0.5 spreads retries ±50% around the exponential delay
- * so a fleet of failed jobs doesn't retry in lockstep.
+ * jitter usage", 0–1). BullMQ only shortens a delay with it: the exponential
+ * strategy draws uniformly from [delay × (1 − jitter), delay)
+ * (node_modules/bullmq/dist/esm/classes/backoffs.js, `exponential`). At 0.5 a
+ * 30 s first backoff lands between 15 and 30 s, never later, so a fleet of
+ * failed jobs doesn't retry in lockstep.
  */
 const BACKOFF_JITTER = 0.5
 

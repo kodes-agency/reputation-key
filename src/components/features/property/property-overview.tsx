@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 // Dashboard → Overview (redesign rows 4, 5, 8, 12).
 //
 // Four rows, one laptop screen, no charts: is anything wrong, how are we doing,
@@ -43,6 +44,8 @@ export interface PropertyOverviewProps {
   signals: AttentionSignals
   guestVoiceFns: OverviewGuestVoiceServerFns
   profileViewsFns: OverviewProfileViewsServerFns
+  /** What is left to set the property up; renders nothing once it is done. */
+  setupStrip?: ReactNode
 }
 
 function ratingTile(lifetime: DashboardData, pulse: DashboardData, propertyId: string) {
@@ -161,6 +164,7 @@ export function PropertyOverview({
   signals,
   guestVoiceFns,
   profileViewsFns,
+  setupStrip,
 }: PropertyOverviewProps) {
   if (!property) return null
 
@@ -175,6 +179,8 @@ export function PropertyOverview({
           { label: 'Overview' },
         ]}
       />
+
+      {setupStrip}
 
       <AttentionBand signals={signals} propertyId={propertyId} />
 

@@ -72,7 +72,7 @@ function AnalysisOff({ propertyId }: Readonly<{ propertyId: string }>) {
       action={
         canManage ? (
           <Button asChild className="h-11 shrink-0">
-            <Link to="/settings/ai" search={{ propertyId }}>
+            <Link to="/properties/$propertyId/settings/ai" params={{ propertyId }}>
               Turn on AI analysis
             </Link>
           </Button>
@@ -84,7 +84,7 @@ function AnalysisOff({ propertyId }: Readonly<{ propertyId: string }>) {
       </p>
       {canManage ? null : (
         <p className="text-sm text-muted-foreground">
-          An account admin can turn it on in Settings → AI &amp; replies.
+          An account admin can turn it on in this property&apos;s AI settings.
         </p>
       )}
     </Row>

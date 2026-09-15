@@ -84,6 +84,8 @@ export type SystemAction =
   | 'system:quarantine.ttl'
   | 'system:ai.execution_reap'
   | 'system:ai.review_analysis_enrollment_sweep'
+  | 'system:ai.review_analysis_backlog_drain'
+  | 'system:ai.review_analysis_on_demand'
   | 'system:permit.start_deadline_fence'
   | 'system:property.import_claim_reap'
   | 'system:goal.reconcile'
@@ -185,6 +187,18 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     true,
   ),
   job('generate-property-ai-trend', 'system:ai.trend', 'ai.detect_trends', 'property'),
+  job(
+    'ai-review-analysis-backlog-drain',
+    'system:ai.review_analysis_backlog_drain',
+    'ai.analyze',
+    'tenant_cross',
+  ),
+  job(
+    'ai-review-analysis-on-demand',
+    'system:ai.review_analysis_on_demand',
+    'ai.analyze',
+    'property',
+  ),
   job(
     'schedule-property-ai-trends',
     'system:ai.trend_schedule',
@@ -456,6 +470,12 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'published-event-redelivery-recurring',
     'system:outbox.redeliver',
     'none',
+    'tenant_cross',
+  ),
+  schedule(
+    'ai-review-analysis-backlog-drain-recurring',
+    'system:ai.review_analysis_backlog_drain',
+    'ai.analyze',
     'tenant_cross',
   ),
   schedule(

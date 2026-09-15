@@ -622,6 +622,14 @@ export const createAiOperationStoreAdapter = (
               eq(aiOperations.state, 'pending'),
               lte(aiOperations.expiresAt, now),
             ),
+            // A reply draft left `pending` by a busy or failed request has no
+            // origin event to settle; once its own window closes it is
+            // abandoned so rows cannot accumulate behind idle composers.
+            and(
+              eq(aiOperations.command, 'reply'),
+              eq(aiOperations.state, 'pending'),
+              lte(aiOperations.expiresAt, now),
+            ),
             and(
               eq(aiOperations.command, 'analysis'),
               eq(aiOperations.state, 'succeeded_pending_delivery'),

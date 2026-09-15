@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
 import { Button } from '#/components/ui/button'
 import { GoogleImportReviewForm } from './google-import-review-form'
-import { createImportReviewDraft } from './google-import-review-model'
+import {
+  createImportReviewDraft,
+  type ImportReviewDraft,
+} from './google-import-review-model'
 import { useGoogleImportReviewForm } from './use-google-import'
 
 const candidates: readonly ImportCandidateDto[] = [
@@ -16,7 +19,19 @@ const candidates: readonly ImportCandidateDto[] = [
     businessName: 'The Meridian Grand Resort',
     address: '100 Harbor Boulevard, San Francisco, CA',
     primaryCategory: 'Hotel',
+    // The United States spans several zones, so this row starts flagged.
     countryCode: 'US',
+    eligibility: { kind: 'create' },
+  },
+  {
+    candidateId: 'candidate-juniper',
+    candidateRef: 'candidate.juniper',
+    accountRef: 'account.north',
+    accountDisplayName: 'North region',
+    businessName: 'Juniper Street Café',
+    address: '14 Rue de Rivoli, Paris',
+    primaryCategory: 'Cafe',
+    countryCode: 'FR',
     eligibility: { kind: 'create' },
   },
   {
@@ -42,21 +57,45 @@ const candidates: readonly ImportCandidateDto[] = [
   },
 ]
 
+const flaggedDraft = (): ImportReviewDraft => createImportReviewDraft(candidates)
+
+const completeDraft = (): ImportReviewDraft => {
+  const draft = flaggedDraft()
+  return {
+    ...draft,
+    items: draft.items.map((item, index) =>
+      index === 0 ? { ...item, timezone: 'America/Los_Angeles' } : item,
+    ),
+  }
+}
+
 function ReviewHarness({
+  initialDraft = flaggedDraft,
   pending = false,
   submitError = null,
+  rerenderEveryMs = null,
 }: {
+  initialDraft?: () => ImportReviewDraft
   pending?: boolean
   submitError?: string | null
+  /** Re-render around the form on a timer, as the discovery lease renewal does. */
+  rerenderEveryMs?: number | null
 }) {
-  const [draft] = useState(() =>
-    createImportReviewDraft(candidates, 'America/Los_Angeles'),
-  )
-  const [submitted, setSubmitted] = useState(false)
+  const [, setTicks] = useState(0)
+  useEffect(() => {
+    if (rerenderEveryMs === null) return
+    const timer = window.setInterval(
+      () => setTicks((ticks) => ticks + 1),
+      rerenderEveryMs,
+    )
+    return () => window.clearInterval(timer)
+  }, [rerenderEveryMs])
+  const [draft] = useState(initialDraft)
+  const [submitted, setSubmitted] = useState<ImportReviewDraft | null>(null)
   const [reviewing, setReviewing] = useState(true)
   const form = useGoogleImportReviewForm({
     initialDraft: draft,
-    onSubmit: () => setSubmitted(true),
+    onSubmit: (value) => setSubmitted(value),
   })
   return (
     <>
@@ -72,7 +111,11 @@ function ReviewHarness({
           Return to current review
         </Button>
       )}
-      {submitted ? <p role="status">Import submitted</p> : null}
+      {submitted ? (
+        <p role="status" aria-label="Submission">
+          Import submitted with {submitted.items.map((item) => item.timezone).join(', ')}
+        </p>
+      ) : null}
     </>
   )
 }
@@ -85,40 +128,150 @@ const meta: Meta<typeof GoogleImportReviewForm> = {
 export default meta
 type Story = StoryObj<typeof GoogleImportReviewForm>
 
-export const ConfirmationRequired: Story = {
+/** A multi-zone country leaves its row empty and flagged; nothing can start. */
+export const NeedsTimezone: Story = {
   render: () => <ReviewHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /start import/i }))
+    await expect(canvas.getByText('1 of 3 properties needs attention')).toBeVisible()
     await expect(
-      canvas.getByText(/confirm every suggested country and timezone/i),
+      canvas.getByRole('combobox', { name: /timezone for all rows/i }),
     ).toBeVisible()
-    await expect(canvas.getByText(/confirm us/i)).toBeVisible()
+    // Creating is the normal case; only the relinked row is labelled.
+    await expect(canvas.getByText('Link existing')).toBeVisible()
+    await expect(canvas.queryByText('Create new')).toBeNull()
+    await expect(canvas.getByText('Choose a timezone.')).toBeVisible()
+    await expect(
+      canvas.getByRole('combobox', { name: /timezone, row 1/i }),
+    ).toHaveAttribute('aria-invalid', 'true')
+    // France has one zone: derived, not guessed from the browser. It reads as a
+    // city and its offset, not as the IANA id.
+    await expect(
+      canvas.getByRole('combobox', { name: /timezone, row 2/i }),
+    ).toHaveTextContent(/^Paris \(UTC\+[12]\)$/)
+    await expect(canvas.getByRole('button', { name: /start import/i })).toBeDisabled()
+    await expect(
+      canvas.getByText(/fix the flagged row to start the import/i),
+    ).toBeVisible()
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
   },
 }
 
-export const Starting: Story = {
-  render: () => <ReviewHarness pending />,
+/** Opens a row's timezone picker; its list renders in a popover outside the canvas. */
+async function openTimezonePicker(canvasElement: HTMLElement, row: RegExp) {
+  await userEvent.click(within(canvasElement).getByRole('combobox', { name: row }))
+  return within(canvasElement.ownerDocument.body)
+}
+
+/** One property has its own timezone field; a control for "all rows" would repeat it. */
+export const SingleProperty: Story = {
+  render: () => (
+    <ReviewHarness initialDraft={() => createImportReviewDraft(candidates.slice(0, 1))} />
+  ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: /starting import/i })).toBeDisabled()
+    await expect(canvas.getByText('1 of 1 property needs attention')).toBeVisible()
+    await expect(
+      canvas.getByRole('combobox', { name: /timezone, row 1/i }),
+    ).toBeInTheDocument()
+    await expect(
+      canvas.queryByRole('combobox', { name: /timezone for all rows/i }),
+    ).toBeNull()
+    await expect(canvas.queryByRole('button', { name: /apply to all/i })).toBeNull()
   },
 }
 
-export const ConfirmedSubmissionUsesFormValues: Story = {
+/** The flagged row's tint and messages must keep their contrast on light surfaces. */
+export const NeedsTimezoneLight: Story = {
+  render: () => <ReviewHarness />,
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Choose a timezone.')).toBeVisible()
+    await expect(canvas.getByRole('button', { name: /start import/i })).toBeDisabled()
+  },
+}
+
+/** Searching finds the zone by city; picking it clears the flag, in the row and the summary. */
+export const PickingTheTimezoneClearsTheFlag: Story = {
   render: () => <ReviewHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('checkbox', { name: /confirm us/i }))
+    const body = await openTimezonePicker(canvasElement, /timezone, row 1/i)
+    // The row's country comes first.
+    await expect(body.getByText('In United States')).toBeVisible()
+    await userEvent.type(body.getByPlaceholderText(/search a city/i), 'los angeles')
+    await userEvent.click(body.getByRole('option', { name: /los angeles \(utc/i }))
+    await expect(
+      canvas.getByRole('combobox', { name: /timezone, row 1/i }),
+    ).toHaveTextContent(/^Los Angeles \(UTC\u2212[78]\)$/)
+    await expect(canvas.getByText('3 properties ready to import')).toBeVisible()
+    await expect(canvas.queryByText('Choose a timezone.')).toBeNull()
+    await expect(canvas.getByRole('button', { name: /start import/i })).toBeEnabled()
+  },
+}
+
+/** People type offsets the way they know them: "+9:30" finds Darwin. */
+export const SearchATimezoneByOffset: Story = {
+  render: () => <ReviewHarness />,
+  play: async ({ canvasElement }) => {
+    const body = await openTimezonePicker(canvasElement, /timezone, row 2/i)
+    await expect(body.getByRole('dialog', { name: 'Choose a timezone' })).toBeVisible()
+    await userEvent.type(body.getByPlaceholderText(/search a city/i), '+9:30')
+    await expect(
+      body.getByRole('option', { name: /darwin \(utc\+9:30\)/i }),
+    ).toBeVisible()
+    await expect(body.queryByRole('option', { name: /paris/i })).toBeNull()
+  },
+}
+
+/**
+ * The discovery lease renews every few seconds and re-renders the page. An
+ * open list must stay where the merchant scrolled it; the old select jumped
+ * back to the top on every renewal.
+ */
+export const OpenListKeepsItsPlace: Story = {
+  render: () => <ReviewHarness rerenderEveryMs={200} />,
+  play: async ({ canvasElement }) => {
+    const body = await openTimezonePicker(canvasElement, /timezone, row 1/i)
+    const list = await body.findByRole('listbox')
+    // This runner compiles no Tailwind: give the list the height its classes
+    // give it in the app, so it scrolls.
+    list.style.maxHeight = '300px'
+    list.style.overflowY = 'auto'
+    list.scrollTop = 900
+    await waitFor(() => expect(list.scrollTop).toBeGreaterThan(0))
+    const scrolled = list.scrollTop
+    // Several re-renders later the list has not moved.
+    await new Promise((resolve) => window.setTimeout(resolve, 1_000))
+    await expect(list.scrollTop).toBe(scrolled)
+    await expect(body.getByRole('listbox')).toBe(list)
+  },
+}
+
+export const AcknowledgementRequired: Story = {
+  render: () => <ReviewHarness initialDraft={completeDraft} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /start import/i }))
+    await expect(
+      canvas.getByText('Confirm that you have checked these details.'),
+    ).toBeVisible()
+    await expect(canvas.queryByRole('status', { name: 'Submission' })).toBeNull()
+  },
+}
+
+export const AcknowledgedSubmissionUsesFormValues: Story = {
+  render: () => <ReviewHarness initialDraft={completeDraft} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
     await userEvent.click(
-      canvas.getByRole('checkbox', { name: /confirm america\/los_angeles/i }),
-    )
-    await userEvent.click(
-      canvas.getByRole('checkbox', { name: /confirm europe\/london/i }),
+      canvas.getByRole('checkbox', { name: /i have checked these details/i }),
     )
     await userEvent.click(canvas.getByRole('button', { name: /start import/i }))
-    await expect(canvas.getByRole('status')).toHaveTextContent(/import submitted/i)
+    await expect(canvas.getByRole('status', { name: 'Submission' })).toHaveTextContent(
+      'America/Los_Angeles, Europe/Paris, Europe/London',
+    )
   },
 }
 
@@ -128,10 +281,9 @@ export const DraftSurvivesBackNavigation: Story = {
     const canvas = within(canvasElement)
     const name = canvas.getAllByRole('textbox', { name: /property name/i })[0]!
     await userEvent.clear(name)
-    // Paste is a real full-field edit but dispatches one input event. Typing 22
-    // separate keystrokes re-renders this controlled review form 22 times and
-    // can consume the entire 15s story budget under suite load; draft retention
-    // depends on the resulting value, not the keyboard's event cadence.
+    // Paste is a real full-field edit but dispatches one input event; typing
+    // every keystroke re-renders the controlled table and can exhaust the story
+    // budget under suite load. Draft retention depends on the value only.
     await userEvent.paste('Meridian Airport Hotel')
     await userEvent.click(canvas.getByRole('button', { name: /back to locations/i }))
     await userEvent.click(
@@ -143,8 +295,53 @@ export const DraftSurvivesBackNavigation: Story = {
   },
 }
 
+export const Starting: Story = {
+  render: () => <ReviewHarness initialDraft={completeDraft} pending />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('button', { name: /starting import/i })).toBeDisabled()
+  },
+}
+
 export const StartFailure: Story = {
   render: () => (
-    <ReviewHarness submitError="The import request could not be confirmed. Recover it before trying again." />
+    <ReviewHarness
+      initialDraft={completeDraft}
+      submitError="The import request could not be confirmed. Recover it before trying again."
+    />
   ),
+}
+
+/**
+ * At phone width the table reflows into one block per property, so every control
+ * must name its own column and row. This runner compiles no Tailwind, so the
+ * reflow itself is verified in a real browser; here the labels are the gate.
+ */
+export const PhoneWidth: Story = {
+  render: () => <ReviewHarness />,
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // Explicit roles keep the table navigable once CSS reflows it into blocks.
+    const table = canvas.getByRole('table', { name: 'Confirm details' })
+    await expect(within(table).getAllByRole('row')).toHaveLength(4)
+    await expect(within(table).getAllByRole('cell')).toHaveLength(12)
+    for (const row of [1, 2, 3]) {
+      await expect(
+        canvas.getByRole('textbox', { name: `Property name, row ${row}` }),
+      ).toBeInTheDocument()
+      await expect(
+        canvas.getByRole('textbox', { name: `Address, row ${row}` }),
+      ).toBeInTheDocument()
+      await expect(
+        canvas.getByRole('combobox', { name: `Timezone, row ${row}` }),
+      ).toBeInTheDocument()
+    }
+    await expect(
+      canvas.getByRole('combobox', { name: 'Country, row 1' }),
+    ).toHaveTextContent('United States (US)')
+    // A linked property keeps its country; there is nothing to choose.
+    await expect(canvas.queryByRole('combobox', { name: 'Country, row 3' })).toBeNull()
+    await expect(canvas.getByRole('button', { name: /start import/i })).toBeDisabled()
+  },
 }

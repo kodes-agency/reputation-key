@@ -31,6 +31,7 @@ function event(
     | 'review.source_transitioned'
     | 'ai.review_analysis.backfill_requested',
   change?: 'source_expired' | 'provider_deleted',
+  observationOrigin?: 'ongoing' | 'historical_onboarding',
 ): ConsumerEvent {
   return {
     eventId: EVENT_ID,
@@ -44,6 +45,7 @@ function event(
       sourceRevision: 5,
       analysisSequence: 7,
       ...(change ? { change } : {}),
+      ...(observationOrigin ? { observationOrigin } : {}),
     },
     organizationId: ORGANIZATION_ID,
     propertyId: PROPERTY_ID,
@@ -57,6 +59,7 @@ function harness(result: AnalyzeReviewEventResult) {
   const analyzeReviewEvent = vi.fn(async () => result)
   const enqueuePropertyTrend = vi.fn(async () => {})
   const insertReceipt = vi.fn(async () => {})
+  const enqueue = vi.fn(async () => {})
   const applyAiAuthorizationLifecycle = vi.fn<
     NonNullable<RegisterAiConsumersInput['applyAiAuthorizationLifecycle']>
   >(async () => ({
@@ -94,6 +97,8 @@ function harness(result: AnalyzeReviewEventResult) {
     enqueuePropertyTrend,
     applyAiAuthorizationLifecycle,
     receipts: { insertReceipt } as unknown as OutboxRepository,
+    backlog: { enqueue },
+    nowEpochMillis: () => Date.parse(RECORDED_AT) + 1_000,
   } satisfies RegisterAiConsumersInput
   return {
     dependencies,
@@ -101,6 +106,7 @@ function harness(result: AnalyzeReviewEventResult) {
     enqueuePropertyTrend,
     applyAiAuthorizationLifecycle,
     insertReceipt,
+    enqueue,
   }
 }
 
@@ -149,7 +155,10 @@ describe('AI review outbox consumer', () => {
       disposition: 'pending',
       eventRecordedAtEpochMillis: Date.parse(RECORDED_AT),
       operationHorizonMillis: AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
+      execution: 'execute',
+      lane: 'background',
     })
+    expect(test.enqueue).not.toHaveBeenCalled()
     expect(test.insertReceipt).toHaveBeenCalledWith(
       EVENT_ID,
       AI_REVIEW_ANALYSIS_CONSUMER,
@@ -170,7 +179,79 @@ describe('AI review outbox consumer', () => {
       expect.objectContaining({
         disposition: 'pending',
         operationHorizonMillis: AI_BACKFILL_OPERATION_HORIZON_MILLIS,
+        execution: 'defer',
       }),
+    )
+  })
+
+  it.each([
+    ['ai.review_analysis.backfill_requested', undefined, 'backfill'],
+    ['review.created', 'historical_onboarding', 'historical_onboarding'],
+    ['review.updated', 'historical_onboarding', 'historical_onboarding'],
+  ] as const)(
+    'queues %s history for the background lane and receipts the event',
+    async (eventType, observationOrigin, origin) => {
+      const test = harness({ status: 'deferred' })
+
+      await expect(
+        handleAiReviewEvent(
+          test.dependencies,
+          event(eventType, undefined, observationOrigin),
+        ),
+      ).resolves.toEqual({ status: 'applied' })
+      expect(test.analyzeReviewEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ execution: 'defer', lane: 'background' }),
+      )
+      expect(test.enqueue).toHaveBeenCalledWith({
+        eventEnvelopeId: EVENT_ID,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_ID,
+        sourceEpoch: 2,
+        sourceRevision: 5,
+        analysisSequence: 7,
+        origin,
+        nowEpochMillis: Date.parse(RECORDED_AT) + 1_000,
+      })
+      expect(test.insertReceipt).toHaveBeenCalledWith(
+        EVENT_ID,
+        AI_REVIEW_ANALYSIS_CONSUMER,
+        'applied',
+      )
+    },
+  )
+
+  it('analyses an ongoing review on delivery', async () => {
+    const test = harness({ status: 'completed' })
+
+    await handleAiReviewEvent(
+      test.dependencies,
+      event('review.created', undefined, 'ongoing'),
+    )
+
+    expect(test.analyzeReviewEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ execution: 'execute' }),
+    )
+    expect(test.enqueue).not.toHaveBeenCalled()
+  })
+
+  it('queues a live review whose background lane was busy instead of redelivering it', async () => {
+    const test = harness({
+      status: 'retry',
+      retryAtEpochMillis: Date.parse(RECORDED_AT) + 30_000,
+      code: 'admission_busy',
+    })
+
+    await expect(
+      handleAiReviewEvent(test.dependencies, event('review.created')),
+    ).resolves.toEqual({ status: 'applied' })
+    expect(test.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ eventEnvelopeId: EVENT_ID, origin: 'deferred_live' }),
+    )
+    expect(test.insertReceipt).toHaveBeenCalledWith(
+      EVENT_ID,
+      AI_REVIEW_ANALYSIS_CONSUMER,
+      'applied',
     )
   })
 

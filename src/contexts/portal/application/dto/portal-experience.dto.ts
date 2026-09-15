@@ -40,6 +40,11 @@ export const portalBrandFormInputSchema = z
     }
   })
 
+export const propertyPublicDisplayNameInputSchema = z.object({
+  propertyId: z.string().min(1, 'Property ID is required'),
+  displayName: portalBrandDisplayNameSchema,
+})
+
 export const propertyPortalBrandProfileInputSchema = portalExperienceScopeSchema
   .extend({
     logoUrl: z.null().optional(),

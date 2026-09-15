@@ -63,6 +63,14 @@ import { Route as AuthenticatedPropertiesPropertyIdGoalsNewRouteImport } from '.
 import { Route as AuthenticatedPropertiesPropertyIdPortalsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/portals/index'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteImport } from './routes/_authenticated/properties/$propertyId/portals/$portalId'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsNewRouteImport } from './routes/_authenticated/properties/$propertyId/portals/new'
+import { Route as AuthenticatedPropertiesPropertyIdSettingsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/settings/index'
+import { Route as AuthenticatedPropertiesPropertyIdSettingsAiRouteImport } from './routes/_authenticated/properties/$propertyId/settings/ai'
+import { Route as AuthenticatedPropertiesPropertyIdSettingsDangerRouteImport } from './routes/_authenticated/properties/$propertyId/settings/danger'
+import { Route as AuthenticatedPropertiesPropertyIdSettingsGoogleRouteImport } from './routes/_authenticated/properties/$propertyId/settings/google'
+import { Route as AuthenticatedPropertiesPropertyIdSettingsPeopleRouteImport } from './routes/_authenticated/properties/$propertyId/settings/people'
+import { Route as AuthenticatedPropertiesPropertyIdSettingsProfileRouteImport } from './routes/_authenticated/properties/$propertyId/settings/profile'
+import { Route as AuthenticatedPropertiesPropertyIdSettingsRepliesRouteImport } from './routes/_authenticated/properties/$propertyId/settings/replies'
+import { Route as AuthenticatedPropertiesPropertyIdSettingsTargetsRouteImport } from './routes/_authenticated/properties/$propertyId/settings/targets'
 import { Route as ApiPublicPTokenClickLinkIdRouteImport } from './routes/api/public/p/$token/click/$linkId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -365,6 +373,54 @@ const AuthenticatedPropertiesPropertyIdPortalsNewRoute =
     path: '/portals/new',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
+const AuthenticatedPropertiesPropertyIdSettingsIndexRoute =
+  AuthenticatedPropertiesPropertyIdSettingsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdSettingsRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdSettingsAiRoute =
+  AuthenticatedPropertiesPropertyIdSettingsAiRouteImport.update({
+    id: '/ai',
+    path: '/ai',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdSettingsRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdSettingsDangerRoute =
+  AuthenticatedPropertiesPropertyIdSettingsDangerRouteImport.update({
+    id: '/danger',
+    path: '/danger',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdSettingsRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdSettingsGoogleRoute =
+  AuthenticatedPropertiesPropertyIdSettingsGoogleRouteImport.update({
+    id: '/google',
+    path: '/google',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdSettingsRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdSettingsPeopleRoute =
+  AuthenticatedPropertiesPropertyIdSettingsPeopleRouteImport.update({
+    id: '/people',
+    path: '/people',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdSettingsRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdSettingsProfileRoute =
+  AuthenticatedPropertiesPropertyIdSettingsProfileRouteImport.update({
+    id: '/profile',
+    path: '/profile',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdSettingsRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdSettingsRepliesRoute =
+  AuthenticatedPropertiesPropertyIdSettingsRepliesRouteImport.update({
+    id: '/replies',
+    path: '/replies',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdSettingsRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdSettingsTargetsRoute =
+  AuthenticatedPropertiesPropertyIdSettingsTargetsRouteImport.update({
+    id: '/targets',
+    path: '/targets',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdSettingsRoute,
+  } as any)
 const ApiPublicPTokenClickLinkIdRoute =
   ApiPublicPTokenClickLinkIdRouteImport.update({
     id: '/api/public/p/$token/click/$linkId',
@@ -413,7 +469,7 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/properties/$propertyId/ratings': typeof AuthenticatedPropertiesPropertyIdRatingsRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
-  '/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRoute
+  '/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRouteWithChildren
   '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
@@ -424,8 +480,16 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
   '/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
+  '/properties/$propertyId/settings/ai': typeof AuthenticatedPropertiesPropertyIdSettingsAiRoute
+  '/properties/$propertyId/settings/danger': typeof AuthenticatedPropertiesPropertyIdSettingsDangerRoute
+  '/properties/$propertyId/settings/google': typeof AuthenticatedPropertiesPropertyIdSettingsGoogleRoute
+  '/properties/$propertyId/settings/people': typeof AuthenticatedPropertiesPropertyIdSettingsPeopleRoute
+  '/properties/$propertyId/settings/profile': typeof AuthenticatedPropertiesPropertyIdSettingsProfileRoute
+  '/properties/$propertyId/settings/replies': typeof AuthenticatedPropertiesPropertyIdSettingsRepliesRoute
+  '/properties/$propertyId/settings/targets': typeof AuthenticatedPropertiesPropertyIdSettingsTargetsRoute
   '/properties/$propertyId/goals/': typeof AuthenticatedPropertiesPropertyIdGoalsIndexRoute
   '/properties/$propertyId/portals/': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
+  '/properties/$propertyId/settings/': typeof AuthenticatedPropertiesPropertyIdSettingsIndexRoute
   '/api/public/p/$token/click/$linkId': typeof ApiPublicPTokenClickLinkIdRoute
 }
 export interface FileRoutesByTo {
@@ -466,7 +530,6 @@ export interface FileRoutesByTo {
   '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/properties/$propertyId/ratings': typeof AuthenticatedPropertiesPropertyIdRatingsRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
-  '/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRoute
   '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
@@ -477,8 +540,16 @@ export interface FileRoutesByTo {
   '/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
   '/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
+  '/properties/$propertyId/settings/ai': typeof AuthenticatedPropertiesPropertyIdSettingsAiRoute
+  '/properties/$propertyId/settings/danger': typeof AuthenticatedPropertiesPropertyIdSettingsDangerRoute
+  '/properties/$propertyId/settings/google': typeof AuthenticatedPropertiesPropertyIdSettingsGoogleRoute
+  '/properties/$propertyId/settings/people': typeof AuthenticatedPropertiesPropertyIdSettingsPeopleRoute
+  '/properties/$propertyId/settings/profile': typeof AuthenticatedPropertiesPropertyIdSettingsProfileRoute
+  '/properties/$propertyId/settings/replies': typeof AuthenticatedPropertiesPropertyIdSettingsRepliesRoute
+  '/properties/$propertyId/settings/targets': typeof AuthenticatedPropertiesPropertyIdSettingsTargetsRoute
   '/properties/$propertyId/goals': typeof AuthenticatedPropertiesPropertyIdGoalsIndexRoute
   '/properties/$propertyId/portals': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
+  '/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsIndexRoute
   '/api/public/p/$token/click/$linkId': typeof ApiPublicPTokenClickLinkIdRoute
 }
 export interface FileRoutesById {
@@ -524,7 +595,7 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/_authenticated/properties/$propertyId/ratings': typeof AuthenticatedPropertiesPropertyIdRatingsRoute
   '/_authenticated/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
-  '/_authenticated/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRoute
+  '/_authenticated/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRouteWithChildren
   '/_authenticated/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
@@ -535,8 +606,16 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/_authenticated/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
   '/_authenticated/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
+  '/_authenticated/properties/$propertyId/settings/ai': typeof AuthenticatedPropertiesPropertyIdSettingsAiRoute
+  '/_authenticated/properties/$propertyId/settings/danger': typeof AuthenticatedPropertiesPropertyIdSettingsDangerRoute
+  '/_authenticated/properties/$propertyId/settings/google': typeof AuthenticatedPropertiesPropertyIdSettingsGoogleRoute
+  '/_authenticated/properties/$propertyId/settings/people': typeof AuthenticatedPropertiesPropertyIdSettingsPeopleRoute
+  '/_authenticated/properties/$propertyId/settings/profile': typeof AuthenticatedPropertiesPropertyIdSettingsProfileRoute
+  '/_authenticated/properties/$propertyId/settings/replies': typeof AuthenticatedPropertiesPropertyIdSettingsRepliesRoute
+  '/_authenticated/properties/$propertyId/settings/targets': typeof AuthenticatedPropertiesPropertyIdSettingsTargetsRoute
   '/_authenticated/properties/$propertyId/goals/': typeof AuthenticatedPropertiesPropertyIdGoalsIndexRoute
   '/_authenticated/properties/$propertyId/portals/': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
+  '/_authenticated/properties/$propertyId/settings/': typeof AuthenticatedPropertiesPropertyIdSettingsIndexRoute
   '/api/public/p/$token/click/$linkId': typeof ApiPublicPTokenClickLinkIdRoute
 }
 export interface FileRouteTypes {
@@ -593,8 +672,16 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/goals/new'
     | '/properties/$propertyId/portals/$portalId'
     | '/properties/$propertyId/portals/new'
+    | '/properties/$propertyId/settings/ai'
+    | '/properties/$propertyId/settings/danger'
+    | '/properties/$propertyId/settings/google'
+    | '/properties/$propertyId/settings/people'
+    | '/properties/$propertyId/settings/profile'
+    | '/properties/$propertyId/settings/replies'
+    | '/properties/$propertyId/settings/targets'
     | '/properties/$propertyId/goals/'
     | '/properties/$propertyId/portals/'
+    | '/properties/$propertyId/settings/'
     | '/api/public/p/$token/click/$linkId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -635,7 +722,6 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/people'
     | '/properties/$propertyId/ratings'
     | '/properties/$propertyId/reviews'
-    | '/properties/$propertyId/settings'
     | '/properties/import-google/$importId'
     | '/api/auth/google/callback'
     | '/api/webhooks/gbp/notifications'
@@ -646,8 +732,16 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/goals/new'
     | '/properties/$propertyId/portals/$portalId'
     | '/properties/$propertyId/portals/new'
+    | '/properties/$propertyId/settings/ai'
+    | '/properties/$propertyId/settings/danger'
+    | '/properties/$propertyId/settings/google'
+    | '/properties/$propertyId/settings/people'
+    | '/properties/$propertyId/settings/profile'
+    | '/properties/$propertyId/settings/replies'
+    | '/properties/$propertyId/settings/targets'
     | '/properties/$propertyId/goals'
     | '/properties/$propertyId/portals'
+    | '/properties/$propertyId/settings'
     | '/api/public/p/$token/click/$linkId'
   id:
     | '__root__'
@@ -703,8 +797,16 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId/goals/new'
     | '/_authenticated/properties/$propertyId/portals/$portalId'
     | '/_authenticated/properties/$propertyId/portals/new'
+    | '/_authenticated/properties/$propertyId/settings/ai'
+    | '/_authenticated/properties/$propertyId/settings/danger'
+    | '/_authenticated/properties/$propertyId/settings/google'
+    | '/_authenticated/properties/$propertyId/settings/people'
+    | '/_authenticated/properties/$propertyId/settings/profile'
+    | '/_authenticated/properties/$propertyId/settings/replies'
+    | '/_authenticated/properties/$propertyId/settings/targets'
     | '/_authenticated/properties/$propertyId/goals/'
     | '/_authenticated/properties/$propertyId/portals/'
+    | '/_authenticated/properties/$propertyId/settings/'
     | '/api/public/p/$token/click/$linkId'
   fileRoutesById: FileRoutesById
 }
@@ -1113,6 +1215,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsNewRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
     }
+    '/_authenticated/properties/$propertyId/settings/': {
+      id: '/_authenticated/properties/$propertyId/settings/'
+      path: '/'
+      fullPath: '/properties/$propertyId/settings/'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdSettingsIndexRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRoute
+    }
+    '/_authenticated/properties/$propertyId/settings/ai': {
+      id: '/_authenticated/properties/$propertyId/settings/ai'
+      path: '/ai'
+      fullPath: '/properties/$propertyId/settings/ai'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdSettingsAiRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRoute
+    }
+    '/_authenticated/properties/$propertyId/settings/danger': {
+      id: '/_authenticated/properties/$propertyId/settings/danger'
+      path: '/danger'
+      fullPath: '/properties/$propertyId/settings/danger'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdSettingsDangerRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRoute
+    }
+    '/_authenticated/properties/$propertyId/settings/google': {
+      id: '/_authenticated/properties/$propertyId/settings/google'
+      path: '/google'
+      fullPath: '/properties/$propertyId/settings/google'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdSettingsGoogleRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRoute
+    }
+    '/_authenticated/properties/$propertyId/settings/people': {
+      id: '/_authenticated/properties/$propertyId/settings/people'
+      path: '/people'
+      fullPath: '/properties/$propertyId/settings/people'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdSettingsPeopleRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRoute
+    }
+    '/_authenticated/properties/$propertyId/settings/profile': {
+      id: '/_authenticated/properties/$propertyId/settings/profile'
+      path: '/profile'
+      fullPath: '/properties/$propertyId/settings/profile'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdSettingsProfileRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRoute
+    }
+    '/_authenticated/properties/$propertyId/settings/replies': {
+      id: '/_authenticated/properties/$propertyId/settings/replies'
+      path: '/replies'
+      fullPath: '/properties/$propertyId/settings/replies'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRepliesRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRoute
+    }
+    '/_authenticated/properties/$propertyId/settings/targets': {
+      id: '/_authenticated/properties/$propertyId/settings/targets'
+      path: '/targets'
+      fullPath: '/properties/$propertyId/settings/targets'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdSettingsTargetsRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRoute
+    }
     '/api/public/p/$token/click/$linkId': {
       id: '/api/public/p/$token/click/$linkId'
       path: '/api/public/p/$token/click/$linkId'
@@ -1176,6 +1334,42 @@ const AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren =
     AuthenticatedPropertiesPropertyIdGoalsRouteChildren,
   )
 
+interface AuthenticatedPropertiesPropertyIdSettingsRouteChildren {
+  AuthenticatedPropertiesPropertyIdSettingsAiRoute: typeof AuthenticatedPropertiesPropertyIdSettingsAiRoute
+  AuthenticatedPropertiesPropertyIdSettingsDangerRoute: typeof AuthenticatedPropertiesPropertyIdSettingsDangerRoute
+  AuthenticatedPropertiesPropertyIdSettingsGoogleRoute: typeof AuthenticatedPropertiesPropertyIdSettingsGoogleRoute
+  AuthenticatedPropertiesPropertyIdSettingsPeopleRoute: typeof AuthenticatedPropertiesPropertyIdSettingsPeopleRoute
+  AuthenticatedPropertiesPropertyIdSettingsProfileRoute: typeof AuthenticatedPropertiesPropertyIdSettingsProfileRoute
+  AuthenticatedPropertiesPropertyIdSettingsRepliesRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRepliesRoute
+  AuthenticatedPropertiesPropertyIdSettingsTargetsRoute: typeof AuthenticatedPropertiesPropertyIdSettingsTargetsRoute
+  AuthenticatedPropertiesPropertyIdSettingsIndexRoute: typeof AuthenticatedPropertiesPropertyIdSettingsIndexRoute
+}
+
+const AuthenticatedPropertiesPropertyIdSettingsRouteChildren: AuthenticatedPropertiesPropertyIdSettingsRouteChildren =
+  {
+    AuthenticatedPropertiesPropertyIdSettingsAiRoute:
+      AuthenticatedPropertiesPropertyIdSettingsAiRoute,
+    AuthenticatedPropertiesPropertyIdSettingsDangerRoute:
+      AuthenticatedPropertiesPropertyIdSettingsDangerRoute,
+    AuthenticatedPropertiesPropertyIdSettingsGoogleRoute:
+      AuthenticatedPropertiesPropertyIdSettingsGoogleRoute,
+    AuthenticatedPropertiesPropertyIdSettingsPeopleRoute:
+      AuthenticatedPropertiesPropertyIdSettingsPeopleRoute,
+    AuthenticatedPropertiesPropertyIdSettingsProfileRoute:
+      AuthenticatedPropertiesPropertyIdSettingsProfileRoute,
+    AuthenticatedPropertiesPropertyIdSettingsRepliesRoute:
+      AuthenticatedPropertiesPropertyIdSettingsRepliesRoute,
+    AuthenticatedPropertiesPropertyIdSettingsTargetsRoute:
+      AuthenticatedPropertiesPropertyIdSettingsTargetsRoute,
+    AuthenticatedPropertiesPropertyIdSettingsIndexRoute:
+      AuthenticatedPropertiesPropertyIdSettingsIndexRoute,
+  }
+
+const AuthenticatedPropertiesPropertyIdSettingsRouteWithChildren =
+  AuthenticatedPropertiesPropertyIdSettingsRoute._addFileChildren(
+    AuthenticatedPropertiesPropertyIdSettingsRouteChildren,
+  )
+
 interface AuthenticatedPropertiesPropertyIdRouteChildren {
   AuthenticatedPropertiesPropertyIdGoalsRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren
   AuthenticatedPropertiesPropertyIdGoogleRoute: typeof AuthenticatedPropertiesPropertyIdGoogleRoute
@@ -1184,7 +1378,7 @@ interface AuthenticatedPropertiesPropertyIdRouteChildren {
   AuthenticatedPropertiesPropertyIdPeopleRoute: typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   AuthenticatedPropertiesPropertyIdRatingsRoute: typeof AuthenticatedPropertiesPropertyIdRatingsRoute
   AuthenticatedPropertiesPropertyIdReviewsRoute: typeof AuthenticatedPropertiesPropertyIdReviewsRoute
-  AuthenticatedPropertiesPropertyIdSettingsRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRoute
+  AuthenticatedPropertiesPropertyIdSettingsRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRouteWithChildren
   AuthenticatedPropertiesPropertyIdIndexRoute: typeof AuthenticatedPropertiesPropertyIdIndexRoute
   AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
   AuthenticatedPropertiesPropertyIdPortalsNewRoute: typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
@@ -1208,7 +1402,7 @@ const AuthenticatedPropertiesPropertyIdRouteChildren: AuthenticatedPropertiesPro
     AuthenticatedPropertiesPropertyIdReviewsRoute:
       AuthenticatedPropertiesPropertyIdReviewsRoute,
     AuthenticatedPropertiesPropertyIdSettingsRoute:
-      AuthenticatedPropertiesPropertyIdSettingsRoute,
+      AuthenticatedPropertiesPropertyIdSettingsRouteWithChildren,
     AuthenticatedPropertiesPropertyIdIndexRoute:
       AuthenticatedPropertiesPropertyIdIndexRoute,
     AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute:

@@ -5,8 +5,8 @@ import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyQueuePort } from '../ports/reply-queue.port'
 import type { ReplyCommandStore } from '../ports/reply-command-store.port'
-import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { GoogleReplyObservationStore } from '../ports/google-reply-observation-store.port'
+import type { ReplyPublicationDispatchEvidencePort } from '../ports/reply-publication-dispatch-evidence.port'
 import type { AiSuggestedDraftStore } from '../ports/ai-suggested-draft-store.port'
 import type { ReplyId, ReviewId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -16,9 +16,10 @@ import {
   requireAccessibleReview,
   requireReplyManager as requireManager,
 } from './reply-access'
+import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import {
   assertReplySlotsFilled,
-  MAX_REPLY_LENGTH,
+  replyTextProblemMessage,
   transitionReply,
 } from '../../domain/rules'
 import {
@@ -26,7 +27,7 @@ import {
   nextPublicationCycle,
 } from '../../domain/reply-publication-workflow'
 import { reviewError } from '../../domain/errors'
-import { reconcileReplyPublication } from './reconcile-reply-publication'
+import { settleIfNeverDispatched } from './settle-never-dispatched-attempt'
 import { commitTransition } from '../reply-commit'
 import {
   reviewReplySubmitted,
@@ -48,11 +49,11 @@ export type ReplyDeps = Readonly<{
   /** Atomic verification and persistence seam for browser-held AI suggestions. */
   aiSuggestedDraftStore?: AiSuggestedDraftStore
   /**
-   * BQC-3.8: provider READ path for retryPublish's reconcile-before-retry
-   * (an ambiguous publication is reconciled against Google before any new
-   * send — reconcileReplyPublication never calls the publish endpoint).
+   * D4: the only evidence that lets retryPublish send an uncertain attempt
+   * again. Reply commands hold no Google client: checking Google is
+   * checkReplyPublication's job, and a read is never non-dispatch evidence.
    */
-  googleReviewApi: GoogleReviewApiPort
+  dispatchEvidence: ReplyPublicationDispatchEvidencePort
   googleReplyObservationStore: GoogleReplyObservationStore
   clock: () => Date
   idGen: () => ReplyId
@@ -61,10 +62,11 @@ export type ReplyDeps = Readonly<{
 
 /**
  * Reply mutations require a manager, the reply + review rows, and property
- * access (D6-001) — the single prologue every reply mutation shares.
+ * access (D6-001) — the single prologue every reply mutation shares, and the
+ * one the publication check (check-reply-publication.ts) reuses.
  */
-async function requireAccessibleReply(
-  deps: ReplyDeps,
+export async function requireAccessibleReply(
+  deps: Pick<ReplyDeps, 'replyRepo' | 'reviewRepo' | 'staffPublicApi'>,
   ctx: AuthContext,
   reviewId: ReviewId,
   replyNotFoundMessage = 'No reply found for this review',
@@ -78,7 +80,7 @@ async function requireAccessibleReply(
   return { reply, review }
 }
 
-function isSettledPublishedReply(
+export function isSettledPublishedReply(
   reply: Reply | null,
 ): reply is Reply & { status: 'published'; publicationState: 'published' } {
   return reply?.status === 'published' && reply.publicationState === 'published'
@@ -195,41 +197,47 @@ async function authorizeAndEnqueuePublication(
   return outcome.reply
 }
 
+const WONT_SEND_AGAIN =
+  "RepKey won't send this reply again because Google may already have it. Use Check Google again instead."
+
 /**
- * Split read-only provider reconciliation from retry re-authorization: this
- * path may return only settled/cancelled state and must never admit a new PUT.
+ * Split uncertain-attempt reconciliation from retry re-authorization. It reads
+ * no Google state: a read that omits the reply is never evidence that nothing
+ * was sent (Google may accept a reply and not echo it). The only way through is
+ * positive dispatch evidence that no request for this attempt left RepKey; the
+ * attempt is then settled as not published, and the caller authorizes a NEW
+ * cycle from that settled row. Anything else refuses, so an explicit "Try
+ * publishing again" can never become a second post.
  */
 async function reconcileUncertainPublicationBeforeRetry(
   deps: ReplyDeps,
-  ctx: AuthContext,
   reply: Reply,
+  review: Review,
 ): Promise<Reply> {
-  const reconciled = await reconcileReplyPublication({
-    replyRepo: deps.replyRepo,
-    reviewRepo: deps.reviewRepo,
-    googleReviewApi: deps.googleReviewApi,
-    observationStore: deps.googleReplyObservationStore,
-    clock: deps.clock,
-  })({ replyId: reply.id, organizationId: ctx.organizationId })
-  if (reconciled.isErr()) {
-    const current = await deps.replyRepo.findById(reply.id, ctx.organizationId)
+  const settlement = await settleIfNeverDispatched(deps, {
+    reply,
+    propertyId: review.propertyId,
+  })
+  if (settlement.kind === 'settled') return settlement.reply
+  if (settlement.kind === 'superseded') {
+    // Only a durable confirmation may answer the retry; any other move keeps
+    // the refusal, and the manager's view refreshes to the new state.
+    const current = await deps.replyRepo.findById(reply.id, reply.organizationId)
     if (isSettledPublishedReply(current)) return current
-    if (current?.publicationState === 'cancelled') return current
-    throw reconciled.error
   }
-  if (reconciled.value.outcome === 'confirmed_on_google') {
-    const healed = await deps.replyRepo.findById(reply.id, ctx.organizationId)
-    if (!healed) throw reviewError('reply_not_found', 'Reply not found')
-    return healed
-  }
+  throw reviewError('invalid_transition', WONT_SEND_AGAIN)
+}
 
-  const current = await deps.replyRepo.findById(reply.id, ctx.organizationId)
-  if (isSettledPublishedReply(current)) return current
-  if (current?.publicationState === 'cancelled') return current
-  throw reviewError(
-    'invalid_transition',
-    'Google did not positively confirm whether this reply is live; RepKey will not send it again',
-  )
+/**
+ * Refuse, synchronously and in words, any text the provider route would refuse
+ * at compile time. Without this, draft/submit/approve accepted text the worker
+ * could never send (route-catalogue.ts `reviews.reply`), and the failure only
+ * surfaced as a publication nobody could explain.
+ */
+function assertReplyTextSendable(text: string): void {
+  const problem = replyCommentProblem(text)
+  if (problem !== null)
+    throw reviewError('invalid_reply', replyTextProblemMessage(problem))
 }
 
 export type DraftReply = ReturnType<typeof draftReply>
@@ -257,15 +265,7 @@ export const draftReply =
   async (input: DraftReplyInput, ctx: AuthContext): Promise<Reply> => {
     requireManager(ctx)
 
-    if (!input.text.trim()) {
-      throw reviewError('invalid_reply', 'Reply text cannot be empty')
-    }
-    if (input.text.length > MAX_REPLY_LENGTH) {
-      throw reviewError(
-        'invalid_reply',
-        `Reply text exceeds ${MAX_REPLY_LENGTH} characters`,
-      )
-    }
+    assertReplyTextSendable(input.text)
     if (
       (input.templateId === undefined) !== (input.templateVersion === undefined) ||
       (input.templateVersion !== undefined && input.templateVersion < 1)
@@ -390,6 +390,9 @@ export const submitReply =
       input.reviewId,
       'No draft reply found for this review',
     )
+    // Stored text is checked again: a draft saved under the old character cap
+    // can still be too long in bytes.
+    assertReplyTextSendable(reply.text)
     assertReplySlotsFilled(reply.text)
     await assertCurrentAiDraftBinding(deps, ctx, reply)
 
@@ -426,6 +429,7 @@ export const approveReply =
   async (input: ApproveReplyInput, ctx: AuthContext): Promise<Reply> => {
     // D6-001: scope reply mutations to the caller's assigned properties.
     const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
+    assertReplyTextSendable(reply.text)
     assertReplySlotsFilled(reply.text)
     await assertCurrentAiDraftBinding(deps, ctx, reply)
 
@@ -489,15 +493,7 @@ export const editPublishedReply =
     requireManager(ctx)
 
     const text = input.text.trim()
-    if (text.length === 0) {
-      throw reviewError('invalid_reply', 'Reply text cannot be empty')
-    }
-    if (text.length > MAX_REPLY_LENGTH) {
-      throw reviewError(
-        'invalid_reply',
-        `Reply text exceeds ${MAX_REPLY_LENGTH} characters`,
-      )
-    }
+    assertReplyTextSendable(text)
     assertReplySlotsFilled(text)
 
     const reply = await deps.replyRepo.findInternalByReviewId(
@@ -641,41 +637,45 @@ export const retryPublish =
 
     if (isSettledPublishedReply(reply)) return reply
 
-    // Any state descended from an unknown provider outcome is check-only. A
-    // Google read that omits the reply is not positive no-write evidence: an
-    // accepted reply can be delayed or filtered from the response. Only an
-    // exact live observation may heal it; provider truth may also cancel it.
-    // Neither case ever admits a second PUT.
+    // Any state descended from an unknown provider outcome may be sent again
+    // only on positive evidence that the attempt never reached Google (D4).
+    // A settled published reply has returned above; a confirmation that wins
+    // the settle race returns here without a new cycle.
     const requiresPositiveReconciliation =
       reply.publicationState === 'ambiguous' ||
       (reply.publicationState === 'terminal' &&
         reply.publicationLastErrorClass === 'ambiguous')
-    if (requiresPositiveReconciliation) {
-      return reconcileUncertainPublicationBeforeRetry(deps, ctx, reply)
-    }
+    const retryable = requiresPositiveReconciliation
+      ? await reconcileUncertainPublicationBeforeRetry(deps, reply, review)
+      : reply
+    if (isSettledPublishedReply(retryable)) return retryable
 
     return authorizeAndEnqueuePublication(
       deps,
       ctx,
-      reply,
+      retryable,
       review,
       async (now, publicationIntent) => {
         // BQC-3.8: re-authorization starts a NEW publication cycle
         // (publication_state='authorized', attempts/error/reconcile-due reset).
         // No new lifecycle fact — re-approval reuses the approved state.
-        const backToApprovedResult = await commitTransition(reply, 'approved', now, () =>
-          deps.commandStore.markPublicationAuthorized(
-            reply,
-            { status: 'approved' },
-            { lifecycleEvent: null, publicationIntent },
-            now,
-          ),
+        const backToApprovedResult = await commitTransition(
+          retryable,
+          'approved',
+          now,
+          () =>
+            deps.commandStore.markPublicationAuthorized(
+              retryable,
+              { status: 'approved' },
+              { lifecycleEvent: null, publicationIntent },
+              now,
+            ),
         )
         if (backToApprovedResult.isErr()) {
           // The authorization CAS can lose to the same legitimate publication
           // transition. Durable published state means the requested outcome won,
           // but no new intent was committed and no enqueue is needed.
-          const current = await deps.replyRepo.findById(reply.id, ctx.organizationId)
+          const current = await deps.replyRepo.findById(retryable.id, ctx.organizationId)
           if (isSettledPublishedReply(current)) {
             return { reply: current, shouldEnqueue: false }
           }

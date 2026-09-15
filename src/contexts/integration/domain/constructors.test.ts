@@ -15,6 +15,7 @@ describe('buildGoogleConnection', () => {
     identity: {
       kind: 'oidc' as const,
       googleSubject: 'signed-subject-123',
+      email: 'owner@example.com',
     },
     encryptedAccessToken: 'enc-at',
     encryptedRefreshToken: 'enc-rt',
@@ -73,7 +74,7 @@ describe('buildGoogleConnection', () => {
     const result = buildGoogleConnection({
       ...base,
       visibility: 'private',
-      identity: { kind: 'oidc', googleSubject: '' },
+      identity: { kind: 'oidc', googleSubject: '', email: null },
     })
     expect(result.isErr()).toBe(true)
     if (result.isErr()) {

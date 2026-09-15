@@ -143,6 +143,44 @@ describe('AI operation execution reaper', () => {
     expect(applyReviewAnalysis).not.toHaveBeenCalled()
   })
 
+  it('abandons an expired pending reply draft without settling any analysis', async () => {
+    const replyDraft = {
+      ...pendingCandidate(
+        OVERDUE_OPERATION_ID,
+        NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+      ),
+      failureCode: 'provider_unavailable' as const,
+      analysis: null,
+    }
+    const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
+      async () => [replyDraft],
+    )
+    const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
+    const settleOutcome = vi.fn()
+    const advanceWithoutAnalysis = vi.fn()
+    const recordAnalysisReceipt = vi.fn(async () => undefined)
+
+    const result = await createAiOperationExecutionReaper({
+      store: { listExpiredExecutions, recordFailure, markDelivered: vi.fn() },
+      reviewEvents: { settleOutcome },
+      aggregates: { advanceWithoutAnalysis, applyReviewAnalysis: vi.fn() },
+      recordAnalysisReceipt,
+      nowEpochMillis: () => NOW,
+    })()
+
+    expect(recordFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationId: OVERDUE_OPERATION_ID,
+        expectedState: 'pending',
+        failureCode: 'operation_abandoned',
+      }),
+    )
+    expect(settleOutcome).not.toHaveBeenCalled()
+    expect(advanceWithoutAnalysis).not.toHaveBeenCalled()
+    expect(recordAnalysisReceipt).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ operationsFenced: 1, operationsSettled: 0 })
+  })
+
   it('delivers a current persisted analysis, advances past a stale result, and leaves an in-horizon delivery alone', async () => {
     const overdue = deliveryCandidate(
       OVERDUE_OPERATION_ID,

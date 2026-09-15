@@ -41,6 +41,23 @@ export function discoveryErrorIsRecoverable(error: unknown): boolean {
   )
 }
 
+/** Renewal failures that may clear by themselves: the lease can still be valid. */
+const TRANSIENT_RENEWAL_CODES: ReadonlySet<string> = new Set([
+  'temporarily_unavailable',
+  'provider_unavailable',
+])
+
+/**
+ * Whether a failed lease renewal means the lease is gone for good: the server
+ * refused it (expired, not found, access changed). A network failure or an
+ * outage carries no such verdict, so the page keeps its content until the
+ * lease's own expiry.
+ */
+export function leaseRenewalFailureIsFinal(error: unknown): boolean {
+  const code = errorCode(error)
+  return code !== null && !TRANSIENT_RENEWAL_CODES.has(code)
+}
+
 export function connectionCallbackErrorMessage(
   error: 'connection_failed' | 'denied' | 'account_already_connected' | undefined,
 ): string | null {
@@ -67,6 +84,15 @@ export function discoveryErrorMessage(error: unknown): string {
     default:
       return 'The Google import service could not load this content.'
   }
+}
+
+/**
+ * Whether a start failure used up its request id. Every other failure keeps the
+ * id, so retrying replays an import that may have committed instead of
+ * starting a second one next to it.
+ */
+export function startErrorRequiresNewRequest(error: unknown): boolean {
+  return errorCode(error) === 'request_conflict'
 }
 
 export function startErrorMessage(error: unknown): string {

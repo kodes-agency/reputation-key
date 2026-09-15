@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { GoogleImportClearReason } from './google-import-content-lifecycle'
 import { createGoogleImportContentLifecycle, contentExpiryDelayMs } from './public-api'
 
 describe('Google import provider-content lifecycle', () => {
@@ -43,12 +44,12 @@ describe('Google import provider-content lifecycle', () => {
     const deferred = Promise.withResolvers<{ items: string[] }>()
     const guarded = lifecycle.guard(requestEpoch, deferred.promise)
 
-    lifecycle.clear('page_hidden')
+    lifecycle.clear('lease_expired')
     deferred.resolve({ items: ['provider content'] })
 
     await expect(guarded).resolves.toEqual({
       _tag: 'stale_google_import_view',
-      clearReason: 'page_hidden',
+      clearReason: 'lease_expired',
       currentEpoch: 1,
       requestEpoch: 0,
     })
@@ -60,16 +61,31 @@ describe('Google import provider-content lifecycle', () => {
       clearContent: vi.fn(),
     })
 
-    lifecycle.clear('page_hidden')
+    lifecycle.clear('lease_expired')
     lifecycle.clear('content_expired')
 
     expect(lifecycle.epoch()).toBe(2)
     await expect(lifecycle.guard(0, Promise.resolve('late'))).resolves.toEqual({
       _tag: 'stale_google_import_view',
-      clearReason: 'page_hidden',
+      clearReason: 'lease_expired',
       currentEpoch: 2,
       requestEpoch: 0,
     })
+  })
+
+  it('does not treat a hidden tab as a reason to clear the selection', () => {
+    const reasons = [
+      'authorization_revoked',
+      'connection_changed',
+      'content_expired',
+      'lease_expired',
+      'route_left',
+      'tenant_changed',
+    ] as const satisfies readonly GoogleImportClearReason[]
+    // @ts-expect-error hiding the tab keeps provider content (ADR 0050 §3, amended 2026-09-15)
+    const hidden: GoogleImportClearReason = 'page_hidden'
+
+    expect(reasons).not.toContain(hidden)
   })
 
   it('uses the current callback while active', () => {
@@ -101,6 +117,53 @@ describe('Google import provider-content lifecycle', () => {
     expect(removeQueries).toHaveBeenCalledOnce()
     expect(clearContent).not.toHaveBeenCalled()
     expect(lifecycle.epoch()).toBe(1)
+  })
+
+  it('keeps the view when it is re-mounted before a scheduled leave runs', async () => {
+    // StrictMode: effect cleanup (leave) then the effect again (activate), with
+    // the same lifecycle and the same view epoch in the owning component.
+    let pending: (() => void) | null = null
+    const removeQueries = vi.fn()
+    const clearContent = vi.fn()
+    const lifecycle = createGoogleImportContentLifecycle({
+      removeQueries,
+      clearContent,
+      schedule: (run) => {
+        pending = run
+        return () => {
+          pending = null
+        }
+      },
+    })
+    const requestEpoch = lifecycle.epoch()
+
+    lifecycle.leave()
+    lifecycle.activate()
+
+    expect(pending).toBeNull()
+    expect(removeQueries).not.toHaveBeenCalled()
+    expect(lifecycle.epoch()).toBe(requestEpoch)
+    await expect(
+      lifecycle.guard(requestEpoch, Promise.resolve('accounts')),
+    ).resolves.toEqual({ _tag: 'current_google_import_view', value: 'accounts' })
+  })
+
+  it('clears provider content one task after a view really leaves, without resetting its state', async () => {
+    const removeQueries = vi.fn()
+    const clearContent = vi.fn()
+    const lifecycle = createGoogleImportContentLifecycle({ removeQueries, clearContent })
+
+    lifecycle.leave()
+    expect(removeQueries).not.toHaveBeenCalled()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(removeQueries).toHaveBeenCalledOnce()
+    expect(clearContent).not.toHaveBeenCalled()
+    expect(lifecycle.epoch()).toBe(1)
+    await expect(lifecycle.guard(0, Promise.resolve('late'))).resolves.toMatchObject({
+      _tag: 'stale_google_import_view',
+      clearReason: 'route_left',
+    })
   })
 
   it('fails closed for invalid and expired deadlines and bounds timer delays', () => {

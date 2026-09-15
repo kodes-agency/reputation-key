@@ -5,7 +5,11 @@ import type {
   GoogleConnectionDto,
   GoogleConnectionStatus,
 } from '#/contexts/integration/application/public-api'
-import { reauthorizationForConnection } from './google-connection-authorization'
+import { googleConnectionLabel } from '#/components/features/integration/google-account-selector/google-connection-label'
+import {
+  accountEmailConsentForConnection,
+  reauthorizationForConnection,
+} from './google-connection-authorization'
 
 type ReauthorizationRequest = Extract<GoogleAuthUrlInput, { connectionMode: 'reauth' }>
 
@@ -39,6 +43,7 @@ export function GoogleConnectionSettingsRow({
 }: Props) {
   const status = STATUS_META[connection.status]
   const reauthorization = reauthorizationForConnection(connection)
+  const accountEmailConsent = accountEmailConsentForConnection(connection)
 
   return (
     <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -47,10 +52,16 @@ export function GoogleConnectionSettingsRow({
           <p className="text-sm font-medium">Google Business Profile</p>
           <Badge variant={status.variant}>{status.label}</Badge>
         </div>
-        <p className="mt-0.5 text-xs text-muted-foreground">Organization connection</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {googleConnectionLabel(connection)}
+        </p>
         {reauthorization ? (
           <p className="mt-2 max-w-lg text-sm text-muted-foreground">
             Google needs your permission again to keep this connection working.
+          </p>
+        ) : accountEmailConsent ? (
+          <p className="mt-2 max-w-lg text-sm text-muted-foreground">
+            Sign in with the same Google account once more to show which account this is.
           </p>
         ) : null}
       </div>
@@ -64,6 +75,16 @@ export function GoogleConnectionSettingsRow({
             aria-busy={authorizationPending}
           >
             Reauthorize
+          </Button>
+        ) : accountEmailConsent ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onReauthorize(accountEmailConsent)}
+            disabled={authorizationPending}
+            aria-busy={authorizationPending}
+          >
+            Show account email
           </Button>
         ) : null}
         <Button

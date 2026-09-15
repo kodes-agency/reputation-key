@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { parseGoogleReviewComment } from './google-review-comment'
+import {
+  parseGoogleReplyComment,
+  parseGoogleReviewComment,
+} from './google-review-comment'
 
 describe('parseGoogleReviewComment', () => {
   it('splits the shape Google actually sends', () => {
@@ -96,5 +99,52 @@ describe('parseGoogleReviewComment', () => {
       original: 'on the receipt\n\n(Original)\nНаписаха (Original) на бележката',
       translation: 'They wrote',
     })
+  })
+})
+
+// A reply is the one place where "no original text" and "no reply" must never
+// be confused: reconciliation reads a null reply as "Google has nothing", and
+// that read decides whether an in-flight publication is still uncertain.
+describe('parseGoogleReplyComment', () => {
+  it('reports a translation-only envelope as an unreadable reply, not an absent one', () => {
+    expect(
+      parseGoogleReplyComment('(Translated by Google) Thank you for staying'),
+    ).toEqual({
+      text: null,
+      unreadable: true,
+    })
+  })
+
+  it('reports an envelope whose original is blank as unreadable', () => {
+    expect(
+      parseGoogleReplyComment('(Translated by Google) Thanks\n\n(Original)\n  \n'),
+    ).toEqual({ text: null, unreadable: true })
+  })
+
+  it('reads the original out of a normal envelope', () => {
+    expect(
+      parseGoogleReplyComment('(Translated by Google) Thanks\n\n(Original)\nБлагодарим'),
+    ).toEqual({ text: 'Благодарим', unreadable: false })
+  })
+
+  it('reads a plain reply as itself', () => {
+    expect(parseGoogleReplyComment('Thank you for the kind words.')).toEqual({
+      text: 'Thank you for the kind words.',
+      unreadable: false,
+    })
+  })
+
+  it.each([
+    ['empty string', ''],
+    ['whitespace only', ' \n\t '],
+  ])('treats a present but %s comment as unreadable', (_label, comment) => {
+    expect(parseGoogleReplyComment(comment)).toEqual({ text: null, unreadable: true })
+  })
+
+  it.each([
+    ['null', null],
+    ['undefined', undefined],
+  ])('reads a %s comment as no reply', (_label, comment) => {
+    expect(parseGoogleReplyComment(comment)).toEqual({ text: null, unreadable: false })
   })
 })

@@ -20,6 +20,8 @@ export type GoogleConnection = Readonly<{
   id: GoogleConnectionId
   organizationId: OrganizationId
   googleSubject: string | null
+  /** Verified address of the Google account; shown to people, never an identity. */
+  googleAccountEmail: string | null
   encryptedAccessToken: string
   encryptedRefreshToken: string
   tokenExpiresAt: Date

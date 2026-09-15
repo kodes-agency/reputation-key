@@ -9,7 +9,8 @@
 //     pnpm exec tsx scripts/seed-e2e-user.ts
 
 import 'dotenv/config'
-import { writeFileSync, mkdirSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import type { E2eSeedState } from '../e2e/helpers/seed-state'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
@@ -67,8 +68,9 @@ import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../src/shared/ai-operation-profi
 import { CURRENT_MERCHANT_AI_CAPABILITIES } from '../src/shared/domain/merchant-ai-capability'
 
 import { execFileSync } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { Redis } from 'ioredis'
+import { localEnvOverlayPaths, localEnvSetting } from './local/provider-modes'
 
 assertLocalToolExecutionIdentity(process.env)
 
@@ -92,6 +94,23 @@ const lockedManagerEmail = 'locked-manager@example.com'
 const lockedManagerPassword = 'password123'
 const lockedManagerName = 'E2E Locked Org Manager'
 const organizationName = process.env.E2E_TEST_ORG ?? 'E2E Org A'
+
+/**
+ * A developer's own AccountAdmin on a local stack, seeded on every run so a
+ * reseed never locks them out: set `LOCAL_ADMIN_EMAIL` in the environment, in
+ * `~/.config/repkey/local.env` for every checkout, or in the checkout's
+ * gitignored `local.env`. Neither CI nor `e2e/stack.env` sets it, so the
+ * acceptance landscape the specs assert is unchanged. The password is the
+ * seeded manager's unless `LOCAL_ADMIN_PASSWORD` says otherwise.
+ */
+function localAdminSetting(key: string): string | undefined {
+  const fromEnv = process.env[key]?.trim()
+  if (fromEnv) return fromEnv
+  return localEnvSetting(key, localEnvOverlayPaths(process.cwd(), homedir()))
+}
+const localAdminEmail = localAdminSetting('LOCAL_ADMIN_EMAIL')?.toLowerCase()
+const localAdminName = localAdminSetting('LOCAL_ADMIN_NAME') ?? 'Local Admin'
+const localAdminPassword = localAdminSetting('LOCAL_ADMIN_PASSWORD') ?? managerPassword
 
 /** The one Google review destination the seeded landscape claims, in both places. */
 const GOOGLE_REVIEW_DESTINATION = {
@@ -1386,6 +1405,25 @@ async function main(): Promise<void> {
     organizationId: LOCKED_ORG_ID,
     role: 'owner',
   })
+
+  if (localAdminEmail) {
+    const localAdminUserId = await ensureCredentialUser({
+      email: localAdminEmail,
+      password: localAdminPassword,
+      name: localAdminName,
+    })
+    await ensureMembership({
+      // Keyed by the address, so changing LOCAL_ADMIN_EMAIL adds that admin
+      // instead of moving an existing membership row to another user.
+      id: `local-admin-${createHash('sha256').update(localAdminEmail).digest('hex').slice(0, 16)}`,
+      userId: localAdminUserId,
+      organizationId: orgAId,
+      role: 'owner',
+    })
+    console.log(
+      `Local admin ready: ${localAdminEmail} is an AccountAdmin of ${organizationName}`,
+    )
+  }
 
   const p1Id = await ensureProperty(orgAId, {
     id: IDS.p1,

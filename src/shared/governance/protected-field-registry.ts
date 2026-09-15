@@ -41,6 +41,7 @@ export const PROTECTED_FIELD_REGISTRY = [
   ['replies', 'text', 'raw_source_content'],
   ['replies', 'rejection_reason', 'local_operational_fact'],
   ['google_connections', 'google_subject', 'raw_provider_identifier'],
+  ['google_connections', 'google_account_email', 'raw_provider_identifier'],
   ['properties', 'google_connection_id', 'raw_provider_identifier'],
   ['properties', 'gbp_account_id', 'raw_provider_identifier'],
   ['properties', 'gbp_location_id', 'raw_provider_identifier'],
