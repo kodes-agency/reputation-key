@@ -255,6 +255,18 @@ function expectMessage(
   return article
 }
 
+/** A confirmed reply's status chip and the sentence under it; the message, for more. */
+function expectConfirmedStatus(
+  canvasElement: HTMLElement,
+  chip: string,
+  sentence: RegExp,
+) {
+  const message = within(expectMessage(canvasElement, 'Confirmed', APPROVED_AT))
+  expect(message.getByText(chip)).toBeVisible()
+  expect(message.getByText(sentence)).toBeVisible()
+  return message
+}
+
 const meta: Meta<typeof ReplyMessage> = {
   title: 'Inbox/ReplyMessage',
   component: ReplyMessage,
@@ -511,10 +523,11 @@ const APPROVED_REPLY = makeReply({
 export const WaitingForGoogle: Story = {
   args: { reply: APPROVED_REPLY },
   play: async ({ canvasElement }) => {
-    const article = expectMessage(canvasElement, 'Confirmed', APPROVED_AT)
-    const message = within(article)
-    expect(message.getByText('Waiting for Google')).toBeVisible()
-    expect(message.getByText(/will start publishing this reply shortly/i)).toBeVisible()
+    const message = expectConfirmedStatus(
+      canvasElement,
+      'Waiting for Google',
+      /will start publishing this reply shortly/i,
+    )
     // Nothing to do but wait — and nothing offered that suggests otherwise.
     expect(message.queryAllByRole('button')).toHaveLength(0)
   },
@@ -526,10 +539,11 @@ export const WaitingForGoogleWhileSending: Story = {
     reply: { ...APPROVED_REPLY, publicationState: 'sending', publicationAttempts: 1 },
   },
   play: async ({ canvasElement }) => {
-    const article = expectMessage(canvasElement, 'Confirmed', APPROVED_AT)
-    const message = within(article)
-    expect(message.getByText('Waiting for Google')).toBeVisible()
-    expect(message.getByText(/publishing this reply to google/i)).toBeVisible()
+    const message = expectConfirmedStatus(
+      canvasElement,
+      'Waiting for Google',
+      /publishing this reply to google/i,
+    )
     expect(message.queryAllByRole('button')).toHaveLength(0)
   },
 }
@@ -548,10 +562,11 @@ export const WaitingForGoogleAfterGoogleAccepted: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    const article = expectMessage(canvasElement, 'Confirmed', APPROVED_AT)
-    const message = within(article)
-    expect(message.getByText('Waiting for Google')).toBeVisible()
-    expect(message.getByText(/google accepted this reply/i)).toBeVisible()
+    const message = expectConfirmedStatus(
+      canvasElement,
+      'Waiting for Google',
+      /google accepted this reply/i,
+    )
     // Not the earlier stage's sentence: the stages are told apart, not merged.
     expect(message.queryByText(/publishing this reply to google/i)).toBeNull()
     expect(message.queryAllByRole('button')).toHaveLength(0)
@@ -696,10 +711,11 @@ export const NeedsCheck: Story = {
   },
   play: async ({ canvasElement }) => {
     resetSpies()
-    const article = expectMessage(canvasElement, 'Confirmed', APPROVED_AT)
-    const message = within(article)
-    expect(message.getByText('Needs a check')).toBeVisible()
-    expect(message.getByText(/won't send it twice/i)).toBeVisible()
+    const message = expectConfirmedStatus(
+      canvasElement,
+      'Needs a check',
+      /won't send it twice/i,
+    )
     expect(
       message.queryByRole('button', { name: /publish|retry|resend|try again/i }),
     ).toBeNull()
@@ -834,6 +850,26 @@ async function clickCheck(canvasElement: HTMLElement) {
   return { article, message, line }
 }
 
+/**
+ * A check whose answer moved the reply on: the toast says why, the check and its
+ * line are gone, and focus lands on `action`, the control the new state offers.
+ * The focused check button is gone, so without that the next Tab would restart
+ * the page from <body>.
+ */
+async function expectCheckMovedTheReplyOn(
+  canvasElement: HTMLElement,
+  toast: string,
+  action: string,
+) {
+  const { message, line } = await clickCheck(canvasElement)
+  await expectToast(toast)
+  const next = await message.findByRole('button', { name: action })
+  expect(next).toBeEnabled()
+  expect(message.queryByRole('button', { name: 'Check Google again' })).toBeNull()
+  expect(line).toBeEmptyDOMElement()
+  await waitFor(() => expect(document.activeElement).toBe(next))
+}
+
 async function expectCheckEnabledAgain(message: ReturnType<typeof within>) {
   const check = await message.findByRole('button', { name: 'Check Google again' })
   await waitFor(() => expect(check).toBeEnabled())
@@ -961,56 +997,53 @@ export const NeedsCheckTwiceWithTheSameAnswer = checkStory(
 )
 
 /**
+ * Checks Google, gets the "checks again" answer, then reads the reply again
+ * and receives `polled`. The message shows `polledState` and the line under it
+ * empties: it described the reply it was written for, not this one.
+ */
+function checkLineLeavesWhenPolled(polledState: RegExp | string, polled: Reply): Story {
+  return checkStory(
+    async () => NOT_ON_GOOGLE_STILL_CHECKED,
+    async ({ canvasElement }) => {
+      const canvas = within(canvasElement)
+      const { message, line } = await clickCheck(canvasElement)
+      await waitFor(() => expect(line).toHaveTextContent(CHECKS_AGAIN_LINE))
+
+      await userEvent.click(canvas.getByRole('button', { name: 'Read the reply again' }))
+
+      expect(await message.findByText(polledState)).toBeVisible()
+      await waitFor(() => expect(line).toBeEmptyDOMElement())
+    },
+    { ...NEEDS_CHECK_REPLY, reconcileDueAt: NEXT_CHECK_AT },
+    { polled },
+  )
+}
+
+/**
  * The line describes the reply it was written for. A later poll that ends the
  * automatic checks puts `has stopped checking automatically` above it, and a
  * line still saying `RepKey checks again automatically.` would contradict it.
  */
-export const NeedsCheckLineLeavesWhenChecksStop = checkStory(
-  async () => NOT_ON_GOOGLE_STILL_CHECKED,
-  async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const { message, line } = await clickCheck(canvasElement)
-    await waitFor(() => expect(line).toHaveTextContent(CHECKS_AGAIN_LINE))
-
-    await userEvent.click(canvas.getByRole('button', { name: 'Read the reply again' }))
-
-    expect(await message.findByText(/stopped checking automatically/i)).toBeVisible()
-    await waitFor(() => expect(line).toBeEmptyDOMElement())
-  },
-  { ...NEEDS_CHECK_REPLY, reconcileDueAt: NEXT_CHECK_AT },
+export const NeedsCheckLineLeavesWhenChecksStop = checkLineLeavesWhenPolled(
+  /stopped checking automatically/i,
   {
-    polled: {
-      ...NEEDS_CHECK_REPLY,
-      publicationState: 'terminal',
-      reconcileDueAt: null,
-      stateRevision: 3,
-    },
+    ...NEEDS_CHECK_REPLY,
+    publicationState: 'terminal',
+    reconcileDueAt: null,
+    stateRevision: 3,
   },
 )
 
 /** The sweep confirmed the reply after the check: no "isn't showing" under Live. */
-export const NeedsCheckLineLeavesWhenTheReplyGoesLive = checkStory(
-  async () => NOT_ON_GOOGLE_STILL_CHECKED,
-  async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const { message, line } = await clickCheck(canvasElement)
-    await waitFor(() => expect(line).toHaveTextContent(CHECKS_AGAIN_LINE))
-
-    await userEvent.click(canvas.getByRole('button', { name: 'Read the reply again' }))
-
-    expect(await message.findByText('Live on Google')).toBeVisible()
-    await waitFor(() => expect(line).toBeEmptyDOMElement())
-  },
-  { ...NEEDS_CHECK_REPLY, reconcileDueAt: NEXT_CHECK_AT },
+export const NeedsCheckLineLeavesWhenTheReplyGoesLive = checkLineLeavesWhenPolled(
+  'Live on Google',
   {
-    polled: {
-      ...NEEDS_CHECK_REPLY,
-      status: 'published',
-      publicationState: 'published',
-      publishedAt: PUBLISHED_AT,
-      reconcileDueAt: null,
-      stateRevision: 3,
-    },
+    ...NEEDS_CHECK_REPLY,
+    status: 'published',
+    publicationState: 'published',
+    publishedAt: PUBLISHED_AT,
+    reconcileDueAt: null,
+    stateRevision: 3,
   },
 )
 
@@ -1092,16 +1125,11 @@ export const NeedsCheckNeverSent = checkStory(
       },
     }),
   async ({ canvasElement }) => {
-    const { message, line } = await clickCheck(canvasElement)
-
-    await expectToast("This reply never reached Google. It's safe to publish it again.")
-    const retry = await message.findByRole('button', { name: 'Try publishing again' })
-    expect(retry).toBeEnabled()
-    expect(message.queryByRole('button', { name: 'Check Google again' })).toBeNull()
-    expect(line).toBeEmptyDOMElement()
-    // The focused check button is gone. Focus lands on the action the toast
-    // just offered, not on <body>, where the next Tab restarts the page.
-    await waitFor(() => expect(document.activeElement).toBe(retry))
+    await expectCheckMovedTheReplyOn(
+      canvasElement,
+      "This reply never reached Google. It's safe to publish it again.",
+      'Try publishing again',
+    )
   },
 )
 
@@ -1118,15 +1146,12 @@ export const NeedsCheckLiveOnGoogle = checkStory(
       },
     }),
   async ({ canvasElement }) => {
-    const { message, line } = await clickCheck(canvasElement)
-
-    await expectToast('Your reply is live on Google.')
-    const edit = await message.findByRole('button', { name: 'Edit reply' })
-    expect(edit).toBeEnabled()
-    expect(message.queryByRole('button', { name: 'Check Google again' })).toBeNull()
-    expect(line).toBeEmptyDOMElement()
     // The whole action row remounted under its new status key; focus follows.
-    await waitFor(() => expect(document.activeElement).toBe(edit))
+    await expectCheckMovedTheReplyOn(
+      canvasElement,
+      'Your reply is live on Google.',
+      'Edit reply',
+    )
   },
 )
 
@@ -1260,10 +1285,11 @@ export const NotPublished: Story = {
   },
   play: async ({ canvasElement }) => {
     resetSpies()
-    const article = expectMessage(canvasElement, 'Confirmed', APPROVED_AT)
-    const message = within(article)
-    expect(message.getByText('Not published')).toBeVisible()
-    expect(message.getByText(/stopped after 5 attempts/i)).toBeVisible()
+    const message = expectConfirmedStatus(
+      canvasElement,
+      'Not published',
+      /stopped after 5 attempts/i,
+    )
 
     // Retry is the only control on the message, so there is no way to reach an
     // editor the server would refuse.
@@ -1296,10 +1322,11 @@ export const NotPublishedAfterGoogleRejection: Story = {
     }),
   },
   play: async ({ canvasElement }) => {
-    const article = expectMessage(canvasElement, 'Confirmed', APPROVED_AT)
-    const message = within(article)
-    expect(message.getByText('Not published')).toBeVisible()
-    expect(message.getByText(/nothing was posted to google/i)).toBeVisible()
+    const message = expectConfirmedStatus(
+      canvasElement,
+      'Not published',
+      /nothing was posted to google/i,
+    )
     expect(message.getByRole('button', { name: 'Try publishing again' })).toBeEnabled()
     expect(message.getAllByRole('button')).toHaveLength(1)
   },
