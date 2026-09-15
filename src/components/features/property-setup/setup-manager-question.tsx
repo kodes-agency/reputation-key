@@ -49,9 +49,10 @@ export function SetupManagerQuestion({
     const managerIds = checked
       ? [...current.managerIds.filter((id) => id !== userId), userId]
       : current.managerIds.filter((id) => id !== userId)
-    onAnswerChange(
-      managerIds.length === 0 && current.applyToAll ? null : { ...current, managerIds },
-    )
+    // Clearing every manager clears the whole answer, overrides included: the
+    // override list hides with the last manager, and an override the merchant
+    // can no longer see must not return with the next pick.
+    onAnswerChange(managerIds.length === 0 ? null : { ...current, managerIds })
   }
 
   return (

@@ -159,6 +159,38 @@ export const PerPropertyOverrides: Story = {
   },
 }
 
+/** Clearing every manager forgets the per-property picks made before it. */
+export const ClearingManagersForgetsOverrides: Story = {
+  args: {
+    properties: imported,
+    viewerUserId: STORY_ADMIN.userId,
+    fns: createSetupFnsFixture({ properties: batch }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const page = within(canvasElement.ownerDocument.body)
+
+    await canvas.findByText('Question 1 of 3')
+    await next(canvasElement)
+    await userEvent.click(canvas.getByRole('switch', { name: /same answer for all 3/i }))
+    await userEvent.click(
+      canvas.getByRole('combobox', { name: /responsible manager for casa lisboa/i }),
+    )
+    await userEvent.click(await page.findByRole('option', { name: STORY_MANAGER.name }))
+
+    await userEvent.click(canvas.getByRole('checkbox', { name: STORY_ADMIN.name }))
+    await expect(
+      canvas.queryByRole('switch', { name: /same answer for all 3/i }),
+    ).toBeNull()
+    await userEvent.click(canvas.getByRole('checkbox', { name: STORY_MANAGER.name }))
+    await userEvent.click(canvas.getByRole('switch', { name: /same answer for all 3/i }))
+
+    await expect(
+      canvas.getByRole('combobox', { name: /responsible manager for casa lisboa/i }),
+    ).toHaveTextContent('Same as above')
+  },
+}
+
 /** Skipping every question saves nothing; the checklist keeps the steps. */
 export const NotNowAndSkip: Story = {
   args: {
