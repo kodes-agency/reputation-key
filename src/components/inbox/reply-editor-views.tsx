@@ -22,10 +22,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '#/components/ui/alert-dialog'
+import { unfilledReplySlotsMessage } from '#/contexts/review/application/public-api'
 import {
-  MAX_REPLY_LENGTH,
-  unfilledReplySlotsMessage,
-} from '#/contexts/review/application/public-api'
+  GOOGLE_REPLY_COMMENT_MAX_BYTES,
+  replyCommentByteLength,
+  replyCommentProblem,
+} from '#/shared/google-provider-control/reply-comment'
 import { putCaretIn } from './composer-caret'
 import {
   DOCK_FOOT_ROW_CLASS,
@@ -101,8 +103,10 @@ export function ReviewReplyPublishedEditor({
   onCancel: () => void
 }>) {
   const [text, setText] = useState(reply.text)
-  const charCount = text.length
-  const isOverLimit = charCount > MAX_REPLY_LENGTH
+  // Bytes, not characters: Google's limit is 4096 UTF-8 bytes, and a Cyrillic
+  // letter is two of them (`reply-comment.ts`).
+  const byteCount = replyCommentByteLength(text)
+  const isOverLimit = byteCount > GOOGLE_REPLY_COMMENT_MAX_BYTES
   const publishBlockedReason = unfilledReplySlotsMessage(text)
   const publishBlockedReasonId = useId()
   // Per instance, not the module constant it used to be: the desktop panel is
@@ -111,8 +115,11 @@ export function ReviewReplyPublishedEditor({
   const headingId = useId()
   // Split from `isSaving` on purpose: these are the reasons the manager can do
   // something about, and the trigger has to stay reachable to say so.
-  const isBlocked =
-    text.trim().length === 0 || isOverLimit || publishBlockedReason !== null
+  // Untrimmed, like the counter: `onSave(text)` sends the text as typed and
+  // `editPublishedReplyFn`'s DTO applies the rule before the use case trims
+  // (reply-read.ts `draftReplyDto`). Gating on the trimmed text enabled a save
+  // the server refused for a trailing line feed, behind a red counter.
+  const isBlocked = replyCommentProblem(text) !== null || publishBlockedReason !== null
   const canSave = !isBlocked && !isSaving
   // This editor exists only because someone pressed Edit reply, so it always
   // takes the focus on mount.
@@ -165,7 +172,7 @@ export function ReviewReplyPublishedEditor({
         <span
           className={`px-1.5 text-xs tabular-nums ${isOverLimit ? 'text-destructive' : 'text-muted-foreground'}`}
         >
-          {charCount}/{MAX_REPLY_LENGTH}
+          {byteCount}/{GOOGLE_REPLY_COMMENT_MAX_BYTES}
         </span>
         <div className="ml-auto flex gap-2">
           {/* 36 px on mobile (row 20), matching the mode segment
@@ -233,6 +240,10 @@ export function ReviewReplyPublishedEditor({
                 <AlertDialogCancel>Keep editing</AlertDialogCancel>
                 <AlertDialogAction
                   disabled={!canSave}
+                  // A refused update is toasted by the edit mutation's
+                  // `errorMessage` (use-reply-actions.ts) and the editor stays
+                  // open on the text (`reply-published-edit.tsx` closes only
+                  // after a save resolves); the catch only keeps it handled.
                   onClick={() => void onSave(text).catch(() => undefined)}
                 >
                   {isSaving ? 'Confirming…' : 'Confirm & Update'}

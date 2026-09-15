@@ -46,7 +46,7 @@ export type { InboxNoteView } from './use-cases/get-inbox-notes'
 export type { InboxError } from '../domain/errors'
 export { INBOX_BULK_LIMIT } from './dto/inbox.dto'
 export type { Cursor, InboxSort } from './ports/inbox.repository'
-export { INBOX_QUEUES, replyStageForStatus, type InboxQueue } from './inbox-queues'
+export { INBOX_QUEUES, replyQueueStage, type InboxQueue } from './inbox-queues'
 export type { InboxQueueCounts } from './use-cases/get-inbox-queue-counts'
 export type {
   InboxReviewAnalysis,

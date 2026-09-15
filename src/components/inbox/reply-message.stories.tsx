@@ -25,7 +25,10 @@
 //     reply it was opened on;
 //   · Edit reply reports the editor it opens somewhere off screen, and Edit &
 //     resubmit — which unmounts this whole message instead — reports nothing;
-//   · every action goes dead while a write is in flight.
+//   · every action goes dead while a write is in flight;
+//   · Check Google again always says what it found — on the line under the
+//     actions, or in a toast when the reply moved on by itself — and a failed
+//     check says why instead of leaving the pane exactly as it was.
 //
 // The Vitest Storybook project compiles no Tailwind, so every utility class is
 // inert here. Nothing below asserts geometry — only content, roles, accessible
@@ -33,7 +36,16 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { Toaster } from '#/components/ui/sonner'
+import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
+import {
+  formatCheckTime,
+  REPLY_CHECK_COPY,
+  replyCheckMutationOptions,
+} from './reply-check-feedback'
 import { ReplyMessage } from './reply-message'
 import type { ReplyData } from './reply-status-view'
 import type { ComponentProps, ReactNode } from 'react'
@@ -112,9 +124,37 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
   }
 }
 
+/** An ambiguous publication whose automatic reads have ended: `Needs a check`. */
+const NEEDS_CHECK_REPLY = makeReply({
+  status: 'publish_failed',
+  approvedBy: userId(IDS.approver),
+  approvedAt: APPROVED_AT,
+  publicationState: 'ambiguous',
+  publicationLastErrorClass: 'ambiguous',
+  publicationAttempts: 1,
+})
+
+const CHECKED_AT = new Date('2026-09-11T11:42:00.000Z')
+
+/** What `checkReplyPublicationFn` answers, for the reply it was asked about. */
+function checkResult(
+  outcome: ReplyPublicationCheckResult['outcome'],
+  overrides: Partial<ReplyPublicationCheckResult> = {},
+): ReplyPublicationCheckResult {
+  return {
+    reply: NEEDS_CHECK_REPLY,
+    outcome,
+    checkedAt: CHECKED_AT,
+    nextAutomaticCheckAt: null,
+    ...overrides,
+  }
+}
+
 const onApprove = fn(async () => undefined)
 const onReject = fn(async (_reason?: string) => undefined)
-const onCheck = fn(async () => undefined)
+const onCheck = fn(async (): Promise<ReplyPublicationCheckResult> =>
+  checkResult('not_on_google'),
+)
 const onRetry = fn(async () => undefined)
 const onEditPublished = fn(() => {})
 const onEditRejected = fn(() => {})
@@ -480,7 +520,7 @@ export const WaitingForGoogle: Story = {
   },
 }
 
-/** Google has the reply and has not answered. */
+/** The attempt is under way and Google has not answered; it may not have left yet. */
 export const WaitingForGoogleWhileSending: Story = {
   args: {
     reply: { ...APPROVED_REPLY, publicationState: 'sending', publicationAttempts: 1 },
@@ -489,7 +529,7 @@ export const WaitingForGoogleWhileSending: Story = {
     const article = expectMessage(canvasElement, 'Confirmed', APPROVED_AT)
     const message = within(article)
     expect(message.getByText('Waiting for Google')).toBeVisible()
-    expect(message.getByText(/is sending this reply to google/i)).toBeVisible()
+    expect(message.getByText(/publishing this reply to google/i)).toBeVisible()
     expect(message.queryAllByRole('button')).toHaveLength(0)
   },
 }
@@ -511,9 +551,9 @@ export const WaitingForGoogleAfterGoogleAccepted: Story = {
     const article = expectMessage(canvasElement, 'Confirmed', APPROVED_AT)
     const message = within(article)
     expect(message.getByText('Waiting for Google')).toBeVisible()
-    expect(message.getByText(/google accepted the update/i)).toBeVisible()
+    expect(message.getByText(/google accepted this reply/i)).toBeVisible()
     // Not the earlier stage's sentence: the stages are told apart, not merged.
-    expect(message.queryByText(/is sending this reply to google/i)).toBeNull()
+    expect(message.queryByText(/publishing this reply to google/i)).toBeNull()
     expect(message.queryAllByRole('button')).toHaveLength(0)
   },
 }
@@ -603,6 +643,42 @@ export const GoogleMirroredReply: Story = {
 // ── publication recovery ─────────────────────────────────────────────────────
 
 /**
+ * The same uncertain publish as `NeedsCheck` below, while RepKey's automatic
+ * reads still own it (`reconcileDueAt` set, D8). Nobody has to act, so the chip
+ * is the word of the queue it waits in, and the sentence says the reads go on
+ * by themselves. A manager may still read Google now — but never send again.
+ */
+export const WaitingForGoogleWhileCheckingAutomatically: Story = {
+  args: {
+    reply: makeReply({
+      status: 'publish_failed',
+      approvedBy: userId(IDS.approver),
+      approvedAt: APPROVED_AT,
+      publicationState: 'ambiguous',
+      publicationLastErrorClass: 'ambiguous',
+      publicationAttempts: 1,
+      reconcileDueAt: new Date('2026-09-11T12:12:00.000Z'),
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    resetSpies()
+    const article = expectMessage(canvasElement, 'Confirmed', APPROVED_AT)
+    const message = within(article)
+    expect(message.getByText('Waiting for Google')).toBeVisible()
+    expect(message.queryByText('Needs a check')).toBeNull()
+    expect(message.getByText(/keeps checking automatically/i)).toBeVisible()
+    expect(message.getByText(/won't send it twice/i)).toBeVisible()
+    expect(
+      message.queryByRole('button', { name: /publish|retry|resend|try again/i }),
+    ).toBeNull()
+
+    await userEvent.click(message.getByRole('button', { name: 'Check Google again' }))
+    expect(onCheck).toHaveBeenCalledOnce()
+    expect(onRetry).not.toHaveBeenCalled()
+  },
+}
+
+/**
  * The one publish failure that is NOT "Not published": Google may well have
  * taken the reply. The only safe action is another read, so the message must
  * offer no way at all to send a second copy.
@@ -623,7 +699,7 @@ export const NeedsCheck: Story = {
     const article = expectMessage(canvasElement, 'Confirmed', APPROVED_AT)
     const message = within(article)
     expect(message.getByText('Needs a check')).toBeVisible()
-    expect(message.getByText(/will not send this reply again/i)).toBeVisible()
+    expect(message.getByText(/won't send it twice/i)).toBeVisible()
     expect(
       message.queryByRole('button', { name: /publish|retry|resend|try again/i }),
     ).toBeNull()
@@ -634,13 +710,534 @@ export const NeedsCheck: Story = {
   },
 }
 
+/**
+ * Another write is in flight in the pane. The check waits its turn, but it is
+ * not the thing running, so it neither says `Checking Google…` nor claims to be
+ * busy — only the check's own request may.
+ */
 export const NeedsCheckWhileSaving: Story = {
   args: { ...NeedsCheck.args, isSaving: true },
   play: async ({ canvas }) => {
-    expect(canvas.getByRole('button', { name: 'Checking Google…' })).toBeDisabled()
-    expect(canvas.queryByRole('button', { name: 'Check Google again' })).toBeNull()
+    const check = canvas.getByRole('button', { name: 'Check Google again' })
+    expect(check).toBeDisabled()
+    expect(check).toHaveAttribute('aria-busy', 'false')
+    expect(canvas.queryByRole('button', { name: 'Checking Google…' })).toBeNull()
   },
 }
+
+// ── checking Google ──────────────────────────────────────────────────────────
+
+/** A second reply that needs a check, so a story can move the pane on. */
+const OTHER_NEEDS_CHECK_REPLY: Reply = {
+  ...NEEDS_CHECK_REPLY,
+  id: replyId(IDS.nextReply),
+}
+
+const NEXT_CHECK_AT = new Date('2026-09-11T12:12:00.000Z')
+
+type CheckAnswer = () => Promise<ReplyPublicationCheckResult>
+
+/** What the host's cache becomes when something other than the check moves it. */
+type HostReplies = Readonly<{
+  /** A later detail poll: `Read the reply again` swaps it in. */
+  polled?: Reply
+  /** The re-read a failed check triggers (`onReplyCheckFailed`). */
+  refetched?: Reply
+  /**
+   * Writes the check's reply this long after it settles. The pane's cache
+   * write reaches React through TanStack's notify scheduler (a macrotask), so
+   * the check's own settle can render first.
+   */
+  cacheDelayMs?: number
+}>
+
+/**
+ * The pane's check, for real: a `useActionMutation` built from the SAME options
+ * `useReplyActions` passes (`replyCheckMutationOptions`), over a scripted answer
+ * standing in for `checkReplyPublicationFn`. The host is the detail cache — the
+ * reply the check returns replaces the one on screen, as the pane's
+ * `onReplyChanged` does, and a failed check re-reads it, as the pane's
+ * `onReplyCheckFailed` does — and it mounts the app's `Toaster`, so every toast
+ * asserted below is the one a manager would see.
+ */
+function ReplyCheckHost({
+  answer,
+  polled,
+  refetched,
+  cacheDelayMs,
+  ...props
+}: Omit<ComponentProps<typeof ReplyMessage>, 'reply' | 'onCheck' | 'isSaving'> &
+  HostReplies & {
+    reply: Reply
+    answer: CheckAnswer
+  }): ReactNode {
+  const [reply, setReply] = useState<ReplyData>(props.reply)
+  const check = useActionMutation(
+    (_input: Readonly<{ data: Readonly<{ reviewId: string }> }>) => answer(),
+    replyCheckMutationOptions({
+      reviewId: IDS.review,
+      onReplyChanged: (change) => {
+        if (cacheDelayMs === undefined) setReply(change.reply)
+        else setTimeout(() => setReply(change.reply), cacheDelayMs)
+      },
+      onCheckFailed: () => {
+        if (refetched) setReply(refetched)
+      },
+    }),
+  )
+  return (
+    <>
+      <ReplyMessage
+        {...props}
+        reply={reply}
+        isSaving={check.isPending}
+        onCheck={() => check({ data: { reviewId: IDS.review } })}
+      />
+      <button type="button" onClick={() => setReply(OTHER_NEEDS_CHECK_REPLY)}>
+        Open the next reply
+      </button>
+      {polled && (
+        <button type="button" onClick={() => setReply(polled)}>
+          Read the reply again
+        </button>
+      )}
+      <Toaster />
+    </>
+  )
+}
+
+function checkStory(
+  answer: CheckAnswer,
+  play: NonNullable<Story['play']>,
+  reply: Reply = NEEDS_CHECK_REPLY,
+  host: HostReplies = {},
+): Story {
+  return {
+    args: { reply },
+    render: (args) => (
+      <ReplyCheckHost {...args} {...host} reply={reply} answer={answer} />
+    ),
+    play,
+  }
+}
+
+/** The message, its status line, and a click on its check. */
+async function clickCheck(canvasElement: HTMLElement) {
+  const article = within(canvasElement).getByRole('article', { name: AUTHOR_LABEL })
+  const message = within(article)
+  // Scoped to the article: a sonner toast is a `role="status"` of its own.
+  const line = message.getByRole('status')
+  // Mounted and silent BEFORE the click. A live region that mounted with its
+  // sentence would announce nothing.
+  expect(line).toBeEmptyDOMElement()
+  await userEvent.click(message.getByRole('button', { name: 'Check Google again' }))
+  return { article, message, line }
+}
+
+async function expectCheckEnabledAgain(message: ReturnType<typeof within>) {
+  const check = await message.findByRole('button', { name: 'Check Google again' })
+  await waitFor(() => expect(check).toBeEnabled())
+  expect(check).toHaveAttribute('aria-busy', 'false')
+  expect(check.querySelector('svg')).toBeNull()
+}
+
+/**
+ * The toast carrying `message`, once it has entered. Sonner keeps its toasts in
+ * a store that outlives one story's `Toaster`, so a story asks for its own
+ * sentence rather than counting toasts, and waits out the entry transition
+ * (`data-mounted`) rather than sampling the first frame.
+ */
+async function expectToast(message: string): Promise<void> {
+  const text = await within(document.body).findByText(message)
+  await waitFor(() => expect(text).toBeVisible())
+}
+
+/** Said once: the status line's sentence never arrives as a toast as well. */
+function expectNoToast(message: string): void {
+  const toasts = Array.from(document.querySelectorAll('[data-sonner-toast]'))
+  expect(toasts.filter((toast) => toast.textContent?.includes(message))).toHaveLength(0)
+}
+
+let heldCheck: PromiseWithResolvers<ReplyPublicationCheckResult> | null = null
+
+/**
+ * A read of Google takes seconds, and until this change the button said
+ * `Checking Google…` for ANY write in the pane while saying nothing at all about
+ * its own. While the check runs it is busy, named for what it is doing, spun and
+ * dead; the answer lands in the line that was already there.
+ */
+export const NeedsCheckWhileChecking = checkStory(
+  () => {
+    heldCheck = Promise.withResolvers<ReplyPublicationCheckResult>()
+    return heldCheck.promise
+  },
+  async ({ canvasElement }) => {
+    const { message, line } = await clickCheck(canvasElement)
+
+    const busy = await message.findByRole('button', { name: 'Checking Google…' })
+    expect(busy).toBeDisabled()
+    expect(busy).toHaveAttribute('aria-busy', 'true')
+    expect(busy.querySelector('svg')).not.toBeNull()
+    expect(line).toBeEmptyDOMElement()
+
+    heldCheck?.resolve(checkResult('not_on_google'))
+
+    await expectCheckEnabledAgain(message)
+    await waitFor(() =>
+      expect(line).toHaveTextContent(
+        `Checked Google at ${formatCheckTime(CHECKED_AT)}. ${REPLY_CHECK_COPY.notShowing}`,
+      ),
+    )
+    // The same element that sat empty: the sentence was inserted, not mounted.
+    expect(message.getByRole('status')).toBe(line)
+  },
+)
+
+/**
+ * Google does not show the reply, and the automatic reads continue. The answer
+ * is a new server reply, so the message re-renders under the line — which keeps
+ * its sentence — and moving to another reply empties it rather than printing a
+ * finding about one reply under another.
+ */
+export const NeedsCheckNotOnGoogle = checkStory(
+  async () =>
+    checkResult('not_on_google', {
+      reply: { ...NEEDS_CHECK_REPLY, reconcileDueAt: NEXT_CHECK_AT, stateRevision: 2 },
+      nextAutomaticCheckAt: NEXT_CHECK_AT,
+    }),
+  async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const { message, line } = await clickCheck(canvasElement)
+
+    await waitFor(() =>
+      expect(line).toHaveTextContent(
+        `Checked Google at ${formatCheckTime(CHECKED_AT)}. This reply isn't showing there. RepKey checks again automatically.`,
+      ),
+    )
+    await expectCheckEnabledAgain(message)
+    expectNoToast(REPLY_CHECK_COPY.notShowing)
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Open the next reply' }))
+    await waitFor(() => expect(line).toBeEmptyDOMElement())
+  },
+  { ...NEEDS_CHECK_REPLY, reconcileDueAt: NEXT_CHECK_AT },
+)
+
+const NOT_ON_GOOGLE_STILL_CHECKED = checkResult('not_on_google', {
+  reply: { ...NEEDS_CHECK_REPLY, reconcileDueAt: NEXT_CHECK_AT, stateRevision: 2 },
+  nextAutomaticCheckAt: NEXT_CHECK_AT,
+})
+const CHECKS_AGAIN_LINE = `Checked Google at ${formatCheckTime(CHECKED_AT)}. This reply isn't showing there. RepKey checks again automatically.`
+
+let repeatedCheck: PromiseWithResolvers<ReplyPublicationCheckResult> | null = null
+
+/**
+ * The same answer twice in the same minute. A live region speaks only when its
+ * text changes, so a line that kept its sentence through the second check would
+ * receive identical words and announce nothing — `Checking Google…`, then
+ * silence. The line empties when a check starts, and every answer is inserted
+ * fresh.
+ */
+export const NeedsCheckTwiceWithTheSameAnswer = checkStory(
+  () => {
+    repeatedCheck = Promise.withResolvers<ReplyPublicationCheckResult>()
+    return repeatedCheck.promise
+  },
+  async ({ canvasElement }) => {
+    const { message, line } = await clickCheck(canvasElement)
+    repeatedCheck?.resolve(NOT_ON_GOOGLE_STILL_CHECKED)
+    await waitFor(() => expect(line).toHaveTextContent(CHECKS_AGAIN_LINE))
+    await expectCheckEnabledAgain(message)
+
+    await userEvent.click(message.getByRole('button', { name: 'Check Google again' }))
+    await message.findByRole('button', { name: 'Checking Google…' })
+    expect(line).toBeEmptyDOMElement()
+
+    repeatedCheck?.resolve(NOT_ON_GOOGLE_STILL_CHECKED)
+    await waitFor(() => expect(line).toHaveTextContent(CHECKS_AGAIN_LINE))
+    expect(message.getByRole('status')).toBe(line)
+  },
+  { ...NEEDS_CHECK_REPLY, reconcileDueAt: NEXT_CHECK_AT },
+)
+
+/**
+ * The line describes the reply it was written for. A later poll that ends the
+ * automatic checks puts `has stopped checking automatically` above it, and a
+ * line still saying `RepKey checks again automatically.` would contradict it.
+ */
+export const NeedsCheckLineLeavesWhenChecksStop = checkStory(
+  async () => NOT_ON_GOOGLE_STILL_CHECKED,
+  async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const { message, line } = await clickCheck(canvasElement)
+    await waitFor(() => expect(line).toHaveTextContent(CHECKS_AGAIN_LINE))
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Read the reply again' }))
+
+    expect(await message.findByText(/stopped checking automatically/i)).toBeVisible()
+    await waitFor(() => expect(line).toBeEmptyDOMElement())
+  },
+  { ...NEEDS_CHECK_REPLY, reconcileDueAt: NEXT_CHECK_AT },
+  {
+    polled: {
+      ...NEEDS_CHECK_REPLY,
+      publicationState: 'terminal',
+      reconcileDueAt: null,
+      stateRevision: 3,
+    },
+  },
+)
+
+/** The sweep confirmed the reply after the check: no "isn't showing" under Live. */
+export const NeedsCheckLineLeavesWhenTheReplyGoesLive = checkStory(
+  async () => NOT_ON_GOOGLE_STILL_CHECKED,
+  async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const { message, line } = await clickCheck(canvasElement)
+    await waitFor(() => expect(line).toHaveTextContent(CHECKS_AGAIN_LINE))
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Read the reply again' }))
+
+    expect(await message.findByText('Live on Google')).toBeVisible()
+    await waitFor(() => expect(line).toBeEmptyDOMElement())
+  },
+  { ...NEEDS_CHECK_REPLY, reconcileDueAt: NEXT_CHECK_AT },
+  {
+    polled: {
+      ...NEEDS_CHECK_REPLY,
+      status: 'published',
+      publicationState: 'published',
+      publishedAt: PUBLISHED_AT,
+      reconcileDueAt: null,
+      stateRevision: 3,
+    },
+  },
+)
+
+/**
+ * The answer moved the reply (the automatic checks ended while Google was
+ * read), and the cache write renders after the check settled. The line is for
+ * the reply the check returned, so it waits for that reply rather than being
+ * cleared by the one still on screen for a frame.
+ */
+export const NeedsCheckLineWaitsForTheReplyItDescribes = checkStory(
+  async () =>
+    checkResult('review_missing_on_google', {
+      reply: {
+        ...NEEDS_CHECK_REPLY,
+        publicationState: 'terminal',
+        reconcileDueAt: null,
+        stateRevision: 2,
+      },
+    }),
+  async ({ canvasElement }) => {
+    const { message, line } = await clickCheck(canvasElement)
+
+    expect(await message.findByText(/stopped checking automatically/i)).toBeVisible()
+    await waitFor(() => expect(line).toHaveTextContent(REPLY_CHECK_COPY.reviewMissing))
+  },
+  { ...NEEDS_CHECK_REPLY, reconcileDueAt: NEXT_CHECK_AT },
+  { cacheDelayMs: 50 },
+)
+
+/**
+ * Another manager's check already settled this reply as never sent, and
+ * nothing polls a reply that needs a check, so this pane is behind. The server
+ * refuses (`This reply has nothing to check on Google.`), and the pane re-reads
+ * the reply rather than leave a button the toast just contradicted.
+ */
+export const NeedsCheckRefusedBecauseTheReplyMovedOn = checkStory(
+  async () => {
+    throw new ServerFunctionError(
+      'ReviewError',
+      'This reply has nothing to check on Google.',
+      'invalid_transition',
+      400,
+    )
+  },
+  async ({ canvasElement }) => {
+    const { message } = await clickCheck(canvasElement)
+
+    await expectToast('This reply has nothing to check on Google.')
+    expect(
+      await message.findByRole('button', { name: 'Try publishing again' }),
+    ).toBeEnabled()
+    expect(message.queryByRole('button', { name: 'Check Google again' })).toBeNull()
+    expect(message.getByText('Not published')).toBeVisible()
+  },
+  NEEDS_CHECK_REPLY,
+  {
+    refetched: {
+      ...NEEDS_CHECK_REPLY,
+      publicationState: 'terminal',
+      publicationLastErrorClass: 'retryable',
+      stateRevision: 2,
+    },
+  },
+)
+
+/**
+ * Positive evidence that the attempt never reached Google. The view changes by
+ * itself — the returned reply is Not published, with Try publishing again — so
+ * the toast says why, and the line stays empty.
+ */
+export const NeedsCheckNeverSent = checkStory(
+  async () =>
+    checkResult('never_sent', {
+      reply: {
+        ...NEEDS_CHECK_REPLY,
+        publicationState: 'terminal',
+        publicationLastErrorClass: 'retryable',
+        stateRevision: 2,
+      },
+    }),
+  async ({ canvasElement }) => {
+    const { message, line } = await clickCheck(canvasElement)
+
+    await expectToast("This reply never reached Google. It's safe to publish it again.")
+    const retry = await message.findByRole('button', { name: 'Try publishing again' })
+    expect(retry).toBeEnabled()
+    expect(message.queryByRole('button', { name: 'Check Google again' })).toBeNull()
+    expect(line).toBeEmptyDOMElement()
+    // The focused check button is gone. Focus lands on the action the toast
+    // just offered, not on <body>, where the next Tab restarts the page.
+    await waitFor(() => expect(document.activeElement).toBe(retry))
+  },
+)
+
+/** Confirmed live: the reply becomes Live on Google, and the toast says so. */
+export const NeedsCheckLiveOnGoogle = checkStory(
+  async () =>
+    checkResult('live_on_google', {
+      reply: {
+        ...NEEDS_CHECK_REPLY,
+        status: 'published',
+        publicationState: 'published',
+        publishedAt: PUBLISHED_AT,
+        stateRevision: 2,
+      },
+    }),
+  async ({ canvasElement }) => {
+    const { message, line } = await clickCheck(canvasElement)
+
+    await expectToast('Your reply is live on Google.')
+    const edit = await message.findByRole('button', { name: 'Edit reply' })
+    expect(edit).toBeEnabled()
+    expect(message.queryByRole('button', { name: 'Check Google again' })).toBeNull()
+    expect(line).toBeEmptyDOMElement()
+    // The whole action row remounted under its new status key; focus follows.
+    await waitFor(() => expect(document.activeElement).toBe(edit))
+  },
+)
+
+/**
+ * Google shows a reply RepKey cannot read: said with its time, and nothing
+ * moves. This reply's automatic checks have ended (`reconcileDueAt` null), and
+ * `unreadable` schedules none, so the line sends the manager to Google rather
+ * than promising a check the description above says has stopped.
+ */
+export const NeedsCheckUnreadable = checkStory(
+  async () => checkResult('unreadable_on_google'),
+  async ({ canvasElement }) => {
+    const { message, line } = await clickCheck(canvasElement)
+
+    await waitFor(() =>
+      expect(line).toHaveTextContent(
+        `Checked Google at ${formatCheckTime(CHECKED_AT)}. ${REPLY_CHECK_COPY.unreadableStopped}`,
+      ),
+    )
+    expect(line).not.toHaveTextContent(/keep checking/i)
+    expect(message.getByText(/stopped checking automatically/i)).toBeVisible()
+    await expectCheckEnabledAgain(message)
+    expectNoToast(REPLY_CHECK_COPY.unreadableStopped)
+  },
+)
+
+/**
+ * Another reply is live on the review. While the reply is still in the thread
+ * the finding sits on its line; the next story is the same finding once the
+ * reply has gone back to the composer.
+ */
+export const NeedsCheckDifferentReply = checkStory(
+  async () => checkResult('different_reply_on_google'),
+  async ({ canvasElement }) => {
+    const { message, line } = await clickCheck(canvasElement)
+
+    await waitFor(() =>
+      expect(line).toHaveTextContent(
+        'Google shows a different reply on this review, so RepKey stopped publishing this one.',
+      ),
+    )
+    await expectCheckEnabledAgain(message)
+    expectNoToast(REPLY_CHECK_COPY.differentReply)
+  },
+)
+
+/**
+ * A cancelled publication returns the reply to `draft`, and a draft is the
+ * composer's: the whole message leaves the thread, with its line. The sentence
+ * the line would have carried arrives as a toast instead of nowhere.
+ */
+export const NeedsCheckCancelled = checkStory(
+  async () =>
+    checkResult('cancelled', {
+      reply: {
+        ...NEEDS_CHECK_REPLY,
+        status: 'draft',
+        publicationState: 'cancelled',
+        stateRevision: 2,
+      },
+    }),
+  async ({ canvasElement }) => {
+    await clickCheck(canvasElement)
+
+    await expectToast('Publishing was cancelled.')
+    await waitFor(() =>
+      expect(
+        within(canvasElement).queryByRole('article', { name: AUTHOR_LABEL }),
+      ).toBeNull(),
+    )
+  },
+)
+
+export const NeedsCheckReviewMissing = checkStory(
+  async () => checkResult('review_missing_on_google'),
+  async ({ canvasElement }) => {
+    const { message, line } = await clickCheck(canvasElement)
+
+    await waitFor(() =>
+      expect(line).toHaveTextContent('Google no longer returns this review.'),
+    )
+    await expectCheckEnabledAgain(message)
+  },
+)
+
+/**
+ * Google could not be reached. This is the click that used to vanish: the
+ * rejection was caught and dropped at the button. Now the toast carries the
+ * check's own sentence — a 500 whose message the check use case wrote for the
+ * manager — and the button is ready for the retry it asks for.
+ */
+export const NeedsCheckError = checkStory(
+  async () => {
+    throw new ServerFunctionError(
+      'ReviewError',
+      "RepKey couldn't reach Google to check this reply. Try again in a minute.",
+      'sync_failed',
+      500,
+    )
+  },
+  async ({ canvasElement }) => {
+    const { message, line } = await clickCheck(canvasElement)
+
+    await expectToast(
+      "RepKey couldn't reach Google to check this reply. Try again in a minute.",
+    )
+    await expectCheckEnabledAgain(message)
+    expect(line).toBeEmptyDOMElement()
+    expect(message.getByText('Needs a check')).toBeVisible()
+  },
+)
 
 /**
  * A failure that is safe to send again — and Try again is its WHOLE action
@@ -682,9 +1279,10 @@ export const NotPublished: Story = {
 }
 
 /**
- * Google refused the update. Same chip to the reader; a different sentence —
- * and the same single action, because the text is just as unchangeable after a
- * provider rejection as after a retryable one.
+ * A terminal rejection: Google refused the request, or RepKey refused to send
+ * it, and the sentence claims neither. Same chip to the reader; a different
+ * sentence — and the same single action, because the text is just as
+ * unchangeable after a terminal rejection as after a retryable one.
  */
 export const NotPublishedAfterGoogleRejection: Story = {
   args: {
@@ -701,7 +1299,7 @@ export const NotPublishedAfterGoogleRejection: Story = {
     const article = expectMessage(canvasElement, 'Confirmed', APPROVED_AT)
     const message = within(article)
     expect(message.getByText('Not published')).toBeVisible()
-    expect(message.getByText(/google rejected this update/i)).toBeVisible()
+    expect(message.getByText(/nothing was posted to google/i)).toBeVisible()
     expect(message.getByRole('button', { name: 'Try publishing again' })).toBeEnabled()
     expect(message.getAllByRole('button')).toHaveLength(1)
   },

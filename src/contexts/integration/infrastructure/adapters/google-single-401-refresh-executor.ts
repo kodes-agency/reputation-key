@@ -63,10 +63,19 @@ export const createSingle401RefreshExecutor = (
       if (accessToken.length < 1 || accessToken.length > 8_192) {
         throw new Error('refreshed Google access token is invalid')
       }
-      return deps.executor.execute(
+      const retried = await deps.executor.execute(
         Object.freeze({ ...descriptor, accessToken }),
         Object.freeze({ ...options, authorization }),
       )
+      // The first execution already reached Google and was answered 401, so a
+      // retry refused before its own fetch (quota, coordination, mismatch) must
+      // not report the call as `not_sent`: that value alone lets the reply
+      // workflow treat a failed write as safe to send again
+      // (reply-publication-workflow.ts classifyByDispatch). The answered 401
+      // is what this call proves.
+      return !retried.ok && retried.dispatch === 'not_sent'
+        ? Object.freeze({ ...retried, dispatch: 'answered', providerStatus: 401 })
+        : retried
     },
   })
 }

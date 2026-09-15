@@ -32,6 +32,7 @@ import type {
   InboxItemDetailResult,
   InboxNoteView,
 } from '#/contexts/inbox/application/public-api'
+import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
 
 // The thread is ONE rail (plan v2.1 rows 9–13). v1 split the guest's review off
 // as a `subject` above the stream, at `gap-6`, then hung events, notes and the
@@ -63,7 +64,8 @@ export type ThreadReplyActions = Readonly<{
   isEditing: boolean
   onApprove: () => Promise<unknown>
   onReject: (reason?: string) => Promise<unknown>
-  onCheck: () => Promise<unknown>
+  /** Resolves what "Check Google again" found (`ReplyPublicationCheckResult`). */
+  onCheck: () => Promise<ReplyPublicationCheckResult>
   onRetry: () => Promise<unknown>
   onEditPublished: () => void
   onEditRejected: () => void

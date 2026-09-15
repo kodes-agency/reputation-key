@@ -71,9 +71,13 @@ type ExecutionDenial = Extract<GoogleProviderExecutionResult, { ok: false }>
 
 const REJECTION_MESSAGE = 'Google provider execution rejected'
 
+// Every denial this adapter decides on its own happens before the gateway is
+// asked to send anything, so each is positive evidence of non-dispatch. Only a
+// gateway call can change that, and its own result carries its own evidence.
 const deadlineExceeded = (): ExecutionDenial => ({
   ok: false,
   code: 'deadline_exceeded',
+  dispatch: 'not_sent',
   retryAfterMs: 0,
 })
 
@@ -81,6 +85,14 @@ const denyAdmission = (admissionCode?: GoogleProviderAdmissionCode): ExecutionDe
   ok: false,
   code: 'admission_denied',
   ...(admissionCode === undefined ? {} : { admissionCode }),
+  dispatch: 'not_sent',
+  retryAfterMs: 0,
+})
+
+const malformedRequest = (): ExecutionDenial => ({
+  ok: false,
+  code: 'malformed_request',
+  dispatch: 'not_sent',
   retryAfterMs: 0,
 })
 
@@ -227,6 +239,10 @@ export const createGoogleAuthorizedProviderExecutor = (
             ...(executed.admissionCode === undefined
               ? {}
               : { admissionCode: executed.admissionCode }),
+            dispatch: executed.dispatch,
+            ...(executed.providerStatus === undefined
+              ? {}
+              : { providerStatus: executed.providerStatus }),
             retryAfterMs: executed.retryAfterMs,
           },
           REJECTION_MESSAGE,
@@ -234,8 +250,10 @@ export const createGoogleAuthorizedProviderExecutor = (
       }
       return executed
     } catch {
+      // The gateway may already have invoked fetch before it threw; nothing
+      // here proves otherwise.
       warnRejected(descriptor.routeKey, 'gateway', 'transport_error')
-      return { ok: false, code: 'transport_error', retryAfterMs: 0 }
+      return { ok: false, code: 'transport_error', dispatch: 'unknown', retryAfterMs: 0 }
     }
   }
 
@@ -247,7 +265,7 @@ export const createGoogleAuthorizedProviderExecutor = (
       if (credentialAdmissionDenial) return credentialAdmissionDenial
 
       const admission = compileAdmission(descriptor)
-      if (!admission) return { ok: false, code: 'malformed_request', retryAfterMs: 0 }
+      if (!admission) return malformedRequest()
 
       const disconnectAuthorization = isGoogleDisconnectRevokeAuthorization(
         options.authorization,

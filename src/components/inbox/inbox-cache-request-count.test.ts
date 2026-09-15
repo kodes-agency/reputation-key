@@ -23,7 +23,10 @@ afterEach(() => {
 })
 
 function detail(id: string): InboxItemDetailResult {
-  return { item: { id }, reply: null } as unknown as InboxItemDetailResult
+  return {
+    item: { id, sourceId: `review-of-${id}` },
+    reply: null,
+  } as unknown as InboxItemDetailResult
 }
 
 describe('Inbox selected-item request scope', () => {
@@ -90,9 +93,10 @@ describe('Inbox selected-item request scope', () => {
     const reply = { id: 'reply-a', status: 'draft' } as unknown as NonNullable<
       InboxItemDetailResult['reply']
     >
-    inboxCachePolicy.onReplyChanged(client, 'item-a', {
+    inboxCachePolicy.onReplyChanged(client, {
       kind: 'draft_saved',
       reply,
+      reviewId: 'review-of-item-a',
     })
     await vi.advanceTimersByTimeAsync(0)
 

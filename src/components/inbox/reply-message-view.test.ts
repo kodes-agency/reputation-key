@@ -7,6 +7,7 @@ const SUBMITTED_AT = new Date('2026-09-12T09:00:00.000Z')
 const APPROVED_AT = new Date('2026-09-12T09:05:00.000Z')
 const PUBLISHED_AT = new Date('2026-09-12T09:20:00.000Z')
 const UPDATED_AT = new Date('2026-09-12T10:00:00.000Z')
+const NEXT_CHECK_AT = new Date('2026-09-12T10:15:00.000Z')
 
 const BASE: Reply = {
   id: 'reply-1' as Reply['id'],
@@ -83,7 +84,7 @@ describe('presentReplyMessage', () => {
       tone: 'neutral',
       meta: { label: 'Confirmed', at: APPROVED_AT },
       detail:
-        'RepKey is sending this reply to Google. It will keep checking until the exact reply is confirmed live.',
+        'RepKey is publishing this reply to Google and checking that it appears. Google can take a few minutes.',
       reason: null,
       actions: [],
     })
@@ -106,8 +107,26 @@ describe('presentReplyMessage', () => {
 
     expect(stage(null)).toContain('will start publishing this reply shortly')
     expect(stage('requested')).toContain('will start publishing this reply shortly')
-    expect(stage('sending')).toContain('is sending this reply to Google')
-    expect(stage('pending_observation')).toContain('Google accepted the update')
+    expect(stage('sending')).toContain('publishing this reply to Google')
+    expect(stage('pending_observation')).toContain('Google accepted this reply')
+  })
+
+  /**
+   * An uncertain send stays `sending` for a 15-minute grace and then drops to
+   * an automatic read ladder that ends after 72 hours (`reply-publication-
+   * workflow.ts` AMBIGUOUS_RECONCILE_LADDER_MS). "Until confirmed" promised a
+   * check that never ends; neither in-flight sentence may say it.
+   */
+  it('never promises to keep checking until the reply is confirmed', () => {
+    for (const publicationState of ['sending', 'pending_observation'] as const) {
+      const detail = presentReplyMessage({
+        kind: 'approved',
+        reply: reply({ status: 'approved', approvedAt: APPROVED_AT, publicationState }),
+      })?.detail
+
+      expect(detail).toContain('can take a few minutes')
+      expect(detail).not.toMatch(/until/i)
+    }
   })
 
   it('lets a live reply be edited', () => {
@@ -146,24 +165,94 @@ describe('presentReplyMessage', () => {
     })
   })
 
-  it('asks for a read, never a resend, when the publication outcome is unknown', () => {
+  /**
+   * An ambiguous reply with a `reconcileDueAt` is still on the automatic read
+   * ladder, so nobody needs to act: the queue files it under Waiting for Google
+   * (D8) and the message must say the same thing. Check stays offered, because
+   * a manager may still ask for a read sooner than the next rung.
+   */
+  it('waits on Google, still offering a check, while automatic checks continue', () => {
+    expect(
+      presentReplyMessage({
+        kind: 'failed-check',
+        reply: reply({
+          status: 'publish_failed',
+          approvedAt: APPROVED_AT,
+          publicationState: 'ambiguous',
+          publicationLastErrorClass: 'ambiguous',
+          publicationAttempts: 1,
+          reconcileDueAt: NEXT_CHECK_AT,
+        }),
+      }),
+    ).toEqual({
+      chip: 'Waiting for Google',
+      tone: 'neutral',
+      meta: { label: 'Confirmed', at: APPROVED_AT },
+      detail:
+        "Google hasn't shown this reply yet. RepKey keeps checking automatically and won't send it twice.",
+      reason: null,
+      actions: ['check'],
+    })
+  })
+
+  it('reads a next check that crossed the wire as a string as a scheduled one', () => {
     const view = presentReplyMessage({
       kind: 'failed-check',
       reply: reply({
         status: 'publish_failed',
         approvedAt: APPROVED_AT,
-        publicationState: 'terminal',
+        publicationState: 'ambiguous',
         publicationLastErrorClass: 'ambiguous',
-        publicationAttempts: 2,
+        // A server fn serializes the Date; the runtime value is a string.
+        reconcileDueAt: NEXT_CHECK_AT.toISOString() as unknown as Date,
+      }),
+    })
+
+    expect(view?.chip).toBe('Waiting for Google')
+    expect(view?.tone).toBe('neutral')
+  })
+
+  it('asks a person for a check, never a resend, once automatic checks have stopped', () => {
+    expect(
+      presentReplyMessage({
+        kind: 'failed-check',
+        reply: reply({
+          status: 'publish_failed',
+          approvedAt: APPROVED_AT,
+          publicationState: 'terminal',
+          publicationLastErrorClass: 'ambiguous',
+          publicationAttempts: 2,
+          reconcileDueAt: null,
+        }),
+      }),
+    ).toEqual({
+      chip: 'Needs a check',
+      // Not `negative`: the reply may well be live, and red would assert an
+      // outcome the domain says is unknown.
+      tone: 'accent',
+      meta: { label: 'Confirmed', at: APPROVED_AT },
+      detail:
+        "RepKey couldn't confirm this reply on Google and has stopped checking automatically. It won't send it twice. Check Google again, or look at the review on Google.",
+      reason: null,
+      actions: ['check'],
+    })
+  })
+
+  it('does not claim automatic checks for an ambiguous reply with nothing scheduled', () => {
+    const view = presentReplyMessage({
+      kind: 'failed-check',
+      reply: reply({
+        status: 'publish_failed',
+        approvedAt: APPROVED_AT,
+        publicationState: 'ambiguous',
+        publicationLastErrorClass: 'ambiguous',
+        reconcileDueAt: null,
       }),
     })
 
     expect(view?.chip).toBe('Needs a check')
-    // Not `negative`: the reply may well be live, and red would assert an
-    // outcome the domain says is unknown.
     expect(view?.tone).toBe('accent')
     expect(view?.actions).toEqual(['check'])
-    expect(view?.detail).toContain('To avoid posting twice')
   })
 
   it('counts the attempts on a failure that is safe to send again', () => {
@@ -186,7 +275,12 @@ describe('presentReplyMessage', () => {
     expect(view?.actions).toEqual(['retry'])
   })
 
-  it('explains a provider rejection under the same Not published chip', () => {
+  /**
+   * `terminal_rejection` covers a request Google refused AND one RepKey refused
+   * before sending (`classifyPublicationFailure`, dispatch `not_sent` +
+   * `malformed_request`). The sentence may only say what both share.
+   */
+  it('explains a terminal rejection without claiming Google refused it', () => {
     const view = presentReplyMessage({
       kind: 'failed-retry',
       reply: reply({
@@ -198,7 +292,9 @@ describe('presentReplyMessage', () => {
     })
 
     expect(view?.chip).toBe('Not published')
-    expect(view?.detail).toContain('Google rejected this update')
+    expect(view?.detail).toBe(
+      "This reply couldn't be published, and nothing was posted to Google. Check the Google Business Profile connection, then try again.",
+    )
     expect(view?.actions).toEqual(['retry'])
   })
 

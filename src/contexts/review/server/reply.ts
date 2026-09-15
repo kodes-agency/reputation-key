@@ -91,6 +91,40 @@ export const retryPublishFn = createServerFn({ method: 'POST' })
     ),
   )
 
+// ── checkReplyPublication ────────────────────────────────────────────
+
+/**
+ * D5: "Check Google again". Returns what RepKey found — live, not showing yet,
+ * never sent, a different reply, unreadable, review missing, cancelled — with
+ * the check time and the next automatic check. Only a refusal or an
+ * unreachable Google is an error. Same authorization as retryPublishFn; it
+ * never authorizes a new cycle or enqueues a publish job.
+ */
+export const checkReplyPublicationFn = createServerFn({ method: 'POST' })
+  .validator(reviewIdDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
+        const { reviewPublicApi } = getContainer()
+        try {
+          return await reviewPublicApi.reply.checkPublication(
+            { reviewId: reviewId(data.reviewId) },
+            ctx,
+          )
+        } catch (e) {
+          if (isReviewError(e))
+            throwContextError('ReviewError', e, reviewErrorStatus(e.code))
+          throw catchUntagged(e)
+        }
+      },
+      'POST',
+      'review.checkReplyPublication',
+    ),
+  )
+
 // ── Re-exports from split files ──────────────────────────────────────
 
 export { getReplyFn } from './reply-read'

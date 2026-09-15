@@ -154,3 +154,29 @@ export function restoreSnapshot(
       : null)
   return { snapshot: { ...snapshot, draft }, selection }
 }
+
+/**
+ * Saves the draft, then submits it, and returns the sentence the composer shows
+ * inline (null for none). Only a failed SAVE is the composer's to explain: a
+ * refused submit already toasted the server's sentence through the submit
+ * mutation's `errorMessage` (`use-reply-actions.ts`), so an inline "save it
+ * first" under that toast would report it twice, and wrongly — the draft was
+ * saved. The rejection is still settled here so the footer's `void onSubmit()`
+ * never leaks an unhandled one.
+ */
+export async function submitAfterSave(
+  flush: () => Promise<unknown>,
+  submit: () => Promise<unknown>,
+): Promise<string | null> {
+  try {
+    await flush()
+  } catch {
+    return 'Save the draft successfully before submitting it.'
+  }
+  try {
+    await submit()
+  } catch {
+    // Reported by the submit mutation's toast; see above.
+  }
+  return null
+}

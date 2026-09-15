@@ -80,7 +80,10 @@ export function ReplyComposerFooter({
             variant="ghost"
             className="max-md:h-9"
             disabled={disabled}
-            onClick={onDelete}
+            // Settled only so a refused delete is not an unhandled rejection:
+            // the delete mutation's `errorMessage` (use-reply-actions.ts)
+            // toasts the server's sentence.
+            onClick={() => void onDelete().catch(() => undefined)}
           >
             Delete draft
           </Button>

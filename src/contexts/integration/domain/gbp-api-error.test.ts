@@ -60,6 +60,32 @@ describe('createGbpApiError', () => {
     expect(err.message).toBe('GBP API fetchReviews failed (rate_limited)')
   })
 
+  it('treats dispatch as unknown unless an adapter proved otherwise', () => {
+    // `unknown` is the conservative answer: a caller may only repeat a write on
+    // positive evidence that nothing reached Google.
+    const err = createGbpApiError('fetchReviews', 'upstream_error', 'Bad Gateway')
+    expect(err.dispatch).toBe('unknown')
+    expect(err.executionCode).toBeUndefined()
+    expect(err.providerStatus).toBeUndefined()
+  })
+
+  it('carries content-free dispatch evidence', () => {
+    const err = createGbpApiError('replyToReview', 'parse_error', {
+      dispatch: 'answered',
+      executionCode: 'response_too_large',
+      providerStatus: 502,
+    })
+    expect(err).toMatchObject({
+      dispatch: 'answered',
+      executionCode: 'response_too_large',
+      providerStatus: 502,
+    })
+    expect(Object.keys(err)).toEqual(
+      expect.arrayContaining(['dispatch', 'executionCode', 'providerStatus']),
+    )
+    expect(err.message).toBe('GBP API replyToReview failed (parse_error)')
+  })
+
   it('exposes properties as enumerable', () => {
     const err = createGbpApiError('fetchAccounts', 'auth_failed', 'Unauthorized')
     const keys = Object.keys(err)

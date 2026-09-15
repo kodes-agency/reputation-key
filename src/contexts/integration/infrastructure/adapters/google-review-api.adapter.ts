@@ -1,11 +1,16 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
 import type {
-  GoogleReview,
+  GoogleReviewApiError,
   GoogleReviewApiErrorCode,
   GoogleReviewApiPort,
   StarRating,
 } from '#/contexts/review/application/public-api'
+import type {
+  GoogleReviewApiFailure,
+  GoogleReviewRead,
+} from '#/contexts/review/application/ports/google-review-api.port'
+import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GoogleConnectionRepository } from '../../application/ports/google-connection.repository'
 import type { OrganizationId, GoogleConnectionId, PropertyId } from '#/shared/domain/ids'
@@ -22,7 +27,10 @@ import {
   parseReviewProviderResource,
   type ReviewProviderResource,
 } from '#/shared/review-provider-subject-contract'
-import { parseGoogleReviewComment } from '#/shared/google-review-comment'
+import {
+  parseGoogleReplyComment,
+  parseGoogleReviewComment,
+} from '#/shared/google-review-comment'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import {
   executeGoogleProviderJson,
@@ -173,6 +181,21 @@ function defineEnumerable<T>(value: T): PropertyDescriptor {
   }
 }
 
+type ReviewApiErrorDetails = Readonly<{
+  retryAfterMs?: number
+  /** Dispatch evidence; when present the message names it (content-free). */
+  failure?: GoogleReviewApiFailure
+  /** The code or kind the message leads with; defaults to the review code. */
+  failureLabel?: string
+}>
+
+/** Reaches BullMQ's failedReason, so codes, dispatch and status only. */
+function failureMessage(label: string, failure: GoogleReviewApiFailure): string {
+  const status =
+    failure.providerStatus === null ? '' : `; status ${failure.providerStatus}`
+  return `Google review API request failed (${label}; ${failure.dispatch}${status})`
+}
+
 /**
  * `retryAfterMs` carries the provider's own backoff hint to the scheduler.
  *
@@ -186,19 +209,14 @@ function defineEnumerable<T>(value: T): PropertyDescriptor {
 function reviewApiError(
   code: GoogleReviewApiErrorCode,
   recoverable: boolean,
-  retryAfterMs?: number,
-): Error & {
-  readonly _tag: 'GoogleReviewApiError'
-  readonly code: GoogleReviewApiErrorCode
-  readonly recoverable: boolean
-  readonly retryAfterMs?: number
-} {
-  const error = new Error('Google review API request failed') as Error & {
-    readonly _tag: 'GoogleReviewApiError'
-    readonly code: GoogleReviewApiErrorCode
-    readonly recoverable: boolean
-    readonly retryAfterMs?: number
-  }
+  details: ReviewApiErrorDetails = {},
+): GoogleReviewApiError {
+  const { retryAfterMs, failure } = details
+  const error = new Error(
+    failure === undefined
+      ? 'Google review API request failed'
+      : failureMessage(details.failureLabel ?? code, failure),
+  ) as GoogleReviewApiError
   Object.defineProperties(error, {
     name: defineEnumerable('GoogleReviewApiError'),
     _tag: defineEnumerable('GoogleReviewApiError'),
@@ -207,8 +225,60 @@ function reviewApiError(
     ...(retryAfterMs === undefined
       ? {}
       : { retryAfterMs: defineEnumerable(retryAfterMs) }),
+    ...(failure === undefined
+      ? {}
+      : { failure: defineEnumerable(Object.freeze({ ...failure })) }),
   })
   return error
+}
+
+const NOT_SENT: GoogleReviewApiFailure = Object.freeze({
+  executionCode: null,
+  dispatch: 'not_sent',
+  providerStatus: null,
+})
+
+/** Every `invalid_request` is thrown before the executor is called. */
+function invalidRequest(): GoogleReviewApiError {
+  return reviewApiError('invalid_request', false, { failure: NOT_SENT })
+}
+
+// The codes below are read from an `unknown` rejection, so they are only
+// trusted as log/message material when they look like a closed-union code.
+const CONTENT_FREE_CODE = /^[a-z][a-z0-9_]{0,63}$/u
+
+function errorField(error: unknown, key: string): unknown {
+  return typeof error === 'object' && error !== null && key in error
+    ? (error as Record<string, unknown>)[key]
+    : undefined
+}
+
+function contentFreeCode(value: unknown): string | null {
+  return typeof value === 'string' && CONTENT_FREE_CODE.test(value) ? value : null
+}
+
+/**
+ * Reads the GbpApiError dispatch fields `executeGoogleProviderRaw` records. A
+ * missing or unrecognised dispatch is `unknown`: only the provider plane's
+ * explicit `not_sent` may later make a failure safe to retry.
+ */
+function executorFailure(
+  error: unknown,
+): Readonly<{ label: string; failure: GoogleReviewApiFailure }> {
+  const executionCode =
+    contentFreeCode(errorField(error, 'executionAdmissionCode')) ??
+    contentFreeCode(errorField(error, 'executionCode'))
+  const dispatch = errorField(error, 'dispatch')
+  const status = errorField(error, 'providerStatus')
+  return {
+    label: executionCode ?? contentFreeCode(errorField(error, 'kind')) ?? 'unclassified',
+    failure: {
+      executionCode,
+      dispatch: dispatch === 'not_sent' || dispatch === 'answered' ? dispatch : 'unknown',
+      providerStatus:
+        typeof status === 'number' && Number.isSafeInteger(status) ? status : null,
+    },
+  }
 }
 
 /**
@@ -216,27 +286,51 @@ function reviewApiError(
  * preserving the backoff hint the executor already computed
  * (`googleRetryFloorMs` over Retry-After or the admission denial). Dropping it
  * turned a rate-limited provider into a queue-speed retry loop.
+ *
+ * The code mapping stays coarse, but the dispatch evidence rides along: the
+ * incident reply's compile refusal (no permit, no fetch) arrived here as
+ * `parse_error`, left as a bare `provider_unavailable`, and was classified
+ * ambiguous (reply-publication-workflow.ts classifyPublicationFailure).
  */
-function executorErrorToReviewApiError(error: unknown): Error {
-  const kind =
-    typeof error === 'object' && error !== null && 'kind' in error
-      ? error.kind
-      : undefined
+function executorErrorToReviewApiError(error: unknown): GoogleReviewApiError {
+  const kind = errorField(error, 'kind')
+  const { label, failure } = executorFailure(error)
   // A refusal is an ANSWER, not an outage. Collapsing 401/403 into
   // `provider_unavailable` told the reply publication workflow the outcome was
   // unknown, so a permanently refused write burned every retry and never
   // reached publish_failed.
   if (kind === 'auth_failed' || kind === 'permission_denied') {
-    return reviewApiError('authorization_changed', false)
+    return reviewApiError('authorization_changed', false, {
+      failure,
+      failureLabel: label,
+    })
   }
-  if (kind !== 'rate_limited' || typeof error !== 'object' || error === null) {
-    return reviewApiError('provider_unavailable', true)
+  if (kind !== 'rate_limited') {
+    return reviewApiError('provider_unavailable', true, { failure, failureLabel: label })
   }
-  const hint =
-    'retryAfterMs' in error && typeof error.retryAfterMs === 'number'
-      ? error.retryAfterMs
-      : undefined
-  return reviewApiError('provider_rate_limited', true, hint)
+  const hint = errorField(error, 'retryAfterMs')
+  return reviewApiError('provider_rate_limited', true, {
+    ...(typeof hint === 'number' ? { retryAfterMs: hint } : {}),
+    failure,
+    failureLabel: label,
+  })
+}
+
+/**
+ * `executeGoogleProviderRaw` refuses a 200 whose content type is not JSON, but
+ * for a write that refusal is about the body, not the outcome: Google answered
+ * 200, so the reply was accepted. That branch is the only `parse_error` with an
+ * answered 200 and no executor code (an executor failure always names its
+ * code, e.g. `response_too_large`), so nothing else is read as acceptance.
+ */
+function isAcceptedNonJsonWrite(error: unknown): boolean {
+  return (
+    errorField(error, '_tag') === 'GbpApiError' &&
+    errorField(error, 'kind') === 'parse_error' &&
+    errorField(error, 'dispatch') === 'answered' &&
+    errorField(error, 'providerStatus') === 200 &&
+    errorField(error, 'executionCode') === undefined
+  )
 }
 
 function isGoogleReviewApiError(error: unknown): boolean {
@@ -334,11 +428,13 @@ const REPLY_PUBLICATION_KEYS = [
   'reviewName',
   'text',
 ] as const
-const MAX_REPLY_TEXT_LENGTH = 4_096
 
 /**
  * Request-shape validation for a reply publication. Every rule is independent
  * of the others and every failure is the same refusal, so the list stays flat.
+ * The text rule is the one the route catalogue compiles `reviews.reply` with
+ * (bytes, not UTF-16 units; \n \r \t allowed): a character-count cap here let
+ * 2,049 Cyrillic characters through to a compile refusal.
  */
 function assertValidReplyPublicationInput(input: GoogleReplyPublicationInput): void {
   if (
@@ -353,15 +449,14 @@ function assertValidReplyPublicationInput(input: GoogleReplyPublicationInput): v
     !isCountAtLeast(input.publicationCycle, 1) ||
     !isCountAtLeast(input.attemptNumber, 1) ||
     typeof input.text !== 'string' ||
-    input.text.length < 1 ||
-    input.text.length > MAX_REPLY_TEXT_LENGTH
+    replyCommentProblem(input.text) !== null
   ) {
-    throw reviewApiError('invalid_request', false)
+    throw invalidRequest()
   }
   try {
     parseReviewProviderResource(input.reviewName)
   } catch {
-    throw reviewApiError('invalid_request', false)
+    throw invalidRequest()
   }
 }
 
@@ -397,7 +492,7 @@ function assertLocationName(locationName: string): void {
   try {
     parseReviewProviderResource(`${locationName}/reviews/validation`)
   } catch {
-    throw reviewApiError('invalid_request', false)
+    throw invalidRequest()
   }
 }
 
@@ -405,10 +500,10 @@ function assertReviewName(reviewName: string, locationName: string): void {
   try {
     parseReviewProviderResource(reviewName)
   } catch {
-    throw reviewApiError('invalid_request', false)
+    throw invalidRequest()
   }
   if (!reviewName.startsWith(`${locationName}/reviews/`)) {
-    throw reviewApiError('invalid_request', false)
+    throw invalidRequest()
   }
 }
 
@@ -419,7 +514,10 @@ function parseDate(value: string): Date {
   return parsed
 }
 
-function mapReview(raw: GbpReviewItem, locationName: string): GoogleReview {
+function mapReview(
+  raw: GbpReviewItem,
+  locationName: string,
+): GoogleReviewRead & Readonly<{ replyUnreadable: boolean }> {
   let resource: ReviewProviderResource
   try {
     resource = parseReviewProviderResource(raw.name)
@@ -438,6 +536,7 @@ function mapReview(raw: GbpReviewItem, locationName: string): GoogleReview {
   // whole AI reply plane read it, and the blob made 8 Bulgarian reviews look
   // like reliable English.
   const comment = parseGoogleReviewComment(raw.comment)
+  const reply = parseGoogleReplyComment(raw.reviewReply?.comment)
   return {
     reviewName: raw.name,
     externalId: resource.reviewId,
@@ -460,7 +559,10 @@ function mapReview(raw: GbpReviewItem, locationName: string): GoogleReview {
     // 09:01:28Z could not be confirmed, so it settled as "Google status
     // unconfirmed" and no reply on a translated review could ever reach
     // Published.
-    replyText: parseGoogleReviewComment(raw.reviewReply?.comment).original,
+    replyText: reply.text,
+    // A reply Google shows without a recoverable original (translation-only
+    // envelope) is not "no reply": reconciliation must not read it as absent.
+    replyUnreadable: reply.unreadable,
     replyUpdatedAt: raw.reviewReply?.updateTime
       ? parseDate(raw.reviewReply.updateTime)
       : null,
@@ -642,7 +744,7 @@ export const createGoogleReviewApiAdapter = (
       (input.cursorRef !== null &&
         !/^[a-z][a-z0-9_-]{0,31}\.[A-Za-z0-9_-]{43}$/u.test(input.cursorRef))
     ) {
-      throw reviewApiError('invalid_request', false)
+      throw invalidRequest()
     }
     assertLocationName(input.locationName)
     const context = await resolveProviderContext(input)
@@ -800,7 +902,7 @@ export const createGoogleReviewApiAdapter = (
       !Number.isSafeInteger(input.sourceEpoch) ||
       input.sourceEpoch < 0
     ) {
-      throw reviewApiError('invalid_request', false)
+      throw invalidRequest()
     }
     assertLocationName(input.locationName)
     assertReviewName(input.reviewName, input.locationName)
@@ -867,7 +969,7 @@ export const createGoogleReviewApiAdapter = (
       !Number.isSafeInteger(input.sourceEpoch) ||
       input.sourceEpoch < 0
     ) {
-      throw reviewApiError('invalid_request', false)
+      throw invalidRequest()
     }
     // Two distinct rejections live here: the port-level call can fault before
     // the store ever answers (`discard_cursors`), or the store can answer no
@@ -944,6 +1046,9 @@ export const createGoogleReviewApiAdapter = (
       result.body.fill(0)
       return { providerCorrelationId }
     } catch (error) {
+      // The raw helper has already zeroed the body and dropped the headers,
+      // so the correlation id is honestly unknown here.
+      if (isAcceptedNonJsonWrite(error)) return { providerCorrelationId: null }
       throw executorErrorToReviewApiError(error)
     }
   }

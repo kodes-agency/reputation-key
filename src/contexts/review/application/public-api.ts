@@ -92,6 +92,13 @@ export type {
   ReconcileReplyPublication,
   ReconcileReplyPublicationInput,
 } from './use-cases/reconcile-reply-publication'
+// D5: what "Check Google again" found. The inbox reply actions render these
+// outcomes, so the result shape is part of the public surface.
+export type {
+  CheckReplyPublication,
+  ReplyPublicationCheckOutcome,
+  ReplyPublicationCheckResult,
+} from './use-cases/check-reply-publication'
 
 // BQC-5.5: review-owned governed aggregate serving reads (ADR 0031
 // eligibility enforced at the owner, clock-injected). The dashboard build

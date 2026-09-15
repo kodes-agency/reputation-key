@@ -238,6 +238,36 @@ describe('Google in-process admission service', () => {
     expect(fixture.release).toHaveBeenCalledTimes(1)
   })
 
+  // The gateway checks the same deadline before it asks; the time spent reaching
+  // admission can still use it up. That is not a malformed request, which the
+  // reply workflow treats as a deterministic refusal it never retries.
+  it.each([
+    ['at', 10_000],
+    ['past', 10_001],
+  ])(
+    'denies with deadline_exceeded when started %s the deadline',
+    async (_label, now) => {
+      const compiled = compile({
+        routeKey: 'account-management.accounts.list',
+        accessToken: 'access-token',
+      })
+      const fixture = admissionFixture({
+        permit: permitFor('permit-late-00001', compiled.admission),
+        nowMs: () => now,
+      })
+
+      await expect(
+        fixture.service.start({
+          permitId: 'permit-late-00001',
+          gatewayIdentity,
+          admission: compiled.admission,
+          deadlineMs: 10_000,
+        }),
+      ).resolves.toEqual({ ok: false, code: 'deadline_exceeded', retryAfterMs: 0 })
+      expect(fixture.quota.acquire).not.toHaveBeenCalled()
+    },
+  )
+
   it('requires credential-cleanup permits to use only the fixed revoke route', async () => {
     const revoke = compile({ routeKey: 'oauth.revoke', token: 'token-to-revoke' })
     const fixture = admissionFixture({
@@ -348,8 +378,9 @@ describe('Google in-process egress gateway', () => {
       }),
     ).resolves.toEqual({
       ok: false,
-
       code: 'response_too_large',
+      dispatch: 'answered',
+      providerStatus: 200,
       retryAfterMs: 0,
     })
   })
@@ -383,6 +414,8 @@ describe('Google in-process egress gateway', () => {
     ).resolves.toEqual({
       ok: false,
       code: 'admission_denied',
+      dispatch: 'answered',
+      providerStatus: 200,
       retryAfterMs: 0,
     })
   })

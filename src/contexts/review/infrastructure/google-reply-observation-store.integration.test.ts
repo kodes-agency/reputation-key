@@ -96,12 +96,13 @@ function makeReview(
 function makeReply(
   id: typeof REPLY_A | typeof REPLY_B,
   review: typeof REVIEW_A | typeof REVIEW_B,
+  text = 'Thank you for your review!',
 ): Reply {
   return {
     id,
     reviewId: review,
     organizationId: ORG,
-    text: 'Thank you for your review!',
+    text,
     status: 'pending_approval',
     source: 'internal',
     createdBy: USER,
@@ -161,6 +162,7 @@ async function seedReviewAndReply(input: {
   propertyId?: typeof PROP_A | typeof PROP_B
   claim?: boolean
   providerPending?: boolean
+  text?: string
 }) {
   const id = input.reviewId ?? REVIEW_A
   const rId = input.replyId ?? REPLY_A
@@ -173,7 +175,7 @@ async function seedReviewAndReply(input: {
   )
   const commandStore = createTestReplyCommandStore()
   const originalReply = await createReplyRepository(db, () => new Date()).upsert(
-    makeReply(rId, id),
+    makeReply(rId, id, input.text),
   )
   const authorized = await commandStore.markPublicationAuthorized(
     originalReply,
@@ -483,6 +485,193 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     )
     expect(cancellations.rows).toHaveLength(1)
   })
+
+  // D6: Google may echo the reply RepKey sent with its blank lines or trailing
+  // spaces reformatted. Exact google-reply-v1 digest matching stays the only way
+  // to confirm, but such an echo is not another author's reply, so it must not
+  // cancel the in-flight publication either. `diverged` is the one resolution
+  // the observation check constraints allow for live text that neither confirms
+  // nor closes the handling target.
+  const MULTI_LINE_REPLY = 'Thank you for your review!\n\nWe hope to welcome you back.'
+  const REFORMATTED_REPLY =
+    'Thank you for your review!  \n\n\n\nWe hope to welcome you back. '
+
+  async function cancellationFacts(): Promise<number> {
+    const rows = await pool.query(
+      `SELECT 1 FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'review.reply.publication_cancelled'`,
+      [ORG],
+    )
+    return rows.rows.length
+  }
+
+  async function attemptOutcome(): Promise<unknown> {
+    const rows = await pool.query(
+      `SELECT outcome, confirmed_observation_revision
+       FROM reply_publication_attempts WHERE reply_id = $1`,
+      [REPLY_A],
+    )
+    return rows.rows[0]
+  }
+
+  it('keeps a pending attempt in flight when a snapshot shows it with only whitespace reformatted', async () => {
+    const { review } = await seedReviewAndReply({ text: MULTI_LINE_REPLY })
+    const store = createGoogleReplyObservationStore(getDb())
+
+    await expect(
+      store.record(
+        observationInput(review, {
+          observationKey: sha256Hex('snapshot-whitespace-reformatted'),
+          observedText: REFORMATTED_REPLY,
+        }),
+      ),
+    ).resolves.toMatchObject({
+      duplicate: false,
+      change: 'added',
+      resolution: 'diverged',
+      matchedReplyId: null,
+    })
+    // A later snapshot restating the same reformatted echo says nothing new.
+    await expect(
+      store.record(
+        observationInput(review, {
+          observationKey: sha256Hex('snapshot-whitespace-reformatted-reread'),
+          observedText: REFORMATTED_REPLY,
+        }),
+      ),
+    ).resolves.toMatchObject({ duplicate: true, resolution: 'diverged' })
+
+    await expect(
+      createReplyRepository(getDb(), () => new Date()).findById(REPLY_A, ORG),
+    ).resolves.toMatchObject({
+      status: 'approved',
+      publicationState: 'pending_observation',
+    })
+    await expect(attemptOutcome()).resolves.toEqual({
+      outcome: 'provider_outcome_pending',
+      confirmed_observation_revision: null,
+    })
+    expect(await cancellationFacts()).toBe(0)
+
+    // The fence stayed open: the exact text still confirms.
+    await expect(
+      store.record(
+        observationInput(review, {
+          observationKey: sha256Hex('snapshot-exact-after-reformatted'),
+          observedText: MULTI_LINE_REPLY,
+        }),
+      ),
+    ).resolves.toMatchObject({
+      resolution: 'confirmed_on_google',
+      matchedReplyId: REPLY_A,
+    })
+  })
+
+  it('keeps a sending attempt in flight when a targeted read shows only whitespace reformatted, and still supersedes on a different reply', async () => {
+    const { review } = await seedReviewAndReply({
+      text: MULTI_LINE_REPLY,
+      providerPending: false,
+    })
+    const store = createGoogleReplyObservationStore(getDb())
+    const target = { replyId: REPLY_A, publicationCycle: 1, attemptNumber: 1 }
+
+    await expect(
+      store.record(
+        observationInput(review, {
+          observationKey: sha256Hex('targeted-whitespace-reformatted'),
+          source: 'targeted_reconciliation',
+          publicationTarget: target,
+          observedText: REFORMATTED_REPLY,
+        }),
+      ),
+    ).resolves.toMatchObject({ resolution: 'diverged', matchedReplyId: null })
+
+    await expect(
+      createReplyRepository(getDb(), () => new Date()).findById(REPLY_A, ORG),
+    ).resolves.toMatchObject({ status: 'approved', publicationState: 'sending' })
+    await expect(attemptOutcome()).resolves.toEqual({
+      outcome: 'sending',
+      confirmed_observation_revision: null,
+    })
+    expect(await cancellationFacts()).toBe(0)
+
+    await expect(
+      store.record(
+        observationInput(review, {
+          observationKey: sha256Hex('targeted-different-after-reformatted'),
+          source: 'targeted_reconciliation',
+          publicationTarget: target,
+          observedText: 'Thanks, we hope to welcome you back.',
+        }),
+      ),
+    ).resolves.toMatchObject({ change: 'edited', resolution: 'external_current_live' })
+    await expect(
+      createReplyRepository(getDb(), () => new Date()).findById(REPLY_A, ORG),
+    ).resolves.toMatchObject({ status: 'draft', publicationState: 'cancelled' })
+    await expect(attemptOutcome()).resolves.toEqual({
+      outcome: 'superseded',
+      confirmed_observation_revision: null,
+    })
+    expect(await cancellationFacts()).toBe(1)
+  })
+
+  // D5: "Check Google again" on terminal ambiguity must be able to report a
+  // different reply on Google. The exact echo already confirmed from terminal
+  // ambiguity; a different one threw `invalid_transition`, failing the check
+  // with a 400 and every snapshot import of that Review.
+  it.each(['targeted_reconciliation', 'provider_snapshot'] as const)(
+    'supersedes terminal ambiguity when a %s read shows a different reply',
+    async (source) => {
+      const { review, reply: sending } = await seedReviewAndReply({
+        providerPending: false,
+      })
+      const commandStore = createTestReplyCommandStore()
+      const ambiguous = await commandStore.markPublicationAmbiguous(sending, null, NOW)
+      const terminal = await commandStore.markPublicationTerminal(
+        ambiguous!,
+        'ambiguous',
+        null,
+        NOW,
+      )
+      expect(terminal).toMatchObject({
+        status: 'publish_failed',
+        publicationState: 'terminal',
+        publicationLastErrorClass: 'ambiguous',
+      })
+
+      await expect(
+        createGoogleReplyObservationStore(getDb()).record(
+          observationInput(review, {
+            observationKey: sha256Hex(`terminal-ambiguity-different-${source}`),
+            source,
+            ...(source === 'targeted_reconciliation'
+              ? {
+                  publicationTarget: {
+                    replyId: REPLY_A,
+                    publicationCycle: 1,
+                    attemptNumber: 1,
+                  },
+                }
+              : {}),
+            observedText: 'A reply someone posted directly on Google',
+          }),
+        ),
+      ).resolves.toMatchObject({ resolution: 'external_current_live' })
+
+      await expect(
+        createReplyRepository(getDb(), () => new Date()).findById(REPLY_A, ORG),
+      ).resolves.toMatchObject({
+        status: 'draft',
+        publicationState: 'cancelled',
+        reconcileDueAt: null,
+      })
+      await expect(attemptOutcome()).resolves.toEqual({
+        outcome: 'superseded',
+        confirmed_observation_revision: null,
+      })
+      expect(await cancellationFacts()).toBe(1)
+    },
+  )
 
   it('supersedes a newer attempt when the existing external-live head is unchanged', async () => {
     const { review } = await seedReviewAndReply({ claim: false })

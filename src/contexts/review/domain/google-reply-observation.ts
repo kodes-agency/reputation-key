@@ -85,6 +85,12 @@ export type GoogleReplyPublicationCandidate = Readonly<{
   sourceEpoch: number
   materialReviewRevision: number
   expectedReplyDigest: string
+  /**
+   * The Reply text this attempt is believed to carry, or null when unknown. It
+   * is trusted only when it digests to `expectedReplyDigest`; it never confirms
+   * anything, it only recognises a whitespace-reformatted echo.
+   */
+  expectedReplyText: string | null
   outcome:
     | 'sending'
     | 'provider_outcome_pending'
@@ -165,6 +171,29 @@ function isConfirmableCurrentAttempt(
   )
 }
 
+/** Every run of Unicode whitespace becomes one space, then the ends are trimmed. */
+function collapseWhitespace(text: string): string {
+  return normalizeGoogleReplyText(text).replace(/\s+/gu, ' ').trim()
+}
+
+/**
+ * Live text that is not the attempt's exact text (google-reply-v1 digests
+ * differ) yet equals it once whitespace is collapsed: Google echoing RepKey's
+ * reply with blank lines or trailing spaces reformatted. That is neither proof
+ * of RepKey's write nor another author's reply, so it must not confirm and must
+ * not supersede. The expected text is honoured only when it digests to the
+ * attempt's own digest, so an edited Reply cannot borrow an old attempt.
+ */
+function isWhitespaceOnlyDifference(
+  candidate: GoogleReplyPublicationCandidate,
+  observedText: string,
+): boolean {
+  const expected = candidate.expectedReplyText
+  if (expected === null) return false
+  if (googleReplyTextDigest(expected) !== candidate.expectedReplyDigest) return false
+  return collapseWhitespace(expected) === collapseWhitespace(observedText)
+}
+
 /** Pure authority for material provider-reply changes and RepKey attribution. */
 export function decideGoogleReplyObservation(input: DecideGoogleReplyObservationInput) {
   const observed = describeObservedText(input.observedText)
@@ -200,6 +229,30 @@ export function decideGoogleReplyObservation(input: DecideGoogleReplyObservation
       change,
       resolution: change === 'deleted' ? ('absent' as const) : ('unchanged' as const),
       provenance: 'none' as const,
+      normalizedText,
+      normalizedDigest,
+      matchedReplyId: null,
+      matchedPublicationCycle: null,
+      matchedAttemptNumber: null,
+    })
+  }
+
+  // The only resolution the observation check constraints allow for live text
+  // that neither confirms nor closes the handling target is `diverged`
+  // (review.schema.ts google_reply_observations_semantics_valid); the store
+  // supersedes only on `external_current_live`, and the Inbox closes a cycle
+  // only on `confirmed_on_google` / `external_current_live`.
+  if (
+    candidate !== null &&
+    currentCandidate &&
+    input.observedText !== null &&
+    isWhitespaceOnlyDifference(candidate, input.observedText)
+  ) {
+    return Object.freeze({
+      state,
+      change,
+      resolution: 'diverged' as const,
+      provenance: 'external_or_unknown' as const,
       normalizedText,
       normalizedDigest,
       matchedReplyId: null,

@@ -40,6 +40,7 @@ import type {
   InboxNoteView,
   InboxReviewAnalysis,
 } from '#/contexts/inbox/application/public-api'
+import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
 import type {
   InboxHistoryEntry,
   LedgerEntry,
@@ -384,7 +385,14 @@ const replyActions = {
   isEditing: false,
   onApprove: fn(async () => undefined),
   onReject: fn(async (_reason?: string) => undefined),
-  onCheck: fn(async () => undefined),
+  // A check that finds nothing: the thread's stories pin the rail, and the
+  // check's outcomes are gated in `reply-message.stories.tsx`.
+  onCheck: fn(async (): Promise<ReplyPublicationCheckResult> => ({
+    reply: REPLIES.needsCheck,
+    outcome: 'not_on_google',
+    checkedAt: REPLY_APPROVED_AT,
+    nextAutomaticCheckAt: null,
+  })),
   onRetry: fn(async () => undefined),
   onEditPublished: fn(() => {}),
   onEditRejected: fn(() => {}),

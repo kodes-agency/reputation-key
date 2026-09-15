@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   googleConnectionId,
@@ -17,8 +17,16 @@ import type {
   GoogleProviderAdmissionCode,
   GoogleProviderExecutionResult,
 } from '../../application/ports/google-authorized-provider-executor.port'
-import { isGbpApiError, type GbpApiError } from '../../domain/gbp-api-error'
-import { executeGoogleProviderRaw } from './google-provider-adapter'
+import type { GoogleProviderDispatch } from '#/shared/google-provider-control/egress-gateway'
+import {
+  isGbpApiError,
+  type GbpApiDispatch,
+  type GbpApiError,
+} from '../../domain/gbp-api-error'
+import {
+  executeGoogleProviderJson,
+  executeGoogleProviderRaw,
+} from './google-provider-adapter'
 
 const NOW_MS = 1_800_000_000_000
 const ORG_ID = organizationId('org-1')
@@ -88,7 +96,13 @@ function admissionDenied(
   admissionCode: GoogleProviderAdmissionCode,
   retryAfterMs = 0,
 ): GoogleProviderExecutionResult {
-  return { ok: false, code: 'admission_denied', admissionCode, retryAfterMs }
+  return {
+    ok: false,
+    code: 'admission_denied',
+    admissionCode,
+    dispatch: 'not_sent',
+    retryAfterMs,
+  }
 }
 
 async function providerError(
@@ -226,5 +240,175 @@ describe('executeGoogleProviderRaw admission classification', () => {
 
     expect(JSON.stringify(error)).not.toContain('access-token')
     expect(JSON.stringify(error)).not.toContain(CONNECTION_ID)
+  })
+})
+
+// The reply publication workflow decides whether a failed write is safe to
+// repeat from this evidence alone (CONTRACT-REPLY D2), so each path pins what
+// the executor actually proved about the request reaching Google.
+describe('executeGoogleProviderRaw dispatch evidence', () => {
+  it('keeps the domain dispatch union identical to the gateway union', () => {
+    // The domain may not import shared/google-provider-control, so it declares
+    // its own copy; a drift would let a new gateway value vanish at this seam.
+    expectTypeOf<GbpApiDispatch>().toEqualTypeOf<GoogleProviderDispatch>()
+  })
+
+  it('carries a not_sent executor rejection with its execution code', async () => {
+    const error = await providerError({
+      ok: false,
+      code: 'malformed_request',
+      dispatch: 'not_sent',
+      retryAfterMs: 0,
+    })
+
+    expect(error).toMatchObject({
+      kind: 'parse_error',
+      dispatch: 'not_sent',
+      executionCode: 'malformed_request',
+    })
+    expect(error.providerStatus).toBeUndefined()
+  })
+
+  it('carries an answered executor rejection with the provider status', async () => {
+    await expect(
+      providerError({
+        ok: false,
+        code: 'response_too_large',
+        dispatch: 'answered',
+        providerStatus: 502,
+        retryAfterMs: 0,
+      }),
+    ).resolves.toMatchObject({
+      dispatch: 'answered',
+      executionCode: 'response_too_large',
+      providerStatus: 502,
+    })
+  })
+
+  it('reports answered with the status for a provider 404', async () => {
+    await expect(providerError(providerResponse(404, null))).resolves.toMatchObject({
+      kind: 'upstream_error',
+      dispatch: 'answered',
+      providerStatus: 404,
+    })
+  })
+
+  it('reports answered with status 200 for a non-JSON success', async () => {
+    const error = await providerError({
+      ok: true,
+      status: 200,
+      headers: { contentType: 'text/html', cacheControl: null, retryAfter: null },
+      body: new TextEncoder().encode('<html></html>'),
+    })
+
+    expect(error).toMatchObject({
+      kind: 'parse_error',
+      dispatch: 'answered',
+      providerStatus: 200,
+    })
+  })
+
+  it('reports answered with status 200 when a JSON success does not decode', async () => {
+    const rejection = executeGoogleProviderJson({
+      operation: 'listAccounts',
+      descriptor: DESCRIPTOR,
+      authorization: AUTHORIZATION,
+      executor: executorReturning({
+        ok: true,
+        status: 200,
+        headers: {
+          contentType: 'application/json',
+          cacheControl: null,
+          retryAfter: null,
+        },
+        body: new TextEncoder().encode('{"accounts":'),
+      }),
+      nowMs: () => NOW_MS,
+    })
+
+    await expect(rejection).rejects.toMatchObject({
+      _tag: 'GbpApiError',
+      kind: 'parse_error',
+      dispatch: 'answered',
+      providerStatus: 200,
+    })
+  })
+
+  it('reports not_sent when validation fails before the executor is called', async () => {
+    const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>()
+    const rejection = executeGoogleProviderRaw({
+      operation: 'listAccounts',
+      descriptor: DESCRIPTOR,
+      authorization: AUTHORIZATION,
+      executor: { execute },
+      nowMs: () => Number.NaN,
+    })
+
+    await expect(rejection).rejects.toMatchObject({
+      _tag: 'GbpApiError',
+      dispatch: 'not_sent',
+    })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('reports unknown when the executor throws', async () => {
+    const rejection = executeGoogleProviderRaw({
+      operation: 'listAccounts',
+      descriptor: DESCRIPTOR,
+      authorization: AUTHORIZATION,
+      executor: {
+        execute: async () => {
+          throw new Error('executor crashed')
+        },
+      },
+      nowMs: () => NOW_MS,
+    })
+
+    await expect(rejection).rejects.toMatchObject({
+      _tag: 'GbpApiError',
+      kind: 'upstream_error',
+      dispatch: 'unknown',
+    })
+  })
+
+  describe('when the adapter deadline elapses', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('reports unknown even though the request is sent after the deadline', async () => {
+      // The gateway does not observe the adapter's abort signal, so a request
+      // can still leave after the adapter stopped waiting. A late `not_sent`
+      // (or no result at all) must never be read as proof.
+      const lateFetch = vi.fn()
+      const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => {
+              lateFetch()
+              resolve(providerResponse(200, null))
+            }, 20_000)
+          }),
+      )
+      const rejection = executeGoogleProviderRaw({
+        operation: 'listAccounts',
+        descriptor: DESCRIPTOR,
+        authorization: AUTHORIZATION,
+        executor: { execute },
+        nowMs: () => NOW_MS,
+      })
+      const settled = rejection.catch((error: unknown) => error)
+
+      await vi.advanceTimersByTimeAsync(15_000)
+      const error = await settled
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      expect(lateFetch).toHaveBeenCalledTimes(1)
+      expect(isGbpApiError(error)).toBe(true)
+      expect(error).toMatchObject({ kind: 'upstream_error', dispatch: 'unknown' })
+    })
   })
 })

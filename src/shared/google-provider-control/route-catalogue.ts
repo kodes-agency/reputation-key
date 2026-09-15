@@ -7,6 +7,7 @@ import {
   type GoogleProviderRouteKey,
   type GoogleRequestClass,
 } from './contracts'
+import { replyCommentProblem } from './reply-comment'
 
 export { GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION } from './contracts'
 
@@ -108,7 +109,8 @@ const routeDescriptorSchema = z.discriminatedUnion('routeKey', [
       routeKey: z.literal('reviews.reply'),
       accessToken: boundedRouteString,
       reviewName: z.string().min(1).max(1_024),
-      comment: z.string().min(1).max(4_096),
+      // Same rule as the compiled body below: bytes, and line breaks allowed.
+      comment: z.string().refine((comment) => replyCommentProblem(comment) === null),
     })
     .strict(),
 ])
@@ -368,6 +370,13 @@ function requireBounded(value: string, maxBytes = MAX_FIELD_BYTES): string {
       return codePoint !== undefined && (codePoint <= 0x1f || codePoint === 0x7f)
     })
   ) {
+    return invalidInput()
+  }
+  return value
+}
+
+function requireReplyComment(value: string): string {
+  if (typeof value !== 'string' || replyCommentProblem(value) !== null) {
     return invalidInput()
   }
   return value
@@ -704,7 +713,10 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
     case 'reviews.reply': {
       const accessToken = requireBounded(descriptor.accessToken)
       if (!PROVIDER_REVIEW_NAME.test(descriptor.reviewName)) return invalidInput()
-      const body = jsonBody({ comment: requireBounded(descriptor.comment, 4_096) })
+      // Not `requireBounded`: that rule is for header and URL fields and refuses
+      // every C0 control, including the line feeds of a multi-paragraph reply
+      // (incident b129e390). JSON.stringify escapes \n, \r and \t safely.
+      const body = jsonBody({ comment: requireReplyComment(descriptor.comment) })
       return {
         endpointClass: 'reviews',
         requestClass: 'reviews',

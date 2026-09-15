@@ -1,10 +1,5 @@
 // Review context — reply lifecycle use case tests
 
-import {
-  GOOGLE_LOCATION_PRIMARY_RESOURCE,
-  GOOGLE_REVIEW_PRIMARY_RESOURCE,
-  GOOGLE_REVIEW_PRIMARY_SEGMENTS,
-} from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, vi } from 'vitest'
 import {
   draftReply,
@@ -34,7 +29,7 @@ import {
   nextPublicationState,
   PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
 } from '../../domain/reply-publication-workflow'
-import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
+import type { ReplyDispatchEvidence } from '../ports/reply-publication-dispatch-evidence.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
 import {
@@ -52,6 +47,9 @@ const USER_ID = toUserId('user-1')
 const ADMIN_ID = toUserId('admin-1')
 const PROP_ID = propertyId('51000000-0000-4000-8000-000000000001')
 const NOW = new Date('2025-06-01T12:00:00Z')
+const ATTEMPT_STARTED_AT = new Date('2025-06-01T10:00:00Z')
+const WONT_SEND_AGAIN =
+  "RepKey won't send this reply again because Google may already have it. Use Check Google again instead."
 
 function makeReview(overrides: Partial<Review> = {}): Review {
   return {
@@ -189,10 +187,30 @@ function makeReplyCommandStoreFake(
         event,
         now,
       ),
+    // D4: mirrors the production settle — guarded write to publish_failed /
+    // terminal / retryable, the fact only when the row was not already failed.
+    // The CAS keeps the attempt's cycle, so the settled row carries it forward.
+    settleNeverDispatchedAttempt: vi.fn(async (reply: Reply, event, now: Date) => {
+      const settled = {
+        status: 'publish_failed',
+        publicationState: 'terminal',
+        publicationLastErrorClass: 'retryable',
+        reconcileDueAt: null,
+      } as const
+      const saved = await transition(
+        reply,
+        settled,
+        reply.status === 'publish_failed' ? null : event,
+        now,
+      )
+      return saved === null ? null : { ...reply, ...settled }
+    }),
     // Job/sweep-facing methods are not exercised by the reply ops tests.
     markPublicationSending: vi.fn(),
     markProviderOutcomePendingObservation: vi.fn(),
     deferPendingPublicationObservation: vi.fn(),
+    deferUncertainSend: vi.fn(),
+    rescheduleAmbiguousReconciliation: vi.fn(),
     markPublicationTerminal: vi.fn(),
     markPublicationAmbiguous: vi.fn(),
     markPublicationRetryQueued: vi.fn(),
@@ -253,6 +271,7 @@ function makeDeps(overrides: Partial<ReplyDeps> = {}): TestReplyDeps {
       ) as unknown as ReplyRepository['conditionalUpdate'],
       findById: vi.fn(async () => null),
       findInternalByReviewId: vi.fn(async () => null),
+      findCurrentPublicationAttemptStartedAt: vi.fn(async () => ATTEMPT_STARTED_AT),
       deleteById: vi.fn(async () => {}),
     } as unknown as ReplyRepository,
     reviewRepo: {
@@ -261,10 +280,6 @@ function makeDeps(overrides: Partial<ReplyDeps> = {}): TestReplyDeps {
     queue: {
       addPublishJob: vi.fn(async () => {}),
     } as unknown as ReplyQueuePort,
-    googleReviewApi: {
-      getReview: vi.fn(async () => ({ status: 'not_found' as const })),
-      replyToReview: vi.fn(async () => ({ providerCorrelationId: null })),
-    } as unknown as GoogleReviewApiPort,
     googleReplyObservationStore: {
       allocateReadGeneration: vi.fn(async () => 1),
       findCurrentHead: vi.fn(async () => null),
@@ -286,6 +301,12 @@ function makeDeps(overrides: Partial<ReplyDeps> = {}): TestReplyDeps {
         throw new Error('accept is not configured for this test')
       }),
       assertCurrentBinding: vi.fn(async () => 'current' as const),
+    },
+    // Fail closed by default: only a test that names never_dispatched unlocks.
+    dispatchEvidence: {
+      findDispatchEvidence: vi.fn(
+        async (): Promise<ReplyDispatchEvidence> => 'possibly_dispatched',
+      ),
     },
     clock: () => NOW,
     idGen: () => REPLY_ID,
@@ -1166,8 +1187,6 @@ describe('retryPublish', () => {
       },
       { idempotencyKey: buildIdempotencyKey(REPLY_ID, 1) },
     )
-    // Non-ambiguous rows behave exactly as today — no provider re-read.
-    expect(deps.googleReviewApi.getReview).not.toHaveBeenCalled()
   })
 
   it('treats provider-confirmed publication as an idempotent retry when reconciliation wins the race', async () => {
@@ -1183,7 +1202,6 @@ describe('retryPublish', () => {
       published,
     )
     expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
-    expect(deps.googleReviewApi.getReview).not.toHaveBeenCalled()
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
   })
 
@@ -1206,8 +1224,12 @@ describe('retryPublish', () => {
 
     await expect(
       retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
-    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
-    expect(deps.googleReviewApi.getReview).not.toHaveBeenCalled()
+    ).rejects.toMatchObject({
+      code: 'invalid_transition',
+      _tag: 'ReviewError',
+      message: WONT_SEND_AGAIN,
+    })
+    expect(deps.dispatchEvidence.findDispatchEvidence).not.toHaveBeenCalled()
     expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
   })
@@ -1227,248 +1249,135 @@ describe('retryPublish', () => {
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
   })
 
-  // BQC-3.8 §6: reconcile-before-retry — an ambiguous publication may have
-  // landed on Google; re-read provider state before any new send.
-  it('ambiguous + provider shows the reply → heals to published, NO re-enqueue, NO duplicate send', async () => {
-    const ambiguous = makeReply({
+  // D4: an uncertain attempt may be sent again ONLY on positive evidence that
+  // no request for it left RepKey. Retry never reads Google: absence on a read
+  // is not that evidence, and checking is checkReplyPublication's job.
+  const ambiguousAttempt = (overrides: Partial<Reply> = {}) =>
+    makeReply({
       status: 'publish_failed',
       publicationState: 'ambiguous',
       publicationCycle: 1,
-      publicationAttempts: 1,
+      publicationAttempts: 2,
       publicationLastErrorClass: 'ambiguous',
       reconcileDueAt: NOW,
+      ...overrides,
     })
-    const healed = {
-      ...ambiguous,
-      status: 'published' as const,
-      publicationState: 'published' as const,
-      publishedAt: NOW,
-    }
-    const reviewWithConnection = makeReview({
-      googleConnectionId: 'conn-1' as never,
-      externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
-      externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
-    })
+
+  const depsForUncertain = (reply: Reply, evidence: ReplyDispatchEvidence) => {
     const deps = makeDeps({
       replyRepo: {
         ...makeDeps().replyRepo,
-        findInternalByReviewId: vi.fn(async () => ambiguous),
-        // reconcile reads the reply, then retryPublish re-reads the healed row.
-        findById: vi.fn().mockResolvedValueOnce(ambiguous).mockResolvedValue(healed),
+        findInternalByReviewId: vi.fn(async () => reply),
       } as unknown as ReplyRepository,
-      reviewRepo: {
-        findById: vi.fn(async () => reviewWithConnection),
-      } as unknown as ReviewRepository,
     })
-    vi.mocked(deps.googleReviewApi.getReview).mockResolvedValue({
-      status: 'found',
-      review: {
-        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
-        externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
-        replyText: 'Thank you!',
-      } as never,
-    })
+    vi.mocked(deps.dispatchEvidence.findDispatchEvidence).mockResolvedValue(evidence)
+    return deps
+  }
 
-    const result = await retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
+  it.each([
+    ['a legacy ambiguous row', ambiguousAttempt()],
+    [
+      'terminal ambiguity',
+      ambiguousAttempt({ publicationState: 'terminal', reconcileDueAt: null }),
+    ],
+  ])(
+    'settles %s that never reached Google, then authorizes a new cycle and enqueues once',
+    async (_name, reply) => {
+      const deps = depsForUncertain(reply, 'never_dispatched')
 
-    expect(result.status).toBe('published')
-    expect(deps.googleReviewApi.getReview).toHaveBeenCalledWith({
-      organizationId: ORG_ID,
-      propertyId: PROP_ID,
-      connectionId: 'conn-1',
-      sourceEpoch: 0,
-      locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
-      reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
-    })
+      const result = await retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
+
+      expect(deps.dispatchEvidence.findDispatchEvidence).toHaveBeenCalledWith({
+        organizationId: ORG_ID,
+        replyId: REPLY_ID,
+        publicationCycle: 1,
+        attemptNumber: 2,
+        attemptStartedAt: ATTEMPT_STARTED_AT,
+        now: NOW,
+      })
+      expect(deps.commandStore.settleNeverDispatchedAttempt).toHaveBeenCalledWith(
+        reply,
+        expect.objectContaining({
+          _tag: 'review.reply.publish_failed',
+          replyId: REPLY_ID,
+        }),
+        NOW,
+      )
+      expect(result).toMatchObject({
+        status: 'approved',
+        publicationState: 'authorized',
+        publicationCycle: 2,
+      })
+      expect(deps.queue.addPublishJob).toHaveBeenCalledOnce()
+      expect(deps.queue.addPublishJob).toHaveBeenCalledWith(
+        expect.objectContaining({ replyId: REPLY_ID, publicationCycle: 2 }),
+        { idempotencyKey: buildIdempotencyKey(REPLY_ID, 2) },
+      )
+      // Already publish_failed: no second failure fact, one publication intent.
+      expect(deps.outbox.facts.map((fact) => fact._tag)).toEqual([
+        'review.reply.publication_requested',
+      ])
+    },
+  )
+
+  it.each<ReplyDispatchEvidence>(['possibly_dispatched', 'too_recent'])(
+    'refuses to send an ambiguous reply again when the evidence is %s',
+    async (evidence) => {
+      const deps = depsForUncertain(ambiguousAttempt(), evidence)
+
+      await expect(
+        retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+      ).rejects.toMatchObject({
+        _tag: 'ReviewError',
+        code: 'invalid_transition',
+        message: WONT_SEND_AGAIN,
+      })
+      expect(deps.commandStore.settleNeverDispatchedAttempt).not.toHaveBeenCalled()
+      expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+      expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+      expect(deps.outbox.facts).toHaveLength(0)
+    },
+  )
+
+  it('refuses when no dated attempt row exists to judge', async () => {
+    const deps = depsForUncertain(ambiguousAttempt(), 'never_dispatched')
+    vi.mocked(deps.replyRepo.findCurrentPublicationAttemptStartedAt).mockResolvedValue(
+      null,
+    )
+
+    await expect(
+      retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_transition', message: WONT_SEND_AGAIN })
+    expect(deps.dispatchEvidence.findDispatchEvidence).not.toHaveBeenCalled()
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
-    expect(deps.googleReplyObservationStore.record).toHaveBeenCalledTimes(1)
   })
 
-  it('returns the published reply when reconciliation wins after retry reads ambiguity', async () => {
-    const ambiguous = makeReply({
-      status: 'publish_failed',
-      publicationState: 'ambiguous',
-      publicationCycle: 1,
-      publicationAttempts: 1,
-      publicationLastErrorClass: 'ambiguous',
-      reconcileDueAt: NOW,
-    })
+  it('returns the published reply when a confirmation wins the settle race', async () => {
+    const reply = ambiguousAttempt()
     const published = {
-      ...ambiguous,
+      ...reply,
       status: 'published' as const,
       publicationState: 'published' as const,
-      publishedAt: NOW,
     }
-    const deps = makeDeps({
-      replyRepo: {
-        ...makeDeps().replyRepo,
-        findInternalByReviewId: vi.fn(async () => ambiguous),
-        findById: vi.fn(async () => published),
-      } as unknown as ReplyRepository,
-    })
+    const deps = depsForUncertain(reply, 'never_dispatched')
+    vi.mocked(deps.replyRepo.conditionalUpdate).mockResolvedValue(null)
+    vi.mocked(deps.replyRepo.findById).mockResolvedValue(published)
 
     await expect(retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)).resolves.toBe(
       published,
     )
-    expect(deps.googleReviewApi.getReview).not.toHaveBeenCalled()
-    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
   })
 
-  it('returns published when a concurrent observation wins after the check-only read', async () => {
-    const ambiguous = makeReply({
-      status: 'publish_failed',
-      publicationState: 'ambiguous',
-      publicationCycle: 1,
-      publicationAttempts: 1,
-      publicationLastErrorClass: 'ambiguous',
-      reconcileDueAt: NOW,
-    })
-    const published = {
-      ...ambiguous,
-      status: 'published' as const,
-      publicationState: 'published' as const,
-      publishedAt: NOW,
-    }
-    const conditionalUpdate = vi.fn(async () => null)
-    const reviewWithConnection = makeReview({
-      googleConnectionId: 'conn-1' as never,
-      externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
-      externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
-    })
-    const deps = makeDeps({
-      replyRepo: {
-        ...makeDeps().replyRepo,
-        findInternalByReviewId: vi.fn(async () => ambiguous),
-        findById: vi.fn().mockResolvedValueOnce(ambiguous).mockResolvedValue(published),
-        conditionalUpdate,
-      } as unknown as ReplyRepository,
-      reviewRepo: {
-        findById: vi.fn(async () => reviewWithConnection),
-      } as unknown as ReviewRepository,
-    })
-    vi.mocked(deps.googleReviewApi.getReview).mockResolvedValue({
-      status: 'found',
-      review: {
-        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
-        externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
-        replyText: null,
-      } as never,
-    })
-
-    await expect(retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)).resolves.toBe(
-      published,
-    )
-    expect(conditionalUpdate).not.toHaveBeenCalled()
-    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
-  })
-
-  it('ambiguous + provider absence refuses to republish because a filtered accepted reply may still be live', async () => {
-    const ambiguous = makeReply({
-      status: 'publish_failed',
-      publicationState: 'ambiguous',
-      publicationCycle: 1,
-      publicationAttempts: 1,
-      publicationLastErrorClass: 'ambiguous',
-      reconcileDueAt: NOW,
-    })
-    const reviewWithConnection = makeReview({
-      googleConnectionId: 'conn-1' as never,
-      externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
-      externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
-    })
-    const deps = makeDeps({
-      replyRepo: {
-        ...makeDeps().replyRepo,
-        findInternalByReviewId: vi.fn(async () => ambiguous),
-        findById: vi.fn(async () => ambiguous),
-      } as unknown as ReplyRepository,
-      reviewRepo: {
-        findById: vi.fn(async () => reviewWithConnection),
-      } as unknown as ReviewRepository,
-    })
-    vi.mocked(deps.googleReviewApi.getReview).mockResolvedValue({
-      status: 'found',
-      review: {
-        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
-        externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
-        replyText: null,
-      } as never,
-    })
+  it('refuses when the settle race is lost to anything but a confirmation', async () => {
+    const reply = ambiguousAttempt()
+    const deps = depsForUncertain(reply, 'never_dispatched')
+    vi.mocked(deps.replyRepo.conditionalUpdate).mockResolvedValue(null)
+    vi.mocked(deps.replyRepo.findById).mockResolvedValue(reply)
 
     await expect(
       retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
-    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
-    expect(deps.googleReplyObservationStore.record).toHaveBeenCalledOnce()
-    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
-    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
-  })
-
-  it('terminal ambiguous + provider absence still refuses a second provider write', async () => {
-    const terminal = makeReply({
-      status: 'publish_failed',
-      publicationState: 'terminal',
-      publicationCycle: 1,
-      publicationAttempts: 1,
-      publicationLastErrorClass: 'ambiguous',
-      reconcileDueAt: null,
-    })
-    const reviewWithConnection = makeReview({
-      googleConnectionId: 'conn-1' as never,
-      externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
-      externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
-    })
-    const deps = makeDeps({
-      replyRepo: {
-        ...makeDeps().replyRepo,
-        findInternalByReviewId: vi.fn(async () => terminal),
-        findById: vi.fn(async () => terminal),
-      } as unknown as ReplyRepository,
-      reviewRepo: {
-        findById: vi.fn(async () => reviewWithConnection),
-      } as unknown as ReviewRepository,
-    })
-    vi.mocked(deps.googleReviewApi.getReview).mockResolvedValue({
-      status: 'found',
-      review: {
-        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
-        externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
-        replyText: null,
-      } as never,
-    })
-
-    await expect(
-      retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
-    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
-    expect(deps.googleReplyObservationStore.record).toHaveBeenCalledOnce()
-    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
-    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
-  })
-  it('terminal ambiguity + missing provider subject is check-only', async () => {
-    const terminal = makeReply({
-      status: 'publish_failed',
-      publicationState: 'terminal',
-      publicationCycle: 1,
-      publicationAttempts: 1,
-      publicationLastErrorClass: 'ambiguous',
-    })
-    const deps = makeDeps({
-      replyRepo: {
-        ...makeDeps().replyRepo,
-        findInternalByReviewId: vi.fn(async () => terminal),
-        findById: vi.fn(async () => terminal),
-      } as unknown as ReplyRepository,
-      reviewRepo: {
-        findById: vi.fn(async () => makeReview({ googleConnectionId: null })),
-      } as unknown as ReviewRepository,
-    })
-
-    await expect(
-      retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
-    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
-    expect(deps.googleReviewApi.getReview).not.toHaveBeenCalled()
-    expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
-    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+    ).rejects.toMatchObject({ code: 'invalid_transition', message: WONT_SEND_AGAIN })
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
   })
 })
@@ -1687,5 +1596,120 @@ describe('reply ops — property-assignment scoping (D6-001)', () => {
     })
     const result = await getReply(assigned)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(result?.status).toBe('draft')
+  })
+})
+
+// ── Google's reply comment rule (bytes, not characters) ────────────────
+
+describe('reply ops — refuse text Google cannot be sent', () => {
+  // 2049 Cyrillic letters are 2049 UTF-16 units but 4098 UTF-8 bytes: under
+  // the old character cap they were approved and then failed compile in the
+  // worker, where nobody saw why (route-catalogue.ts reviews.reply body).
+  const TOO_LONG_CYRILLIC = 'Б'.repeat(2_049)
+  const TOO_LONG =
+    'This reply is too long for Google. Shorten it to 4,096 bytes or fewer.'
+  const BAD_CHARACTER =
+    "This reply contains a character Google doesn't accept. Remove any unusual control characters and try again."
+  const MULTI_LINE = 'Hi Jane,\n\nThank you for staying with us.\tSee you soon!\r\n'
+
+  it('draftReply refuses 2049 Cyrillic letters before any read or write', async () => {
+    const deps = makeDeps()
+    await expect(
+      draftReply(deps)({ reviewId: REVIEW_ID, text: TOO_LONG_CYRILLIC }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_reply', message: TOO_LONG })
+    expect(deps.reviewRepo.findById).not.toHaveBeenCalled()
+    expect(deps.replyRepo.upsert).not.toHaveBeenCalled()
+  })
+
+  it('draftReply refuses a control character and a lone surrogate', async () => {
+    const deps = makeDeps()
+    for (const text of ['Thanks\u001B', 'Thanks \uD83D']) {
+      await expect(
+        draftReply(deps)({ reviewId: REVIEW_ID, text }, MANAGER_CTX),
+      ).rejects.toMatchObject({ code: 'invalid_reply', message: BAD_CHARACTER })
+    }
+    expect(deps.replyRepo.upsert).not.toHaveBeenCalled()
+  })
+
+  it('draftReply saves 2048 Cyrillic letters and multi-line text', async () => {
+    const deps = makeDeps()
+    for (const text of ['Б'.repeat(2_048), MULTI_LINE]) {
+      const saved = await draftReply(deps)({ reviewId: REVIEW_ID, text }, MANAGER_CTX)
+      expect(saved.text).toBe(text)
+    }
+  })
+
+  it('submitReply refuses a stored draft Google cannot take, with no transition', async () => {
+    const deps = makeDeps({
+      replyRepo: replyRepoWith(makeReply({ status: 'draft', text: TOO_LONG_CYRILLIC })),
+    })
+    await expect(
+      submitReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_reply', message: TOO_LONG })
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
+  })
+
+  it('approveReply refuses a stored reply Google cannot take, reserving no publication', async () => {
+    const deps = makeDeps({
+      replyRepo: replyRepoWith(
+        makeReply({ status: 'pending_approval', text: TOO_LONG_CYRILLIC }),
+      ),
+    })
+    await expect(
+      approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_reply', message: TOO_LONG })
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
+  })
+
+  it('submitReply and approveReply accept multi-line text', async () => {
+    const draftDeps = makeDeps({
+      replyRepo: replyRepoWith(makeReply({ status: 'draft', text: MULTI_LINE })),
+    })
+    const submitted = await submitReply(draftDeps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
+    expect(submitted.status).toBe('pending_approval')
+
+    const pendingDeps = makeDeps({
+      replyRepo: replyRepoWith(
+        makeReply({ status: 'pending_approval', text: MULTI_LINE }),
+      ),
+    })
+    const approved = await approveReply(pendingDeps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
+    expect(approved.status).toBe('approved')
+    expect(pendingDeps.queue.addPublishJob).toHaveBeenCalledTimes(1)
+  })
+
+  it('editPublishedReply refuses 2049 Cyrillic letters before reply or provider work', async () => {
+    const deps = makeDeps()
+    await expect(
+      editPublishedReply(deps)(
+        { reviewId: REVIEW_ID, text: TOO_LONG_CYRILLIC },
+        MANAGER_CTX,
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_reply', message: TOO_LONG })
+    expect(deps.replyRepo.findInternalByReviewId).not.toHaveBeenCalled()
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+  })
+
+  it('editPublishedReply republishes multi-line text', async () => {
+    const deps = makeDeps({
+      replyRepo: replyRepoWith(
+        makeReply({
+          status: 'published',
+          text: 'Old public reply',
+          publicationState: 'published',
+          publicationAttempts: 1,
+          publishedAt: NOW,
+        }),
+      ),
+    })
+    const result = await editPublishedReply(deps)(
+      { reviewId: REVIEW_ID, text: 'Hi Jane,\n\nThank you.' },
+      MANAGER_CTX,
+    )
+    expect(result.text).toBe('Hi Jane,\n\nThank you.')
+    expect(deps.queue.addPublishJob).toHaveBeenCalledTimes(1)
   })
 })

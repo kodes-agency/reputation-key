@@ -13,6 +13,7 @@ import {
   replyRefetchInterval,
   type InboxReplyCacheChange,
 } from './inbox-cache-policy'
+import { useReplyPublicationChangeDetection } from './use-reply-publication-change'
 import { useTargetDeadlineRefresh } from './response-target-deadline-refresh'
 import {
   createInboxItemStatusObserver,
@@ -237,6 +238,7 @@ function useInboxDetailQueries(
       void notesQuery.refetch()
     },
     polledStatus: detailQuery.data?.item.status,
+    polledReply: detailQuery.data?.reply,
   }
 }
 
@@ -264,6 +266,11 @@ export function useInboxDetail(
 
   const queries = useInboxDetailQueries(inboxFns, id, enabled, item)
   useInboxAutoCloseDetection(qc, id, queries.polledStatus, statusObserver)
+  const acceptReplyMutation = useReplyPublicationChangeDetection(
+    qc,
+    id,
+    queries.polledReply,
+  )
   const mutations = useInboxStatusMutations(
     inboxFns,
     id,
@@ -280,9 +287,15 @@ export function useInboxDetail(
 
   const onReplyMutated = useCallback(
     (change: InboxReplyCacheChange) => {
-      inboxCachePolicy.onReplyChanged(qc, id, change)
+      // A result about another item (the manager moved on while it was in
+      // flight) is not this item's baseline; the policy files it under its own
+      // review either way.
+      if (inboxCachePolicy.isReplyChangeForItem(qc, id, change)) {
+        acceptReplyMutation(change.reply)
+      }
+      inboxCachePolicy.onReplyChanged(qc, change)
     },
-    [qc, id],
+    [acceptReplyMutation, qc, id],
   )
 
   return {

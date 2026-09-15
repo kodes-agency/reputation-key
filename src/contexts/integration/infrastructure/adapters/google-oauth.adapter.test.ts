@@ -486,6 +486,7 @@ describe('createGoogleOAuthAdapter', () => {
     const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>(async () => ({
       ok: false,
       code: 'transport_error',
+      dispatch: 'unknown',
       retryAfterMs: 0,
     }))
     const adapter = createGoogleOAuthAdapter({

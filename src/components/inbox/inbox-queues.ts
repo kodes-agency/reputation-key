@@ -7,11 +7,13 @@ import {
   Send,
   ShieldCheck,
 } from 'lucide-react'
-import type {
-  InboxItem,
-  InboxQueue,
-  InboxQueueCounts,
+import {
+  replyQueueStage,
+  type InboxItem,
+  type InboxQueue,
+  type InboxQueueCounts,
 } from '#/contexts/inbox/application/public-api'
+import type { ReplyQueueStage } from '#/shared/domain/reply-queue-stage'
 import type { LucideIcon } from 'lucide-react'
 
 export type InboxQueueItem = Readonly<{
@@ -57,6 +59,11 @@ export function canUseReplyQueues(
 }
 
 const REPLY_QUEUES: ReadonlySet<InboxQueue> = new Set(['reply', 'approval', 'waiting'])
+
+/** Queues whose membership the item's reply state decides (besides being an open review). */
+export function isReplyStageQueue(queue: InboxQueue): boolean {
+  return REPLY_QUEUES.has(queue)
+}
 
 export function resolveInboxQueue(
   requestedQueue: InboxQueue | undefined,
@@ -115,8 +122,24 @@ export function inboxEmptyCopy(queue: InboxQueue, isFiltered: boolean) {
     : EMPTY_COPY[queue]
 }
 
-function isWaitingReply(item: InboxItem): boolean {
-  return item.replyState?.status === 'approved' || item.replyState?.status === 'published'
+// The browser mirror of the server stage lookup: both apply the shared
+// `replyQueueStage` rule, so an optimistic patch keeps a row exactly where the
+// next list read will put it. A review without a reply needs one.
+function replyStage(item: InboxItem) {
+  return item.replyState ? replyQueueStage(item.replyState) : 'needs_reply'
+}
+
+const REPLY_QUEUE_STAGE = {
+  reply: 'needs_reply',
+  approval: 'awaiting',
+  waiting: 'waiting',
+} as const
+
+/** The reply stage a reply-stage queue admits, or null for any other queue. */
+export function queueReplyStage(queue: InboxQueue): ReplyQueueStage | null {
+  return queue === 'reply' || queue === 'approval' || queue === 'waiting'
+    ? REPLY_QUEUE_STAGE[queue]
+    : null
 }
 
 export function itemMatchesQueue(
@@ -126,21 +149,12 @@ export function itemMatchesQueue(
 ): boolean {
   switch (queue) {
     case 'reply':
-      return (
-        item.status === 'open' &&
-        item.sourceType === 'review' &&
-        item.replyState?.status !== 'pending_approval' &&
-        !isWaitingReply(item)
-      )
     case 'approval':
-      return (
-        item.status === 'open' &&
-        item.sourceType === 'review' &&
-        item.replyState?.status === 'pending_approval'
-      )
     case 'waiting':
       return (
-        item.status === 'open' && item.sourceType === 'review' && isWaitingReply(item)
+        item.status === 'open' &&
+        item.sourceType === 'review' &&
+        replyStage(item) === REPLY_QUEUE_STAGE[queue]
       )
     case 'feedback':
       return item.status === 'open' && item.sourceType === 'feedback'

@@ -16,9 +16,15 @@ import { reconcileReplyPublication } from './reconcile-reply-publication'
 import type { ReconcileReplyPublicationDeps } from './reconcile-reply-publication'
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
-import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
-import type { RecordGoogleReplyObservation } from '../ports/google-reply-observation-store.port'
-import type { Reply, Review, GoogleReview } from '../../domain/types'
+import type {
+  GoogleReviewApiPort,
+  GoogleReviewRead,
+} from '../ports/google-review-api.port'
+import type {
+  GoogleReplyObservationResult,
+  RecordGoogleReplyObservation,
+} from '../ports/google-reply-observation-store.port'
+import type { Reply, Review } from '../../domain/types'
 import {
   organizationId,
   propertyId,
@@ -103,7 +109,7 @@ function makeReview(overrides: Partial<Review> = {}): Review {
   }
 }
 
-function makeGoogleReview(overrides: Partial<GoogleReview> = {}): GoogleReview {
+function makeGoogleReview(overrides: Partial<GoogleReviewRead> = {}): GoogleReviewRead {
   return {
     reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
     externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
@@ -123,7 +129,7 @@ function makeGoogleReview(overrides: Partial<GoogleReview> = {}): GoogleReview {
 
 type FoundProviderReview = Readonly<{
   status: 'found'
-  review: GoogleReview
+  review: GoogleReviewRead
 }>
 
 function deferredProviderRead() {
@@ -137,7 +143,7 @@ function deferredProviderRead() {
 function makeDeps(overrides: {
   reply?: Reply | null
   review?: Review | null
-  googleReview?: GoogleReview | null
+  googleReview?: GoogleReviewRead | null
   googleError?: Error
 }) {
   const replyRepo = {
@@ -161,19 +167,23 @@ function makeDeps(overrides: {
   const observationStore = {
     allocateReadGeneration: vi.fn(async () => 1),
     findCurrentHead: vi.fn(async () => null),
-    record: vi.fn(async (input: RecordGoogleReplyObservation) => ({
-      observationRevision: 1,
-      change: input.observedText === null ? ('deleted' as const) : ('added' as const),
-      resolution:
-        input.observedText === 'Thank you!'
-          ? ('confirmed_on_google' as const)
-          : input.observedText === null
-            ? ('absent' as const)
-            : ('external_current_live' as const),
-      matchedReplyId: input.observedText === 'Thank you!' ? REPLY_ID : null,
-      matchedPublicationCycle: input.observedText === 'Thank you!' ? 1 : null,
-      duplicate: false,
-    })),
+    record: vi.fn(
+      async (
+        input: RecordGoogleReplyObservation,
+      ): Promise<GoogleReplyObservationResult> => ({
+        observationRevision: 1,
+        change: input.observedText === null ? ('deleted' as const) : ('added' as const),
+        resolution:
+          input.observedText === 'Thank you!'
+            ? ('confirmed_on_google' as const)
+            : input.observedText === null
+              ? ('absent' as const)
+              : ('external_current_live' as const),
+        matchedReplyId: input.observedText === 'Thank you!' ? REPLY_ID : null,
+        matchedPublicationCycle: input.observedText === 'Thank you!' ? 1 : null,
+        duplicate: false,
+      }),
+    ),
   }
 
   const deps: ReconcileReplyPublicationDeps = {
@@ -229,6 +239,61 @@ describe('reconcileReplyPublication', () => {
     expect(observationStore.record).toHaveBeenCalledWith(
       expect.objectContaining({ observedText: null }),
     )
+  })
+
+  // D6: Google returned a reply RepKey cannot read (translation-only envelope).
+  // Recording it as absent would be a lie about provider truth; recording
+  // nothing keeps the attempt exactly as uncertain as it was.
+  it('provider shows a reply RepKey cannot read → records nothing and reports unreadable', async () => {
+    const { deps, observationStore } = makeDeps({
+      reply: makeReply(),
+      review: makeReview(),
+      googleReview: makeGoogleReview({ replyText: null, replyUnreadable: true }),
+    })
+
+    const result = await reconcileReplyPublication(deps)({
+      replyId: REPLY_ID,
+      organizationId: ORG_ID,
+    })
+
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value).toEqual({ outcome: 'unreadable', reason: 'reply_unreadable' })
+    }
+    expect(observationStore.allocateReadGeneration).not.toHaveBeenCalled()
+    expect(observationStore.record).not.toHaveBeenCalled()
+  })
+
+  // D6: the observation authority records a whitespace-only difference from the
+  // in-flight attempt as `diverged` (it neither confirms nor supersedes), and the
+  // targeted read reports that as a check that could not decide anything.
+  it('observation authority saw only a whitespace difference → reports unreadable', async () => {
+    const { deps, observationStore } = makeDeps({
+      reply: makeReply(),
+      review: makeReview(),
+      googleReview: makeGoogleReview({ replyText: 'Thank  you!\n\n' }),
+    })
+    observationStore.record.mockResolvedValueOnce({
+      observationRevision: 2,
+      change: 'added',
+      resolution: 'diverged',
+      matchedReplyId: null,
+      matchedPublicationCycle: null,
+      duplicate: false,
+    })
+
+    const result = await reconcileReplyPublication(deps)({
+      replyId: REPLY_ID,
+      organizationId: ORG_ID,
+    })
+
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value).toEqual({
+        outcome: 'unreadable',
+        reason: 'whitespace_only_difference',
+      })
+    }
   })
 
   it('binds the targeted observation identity to the current source fences', async () => {

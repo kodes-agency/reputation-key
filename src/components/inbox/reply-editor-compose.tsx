@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { Textarea } from '#/components/ui/textarea'
-import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
+import {
+  GOOGLE_REPLY_COMMENT_MAX_BYTES,
+  replyCommentByteLength,
+} from '#/shared/google-provider-control/reply-comment'
 import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
 import { cn } from '#/lib/utils'
 import {
@@ -275,7 +278,7 @@ export function ReplyCompose(props: ReplyComposeProps) {
             state.overLimit ? 'text-destructive' : 'text-muted-foreground',
           )}
         >
-          {state.draft.text.length}/{MAX_REPLY_LENGTH}
+          {replyCommentByteLength(state.draft.text)}/{GOOGLE_REPLY_COMMENT_MAX_BYTES}
         </span>
         {/* `ml-auto` keeps the primary against the trailing edge whether the
             foot fits one line or wraps; the footer brings `Delete draft`,

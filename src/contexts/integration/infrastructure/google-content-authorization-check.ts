@@ -441,6 +441,23 @@ type PublicationRow = Readonly<{
   confirming_permission_version: number | string
 }>
 
+/**
+ * The exact `sending` attempt a reply permit may be admitted for, share-locked
+ * until the permit issuer's transaction commits (google-execution-permit-issuer.ts
+ * inserts the permit in that same transaction).
+ *
+ * Why the lock: Review settles an attempt as never sent after reading that no
+ * `reviews.reply` permit exists (reply-command-store.ts
+ * settleNeverDispatchedAttempt). `start_google_execution_permit` locks only the
+ * permit row, so without this a permit admitted between that read and the
+ * settle commit could still start and reach Google, and the reply would then be
+ * offered for a second post. The settle locks this same row and re-reads the
+ * permits: either it waits here and sees the committed permit, or this statement
+ * waits for the settle and, re-checking the new row version under READ
+ * COMMITTED, finds the attempt no longer `sending` and denies. Only the attempt
+ * row is locked, never the Reply, so the lock order (Reply, then attempt) that
+ * every Review publication write uses cannot deadlock against it.
+ */
 const loadPublicationAttempt = async (
   tx: Database,
   input: AuthorizationInput,
@@ -497,6 +514,7 @@ const loadPublicationAttempt = async (
       AND review.source_epoch = attempt.source_epoch
       AND review.source_revision = attempt.material_review_revision
     LIMIT 1
+    FOR SHARE OF attempt
   `)
   return publicationResult.rows[0] as PublicationRow | undefined
 }

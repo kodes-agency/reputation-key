@@ -147,20 +147,27 @@ export function nextPublicationCycle(current: number): number {
 
 // ── BQC-3.3: provider outcome classification ─────────────────────────
 //
-// The publish job sends one PUT per attempt. What happened on Google after a
-// failure determines whether retrying is safe, pointless, or dangerous:
+// The publish job sends at most one PUT per attempt. What happened on Google
+// after a failure determines whether retrying is safe, pointless, or dangerous:
 //
-//   terminal_rejection — Google answered 4xx (or the connection is gone).
+//   terminal_rejection — Google answered 4xx (not 429), the connection or
+//                        authorization is gone, or RepKey itself refused the
+//                        request before sending it (invalid input, or the
+//                        executor's compile step said `malformed_request`).
 //                        Retrying cannot succeed: mark publish_failed without
 //                        burning BullMQ attempts.
-//   retryable          — a provably pre-dispatch transient failure (for
-//                        example token refresh/admission) or an explicit
-//                        provider rate-limit answer. The next attempt may send.
-//   ambiguous          — transport rejection, executor failure/deadline after
-//                        execution started, 5xx, timeout/abort, or any unknown
-//                        post-dispatch outcome. The reply may exist on Google;
-//                        preserve `sending` so the next attempt performs a
-//                        targeted read before any repeat write.
+//   retryable          — a failure the provider plane recorded as `not_sent`
+//                        (the gateway returned before `fetch`), token refresh,
+//                        or a 429 rate-limit answer. The next attempt may send.
+//   ambiguous          — `unknown` dispatch (fetch threw or aborted), 5xx,
+//                        timeout/abort, or no dispatch evidence at all. The
+//                        reply may exist on Google; preserve `sending` so the
+//                        next attempt performs a targeted read before any
+//                        repeat write.
+//
+// Order (D2): abort → pre-request codes → `not_sent` → `answered` status →
+// rate-limit code → ambiguous. Dispatch evidence comes from the gateway, never
+// from the absence of a reply on a Google read.
 
 export type PublicationFailureClass = 'terminal_rejection' | 'retryable' | 'ambiguous'
 
@@ -274,12 +281,77 @@ export function nextPublicationState(
 }
 
 /**
- * Delay before an ambiguous publication becomes reconcile-due (BQC-3.8).
- * markPublicationAmbiguous sets reconcile_due_at = now + this delay; the
- * reconcile-ambiguous-publications sweep processes due rows. 15 minutes
- * gives the provider read path time to converge after an ambiguous send.
+ * Default delay before an ambiguous publication becomes reconcile-due
+ * (BQC-3.8), used by markPublicationAmbiguous when the caller passes no
+ * ladder time. Measured from now, it is never earlier than the ladder's first
+ * rung (fifteen minutes from an attempt start that is at or before now).
  */
 export const AMBIGUOUS_RECONCILE_DELAY_MS = 15 * 60 * 1000
+
+const MINUTE_MS = 60_000
+const HOUR_MS = 60 * MINUTE_MS
+
+/**
+ * D3: a send whose outcome is unknown (no success response was persisted and
+ * no dispatch evidence says it stayed local) gets the same fifteen-minute
+ * propagation window as an accepted write before RepKey calls it ambiguous.
+ * Incident b129e390 was declared ambiguous 30 s after approval on ONE absent
+ * read, well inside the window in which Google may not echo a reply yet.
+ */
+export const UNCERTAIN_SEND_PROPAGATION_GRACE_MS = 15 * MINUTE_MS
+
+/** Earliest next read while an uncertain send waits, and the floor for every
+ * ladder rung, so a check landing just before a rung never re-reads at once. */
+export const UNCERTAIN_SEND_RECHECK_DELAY_MS = MINUTE_MS
+
+/**
+ * D3: when an ambiguous publication is read again, as offsets from the
+ * attempt's durable start (reply_publication_attempts.created_at). Every read
+ * is read-only toward Google. Past the last rung automatic checks stop and the
+ * row becomes terminal ambiguity; one absent read never ends the ladder.
+ */
+export const AMBIGUOUS_RECONCILE_LADDER_MS: readonly number[] = Object.freeze([
+  15 * MINUTE_MS,
+  30 * MINUTE_MS,
+  HOUR_MS,
+  2 * HOUR_MS,
+  4 * HOUR_MS,
+  8 * HOUR_MS,
+  24 * HOUR_MS,
+  48 * HOUR_MS,
+  72 * HOUR_MS,
+])
+
+type AttemptClock = Readonly<{ attemptStartedAt: Date; now: Date }>
+
+/**
+ * True while an uncertain send is inside the propagation grace. A start after
+ * now, or an unreadable time, fails closed to the ambiguity path, as
+ * canDeferPendingProviderObservation does.
+ */
+export function canDeferUncertainSend(input: AttemptClock): boolean {
+  const ageMs = input.now.getTime() - input.attemptStartedAt.getTime()
+  return (
+    Number.isFinite(ageMs) && ageMs >= 0 && ageMs < UNCERTAIN_SEND_PROPAGATION_GRACE_MS
+  )
+}
+
+/**
+ * The next ladder read for an ambiguous publication: the first rung strictly
+ * after the attempt's current age, never sooner than now + one minute. Null
+ * once the attempt is 72 hours old (or its times are unreadable), which is the
+ * only way the ladder ends. A start after now anchors the ladder at now, so
+ * clock disagreement can only bring a read closer, never push it past 72 hours.
+ */
+export function nextAmbiguousReconcileDueAt(input: AttemptClock): Date | null {
+  const nowMs = input.now.getTime()
+  const startMs = Math.min(input.attemptStartedAt.getTime(), nowMs)
+  if (!Number.isFinite(nowMs) || !Number.isFinite(startMs)) return null
+  const ageMs = nowMs - startMs
+  const rung = AMBIGUOUS_RECONCILE_LADDER_MS.find((offsetMs) => offsetMs > ageMs)
+  if (rung === undefined) return null
+  return new Date(Math.max(startMs + rung, nowMs + UNCERTAIN_SEND_RECHECK_DELAY_MS))
+}
 
 /** A successful write response still needs a provider read after a short
  * convergence window before it can become published. */
@@ -311,6 +383,22 @@ export function canDeferPendingProviderObservation(
     Number.isSafeInteger(input.absentObservationCount) &&
     input.absentObservationCount >= 1 &&
     input.absentObservationCount <= PROVIDER_OBSERVATION_PROPAGATION_GRACE_MAX_READS
+  )
+}
+
+/**
+ * D6: Google acknowledged the write but echoes a reply RepKey cannot read (a
+ * translation-only envelope, or the text with only whitespace reformatted). The
+ * read records no observation, so the absent-read cap above cannot count it;
+ * the propagation window alone bounds the wait. Without this the first such
+ * read ended the grace, where the same echo read as absent before D6 did not.
+ */
+export function canDeferUnreadablePendingObservation(input: AttemptClock): boolean {
+  const ageMs = input.now.getTime() - input.attemptStartedAt.getTime()
+  return (
+    Number.isFinite(ageMs) &&
+    ageMs >= 0 &&
+    ageMs < PROVIDER_OBSERVATION_PROPAGATION_GRACE_MS
   )
 }
 
@@ -413,6 +501,119 @@ function classifyGbpApiError(context: unknown): PublicationFailureClass {
   return 'ambiguous'
 }
 
+/** Mirrors the gateway's `GoogleProviderDispatch`; the domain may not import it. */
+export type PublicationFailureDispatch = 'not_sent' | 'answered' | 'unknown'
+
+/**
+ * What the provider plane recorded about one failed attempt. Codes and a
+ * status only, so the publish job can log it and BullMQ can keep it.
+ */
+export type PublicationFailureEvidence = Readonly<{
+  executionCode: string | null
+  dispatch: PublicationFailureDispatch
+  providerStatus: number | null
+}>
+
+const NO_EVIDENCE: PublicationFailureEvidence = Object.freeze({
+  executionCode: null,
+  dispatch: 'unknown',
+  providerStatus: null,
+})
+
+function readDispatch(value: unknown): PublicationFailureDispatch {
+  return value === 'not_sent' || value === 'answered' ? value : 'unknown'
+}
+
+function readCode(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function readStatus(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) ? value : null
+}
+
+function fieldOf(value: unknown, key: string): unknown {
+  return typeof value === 'object' && value !== null && key in value
+    ? (value as Record<string, unknown>)[key]
+    : undefined
+}
+
+/**
+ * Structural read of the dispatch evidence on either provider error shape: the
+ * review port's `failure` record, or the gateway GbpApiError's own fields
+ * (where the admission code is the more specific of its two codes).
+ */
+export function publicationFailureEvidence(err: unknown): PublicationFailureEvidence {
+  if (isReviewApiErrorShape(err)) {
+    const failure = fieldOf(err, 'failure')
+    if (typeof failure !== 'object' || failure === null) return NO_EVIDENCE
+    return {
+      executionCode: readCode(fieldOf(failure, 'executionCode')),
+      dispatch: readDispatch(fieldOf(failure, 'dispatch')),
+      providerStatus: readStatus(fieldOf(failure, 'providerStatus')),
+    }
+  }
+  if (isGbpApiErrorShape(err)) {
+    return {
+      executionCode:
+        readCode(fieldOf(err, 'executionAdmissionCode')) ??
+        readCode(fieldOf(err, 'executionCode')),
+      dispatch: readDispatch(fieldOf(err, 'dispatch')),
+      providerStatus: readStatus(fieldOf(err, 'providerStatus')),
+    }
+  }
+  return NO_EVIDENCE
+}
+
+/**
+ * D2 rules 3-4. Null means the evidence decides nothing and the caller's
+ * code-based rules apply. Only `not_sent` (the gateway returned before
+ * `fetch`) may make a failure retryable; absence on a Google read never can.
+ */
+function classifyByDispatch(
+  evidence: PublicationFailureEvidence,
+): PublicationFailureClass | null {
+  if (evidence.dispatch === 'not_sent') {
+    // A compile refusal is a pure function of the reply: resending the same
+    // descriptor is refused the same way, so retries would only burn attempts.
+    return evidence.executionCode === 'malformed_request'
+      ? 'terminal_rejection'
+      : 'retryable'
+  }
+  if (evidence.dispatch === 'answered') {
+    const status = evidence.providerStatus
+    if (status === 429) return 'retryable'
+    if (status !== null && status >= 400 && status < 500) return 'terminal_rejection'
+    return 'ambiguous'
+  }
+  return null
+}
+
+function classifyGatewayError(err: GbpApiErrorShape): PublicationFailureClass {
+  // A refusal stays terminal before the dispatch rules, as
+  // `authorization_changed` does for the review port (rule 2): retrying a
+  // permission decision cannot turn it into an acceptance.
+  if (err.kind === 'auth_failed' || err.kind === 'permission_denied') {
+    return 'terminal_rejection'
+  }
+  const byDispatch = classifyByDispatch(publicationFailureEvidence(err))
+  if (byDispatch) return byDispatch
+  if (err.kind === 'rate_limited') return 'retryable'
+  return 'ambiguous'
+}
+
+function classifyReviewApiError(
+  err: Readonly<{ code: string }>,
+): PublicationFailureClass {
+  if (PRE_REQUEST_TERMINAL_CODES.has(err.code) || err.code === 'invalid_request') {
+    return 'terminal_rejection'
+  }
+  const byDispatch = classifyByDispatch(publicationFailureEvidence(err))
+  if (byDispatch) return byDispatch
+  if (err.code === 'provider_rate_limited') return 'retryable'
+  return 'ambiguous'
+}
+
 /**
  * Classify a provider failure from the publish attempt. See the table above.
  * Structural inspection only — no integration-context imports.
@@ -420,18 +621,8 @@ function classifyGbpApiError(context: unknown): PublicationFailureClass {
 export function classifyPublicationFailure(err: unknown): PublicationFailureClass {
   // Timeout/abort: the PUT may have landed — outcome is honestly unknown.
   if (isAbortError(err)) return 'ambiguous'
-  if (isGbpApiErrorShape(err)) {
-    if (err.kind === 'auth_failed' || err.kind === 'permission_denied') {
-      return 'terminal_rejection'
-    }
-    if (err.kind === 'rate_limited') return 'retryable'
-    return 'ambiguous'
-  }
-  if (isReviewApiErrorShape(err)) {
-    if (PRE_REQUEST_TERMINAL_CODES.has(err.code)) return 'terminal_rejection'
-    if (err.code === 'provider_rate_limited') return 'retryable'
-    return 'ambiguous'
-  }
+  if (isGbpApiErrorShape(err)) return classifyGatewayError(err)
+  if (isReviewApiErrorShape(err)) return classifyReviewApiError(err)
   if (!isIntegrationErrorShape(err)) {
     // A transport rejection provides no evidence that the provider did not
     // accept the PUT. Conservatively preserve the uncertain in-flight state.

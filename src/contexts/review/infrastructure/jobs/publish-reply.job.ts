@@ -1,8 +1,20 @@
 // Review context — BullMQ job handler for publishing replies to Google.
-// Retries up to five times with the catalogue's bounded exponential backoff.
+//
+// BullMQ grants at most five executions (event-job-catalogue.ts publish-reply:
+// `retryAttempts: 5`, `exponential:30000`; job-policy.ts adds 0.5 jitter, which
+// BullMQ applies as 50-100% of each exponential delay, so the gaps are roughly
+// 15-30 s, 30-60 s, 60-120 s and 120-240 s). Only a RETRYABLE failure spends
+// them on further provider writes. A terminal rejection resolves on the attempt
+// that saw it. An AMBIGUOUS failure gets one more execution, and that one never
+// writes: it runs the uncertain-attempt check below and then leaves the row to
+// the reconciliation sweep.
 //
 // BQC-3.3: provider outcomes are classified via the reply-publication saga
-// (classifyPublicationFailure).
+// (classifyPublicationFailure), from the dispatch the provider plane recorded
+// (D2): `not_sent` is the only evidence that lets a failed write be retried.
+// Every classified failure is logged as { attempt, failureClass,
+// executionCode, dispatch, providerStatus, errorName, errorCode } and nothing
+// else: the last two only when identifier-shaped, never the error message.
 //
 // BQC-3.8: the publication state machine is DURABLE (replies.publication_state,
 // migration 0015). The handler:
@@ -10,10 +22,18 @@
 //      → sending, attempts+1). A null claim means the publication was
 //      cancelled (disconnect/policy) or the row is no longer claimable:
 //      the side effect must NOT run.
-//   2. a persisted `sending` state is uncertain: perform a targeted provider
-//      read first. A live exact/divergent reply is recorded; absence or a read
-//      failure becomes ambiguous. No read result from this retry path permits
-//      another provider write.
+//   2. a persisted `sending` state is uncertain, and nothing on this path
+//      permits another provider write:
+//        a. D4: no `reviews.reply` permit for this exact attempt once the
+//           dispatch window has passed → settle it as not published
+//           (publish_failed / retryable), without reading Google;
+//        b. otherwise one targeted read. A live exact or different reply is
+//           recorded and the observation authority confirms or supersedes;
+//        c. D3: an absent reply, a failed read, a reply RepKey cannot read, or
+//           a whitespace-only difference is not a result. Inside the 15-minute
+//           propagation grace the row stays `sending` and is due again in one
+//           minute (the sweep reads it next); past the grace it becomes
+//           ambiguous, due at the next rung of the 72-hour read ladder.
 //   3. POST-CALL RACE GUARD — re-reads the reply before the local ack:
 //      row missing (purged by the disconnect cascade) or
 //      publication_state='cancelled' (disconnect won the race) → return
@@ -23,12 +43,13 @@
 //      pending_observation. It is never publication proof; only a later exact,
 //      current provider read may publish the local Reply.
 //   5. failure → classified:
-//        terminal_rejection  → markPublicationTerminal (no retry burn)
+//        terminal_rejection  → markPublicationTerminal, resolve (no retry burn);
+//                              includes a request RepKey refused before
+//                              sending (invalid input, compile refusal)
 //        retryable non-final → markPublicationRetryQueued + rethrow
 //        retryable final     → markPublicationTerminal + rethrow
-//        ambiguous non-final → rethrow; the next attempt performs one targeted
-//                              readback and then heals/supersedes or marks
-//                              ambiguous without repeating the write
+//        ambiguous non-final → rethrow; the next attempt runs step 2 without
+//                              repeating the write
 //        ambiguous final     → markPublicationAmbiguous (reconcile_due_at set
 //                              for the bounded reconciliation sweep) + rethrow
 
@@ -41,12 +62,19 @@ import type { ReviewRepository } from '../../application/ports/review.repository
 import type { ReplyCommandStore } from '../../application/ports/reply-command-store.port'
 import type { GoogleReviewApiPort } from '../../application/ports/google-review-api.port'
 import type { GoogleReplyObservationStore } from '../../application/ports/google-reply-observation-store.port'
+import type { ReplyPublicationDispatchEvidencePort } from '../../application/ports/reply-publication-dispatch-evidence.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Reply, Review } from '../../domain/types'
 import { replyId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
-import { classifyPublicationFailure } from '../../domain/reply-publication-workflow'
+import {
+  canDeferUncertainSend,
+  classifyPublicationFailure,
+  nextAmbiguousReconcileDueAt,
+  publicationFailureEvidence,
+  UNCERTAIN_SEND_RECHECK_DELAY_MS,
+} from '../../domain/reply-publication-workflow'
 import { reviewReplyPublishFailed } from '../../domain/events'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
@@ -60,6 +88,8 @@ type PublishHandlerDeps = Readonly<{
   googleReplyObservationStore: GoogleReplyObservationStore
   /** BQC-3.3/3.8: atomic mark ops (guarded state + outbox fact in one tx). */
   replyCommandStore: ReplyCommandStore
+  /** D4: the only input that may settle an uncertain attempt as never sent. */
+  dispatchEvidence: ReplyPublicationDispatchEvidencePort
   clock: () => Date
   logger: Pick<LoggerPort, 'error' | 'info' | 'warn'>
   idGen: () => ReturnType<typeof replyId>
@@ -218,13 +248,7 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
       // Google without its local outcome being committed. A targeted read can
       // confirm or supersede it, but no missing/error response permits another write.
       if (reply.publicationState === 'sending') {
-        if (review.googleConnectionId && reviewName) {
-          await reconcileUncertainAttempt(deps, job, reply, review, reviewName)
-        } else {
-          // The previous write may have landed before the provider subject
-          // disappeared. Loss of read access is not evidence that it did not.
-          await markUncertainAttemptForReconciliation(deps, reply, review)
-        }
+        await reconcileUncertainAttempt(deps, job, reply, review, reviewName)
         return
       }
 
@@ -299,17 +323,91 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
   }
 }
 
-async function markUncertainAttemptForReconciliation(
+type AttemptStart = Date | null
+
+/** Why an uncertain attempt's read decided nothing (logged, content-free). */
+type InconclusiveReason =
+  'absent' | 'read_failed' | 'reply_unreadable' | 'whitespace_only_difference'
+
+/** What one targeted read of an uncertain attempt established. */
+type UncertainReadback =
+  /** The observation authority confirmed or superseded the attempt. */
+  | Readonly<{ kind: 'recorded' }>
+  | Readonly<{ kind: 'review_missing' }>
+  | Readonly<{ kind: 'inconclusive'; reason: InconclusiveReason; error?: unknown }>
+
+async function markUncertainAttemptAmbiguous(
   deps: PublishHandlerDeps,
   reply: Reply,
   review: Review,
+  attemptStartedAt: AttemptStart,
 ): Promise<void> {
   const now = deps.clock()
+  // D3: due at the next ladder rung measured from the attempt start. Without a
+  // start the store's default (now + 15 minutes) is never earlier than it.
+  const dueAt = attemptStartedAt
+    ? (nextAmbiguousReconcileDueAt({ attemptStartedAt, now }) ?? undefined)
+    : undefined
   await deps.replyCommandStore.markPublicationAmbiguous(
     reply,
     buildPublishFailedEvent(review, reply, now),
     now,
+    dueAt,
   )
+}
+
+/** D3: inside the grace an inconclusive read keeps the send waiting; past it
+ * the send becomes ambiguous on the ladder. */
+async function waitOrMarkAmbiguous(
+  deps: PublishHandlerDeps,
+  reply: Reply,
+  review: Review,
+  attemptStartedAt: AttemptStart,
+  reason: InconclusiveReason,
+): Promise<void> {
+  const now = deps.clock()
+  if (attemptStartedAt && canDeferUncertainSend({ attemptStartedAt, now })) {
+    const deferred = await deps.replyCommandStore.deferUncertainSend(
+      reply,
+      new Date(now.getTime() + UNCERTAIN_SEND_RECHECK_DELAY_MS),
+      now,
+    )
+    deps.logger.info(
+      { reason, deferred: deferred !== null },
+      'Uncertain reply attempt not confirmed on Google yet; checking again within the propagation grace',
+    )
+    return
+  }
+  deps.logger.info(
+    { reason, attemptStartKnown: attemptStartedAt !== null },
+    'Uncertain reply attempt still unconfirmed after the propagation grace; marking ambiguous',
+  )
+  await markUncertainAttemptAmbiguous(deps, reply, review, attemptStartedAt)
+}
+
+/** D4: true only on positive evidence. An unavailable lookup proves nothing. */
+async function attemptNeverDispatched(
+  deps: PublishHandlerDeps,
+  reply: Reply,
+  attemptStartedAt: Date,
+): Promise<boolean> {
+  try {
+    const evidence = await deps.dispatchEvidence.findDispatchEvidence({
+      organizationId: reply.organizationId,
+      replyId: reply.id,
+      publicationCycle: reply.publicationCycle,
+      attemptNumber: reply.publicationAttempts,
+      attemptStartedAt,
+      now: deps.clock(),
+    })
+    return evidence === 'never_dispatched'
+  } catch (err) {
+    deps.logger.warn(
+      contentFreeErrorIdentity(err),
+      'Reply dispatch evidence unavailable; reading Google instead',
+    )
+    return false
+  }
 }
 
 async function reconcileUncertainAttempt(
@@ -317,9 +415,57 @@ async function reconcileUncertainAttempt(
   job: Job<PublishReplyJobData>,
   reply: Reply,
   review: Review,
-  reviewName: string,
+  reviewName: string | null,
 ): Promise<void> {
-  if (!review.googleConnectionId) return
+  const attemptStartedAt = await deps.replyRepo.findCurrentPublicationAttemptStartedAt({
+    organizationId: reply.organizationId,
+    reviewId: reply.reviewId,
+    replyId: reply.id,
+    publicationCycle: reply.publicationCycle,
+    attemptNumber: reply.publicationAttempts,
+  })
+
+  if (attemptStartedAt && (await attemptNeverDispatched(deps, reply, attemptStartedAt))) {
+    const now = deps.clock()
+    const settled = await deps.replyCommandStore.settleNeverDispatchedAttempt(
+      reply,
+      buildPublishFailedEvent(review, reply, now),
+      now,
+    )
+    deps.logger.info(
+      { settled: settled !== null },
+      'Uncertain reply attempt never reached Google; settled as not published',
+    )
+    return
+  }
+
+  if (!review.googleConnectionId || !reviewName) {
+    // The previous write may have landed before the provider subject
+    // disappeared. Loss of read access is not evidence that it did not.
+    await markUncertainAttemptAmbiguous(deps, reply, review, attemptStartedAt)
+    return
+  }
+
+  const readback = await readUncertainAttempt(deps, job, reply, review, reviewName)
+  if (readback.kind === 'recorded') return
+  if (readback.kind === 'review_missing') {
+    await markUncertainAttemptAmbiguous(deps, reply, review, attemptStartedAt)
+    return
+  }
+  await waitOrMarkAmbiguous(deps, reply, review, attemptStartedAt, readback.reason)
+  // A failed read still fails the job, so BullMQ records why and its next
+  // execution (if any) repeats this read-only check.
+  if (readback.reason === 'read_failed') throw readback.error
+}
+
+async function readUncertainAttempt(
+  deps: PublishHandlerDeps,
+  job: Job<PublishReplyJobData>,
+  reply: Reply,
+  review: Review,
+  reviewName: string,
+): Promise<UncertainReadback> {
+  if (!review.googleConnectionId) return { kind: 'review_missing' }
   let result
   try {
     result = await deps.googleReviewApi.getReview({
@@ -331,21 +477,22 @@ async function reconcileUncertainAttempt(
       reviewName,
     })
   } catch (err) {
-    await markUncertainAttemptForReconciliation(deps, reply, review)
-    throw err
+    return { kind: 'inconclusive', reason: 'read_failed', error: err }
   }
-  if (result.status === 'not_found') {
-    await markUncertainAttemptForReconciliation(deps, reply, review)
-    return
+  if (result.status === 'not_found') return { kind: 'review_missing' }
+  // D6: Google shows a reply whose original text is not recoverable. Recording
+  // it would write `absent`, a false provider fact; record nothing.
+  if (result.review.replyUnreadable === true) {
+    return { kind: 'inconclusive', reason: 'reply_unreadable' }
   }
 
   // Allocate after acquiring the response: concurrent targeted reads are
   // ordered by the truth they actually received, not by request start time.
-  const readGeneration = await deps.googleReplyObservationStore.allocateReadGeneration()
-  const observedAt = deps.clock()
-
+  let observation
   try {
-    await deps.googleReplyObservationStore.record({
+    const readGeneration = await deps.googleReplyObservationStore.allocateReadGeneration()
+    const observedAt = deps.clock()
+    observation = await deps.googleReplyObservationStore.record({
       organizationId: reply.organizationId,
       propertyId: review.propertyId,
       reviewId: reply.reviewId,
@@ -381,12 +528,38 @@ async function reconcileUncertainAttempt(
       contentExpiresAt: contentExpiresAtFromFetch(observedAt),
     })
   } catch (err) {
-    await markUncertainAttemptForReconciliation(deps, reply, review)
-    throw err
+    return { kind: 'inconclusive', reason: 'read_failed', error: err }
   }
 
-  if (result.review.replyText === null) {
-    await markUncertainAttemptForReconciliation(deps, reply, review)
+  if (result.review.replyText === null) return { kind: 'inconclusive', reason: 'absent' }
+  // D6: `diverged` is the authority's answer for live text that differs from
+  // this attempt only by whitespace; it neither confirmed nor superseded it.
+  if (observation.resolution === 'diverged') {
+    return { kind: 'inconclusive', reason: 'whitespace_only_difference' }
+  }
+  return { kind: 'recorded' }
+}
+
+// Names are class-like identifiers (`DatabaseError`, `GoogleReviewApiError`);
+// codes are closed-union words or SQLSTATEs (`provider_unavailable`, `40001`).
+// Anything else is dropped rather than trusted: both fields come from an
+// `unknown` rejection, and a free-form value could carry reply text.
+const CONTENT_FREE_ERROR_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/u
+const CONTENT_FREE_ERROR_CODE = /^[A-Za-z0-9_]{1,64}$/u
+
+function contentFreeErrorIdentity(
+  err: unknown,
+): Readonly<{ errorName: string | null; errorCode: string | null }> {
+  if (!(err instanceof Error)) return { errorName: null, errorCode: null }
+  const code: unknown = 'code' in err ? err.code : undefined
+  const codeText =
+    typeof code === 'number' && Number.isSafeInteger(code) ? String(code) : code
+  return {
+    errorName: CONTENT_FREE_ERROR_NAME.test(err.name) ? err.name : null,
+    errorCode:
+      typeof codeText === 'string' && CONTENT_FREE_ERROR_CODE.test(codeText)
+        ? codeText
+        : null,
   }
 }
 
@@ -402,13 +575,26 @@ async function handlePublishFailure(
   const failure = classifyPublicationFailure(err)
   const attempt = job.attemptsMade + 1
   const finalAttempt = attempt >= MAX_ATTEMPTS
+  // Content-free by construction: codes, dispatch, status, and the error's own
+  // identifier-shaped name and code — never its message. Before D2 the
+  // incident's compile refusal logged no code at all, so "never reached Google"
+  // and "may have reached Google" looked identical. The error identity is what
+  // separates the failures that carry no dispatch evidence: a Postgres error
+  // after Google's 200 (`DatabaseError`/`40001`) from a transport failure.
+  const fields = {
+    attempt,
+    failureClass: failure,
+    ...publicationFailureEvidence(err),
+    ...contentFreeErrorIdentity(err),
+  }
 
   if (failure === 'terminal_rejection') {
-    // Permanent provider answer (4xx / connection gone): retrying cannot
-    // succeed. Mark terminal and resolve — remaining attempts must not burn.
+    // A 4xx answer, a gone connection/authorization, or a request RepKey
+    // refused before sending it: retrying cannot succeed. Mark terminal and
+    // resolve — remaining attempts must not burn.
     logger.error(
-      { err, attempt },
-      'Reply rejected terminally by Google — marked publish_failed without retry',
+      fields,
+      'Reply publish failed terminally — marked publish_failed without retry',
     )
     await deps.replyCommandStore.markPublicationTerminal(
       claimed,
@@ -422,7 +608,7 @@ async function handlePublishFailure(
     // Explicit pre-dispatch transients and provider rate-limit responses prove
     // this attempt did not publish. Let BullMQ retry within its finite budget;
     // after the last attempt, expose a terminal failure the operator can retry.
-    logger.error({ err, attempt }, 'Reply publish failed (retryable)')
+    logger.error(fields, 'Reply publish failed (retryable)')
     if (finalAttempt) {
       await deps.replyCommandStore.markPublicationTerminal(
         claimed,
@@ -441,7 +627,7 @@ async function handlePublishFailure(
     // publish_failed + publication_state='ambiguous' + reconcile_due_at; the
     // reconciliation sweep and operator control are both read-only.
     logger.error(
-      { err, attempt, reconcile: 'read-only' },
+      fields,
       'Ambiguous publish outcome on final attempt — marked publish_failed for read-only reconciliation',
     )
     await deps.replyCommandStore.markPublicationAmbiguous(
@@ -455,6 +641,6 @@ async function handlePublishFailure(
   // one targeted readback. That next execution may confirm/supersede the
   // attempt, but it never interprets a missing echo as permission for another
   // provider write.
-  logger.error({ err, attempt }, 'Reply publish outcome ambiguous — retrying')
+  logger.error(fields, 'Reply publish outcome ambiguous — next attempt reads back only')
   throw err
 }

@@ -8,15 +8,18 @@
 // durable state + stub-recorded provider calls.
 //
 //   (a) draft → edit → submit → approve → published (stub records the upsert)
-//   (b) approve → uncertain 500 → ambiguous; operator reconciliation remains
-//       read-only and no second provider write is issued
+//   (b) approve → uncertain 500 → the send waits inside its propagation grace
+//       (still sending); "Check Google again" is read-only, "Try publishing
+//       again" is refused, and no second provider write is issued
 //   (c) approve → terminal 403 → publish_failed/terminal; a fresh, safe retry
 //       is rejected again by the provider
-//   (d) ambiguous publication + provider shows the reply → retryPublish
-//       reconcile-before-retry heals to published with ZERO re-sends
+//   (d) ambiguous publication + provider shows the reply → pressing "Check
+//       Google again" in the inbox heals to published, says so, and issues
+//       ZERO re-sends
 
 import { test, expect } from '../../helpers/error-detection'
 import { signIn } from '../../helpers/auth'
+import { clickWhenReady, dismissToasts } from '../../helpers/interaction'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import { gbpStubControl, type StubReview } from '../../fixtures/gbp-stub'
 import {
@@ -32,6 +35,7 @@ import {
   getReplyForReview,
   getInboxItemForReview,
   callServerFn,
+  callServerFnExpectError,
   waitFor,
 } from '../../helpers/fixtures'
 
@@ -332,7 +336,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
     expect(puts[0].body).toContain('Final reply wording — thank you!')
   })
 
-  test('(b) transient 500 becomes check-only ambiguity without resend', async ({
+  test('(b) transient 500 stays an uncertain send that is only ever checked', async ({
     page,
   }) => {
     test.setTimeout(180_000)
@@ -358,26 +362,34 @@ test.describe('Critical workflow: reply lifecycle', () => {
       data: { reviewId: s.reviewId },
     })
 
-    // A reply Google accepted but did not echo is indistinguishable from one
-    // it never received. A 500 therefore makes the single write uncertain:
-    // BullMQ may check provider truth, but it must never restore a blind resend.
-    // The fail-then-success stub deliberately would accept a second PUT, so
-    // remaining ambiguous positively proves that unsafe recovery did not run.
-    const uncertain = await waitFor(
+    // A 500 is Google's answer, so the request reached Google and its outcome
+    // is unknown: a reply Google accepted but did not echo yet looks exactly
+    // like one it refused. BullMQ's next execution never writes. It reads the
+    // review once, sees no reply, and keeps the send `sending` inside the
+    // 15-minute propagation grace (reply-publication-workflow.ts
+    // UNCERTAIN_SEND_PROPAGATION_GRACE_MS) instead of calling it ambiguous on
+    // one absent read. The fail-then-success stub would accept a second PUT, so
+    // a single PUT positively proves that no blind resend ran.
+    await waitFor(
       async () => {
-        const reply = await getReplyForReview(s.reviewId)
-        return reply?.status === 'publish_failed' &&
-          reply?.publication_state === 'ambiguous'
-          ? reply
-          : null
+        const gets = await gbpStubControl.calls({
+          method: 'GET',
+          pathPrefix: `/v4/${s.reviewName}`,
+        })
+        return gets.length > 0 ? gets : null
       },
       {
-        description: 'uncertain provider write settled as check-only ambiguity',
+        description: 'uncertain provider write read back once, without a second write',
         diagnose: async () => await getReplyForReview(s.reviewId),
       },
     )
-    expect(uncertain.publication_attempts).toBe(1)
-    expect(uncertain.publication_last_error_class).toBe('ambiguous')
+    const waiting = await getReplyForReview(s.reviewId)
+    expect(waiting).toMatchObject({
+      status: 'approved',
+      publication_state: 'sending',
+      publication_attempts: 1,
+    })
+    expect(waiting?.reconcile_due_at).not.toBeNull()
 
     const putsBeforeCheck = await gbpStubControl.calls({
       method: 'PUT',
@@ -386,56 +398,66 @@ test.describe('Critical workflow: reply lifecycle', () => {
     expect(putsBeforeCheck).toHaveLength(1)
 
     await page.goto(`/inbox?propertyId=${s.propertyId}&itemId=${s.inboxItemId}`)
-    await expect(page.getByText('Needs a check').first()).toBeVisible({
+    await expect(page.getByText('Waiting for Google').first()).toBeVisible({
       timeout: 15_000,
     })
-    await expect(
-      page.getByText('To avoid posting twice', { exact: false }).first(),
-    ).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Check Google again' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Try publishing again' })).toHaveCount(
       0,
     )
 
+    // "Check Google again" is a read with a result, never an exception. The
+    // attempt is minutes old, so dispatch evidence cannot settle it; Google
+    // still shows no reply, and the send keeps waiting.
     const getsBeforeCheck = await gbpStubControl.calls({
       method: 'GET',
-      pathPrefix: `/v4/${s.locationName}/reviews`,
+      pathPrefix: `/v4/${s.reviewName}`,
     })
-    await waitFor(
+    const check = await waitFor(
       async () => {
         try {
-          await callServerFn(page, {
+          return await callServerFn<{ outcome: string }>(page, {
             file: REPLY_FILE_OPS,
-            exportName: 'retryPublishFn',
+            exportName: 'checkReplyPublicationFn',
             data: { reviewId: s.reviewId },
           })
-          return null
         } catch (error) {
-          if (/will not send it again/i.test(String(error))) return true
-          if (/re-read provider reply state/i.test(String(error))) return null
+          // The reads share ONE provider quota with the whole suite.
+          if (/couldn't reach Google to check this reply/i.test(String(error))) {
+            return null
+          }
           throw error
         }
       },
       {
         timeoutMs: 30_000,
-        description: 'operator reconciliation completed without admitting a resend',
+        description: 'operator check completed without admitting a resend',
       },
     )
+    expect(check.outcome).toBe('not_on_google')
+    const checked = await getReplyForReview(s.reviewId)
+    expect(checked).toMatchObject({
+      status: 'approved',
+      publication_state: 'sending',
+      publication_attempts: 1,
+    })
+    const getsAfterCheck = await gbpStubControl.calls({
+      method: 'GET',
+      pathPrefix: `/v4/${s.reviewName}`,
+    })
+    expect(getsAfterCheck.length).toBeGreaterThan(getsBeforeCheck.length)
 
-    const reconciled = await getReplyForReview(s.reviewId)
-    expect(reconciled?.status).toBe('publish_failed')
-    expect(reconciled?.publication_state).toBe('ambiguous')
-    expect(reconciled?.publication_attempts).toBe(1)
+    // A send still in flight is not a failed publication, so "Try publishing
+    // again" is refused and enqueues nothing.
+    await callServerFnExpectError(page, {
+      file: REPLY_FILE_OPS,
+      exportName: 'retryPublishFn',
+      data: { reviewId: s.reviewId },
+    })
     const putsAfterCheck = await gbpStubControl.calls({
       method: 'PUT',
       pathPrefix: `/v4/${s.locationName}`,
     })
     expect(putsAfterCheck).toHaveLength(1)
-    const getsAfterCheck = await gbpStubControl.calls({
-      method: 'GET',
-      pathPrefix: `/v4/${s.locationName}/reviews`,
-    })
-    expect(getsAfterCheck.length).toBeGreaterThan(getsBeforeCheck.length)
   })
 
   test('(c) terminal 403 permits a fresh retry, which remains terminal', async ({
@@ -567,29 +589,40 @@ test.describe('Critical workflow: reply lifecycle', () => {
     })
     await signIn(page)
 
-    // retryPublish runs reconcile-before-retry INLINE (worker-free): the
-    // provider shows the reply → heal to published, no re-enqueue, no resend.
-    //
+    // "Check Google again" runs the read INLINE (worker-free): the attempt is
+    // too recent for dispatch evidence to settle it, the provider shows the
+    // reply → heal to published, no enqueue, no resend. It is pressed in the
+    // inbox, because the defect this guards was a click that reported nothing:
+    // the check's answer has to reach the manager, not only the database.
+    await page.goto(`/inbox?propertyId=${s.propertyId}&itemId=${s.inboxItemId}`)
+    const checkButton = page.getByRole('button', { name: 'Check Google again' })
+    const toasts = page.locator('[data-sonner-toast]')
+    const liveToast = toasts.filter({ hasText: 'Your reply is live on Google.' })
+    const unreachableToast = toasts.filter({
+      hasText: "couldn't reach Google to check this reply",
+    })
+    // The sweep may heal the seeded row before the pane loads. Then there is
+    // nothing left to press, and the reply already reads Live on Google.
+    await expect(
+      checkButton.or(page.getByText('Live on Google', { exact: true })).first(),
+    ).toBeVisible({ timeout: 15_000 })
+
     // The reads share ONE provider quota with the whole suite, so a run that
-    // follows a read-heavy spec can be admission-denied here. That is a
-    // transient the operator answers by clicking again, and the assertion
-    // below is about the reconcile outcome — not about winning the quota on
-    // the first try.
+    // follows a read-heavy spec can be admission-denied here. The check says
+    // so in a toast and re-enables, which is a transient the operator answers
+    // by clicking again, and the assertions below are about the reconcile
+    // outcome — not about winning the quota on the first try.
     await waitFor(
       async () => {
-        try {
-          await callServerFn(page, {
-            file: REPLY_FILE_OPS,
-            exportName: 'retryPublishFn',
-            data: { reviewId: s.reviewId },
-          })
-          return true
-        } catch (error) {
-          if (!/re-read provider reply state/i.test(String(error))) throw error
-          return null
-        }
+        if ((await checkButton.count()) === 0) return 'healed_before_check'
+        await dismissToasts(page)
+        await clickWhenReady(checkButton)
+        await expect(liveToast.or(unreachableToast).first()).toBeVisible({
+          timeout: 15_000,
+        })
+        return (await liveToast.count()) > 0 ? 'checked_live' : null
       },
-      { timeoutMs: 30_000, description: 'retryPublish admitted by the provider quota' },
+      { timeoutMs: 30_000, description: 'check admitted by the provider quota' },
     )
     const healed = await waitFor(
       async () => {

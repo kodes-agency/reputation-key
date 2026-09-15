@@ -40,6 +40,7 @@ describe('Google reply observation decision', () => {
     sourceEpoch: 2,
     materialReviewRevision: 4,
     expectedReplyDigest: '',
+    expectedReplyText: null,
     outcome: 'provider_outcome_pending' as const,
   }
 
@@ -173,5 +174,113 @@ describe('Google reply observation decision', () => {
         candidate: null,
       }),
     ).toMatchObject({ change: 'deleted', resolution: 'absent', state: 'absent' })
+  })
+
+  // D6: Google may hand back the reply RepKey sent with its blank lines or
+  // trailing spaces reformatted. That is not proof of RepKey's exact write (only
+  // the google-reply-v1 digest is), and it is not another author's reply either,
+  // so it must neither confirm nor fence off the in-flight attempt.
+  describe('whitespace-only difference from the in-flight attempt', () => {
+    const sent = 'Thank you, Maria!\n\nWe hope to see you again.'
+    const expected = {
+      ...candidate,
+      expectedReplyDigest: compareObservedGoogleReply(sent, sent).desiredDigest,
+      expectedReplyText: sent,
+    }
+    const reformatted = [
+      ['doubled blank lines', 'Thank you, Maria!\n\n\n\nWe hope to see you again.'],
+      ['trailing spaces on a line', 'Thank you, Maria!   \n\nWe hope to see you again.'],
+      [
+        'a no-break space for a space',
+        'Thank you,\u00a0Maria!\n\nWe hope to see you again.',
+      ],
+      ['one line break for two', 'Thank you, Maria!\nWe hope to see you again.'],
+    ] as const
+
+    it.each(reformatted)(
+      'neither confirms nor supersedes on %s',
+      (_label, observedText) => {
+        const decision = decideGoogleReplyObservation({
+          ...scope,
+          observedText,
+          previous: null,
+          candidate: expected,
+        })
+
+        expect(decision).toMatchObject({
+          state: 'live',
+          change: 'added',
+          resolution: 'diverged',
+          provenance: 'external_or_unknown',
+          matchedReplyId: null,
+          matchedPublicationCycle: null,
+          matchedAttemptNumber: null,
+        })
+      },
+    )
+
+    it('holds when the reformatted reply is already the unchanged head', () => {
+      const observedText = 'Thank you, Maria!\n\n\n\nWe hope to see you again.'
+      const decision = decideGoogleReplyObservation({
+        ...scope,
+        observedText,
+        previous: {
+          state: 'live',
+          normalizedDigest: compareObservedGoogleReply(observedText, observedText)
+            .observedDigest,
+          ...scope,
+        },
+        candidate: expected,
+      })
+
+      expect(decision).toMatchObject({ change: 'unchanged', resolution: 'diverged' })
+    })
+
+    it('still confirms the exact text', () => {
+      expect(
+        decideGoogleReplyObservation({
+          ...scope,
+          observedText: `  ${sent}\r\n`,
+          previous: null,
+          candidate: expected,
+        }).resolution,
+      ).toBe('confirmed_on_google')
+    })
+
+    it('still closes a genuinely different reply as external', () => {
+      expect(
+        decideGoogleReplyObservation({
+          ...scope,
+          observedText: 'Thank you, Maria! We hope to see you soon.',
+          previous: null,
+          candidate: expected,
+        }),
+      ).toMatchObject({ resolution: 'external_current_live', matchedReplyId: null })
+    })
+
+    it('ignores expected text that is not the text the attempt digested', () => {
+      expect(
+        decideGoogleReplyObservation({
+          ...scope,
+          observedText: 'Edited after the attempt  \n\nstarted.',
+          previous: null,
+          candidate: {
+            ...expected,
+            expectedReplyText: 'Edited after the attempt started.',
+          },
+        }).resolution,
+      ).toBe('external_current_live')
+    })
+
+    it('does not shield an attempt that is no longer in flight', () => {
+      expect(
+        decideGoogleReplyObservation({
+          ...scope,
+          observedText: 'Thank you, Maria!\n\n\n\nWe hope to see you again.',
+          previous: null,
+          candidate: { ...expected, outcome: 'retryable_failure' },
+        }).resolution,
+      ).toBe('external_current_live')
+    })
   })
 })

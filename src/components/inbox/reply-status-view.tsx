@@ -62,6 +62,9 @@ export function resolveReplyView(reply: ReplyData | null): ResolvedReplyView {
   if (reply.source === 'google_sync') return { kind: 'mirror', reply }
   if (reply.status === 'published') return { kind: 'published', reply }
   if (reply.status === 'publish_failed') {
+    // One kind for every ambiguous-descended reply, whether the automatic read
+    // ladder still runs (`reconcileDueAt` set) or has ended: both offer only
+    // Check. The presenter (`reply-message-view.ts`) splits the words and tone.
     return reply.publicationState === 'ambiguous' ||
       reply.publicationLastErrorClass === 'ambiguous'
       ? { kind: 'failed-check', reply }
