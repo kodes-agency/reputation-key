@@ -7,23 +7,9 @@ import type {
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '#/components/ui/card'
+import { CardContent } from '#/components/ui/card'
 import { Checkbox } from '#/components/ui/checkbox'
 import { Field, FieldError, FieldGroup, FieldLabel } from '#/components/ui/field'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { MerchantAiDataHandling } from './merchant-ai-data-handling'
 
@@ -34,50 +20,6 @@ export type MerchantAiPropertyOption = Readonly<{
   googleBindingState:
     'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
 }>
-
-export function MerchantAiPropertySelector({
-  properties,
-  propertyId,
-  onPropertyChange,
-}: Readonly<{
-  properties: ReadonlyArray<MerchantAiPropertyOption>
-  propertyId?: string
-  onPropertyChange: (propertyId: string) => void
-}>) {
-  return (
-    <Card className="min-w-0">
-      <CardHeader className="border-b">
-        <CardTitle>Property</CardTitle>
-        <CardDescription>
-          Reply defaults and AI data-use authorization are independent for every property.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Field>
-          <FieldLabel htmlFor="merchant-ai-property">Property</FieldLabel>
-          <Select value={propertyId} onValueChange={onPropertyChange}>
-            <SelectTrigger
-              id="merchant-ai-property"
-              className="h-11 min-h-11 w-full min-w-0 max-w-full"
-              aria-label="Property"
-            >
-              <SelectValue placeholder="Select a property" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {properties.map((candidate) => (
-                  <SelectItem key={candidate.id} value={candidate.id}>
-                    {candidate.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </Field>
-      </CardContent>
-    </Card>
-  )
-}
 
 function MerchantAiGoogleSourceUnavailable() {
   const { can } = usePermissions()

@@ -1,3 +1,7 @@
+// One property's AI authorization, as the property's AI settings section
+// renders it: consent against the served notice, then enable, change or turn
+// off. The property is fixed by the caller, so there is no selector, and reply
+// language is set in the Replies section rather than beside the consent.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
@@ -10,18 +14,14 @@ import {
   AI_CONSENT_ACKNOWLEDGEMENT,
   consentToAi,
 } from './merchant-ai-consent.stories.play'
-import { MerchantAiSettingsPage } from './merchant-ai-settings-page'
-import type { PropertyReplyLanguageUpdateAction } from './property-reply-language-card'
+import { MerchantAiPropertyAuthorization } from './merchant-ai-property-authorization'
 
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000001'
-const properties = [
-  {
-    id: PROPERTY_ID,
-    name: 'Harbor & Pine — A very long property name for narrow screens',
-    defaultReplyLanguage: null,
-    googleBindingState: 'active' as const,
-  },
-]
+const property = {
+  id: PROPERTY_ID,
+  name: 'Harbor & Pine — A very long property name for narrow screens',
+  googleBindingState: 'active' as const,
+}
 
 const disabled: MerchantAiSnapshot = {
   organizationId: 'org-story',
@@ -83,9 +83,16 @@ const SERVED_NOTICE = {
 }
 // Anchored: the trends description itself mentions review analysis.
 const CAPABILITY_LABELS = [/^review analysis/i, /^reply drafting/i, /^property trends/i]
+// What the server says when the notice changed between reading and consenting.
+const NOTICE_CHANGED =
+  'The AI data-use notice changed. Reload it, review it, and confirm again.'
 
-const noOpPropertyChange = fn()
 const enableAction = fn(async (_input: { data: { acknowledgement: unknown } }) => enabled)
+const refusedEnableAction = fn(
+  async (_input: { data: { acknowledgement: unknown } }): Promise<MerchantAiSnapshot> => {
+    throw new Error(NOTICE_CHANGED)
+  },
+)
 const changeAction = fn(async (input: ChangeActionInput) => ({
   ...enabled,
   capabilities: input.data.capabilities,
@@ -103,45 +110,30 @@ const revokeAction = fn(async (_input: { data: Record<string, unknown> }) => ({
   },
   stateVersion: enabled.stateVersion + 1,
 }))
-const updateProperty = Object.assign(
-  fn(async (input: Parameters<PropertyReplyLanguageUpdateAction>[0]) => ({
-    property: {
-      id: input.data.propertyId,
-      defaultReplyLanguage: input.data.defaultReplyLanguage,
-    },
-  })),
-  {
-    isPending: false,
-    error: null,
-    isSuccess: false,
-    data: null,
-  },
-) satisfies PropertyReplyLanguageUpdateAction
+const changedAction = fn((_snapshot: MerchantAiSnapshot) => undefined)
 
 const meta = {
-  title: 'Settings/MerchantAiSettingsPage',
-  component: MerchantAiSettingsPage,
+  title: 'Settings/MerchantAiPropertyAuthorization',
+  component: MerchantAiPropertyAuthorization,
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
   decorators: [
     AuthedRouterDecorator,
     (Story) => (
-      <div className="p-4">
+      <div className="max-w-4xl p-4">
         <Story />
       </div>
     ),
   ],
   args: {
-    properties,
-    propertyId: PROPERTY_ID,
+    property,
     notice: MERCHANT_AI_NOTICE,
-    onPropertyChange: noOpPropertyChange,
     enable: enableAction,
     change: changeAction,
     revoke: revokeAction,
-    updateProperty,
+    onChanged: changedAction,
   },
-} satisfies Meta<typeof MerchantAiSettingsPage>
+} satisfies Meta<typeof MerchantAiPropertyAuthorization>
 
 export default meta
 type Story = StoryObj<typeof meta>
@@ -150,22 +142,45 @@ export const AwaitingConsent: Story = {
   args: { snapshot: disabled },
   play: async ({ canvasElement }) => {
     enableAction.mockClear()
+    changedAction.mockClear()
     const canvas = within(canvasElement)
     await expect(canvas.queryByLabelText(/password/i)).not.toBeInTheDocument()
     await expect(
       canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
     ).toHaveAccessibleName(
-      `I have read this notice and, as an account admin, agree to this data use for ${properties[0]!.name}`,
+      `I have read this notice and, as an account admin, agree to this data use for ${property.name}`,
     )
     await consentToAi(canvasElement)
     await waitFor(() => expect(enableAction).toHaveBeenCalledOnce())
     // Consent names the notice that was on screen, not a password.
     expect(enableAction.mock.calls[0]?.[0].data.acknowledgement).toEqual(SERVED_NOTICE)
     expect(await canvas.findByText('On')).toBeInTheDocument()
+    // The surrounding section hears about the accepted command and refreshes.
+    expect(changedAction).toHaveBeenCalledWith(enabled)
     // The next consent is acknowledged afresh.
     expect(
       canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
     ).not.toBeChecked()
+  },
+}
+
+// A refused consent says why, leaves AI off and asks for the acknowledgement
+// again; nothing tells the surrounding section that anything changed.
+export const ConsentRefused: Story = {
+  args: { snapshot: disabled, enable: refusedEnableAction },
+  play: async ({ canvasElement }) => {
+    refusedEnableAction.mockClear()
+    changedAction.mockClear()
+    const canvas = within(canvasElement)
+    await consentToAi(canvasElement)
+    await waitFor(() => expect(refusedEnableAction).toHaveBeenCalledOnce())
+    expect(await canvas.findByText(NOTICE_CHANGED)).toBeVisible()
+    expect(canvas.getByText('Off')).toBeInTheDocument()
+    expect(
+      canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
+    ).not.toBeChecked()
+    expect(canvas.getByRole('button', { name: /^enable ai features$/i })).toBeDisabled()
+    expect(changedAction).not.toHaveBeenCalled()
   },
 }
 
@@ -278,7 +293,7 @@ export const TurnOffWithoutAcknowledgement: Story = {
 
 export const GoogleSourceUnavailableForPropertyManager: Story = {
   args: {
-    properties: [{ ...properties[0], googleBindingState: 'disconnected' }],
+    property: { ...property, googleBindingState: 'disconnected' },
     snapshot: enabled,
   },
   decorators: [withRole('PropertyManager')],
@@ -300,7 +315,7 @@ export const GoogleSourceUnavailableForPropertyManager: Story = {
 
 export const GoogleSourceUnavailableForAccountAdmin: Story = {
   args: {
-    properties: [{ ...properties[0], googleBindingState: 'disconnected' }],
+    property: { ...property, googleBindingState: 'disconnected' },
     snapshot: enabled,
   },
   decorators: [withRole('AccountAdmin')],
@@ -318,8 +333,4 @@ export const GoogleSourceUnavailableForAccountAdmin: Story = {
     })
     await userEvent.click(integrations)
   },
-}
-
-export const NoPropertySelected: Story = {
-  args: { propertyId: undefined, snapshot: null },
 }
