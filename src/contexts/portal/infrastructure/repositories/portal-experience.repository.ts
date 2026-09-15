@@ -20,6 +20,7 @@ import type {
   PropertyPortalBrandContent,
   PropertyPortalBrandProfile,
 } from '../../application/ports/portal-experience.repository'
+import type { PortalBrandProfileSnapshot } from '../../domain/portal-publication-snapshot'
 import { trace } from '#/shared/observability/trace'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import {
@@ -87,27 +88,63 @@ const overrideFromRow = (
   updatedAt: row.updatedAt,
 })
 
+type PropertyScope = Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>
+type BrandProfileFields = Omit<PortalBrandProfileSnapshot, 'version'>
+
+/** Brand writes take the Property's publication lock before touching a row. */
+function lockPropertyPublication(tx: Tx, scope: PropertyScope): Promise<void> {
+  return lockPortalPublicationProperty(
+    tx,
+    unbrand(scope.organizationId),
+    unbrand(scope.propertyId),
+  )
+}
+
+/** A Property's first Brand Profile row: version 1, created and updated at once. */
+function firstProfileRow(
+  input: PropertyScope & Readonly<{ id: string; at: Date }>,
+  fields: BrandProfileFields,
+  updatedBy: string,
+) {
+  return {
+    id: input.id,
+    organizationId: unbrand(input.organizationId),
+    propertyId: unbrand(input.propertyId),
+    ...fields,
+    version: 1,
+    updatedBy,
+    createdAt: input.at,
+    updatedAt: input.at,
+  }
+}
+
+/** A profile that has only its public display name: no images, default colours. */
+function displayNameOnlyProfile(displayName: string): BrandProfileFields {
+  return {
+    displayName,
+    logoUrl: null,
+    defaultHeroImageUrl: null,
+    ...DEFAULT_PROPERTY_BRAND_PALETTE,
+  }
+}
+
 /** Every Brand Profile write fences Portal publication and announces the version. */
 async function recordPropertyProfileChange(
   tx: Tx,
-  input: Readonly<{
-    organizationId: OrganizationId
-    propertyId: PropertyId
-    version: number
-    at: Date
-  }>,
+  input: PropertyScope & Readonly<{ at: Date }>,
+  version: number,
 ): Promise<void> {
   await recordPortalPendingContentChange(tx, {
     organizationId: unbrand(input.organizationId),
     propertyId: unbrand(input.propertyId),
     kind: 'property_brand_profile',
-    sourceVersion: `v${input.version}`,
+    sourceVersion: `v${version}`,
     changedAt: input.at,
   })
   const event = portalPropertyBrandProfileUpdated({
     organizationId: input.organizationId,
     propertyId: input.propertyId,
-    profileVersion: input.version,
+    profileVersion: version,
     sourceAggregateVersion: input.at.toISOString(),
     occurredAt: input.at,
   })
@@ -166,23 +203,10 @@ export const createPortalExperienceRepository = (
   savePropertyProfile: (input) =>
     trace('portalExperience.savePropertyProfile', async () => {
       const committed = await db.transaction(async (tx) => {
-        await lockPortalPublicationProperty(
-          tx,
-          unbrand(input.organizationId),
-          unbrand(input.propertyId),
-        )
+        await lockPropertyPublication(tx, input)
         const [row] = await tx
           .insert(propertyPortalBrandProfiles)
-          .values({
-            id: input.id,
-            organizationId: unbrand(input.organizationId),
-            propertyId: unbrand(input.propertyId),
-            ...input.profile,
-            version: 1,
-            updatedBy: unbrand(input.updatedBy),
-            createdAt: input.at,
-            updatedAt: input.at,
-          })
+          .values(firstProfileRow(input, input.profile, unbrand(input.updatedBy)))
           .onConflictDoUpdate({
             target: [
               propertyPortalBrandProfiles.organizationId,
@@ -197,12 +221,7 @@ export const createPortalExperienceRepository = (
           })
           .returning()
         if (!row) throw new Error('Property Brand Profile was not saved')
-        await recordPropertyProfileChange(tx, {
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          version: row.version,
-          at: input.at,
-        })
+        await recordPropertyProfileChange(tx, input, row.version)
         return profileFromRow(row)
       })
 
@@ -212,26 +231,16 @@ export const createPortalExperienceRepository = (
   ensurePropertyDisplayName: (input) =>
     trace('portalExperience.ensurePropertyDisplayName', () =>
       db.transaction(async (tx) => {
-        await lockPortalPublicationProperty(
-          tx,
-          unbrand(input.organizationId),
-          unbrand(input.propertyId),
-        )
+        await lockPropertyPublication(tx, input)
         const [row] = await tx
           .insert(propertyPortalBrandProfiles)
-          .values({
-            id: input.id,
-            organizationId: unbrand(input.organizationId),
-            propertyId: unbrand(input.propertyId),
-            displayName: input.displayName,
-            logoUrl: null,
-            defaultHeroImageUrl: null,
-            ...DEFAULT_PROPERTY_BRAND_PALETTE,
-            version: 1,
-            updatedBy: AUTOMATIC_PUBLIC_DISPLAY_NAME_ACTOR,
-            createdAt: input.at,
-            updatedAt: input.at,
-          })
+          .values(
+            firstProfileRow(
+              input,
+              displayNameOnlyProfile(input.displayName),
+              AUTOMATIC_PUBLIC_DISPLAY_NAME_ACTOR,
+            ),
+          )
           .onConflictDoNothing({
             target: [
               propertyPortalBrandProfiles.organizationId,
@@ -240,12 +249,7 @@ export const createPortalExperienceRepository = (
           })
           .returning()
         if (!row) return false
-        await recordPropertyProfileChange(tx, {
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          version: row.version,
-          at: input.at,
-        })
+        await recordPropertyProfileChange(tx, input, row.version)
         return true
       }),
     ),
@@ -253,11 +257,7 @@ export const createPortalExperienceRepository = (
   savePropertyDisplayName: (input) =>
     trace('portalExperience.savePropertyDisplayName', () =>
       db.transaction(async (tx) => {
-        await lockPortalPublicationProperty(
-          tx,
-          unbrand(input.organizationId),
-          unbrand(input.propertyId),
-        )
+        await lockPropertyPublication(tx, input)
         const scope = and(
           eq(propertyPortalBrandProfiles.organizationId, unbrand(input.organizationId)),
           eq(propertyPortalBrandProfiles.propertyId, unbrand(input.propertyId)),
@@ -291,27 +291,16 @@ export const createPortalExperienceRepository = (
               .returning()
           : await tx
               .insert(propertyPortalBrandProfiles)
-              .values({
-                id: input.id,
-                organizationId: unbrand(input.organizationId),
-                propertyId: unbrand(input.propertyId),
-                displayName: input.displayName,
-                logoUrl: null,
-                defaultHeroImageUrl: null,
-                ...DEFAULT_PROPERTY_BRAND_PALETTE,
-                version: 1,
-                updatedBy: unbrand(input.updatedBy),
-                createdAt: input.at,
-                updatedAt: input.at,
-              })
+              .values(
+                firstProfileRow(
+                  input,
+                  displayNameOnlyProfile(input.displayName),
+                  unbrand(input.updatedBy),
+                ),
+              )
               .returning()
         if (!row) throw new Error('Property Brand Profile was not saved')
-        await recordPropertyProfileChange(tx, {
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          version: row.version,
-          at: input.at,
-        })
+        await recordPropertyProfileChange(tx, input, row.version)
         return profileFromRow(row)
       }),
     ),
@@ -319,11 +308,7 @@ export const createPortalExperienceRepository = (
   savePropertyContent: (input) =>
     trace('portalExperience.savePropertyContent', async () => {
       const committed = await db.transaction(async (tx) => {
-        await lockPortalPublicationProperty(
-          tx,
-          unbrand(input.organizationId),
-          unbrand(input.propertyId),
-        )
+        await lockPropertyPublication(tx, input)
         const [row] = await tx
           .insert(propertyPortalBrandContents)
           .values({
