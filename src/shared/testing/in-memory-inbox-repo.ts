@@ -156,6 +156,15 @@ export function createInMemoryInboxRepo(): InboxRepository & {
 } {
   const items: InboxItem[] = []
   const analysisAspects = new Map<string, readonly ReviewAspectMention[]>()
+  const matching = (filters: InboxFilters, orgId: string): InboxItem[] => {
+    let filtered = items.filter((i) => i.organizationId === orgId)
+    filtered = applyScalarFilters(filtered, filters)
+    filtered = applyReplyStageFilter(filtered, filters)
+    if (filters.sourceScopes)
+      filtered = filtered.filter((i) => matchesSourceScopes(i, filters.sourceScopes))
+    filtered = applyContentFilters(filtered, filters, analysisAspects)
+    return applyEscalationFilter(filtered, filters)
+  }
   const repo: InboxRepository = {
     findById: async (id, orgId) =>
       items.find((i) => i.id === id && i.organizationId === orgId) ?? null,
@@ -171,13 +180,7 @@ export function createInMemoryInboxRepo(): InboxRepository & {
           i.organizationId === orgId,
       ) ?? null,
     findFilteredPaginated: async (filters, orgId, cursor, limit = 50) => {
-      let filtered = items.filter((i) => i.organizationId === orgId)
-      filtered = applyScalarFilters(filtered, filters)
-      filtered = applyReplyStageFilter(filtered, filters)
-      if (filters.sourceScopes)
-        filtered = filtered.filter((i) => matchesSourceScopes(i, filters.sourceScopes))
-      filtered = applyContentFilters(filtered, filters, analysisAspects)
-      filtered = applyEscalationFilter(filtered, filters)
+      let filtered = matching(filters, orgId)
       const direction = filters.sort === 'oldest' ? 1 : -1
       filtered.sort(
         (a, b) =>
@@ -205,6 +208,13 @@ export function createInMemoryInboxRepo(): InboxRepository & {
     },
     countFiltered: async (filters, orgId) =>
       (await repo.findFilteredPaginated(filters, orgId, undefined, 1)).totalCount,
+    countFilteredByProperty: async (filters, orgId) => {
+      const counts = new Map<InboxItem['propertyId'], number>()
+      for (const item of matching(filters, orgId)) {
+        counts.set(item.propertyId, (counts.get(item.propertyId) ?? 0) + 1)
+      }
+      return [...counts].map(([propertyId, count]) => ({ propertyId, count }))
+    },
     create: async (item) => {
       items.push(item)
       return item

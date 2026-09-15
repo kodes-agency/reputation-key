@@ -130,6 +130,8 @@ const EXPECTED_INBOX_PUBLIC_API_KEYS = [
   'getInboxItemHistory',
   'getInboxItems',
   'getInboxNotes',
+  // The queue rail's property section: one queue counted per property.
+  'getInboxPropertyCounts',
   'getInboxQueueCounts',
   'getLastVisitCount',
   'getPrivateFeedbackTargetAnalytics',

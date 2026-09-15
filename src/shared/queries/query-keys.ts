@@ -15,6 +15,10 @@ export const inboxKeys = {
   // Per-property variant — invalidation via the counts() prefix still matches.
   countsFor: (propertyId?: string) =>
     [...inboxKeys.counts(), propertyId ?? 'all'] as const,
+  // One queue counted per property, the rail's property section. Under counts()
+  // so every count invalidation refreshes it too.
+  propertyCountsFor: (queue: string) =>
+    [...inboxKeys.counts(), 'by-property', queue] as const,
   lastVisitCount: () => [...inboxKeys.all, 'last-visit-count'] as const,
   details: () => [...inboxKeys.all, 'item'] as const,
   detail: (id: string) => [...inboxKeys.details(), id] as const,

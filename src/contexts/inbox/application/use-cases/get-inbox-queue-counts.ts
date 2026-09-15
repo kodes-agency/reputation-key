@@ -1,13 +1,14 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { PropertyId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { inboxError } from '../../domain/errors'
-import { queueToFilters, type InboxQueue, type InboxReplyStages } from '../inbox-queues'
-import { propertyIdsForInboxSource, resolveInboxSourceScopes } from '../inbox-access'
+import { queueToFilters, type InboxQueue } from '../inbox-queues'
+import {
+  findScopeReplyStages,
+  NO_REPLY_STAGES,
+  resolveInboxCountScope,
+} from '../inbox-count-scope'
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { ReplyLookupPort } from '../ports/reply-lookup.port'
-import { resolveVisiblePropertyIds } from '../visible-properties'
 
 export type InboxQueueCounts = Readonly<{
   reply: number | null
@@ -55,35 +56,12 @@ export const getInboxQueueCounts =
   async (input, ctx) => {
     const canManageReplies =
       input.replyQueuesEnabled !== false && canForContext(ctx, 'reply.manage')
-    const visible = await resolveVisiblePropertyIds(
-      deps.staffPublicApi,
-      ctx,
-      'inbox.read',
-    )
-    if (visible === 'none') return emptyCounts(canManageReplies)
+    const scope = await resolveInboxCountScope(deps.staffPublicApi, ctx, input.propertyId)
+    if (scope === null) return emptyCounts(canManageReplies)
 
-    const sourceScopes = await resolveInboxSourceScopes(deps.staffPublicApi, ctx, 'read')
-    if (sourceScopes.length === 0) return emptyCounts(canManageReplies)
-
-    let visiblePropertyIds: ReadonlyArray<PropertyId> | undefined
-    if (visible !== 'all') {
-      if (input.propertyId && !visible.includes(input.propertyId as PropertyId)) {
-        throw inboxError('forbidden', 'No access to this property', {
-          propertyId: input.propertyId,
-        })
-      }
-      visiblePropertyIds = visible
-    }
-
-    const propertyIds = input.propertyId
-      ? [input.propertyId as PropertyId]
-      : visiblePropertyIds
-    const replyStages: InboxReplyStages = canManageReplies
-      ? await deps.replyLookup.findReviewIdsByReplyStage(
-          ctx.organizationId,
-          propertyIdsForInboxSource(sourceScopes, 'review', propertyIds),
-        )
-      : { awaiting: [], waiting: [] }
+    const replyStages = canManageReplies
+      ? await findScopeReplyStages(deps.replyLookup, ctx, scope)
+      : NO_REPLY_STAGES
 
     const count = (queue: InboxQueue) =>
       deps.repo.countFiltered(
@@ -93,8 +71,8 @@ export const getInboxQueueCounts =
             canManageReplies,
             replyStages,
           }),
-          propertyIds,
-          sourceScopes,
+          propertyIds: scope.propertyIds,
+          sourceScopes: scope.sourceScopes,
         },
         ctx.organizationId,
       )

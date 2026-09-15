@@ -6,7 +6,7 @@
 //
 // This module lives outside src/components, so the boundary gate doesn't scan
 // it; it imports use-cases + in-memory doubles that are verified browser-safe.
-import { wireUseCases } from '#/contexts/inbox/build-use-cases'
+import { projectInboxRequestApi, wireUseCases } from '#/contexts/inbox/build-use-cases'
 import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
 import {
@@ -265,30 +265,10 @@ export function createInboxContainer() {
     clock: () => clockNow,
     idGen: () => crypto.randomUUID(),
   })
-  const inboxPublicApi: InboxPublicApi = Object.freeze({
-    updateInboxStatus: useCases.updateInboxStatus,
-    bulkUpdateInboxStatus: useCases.bulkUpdateInboxStatus,
-    bulkAssignInboxItems: useCases.bulkAssignInboxItems,
-    escalateInboxItem: useCases.escalateInboxItem,
-    resolveEscalation: useCases.resolveEscalation,
-    assignInboxItem: useCases.assignInboxItem,
-    getInboxItems: useCases.getInboxItems,
-    addInboxNote: useCases.addInboxNote,
-    getLastVisitCount: useCases.getLastVisitCount,
-    stampLastInboxView: useCases.stampLastInboxView,
-    getInboxItemDetail: useCases.getInboxItemDetail,
-    getInboxNotes: useCases.getInboxNotes,
-    getInboxItemHistory: useCases.getInboxItemHistory,
-    getInboxQueueCounts: useCases.getInboxQueueCounts,
-    markFeedbackHandled: useCases.markFeedbackHandled,
-    correctFeedbackHandlingOutcome: useCases.correctFeedbackHandlingOutcome,
-    getGoogleReviewTargetAnalytics: useCases.getGoogleReviewTargetAnalytics,
-    getGoogleReviewTargetCountsByProperty:
-      emptyResponseTargetStore.getGoogleReviewTargetCountsByProperty,
-    getPrivateFeedbackTargetAnalytics: useCases.getPrivateFeedbackTargetAnalytics,
-    getResponseTargetPolicySettings: useCases.getResponseTargetPolicySettings,
-    setResponseTargetPolicy: useCases.setResponseTargetPolicy,
-  })
+  const inboxPublicApi: InboxPublicApi = projectInboxRequestApi(
+    useCases,
+    emptyResponseTargetStore,
+  )
 
   return {
     inboxPublicApi,

@@ -11,11 +11,12 @@ import {
   normalizeInboxRatingPreset,
 } from '#/components/inbox/inbox-search-schema'
 import { inboxFns } from '#/routes/_authenticated/-inbox-fns'
-import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
+import { membersQuery } from '#/routes/-queries/route-queries'
 import {
   canListInboxAssignmentCandidates,
   toInboxAssignmentOptions,
 } from '#/routes/_authenticated/inbox/-assignment-candidates'
+import { useInboxRouteScope } from '#/routes/_authenticated/inbox/-property-scope'
 
 const authRoute = getRouteApi('/_authenticated')
 const propertyRoute = getRouteApi('/_authenticated/properties/$propertyId')
@@ -42,21 +43,23 @@ function PropertyReviewsRoute() {
     ...membersQuery,
     enabled: mayListAssignmentCandidates,
   })
-  const { data: propertiesData } = useQuery(propertiesQuery)
   const { propertyId } = propertyRoute.useParams()
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
+  // Members work one property at a time: no organization-wide Inbox.
+  const { propertyScope, scopeLabel } = useInboxRouteScope(
+    propertyId,
+    can(ctx.role, 'inbox.manage'),
+  )
 
   return (
     <InboxPageV2
       ctx={ctx}
       search={search}
       activePropertyId={propertyId}
-      scopeLabel={
-        propertiesData?.properties.find((property) => property.id === propertyId)?.name ??
-        'Property'
-      }
+      scopeLabel={scopeLabel}
       assignmentOptions={toInboxAssignmentOptions(membersData?.members ?? [])}
+      propertyScope={propertyScope}
       inboxFns={inboxFns}
       onNavigate={(opts) =>
         navigate({

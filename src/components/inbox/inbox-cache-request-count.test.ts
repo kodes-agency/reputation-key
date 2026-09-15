@@ -113,3 +113,27 @@ describe('Inbox selected-item request scope', () => {
     )
   })
 })
+
+describe('Inbox property section counts', () => {
+  it('refetch with the queue counts after a command moves items between folders', async () => {
+    const requests = new Map<string, number>()
+    const observe = (label: string, queryKey: readonly unknown[]) => {
+      const observer = new QueryObserver(client, {
+        queryKey,
+        queryFn: async () => {
+          requests.set(label, (requests.get(label) ?? 0) + 1)
+          return {}
+        },
+      })
+      subscriptions.push(observer.subscribe(() => {}))
+    }
+    observe('queues', inboxKeys.countsFor())
+    observe('properties', inboxKeys.propertyCountsFor('reply'))
+    await vi.advanceTimersByTimeAsync(0)
+
+    inboxCachePolicy.onBulkReopened(client)
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(Object.fromEntries(requests)).toEqual({ queues: 2, properties: 2 })
+  })
+})

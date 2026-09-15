@@ -3,8 +3,9 @@
 // it for PropertyManager+ via hasRole), but it is stateful: usePropertyId()
 // resolves the active property from the URL (a /properties/$id segment OR a
 // ?propertyId= search param) and useActiveSection() highlights the matching
-// nav entry. With no property selected, every nav entry renders disabled and
-// the switcher shows the "Select property" prompt.
+// nav entry. With no property selected, the property-scoped entries render
+// disabled, Reviews opens the organization-wide Inbox, and the switcher shows
+// the "Select property" prompt.
 //
 // To exercise the property-selected state we park the memory router on
 // /?propertyId=<id> — usePropertyId's search-param fallback resolves it, so the
@@ -163,15 +164,25 @@ export const AsAccountAdmin: Story = {
   },
 }
 
+/** No property in the URL: the switcher prompts for one and Dashboard is inert. */
+async function expectNoPropertyChrome(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  expect(await canvas.findByText(/^select property$/i)).toBeInTheDocument()
+  expect(await canvas.findByText(/^dashboard$/i)).toBeInTheDocument()
+  return canvas
+}
+
 // Landed without a property in the URL (e.g. on /properties index) → switcher
-// shows "Select property" and every nav entry is disabled.
+// shows "Select property", the property-scoped entries are disabled, and
+// Reviews opens the Inbox at the only scope there is: All properties.
 export const NoPropertySelected: Story = {
   args: { properties, getLastVisitCount: lastVisitCountZero },
-  decorators: [withRole('PropertyManager')],
+  decorators: [withRoleAt('PropertyManager', '/')],
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(await canvas.findByText(/select property/i)).toBeInTheDocument()
-    expect(await canvas.findByText(/^dashboard$/i)).toBeInTheDocument()
+    const canvas = await expectNoPropertyChrome(canvasElement)
+    const reviews = await canvas.findByRole('link', { name: /^reviews$/i })
+    expect(reviews).toHaveAttribute('href', '/inbox')
+    expect(canvas.queryByRole('link', { name: /^people$/i })).toBeNull()
   },
 }
 
@@ -179,25 +190,25 @@ export const NoPropertySelected: Story = {
 export const EmptyProperties: Story = {
   args: { properties: [], getLastVisitCount: lastVisitCountZero },
   decorators: [withRole('PropertyManager')],
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(await canvas.findByText(/select property/i)).toBeInTheDocument()
-    expect(await canvas.findByText(/^dashboard$/i)).toBeInTheDocument()
-  },
+  play: ({ canvasElement }) =>
+    expectNoPropertyChrome(canvasElement).then(() => undefined),
 }
 
-// The organization-wide inbox has no property id by design. Its app switcher
-// names that scope, and Reviews remains the active destination.
+// The organization-wide inbox has no property id by design. The app tile is the
+// app's property context, the same on every page, so it offers no inbox-only
+// "All properties" — the inbox's own rail does. Reviews stays the active entry.
 export const InboxAllProperties: Story = {
   args: { properties, getLastVisitCount: lastVisitCountZero },
   decorators: [withRoleAt('PropertyManager', '/inbox')],
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(await canvas.findByText(/^all properties$/i)).toBeInTheDocument()
-    expect(await canvas.findByRole('link', { name: /^reviews$/i })).toHaveAttribute(
-      'data-active',
-      'true',
-    )
+    const canvas = await expectNoPropertyChrome(canvasElement)
+    const reviews = await canvas.findByRole('link', { name: /^reviews$/i })
+    expect(reviews).toHaveAttribute('data-active', 'true')
+
+    await userEvent.click(canvas.getByRole('button', { name: /select property/i }))
+    const page = within(canvasElement.ownerDocument.body)
+    expect(await page.findByRole('menuitem', { name: /globex hq/i })).toBeInTheDocument()
+    expect(page.queryByRole('menuitem', { name: /^all properties$/i })).toBeNull()
   },
 }
 
@@ -236,6 +247,19 @@ export const CollapsedDashboardMenuOpen: Story = {
   },
 }
 
+/** Opens the app tile (named by the property in view) and chooses a property. */
+async function chooseFromTile(
+  canvasElement: HTMLElement,
+  tile: RegExp,
+  property: RegExp,
+) {
+  const canvas = within(canvasElement)
+  await userEvent.click(await canvas.findByRole('button', { name: tile }))
+  const page = within(canvasElement.ownerDocument.body)
+  await userEvent.click(await page.findByRole('menuitem', { name: property }))
+  return { canvas, page }
+}
+
 // Changing scope inside the inbox stays in the same work surface. It keeps the
 // queue/filter state, but an item opened under the old scope cannot survive.
 export const InboxPropertySwitch: Story = {
@@ -247,10 +271,7 @@ export const InboxPropertySwitch: Story = {
     ),
   ],
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /acme hotel/i }))
-    const page = within(canvasElement.ownerDocument.body)
-    await userEvent.click(await page.findByRole('menuitem', { name: /globex hq/i }))
+    const { canvas } = await chooseFromTile(canvasElement, /acme hotel/i, /globex hq/i)
 
     await waitFor(() =>
       expect(canvas.getByTestId('story-location')).toHaveTextContent(
@@ -259,15 +280,30 @@ export const InboxPropertySwitch: Story = {
     )
     expect(canvas.getByTestId('story-location')).not.toHaveTextContent('itemId=')
     expect(canvas.getByTestId('story-location')).not.toHaveTextContent('propertyId=')
+  },
+}
 
-    await userEvent.click(await canvas.findByRole('button', { name: /globex hq/i }))
-    await userEvent.click(
-      await page.findByRole('menuitem', { name: /^all properties$/i }),
-    )
-    await waitFor(() =>
-      expect(canvas.getByTestId('story-location')).toHaveTextContent(
-        '/inbox?queue=closed',
-      ),
-    )
+// Choosing the property already in view changes no scope, so it keeps the open
+// item and the URL exactly as they are — the same rule the queue rail and the
+// compact scope menu follow, because all three go through one navigation hook.
+export const InboxActivePropertyKeepsTheOpenItem: Story = {
+  args: { properties, getLastVisitCount: lastVisitCountZero },
+  decorators: [
+    withRoleAt(
+      'PropertyManager',
+      `/properties/${properties[0].id}/reviews?queue=closed&itemId=20000000-0000-4000-8000-000000000001`,
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const location = within(canvasElement).getByTestId('story-location')
+    const before = location.textContent
+
+    const { page } = await chooseFromTile(canvasElement, /acme hotel/i, /^acme hotel/i)
+    await waitFor(() => expect(page.queryByRole('menu')).toBeNull())
+    // A navigation would have committed by the next task.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    expect(location.textContent).toBe(before)
+    expect(location).toHaveTextContent('itemId=')
   },
 }

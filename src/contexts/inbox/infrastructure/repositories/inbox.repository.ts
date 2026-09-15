@@ -483,6 +483,23 @@ export const createInboxRepository = (
       })
     },
 
+    countFilteredByProperty: async (filters: InboxFilters, orgId: OrganizationId) => {
+      return trace('inbox.countFilteredByProperty', async () => {
+        const conditions = await resolveFilterConditions(ports, orgId, filters)
+        if (conditions === null) return []
+        const rows = await db
+          .select({ propertyId: inboxItems.propertyId, count: sql<number>`count(*)` })
+          .from(inboxItems)
+          .leftJoin(inboxHandlingCycleHeads, activeHandlingCycleJoin)
+          .where(and(...conditions))
+          .groupBy(inboxItems.propertyId)
+        return rows.map((row) => ({
+          propertyId: propertyId(row.propertyId),
+          count: Number(row.count),
+        }))
+      })
+    },
+
     create: async (item: InboxItem, orgId: OrganizationId) => {
       return trace('inbox.create', async () => {
         if (item.organizationId !== orgId) {

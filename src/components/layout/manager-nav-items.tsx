@@ -121,7 +121,11 @@ function ManagerNavRow({
   const isUnavailable = item.capability !== undefined && !has(item.capability)
   const category = item.capability === undefined ? null : refusal(item.capability)
   const isOrganizationInbox = item.key === 'reviews' && activeSection === 'inbox'
-  const link: NavLinkTarget | null = isOrganizationInbox
+  // Reviews opens the Inbox at the scope you are in: a property's pages open
+  // that property; a page without one (the properties list) opens All properties.
+  const opensOrganizationInbox =
+    item.key === 'reviews' && (isOrganizationInbox || !propertyId)
+  const link: NavLinkTarget | null = opensOrganizationInbox
     ? { to: '/inbox' }
     : propertyId
       ? { to: item.to, params: { propertyId } }

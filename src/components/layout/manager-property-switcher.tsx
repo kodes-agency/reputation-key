@@ -15,21 +15,12 @@ type Props = Readonly<{
   properties: ReadonlyArray<{ id: string; name: string; slug: string }>
   propertyId: string | undefined
   onSwitch: (propertyId: string) => void
-  scope: Readonly<{
-    all: Readonly<{ isActive: boolean; onSelect: () => void }> | null
-  }>
 }>
 
-export function ManagerPropertySwitcher({
-  properties,
-  propertyId,
-  onSwitch,
-  scope,
-}: Props) {
+export function ManagerPropertySwitcher({ properties, propertyId, onSwitch }: Props) {
   const navigate = useNavigate()
   const { can } = usePermissions()
   const activeProperty = properties.find((p) => p.id === propertyId)
-  const allPropertiesActive = scope.all?.isActive === true
   const initials = personInitials(activeProperty?.name)
 
   return (
@@ -39,8 +30,8 @@ export function ManagerPropertySwitcher({
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              tooltip={activeProperty?.name ?? 'All properties'}
-              aria-label={activeProperty?.name ?? 'All properties'}
+              tooltip={activeProperty?.name ?? 'Select property'}
+              aria-label={activeProperty?.name ?? 'Select property'}
             >
               <div
                 className={`flex aspect-square size-8 items-center justify-center rounded-lg ${
@@ -53,12 +44,10 @@ export function ManagerPropertySwitcher({
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                 <span className="truncate font-semibold">
-                  {activeProperty?.name ??
-                    (allPropertiesActive ? 'All properties' : 'Select property')}
+                  {activeProperty?.name ?? 'Select property'}
                 </span>
                 <span className="truncate text-xs text-muted-foreground">
-                  {activeProperty?.slug ??
-                    (allPropertiesActive ? 'Workspace' : 'No property selected')}
+                  {activeProperty?.slug ?? 'No property selected'}
                 </span>
               </div>
               <ChevronsUpDown className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
@@ -69,14 +58,6 @@ export function ManagerPropertySwitcher({
               Properties
             </div>
             <DropdownMenuSeparator />
-            {scope.all ? (
-              <DropdownMenuItem onClick={scope.all.onSelect}>
-                All properties
-                {scope.all.isActive ? (
-                  <span className="ml-auto text-xs text-muted-foreground">Active</span>
-                ) : null}
-              </DropdownMenuItem>
-            ) : null}
             {properties.map((prop) => (
               <DropdownMenuItem key={prop.id} onClick={() => onSwitch(prop.id)}>
                 {prop.name}

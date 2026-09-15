@@ -113,6 +113,8 @@ export const EXCLUDED_STORIES: Readonly<Record<string, string>> = {
   'pages-inbox--property-scoped-load-preserves-organization-watermark':
     'no item is open: the page shows only the list panel',
   'pages-inbox--loading': 'no item is open: the page shows only the list panel',
+  'pages-inbox--property-scope':
+    'no item is open: the page shows the rail and the list panel; the rail is measured by Inbox/Queue Rail',
   'pages-inbox--long-content': 'no item is open: the page shows only the list panel',
   'pages-inbox--mobile-viewport':
     'no item is open: the phone list with its folders drawer; the detail sheet is measured by Inbox/Mobile 390',

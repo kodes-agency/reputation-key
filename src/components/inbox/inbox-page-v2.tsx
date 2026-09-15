@@ -26,6 +26,9 @@ import { InboxQueueRail } from './inbox-queue-rail'
 import { InboxQueueStrip } from './inbox-queue-strip'
 import { InboxShortcutsDialog } from './inbox-shortcuts-dialog'
 import { queueLabel } from './inbox-queues'
+import type { InboxPropertyScopeInput } from './inbox-property-scope'
+import { InboxScopeMenu } from './inbox-scope-menu'
+import { useInboxPropertyScope } from './use-inbox-property-scope'
 
 export function InboxPageV2({
   ctx,
@@ -36,6 +39,7 @@ export function InboxPageV2({
   activePropertyId,
   assignmentOptions = [],
   scopeLabel = activePropertyId ? 'Property' : 'All properties',
+  propertyScope,
 }: {
   ctx: InboxCtx
   search: InboxSearchParams
@@ -47,6 +51,8 @@ export function InboxPageV2({
   activePropertyId?: string
   assignmentOptions?: ReadonlyArray<InboxAssignmentOption>
   scopeLabel?: string
+  /** The properties this viewer can move the Inbox between. */
+  propertyScope?: InboxPropertyScopeInput
 }) {
   const s = useInboxPage(
     ctx.activeOrganization?.id,
@@ -55,6 +61,12 @@ export function InboxPageV2({
     onNavigate,
     inboxFns,
     recordInboxVisit,
+  )
+  const scope = useInboxPropertyScope(
+    propertyScope,
+    s.queue,
+    !!ctx.activeOrganization?.id,
+    inboxFns.getInboxPropertyCounts,
   )
   const listRef = useRef<HTMLDivElement>(null)
   const [selectionMode, setSelectionMode] = useState(false)
@@ -74,6 +86,7 @@ export function InboxPageV2({
     queue: s.queue,
     queueLabel: queueLabel(s.queue),
     scopeLabel,
+    showPropertyNames: !(activePropertyId ?? search.propertyId),
     totalCount: s.totalCount,
     searchQ: search.q,
     filters: {
@@ -135,6 +148,15 @@ export function InboxPageV2({
       <div className="flex h-full w-full flex-col overflow-hidden">
         <InboxListPanel
           {...listPanelProps}
+          scopeControl={
+            scope && (
+              <InboxScopeMenu
+                scope={scope}
+                scopeLabel={scopeLabel}
+                queueLabel={queueLabel(s.queue)}
+              />
+            )
+          }
           queueStrip={
             <InboxQueueStrip
               queue={s.queue}
@@ -167,6 +189,7 @@ export function InboxPageV2({
         queue={s.queue}
         counts={s.queueCounts}
         canManageReplies={s.canManageReplies}
+        propertyScope={scope}
         onQueueChange={changeQueue}
         onOpenShortcuts={() => s.setShortcutsOpen(true)}
       />

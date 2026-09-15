@@ -543,6 +543,46 @@ describe('inbox repository — queue predicates', () => {
   })
 })
 
+describe('inbox repository — per-property counts', () => {
+  const repo = createInboxRepository(db, stubPorts)
+
+  it('groups the standalone count by property, with the same predicates', async () => {
+    await repo.create(makeInboxItem({ propertyId: PROP_A }), ORG_A)
+    await repo.create(makeInboxItem({ propertyId: PROP_A }), ORG_A)
+    await repo.create(makeInboxItem({ propertyId: PROP_A_2 }), ORG_A)
+    await repo.create(makeInboxItem({ propertyId: PROP_A_2, status: 'closed' }), ORG_A)
+    await repo.create(makeInboxItem({ organizationId: ORG_B, propertyId: PROP_B }), ORG_B)
+
+    const filters = { status: 'open' as const, sourceType: 'review' as const }
+    const [byProperty, total] = await Promise.all([
+      repo.countFilteredByProperty(filters, ORG_A),
+      repo.countFiltered(filters, ORG_A),
+    ])
+
+    expect(
+      [...byProperty].sort(
+        (a, b) => b.count - a.count || a.propertyId.localeCompare(b.propertyId),
+      ),
+    ).toEqual([
+      { propertyId: PROP_A, count: 2 },
+      { propertyId: PROP_A_2, count: 1 },
+    ])
+    expect(byProperty.reduce((sum, row) => sum + row.count, 0)).toBe(total)
+  })
+
+  it('reads nothing outside the property scope it is given', async () => {
+    await repo.create(makeInboxItem({ propertyId: PROP_A }), ORG_A)
+    await repo.create(makeInboxItem({ propertyId: PROP_A_2 }), ORG_A)
+
+    await expect(
+      repo.countFilteredByProperty({ status: 'open', propertyIds: [PROP_A_2] }, ORG_A),
+    ).resolves.toEqual([{ propertyId: PROP_A_2, count: 1 }])
+    await expect(
+      repo.countFilteredByProperty({ status: 'open', propertyIds: [] }, ORG_A),
+    ).resolves.toEqual([])
+  })
+})
+
 describe('inbox repository — assignment', () => {
   const repo = createInboxRepository(db, stubPorts)
 

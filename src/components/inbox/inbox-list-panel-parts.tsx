@@ -24,6 +24,10 @@ export interface InboxListPanelProps {
   queue: InboxQueue
   queueLabel: string
   scopeLabel: string
+  /** The header's scope control, when the scope can be changed from the list. */
+  scopeControl?: ReactNode
+  /** At organization scope every row names its property. */
+  showPropertyNames: boolean
   totalCount: number
   searchQ: string | undefined
   filters: InboxListFilterValues
@@ -78,7 +82,7 @@ export function renderListContent(props: InboxListPanelProps): ReactNode {
       onToggleSelect={props.onToggleSelect}
       onRowClick={props.onRowClick}
       selectionMode={props.selectionMode}
-      allProperties={props.scopeLabel === 'All properties'}
+      allProperties={props.showPropertyNames}
       assignmentOptions={props.assignmentOptions}
       currentUser={props.currentUser}
       viewedUpTo={props.viewedUpTo}

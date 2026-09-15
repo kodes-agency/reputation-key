@@ -30,6 +30,7 @@ import { getLastVisitCount } from './application/use-cases/get-last-visit-count'
 import { stampLastInboxView } from './application/use-cases/stamp-last-inbox-view'
 import { getInboxItemDetail } from './application/use-cases/get-inbox-item-detail'
 import { getInboxQueueCounts } from './application/use-cases/get-inbox-queue-counts'
+import { getInboxPropertyCounts } from './application/use-cases/get-inbox-property-counts'
 import { getInboxNotes } from './application/use-cases/get-inbox-notes'
 import { getInboxItemHistory } from './application/use-cases/get-inbox-item-history'
 import { rebuildInboxProjection } from './application/use-cases/rebuild-inbox-projection'
@@ -172,6 +173,11 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
       staffPublicApi: input.staffPublicApi,
       replyLookup: input.replyLookup,
     }),
+    getInboxPropertyCounts: getInboxPropertyCounts({
+      repo: input.inboxRepo,
+      staffPublicApi: input.staffPublicApi,
+      replyLookup: input.replyLookup,
+    }),
     rebuildInboxProjection: rebuildInboxProjection({
       repo: input.inboxRepo,
       commandStore: input.commandStore,
@@ -230,4 +236,40 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
       clock: input.clock,
     }),
   }
+}
+
+/**
+ * The request-facing Inbox capabilities, projected from the wired use cases.
+ * The composition root and the in-memory Storybook container both expose
+ * exactly this set, so a request capability cannot reach one and not the other.
+ */
+export function projectInboxRequestApi(
+  useCases: InboxContextApi['internal']['useCases'],
+  responseTargetStore: Pick<ResponseTargetStore, 'getGoogleReviewTargetCountsByProperty'>,
+): InboxContextApi['publicApi'] {
+  return Object.freeze({
+    updateInboxStatus: useCases.updateInboxStatus,
+    bulkUpdateInboxStatus: useCases.bulkUpdateInboxStatus,
+    bulkAssignInboxItems: useCases.bulkAssignInboxItems,
+    escalateInboxItem: useCases.escalateInboxItem,
+    resolveEscalation: useCases.resolveEscalation,
+    assignInboxItem: useCases.assignInboxItem,
+    getInboxItems: useCases.getInboxItems,
+    addInboxNote: useCases.addInboxNote,
+    getLastVisitCount: useCases.getLastVisitCount,
+    stampLastInboxView: useCases.stampLastInboxView,
+    getInboxItemDetail: useCases.getInboxItemDetail,
+    getInboxNotes: useCases.getInboxNotes,
+    getInboxItemHistory: useCases.getInboxItemHistory,
+    getInboxQueueCounts: useCases.getInboxQueueCounts,
+    getInboxPropertyCounts: useCases.getInboxPropertyCounts,
+    markFeedbackHandled: useCases.markFeedbackHandled,
+    correctFeedbackHandlingOutcome: useCases.correctFeedbackHandlingOutcome,
+    getGoogleReviewTargetAnalytics: useCases.getGoogleReviewTargetAnalytics,
+    getGoogleReviewTargetCountsByProperty:
+      responseTargetStore.getGoogleReviewTargetCountsByProperty,
+    getPrivateFeedbackTargetAnalytics: useCases.getPrivateFeedbackTargetAnalytics,
+    getResponseTargetPolicySettings: useCases.getResponseTargetPolicySettings,
+    setResponseTargetPolicy: useCases.setResponseTargetPolicy,
+  })
 }

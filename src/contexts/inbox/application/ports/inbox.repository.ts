@@ -70,6 +70,9 @@ export type PaginatedResult = Readonly<{
   totalCount: number
 }>
 
+/** Rows matching the filters at one property. Properties with none are absent. */
+export type InboxPropertyCount = Readonly<{ propertyId: PropertyId; count: number }>
+
 export type InboxRepository = Readonly<{
   findById(id: InboxItemId, orgId: OrganizationId): Promise<InboxItem | null>
   findByIds(
@@ -94,6 +97,11 @@ export type InboxRepository = Readonly<{
   ): Promise<PaginatedResult>
   /** Count rows using the exact same governed predicates as the list. */
   countFiltered(filters: InboxFilters, orgId: OrganizationId): Promise<number>
+  /** `countFiltered`, grouped by property: its counts sum to `countFiltered`. */
+  countFilteredByProperty(
+    filters: InboxFilters,
+    orgId: OrganizationId,
+  ): Promise<ReadonlyArray<InboxPropertyCount>>
   create(item: InboxItem, orgId: OrganizationId): Promise<InboxItem>
   /**
    * RETAINED for the receipt-coordinated command store only. Nothing in the

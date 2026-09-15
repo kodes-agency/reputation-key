@@ -17,6 +17,8 @@ import { InboxListSearch } from './inbox-list-search'
 type Props = Readonly<{
   queueLabel: string
   scopeLabel: string
+  /** Replaces the plain scope line when the scope can be changed from here. */
+  scopeControl?: ReactNode
   totalCount: number
   searchQ: string | undefined
   filters: InboxListFilterValues
@@ -32,6 +34,7 @@ type Props = Readonly<{
 export function InboxListHeader({
   queueLabel,
   scopeLabel,
+  scopeControl,
   totalCount,
   searchQ,
   filters,
@@ -68,7 +71,9 @@ export function InboxListHeader({
                   {totalCount}
                 </span>
               </div>
-              <p className="truncate text-xs text-muted-foreground">{scopeLabel}</p>
+              {scopeControl ?? (
+                <p className="truncate text-xs text-muted-foreground">{scopeLabel}</p>
+              )}
             </div>
             <Button
               variant="ghost"

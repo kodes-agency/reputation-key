@@ -7,14 +7,15 @@
 // type-only (used in `typeof` positions), which the boundary gate allows.
 //
 // Note: getLastVisitCountFn is NOT here — InboxVisitBadge mounts in the global
-// manager layout (routes/_authenticated.tsx), not via InboxPageV2. Property scope
-// options are likewise route data, not an inbox server-function dependency.
+// manager layout (routes/_authenticated.tsx), not via InboxPageV2. The property
+// list is likewise route data; only its per-queue counts are read from here.
 import type {
   getInboxItemsFn,
   getInboxItemDetailFn,
   getInboxNotesFn,
   getInboxItemHistoryFn,
   getInboxQueueCountsFn,
+  getInboxPropertyCountsFn,
   stampLastInboxViewFn,
   updateInboxStatusFn,
   escalateInboxItemFn,
@@ -37,6 +38,7 @@ export type InboxServerFns = Readonly<{
   getInboxItemHistory: typeof getInboxItemHistoryFn
   getActivityTimeline: typeof getActivityTimelineFn
   getInboxQueueCounts: typeof getInboxQueueCountsFn
+  getInboxPropertyCounts: typeof getInboxPropertyCountsFn
   stampLastInboxView: typeof stampLastInboxViewFn
   updateInboxStatus: typeof updateInboxStatusFn
   escalateInboxItem: typeof escalateInboxItemFn
