@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -22,6 +23,21 @@ import { merchantAiConsentEvidence } from './merchant-ai-authorization.schema'
 
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true })
 
+/**
+ * Every AI table carries its Property's tenant as a composite key to
+ * `properties`, so a row can never name another Organization's Property, and
+ * it goes when the Property does.
+ */
+const propertyTenantForeignKey = (
+  t: Readonly<{ organizationId: AnyPgColumn; propertyId: AnyPgColumn }>,
+  name: string,
+) =>
+  foreignKey({
+    columns: [t.organizationId, t.propertyId],
+    foreignColumns: [properties.organizationId, properties.id],
+    name,
+  }).onDelete('cascade')
+
 export const aiPropertyProcessingProfiles = pgTable(
   'ai_property_processing_profiles',
   {
@@ -40,11 +56,7 @@ export const aiPropertyProcessingProfiles = pgTable(
     updatedAt: timestamptz('updated_at').notNull(),
   },
   (t) => [
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_property_profiles_tenant_fk',
-    }).onDelete('cascade'),
+    propertyTenantForeignKey(t, 'ai_property_profiles_tenant_fk'),
     check('ai_property_profiles_country_valid', sql`${t.countryCode} ~ '^[A-Z]{2}$'`),
     check(
       'ai_property_profiles_timezone_valid',
@@ -271,11 +283,7 @@ export const aiOperations = pgTable(
     uniqueIndex('ai_operations_execution_permit_unique')
       .on(t.executionPermitId)
       .where(sql`${t.executionPermitId} IS NOT NULL`),
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_operations_tenant_fk',
-    }).onDelete('cascade'),
+    propertyTenantForeignKey(t, 'ai_operations_tenant_fk'),
     foreignKey({
       columns: [t.globalControlId, t.globalControlGeneration],
       foreignColumns: [
@@ -442,11 +450,7 @@ export const aiReviewAnalyses = pgTable(
       name: 'ai_review_analyses_pk',
     }),
     uniqueIndex('ai_review_analyses_operation_unique').on(t.operationId),
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_review_analyses_tenant_fk',
-    }).onDelete('cascade'),
+    propertyTenantForeignKey(t, 'ai_review_analyses_tenant_fk'),
     foreignKey({
       columns: [t.organizationId, t.propertyId, t.reviewId],
       foreignColumns: [reviews.organizationId, reviews.propertyId, reviews.id],
@@ -704,11 +708,7 @@ export const aiPropertyAggregateSettlements = pgTable(
       ],
       name: 'ai_property_aggregate_settlements_pk',
     }),
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_property_aggregate_settlements_tenant_fk',
-    }).onDelete('cascade'),
+    propertyTenantForeignKey(t, 'ai_property_aggregate_settlements_tenant_fk'),
     foreignKey({
       columns: [t.organizationId, t.propertyId, t.reviewId],
       foreignColumns: [reviews.organizationId, reviews.propertyId, reviews.id],
@@ -766,11 +766,7 @@ export const aiPropertyAggregateHeads = pgTable(
       ],
       name: 'ai_property_aggregate_heads_pk',
     }),
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_property_aggregate_heads_tenant_fk',
-    }).onDelete('cascade'),
+    propertyTenantForeignKey(t, 'ai_property_aggregate_heads_tenant_fk'),
     check(
       'ai_property_aggregate_heads_versions_valid',
       sql`${t.sourceEpoch} >= 0 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyProfileVersion} >= 1 AND ${t.aggregateRevision} BETWEEN 0 AND '9007199254740991'::bigint AND ${t.terminalAnalysisSequence} BETWEEN 0 AND '9007199254740991'::bigint`,
@@ -829,11 +825,7 @@ export const aiPropertyDailyAggregates = pgTable(
       ],
       name: 'ai_property_daily_aggregates_pk',
     }),
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_property_daily_aggregates_tenant_fk',
-    }).onDelete('cascade'),
+    propertyTenantForeignKey(t, 'ai_property_daily_aggregates_tenant_fk'),
     check(
       'ai_property_daily_aggregates_versions_valid',
       sql`${t.sourceEpoch} >= 0 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyProfileVersion} >= 1 AND ${t.aggregateRevision} BETWEEN 0 AND '9007199254740991'::bigint AND ${t.terminalAnalysisSequence} BETWEEN 0 AND '9007199254740991'::bigint`,
@@ -976,11 +968,7 @@ export const aiPropertyTrendSchedules = pgTable(
       t.terminalAnalysisSequence,
       t.aggregateRevision,
     ),
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_property_trend_schedules_tenant_fk',
-    }).onDelete('cascade'),
+    propertyTenantForeignKey(t, 'ai_property_trend_schedules_tenant_fk'),
     check(
       'ai_property_trend_schedules_versions_valid',
       sql`${t.sourceEpoch} >= 0 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyTrendsEpoch} >= 1
@@ -1030,11 +1018,7 @@ export const aiPropertyTrendOutcomes = pgTable(
     uniqueIndex('ai_property_trend_outcomes_operation_unique')
       .on(t.operationId)
       .where(sql`${t.operationId} IS NOT NULL`),
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_property_trend_outcomes_tenant_fk',
-    }).onDelete('cascade'),
+    propertyTenantForeignKey(t, 'ai_property_trend_outcomes_tenant_fk'),
     check(
       'ai_property_trend_outcomes_valid',
       sql`(
@@ -1157,11 +1141,7 @@ export const aiReviewAnalysisEnrollments = pgTable(
     updatedAt: timestamptz('updated_at').defaultNow().notNull(),
   },
   (t) => [
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_review_analysis_enrollments_tenant_fk',
-    }).onDelete('cascade'),
+    propertyTenantForeignKey(t, 'ai_review_analysis_enrollments_tenant_fk'),
     foreignKey({
       columns: [
         t.authorizationLineageId,
@@ -1325,11 +1305,7 @@ export const aiReviewAnalysisBacklog = pgTable(
     updatedAt: timestamptz('updated_at').defaultNow().notNull(),
   },
   (t) => [
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_review_analysis_backlog_tenant_fk',
-    }).onDelete('cascade'),
+    propertyTenantForeignKey(t, 'ai_review_analysis_backlog_tenant_fk'),
     index('ai_review_analysis_backlog_ready_idx').on(
       t.propertyId,
       t.state,
