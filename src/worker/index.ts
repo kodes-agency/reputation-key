@@ -281,6 +281,7 @@ async function main() {
         total: runtimeReport.total,
         failing: runtimeReport.failing,
         missingObservations: runtimeReport.missingObservations,
+        invalidObservations: runtimeReport.invalidObservations,
         handlerMissing: runtimeReport.handlerMissing,
         schedulerMissing: runtimeReport.schedulerMissing,
         forbiddenDarkWork: runtimeReport.forbiddenDarkWork,

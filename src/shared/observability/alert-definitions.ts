@@ -303,6 +303,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
         detail:
           `${jobs.failing} of ${jobs.total} governed job families unready; ` +
           `missingObservations=${jobs.missingObservations}, ` +
+          `invalidObservations=${jobs.invalidObservations}, ` +
           `handlerMissing=${jobs.handlerMissing}, ` +
           `schedulerMissing=${jobs.schedulerMissing}, ` +
           `forbiddenDarkWork=${jobs.forbiddenDarkWork}, ` +
