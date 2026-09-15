@@ -19,6 +19,22 @@
 //   initial static closure (JS + all CSS)   319,519 B      329,105 B (+3.0%)
 //   largest lazy chunk (vendor-charts)       93,053 B      128,000 B (125 KiB)
 //
+// Closure re-measured 2026-09-15 on a fresh production build of the property
+// setup work (settings hub, setup wizard, AI admission lanes) with the reply
+// publication fix: 334,563 B (99 js + 1 css), so the closure budget is now
+// 344,600 B (+3.0%). The entry chunk measured 55,642 B and vendor-charts
+// 93,029 B; their budgets are unchanged. What grew: ~12 KB of raw first-paint
+// code, nearly all route configuration (eight settings hub child routes, the
+// import wizard) plus a few server-fn stubs — and more chunks. Every Router and
+// Query internal shared by first paint and a lazy route becomes its own shared
+// chunk, and the new routes multiplied those (70 → 99 closure chunks), each
+// gzipped alone. A `vendor-tanstack` group recovered ~7 KB but created a static
+// import cycle (index ↔ vendor-tanstack ↔ createServerFn) that left server-fn
+// bindings undefined in the browser — every e2e shard failed — so it was
+// reverted. Consolidating those internals without a cycle (the group must also
+// own @tanstack/store and Start's client core) is the way back under the old
+// number; measure chunk cycles on the built assets before trusting it.
+//
 // The closure budget is a RATCHET above the measured floor, not an aspirational
 // number. The measured target is 319,519 B (312 KiB), replacing the unmeasured
 // 204,800 B target. Fully deferring the 29,257 B Sentry chunk would move the
@@ -46,7 +62,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 329_105, // measured 319,519 + 3%
+  initialClosureGzip: 344_600, // measured 334,563 + 3% (2026-09-15; was 319,519 + 3%)
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 
