@@ -50,10 +50,11 @@
         "organizationInvitations",
         "outstandingResponsibilities",
         "merchantAiAuthorization",
-        "merchantAiOverview"
+        "merchantAiOverview",
+        "merchantAiNotice"
       ],
       "owner": "Identity query lifecycle",
-      "policy": "Active-organization reads live under the identity root. Login, sign-out, and successful invitation acceptance clear the complete QueryClient at the confirmed session/tenant transition, so no unscoped identity or sibling context cache crosses tenants. Personal and organization invitation response shapes are disjoint siblings below the invitation prefix. The departing member's outstanding-responsibility worklist is a separate leaf under the same root: it describes the caller's current standing rather than the directory, is read at staleTime 0, and is invalidated by leave mutations alone. The per-property merchant AI consent snapshot is another leaf, keyed by the globally unique propertyId: the import flow's AI-analysis step reads it, a successful enable replaces it locally from the command result, and the AI settings route reads the same snapshot through its loader rather than through this key. The read-only Organization AI overview is a separate sibling leaf, not a parent of the per-property snapshots: it spans every Property the viewer may manage AI for, so any Merchant AI command or decision deferral must invalidate it explicitly alongside the affected property snapshot."
+      "policy": "Active-organization reads live under the identity root. Login, sign-out, and successful invitation acceptance clear the complete QueryClient at the confirmed session/tenant transition, so no unscoped identity or sibling context cache crosses tenants. Personal and organization invitation response shapes are disjoint siblings below the invitation prefix. The departing member's outstanding-responsibility worklist is a separate leaf under the same root: it describes the caller's current standing rather than the directory, is read at staleTime 0, and is invalidated by leave mutations alone. The per-property merchant AI consent snapshot is another leaf, keyed by the globally unique propertyId: the import flow's AI-analysis step reads it, a successful enable replaces it locally from the command result, and the AI settings route reads the same snapshot through its loader rather than through this key. The read-only Organization AI overview is a separate sibling leaf, not a parent of the per-property snapshots: it spans every Property the viewer may manage AI for, so any Merchant AI command or decision deferral must invalidate it explicitly alongside the affected property snapshot. The served Merchant AI notice is a third sibling leaf, independent of any Property: the import wizard's setup step reads it to render the consent ceremony, it changes only with a deploy, and a notice mismatch on a consent command is surfaced to the merchant rather than repaired from cache."
     },
     {
       "id": "propertyKeys",
@@ -453,6 +454,24 @@
       "classification": "local_runtime",
       "owner": "Inbox detail pane internal-note draft",
       "policy": "The half-typed internal note, with the id of the item it belongs to. Client-only and never server-seeded: an internal note does not exist server-side until `addInboxNote` files it, so there is no server record this could go stale against, and no server read owns it. It lives above the composer's Reply / Note segment. That was originally because the segment is a Radix tab set whose inactive panel Radix unmounts, which destroyed the words on a glance at the reply box (the PR 3 defect); both panels are force-mounted now (`reply-composer.tsx`), so the mode switch no longer tears the form down and that is no longer the reason. What this still carries is a change of SELECTION, which rebuilds the item-keyed form. `InboxNotesThread` reads it once as `defaultValues` and mirrors every keystroke back through `onDraftChange`; the form owns the live value while mounted. `itemId` fences it to the selection it was typed about, so a change of selection seeds the next form empty rather than filing one item's words against another's revision, and a filed note clears both copies."
+    },
+    {
+      "id": "src/components/features/property-setup/setup-properties-step.tsx:useState(answers)",
+      "classification": "server_draft",
+      "owner": "Import wizard property setup",
+      "policy": "Seeded once from the setup facts the step opened with (country-suggested reply languages, the importing admin as manager); later refreshes never overwrite in-progress answers, and leaving the import route is the reset boundary."
+    },
+    {
+      "id": "src/components/features/property-setup/setup-properties-step.tsx:useState(aiIdempotencyKey)",
+      "classification": "local_runtime",
+      "owner": "Import wizard consent ceremony",
+      "policy": "One idempotency key per setup session for the batch consent command; a retry reuses it so a ceremony that committed replays instead of repeating, and a remount mints a new one."
+    },
+    {
+      "id": "src/components/features/property-setup/setup-properties-step.tsx:useState(snapshot)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Import wizard property setup",
+      "policy": "Freezes the first ready setup facts for the session and never synchronizes: saving invalidates the property, manager and AI caches, and the refreshed facts would otherwise withdraw the answered questions and results from under the merchant. Leaving the import route is the reset boundary."
     }
   ],
   "classificationDefinitions": {

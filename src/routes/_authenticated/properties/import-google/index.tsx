@@ -4,7 +4,7 @@ import { z } from 'zod/v4'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { integrationKeys } from '#/shared/queries/query-keys'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
-import { importAiFns, importFns } from './-import-fns'
+import { importFns, importSetupFns } from './-import-fns'
 import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
@@ -47,7 +47,7 @@ export const Route = createFileRoute('/_authenticated/properties/import-google/'
 function ImportPage() {
   const search = Route.useSearch()
   const { data } = useSuspenseQuery(connectionsQuery)
-  const { activeOrganization } = Route.useRouteContext()
+  const { activeOrganization, user } = Route.useRouteContext()
 
   return (
     <PageShell>
@@ -85,7 +85,8 @@ function ImportPage() {
         initialRequestId={search.requestId}
         initialError={search.error}
         importFns={importFns}
-        aiFns={importAiFns}
+        setupFns={importSetupFns}
+        viewerUserId={user.id}
       />
     </PageShell>
   )

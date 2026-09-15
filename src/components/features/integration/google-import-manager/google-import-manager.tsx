@@ -1,9 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import {
+  discoveryWizardStep,
+  importWizardStep,
+  SetupPropertiesStep,
+  SetupWizard,
+} from '#/components/features/property-setup'
 import type { GoogleImportManagerProps } from './google-import-manager-contract'
 import { GoogleImportManagerView } from './google-import-manager-view'
 import { GoogleImportProgressView } from './google-import-progress-view'
 import { GoogleImportRecoveryStatus } from './google-import-loading-rows'
+import {
+  importedPropertiesForAi,
+  isImportParentTerminal,
+} from './google-import-progress-model'
 import {
   connectionCallbackErrorMessage,
   startErrorMessage,
@@ -25,7 +35,8 @@ export function GoogleImportManager({
   initialRequestId,
   initialError,
   importFns,
-  aiFns,
+  setupFns,
+  viewerUserId,
 }: GoogleImportManagerProps) {
   const navigate = useNavigate()
   const mounted = useRef(true)
@@ -177,32 +188,60 @@ export function GoogleImportManager({
     }
   }
 
-  if (isRecoveringRequest) return <GoogleImportRecoveryStatus />
+  if (isRecoveringRequest) {
+    return (
+      <SetupWizard step="import">
+        <GoogleImportRecoveryStatus />
+      </SetupWizard>
+    )
+  }
 
   if (discovery.step === 'progress' && progress.progress) {
+    const importedProperties = importedPropertiesForAi(progress.progress)
     return (
-      <GoogleImportProgressView
-        progress={progress.progress}
-        aiFns={aiFns}
-        isPollingError={progress.pollingError}
-        isRefreshing={progress.isRefreshing}
-        retryingItemId={progress.retryingItemId}
-        isCancelling={progress.isCancelling}
-        onRefresh={() => void progress.refresh()}
-        onRetry={(item) => void progress.retry(item)}
-        onCancel={() => void progress.cancel()}
-      />
+      <SetupWizard
+        step={importWizardStep({
+          settled: isImportParentTerminal(progress.progress.status),
+          importedPropertyCount: importedProperties.length,
+        })}
+      >
+        <GoogleImportProgressView
+          progress={progress.progress}
+          isPollingError={progress.pollingError}
+          isRefreshing={progress.isRefreshing}
+          retryingItemId={progress.retryingItemId}
+          isCancelling={progress.isCancelling}
+          onRefresh={() => void progress.refresh()}
+          onRetry={(item) => void progress.retry(item)}
+          onCancel={() => void progress.cancel()}
+          setupStep={
+            <SetupPropertiesStep
+              properties={importedProperties}
+              fns={setupFns}
+              viewerUserId={viewerUserId}
+            />
+          }
+        />
+      </SetupWizard>
     )
   }
 
   return (
-    <GoogleImportManagerView
-      connections={connections}
-      getAuthUrl={importFns.getGoogleAuthUrl}
-      discovery={discovery}
-      startPending={startPending}
-      startError={startError}
-      onSubmit={submitImport}
-    />
+    <SetupWizard
+      step={discoveryWizardStep({
+        connections,
+        connectionId: discovery.connectionId,
+        step: discovery.step,
+      })}
+    >
+      <GoogleImportManagerView
+        connections={connections}
+        getAuthUrl={importFns.getGoogleAuthUrl}
+        discovery={discovery}
+        startPending={startPending}
+        startError={startError}
+        onSubmit={submitImport}
+      />
+    </SetupWizard>
   )
 }

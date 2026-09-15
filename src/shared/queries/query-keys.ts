@@ -104,6 +104,8 @@ export const identityKeys = {
     [...identityKeys.all, 'merchant-ai', propertyId] as const,
   /** Read-only Organization AI overview across the Properties the viewer manages. */
   merchantAiOverview: () => [...identityKeys.all, 'merchant-ai-overview'] as const,
+  /** The Merchant AI notice currently served, independent of any Property. */
+  merchantAiNotice: () => [...identityKeys.all, 'merchant-ai-notice'] as const,
 }
 
 // ── Properties ──────────────────────────────────────────────────────────

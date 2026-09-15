@@ -13,7 +13,6 @@ import {
 } from '#/components/ui/card'
 import { Field, FieldLabel } from '#/components/ui/field'
 import { GoogleImportManagerBody } from './google-import-manager-body'
-import { GoogleImportManagerBreadcrumbs } from './google-import-manager-breadcrumbs'
 import type {
   GoogleImportDiscoveryController,
   GoogleImportGetAuthUrl,
@@ -47,12 +46,6 @@ export function GoogleImportManagerView({
   }, [discovery.reviewDraft, reviewForm])
   return (
     <div className="space-y-6">
-      <GoogleImportManagerBreadcrumbs
-        step={discovery.step}
-        disabled={startPending}
-        onBackToDiscover={() => discovery.setStep('discover')}
-      />
-
       <Card className="gap-4">
         <CardHeader>
           <CardTitle>Google Business Profile connection</CardTitle>

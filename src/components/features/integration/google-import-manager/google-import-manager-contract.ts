@@ -24,10 +24,7 @@ import type {
   getGoogleAuthUrl,
   listGoogleConnections,
 } from '#/contexts/integration/server/google-connections'
-import type {
-  enableMerchantAiFn,
-  getMerchantAiAuthorizationFn,
-} from '#/contexts/identity/server/merchant-ai'
+import type { PropertySetupFns } from '#/components/features/property-setup'
 
 export type GoogleImportStep = 'discover' | 'review' | 'progress'
 export type GoogleImportGetAuthUrl = typeof getGoogleAuthUrl
@@ -45,11 +42,8 @@ export type GoogleImportFns = Readonly<{
   cancelPropertyImportV2: typeof cancelPropertyImportV2
 }>
 
-/** The AI-analysis step of the flow reuses the Settings consent commands. */
-export type GoogleImportAiFns = Readonly<{
-  getMerchantAiAuthorization: typeof getMerchantAiAuthorizationFn
-  enableMerchantAi: typeof enableMerchantAiFn
-}>
+/** The wizard's last step sets up what the import produced (decision 2). */
+export type GoogleImportSetupFns = PropertySetupFns
 
 export type GoogleImportReviewFormApi = ReactFormExtendedApi<
   GoogleImportReviewDraftInput,
@@ -112,7 +106,9 @@ export type GoogleImportManagerProps = Readonly<{
   initialRequestId?: string
   initialError?: 'connection_failed' | 'denied' | 'account_already_connected'
   importFns: GoogleImportFns
-  aiFns: GoogleImportAiFns
+  setupFns: GoogleImportSetupFns
+  /** The importing admin, the default responsible manager (decision 2). */
+  viewerUserId: string
 }>
 
 export type GoogleImportReviewOptions = Readonly<{

@@ -1,5 +1,6 @@
+import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { AlertCircle, Clock3, RefreshCcw } from 'lucide-react'
+import { AlertCircle, ChevronDown, Clock3, RefreshCcw } from 'lucide-react'
 import type {
   ImportProgressDto,
   ImportProgressItemDto,
@@ -7,10 +8,12 @@ import type {
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '#/components/ui/collapsible'
 import { StatCard } from '#/components/features/shared/stat-card'
-import { GoogleImportAiOnboarding } from './google-import-ai-onboarding'
-import { GoogleImportManagerBreadcrumbs } from './google-import-manager-breadcrumbs'
-import type { GoogleImportAiFns } from './google-import-manager-contract'
 import { GoogleImportProgressItems } from './google-import-progress-items'
 import {
   importProgressPercent,
@@ -22,7 +25,8 @@ import {
 
 type Props = Readonly<{
   progress: ImportProgressDto
-  aiFns: GoogleImportAiFns
+  /** The wizard's "Set up properties" step, shown once the import settles. */
+  setupStep: ReactNode
   isPollingError: boolean
   isRefreshing: boolean
   isCancelling: boolean
@@ -34,7 +38,7 @@ type Props = Readonly<{
 
 export function GoogleImportProgressView({
   progress,
-  aiFns,
+  setupStep,
   isPollingError,
   isRefreshing,
   isCancelling,
@@ -47,13 +51,17 @@ export function GoogleImportProgressView({
   const terminal = isImportParentTerminal(progress.status)
   const summary = importProgressSummary(progress)
   const queued = progress.status === 'queued'
-  const importedProperties = importedPropertiesForAi(progress)
+  const settingUp = terminal && importedPropertiesForAi(progress).length > 0
+  const items = (
+    <GoogleImportProgressItems
+      items={progress.items}
+      retryingItemId={retryingItemId}
+      onRetry={onRetry}
+    />
+  )
 
   return (
     <div className="space-y-6">
-      <GoogleImportManagerBreadcrumbs
-        step={importedProperties.length > 0 ? 'ai' : 'progress'}
-      />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -147,13 +155,30 @@ export function GoogleImportProgressView({
         <StatCard label="Remaining" value={summary.remaining} />
       </div>
 
-      <GoogleImportProgressItems
-        items={progress.items}
-        retryingItemId={retryingItemId}
-        onRetry={onRetry}
-      />
-
-      <GoogleImportAiOnboarding properties={importedProperties} aiFns={aiFns} />
+      {settingUp ? (
+        <>
+          {setupStep}
+          {/* The import is done: its rows step back so setup has the focus,
+              unless one of them still needs attention. */}
+          <Collapsible
+            defaultOpen={summary.issues > 0}
+            className="space-y-3 border-t pt-5"
+          >
+            <CollapsibleTrigger asChild>
+              <Button type="button" variant="ghost" className="group -ml-3">
+                Import details
+                <ChevronDown
+                  aria-hidden="true"
+                  className="transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+                />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>{items}</CollapsibleContent>
+          </Collapsible>
+        </>
+      ) : (
+        items
+      )}
 
       {terminal ? (
         <div className="flex flex-col gap-3 border-t pt-5 sm:flex-row">

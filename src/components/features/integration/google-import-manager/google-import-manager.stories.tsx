@@ -1,19 +1,19 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, within } from 'storybook/test'
+import { expect, fn, userEvent, within } from 'storybook/test'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
-import { AI_CONSENT_ACKNOWLEDGEMENT } from '#/components/features/settings/merchant-ai-consent.stories.play'
+import {
+  createSetupFnsFixture,
+  STORY_ADMIN,
+} from '#/components/features/property-setup/setup.stories.fixtures'
 import type {
   GoogleConnectionDto,
   ImportProgressDto,
 } from '#/contexts/integration/application/public-api'
-import {
-  createAiFnsFixture,
-  IMPORTED_PROPERTY_ID,
-} from './google-import-ai.stories.fixtures'
 import { GoogleImportManager } from './google-import-manager'
 import type { GoogleImportFns } from './google-import-manager-contract'
 
 const ORGANIZATION_ID = 'org-story'
+const IMPORTED_PROPERTY_ID = '10000000-0000-4000-8000-000000000011'
 const IMPORT_JOB_ID = '10000000-0000-4000-8000-000000000001'
 
 const connection: GoogleConnectionDto = {
@@ -92,7 +92,12 @@ const meta = {
     organizationId: ORGANIZATION_ID,
     connections: [connection],
     importFns,
-    aiFns: createAiFnsFixture(),
+    setupFns: createSetupFnsFixture({
+      properties: [
+        { propertyId: IMPORTED_PROPERTY_ID, name: 'Studio Priority', countryCode: 'FR' },
+      ],
+    }),
+    viewerUserId: STORY_ADMIN.userId,
   },
 } satisfies Meta<typeof GoogleImportManager>
 
@@ -112,17 +117,23 @@ export const ProgressRoute: Story = {
     await expect(
       canvas.findByRole('heading', { name: /import complete/i }),
     ).resolves.toBeVisible()
-    await expect(canvas.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100')
+    await expect(
+      canvas.getByRole('progressbar', { name: /google property import progress/i }),
+    ).toHaveAttribute('aria-valuenow', '100')
     await expect(
       canvas.queryByText(/google location details were cleared/i),
     ).not.toBeInTheDocument()
+    const current = canvas.getByRole('tab', { selected: true })
+    await expect(current).toHaveAccessibleName(/set up properties/i)
+    await expect(
+      canvas.findByText(/use french/i, {}, { timeout: 5_000 }),
+    ).resolves.toBeVisible()
+    // The finished import folds away; its rows are one click from the setup.
+    await userEvent.click(canvas.getByRole('button', { name: /import details/i }))
     // Desktop table and mobile cards both render the row; one is visible.
-    const propertyLinks = canvas.getAllByRole('link', {
+    const propertyLinks = await canvas.findAllByRole('link', {
       name: /view property studio priority/i,
     })
     await expect(propertyLinks.some((link) => link.checkVisibility())).toBe(true)
-    await expect(
-      canvas.findByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
-    ).resolves.toBeVisible()
   },
 }

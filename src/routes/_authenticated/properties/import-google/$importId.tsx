@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
-import { importAiFns, importFns } from './-import-fns'
+import { importFns, importSetupFns } from './-import-fns'
 import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
 import { googleImportStatusQuery } from '#/components/features/integration/google-import-manager/google-import-queries'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
@@ -43,7 +43,7 @@ export const Route = createFileRoute(
 
 function ImportProgressPage() {
   const { importId } = Route.useParams()
-  const { activeOrganization } = Route.useRouteContext()
+  const { activeOrganization, user } = Route.useRouteContext()
   const { data: progress } = useSuspenseQuery(
     googleImportStatusQuery(importId, importFns.getPropertyImportV2Status),
   )
@@ -52,14 +52,13 @@ function ImportProgressPage() {
   return (
     <PageShell>
       <PageHeader
-        title="Import progress"
-        description="Track each property through the durable import workflow."
+        title="Import Google properties"
+        description="Track the import, then set up the properties it created."
         breadcrumbs={[
           { label: 'Properties', to: '/properties' },
-          { label: 'Import properties', to: '/properties/import-google' },
-          { label: 'Progress' },
+          { label: 'Import properties' },
         ]}
-        backTo={{ to: '/properties/import-google', label: 'Back to import' }}
+        backTo={{ to: '/properties', label: 'Back to properties' }}
       />
 
       <GoogleImportManager
@@ -68,7 +67,8 @@ function ImportProgressPage() {
         connections={connectionData.connections}
         initialProgress={progress}
         importFns={importFns}
-        aiFns={importAiFns}
+        setupFns={importSetupFns}
+        viewerUserId={user.id}
       />
     </PageShell>
   )
