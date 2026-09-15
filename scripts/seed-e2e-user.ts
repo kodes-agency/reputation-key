@@ -9,7 +9,8 @@
 //     pnpm exec tsx scripts/seed-e2e-user.ts
 
 import 'dotenv/config'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import type { E2eSeedState } from '../e2e/helpers/seed-state'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
@@ -69,7 +70,7 @@ import { CURRENT_MERCHANT_AI_CAPABILITIES } from '../src/shared/domain/merchant-
 import { execFileSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { Redis } from 'ioredis'
-import { parseEnvOverlay } from './local/provider-modes'
+import { localEnvOverlayPaths, localEnvSetting } from './local/provider-modes'
 
 assertLocalToolExecutionIdentity(process.env)
 
@@ -96,21 +97,16 @@ const organizationName = process.env.E2E_TEST_ORG ?? 'E2E Org A'
 
 /**
  * A developer's own AccountAdmin on a local stack, seeded on every run so a
- * reseed never locks them out: set `LOCAL_ADMIN_EMAIL` in the environment or in
- * the gitignored `local.env` overlay. Neither CI nor `e2e/stack.env` sets it, so
- * the acceptance landscape the specs assert is unchanged. The password is the
+ * reseed never locks them out: set `LOCAL_ADMIN_EMAIL` in the environment, in
+ * `~/.config/repkey/local.env` for every checkout, or in the checkout's
+ * gitignored `local.env`. Neither CI nor `e2e/stack.env` sets it, so the
+ * acceptance landscape the specs assert is unchanged. The password is the
  * seeded manager's unless `LOCAL_ADMIN_PASSWORD` says otherwise.
  */
 function localAdminSetting(key: string): string | undefined {
   const fromEnv = process.env[key]?.trim()
   if (fromEnv) return fromEnv
-  try {
-    return parseEnvOverlay(readFileSync(resolve(process.cwd(), 'local.env'), 'utf8')).get(
-      key,
-    )
-  } catch {
-    return undefined
-  }
+  return localEnvSetting(key, localEnvOverlayPaths(process.cwd(), homedir()))
 }
 const localAdminEmail = localAdminSetting('LOCAL_ADMIN_EMAIL')?.toLowerCase()
 const localAdminName = localAdminSetting('LOCAL_ADMIN_NAME') ?? 'Local Admin'

@@ -5,11 +5,17 @@ import {
 } from '../../src/composition'
 import type { Env } from '../../src/shared/config/env'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation-profiles'
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
   aiProviderMode,
   applyEnvOverlay,
   googleProviderMode,
+  localEnvOverlayPaths,
+  localEnvSetting,
   parseEnvOverlay,
+  stackWebPort,
 } from './provider-modes'
 
 /** What `e2e/stack.env` pins, i.e. the state the real mode has to undo. */
@@ -60,6 +66,37 @@ describe('local.env overlay', () => {
     const env: NodeJS.ProcessEnv = { KEEP: 'me' }
     expect(applyEnvOverlay(env, '/nonexistent/local.env')).toEqual([])
     expect(env).toEqual({ KEEP: 'me' })
+  })
+
+  it("reads the developer's own overlay first and lets the checkout override it", () => {
+    const home = mkdtempSync(join(tmpdir(), 'repkey-home-'))
+    const checkout = mkdtempSync(join(tmpdir(), 'repkey-checkout-'))
+    mkdirSync(join(home, '.config', 'repkey'), { recursive: true })
+    writeFileSync(
+      join(home, '.config', 'repkey', 'local.env'),
+      'LOCAL_ADMIN_EMAIL=dev@example.com\nREPKEY_LOCAL_GOOGLE=real\nKEPT=user\n',
+    )
+    writeFileSync(join(checkout, 'local.env'), 'REPKEY_LOCAL_GOOGLE=\nKEPT=checkout\n')
+    const paths = localEnvOverlayPaths(checkout, home)
+
+    expect(paths).toEqual([
+      join(home, '.config', 'repkey', 'local.env'),
+      join(checkout, 'local.env'),
+    ])
+    expect(localEnvSetting('LOCAL_ADMIN_EMAIL', paths)).toBe('dev@example.com')
+    expect(localEnvSetting('KEPT', paths)).toBe('checkout')
+    expect(localEnvSetting('REPKEY_LOCAL_GOOGLE', paths)).toBeUndefined()
+    expect(localEnvSetting('NEVER_SET', paths)).toBeUndefined()
+
+    const env: NodeJS.ProcessEnv = {}
+    for (const path of paths) applyEnvOverlay(env, path)
+    expect(env).toEqual({ LOCAL_ADMIN_EMAIL: 'dev@example.com', KEPT: 'checkout' })
+  })
+
+  it('serves the web dev server on the stack origin port', () => {
+    expect(stackWebPort({ BETTER_AUTH_URL: 'http://127.0.0.1:3100' })).toBe('3100')
+    expect(stackWebPort({})).toBe('3000')
+    expect(stackWebPort({ BETTER_AUTH_URL: 'http://localhost' })).toBe('80')
   })
 })
 
