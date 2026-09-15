@@ -6,6 +6,7 @@ import type {
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import type { MerchantAiPropertyOption } from './merchant-ai-settings-content'
 import { MerchantAiAuthorizationCard } from './merchant-ai-authorization-card'
+import { toggleAiCapability } from './merchant-ai-capability-selection'
 
 type CommandData = Readonly<{
   propertyId: string
@@ -93,19 +94,14 @@ export function MerchantAiPropertyAuthorization({
     capability: CurrentMerchantAiCapability,
     checked: boolean,
   ) => {
-    setSelectedCapabilities((current) => {
-      const next = new Set(current)
-      if (checked) {
-        next.add(capability)
-        if (capability === 'property_trends') next.add('review_analysis')
-      } else {
-        next.delete(capability)
-        if (capability === 'review_analysis') next.delete('property_trends')
-      }
-      return notice.payload.capabilities
-        .map((candidate) => candidate.id)
-        .filter((candidate) => next.has(candidate))
-    })
+    setSelectedCapabilities((current) =>
+      toggleAiCapability(
+        current,
+        capability,
+        checked,
+        notice.payload.capabilities.map((candidate) => candidate.id),
+      ),
+    )
   }
 
   const commandData = () => ({

@@ -12,8 +12,9 @@ import {
   QuestionnaireTitle,
 } from '#/components/ui/questionnaire'
 import { Switch } from '#/components/ui/switch'
+import { toggleAiCapability } from '#/components/features/settings/merchant-ai-capability-selection'
 import { ApplyToAllOverride, ApplyToAllToggle } from './apply-to-all-toggle'
-import { toggleAiCapability, type AiAnswer, type SetupPropertyFacts } from './setup-plan'
+import type { AiAnswer, SetupPropertyFacts } from './setup-plan'
 
 type Props = Readonly<{
   properties: readonly SetupPropertyFacts[]

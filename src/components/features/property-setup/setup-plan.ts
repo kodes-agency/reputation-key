@@ -226,25 +226,3 @@ export function aiEnabledPropertyNames(plan: SetupPlan): readonly string[] {
     .filter((property) => property.ai === 'enable')
     .map((property) => property.propertyName)
 }
-
-/**
- * Keep a capability selection coherent: property trends are built from review
- * analysis, so choosing trends adds analysis and dropping analysis drops trends
- * (the same rule the property AI settings apply).
- */
-export function toggleAiCapability(
-  current: readonly CurrentMerchantAiCapability[],
-  capability: CurrentMerchantAiCapability,
-  checked: boolean,
-  order: readonly CurrentMerchantAiCapability[],
-): readonly CurrentMerchantAiCapability[] {
-  const next = new Set(current)
-  if (checked) {
-    next.add(capability)
-    if (capability === 'property_trends') next.add('review_analysis')
-  } else {
-    next.delete(capability)
-    if (capability === 'review_analysis') next.delete('property_trends')
-  }
-  return order.filter((candidate) => next.has(candidate))
-}
