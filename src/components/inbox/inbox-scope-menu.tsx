@@ -62,10 +62,6 @@ export function InboxScopeMenu({
   queueLabel,
 }: Readonly<{ scope: InboxPropertyScope; scopeLabel: string; queueLabel: string }>) {
   const labelId = useId()
-  // Choosing the scope already in view changes nothing, so it navigates nowhere.
-  const select = (propertyId: string | null) => {
-    if (propertyId !== scope.activePropertyId) scope.onSelect(propertyId)
-  }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -91,7 +87,7 @@ export function InboxScopeMenu({
               count={scopeCount(scope.counts, null)}
               checked={scope.activePropertyId === null}
               withGlyph
-              onSelect={() => select(null)}
+              onSelect={() => scope.onSelect(null)}
             />
             <DropdownMenuSeparator />
           </>
@@ -102,7 +98,7 @@ export function InboxScopeMenu({
             label={property.name}
             count={scopeCount(scope.counts, property.id)}
             checked={property.id === scope.activePropertyId}
-            onSelect={() => select(property.id)}
+            onSelect={() => scope.onSelect(property.id)}
           />
         ))}
       </DropdownMenuContent>

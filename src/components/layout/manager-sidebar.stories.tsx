@@ -247,6 +247,19 @@ export const CollapsedDashboardMenuOpen: Story = {
   },
 }
 
+/** Opens the app tile (named by the property in view) and chooses a property. */
+async function chooseFromTile(
+  canvasElement: HTMLElement,
+  tile: RegExp,
+  property: RegExp,
+) {
+  const canvas = within(canvasElement)
+  await userEvent.click(await canvas.findByRole('button', { name: tile }))
+  const page = within(canvasElement.ownerDocument.body)
+  await userEvent.click(await page.findByRole('menuitem', { name: property }))
+  return { canvas, page }
+}
+
 // Changing scope inside the inbox stays in the same work surface. It keeps the
 // queue/filter state, but an item opened under the old scope cannot survive.
 export const InboxPropertySwitch: Story = {
@@ -258,10 +271,7 @@ export const InboxPropertySwitch: Story = {
     ),
   ],
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /acme hotel/i }))
-    const page = within(canvasElement.ownerDocument.body)
-    await userEvent.click(await page.findByRole('menuitem', { name: /globex hq/i }))
+    const { canvas } = await chooseFromTile(canvasElement, /acme hotel/i, /globex hq/i)
 
     await waitFor(() =>
       expect(canvas.getByTestId('story-location')).toHaveTextContent(
@@ -270,5 +280,30 @@ export const InboxPropertySwitch: Story = {
     )
     expect(canvas.getByTestId('story-location')).not.toHaveTextContent('itemId=')
     expect(canvas.getByTestId('story-location')).not.toHaveTextContent('propertyId=')
+  },
+}
+
+// Choosing the property already in view changes no scope, so it keeps the open
+// item and the URL exactly as they are — the same rule the queue rail and the
+// compact scope menu follow, because all three go through one navigation hook.
+export const InboxActivePropertyKeepsTheOpenItem: Story = {
+  args: { properties, getLastVisitCount: lastVisitCountZero },
+  decorators: [
+    withRoleAt(
+      'PropertyManager',
+      `/properties/${properties[0].id}/reviews?queue=closed&itemId=20000000-0000-4000-8000-000000000001`,
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const location = within(canvasElement).getByTestId('story-location')
+    const before = location.textContent
+
+    const { page } = await chooseFromTile(canvasElement, /acme hotel/i, /^acme hotel/i)
+    await waitFor(() => expect(page.queryByRole('menu')).toBeNull())
+    // A navigation would have committed by the next task.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    expect(location.textContent).toBe(before)
+    expect(location).toHaveTextContent('itemId=')
   },
 }
