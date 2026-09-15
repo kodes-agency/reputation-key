@@ -94,7 +94,10 @@ the `test@example.com` password unless you set one. Ctrl-C stops both processes;
 `pnpm local:down` removes the services and their volumes. The host processes
 resolve the Compose service names to loopback through
 `scripts/local/loopback-hosts.mjs` because `local-provider-fetch.ts`
-deliberately compiles the AI stub address in.
+deliberately compiles the AI stub address in. Mirroring the browser console
+into the terminal is off, because it holds one of the browser's six connections
+to the app per open tab; set `REPKEY_DEVTOOLS_CONSOLE_PIPE=1` (for example in
+`local.env`) to turn it on while you keep few tabs open.
 
 **Your settings in one place - `~/.config/repkey/local.env`.** Every checkout
 and worktree reads this file first, then its own gitignored `local.env`, which
