@@ -60,6 +60,11 @@ type Scenario = Readonly<{
   reviewName: string
 }>
 
+type ProviderScenario = Readonly<{
+  reviews: StubReview[]
+  replyBehavior?: Parameters<typeof gbpStubControl.putScope>[0]['replyBehavior']
+}>
+
 test.describe('Critical workflow: reply lifecycle', () => {
   test.describe.configure({ mode: 'serial' })
 
@@ -70,16 +75,9 @@ test.describe('Critical workflow: reply lifecycle', () => {
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 
-  /** Isolated provider + data landscape for one scenario. */
-  async function setupScenario(
-    name: string,
-    opts: {
-      reviews: StubReview[]
-      replyBehavior?: Parameters<typeof gbpStubControl.putScope>[0]['replyBehavior']
-    },
-  ): Promise<Scenario> {
+  /** What Google serves for one scenario. Putting it again replaces it. */
+  async function putScenarioScope(name: string, opts: ProviderScenario): Promise<void> {
     const locationName = `${ACCOUNT_NAME}/locations/${locationId(name)}`
-    const reviewName = `${locationName}/reviews/${name}-r1-${e2eRunId}`
     await gbpStubControl.putScope({
       account: {
         name: ACCOUNT_NAME,
@@ -96,6 +94,13 @@ test.describe('Critical workflow: reply lifecycle', () => {
       reviews: { [locationName]: opts.reviews },
       replyBehavior: opts.replyBehavior,
     })
+  }
+
+  /** Isolated provider + data landscape for one scenario. */
+  async function setupScenario(name: string, opts: ProviderScenario): Promise<Scenario> {
+    const locationName = `${ACCOUNT_NAME}/locations/${locationId(name)}`
+    const reviewName = `${locationName}/reviews/${name}-r1-${e2eRunId}`
+    await putScenarioScope(name, opts)
     const admin = await getUserByEmail(seed.email)
     const { connectionId } = await seedGoogleConnection({
       organizationId: seed.organizationId,
@@ -571,25 +576,29 @@ test.describe('Critical workflow: reply lifecycle', () => {
     page,
   }) => {
     test.setTimeout(60_000)
-    // The provider copy carries the reply (the ambiguous send DID land).
-    const landed = stubReview('ambig')
-    const s = await setupScenario('ambig', {
-      reviews: [
-        {
-          ...landed,
-          reviewReply: {
-            comment: 'The ambiguous send actually landed',
-            updateTime: '2026-07-28T08:00:00Z',
-          },
-        },
-      ],
-    })
+    const s = await setupScenario('ambig', { reviews: [stubReview('ambig')] })
     const admin = await getUserByEmail(seed.email)
     await seedAmbiguousReply({
       organizationId: seed.organizationId,
       reviewId: s.reviewId,
       text: 'The ambiguous send actually landed',
       createdBy: admin!.id,
+    })
+    // The ambiguous send DID land: Google now serves the reply. It appears only
+    // after the attempt exists, as a real send's does. A sync that met the
+    // reply before any attempt could only record it as Google-authored, and
+    // the inbox shows such a reply in place of RepKey's uncertain one
+    // (reply-lookup.adapter.ts) — with no "Check Google again" to press.
+    await putScenarioScope('ambig', {
+      reviews: [
+        {
+          ...stubReview('ambig'),
+          reviewReply: {
+            comment: 'The ambiguous send actually landed',
+            updateTime: '2026-07-28T08:00:00Z',
+          },
+        },
+      ],
     })
     await signIn(page)
 
