@@ -129,6 +129,7 @@ import type { GooglePerformanceDependencyDescriptor } from '#/shared/architectur
 import { createIntegrationOrganizationExportContributor } from './infrastructure/adapters/integration-organization-export.adapter'
 import { createIntegrationOrganizationLifecycleContributor } from './infrastructure/adapters/integration-organization-lifecycle.adapter'
 import { createGoogleOrganizationClosureProvider } from './infrastructure/adapters/google-organization-closure-provider.adapter'
+import { sameRecordEntries } from '#/shared/domain/record-entries'
 
 export type GoogleProviderEndpoints = Readonly<{
   gbpApiBaseUrl: string
@@ -193,15 +194,10 @@ function sameAuthorizationVectorExceptCredentialGeneration(
   left: Readonly<Record<string, string | number | boolean | null>>,
   right: Readonly<Record<string, string | number | boolean | null>>,
 ): boolean {
-  const leftKeys = Object.keys(left).sort()
-  const rightKeys = Object.keys(right).sort()
-  return (
-    leftKeys.length === rightKeys.length &&
-    leftKeys.every(
-      (key, index) =>
-        key === rightKeys[index] &&
-        (key === 'credentialGeneration' || left[key] === right[key]),
-    )
+  return sameRecordEntries(
+    left,
+    right,
+    (key) => key === 'credentialGeneration' || left[key] === right[key],
   )
 }
 

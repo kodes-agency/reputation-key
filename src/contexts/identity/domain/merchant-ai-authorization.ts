@@ -2,6 +2,7 @@ import type {
   CapabilityRuntimeProfileVersions,
   MerchantAiCapability,
 } from '#/shared/domain/merchant-ai-capability'
+import { sameRecordEntries } from '#/shared/domain/record-entries'
 
 export {
   CURRENT_MERCHANT_AI_CAPABILITIES,
@@ -88,16 +89,7 @@ function sameRuntimeProfiles(
   left: CapabilityRuntimeProfileVersions,
   right: CapabilityRuntimeProfileVersions,
 ): boolean {
-  const leftKeys = Object.keys(left).sort()
-  const rightKeys = Object.keys(right).sort()
-  return (
-    leftKeys.length === rightKeys.length &&
-    leftKeys.every(
-      (key, index) =>
-        key === rightKeys[index] &&
-        left[key as MerchantAiCapability] === right[key as MerchantAiCapability],
-    )
-  )
+  return sameRecordEntries(left, right)
 }
 
 /**
