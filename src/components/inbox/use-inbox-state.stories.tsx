@@ -292,21 +292,31 @@ const CHECKS_ENDED = reply({
   stateRevision: 2,
 })
 
+/** A still-checked reply open in the Waiting queue, whose checks are about to end. */
+const checksEndingStory = {
+  args: { queue: 'waiting', commandResult: CHECKS_ENDED },
+  beforeEach: () => {
+    script = makeScript(STILL_CHECKED)
+  },
+} satisfies Partial<Story>
+
+/** Loads the reply, lets the first count read land, then ends its checks on the server. */
+async function endChecksAfterTheFirstCount(canvasElement: HTMLElement) {
+  const canvas = await ready(canvasElement, 'publish_failed')
+  await waitFor(() => expect(script.countReads).toBe(1))
+  script.detailReply = CHECKS_ENDED
+  return canvas
+}
+
 /**
  * A detail poll sees the automatic checks end: Waiting for Google → Needs
  * reply. Nothing else refreshes the queue counts (a still-checked row does not
  * make the list poll now), so the change detection must.
  */
 export const APolledReplyMoveRefreshesTheCounts: Story = {
-  args: { queue: 'waiting', commandResult: CHECKS_ENDED },
-  beforeEach: () => {
-    script = makeScript(STILL_CHECKED)
-  },
+  ...checksEndingStory,
   play: async ({ canvasElement }) => {
-    const canvas = await ready(canvasElement, 'publish_failed')
-    await waitFor(() => expect(script.countReads).toBe(1))
-
-    script.detailReply = CHECKS_ENDED
+    const canvas = await endChecksAfterTheFirstCount(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Poll the detail' }))
 
     await waitFor(() => expect(script.countReads).toBe(2))
@@ -319,15 +329,9 @@ export const APolledReplyMoveRefreshesTheCounts: Story = {
  * then reads the same reply is not taken for a second transition.
  */
 export const ACommandResultIsNotCountedTwice: Story = {
-  args: { queue: 'waiting', commandResult: CHECKS_ENDED },
-  beforeEach: () => {
-    script = makeScript(STILL_CHECKED)
-  },
+  ...checksEndingStory,
   play: async ({ canvasElement }) => {
-    const canvas = await ready(canvasElement, 'publish_failed')
-    await waitFor(() => expect(script.countReads).toBe(1))
-
-    script.detailReply = CHECKS_ENDED
+    const canvas = await endChecksAfterTheFirstCount(canvasElement)
     await userEvent.click(
       canvas.getByRole('button', { name: 'Apply the command result' }),
     )
