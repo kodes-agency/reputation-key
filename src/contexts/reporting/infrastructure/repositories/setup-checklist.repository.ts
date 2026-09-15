@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { propertyIdInScope } from '#/shared/db/property-scope'
 import {
   googleConnections,
   portalHealthIntervals,
@@ -41,15 +42,6 @@ const completionByKey = (
   responsible_managers: timestampFromDriver(row.responsible_managers_completed_at),
 })
 
-function propertyScopeSql(propertyIds: readonly string[] | null) {
-  if (propertyIds === null) return sql`true`
-  if (propertyIds.length === 0) return sql`false`
-  return sql`p.id IN (${sql.join(
-    propertyIds.map((id) => sql`${id}::uuid`),
-    sql`, `,
-  )})`
-}
-
 /**
  * Dashboard-owned read facade for the four EXP-01 setup facts. It stores no
  * source state: only the first time a fully canonical fact was observed true.
@@ -60,7 +52,7 @@ export const createSetupChecklistRepository = (
   readAndRecord: (input) =>
     trace('dashboard.setupChecklist.readAndRecord', () =>
       db.transaction(async (tx) => {
-        const scope = propertyScopeSql(input.accessiblePropertyIds)
+        const scope = propertyIdInScope(sql`p.id`, input.accessiblePropertyIds)
         const canonicalResult = await tx.execute<CanonicalFactRow>(sql`
           WITH scoped_properties AS MATERIALIZED (
             SELECT p.*

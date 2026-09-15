@@ -1,5 +1,6 @@
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { propertyIdInScope } from '#/shared/db/property-scope'
 import {
   merchantAiDecisionDeferrals,
   merchantAiEnablement,
@@ -69,15 +70,6 @@ function toFacts(row: FactRow): PropertySetupFacts {
     replyVoiceConfigured: readFlag(row, 'reply_voice_configured'),
     portalPublished: readFlag(row, 'portal_published'),
   })
-}
-
-function propertyScopeSql(propertyIds: readonly string[] | null): SQL {
-  if (propertyIds === null) return sql`true`
-  if (propertyIds.length === 0) return sql`false`
-  return sql`p.id IN (${sql.join(
-    propertyIds.map((id) => sql`${id}::uuid`),
-    sql`, `,
-  )})`
 }
 
 /**
@@ -163,7 +155,10 @@ export const createPropertySetupRepository = (db: Database): PropertySetupReposi
   readPropertyFacts: (input) =>
     trace('dashboard.propertySetup.readPropertyFacts', async () => {
       const result = await db.execute<FactRow>(
-        propertyFactsSql(input.organizationId, propertyScopeSql([input.propertyId])),
+        propertyFactsSql(
+          input.organizationId,
+          propertyIdInScope(sql`p.id`, [input.propertyId]),
+        ),
       )
       const row = result.rows[0]
       return row ? toFacts(row) : null
@@ -174,7 +169,7 @@ export const createPropertySetupRepository = (db: Database): PropertySetupReposi
       const result = await db.execute<FactRow>(
         propertyFactsSql(
           input.organizationId,
-          propertyScopeSql(input.accessiblePropertyIds),
+          propertyIdInScope(sql`p.id`, input.accessiblePropertyIds),
         ),
       )
       return result.rows.map(toFacts)

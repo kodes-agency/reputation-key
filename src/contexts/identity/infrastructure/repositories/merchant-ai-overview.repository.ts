@@ -5,8 +5,9 @@
 // columns are validated here and fail closed: a row the schema constraints
 // should have made impossible never reaches the overview as a guess.
 
-import { sql, type SQL } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { propertyIdInScope } from '#/shared/db/property-scope'
 import {
   CURRENT_MERCHANT_AI_CAPABILITIES,
   type MerchantAiCapability,
@@ -72,15 +73,6 @@ function toRecord(row: Row): MerchantAiOverviewRecord {
   })
 }
 
-function propertyScope(propertyIds: readonly string[] | null): SQL {
-  if (propertyIds === null) return sql`true`
-  if (propertyIds.length === 0) return sql`false`
-  return sql`property.id IN (${sql.join(
-    propertyIds.map((id) => sql`${id}::uuid`),
-    sql`, `,
-  )})`
-}
-
 export const createMerchantAiOverviewReader = (
   db: Database,
 ): MerchantAiOverviewReader => ({
@@ -104,7 +96,7 @@ export const createMerchantAiOverviewReader = (
         AND deferral.property_id = property.id
       WHERE property.organization_id = ${input.organizationId}
         AND property.deleted_at IS NULL
-        AND ${propertyScope(input.propertyIds)}
+        AND ${propertyIdInScope(sql`property.id`, input.propertyIds)}
       ORDER BY lower(property.name), property.id
     `)
     return result.rows.map((row) => toRecord(row as Row))
