@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Job } from 'bullmq'
+import { ZodError } from 'zod/v4'
 import { createAnalyzeReviewNowJobHandler } from './analyze-review-now.job'
 import { createDrainReviewAnalysisBacklogJobHandler } from './drain-review-analysis-backlog.job'
 
@@ -60,7 +61,8 @@ describe('review analysis backlog jobs', () => {
   })
 
   it('refuses a payload that carries anything but identifiers', async () => {
-    const handler = createAnalyzeReviewNowJobHandler({ drainReview: vi.fn() })
+    const drainReview = vi.fn()
+    const handler = createAnalyzeReviewNowJobHandler({ drainReview })
 
     await expect(
       handler(
@@ -71,6 +73,7 @@ describe('review analysis backlog jobs', () => {
           text: 'review text',
         }),
       ),
-    ).rejects.toThrow()
+    ).rejects.toThrow(ZodError)
+    expect(drainReview).not.toHaveBeenCalled()
   })
 })
