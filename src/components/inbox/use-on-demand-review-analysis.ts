@@ -2,6 +2,10 @@ import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import type { requestReviewAnalysisNowFn } from '#/contexts/ai/server/review-analysis'
+import type {
+  InboxItem,
+  InboxItemDetailResult,
+} from '#/contexts/inbox/application/public-api'
 
 /** A glance is not a read: only a review left open this long is hurried. */
 export const ON_DEMAND_ANALYSIS_DWELL_MILLIS = 1_500
@@ -9,10 +13,10 @@ const POLL_INTERVAL_MILLIS = 5_000
 const POLL_LIMIT_MILLIS = 90_000
 
 type Input = Readonly<{
-  inboxItemId: string
-  reviewId: string | null
-  /** The detail's analysis status; `none` means enabled but not analysed yet. */
-  analysisStatus: string | null
+  /** The item open in the pane. Only a review item has an analysis to hurry. */
+  item: Pick<InboxItem, 'id' | 'sourceType' | 'sourceId'>
+  /** Its loaded detail; analysis status `none` means enabled but not analysed yet. */
+  detail: Pick<InboxItemDetailResult, 'analysis'> | null
   request?: typeof requestReviewAnalysisNowFn
 }>
 
@@ -25,7 +29,10 @@ type Input = Readonly<{
 export function useOnDemandReviewAnalysis(input: Input): void {
   const queryClient = useQueryClient()
   const requested = useRef(new Set<string>())
-  const { inboxItemId, reviewId, analysisStatus, request } = input
+  const { item, detail, request } = input
+  const inboxItemId = item.id
+  const reviewId = item.sourceType === 'review' ? item.sourceId : null
+  const analysisStatus = detail?.analysis?.status ?? null
 
   useEffect(() => {
     if (!request || reviewId === null || analysisStatus !== 'none') return

@@ -56,9 +56,6 @@ type Props = Omit<ReplyAiMenuProps & ReplyTemplateMenuProps, 'isPrimary'> &
  * not unconditional: the desktop pane is dense on purpose.
  */
 export function ReplySuggestionControls(props: Props) {
-  const { can } = usePermissions()
-  const canManagePortalBrand = can('portal.admin')
-  const canManageAi = can('ai.manage')
   // The recommended path leads. `primaryMode` is `template` whenever the review
   // has no detectable language (`reply-editor-compose.tsx`, `usesTemplatePath`),
   // where AI drafting cannot verify its output's language anyway.
@@ -110,76 +107,100 @@ export function ReplySuggestionControls(props: Props) {
           <Undo2 data-icon="inline-start" /> Undo
         </Button>
       )}
-      {(props.templateError || props.aiError) && (
-        <div
-          role="status"
-          className={cn(
-            'basis-full text-xs',
-            // Busy is our own capacity, not a failure: it reads as a wait.
-            props.aiBusyUntil != null && !props.templateError
-              ? 'text-muted-foreground'
-              : 'text-destructive',
+      {(props.templateError || props.aiError) && <SuggestionErrorLine {...props} />}
+    </div>
+  )
+}
+
+type SuggestionErrorLineProps = Pick<
+  Props,
+  | 'templateError'
+  | 'aiError'
+  | 'aiBusyUntil'
+  | 'aiOffersTemplate'
+  | 'onUseTemplateInstead'
+  | 'errorFixTarget'
+  | 'propertyId'
+  | 'disabled'
+  | 'aiDisabled'
+  | 'onRequestAi'
+>
+
+/**
+ * The row's error line: what went wrong, the choices a refusal leaves, and the
+ * fix. It reads the two permissions itself because only the fix links need
+ * them — a manager who cannot reach the setting is told who can.
+ */
+function SuggestionErrorLine(props: SuggestionErrorLineProps) {
+  const { can } = usePermissions()
+  const canManagePortalBrand = can('portal.admin')
+  const canManageAi = can('ai.manage')
+  return (
+    <div
+      role="status"
+      className={cn(
+        'basis-full text-xs',
+        // Busy is our own capacity, not a failure: it reads as a wait.
+        props.aiBusyUntil != null && !props.templateError
+          ? 'text-muted-foreground'
+          : 'text-destructive',
+      )}
+    >
+      {props.templateError && <p>{props.templateError}</p>}
+      {props.aiError && <p>{props.aiError}</p>}
+      {(props.aiBusyUntil != null || props.aiOffersTemplate) && (
+        // A refusal is never answered with a substitute: the manager
+        // chooses between waiting for AI and the governed template.
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+          {props.aiBusyUntil != null && (
+            <RetryAfterButton
+              key={props.aiBusyUntil}
+              retryAtEpochMillis={props.aiBusyUntil}
+              disabled={props.disabled || props.aiDisabled}
+              onRetry={() => void props.onRequestAi()}
+            />
           )}
-        >
-          {props.templateError && <p>{props.templateError}</p>}
-          {props.aiError && <p>{props.aiError}</p>}
-          {(props.aiBusyUntil != null || props.aiOffersTemplate) && (
-            // A refusal is never answered with a substitute: the manager
-            // chooses between waiting for AI and the governed template.
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-              {props.aiBusyUntil != null && (
-                <RetryAfterButton
-                  key={props.aiBusyUntil}
-                  retryAtEpochMillis={props.aiBusyUntil}
-                  disabled={props.disabled || props.aiDisabled}
-                  onRetry={() => void props.onRequestAi()}
-                />
-              )}
-              {props.aiOffersTemplate && (
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="link"
-                  className="px-0 max-md:min-h-9"
-                  disabled={props.disabled}
-                  onClick={props.onUseTemplateInstead}
-                >
-                  <FileText data-icon="inline-start" aria-hidden="true" />
-                  Use a template instead
-                </Button>
-              )}
-            </div>
+          {props.aiOffersTemplate && (
+            <Button
+              type="button"
+              size="xs"
+              variant="link"
+              className="px-0 max-md:min-h-9"
+              disabled={props.disabled}
+              onClick={props.onUseTemplateInstead}
+            >
+              <FileText data-icon="inline-start" aria-hidden="true" />
+              Use a template instead
+            </Button>
           )}
-          {props.errorFixTarget === 'public_display_name' &&
-            (canManagePortalBrand ? (
-              <Button asChild size="xs" variant="link" className="max-md:min-h-9">
-                <Link
-                  to="/properties/$propertyId/settings/profile"
-                  params={{ propertyId: props.propertyId }}
-                >
-                  Set the public display name
-                </Link>
-              </Button>
-            ) : (
-              <p>
-                Ask an account admin to set this property&rsquo;s public display name.
-              </p>
-            ))}
-          {props.errorFixTarget === 'ai_settings' &&
-            (canManageAi ? (
-              <Button asChild size="xs" variant="link" className="max-md:min-h-9">
-                <Link
-                  to="/properties/$propertyId/settings/ai"
-                  params={{ propertyId: props.propertyId }}
-                >
-                  Enable AI replies
-                </Link>
-              </Button>
-            ) : (
-              <p>Ask an account admin to enable AI reply drafting for this property.</p>
-            ))}
         </div>
       )}
+      {props.errorFixTarget === 'public_display_name' &&
+        (canManagePortalBrand ? (
+          <Button asChild size="xs" variant="link" className="max-md:min-h-9">
+            <Link
+              to="/properties/$propertyId/settings/profile"
+              params={{ propertyId: props.propertyId }}
+            >
+              Set the public display name
+            </Link>
+          </Button>
+        ) : (
+          <p>Ask an account admin to set this property&rsquo;s public display name.</p>
+        ))}
+      {props.errorFixTarget === 'ai_settings' &&
+        (canManageAi ? (
+          <Button asChild size="xs" variant="link" className="max-md:min-h-9">
+            <Link
+              to="/properties/$propertyId/settings/ai"
+              params={{ propertyId: props.propertyId }}
+            >
+              Enable AI replies
+            </Link>
+          </Button>
+        ) : (
+          <p>Ask an account admin to enable AI reply drafting for this property.</p>
+        ))}
     </div>
   )
 }

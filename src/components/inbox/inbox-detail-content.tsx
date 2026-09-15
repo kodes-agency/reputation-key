@@ -97,9 +97,8 @@ export function InboxDetailContent({
   const queryClient = useQueryClient()
   const { can } = usePermissions()
   useOnDemandReviewAnalysis({
-    inboxItemId: currentItem.id,
-    reviewId: currentItem.sourceType === 'review' ? currentItem.sourceId : null,
-    analysisStatus: detail?.analysis?.status ?? null,
+    item: currentItem,
+    detail,
     request: detailFns.requestReviewAnalysisNow,
   })
   const [reopenOpen, setReopenOpen] = useState(false)
@@ -136,7 +135,8 @@ export function InboxDetailContent({
     reviewId: currentItem.sourceId,
     onReplyChanged: onReplyMutated,
   })
-  const replyView = resolveReplyView(detail?.reply ?? null)
+  const reply = detail?.reply ?? null
+  const replyView = resolveReplyView(reply)
   const {
     mode,
     setMode,
@@ -149,7 +149,7 @@ export function InboxDetailContent({
   } = useInboxComposerController({
     itemId: currentItem.id,
     modes,
-    reply: detail?.reply ?? null,
+    reply,
     replyKind: replyView.kind,
     replyActions,
     composerFocusRef,
