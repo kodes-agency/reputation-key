@@ -148,7 +148,7 @@ export const AwaitingConsent: Story = {
     await expect(
       canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
     ).toHaveAccessibleName(
-      `I have read this notice and, as an account admin, agree to this data use for ${property.name}`,
+      `I have read this notice and agree to this data use for ${property.name} on behalf of my organization.`,
     )
     await consentToAi(canvasElement)
     await waitFor(() => expect(enableAction).toHaveBeenCalledOnce())

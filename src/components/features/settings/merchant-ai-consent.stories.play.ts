@@ -2,7 +2,7 @@ import { expect, userEvent, within } from 'storybook/test'
 
 /** The acknowledgement a merchant ticks before consent, for any property. */
 export const AI_CONSENT_ACKNOWLEDGEMENT =
-  /I have read this notice and, as an account admin, agree to this data use for/i
+  /I have read this notice and agree to this data use for .+ on behalf of my organization\./i
 
 /**
  * Drives the merchant AI consent card the way a merchant does: acknowledge the

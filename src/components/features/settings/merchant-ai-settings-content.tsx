@@ -148,8 +148,8 @@ export function MerchantAiSettingsContent({
             onCheckedChange={(next) => onAcknowledgedChange(next === true)}
           />
           <FieldLabel htmlFor="merchant-ai-acknowledgement" className="min-w-0">
-            I have read this notice and, as an account admin, agree to this data use for{' '}
-            {propertyName}
+            I have read this notice and agree to this data use for {propertyName} on
+            behalf of my organization.
           </FieldLabel>
         </Field>
         <p
