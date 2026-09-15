@@ -4,6 +4,7 @@
 // click remains unambiguous. Routing and permissions come from decorators.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
+import { withRole } from '../../../../.storybook/AuthedRouterDecorator'
 import type { SetupChecklist } from '#/contexts/reporting/application/public-api'
 import { PropertyListPage, type PropertyComparison } from './property-list-page'
 
@@ -186,13 +187,41 @@ export const SingleProperty: Story = {
   },
 }
 
-// Empty state — first-run CTA copy.
+// First run — Google import is the only way a property is created (decision 7).
 export const Empty: Story = {
   args: { properties: [] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/no properties yet/i)).toBeVisible()
-    expect(canvas.getByText(/add your first property to get started/i)).toBeVisible()
+    expect(
+      canvas.getByRole('link', { name: 'Import your first property from Google' }),
+    ).toHaveAttribute('href', '/properties/import-google')
+  },
+}
+
+// The call to action is long: on the narrowest phone, inside the app's gutter,
+// it wraps onto two balanced lines.
+export const EmptyAt320: Story = {
+  args: { properties: [] },
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+  decorators: [
+    (Story) => (
+      <div className="px-4 py-5">
+        <Story />
+      </div>
+    ),
+  ],
+}
+
+// A manager who cannot import is not sent to a flow that turns them away.
+export const EmptyWithoutImportPermission: Story = {
+  args: { properties: [] },
+  decorators: [withRole('PropertyManager')],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText(/no properties yet/i)).toBeVisible()
+    expect(canvas.getByText(/ask an account admin to import a property/i)).toBeVisible()
+    expect(canvas.queryByRole('link', { name: /import/i })).not.toBeInTheDocument()
   },
 }
 
@@ -216,6 +245,8 @@ export const AllRemoved: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/no active properties/i)).toBeVisible()
-    expect(canvas.queryByText(/add your first property/i)).not.toBeInTheDocument()
+    expect(
+      canvas.queryByRole('link', { name: /import your first property/i }),
+    ).not.toBeInTheDocument()
   },
 }

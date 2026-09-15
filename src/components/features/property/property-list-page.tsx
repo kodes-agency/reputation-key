@@ -135,6 +135,48 @@ function PropertyRow({
   )
 }
 
+/**
+ * Google import is the only way a property is created (decision 7), so a first
+ * run opens it. A manager who cannot import is not sent to a flow that turns
+ * them away, and a list whose properties were all removed is not a first run:
+ * restoring one is the way back.
+ */
+function EmptyPropertyList({
+  allRemoved,
+  canImport,
+}: Readonly<{ allRemoved: boolean; canImport: boolean }>) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-12 text-center">
+      {allRemoved ? (
+        <>
+          <p className="text-muted-foreground">No active properties.</p>
+          <p className="text-sm text-muted-foreground">
+            Every property you have is currently removed. Restore one to start working
+            again.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-muted-foreground">No properties yet.</p>
+          {canImport ? (
+            // At 320 px the label is wider than the box, so it wraps, balanced.
+            <Button asChild className="h-auto min-h-9 whitespace-normal text-balance">
+              <Link to="/properties/import-google">
+                Import your first property from Google
+              </Link>
+            </Button>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Ask an account admin to import a property from Google or give you access to
+              one.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 export function PropertyListPage({
   properties,
   comparison,
@@ -166,16 +208,10 @@ export function PropertyListPage({
       {checklist === undefined ? null : <SetupChecklistBanner checklist={checklist} />}
 
       {workspace.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
-          <p className="text-muted-foreground">
-            {removed.length === 0 ? 'No properties yet.' : 'No active properties.'}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {removed.length === 0
-              ? 'Add your first property to get started.'
-              : 'Every property you have is currently removed. Restore one to start working again.'}
-          </p>
-        </div>
+        <EmptyPropertyList
+          allRemoved={removed.length > 0}
+          canImport={can('property.import_gbp_v2')}
+        />
       ) : (
         <div className="flex flex-col gap-2">
           {workspace.map((property) => (
