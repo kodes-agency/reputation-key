@@ -23,6 +23,13 @@ const imported = batch.map((property) => ({
   propertyName: property.name,
 }))
 
+/** The whole batch, answered by the importing admin, with a fresh fixture per story. */
+const batchArgs = () => ({
+  properties: imported,
+  viewerUserId: STORY_ADMIN.userId,
+  fns: createSetupFnsFixture({ properties: batch }),
+})
+
 const meta = {
   title: 'PropertySetup/SetupPropertiesStep',
   component: SetupPropertiesStep,
@@ -37,17 +44,41 @@ async function next(canvasElement: HTMLElement) {
   await userEvent.click(within(canvasElement).getByRole('button', { name: /^next$/i }))
 }
 
+async function skip(canvasElement: HTMLElement) {
+  await userEvent.click(
+    within(canvasElement).getByRole('button', { name: /skip for now/i }),
+  )
+}
+
+/** Answer one property on its own: turn off "same answer for all 3", then pick its option. */
+async function answerOneProperty(
+  canvasElement: HTMLElement,
+  field: RegExp,
+  option: string,
+) {
+  const canvas = within(canvasElement)
+  await userEvent.click(canvas.getByRole('switch', { name: /same answer for all 3/i }))
+  await userEvent.click(canvas.getByRole('combobox', { name: field }))
+  await userEvent.click(
+    await within(canvasElement.ownerDocument.body).findByRole('option', { name: option }),
+  )
+}
+
+/** Answer the AI question, open the review, and hand back its answers table. */
+async function reviewWithAiAnswer(canvasElement: HTMLElement, choice: RegExp) {
+  const canvas = within(canvasElement)
+  await userEvent.click(canvas.getByRole('radio', { name: choice }))
+  await userEvent.click(canvas.getByRole('button', { name: /review answers/i }))
+  return within(await canvas.findByRole('table'))
+}
+
 /**
  * Twenty locations get the same questions as one: each keeps its own name,
  * suggested languages, the importing admin as manager, and one consent
  * ceremony naming every property.
  */
 export const ThreePropertiesOneCeremony: Story = {
-  args: {
-    properties: imported,
-    viewerUserId: STORY_ADMIN.userId,
-    fns: createSetupFnsFixture({ properties: batch }),
-  },
+  args: batchArgs(),
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     const fns = args.fns as ReturnType<typeof createSetupFnsFixture>
@@ -66,10 +97,7 @@ export const ThreePropertiesOneCeremony: Story = {
     await expect(canvas.getByRole('checkbox', { name: STORY_ADMIN.name })).toBeChecked()
     await next(canvasElement)
 
-    await userEvent.click(canvas.getByRole('radio', { name: /turn on ai features/i }))
-    await userEvent.click(canvas.getByRole('button', { name: /review answers/i }))
-
-    const table = within(await canvas.findByRole('table'))
+    const table = await reviewWithAiAnswer(canvasElement, /turn on ai features/i)
     await expect(table.getByRole('rowheader', { name: 'Casa Lisboa' })).toBeVisible()
     await expect(table.getAllByText(STORY_ADMIN.name)).toHaveLength(3)
     const cta = canvas.getByRole('button', {
@@ -109,14 +137,9 @@ export const ThreePropertiesOneCeremony: Story = {
 
 /** One property answers differently: its own name, language, manager, and "not now". */
 export const PerPropertyOverrides: Story = {
-  args: {
-    properties: imported,
-    viewerUserId: STORY_ADMIN.userId,
-    fns: createSetupFnsFixture({ properties: batch }),
-  },
+  args: batchArgs(),
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    const page = within(canvasElement.ownerDocument.body)
     const fns = args.fns as ReturnType<typeof createSetupFnsFixture>
 
     const athensName = await canvas.findByRole('textbox', {
@@ -127,18 +150,14 @@ export const PerPropertyOverrides: Story = {
     await next(canvasElement)
 
     await userEvent.click(canvas.getByRole('radio', { name: /choose the language/i }))
-    await userEvent.click(canvas.getByRole('switch', { name: /same answer for all 3/i }))
-    await userEvent.click(
-      canvas.getByRole('combobox', { name: /reply language for athens rooms/i }),
-    )
-    await userEvent.click(await page.findByRole('option', { name: 'Spanish' }))
+    await answerOneProperty(canvasElement, /reply language for athens rooms/i, 'Spanish')
     await next(canvasElement)
 
-    await userEvent.click(canvas.getByRole('switch', { name: /same answer for all 3/i }))
-    await userEvent.click(
-      canvas.getByRole('combobox', { name: /responsible manager for casa lisboa/i }),
+    await answerOneProperty(
+      canvasElement,
+      /responsible manager for casa lisboa/i,
+      STORY_MANAGER.name,
     )
-    await userEvent.click(await page.findByRole('option', { name: STORY_MANAGER.name }))
     await next(canvasElement)
 
     await userEvent.click(canvas.getByRole('radio', { name: /turn on ai features/i }))
@@ -182,23 +201,18 @@ export const PerPropertyOverrides: Story = {
 
 /** Clearing every manager forgets the per-property picks made before it. */
 export const ClearingManagersForgetsOverrides: Story = {
-  args: {
-    properties: imported,
-    viewerUserId: STORY_ADMIN.userId,
-    fns: createSetupFnsFixture({ properties: batch }),
-  },
+  args: batchArgs(),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const page = within(canvasElement.ownerDocument.body)
 
     await canvas.findByText('Question 1 of 4')
     await next(canvasElement)
     await next(canvasElement)
-    await userEvent.click(canvas.getByRole('switch', { name: /same answer for all 3/i }))
-    await userEvent.click(
-      canvas.getByRole('combobox', { name: /responsible manager for casa lisboa/i }),
+    await answerOneProperty(
+      canvasElement,
+      /responsible manager for casa lisboa/i,
+      STORY_MANAGER.name,
     )
-    await userEvent.click(await page.findByRole('option', { name: STORY_MANAGER.name }))
 
     await userEvent.click(canvas.getByRole('checkbox', { name: STORY_ADMIN.name }))
     await expect(
@@ -225,12 +239,10 @@ export const NotNowAndSkip: Story = {
     const fns = args.fns as ReturnType<typeof createSetupFnsFixture>
 
     await userEvent.click(await canvas.findByRole('button', { name: /skip for now/i }))
-    await userEvent.click(canvas.getByRole('button', { name: /skip for now/i }))
-    await userEvent.click(canvas.getByRole('button', { name: /skip for now/i }))
-    await userEvent.click(canvas.getByRole('radio', { name: /not now/i }))
-    await userEvent.click(canvas.getByRole('button', { name: /review answers/i }))
+    await skip(canvasElement)
+    await skip(canvasElement)
 
-    const table = within(await canvas.findByRole('table'))
+    const table = await reviewWithAiAnswer(canvasElement, /not now/i)
     await expect(table.getAllByText('Skipped')).toHaveLength(3)
     await expect(table.getByText('Not now')).toBeVisible()
     await expect(
@@ -270,12 +282,10 @@ export const RenameThePublicDisplayName: Story = {
 
     await userEvent.type(name, 'KODES')
     await next(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /skip for now/i }))
-    await userEvent.click(canvas.getByRole('button', { name: /skip for now/i }))
-    await userEvent.click(canvas.getByRole('radio', { name: /not now/i }))
-    await userEvent.click(canvas.getByRole('button', { name: /review answers/i }))
+    await skip(canvasElement)
+    await skip(canvasElement)
 
-    const table = within(await canvas.findByRole('table'))
+    const table = await reviewWithAiAnswer(canvasElement, /not now/i)
     await expect(table.getByText('KODES')).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Save setup' }))
 
