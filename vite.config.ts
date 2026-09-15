@@ -91,6 +91,43 @@ const config = defineConfig(({ mode }) => {
                     includeDependenciesRecursively: false,
                   },
                   {
+                    // Router, Query, Store and Start's client core in ONE chunk.
+                    // Left to default splitting, the TanStack internals first
+                    // paint shares with lazy routes sat in 20 closure chunks of
+                    // their own (`Match`, `useStore`, `useMutation`,
+                    // `createServerFn`, …), each gzipped alone
+                    // (scripts/check-bundle-budget.mjs).
+                    //
+                    // The test must stay closed under static imports: every
+                    // module it captures imports only other captured modules and
+                    // React, so this chunk imports nothing but vendor-react and
+                    // the Rolldown runtime, never a chunk that imports it back.
+                    // That is why @tanstack/store, react-store, seroval,
+                    // cookie-es and use-sync-external-store are listed. A group
+                    // of Router and Query alone imported index (@tanstack/store)
+                    // and createServerFn (seroval, cookie-es), which both import
+                    // the group; in that cycle server-fn bindings read
+                    // `undefined` in the browser while build and typecheck
+                    // passed. `start-client-core/.../client/` stays in the entry
+                    // chunk: hydrateStart imports src/start.ts and src/router.tsx.
+                    //
+                    // `tags: ['$initial']` keeps modules only lazy routes load
+                    // out of the group. Without it useBlocker, useQueries,
+                    // react-form's own @tanstack/store copy and react-redux's
+                    // use-sync-external-store entry rode first paint (+2,919 B
+                    // gzip measured). After changing this group or upgrading
+                    // TanStack, check the built chunks for static import cycles.
+                    name: 'vendor-tanstack',
+                    test: (id) =>
+                      /node_modules[\\/](?:@tanstack[\\/](?:react-router|router-core|history|react-query|query-core|store|react-store|start-client-core|router-ssr-query-core|react-router-ssr-query)|seroval|seroval-plugins|cookie-es|use-sync-external-store)[\\/]/.test(
+                        id,
+                      ) &&
+                      !/[\\/]start-client-core[\\/]dist[\\/]esm[\\/]client[\\/]/.test(id),
+                    tags: ['$initial'],
+                    priority: 34,
+                    includeDependenciesRecursively: false,
+                  },
+                  {
                     // `includeDependenciesRecursively` MUST stay false: with it
                     // on, recharts' transitive deps (clsx,
                     // use-sync-external-store, redux, es-toolkit) join this
@@ -115,7 +152,13 @@ const config = defineConfig(({ mode }) => {
                     test: /[\\/]src[\\/]contexts[\\/][^\\/]+[\\/]server[\\/]/,
                     priority: 10,
                     minShareCount: 2,
-                    entriesAwareMergeThreshold: 4 * 1024,
+                    // 16 KiB, not 4: at 4 KiB the stubs first paint shares with
+                    // lazy routes sat in seven 1.0–1.6 KB closure chunks, each
+                    // gzipped alone. Merged, they are one chunk and the closure
+                    // holds the same source modules (compared via source maps).
+                    // A lazy-only stub merged into an eager subgroup would ride
+                    // first paint, so compare again before raising this.
+                    entriesAwareMergeThreshold: 16 * 1024,
                     entriesAware: true,
                     includeDependenciesRecursively: false,
                   },
