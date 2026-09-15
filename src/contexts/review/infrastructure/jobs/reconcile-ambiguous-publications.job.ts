@@ -30,6 +30,7 @@ import type { ReplyRepository } from '../../application/ports/reply.repository'
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { ReplyCommandStore } from '../../application/ports/reply-command-store.port'
 import type { ReplyPublicationDispatchEvidencePort } from '../../application/ports/reply-publication-dispatch-evidence.port'
+import { attemptNeverDispatched } from './attempt-never-dispatched'
 import type {
   ReconcilePublicationOutcome,
   ReconcileReplyPublication,
@@ -235,33 +236,6 @@ async function readProvider(
   }
 }
 
-/** D4: true only on positive evidence. An unavailable lookup proves nothing. */
-async function attemptNeverDispatched(
-  deps: ReconcileSweepDeps,
-  reply: Reply,
-  attemptStartedAt: Date,
-  logger: Logger,
-): Promise<boolean> {
-  try {
-    const evidence = await deps.dispatchEvidence.findDispatchEvidence({
-      organizationId: reply.organizationId,
-      replyId: reply.id,
-      publicationCycle: reply.publicationCycle,
-      attemptNumber: reply.publicationAttempts,
-      attemptStartedAt,
-      now: deps.clock(),
-    })
-    return evidence === 'never_dispatched'
-  } catch (err) {
-    // Treated as "possibly dispatched": the row takes the read path instead.
-    logger.warn(
-      { errorName: err instanceof Error ? err.name : null },
-      'reconcile sweep: dispatch evidence unavailable',
-    )
-    return false
-  }
-}
-
 async function settleNeverDispatched(
   deps: ReconcileSweepDeps,
   reply: Reply,
@@ -366,7 +340,15 @@ async function reconcileUncertainRow(
         { publicationState: reply.publicationState },
         'reconcile sweep: publication attempt start is missing',
       )
-    } else if (await attemptNeverDispatched(deps, reply, attemptStartedAt, logger)) {
+    } else if (
+      await attemptNeverDispatched(deps, reply, attemptStartedAt, (err) => {
+        // Treated as "possibly dispatched": the row takes the read path instead.
+        logger.warn(
+          { errorName: err instanceof Error ? err.name : null },
+          'reconcile sweep: dispatch evidence unavailable',
+        )
+      })
+    ) {
       return await settleNeverDispatched(deps, reply)
     }
 

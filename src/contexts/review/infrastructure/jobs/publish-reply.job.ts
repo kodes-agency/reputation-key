@@ -63,6 +63,7 @@ import type { ReplyCommandStore } from '../../application/ports/reply-command-st
 import type { GoogleReviewApiPort } from '../../application/ports/google-review-api.port'
 import type { GoogleReplyObservationStore } from '../../application/ports/google-reply-observation-store.port'
 import type { ReplyPublicationDispatchEvidencePort } from '../../application/ports/reply-publication-dispatch-evidence.port'
+import { attemptNeverDispatched } from './attempt-never-dispatched'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Reply, Review } from '../../domain/types'
 import { replyId, organizationId, propertyId } from '#/shared/domain/ids'
@@ -385,31 +386,6 @@ async function waitOrMarkAmbiguous(
   await markUncertainAttemptAmbiguous(deps, reply, review, attemptStartedAt)
 }
 
-/** D4: true only on positive evidence. An unavailable lookup proves nothing. */
-async function attemptNeverDispatched(
-  deps: PublishHandlerDeps,
-  reply: Reply,
-  attemptStartedAt: Date,
-): Promise<boolean> {
-  try {
-    const evidence = await deps.dispatchEvidence.findDispatchEvidence({
-      organizationId: reply.organizationId,
-      replyId: reply.id,
-      publicationCycle: reply.publicationCycle,
-      attemptNumber: reply.publicationAttempts,
-      attemptStartedAt,
-      now: deps.clock(),
-    })
-    return evidence === 'never_dispatched'
-  } catch (err) {
-    deps.logger.warn(
-      contentFreeErrorIdentity(err),
-      'Reply dispatch evidence unavailable; reading Google instead',
-    )
-    return false
-  }
-}
-
 async function reconcileUncertainAttempt(
   deps: PublishHandlerDeps,
   job: Job<PublishReplyJobData>,
@@ -425,7 +401,15 @@ async function reconcileUncertainAttempt(
     attemptNumber: reply.publicationAttempts,
   })
 
-  if (attemptStartedAt && (await attemptNeverDispatched(deps, reply, attemptStartedAt))) {
+  const logEvidenceUnavailable = (err: unknown) =>
+    deps.logger.warn(
+      contentFreeErrorIdentity(err),
+      'Reply dispatch evidence unavailable; reading Google instead',
+    )
+  if (
+    attemptStartedAt &&
+    (await attemptNeverDispatched(deps, reply, attemptStartedAt, logEvidenceUnavailable))
+  ) {
     const now = deps.clock()
     const settled = await deps.replyCommandStore.settleNeverDispatchedAttempt(
       reply,
