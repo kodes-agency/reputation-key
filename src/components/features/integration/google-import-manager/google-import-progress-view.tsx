@@ -47,10 +47,8 @@ export function GoogleImportProgressView({
   onRetry,
   onCancel,
 }: Props) {
-  const percent = importProgressPercent(progress)
   const terminal = isImportParentTerminal(progress.status)
   const summary = importProgressSummary(progress)
-  const queued = progress.status === 'queued'
   const settingUp = terminal && importedPropertiesForAi(progress).length > 0
   const items = (
     <GoogleImportProgressItems
@@ -107,36 +105,7 @@ export function GoogleImportProgressView({
         </div>
       </div>
 
-      <div>
-        <div
-          className="h-2 overflow-hidden rounded-full bg-muted"
-          role="progressbar"
-          aria-label="Google property import progress"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={queued ? undefined : percent}
-          aria-valuetext={queued ? 'Queued, waiting for the import worker' : undefined}
-        >
-          {queued ? (
-            // A freshly committed import has nothing processed yet; an empty
-            // bar reads as "nothing happened". Show motion until the worker
-            // settles the first item.
-            <div className="h-full w-1/3 animate-pulse rounded-full bg-primary/60 motion-reduce:animate-none" />
-          ) : (
-            <div
-              className="h-full rounded-full bg-primary transition-[width]"
-              style={{ width: `${percent}%` }}
-            />
-          )}
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
-          {queued
-            ? 'Queued · the import worker picks this up within seconds'
-            : `${percent}% complete`}
-          {' · Last updated '}
-          {new Date(progress.updatedAt).toLocaleTimeString()}
-        </p>
-      </div>
+      <ImportProgressMeter progress={progress} />
 
       {isPollingError ? (
         <Alert variant="destructive">
@@ -190,6 +159,44 @@ export function GoogleImportProgressView({
           </Button>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+/** The progress bar and its caption: how far the worker got, and when we last heard. */
+function ImportProgressMeter({ progress }: Readonly<{ progress: ImportProgressDto }>) {
+  const percent = importProgressPercent(progress)
+  const queued = progress.status === 'queued'
+  return (
+    <div>
+      <div
+        className="h-2 overflow-hidden rounded-full bg-muted"
+        role="progressbar"
+        aria-label="Google property import progress"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={queued ? undefined : percent}
+        aria-valuetext={queued ? 'Queued, waiting for the import worker' : undefined}
+      >
+        {queued ? (
+          // A freshly committed import has nothing processed yet; an empty
+          // bar reads as "nothing happened". Show motion until the worker
+          // settles the first item.
+          <div className="h-full w-1/3 animate-pulse rounded-full bg-primary/60 motion-reduce:animate-none" />
+        ) : (
+          <div
+            className="h-full rounded-full bg-primary transition-[width]"
+            style={{ width: `${percent}%` }}
+          />
+        )}
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
+        {queued
+          ? 'Queued · the import worker picks this up within seconds'
+          : `${percent}% complete`}
+        {' · Last updated '}
+        {new Date(progress.updatedAt).toLocaleTimeString()}
+      </p>
     </div>
   )
 }
