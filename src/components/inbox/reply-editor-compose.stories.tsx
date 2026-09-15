@@ -24,6 +24,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { ReplyCompose, type ReplySuggestionResult } from './reply-editor-compose'
+import {
+  expectNeutralCounterAtTheByteLimit,
+  LOCAL_SAFE_TEMPLATE_REQUEST,
+} from './reply-editor.stories.play'
 import type { ReplyLanguageTarget } from './reply-language-options'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
@@ -283,9 +287,7 @@ export const OverLimitInBytes: Story = {
 export const AtTheByteLimit: Story = {
   args: { initialText: CYRILLIC_AT_LIMIT },
   play: async ({ canvas }) => {
-    const counter = canvas.getByText('4096/4096')
-    expect(counter).toHaveClass('text-muted-foreground')
-    expect(counter).not.toHaveClass('text-destructive')
+    expectNeutralCounterAtTheByteLimit(canvas)
     expect(canvas.getByRole('button', { name: /submit for approval/i })).toBeEnabled()
   },
 }
@@ -462,12 +464,7 @@ export const LocalSafeMenuUsesCataloguePath: Story = {
     await userEvent.click(page().getByRole('menuitem', { name: 'Local safe template' }))
 
     await waitFor(() =>
-      expect(onGenerateFallback).toHaveBeenCalledWith(
-        'professional',
-        { kind: 'property_default' },
-        true,
-        expect.any(String),
-      ),
+      expect(onGenerateFallback).toHaveBeenCalledWith(...LOCAL_SAFE_TEMPLATE_REQUEST),
     )
     await expect(canvas.findByText('Local safe starting point')).resolves.toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: /use draft/i }))
@@ -896,6 +893,15 @@ export const ManualEditWinsOverDelayedSuggestion: Story = {
   },
 }
 
+/** Asks for an AI draft and waits for the refusal's sentence to appear under the row. */
+async function expectDraftRefusedWith(
+  canvas: ReturnType<typeof within>,
+  sentence: RegExp,
+): Promise<void> {
+  await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+  await waitFor(() => expect(canvas.getByText(sentence)).toBeVisible())
+}
+
 const onGenerateNotAuthorized = fn(async (): Promise<ReplySuggestionResult> => ({
   status: 'unavailable',
   code: 'not_authorized',
@@ -910,11 +916,7 @@ export const AiRepliesNotEnabled: Story = {
   play: async ({ canvas }) => {
     onGenerateNotAuthorized.mockClear()
 
-    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
-
-    await waitFor(() =>
-      expect(canvas.getByText(/AI is off for this property/i)).toBeVisible(),
-    )
+    await expectDraftRefusedWith(canvas, /AI is off for this property/i)
     const link = canvas.getByRole('link', { name: /enable ai replies/i })
     expect(link).toHaveAttribute(
       'href',
@@ -1049,12 +1051,9 @@ export const PublicDisplayNameMissing: Story = {
   play: async ({ canvas }) => {
     onGenerateBrandRefusal.mockClear()
 
-    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
-
-    await waitFor(() =>
-      expect(
-        canvas.getByText(/reply suggestions need this property's public display name/i),
-      ).toBeVisible(),
+    await expectDraftRefusedWith(
+      canvas,
+      /reply suggestions need this property's public display name/i,
     )
     expect(
       canvas.getByRole('link', { name: /set the public display name/i }),
@@ -1078,13 +1077,7 @@ export const PublicDisplayNameMissingForManager: Story = {
   play: async ({ canvas }) => {
     onGenerateBrandRefusal.mockClear()
 
-    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
-
-    await waitFor(() =>
-      expect(
-        canvas.getByText(/ask an account admin to set this property/i),
-      ).toBeVisible(),
-    )
+    await expectDraftRefusedWith(canvas, /ask an account admin to set this property/i)
     expect(
       canvas.queryByRole('link', { name: /set the public display name/i }),
     ).toBeNull()

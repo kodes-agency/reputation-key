@@ -88,6 +88,7 @@ import { FeedbackHandlingBody } from './feedback-handling-body'
 import { feedbackHandlingAction } from './feedback-handling-presentation'
 import { InboxNotesThread } from './inbox-notes-thread'
 import { ReplyComposer } from './reply-composer'
+import { LOCAL_SAFE_TEMPLATE_REQUEST } from './reply-editor.stories.play'
 import { ReplyStatusView, resolveReplyView } from './reply-status-view'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
@@ -2109,12 +2110,7 @@ export const LocalSafeTemplateTagAt720: Story = atPane({
     await openMenu(TEMPLATE_TRIGGER)
     await userEvent.click(page().getByRole('menuitem', { name: 'Local safe template' }))
     await waitFor(() =>
-      expect(onGenerateByTarget).toHaveBeenLastCalledWith(
-        'professional',
-        { kind: 'property_default' },
-        true,
-        expect.any(String),
-      ),
+      expect(onGenerateByTarget).toHaveBeenLastCalledWith(...LOCAL_SAFE_TEMPLATE_REQUEST),
     )
     await expect(canvas.findByText('Local safe starting point')).resolves.toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Use draft' }))

@@ -9,6 +9,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { ReviewReplyPublishedEditor } from './reply-editor-views'
+import { expectNeutralCounterAtTheByteLimit } from './reply-editor.stories.play'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 
 const onSave = fn(async (_text: string) => undefined)
@@ -59,6 +60,25 @@ export const PublishedEditRequiresConfirmation: Story = {
   },
 }
 
+/** A blocked update refuses the click before its confirmation, so nothing is saved. */
+async function expectUpdateClickRefused(review: HTMLElement): Promise<void> {
+  await userEvent.click(review)
+  expect(within(document.body).queryByRole('alertdialog')).toBeNull()
+  expect(onSave).not.toHaveBeenCalled()
+}
+
+/** Over the limit in bytes: the counter turns red and the update is blocked. */
+async function expectBlockedOverTheByteLimit(
+  canvas: ReturnType<typeof within>,
+  counter: string,
+): Promise<void> {
+  onSave.mockClear()
+  expect(canvas.getByText(counter)).toHaveClass('text-destructive')
+  const review = canvas.getByRole('button', { name: /review update/i })
+  expect(review).toHaveAttribute('aria-disabled', 'true')
+  await expectUpdateClickRefused(review)
+}
+
 /**
  * A template slot left unfilled blocks the republish AND has to say why, on the
  * control — which means the control stays reachable. Natively disabled, it left
@@ -98,9 +118,7 @@ export const PublishedEditWithUnfilledSlot: Story = {
     expect(document.getElementById(reason.id)).toHaveTextContent(UNFILLED_SLOT_MESSAGE)
 
     // Focusable is not permitted: the click is refused before the dialog.
-    await userEvent.click(review)
-    expect(within(document.body).queryByRole('alertdialog')).toBeNull()
-    expect(onSave).not.toHaveBeenCalled()
+    await expectUpdateClickRefused(review)
   },
 }
 
@@ -200,14 +218,7 @@ export const PublishedEditCountsBytesNotCharacters: Story = {
     onCancel,
   },
   play: async ({ canvas }) => {
-    onSave.mockClear()
-    expect(canvas.getByText('4098/4096')).toHaveClass('text-destructive')
-    const review = canvas.getByRole('button', { name: /review update/i })
-    expect(review).toHaveAttribute('aria-disabled', 'true')
-
-    await userEvent.click(review)
-    expect(within(document.body).queryByRole('alertdialog')).toBeNull()
-    expect(onSave).not.toHaveBeenCalled()
+    await expectBlockedOverTheByteLimit(canvas, '4098/4096')
   },
 }
 
@@ -220,9 +231,7 @@ export const PublishedEditAtTheByteLimit: Story = {
     onCancel,
   },
   play: async ({ canvas }) => {
-    const counter = canvas.getByText('4096/4096')
-    expect(counter).toHaveClass('text-muted-foreground')
-    expect(counter).not.toHaveClass('text-destructive')
+    expectNeutralCounterAtTheByteLimit(canvas)
     expect(canvas.getByRole('button', { name: /review update/i })).toHaveAttribute(
       'aria-disabled',
       'false',
@@ -245,13 +254,6 @@ export const PublishedEditTrailingLineFeedOverTheLimit: Story = {
     onCancel,
   },
   play: async ({ canvas }) => {
-    onSave.mockClear()
-    expect(canvas.getByText('4097/4096')).toHaveClass('text-destructive')
-    const review = canvas.getByRole('button', { name: /review update/i })
-    expect(review).toHaveAttribute('aria-disabled', 'true')
-
-    await userEvent.click(review)
-    expect(within(document.body).queryByRole('alertdialog')).toBeNull()
-    expect(onSave).not.toHaveBeenCalled()
+    await expectBlockedOverTheByteLimit(canvas, '4097/4096')
   },
 }
