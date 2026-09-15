@@ -52,8 +52,10 @@
 // every chunk. The only cycle is the lazy vendor-charts ↔ chart, chart-frame,
 // ratings, portal-detail-page cycle that the 2026-09-15 build already had.
 // Rebuilt under the same check, the reverted attempt shows a 21-chunk cycle
-// through index. Repeat the check after changing chunk groups or upgrading
-// TanStack.
+// through index. This script now runs that check itself: any static import cycle
+// that includes a chunk of the initial closure fails the gate, so a chunk group
+// change or a TanStack upgrade cannot reopen it silently. A cycle confined to
+// lazy chunks (the vendor-charts one) is reported by neither gate.
 //
 // The closure budget is a RATCHET above the measured floor, not an aspirational
 // number. The measured target is 319,519 B (312 KiB), replacing the unmeasured
@@ -71,6 +73,8 @@
 //
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
+// When a cycle fails it: the chunk group that moved a module away from the
+// modules it imports is the cause — keep a group closed under static imports.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -128,21 +132,74 @@ function staticDependencies(file) {
   return dependencies
 }
 
+const edges = new Map(jsFiles.map((file) => [file, staticDependencies(file)]))
+
 const entry = entryFiles[0]
 const closure = new Set([entry])
 const queue = [entry]
 while (queue.length > 0) {
-  for (const dependency of staticDependencies(queue.pop())) {
+  for (const dependency of edges.get(queue.pop())) {
     if (closure.has(dependency)) continue
     closure.add(dependency)
     queue.push(dependency)
   }
 }
 
+/** Tarjan's strongly connected components; each one of 2+ chunks is a cycle. */
+function importCycles(graph) {
+  let index = 0
+  const stack = []
+  const onStack = new Set()
+  const indexOf = new Map()
+  const lowLink = new Map()
+  const cycles = []
+  const visit = (file) => {
+    indexOf.set(file, index)
+    lowLink.set(file, index)
+    index += 1
+    stack.push(file)
+    onStack.add(file)
+    for (const dependency of graph.get(file)) {
+      if (!indexOf.has(dependency)) {
+        visit(dependency)
+        lowLink.set(file, Math.min(lowLink.get(file), lowLink.get(dependency)))
+      } else if (onStack.has(dependency)) {
+        lowLink.set(file, Math.min(lowLink.get(file), indexOf.get(dependency)))
+      }
+    }
+    if (lowLink.get(file) !== indexOf.get(file)) return
+    const component = []
+    let member
+    do {
+      member = stack.pop()
+      onStack.delete(member)
+      component.push(member)
+    } while (member !== file)
+    if (component.length > 1) cycles.push(component.sort())
+  }
+  for (const file of graph.keys()) if (!indexOf.has(file)) visit(file)
+  return cycles
+}
+
+// One side of an ESM import cycle evaluates while the other is uninitialized,
+// and the bundler emits `var`, so a read across the cycle yields `undefined`
+// instead of throwing. Build, typecheck and the size budgets all pass; the
+// browser does not (see "Cycles" above). Only cycles that reach first paint
+// are gated here.
+const firstPaintCycles = importCycles(edges).filter((cycle) =>
+  cycle.some((file) => closure.has(file)),
+)
+
 const failures = []
 const fmt = (n) => `${n.toLocaleString('en-US')} B`
 const over = (what, actual, budget) =>
   failures.push(`${what}: ${fmt(actual)} exceeds budget ${fmt(budget)}`)
+
+for (const cycle of firstPaintCycles) {
+  failures.push(
+    `static import cycle through the initial closure (${cycle.length} chunks): ${cycle.join(' ↔ ')}`,
+  )
+}
 
 const entrySize = sizes.get(entry)
 if (entrySize > BUDGETS.mainEntryGzip) {
@@ -178,7 +235,9 @@ if (failures.length > 0) {
   process.exit(1)
 }
 
-console.log('[bundle-budget] OK — all chunks within budget:')
+console.log(
+  '[bundle-budget] OK — all chunks within budget, no static import cycle through the initial closure:',
+)
 console.log(`  entry ${entry}: ${fmt(entrySize)} / ${fmt(BUDGETS.mainEntryGzip)} gzip`)
 console.log(
   `  initial closure (${closure.size} js + ${cssFiles.length} css): ${fmt(initialClosure)} / ${fmt(BUDGETS.initialClosureGzip)} gzip`,
