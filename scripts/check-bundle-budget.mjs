@@ -19,21 +19,43 @@
 //   initial static closure (JS + all CSS)   319,519 B      329,105 B (+3.0%)
 //   largest lazy chunk (vendor-charts)       93,053 B      128,000 B (125 KiB)
 //
-// Closure re-measured 2026-09-15 on a fresh production build of the property
-// setup work (settings hub, setup wizard, AI admission lanes) with the reply
-// publication fix: 334,563 B (99 js + 1 css), so the closure budget is now
-// 344,600 B (+3.0%). The entry chunk measured 55,642 B and vendor-charts
-// 93,029 B; their budgets are unchanged. What grew: ~12 KB of raw first-paint
-// code, nearly all route configuration (eight settings hub child routes, the
-// import wizard) plus a few server-fn stubs — and more chunks. Every Router and
-// Query internal shared by first paint and a lazy route becomes its own shared
-// chunk, and the new routes multiplied those (70 → 99 closure chunks), each
-// gzipped alone. A `vendor-tanstack` group recovered ~7 KB but created a static
-// import cycle (index ↔ vendor-tanstack ↔ createServerFn) that left server-fn
-// bindings undefined in the browser — every e2e shard failed — so it was
-// reverted. Consolidating those internals without a cycle (the group must also
-// own @tanstack/store and Start's client core) is the way back under the old
-// number; measure chunk cycles on the built assets before trusting it.
+// Closure re-measured 2026-09-15 after the property setup work (settings hub,
+// setup wizard, AI admission lanes, reply publication fix): 334,563 B (99 js +
+// 1 css), and the budget was re-based to 344,600 B. Raw first-paint code grew
+// only ~12 KB, nearly all route configuration. The rest was chunk count: every
+// Router and Query internal shared by first paint and a lazy route became its
+// own shared chunk, the new routes multiplied those (70 → 99 closure chunks),
+// and each chunk is gzipped alone.
+//
+// Re-measured 2026-09-16 on a fresh production build with the `vendor-tanstack`
+// group in vite.config.ts: 326,719 B (75 js + 1 css), so the closure budget is
+// back to 329,105 B (326,719 + 3% would exceed it). The entry chunk measured
+// 33,474 B and vendor-charts 93,034 B; their budgets are unchanged. The group
+// puts every first-paint module of Router, Query, Store, Start's client core,
+// seroval, cookie-es and use-sync-external-store into one 52,004 B chunk. It
+// replaces 20 closure chunks (createServerFn, link, Match, useStore, …) and
+// takes 22,168 B out of the entry chunk. app-server-fns now merges subgroups
+// under 16 KiB, which folds its seven closure chunks into one. A rebuild of
+// 6de210a6d reproduced the 2026-09-15 numbers exactly; compared with it through
+// source maps, the closure holds the same source modules. Only Vite's preload
+// helper moved, from the old lazyRouteComponent chunk into a chunk of its own.
+//
+// Cycles: the first `vendor-tanstack` attempt (Router and Query only) imported
+// index (@tanstack/store) and createServerFn (seroval, cookie-es), which both
+// import it back. One side of an ESM cycle evaluates first and the bundler
+// emits `var`, so server-fn bindings read `undefined` in the browser: every e2e
+// shard failed while build and typecheck passed. The current group imports only
+// vendor-react and the Rolldown runtime. This was checked on the built assets:
+// the static import/export edges of all 205 chunks, read with rolldown's
+// parseAst and with STATIC_SPECIFIER below (the two edge sets were identical),
+// then strongly connected components over those edges, then a node:vm link of
+// every chunk. The only cycle is the lazy vendor-charts ↔ chart, chart-frame,
+// ratings, portal-detail-page cycle that the 2026-09-15 build already had.
+// Rebuilt under the same check, the reverted attempt shows a 21-chunk cycle
+// through index. This script now runs that check itself: any static import cycle
+// that includes a chunk of the initial closure fails the gate, so a chunk group
+// change or a TanStack upgrade cannot reopen it silently. A cycle confined to
+// lazy chunks (the vendor-charts one) is reported by neither gate.
 //
 // The closure budget is a RATCHET above the measured floor, not an aspirational
 // number. The measured target is 319,519 B (312 KiB), replacing the unmeasured
@@ -51,6 +73,8 @@
 //
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
+// When a cycle fails it: the chunk group that moved a module away from the
+// modules it imports is the cause — keep a group closed under static imports.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -62,7 +86,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 344_600, // measured 334,563 + 3% (2026-09-15; was 319,519 + 3%)
+  initialClosureGzip: 329_105, // 319,519 + 3% (2026-09-08); measured 326,719 on 2026-09-16
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 
@@ -108,21 +132,74 @@ function staticDependencies(file) {
   return dependencies
 }
 
+const edges = new Map(jsFiles.map((file) => [file, staticDependencies(file)]))
+
 const entry = entryFiles[0]
 const closure = new Set([entry])
 const queue = [entry]
 while (queue.length > 0) {
-  for (const dependency of staticDependencies(queue.pop())) {
+  for (const dependency of edges.get(queue.pop())) {
     if (closure.has(dependency)) continue
     closure.add(dependency)
     queue.push(dependency)
   }
 }
 
+/** Tarjan's strongly connected components; each one of 2+ chunks is a cycle. */
+function importCycles(graph) {
+  let index = 0
+  const stack = []
+  const onStack = new Set()
+  const indexOf = new Map()
+  const lowLink = new Map()
+  const cycles = []
+  const visit = (file) => {
+    indexOf.set(file, index)
+    lowLink.set(file, index)
+    index += 1
+    stack.push(file)
+    onStack.add(file)
+    for (const dependency of graph.get(file)) {
+      if (!indexOf.has(dependency)) {
+        visit(dependency)
+        lowLink.set(file, Math.min(lowLink.get(file), lowLink.get(dependency)))
+      } else if (onStack.has(dependency)) {
+        lowLink.set(file, Math.min(lowLink.get(file), indexOf.get(dependency)))
+      }
+    }
+    if (lowLink.get(file) !== indexOf.get(file)) return
+    const component = []
+    let member
+    do {
+      member = stack.pop()
+      onStack.delete(member)
+      component.push(member)
+    } while (member !== file)
+    if (component.length > 1) cycles.push(component.sort())
+  }
+  for (const file of graph.keys()) if (!indexOf.has(file)) visit(file)
+  return cycles
+}
+
+// One side of an ESM import cycle evaluates while the other is uninitialized,
+// and the bundler emits `var`, so a read across the cycle yields `undefined`
+// instead of throwing. Build, typecheck and the size budgets all pass; the
+// browser does not (see "Cycles" above). Only cycles that reach first paint
+// are gated here.
+const firstPaintCycles = importCycles(edges).filter((cycle) =>
+  cycle.some((file) => closure.has(file)),
+)
+
 const failures = []
 const fmt = (n) => `${n.toLocaleString('en-US')} B`
 const over = (what, actual, budget) =>
   failures.push(`${what}: ${fmt(actual)} exceeds budget ${fmt(budget)}`)
+
+for (const cycle of firstPaintCycles) {
+  failures.push(
+    `static import cycle through the initial closure (${cycle.length} chunks): ${cycle.join(' ↔ ')}`,
+  )
+}
 
 const entrySize = sizes.get(entry)
 if (entrySize > BUDGETS.mainEntryGzip) {
@@ -158,7 +235,9 @@ if (failures.length > 0) {
   process.exit(1)
 }
 
-console.log('[bundle-budget] OK — all chunks within budget:')
+console.log(
+  '[bundle-budget] OK — all chunks within budget, no static import cycle through the initial closure:',
+)
 console.log(`  entry ${entry}: ${fmt(entrySize)} / ${fmt(BUDGETS.mainEntryGzip)} gzip`)
 console.log(
   `  initial closure (${closure.size} js + ${cssFiles.length} css): ${fmt(initialClosure)} / ${fmt(BUDGETS.initialClosureGzip)} gzip`,
