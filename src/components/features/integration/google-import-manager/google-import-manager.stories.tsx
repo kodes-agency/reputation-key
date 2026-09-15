@@ -10,6 +10,7 @@ import type {
   ImportProgressDto,
 } from '#/contexts/integration/application/public-api'
 import { GoogleImportManager } from './google-import-manager'
+import { openImportDetailsForProperty } from './google-import.stories.play'
 import type { GoogleImportFns } from './google-import-manager-contract'
 
 const ORGANIZATION_ID = 'org-story'
@@ -130,12 +131,7 @@ export const ProgressRoute: Story = {
       canvas.findByRole('textbox', { name: 'Public display name' }, { timeout: 5_000 }),
     ).resolves.toHaveValue('Studio Priority')
     // The finished import folds away; its rows are one click from the setup.
-    await userEvent.click(canvas.getByRole('button', { name: /import details/i }))
-    // Desktop table and mobile cards both render the row; one is visible.
-    const propertyLinks = await canvas.findAllByRole('link', {
-      name: /view property studio priority/i,
-    })
-    await expect(propertyLinks.some((link) => link.checkVisibility())).toBe(true)
+    await openImportDetailsForProperty(canvasElement, /view property studio priority/i)
   },
 }
 

@@ -157,6 +157,12 @@ export const NeedsTimezone: Story = {
   },
 }
 
+/** Opens a row's timezone picker; its list renders in a popover outside the canvas. */
+async function openTimezonePicker(canvasElement: HTMLElement, row: RegExp) {
+  await userEvent.click(within(canvasElement).getByRole('combobox', { name: row }))
+  return within(canvasElement.ownerDocument.body)
+}
+
 /** One property has its own timezone field; a control for "all rows" would repeat it. */
 export const SingleProperty: Story = {
   render: () => (
@@ -191,8 +197,7 @@ export const PickingTheTimezoneClearsTheFlag: Story = {
   render: () => <ReviewHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const body = within(canvasElement.ownerDocument.body)
-    await userEvent.click(canvas.getByRole('combobox', { name: /timezone, row 1/i }))
+    const body = await openTimezonePicker(canvasElement, /timezone, row 1/i)
     // The row's country comes first.
     await expect(body.getByText('In United States')).toBeVisible()
     await userEvent.type(body.getByPlaceholderText(/search a city/i), 'los angeles')
@@ -210,9 +215,7 @@ export const PickingTheTimezoneClearsTheFlag: Story = {
 export const SearchATimezoneByOffset: Story = {
   render: () => <ReviewHarness />,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const body = within(canvasElement.ownerDocument.body)
-    await userEvent.click(canvas.getByRole('combobox', { name: /timezone, row 2/i }))
+    const body = await openTimezonePicker(canvasElement, /timezone, row 2/i)
     await expect(body.getByRole('dialog', { name: 'Choose a timezone' })).toBeVisible()
     await userEvent.type(body.getByPlaceholderText(/search a city/i), '+9:30')
     await expect(
@@ -230,9 +233,7 @@ export const SearchATimezoneByOffset: Story = {
 export const OpenListKeepsItsPlace: Story = {
   render: () => <ReviewHarness rerenderEveryMs={200} />,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const body = within(canvasElement.ownerDocument.body)
-    await userEvent.click(canvas.getByRole('combobox', { name: /timezone, row 1/i }))
+    const body = await openTimezonePicker(canvasElement, /timezone, row 1/i)
     const list = await body.findByRole('listbox')
     // This runner compiles no Tailwind: give the list the height its classes
     // give it in the app, so it scrolls.

@@ -15,6 +15,7 @@ import {
 } from '#/components/features/property-setup/setup.stories.fixtures'
 import { GoogleImportProgressView } from './google-import-progress-view'
 import { importedPropertiesForAi } from './google-import-progress-model'
+import { openImportDetailsForProperty } from './google-import.stories.play'
 
 const MERIDIAN: StorySetupProperty = {
   propertyId: '10000000-0000-4000-8000-000000000011',
@@ -72,6 +73,15 @@ const processing: ImportProgressDto = {
   pollAfterMs: 2_000,
   purgeAt: null,
   updatedAt: '2026-08-12T10:00:00.000Z',
+}
+
+/** Settled with one failed row, so the rows stay open under the setup step. */
+const completedWithIssues: ImportProgressDto = {
+  ...processing,
+  status: 'completed_with_issues',
+  processedCount: 4,
+  pollAfterMs: null,
+  counts: { ...processing.counts, pending: 0, imported: 3 },
 }
 
 function ProgressHarness({
@@ -153,17 +163,7 @@ export const Queued: Story = {
  * summary, and the import's rows stay open because one needs attention.
  */
 export const ImportedThenSetUp: Story = {
-  render: () => (
-    <ProgressHarness
-      snapshot={{
-        ...processing,
-        status: 'completed_with_issues',
-        processedCount: 4,
-        pollAfterMs: null,
-        counts: { ...processing.counts, pending: 0, imported: 3 },
-      }}
-    />
-  ),
+  render: () => <ProgressHarness snapshot={completedWithIssues} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
@@ -200,11 +200,10 @@ export const ImportDetailsFolded: Story = {
     await expect(
       canvas.queryByRole('link', { name: /view property the meridian grand resort/i }),
     ).toBeNull()
-    await userEvent.click(canvas.getByRole('button', { name: /import details/i }))
-    const propertyLinks = await canvas.findAllByRole('link', {
-      name: /view property the meridian grand resort/i,
-    })
-    await expect(propertyLinks.some((link) => link.checkVisibility())).toBe(true)
+    await openImportDetailsForProperty(
+      canvasElement,
+      /view property the meridian grand resort/i,
+    )
   },
 }
 
@@ -258,17 +257,7 @@ export const Processing: Story = {
 }
 
 export const CompletedWithIssues: Story = {
-  render: () => (
-    <ProgressHarness
-      snapshot={{
-        ...processing,
-        status: 'completed_with_issues',
-        processedCount: 4,
-        pollAfterMs: null,
-        counts: { ...processing.counts, pending: 0, imported: 3 },
-      }}
-    />
-  ),
+  render: () => <ProgressHarness snapshot={completedWithIssues} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('link', { name: /view properties/i })).toBeVisible()
