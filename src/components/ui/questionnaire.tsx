@@ -65,7 +65,9 @@ function QuestionnaireTitle({
   return (
     <QuestionnairePrimitive.Title
       data-slot="questionnaire-title"
-      className={cn('text-lg font-semibold tracking-tight text-pretty', className)}
+      // A rendered <legend> is not a flex item of its fieldset, so the item's gap
+      // never reaches it: the padding keeps the description off the title.
+      className={cn('pb-1.5 text-lg font-semibold tracking-tight text-pretty', className)}
       {...props}
     />
   )
@@ -78,7 +80,7 @@ function QuestionnaireDescription({
   return (
     <QuestionnairePrimitive.Description
       data-slot="questionnaire-description"
-      className={cn('-mt-2 text-sm text-pretty text-muted-foreground', className)}
+      className={cn('text-sm text-pretty text-muted-foreground', className)}
       {...props}
     />
   )

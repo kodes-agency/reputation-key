@@ -55,8 +55,9 @@ export function languageSuggestionSummary(
   const ordered = [...groups.entries()].sort((a, b) => b[1].length - a[1].length)
   if (ordered.length === 1) {
     const [language, names] = ordered[0]!
+    // One property's choice already names the language; say only why.
     return names.length === 1
-      ? `${replyLanguageLabel(language)}, based on the property's country.`
+      ? "Suggested from the property's country."
       : `${replyLanguageLabel(language)} for all ${names.length}, based on their country.`
   }
   return `Based on each country: ${ordered

@@ -41,7 +41,7 @@ describe('setup summaries', () => {
 
   it('summarises the country suggestions', () => {
     expect(languageSuggestionSummary([property('Hotel Berlin', 'DE')])).toBe(
-      "German, based on the property's country.",
+      "Suggested from the property's country.",
     )
     expect(
       languageSuggestionSummary([
