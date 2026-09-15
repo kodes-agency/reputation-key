@@ -58,6 +58,27 @@ function gatewayFailureKind(failure: GoogleProviderExecutionFailure): GbpApiErro
   return 'upstream_error'
 }
 
+/**
+ * The typed error for an execution the gateway refused or could not finish. It
+ * keeps the gateway's evidence — whether the request could have reached Google,
+ * the execution code, and Google's status when it answered — so a caller never
+ * reads a write that may have happened as one that did not.
+ */
+function gatewayFailureError(operation: string, failure: GoogleProviderExecutionFailure) {
+  const gatewayKind = gatewayFailureKind(failure)
+  return createGbpApiError(operation, gatewayKind, {
+    retryAfterMs: retryableBackoffMs(gatewayKind, failure.retryAfterMs),
+    ...(failure.code === 'admission_denied' && failure.admissionCode !== undefined
+      ? { executionAdmissionCode: failure.admissionCode }
+      : {}),
+    dispatch: failure.dispatch,
+    executionCode: failure.code,
+    ...(failure.providerStatus === undefined
+      ? {}
+      : { providerStatus: failure.providerStatus }),
+  })
+}
+
 /** Retryable kinds always carry a real wait; the rest carry the raw hint. */
 function retryableBackoffMs(
   kind: GbpApiErrorKind,
@@ -166,20 +187,7 @@ export async function executeGoogleProviderRaw(
     input.signal?.removeEventListener('abort', abortFromCaller)
   }
 
-  if (!result.ok) {
-    const gatewayKind = gatewayFailureKind(result)
-    throw createGbpApiError(input.operation, gatewayKind, {
-      retryAfterMs: retryableBackoffMs(gatewayKind, result.retryAfterMs),
-      ...(result.code === 'admission_denied' && result.admissionCode !== undefined
-        ? { executionAdmissionCode: result.admissionCode }
-        : {}),
-      dispatch: result.dispatch,
-      executionCode: result.code,
-      ...(result.providerStatus === undefined
-        ? {}
-        : { providerStatus: result.providerStatus }),
-    })
-  }
+  if (!result.ok) throw gatewayFailureError(input.operation, result)
 
   const providerBodyBytes = result.body.byteLength
   try {
