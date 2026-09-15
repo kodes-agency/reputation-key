@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
 import { Button } from '#/components/ui/button'
 import { GoogleImportReviewForm } from './google-import-review-form'
@@ -73,11 +73,23 @@ function ReviewHarness({
   initialDraft = flaggedDraft,
   pending = false,
   submitError = null,
+  rerenderEveryMs = null,
 }: {
   initialDraft?: () => ImportReviewDraft
   pending?: boolean
   submitError?: string | null
+  /** Re-render around the form on a timer, as the discovery lease renewal does. */
+  rerenderEveryMs?: number | null
 }) {
+  const [, setTicks] = useState(0)
+  useEffect(() => {
+    if (rerenderEveryMs === null) return
+    const timer = window.setInterval(
+      () => setTicks((ticks) => ticks + 1),
+      rerenderEveryMs,
+    )
+    return () => window.clearInterval(timer)
+  }, [rerenderEveryMs])
   const [draft] = useState(initialDraft)
   const [submitted, setSubmitted] = useState<ImportReviewDraft | null>(null)
   const [reviewing, setReviewing] = useState(true)
@@ -132,10 +144,11 @@ export const NeedsTimezone: Story = {
     await expect(
       canvas.getByRole('combobox', { name: /timezone, row 1/i }),
     ).toHaveAttribute('aria-invalid', 'true')
-    // France has one zone: derived, not guessed from the browser.
+    // France has one zone: derived, not guessed from the browser. It reads as a
+    // city and its offset, not as the IANA id.
     await expect(
       canvas.getByRole('combobox', { name: /timezone, row 2/i }),
-    ).toHaveTextContent('Europe/Paris')
+    ).toHaveTextContent(/^Paris \(UTC\+[12]\)$/)
     await expect(canvas.getByRole('button', { name: /start import/i })).toBeDisabled()
     await expect(
       canvas.getByText(/fix the flagged row to start the import/i),
@@ -173,17 +186,65 @@ export const NeedsTimezoneLight: Story = {
   },
 }
 
-/** Picking the zone clears the flag, in the row and in the summary. */
+/** Searching finds the zone by city; picking it clears the flag, in the row and the summary. */
 export const PickingTheTimezoneClearsTheFlag: Story = {
   render: () => <ReviewHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const body = within(canvasElement.ownerDocument.body)
     await userEvent.click(canvas.getByRole('combobox', { name: /timezone, row 1/i }))
-    await userEvent.click(body.getByRole('option', { name: 'America/Los_Angeles' }))
+    // The row's country comes first.
+    await expect(body.getByText('In United States')).toBeVisible()
+    await userEvent.type(body.getByPlaceholderText(/search a city/i), 'los angeles')
+    await userEvent.click(body.getByRole('option', { name: /los angeles \(utc/i }))
+    await expect(
+      canvas.getByRole('combobox', { name: /timezone, row 1/i }),
+    ).toHaveTextContent(/^Los Angeles \(UTC\u2212[78]\)$/)
     await expect(canvas.getByText('3 properties ready to import')).toBeVisible()
     await expect(canvas.queryByText('Choose a timezone.')).toBeNull()
     await expect(canvas.getByRole('button', { name: /start import/i })).toBeEnabled()
+  },
+}
+
+/** People type offsets the way they know them: "+9:30" finds Darwin. */
+export const SearchATimezoneByOffset: Story = {
+  render: () => <ReviewHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const body = within(canvasElement.ownerDocument.body)
+    await userEvent.click(canvas.getByRole('combobox', { name: /timezone, row 2/i }))
+    await expect(body.getByRole('dialog', { name: 'Choose a timezone' })).toBeVisible()
+    await userEvent.type(body.getByPlaceholderText(/search a city/i), '+9:30')
+    await expect(
+      body.getByRole('option', { name: /darwin \(utc\+9:30\)/i }),
+    ).toBeVisible()
+    await expect(body.queryByRole('option', { name: /paris/i })).toBeNull()
+  },
+}
+
+/**
+ * The discovery lease renews every few seconds and re-renders the page. An
+ * open list must stay where the merchant scrolled it; the old select jumped
+ * back to the top on every renewal.
+ */
+export const OpenListKeepsItsPlace: Story = {
+  render: () => <ReviewHarness rerenderEveryMs={200} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const body = within(canvasElement.ownerDocument.body)
+    await userEvent.click(canvas.getByRole('combobox', { name: /timezone, row 1/i }))
+    const list = await body.findByRole('listbox')
+    // This runner compiles no Tailwind: give the list the height its classes
+    // give it in the app, so it scrolls.
+    list.style.maxHeight = '300px'
+    list.style.overflowY = 'auto'
+    list.scrollTop = 900
+    await waitFor(() => expect(list.scrollTop).toBeGreaterThan(0))
+    const scrolled = list.scrollTop
+    // Several re-renders later the list has not moved.
+    await new Promise((resolve) => window.setTimeout(resolve, 1_000))
+    await expect(list.scrollTop).toBe(scrolled)
+    await expect(body.getByRole('listbox')).toBe(list)
   },
 }
 

@@ -1,18 +1,9 @@
-import { useMemo } from 'react'
+import { CountryCombobox } from '#/components/forms/country-combobox'
+import { TimezoneCombobox } from '#/components/forms/timezone-combobox'
 import { Badge } from '#/components/ui/badge'
 import { Checkbox } from '#/components/ui/checkbox'
 import { FieldLabel } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
 import { TableCell, TableRow } from '#/components/ui/table'
 import type { GoogleImportReviewFormApi } from './google-import-manager-contract'
 import {
@@ -25,7 +16,6 @@ import {
 import {
   IMPORT_COUNTRY_OPTIONS,
   importCountryLabel,
-  importTimezoneGroups,
 } from './google-import-review-options'
 
 type Props = Readonly<{
@@ -72,10 +62,6 @@ export function GoogleImportReviewRow({ form, item, index, disabled }: Props) {
   const issues = reviewItemIssues(item)
   const flagged = Object.keys(issues).length > 0
   const editableProfile = item.action === 'create' || item.updateExistingProfile
-  const timezoneGroups = useMemo(
-    () => importTimezoneGroups(item.countryCode),
-    [item.countryCode],
-  )
   const control = (field: ImportReviewField) => ({
     id: reviewControlId(item.candidateId, field),
     'aria-invalid': issues[field] ? true : undefined,
@@ -163,8 +149,13 @@ export function GoogleImportReviewRow({ form, item, index, disabled }: Props) {
             />
             <form.Field name={`items[${index}].countryCode`}>
               {(field) => (
-                <Select
+                <CountryCombobox
+                  {...control('countryCode')}
                   value={field.state.value}
+                  countries={IMPORT_COUNTRY_OPTIONS}
+                  disabled={disabled}
+                  className="md:min-w-40"
+                  onBlur={field.handleBlur}
                   onValueChange={(countryCode) => {
                     field.handleChange(countryCode)
                     form.setFieldValue(
@@ -175,23 +166,7 @@ export function GoogleImportReviewRow({ form, item, index, disabled }: Props) {
                       ),
                     )
                   }}
-                  disabled={disabled}
-                >
-                  <SelectTrigger
-                    {...control('countryCode')}
-                    className="w-full md:min-w-40"
-                    onBlur={field.handleBlur}
-                  >
-                    <SelectValue placeholder="Choose country" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {IMPORT_COUNTRY_OPTIONS.map((country) => (
-                      <SelectItem key={country.code} value={country.code}>
-                        {country.label} ({country.code})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               )}
             </form.Field>
             <RowIssue item={item} field="countryCode" message={issues.countryCode} />
@@ -215,42 +190,15 @@ export function GoogleImportReviewRow({ form, item, index, disabled }: Props) {
         <CellLabel htmlFor={control('timezone').id} label="Timezone" index={index} />
         <form.Field name={`items[${index}].timezone`}>
           {(field) => (
-            <Select
+            <TimezoneCombobox
+              {...control('timezone')}
               value={field.state.value}
-              onValueChange={field.handleChange}
+              countryCode={item.countryCode}
               disabled={disabled}
-            >
-              <SelectTrigger
-                {...control('timezone')}
-                className="w-full md:min-w-48"
-                onBlur={field.handleBlur}
-              >
-                <SelectValue placeholder="Choose timezone" />
-              </SelectTrigger>
-              <SelectContent>
-                {timezoneGroups.inCountry.length > 0 ? (
-                  <>
-                    <SelectGroup>
-                      <SelectLabel>In {importCountryLabel(item.countryCode)}</SelectLabel>
-                      {timezoneGroups.inCountry.map((timezone) => (
-                        <SelectItem key={timezone} value={timezone}>
-                          {timezone}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                    <SelectSeparator />
-                  </>
-                ) : null}
-                <SelectGroup>
-                  <SelectLabel>All timezones</SelectLabel>
-                  {timezoneGroups.others.map((timezone) => (
-                    <SelectItem key={timezone} value={timezone}>
-                      {timezone}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+              className="md:min-w-48"
+              onBlur={field.handleBlur}
+              onValueChange={field.handleChange}
+            />
           )}
         </form.Field>
         <RowIssue item={item} field="timezone" message={issues.timezone} />

@@ -1,8 +1,10 @@
 import { useForm } from '@tanstack/react-form'
+import { CountryCombobox } from '#/components/forms/country-combobox'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
+import { TimezoneCombobox } from '#/components/forms/timezone-combobox'
 import type { Action } from '#/components/hooks/use-action'
 import {
   Card,
@@ -13,19 +15,8 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { Field, FieldError, FieldGroup, FieldLabel } from '#/components/ui/field'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
 import { updatePropertyInputSchema } from '#/contexts/property/application/dto/update-property.dto'
-import {
-  PROPERTY_COUNTRY_OPTIONS,
-  PROPERTY_TIMEZONE_OPTIONS,
-} from './property-profile-options'
+import { PROPERTY_COUNTRY_OPTIONS } from './property-profile-options'
 
 const profileFormSchema = updatePropertyInputSchema
   .pick({ name: true, countryCode: true, timezone: true })
@@ -104,29 +95,15 @@ export function PropertyProfileCard({ property, canEdit, updateProperty }: Props
                   return (
                     <Field data-invalid={invalid}>
                       <FieldLabel htmlFor="property-profile-country">Country</FieldLabel>
-                      <Select
-                        value={field.state.value || undefined}
-                        onValueChange={field.handleChange}
+                      <CountryCombobox
+                        id="property-profile-country"
+                        value={field.state.value}
+                        countries={PROPERTY_COUNTRY_OPTIONS}
                         disabled={disabled}
-                      >
-                        <SelectTrigger
-                          id="property-profile-country"
-                          className="w-full"
-                          aria-invalid={invalid}
-                          onBlur={field.handleBlur}
-                        >
-                          <SelectValue placeholder="Choose a country" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            {PROPERTY_COUNTRY_OPTIONS.map((option) => (
-                              <SelectItem key={option.code} value={option.code}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
+                        aria-invalid={invalid}
+                        onBlur={field.handleBlur}
+                        onValueChange={field.handleChange}
+                      />
                       {invalid ? <FieldError errors={field.state.meta.errors} /> : null}
                     </Field>
                   )
@@ -140,29 +117,19 @@ export function PropertyProfileCard({ property, canEdit, updateProperty }: Props
                       <FieldLabel htmlFor="property-profile-timezone">
                         Timezone
                       </FieldLabel>
-                      <Select
-                        value={field.state.value}
-                        onValueChange={field.handleChange}
-                        disabled={disabled}
-                      >
-                        <SelectTrigger
-                          id="property-profile-timezone"
-                          className="w-full"
-                          aria-invalid={invalid}
-                          onBlur={field.handleBlur}
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            {PROPERTY_TIMEZONE_OPTIONS.map((zone) => (
-                              <SelectItem key={zone} value={zone}>
-                                {zone.replaceAll('_', ' ')}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
+                      <form.Subscribe selector={(state) => state.values.countryCode}>
+                        {(countryCode) => (
+                          <TimezoneCombobox
+                            id="property-profile-timezone"
+                            value={field.state.value}
+                            countryCode={countryCode || null}
+                            disabled={disabled}
+                            aria-invalid={invalid}
+                            onBlur={field.handleBlur}
+                            onValueChange={field.handleChange}
+                          />
+                        )}
+                      </form.Subscribe>
                       {invalid ? <FieldError errors={field.state.meta.errors} /> : null}
                     </Field>
                   )

@@ -80,6 +80,13 @@ export const EditableProfile: Story = {
   play: async ({ canvasElement }) => {
     saveProfileSpy.mockClear()
     const canvas = within(canvasElement)
+    // Country and timezone read as names, never as codes or IANA ids.
+    expect(canvas.getByRole('combobox', { name: 'Country' })).toHaveTextContent(
+      'Bulgaria (BG)',
+    )
+    expect(canvas.getByRole('combobox', { name: 'Timezone' })).toHaveTextContent(
+      /^Sofia \(UTC\+[23]\)$/,
+    )
     const name = canvas.getByLabelText('Workspace name')
     await userEvent.clear(name)
     await userEvent.type(name, 'Harborline Suites Varna')

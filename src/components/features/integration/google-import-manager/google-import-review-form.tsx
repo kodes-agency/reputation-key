@@ -4,18 +4,11 @@ import { submitForm } from '#/components/forms/form-submit'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { Checkbox } from '#/components/ui/checkbox'
+import { TimezoneCombobox } from '#/components/forms/timezone-combobox'
 import { Field, FieldLabel } from '#/components/ui/field'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '#/components/ui/table'
 import type { GoogleImportReviewFormApi } from './google-import-manager-contract'
 import { applyBulkTimezone, countFlaggedReviewItems } from './google-import-review-model'
-import { IMPORT_TIMEZONE_OPTIONS } from './google-import-review-options'
 import { GoogleImportReviewRow } from './google-import-review-row'
 
 type Props = Readonly<{
@@ -43,18 +36,13 @@ function BulkTimezone({
     <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-4 sm:flex-row sm:items-end sm:justify-between">
       <Field className="max-w-md">
         <FieldLabel htmlFor="import-bulk-timezone">Timezone for all rows</FieldLabel>
-        <Select value={timezone} onValueChange={setTimezone} disabled={disabled}>
-          <SelectTrigger id="import-bulk-timezone" className="w-full bg-background">
-            <SelectValue placeholder="Choose a timezone" />
-          </SelectTrigger>
-          <SelectContent>
-            {IMPORT_TIMEZONE_OPTIONS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <TimezoneCombobox
+          id="import-bulk-timezone"
+          value={timezone}
+          onValueChange={setTimezone}
+          disabled={disabled}
+          className="bg-background"
+        />
       </Field>
       <Button
         type="button"
