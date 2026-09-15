@@ -124,10 +124,7 @@ function useGoogleImportContent({
   }, [clearProviderState, lifecycle])
   useEffect(() => {
     lifecycle.activate()
-    return () => {
-      lifecycle.deactivate()
-      lifecycle.clear('route_left')
-    }
+    return () => lifecycle.leave()
   }, [lifecycle])
   useEffect(() => {
     if (!enabled) return

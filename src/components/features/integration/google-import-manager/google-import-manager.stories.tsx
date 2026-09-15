@@ -137,3 +137,49 @@ export const ProgressRoute: Story = {
     await expect(propertyLinks.some((link) => link.checkVisibility())).toBe(true)
   },
 }
+
+const FUTURE = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+const lease = {
+  leaseRef: 'lease.story',
+  expiresAt: FUTURE,
+  ttlSeconds: 30,
+  renewAfterMs: 10_000,
+} as const
+const discoveryFns = {
+  ...importFns,
+  listImportAccounts: fn(async () => ({
+    items: [
+      { accountRef: 'account.north', displayName: 'North region', role: 'primary_owner' },
+    ],
+    nextCursor: null,
+    contentExpiresAt: FUTURE,
+    authorizationLease: lease,
+    contentTtlSeconds: 86_400,
+  })),
+  listImportCandidates: fn(async () => ({
+    items: [],
+    nextCursor: null,
+    contentExpiresAt: FUTURE,
+    authorizationLease: lease,
+    contentTtlSeconds: 86_400,
+  })),
+  renewImportAuthorizationLease: fn(async () => lease),
+} as unknown as GoogleImportFns
+
+/**
+ * Opening the import page with a connected Google account lists its Business
+ * Profile accounts on the first visit. Under StrictMode the discovery hook's
+ * mount, cleanup and re-mount must not turn that first answer into "no accounts".
+ */
+export const DiscoveryListsAccounts: Story = {
+  args: { importFns: discoveryFns, initialConnectionId: connection.id },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.findByRole('button', { name: /north region/i }, { timeout: 5_000 }),
+    ).resolves.toBeVisible()
+    await expect(
+      canvas.queryByText(/no accessible business profile accounts were found/i),
+    ).toBeNull()
+  },
+}
