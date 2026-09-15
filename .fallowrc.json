@@ -421,6 +421,7 @@
     }
   ],
   "duplicates": {
+    "ignore": ["src/components/ui/stepper.tsx"],
     "ignoredClones": ["dup:cdb48d6b:2"],
     "mode": "mild",
     "minTokens": 50,
@@ -469,6 +470,13 @@
         "functions": ["mapRecentActivityFact"],
         "maxCyclomatic": 45,
         "reason": "cyclomatic=41 comes entirely from 40 sibling `case` arms of an exhaustive switch over the closed set of durable source-event types; cognitive=5 proves it is flat, not nested \u2014 each arm is an independent, trivially readable object literal, and the `default` arm throws on anything unregistered. Extrac"
+      },
+      {
+        "files": ["src/components/ui/stepper.tsx"],
+        "functions": ["onKeyDown"],
+        "maxCyclomatic": 33,
+        "maxCognitive": 48,
+        "reason": "Vendored verbatim from Dice UI (@diceui/stepper, fetched 2026-09-15). Its header limits local edits to import paths so a refresh stays a copy, so upstream's roving-focus key handler is not split into a fork. Its twin Prev/Next buttons are in duplicates.ignore for the same reason."
       }
     ],
     "maxCrap": 450
