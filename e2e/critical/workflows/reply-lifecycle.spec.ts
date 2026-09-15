@@ -521,12 +521,16 @@ test.describe('Critical workflow: reply lifecycle', () => {
     // the chip alone no longer names the failure CLASS. The description below
     // it is what distinguishes a provider rejection from a retryable stop, and
     // the check-only/retry action split below that is what proves the policy.
+    // The terminal-rejection sentence no longer says "and permissions": the
+    // class also covers a request RepKey refused before sending it, so it says
+    // only what both share (`reply-state-copy.ts`, `terminal_rejection`). The
+    // connection clause is still the part a retryable stop never prints.
     await expect(page.getByText('Not published').first()).toBeVisible({
       timeout: 15_000,
     })
     await expect(
       page
-        .getByText('Check the Google Business Profile connection and permissions', {
+        .getByText('Check the Google Business Profile connection, then try again', {
           exact: false,
         })
         .first(),
