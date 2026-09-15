@@ -104,14 +104,19 @@ export function GoogleImportReviewRow({ form, item, index, disabled }: Props) {
           )}
         </form.Field>
         <RowIssue item={item} field="name" message={issues.name} />
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Badge variant="outline">
-            {item.action === 'relink' ? 'Link existing' : 'Create new'}
-          </Badge>
-          {flagged ? (
-            <span className="text-xs font-medium text-destructive">Needs attention</span>
-          ) : null}
-        </div>
+        {/* Creating is the normal case; only a relink row works differently. */}
+        {item.action === 'relink' || flagged ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {item.action === 'relink' ? (
+              <Badge variant="outline">Link existing</Badge>
+            ) : null}
+            {flagged ? (
+              <span className="text-xs font-medium text-destructive">
+                Needs attention
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         {item.action === 'relink' ? (
           <form.Field name={`items[${index}].updateExistingProfile`}>
             {(field) => (

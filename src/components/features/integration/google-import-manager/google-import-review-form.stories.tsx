@@ -125,6 +125,9 @@ export const NeedsTimezone: Story = {
     await expect(
       canvas.getByRole('combobox', { name: /timezone for all rows/i }),
     ).toBeVisible()
+    // Creating is the normal case; only the relinked row is labelled.
+    await expect(canvas.getByText('Link existing')).toBeVisible()
+    await expect(canvas.queryByText('Create new')).toBeNull()
     await expect(canvas.getByText('Choose a timezone.')).toBeVisible()
     await expect(
       canvas.getByRole('combobox', { name: /timezone, row 1/i }),
