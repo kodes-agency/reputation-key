@@ -4,7 +4,7 @@
 
 import { z } from 'zod/v4'
 
-export const merchantAiCapabilityInputSchema = z.enum([
+const merchantAiCapabilityInputSchema = z.enum([
   'review_analysis',
   'reply_drafting',
   'property_trends',
@@ -31,7 +31,7 @@ export const merchantAiCommandInputSchema = z.object({
  * served it. It is a claim about what was on screen, checked against the
  * served notice by the use case.
  */
-export const merchantAiNoticeAcknowledgementSchema = z.object({
+const merchantAiNoticeAcknowledgementSchema = z.object({
   noticeVersion: z.string().min(1).max(100),
   noticeDigest: z.string().regex(/^[0-9a-f]{64}$/),
 })

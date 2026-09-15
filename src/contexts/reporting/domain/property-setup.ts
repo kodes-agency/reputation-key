@@ -9,7 +9,7 @@
 import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import type { PropertyId } from '#/shared/domain/ids'
 
-export const PROPERTY_SETUP_STEP_KEYS = [
+const PROPERTY_SETUP_STEP_KEYS = [
   'google_linked',
   'reviews_synced',
   'reply_language',

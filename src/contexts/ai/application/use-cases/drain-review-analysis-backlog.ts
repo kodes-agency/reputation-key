@@ -17,9 +17,9 @@ import {
 /** How long a drainer owns a claimed entry before another may take it. */
 export const AI_BACKLOG_CLAIM_LEASE_MILLIS = 3 * 60_000
 /** Entries claimed per tick across all properties. */
-export const AI_BACKLOG_DRAIN_LIMIT = 24
+const AI_BACKLOG_DRAIN_LIMIT = 24
 /** Properties drained at once; entries of one property run one after another. */
-export const AI_BACKLOG_DRAIN_CONCURRENCY = 4
+const AI_BACKLOG_DRAIN_CONCURRENCY = 4
 /** Spacing after an unexpected failure, so a poisoned entry cannot spin. */
 const FAILURE_RETRY_DELAY_MILLIS = 60_000
 const DEFERRED_RETRY_DELAY_MILLIS = 30_000

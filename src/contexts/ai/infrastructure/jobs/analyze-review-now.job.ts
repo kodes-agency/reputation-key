@@ -10,7 +10,7 @@ import type { RequestReviewAnalysisResult } from '../../application/use-cases/dr
  */
 export const ANALYZE_REVIEW_NOW_JOB_NAME = 'ai-review-analysis-on-demand'
 
-export const analyzeReviewNowJobData = z
+const analyzeReviewNowJobData = z
   .object({
     organizationId: z.string().min(1).max(255),
     propertyId: z.uuid(),

@@ -59,7 +59,7 @@ export type MerchantAiRestoreResetInput = Readonly<{
 }>
 
 /** Most Properties one consent ceremony may cover: one import batch. */
-export const MAX_MERCHANT_AI_CEREMONY_PROPERTIES = 100
+const MAX_MERCHANT_AI_CEREMONY_PROPERTIES = 100
 
 export type MerchantAiConsentOutcome = 'enabled' | 'changed' | 'unchanged'
 

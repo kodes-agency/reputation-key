@@ -60,7 +60,7 @@ const REPLY_OPERATION_PROFILE_VERSION = 'reply-suggestion-v1' as const
  * busy. Short enough that the manager is never left staring at a spinner, long
  * enough to absorb a slot that frees within the same request.
  */
-export const REPLY_ADMISSION_WAIT_MILLIS = 4_000
+const REPLY_ADMISSION_WAIT_MILLIS = 4_000
 const PROFILE = AI_OPERATION_PROFILES.find(
   (candidate) => candidate.profileVersion === REPLY_OPERATION_PROFILE_VERSION,
 )!

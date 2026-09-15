@@ -101,7 +101,7 @@ function isReplyStillCheckedAutomatically(reply: ReplyPollingCandidate): boolean
 }
 
 /** Active publication ownership, without applying the browser age ceiling. */
-export function isReplyPublicationInFlight(
+function isReplyPublicationInFlight(
   reply: ReplyPollingCandidate | null | undefined,
 ): boolean {
   return (

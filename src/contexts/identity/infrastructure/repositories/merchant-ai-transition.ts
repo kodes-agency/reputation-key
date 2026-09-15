@@ -46,7 +46,7 @@ function failInvalidRecord(message: string): never {
   throw new MerchantAiAuthorizationStoreError('invalid_record', message)
 }
 
-export function readInteger(row: SnapshotRow, column: string, minimum: number): number {
+function readInteger(row: SnapshotRow, column: string, minimum: number): number {
   const value = Number(row[column])
   if (!Number.isSafeInteger(value) || value < minimum) {
     failInvalidRecord(`Invalid Merchant AI ${column} row`)
@@ -287,7 +287,7 @@ export async function lockProviderSource(
   return discoveredSourceEpoch
 }
 
-export async function readIdempotentEvidence(
+async function readIdempotentEvidence(
   tx: Tx,
   input: Readonly<{ organizationId: string; idempotencyKey: string }>,
 ): Promise<SnapshotRow | undefined> {
