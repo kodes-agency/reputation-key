@@ -115,7 +115,9 @@ export function GoogleImportReviewForm({
                   </p>
                 </div>
 
-                <BulkTimezone form={form} disabled={isSubmitting} />
+                {items.length > 1 ? (
+                  <BulkTimezone form={form} disabled={isSubmitting} />
+                ) : null}
 
                 <div className="overflow-hidden rounded-xl border bg-card">
                   {/* Below md the table reflows into one block per property. Explicit

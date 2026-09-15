@@ -122,6 +122,9 @@ export const NeedsTimezone: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('1 of 3 properties needs attention')).toBeVisible()
+    await expect(
+      canvas.getByRole('combobox', { name: /timezone for all rows/i }),
+    ).toBeVisible()
     await expect(canvas.getByText('Choose a timezone.')).toBeVisible()
     await expect(
       canvas.getByRole('combobox', { name: /timezone, row 1/i }),
@@ -135,6 +138,24 @@ export const NeedsTimezone: Story = {
       canvas.getByText(/fix the flagged row to start the import/i),
     ).toBeVisible()
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
+  },
+}
+
+/** One property has its own timezone field; a control for "all rows" would repeat it. */
+export const SingleProperty: Story = {
+  render: () => (
+    <ReviewHarness initialDraft={() => createImportReviewDraft(candidates.slice(0, 1))} />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('1 of 1 property needs attention')).toBeVisible()
+    await expect(
+      canvas.getByRole('combobox', { name: /timezone, row 1/i }),
+    ).toBeInTheDocument()
+    await expect(
+      canvas.queryByRole('combobox', { name: /timezone for all rows/i }),
+    ).toBeNull()
+    await expect(canvas.queryByRole('button', { name: /apply to all/i })).toBeNull()
   },
 }
 

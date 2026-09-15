@@ -18,6 +18,7 @@ import type {
   GoogleImportGetAuthUrl,
 } from './google-import-manager-contract'
 import type { ImportReviewDraft } from './google-import-review-model'
+import { isConfirmingDetails } from './google-import-selection'
 import { useGoogleImportReviewForm } from './use-google-import'
 
 type Props = Readonly<{
@@ -44,34 +45,37 @@ export function GoogleImportManagerView({
   useEffect(() => {
     if (discovery.reviewDraft) reviewForm.reset(discovery.reviewDraft)
   }, [discovery.reviewDraft, reviewForm])
+  const confirming = isConfirmingDetails(discovery)
   return (
     <div className="space-y-6">
-      <Card className="gap-4">
-        <CardHeader>
-          <CardTitle>Google Business Profile connection</CardTitle>
-          <CardDescription>
-            Location details stay on this page while it is open, including when you switch
-            to another tab, for at most 24 hours. They are cleared when you leave the
-            page, change the Google account, or your access changes.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <Field className="max-w-xl flex-1">
-            <FieldLabel htmlFor="google-account-select">
-              Connected Google account
-            </FieldLabel>
-            <GoogleAccountSelector
-              connections={connections}
-              value={discovery.connectionId ?? undefined}
-              disabled={startPending}
-              onValueChange={(value) => void discovery.changeConnection(value)}
-            />
-          </Field>
-          <ConnectGoogleButton getAuthUrl={getAuthUrl} disabled={startPending} />
-        </CardContent>
-      </Card>
+      {confirming ? null : (
+        <Card className="gap-4">
+          <CardHeader>
+            <CardTitle>Google Business Profile connection</CardTitle>
+            <CardDescription>
+              Location details stay on this page while it is open, including when you
+              switch to another tab, for at most 24 hours. They are cleared when you leave
+              the page, change the Google account, or your access changes.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <Field className="max-w-xl flex-1">
+              <FieldLabel htmlFor="google-account-select">
+                Connected Google account
+              </FieldLabel>
+              <GoogleAccountSelector
+                connections={connections}
+                value={discovery.connectionId ?? undefined}
+                disabled={startPending}
+                onValueChange={(value) => void discovery.changeConnection(value)}
+              />
+            </Field>
+            <ConnectGoogleButton getAuthUrl={getAuthUrl} disabled={startPending} />
+          </CardContent>
+        </Card>
+      )}
 
-      {startError && !(discovery.step === 'review' && discovery.reviewDraft) ? (
+      {startError && !confirming ? (
         <Alert variant="destructive">
           <AlertTitle>Import unavailable</AlertTitle>
           <AlertDescription>{startError}</AlertDescription>

@@ -188,3 +188,69 @@ export const DiscoveryListsAccounts: Story = {
     ).toHaveTextContent('reviews@meridian-hotels.example')
   },
 }
+
+const confirmFns = {
+  ...discoveryFns,
+  listImportCandidates: fn(async () => ({
+    items: [
+      {
+        candidateId: 'candidate-juniper',
+        candidateRef: 'candidate.juniper',
+        accountRef: 'account.north',
+        accountDisplayName: 'North region',
+        businessName: 'Juniper Street Café',
+        address: '14 Rue de Rivoli, Paris',
+        primaryCategory: 'Cafe',
+        countryCode: 'FR',
+        eligibility: { kind: 'create' },
+      },
+    ],
+    nextCursor: null,
+    contentExpiresAt: FUTURE,
+    authorizationLease: lease,
+    contentTtlSeconds: 86_400,
+  })),
+} as unknown as GoogleImportFns
+
+/**
+ * The Google connection belongs to choosing the account and its locations. On
+ * Confirm details it steps aside so the screen is only the chosen properties,
+ * and going back to the locations brings it back.
+ */
+export const ConfirmDetailsHidesTheConnection: Story = {
+  args: { importFns: confirmFns, initialConnectionId: connection.id },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      await canvas.findByRole('button', { name: /north region/i }, { timeout: 5_000 }),
+    )
+    const [location] = await canvas.findAllByRole(
+      'checkbox',
+      { name: /select juniper street café/i },
+      { timeout: 5_000 },
+    )
+    await userEvent.click(location!)
+    await expect(canvas.getByText('Google Business Profile connection')).toBeVisible()
+
+    await userEvent.click(canvas.getByRole('button', { name: /review 1 property/i }))
+    await expect(
+      canvas.findByRole('heading', { name: 'Confirm details' }),
+    ).resolves.toBeVisible()
+    await expect(canvas.getByRole('tab', { selected: true })).toHaveAccessibleName(
+      /confirm details/i,
+    )
+    await expect(canvas.queryByText('Google Business Profile connection')).toBeNull()
+    await expect(
+      canvas.queryByRole('combobox', { name: /connected google account/i }),
+    ).toBeNull()
+    // One property: its own timezone field is the only one on the screen.
+    await expect(
+      canvas.queryByRole('combobox', { name: /timezone for all rows/i }),
+    ).toBeNull()
+
+    await userEvent.click(canvas.getByRole('button', { name: /back to locations/i }))
+    await expect(
+      canvas.getByRole('combobox', { name: /connected google account/i }),
+    ).toBeVisible()
+  },
+}

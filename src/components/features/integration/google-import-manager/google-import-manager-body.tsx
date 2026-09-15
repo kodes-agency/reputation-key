@@ -7,6 +7,7 @@ import {
   discoveryErrorMessage,
 } from './google-import-error-messages'
 import { GoogleImportReviewForm } from './google-import-review-form'
+import { isConfirmingDetails } from './google-import-selection'
 import type {
   GoogleImportDiscoveryController,
   GoogleImportReviewFormApi,
@@ -84,7 +85,7 @@ export function GoogleImportManagerBody({
     return <ClearedContentNotice onResume={discovery.resumeDiscovery} />
   }
 
-  if (discovery.step === 'review' && discovery.reviewDraft) {
+  if (isConfirmingDetails(discovery)) {
     return (
       <GoogleImportReviewForm
         form={reviewForm}
