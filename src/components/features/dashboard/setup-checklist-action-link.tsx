@@ -6,20 +6,24 @@ export function SetupChecklistActionLink({
   action,
 }: Readonly<{ action: SetupChecklistAction }>) {
   switch (action.kind) {
+    // Connecting Google and the first review sync are both reached through the
+    // import flow, the one way a property is created (decision 7). A broken
+    // connection is not a separate action; the import page itself sends a
+    // manager to Integrations when no connection can be used.
     case 'manage_google':
       return (
         <Button asChild size="sm" variant="outline">
-          <Link to="/settings/integrations">Review Google setup</Link>
+          <Link to="/properties/import-google">Import from Google</Link>
         </Button>
       )
     case 'assign_managers':
       return action.propertyId ? (
         <Button asChild size="sm" variant="outline">
           <Link
-            to="/properties/$propertyId/settings"
+            to="/properties/$propertyId/settings/people"
             params={{ propertyId: action.propertyId }}
           >
-            {action.kind === 'assign_managers' ? 'Assign managers' : 'Review property'}
+            Assign managers
           </Link>
         </Button>
       ) : null

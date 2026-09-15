@@ -93,6 +93,51 @@ const incompleteChecklist = {
   ],
 } as unknown as SetupChecklist
 
+// A new organization: nothing connected, so Google is the step to act on.
+const newOrganizationChecklist = {
+  state: 'in_progress',
+  steps: [
+    {
+      key: 'google_connection',
+      status: 'incomplete',
+      firstCompletedAt: null,
+      action: { kind: 'manage_google', propertyId: null },
+    },
+    {
+      key: 'initial_review_sync',
+      status: 'incomplete',
+      firstCompletedAt: null,
+      action: { kind: 'manage_google', propertyId: null },
+    },
+    {
+      key: 'published_portal',
+      status: 'incomplete',
+      firstCompletedAt: null,
+      action: null,
+    },
+    {
+      key: 'responsible_managers',
+      status: 'incomplete',
+      firstCompletedAt: null,
+      action: null,
+    },
+  ],
+} as unknown as SetupChecklist
+
+const managersPendingChecklist = {
+  state: 'in_progress',
+  steps: incompleteChecklist.steps.map((step) =>
+    step.key === 'published_portal'
+      ? {
+          ...step,
+          status: 'complete',
+          firstCompletedAt: new Date('2026-06-03T00:00:00Z'),
+          action: null,
+        }
+      : step,
+  ),
+} as unknown as SetupChecklist
+
 const completeChecklist = {
   state: 'complete',
   steps: incompleteChecklist.steps.map((step) => ({
@@ -172,6 +217,32 @@ export const SetupComplete: Story = {
     const canvas = within(canvasElement)
     // A finished checklist has nothing to say, so it says nothing.
     expect(canvas.queryByText(/^Setup:/)).toBeNull()
+  },
+}
+
+// The Google step opens the import flow, where Google gets connected.
+export const SetupNeedsGoogle: Story = {
+  args: { properties: [], checklist: newOrganizationChecklist },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Next: Connect Google.')).toBeVisible()
+    expect(canvas.getByRole('link', { name: 'Import from Google' })).toHaveAttribute(
+      'href',
+      '/properties/import-google',
+    )
+  },
+}
+
+// Responsible managers live in the People section of the property's settings.
+export const SetupNeedsManagers: Story = {
+  args: { properties, comparison, checklist: managersPendingChecklist },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Next: Assign responsible managers.')).toBeVisible()
+    expect(canvas.getByRole('link', { name: 'Assign managers' })).toHaveAttribute(
+      'href',
+      '/properties/prop-1/settings/people',
+    )
   },
 }
 
