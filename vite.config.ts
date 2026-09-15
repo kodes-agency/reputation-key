@@ -91,26 +91,6 @@ const config = defineConfig(({ mode }) => {
                     includeDependenciesRecursively: false,
                   },
                   {
-                    // Router and Query internals in ONE chunk. Left to default
-                    // splitting, every internal that both first paint and a lazy
-                    // route import became its own shared chunk — `Match`,
-                    // `lazyRouteComponent`, `useSearch`, `useRouterState`,
-                    // `useSuspenseQuery`… — and each chunk is gzipped alone, so
-                    // the settings hub's child routes grew the initial closure
-                    // from 70 to 99 chunks and ~14 KB gzip for ~12 KB of raw
-                    // code (scripts/check-bundle-budget.mjs). The three files
-                    // excluded are imported ONLY by lazy routes; inside the group
-                    // they would ride first paint (~10 KB raw measured).
-                    name: 'vendor-tanstack',
-                    test: (id) =>
-                      /node_modules[\\/]@tanstack[\\/](?:react-router|router-core|history|react-query|query-core)[\\/]/.test(
-                        id,
-                      ) &&
-                      !/[\\/](?:useBlocker|useQueries|queriesObserver)\.js$/.test(id),
-                    priority: 34,
-                    includeDependenciesRecursively: false,
-                  },
-                  {
                     // `includeDependenciesRecursively` MUST stay false: with it
                     // on, recharts' transitive deps (clsx,
                     // use-sync-external-store, redux, es-toolkit) join this
@@ -135,12 +115,7 @@ const config = defineConfig(({ mode }) => {
                     test: /[\\/]src[\\/]contexts[\\/][^\\/]+[\\/]server[\\/]/,
                     priority: 10,
                     minShareCount: 2,
-                    // 16 KiB, not 4: every new route multiplies the entry sets
-                    // server stubs are shared by, and at 4 KiB seven ~1–1.6 KB
-                    // stub groups sat in first paint as separate gzip streams.
-                    // Merging them made no lazy module eager (measured against
-                    // the closure's source maps); 32 KiB measured the same.
-                    entriesAwareMergeThreshold: 16 * 1024,
+                    entriesAwareMergeThreshold: 4 * 1024,
                     entriesAware: true,
                     includeDependenciesRecursively: false,
                   },
