@@ -84,7 +84,7 @@ function AnalysisOff({ propertyId }: Readonly<{ propertyId: string }>) {
       </p>
       {canManage ? null : (
         <p className="text-sm text-muted-foreground">
-          An account admin can turn it on in Settings → AI &amp; replies.
+          An account admin can turn it on in this property&apos;s AI settings.
         </p>
       )}
     </Row>

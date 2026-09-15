@@ -178,9 +178,10 @@ export function GoogleImportReviewForm({
                     inbox. You can watch the progress and leave the page at any time.
                   </li>
                   <li>
-                    You then choose, per property, whether RepKey may analyse those
-                    reviews with AI. Nothing is sent to the AI provider until you enable
-                    it; you can also decide later in Settings → AI &amp; replies.
+                    You then answer three questions once for every property: its reply
+                    language, who is responsible for it, and whether RepKey may use AI.
+                    Nothing is sent to the AI provider until you agree to the notice;
+                    anything you skip stays on the property&apos;s setup checklist.
                   </li>
                 </ol>
               </section>
