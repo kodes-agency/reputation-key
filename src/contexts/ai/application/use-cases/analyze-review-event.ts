@@ -16,11 +16,14 @@ import type { AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiControlPort } from '../ports/ai-control.port'
 import type { AiInferencePort } from '../ports/ai-inference.port'
-import type { AiOperationStorePort } from '../ports/ai-operation-store.port'
+import type {
+  AiOperationRecord,
+  AiOperationStorePort,
+} from '../ports/ai-operation-store.port'
 import type { AiOutputStorePort } from '../ports/ai-output-store.port'
 import { issueLabelReproducesSource } from '#/shared/ai-issue-label'
 import type { AiPropertyAggregateStorePort } from '../ports/ai-property-aggregate-store.port'
-import type { AiAdmissionPort } from '../ports/ai-admission.port'
+import type { AiAdmissionClaim, AiAdmissionPort } from '../ports/ai-admission.port'
 import type { AiAdmissionLane } from '../../domain/admission-lanes'
 import type {
   AiReviewAnalysisTerminalDisposition,
@@ -381,6 +384,90 @@ export function createAnalyzeReviewEvent(
         )
   }
 
+  /**
+   * A claim can hand back an operation an earlier attempt already brought to
+   * success. Its analysis is stored, so it only needs settling and marking
+   * delivered; the provider is not asked again.
+   */
+  async function replaySucceededOperation(
+    input: AnalyzeReviewEventInput,
+    reviewAnalysisEpoch: number,
+    propertyProfileVersion: number,
+    operation: Pick<AiOperationRecord, 'id' | 'executionAttempt'>,
+    nowEpochMillis: number,
+  ): Promise<AnalyzeReviewEventResult> {
+    const settled = await settleReviewAnalysisWithResult(settlementDependencies, {
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      reviewId: input.reviewId,
+      sourceEpoch: input.sourceEpoch,
+      sourceRevision: input.sourceRevision,
+      reviewAnalysisEpoch,
+      analysisSequence: input.analysisSequence,
+      propertyProfileVersion,
+      operationId: operation.id,
+    })
+    if (settled.status === 'generation_changed') {
+      return { status: 'generation_changed' }
+    }
+    await dependencies.operations.markDelivered({
+      operationId: operation.id,
+      organizationId: input.organizationId,
+      expectedAttempt: operation.executionAttempt,
+      deliveredAtEpochMillis: nowEpochMillis,
+    })
+    return { status: 'replayed' }
+  }
+
+  /** The provider call's admission, in the caller's lane and with its headroom. */
+  function acquireAdmission(
+    input: AnalyzeReviewEventInput,
+    nowEpochMillis: number,
+  ): Promise<AiAdmissionClaim> {
+    return dependencies.admission.acquire({
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      lane: input.lane ?? 'background',
+      nowEpochMillis,
+      ...(input.admissionHeadroom === undefined
+        ? {}
+        : { headroom: input.admissionHeadroom }),
+    })
+  }
+
+  /**
+   * An admission the provider call did not get. An unavailable admission store
+   * is transient, so it defers inside the operation horizon like any other wait
+   * that comes before an attempt.
+   */
+  async function settleAdmissionRefusal(
+    input: AnalyzeReviewEventInput,
+    reviewAnalysisEpoch: number,
+    propertyProfileVersion: number,
+    refusal: Extract<AiAdmissionClaim, { ok: false }>,
+    nowEpochMillis: number,
+    horizonEpochMillis: number,
+  ): Promise<AnalyzeReviewEventResult> {
+    if (refusal.code === 'admission_busy') {
+      // Our own lane is full. Nothing was consumed and no attempt was
+      // claimed, so a busy lane is never a reason to abandon this review:
+      // it waits for capacity regardless of the operation horizon.
+      return {
+        status: 'retry',
+        retryAtEpochMillis: refusal.retryAfterEpochMillis,
+        code: refusal.code,
+      }
+    }
+    return deferOrSettle(
+      input,
+      reviewAnalysisEpoch,
+      propertyProfileVersion,
+      refusal.code,
+      nowEpochMillis,
+      horizonEpochMillis,
+    )
+  }
+
   return async (input) => {
     const nowEpochMillis = dependencies.nowEpochMillis()
     const eventHorizonEpochMillis =
@@ -604,27 +691,13 @@ export function createAnalyzeReviewEvent(
     }
     const operation = claimed.operation
     if (['succeeded', 'succeeded_pending_delivery'].includes(operation.state)) {
-      const settled = await settleReviewAnalysisWithResult(settlementDependencies, {
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        reviewId: input.reviewId,
-        sourceEpoch: input.sourceEpoch,
-        sourceRevision: input.sourceRevision,
+      return replaySucceededOperation(
+        input,
         reviewAnalysisEpoch,
-        analysisSequence: input.analysisSequence,
-        propertyProfileVersion: profile.profileVersion,
-        operationId: operation.id,
-      })
-      if (settled.status === 'generation_changed') {
-        return { status: 'generation_changed' }
-      }
-      await dependencies.operations.markDelivered({
-        operationId: operation.id,
-        organizationId: input.organizationId,
-        expectedAttempt: operation.executionAttempt,
-        deliveredAtEpochMillis: nowEpochMillis,
-      })
-      return { status: 'replayed' }
+        profile.profileVersion,
+        operation,
+        nowEpochMillis,
+      )
     }
     async function executeClaimedAnalysis(): Promise<AnalyzeReviewEventResult> {
       // Once an operation exists it gets its event kind's full horizon from its
@@ -647,31 +720,13 @@ export function createAnalyzeReviewEvent(
           'policy_disabled',
         )
       }
-      const admission = await dependencies.admission.acquire({
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        lane: input.lane ?? 'background',
-        nowEpochMillis,
-        ...(input.admissionHeadroom === undefined
-          ? {}
-          : { headroom: input.admissionHeadroom }),
-      })
+      const admission = await acquireAdmission(input, nowEpochMillis)
       if (!admission.ok) {
-        if (admission.code === 'admission_busy') {
-          // Our own lane is full. Nothing was consumed and no attempt was
-          // claimed, so a busy lane is never a reason to abandon this review:
-          // it waits for capacity regardless of the operation horizon.
-          return {
-            status: 'retry',
-            retryAtEpochMillis: admission.retryAfterEpochMillis,
-            code: admission.code,
-          }
-        }
-        return deferOrSettle(
+        return settleAdmissionRefusal(
           input,
           reviewAnalysisEpoch,
           profile.profileVersion,
-          admission.code,
+          admission,
           nowEpochMillis,
           operationHorizonEpochMillis,
         )
