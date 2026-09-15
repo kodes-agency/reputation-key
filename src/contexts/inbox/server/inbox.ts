@@ -4,6 +4,7 @@ export {
   getLastVisitCountFn,
   stampLastInboxViewFn,
   getInboxQueueCountsFn,
+  getInboxPropertyCountsFn,
 } from './inbox-queries'
 export {
   updateInboxStatusFn,

@@ -6,6 +6,8 @@ import type {
   InboxQueueCounts,
 } from '#/contexts/inbox/application/public-api'
 import { cn } from '#/lib/utils'
+import type { InboxPropertyScope } from './inbox-property-scope'
+import { InboxRailProperties } from './inbox-rail-properties'
 import {
   CLOSED_INBOX_QUEUE,
   queueCount,
@@ -17,6 +19,8 @@ type Props = Readonly<{
   queue: InboxQueue
   counts: InboxQueueCounts | undefined
   canManageReplies: boolean
+  /** Absent when there is no property choice to offer. */
+  propertyScope?: InboxPropertyScope | null
   onQueueChange: (queue: InboxQueue) => void
   onOpenShortcuts: () => void
 }>
@@ -64,6 +68,7 @@ export function InboxQueueRail({
   queue,
   counts,
   canManageReplies,
+  propertyScope = null,
   onQueueChange,
   onOpenShortcuts,
 }: Props) {
@@ -72,29 +77,32 @@ export function InboxQueueRail({
       data-inbox-queue-rail
       className="flex h-full w-56 shrink-0 flex-col border-r bg-background"
     >
-      <nav aria-label="Queues" className="flex flex-1 flex-col px-3 py-4">
-        <p className="mb-2 px-2 text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-          Queues
-        </p>
-        <div className="space-y-1">
-          {queuesForViewer(canManageReplies).map((item) => (
-            <QueueButton
-              key={item.key}
-              item={item}
-              active={queue === item.key}
-              count={queueCount(counts, item.key)}
-              onSelect={() => onQueueChange(item.key)}
-            />
-          ))}
-        </div>
-        <Separator className="my-3" />
-        <QueueButton
-          item={CLOSED_INBOX_QUEUE}
-          active={queue === 'closed'}
-          count={queueCount(counts, 'closed')}
-          onSelect={() => onQueueChange('closed')}
-        />
-      </nav>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+        <nav aria-label="Queues">
+          <p className="mb-2 px-2 text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+            Queues
+          </p>
+          <div className="space-y-1">
+            {queuesForViewer(canManageReplies).map((item) => (
+              <QueueButton
+                key={item.key}
+                item={item}
+                active={queue === item.key}
+                count={queueCount(counts, item.key)}
+                onSelect={() => onQueueChange(item.key)}
+              />
+            ))}
+          </div>
+          <Separator className="my-3" />
+          <QueueButton
+            item={CLOSED_INBOX_QUEUE}
+            active={queue === 'closed'}
+            count={queueCount(counts, 'closed')}
+            onSelect={() => onQueueChange('closed')}
+          />
+        </nav>
+        {propertyScope && <InboxRailProperties scope={propertyScope} />}
+      </div>
       <div className="border-t p-3">
         <Button
           variant="ghost"

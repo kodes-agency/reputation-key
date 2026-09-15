@@ -14,6 +14,7 @@ import {
   SidebarRail,
 } from '#/components/ui/sidebar'
 import { usePropertyId } from '#/components/hooks/use-property-id'
+import { useInboxScopeNavigation } from '#/components/inbox/use-inbox-scope-navigation'
 import { ManagerNavItems } from './manager-nav-items'
 import { ManagerPropertySwitcher } from './manager-property-switcher'
 import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
@@ -50,28 +51,18 @@ function useActiveSection(): string {
   })
 }
 
-function searchAfterInboxScopeChange(search: unknown) {
-  if (search === null || typeof search !== 'object') return {}
-
-  return Object.fromEntries(
-    Object.entries(search).filter(([key]) => key !== 'itemId' && key !== 'propertyId'),
-  )
-}
-
 export function ManagerSidebar({ properties, getLastVisitCount }: Props) {
   const propertyId = usePropertyId()
   const activeSection = useActiveSection()
   const navigate = useNavigate()
-  const currentSearch = useRouterState({ select: (state) => state.location.search })
+  const selectInboxScope = useInboxScopeNavigation()
   const isInboxSection = activeSection === 'inbox' || activeSection === 'reviews'
 
+  // The tile is the app's property context on every page. Inside the Inbox,
+  // switching property keeps you in the Inbox; the rail offers All properties.
   function handlePropertySwitch(newPropertyId: string) {
     if (isInboxSection) {
-      navigate({
-        to: '/properties/$propertyId/reviews',
-        params: { propertyId: newPropertyId },
-        search: searchAfterInboxScopeChange(currentSearch),
-      })
+      selectInboxScope(newPropertyId)
       return
     }
 
@@ -95,19 +86,6 @@ export function ManagerSidebar({ properties, getLastVisitCount }: Props) {
             properties={properties}
             propertyId={propertyId ?? undefined}
             onSwitch={handlePropertySwitch}
-            scope={{
-              all:
-                isInboxSection && properties.length > 1
-                  ? {
-                      isActive: propertyId === null,
-                      onSelect: () =>
-                        navigate({
-                          to: '/inbox',
-                          search: searchAfterInboxScopeChange(currentSearch),
-                        }),
-                    }
-                  : null,
-            }}
           />
         </SidebarHeader>
 

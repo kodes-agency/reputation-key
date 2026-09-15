@@ -55,6 +55,7 @@ import type { GetInboxItemDetail } from './application/use-cases/get-inbox-item-
 import type { GetInboxNotes } from './application/use-cases/get-inbox-notes'
 import type { GetInboxItemHistory } from './application/use-cases/get-inbox-item-history'
 import type { GetInboxQueueCounts } from './application/use-cases/get-inbox-queue-counts'
+import type { GetInboxPropertyCounts } from './application/use-cases/get-inbox-property-counts'
 import type { RebuildInboxProjection } from './application/use-cases/rebuild-inbox-projection'
 import type { StartReviewHandlingCycle } from './application/use-cases/start-review-handling-cycle'
 import type { MarkFeedbackHandled } from './application/use-cases/mark-feedback-handled'
@@ -92,7 +93,7 @@ import type { ReviewResponseTargetAuthority } from '#/contexts/review/applicatio
 import { createInboxActorDirectoryAdapter } from './infrastructure/adapters/inbox-actor-directory.adapter'
 import { createInboxOrganizationExportContributor } from './infrastructure/adapters/inbox-organization-export.adapter'
 import { createInboxOrganizationLifecycleContributor } from './infrastructure/adapters/inbox-organization-lifecycle.adapter'
-import { wireUseCases } from './build-use-cases'
+import { projectInboxRequestApi, wireUseCases } from './build-use-cases'
 
 export type InboxContextBuildInput = Readonly<{
   db: Database
@@ -138,6 +139,7 @@ type InboxUseCases = Readonly<{
   getInboxNotes: GetInboxNotes
   getInboxItemHistory: GetInboxItemHistory
   getInboxQueueCounts: GetInboxQueueCounts
+  getInboxPropertyCounts: GetInboxPropertyCounts
   rebuildInboxProjection: RebuildInboxProjection
   startReviewHandlingCycle: StartReviewHandlingCycle
   markFeedbackHandled: MarkFeedbackHandled
@@ -167,6 +169,7 @@ type InboxRequestApi = Readonly<
     | 'getInboxNotes'
     | 'getInboxItemHistory'
     | 'getInboxQueueCounts'
+    | 'getInboxPropertyCounts'
     | 'markFeedbackHandled'
     | 'correctFeedbackHandlingOutcome'
     | 'getGoogleReviewTargetAnalytics'
@@ -345,30 +348,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     clock: input.clock,
     idGen: input.idGen,
   })
-  const publicApi: InboxRequestApi = Object.freeze({
-    updateInboxStatus: useCases.updateInboxStatus,
-    bulkUpdateInboxStatus: useCases.bulkUpdateInboxStatus,
-    bulkAssignInboxItems: useCases.bulkAssignInboxItems,
-    escalateInboxItem: useCases.escalateInboxItem,
-    resolveEscalation: useCases.resolveEscalation,
-    assignInboxItem: useCases.assignInboxItem,
-    getInboxItems: useCases.getInboxItems,
-    addInboxNote: useCases.addInboxNote,
-    getLastVisitCount: useCases.getLastVisitCount,
-    stampLastInboxView: useCases.stampLastInboxView,
-    getInboxItemDetail: useCases.getInboxItemDetail,
-    getInboxNotes: useCases.getInboxNotes,
-    getInboxItemHistory: useCases.getInboxItemHistory,
-    getInboxQueueCounts: useCases.getInboxQueueCounts,
-    markFeedbackHandled: useCases.markFeedbackHandled,
-    correctFeedbackHandlingOutcome: useCases.correctFeedbackHandlingOutcome,
-    getGoogleReviewTargetAnalytics: useCases.getGoogleReviewTargetAnalytics,
-    getGoogleReviewTargetCountsByProperty:
-      responseTargetStore.getGoogleReviewTargetCountsByProperty,
-    getPrivateFeedbackTargetAnalytics: useCases.getPrivateFeedbackTargetAnalytics,
-    getResponseTargetPolicySettings: useCases.getResponseTargetPolicySettings,
-    setResponseTargetPolicy: useCases.setResponseTargetPolicy,
-  })
+  const publicApi: InboxRequestApi = projectInboxRequestApi(useCases, responseTargetStore)
   const lifecycle = Object.freeze({
     createInboxItem: useCases.createInboxItem,
     getInboxResponseTarget: useCases.getInboxResponseTarget,

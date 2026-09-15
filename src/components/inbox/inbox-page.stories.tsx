@@ -325,6 +325,74 @@ export const ApprovedPanels: Story = {
   },
 }
 
+const scopedFns = makeInboxFns(approvedContainer)
+
+// Properties are the inbox's second axis: under the queues, All properties and
+// each property, counted for the queue in view by the real use case. Choosing a
+// property narrows the list and the queue counts; the property counts stay.
+function PropertyScopeHarness() {
+  const [search, setSearch] = useState<InboxSearchParams>({})
+  const onNavigate: InboxPageNav = (o) =>
+    setSearch((prev) => ({ ...prev, ...o.search(prev) }))
+  const activePropertyId = search.propertyId ?? null
+  return (
+    <InboxPageV2
+      ctx={orgCtx}
+      search={search}
+      onNavigate={onNavigate}
+      inboxFns={scopedFns}
+      scopeLabel={
+        approvedProperties.find((property) => property.id === activePropertyId)?.name ??
+        'All properties'
+      }
+      propertyScope={{
+        properties: approvedProperties,
+        activePropertyId,
+        includeAll: true,
+        // The route moves between /inbox and /properties/$id/reviews; the
+        // harness keeps the same contract in search state.
+        onSelect: (propertyId) =>
+          setSearch(({ itemId: _item, propertyId: _scope, ...rest }) =>
+            propertyId ? { ...rest, propertyId } : rest,
+          ),
+      }}
+    />
+  )
+}
+
+export const PropertyScope: Story = {
+  render: () => <PropertyScopeHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const section = within(await canvas.findByRole('navigation', { name: 'Properties' }))
+    // Needs reply 4 = Black Sea 1 + Hotel Elegance 2 + Rila 1.
+    await waitFor(() =>
+      expect(section.getAllByRole('button').map((row) => row.textContent)).toEqual([
+        'All properties4',
+        'Black Sea Residence1',
+        'Hotel Elegance2',
+        'Rila Grand Hotel1',
+      ]),
+    )
+
+    await userEvent.click(section.getByRole('button', { name: /hotel elegance/i }))
+    await waitFor(() =>
+      expect(section.getByRole('button', { name: /hotel elegance/i })).toHaveAttribute(
+        'aria-current',
+        'page',
+      ),
+    )
+    await waitFor(() =>
+      expect(canvas.getAllByRole('button', { name: /^Open review from/i })).toHaveLength(
+        2,
+      ),
+    )
+    await expect(
+      section.getByRole('button', { name: /all properties/i }),
+    ).toHaveTextContent('All properties4')
+  },
+}
+
 // Open the "escalated" folder — the list refilters via the real use-case.
 export const EscalatedFolder: Story = {
   render: () => (

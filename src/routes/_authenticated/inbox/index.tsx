@@ -9,11 +9,12 @@ import {
   type InboxSearchParams,
 } from '#/components/inbox/inbox-search-schema'
 import { inboxFns } from '#/routes/_authenticated/-inbox-fns'
-import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
+import { membersQuery } from '#/routes/-queries/route-queries'
 import {
   canListInboxAssignmentCandidates,
   toInboxAssignmentOptions,
 } from './-assignment-candidates'
+import { useInboxRouteScope } from './-property-scope'
 
 const authRoute = getRouteApi('/_authenticated')
 
@@ -36,22 +37,21 @@ function InboxRoute() {
     ...membersQuery,
     enabled: mayListAssignmentCandidates,
   })
-  const { data: propertiesData } = useQuery(propertiesQuery)
   const search = Route.useSearch() as InboxSearchParams
   const navigate = Route.useNavigate()
+  // This route is the organization-wide Inbox, so its viewers have one.
+  const { propertyScope, scopeLabel } = useInboxRouteScope(
+    search.propertyId ?? null,
+    true,
+  )
 
   return (
     <InboxPageV2
       ctx={ctx}
       search={search}
       assignmentOptions={toInboxAssignmentOptions(membersData?.members ?? [])}
-      scopeLabel={
-        search.propertyId
-          ? (propertiesData?.properties.find(
-              (property) => property.id === search.propertyId,
-            )?.name ?? 'Property')
-          : 'All properties'
-      }
+      scopeLabel={scopeLabel}
+      propertyScope={propertyScope}
       inboxFns={inboxFns}
       recordInboxVisit
       onNavigate={(opts) =>

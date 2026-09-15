@@ -97,8 +97,23 @@ const LIST_STORIES = [
   'select-row',
   'open-row',
 ] as const
-const HEADER_STORIES = ['resting', 'filtered', 'searching', 'all-properties'] as const
-const RAIL_STORIES = ['manager', 'member', 'zero-counts'] as const
+const HEADER_STORIES = [
+  'resting',
+  'filtered',
+  'searching',
+  'all-properties',
+  'compact-scope-menu',
+] as const
+const RAIL_STORIES = [
+  'manager',
+  'member',
+  'zero-counts',
+  'all-properties',
+  'property-in-view',
+  'many-properties',
+  'member-properties',
+  'empty-property-counts',
+] as const
 
 /**
  * Driving the pane stops this long before the test's own timeout, and says

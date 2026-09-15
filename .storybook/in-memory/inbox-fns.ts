@@ -37,6 +37,7 @@ import type {
   getInboxNotesFn,
   getInboxItemHistoryFn,
   getInboxQueueCountsFn,
+  getInboxPropertyCountsFn,
   stampLastInboxViewFn,
   updateInboxStatusFn,
   escalateInboxItemFn,
@@ -50,6 +51,7 @@ import type {
 } from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { InboxServerFns } from '#/components/inbox/types'
+import type { InboxQueue } from '#/contexts/inbox/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
 type InboxContainer = ReturnType<typeof createInboxContainer>
@@ -136,6 +138,12 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
         { propertyId: data?.propertyId },
         ctx,
       )) as unknown as typeof getInboxQueueCountsFn,
+
+    getInboxPropertyCounts: (async ({ data }: { data: { queue: InboxQueue } }) =>
+      container.inboxPublicApi.getInboxPropertyCounts(
+        { queue: data.queue },
+        ctx,
+      )) as unknown as typeof getInboxPropertyCountsFn,
 
     stampLastInboxView: (async ({
       data,

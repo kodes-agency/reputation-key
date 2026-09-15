@@ -288,6 +288,11 @@ export const getInboxQueueCountsDto = z.object({
   propertyId: z.string().optional(),
 })
 
+// GET one queue counted per property — the rail's property section.
+export const getInboxPropertyCountsDto = z.object({
+  queue: z.enum(INBOX_QUEUES),
+})
+
 // Type exports
 export type GetInboxItemsInput = z.infer<typeof getInboxItemsDto>
 export type UpdateStatusInput = z.infer<typeof updateStatusDto>

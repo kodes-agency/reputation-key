@@ -28,6 +28,7 @@ import {
   getInboxNotesFn,
   getInboxItemHistoryFn,
   getInboxQueueCountsFn,
+  getInboxPropertyCountsFn,
   stampLastInboxViewFn,
   updateInboxStatusFn,
   escalateInboxItemFn,
@@ -62,6 +63,9 @@ export const inboxFns: InboxServerFns = {
   },
   get getInboxQueueCounts() {
     return getInboxQueueCountsFn
+  },
+  get getInboxPropertyCounts() {
+    return getInboxPropertyCountsFn
   },
   get stampLastInboxView() {
     return stampLastInboxViewFn

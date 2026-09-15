@@ -155,6 +155,7 @@ const setup = (
     updateAssignment: async () => storedDetail!.item,
     countByStatus: async () => 0,
     countFiltered: async () => 0,
+    countFilteredByProperty: async () => [],
     findByIds: async () => [],
     setEscalation: vi.fn(),
     resolveEscalation: vi.fn(),

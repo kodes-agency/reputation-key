@@ -20,6 +20,7 @@ import {
   getLastVisitCountDto,
   stampLastInboxViewDto,
   getInboxQueueCountsDto,
+  getInboxPropertyCountsDto,
 } from '../application/dto/inbox.dto'
 import { decodeInboxCursor } from '../application/inbox-cursor'
 import { REPLY_STAGE_QUEUES } from '../application/inbox-queues'
@@ -186,5 +187,34 @@ export const getInboxQueueCountsFn = createServerFn({ method: 'GET' })
       },
       'GET',
       'inbox.getInboxQueueCounts',
+    ),
+  )
+
+// ── getInboxPropertyCounts ────────────────────────────────────────
+
+export const getInboxPropertyCountsFn = createServerFn({ method: 'GET' })
+  .validator(getInboxPropertyCountsDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        // Counted across every visible property, so authorized at organization
+        // level — with the list's own reply authority for a reply-stage queue.
+        await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
+        if (REPLY_STAGE_QUEUES.has(data.queue)) {
+          await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
+        }
+        const { inboxPublicApi } = getContainer()
+        try {
+          return await inboxPublicApi.getInboxPropertyCounts({ queue: data.queue }, ctx)
+        } catch (e) {
+          if (isInboxError(e))
+            throwContextError('InboxError', e, inboxErrorStatus(e.code))
+          throw catchUntagged(e)
+        }
+      },
+      'GET',
+      'inbox.getInboxPropertyCounts',
     ),
   )

@@ -16,6 +16,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
   const {
     queueLabel,
     scopeLabel,
+    scopeControl,
     totalCount,
     searchQ,
     filters,
@@ -46,6 +47,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
       <InboxListHeader
         queueLabel={queueLabel}
         scopeLabel={scopeLabel}
+        scopeControl={scopeControl}
         totalCount={totalCount}
         searchQ={searchQ}
         onSearchChange={onSearchChange}

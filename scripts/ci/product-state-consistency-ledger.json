@@ -10,6 +10,7 @@
         "list",
         "counts",
         "countsFor",
+        "propertyCountsFor",
         "lastVisitCount",
         "details",
         "detail",
@@ -21,7 +22,7 @@
         "googleReviewTargetAnalytics"
       ],
       "owner": "Inbox query lifecycle",
-      "policy": "The active-tenant root separates filtered lists, property/all counts, last-visit count, item details, response-target policies, and target analytics. Notes, activity and Handling History descend from an item detail so item invalidation reaches its projections; filters and item ids remain part of the cache identity. Response-target policy and analytics keys include either the globally unique Property id or the explicit Organization scope, preventing Property and Organization settings from sharing cache entries."
+      "policy": "The active-tenant root separates filtered lists, property/all counts, per-property counts of one queue, last-visit count, item details, response-target policies, and target analytics. Per-property queue counts sit under the counts prefix, keyed by queue, so every counts invalidation after an Inbox command also refreshes the property section. Notes, activity and Handling History descend from an item detail so item invalidation reaches its projections; filters and item ids remain part of the cache identity. Response-target policy and analytics keys include either the globally unique Property id or the explicit Organization scope, preventing Property and Organization settings from sharing cache entries."
     },
     {
       "id": "notificationKeys",

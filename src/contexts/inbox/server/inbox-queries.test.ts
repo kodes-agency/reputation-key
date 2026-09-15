@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getInboxItems: vi.fn(),
   getInboxQueueCounts: vi.fn(),
+  getInboxPropertyCounts: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
   decideExecution: vi.fn(),
@@ -14,6 +15,7 @@ vi.mock('#/composition', () => ({
     inboxPublicApi: {
       getInboxItems: mocks.getInboxItems,
       getInboxQueueCounts: mocks.getInboxQueueCounts,
+      getInboxPropertyCounts: mocks.getInboxPropertyCounts,
     },
     logger: { warn: vi.fn() },
   })),
@@ -32,7 +34,12 @@ vi.mock('#/shared/observability/traced-server-fn', () => ({
   tracedHandler: (handler: unknown) => handler,
 }))
 
-import { getInboxItemsFn, getInboxQueueCountsFn } from './inbox-queries'
+import {
+  getInboxItemsFn,
+  getInboxPropertyCountsFn,
+  getInboxQueueCountsFn,
+} from './inbox-queries'
+import { getInboxPropertyCountsDto } from '../application/dto/inbox.dto'
 
 const START_KEY = Symbol.for('tanstack-start:start-storage-context')
 function withStartContext<T>(fn: () => Promise<T>): Promise<T> {
@@ -66,6 +73,11 @@ describe('inbox query authorization', () => {
     })
     mocks.getInboxItems.mockResolvedValue({ items: [], totalCount: 0 })
     mocks.getInboxQueueCounts.mockResolvedValue({ open: 0 })
+    mocks.getInboxPropertyCounts.mockResolvedValue({
+      queue: 'open',
+      total: 0,
+      byProperty: {},
+    })
   })
 
   it('binds queue counts to the requested property and enables available reply queues', async () => {
@@ -165,5 +177,50 @@ describe('inbox query authorization', () => {
       { propertyId: PROPERTY_ID, replyQueuesEnabled: false },
       STAFF,
     )
+  })
+  it('counts a queue per property under organization-level inbox authority', async () => {
+    await withStartContext(() =>
+      getInboxPropertyCountsFn({ data: { queue: 'feedback' } }),
+    )
+
+    expect(mocks.requireExecutionAllowed.mock.calls.map(([request]) => request)).toEqual([
+      { actor: MANAGER, action: 'inbox.read' },
+    ])
+    expect(mocks.getInboxPropertyCounts).toHaveBeenCalledWith(
+      { queue: 'feedback' },
+      MANAGER,
+    )
+  })
+
+  it('requires reply policy authority before counting a reply-stage queue per property', async () => {
+    await withStartContext(() => getInboxPropertyCountsFn({ data: { queue: 'waiting' } }))
+
+    expect(mocks.requireExecutionAllowed.mock.calls.map(([request]) => request)).toEqual([
+      { actor: MANAGER, action: 'inbox.read' },
+      { actor: MANAGER, action: 'reply.manage' },
+    ])
+    expect(mocks.getInboxPropertyCounts).toHaveBeenCalledWith(
+      { queue: 'waiting' },
+      MANAGER,
+    )
+  })
+
+  it('does not count per property when reply policy refuses a reply-stage queue', async () => {
+    mocks.requireExecutionAllowed
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('reply.manage refused'))
+
+    await expect(
+      withStartContext(() => getInboxPropertyCountsFn({ data: { queue: 'reply' } })),
+    ).rejects.toThrow('reply.manage refused')
+    expect(mocks.getInboxPropertyCounts).not.toHaveBeenCalled()
+  })
+
+  it('admits only a known queue at the boundary', () => {
+    expect(getInboxPropertyCountsDto.safeParse({ queue: 'approval' }).success).toBe(true)
+    expect(getInboxPropertyCountsDto.safeParse({ queue: 'everything' }).success).toBe(
+      false,
+    )
+    expect(getInboxPropertyCountsDto.safeParse({}).success).toBe(false)
   })
 })
