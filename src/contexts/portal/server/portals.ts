@@ -24,6 +24,7 @@ import {
   propertyPortalBrandContentInputSchema,
   propertyPortalBrandProfileInputSchema,
   propertyPortalExperienceInputSchema,
+  propertyPublicDisplayNameInputSchema,
 } from '../application/dto/portal-experience.dto'
 import {
   issuePortalTokenInputSchema,
@@ -156,6 +157,30 @@ export const savePropertyPortalBrandProfile = createServerFn({ method: 'POST' })
       },
       'POST',
       'portal.savePropertyPortalBrandProfile',
+    ),
+  )
+
+export const savePropertyPublicDisplayName = createServerFn({ method: 'POST' })
+  .validator(propertyPublicDisplayNameInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.update',
+          capability: 'portal.write',
+          propertyId: data.propertyId,
+        })
+        return runPortalExperienceCommand(() =>
+          getContainer().portalPublicApi.management.savePropertyPublicDisplayName(
+            data,
+            ctx,
+          ),
+        )
+      },
+      'POST',
+      'portal.savePropertyPublicDisplayName',
     ),
   )
 

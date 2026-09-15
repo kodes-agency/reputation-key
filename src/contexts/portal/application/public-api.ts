@@ -142,6 +142,20 @@ export type PortalAiReplyBrandProfilePublicApi = Readonly<{
   ) => Promise<boolean>
 }>
 
+/**
+ * Gives a Property its confirmed name as the public display name when it has
+ * none, so AI reply drafting is not refused for a freshly imported Property.
+ */
+export type PortalPublicDisplayNameDefaultPublicApi = Readonly<{
+  ensureDefaultPublicDisplayName: (
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      displayName: string
+    }>,
+  ) => Promise<boolean>
+}>
+
 /** Portal context public API — consumed by guest and other contexts. */
 export type PortalPublicApi = Readonly<{
   /**

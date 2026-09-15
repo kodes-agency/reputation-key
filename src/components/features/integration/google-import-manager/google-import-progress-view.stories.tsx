@@ -170,10 +170,8 @@ export const ImportedThenSetUp: Story = {
       canvas.findByRole('heading', { name: 'Set up properties' }),
     ).resolves.toBeVisible()
     await expect(
-      canvas.findByText(
-        /which language should replies at the meridian grand resort use/i,
-      ),
-    ).resolves.toBeVisible()
+      canvas.findByRole('textbox', { name: 'Public display name' }),
+    ).resolves.toHaveValue('The Meridian Grand Resort')
     const propertyLinks = canvas.getAllByRole('link', {
       name: /view property the meridian grand resort/i,
     })
@@ -216,6 +214,7 @@ export const RelinkedPropertyAlreadySetUp: Story = {
     <ProgressHarness
       property={{
         ...MERIDIAN,
+        publicDisplayNameConfirmed: true,
         defaultReplyLanguage: 'en-Latn',
         aiEnabled: true,
         managerIds: [STORY_MANAGER.userId],

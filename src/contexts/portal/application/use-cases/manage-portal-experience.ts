@@ -1,12 +1,20 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
-import { portalId, propertyId } from '#/shared/domain/ids'
+import {
+  portalId,
+  propertyId,
+  type OrganizationId,
+  type PropertyId,
+} from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
 import { assertPropertyAccess } from '../assert-property-access'
 import { loadPortalOrThrow } from '../load-accessible-portal'
-import { contrastRatio } from '../../domain/portal-experience'
+import {
+  contrastRatio,
+  isPublicDisplayNameConfirmed,
+} from '../../domain/portal-experience'
 import { portalError } from '../../domain/errors'
 
 type Deps = Readonly<{
@@ -49,11 +57,15 @@ export const getPropertyPortalExperience =
       ctx.organizationId,
       pid,
     )
+    const publicDisplayNameConfirmed = isPublicDisplayNameConfirmed(
+      propertyExperience.profile,
+    )
     if (!input.portalId) {
       return {
         ...propertyExperience,
         overrides: [],
         canManagePropertyBrand: canForContext(ctx, 'portal.admin'),
+        publicDisplayNameConfirmed,
       }
     }
     const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
@@ -71,7 +83,53 @@ export const getPropertyPortalExperience =
         portal.id,
       ),
       canManagePropertyBrand: canForContext(ctx, 'portal.admin'),
+      publicDisplayNameConfirmed,
     }
+  }
+
+/** Save the Property's public display name alone; its colours stay as they are. */
+export const savePropertyPublicDisplayName =
+  (deps: Deps) =>
+  async (
+    input: Readonly<{ propertyId: string; displayName: string }>,
+    ctx: AuthContext,
+  ) => {
+    assertPortalAdmin(ctx)
+    const pid = propertyId(input.propertyId)
+    await assertPropertyAccess(deps.staffPublicApi, ctx, 'portal.update', pid)
+    return deps.experienceRepo.savePropertyDisplayName({
+      id: deps.idGen(),
+      organizationId: ctx.organizationId,
+      propertyId: pid,
+      displayName: normalizedRequired(input.displayName, 'Display name', 120),
+      updatedBy: ctx.userId,
+      at: deps.clock(),
+    })
+  }
+
+/**
+ * A Property starts with its confirmed name as its public display name, so AI
+ * reply drafts work before anyone opens its settings. A name the Property
+ * already has is never replaced. Resolves whether one was set.
+ */
+export const ensureDefaultPublicDisplayName =
+  (deps: Pick<Deps, 'experienceRepo' | 'idGen' | 'clock'>) =>
+  async (
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      displayName: string
+    }>,
+  ): Promise<boolean> => {
+    const displayName = input.displayName.trim()
+    if (displayName.length === 0 || displayName.length > 120) return false
+    return deps.experienceRepo.ensurePropertyDisplayName({
+      id: deps.idGen(),
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      displayName,
+      at: deps.clock(),
+    })
   }
 
 export const savePropertyPortalBrandProfile =

@@ -1,7 +1,7 @@
 import type { CurrentMerchantAiCapability } from '#/contexts/identity/application/public-api'
 import type { SetupPlan } from './setup-plan'
 
-export type SetupTaskKind = 'language' | 'managers' | 'ai'
+export type SetupTaskKind = 'displayName' | 'language' | 'managers' | 'ai'
 
 /** The writes the step performs, bound by the caller to the server functions. */
 export type SetupWriteFns = Readonly<{
@@ -15,6 +15,9 @@ export type SetupWriteFns = Readonly<{
     }>,
   ) => Promise<unknown>
   deferAi: (input: Readonly<{ propertyId: string }>) => Promise<unknown>
+  setDisplayName: (
+    input: Readonly<{ propertyId: string; displayName: string }>,
+  ) => Promise<unknown>
   setLanguage: (
     input: Readonly<{ propertyId: string; language: string }>,
   ) => Promise<unknown>
@@ -108,8 +111,9 @@ async function runAiCeremony(
 
 /**
  * Perform every write the plan holds and report each one. The AI ceremony
- * runs first as one request; deferrals, reply languages and managers follow
- * with bounded concurrency. A failure never stops the other writes.
+ * runs first as one request; deferrals, public display names, reply languages
+ * and managers follow with bounded concurrency. A failure never stops the
+ * other writes.
  */
 export async function runSetupPlan(
   plan: SetupPlan,
@@ -124,6 +128,14 @@ export async function runSetupPlan(
     if (property.ai === 'defer' && include(propertyId, 'ai')) {
       tasks.push(() =>
         settle({ propertyId, kind: 'ai' }, () => fns.deferAi({ propertyId })),
+      )
+    }
+    const displayName = property.displayName
+    if (displayName !== null && include(propertyId, 'displayName')) {
+      tasks.push(() =>
+        settle({ propertyId, kind: 'displayName' }, () =>
+          fns.setDisplayName({ propertyId, displayName }),
+        ),
       )
     }
     const language = property.language

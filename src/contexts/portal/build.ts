@@ -92,6 +92,8 @@ import {
   savePortalLocalizedOverride,
   savePropertyPortalBrandContent,
   savePropertyPortalBrandProfile,
+  savePropertyPublicDisplayName,
+  ensureDefaultPublicDisplayName,
 } from './application/use-cases/manage-portal-experience'
 import {
   approvePortalApprovedDestination,
@@ -232,6 +234,13 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       clock: deps.clock,
     }),
     savePropertyPortalBrandProfile: savePropertyPortalBrandProfile({
+      experienceRepo: portalExperienceRepo,
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      idGen: deps.idGen,
+      clock: deps.clock,
+    }),
+    savePropertyPublicDisplayName: savePropertyPublicDisplayName({
       experienceRepo: portalExperienceRepo,
       portalRepo,
       staffPublicApi: deps.staffPublicApi,
@@ -540,6 +549,11 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       aiReplyBrandProfileAuthority.readCurrentAiReplyBrandProfile,
     isCurrentAiReplyBrandProfile:
       aiReplyBrandProfileAuthority.isCurrentAiReplyBrandProfile,
+    ensureDefaultPublicDisplayName: ensureDefaultPublicDisplayName({
+      experienceRepo: portalExperienceRepo,
+      idGen: deps.idGen,
+      clock: deps.clock,
+    }),
     getResponsibleManagerUserIds: async (orgId: OrganizationId, pid: PortalId) => {
       const facts = await contactRequestManagerAuthorityFacts(orgId, pid)
       return facts?.responsibleManagerUserIds ?? []

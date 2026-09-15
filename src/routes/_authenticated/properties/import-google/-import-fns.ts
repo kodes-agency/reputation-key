@@ -27,6 +27,10 @@ import {
   updatePropertyResponsibleManagers,
 } from '#/contexts/property/server/property-responsible-managers'
 import { getReviewAnalysisProgressFn } from '#/contexts/ai/server/review-analysis'
+import {
+  getPropertyPortalExperience,
+  savePropertyPublicDisplayName,
+} from '#/contexts/portal/server/portals'
 import type {
   GoogleImportFns,
   GoogleImportSetupFns,
@@ -83,6 +87,12 @@ export const importSetupFns: GoogleImportSetupFns = {
   },
   get getReviewAnalysisProgress() {
     return getReviewAnalysisProgressFn
+  },
+  get getPropertyPortalExperience() {
+    return getPropertyPortalExperience
+  },
+  get savePropertyPublicDisplayName() {
+    return savePropertyPublicDisplayName
   },
   get updateProperty() {
     return updateProperty

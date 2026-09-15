@@ -15,6 +15,7 @@ const plan: SetupPlan = {
     {
       propertyId: 'berlin',
       propertyName: 'Hotel Berlin',
+      displayName: 'Hotel Berlin',
       language: 'de-Latn',
       managerIds: ['admin'],
       ai: 'enable',
@@ -22,6 +23,7 @@ const plan: SetupPlan = {
     {
       propertyId: 'lisbon',
       propertyName: 'Casa Lisboa',
+      displayName: null,
       language: null,
       managerIds: ['manager'],
       ai: 'enable',
@@ -29,6 +31,7 @@ const plan: SetupPlan = {
     {
       propertyId: 'athens',
       propertyName: 'Athens Rooms',
+      displayName: 'Athens Rooms Piraeus',
       language: 'en-Latn',
       managerIds: null,
       ai: 'defer',
@@ -40,6 +43,7 @@ function fns(overrides: Partial<SetupWriteFns> = {}): SetupWriteFns {
   return {
     enableAi: vi.fn(async () => undefined),
     deferAi: vi.fn(async () => undefined),
+    setDisplayName: vi.fn(async () => undefined),
     setLanguage: vi.fn(async () => undefined),
     setManagers: vi.fn(async () => undefined),
     ...overrides,
@@ -63,9 +67,14 @@ describe('running a setup plan', () => {
       idempotencyKey: 'ceremony-key-0001',
     })
     expect(writes.deferAi).toHaveBeenCalledWith({ propertyId: 'athens' })
+    expect(writes.setDisplayName).toHaveBeenCalledTimes(2)
+    expect(writes.setDisplayName).toHaveBeenCalledWith({
+      propertyId: 'athens',
+      displayName: 'Athens Rooms Piraeus',
+    })
     expect(writes.setLanguage).toHaveBeenCalledTimes(2)
     expect(writes.setManagers).toHaveBeenCalledTimes(2)
-    expect(results).toHaveLength(7)
+    expect(results).toHaveLength(9)
     expect(failedSetupTasks(results)).toEqual([])
   })
 
@@ -151,6 +160,7 @@ describe('running a setup plan', () => {
       language: 'en-Latn',
     })
     expect(writes.setManagers).not.toHaveBeenCalled()
+    expect(writes.setDisplayName).not.toHaveBeenCalled()
     expect(writes.deferAi).not.toHaveBeenCalled()
     expect(failedSetupTasks(mergeSetupResults(first, retry))).toEqual([])
   })
@@ -169,6 +179,7 @@ describe('running a setup plan', () => {
       properties: Array.from({ length: 10 }, (_, index) => ({
         propertyId: `p${index}`,
         propertyName: `Property ${index}`,
+        displayName: null,
         language: 'en-Latn',
         managerIds: null,
         ai: null,

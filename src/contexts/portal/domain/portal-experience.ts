@@ -7,6 +7,28 @@ import { portalError } from './errors'
 
 const ACTIVE_PORTAL_GUEST_LOCALES = ['en', 'bg'] as const
 
+/**
+ * Recorded as `updatedBy` on a public display name RepKey filled in itself:
+ * the Property's confirmed name, set when it was imported or backfilled. AI
+ * reply drafts use it as-is; the setup wizard asks about it until someone
+ * saves a name.
+ */
+export const AUTOMATIC_PUBLIC_DISPLAY_NAME_ACTOR = 'system:public-display-name-default'
+
+/** The colours a Property Brand Profile starts with before anyone picks them. */
+export const DEFAULT_PROPERTY_BRAND_PALETTE = Object.freeze({
+  primaryColor: '#2563EB',
+  backgroundColor: '#FFFFFF',
+  textColor: '#111827',
+})
+
+/** A person saved the public display name; an automatic one is not confirmed. */
+export function isPublicDisplayNameConfirmed(
+  profile: Readonly<{ updatedBy: string }> | null,
+): boolean {
+  return profile !== null && profile.updatedBy !== AUTOMATIC_PUBLIC_DISPLAY_NAME_ACTOR
+}
+
 function channel(hex: string): number {
   const value = Number.parseInt(hex, 16) / 255
   return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4

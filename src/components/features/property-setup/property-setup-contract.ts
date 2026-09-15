@@ -14,6 +14,10 @@ import type {
   updatePropertyResponsibleManagers,
 } from '#/contexts/property/server/property-responsible-managers'
 import type { getReviewAnalysisProgressFn } from '#/contexts/ai/server/review-analysis'
+import type {
+  getPropertyPortalExperience,
+  savePropertyPublicDisplayName,
+} from '#/contexts/portal/server/portals'
 
 /**
  * The reads and writes of the "Set up properties" step. The route binds them
@@ -26,6 +30,8 @@ export type PropertySetupFns = Readonly<{
   listMerchantAiOverview: typeof listMerchantAiOverviewFn
   getMerchantAiAuthorization: typeof getMerchantAiAuthorizationFn
   getReviewAnalysisProgress: typeof getReviewAnalysisProgressFn
+  getPropertyPortalExperience: typeof getPropertyPortalExperience
+  savePropertyPublicDisplayName: typeof savePropertyPublicDisplayName
   updateProperty: typeof updateProperty
   updatePropertyResponsibleManagers: typeof updatePropertyResponsibleManagers
   enableMerchantAiForProperties: typeof enableMerchantAiForPropertiesFn

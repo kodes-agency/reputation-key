@@ -3,11 +3,16 @@ import { suggestedReplyLanguageForCountry } from '#/shared/country-reply-languag
 
 /**
  * What the "Set up properties" step knows about one Property the import
- * produced: only the facts its three questions (decision 2) depend on.
+ * produced: only the facts its questions (decision 2, and the public display
+ * name) depend on.
  */
 export type SetupPropertyFacts = Readonly<{
   propertyId: string
   propertyName: string
+  /** The name AI reply drafts and the guest portal use; null when none is set. */
+  publicDisplayName: string | null
+  /** A person saved the public display name; an automatic one is still asked. */
+  publicDisplayNameConfirmed: boolean
   countryCode: string | null
   /** The confirmed default reply language, or null when none is set yet. */
   replyLanguage: string | null
@@ -15,6 +20,14 @@ export type SetupPropertyFacts = Readonly<{
   aiDecided: boolean
   managerIds: readonly string[]
   eligibleManagerIds: readonly string[]
+}>
+
+/**
+ * Public display name: what the merchant typed, by property. A property with
+ * no entry, or only spaces, keeps the name it already has.
+ */
+export type DisplayNameAnswer = Readonly<{
+  names: Readonly<Record<string, string>>
 }>
 
 /** Reply language: every property's suggestion, or languages the merchant picked. */
@@ -47,6 +60,7 @@ export type AiAnswer =
 
 /** A skipped question is null: its step stays pending on every property. */
 export type SetupAnswers = Readonly<{
+  displayName: DisplayNameAnswer | null
   language: LanguageAnswer | null
   managers: ManagerAnswer | null
   ai: AiAnswer | null
@@ -55,6 +69,8 @@ export type SetupAnswers = Readonly<{
 export type PropertySetupPlan = Readonly<{
   propertyId: string
   propertyName: string
+  /** Null writes nothing: already confirmed, or the question was skipped. */
+  displayName: string | null
   /** Null writes nothing: already set, or the question was skipped. */
   language: string | null
   managerIds: readonly string[] | null
@@ -66,6 +82,18 @@ export type SetupPlan = Readonly<{
   /** The capability set of the one consent ceremony; empty when nothing enables. */
   aiCapabilities: readonly CurrentMerchantAiCapability[]
 }>
+
+/** Asked until a person saves a name; the automatic one works meanwhile. */
+export function propertiesAskedDisplayName(
+  facts: readonly SetupPropertyFacts[],
+): readonly SetupPropertyFacts[] {
+  return facts.filter((property) => !property.publicDisplayNameConfirmed)
+}
+
+/** The name a property already has, or its own name when it has none. */
+export function suggestedDisplayNameFor(property: SetupPropertyFacts): string {
+  return property.publicDisplayName ?? property.propertyName
+}
 
 export function propertiesAskedLanguage(
   facts: readonly SetupPropertyFacts[],
@@ -119,6 +147,7 @@ export function initialSetupAnswers(
   const managerProperties = propertiesAskedManagers(facts)
   const managerIds = defaultManagerIds(managerProperties, viewerUserId)
   return {
+    displayName: propertiesAskedDisplayName(facts).length > 0 ? { names: {} } : null,
     language: propertiesAskedLanguage(facts).length > 0 ? { kind: 'suggested' } : null,
     managers:
       managerProperties.length > 0 && managerIds.length > 0
@@ -126,6 +155,14 @@ export function initialSetupAnswers(
         : null,
     ai: null,
   }
+}
+
+function plannedDisplayName(
+  property: SetupPropertyFacts,
+  answer: DisplayNameAnswer | null,
+): string | null {
+  if (answer === null || property.publicDisplayNameConfirmed) return null
+  return answer.names[property.propertyId]?.trim() || suggestedDisplayNameFor(property)
 }
 
 function plannedLanguage(
@@ -170,6 +207,7 @@ export function buildSetupPlan(
   const properties = facts.map((property) => ({
     propertyId: property.propertyId,
     propertyName: property.propertyName,
+    displayName: plannedDisplayName(property, answers.displayName),
     language: plannedLanguage(property, answers.language),
     managerIds: plannedManagers(property, answers.managers),
     ai: plannedAi(property, answers.ai),

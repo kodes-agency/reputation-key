@@ -4,12 +4,14 @@ import {
   organizationId,
   propertyId,
   type GoogleConnectionId,
+  type PropertyId,
 } from '#/shared/domain/ids'
 import {
   buildGoogleImportedProperty,
   type PropertyGoogleBindingPublicApi,
 } from '#/contexts/property/application/public-api'
 import type { ReviewQueuePort } from '#/contexts/review/application/public-api'
+import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { jobRetryDelayUpperBoundMs } from '#/shared/jobs/job-policy'
 import type { GoogleImportCommandAuthorizer } from './google-import-discovery'
@@ -57,6 +59,8 @@ type ImportFollowUpTarget = Readonly<{
   connectionId: GoogleConnectionId
   accountId: string
   locationId: string
+  /** The name the import confirmed; the public display name starts as it. */
+  propertyName: string
 }>
 
 type TerminalOutcome = Readonly<{
@@ -167,6 +171,13 @@ export function createGoogleImportV2Processor(
      * correctness gate, so a failure is logged and the import proceeds.
      */
     subscribeToNotifications?: ManageNotificationsApi['subscribe']
+    /**
+     * Gives the Property its confirmed name as its public display name when it
+     * has none, so AI reply drafts are not refused straight after the import.
+     * Never replaces a name. Best-effort like the subscribe: the setup wizard
+     * and the Property's Profile settings can still set it.
+     */
+    defaultPublicDisplayName?: PortalPublicDisplayNameDefaultPublicApi['ensureDefaultPublicDisplayName']
     resolveActor: (organizationId: string, userId: string) => Promise<AuthContext | null>
     clock: () => Date
     newClaimFence: () => string
@@ -179,10 +190,11 @@ export function createGoogleImportV2Processor(
   }>,
 ): GoogleImportV2Processor {
   /**
-   * Resolve the binding that post-import follow-up (review backfill + GBP
-   * push subscribe) should target, or null when there is nothing to follow up
-   * on: no follow-up dependency is wired, the receipt is not a live import,
-   * or the binding is not an active one matching the receipt's source epoch.
+   * Resolve the binding that post-import follow-up (review backfill, public
+   * display name, GBP push subscribe) should target, or null when there is
+   * nothing to follow up on: no follow-up dependency is wired, the receipt is
+   * not a live import, or the binding is not an active one matching the
+   * receipt's source epoch.
    *
    * The epoch match is what makes follow-up safe to run at all — a binding
    * that moved on since the receipt was written belongs to a later operation.
@@ -191,7 +203,13 @@ export function createGoogleImportV2Processor(
     organizationIdValue: string,
     receipt: PropertyReceipt,
   ): Promise<ImportFollowUpTarget | null> => {
-    if (!deps.enqueueReviewSync && !deps.subscribeToNotifications) return null
+    if (
+      !deps.enqueueReviewSync &&
+      !deps.subscribeToNotifications &&
+      !deps.defaultPublicDisplayName
+    ) {
+      return null
+    }
     if (receipt.tombstone || receipt.destinationPropertyId === null) return null
     if (receipt.outcome !== 'imported' && receipt.outcome !== 'relinked') return null
 
@@ -212,6 +230,34 @@ export function createGoogleImportV2Processor(
       connectionId: binding.connectionId,
       accountId: binding.accountId,
       locationId: binding.locationId,
+      propertyName: binding.name,
+    }
+  }
+
+  /**
+   * Start the public display name as the confirmed Property name. Swallows its
+   * own failure: reply drafting then asks for the name, which the setup wizard
+   * and Profile settings both set.
+   */
+  const defaultPublicDisplayNameBestEffort = async (
+    organizationIdValue: string,
+    itemId: string,
+    destinationPropertyId: PropertyId,
+    propertyName: string,
+  ): Promise<void> => {
+    if (!deps.defaultPublicDisplayName) return
+    try {
+      await deps.defaultPublicDisplayName({
+        organizationId: organizationId(organizationIdValue),
+        propertyId: destinationPropertyId,
+        displayName: propertyName,
+      })
+    } catch (error) {
+      // Content-free: the name itself is a Property profile field.
+      deps.logger.warn(
+        { itemId, errorName: error instanceof Error ? error.name : 'unknown' },
+        'Public display name default failed after import — reply drafting asks for the name until setup or Profile settings saves one',
+      )
     }
   }
 
@@ -270,6 +316,12 @@ export function createGoogleImportV2Processor(
           },
         )
       }
+      await defaultPublicDisplayNameBestEffort(
+        organizationIdValue,
+        itemId,
+        receipt.destinationPropertyId,
+        target.propertyName,
+      )
       // Runs AFTER the sync enqueue so a subscribe outage cannot delay the
       // backfill that makes the property usable.
       await subscribeToNotificationsBestEffort(

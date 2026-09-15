@@ -11,6 +11,8 @@ import {
   propertyId,
   unbrand,
   userId,
+  type OrganizationId,
+  type PropertyId,
 } from '#/shared/domain/ids'
 import type {
   PortalExperienceRepository,
@@ -19,7 +21,7 @@ import type {
   PropertyPortalBrandProfile,
 } from '../../application/ports/portal-experience.repository'
 import { trace } from '#/shared/observability/trace'
-import { insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import {
   lockPortalPublicationProperty,
   lockPortalPublicationWorkingCopy,
@@ -30,6 +32,10 @@ import {
   portalPropertyBrandContentUpdated,
   portalPropertyBrandProfileUpdated,
 } from '../../domain/events'
+import {
+  AUTOMATIC_PUBLIC_DISPLAY_NAME_ACTOR,
+  DEFAULT_PROPERTY_BRAND_PALETTE,
+} from '../../domain/portal-experience'
 
 const profileFromRow = (
   row: typeof propertyPortalBrandProfiles.$inferSelect,
@@ -80,6 +86,33 @@ const overrideFromRow = (
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 })
+
+/** Every Brand Profile write fences Portal publication and announces the version. */
+async function recordPropertyProfileChange(
+  tx: Tx,
+  input: Readonly<{
+    organizationId: OrganizationId
+    propertyId: PropertyId
+    version: number
+    at: Date
+  }>,
+): Promise<void> {
+  await recordPortalPendingContentChange(tx, {
+    organizationId: unbrand(input.organizationId),
+    propertyId: unbrand(input.propertyId),
+    kind: 'property_brand_profile',
+    sourceVersion: `v${input.version}`,
+    changedAt: input.at,
+  })
+  const event = portalPropertyBrandProfileUpdated({
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    profileVersion: input.version,
+    sourceAggregateVersion: input.at.toISOString(),
+    occurredAt: input.at,
+  })
+  await insertOutboxRow(tx, event, { recordedAt: input.at })
+}
 
 export const createPortalExperienceRepository = (
   db: Database,
@@ -164,26 +197,124 @@ export const createPortalExperienceRepository = (
           })
           .returning()
         if (!row) throw new Error('Property Brand Profile was not saved')
-        await recordPortalPendingContentChange(tx, {
-          organizationId: unbrand(input.organizationId),
-          propertyId: unbrand(input.propertyId),
-          kind: 'property_brand_profile',
-          sourceVersion: `v${row.version}`,
-          changedAt: input.at,
-        })
-        const event = portalPropertyBrandProfileUpdated({
+        await recordPropertyProfileChange(tx, {
           organizationId: input.organizationId,
           propertyId: input.propertyId,
-          profileVersion: row.version,
-          sourceAggregateVersion: input.at.toISOString(),
-          occurredAt: input.at,
+          version: row.version,
+          at: input.at,
         })
-        await insertOutboxRow(tx, event, { recordedAt: input.at })
         return profileFromRow(row)
       })
 
       return committed
     }),
+
+  ensurePropertyDisplayName: (input) =>
+    trace('portalExperience.ensurePropertyDisplayName', () =>
+      db.transaction(async (tx) => {
+        await lockPortalPublicationProperty(
+          tx,
+          unbrand(input.organizationId),
+          unbrand(input.propertyId),
+        )
+        const [row] = await tx
+          .insert(propertyPortalBrandProfiles)
+          .values({
+            id: input.id,
+            organizationId: unbrand(input.organizationId),
+            propertyId: unbrand(input.propertyId),
+            displayName: input.displayName,
+            logoUrl: null,
+            defaultHeroImageUrl: null,
+            ...DEFAULT_PROPERTY_BRAND_PALETTE,
+            version: 1,
+            updatedBy: AUTOMATIC_PUBLIC_DISPLAY_NAME_ACTOR,
+            createdAt: input.at,
+            updatedAt: input.at,
+          })
+          .onConflictDoNothing({
+            target: [
+              propertyPortalBrandProfiles.organizationId,
+              propertyPortalBrandProfiles.propertyId,
+            ],
+          })
+          .returning()
+        if (!row) return false
+        await recordPropertyProfileChange(tx, {
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          version: row.version,
+          at: input.at,
+        })
+        return true
+      }),
+    ),
+
+  savePropertyDisplayName: (input) =>
+    trace('portalExperience.savePropertyDisplayName', () =>
+      db.transaction(async (tx) => {
+        await lockPortalPublicationProperty(
+          tx,
+          unbrand(input.organizationId),
+          unbrand(input.propertyId),
+        )
+        const scope = and(
+          eq(propertyPortalBrandProfiles.organizationId, unbrand(input.organizationId)),
+          eq(propertyPortalBrandProfiles.propertyId, unbrand(input.propertyId)),
+        )
+        const [current] = await tx
+          .select()
+          .from(propertyPortalBrandProfiles)
+          .where(scope)
+          .limit(1)
+        if (current?.displayName === input.displayName) {
+          // A person confirmed the name as it was: record who, but keep the
+          // version, so reply drafts made with this name stay current.
+          const [confirmed] = await tx
+            .update(propertyPortalBrandProfiles)
+            .set({ updatedBy: unbrand(input.updatedBy), updatedAt: input.at })
+            .where(scope)
+            .returning()
+          if (!confirmed) throw new Error('Property Brand Profile was not saved')
+          return profileFromRow(confirmed)
+        }
+        const [row] = current
+          ? await tx
+              .update(propertyPortalBrandProfiles)
+              .set({
+                displayName: input.displayName,
+                version: sql`${propertyPortalBrandProfiles.version} + 1`,
+                updatedBy: unbrand(input.updatedBy),
+                updatedAt: input.at,
+              })
+              .where(scope)
+              .returning()
+          : await tx
+              .insert(propertyPortalBrandProfiles)
+              .values({
+                id: input.id,
+                organizationId: unbrand(input.organizationId),
+                propertyId: unbrand(input.propertyId),
+                displayName: input.displayName,
+                logoUrl: null,
+                defaultHeroImageUrl: null,
+                ...DEFAULT_PROPERTY_BRAND_PALETTE,
+                version: 1,
+                updatedBy: unbrand(input.updatedBy),
+                createdAt: input.at,
+                updatedAt: input.at,
+              })
+              .returning()
+        if (!row) throw new Error('Property Brand Profile was not saved')
+        await recordPropertyProfileChange(tx, {
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          version: row.version,
+          at: input.at,
+        })
+        return profileFromRow(row)
+      }),
+    ),
 
   savePropertyContent: (input) =>
     trace('portalExperience.savePropertyContent', async () => {

@@ -38,8 +38,9 @@ async function next(canvasElement: HTMLElement) {
 }
 
 /**
- * Twenty locations get the same three questions as one: suggested languages,
- * the importing admin as manager, one consent ceremony naming every property.
+ * Twenty locations get the same questions as one: each keeps its own name,
+ * suggested languages, the importing admin as manager, and one consent
+ * ceremony naming every property.
  */
 export const ThreePropertiesOneCeremony: Story = {
   args: {
@@ -52,9 +53,14 @@ export const ThreePropertiesOneCeremony: Story = {
     const fns = args.fns as ReturnType<typeof createSetupFnsFixture>
 
     await expect(
-      canvas.findByText(/German for Hotel Berlin Mitte; Portuguese for Casa Lisboa/i),
-    ).resolves.toBeVisible()
-    await expect(canvas.getByText('Question 1 of 3')).toBeVisible()
+      canvas.findByRole('textbox', { name: 'Public display name for Casa Lisboa' }),
+    ).resolves.toHaveValue('Casa Lisboa')
+    await expect(canvas.getByText('Question 1 of 4')).toBeVisible()
+    await next(canvasElement)
+
+    await expect(
+      canvas.getByText(/German for Hotel Berlin Mitte; Portuguese for Casa Lisboa/i),
+    ).toBeVisible()
     await next(canvasElement)
 
     await expect(canvas.getByRole('checkbox', { name: STORY_ADMIN.name })).toBeChecked()
@@ -90,6 +96,10 @@ export const ThreePropertiesOneCeremony: Story = {
       data: { propertyId: ATHENS, defaultReplyLanguage: 'en-Latn' },
     })
     await expect(fns.updatePropertyResponsibleManagers).toHaveBeenCalledTimes(3)
+    await expect(fns.savePropertyPublicDisplayName).toHaveBeenCalledTimes(3)
+    await expect(fns.savePropertyPublicDisplayName).toHaveBeenCalledWith({
+      data: { propertyId: LISBON, displayName: 'Casa Lisboa' },
+    })
     await expect(
       canvas.findByRole('progressbar', { name: /reviews analysed at casa lisboa/i }),
     ).resolves.toBeVisible()
@@ -97,7 +107,7 @@ export const ThreePropertiesOneCeremony: Story = {
   },
 }
 
-/** One property answers differently: its own language, manager, and "not now". */
+/** One property answers differently: its own name, language, manager, and "not now". */
 export const PerPropertyOverrides: Story = {
   args: {
     properties: imported,
@@ -109,9 +119,14 @@ export const PerPropertyOverrides: Story = {
     const page = within(canvasElement.ownerDocument.body)
     const fns = args.fns as ReturnType<typeof createSetupFnsFixture>
 
-    await userEvent.click(
-      await canvas.findByRole('radio', { name: /choose the language/i }),
-    )
+    const athensName = await canvas.findByRole('textbox', {
+      name: 'Public display name for Athens Rooms',
+    })
+    await userEvent.clear(athensName)
+    await userEvent.type(athensName, 'Athens Rooms Piraeus')
+    await next(canvasElement)
+
+    await userEvent.click(canvas.getByRole('radio', { name: /choose the language/i }))
     await userEvent.click(canvas.getByRole('switch', { name: /same answer for all 3/i }))
     await userEvent.click(
       canvas.getByRole('combobox', { name: /reply language for athens rooms/i }),
@@ -150,6 +165,12 @@ export const PerPropertyOverrides: Story = {
     await expect(fns.updateProperty).toHaveBeenCalledWith({
       data: { propertyId: ATHENS, defaultReplyLanguage: 'es-Latn' },
     })
+    await expect(fns.savePropertyPublicDisplayName).toHaveBeenCalledWith({
+      data: { propertyId: ATHENS, displayName: 'Athens Rooms Piraeus' },
+    })
+    await expect(fns.savePropertyPublicDisplayName).toHaveBeenCalledWith({
+      data: { propertyId: BERLIN, displayName: 'Hotel Berlin Mitte' },
+    })
     await expect(fns.updatePropertyResponsibleManagers).toHaveBeenCalledWith({
       data: expect.objectContaining({
         propertyId: LISBON,
@@ -170,7 +191,8 @@ export const ClearingManagersForgetsOverrides: Story = {
     const canvas = within(canvasElement)
     const page = within(canvasElement.ownerDocument.body)
 
-    await canvas.findByText('Question 1 of 3')
+    await canvas.findByText('Question 1 of 4')
+    await next(canvasElement)
     await next(canvasElement)
     await userEvent.click(canvas.getByRole('switch', { name: /same answer for all 3/i }))
     await userEvent.click(
@@ -191,7 +213,7 @@ export const ClearingManagersForgetsOverrides: Story = {
   },
 }
 
-/** Skipping every question saves nothing; the checklist keeps the steps. */
+/** Skipping every question saves nothing: the checklist keeps the steps, the name stays automatic. */
 export const NotNowAndSkip: Story = {
   args: {
     properties: [imported[0]!],
@@ -204,11 +226,12 @@ export const NotNowAndSkip: Story = {
 
     await userEvent.click(await canvas.findByRole('button', { name: /skip for now/i }))
     await userEvent.click(canvas.getByRole('button', { name: /skip for now/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /skip for now/i }))
     await userEvent.click(canvas.getByRole('radio', { name: /not now/i }))
     await userEvent.click(canvas.getByRole('button', { name: /review answers/i }))
 
     const table = within(await canvas.findByRole('table'))
-    await expect(table.getAllByText('Skipped')).toHaveLength(2)
+    await expect(table.getAllByText('Skipped')).toHaveLength(3)
     await expect(table.getByText('Not now')).toBeVisible()
     await expect(
       canvas.queryByRole('checkbox', { name: /I have read this notice/i }),
@@ -218,7 +241,49 @@ export const NotNowAndSkip: Story = {
     await expect(canvas.findByText('Setup saved')).resolves.toBeVisible()
     await expect(fns.deferMerchantAiDecision).toHaveBeenCalledOnce()
     await expect(fns.updateProperty).not.toHaveBeenCalled()
+    await expect(fns.savePropertyPublicDisplayName).not.toHaveBeenCalled()
     await expect(fns.enableMerchantAiForProperties).not.toHaveBeenCalled()
+  },
+}
+
+/**
+ * The name opens as the property's own. Emptied, it cannot be the answer; a
+ * typed name is what the review shows and what is saved.
+ */
+export const RenameThePublicDisplayName: Story = {
+  args: {
+    properties: [{ propertyId: BERLIN, propertyName: 'KODES agency' }],
+    viewerUserId: STORY_ADMIN.userId,
+    fns: createSetupFnsFixture({
+      properties: [{ propertyId: BERLIN, name: 'KODES agency', countryCode: 'BG' }],
+    }),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const fns = args.fns as ReturnType<typeof createSetupFnsFixture>
+
+    const name = await canvas.findByRole('textbox', { name: 'Public display name' })
+    await expect(name).toHaveValue('KODES agency')
+    await userEvent.clear(name)
+    await next(canvasElement)
+    await expect(canvas.getByText('Enter a name, or skip this question.')).toBeVisible()
+
+    await userEvent.type(name, 'KODES')
+    await next(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /skip for now/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /skip for now/i }))
+    await userEvent.click(canvas.getByRole('radio', { name: /not now/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /review answers/i }))
+
+    const table = within(await canvas.findByRole('table'))
+    await expect(table.getByText('KODES')).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Save setup' }))
+
+    await expect(canvas.findByText('Setup saved')).resolves.toBeVisible()
+    await expect(fns.savePropertyPublicDisplayName).toHaveBeenCalledOnce()
+    await expect(fns.savePropertyPublicDisplayName).toHaveBeenCalledWith({
+      data: { propertyId: BERLIN, displayName: 'KODES' },
+    })
   },
 }
 
@@ -236,6 +301,8 @@ export const RetryAFailedAnswer: Story = {
     const canvas = within(canvasElement)
     const fns = args.fns as ReturnType<typeof createSetupFnsFixture>
 
+    await canvas.findByText('Question 1 of 4')
+    await next(canvasElement)
     await next(canvasElement)
     await next(canvasElement)
     await userEvent.click(await canvas.findByRole('radio', { name: /not now/i }))
@@ -263,6 +330,7 @@ export const NothingLeftToAsk: Story = {
       properties: [
         {
           ...batch[0],
+          publicDisplayNameConfirmed: true,
           defaultReplyLanguage: 'de-Latn',
           aiEnabled: true,
           managerIds: [STORY_MANAGER.userId],

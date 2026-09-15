@@ -1,6 +1,6 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
-import { identityKeys, propertyKeys } from '#/shared/queries/query-keys'
+import { identityKeys, portalKeys, propertyKeys } from '#/shared/queries/query-keys'
 import type {
   PropertySetupFns,
   SetupImportedProperty,
@@ -57,8 +57,18 @@ export function useSetupFacts(
     })),
   })
 
+  const experiences = useQueries({
+    queries: properties.map((property) => ({
+      queryKey: portalKeys.propertyExperience(property.propertyId),
+      queryFn: () =>
+        fns.getPropertyPortalExperience({ data: { propertyId: property.propertyId } }),
+      staleTime: 0,
+    })),
+  })
+
   const singles = [list, overview, notice, members]
   const managerStates = managers.map((read) => read.data)
+  const experienceStates = experiences.map((read) => read.data)
   // Data outlives a failed background refetch, so once everything has loaded
   // the step stays ready; an error only matters before that.
   if (
@@ -66,14 +76,20 @@ export function useSetupFacts(
     !overview.data ||
     !notice.data ||
     !members.data ||
-    managerStates.some((state) => state === undefined)
+    managerStates.some((state) => state === undefined) ||
+    experienceStates.some((state) => state === undefined)
   ) {
-    if (singles.some((read) => read.isError) || managers.some((read) => read.isError)) {
+    if (
+      singles.some((read) => read.isError) ||
+      managers.some((read) => read.isError) ||
+      experiences.some((read) => read.isError)
+    ) {
       return {
         status: 'error',
         retry: () => {
           for (const read of singles) if (read.isError) void read.refetch()
           for (const read of managers) if (read.isError) void read.refetch()
+          for (const read of experiences) if (read.isError) void read.refetch()
         },
       }
     }
@@ -89,13 +105,16 @@ export function useSetupFacts(
   const facts = properties.flatMap((imported, index): SetupPropertyFacts[] => {
     const property = propertyById.get(imported.propertyId)
     const managerState = managerStates[index]
+    const experience = experienceStates[index]
     // Removed since the import finished: nothing left to set up.
-    if (!property || !managerState) return []
+    if (!property || !managerState || !experience) return []
     const ai = aiById.get(imported.propertyId)
     return [
       {
         propertyId: imported.propertyId,
         propertyName: property.name,
+        publicDisplayName: experience.profile?.displayName ?? null,
+        publicDisplayNameConfirmed: experience.publicDisplayNameConfirmed,
         countryCode: property.countryCode ?? null,
         replyLanguage: property.defaultReplyLanguage ?? null,
         // A property outside the viewer's AI management scope is not asked.

@@ -19,6 +19,10 @@ export const STORY_MANAGER: SetupMember = {
 export type StorySetupProperty = Readonly<{
   propertyId: string
   name: string
+  /** Undefined starts with the automatic name, the property's own; null has none. */
+  publicDisplayName?: string | null
+  /** A person saved the public display name, so the step does not ask it. */
+  publicDisplayNameConfirmed?: boolean
   countryCode: string | null
   defaultReplyLanguage?: string | null
   aiEnabled?: boolean
@@ -102,6 +106,55 @@ export function createSetupFnsFixture(options: Options): Spied<PropertySetupFns>
       notAnalysable: 0,
       verifiedThroughEpochMillis: null,
     })),
+    getPropertyPortalExperience: fn(
+      async ({ data }: { data: { propertyId: string } }) => {
+        const property = properties.get(data.propertyId)
+        const displayName =
+          property?.publicDisplayName === undefined
+            ? (property?.name ?? null)
+            : property.publicDisplayName
+        const confirmed = displayName !== null && property?.publicDisplayNameConfirmed
+        return {
+          profile:
+            displayName === null
+              ? null
+              : {
+                  id: `brand-${data.propertyId}`,
+                  organizationId: 'org-story',
+                  propertyId: data.propertyId,
+                  displayName,
+                  logoUrl: null,
+                  defaultHeroImageUrl: null,
+                  primaryColor: '#2563EB',
+                  backgroundColor: '#FFFFFF',
+                  textColor: '#111827',
+                  version: 1,
+                  updatedBy: confirmed
+                    ? STORY_ADMIN.userId
+                    : 'system:public-display-name-default',
+                  createdAt: new Date('2026-09-15T08:00:00.000Z'),
+                  updatedAt: new Date('2026-09-15T08:00:00.000Z'),
+                },
+          content: [],
+          overrides: [],
+          canManagePropertyBrand: true,
+          publicDisplayNameConfirmed: confirmed === true,
+        }
+      },
+    ),
+    savePropertyPublicDisplayName: fn(
+      async ({ data }: { data: { propertyId: string; displayName: string } }) => {
+        const property = properties.get(data.propertyId)
+        if (property) {
+          properties.set(data.propertyId, {
+            ...property,
+            publicDisplayName: data.displayName,
+            publicDisplayNameConfirmed: true,
+          })
+        }
+        return { id: `brand-${data.propertyId}`, displayName: data.displayName }
+      },
+    ),
     updateProperty: fn(
       async ({
         data,

@@ -306,6 +306,20 @@ multi-property import asks each question once. Decisions 2 to 8 and 17.
   setup checklist Google action points at the import flow; PropertyManagers reach the pending
   language and manager steps from the strip.
 
+### C5a. Public display name (decision 19)
+
+- Reply drafting refuses a Property without a public display name, and imported Properties never
+  had one. The import's post-effect follow-up now calls Portal's
+  `ensureDefaultPublicDisplayName` with the confirmed Property name: insert-only, never over a
+  saved name, best-effort like the GBP subscribe. Migration 0019 backfills the same default for
+  Properties that are not on their way to purge.
+- An automatic name is recorded with `updated_by = 'system:public-display-name-default'`;
+  `getPropertyPortalExperience` reports `publicDisplayNameConfirmed` from it.
+- "Set up properties" asks the name first, for every Property whose name is not confirmed, with
+  the current name filled in. Saving goes through `savePropertyPublicDisplayName`, which keeps
+  colours and bumps the brand version only when the name changes, so a confirmed name leaves
+  existing reply drafts current. Skipping keeps the automatic name.
+
 ### C6. Defects fixed on the way
 
 - `google-import-manager.tsx:138-149`: call `startPropertyImportV2` first, navigate on success.

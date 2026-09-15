@@ -15,6 +15,7 @@ type Props = Readonly<{
 }>
 
 const TASK_LABEL: Readonly<Record<SetupTaskKind, string>> = {
+  displayName: 'Public display name',
   language: 'Reply language',
   managers: 'Responsible manager',
   ai: 'AI features',
@@ -41,7 +42,11 @@ export function SetupResults({
     ),
   )
   const skipped = plan.properties.some(
-    (entry) => entry.language === null || entry.managerIds === null || entry.ai === null,
+    (entry) =>
+      entry.displayName === null ||
+      entry.language === null ||
+      entry.managerIds === null ||
+      entry.ai === null,
   )
 
   return (
@@ -53,7 +58,7 @@ export function SetupResults({
           <AlertDescription>
             {skipped
               ? 'Anything you skipped or that was already set stays visible on each property’s setup checklist.'
-              : 'Every property has its reply language, responsible manager and AI decision.'}
+              : 'Every property has its public display name, reply language, responsible manager and AI decision.'}
           </AlertDescription>
         </Alert>
       ) : (

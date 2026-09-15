@@ -367,6 +367,7 @@ function buildContainer(
       review.publicApi.syncAdmission.addSyncJob(data, options),
     enqueueTargetedReviewFetch: (data, options) =>
       review.publicApi.syncAdmission.addTargetedFetchJob(data, options),
+    defaultPublicDisplayName: portal.publicApi.portal.ensureDefaultPublicDisplayName,
     logger: getLogger(),
     providerEndpoints,
     config: {

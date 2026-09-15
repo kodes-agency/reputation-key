@@ -10,10 +10,12 @@ import {
 } from '#/components/ui/questionnaire'
 import type { SetupMember } from './property-setup-contract'
 import { SetupAiQuestion } from './setup-ai-question'
+import { SetupDisplayNameQuestion } from './setup-display-name-question'
 import { SetupLanguageQuestion } from './setup-language-question'
 import { SetupManagerQuestion } from './setup-manager-question'
 import {
   propertiesAskedAi,
+  propertiesAskedDisplayName,
   propertiesAskedLanguage,
   propertiesAskedManagers,
   type SetupAnswers,
@@ -30,9 +32,10 @@ type Props = Readonly<{
 }>
 
 /**
- * The three questions of decision 2, one at a time. A question only lists the
- * properties that still need it; one no property needs is not asked at all.
- * Skipping leaves that step pending on the property's setup checklist.
+ * The public display name, then the three questions of decision 2, one at a
+ * time. A question only lists the properties that still need it; one no
+ * property needs is not asked at all. Skipping leaves that step pending on
+ * the property's setup checklist; a skipped name keeps the automatic one.
  */
 export function SetupQuestionnaire({
   facts,
@@ -42,6 +45,7 @@ export function SetupQuestionnaire({
   onAnswersChange,
   onReview,
 }: Props) {
+  const displayNameProperties = propertiesAskedDisplayName(facts)
   const languageProperties = propertiesAskedLanguage(facts)
   const managerProperties = propertiesAskedManagers(facts)
   const aiProperties = propertiesAskedAi(facts)
@@ -56,6 +60,14 @@ export function SetupQuestionnaire({
       }}
     >
       <QuestionnaireProgress />
+      {displayNameProperties.length > 0 ? (
+        <SetupDisplayNameQuestion
+          properties={displayNameProperties}
+          answer={answers.displayName}
+          disabled={false}
+          onAnswerChange={(displayName) => onAnswersChange({ ...answers, displayName })}
+        />
+      ) : null}
       {languageProperties.length > 0 ? (
         <SetupLanguageQuestion
           properties={languageProperties}
@@ -94,6 +106,7 @@ export function SetupQuestionnaire({
 
 export function setupQuestionCount(facts: readonly SetupPropertyFacts[]): number {
   return [
+    propertiesAskedDisplayName(facts),
     propertiesAskedLanguage(facts),
     propertiesAskedManagers(facts),
     propertiesAskedAi(facts),

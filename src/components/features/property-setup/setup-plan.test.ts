@@ -6,6 +6,7 @@ import {
   initialSetupAnswers,
   managersEligibleForAll,
   propertiesAskedAi,
+  propertiesAskedDisplayName,
   propertiesAskedLanguage,
   propertiesAskedManagers,
   toggleAiCapability,
@@ -20,6 +21,8 @@ function property(
 ): SetupPropertyFacts {
   return {
     propertyName: `Property ${overrides.propertyId}`,
+    publicDisplayName: null,
+    publicDisplayNameConfirmed: false,
     countryCode: 'DE',
     replyLanguage: null,
     aiDecided: false,
@@ -45,12 +48,15 @@ describe('which properties each question asks', () => {
   it('asks only the steps a property has not completed', () => {
     const configured = property({
       propertyId: 'configured',
+      publicDisplayName: 'Configured Hotel',
+      publicDisplayNameConfirmed: true,
       replyLanguage: 'en-Latn',
       aiDecided: true,
       managerIds: [MANAGER],
     })
     const facts = [berlin, configured]
 
+    expect(propertiesAskedDisplayName(facts)).toEqual([berlin])
     expect(propertiesAskedLanguage(facts)).toEqual([berlin])
     expect(propertiesAskedManagers(facts)).toEqual([berlin])
     expect(propertiesAskedAi(facts)).toEqual([berlin])
@@ -66,6 +72,7 @@ describe('default answers', () => {
   it('suggests each property its country language and the importing admin as manager', () => {
     const answers = initialSetupAnswers([berlin, lisbon], ADMIN)
 
+    expect(answers.displayName).toEqual({ names: {} })
     expect(answers.language).toEqual({ kind: 'suggested' })
     expect(answers.managers).toEqual({
       applyToAll: true,
@@ -90,6 +97,7 @@ describe('default answers', () => {
 describe('building the setup plan', () => {
   it('writes suggested languages, one manager set, and one AI ceremony', () => {
     const plan = buildSetupPlan([berlin, lisbon, athens], {
+      displayName: null,
       language: { kind: 'suggested' },
       managers: { applyToAll: true, managerIds: [ADMIN], overrides: {} },
       ai: {
@@ -121,6 +129,7 @@ describe('building the setup plan', () => {
 
   it('applies per-property overrides when an answer is not applied to all', () => {
     const plan = buildSetupPlan([berlin, lisbon], {
+      displayName: null,
       language: {
         kind: 'chosen',
         applyToAll: false,
@@ -144,6 +153,7 @@ describe('building the setup plan', () => {
       {
         propertyId: 'berlin',
         propertyName: 'Hotel Berlin',
+        displayName: null,
         language: 'en-Latn',
         managerIds: [ADMIN],
         ai: 'enable',
@@ -151,6 +161,7 @@ describe('building the setup plan', () => {
       {
         propertyId: 'lisbon',
         propertyName: 'Casa Lisboa',
+        displayName: null,
         language: 'es-Latn',
         managerIds: [MANAGER],
         ai: 'defer',
@@ -160,6 +171,7 @@ describe('building the setup plan', () => {
 
   it('ignores overrides while an answer applies to all', () => {
     const plan = buildSetupPlan([lisbon], {
+      displayName: null,
       language: {
         kind: 'chosen',
         applyToAll: true,
@@ -186,6 +198,7 @@ describe('building the setup plan', () => {
       managerIds: [MANAGER],
     })
     const plan = buildSetupPlan([berlin, configured], {
+      displayName: null,
       language: { kind: 'suggested' },
       managers: null,
       ai: { kind: 'defer' },
@@ -195,6 +208,7 @@ describe('building the setup plan', () => {
       {
         propertyId: 'berlin',
         propertyName: 'Hotel Berlin',
+        displayName: null,
         language: 'de-Latn',
         managerIds: null,
         ai: 'defer',
@@ -202,6 +216,7 @@ describe('building the setup plan', () => {
       {
         propertyId: 'configured',
         propertyName: 'Property configured',
+        displayName: null,
         language: null,
         managerIds: null,
         ai: null,
@@ -216,6 +231,7 @@ describe('building the setup plan', () => {
       eligibleManagerIds: [MANAGER],
     })
     const plan = buildSetupPlan([berlin, restricted], {
+      displayName: null,
       language: null,
       managers: { applyToAll: true, managerIds: [ADMIN], overrides: {} },
       ai: null,
@@ -224,8 +240,46 @@ describe('building the setup plan', () => {
     expect(plan.properties.map((entry) => entry.managerIds)).toEqual([[ADMIN], null])
   })
 
+  it("keeps each property's name unless the merchant typed another", () => {
+    const named = property({
+      propertyId: 'named',
+      propertyName: 'KODES agency',
+      publicDisplayName: 'KODES',
+    })
+    const plan = buildSetupPlan([named, lisbon, athens], {
+      displayName: { names: { lisbon: '  Lisboa Guesthouse ', athens: '   ' } },
+      language: null,
+      managers: null,
+      ai: null,
+    })
+
+    expect(plan.properties.map((entry) => entry.displayName)).toEqual([
+      'KODES',
+      'Lisboa Guesthouse',
+      'Athens Rooms',
+    ])
+  })
+
+  it('writes no name a person already saved, and asks nothing when all are saved', () => {
+    const saved = property({
+      propertyId: 'saved',
+      publicDisplayName: 'Saved Name',
+      publicDisplayNameConfirmed: true,
+    })
+    const plan = buildSetupPlan([saved], {
+      displayName: { names: { saved: 'Something else' } },
+      language: null,
+      managers: null,
+      ai: null,
+    })
+
+    expect(plan.properties[0]?.displayName).toBeNull()
+    expect(initialSetupAnswers([saved], ADMIN).displayName).toBeNull()
+  })
+
   it('enables nothing when no capability is chosen', () => {
     const plan = buildSetupPlan([berlin], {
+      displayName: null,
       language: null,
       managers: null,
       ai: { kind: 'enable', capabilities: [], applyToAll: true, excluded: [] },

@@ -41,6 +41,14 @@ type Props = Readonly<{
 const NOT_ASKED = 'Already set'
 const SKIPPED = 'Skipped'
 
+function displayNameCell(
+  entry: PropertySetupPlan,
+  facts: SetupPropertyFacts | undefined,
+) {
+  if (entry.displayName) return entry.displayName
+  return facts?.publicDisplayNameConfirmed ? NOT_ASKED : SKIPPED
+}
+
 function languageCell(entry: PropertySetupPlan, facts: SetupPropertyFacts | undefined) {
   if (entry.language) return replyLanguageLabel(entry.language)
   return facts?.replyLanguage ? NOT_ASKED : SKIPPED
@@ -95,7 +103,11 @@ export function SetupReview({
   const aiNames = aiEnabledPropertyNames(plan)
   const consentNeeded = aiNames.length > 0
   const nothingToSave = plan.properties.every(
-    (entry) => entry.language === null && entry.managerIds === null && entry.ai === null,
+    (entry) =>
+      entry.displayName === null &&
+      entry.language === null &&
+      entry.managerIds === null &&
+      entry.ai === null,
   )
 
   return (
@@ -114,6 +126,7 @@ export function SetupReview({
           <TableHeader>
             <TableRow>
               <TableHead scope="col">Property</TableHead>
+              <TableHead scope="col">Public display name</TableHead>
               <TableHead scope="col">Reply language</TableHead>
               <TableHead scope="col">Responsible manager</TableHead>
               <TableHead scope="col">AI features</TableHead>
@@ -127,6 +140,9 @@ export function SetupReview({
                   <TableHead scope="row" className="font-medium">
                     {entry.propertyName}
                   </TableHead>
+                  <TableCell className="whitespace-normal">
+                    {displayNameCell(entry, property)}
+                  </TableCell>
                   <TableCell>{languageCell(entry, property)}</TableCell>
                   <TableCell className="whitespace-normal">
                     {managerCell(entry, property, members)}

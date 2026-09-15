@@ -17,12 +17,15 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { isPortalError } from '../../domain/errors'
+import { AUTOMATIC_PUBLIC_DISPLAY_NAME_ACTOR } from '../../domain/portal-experience'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
 import {
+  ensureDefaultPublicDisplayName,
   getPropertyPortalExperience,
   savePortalLocalizedOverride,
   savePropertyPortalBrandContent,
   savePropertyPortalBrandProfile,
+  savePropertyPublicDisplayName,
 } from './manage-portal-experience'
 
 const NOW = new Date('2026-08-27T12:00:00.000Z')
@@ -56,6 +59,26 @@ const createExperienceRepo = () => ({
       id: input.id,
       organizationId: input.organizationId,
       propertyId: input.propertyId,
+      version: 1,
+      updatedBy: input.updatedBy,
+      createdAt: input.at,
+      updatedAt: input.at,
+    }),
+  ),
+  ensurePropertyDisplayName: vi.fn<
+    PortalExperienceRepository['ensurePropertyDisplayName']
+  >(async () => true),
+  savePropertyDisplayName: vi.fn<PortalExperienceRepository['savePropertyDisplayName']>(
+    async (input) => ({
+      id: input.id,
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      displayName: input.displayName,
+      logoUrl: null,
+      defaultHeroImageUrl: null,
+      primaryColor: '#2563EB',
+      backgroundColor: '#FFFFFF',
+      textColor: '#111827',
       version: 1,
       updatedBy: input.updatedBy,
       createdAt: input.at,
@@ -150,6 +173,7 @@ describe('getPropertyPortalExperience', () => {
       content: [],
       overrides: [],
       canManagePropertyBrand: false,
+      publicDisplayNameConfirmed: false,
     })
     expect(experienceRepo.getPropertyExperience).toHaveBeenCalledWith(ORG, PROPERTY)
     // No portal was named, so the per-Portal override read must not happen.
@@ -196,6 +220,41 @@ describe('getPropertyPortalExperience', () => {
 
     expect(propertyOnly.canManagePropertyBrand).toBe(false)
     expect(withPortal.canManagePropertyBrand).toBe(false)
+  })
+
+  it('reports the public display name confirmed only once a person saved it', async () => {
+    const { deps, experienceRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const profile = (updatedBy: string) => ({
+      profile: {
+        id: GENERATED_ID,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        displayName: 'Seaside Retreat',
+        logoUrl: null,
+        defaultHeroImageUrl: null,
+        primaryColor: '#2563EB',
+        backgroundColor: '#FFFFFF',
+        textColor: '#111827',
+        version: 1,
+        updatedBy: updatedBy as never,
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+      content: [],
+    })
+    experienceRepo.getPropertyExperience
+      .mockResolvedValueOnce(profile(AUTOMATIC_PUBLIC_DISPLAY_NAME_ACTOR))
+      .mockResolvedValueOnce(profile(ctx.userId))
+
+    const automatic = await getPropertyPortalExperience(deps)(
+      { propertyId: PROPERTY },
+      ctx,
+    )
+    const saved = await getPropertyPortalExperience(deps)({ propertyId: PROPERTY }, ctx)
+
+    expect(automatic.publicDisplayNameConfirmed).toBe(false)
+    expect(saved.publicDisplayNameConfirmed).toBe(true)
   })
 
   it('refuses a Portal that belongs to a different Property', async () => {
@@ -316,6 +375,96 @@ describe('savePropertyPortalBrandProfile', () => {
         ctx,
       ),
     ).rejects.toSatisfy(failsWith('invalid_description'))
+  })
+})
+
+describe('savePropertyPublicDisplayName', () => {
+  it('refuses a PropertyManager — the public display name is Property-wide branding', async () => {
+    const { deps, experienceRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    await expect(
+      savePropertyPublicDisplayName(deps)(
+        { propertyId: PROPERTY, displayName: 'Seaside Retreat' },
+        ctx,
+      ),
+    ).rejects.toSatisfy(failsWith('forbidden'))
+    expect(experienceRepo.savePropertyDisplayName).not.toHaveBeenCalled()
+  })
+
+  it('saves the trimmed name alone, as the signed-in person', async () => {
+    const { deps, experienceRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await savePropertyPublicDisplayName(deps)(
+      { propertyId: PROPERTY, displayName: '  Seaside Retreat  ' },
+      ctx,
+    )
+
+    expect(experienceRepo.savePropertyDisplayName).toHaveBeenCalledWith({
+      id: GENERATED_ID,
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      displayName: 'Seaside Retreat',
+      updatedBy: ctx.userId,
+      at: NOW,
+    })
+    expect(experienceRepo.savePropertyProfile).not.toHaveBeenCalled()
+  })
+
+  it('refuses a blank or over-long display name', async () => {
+    const { deps, experienceRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(
+      savePropertyPublicDisplayName(deps)(
+        { propertyId: PROPERTY, displayName: '  ' },
+        ctx,
+      ),
+    ).rejects.toSatisfy(failsWith('invalid_description'))
+    await expect(
+      savePropertyPublicDisplayName(deps)(
+        { propertyId: PROPERTY, displayName: 'x'.repeat(121) },
+        ctx,
+      ),
+    ).rejects.toSatisfy(failsWith('invalid_description'))
+    expect(experienceRepo.savePropertyDisplayName).not.toHaveBeenCalled()
+  })
+})
+
+describe('ensureDefaultPublicDisplayName', () => {
+  it('starts the public display name as the trimmed Property name', async () => {
+    const { deps, experienceRepo } = setup()
+
+    await expect(
+      ensureDefaultPublicDisplayName(deps)({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        displayName: '  KODES agency ',
+      }),
+    ).resolves.toBe(true)
+    expect(experienceRepo.ensurePropertyDisplayName).toHaveBeenCalledWith({
+      id: GENERATED_ID,
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      displayName: 'KODES agency',
+      at: NOW,
+    })
+  })
+
+  it('sets nothing for a name the public display name cannot hold', async () => {
+    const { deps, experienceRepo } = setup()
+
+    for (const displayName of ['   ', 'x'.repeat(121)]) {
+      await expect(
+        ensureDefaultPublicDisplayName(deps)({
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          displayName,
+        }),
+      ).resolves.toBe(false)
+    }
+    expect(experienceRepo.ensurePropertyDisplayName).not.toHaveBeenCalled()
   })
 })
 

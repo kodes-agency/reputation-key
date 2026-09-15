@@ -17,6 +17,8 @@ function property(
   return {
     propertyId: propertyName.toLowerCase().replaceAll(' ', '-'),
     propertyName,
+    publicDisplayName: null,
+    publicDisplayNameConfirmed: false,
     countryCode,
     replyLanguage: null,
     aiDecided: false,

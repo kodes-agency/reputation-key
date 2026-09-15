@@ -68,6 +68,33 @@ export type PortalExperienceRepository = Readonly<{
       at: Date
     }>,
   ) => Promise<PropertyPortalBrandProfile>
+  /**
+   * Insert the automatic public display name when the Property has no Brand
+   * Profile yet. An existing profile is never touched. True when inserted.
+   */
+  ensurePropertyDisplayName: (
+    input: Readonly<{
+      id: string
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      displayName: string
+      at: Date
+    }>,
+  ) => Promise<boolean>
+  /**
+   * Save only the public display name. Colours are kept, or start from the
+   * default palette; the version moves only when the name changes.
+   */
+  savePropertyDisplayName: (
+    input: Readonly<{
+      id: string
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      displayName: string
+      updatedBy: UserId
+      at: Date
+    }>,
+  ) => Promise<PropertyPortalBrandProfile>
   savePropertyContent: (
     input: Readonly<{
       id: string

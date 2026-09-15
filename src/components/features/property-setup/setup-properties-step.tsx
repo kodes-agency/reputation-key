@@ -4,7 +4,12 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { Skeleton } from '#/components/ui/skeleton'
-import { aiKeys, identityKeys, propertyKeys } from '#/shared/queries/query-keys'
+import {
+  aiKeys,
+  identityKeys,
+  portalKeys,
+  propertyKeys,
+} from '#/shared/queries/query-keys'
 import type {
   PropertySetupFns,
   SetupImportedProperty,
@@ -39,6 +44,8 @@ function writeFnsFrom(fns: PropertySetupFns): SetupWriteFns {
   return {
     enableAi: (input) => fns.enableMerchantAiForProperties({ data: input }),
     deferAi: ({ propertyId }) => fns.deferMerchantAiDecision({ data: { propertyId } }),
+    setDisplayName: ({ propertyId, displayName }) =>
+      fns.savePropertyPublicDisplayName({ data: { propertyId, displayName } }),
     setLanguage: ({ propertyId, language }) =>
       fns.updateProperty({ data: { propertyId, defaultReplyLanguage: language } }),
     setManagers: async ({ propertyId, managerIds }) => {
@@ -86,11 +93,14 @@ function SetupFlow({
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: propertyKeys.all }),
       queryClient.invalidateQueries({ queryKey: identityKeys.merchantAiOverview() }),
-      ...facts.map((property) =>
+      ...facts.flatMap((property) => [
         queryClient.invalidateQueries({
           queryKey: aiKeys.reviewAnalysisProgress(property.propertyId),
         }),
-      ),
+        queryClient.invalidateQueries({
+          queryKey: portalKeys.propertyExperience(property.propertyId),
+        }),
+      ]),
     ])
   }
 
@@ -177,8 +187,8 @@ function SetupStepBody({
       <Alert>
         <AlertTitle>Nothing left to ask</AlertTitle>
         <AlertDescription>
-          These properties already have a reply language, a responsible manager and an AI
-          decision.{' '}
+          These properties already have a public display name, a reply language, a
+          responsible manager and an AI decision.{' '}
           <Link to="/properties" className="font-medium underline underline-offset-4">
             View properties
           </Link>
@@ -198,8 +208,9 @@ function SetupStepBody({
 }
 
 /**
- * The wizard's last step (decisions 2, 3, 8): three questions answered once
- * for every property the import produced, then one review and one save.
+ * The wizard's last step (decisions 2, 3, 8): the public display name and
+ * three questions answered once for every property the import produced, then
+ * one review and one save.
  */
 export function SetupPropertiesStep({ properties, fns, viewerUserId }: Props) {
   const state = useSetupFacts(properties, fns)

@@ -122,6 +122,7 @@ function setup(
     locationLookupError?: unknown
     enqueueReviewSyncError?: unknown
     subscribeToNotificationsError?: unknown
+    defaultPublicDisplayNameError?: unknown
   } = {},
 ) {
   const item = claimedItem()
@@ -214,6 +215,9 @@ function setup(
   const subscribeToNotifications = over.subscribeToNotificationsError
     ? vi.fn().mockRejectedValue(over.subscribeToNotificationsError)
     : vi.fn().mockResolvedValue('subscribed')
+  const defaultPublicDisplayName = over.defaultPublicDisplayNameError
+    ? vi.fn().mockRejectedValue(over.defaultPublicDisplayNameError)
+    : vi.fn().mockResolvedValue(true)
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -230,6 +234,7 @@ function setup(
     newClaimFence: () => CLAIM_FENCE,
     enqueueReviewSync,
     subscribeToNotifications,
+    defaultPublicDisplayName,
     logger,
   })
   return {
@@ -250,6 +255,7 @@ function setup(
     resolveActor,
     enqueueReviewSync,
     subscribeToNotifications,
+    defaultPublicDisplayName,
     logger,
   }
 }
@@ -919,6 +925,57 @@ describe('GoogleImportV2Processor', () => {
     )
   })
 
+  // Reply drafting refuses a Property without a public display name, so a live
+  // import starts it as the name the manager just confirmed.
+  it('starts the public display name as the confirmed name when a property goes live', async () => {
+    const harness = setup({ receipts: [null, null, importedReceipt()] })
+
+    await harness.processor.process({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+    })
+
+    expect(harness.defaultPublicDisplayName).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      displayName: 'Acme Hotel',
+    })
+    expect(harness.defaultPublicDisplayName.mock.invocationCallOrder[0]).toBeLessThan(
+      harness.reconcileFromReceipt.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('imports the property even when the public display name default fails', async () => {
+    const harness = setup({
+      receipts: [null, null, importedReceipt()],
+      defaultPublicDisplayNameError: new Error(
+        'brand profile store for Acme Hotel is down',
+      ),
+    })
+
+    await harness.processor.process({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+    })
+
+    expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
+    expect(harness.subscribeToNotifications).toHaveBeenCalledOnce()
+    expect(harness.reconcileFromReceipt).toHaveBeenCalledWith(
+      expect.objectContaining({ outcomeCode: 'imported' }),
+    )
+    expect(harness.logger.warn).toHaveBeenCalledWith(
+      { itemId: ITEM_ID, errorName: 'Error' },
+      expect.stringContaining('Public display name default failed after import'),
+    )
+    const logged = JSON.stringify(harness.logger.warn.mock.calls)
+    expect(logged).not.toContain('Acme Hotel')
+    expect(logged).not.toContain(ORG_ID)
+  })
+
   it('does not subscribe when the receipt is not an imported/relinked live property', async () => {
     const harness = setup({
       receipt: {
@@ -942,6 +999,7 @@ describe('GoogleImportV2Processor', () => {
     })
 
     expect(harness.subscribeToNotifications).not.toHaveBeenCalled()
+    expect(harness.defaultPublicDisplayName).not.toHaveBeenCalled()
   })
 
   // Push is an optimization over the discovery sweep, never a correctness gate:

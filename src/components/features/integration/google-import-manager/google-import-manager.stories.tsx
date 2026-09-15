@@ -127,8 +127,8 @@ export const ProgressRoute: Story = {
     const current = canvas.getByRole('tab', { selected: true })
     await expect(current).toHaveAccessibleName(/set up properties/i)
     await expect(
-      canvas.findByText(/use french/i, {}, { timeout: 5_000 }),
-    ).resolves.toBeVisible()
+      canvas.findByRole('textbox', { name: 'Public display name' }, { timeout: 5_000 }),
+    ).resolves.toHaveValue('Studio Priority')
     // The finished import folds away; its rows are one click from the setup.
     await userEvent.click(canvas.getByRole('button', { name: /import details/i }))
     // Desktop table and mobile cards both render the row; one is visible.
