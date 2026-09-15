@@ -69,6 +69,12 @@ test.describe('Critical workflow: inbox property scope', () => {
     await expect(page.getByText(mainReviewer).first()).toBeVisible()
     await expect(page.getByText(annexReviewer).first()).toBeVisible()
 
+    // The seed organization already has eight properties (the main one and
+    // seven "E2E Bounded Property" rows), so the rail shows the first seven by
+    // name and folds the rest — the annex sorts after them.
+    await expect(annex).toHaveCount(0)
+    await properties.getByRole('button', { name: /^Show all \d+/ }).click()
+
     // One click narrows to the property: its own Reviews page, only its work.
     await annex.click()
     await expect(page).toHaveURL(new RegExp(`/properties/${annexId}/reviews`))
