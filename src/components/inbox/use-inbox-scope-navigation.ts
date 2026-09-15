@@ -4,7 +4,18 @@
 // does not, because it may not belong to the new scope.
 import { useCallback } from 'react'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { searchAfterInboxScopeChange } from './inbox-property-scope'
+
+/**
+ * Search carried across a scope change: the queue, filters and sort stay; an
+ * item opened under the old scope, and the old scope itself, do not.
+ */
+export function searchAfterInboxScopeChange(search: unknown): Record<string, unknown> {
+  if (search === null || typeof search !== 'object') return {}
+
+  return Object.fromEntries(
+    Object.entries(search).filter(([key]) => key !== 'itemId' && key !== 'propertyId'),
+  )
+}
 
 export function useInboxScopeNavigation(): (propertyId: string | null) => void {
   const navigate = useNavigate()

@@ -71,15 +71,3 @@ export function scopeCount(
   if (!counts) return undefined
   return propertyId === null ? counts.total : (counts.byProperty[propertyId] ?? 0)
 }
-
-/**
- * Search carried across a scope change: the queue, filters and sort stay; an
- * item opened under the old scope, and the old scope itself, do not.
- */
-export function searchAfterInboxScopeChange(search: unknown): Record<string, unknown> {
-  if (search === null || typeof search !== 'object') return {}
-
-  return Object.fromEntries(
-    Object.entries(search).filter(([key]) => key !== 'itemId' && key !== 'propertyId'),
-  )
-}

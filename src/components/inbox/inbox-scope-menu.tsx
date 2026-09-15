@@ -1,36 +1,44 @@
 // Below the desktop floor there is no queue rail, so the list header's scope line
 // becomes the property control. It opens the rail's property list, counted for
 // the queue on screen.
-import { Building2, ChevronDown } from 'lucide-react'
+//
+// Single-choice rows are plain menu items with `menuitemradio` semantics rather
+// than Radix's RadioGroup/RadioItem: those live in the same Radix module as the
+// app sidebar's menu, which is first paint, so using them anywhere adds their
+// code to the initial closure (~300 B gzip, scripts/check-bundle-budget.mjs).
+import { useId } from 'react'
+import { Building2, Check, ChevronDown } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
+  DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 import { scopeCount, type InboxPropertyScope } from './inbox-property-scope'
 
-/** Radio value for the organization-wide scope; property ids are UUIDs. */
-const ALL_PROPERTIES = 'all'
-
 function ScopeMenuItem({
-  value,
   label,
   count,
+  checked,
   withGlyph = false,
+  onSelect,
 }: Readonly<{
-  value: string
   label: string
   count: number | undefined
+  checked: boolean
   withGlyph?: boolean
+  onSelect: () => void
 }>) {
   return (
-    <DropdownMenuRadioItem value={value} className="min-h-11">
+    <DropdownMenuItem
+      role="menuitemradio"
+      aria-checked={checked}
+      className="min-h-11"
+      onSelect={onSelect}
+    >
       {withGlyph ? (
-        <Building2 className="text-muted-foreground" aria-hidden="true" />
+        <Building2 aria-hidden="true" />
       ) : (
         <span className="size-4 shrink-0" aria-hidden="true" />
       )}
@@ -38,7 +46,13 @@ function ScopeMenuItem({
       {count !== undefined && count > 0 && (
         <span className="text-xs tabular-nums text-muted-foreground">{count}</span>
       )}
-    </DropdownMenuRadioItem>
+      <span
+        className="flex size-4 shrink-0 items-center justify-center"
+        aria-hidden="true"
+      >
+        {checked && <Check className="text-foreground" />}
+      </span>
+    </DropdownMenuItem>
   )
 }
 
@@ -47,6 +61,11 @@ export function InboxScopeMenu({
   scopeLabel,
   queueLabel,
 }: Readonly<{ scope: InboxPropertyScope; scopeLabel: string; queueLabel: string }>) {
+  const labelId = useId()
+  // Choosing the scope already in view changes nothing, so it navigates nowhere.
+  const select = (propertyId: string | null) => {
+    if (propertyId !== scope.activePropertyId) scope.onSelect(propertyId)
+  }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -61,34 +80,31 @@ export function InboxScopeMenu({
           />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64">
-        <DropdownMenuLabel>{queueLabel} by property</DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={scope.activePropertyId ?? ALL_PROPERTIES}
-          onValueChange={(value) =>
-            scope.onSelect(value === ALL_PROPERTIES ? null : value)
-          }
-        >
-          {scope.includeAll && (
-            <>
-              <ScopeMenuItem
-                value={ALL_PROPERTIES}
-                label="All properties"
-                count={scopeCount(scope.counts, null)}
-                withGlyph
-              />
-              <DropdownMenuSeparator />
-            </>
-          )}
-          {scope.properties.map((property) => (
+      <DropdownMenuContent align="start" className="w-64" aria-labelledby={labelId}>
+        <div id={labelId} className="px-2 py-1.5 text-sm font-medium">
+          {queueLabel} by property
+        </div>
+        {scope.includeAll && (
+          <>
             <ScopeMenuItem
-              key={property.id}
-              value={property.id}
-              label={property.name}
-              count={scopeCount(scope.counts, property.id)}
+              label="All properties"
+              count={scopeCount(scope.counts, null)}
+              checked={scope.activePropertyId === null}
+              withGlyph
+              onSelect={() => select(null)}
             />
-          ))}
-        </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        {scope.properties.map((property) => (
+          <ScopeMenuItem
+            key={property.id}
+            label={property.name}
+            count={scopeCount(scope.counts, property.id)}
+            checked={property.id === scope.activePropertyId}
+            onSelect={() => select(property.id)}
+          />
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   )
