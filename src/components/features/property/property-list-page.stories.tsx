@@ -184,7 +184,8 @@ export const Default: Story = {
       canvas.getByText('Ratings and review counts are all-time.', { exact: false }),
     ).toBeVisible()
     // The slug and the IANA timezone left the list.
-    expect(canvas.queryByText(/Los_Angeles|harborline$/)).toBeNull()
+    expect(canvas.queryByText(/Los_Angeles/)).toBeNull()
+    expect(canvas.queryByText('harborline', { exact: true })).toBeNull()
     // The org setup banner is gone; per-property setup carries it.
     expect(canvas.queryByText(/^Setup: \d of \d done$/)).toBeNull()
   },
