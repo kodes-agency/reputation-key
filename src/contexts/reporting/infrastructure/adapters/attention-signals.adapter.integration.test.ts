@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { drizzle } from 'drizzle-orm/node-postgres'
-import { Pool } from 'pg'
 import type { Database } from '#/shared/db'
-import * as schema from '#/shared/db/schema'
-import { getEnv } from '#/shared/config/env'
 import { organizationId, propertyId } from '#/shared/domain/ids'
+import {
+  holdTransaction,
+  type HeldTransaction,
+} from '#/shared/db/testing/held-transaction'
 import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-registry'
 import { createAttentionSignalsAdapter } from './attention-signals.adapter'
 
@@ -18,22 +18,26 @@ const GOAL_PROGRAM = randomUUID()
 const GOAL_PROGRAM_VERSION = randomUUID()
 const GOAL_ASSIGNMENT = randomUUID()
 const GOAL_RESULT = randomUUID()
-let pool: Pool
+let fixture: HeldTransaction | undefined
+let client: HeldTransaction['client']
 let db: Database
 
 beforeAll(async () => {
-  // Canonical Goal results are intentionally undeletable. Keep the fixture in
-  // one pinned transaction and roll it back after the assertion.
-  pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 1 })
-  await pool.query('BEGIN')
-  db = drizzle(pool, { schema }) as unknown as Database
-  await pool.query(
+  // Canonical Goal results are intentionally undeletable, so nothing here is
+  // ever committed: the fixture is written inside the held transaction, on its
+  // connection, and rolled back after the suite. The adapter reads through
+  // `db`, so its statement-timeout transaction is a SAVEPOINT inside the held
+  // one.
+  fixture = await holdTransaction()
+  client = fixture.client
+  db = fixture.db
+  await client.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, 'Attention union test', $2, now())
      ON CONFLICT (id) DO NOTHING`,
     [ORGANIZATION, `attention-union-${randomUUID()}`],
   )
-  await pool.query(
+  await client.query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone)
      VALUES ($1, $2, 'Attention Property', 'attention-property', 'UTC')
      ON CONFLICT (id) DO NOTHING`,
@@ -46,7 +50,7 @@ beforeAll(async () => {
     [REVIEW_ONE, 'attention-review-one'],
     [REVIEW_TWO, 'attention-review-two'],
   ] as const) {
-    await pool.query(
+    await client.query(
       `INSERT INTO reviews (
          id, organization_id, property_id, platform, external_id,
          external_location_id, rating, reviewed_at, expires_at, content_expires_at,
@@ -91,7 +95,7 @@ beforeAll(async () => {
       escalated: false,
     },
   ] as const) {
-    await pool.query(
+    await client.query(
       `INSERT INTO inbox_items (
          id, organization_id, property_id, source_type, source_id,
          status, is_escalated, escalated_at, source_date
@@ -109,7 +113,7 @@ beforeAll(async () => {
     )
   }
 
-  await pool.query(
+  await client.query(
     `INSERT INTO goal_programs
        (id, organization_id, property_id, name, status, current_version,
         created_by, created_at, updated_at)
@@ -117,7 +121,7 @@ beforeAll(async () => {
              'manager-1', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z')`,
     [GOAL_PROGRAM, ORGANIZATION, PROPERTY],
   )
-  await pool.query(
+  await client.query(
     `INSERT INTO goal_program_versions
        (id, program_id, organization_id, property_id, version,
         metric_definition_id, metric_definition_version_id, metric_key,
@@ -135,7 +139,7 @@ beforeAll(async () => {
       METRIC_VERSION_IDS.qualifiedScanGoal,
     ],
   )
-  await pool.query(
+  await client.query(
     `INSERT INTO goal_subject_assignments
        (id, program_id, program_version_id, organization_id, property_id,
         metric_key, subject_kind, property_subject_id, effective_from,
@@ -144,7 +148,7 @@ beforeAll(async () => {
              '2026-08-01T00:00:00Z', 'manager-1', '2026-08-01T00:00:00Z')`,
     [GOAL_ASSIGNMENT, GOAL_PROGRAM, GOAL_PROGRAM_VERSION, ORGANIZATION, PROPERTY],
   )
-  await pool.query(
+  await client.query(
     `INSERT INTO goal_monthly_results
        (id, assignment_id, program_id, program_version_id, organization_id,
         property_id, period_start, period_end, property_timezone, status,
@@ -166,8 +170,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await pool.query('ROLLBACK')
-  await pool.end()
+  await fixture?.rollBack()
 })
 
 describe('attention signal work-set union', () => {
