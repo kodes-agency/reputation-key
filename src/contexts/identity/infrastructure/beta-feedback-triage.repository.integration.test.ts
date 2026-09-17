@@ -35,6 +35,31 @@ function prepare(reference = randomUUID()) {
   } as const
 }
 
+type DriverFailure = Readonly<{ cause?: { constraint?: string; code?: string } }>
+
+/**
+ * Assert that PostgreSQL refused the write, and name the control that refused
+ * it — the CHECK by name, or a SQLSTATE for the ones the column type catches
+ * first. Drizzle wraps the driver error, so both live on the cause rather than
+ * in the thrown message.
+ */
+async function expectRefusedByDatabase(
+  operation: Promise<unknown>,
+  expected: Readonly<{ constraint: string } | { sqlState: string }>,
+): Promise<void> {
+  const caught = await operation.then(
+    () => null,
+    (error: unknown) => error,
+  )
+  expect(caught, 'expected PostgreSQL to refuse the write').not.toBeNull()
+  const cause = (caught as DriverFailure).cause
+  if ('constraint' in expected) {
+    expect(cause?.constraint).toBe(expected.constraint)
+    return
+  }
+  expect(cause?.code).toBe(expected.sqlState)
+}
+
 beforeAll(async () => {
   lease = await acquireTestLease(getEnv().DATABASE_URL)
   db = drizzle(lease.pool) as Database
@@ -250,33 +275,49 @@ describe('beta feedback triage repository (real PostgreSQL)', () => {
     })
   })
 
+  // The column is the last line: the contract already rejects these, and this
+  // proves nothing reaching the table can carry content either. Prose is too
+  // long for char(32) and dies on the type; anything that fits meets the CHECK.
+  it('refuses prose as a recorded-error reference at the database', async () => {
+    const reference = randomUUID()
+    await expectRefusedByDatabase(
+      repository.prepare({
+        ...prepare(reference),
+        clientErrorEventId: 'The reviews page crashed for guest Jane.',
+      }),
+      { sqlState: '22001' },
+    )
+    references.delete(reference)
+  })
+
   it.each([
-    ['an error message', 'The reviews page crashed for guest Jane.'],
     ['uppercase hex', 'A'.repeat(32)],
+    // char(32) blank-pads a short value, so the padded form fails the pattern.
     ['a short id', 'a'.repeat(31)],
+    ['a 32-character word', 'x'.repeat(32)],
   ])(
     'refuses %s as a recorded-error reference at the database',
     async (_label, clientErrorEventId) => {
-      // The column is the last line: the contract already rejects these, and
-      // this proves nothing reaching the table can carry content either.
       const reference = randomUUID()
-      await expect(
+      await expectRefusedByDatabase(
         repository.prepare({ ...prepare(reference), clientErrorEventId }),
-      ).rejects.toThrow()
+        { constraint: 'beta_feedback_triage_client_error_shape' },
+      )
       references.delete(reference)
     },
   )
 
   it('refuses a recorded-error reference on a suggestion', async () => {
     const reference = randomUUID()
-    await expect(
+    await expectRefusedByDatabase(
       repository.prepare({
         ...prepare(reference),
         feedbackType: 'suggestion',
         impactCode: 'helpful',
         clientErrorEventId: 'a'.repeat(32),
       }),
-    ).rejects.toThrow()
+      { constraint: 'beta_feedback_triage_client_error_shape' },
+    )
     references.delete(reference)
   })
 

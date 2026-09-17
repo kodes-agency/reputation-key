@@ -81,6 +81,6 @@ describe('beta feedback form model', () => {
   })
 
   it('requires something to have been described', () => {
-    expect(() => values({ observed: '  ' })).toThrow()
+    expect(() => values({ observed: '  ' })).toThrow(/Please describe what happened/u)
   })
 })

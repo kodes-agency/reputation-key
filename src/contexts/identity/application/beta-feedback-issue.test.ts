@@ -116,7 +116,7 @@ describe('beta feedback issue', () => {
   it.each(['', 'not a url', 'https://github.com/kodes-agency/reputation-key/pull/12'])(
     'refuses %s rather than storing a wrong reference',
     (url) => {
-      expect(() => issueNumberFromUrl(url)).toThrow()
+      expect(() => issueNumberFromUrl(url)).toThrow(/Unrecognized GitHub issue URL/u)
     },
   )
 })
