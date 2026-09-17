@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { drizzle } from 'drizzle-orm/node-postgres'
-import { Pool } from 'pg'
-import * as schema from '#/shared/db/schema'
 import type { Database } from '#/shared/db'
-import { getEnv } from '#/shared/config/env'
 import { organizationId } from '#/shared/domain/ids'
+import {
+  holdTransaction,
+  type HeldTransaction,
+} from '#/shared/db/testing/held-transaction'
 import { createSetupChecklistRepository } from './setup-checklist.repository'
 
 const ORG = organizationId(`org-setup-${randomUUID()}`)
@@ -15,24 +15,29 @@ const PROPERTY = randomUUID()
 const PORTAL = randomUUID()
 const SNAPSHOT = randomUUID()
 const COMPLETED_AT = new Date('2026-08-20T10:00:00.000Z')
-let pool: Pool
+let fixture: HeldTransaction | undefined
+let client: HeldTransaction['client']
 let db: Database
 
 beforeAll(async () => {
-  pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 1 })
-  await pool.query('BEGIN')
-  db = drizzle(pool, { schema }) as unknown as Database
+  // Nothing here is ever committed: the fixture is written inside the held
+  // transaction, on its connection, and rolled back after the suite. The
+  // repository runs through `db`, so its own transaction is a SAVEPOINT inside
+  // the held one, and the milestones it records roll back with the fixture.
+  fixture = await holdTransaction()
+  client = fixture.client
+  db = fixture.db
   for (const [id, slug] of [
     [ORG, `setup-${randomUUID()}`],
     [OTHER_ORG, `setup-other-${randomUUID()}`],
   ] as const) {
-    await pool.query(
+    await client.query(
       `INSERT INTO organization (id, name, slug, "createdAt")
        VALUES ($1, 'Setup checklist test', $2, $3)`,
       [id, slug, COMPLETED_AT],
     )
   }
-  await pool.query(
+  await client.query(
     `INSERT INTO google_connections
        (id, organization_id, google_subject, encrypted_access_token,
         encrypted_refresh_token, token_expires_at, scopes, connected_by,
@@ -52,7 +57,7 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  await pool.query(
+  await client.query(
     `UPDATE google_connections
      SET status = 'active', status_reason = NULL, status_changed_at = $2
      WHERE organization_id = $1 AND id = $3`,
@@ -61,8 +66,7 @@ beforeEach(async () => {
 })
 
 afterAll(async () => {
-  await pool.query('ROLLBACK')
-  await pool.end()
+  await fixture?.rollBack()
 })
 
 describe('setup checklist repository', () => {
@@ -78,7 +82,7 @@ describe('setup checklist repository', () => {
       firstCompletedAt: COMPLETED_AT,
     })
 
-    await pool.query(
+    await client.query(
       `UPDATE google_connections
        SET status = 'degraded', status_reason = 'provider_unavailable',
            status_changed_at = $2
@@ -111,7 +115,7 @@ describe('setup checklist repository', () => {
   })
 
   it('derives and preserves every canonical milestone without a manual completion path', async () => {
-    await pool.query(
+    await client.query(
       `INSERT INTO properties (
          id, organization_id, name, slug, timezone, google_connection_id,
          gbp_account_id, gbp_location_id, google_binding_state, profile_source,
@@ -125,7 +129,7 @@ describe('setup checklist repository', () => {
        )`,
       [PROPERTY, ORG, `canonical-${randomUUID()}`, CONNECTION, COMPLETED_AT],
     )
-    await pool.query(
+    await client.query(
       `INSERT INTO review_provider_snapshot_runs (
          id, organization_id, property_id, source_epoch, state, phase,
          expected_total, expected_average_rating, started_at, expires_at,
@@ -142,14 +146,14 @@ describe('setup checklist repository', () => {
         new Date(COMPLETED_AT.getTime() + 30 * 24 * 60 * 60 * 1_000),
       ],
     )
-    await pool.query(
+    await client.query(
       `INSERT INTO portals (
          id, organization_id, property_id, entity_type, entity_id, name, slug,
          publication_state, created_at, updated_at
        ) VALUES ($1, $2, $3::uuid, 'property', $4, 'Lobby', $5, 'published', $6, $6)`,
       [PORTAL, ORG, PROPERTY, PROPERTY, `lobby-${randomUUID()}`, COMPLETED_AT],
     )
-    await pool.query(
+    await client.query(
       `INSERT INTO portal_publication_snapshots (
          id, organization_id, property_id, portal_id, version,
          configuration_digest, configuration, guest_locale,
@@ -163,27 +167,27 @@ describe('setup checklist repository', () => {
        )`,
       [SNAPSHOT, ORG, PROPERTY, PORTAL, COMPLETED_AT],
     )
-    await pool.query(
+    await client.query(
       `INSERT INTO portal_publication_activations (
          id, organization_id, property_id, portal_id, snapshot_id,
          activation_sequence, kind, activated_by, activated_at
        ) VALUES ($1, $2, $3, $4, $5, 1, 'publish', 'admin-1', $6)`,
       [randomUUID(), ORG, PROPERTY, PORTAL, SNAPSHOT, COMPLETED_AT],
     )
-    await pool.query(
+    await client.query(
       `INSERT INTO portal_health_intervals (
          id, organization_id, property_id, portal_id, status, reason,
          source_version, effective_from, observed_at
        ) VALUES ($1, $2, $3, $4, 'healthy', 'operational', 'setup-v1', $5, $5)`,
       [randomUUID(), ORG, PROPERTY, PORTAL, COMPLETED_AT],
     )
-    await pool.query(
+    await client.query(
       `INSERT INTO property_responsible_managers (
          id, organization_id, property_id, user_id, effective_from, created_by
        ) VALUES ($1, $2, $3, 'manager-1', $4, 'admin-1')`,
       [randomUUID(), ORG, PROPERTY, COMPLETED_AT],
     )
-    await pool.query(
+    await client.query(
       `INSERT INTO portal_responsible_managers (
          id, organization_id, property_id, portal_id, user_id,
          effective_from, created_by
@@ -217,7 +221,7 @@ describe('setup checklist repository', () => {
       },
     })
 
-    await pool.query(
+    await client.query(
       `UPDATE portal_health_intervals
        SET effective_to = $1
        WHERE organization_id = $2 AND portal_id = $3 AND effective_to IS NULL`,

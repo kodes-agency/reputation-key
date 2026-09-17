@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { drizzle } from 'drizzle-orm/node-postgres'
-import { Pool } from 'pg'
 import type { Database } from '#/shared/db'
-import * as schema from '#/shared/db/schema'
-import { getEnv } from '#/shared/config/env'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { PropertyId } from '#/shared/domain/ids'
+import {
+  holdTransaction,
+  type HeldTransaction,
+} from '#/shared/db/testing/held-transaction'
 import {
   METRIC_DEFINITION_IDS,
   METRIC_VERSION_IDS,
@@ -49,21 +49,32 @@ const inboxTargets = {
       }),
     ),
 }
-let pool: Pool
+let fixture: HeldTransaction | undefined
+let client: HeldTransaction['client']
 let statementCount = 0
 let db: Database
 
 beforeAll(async () => {
-  // Canonical Goal results are intentionally undeletable. Keep the 5,000-row
-  // fixture in one pinned transaction and roll it back after the suite.
-  pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 1 })
-  await pool.query('BEGIN')
-  await pool.query(
+  // Canonical Goal results are intentionally undeletable, so nothing here is
+  // ever committed: the 5,000-row fixture is written inside the held
+  // transaction, on its connection, and rolled back after the suite. The
+  // adapter reads through `db`, so its statement-timeout transaction is a
+  // SAVEPOINT inside the held one.
+  fixture = await holdTransaction({
+    logger: {
+      logQuery() {
+        statementCount += 1
+      },
+    },
+  })
+  client = fixture.client
+  db = fixture.db
+  await client.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, 'Fleet projection integration', $2, now())`,
     [ORG, `fleet-projection-${randomUUID()}`],
   )
-  await pool.query(
+  await client.query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone)
      SELECT fixture.id, $1, fixture.name, fixture.slug, 'UTC'
      FROM unnest($2::uuid[], $3::text[], $4::text[])
@@ -75,9 +86,10 @@ beforeAll(async () => {
       properties.map((property) => property.slug),
     ],
   )
-  await pool.query(`UPDATE properties SET timezone = 'America/New_York' WHERE id = $1`, [
-    properties[1]!.propertyId,
-  ])
+  await client.query(
+    `UPDATE properties SET timezone = 'America/New_York' WHERE id = $1`,
+    [properties[1]!.propertyId],
+  )
 
   const first = properties[0]!
   const reviews = [
@@ -87,7 +99,7 @@ beforeAll(async () => {
     [REVIEW_IDS[3], 'clockless', 1, '2026-08-03T12:00:00.000Z', null],
   ] as const
   for (const [id, externalId, rating, reviewedAt, contentExpiresAt] of reviews) {
-    await pool.query(
+    await client.query(
       `INSERT INTO reviews (
          id, organization_id, property_id, platform, external_id,
          external_location_id, rating, reviewed_at, expires_at, content_expires_at,
@@ -106,7 +118,7 @@ beforeAll(async () => {
       ],
     )
   }
-  await pool.query(
+  await client.query(
     `INSERT INTO replies (review_id, organization_id, text, status, source)
      VALUES ($1, $2, 'Published', 'published', 'internal')`,
     [REVIEW_IDS[0], ORG],
@@ -131,7 +143,7 @@ beforeAll(async () => {
       status: 'closed',
     },
   ] as const) {
-    await pool.query(
+    await client.query(
       `INSERT INTO inbox_items (
          id, organization_id, property_id, source_type, source_id, status,
          is_escalated, escalated_at, source_date
@@ -139,7 +151,7 @@ beforeAll(async () => {
       [item.id, ORG, first.propertyId, item.sourceType, item.sourceId, item.status, NOW],
     )
   }
-  await pool.query(
+  await client.query(
     `INSERT INTO goal_programs
        (id, organization_id, property_id, name, status, current_version,
         created_by, created_at, updated_at)
@@ -147,7 +159,7 @@ beforeAll(async () => {
              'manager-1', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z')`,
     [GOAL_PROGRAM, ORG, first.propertyId],
   )
-  await pool.query(
+  await client.query(
     `INSERT INTO goal_program_versions
        (id, program_id, organization_id, property_id, version,
         metric_definition_id, metric_definition_version_id, metric_key,
@@ -165,7 +177,7 @@ beforeAll(async () => {
       METRIC_VERSION_IDS.portalRatingCountGoal,
     ],
   )
-  await pool.query(
+  await client.query(
     `INSERT INTO goal_subject_assignments
        (id, program_id, program_version_id, organization_id, property_id,
         metric_key, subject_kind, property_subject_id, effective_from,
@@ -174,7 +186,7 @@ beforeAll(async () => {
              '2026-08-01T00:00:00Z', 'manager-1', '2026-08-01T00:00:00Z')`,
     [GOAL_ASSIGNMENT, GOAL_PROGRAM, GOAL_PROGRAM_VERSION, ORG, first.propertyId],
   )
-  await pool.query(
+  await client.query(
     `INSERT INTO goal_monthly_results
        (id, assignment_id, program_id, program_version_id, organization_id,
         property_id, period_start, period_end, property_timezone, status,
@@ -256,7 +268,7 @@ beforeAll(async () => {
     if (!metric || !sourcePolicy) {
       throw new Error(`Fleet fixture metric is unavailable: ${versionId}`)
     }
-    await pool.query(
+    await client.query(
       `INSERT INTO metric_readings (
          organization_id, property_id, metric_key, value, definition_version_id,
          source_event_id, source_policy, exact_value, sample_count,
@@ -278,7 +290,7 @@ beforeAll(async () => {
       ],
     )
   }
-  await pool.query(
+  await client.query(
     `INSERT INTO metric_corrections (
        reading_id, source_event_id, kind, reason, actor_type, actor_id,
        exact_delta, event_at, recorded_at
@@ -289,20 +301,10 @@ beforeAll(async () => {
      WHERE organization_id = $1 AND source_event_id = $3`,
     [ORG, CORRECTION_SOURCE_EVENT, `${METRIC_SOURCE_PREFIX}-1`],
   )
-
-  db = drizzle(pool, {
-    schema,
-    logger: {
-      logQuery() {
-        statementCount += 1
-      },
-    },
-  }) as unknown as Database
 })
 
 afterAll(async () => {
-  await pool.query('ROLLBACK')
-  await pool.end()
+  await fixture?.rollBack()
 })
 
 describe('fleet overview projection integration', () => {
@@ -351,6 +353,8 @@ describe('fleet overview projection integration', () => {
       ),
     ).toBe(false)
     expect(fleetStatements).toBe(statementCount)
+    // SAVEPOINT, statement timeout, projection, RELEASE: in production the
+    // SAVEPOINT pair is a BEGIN/COMMIT pair, so the count is the same.
     expect(fleetStatements).toBe(4)
     expect(fleetStatements).toBeLessThanOrEqual(FLEET_TRANSACTION_STATEMENT_BOUND)
     expect(observed).toContainEqual({
@@ -493,16 +497,16 @@ describe('fleet overview projection integration', () => {
         timeRange: 'all',
       })
 
-    // The reads above commit through their own transactions, so this case puts
-    // the two rows back itself rather than relying on the suite's rollback.
+    // Every test shares the held transaction, so this case puts the two rows
+    // back itself rather than leaving them changed until the suite's rollback.
     try {
-      await pool.query(
+      await client.query(
         `UPDATE properties SET lifecycle_state = 'archived',
            lifecycle_state_changed_at = $2, purge_scheduled_for = $3
          WHERE id = $1`,
         [removed.propertyId, NOW, new Date('2026-09-08T12:00:00.000Z')],
       )
-      await pool.query(
+      await client.query(
         `UPDATE properties SET lifecycle_state = 'suspended' WHERE id = $1`,
         [paused.propertyId],
       )
@@ -519,7 +523,7 @@ describe('fleet overview projection integration', () => {
         totalAttention: only!.totalAttention,
       })
     } finally {
-      await pool.query(
+      await client.query(
         `UPDATE properties SET lifecycle_state = 'active',
            lifecycle_state_changed_at = now(), purge_scheduled_for = NULL
          WHERE id = ANY($1::uuid[])`,
