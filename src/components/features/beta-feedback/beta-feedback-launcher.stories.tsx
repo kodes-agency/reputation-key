@@ -176,11 +176,28 @@ export const YourReports: Story = {
     await userEvent.click(view.getByRole('tab', { name: /your reports/i }))
 
     expect(await view.findByText(/accepted/i)).toBeInTheDocument()
-    expect(view.getByText(/tracked as #472/i)).toBeInTheDocument()
+    // The label and the number are separate nodes so only the number is mono.
+    expect(view.getByText('#472')).toBeInTheDocument()
+    expect(view.getByText(/tracked as/i)).toBeInTheDocument()
     expect(view.getByText(/not sent/i)).toBeInTheDocument()
     expect(view.getByText('Properties · Property · Reviews')).toBeInTheDocument()
     // Internal triage vocabulary must never reach the reporter.
     expect(view.queryByText(/severity/i)).toBeNull()
     expect(view.queryByText(/security/i)).toBeNull()
+  },
+}
+
+// The product ships dark-first; the status tones carry their own light values,
+// so they need their own contrast proof (see .storybook/preview.tsx).
+export const YourReportsLight: Story = {
+  args: { submitFeedback: successfulSubmission, listFeedback },
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    window.history.replaceState({}, '', '/inbox')
+    clearRecordedErrors()
+    const view = await openFeedbackDialog(canvasElement)
+
+    await userEvent.click(view.getByRole('tab', { name: /your reports/i }))
+    expect(await view.findByText(/this is going to be worked on/i)).toBeInTheDocument()
   },
 }

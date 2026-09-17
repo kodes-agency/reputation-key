@@ -126,6 +126,7 @@ describe('OBS-01 synthetic privacy exfiltration canary', () => {
     expect(() =>
       betaFeedbackInputSchema.parse({
         kind: 'bug',
+        impact: 'cannot_complete',
         message: 'A reproducible problem.',
         routePath: '/dashboard',
         viewport: 'regular',
@@ -134,5 +135,32 @@ describe('OBS-01 synthetic privacy exfiltration canary', () => {
         attachment: { content: SECRET },
       }),
     ).toThrow(ZodError)
+  })
+
+  it('keeps the recorded-error link an opaque id rather than a content channel', () => {
+    // The field exists so a Bug can point at an exception monitoring already
+    // holds. It must never become a second way to carry the report itself.
+    for (const marker of MARKERS) {
+      expect(() =>
+        betaFeedbackInputSchema.parse({
+          kind: 'bug',
+          impact: 'cannot_complete',
+          message: 'A reproducible problem.',
+          routePath: '/dashboard',
+          viewport: 'regular',
+          clientErrorEventId: marker,
+        }),
+      ).toThrow(ZodError)
+    }
+
+    const accepted = betaFeedbackInputSchema.parse({
+      kind: 'bug',
+      impact: 'cannot_complete',
+      message: 'A reproducible problem.',
+      routePath: '/dashboard',
+      viewport: 'regular',
+      clientErrorEventId: 'a'.repeat(32),
+    })
+    expectNoMarkers(accepted)
   })
 })

@@ -52,10 +52,11 @@
         "outstandingResponsibilities",
         "merchantAiAuthorization",
         "merchantAiOverview",
-        "merchantAiNotice"
+        "merchantAiNotice",
+        "myBetaFeedback"
       ],
       "owner": "Identity query lifecycle",
-      "policy": "Active-organization reads live under the identity root. Login, sign-out, and successful invitation acceptance clear the complete QueryClient at the confirmed session/tenant transition, so no unscoped identity or sibling context cache crosses tenants. Personal and organization invitation response shapes are disjoint siblings below the invitation prefix. The departing member's outstanding-responsibility worklist is a separate leaf under the same root: it describes the caller's current standing rather than the directory, is read at staleTime 0, and is invalidated by leave mutations alone. The per-property merchant AI consent snapshot is another leaf, keyed by the globally unique propertyId: the import flow's AI-analysis step reads it, a successful enable replaces it locally from the command result, and the AI settings route reads the same snapshot through its loader rather than through this key. The read-only Organization AI overview is a separate sibling leaf, not a parent of the per-property snapshots: it spans every Property the viewer may manage AI for, so any Merchant AI command or decision deferral must invalidate it explicitly alongside the affected property snapshot. The served Merchant AI notice is a third sibling leaf, independent of any Property: the import wizard's setup step reads it to render the consent ceremony, it changes only with a deploy, and a notice mismatch on a consent command is surfaced to the merchant rather than repaired from cache."
+      "policy": "Active-organization reads live under the identity root. Login, sign-out, and successful invitation acceptance clear the complete QueryClient at the confirmed session/tenant transition, so no unscoped identity or sibling context cache crosses tenants. Personal and organization invitation response shapes are disjoint siblings below the invitation prefix. The departing member's outstanding-responsibility worklist is a separate leaf under the same root: it describes the caller's current standing rather than the directory, is read at staleTime 0, and is invalidated by leave mutations alone. The per-property merchant AI consent snapshot is another leaf, keyed by the globally unique propertyId: the import flow's AI-analysis step reads it, a successful enable replaces it locally from the command result, and the AI settings route reads the same snapshot through its loader rather than through this key. The read-only Organization AI overview is a separate sibling leaf, not a parent of the per-property snapshots: it spans every Property the viewer may manage AI for, so any Merchant AI command or decision deferral must invalidate it explicitly alongside the affected property snapshot. The served Merchant AI notice is a third sibling leaf, independent of any Property: the import wizard's setup step reads it to render the consent ceremony, it changes only with a deploy, and a notice mismatch on a consent command is surfaced to the merchant rather than repaired from cache. The reporter's own beta-feedback history is a further leaf under the same root: it is scoped server-side by the caller's actor pseudonym rather than by any key argument, is read only while the dialog's reports panel is open, and is invalidated by a successful submission from that same dialog."
     },
     {
       "id": "propertyKeys",
@@ -472,6 +473,12 @@
       "classification": "synchronized_prop_copy",
       "owner": "Import wizard property setup",
       "policy": "Freezes the first ready setup facts for the session and never synchronizes: saving invalidates the property, manager and AI caches, and the refreshed facts would otherwise withdraw the answered questions and results from under the merchant. Leaving the import route is the reset boundary."
+    },
+    {
+      "id": "src/components/features/beta-feedback/beta-feedback-form.tsx:useState(recordedError)",
+      "classification": "local_runtime",
+      "owner": "Beta feedback reporting",
+      "policy": "One read of the browser-local recorded-error buffer, taken when the form mounts so the offer cannot change while the reporter is typing. It is not server state and is never written back; closing the dialog discards it."
     }
   ],
   "classificationDefinitions": {

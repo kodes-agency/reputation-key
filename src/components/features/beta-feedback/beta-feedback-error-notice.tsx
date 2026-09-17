@@ -37,10 +37,16 @@ export function BetaFeedbackErrorNotice({
           />
           <Label
             htmlFor="beta-feedback-include-error"
-            className="text-sm leading-snug font-normal text-muted-foreground"
+            className="block space-y-1 text-sm leading-snug font-normal text-muted-foreground"
           >
-            Attach it to this report so we can find the exact failure. Only the reference{' '}
-            <code className="font-mono text-xs">{eventId.slice(0, 8)}</code> is sent.
+            <span className="block">
+              Attach it to this report so we can find the exact failure.
+            </span>
+            {/* Its own line: inline, the chip breaks the sentence badly. */}
+            <span className="block text-xs">
+              Only the reference <code className="font-mono">{eventId.slice(0, 8)}</code>{' '}
+              is sent.
+            </span>
           </Label>
         </div>
       </div>

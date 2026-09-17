@@ -54,7 +54,10 @@ function ReportRow({ item }: Readonly<{ item: MyBetaFeedbackItem }>) {
           {item.engineeringIssueRef && (
             <>
               {' · '}
-              <span className="font-mono">Tracked as #{item.engineeringIssueRef}</span>
+              {/* Only the number is monospace; "Tracked as" in mono reads wide. */}
+              <span>
+                Tracked as <span className="font-mono">#{item.engineeringIssueRef}</span>
+              </span>
             </>
           )}
         </p>
