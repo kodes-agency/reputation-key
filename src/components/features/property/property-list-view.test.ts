@@ -173,6 +173,10 @@ describe('propertyListSearchPatch', () => {
       dir: 'desc',
     })
     expect(propertyListSearchPatch({}, { show: 'google' })).toEqual({ show: 'google' })
+    expect(propertyListSearchPatch({ q: 'sof' }, { tab: 'removed' })).toEqual({
+      q: 'sof',
+      tab: 'removed',
+    })
   })
 })
 

@@ -24,6 +24,7 @@ import {
   ReviewsValue,
   SetupValue,
 } from './property-list-cells'
+import { PropertyRowActions } from './property-list-row-actions'
 import type { DataState, PropertyListRow, PropertyListView } from './property-list-view'
 
 type Props = Readonly<{
@@ -105,6 +106,9 @@ export function PropertyListTable({ rows, view, fleet, setup, onSort }: Props) {
                 Setup
               </SortableHead>
             ) : null}
+            <TableHead className="w-14 px-2">
+              <span className="sr-only">Actions</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody className="block @4xl:table-row-group">
@@ -115,7 +119,7 @@ export function PropertyListTable({ rows, view, fleet, setup, onSort }: Props) {
             return (
               <TableRow
                 key={property.id}
-                className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1.5 px-4 py-3.5 hover:bg-muted/40 @4xl:table-row @4xl:p-0"
+                className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 gap-y-1.5 px-4 py-3.5 hover:bg-muted/40 @4xl:table-row @4xl:p-0"
               >
                 <TableCell className={cn(CELL, 'row-span-2 min-w-0 whitespace-normal')}>
                   <PropertyNameCell row={row} />
@@ -136,7 +140,7 @@ export function PropertyListTable({ rows, view, fleet, setup, onSort }: Props) {
                     <TableCell
                       className={cn(
                         CELL,
-                        'col-span-2 whitespace-normal',
+                        'col-span-3 whitespace-normal',
                         // Stacked, a row with nothing waiting says nothing.
                         clear && '@max-4xl:hidden',
                       )}
@@ -154,7 +158,7 @@ export function PropertyListTable({ rows, view, fleet, setup, onSort }: Props) {
                   <TableCell
                     className={cn(
                       CELL,
-                      'col-span-2 whitespace-normal',
+                      'col-span-3 whitespace-normal',
                       setUp && '@max-4xl:hidden',
                     )}
                   >
@@ -166,6 +170,12 @@ export function PropertyListTable({ rows, view, fleet, setup, onSort }: Props) {
                     />
                   </TableCell>
                 ) : null}
+                <TableCell className="col-start-3 row-span-2 row-start-1 -mt-2 -mr-3 self-start p-0 @4xl:table-cell @4xl:mt-0 @4xl:mr-0 @4xl:px-2 @4xl:py-3 @4xl:text-right">
+                  <PropertyRowActions
+                    propertyId={property.id}
+                    propertyName={property.name}
+                  />
+                </TableCell>
               </TableRow>
             )
           })}

@@ -3,7 +3,10 @@
 // without rendering (docs/plan/property-list-table.md rows 7, 11–13).
 import type { PropertySetupStep } from '#/contexts/reporting/application/public-api'
 import { countryLabel } from '#/components/features/shared/country-label'
-import type { GoogleBindingState } from './property-lifecycle-model'
+import type {
+  GoogleBindingState,
+  PropertyLifecycleState,
+} from './property-lifecycle-model'
 import type {
   PropertyListSearch,
   PropertyListShow,
@@ -20,7 +23,9 @@ export type PropertyListProperty = Readonly<{
   address: string | null
   countryCode: string | null
   googleBindingState: GoogleBindingState
-  lifecycleState: string
+  lifecycleState: PropertyLifecycleState
+  /** End of the self-service restore window; set only once archived. */
+  purgeScheduledFor?: Date | string | null
 }>
 
 export type PropertyAttention = Readonly<{
@@ -153,6 +158,7 @@ export function propertyListSearchPatch(
   const next = { ...current, ...patch }
   const sort = next.sort ?? DEFAULT_SORT
   return {
+    ...(next.tab ? { tab: next.tab } : {}),
     ...(next.q ? { q: next.q } : {}),
     ...(next.show ? { show: next.show } : {}),
     ...(sort !== DEFAULT_SORT ? { sort } : {}),
