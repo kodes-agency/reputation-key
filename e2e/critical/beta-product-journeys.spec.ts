@@ -1134,22 +1134,20 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(
       page.getByRole('heading', { name: 'Properties', level: 1 }),
     ).toBeVisible()
-    const p1Row = page.getByRole('link').filter({ hasText: 'E2E Beta Hotel P1' })
-    const p2Row = page.getByRole('link').filter({ hasText: 'E2E Beta Hotel P2' })
+    // Each property is a table row; its name is the row's link to the property
+    // (docs/plan/property-list-table.md row 4).
+    const p1Row = page.getByRole('row').filter({ hasText: 'E2E Beta Hotel P1' })
+    const p2Row = page.getByRole('row').filter({ hasText: 'E2E Beta Hotel P2' })
 
-    // The row renders its name and slug immediately; the comparison figures
-    // arrive with their own query, so this waits for the figure rather than
-    // reading a row that is attached but not yet complete. A figure that never
-    // renders still fails here.
-    const RATING = /(\d\.\d)\s*★/
+    // The row renders its name immediately; the comparison figures arrive with
+    // their own query, so this waits for the figure rather than reading a row
+    // that is attached but not yet complete. A figure that never renders still
+    // fails here.
+    const RATING = /^\d\.\d$/
     const extractRating = async (row: Locator) => {
-      await expect(row).toContainText(RATING)
-      const text = (await row.innerText()) ?? ''
-      const match = text.match(RATING)
-      if (!match) {
-        throw new Error(`Expected a rating in row text: ${text}`)
-      }
-      return Number.parseFloat(match[1]!)
+      const rating = row.getByText(RATING)
+      await expect(rating).toBeVisible()
+      return Number.parseFloat((await rating.innerText()).trim())
     }
 
     const p1Rating = await extractRating(p1Row)
@@ -1160,7 +1158,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByText('E2E Bounded Property 1', { exact: true })).toBeVisible()
     await expect(page.getByText('E2E Locked Hotel P3', { exact: true })).toHaveCount(0)
 
-    await p1Row.click()
+    await p1Row.getByRole('link', { name: 'E2E Beta Hotel P1', exact: true }).click()
     // Overview carries no range at all now: it reads a fixed all-time identity
     // beside a fixed 30-day pulse, so there is nothing to put in the URL
     // (docs/plan/dashboard-redesign.md row 5). The 30-day default that used to
@@ -1187,8 +1185,8 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // The one-property state had TWO legitimate renderings on the fleet page —
     // a redirect into the property, or that property's setup landing, chosen by
     // whether the checklist was complete — so this test used to assert the
-    // suite's execution order. One list renders every case now, checklist or
-    // not, and the banner carries the next step.
+    // suite's execution order. One list renders every case now, and each row
+    // carries its own setup's next step.
     await expect(onePage).toHaveURL(/\/properties$/)
     await expect(
       onePage.getByRole('link').filter({ hasText: 'E2E Beta Hotel P1' }),

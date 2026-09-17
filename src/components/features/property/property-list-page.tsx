@@ -1,138 +1,52 @@
-// Properties — the one place "all my properties" lives (redesign row 3).
+// Properties — every property you manage, as one table you can sort, filter
+// and search (docs/plan/property-list-table.md).
 //
-// `/dashboard` used to be a second multi-property page: the same list again,
-// with a 13-row × 3-badge provenance table, an org setup checklist pinned above
-// the fold on every visit, and a time-range picker rendered outside the page
-// shell. It was not in the sidebar, reachable only by redirect or URL.
+// The list is a management surface first: it renders for a manager whose fleet
+// or setup read is slow or denied, and a column whose read is unavailable is
+// left out rather than shown as zeros. The figures, the summary strip and the
+// order they allow are enrichments on top of the list.
 //
-// This page absorbs what was worth keeping — the comparison figures and the
-// checklist while it is incomplete — and nothing else. The figures are an
-// enrichment, not the spine: the list is a management surface (it shows removed
-// properties, and it must render for a manager whose fleet read is denied or
-// slow), so a row without metrics is a normal row, not a broken one.
+// Presentational: the route owns the reads and the URL; this page receives the
+// search and reports changes through `onSearchChange`.
 import { Link } from '@tanstack/react-router'
+import { Plus, SearchX } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
-import { Plus, ChevronRight } from 'lucide-react'
+import { Button } from '#/components/ui/button'
+import { EmptyState } from '#/components/ui/empty-state'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import { partitionWorkspaceProperties } from './property-workspace'
-import { SetupChecklistBanner } from '#/components/features/dashboard/setup-checklist-banner'
-import type { SetupChecklist } from '#/contexts/reporting/application/public-api'
+import type { PropertyListSearch, PropertyListSort } from './property-list-search-schema'
+import { PropertyListSummaryStrip } from './property-list-summary'
+import { PropertyListTable } from './property-list-table'
+import { PropertyListToolbar } from './property-list-toolbar'
+import {
+  buildPropertyListRows,
+  filterPropertyListRows,
+  propertyListSearchPatch,
+  resolvePropertyListView,
+  sortPropertyListRows,
+  summarizePropertyList,
+  type DataState,
+  type PropertyComparison,
+  type PropertyListProperty,
+  type PropertySetupProgress,
+} from './property-list-view'
 
-interface Property {
-  id: string
-  name: string
-  slug: string
-  timezone: string
-  lifecycleState: string
-}
-
-/**
- * What the fleet read adds to a row. Identity and pulse, as on Overview: the
- * rating a manager recognises is all-time, the review count worth comparing is
- * recent (row 5).
- */
-export type PropertyComparison = Readonly<{
-  /** All-time, so the figure matches the Google profile and the Overview tile. */
-  avgRating: number | null
-  /** All-time review count. A bounded fleet window counts by when a review was
-   *  recorded rather than when it was written, which disagrees with the
-   *  per-property Overview on a freshly imported property — see the route. */
-  reviewCount: number
-  /** Distinct attention work, never the sum of overlapping signal counts. */
-  totalAttention: number
-}>
+export type { PropertyComparison, PropertySetupProgress } from './property-list-view'
 
 export interface PropertyListPageProps {
-  properties: ReadonlyArray<Property>
-  /** Keyed by property id. Absent keys render without figures, by design. */
+  properties: ReadonlyArray<PropertyListProperty>
+  /** Keyed by property id; rows without an entry show no figures. */
   comparison?: ReadonlyMap<string, PropertyComparison>
-  /** Omitted, or complete, renders no banner. */
-  checklist?: SetupChecklist
-  /** Setup steps needing this viewer, keyed by property id. Absent means unknown. */
-  setupAttention?: ReadonlyMap<string, number>
-}
-
-function ComparisonFigures({
-  comparison,
-}: Readonly<{ comparison: PropertyComparison | undefined }>) {
-  if (!comparison) return null
-
-  return (
-    <dl className="flex shrink-0 items-center gap-4 text-sm sm:gap-6">
-      <div className="text-right">
-        <dt className="text-xs text-muted-foreground">Rating</dt>
-        <dd className="font-semibold tabular-nums">
-          {comparison.avgRating === null ? (
-            <span className="text-sm font-normal text-muted-foreground">No ratings</span>
-          ) : (
-            `${comparison.avgRating.toFixed(1)} ★`
-          )}
-        </dd>
-      </div>
-      <div className="hidden text-right sm:block">
-        <dt className="text-xs text-muted-foreground">Reviews</dt>
-        <dd className="font-semibold tabular-nums">
-          {comparison.reviewCount.toLocaleString()}
-        </dd>
-      </div>
-      <div className="text-right">
-        <dt className="text-xs text-muted-foreground">Needs attention</dt>
-        <dd
-          className={
-            comparison.totalAttention > 0
-              ? 'font-semibold tabular-nums text-destructive'
-              : 'font-semibold tabular-nums'
-          }
-        >
-          {comparison.totalAttention}
-        </dd>
-      </div>
-    </dl>
-  )
-}
-
-function PropertyRow({
-  property,
-  removed,
-  comparison,
-  setupAttention,
-}: Readonly<{
-  property: Property
-  removed: boolean
-  comparison: PropertyComparison | undefined
-  setupAttention: number | undefined
-}>) {
-  return (
-    <div className="flex items-stretch overflow-hidden rounded-lg border">
-      <Link
-        to="/properties/$propertyId"
-        params={{ propertyId: property.id }}
-        className="flex min-w-0 flex-1 items-center justify-between gap-4 p-4 outline-none transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
-      >
-        <div className="flex min-w-0 flex-col gap-1">
-          <p className="truncate font-semibold">{property.name}</p>
-          <div className="flex min-w-0 items-center gap-2">
-            <Badge variant="secondary">{property.slug}</Badge>
-            {removed ? <Badge variant="outline">Removed</Badge> : null}
-            {!removed && setupAttention !== undefined && setupAttention > 0 ? (
-              <Badge variant="outline" className="border-primary/30 text-primary">
-                {setupAttention === 1 ? '1 setup step' : `${setupAttention} setup steps`}
-              </Badge>
-            ) : null}
-            <span className="truncate text-sm text-muted-foreground">
-              {property.timezone}
-            </span>
-          </div>
-        </div>
-        {removed ? null : <ComparisonFigures comparison={comparison} />}
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-      </Link>
-    </div>
-  )
+  fleet: DataState
+  /** Keyed by property id. */
+  setup?: ReadonlyMap<string, PropertySetupProgress>
+  setupState: DataState
+  search: PropertyListSearch
+  onSearchChange: (next: PropertyListSearch) => void
 }
 
 /**
@@ -177,35 +91,83 @@ function EmptyPropertyList({
   )
 }
 
+function RemovedProperties({
+  properties,
+}: Readonly<{ properties: ReadonlyArray<PropertyListProperty> }>) {
+  return (
+    <details className="mt-8 rounded-lg border border-dashed">
+      <summary className="cursor-pointer list-none p-4 text-sm font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50">
+        Removed properties ({properties.length}) — open a property to restore it
+      </summary>
+      <ul className="flex flex-col gap-2 border-t p-4">
+        {properties.map((property) => (
+          <li key={property.id} className="flex items-center gap-2">
+            <Link
+              to="/properties/$propertyId"
+              params={{ propertyId: property.id }}
+              className="font-medium underline-offset-4 hover:underline"
+            >
+              {property.name}
+            </Link>
+            <Badge variant="outline">Removed</Badge>
+          </li>
+        ))}
+      </ul>
+    </details>
+  )
+}
+
+function describe(workspace: ReadonlyArray<PropertyListProperty>): string | undefined {
+  if (workspace.length === 0) return undefined
+  const count = workspace.length === 1 ? '1 property' : `${workspace.length} properties`
+  const paused = workspace.filter((property) => property.lifecycleState === 'suspended')
+  return paused.length > 0 ? `${count} · ${paused.length} paused` : count
+}
+
 export function PropertyListPage({
   properties,
   comparison,
-  checklist,
-  setupAttention,
+  fleet,
+  setup,
+  setupState,
+  search,
+  onSearchChange,
 }: PropertyListPageProps) {
   const { can } = usePermissions()
   const { workspace, removed } = partitionWorkspaceProperties(properties)
-  const anyFigures = comparison !== undefined && comparison.size > 0
+  const view = resolvePropertyListView(search, { fleet, setup: setupState })
+  const rows = buildPropertyListRows(workspace, comparison, setup)
+  const visible = sortPropertyListRows(
+    filterPropertyListRows(rows, view),
+    view.appliedSort,
+    view.appliedDir,
+  )
+  const update = (patch: Partial<PropertyListSearch>) =>
+    onSearchChange(propertyListSearchPatch(search, patch))
+  const onSort = (sort: PropertyListSort) =>
+    update(
+      sort === view.sort
+        ? { sort, dir: view.dir === 'asc' ? 'desc' : 'asc' }
+        : { sort, dir: undefined },
+    )
+  const several = workspace.length > 1
 
   return (
     <PageShell tier="dashboard">
       <PageHeader
         title="Properties"
-        description="Every property you manage, side by side."
-        breadcrumbs={[{ label: 'Properties' }]}
+        description={describe(workspace)}
         actions={
           can('property.import_gbp_v2') ? (
             <Button asChild>
               <Link to="/properties/import-google">
                 <Plus />
-                Import Properties
+                Import from Google
               </Link>
             </Button>
           ) : undefined
         }
       />
-
-      {checklist === undefined ? null : <SetupChecklistBanner checklist={checklist} />}
 
       {workspace.length === 0 ? (
         <EmptyPropertyList
@@ -213,45 +175,55 @@ export function PropertyListPage({
           canImport={can('property.import_gbp_v2')}
         />
       ) : (
-        <div className="flex flex-col gap-2">
-          {workspace.map((property) => (
-            <PropertyRow
-              key={property.id}
-              property={property}
-              removed={false}
-              comparison={comparison?.get(property.id)}
-              setupAttention={setupAttention?.get(property.id)}
+        <section aria-label="Property list" className="flex flex-col gap-4">
+          {several ? (
+            <>
+              <PropertyListSummaryStrip
+                summary={summarizePropertyList(rows)}
+                fleet={fleet}
+                setup={setupState}
+                show={view.show}
+                onShow={(show) => update({ show })}
+              />
+              <PropertyListToolbar
+                view={view}
+                fleet={fleet}
+                setup={setupState}
+                shown={visible.length}
+                total={rows.length}
+                onChange={update}
+              />
+            </>
+          ) : null}
+          {visible.length === 0 ? (
+            <EmptyState icon={SearchX} title="No properties match">
+              <Button
+                variant="outline"
+                onClick={() => update({ q: undefined, show: undefined })}
+              >
+                Clear search and filter
+              </Button>
+            </EmptyState>
+          ) : (
+            <PropertyListTable
+              rows={visible}
+              view={view}
+              fleet={fleet}
+              setup={setupState}
+              onSort={onSort}
             />
-          ))}
-        </div>
+          )}
+          {fleet === 'ready' ? (
+            <p className="text-sm text-muted-foreground">
+              Ratings and review counts are all-time.{' '}
+              <GlossaryTerm term="needs-attention">Needs attention</GlossaryTerm> counts
+              work waiting on you.
+            </p>
+          ) : null}
+        </section>
       )}
 
-      {anyFigures ? (
-        <p className="text-sm text-muted-foreground">
-          Ratings and review counts are all-time.{' '}
-          <GlossaryTerm term="needs-attention">Needs attention</GlossaryTerm> counts work
-          waiting on you.
-        </p>
-      ) : null}
-
-      {removed.length > 0 ? (
-        <details className="mt-8 rounded-lg border border-dashed">
-          <summary className="cursor-pointer list-none p-4 text-sm font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50">
-            Removed properties ({removed.length}) — open a property to restore it
-          </summary>
-          <div className="flex flex-col gap-2 border-t p-4">
-            {removed.map((property) => (
-              <PropertyRow
-                key={property.id}
-                property={property}
-                removed
-                comparison={undefined}
-                setupAttention={undefined}
-              />
-            ))}
-          </div>
-        </details>
-      ) : null}
+      {removed.length > 0 ? <RemovedProperties properties={removed} /> : null}
     </PageShell>
   )
 }

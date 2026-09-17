@@ -6,6 +6,7 @@ import {
   firstPropertySetupSection,
   openPropertySetupSteps,
   propertySetupStepLabel,
+  propertySetupStepTarget,
 } from './property-setup-steps'
 
 const setup = (
@@ -59,6 +60,19 @@ describe('property setup steps', () => {
     expect(openPropertySetupSteps(current).map((step) => step.key)).toEqual([
       'reviews_synced',
     ])
+  })
+
+  it('finishes a step in its settings section, a portal on the portals page', () => {
+    const [google, sync, , , manager, , portal] = setup({}).steps
+    expect(propertySetupStepTarget(google!)).toBe(
+      '/properties/$propertyId/settings/google',
+    )
+    expect(propertySetupStepTarget(manager!)).toBe(
+      '/properties/$propertyId/settings/people',
+    )
+    expect(propertySetupStepTarget(portal!)).toBe('/properties/$propertyId/portals')
+    // The first sync has nothing to edit.
+    expect(propertySetupStepTarget(sync!)).toBeNull()
   })
 
   it('words a waiting sync and an admin-only AI decision for what the viewer can do', () => {

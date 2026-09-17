@@ -1,5 +1,6 @@
 import type {
   PropertySetup,
+  PropertySetupSection,
   PropertySetupStep,
   PropertySetupStepKey,
 } from '#/contexts/reporting/application/public-api'
@@ -58,4 +59,21 @@ export function firstPropertySetupSection(
       candidate.section !== 'portals',
   )
   return (step?.section as PropertySettingsSectionKey | undefined) ?? null
+}
+
+export type PropertySetupStepTarget =
+  | '/properties/$propertyId/portals'
+  | `/properties/$propertyId/settings/${Exclude<PropertySetupSection, 'portals'>}`
+
+/**
+ * The page that finishes a step: its settings section, or the Portals page,
+ * which lives outside the hub. `null` for a step with nothing to edit (the
+ * first review sync).
+ */
+export function propertySetupStepTarget(
+  step: PropertySetupStep,
+): PropertySetupStepTarget | null {
+  if (step.section === null) return null
+  if (step.section === 'portals') return '/properties/$propertyId/portals'
+  return `/properties/$propertyId/settings/${step.section}`
 }
