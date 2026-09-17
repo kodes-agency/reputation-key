@@ -96,6 +96,26 @@ export type BetaFeedbackRouteKey =
   | 'other_authenticated'
 export type BetaFeedbackViewport = BetaFeedbackInput['viewport']
 
+export type BetaFeedbackTriageStateView =
+  'new' | 'screened' | 'reproducing' | 'accepted' | 'declined' | 'resolved'
+
+/**
+ * What a reporter may see about their own report. Severity, privacy class,
+ * security class, owner queue and dedupe disposition are deliberately absent:
+ * they are internal triage, and the security classification must not leak.
+ */
+export type BetaFeedbackReportView = Readonly<{
+  reference: string
+  feedbackType: BetaFeedbackType
+  impactCode: BetaFeedbackImpact
+  routeKey: BetaFeedbackRouteKey
+  deliveryState: 'prepared' | 'delivered' | 'failed'
+  triageState: BetaFeedbackTriageStateView
+  engineeringIssueRef: string | null
+  createdAt: Date
+  updatedAt: Date
+}>
+
 const EXACT_ROUTES: Readonly<Record<string, BetaFeedbackRouteKey>> = {
   '/inbox': 'inbox',
   '/notifications': 'notifications',

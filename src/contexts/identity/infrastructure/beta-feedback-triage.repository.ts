@@ -1,10 +1,11 @@
-import { and, asc, eq, ne, or } from 'drizzle-orm'
+import { and, asc, desc, eq, ne, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   betaFeedbackTriage,
   betaFeedbackTriageTransitions,
 } from '#/shared/db/schema/beta-feedback-triage.schema'
 import type {
+  BetaFeedbackReportView,
   BetaFeedbackRouteKey,
   BetaFeedbackViewport,
 } from '#/shared/beta-feedback-contract'
@@ -58,6 +59,8 @@ export type BetaFeedbackTriageRecord = BetaFeedbackTriageSnapshot &
     createdAt: Date
     updatedAt: Date
   }>
+
+export type BetaFeedbackReporterItem = BetaFeedbackReportView
 
 export type BetaFeedbackTriageQueueItem = Omit<
   BetaFeedbackTriageRecord,
@@ -274,6 +277,36 @@ export class BetaFeedbackTriageRepository {
       .orderBy(asc(betaFeedbackTriage.createdAt), asc(betaFeedbackTriage.reference))
       .limit(boundedLimit)
     return rows.map(queueItem)
+  }
+
+  /**
+   * One reporter's own reports, newest first. Scoped by the actor pseudonym, so
+   * a caller can only ever see reports it could have written. Deliberately
+   * narrower than the internal queue: no severity, owner queue, privacy or
+   * security classification crosses back to the person who reported.
+   */
+  async listForActor(
+    actorPseudonym: string,
+    limit = 20,
+  ): Promise<readonly BetaFeedbackReporterItem[]> {
+    const boundedLimit = Math.min(50, Math.max(1, Math.trunc(limit)))
+    const rows = await this.db
+      .select()
+      .from(betaFeedbackTriage)
+      .where(eq(betaFeedbackTriage.actorPseudonym, actorPseudonym))
+      .orderBy(desc(betaFeedbackTriage.createdAt), asc(betaFeedbackTriage.reference))
+      .limit(boundedLimit)
+    return rows.map((row) => ({
+      reference: row.reference,
+      feedbackType: row.feedbackType as BetaFeedbackReporterItem['feedbackType'],
+      impactCode: row.impactCode as BetaFeedbackReporterItem['impactCode'],
+      routeKey: row.routeKey as BetaFeedbackRouteKey,
+      deliveryState: row.deliveryState as BetaFeedbackReporterItem['deliveryState'],
+      triageState: row.triageState as BetaFeedbackTriageState,
+      engineeringIssueRef: row.engineeringIssueRef,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }))
   }
 
   async transition(

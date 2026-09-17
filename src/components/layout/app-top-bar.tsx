@@ -15,7 +15,10 @@ import { NotificationPanel } from '#/components/features/notification/notificati
 import type { NotificationServerFns } from '#/components/features/notification/types'
 import { useThemeMode } from '#/components/hooks/use-theme-mode'
 import { BetaFeedbackLauncher } from '#/components/features/beta-feedback/beta-feedback-launcher'
-import type { SubmitBetaFeedback } from '#/components/features/beta-feedback/beta-feedback-form-context'
+import type {
+  ListMyBetaFeedback,
+  SubmitBetaFeedback,
+} from '#/components/features/beta-feedback/beta-feedback-form-context'
 import { clearTenantCacheAfterSessionEnd } from '#/shared/queries/tenant-cache-transition'
 
 type Props = Readonly<{
@@ -24,6 +27,7 @@ type Props = Readonly<{
   notificationFns: NotificationServerFns
   submitBetaFeedback?: SubmitBetaFeedback
   sidebarLocked?: boolean
+  listBetaFeedback?: ListMyBetaFeedback
 }>
 
 export function AppTopBar({
@@ -32,6 +36,7 @@ export function AppTopBar({
   notificationFns,
   submitBetaFeedback,
   sidebarLocked = false,
+  listBetaFeedback,
 }: Props) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -55,7 +60,12 @@ export function AppTopBar({
       <div className="flex-1" />
 
       {/* Notifications + User menu */}
-      {submitBetaFeedback && <BetaFeedbackLauncher submitFeedback={submitBetaFeedback} />}
+      {submitBetaFeedback && (
+        <BetaFeedbackLauncher
+          submitFeedback={submitBetaFeedback}
+          listFeedback={listBetaFeedback}
+        />
+      )}
       <NotificationPanel
         notificationFns={notificationFns}
         organizationId={organizationId}

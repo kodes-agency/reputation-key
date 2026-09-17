@@ -1,22 +1,28 @@
 import { useState } from 'react'
-import { CheckCircle2, MessageSquarePlus, ShieldCheck } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { MessageSquarePlus, ShieldCheck } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '#/components/ui/dialog'
-import { type SubmitBetaFeedback } from './beta-feedback-form-context'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
+import { identityKeys } from '#/shared/queries/query-keys'
+import type { ListMyBetaFeedback, SubmitBetaFeedback } from './beta-feedback-form-context'
 import { BetaFeedbackForm } from './beta-feedback-form'
+import { BetaFeedbackReceipt } from './beta-feedback-receipt'
+import { BetaFeedbackReports } from './beta-feedback-reports'
 
 type Props = Readonly<{
   submitFeedback: SubmitBetaFeedback
+  listFeedback?: ListMyBetaFeedback
 }>
+
+type Panel = 'report' | 'reports'
 
 function PrivacyNotice() {
   return (
@@ -36,49 +42,58 @@ function PrivacyNotice() {
   )
 }
 
-function FeedbackReceipt({ reference }: Readonly<{ reference: string }>) {
-  return (
-    <div className="space-y-5 py-2" aria-live="polite">
-      <div className="flex gap-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <CheckCircle2 className="size-5" />
-        </div>
-        <div className="space-y-1">
-          <h3 className="font-medium">Thanks — we received it</h3>
-          <p className="text-sm text-muted-foreground">
-            Your report is available to the RepKey beta team. It does not create a public
-            issue.
-          </p>
-        </div>
-      </div>
-      <div className="rounded-md border bg-muted/35 px-3 py-2">
-        <p className="text-xs font-medium text-muted-foreground">Reference</p>
-        <p className="mt-1 break-all font-mono text-sm">{reference}</p>
-      </div>
-      <DialogFooter>
-        <DialogClose asChild>
-          <Button>Done</Button>
-        </DialogClose>
-      </DialogFooter>
-    </div>
-  )
-}
-
-function FeedbackDialogBody({ submitFeedback }: Props) {
+function FeedbackDialogBody({ submitFeedback, listFeedback }: Props) {
   const [reference, setReference] = useState<string | null>(null)
+  const [panel, setPanel] = useState<Panel>('report')
+  const queryClient = useQueryClient()
 
-  if (reference) return <FeedbackReceipt reference={reference} />
+  const onSubmitted = (submittedReference: string): void => {
+    setReference(submittedReference)
+    // The new report belongs in the history the next tab opens on.
+    void queryClient.invalidateQueries({ queryKey: identityKeys.myBetaFeedback() })
+  }
 
-  return (
+  const reportPanel = reference ? (
+    <BetaFeedbackReceipt
+      reference={reference}
+      onTrackReports={() => {
+        setReference(null)
+        setPanel('reports')
+      }}
+      onReportAnother={() => setReference(null)}
+    />
+  ) : (
     <>
       <PrivacyNotice />
-      <BetaFeedbackForm submitFeedback={submitFeedback} onSubmitted={setReference} />
+      <BetaFeedbackForm submitFeedback={submitFeedback} onSubmitted={onSubmitted} />
     </>
+  )
+
+  // Without a list seam there is no second panel to switch to.
+  if (!listFeedback) return reportPanel
+
+  return (
+    <Tabs value={panel} onValueChange={(value) => setPanel(value as Panel)}>
+      <TabsList className="w-full">
+        <TabsTrigger value="report" className="flex-1">
+          Report
+        </TabsTrigger>
+        <TabsTrigger value="reports" className="flex-1">
+          Your reports
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="report" className="mt-4 space-y-5">
+        {reportPanel}
+      </TabsContent>
+      <TabsContent value="reports" className="mt-4">
+        <BetaFeedbackReports listFeedback={listFeedback} enabled={panel === 'reports'} />
+      </TabsContent>
+    </Tabs>
   )
 }
 
 /** Low-noise, manager-only entry point mounted by the authenticated app shell. */
-export function BetaFeedbackLauncher({ submitFeedback }: Props) {
+export function BetaFeedbackLauncher({ submitFeedback, listFeedback }: Props) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -89,10 +104,10 @@ export function BetaFeedbackLauncher({ submitFeedback }: Props) {
           variant="ghost"
           size="sm"
           className="gap-2"
-          aria-label="Send beta feedback"
+          aria-label="Report a problem or share an idea"
         >
           <MessageSquarePlus className="size-4" />
-          <span className="hidden sm:inline">Beta feedback</span>
+          <span className="hidden sm:inline">Feedback</span>
         </Button>
       </DialogTrigger>
       {open && (
@@ -103,11 +118,14 @@ export function BetaFeedbackLauncher({ submitFeedback }: Props) {
           <DialogHeader>
             <DialogTitle>Help shape RepKey</DialogTitle>
             <DialogDescription>
-              Report a problem or suggest an improvement. You&apos;ll receive a reference
-              after it is sent.
+              Tell us what broke or what would work better. You&apos;ll get a reference,
+              and you can follow what happens to it.
             </DialogDescription>
           </DialogHeader>
-          <FeedbackDialogBody submitFeedback={submitFeedback} />
+          <FeedbackDialogBody
+            submitFeedback={submitFeedback}
+            listFeedback={listFeedback}
+          />
         </DialogContent>
       )}
     </Dialog>

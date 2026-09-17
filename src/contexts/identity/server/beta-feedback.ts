@@ -5,6 +5,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import {
   type BetaFeedbackInput,
+  type BetaFeedbackReportView,
   betaFeedbackInputSchema,
   classifyBetaFeedbackRoute,
 } from '#/shared/beta-feedback-contract'
@@ -103,3 +104,30 @@ export const submitBetaFeedbackFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(submitBetaFeedbackHandler, 'POST', 'identity.submitBetaFeedback'),
   )
+
+export const listMyBetaFeedbackHandler = createServerOnlyFn(
+  async (): Promise<readonly BetaFeedbackReportView[]> => {
+    const headers = await headersFromContext()
+    const actor = await resolveTenantContext(headers)
+    await requireExecutionAllowed({ actor, action: 'feedback.beta_report' })
+
+    try {
+      const { identityRequestSecurity, betaFeedbackTriageRepo: triage } = getContainer()
+      // Scoping by the actor's own pseudonym is the authorization: the query
+      // cannot express "somebody else's reports".
+      return await triage.listForActor(
+        betaFeedbackPseudonym(
+          identityRequestSecurity.betaFeedbackHmacSecret,
+          'telemetry-actor',
+          actor.userId,
+        ),
+      )
+    } catch (error) {
+      throw catchUntagged(error)
+    }
+  },
+)
+
+export const listMyBetaFeedbackFn = createServerFn({ method: 'GET' }).handler(
+  tracedHandler(listMyBetaFeedbackHandler, 'GET', 'identity.listMyBetaFeedback'),
+)
