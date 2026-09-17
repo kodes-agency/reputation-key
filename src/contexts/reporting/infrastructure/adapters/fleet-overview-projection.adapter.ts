@@ -207,6 +207,9 @@ export const createFleetOverviewProjectionAdapter = (
             FROM properties
             WHERE properties.organization_id = ${input.organizationId}
               AND properties.deleted_at IS NULL
+              -- The workspace: a removed Property (archived and later) is listed
+              -- apart, with no figures, so it takes no page slot and no total.
+              AND properties.lifecycle_state IN ('active', 'suspended')
               AND ${accessFilter}
           ), scoped AS MATERIALIZED (
             SELECT scoped_properties.*,

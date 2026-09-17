@@ -471,4 +471,60 @@ describe('fleet overview projection integration', () => {
       scopedProperty.propertyId,
     ])
   })
+
+  it('leaves removed properties out of the rows and the totals, and keeps paused ones', async () => {
+    const removed = properties[0]!
+    const paused = properties[1]!
+    const getFleet = getFleetOverview({
+      projection: createFleetOverviewProjectionAdapter(db),
+      resolveAccessiblePropertyIds: async () => [removed.propertyId, paused.propertyId],
+      clock: () => NOW,
+      inboxTargets,
+    })
+    const read = () =>
+      getFleet({
+        organizationId: ORG,
+        scope: {
+          userId: userId('fleet-projection-lifecycle-reader'),
+          organizationWide: false,
+        },
+        portalReadEnabled: true,
+        goalReadEnabled: true,
+        timeRange: 'all',
+      })
+
+    // The reads above commit through their own transactions, so this case puts
+    // the two rows back itself rather than relying on the suite's rollback.
+    try {
+      await pool.query(
+        `UPDATE properties SET lifecycle_state = 'archived',
+           lifecycle_state_changed_at = $2, purge_scheduled_for = $3
+         WHERE id = $1`,
+        [removed.propertyId, NOW, new Date('2026-09-08T12:00:00.000Z')],
+      )
+      await pool.query(
+        `UPDATE properties SET lifecycle_state = 'suspended' WHERE id = $1`,
+        [paused.propertyId],
+      )
+
+      const result = await read()
+
+      expect(result.entries.map((entry) => entry.propertyId)).toEqual([paused.propertyId])
+      const [only] = result.entries
+      // The removed property carried the fixture's reviews and attention; none
+      // of it may reach the totals the Properties list summarises.
+      expect(result.totals).toMatchObject({
+        propertyCount: 1,
+        ratingSampleCount: only!.reviewCount,
+        totalAttention: only!.totalAttention,
+      })
+    } finally {
+      await pool.query(
+        `UPDATE properties SET lifecycle_state = 'active',
+           lifecycle_state_changed_at = now(), purge_scheduled_for = NULL
+         WHERE id = ANY($1::uuid[])`,
+        [[removed.propertyId, paused.propertyId]],
+      )
+    }
+  })
 })

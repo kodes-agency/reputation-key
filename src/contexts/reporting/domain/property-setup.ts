@@ -144,6 +144,32 @@ export function propertySetupAttentionCount(steps: readonly PropertySetupStep[])
   ).length
 }
 
+/** Steps that are done for the viewer: a deferred AI decision counts as decided. */
+export function propertySetupCompletedCount(steps: readonly PropertySetupStep[]): number {
+  return steps.filter((step) => step.status === 'complete' || step.status === 'deferred')
+    .length
+}
+
+/**
+ * The one step to point a viewer at: their own work where there is somewhere to
+ * finish it; else work waiting on an AccountAdmin; else whatever is left — a
+ * first sync that cannot start or is running. `null` once nothing is left.
+ *
+ * A pending step without a section is only ever the first sync while Google is
+ * unlinked, which nobody can do directly: linking Google comes first, and for a
+ * PropertyManager that link is AccountAdmin work.
+ */
+export function nextPropertySetupStep(
+  steps: readonly PropertySetupStep[],
+): PropertySetupStep | null {
+  return (
+    steps.find((step) => step.status === 'pending' && step.section !== null) ??
+    steps.find((step) => step.status === 'needs_admin') ??
+    steps.find((step) => step.status === 'pending' || step.status === 'waiting') ??
+    null
+  )
+}
+
 export function derivePropertySetup(
   facts: PropertySetupFacts,
   viewer: PropertySetupViewer,
