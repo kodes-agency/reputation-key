@@ -33,6 +33,7 @@ export type PreparedBetaFeedbackTriage = Readonly<{
   routeKey: BetaFeedbackRouteKey
   viewport: BetaFeedbackViewport
   reporterRole: 'AccountAdmin' | 'PropertyManager' | 'Member'
+  clientErrorEventId: string | null
   attachmentKind: 'none'
   attachmentCapturedAt: null
   attachmentExpiresAt: null
@@ -48,6 +49,7 @@ export type BetaFeedbackTriageRecord = BetaFeedbackTriageSnapshot &
     routeKey: BetaFeedbackRouteKey
     viewport: BetaFeedbackViewport
     reporterRole: PreparedBetaFeedbackTriage['reporterRole']
+    clientErrorEventId: string | null
     deliveryFailureCode: string | null
     providerReference: string | null
     attachmentKind: 'none' | 'masked_layout_v1'
@@ -82,6 +84,7 @@ function record(row: TriageRow): BetaFeedbackTriageRecord {
     routeKey: row.routeKey as BetaFeedbackRouteKey,
     viewport: row.viewport as BetaFeedbackViewport,
     reporterRole: row.reporterRole as BetaFeedbackTriageRecord['reporterRole'],
+    clientErrorEventId: row.clientErrorEventId,
     deliveryState: row.deliveryState as BetaFeedbackTriageRecord['deliveryState'],
     deliveryFailureCode: row.deliveryFailureCode,
     providerReference: row.providerReference,
@@ -165,6 +168,7 @@ export class BetaFeedbackTriageRepository {
         routeKey: input.routeKey,
         viewport: input.viewport,
         reporterRole: input.reporterRole,
+        clientErrorEventId: input.clientErrorEventId,
         deliveryState: 'prepared',
         providerReference: null,
         deliveryFailureCode: null,

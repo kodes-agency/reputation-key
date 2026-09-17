@@ -32,7 +32,7 @@ export function deliverBetaFeedback(input: Input): BetaFeedbackDeliveryResult {
     source: 'repkey-native-beta-feedback',
     tags: {
       feedback_type: input.data.kind,
-      feedback_impact: input.data.kind === 'bug' ? 'small_issue' : 'helpful',
+      feedback_impact: input.data.impact,
       feedback_route: classifyBetaFeedbackRoute(input.data.routePath),
       feedback_actor: betaFeedbackPseudonym(
         input.hmacSecret,
@@ -47,6 +47,7 @@ export function deliverBetaFeedback(input: Input): BetaFeedbackDeliveryResult {
       feedback_viewport: input.data.viewport,
       feedback_role: input.actor.role,
       feedback_reference: input.reference,
+      feedback_client_error: input.data.clientErrorEventId ?? 'none',
       feedback_attachment: 'none',
       feedback_attachment_retention: 'not_applicable',
       feedback_triage_state: 'new',

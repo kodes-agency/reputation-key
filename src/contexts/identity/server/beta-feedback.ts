@@ -22,7 +22,7 @@ export const submitBetaFeedbackHandler = createServerOnlyFn(
   }: Readonly<{ data: BetaFeedbackInput }>): Promise<Readonly<{ reference: string }>> => {
     const headers = await headersFromContext()
     const actor = await resolveTenantContext(headers)
-    await requireExecutionAllowed({ actor, action: 'feedback.respond' })
+    await requireExecutionAllowed({ actor, action: 'feedback.beta_report' })
 
     try {
       const {
@@ -51,10 +51,11 @@ export const submitBetaFeedbackHandler = createServerOnlyFn(
         ),
         actorPseudonym: betaFeedbackPseudonym(secret, 'telemetry-actor', actor.userId),
         feedbackType: data.kind,
-        impactCode: data.kind === 'bug' ? 'small_issue' : 'helpful',
+        impactCode: data.impact,
         routeKey: classifyBetaFeedbackRoute(data.routePath),
         viewport: data.viewport,
         reporterRole: actor.role,
+        clientErrorEventId: data.clientErrorEventId,
         attachmentKind: 'none',
         attachmentCapturedAt: null,
         attachmentExpiresAt: null,

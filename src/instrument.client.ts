@@ -1,5 +1,6 @@
 import type * as SentrySdk from '@sentry/tanstackstart-react'
 import { setBrowserExceptionCapture } from '#/shared/observability/browser-exception-capture'
+import { rememberRecordedError } from '#/shared/observability/recorded-browser-errors'
 import {
   dropExpectedRefusals,
   scrubSentryBreadcrumb,
@@ -62,10 +63,14 @@ export async function initializeBrowserObservability(
       beforeSend: dropExpectedRefusals(scrubSentryEvent),
       beforeBreadcrumb: scrubSentryBreadcrumb,
     })
+    // The returned event id is the only thing kept: it lets a Bug report point
+    // at an exception monitoring already holds, without re-sending anything.
     setBrowserExceptionCapture((error) => {
-      Sentry.captureException(error)
+      rememberRecordedError(Sentry.captureException(error))
     })
-    for (const error of bufferedErrors) Sentry.captureException(error)
+    for (const error of bufferedErrors) {
+      rememberRecordedError(Sentry.captureException(error))
+    }
   } catch (error) {
     setBrowserExceptionCapture()
     throw error

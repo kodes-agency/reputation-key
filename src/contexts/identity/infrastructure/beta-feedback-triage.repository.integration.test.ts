@@ -24,6 +24,7 @@ function prepare(reference = randomUUID()) {
     actorPseudonym: HASH_B,
     feedbackType: 'bug' as const,
     impactCode: 'workaround_available' as const,
+    clientErrorEventId: null,
     routeKey: 'properties.list',
     viewport: 'wide' as const,
     reporterRole: 'PropertyManager' as const,

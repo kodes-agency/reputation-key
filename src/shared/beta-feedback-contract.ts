@@ -8,17 +8,61 @@ const messageSchema = z
 const routePathSchema = z.string().min(1).max(2_048)
 const viewportSchema = z.enum(['compact', 'regular', 'wide'])
 
+/**
+ * Impact is a closed vocabulary the triage table, its CHECK constraint and the
+ * monitoring tag already speak. Bug and Suggestion draw from disjoint halves:
+ * "I could not finish" and "nice to have" are not the same scale.
+ */
+export const BUG_IMPACTS = [
+  'cannot_complete',
+  'workaround_available',
+  'small_issue',
+] as const
+export const SUGGESTION_IMPACTS = ['important', 'helpful', 'nice_to_have'] as const
+
+const impactSchema = z.enum([...BUG_IMPACTS, ...SUGGESTION_IMPACTS])
+
+/**
+ * An opaque monitoring event id for an error the browser already reported.
+ * Hex only: this carries correlation, never content. Anything that could hold
+ * a message, a stack frame or a payload fails the pattern and is rejected.
+ */
+const clientErrorEventIdSchema = z.string().regex(/^[a-f0-9]{32}$/u)
+
 export const betaFeedbackInputSchema = z
   .object({
     kind: z.enum(['bug', 'suggestion']),
+    impact: impactSchema,
     message: messageSchema,
     routePath: routePathSchema,
     viewport: viewportSchema,
+    /** Present only when the reporter chose to link a recorded browser error. */
+    clientErrorEventId: clientErrorEventIdSchema.nullable().default(null),
   })
   .strict()
+  .superRefine((value, ctx) => {
+    const allowed: ReadonlyArray<string> =
+      value.kind === 'bug' ? BUG_IMPACTS : SUGGESTION_IMPACTS
+    if (!allowed.includes(value.impact)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['impact'],
+        message: `Impact ${value.impact} is not available for ${value.kind}.`,
+      })
+    }
+    // A suggestion has no error to attach; only a Bug may carry one.
+    if (value.kind !== 'bug' && value.clientErrorEventId !== null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['clientErrorEventId'],
+        message: 'Only a bug report may reference a recorded error.',
+      })
+    }
+  })
 
 export type BetaFeedbackInput = z.infer<typeof betaFeedbackInputSchema>
 export type BetaFeedbackType = BetaFeedbackInput['kind']
+export type BetaFeedbackImpact = BetaFeedbackInput['impact']
 
 export type BetaFeedbackRouteKey =
   | 'inbox'
@@ -115,7 +159,14 @@ export function classifyBetaFeedbackViewport(width: number): BetaFeedbackViewpor
 export function formatBetaFeedbackMessage(input: BetaFeedbackInput): string {
   const route = classifyBetaFeedbackRoute(input.routePath)
   const kind = input.kind === 'bug' ? 'Bug' : 'Suggestion'
-  return [`Type: ${kind}`, `Route: ${route}`, `Message: ${input.message}`]
-    .join('\n\n')
-    .slice(0, 6_000)
+  const lines = [
+    `Type: ${kind}`,
+    `Impact: ${input.impact}`,
+    `Route: ${route}`,
+    `Message: ${input.message}`,
+  ]
+  if (input.clientErrorEventId) {
+    lines.splice(3, 0, `Recorded error: ${input.clientErrorEventId}`)
+  }
+  return lines.join('\n\n').slice(0, 6_000)
 }

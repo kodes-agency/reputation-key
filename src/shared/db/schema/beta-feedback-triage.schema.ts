@@ -31,6 +31,10 @@ export const betaFeedbackTriage = pgTable(
     routeKey: varchar('route_key', { length: 80 }).notNull(),
     viewport: varchar('viewport', { length: 16 }).notNull(),
     reporterRole: varchar('reporter_role', { length: 32 }).notNull(),
+    // Opaque monitoring event id for an error the browser already reported.
+    // Correlation only: the CHECK below admits nothing but 32 hex characters,
+    // so no message, frame or payload can be smuggled through this column.
+    clientErrorEventId: char('client_error_event_id', { length: 32 }),
     deliveryState: varchar('delivery_state', { length: 16 }).notNull(),
     providerReference: varchar('provider_reference', { length: 64 }),
     deliveryFailureCode: varchar('delivery_failure_code', { length: 48 }),
@@ -76,6 +80,11 @@ export const betaFeedbackTriage = pgTable(
     check(
       'beta_feedback_triage_reporter_role_valid',
       sql`${t.reporterRole} IN ('AccountAdmin', 'PropertyManager', 'Member')`,
+    ),
+    check(
+      'beta_feedback_triage_client_error_shape',
+      sql`${t.clientErrorEventId} IS NULL
+        OR (${t.clientErrorEventId} ~ '^[a-f0-9]{32}$' AND ${t.feedbackType} = 'bug')`,
     ),
     check(
       'beta_feedback_triage_delivery_valid',

@@ -33,6 +33,7 @@ export const CAPABILITIES = [
   'integration.use',
   'activity.use',
   'metric.internal',
+  'feedback.beta_report',
 ] as const
 
 export type Capability = (typeof CAPABILITIES)[number]
@@ -171,6 +172,11 @@ export const CAPABILITY_FATE = Object.freeze({
   ),
   'integration.use': CORE('Google integration lifecycle is beta core.'),
   'activity.use': CORE('Privacy-aware Recent Activity is beta core.'),
+  // The report channel must survive the failure it is used to report, so it
+  // is core rather than gated behind the feature the reporter is stuck on.
+  'feedback.beta_report': CORE(
+    'Reporting a Bug or Suggestion is beta core; a blocked capability must still be reportable.',
+  ),
   'metric.internal': CORE(
     'Governed internal metrics and always-on analytics are beta core.',
   ),
