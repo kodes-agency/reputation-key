@@ -3,7 +3,7 @@
 // the list header's scope line below the desktop floor, where there is no rail.
 // Each option counts the queue in view, so where the backlog sits is one click
 // away.
-import { useId, useState, type ComponentProps } from 'react'
+import { useId, useRef, useState, type ComponentProps } from 'react'
 import { Building2, CheckIcon, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
@@ -128,8 +128,9 @@ export function InboxPropertySelect({
   getInboxPropertyCounts,
 }: Props) {
   const [open, setOpen] = useState(false)
-  const listId = useId()
   const headingId = useId()
+  const commandRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   const counts = useInboxPropertyCounts(queue, open, getInboxPropertyCounts)
   const choose = (propertyId: string | null) => {
     setOpen(false)
@@ -145,24 +146,37 @@ export function InboxPropertySelect({
           role="combobox"
           aria-label={`Property: ${scopeLabel}`}
           aria-expanded={open}
-          aria-controls={open ? listId : undefined}
         />
       </PopoverTrigger>
       <PopoverContent
         align="start"
         aria-labelledby={headingId}
+        // Radix focuses the first tabbable element, and without a search field
+        // there is none: focus fell on the popover itself, outside cmdk's root,
+        // so arrow keys and Enter never reached the list. The field when there
+        // is one, otherwise the list's root.
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          ;(searchRef.current ?? commandRef.current)?.focus()
+        }}
         className={cn(
           'p-0',
           placement === 'rail' ? 'w-(--radix-popover-trigger-width) min-w-64' : 'w-64',
         )}
       >
         <Command
+          ref={commandRef}
+          tabIndex={-1}
+          className="outline-none"
+          // The keyboard cursor starts on the scope in view, not the first row.
+          defaultValue={scope.activePropertyId ?? ALL_PROPERTIES}
           filter={(_value, search, keywords) =>
             keywords?.some((keyword) => matchesScopeSearch(keyword, search)) ? 1 : 0
           }
         >
           {offersScopeSearch(scope.properties) && (
             <CommandInput
+              ref={searchRef}
               placeholder="Search properties"
               aria-label="Search properties"
             />
@@ -173,7 +187,7 @@ export function InboxPropertySelect({
           >
             {queueLabel(queue)} by property
           </p>
-          <CommandList id={listId} aria-labelledby={headingId}>
+          <CommandList aria-labelledby={headingId}>
             <CommandEmpty>No property matches</CommandEmpty>
             {scope.includeAll && (
               // A border, not a CommandSeparator: a separator is not an

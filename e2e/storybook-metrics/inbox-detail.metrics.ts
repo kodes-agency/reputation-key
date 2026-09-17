@@ -113,6 +113,7 @@ const RAIL_STORIES = [
   'many-properties',
   'member-properties',
   'empty-property-counts',
+  'choosing-by-keyboard',
 ] as const
 
 /**

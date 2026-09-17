@@ -320,3 +320,40 @@ export const EmptyPropertyCounts: Story = {
     )
   },
 }
+
+// Keyboard users start on the scope in view and move with the arrows, with or
+// without a search field. Three properties have none, which is where focus once
+// fell outside the list and the keys went nowhere.
+export const ChoosingByKeyboard: Story = {
+  render: () => (
+    <ScopedRailStory
+      properties={hotels}
+      countsFn={async () => hotelCounts}
+      initialPropertyId={hotels[0].id}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    canvas.getByRole('combobox', { name: 'Property: Hotel Elegance' }).focus()
+    await userEvent.keyboard('{Enter}')
+    const page = within(canvasElement.ownerDocument.body)
+    const list = within(await page.findByRole('listbox'))
+    await waitFor(() =>
+      expect(list.getByRole('option', { name: /hotel elegance/i })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      ),
+    )
+
+    await userEvent.keyboard('{ArrowDown}')
+    await waitFor(() =>
+      expect(list.getByRole('option', { name: /rila grand hotel/i })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      ),
+    )
+    await userEvent.keyboard('{Enter}')
+    expect(canvas.getByTestId('active-scope')).toHaveTextContent(hotels[1].id)
+    await waitFor(() => expect(page.queryByRole('listbox')).toBeNull())
+  },
+}

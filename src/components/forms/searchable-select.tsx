@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { CheckIcon, ChevronsUpDownIcon } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
@@ -63,7 +63,6 @@ export function SearchableSelect({
   ...aria
 }: Props) {
   const [open, setOpen] = useState(false)
-  const listId = useId()
   const entries = useMemo(
     () =>
       groups.map((group) => ({
@@ -94,8 +93,9 @@ export function SearchableSelect({
           type="button"
           variant="outline"
           role="combobox"
+          // No aria-controls here: Radix's trigger already points it at the
+          // popover, and cmdk overwrites any id given to CommandList.
           aria-expanded={open}
-          aria-controls={open ? listId : undefined}
           disabled={disabled}
           onBlur={onBlur}
           className={cn(
@@ -116,7 +116,7 @@ export function SearchableSelect({
       >
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
-          <CommandList id={listId}>
+          <CommandList>
             <CommandEmpty>{emptyMessage}</CommandEmpty>
             {entries.map((group, index) => (
               <CommandGroup key={group.heading ?? index} heading={group.heading}>
