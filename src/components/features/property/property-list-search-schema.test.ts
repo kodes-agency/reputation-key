@@ -13,6 +13,7 @@ describe('propertyListSearchSchema', () => {
         show: 'everything',
         sort: 'price',
         dir: 'sideways',
+        tab: 'archive',
       }),
     ).toEqual({})
   })
@@ -24,7 +25,8 @@ describe('propertyListSearchSchema', () => {
         show: 'setup',
         sort: 'rating',
         dir: 'asc',
+        tab: 'removed',
       }),
-    ).toEqual({ q: 'sofia', show: 'setup', sort: 'rating', dir: 'asc' })
+    ).toEqual({ q: 'sofia', show: 'setup', sort: 'rating', dir: 'asc', tab: 'removed' })
   })
 })

@@ -19,6 +19,8 @@ export type PropertyListShow = (typeof PROPERTY_LIST_SHOWS)[number]
 export type SortDirection = 'asc' | 'desc'
 
 export const propertyListSearchSchema = z.object({
+  /** The workspace is the default tab; only Removed is ever written. */
+  tab: z.enum(['removed']).optional().catch(undefined),
   q: z.string().max(100).optional().catch(undefined),
   show: z.enum(PROPERTY_LIST_SHOWS).optional().catch(undefined),
   sort: z.enum(PROPERTY_LIST_SORTS).optional().catch(undefined),

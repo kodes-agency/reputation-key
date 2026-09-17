@@ -48,7 +48,7 @@ export const getPropertyLifecycleControls = (input: {
   showDisconnect:
     input.lifecycleState === 'archived' && input.googleBindingState === 'active',
   restoreDisabled: input.responsibilityNeeded,
-  statusLabel: LIFECYCLE_LABELS[input.lifecycleState],
+  statusLabel: propertyLifecycleLabel(input.lifecycleState),
 })
 
 export const formatPropertyRecoveryDeadline = (
@@ -63,6 +63,34 @@ export const formatPropertyRecoveryDeadline = (
     year: 'numeric',
     timeZone: 'UTC',
   }).format(date)
+}
+
+export const propertyLifecycleLabel = (state: PropertyLifecycleState): string =>
+  LIFECYCLE_LABELS[state]
+
+export type PropertyRestoreWindow =
+  | Readonly<{ kind: 'self_service'; deadline: string }>
+  | Readonly<{ kind: 'support' }>
+  | Readonly<{ kind: 'none' }>
+
+/**
+ * Whether a removed Property can still be restored from the product. Only an
+ * archived Property can; `purgeScheduledFor` is the end of its self-service
+ * window, not a deletion date — after it, or without it, support restores.
+ */
+export const propertyRestoreWindow = (
+  property: Readonly<{
+    lifecycleState: PropertyLifecycleState
+    purgeScheduledFor: Date | string | null
+  }>,
+  now: Date,
+): PropertyRestoreWindow => {
+  if (property.lifecycleState !== 'archived') return { kind: 'none' }
+  const { purgeScheduledFor } = property
+  const deadline = formatPropertyRecoveryDeadline(purgeScheduledFor)
+  if (purgeScheduledFor === null || deadline === null) return { kind: 'support' }
+  if (new Date(purgeScheduledFor).getTime() <= now.getTime()) return { kind: 'support' }
+  return { kind: 'self_service', deadline }
 }
 
 export type LifecyclePermissions = Readonly<{

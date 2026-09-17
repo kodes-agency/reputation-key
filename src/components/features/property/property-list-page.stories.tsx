@@ -81,6 +81,17 @@ const properties: PropertyListProperty[] = [
 const removedProperty = property('prop-lakeside', 'Lakeside Annex', {
   countryCode: 'BG',
   lifecycleState: 'archived',
+  // Far enough ahead that the self-service window is open whenever this runs.
+  purgeScheduledFor: '2099-10-03T12:00:00.000Z',
+})
+
+const expiredProperty = property('prop-riverside', 'Riverside Lodge', {
+  lifecycleState: 'archived',
+  purgeScheduledFor: '2020-01-15T12:00:00.000Z',
+})
+
+const disconnectingProperty = property('prop-hillside', 'Hillside Inn', {
+  lifecycleState: 'disconnecting',
 })
 
 const figures = (
@@ -375,18 +386,103 @@ export const EmptyWithoutImportPermission: Story = {
   },
 }
 
-// A removed property leaves the working list but stays reachable for restore.
+// A removed property leaves the working list for its own tab.
 export const WithRemovedProperty: Story = {
   args: { ...ready, properties: [...properties, removedProperty] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText(/removed properties \(1\)/i)).toBeVisible()
+    expect(canvas.getByRole('tab', { name: /Workspace\s*6/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    // The inactive tab is not rendered, so the table holds only the workspace.
+    expect(canvas.queryByText(removedProperty.name)).toBeNull()
+    expect(bodyRows(canvas)).toHaveLength(6)
+
+    await userEvent.click(canvas.getByRole('tab', { name: /Removed\s*1/ }))
     expect(canvas.getByRole('link', { name: removedProperty.name })).toHaveAttribute(
       'href',
       `/properties/${removedProperty.id}`,
     )
-    // It takes no row in the table.
-    expect(bodyRows(canvas)).toHaveLength(6)
+    expect(canvas.getByText('Archived')).toBeVisible()
+    expect(canvas.getByText('Restore before Oct 3, 2099')).toBeVisible()
+    expect(canvas.getByRole('link', { name: 'Restore Lakeside Annex' })).toHaveAttribute(
+      'href',
+      `/properties/${removedProperty.id}/settings/danger`,
+    )
+    expect(canvas.queryByText('Harborline Suites')).toBeNull()
+  },
+}
+
+// Past the self-service window, or on the way out, the list says who restores.
+export const RemovedTab: Story = {
+  args: {
+    ...ready,
+    properties: [...properties, removedProperty, expiredProperty, disconnectingProperty],
+    initialSearch: { tab: 'removed' },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(bodyRows(canvas)).toHaveLength(3)
+    expect(canvas.getByText('Ask support to restore')).toBeVisible()
+    expect(canvas.getByText('Disconnecting')).toBeVisible()
+    expect(canvas.getAllByRole('link', { name: /^Restore / })).toHaveLength(1)
+  },
+}
+
+// Only an account admin restores; a manager sees the window without the action.
+export const RemovedTabForPropertyManager: Story = {
+  args: {
+    ...ready,
+    properties: [...properties, removedProperty],
+    initialSearch: { tab: 'removed' },
+  },
+  decorators: [withRole('PropertyManager')],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Restore before Oct 3, 2099')).toBeVisible()
+    expect(canvas.queryByRole('link', { name: /^Restore / })).toBeNull()
+  },
+}
+
+async function openRowActions(canvasElement: HTMLElement, name: string) {
+  await userEvent.click(
+    within(canvasElement).getByRole('button', { name: `Actions for ${name}` }),
+  )
+  // The menu renders in a portal, outside the story's canvas.
+  return within(await within(document.body).findByRole('menu'))
+}
+
+export const RowActions: Story = {
+  args: ready,
+  play: async ({ canvasElement }) => {
+    const menu = await openRowActions(canvasElement, 'Hotel Elegance')
+    expect(menu.getByRole('menuitem', { name: 'Open overview' })).toHaveAttribute(
+      'href',
+      '/properties/prop-elegance',
+    )
+    expect(menu.getByRole('menuitem', { name: 'Reviews' })).toHaveAttribute(
+      'href',
+      '/properties/prop-elegance/reviews',
+    )
+    expect(menu.getByRole('menuitem', { name: 'Settings' })).toHaveAttribute(
+      'href',
+      '/properties/prop-elegance/settings',
+    )
+    // Removal is never done from the list: it opens the danger zone.
+    expect(
+      menu.getByRole('menuitem', { name: 'Remove from workspace…' }),
+    ).toHaveAttribute('href', '/properties/prop-elegance/settings/danger')
+  },
+}
+
+export const RowActionsForPropertyManager: Story = {
+  args: ready,
+  decorators: [withRole('PropertyManager')],
+  play: async ({ canvasElement }) => {
+    const menu = await openRowActions(canvasElement, 'Hotel Elegance')
+    expect(menu.getByRole('menuitem', { name: 'Settings' })).toBeVisible()
+    expect(menu.queryByRole('menuitem', { name: /Remove/ })).toBeNull()
   },
 }
 
@@ -399,5 +495,6 @@ export const AllRemoved: Story = {
     expect(
       canvas.queryByRole('link', { name: /import your first property/i }),
     ).not.toBeInTheDocument()
+    expect(canvas.getByRole('tab', { name: /Removed\s*1/ })).toBeVisible()
   },
 }

@@ -3,6 +3,8 @@ import {
   formatPropertyRecoveryDeadline,
   getPropertyLifecycleActionStates,
   getPropertyLifecycleControls,
+  propertyLifecycleLabel,
+  propertyRestoreWindow,
 } from './property-lifecycle-model'
 
 describe('Property lifecycle card model', () => {
@@ -130,5 +132,48 @@ describe('Property lifecycle card model', () => {
       'Sep 27, 2026',
     )
     expect(formatPropertyRecoveryDeadline(null)).toBeNull()
+  })
+})
+
+describe('removed property presentation', () => {
+  it('names each lifecycle state the way the card does', () => {
+    expect(propertyLifecycleLabel('suspended')).toBe('Paused')
+    expect(propertyLifecycleLabel('archived')).toBe('Archived')
+    expect(propertyLifecycleLabel('purge_pending')).toBe('Support review')
+  })
+
+  it('offers self-service restore until the recovery deadline, then support', () => {
+    const now = new Date('2026-09-17T12:00:00.000Z')
+    expect(
+      propertyRestoreWindow(
+        { lifecycleState: 'archived', purgeScheduledFor: '2026-10-03T12:00:00.000Z' },
+        now,
+      ),
+    ).toEqual({ kind: 'self_service', deadline: 'Oct 3, 2026' })
+    expect(
+      propertyRestoreWindow(
+        {
+          lifecycleState: 'archived',
+          purgeScheduledFor: new Date('2026-09-17T11:59:59.000Z'),
+        },
+        now,
+      ),
+    ).toEqual({ kind: 'support' })
+    // No recorded deadline: the card sends the manager to support too.
+    expect(
+      propertyRestoreWindow({ lifecycleState: 'archived', purgeScheduledFor: null }, now),
+    ).toEqual({ kind: 'support' })
+  })
+
+  it('offers no restore for a property already on its way out', () => {
+    const now = new Date('2026-09-17T12:00:00.000Z')
+    for (const lifecycleState of ['disconnecting', 'purge_pending', 'purging'] as const) {
+      expect(
+        propertyRestoreWindow(
+          { lifecycleState, purgeScheduledFor: '2026-10-03T12:00:00.000Z' },
+          now,
+        ),
+      ).toEqual({ kind: 'none' })
+    }
   })
 })

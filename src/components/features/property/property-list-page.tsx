@@ -11,14 +11,15 @@
 import { Link } from '@tanstack/react-router'
 import { Plus, SearchX } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import { partitionWorkspaceProperties } from './property-workspace'
 import type { PropertyListSearch, PropertyListSort } from './property-list-search-schema'
+import { PropertyListRemoved } from './property-list-removed'
 import { PropertyListSummaryStrip } from './property-list-summary'
 import { PropertyListTable } from './property-list-table'
 import { PropertyListToolbar } from './property-list-toolbar'
@@ -91,32 +92,6 @@ function EmptyPropertyList({
   )
 }
 
-function RemovedProperties({
-  properties,
-}: Readonly<{ properties: ReadonlyArray<PropertyListProperty> }>) {
-  return (
-    <details className="mt-8 rounded-lg border border-dashed">
-      <summary className="cursor-pointer list-none p-4 text-sm font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50">
-        Removed properties ({properties.length}) — open a property to restore it
-      </summary>
-      <ul className="flex flex-col gap-2 border-t p-4">
-        {properties.map((property) => (
-          <li key={property.id} className="flex items-center gap-2">
-            <Link
-              to="/properties/$propertyId"
-              params={{ propertyId: property.id }}
-              className="font-medium underline-offset-4 hover:underline"
-            >
-              {property.name}
-            </Link>
-            <Badge variant="outline">Removed</Badge>
-          </li>
-        ))}
-      </ul>
-    </details>
-  )
-}
-
 function describe(workspace: ReadonlyArray<PropertyListProperty>): string | undefined {
   if (workspace.length === 0) return undefined
   const count = workspace.length === 1 ? '1 property' : `${workspace.length} properties`
@@ -152,23 +127,10 @@ export function PropertyListPage({
     )
   const several = workspace.length > 1
 
-  return (
-    <PageShell tier="dashboard">
-      <PageHeader
-        title="Properties"
-        description={describe(workspace)}
-        actions={
-          can('property.import_gbp_v2') ? (
-            <Button asChild>
-              <Link to="/properties/import-google">
-                <Plus />
-                Import from Google
-              </Link>
-            </Button>
-          ) : undefined
-        }
-      />
-
+  // Radix unmounts the inactive tab, so each property name still renders once.
+  const tab = removed.length > 0 && search.tab === 'removed' ? 'removed' : 'workspace'
+  const workspaceContent = (
+    <>
       {workspace.length === 0 ? (
         <EmptyPropertyList
           allRemoved={removed.length > 0}
@@ -222,8 +184,54 @@ export function PropertyListPage({
           ) : null}
         </section>
       )}
+    </>
+  )
 
-      {removed.length > 0 ? <RemovedProperties properties={removed} /> : null}
+  return (
+    <PageShell tier="dashboard">
+      <PageHeader
+        title="Properties"
+        description={describe(workspace)}
+        actions={
+          can('property.import_gbp_v2') ? (
+            <Button asChild>
+              <Link to="/properties/import-google">
+                <Plus />
+                Import from Google
+              </Link>
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {removed.length > 0 ? (
+        <Tabs
+          value={tab}
+          onValueChange={(value) =>
+            update({ tab: value === 'removed' ? 'removed' : undefined })
+          }
+          className="gap-4"
+        >
+          <TabsList aria-label="Which properties">
+            <TabsTrigger value="workspace" className="px-3">
+              Workspace
+              <span className="tabular-nums text-muted-foreground">
+                {workspace.length}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="removed" className="px-3">
+              Removed
+              <span className="tabular-nums text-muted-foreground">{removed.length}</span>
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="workspace">{workspaceContent}</TabsContent>
+          <TabsContent value="removed">
+            <PropertyListRemoved properties={removed} />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        workspaceContent
+      )}
     </PageShell>
   )
 }
