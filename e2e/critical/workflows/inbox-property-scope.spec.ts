@@ -1,5 +1,5 @@
-// Multi-property organizations work the Inbox across every property. The queue
-// rail's Properties section is where the scope lives: "All properties" is the
+// Multi-property organizations work the Inbox across every property. The property
+// select above the queues is where the scope lives: "All properties" is the
 // organization-wide Inbox, a property is its own Reviews page, and the list
 // follows the choice. From a page with no property (the properties list), the
 // app's Reviews entry opens All properties.
@@ -60,32 +60,30 @@ test.describe('Critical workflow: inbox property scope', () => {
     await signIn(page)
     await page.goto('/inbox')
 
-    const properties = page.getByRole('navigation', { name: 'Properties' })
-    const allProperties = properties.getByRole('button', { name: /^All properties/ })
-    const annex = properties.getByRole('button', { name: new RegExp(`^${annexName}`) })
-    await expect(allProperties).toHaveAttribute('aria-current', 'page', {
-      timeout: 15_000,
-    })
+    // The property select sits above the queues in the rail.
+    const rail = page.locator('[data-inbox-queue-rail]')
+    const propertySelect = (scope: string) =>
+      rail.getByRole('combobox', { name: `Property: ${scope}` })
+    await expect(propertySelect('All properties')).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText(mainReviewer).first()).toBeVisible()
     await expect(page.getByText(annexReviewer).first()).toBeVisible()
 
-    // The seed organization already has eight properties (the main one and
-    // seven "E2E Bounded Property" rows), so the rail shows the first seven by
-    // name and folds the rest — the annex sorts after them.
-    await expect(annex).toHaveCount(0)
-    await properties.getByRole('button', { name: /^Show all \d+/ }).click()
-
-    // One click narrows to the property: its own Reviews page, only its work.
-    await annex.click()
+    // The seed organization already has eight properties, so with the annex the
+    // list is long enough to search. Choosing narrows to the property's own
+    // Reviews page and only its work.
+    await propertySelect('All properties').click()
+    await page.getByPlaceholder('Search properties').fill('Scope Annex')
+    await page.getByRole('option', { name: new RegExp(`^${annexName}`) }).click()
     await expect(page).toHaveURL(new RegExp(`/properties/${annexId}/reviews`))
-    await expect(annex).toHaveAttribute('aria-current', 'page')
+    await expect(propertySelect(annexName)).toBeVisible()
     await expect(page.getByText(annexReviewer).first()).toBeVisible()
     await expect(page.getByText(mainReviewer)).toHaveCount(0)
 
-    // And one click widens it again.
-    await allProperties.click()
+    // And one choice widens it again.
+    await propertySelect(annexName).click()
+    await page.getByRole('option', { name: /^All properties/ }).click()
     await expect(page).toHaveURL(/\/inbox(?:\?|$)/)
-    await expect(allProperties).toHaveAttribute('aria-current', 'page')
+    await expect(propertySelect('All properties')).toBeVisible()
     await expect(page.getByText(mainReviewer).first()).toBeVisible()
     await expect(page.getByText(annexReviewer).first()).toBeVisible()
   })

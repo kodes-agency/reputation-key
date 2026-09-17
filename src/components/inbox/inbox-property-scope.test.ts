@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  matchesScopeSearch,
   offersPropertyScope,
-  previewScopeProperties,
+  offersScopeSearch,
   scopeCount,
   sortScopeProperties,
   type InboxScopeProperty,
@@ -46,32 +47,33 @@ describe('offersPropertyScope', () => {
   })
 })
 
-describe('previewScopeProperties', () => {
-  it('shows every property when folding would hide fewer than two', () => {
-    expect(previewScopeProperties(portfolio(8), null, false)).toEqual({
-      visible: portfolio(8),
-      isFolded: false,
-    })
+describe('offersScopeSearch', () => {
+  it('adds a search field only once the list is long enough to search', () => {
+    expect(offersScopeSearch(portfolio(7))).toBe(false)
+    expect(offersScopeSearch(portfolio(8))).toBe(true)
+    expect(offersScopeSearch(portfolio(24))).toBe(true)
+  })
+})
+
+describe('matchesScopeSearch', () => {
+  it('finds a property by any part of its name, whatever the case', () => {
+    expect(matchesScopeSearch('Rila Grand Hotel', 'rila')).toBe(true)
+    expect(matchesScopeSearch('Rila Grand Hotel', 'GRAND')).toBe(true)
+    expect(matchesScopeSearch('Rila Grand Hotel', 'sofia')).toBe(false)
   })
 
-  it('shows the first seven by name, then folds the rest', () => {
-    const { visible, isFolded } = previewScopeProperties(portfolio(24), null, false)
-
-    expect(visible.map((p) => p.id)).toEqual(portfolio(7).map((p) => p.id))
-    expect(isFolded).toBe(true)
+  it('ignores accents on either side', () => {
+    expect(matchesScopeSearch('Café Plaza', 'cafe')).toBe(true)
+    expect(matchesScopeSearch('Cafe Plaza', 'café')).toBe(true)
   })
 
-  it('keeps the property in view on screen even past seven, in its sorted place', () => {
-    const { visible } = previewScopeProperties(portfolio(24), 'p20', false)
-
-    expect(visible.map((p) => p.id)).toEqual([...portfolio(7).map((p) => p.id), 'p20'])
+  it('matches everything for an empty or blank search', () => {
+    expect(matchesScopeSearch('Rila Grand Hotel', '')).toBe(true)
+    expect(matchesScopeSearch('Rila Grand Hotel', '   ')).toBe(true)
   })
 
-  it('shows everything once expanded', () => {
-    expect(previewScopeProperties(portfolio(24), null, true)).toEqual({
-      visible: portfolio(24),
-      isFolded: false,
-    })
+  it('is not fuzzy: letters in order are not a match', () => {
+    expect(matchesScopeSearch('Rila Grand Hotel', 'rgh')).toBe(false)
   })
 })
 

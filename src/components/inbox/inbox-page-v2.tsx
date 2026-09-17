@@ -27,7 +27,7 @@ import { InboxQueueStrip } from './inbox-queue-strip'
 import { InboxShortcutsDialog } from './inbox-shortcuts-dialog'
 import { queueLabel } from './inbox-queues'
 import type { InboxPropertyScopeInput } from './inbox-property-scope'
-import { InboxScopeMenu } from './inbox-scope-menu'
+import { InboxPropertySelect } from './inbox-property-select'
 import { useInboxPropertyScope } from './use-inbox-property-scope'
 
 export function InboxPageV2({
@@ -62,12 +62,7 @@ export function InboxPageV2({
     inboxFns,
     recordInboxVisit,
   )
-  const scope = useInboxPropertyScope(
-    propertyScope,
-    s.queue,
-    !!ctx.activeOrganization?.id,
-    inboxFns.getInboxPropertyCounts,
-  )
+  const scope = useInboxPropertyScope(propertyScope)
   const listRef = useRef<HTMLDivElement>(null)
   const [selectionMode, setSelectionMode] = useState(false)
   // Replaces the v2 `autoSaveId` prop, which v4 dropped in favour of an
@@ -143,20 +138,23 @@ export function InboxPageV2({
     })
   }
 
+  const propertySelect = (placement: 'rail' | 'header') =>
+    scope && (
+      <InboxPropertySelect
+        scope={scope}
+        scopeLabel={scopeLabel}
+        queue={s.queue}
+        placement={placement}
+        getInboxPropertyCounts={inboxFns.getInboxPropertyCounts}
+      />
+    )
+
   if (s.isCompactLayout) {
     return (
       <div className="flex h-full w-full flex-col overflow-hidden">
         <InboxListPanel
           {...listPanelProps}
-          scopeControl={
-            scope && (
-              <InboxScopeMenu
-                scope={scope}
-                scopeLabel={scopeLabel}
-                queueLabel={queueLabel(s.queue)}
-              />
-            )
-          }
+          scopeControl={propertySelect('header')}
           queueStrip={
             <InboxQueueStrip
               queue={s.queue}
@@ -189,7 +187,7 @@ export function InboxPageV2({
         queue={s.queue}
         counts={s.queueCounts}
         canManageReplies={s.canManageReplies}
-        propertyScope={scope}
+        scopeControl={propertySelect('rail')}
         onQueueChange={changeQueue}
         onOpenShortcuts={() => s.setShortcutsOpen(true)}
       />

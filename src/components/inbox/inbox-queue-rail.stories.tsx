@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type {
   InboxPropertyCounts,
   InboxQueue,
@@ -9,6 +9,13 @@ import type {
 import { InboxQueueRail } from './inbox-queue-rail'
 import { InboxShortcutsDialog } from './inbox-shortcuts-dialog'
 import { sortScopeProperties, type InboxScopeProperty } from './inbox-property-scope'
+import { InboxPropertySelect } from './inbox-property-select'
+import {
+  expectHotelOptions,
+  hotelCounts,
+  hotels,
+} from './inbox-property-select-stories-data'
+import type { InboxServerFns } from './types'
 
 const counts: InboxQueueCounts = {
   reply: 18,
@@ -67,20 +74,7 @@ export const ZeroCounts: Story = {
   ),
 }
 
-// ── Properties: the rail's second axis ──────────────────────────────
-
-const hotels: ReadonlyArray<InboxScopeProperty> = [
-  { id: '10000000-0000-4000-8000-000000000001', name: 'Hotel Elegance' },
-  { id: '10000000-0000-4000-8000-000000000002', name: 'Rila Grand Hotel' },
-  { id: '10000000-0000-4000-8000-000000000003', name: 'Black Sea Residence' },
-]
-
-/** Needs reply 23 = 12 + 8 + 3, the canvas's own numbers. */
-const hotelCounts: InboxPropertyCounts = {
-  queue: 'reply',
-  total: 23,
-  byProperty: { [hotels[0].id]: 12, [hotels[1].id]: 8, [hotels[2].id]: 3 },
-}
+// ── Properties: the select above the queues ─────────────────────────
 
 const portfolio: ReadonlyArray<InboxScopeProperty> = [
   'Vratsa Balkan Hotel',
@@ -122,21 +116,23 @@ const portfolioCounts: InboxPropertyCounts = {
 
 function ScopedRailStory({
   properties,
-  propertyCounts,
+  countsFn,
   includeAll = true,
   initialPropertyId = null,
   canManageReplies = true,
 }: Readonly<{
   properties: ReadonlyArray<InboxScopeProperty>
-  propertyCounts: InboxPropertyCounts
+  /** The per-property counts read, called only once the select opens. */
+  countsFn: () => Promise<InboxPropertyCounts>
   includeAll?: boolean
   initialPropertyId?: string | null
   canManageReplies?: boolean
 }>) {
   const [queue, setQueue] = useState<InboxQueue>(canManageReplies ? 'reply' : 'open')
   const [activePropertyId, setActivePropertyId] = useState(initialPropertyId)
+  const sorted = sortScopeProperties(properties)
   return (
-    <div className="h-[760px]">
+    <div className="h-[560px]">
       <InboxQueueRail
         queue={queue}
         counts={
@@ -145,13 +141,25 @@ function ScopedRailStory({
             : { ...counts, reply: null, approval: null, waiting: null }
         }
         canManageReplies={canManageReplies}
-        propertyScope={{
-          properties: sortScopeProperties(properties),
-          activePropertyId,
-          includeAll,
-          counts: propertyCounts,
-          onSelect: setActivePropertyId,
-        }}
+        scopeControl={
+          <InboxPropertySelect
+            scope={{
+              properties: sorted,
+              activePropertyId,
+              includeAll,
+              onSelect: setActivePropertyId,
+            }}
+            scopeLabel={
+              sorted.find((property) => property.id === activePropertyId)?.name ??
+              'All properties'
+            }
+            queue={queue}
+            placement="rail"
+            getInboxPropertyCounts={
+              countsFn as unknown as InboxServerFns['getInboxPropertyCounts']
+            }
+          />
+        }
         onQueueChange={setQueue}
         onOpenShortcuts={() => undefined}
       />
@@ -162,112 +170,129 @@ function ScopedRailStory({
   )
 }
 
-const properties = (canvasElement: HTMLElement) =>
-  within(within(canvasElement).getByRole('navigation', { name: 'Properties' }))
+/** Opens the property select and returns its listbox once it is on screen. */
+async function openPropertySelect(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  await userEvent.click(canvas.getByRole('combobox', { name: /^Property:/ }))
+  const page = within(canvasElement.ownerDocument.body)
+  return { canvas, page, list: within(await page.findByRole('listbox')) }
+}
 
-// Where a group manager starts: the whole backlog, and which hotel it sits in.
+// Where a group manager starts: the whole backlog. The select sits above the
+// queues because it decides their counts; its own counts load only once it is
+// opened, since nobody sees them before.
+const allPropertiesCounts = fn(async () => hotelCounts)
 export const AllProperties: Story = {
-  render: () => <ScopedRailStory properties={hotels} propertyCounts={hotelCounts} />,
+  render: () => <ScopedRailStory properties={hotels} countsFn={allPropertiesCounts} />,
   play: async ({ canvasElement }) => {
-    const section = properties(canvasElement)
-    const rows = section.getAllByRole('button')
-    expect(rows.map((row) => row.textContent)).toEqual([
-      'All properties23',
-      'Black Sea Residence3',
-      'Hotel Elegance12',
-      'Rila Grand Hotel8',
-    ])
-    expect(section.getByRole('button', { name: /all properties/i })).toHaveAttribute(
+    const canvas = within(canvasElement)
+    const trigger = canvas.getByRole('combobox', { name: 'Property: All properties' })
+    const queues = canvas.getByRole('navigation', { name: 'Queues' })
+    expect(
+      trigger.compareDocumentPosition(queues) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(allPropertiesCounts).not.toHaveBeenCalled()
+
+    const { page, list } = await openPropertySelect(canvasElement)
+    expect(page.getByText('Needs reply by property')).toBeInTheDocument()
+    expect(page.queryByPlaceholderText('Search properties')).toBeNull()
+    await expectHotelOptions(list)
+    expect(list.getByRole('option', { name: /all properties/i })).toHaveAttribute(
       'aria-current',
-      'page',
+      'true',
     )
 
-    await userEvent.click(section.getByRole('button', { name: /rila grand hotel/i }))
-    expect(within(canvasElement).getByTestId('active-scope')).toHaveTextContent(
-      hotels[1].id,
-    )
+    await userEvent.click(list.getByRole('option', { name: /rila grand hotel/i }))
+    expect(canvas.getByTestId('active-scope')).toHaveTextContent(hotels[1].id)
+    await waitFor(() => expect(page.queryByRole('listbox')).toBeNull())
+    expect(
+      canvas.getByRole('combobox', { name: 'Property: Rila Grand Hotel' }),
+    ).toBeInTheDocument()
   },
 }
 
-// Opened from one hotel's own Reviews: the property counts still belong to the
-// queue, so All properties stays one click away with its full number.
+// Opened from one hotel's own Reviews: the counts still belong to the queue, so
+// All properties is one choice away with its full number.
 export const PropertyInView: Story = {
   render: () => (
     <ScopedRailStory
       properties={hotels}
-      propertyCounts={hotelCounts}
+      countsFn={async () => hotelCounts}
       initialPropertyId={hotels[0].id}
     />
   ),
   play: async ({ canvasElement }) => {
-    const section = properties(canvasElement)
-    expect(section.getByRole('button', { name: /hotel elegance/i })).toHaveAttribute(
+    const { canvas, page, list } = await openPropertySelect(canvasElement)
+    expect(list.getByRole('option', { name: /hotel elegance/i })).toHaveAttribute(
       'aria-current',
-      'page',
+      'true',
     )
-    expect(section.getByRole('button', { name: /all properties/i })).not.toHaveAttribute(
+    expect(list.getByRole('option', { name: /all properties/i })).not.toHaveAttribute(
       'aria-current',
     )
 
-    await userEvent.click(section.getByRole('button', { name: /all properties/i }))
-    expect(within(canvasElement).getByTestId('active-scope')).toHaveTextContent('all')
+    await userEvent.click(list.getByRole('option', { name: /all properties/i }))
+    expect(canvas.getByTestId('active-scope')).toHaveTextContent('all')
+    await waitFor(() => expect(page.queryByRole('listbox')).toBeNull())
   },
 }
 
-// An agency or a group: the first seven by name, the rest on request, and the
-// property in view always on screen.
+// An agency or a group: a list this long is searched, not scanned.
 export const ManyProperties: Story = {
   render: () => (
     <ScopedRailStory
       properties={portfolio}
-      propertyCounts={portfolioCounts}
+      countsFn={async () => portfolioCounts}
       initialPropertyId={portfolio[0].id}
     />
   ),
   play: async ({ canvasElement }) => {
-    const section = properties(canvasElement)
-    // All properties + seven by name + Vratsa (in view) + Show all.
-    expect(section.getAllByRole('button')).toHaveLength(10)
-    expect(section.getByRole('button', { name: /vratsa balkan hotel/i })).toHaveAttribute(
+    const { canvas, page, list } = await openPropertySelect(canvasElement)
+    // All properties + all 24, alphabetically, the one in view checked.
+    expect(list.getAllByRole('option')).toHaveLength(25)
+    expect(list.getByRole('option', { name: /vratsa balkan hotel/i })).toHaveAttribute(
       'aria-current',
-      'page',
-    )
-    expect(section.queryByRole('button', { name: /sofia central/i })).toBeNull()
-
-    const showAll = section.getByRole('button', { name: /show all 24/i })
-    expect(showAll).toHaveAttribute('aria-expanded', 'false')
-    await userEvent.click(showAll)
-    expect(section.getByRole('button', { name: /sofia central/i })).toBeInTheDocument()
-    expect(section.getByRole('button', { name: /show fewer/i })).toHaveAttribute(
-      'aria-expanded',
       'true',
     )
+
+    await userEvent.type(page.getByPlaceholderText('Search properties'), 'sofia')
+    await waitFor(() =>
+      expect(list.getAllByRole('option').map((option) => option.textContent)).toEqual([
+        'Sofia Central2',
+      ]),
+    )
+    await userEvent.click(list.getByRole('option', { name: /sofia central/i }))
+    expect(canvas.getByTestId('active-scope')).toHaveTextContent(portfolio[2].id)
+    await waitFor(() => expect(page.queryByRole('listbox')).toBeNull())
   },
 }
 
 // A member works one property at a time: no organization-wide Inbox, so no All
-// properties row — but moving between their properties is back inside the inbox.
+// properties, and two properties need no search field.
 export const MemberProperties: Story = {
   render: () => (
     <ScopedRailStory
       properties={hotels.slice(0, 2)}
-      propertyCounts={{
+      countsFn={async () => ({
         queue: 'open',
         total: 15,
         byProperty: { [hotels[0].id]: 9, [hotels[1].id]: 6 },
-      }}
+      })}
       includeAll={false}
       initialPropertyId={hotels[0].id}
       canManageReplies={false}
     />
   ),
   play: async ({ canvasElement }) => {
-    const section = properties(canvasElement)
-    expect(section.queryByRole('button', { name: /all properties/i })).toBeNull()
-    expect(section.getAllByRole('button').map((row) => row.textContent)).toEqual([
-      'Hotel Elegance9',
-      'Rila Grand Hotel6',
-    ])
+    const { page, list } = await openPropertySelect(canvasElement)
+    expect(page.queryByPlaceholderText('Search properties')).toBeNull()
+    expect(page.getByText('Open by property')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(list.getAllByRole('option').map((option) => option.textContent)).toEqual([
+        'Hotel Elegance9',
+        'Rila Grand Hotel6',
+      ]),
+    )
   },
 }
 
@@ -276,13 +301,22 @@ export const EmptyPropertyCounts: Story = {
   render: () => (
     <ScopedRailStory
       properties={hotels}
-      propertyCounts={{ queue: 'approval', total: 4, byProperty: { [hotels[0].id]: 4 } }}
+      countsFn={async () => ({
+        queue: 'reply',
+        total: 4,
+        byProperty: { [hotels[0].id]: 4 },
+      })}
     />
   ),
   play: async ({ canvasElement }) => {
-    const section = properties(canvasElement)
-    expect(
-      section.getByRole('button', { name: /black sea residence/i }),
-    ).toHaveTextContent(/^Black Sea Residence$/)
+    const { list } = await openPropertySelect(canvasElement)
+    await waitFor(() =>
+      expect(list.getByRole('option', { name: /hotel elegance/i })).toHaveTextContent(
+        'Hotel Elegance4',
+      ),
+    )
+    expect(list.getByRole('option', { name: /black sea residence/i })).toHaveTextContent(
+      /^Black Sea Residence$/,
+    )
   },
 }
