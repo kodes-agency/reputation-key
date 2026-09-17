@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Button } from '#/components/ui/button'
 import { Kbd } from '#/components/ui/kbd'
 import { Separator } from '#/components/ui/separator'
@@ -6,8 +7,6 @@ import type {
   InboxQueueCounts,
 } from '#/contexts/inbox/application/public-api'
 import { cn } from '#/lib/utils'
-import type { InboxPropertyScope } from './inbox-property-scope'
-import { InboxRailProperties } from './inbox-rail-properties'
 import {
   CLOSED_INBOX_QUEUE,
   queueCount,
@@ -19,8 +18,9 @@ type Props = Readonly<{
   queue: InboxQueue
   counts: InboxQueueCounts | undefined
   canManageReplies: boolean
-  /** Absent when there is no property choice to offer. */
-  propertyScope?: InboxPropertyScope | null
+  /** The property select, above the queues because it decides their counts.
+   * Absent when there is no property choice to offer. */
+  scopeControl?: ReactNode
   onQueueChange: (queue: InboxQueue) => void
   onOpenShortcuts: () => void
 }>
@@ -68,7 +68,7 @@ export function InboxQueueRail({
   queue,
   counts,
   canManageReplies,
-  propertyScope = null,
+  scopeControl,
   onQueueChange,
   onOpenShortcuts,
 }: Props) {
@@ -77,6 +77,7 @@ export function InboxQueueRail({
       data-inbox-queue-rail
       className="flex h-full w-56 shrink-0 flex-col border-r bg-background"
     >
+      {scopeControl && <div className="shrink-0 px-3 pt-4">{scopeControl}</div>}
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
         <nav aria-label="Queues">
           <p className="mb-2 px-2 text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
@@ -101,7 +102,6 @@ export function InboxQueueRail({
             onSelect={() => onQueueChange('closed')}
           />
         </nav>
-        {propertyScope && <InboxRailProperties scope={propertyScope} />}
       </div>
       <div className="border-t p-3">
         <Button

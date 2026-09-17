@@ -327,9 +327,10 @@ export const ApprovedPanels: Story = {
 
 const scopedFns = makeInboxFns(approvedContainer)
 
-// Properties are the inbox's second axis: under the queues, All properties and
-// each property, counted for the queue in view by the real use case. Choosing a
-// property narrows the list and the queue counts; the property counts stay.
+// Properties are the inbox's second axis: a select above the queues, listing All
+// properties and each property, counted for the queue in view by the real use
+// case. Choosing a property narrows the list and the queue counts; the property
+// counts stay.
 function PropertyScopeHarness() {
   const [search, setSearch] = useState<InboxSearchParams>({})
   const onNavigate: InboxPageNav = (o) =>
@@ -364,10 +365,18 @@ export const PropertyScope: Story = {
   render: () => <PropertyScopeHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const section = within(await canvas.findByRole('navigation', { name: 'Properties' }))
+    const page = within(canvasElement.ownerDocument.body)
+    const openSelect = async (current: string) => {
+      await userEvent.click(
+        await canvas.findByRole('combobox', { name: `Property: ${current}` }),
+      )
+      return within(await page.findByRole('listbox'))
+    }
+
     // Needs reply 4 = Black Sea 1 + Hotel Elegance 2 + Rila 1.
+    let list = await openSelect('All properties')
     await waitFor(() =>
-      expect(section.getAllByRole('button').map((row) => row.textContent)).toEqual([
+      expect(list.getAllByRole('option').map((option) => option.textContent)).toEqual([
         'All properties4',
         'Black Sea Residence1',
         'Hotel Elegance2',
@@ -375,21 +384,25 @@ export const PropertyScope: Story = {
       ]),
     )
 
-    await userEvent.click(section.getByRole('button', { name: /hotel elegance/i }))
-    await waitFor(() =>
-      expect(section.getByRole('button', { name: /hotel elegance/i })).toHaveAttribute(
-        'aria-current',
-        'page',
-      ),
-    )
+    await userEvent.click(list.getByRole('option', { name: /hotel elegance/i }))
     await waitFor(() =>
       expect(canvas.getAllByRole('button', { name: /^Open review from/i })).toHaveLength(
         2,
       ),
     )
-    await expect(
-      section.getByRole('button', { name: /all properties/i }),
-    ).toHaveTextContent('All properties4')
+
+    list = await openSelect('Hotel Elegance')
+    await waitFor(() =>
+      expect(list.getByRole('option', { name: /all properties/i })).toHaveTextContent(
+        'All properties4',
+      ),
+    )
+    expect(list.getByRole('option', { name: /hotel elegance/i })).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(page.queryByRole('listbox')).toBeNull())
   },
 }
 

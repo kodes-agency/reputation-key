@@ -102,7 +102,7 @@ const HEADER_STORIES = [
   'filtered',
   'searching',
   'all-properties',
-  'compact-scope-menu',
+  'compact-property-select',
 ] as const
 const RAIL_STORIES = [
   'manager',
@@ -113,6 +113,7 @@ const RAIL_STORIES = [
   'many-properties',
   'member-properties',
   'empty-property-counts',
+  'choosing-by-keyboard',
 ] as const
 
 /**
