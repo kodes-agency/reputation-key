@@ -131,7 +131,6 @@ export const propertyKeys = {
 // ── Dashboard (fleet + per-property + staff) ─────────────────────────────
 export const dashboardKeys = {
   all: ['dashboard'] as const,
-  setup: () => [...dashboardKeys.all, 'setup-checklist'] as const,
   fleets: () => [...dashboardKeys.all, 'fleet'] as const,
   // Each range has its own infinite cache entry. Use `fleets()` when an
   // operation genuinely invalidates every range rather than the visible one.

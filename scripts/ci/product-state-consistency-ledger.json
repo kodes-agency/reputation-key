@@ -74,7 +74,6 @@
       "id": "dashboardKeys",
       "members": [
         "all",
-        "setup",
         "fleets",
         "fleet",
         "staff",
@@ -83,7 +82,7 @@
         "googlePerformanceLease"
       ],
       "owner": "Dashboard query lifecycle",
-      "policy": "Setup is the authoritative role-aware checklist for the active session and organization; confirmed session or tenant transitions clear the complete QueryClient, so it cannot cross organizations. Fleet is a real prefix above range-specific infinite entries. Staff/property callers include their property and view filters in the argument object. Google performance is isolated by property, preset, catalogue version, and view epoch; an authorization lease adds leaseRef beneath that exact report."
+      "policy": "Fleet is a real prefix above range-specific infinite entries. Staff/property callers include their property and view filters in the argument object. Google performance is isolated by property, preset, catalogue version, and view epoch; an authorization lease adds leaseRef beneath that exact report."
     },
     {
       "id": "aiKeys",

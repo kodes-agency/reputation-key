@@ -13,10 +13,8 @@ import {
   type ImportReviewField,
   type ImportReviewItem,
 } from './google-import-review-model'
-import {
-  IMPORT_COUNTRY_OPTIONS,
-  importCountryLabel,
-} from './google-import-review-options'
+import { countryLabel } from '#/components/features/shared/country-label'
+import { IMPORT_COUNTRY_OPTIONS } from './google-import-review-options'
 
 type Props = Readonly<{
   form: GoogleImportReviewFormApi
@@ -177,7 +175,7 @@ export function GoogleImportReviewRow({ form, item, index, disabled }: Props) {
               Country
             </span>
             <p className="text-sm md:pt-1.5">
-              {item.countryCode ? importCountryLabel(item.countryCode) : 'Not set'}
+              {item.countryCode ? countryLabel(item.countryCode) : 'Not set'}
               <span className="block text-xs text-muted-foreground">
                 Kept from the existing property
               </span>

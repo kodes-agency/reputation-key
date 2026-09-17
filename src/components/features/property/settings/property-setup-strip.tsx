@@ -9,6 +9,7 @@ import {
   completedPropertySetupStepCount,
   openPropertySetupSteps,
   propertySetupStepLabel,
+  propertySetupStepTarget,
 } from './property-setup-steps'
 
 type Props = Readonly<{
@@ -35,37 +36,21 @@ function StepLink({
       </span>
     )
   }
-  if (step.status === 'needs_admin' || step.section === null) {
+  const target = propertySetupStepTarget(step)
+  if (step.status === 'needs_admin' || target === null) {
     return <span className={cn(chip, 'text-muted-foreground')}>{label}</span>
-  }
-  const className = cn(
-    chip,
-    'bg-background font-medium hover:border-primary/40 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-  )
-  const content = (
-    <>
-      {label}
-      <ArrowRight className="size-3.5" aria-hidden="true" />
-    </>
-  )
-  if (step.section === 'portals') {
-    return (
-      <Link
-        to="/properties/$propertyId/portals"
-        params={{ propertyId }}
-        className={className}
-      >
-        {content}
-      </Link>
-    )
   }
   return (
     <Link
-      to={`/properties/$propertyId/settings/${step.section}`}
+      to={target}
       params={{ propertyId }}
-      className={className}
+      className={cn(
+        chip,
+        'bg-background font-medium hover:border-primary/40 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+      )}
     >
-      {content}
+      {label}
+      <ArrowRight className="size-3.5" aria-hidden="true" />
     </Link>
   )
 }
