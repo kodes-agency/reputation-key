@@ -178,6 +178,10 @@ export const createFleetOverviewProjectionAdapter = (
               input.accessiblePropertyIds.map((id) => sql`${id}::uuid`),
               sql`, `,
             )})`
+    // Read capabilities are organization-wide, so they stay statement constants
+    // rather than a per-Property CTE the statement would have to join.
+    const portalEnabled = sql`${input.portalReadEnabled}::boolean`
+    const goalEnabled = sql`${input.goalReadEnabled}::boolean`
 
     const mainResult = await withStatementTimeout(
       db,
@@ -215,13 +219,15 @@ export const createFleetOverviewProjectionAdapter = (
             SELECT scoped_properties.*,
               scoped_properties.period_start AS prior_end
             FROM scoped_properties
-          ), policy AS MATERIALIZED (
-            SELECT scoped.property_id,
-              ${input.portalReadEnabled}::boolean AS portal_enabled,
-              ${input.goalReadEnabled}::boolean AS goal_enabled
-            FROM scoped
           ), candidate_readings AS MATERIALIZED (
-            SELECT metric_readings.*
+            -- Each reading carries its Property's windows, so no later step joins
+            -- back to scoped. CTE scans have no statistics: a nested loop between
+            -- two Property-sized CTEs is quadratic in the fleet.
+            SELECT metric_readings.*,
+              scoped.period_start,
+              scoped.period_end,
+              scoped.prior_start,
+              scoped.prior_end
             FROM metric_readings
             JOIN scoped
               ON scoped.property_id = metric_readings.property_id
@@ -299,138 +305,108 @@ export const createFleetOverviewProjectionAdapter = (
             SELECT effective_readings.property_id,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
                   AND eligible
               ) AS review_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
               ) AS review_total_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
                   AND ${comparisonAvailable}
-                  AND event_at >= scoped.prior_start AND event_at < scoped.prior_end
+                  AND event_at >= prior_start AND event_at < prior_end
                   AND eligible
               ) AS prior_review_count,
               avg(effective_value) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
                   AND eligible
               ) AS avg_rating,
               avg(effective_value) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
                   AND ${comparisonAvailable}
-                  AND event_at >= scoped.prior_start AND event_at < scoped.prior_end
+                  AND event_at >= prior_start AND event_at < prior_end
                   AND eligible
               ) AS prior_avg_rating,
               max(recorded_at) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
                   AND eligible
               ) AS review_watermark,
               coalesce(sum(correction_count) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
               ), 0) AS review_correction_count,
               coalesce(array_agg(DISTINCT source_policy) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
                   AND eligible
                   AND source_policy IS NOT NULL
               ), '{}'::varchar[]) AS review_source_policies,
               coalesce(sum(effective_value) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
                   AND eligible
               ), 0) AS scan_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
                   AND eligible
               ) AS scan_eligible_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
               ) AS scan_total_count,
               max(recorded_at) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
                   AND eligible
               ) AS scan_watermark,
               coalesce(sum(correction_count) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
               ), 0) AS scan_correction_count,
               coalesce(array_agg(DISTINCT source_policy) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
                   AND eligible
                   AND source_policy IS NOT NULL
               ), '{}'::varchar[]) AS scan_source_policies,
               coalesce(sum(effective_value) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
                   AND eligible
               ), 0) AS feedback_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
                   AND eligible
               ) AS feedback_eligible_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
               ) AS feedback_total_count,
               max(recorded_at) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
                   AND eligible
               ) AS feedback_watermark,
               coalesce(sum(correction_count) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
               ), 0) AS feedback_correction_count,
               coalesce(array_agg(DISTINCT source_policy) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
+                  AND event_at >= period_start AND event_at < period_end
                   AND eligible
                   AND source_policy IS NOT NULL
               ), '{}'::varchar[]) AS feedback_source_policies
             FROM effective_readings
-            JOIN scoped USING (property_id)
-            GROUP BY effective_readings.property_id,
-              scoped.period_start,
-              scoped.period_end,
-              scoped.prior_start,
-              scoped.prior_end
-          ), enriched AS MATERIALIZED (
-            SELECT scoped.*,
-              policy.portal_enabled,
-              coalesce(readings.review_count, 0) AS review_count,
-              coalesce(readings.review_total_count, 0) AS review_total_count,
-              coalesce(readings.prior_review_count, 0) AS prior_review_count,
-              readings.avg_rating AS avg_rating,
-              readings.prior_avg_rating AS prior_avg_rating,
-              readings.review_watermark,
-              coalesce(readings.review_correction_count, 0) AS review_correction_count,
-              coalesce(readings.review_source_policies, '{}'::varchar[]) AS review_source_policies,
-              CASE WHEN policy.portal_enabled THEN coalesce(readings.scan_count, 0) ELSE 0 END AS scan_count,
-              CASE WHEN policy.portal_enabled THEN coalesce(readings.scan_eligible_count, 0) ELSE 0 END AS scan_eligible_count,
-              CASE WHEN policy.portal_enabled THEN coalesce(readings.scan_total_count, 0) ELSE 0 END AS scan_total_count,
-              CASE WHEN policy.portal_enabled THEN readings.scan_watermark ELSE NULL END AS scan_watermark,
-              CASE WHEN policy.portal_enabled THEN coalesce(readings.scan_correction_count, 0) ELSE 0 END AS scan_correction_count,
-              CASE WHEN policy.portal_enabled THEN coalesce(readings.scan_source_policies, '{}'::varchar[]) ELSE '{}'::varchar[] END AS scan_source_policies,
-              CASE WHEN policy.portal_enabled THEN coalesce(readings.feedback_count, 0) ELSE 0 END AS feedback_count,
-              CASE WHEN policy.portal_enabled THEN coalesce(readings.feedback_eligible_count, 0) ELSE 0 END AS feedback_eligible_count,
-              CASE WHEN policy.portal_enabled THEN coalesce(readings.feedback_total_count, 0) ELSE 0 END AS feedback_total_count,
-              CASE WHEN policy.portal_enabled THEN readings.feedback_watermark ELSE NULL END AS feedback_watermark,
-              CASE WHEN policy.portal_enabled THEN coalesce(readings.feedback_correction_count, 0) ELSE 0 END AS feedback_correction_count,
-              CASE WHEN policy.portal_enabled THEN coalesce(readings.feedback_source_policies, '{}'::varchar[]) ELSE '{}'::varchar[] END AS feedback_source_policies
-            FROM scoped
-            JOIN policy USING (property_id)
-            LEFT JOIN readings USING (property_id)
+            GROUP BY effective_readings.property_id
           ), summary AS MATERIALIZED (
-            SELECT count(*) AS property_count,
+            -- A Property without readings adds nothing to these sums.
+            SELECT (SELECT count(*) FROM scoped) AS property_count,
               coalesce(sum(review_count), 0) AS rating_sample_count,
               coalesce(
                 sum(avg_rating * review_count) / nullif(sum(review_count), 0),
@@ -441,9 +417,9 @@ export const createFleetOverviewProjectionAdapter = (
                   AND prior_review_count >= 10
                   AND prior_avg_rating - avg_rating >= ${RATING_DROP_THRESHOLD}
               ) AS rating_drop_total
-            FROM enriched
+            FROM readings
           ), page_scope AS MATERIALIZED (
-            SELECT scoped.property_id
+            SELECT scoped.*
             FROM scoped
             WHERE (
                 ${cursorName}::text IS NULL
@@ -453,10 +429,31 @@ export const createFleetOverviewProjectionAdapter = (
             ORDER BY lower(scoped.name), scoped.property_id
             LIMIT ${FLEET_PAGE_SIZE + 1}
           ), ordered AS MATERIALIZED (
-            SELECT enriched.*
+            SELECT page_scope.*,
+              ${portalEnabled} AS portal_enabled,
+              coalesce(readings.review_count, 0) AS review_count,
+              coalesce(readings.review_total_count, 0) AS review_total_count,
+              coalesce(readings.prior_review_count, 0) AS prior_review_count,
+              readings.avg_rating AS avg_rating,
+              readings.prior_avg_rating AS prior_avg_rating,
+              readings.review_watermark,
+              coalesce(readings.review_correction_count, 0) AS review_correction_count,
+              coalesce(readings.review_source_policies, '{}'::varchar[]) AS review_source_policies,
+              CASE WHEN ${portalEnabled} THEN coalesce(readings.scan_count, 0) ELSE 0 END AS scan_count,
+              CASE WHEN ${portalEnabled} THEN coalesce(readings.scan_eligible_count, 0) ELSE 0 END AS scan_eligible_count,
+              CASE WHEN ${portalEnabled} THEN coalesce(readings.scan_total_count, 0) ELSE 0 END AS scan_total_count,
+              CASE WHEN ${portalEnabled} THEN readings.scan_watermark ELSE NULL END AS scan_watermark,
+              CASE WHEN ${portalEnabled} THEN coalesce(readings.scan_correction_count, 0) ELSE 0 END AS scan_correction_count,
+              CASE WHEN ${portalEnabled} THEN coalesce(readings.scan_source_policies, '{}'::varchar[]) ELSE '{}'::varchar[] END AS scan_source_policies,
+              CASE WHEN ${portalEnabled} THEN coalesce(readings.feedback_count, 0) ELSE 0 END AS feedback_count,
+              CASE WHEN ${portalEnabled} THEN coalesce(readings.feedback_eligible_count, 0) ELSE 0 END AS feedback_eligible_count,
+              CASE WHEN ${portalEnabled} THEN coalesce(readings.feedback_total_count, 0) ELSE 0 END AS feedback_total_count,
+              CASE WHEN ${portalEnabled} THEN readings.feedback_watermark ELSE NULL END AS feedback_watermark,
+              CASE WHEN ${portalEnabled} THEN coalesce(readings.feedback_correction_count, 0) ELSE 0 END AS feedback_correction_count,
+              CASE WHEN ${portalEnabled} THEN coalesce(readings.feedback_source_policies, '{}'::varchar[]) ELSE '{}'::varchar[] END AS feedback_source_policies
             FROM page_scope
-            JOIN enriched USING (property_id)
-            ORDER BY lower(enriched.name), enriched.property_id
+            LEFT JOIN readings USING (property_id)
+            ORDER BY lower(page_scope.name), page_scope.property_id
           ), page AS MATERIALIZED (
             SELECT * FROM ordered
             ORDER BY lower(name), property_id
@@ -504,10 +501,8 @@ export const createFleetOverviewProjectionAdapter = (
               AND goal_program_versions.property_id = goal_monthly_results.property_id
               AND goal_program_versions.program_id = goal_monthly_results.program_id
               AND goal_program_versions.id = goal_monthly_results.program_version_id
-            JOIN policy
-              ON policy.property_id = goal_monthly_results.property_id
-              AND policy.goal_enabled
-            WHERE goal_monthly_results.organization_id = ${input.organizationId}
+            WHERE ${goalEnabled}
+              AND goal_monthly_results.organization_id = ${input.organizationId}
               AND goal_monthly_results.property_id IN (
                 SELECT property_id FROM scoped
               )
