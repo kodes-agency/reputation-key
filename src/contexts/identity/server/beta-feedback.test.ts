@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   captureFeedback: vi.fn(),
   pseudonym: vi.fn((_: string, audience: string) => `safe-${audience}`),
   prepareTriage: vi.fn(),
+  listForActor: vi.fn(),
   markDelivered: vi.fn(),
   markFailed: vi.fn(),
 }))
@@ -25,6 +26,7 @@ vi.mock('#/composition', () => ({
     clock: () => NOW,
     betaFeedbackTriageRepo: {
       prepare: mocks.prepareTriage,
+      listForActor: mocks.listForActor,
       markDelivered: mocks.markDelivered,
       markFailed: mocks.markFailed,
     },
@@ -47,7 +49,7 @@ vi.mock('./beta-feedback-rate-limit.server', () => ({
   betaFeedbackPseudonym: mocks.pseudonym,
 }))
 
-import { submitBetaFeedbackHandler } from './beta-feedback'
+import { listMyBetaFeedbackHandler, submitBetaFeedbackHandler } from './beta-feedback'
 import {
   createExecutionPolicy,
   initExecutionPolicy,
@@ -318,5 +320,82 @@ describe('submit beta feedback server function', () => {
     ).rejects.toMatchObject({ name: 'InternalError', status: 500 })
     expect(mocks.captureFeedback).not.toHaveBeenCalled()
     expect(mocks.markDelivered).not.toHaveBeenCalled()
+  })
+})
+
+describe('list my beta feedback server function', () => {
+  const report = {
+    reference: FEEDBACK_REFERENCE,
+    feedbackType: 'bug',
+    impactCode: 'cannot_complete',
+    routeKey: 'properties.property.reviews',
+    deliveryState: 'delivered',
+    triageState: 'accepted',
+    engineeringIssueRef: '472',
+    createdAt: NOW,
+    updatedAt: NOW,
+  } as const
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    initPermissionTable()
+    initCapabilityPolicyStore(feedbackPolicyStore())
+    initExecutionPolicy(
+      createExecutionPolicy({ listAccessiblePropertyIds: async () => [] }),
+    )
+    mocks.resolveTenantContext.mockResolvedValue(actor)
+    mocks.listForActor.mockResolvedValue([report])
+  })
+
+  afterEach(() => {
+    resetExecutionPolicy()
+    resetCapabilityPolicyStore()
+  })
+
+  it("scopes the read to the caller's own actor pseudonym", async () => {
+    // The scoping IS the authorization: the query cannot express another
+    // person's reports, so there is no identifier to get wrong.
+    await expect(withStartContext(() => listMyBetaFeedbackHandler())).resolves.toEqual([
+      report,
+    ])
+    expect(mocks.listForActor).toHaveBeenCalledWith('safe-telemetry-actor')
+    expect(mocks.pseudonym).toHaveBeenCalledWith(
+      'feedback-secret',
+      'telemetry-actor',
+      actor.userId,
+    )
+  })
+
+  it('returns nothing rather than failing when the reporter has no reports', async () => {
+    mocks.listForActor.mockResolvedValue([])
+
+    await expect(withStartContext(() => listMyBetaFeedbackHandler())).resolves.toEqual([])
+  })
+
+  it('denies a reporter whose feedback permission is absent', async () => {
+    mocks.resolveTenantContext.mockResolvedValue({
+      ...actor,
+      role: 'PropertyManager',
+      effectivePermissions: new Set<string>(),
+      scopeByPermission: new Map<string, string>(),
+    })
+
+    await expect(
+      withStartContext(() => listMyBetaFeedbackHandler()),
+    ).rejects.toMatchObject({ name: 'AuthError', status: 403 })
+    expect(mocks.listForActor).not.toHaveBeenCalled()
+  })
+
+  it('still denies the read when the capability is killed', async () => {
+    initCapabilityPolicyStore(
+      feedbackPolicyStore({
+        isCapabilityKilled: (capability) => capability === 'feedback.beta_report',
+      }),
+    )
+
+    await expect(
+      withStartContext(() => listMyBetaFeedbackHandler()),
+    ).rejects.toMatchObject({ name: 'AuthError', status: 403 })
+    expect(mocks.listForActor).not.toHaveBeenCalled()
   })
 })

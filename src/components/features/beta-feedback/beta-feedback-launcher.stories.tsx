@@ -55,6 +55,12 @@ const reports: ReadonlyArray<MyBetaFeedbackItem> = [
 
 const listFeedback: ListMyBetaFeedback = async () => reports
 
+const feedbackSpy = fn()
+const submitFeedback: SubmitBetaFeedback = async (input) => {
+  feedbackSpy(input)
+  return { reference: 'fedcba9876543210fedcba9876543210' }
+}
+
 const meta: Meta<typeof BetaFeedbackLauncher> = {
   title: 'Beta Feedback/Launcher',
   component: BetaFeedbackLauncher,
@@ -64,13 +70,35 @@ const meta: Meta<typeof BetaFeedbackLauncher> = {
 export default meta
 type Story = StoryObj<typeof BetaFeedbackLauncher>
 
-async function openFeedbackDialog(canvasElement: HTMLElement) {
+async function openFeedbackDialog(
+  canvasElement: HTMLElement,
+  routePath: string,
+  recordedError?: string,
+) {
+  window.history.replaceState({}, '', routePath)
+  feedbackSpy.mockClear()
+  clearRecordedErrors()
+  if (recordedError) rememberRecordedError(recordedError)
+
   const canvas = within(canvasElement)
   await userEvent.click(canvas.getByRole('button', { name: /report a problem/i }))
   const view = within(within(document.body).getByRole('dialog'))
   // The body is code-split, so it arrives after the dialog frame does.
   await view.findByRole('radiogroup', { name: /what would you like to tell us/i })
   return view
+}
+
+/** Open the reports panel; every reports story starts the same way. */
+async function openReportsPanel(canvasElement: HTMLElement) {
+  const view = await openFeedbackDialog(canvasElement, '/inbox')
+  await userEvent.click(view.getByRole('tab', { name: /your reports/i }))
+  return view
+}
+
+/** The single argument every submitting story asserts on. */
+function submittedData(): Record<string, unknown> {
+  const call = feedbackSpy.mock.calls[0]?.[0] as { data: Record<string, unknown> }
+  return call.data
 }
 
 export const Default: Story = {
@@ -80,9 +108,7 @@ export const Default: Story = {
 export const PrivacyAndValidation: Story = {
   args: { submitFeedback: successfulSubmission },
   play: async ({ canvasElement }) => {
-    window.history.replaceState({}, '', '/dashboard')
-    clearRecordedErrors()
-    const view = await openFeedbackDialog(canvasElement)
+    const view = await openFeedbackDialog(canvasElement, '/dashboard')
 
     expect(view.getByText(/only the text you enter/i)).toBeInTheDocument()
     // Without a list seam there is no second panel to switch to.
@@ -95,19 +121,10 @@ export const PrivacyAndValidation: Story = {
   },
 }
 
-const feedbackSpy = fn()
-const submitFeedback: SubmitBetaFeedback = async (input) => {
-  feedbackSpy(input)
-  return { reference: 'fedcba9876543210fedcba9876543210' }
-}
-
 export const SuggestionReceipt: Story = {
   args: { submitFeedback },
   play: async ({ canvasElement }) => {
-    window.history.replaceState({}, '', '/dashboard')
-    feedbackSpy.mockClear()
-    clearRecordedErrors()
-    const view = await openFeedbackDialog(canvasElement)
+    const view = await openFeedbackDialog(canvasElement, '/dashboard')
 
     await userEvent.click(view.getByRole('radio', { name: /i have an idea/i }))
     await userEvent.type(
@@ -119,13 +136,11 @@ export const SuggestionReceipt: Story = {
     await userEvent.click(view.getByRole('button', { name: /send report/i }))
 
     await waitFor(() => expect(feedbackSpy).toHaveBeenCalledTimes(1))
-    expect(feedbackSpy).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        kind: 'suggestion',
-        impact: 'helpful',
-        message: 'Keep the inbox filter when I return from a review.',
-        clientErrorEventId: null,
-      }),
+    expect(submittedData()).toMatchObject({
+      kind: 'suggestion',
+      impact: 'helpful',
+      message: 'Keep the inbox filter when I return from a review.',
+      clientErrorEventId: null,
     })
     expect(await view.findByText(/thanks — we received it/i)).toBeInTheDocument()
     expect(view.getByText('fedcba9876543210fedcba9876543210')).toBeInTheDocument()
@@ -135,11 +150,11 @@ export const SuggestionReceipt: Story = {
 export const GuidedBugWithRecordedError: Story = {
   args: { submitFeedback },
   play: async ({ canvasElement }) => {
-    window.history.replaceState({}, '', '/properties/private-property-id/reviews')
-    feedbackSpy.mockClear()
-    clearRecordedErrors()
-    rememberRecordedError(RECORDED_ERROR)
-    const view = await openFeedbackDialog(canvasElement)
+    const view = await openFeedbackDialog(
+      canvasElement,
+      '/properties/private-property-id/reviews',
+      RECORDED_ERROR,
+    )
 
     expect(view.getByText(/recorded an error while you were here/i)).toBeInTheDocument()
     await userEvent.click(view.getByRole('checkbox'))
@@ -154,12 +169,13 @@ export const GuidedBugWithRecordedError: Story = {
     await userEvent.click(view.getByRole('button', { name: /send report/i }))
 
     await waitFor(() => expect(feedbackSpy).toHaveBeenCalledTimes(1))
-    const sent = feedbackSpy.mock.calls[0]?.[0] as { data: Record<string, unknown> }
-    expect(sent.data.kind).toBe('bug')
-    expect(sent.data.impact).toBe('cannot_complete')
-    expect(sent.data.clientErrorEventId).toBe(RECORDED_ERROR)
+    expect(submittedData()).toMatchObject({
+      kind: 'bug',
+      impact: 'cannot_complete',
+      clientErrorEventId: RECORDED_ERROR,
+    })
     // The guided answers arrive as one labelled body, not three fields.
-    expect(sent.data.message).toBe(
+    expect(submittedData().message).toBe(
       [
         'What I was doing:\nOpening Reviews',
         'What happened:\nThe page stayed empty',
@@ -172,11 +188,7 @@ export const GuidedBugWithRecordedError: Story = {
 export const YourReports: Story = {
   args: { submitFeedback: successfulSubmission, listFeedback },
   play: async ({ canvasElement }) => {
-    window.history.replaceState({}, '', '/inbox')
-    clearRecordedErrors()
-    const view = await openFeedbackDialog(canvasElement)
-
-    await userEvent.click(view.getByRole('tab', { name: /your reports/i }))
+    const view = await openReportsPanel(canvasElement)
 
     expect(await view.findByText(/accepted/i)).toBeInTheDocument()
     // The label and the number are separate nodes so only the number is mono.
@@ -196,11 +208,8 @@ export const YourReportsLight: Story = {
   args: { submitFeedback: successfulSubmission, listFeedback },
   parameters: { theme: 'light' },
   play: async ({ canvasElement }) => {
-    window.history.replaceState({}, '', '/inbox')
-    clearRecordedErrors()
-    const view = await openFeedbackDialog(canvasElement)
+    const view = await openReportsPanel(canvasElement)
 
-    await userEvent.click(view.getByRole('tab', { name: /your reports/i }))
     expect(await view.findByText(/this is going to be worked on/i)).toBeInTheDocument()
   },
 }

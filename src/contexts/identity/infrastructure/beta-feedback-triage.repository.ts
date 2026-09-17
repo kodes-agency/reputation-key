@@ -285,6 +285,10 @@ export class BetaFeedbackTriageRepository {
    * narrower than the internal queue: no severity, owner queue, privacy or
    * security classification crosses back to the person who reported.
    */
+  // Reached only through the container, so the changed-files audit cannot see
+  // the edge. `fallow dead-code --type-aware --symbol-impact` resolves it:
+  // direct consumer identity/server/beta-feedback.ts, distance 1.
+  // fallow-ignore-next-line unused-class-member
   async listForActor(
     actorPseudonym: string,
     limit = 20,

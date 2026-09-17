@@ -38,7 +38,7 @@ function PrivacyNotice() {
  * carry the form, the reports panel or their dependencies in the initial
  * closure. Nobody loads this until they open the dialog.
  */
-export function BetaFeedbackDialogBody({ submitFeedback, listFeedback }: Props) {
+function BetaFeedbackDialogBody({ submitFeedback, listFeedback }: Props) {
   const [reference, setReference] = useState<string | null>(null)
   const [panel, setPanel] = useState<Panel>('report')
   const queryClient = useQueryClient()
@@ -88,4 +88,6 @@ export function BetaFeedbackDialogBody({ submitFeedback, listFeedback }: Props) 
   )
 }
 
+// Default export because React.lazy requires one; this module has no other
+// caller, so a named export beside it would only be dead surface.
 export default BetaFeedbackDialogBody
