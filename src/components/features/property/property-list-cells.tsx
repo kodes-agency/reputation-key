@@ -109,10 +109,10 @@ export function AttentionValue({
 }: FigureProps & Readonly<{ propertyId: string; propertyName: string }>) {
   if (!comparison) return fleet === 'loading' ? <Pending className="w-16" /> : null
   const { attention } = comparison
-  const target = attentionTarget(attention)
-  if (attention.total === 0 || target === null) {
+  if (attention.total === 0) {
     return <span className="text-muted-foreground">Nothing waiting</span>
   }
+  const target = attentionTarget(attention)
   const qualifiers = attentionQualifiers(attention)
   const label = [
     `${attention.total} need attention at ${propertyName}`,
@@ -141,6 +141,13 @@ export function AttentionValue({
     'inline-flex flex-wrap items-baseline gap-x-1.5 text-foreground!',
     FOCUS_RING,
   )
+  // Work the fleet counts without a page to open (a rating drop, on a bounded
+  // window): the figure stands, without a link.
+  if (target === null) {
+    return (
+      <span className="inline-flex flex-wrap items-baseline gap-x-1.5">{content}</span>
+    )
+  }
   if (target === 'goals') {
     return (
       <Link

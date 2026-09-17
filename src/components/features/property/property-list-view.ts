@@ -121,7 +121,9 @@ export function resolvePropertyListView(
   // A sort whose read will not come is not offered: fall back to name.
   const sort =
     requestedRead !== null && data[requestedRead] === 'unavailable' ? 'name' : requested
-  const dir = search.sort === sort && search.dir ? search.dir : DEFAULT_DIRECTION[sort]
+  // The URL omits the default sort, so a written direction belongs to the sort
+  // that was requested — named or default — unless that sort fell back.
+  const dir = requested === sort && search.dir ? search.dir : DEFAULT_DIRECTION[sort]
   const read = sortRead(sort)
   const pending = read !== null && data[read] === 'loading'
   const filterRead = search.show ? showRead(search.show) : null

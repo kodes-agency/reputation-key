@@ -250,6 +250,22 @@ export const SortByRating: Story = {
   },
 }
 
+// The default sort is not in the URL; reversing it must still hold.
+export const ReverseNeedsAttention: Story = {
+  args: ready,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const header = canvas.getByRole('button', { name: /^Needs attention/ })
+    expect(header.closest('th')).toHaveAttribute('aria-sort', 'descending')
+
+    await userEvent.click(header)
+    expect(header.closest('th')).toHaveAttribute('aria-sort', 'ascending')
+    // Nothing waiting first, least set up first among those.
+    expect(within(bodyRows(canvas)[0]!).getByText('Initech Campus')).toBeVisible()
+    expect(within(bodyRows(canvas).at(-1)!).getByText('Hotel Elegance')).toBeVisible()
+  },
+}
+
 export const ShowNeedsAttention: Story = {
   args: ready,
   play: async ({ canvasElement }) => {

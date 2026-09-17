@@ -176,6 +176,28 @@ describe('propertyListSearchPatch', () => {
   })
 })
 
+describe('propertyListSearchPatch then resolvePropertyListView', () => {
+  const ready = { fleet: 'ready', setup: 'ready' } as const
+  const roundTrip = (patch: Parameters<typeof propertyListSearchPatch>[1]) =>
+    resolvePropertyListView(propertyListSearchPatch({}, patch), ready)
+
+  it('keeps a reversed direction on the default sort, which the URL does not name', () => {
+    expect(roundTrip({ sort: 'attention', dir: 'asc' })).toMatchObject({
+      sort: 'attention',
+      dir: 'asc',
+      appliedDir: 'asc',
+    })
+  })
+
+  it('keeps every sort and direction a control can write', () => {
+    for (const sort of ['attention', 'name', 'rating', 'reviews', 'setup'] as const) {
+      for (const dir of ['asc', 'desc'] as const) {
+        expect(roundTrip({ sort, dir })).toMatchObject({ sort, dir })
+      }
+    }
+  })
+})
+
 describe('sortPropertyListRows', () => {
   it('puts the most work first, then the least set-up, then the name', () => {
     expect(names(sortPropertyListRows(rows, 'attention', 'desc'))).toEqual([
