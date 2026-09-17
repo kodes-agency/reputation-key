@@ -53,9 +53,26 @@ describe('listPropertySetupSummaries', () => {
         accessiblePropertyIds: null,
       }),
     ).resolves.toEqual([
-      { propertyId: CONFIGURED, attentionCount: 0 },
+      {
+        propertyId: CONFIGURED,
+        attentionCount: 0,
+        completedCount: 7,
+        stepCount: 7,
+        nextStep: null,
+      },
       // Google, first sync, manager, voice, portal; the deferral counts as decided.
-      { propertyId: DEFERRED, attentionCount: 5 },
+      {
+        propertyId: DEFERRED,
+        attentionCount: 5,
+        completedCount: 2,
+        stepCount: 7,
+        nextStep: {
+          key: 'google_linked',
+          status: 'pending',
+          asked: false,
+          section: 'google',
+        },
+      },
     ])
     expect(repo.listPropertyFacts).toHaveBeenCalledWith({
       organizationId: ORG,
@@ -72,7 +89,21 @@ describe('listPropertySetupSummaries', () => {
         role: 'PropertyManager',
         accessiblePropertyIds: [DEFERRED],
       }),
-    ).resolves.toEqual([{ propertyId: DEFERRED, attentionCount: 5 }])
+    ).resolves.toEqual([
+      {
+        propertyId: DEFERRED,
+        attentionCount: 5,
+        completedCount: 2,
+        stepCount: 7,
+        // Google is an AccountAdmin's; the first sync has no section to open.
+        nextStep: {
+          key: 'responsible_manager',
+          status: 'pending',
+          asked: true,
+          section: 'people',
+        },
+      },
+    ])
     expect(repo.listPropertyFacts).toHaveBeenCalledWith({
       organizationId: ORG,
       accessiblePropertyIds: [DEFERRED],

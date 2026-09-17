@@ -4,7 +4,9 @@ import { propertyId } from '#/shared/domain/ids'
 import {
   derivePropertySetup,
   derivePropertySetupSteps,
+  nextPropertySetupStep,
   propertySetupAttentionCount,
+  propertySetupCompletedCount,
   type PropertySetupFacts,
   type PropertySetupMerchantAiState,
   type PropertySetupStepKey,
@@ -259,5 +261,97 @@ describe('propertySetupAttentionCount', () => {
       ]),
     ).toBe(2)
     expect(propertySetupAttentionCount([])).toBe(0)
+  })
+})
+
+describe('propertySetupCompletedCount', () => {
+  it('counts a deferred decision as done, and nothing still open', () => {
+    const step = (status: PropertySetupStepStatus) =>
+      ({ key: 'ai_decision', status, asked: true, section: 'ai' }) as const
+
+    expect(
+      propertySetupCompletedCount([
+        step('complete'),
+        step('deferred'),
+        step('pending'),
+        step('needs_admin'),
+        step('waiting'),
+      ]),
+    ).toBe(2)
+    expect(
+      propertySetupCompletedCount(
+        derivePropertySetupSteps(COMPLETE, { role: 'PropertyManager' }),
+      ),
+    ).toBe(7)
+  })
+})
+
+describe('nextPropertySetupStep', () => {
+  it('is nothing once every step is done', () => {
+    expect(
+      nextPropertySetupStep(derivePropertySetupSteps(COMPLETE, { role: 'AccountAdmin' })),
+    ).toBeNull()
+  })
+
+  it('offers an AccountAdmin the first step, which they can finish', () => {
+    expect(
+      nextPropertySetupStep(derivePropertySetupSteps(facts(), { role: 'AccountAdmin' })),
+    ).toMatchObject({ key: 'google_linked', status: 'pending', section: 'google' })
+  })
+
+  it('prefers a PropertyManager’s own work over steps they cannot finish', () => {
+    // Google needs an admin, and the first sync has no section to open.
+    expect(
+      nextPropertySetupStep(
+        derivePropertySetupSteps(facts(), { role: 'PropertyManager' }),
+      ),
+    ).toMatchObject({ key: 'reply_language', status: 'pending', section: 'replies' })
+  })
+
+  it('falls back to a step waiting on an admin when nothing is the viewer’s to do', () => {
+    const onlyAdminWork = facts({
+      reviewsSyncedForCurrentSource: true,
+      replyLanguageChosen: true,
+      responsibleManagerAssigned: true,
+      replyVoiceConfigured: true,
+      portalPublished: true,
+    })
+
+    expect(
+      nextPropertySetupStep(
+        derivePropertySetupSteps(onlyAdminWork, { role: 'PropertyManager' }),
+      ),
+    ).toMatchObject({ key: 'google_linked', status: 'needs_admin' })
+  })
+
+  it('names the admin’s Google link, not the sync it blocks, when that is all that is left', () => {
+    const blockedOnGoogle = facts({
+      replyLanguageChosen: true,
+      merchantAiState: 'enabled',
+      responsibleManagerAssigned: true,
+      replyVoiceConfigured: true,
+      portalPublished: true,
+    })
+
+    expect(
+      nextPropertySetupStep(
+        derivePropertySetupSteps(blockedOnGoogle, { role: 'PropertyManager' }),
+      ),
+    ).toMatchObject({ key: 'google_linked', status: 'needs_admin' })
+  })
+
+  it('names the sync while it is the only thing left, so the list can say so', () => {
+    const syncing = facts({
+      googleBindingActive: true,
+      replyLanguageChosen: true,
+      merchantAiState: 'enabled',
+      responsibleManagerAssigned: true,
+      replyVoiceConfigured: true,
+      portalPublished: true,
+    })
+
+    expect(
+      nextPropertySetupStep(derivePropertySetupSteps(syncing, { role: 'AccountAdmin' })),
+    ).toMatchObject({ key: 'reviews_synced', status: 'waiting', section: null })
   })
 })

@@ -63,7 +63,7 @@ export const getPropertySetupFn = createServerFn({ method: 'GET' })
     ),
   )
 
-/** Setup attention counts for every Property the manager can access (properties list). */
+/** Setup progress for every Property the manager can access (properties list). */
 export const listPropertySetupSummariesFn = createServerFn({ method: 'GET' }).handler(
   tracedHandler(
     async () => {

@@ -2,13 +2,23 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 import { isBetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import { dashboardError } from '../../domain/dashboard-errors'
-import { derivePropertySetup } from '../../domain/property-setup'
+import {
+  derivePropertySetup,
+  nextPropertySetupStep,
+  propertySetupCompletedCount,
+  type PropertySetupStep,
+} from '../../domain/property-setup'
 import type { PropertySetupRepository } from '../ports/property-setup.repository'
 
 export type PropertySetupSummary = Readonly<{
   propertyId: PropertyId
   /** Setup steps with status `pending` or `needs_admin` for this viewer. */
   attentionCount: number
+  /** Steps done for this viewer; a deferred AI decision counts as done. */
+  completedCount: number
+  stepCount: number
+  /** Where to point this viewer next; `null` once every step is done. */
+  nextStep: PropertySetupStep | null
 }>
 
 export type ListPropertySetupSummariesInput = Readonly<{
@@ -23,7 +33,7 @@ export type ListPropertySetupSummariesDeps = Readonly<{
   repository: PropertySetupRepository
 }>
 
-/** Attention counts for every live Property the manager can access. */
+/** Setup progress for every live Property the manager can access. */
 export const listPropertySetupSummaries =
   (deps: ListPropertySetupSummariesDeps) =>
   async (
@@ -47,7 +57,13 @@ export const listPropertySetupSummaries =
     })
     return facts.map((propertyFacts) => {
       const setup = derivePropertySetup(propertyFacts, { role })
-      return { propertyId: setup.propertyId, attentionCount: setup.attentionCount }
+      return {
+        propertyId: setup.propertyId,
+        attentionCount: setup.attentionCount,
+        completedCount: propertySetupCompletedCount(setup.steps),
+        stepCount: setup.steps.length,
+        nextStep: nextPropertySetupStep(setup.steps),
+      }
     })
   }
 
