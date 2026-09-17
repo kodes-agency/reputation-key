@@ -3,6 +3,7 @@ import {
   CircleUserRound,
   Flag,
   Inbox,
+  Layers,
   MessageSquareText,
   Send,
   ShieldCheck,
@@ -30,7 +31,9 @@ const QUEUE_ITEMS: Readonly<Record<InboxQueue, InboxQueueItem>> = {
   escalated: { key: 'escalated', label: 'Escalated', icon: Flag },
   mine: { key: 'mine', label: 'Mine', icon: CircleUserRound },
   closed: { key: 'closed', label: 'Closed', icon: Archive },
-  open: { key: 'open', label: 'Open', icon: Inbox },
+  // Every open item: Needs reply's stages plus feedback. Its own glyph, since
+  // a manager's rail lists both.
+  open: { key: 'open', label: 'Open', icon: Layers },
 }
 
 const MANAGER_INBOX_QUEUES = [
@@ -40,6 +43,9 @@ const MANAGER_INBOX_QUEUES = [
   QUEUE_ITEMS.feedback,
   QUEUE_ITEMS.escalated,
   QUEUE_ITEMS.mine,
+  // The superset sits below the queues it contains. The Properties list's
+  // "Needs attention" count opens it, so a manager lands on a highlighted queue.
+  QUEUE_ITEMS.open,
 ] as const
 
 const MEMBER_INBOX_QUEUES = [

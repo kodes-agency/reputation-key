@@ -57,7 +57,23 @@ const meta: Meta<typeof InboxQueueRail> = {
 export default meta
 type Story = StoryObj<typeof InboxQueueRail>
 
-export const Manager: Story = { render: () => <RailStory /> }
+export const Manager: Story = {
+  render: () => <RailStory />,
+  play: async ({ canvasElement }) => {
+    const queues = within(
+      within(canvasElement).getByRole('navigation', { name: 'Queues' }),
+    )
+    const open = queues.getByRole('button', { name: /^Open\s*31$/ })
+    expect(open).not.toHaveAttribute('aria-current')
+
+    await userEvent.click(open)
+
+    expect(open).toHaveAttribute('aria-current', 'page')
+    expect(queues.getByRole('button', { name: /^Needs reply/ })).not.toHaveAttribute(
+      'aria-current',
+    )
+  },
+}
 export const Member: Story = { render: () => <RailStory canManageReplies={false} /> }
 export const ZeroCounts: Story = {
   args: {

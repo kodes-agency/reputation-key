@@ -7,6 +7,7 @@ import {
   canUseReplyQueues,
   isReplyStageQueue,
   itemMatchesQueue,
+  queuesForViewer,
   resolveInboxQueue,
 } from './inbox-queues'
 
@@ -15,6 +16,36 @@ describe('canUseReplyQueues', () => {
     expect(canUseReplyQueues(true, true)).toBe(true)
     expect(canUseReplyQueues(true, false)).toBe(false)
     expect(canUseReplyQueues(false, true)).toBe(false)
+  })
+})
+
+describe('queuesForViewer', () => {
+  it('gives a manager every open item as its own queue, below the stages it contains', () => {
+    // The Properties list's "Needs attention" links here (`queue=open`), so the
+    // queue it opens must exist on the rail to be highlighted.
+    expect(queuesForViewer(true).map((item) => item.key)).toEqual([
+      'reply',
+      'approval',
+      'waiting',
+      'feedback',
+      'escalated',
+      'mine',
+      'open',
+    ])
+  })
+
+  it('keeps the member rail unchanged', () => {
+    expect(queuesForViewer(false).map((item) => item.key)).toEqual([
+      'open',
+      'feedback',
+      'escalated',
+      'mine',
+    ])
+  })
+
+  it('draws every manager queue with its own icon', () => {
+    const icons = queuesForViewer(true).map((item) => item.icon)
+    expect(new Set(icons).size).toBe(icons.length)
   })
 })
 
