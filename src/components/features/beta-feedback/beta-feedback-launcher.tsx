@@ -1,6 +1,5 @@
-import { useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { MessageSquarePlus, ShieldCheck } from 'lucide-react'
+import { lazy, Suspense, useState } from 'react'
+import { MessageSquarePlus } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
   Dialog,
@@ -10,85 +9,26 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '#/components/ui/dialog'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import { identityKeys } from '#/shared/queries/query-keys'
+import { Skeleton } from '#/components/ui/skeleton'
 import type { ListMyBetaFeedback, SubmitBetaFeedback } from './beta-feedback-form-context'
-import { BetaFeedbackForm } from './beta-feedback-form'
-import { BetaFeedbackReceipt } from './beta-feedback-receipt'
-import { BetaFeedbackReports } from './beta-feedback-reports'
+
+// The app shell mounts this launcher on every authenticated page, but nobody
+// needs the form, the reports panel or TanStack Form until they open it. Split
+// here keeps all of that out of the initial closure the bundle budget guards.
+const BetaFeedbackDialogBody = lazy(() => import('./beta-feedback-dialog-body'))
 
 type Props = Readonly<{
   submitFeedback: SubmitBetaFeedback
   listFeedback?: ListMyBetaFeedback
 }>
 
-type Panel = 'report' | 'reports'
-
-function PrivacyNotice() {
+function DialogBodyFallback() {
   return (
-    <div className="flex gap-3 rounded-lg border bg-muted/35 p-3 text-sm">
-      <ShieldCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-      <div className="space-y-1 text-muted-foreground">
-        <p>
-          Only the text you enter, controlled diagnostic categories, and an opaque receipt
-          are sent.
-        </p>
-        <p>
-          Please don&apos;t include guest names, review text, contact details, passwords,
-          or access codes. RepKey never records a replay or screenshot.
-        </p>
-      </div>
+    <div className="space-y-3 py-2" aria-busy="true">
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="h-24 w-full" />
+      <Skeleton className="h-10 w-full" />
     </div>
-  )
-}
-
-function FeedbackDialogBody({ submitFeedback, listFeedback }: Props) {
-  const [reference, setReference] = useState<string | null>(null)
-  const [panel, setPanel] = useState<Panel>('report')
-  const queryClient = useQueryClient()
-
-  const onSubmitted = (submittedReference: string): void => {
-    setReference(submittedReference)
-    // The new report belongs in the history the next tab opens on.
-    void queryClient.invalidateQueries({ queryKey: identityKeys.myBetaFeedback() })
-  }
-
-  const reportPanel = reference ? (
-    <BetaFeedbackReceipt
-      reference={reference}
-      onTrackReports={() => {
-        setReference(null)
-        setPanel('reports')
-      }}
-      onReportAnother={() => setReference(null)}
-    />
-  ) : (
-    <>
-      <PrivacyNotice />
-      <BetaFeedbackForm submitFeedback={submitFeedback} onSubmitted={onSubmitted} />
-    </>
-  )
-
-  // Without a list seam there is no second panel to switch to.
-  if (!listFeedback) return reportPanel
-
-  return (
-    <Tabs value={panel} onValueChange={(value) => setPanel(value as Panel)}>
-      <TabsList className="w-full">
-        <TabsTrigger value="report" className="flex-1">
-          Report
-        </TabsTrigger>
-        <TabsTrigger value="reports" className="flex-1">
-          Your reports
-        </TabsTrigger>
-      </TabsList>
-      <TabsContent value="report" className="mt-4 space-y-5">
-        {reportPanel}
-      </TabsContent>
-      <TabsContent value="reports" className="mt-4">
-        <BetaFeedbackReports listFeedback={listFeedback} enabled={panel === 'reports'} />
-      </TabsContent>
-    </Tabs>
   )
 }
 
@@ -122,10 +62,12 @@ export function BetaFeedbackLauncher({ submitFeedback, listFeedback }: Props) {
               and you can follow what happens to it.
             </DialogDescription>
           </DialogHeader>
-          <FeedbackDialogBody
-            submitFeedback={submitFeedback}
-            listFeedback={listFeedback}
-          />
+          <Suspense fallback={<DialogBodyFallback />}>
+            <BetaFeedbackDialogBody
+              submitFeedback={submitFeedback}
+              listFeedback={listFeedback}
+            />
+          </Suspense>
         </DialogContent>
       )}
     </Dialog>

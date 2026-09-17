@@ -67,7 +67,10 @@ type Story = StoryObj<typeof BetaFeedbackLauncher>
 async function openFeedbackDialog(canvasElement: HTMLElement) {
   const canvas = within(canvasElement)
   await userEvent.click(canvas.getByRole('button', { name: /report a problem/i }))
-  return within(within(document.body).getByRole('dialog'))
+  const view = within(within(document.body).getByRole('dialog'))
+  // The body is code-split, so it arrives after the dialog frame does.
+  await view.findByRole('radiogroup', { name: /what would you like to tell us/i })
+  return view
 }
 
 export const Default: Story = {
