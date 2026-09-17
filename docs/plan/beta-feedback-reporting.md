@@ -1,6 +1,6 @@
 # Beta feedback reporting — design and plan
 
-**Status:** In progress
+**Status:** Phases 1–2 delivered; Phase 3 awaiting an owner decision
 **Date:** 2026-09-18
 **Branch:** `feat/beta-feedback-reporting`
 **Authority consulted:** `docs/BETA.md` §3 (Analytics and feedback), §4 (Capability
@@ -161,11 +161,36 @@ The current form is a `<Select>` with two options and a bare textarea. Changes:
    §3.1 fix. Updated here as a descriptive correction; flagging it because BETA.md
    is the authority document.
 
-## 6. Verification
+## 6. Verification — what actually ran
 
-- Unit: contract parsing, impact mapping, message composition, triage transitions.
-- Canary: `privacy-exfiltration-canary.test.ts` extended to prove the new
-  `clientErrorEventId` field rejects anything that is not an opaque event id.
-- Integration: triage repository round-trip for the new column.
-- Browser: the dialog at 320/768/1440, keyboard path, reduced motion.
-- Stories beside the components, per `src/components/CONTEXT.md`.
+| Check                             | Result                                         |
+| --------------------------------- | ---------------------------------------------- |
+| `pnpm typecheck`                  | clean (app + scripts projects)                 |
+| `pnpm lint`                       | clean, including the product-state ledger gate |
+| `pnpm format:check`               | clean                                          |
+| Unit (`--project=unit`)           | 960 files, 8,897 passed                        |
+| Storybook (`--project=storybook`) | 103 files, 816 passed                          |
+| Integration (triage repository)   | 10 passed, against real PostgreSQL             |
+| `pnpm build` + `check:bundles`    | initial closure 318,743 B / 329,105 B gzip     |
+
+Specific evidence worth naming:
+
+- The privacy canary now refuses every synthetic marker as a
+  `clientErrorEventId` and proves an accepted opaque id carries none of them.
+- The database CHECK is proven to bite: an error message, uppercase hex, a
+  short id and a suggestion carrying a reference are all rejected at the table,
+  not only at the contract.
+- `beta-feedback-issue.test.ts` pins that no pseudonym and no reporter text can
+  reach a public issue.
+- `beta-feedback-status.test.ts` pins that no internal triage vocabulary
+  (severity, privacy, security, dedupe) reaches the reporter.
+- Browser: dialog verified at 1440 and 375, dark and light, no horizontal
+  overflow. Two wrapping defects found and fixed there that no test could see.
+
+## 7. What is not done
+
+- **Phase 3, masked layout capture.** Accepted policy, unbuilt — see §4.9.
+- **Reporter notification on resolution.** Decision 3 below.
+- The `ops feedback-issue` / `ops feedback-sync` commands have unit-tested pure
+  cores but their `gh` calls have not been executed against the live tracker;
+  running them creates public issues, which is the owner's call.

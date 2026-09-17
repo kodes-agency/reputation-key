@@ -240,6 +240,46 @@ describe('beta feedback triage repository (real PostgreSQL)', () => {
     })
   })
 
+  it('stores an opaque recorded-error reference on a bug', async () => {
+    const eventId = 'f'.repeat(32)
+    const input = { ...prepare(), clientErrorEventId: eventId }
+    await repository.prepare(input)
+
+    expect(await repository.find(input.reference)).toMatchObject({
+      clientErrorEventId: eventId,
+    })
+  })
+
+  it.each([
+    ['an error message', 'The reviews page crashed for guest Jane.'],
+    ['uppercase hex', 'A'.repeat(32)],
+    ['a short id', 'a'.repeat(31)],
+  ])(
+    'refuses %s as a recorded-error reference at the database',
+    async (_label, clientErrorEventId) => {
+      // The column is the last line: the contract already rejects these, and
+      // this proves nothing reaching the table can carry content either.
+      const reference = randomUUID()
+      await expect(
+        repository.prepare({ ...prepare(reference), clientErrorEventId }),
+      ).rejects.toThrow()
+      references.delete(reference)
+    },
+  )
+
+  it('refuses a recorded-error reference on a suggestion', async () => {
+    const reference = randomUUID()
+    await expect(
+      repository.prepare({
+        ...prepare(reference),
+        feedbackType: 'suggestion',
+        impactCode: 'helpful',
+        clientErrorEventId: 'a'.repeat(32),
+      }),
+    ).rejects.toThrow()
+    references.delete(reference)
+  })
+
   it('lists the oldest unresolved receipt first so newer reports cannot starve it', async () => {
     const oldest = prepare()
     const newer = {
