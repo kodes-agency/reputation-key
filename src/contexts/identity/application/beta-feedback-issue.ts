@@ -91,7 +91,7 @@ export function buildBetaFeedbackIssue(
     '',
     `\`${source.reference}\``,
     '',
-    'Close this issue and run `pnpm ops:feedback-sync` to mark the report resolved.',
+    'Close this issue and run `pnpm ops feedback-sync` to mark the report resolved.',
   ].join('\n')
 
   return {

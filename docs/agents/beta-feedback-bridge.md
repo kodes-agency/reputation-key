@@ -51,7 +51,17 @@ pnpm ops feedback-issue <reference> --operator <id> --ticket <ref> --apply
 
 # 5. After the issue is closed on GitHub, resolve the reports it settled.
 pnpm ops feedback-sync --operator <id> --ticket <ref> --apply
+
+# Render a report's consented masked layout to a local SVG (read only).
+pnpm ops feedback-layout <reference> [out.svg] --operator <id>
 ```
+
+All three were run end to end on 2026-09-18 against a disposable local database:
+a seeded accepted report became issue
+[#591](https://github.com/kodes-agency/reputation-key/issues/591) with the number
+written back as append-only transition evidence; closing #591 let `feedback-sync`
+resolve the report, and a second sync found nothing to do. #591 is closed with a
+note saying it was a verification, not a report.
 
 Step 3 always runs first: the preview prints the exact title, body and labels
 that would be published, so what leaves is read before it leaves.
@@ -75,3 +85,29 @@ Not planned, Resolved. Severity, privacy class, security class, owner queue and
 dedupe disposition never cross back —
 `src/components/features/beta-feedback/beta-feedback-status.ts` owns that
 mapping and a test pins that the internal vocabulary does not leak.
+
+## The masked layout, and why it is not in monitoring
+
+A Bug may carry a `masked_layout_v1` picture of the page after the reporter
+consents to it on that submission, sees the preview, and keeps it. It is
+geometry only: a viewport size and at most 240 rectangles, each with a role from
+a closed vocabulary. The capture walk reads an element's tag, rectangle and
+visibility and nothing else; its test stub throws on any other property read.
+
+It does not go to monitoring. The feedback path deliberately clears both Sentry
+scopes so attachment state cannot hitchhike, and `scrubSentryEvent` deletes
+`attachments`; opening a channel would weaken both. It lives in
+`beta_feedback_masked_layouts`, committed with its triage row, and expires under
+a database CHECK no later than 30 days after capture. `feedback-layout` is how a
+triager looks at it.
+
+## Telling the reporter
+
+Not the notification bell. Every non-mandatory notification is Property-scoped
+and the database enforces it (`notifications_mandatory_scope_check`); the only
+Organization-scoped category is `mandatory`, which forces an email that cannot
+be turned off. A report belongs to no Property. So the Feedback entry point shows
+a marker — and its accessible name says "1 report updated" — when a report is
+accepted, not planned or resolved since the reporter last looked, and those rows
+read New in their list. Moving this to the bell would mean relaxing that
+invariant; see the plan's open decisions.

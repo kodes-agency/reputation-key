@@ -83,6 +83,15 @@ describe('beta feedback issue', () => {
     }
   })
 
+  it('tells an engineer the command that actually exists', () => {
+    // `pnpm ops <name>` is the dispatcher; there is no `ops:<name>` script, so
+    // an instruction spelled that way would fail for whoever follows it.
+    const issue = buildBetaFeedbackIssue(source, PROVIDER, SEARCH)
+
+    expect(issue.body).toContain('`pnpm ops feedback-sync`')
+    expect(issue.body).not.toContain('pnpm ops:')
+  })
+
   it('states that the report text is elsewhere', () => {
     const issue = buildBetaFeedbackIssue(source, PROVIDER, SEARCH)
 

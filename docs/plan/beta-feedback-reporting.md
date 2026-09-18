@@ -126,11 +126,11 @@ The current form is a `<Select>` with two options and a bare textarea. Changes:
 
 ### Phase 2 — The GitHub bridge (operator-mediated)
 
-7. **`pnpm ops:feedback-issue`** — for a triaged report, create a GitHub issue via
+7. **`pnpm ops feedback-issue`** — for a triaged report, create a GitHub issue via
    `gh` with a content-free body, then write the issue ref back through the
    existing `transition()` CAS path into `engineering_issue_ref`. Labels derive
    from triage: `bug`/`enhancement` + `needs-triage` + severity.
-8. **`pnpm ops:feedback-sync`** — read linked issue states via `gh` and advance
+8. **`pnpm ops feedback-sync`** — read linked issue states via `gh` and advance
    resolved reports. Operator-run, not an inbound webhook: no new ingress, no new
    auth surface, far smaller blast radius for a beta.
 
@@ -147,50 +147,77 @@ The current form is a `<Select>` with two options and a bare textarea. Changes:
    decision the accountable owner should make explicitly rather than one I take
    while they are away.
 
-## 5. Decisions for the owner
+## 5. Decisions — resolved on 2026-09-18
 
-1. **Masked layout capture** (Phase 3) — accepted policy, unbuilt, blocked on
-   reconciling the canary. Build it?
-2. **Reporter-visible issue links.** The repo is public, so a tracked issue number
-   is a real, clickable link for the reporter. Confirmed desirable? Phase 1 ships
-   the number; making it a hyperlink is a one-line change.
-3. **Should a resolved report notify the reporter?** The loop currently closes only
-   when they reopen the panel. Notification infrastructure exists (`notification.in_app`
-   is `core`).
-4. **BETA.md §4 capability counts** change (37 → 38, core 12 → 13) because of the
-   §3.1 fix. Updated here as a descriptive correction; flagging it because BETA.md
-   is the authority document.
+The owner said to go ahead with all four.
+
+1. **Masked layout capture — built.** The canary was reconciled by the shape,
+   not by loosening it: the old screenshot, replay and attachment keys are still
+   refused, and the new `maskedLayout` field is geometry only (at most 240
+   rectangles, closed role vocabulary). The canary proves every way of smuggling
+   a marker through it is refused. It stays first-party rather than going to
+   monitoring, because the feedback path deliberately clears attachment state
+   and `scrubSentryEvent` deletes attachments. Consent is per submission, with a
+   preview and Remove; a CHECK caps expiry at 30 days after capture and the
+   retention sweep deletes on it.
+2. **Reporter-visible issue links — built.** A plain issue number links to the
+   public tracker; anything else stays text.
+3. **Notify the reporter — built, but not in the bell.** See the open decision
+   below.
+4. **BETA.md capability counts — corrected** (they were stale before this work).
+
+### Still open
+
+- **Should report outcomes reach the notification bell?** It cannot today
+  without changing a notification-system invariant. Every non-mandatory
+  notification is Property-scoped and the database enforces it
+  (`notifications_mandatory_scope_check`); the only Organization-scoped
+  category, `mandatory`, forces an immediate email that cannot be disabled. A
+  beta report has no Property. The reporter is told instead by a marker on the
+  Feedback entry point and New rows in their list. Moving it to the bell means
+  admitting an Organization-scoped `workflow_collaboration` notice: relax that
+  CHECK and its email-queue twin, derive scope per type rather than per category
+  in `notificationScopeForType`, resolve channels from ADR 0046's versioned
+  defaults when there is no Property preference row, and emit an
+  `identity.beta_feedback.resolved` fact when a report resolves. That is the
+  notification system's decision, so it was not made here.
+- **Privacy notice wording.** The accepted notice's retention table says of the
+  optional masked Bug layout that "provider deletion still needs live proof".
+  The implementation never sends the layout to a provider, so the caveat no
+  longer applies. The notice is still accurate as an upper bound; tightening it
+  is a notice change and was left to the owner.
 
 ## 6. Verification — what actually ran
 
-| Check                             | Result                                         |
-| --------------------------------- | ---------------------------------------------- |
-| `pnpm typecheck`                  | clean (app + scripts projects)                 |
-| `pnpm lint`                       | clean, including the product-state ledger gate |
-| `pnpm format:check`               | clean                                          |
-| Unit (`--project=unit`)           | 960 files, 8,897 passed                        |
-| Storybook (`--project=storybook`) | 103 files, 816 passed                          |
-| Integration (triage repository)   | 10 passed, against real PostgreSQL             |
-| `pnpm build` + `check:bundles`    | initial closure 318,743 B / 329,105 B gzip     |
+| Check                              | Result                                         |
+| ---------------------------------- | ---------------------------------------------- |
+| `pnpm typecheck`                   | clean (app + scripts projects)                 |
+| `pnpm lint` + `check-test-quality` | clean, including the product-state ledger gate |
+| Fallow `audit` (changed files)     | clean                                          |
+| Unit (`--project=unit`)            | 1,020 files, 9,907 passed                      |
+| Storybook (`--project=storybook`)  | 110 files, 920 passed, twice in a row          |
+| Integration (triage + retention)   | 19 passed, against real PostgreSQL             |
+| `check:schema-drift`               | clean                                          |
+| `pnpm build` + `check:bundles`     | initial closure 328,796 B / 329,105 B gzip     |
 
 Specific evidence worth naming:
 
-- The privacy canary now refuses every synthetic marker as a
-  `clientErrorEventId` and proves an accepted opaque id carries none of them.
-- The database CHECK is proven to bite: an error message, uppercase hex, a
-  short id and a suggestion carrying a reference are all rejected at the table,
-  not only at the contract.
-- `beta-feedback-issue.test.ts` pins that no pseudonym and no reporter text can
-  reach a public issue.
-- `beta-feedback-status.test.ts` pins that no internal triage vocabulary
-  (severity, privacy, security, dedupe) reaches the reporter.
-- Browser: dialog verified at 1440 and 375, dark and light, no horizontal
-  overflow. Two wrapping defects found and fixed there that no test could see.
-
-## 7. What is not done
-
-- **Phase 3, masked layout capture.** Accepted policy, unbuilt — see §4.9.
-- **Reporter notification on resolution.** Decision 3 below.
-- The `ops feedback-issue` / `ops feedback-sync` commands have unit-tested pure
-  cores but their `gh` calls have not been executed against the live tracker;
-  running them creates public issues, which is the owner's call.
+- The privacy canary refuses every synthetic marker as a recorded-error
+  reference and every way of smuggling one through a masked layout.
+- The capture walk's test stub throws on any element property besides tag,
+  rectangle and visibility, so "reads no content" is enforced.
+- The database refuses a layout that would outlive 30 days, and one on a
+  suggestion; prose too long for `char(32)` dies on the type before the CHECK.
+- `beta-feedback-issue.test.ts` pins that no pseudonym or reporter text can
+  reach a public issue, and that the issue names a command that exists.
+- **Live run:** a seeded accepted report became issue #591, linked back as
+  append-only evidence; closing it let `feedback-sync` resolve the report, and a
+  second sync was a no-op. `feedback-layout` rendered a seeded layout with no
+  text, image, link or script element. #591 is closed with a note.
+- **Bundle budget:** the first cut of the notification marker went 57 B over.
+  The closure counts all CSS and Tailwind emits one global stylesheet, so
+  one-off utilities in lazy components still landed in it — 25 new rules. They
+  are now design-system tokens and existing classes; the CSS is byte-identical to
+  main and the closure has 309 B of headroom where it had 68.
+- Browser: the dialog at 1440 and 375, dark and light; the masked layout
+  captured from a real page and rendered as a wireframe.
