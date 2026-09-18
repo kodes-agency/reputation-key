@@ -1,9 +1,11 @@
 import { and, asc, desc, eq, ne, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { betaFeedbackMaskedLayouts } from '#/shared/db/schema/beta-feedback-masked-layout.schema'
 import {
   betaFeedbackTriage,
   betaFeedbackTriageTransitions,
 } from '#/shared/db/schema/beta-feedback-triage.schema'
+import type { MaskedLayout } from '#/shared/beta-feedback-layout'
 import type {
   BetaFeedbackReportView,
   BetaFeedbackRouteKey,
@@ -15,6 +17,9 @@ import {
   type BetaFeedbackTriageState,
   type BetaFeedbackTriageTransition,
 } from '../domain/betaFeedbackTriage'
+
+/** The transaction handle drizzle hands the callback; narrower than Database. */
+type TriageTx = Parameters<Parameters<Database['transaction']>[0]>[0]
 
 type TriageRow = typeof betaFeedbackTriage.$inferSelect
 type TriageTransitionRow = typeof betaFeedbackTriageTransitions.$inferSelect
@@ -35,9 +40,11 @@ export type PreparedBetaFeedbackTriage = Readonly<{
   viewport: BetaFeedbackViewport
   reporterRole: 'AccountAdmin' | 'PropertyManager' | 'Member'
   clientErrorEventId: string | null
-  attachmentKind: 'none'
-  attachmentCapturedAt: null
-  attachmentExpiresAt: null
+  attachmentKind: 'none' | 'masked_layout_v1'
+  attachmentCapturedAt: Date | null
+  attachmentExpiresAt: Date | null
+  /** Present exactly when attachmentKind is masked_layout_v1. */
+  maskedLayout: MaskedLayout | null
   now: Date
 }>
 
@@ -159,8 +166,50 @@ export class BetaFeedbackTriageRepository {
     return new BetaFeedbackTriageRepository(db)
   }
 
+  /**
+   * The triage row and its optional layout commit together: a report that
+   * claims `masked_layout_v1` must never outlive the geometry it names, and a
+   * stored layout must never exist without the row whose expiry governs it.
+   */
   async prepare(input: PreparedBetaFeedbackTriage): Promise<BetaFeedbackTriageRecord> {
+    return this.db.transaction(async (tx) => {
+      const record = await this.insertTriage(tx, input)
+      if (input.maskedLayout && input.attachmentCapturedAt && input.attachmentExpiresAt) {
+        await tx.insert(betaFeedbackMaskedLayouts).values({
+          feedbackReference: input.reference,
+          viewportWidth: input.maskedLayout.width,
+          viewportHeight: input.maskedLayout.height,
+          boxCount: input.maskedLayout.boxes.length,
+          boxes: input.maskedLayout.boxes,
+          capturedAt: input.attachmentCapturedAt,
+          expiresAt: input.attachmentExpiresAt,
+        })
+      }
+      return record
+    })
+  }
+
+  /** Find one report's layout, or null once the sweep has purged it. */
+  async findMaskedLayout(reference: string): Promise<MaskedLayout | null> {
     const rows = await this.db
+      .select()
+      .from(betaFeedbackMaskedLayouts)
+      .where(eq(betaFeedbackMaskedLayouts.feedbackReference, reference))
+      .limit(1)
+    const row = rows[0]
+    if (!row) return null
+    return {
+      width: row.viewportWidth,
+      height: row.viewportHeight,
+      boxes: [...row.boxes],
+    }
+  }
+
+  private async insertTriage(
+    tx: TriageTx,
+    input: PreparedBetaFeedbackTriage,
+  ): Promise<BetaFeedbackTriageRecord> {
+    const rows = await tx
       .insert(betaFeedbackTriage)
       .values({
         reference: input.reference,

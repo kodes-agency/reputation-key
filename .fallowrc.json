@@ -22,6 +22,7 @@
     "scripts/seed-demo-reviews.ts",
     "scripts/ops/feedback-issue.ts",
     "scripts/ops/feedback-sync.ts",
+    "scripts/ops/feedback-layout.ts",
     "scripts/test-db-setup.ts",
     "vite.config.ts",
     "drizzle.config.ts"

@@ -79,6 +79,7 @@ const bug = {
   kind: 'bug',
   impact: 'cannot_complete',
   clientErrorEventId: null,
+  maskedLayout: null,
   message: 'The reviews page did not load.',
   routePath: '/properties/private-property-id/reviews',
   viewport: 'wide',
@@ -146,6 +147,7 @@ describe('submit beta feedback server function', () => {
       attachmentKind: 'none',
       attachmentCapturedAt: null,
       attachmentExpiresAt: null,
+      maskedLayout: null,
       now: NOW,
     })
     expect(mocks.captureFeedback).toHaveBeenCalledWith({
@@ -234,6 +236,51 @@ describe('submit beta feedback server function', () => {
     ).resolves.toEqual({ reference: FEEDBACK_REFERENCE })
     expect(mocks.enforceRateLimit).toHaveBeenCalledTimes(1)
     expect(mocks.captureFeedback).toHaveBeenCalledTimes(1)
+  })
+
+  it('stamps the masked layout retention from the server clock, not the browser', async () => {
+    const maskedLayout = {
+      width: 1280,
+      height: 800,
+      boxes: [{ x: 0, y: 0, w: 320, h: 48, role: 'heading' as const }],
+    }
+
+    await withStartContext(() =>
+      submitBetaFeedbackHandler({ data: { ...bug, maskedLayout } }),
+    )
+
+    expect(mocks.prepareTriage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachmentKind: 'masked_layout_v1',
+        attachmentCapturedAt: NOW,
+        // Exactly the accepted 30-day horizon, derived here rather than
+        // anywhere a client clock could reach.
+        attachmentExpiresAt: new Date('2026-09-27T08:00:00.000Z'),
+        maskedLayout,
+      }),
+    )
+  })
+
+  it('tells monitoring a layout exists without sending the geometry', async () => {
+    const maskedLayout = {
+      width: 1280,
+      height: 800,
+      boxes: [{ x: 0, y: 0, w: 320, h: 48, role: 'heading' as const }],
+    }
+
+    await withStartContext(() =>
+      submitBetaFeedbackHandler({ data: { ...bug, maskedLayout } }),
+    )
+
+    const captured = mocks.captureFeedback.mock.calls[0]?.[0] as {
+      message: string
+      tags: Record<string, string>
+    }
+    expect(captured.tags.feedback_attachment).toBe('masked_layout_v1')
+    expect(captured.tags.feedback_attachment_retention).toBe('expires_30d')
+    // A shape summary only; the rectangles stay first-party.
+    expect(captured.message).toContain('Masked layout: 1280x800 heading=1')
+    expect(captured.message).not.toContain('"x"')
   })
 
   it('accepts a report from an organization in no Portal cohort', async () => {

@@ -93,6 +93,15 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exitCriteria: RETAINED_HISTORY,
   }),
   ...rows({
+    schemaFile: 'beta-feedback-masked-layout.schema.ts',
+    exportNames: ['betaFeedbackMaskedLayouts'],
+    owner: 'identity',
+    disposition: 'erasable_source_content',
+    authority: 'OBS-01/BETA.md §3',
+    exitCriteria:
+      'Optional Bug layout geometry consented to per submission. Its database CHECK fixes expiry to at most 30 days after capture and the retention sweep deletes on that column, so the horizon cannot be extended by reading, triaging or archiving the report it belongs to.',
+  }),
+  ...rows({
     schemaFile: 'beta-feedback-triage.schema.ts',
     exportNames: ['betaFeedbackTriage'],
     owner: 'identity',

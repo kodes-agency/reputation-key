@@ -48,8 +48,10 @@ export function deliverBetaFeedback(input: Input): BetaFeedbackDeliveryResult {
       feedback_role: input.actor.role,
       feedback_reference: input.reference,
       feedback_client_error: input.data.clientErrorEventId ?? 'none',
-      feedback_attachment: 'none',
-      feedback_attachment_retention: 'not_applicable',
+      feedback_attachment: input.data.maskedLayout ? 'masked_layout_v1' : 'none',
+      feedback_attachment_retention: input.data.maskedLayout
+        ? 'expires_30d'
+        : 'not_applicable',
       feedback_triage_state: 'new',
       feedback_triage_owner: 'beta_support',
       feedback_triage_severity: 'unclassified',

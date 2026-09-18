@@ -1,4 +1,5 @@
 import { z } from 'zod/v4'
+import { maskedLayoutSchema, summarizeMaskedLayout } from './beta-feedback-layout'
 
 const messageSchema = z
   .string()
@@ -38,6 +39,13 @@ export const betaFeedbackInputSchema = z
     viewport: viewportSchema,
     /** Present only when the reporter chose to link a recorded browser error. */
     clientErrorEventId: clientErrorEventIdSchema.nullable().default(null),
+    /**
+     * Optional `masked_layout_v1` geometry, present only when the reporter
+     * consented on this submission after previewing it. Rectangles and a
+     * closed role vocabulary — see `beta-feedback-layout.ts` for why this
+     * shape, and not a screenshot, is what the permission is spent on.
+     */
+    maskedLayout: maskedLayoutSchema.nullable().default(null),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -56,6 +64,15 @@ export const betaFeedbackInputSchema = z
         code: 'custom',
         path: ['clientErrorEventId'],
         message: 'Only a bug report may reference a recorded error.',
+      })
+    }
+    // The triage CHECK says masked_layout_v1 is bug-only; say it here too,
+    // so the refusal is a validation message rather than a database error.
+    if (value.kind !== 'bug' && value.maskedLayout !== null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['maskedLayout'],
+        message: 'Only a bug report may include a masked layout.',
       })
     }
   })
@@ -187,6 +204,12 @@ export function formatBetaFeedbackMessage(input: BetaFeedbackInput): string {
   ]
   if (input.clientErrorEventId) {
     lines.splice(3, 0, `Recorded error: ${input.clientErrorEventId}`)
+  }
+  if (input.maskedLayout) {
+    // A content-free shape summary, so triage knows a layout exists and what
+    // scale it was at without leaving monitoring. The geometry itself stays
+    // first-party; `pnpm ops feedback-layout <reference>` renders it.
+    lines.push(`Masked layout: ${summarizeMaskedLayout(input.maskedLayout)}`)
   }
   return lines.join('\n\n').slice(0, 6_000)
 }

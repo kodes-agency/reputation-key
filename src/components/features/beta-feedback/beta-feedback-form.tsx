@@ -15,9 +15,12 @@ import type {
   BetaFeedbackImpact,
   BetaFeedbackType,
 } from '#/shared/beta-feedback-contract'
+import type { MaskedLayout } from '#/shared/beta-feedback-layout'
 import { latestRecordedError } from '#/shared/observability/recorded-browser-errors'
+import { captureCurrentMaskedLayout } from './beta-feedback-capture'
 import { BetaFeedbackChoiceGroup, type BetaFeedbackChoice } from './beta-feedback-choice'
 import { BetaFeedbackErrorNotice } from './beta-feedback-error-notice'
+import { BetaFeedbackLayoutConsent } from './beta-feedback-layout-consent'
 import {
   type BetaFeedbackFormProps,
   currentBetaFeedbackContext,
@@ -49,6 +52,11 @@ export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFo
   const submit = useAction(submitFeedback)
   // Read once on mount: the list must not shift while the reporter is typing.
   const [recordedError] = useState(() => latestRecordedError())
+  // Captured once, when the dialog opens over the page the reporter is
+  // describing. Re-capturing later would picture the form, not the bug.
+  const [maskedLayout, setMaskedLayout] = useState<MaskedLayout | null>(() =>
+    captureCurrentMaskedLayout(),
+  )
 
   const form = useForm({
     defaultValues: emptyBetaFeedbackForm,
@@ -60,6 +68,7 @@ export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFo
           values,
           currentBetaFeedbackContext(),
           recordedError?.eventId ?? null,
+          maskedLayout,
         ),
       )
       const receipt = await submit({ data })
@@ -110,6 +119,25 @@ export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFo
               eventId={recordedError.eventId}
               checked={field.state.value === true}
               onCheckedChange={field.handleChange}
+              disabled={submit.isPending}
+            />
+          )}
+        </form.Field>
+      )}
+
+      {isBug && maskedLayout && (
+        <form.Field name="includeMaskedLayout">
+          {(field) => (
+            <BetaFeedbackLayoutConsent
+              layout={maskedLayout}
+              included={field.state.value === true}
+              onIncludedChange={field.handleChange}
+              onRemove={() => {
+                // Removal discards the capture outright, so a later re-consent
+                // cannot resurrect a picture the reporter chose to drop.
+                field.handleChange(false)
+                setMaskedLayout(null)
+              }}
               disabled={submit.isPending}
             />
           )}

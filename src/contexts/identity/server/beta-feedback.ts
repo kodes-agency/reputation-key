@@ -3,6 +3,7 @@ import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
+import { maskedLayoutExpiry } from '#/shared/beta-feedback-layout'
 import {
   type BetaFeedbackInput,
   type BetaFeedbackReportView,
@@ -57,9 +58,13 @@ export const submitBetaFeedbackHandler = createServerOnlyFn(
         viewport: data.viewport,
         reporterRole: actor.role,
         clientErrorEventId: data.clientErrorEventId,
-        attachmentKind: 'none',
-        attachmentCapturedAt: null,
-        attachmentExpiresAt: null,
+        // The capture happened moments ago in the reporter's browser, but the
+        // retention clock is the server's: a client clock must not be able to
+        // mint a layout that outlives the accepted 30-day horizon.
+        attachmentKind: data.maskedLayout ? 'masked_layout_v1' : 'none',
+        attachmentCapturedAt: data.maskedLayout ? now : null,
+        attachmentExpiresAt: data.maskedLayout ? maskedLayoutExpiry(now) : null,
+        maskedLayout: data.maskedLayout,
         now,
       })
 

@@ -479,6 +479,12 @@
       "classification": "local_runtime",
       "owner": "Beta feedback reporting",
       "policy": "One read of the browser-local recorded-error buffer, taken when the form mounts so the offer cannot change while the reporter is typing. It is not server state and is never written back; closing the dialog discards it."
+    },
+    {
+      "id": "src/components/features/beta-feedback/beta-feedback-form.tsx:useState(maskedLayout)",
+      "classification": "local_runtime",
+      "owner": "Beta feedback reporting",
+      "policy": "One capture of the page geometry, taken when the form mounts over the page being described; re-capturing later would picture the form rather than the bug. It is not server state, and Remove clears it outright so a later re-consent cannot resurrect a picture the reporter dropped."
     }
   ],
   "classificationDefinitions": {

@@ -13,6 +13,7 @@ import {
   type BetaFeedbackInput,
   type BetaFeedbackType,
 } from '#/shared/beta-feedback-contract'
+import type { MaskedLayout } from '#/shared/beta-feedback-layout'
 import {
   composeBetaFeedbackMessage,
   DEFAULT_IMPACT,
@@ -32,6 +33,9 @@ export const betaFeedbackFormSchema = z
     expected: z.string().max(2_000).default(''),
     /** Opt-in link to an error monitoring already recorded this session. */
     includeRecordedError: z.boolean().default(false),
+    /** Per-submission consent for the masked layout; BETA.md §3 requires it
+     *  to be explicit, so it starts false on every report. */
+    includeMaskedLayout: z.boolean().default(false),
   })
   .strict()
 
@@ -44,6 +48,7 @@ export const emptyBetaFeedbackForm: BetaFeedbackFormValues = Object.freeze({
   observed: '',
   expected: '',
   includeRecordedError: false,
+  includeMaskedLayout: false,
 })
 
 type RouteContext = Readonly<{
@@ -59,9 +64,12 @@ export function toBetaFeedbackInput(
   values: z.output<typeof betaFeedbackFormSchema>,
   route: RouteContext,
   recordedErrorId: string | null,
+  maskedLayout: MaskedLayout | null = null,
 ): BetaFeedbackInput {
   const attachError =
     values.kind === 'bug' && values.includeRecordedError && recordedErrorId !== null
+  const attachLayout =
+    values.kind === 'bug' && values.includeMaskedLayout && maskedLayout !== null
 
   return {
     kind: values.kind,
@@ -74,6 +82,7 @@ export function toBetaFeedbackInput(
     routePath: route.routePath,
     viewport: route.viewport,
     clientErrorEventId: attachError ? recordedErrorId : null,
+    maskedLayout: attachLayout ? maskedLayout : null,
   }
 }
 

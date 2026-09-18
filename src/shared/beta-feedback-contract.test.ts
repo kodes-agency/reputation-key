@@ -27,6 +27,7 @@ describe('beta feedback contract', () => {
       routePath: '/dashboard',
       viewport: 'regular',
       clientErrorEventId: null,
+      maskedLayout: null,
     })
   })
 
@@ -120,6 +121,7 @@ describe('beta feedback contract', () => {
       kind: 'bug',
       impact: 'cannot_complete',
       clientErrorEventId: null,
+      maskedLayout: null,
       message: 'The reviews page did not load. '.repeat(300),
       routePath: `/properties/${marker}/reviews`,
       viewport: 'wide',
