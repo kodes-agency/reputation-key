@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { reporterFeedbackStatus, reporterRouteLabel } from './beta-feedback-status'
+import {
+  issueUrlFor,
+  reporterFeedbackStatus,
+  reporterRouteLabel,
+} from './beta-feedback-status'
 
 describe('reporter feedback status', () => {
   it('reports a send failure rather than a triage state', () => {
@@ -59,5 +63,23 @@ describe('reporter route label', () => {
     ['other_authenticated', 'Elsewhere in RepKey'],
   ])('renders %s as %s', (routeKey, expected) => {
     expect(reporterRouteLabel(routeKey)).toBe(expected)
+  })
+})
+
+describe('issue url', () => {
+  it('links a plain issue number to the public tracker', () => {
+    expect(issueUrlFor('472')).toBe(
+      'https://github.com/kodes-agency/reputation-key/issues/472',
+    )
+  })
+
+  it.each([
+    ['a hand-recorded reference', 'JIRA-12'],
+    ['a path that could escape the tracker', '472/../../evil'],
+    ['an absolute URL', 'https://example.invalid/472'],
+    ['a number with trailing text', '472x'],
+    ['an empty string', ''],
+  ])('leaves %s as text rather than guessing a URL', (_label, reference) => {
+    expect(issueUrlFor(reference)).toBeNull()
   })
 })

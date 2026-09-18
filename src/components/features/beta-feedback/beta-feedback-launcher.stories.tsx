@@ -113,8 +113,8 @@ export const PrivacyAndValidation: Story = {
     expect(view.getByText(/only the text you enter/i)).toBeInTheDocument()
     // Without a list seam there is no second panel to switch to.
     expect(view.queryByRole('tab')).toBeNull()
-    // No error was recorded, so nothing is offered to attach.
-    expect(view.queryByRole('checkbox')).toBeNull()
+    // No error was recorded, so there is none to offer to attach.
+    expect(view.queryByRole('checkbox', { name: /attach it to this report/i })).toBeNull()
 
     await userEvent.click(view.getByRole('button', { name: /send report/i }))
     expect(await view.findByText(/please describe what happened/i)).toBeInTheDocument()
@@ -157,7 +157,9 @@ export const GuidedBugWithRecordedError: Story = {
     )
 
     expect(view.getByText(/recorded an error while you were here/i)).toBeInTheDocument()
-    await userEvent.click(view.getByRole('checkbox'))
+    await userEvent.click(
+      view.getByRole('checkbox', { name: /attach it to this report/i }),
+    )
 
     await userEvent.type(view.getByLabelText(/what were you doing/i), 'Opening Reviews')
     await userEvent.type(view.getByLabelText(/what happened/i), 'The page stayed empty')
@@ -191,9 +193,14 @@ export const YourReports: Story = {
     const view = await openReportsPanel(canvasElement)
 
     expect(await view.findByText(/accepted/i)).toBeInTheDocument()
-    // The label and the number are separate nodes so only the number is mono.
-    expect(view.getByText('#472')).toBeInTheDocument()
-    expect(view.getByText(/tracked as/i)).toBeInTheDocument()
+    // A plain issue number opens the public tracker in a new tab.
+    const issue = view.getByRole('link', { name: /#472/i })
+    expect(issue).toHaveAttribute(
+      'href',
+      'https://github.com/kodes-agency/reputation-key/issues/472',
+    )
+    expect(issue).toHaveAttribute('target', '_blank')
+    expect(issue).toHaveAttribute('rel', 'noopener noreferrer')
     expect(view.getByText(/not sent/i)).toBeInTheDocument()
     expect(view.getByText('Properties · Property · Reviews')).toBeInTheDocument()
     // Internal triage vocabulary must never reach the reporter.

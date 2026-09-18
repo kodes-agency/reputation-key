@@ -80,3 +80,22 @@ export function reporterRouteLabel(routeKey: string): string {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' · ')
 }
+
+/**
+ * The issue tracker this beta files engineering work in. It is public, which is
+ * why an issue carries no reporter text (`beta-feedback-issue.ts`) — and also
+ * why a reporter can follow the link: there is nothing behind it they are not
+ * allowed to see.
+ */
+const ISSUE_TRACKER_URL = 'https://github.com/kodes-agency/reputation-key/issues'
+
+/**
+ * A link only for a plain issue number, which is what `ops feedback-issue`
+ * writes. Any other reference an operator recorded by hand stays text, rather
+ * than becoming a guessed URL that might point somewhere wrong.
+ */
+export function issueUrlFor(engineeringIssueRef: string): string | null {
+  return /^\d{1,9}$/u.test(engineeringIssueRef)
+    ? `${ISSUE_TRACKER_URL}/${engineeringIssueRef}`
+    : null
+}

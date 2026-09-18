@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Bug, Lightbulb, MessageSquareDashed } from 'lucide-react'
+import { Bug, ExternalLink, Lightbulb, MessageSquareDashed } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { Skeleton } from '#/components/ui/skeleton'
 import { formatDateTime } from '#/lib/format-date-time'
@@ -7,6 +7,7 @@ import { cn } from '#/lib/utils'
 import { identityKeys } from '#/shared/queries/query-keys'
 import type { ListMyBetaFeedback, MyBetaFeedbackItem } from './beta-feedback-form-context'
 import {
+  issueUrlFor,
   reporterFeedbackStatus,
   reporterRouteLabel,
   type ReporterFeedbackTone,
@@ -29,6 +30,46 @@ const TONE_CLASS: Readonly<Record<ReporterFeedbackTone, string>> = {
     'border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400',
   closed: 'border-border bg-muted text-muted-foreground',
   failed: 'border-destructive/40 bg-destructive/5 text-destructive',
+}
+
+const IN_TEXT_LINK_STYLE = { textDecorationLine: 'underline' } as const
+
+function TrackedIssue({ reference }: Readonly<{ reference: string }>) {
+  const url = issueUrlFor(reference)
+
+  if (!url) {
+    // Only the number is monospace; "Tracked as" in mono reads wide.
+    return (
+      <span>
+        Tracked as <span className="font-mono">#{reference}</span>
+      </span>
+    )
+  }
+
+  return (
+    <span>
+      Tracked as{' '}
+      {/*
+        An in-text link must be distinguishable without colour (WCAG 1.4.1,
+        axe link-in-text-block). The global anchor rule in styles.css sets
+        `text-decoration: none` at a specificity (0,4,1) no utility class
+        reaches, so the underline is an inline style, which outranks it. The
+        anchor also stays inline: as a flex box it would not carry the
+        underline onto its text.
+      */}
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={IN_TEXT_LINK_STYLE}
+        className="font-mono decoration-1 underline-offset-2 focus-visible:rounded-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+      >
+        #{reference}
+        <ExternalLink className="ml-0.5 inline size-3 align-[-1px]" aria-hidden="true" />
+        <span className="sr-only"> (opens GitHub in a new tab)</span>
+      </a>
+    </span>
+  )
 }
 
 function ReportRow({ item }: Readonly<{ item: MyBetaFeedbackItem }>) {
@@ -54,10 +95,7 @@ function ReportRow({ item }: Readonly<{ item: MyBetaFeedbackItem }>) {
           {item.engineeringIssueRef && (
             <>
               {' · '}
-              {/* Only the number is monospace; "Tracked as" in mono reads wide. */}
-              <span>
-                Tracked as <span className="font-mono">#{item.engineeringIssueRef}</span>
-              </span>
+              <TrackedIssue reference={item.engineeringIssueRef} />
             </>
           )}
         </p>
