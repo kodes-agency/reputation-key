@@ -82,7 +82,7 @@ export function RatingValue({ comparison, fleet }: FigureProps) {
   return (
     <span className="inline-flex items-center gap-1 font-medium">
       <span className="tabular-nums">{comparison.avgRating.toFixed(1)}</span>
-      <Star className="size-3.5 fill-amber-400 text-amber-400" aria-hidden="true" />
+      <Star className="size-3.5 fill-current text-rating" aria-hidden="true" />
       <span className="sr-only">stars</span>
     </span>
   )

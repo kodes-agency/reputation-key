@@ -107,7 +107,26 @@ export function ReplySuggestionControls(props: Props) {
           <Undo2 data-icon="inline-start" /> Undo
         </Button>
       )}
-      {(props.templateError || props.aiError) && <SuggestionErrorLine {...props} />}
+      {/* One region, always mounted, holding its message conditionally. A live
+          region has to be in the document — and in the accessibility tree —
+          before its text changes for a reader to be told; one inserted along
+          with its first message is announced by nobody. `empty:sr-only` is what
+          makes that free on a `flex-wrap` row: with nothing to say the element
+          is truly empty, and `sr-only` takes it out of FLOW — so it costs
+          neither a wrapped line nor a gap — rather than out of the TREE, which
+          is what `hidden` would have done. */}
+      <div
+        role="status"
+        className={cn(
+          'basis-full text-xs empty:sr-only',
+          // Busy is our own capacity, not a failure: it reads as a wait.
+          props.aiBusyUntil != null && !props.templateError
+            ? 'text-muted-foreground'
+            : 'text-destructive',
+        )}
+      >
+        {(props.templateError || props.aiError) && <SuggestionErrorLine {...props} />}
+      </div>
     </div>
   )
 }
@@ -129,23 +148,15 @@ type SuggestionErrorLineProps = Pick<
 /**
  * The row's error line: what went wrong, the choices a refusal leaves, and the
  * fix. It reads the two permissions itself because only the fix links need
- * them — a manager who cannot reach the setting is told who can.
+ * them — a manager who cannot reach the setting is told who can. It is the
+ * CONTENT of the row's status region, which stays mounted without it.
  */
 function SuggestionErrorLine(props: SuggestionErrorLineProps) {
   const { can } = usePermissions()
   const canManagePortalBrand = can('portal.admin')
   const canManageAi = can('ai.manage')
   return (
-    <div
-      role="status"
-      className={cn(
-        'basis-full text-xs',
-        // Busy is our own capacity, not a failure: it reads as a wait.
-        props.aiBusyUntil != null && !props.templateError
-          ? 'text-muted-foreground'
-          : 'text-destructive',
-      )}
-    >
+    <>
       {props.templateError && <p>{props.templateError}</p>}
       {props.aiError && <p>{props.aiError}</p>}
       {(props.aiBusyUntil != null || props.aiOffersTemplate) && (
@@ -201,7 +212,7 @@ function SuggestionErrorLine(props: SuggestionErrorLineProps) {
         ) : (
           <p>Ask an account admin to enable AI reply drafting for this property.</p>
         ))}
-    </div>
+    </>
   )
 }
 

@@ -1,7 +1,8 @@
 // InboxCachePolicy — deep module owning the inbox cache-invalidation policy.
 //
 // The inbox hooks/pages no longer know:
-//   - the query-key prefix topology (detail(id) ⊃ notes(id)/activity(id)/history(id))
+//   - the query-key topology (detail/notes/activity/history are SIBLINGS per
+//     item, so each is invalidated by name rather than through a prefix)
 //   - the BullMQ activity-lag constant (the activity row is inserted ~2s after
 //     a status change, so activity is re-invalidated on a delay) versus
 //     Handling History, which commits in the command's own transaction and so
@@ -276,31 +277,30 @@ function invalidateActivityAfterLag(qc: QueryClient, id: string): void {
  * The Handling History row is written in the SAME transaction as the command
  * that caused it, so by the time a command's `onSuccess` runs the new event is
  * already readable — no lag, unlike the activity feed. The detail thread reads
- * `history(id)` and nothing else refreshes it: `detail(id)` is only ever
- * write-through patched here, never invalidated, so the prefix does not carry
- * the refresh for us.
+ * `history(id)` and nothing else refreshes it: a command's result is
+ * write-through patched into `detail(id)`, and the four item reads are
+ * siblings rather than descendants of it (`query-keys.ts`), so even a path that
+ * does re-read a detail (`onReplyCheckFailed`) never carries the refresh.
  */
 function invalidateHistory(qc: QueryClient, id: string): void {
   qc.invalidateQueries({ queryKey: inboxKeys.history(id) })
 }
 
-/** `detail(id)` itself, not the notes/activity/history entries nested under it. */
-const DETAIL_KEY_LENGTH = inboxKeys.detail('').length
+/** Where `detail(id)` holds the item id. */
+const DETAIL_ID_INDEX = inboxKeys.detail('').length - 1
 
 /**
  * The ids of the cached items whose review is `reviewId`. A reply belongs to a
  * review, so this is where a reply command's result goes — found by the
  * detail's own `item.sourceId`, the same field the pane reads the command's
- * `reviewId` from (inbox-detail-content.tsx `useReplyActions`).
+ * `reviewId` from (inbox-detail-content.tsx `useReplyActions`). `details()`
+ * matches item details only: notes, activity and history are its siblings.
  */
 function cachedItemIdsForReview(qc: QueryClient, reviewId: string): string[] {
   return qc
-    .getQueriesData<InboxItemDetailResult>({
-      queryKey: inboxKeys.details(),
-      predicate: (query) => query.queryKey.length === DETAIL_KEY_LENGTH,
-    })
+    .getQueriesData<InboxItemDetailResult>({ queryKey: inboxKeys.details() })
     .filter(([, detail]) => detail?.item.sourceId === reviewId)
-    .map(([key]) => String(key[DETAIL_KEY_LENGTH - 1]))
+    .map(([key]) => String(key[DETAIL_ID_INDEX]))
 }
 
 function patchReply(qc: QueryClient, change: InboxReplyCacheChange): void {

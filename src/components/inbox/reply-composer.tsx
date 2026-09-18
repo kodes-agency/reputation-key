@@ -9,7 +9,7 @@
 // whether any of it is on screen yet at all (row 15).
 //
 // Plan v2.1 row 14 gives the expanded region ONE shape: a bordered
-// `rounded-[10px]` box — the dock — with three rows. The HEAD (the Reply / Note
+// `rounded-xl` box — the dock — with three rows. The HEAD (the Reply / Note
 // segment and a per-mode state slot, `composer-mode-row.tsx`) is drawn here;
 // the TEXT and the FOOT (assist tools, count, the one primary) are the slot's,
 // because the slot is the only thing that knows what they are. The dock draws
@@ -39,6 +39,18 @@ import type { ReplyAutosaveStatus } from './use-reply-autosave'
 import type { ReactNode } from 'react'
 
 export type { ComposerMode } from './composer-mode-row'
+
+/**
+ * Region 4's accessible name.
+ *
+ * The pane is four regions and only region 2 was named
+ * (`inbox-case-toolbar.tsx`, `<section aria-label="Case status">`), so a screen
+ * reader got one landmark out of four and no way to jump between the
+ * conversation and the surface for writing into it. A stable word rather than
+ * the active mode: the segment inside already says Reply or Internal note, and
+ * a landmark whose name moved under the reader would be worse than none.
+ */
+const COMPOSER_REGION_NAME = 'Composer'
 
 const BOTH_MODES: readonly ComposerMode[] = ['reply', 'note']
 
@@ -125,7 +137,7 @@ const COLLAPSED_REGION_CLASS =
  * harmless either way. See the report.
  */
 const SLOT_CLASS =
-  'flex min-h-0 basis-auto flex-col rounded-md [&_textarea]:max-h-80 focus-visible:ring-2 focus-visible:ring-ring/50'
+  'flex min-h-0 basis-auto flex-col rounded-md [&_textarea]:max-h-80 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-solid focus-visible:outline-1 focus-visible:outline-ring'
 
 /**
  * The slot when the region hosts a primary of its own below it.
@@ -175,7 +187,7 @@ const SCROLLED_SLOT_CLASS = `${SLOT_CLASS} -mx-1 -mb-1 grow overflow-y-auto over
  * `bg-card` is the canvas's `--surface`; `cn` in the primitive resolves it
  * against the private tone below.
  */
-const DOCK_CLASS = 'min-h-0 grow basis-auto gap-0 rounded-[10px] border bg-card'
+const DOCK_CLASS = 'min-h-0 grow basis-auto gap-0 rounded-xl border bg-card'
 
 /**
  * Note mode (row 19): the note's surface and edge, and a DASHED edge.
@@ -195,7 +207,7 @@ const PRIVATE_DOCK_CLASS = 'border-dashed border-warn-line bg-warn-muted'
  * primary, mirroring `SCROLLED_SLOT_CLASS`, so the geometry of every
  * single-mode state without one is the column it always was.
  */
-const SINGLE_DOCK_CLASS = 'flex min-h-0 basis-auto flex-col rounded-[10px] border bg-card'
+const SINGLE_DOCK_CLASS = 'flex min-h-0 basis-auto flex-col rounded-xl border bg-card'
 
 /**
  * The note panel's name, spread onto the note `TabsContent` only.
@@ -452,7 +464,8 @@ function SingleModeComposerLayout({
   Readonly<{ primary: ReactNode }>): ReactNode {
   return (
     <ComposerSaveStateScope onSaveStateChange={onSaveStateChange}>
-      <div
+      <section
+        aria-label={COMPOSER_REGION_NAME}
         className={collapsed ? COLLAPSED_REGION_CLASS : REGION_CLASS}
         onFocus={latchOpen}
       >
@@ -478,7 +491,7 @@ function SingleModeComposerLayout({
           </div>
           {primary}
         </div>
-      </div>
+      </section>
     </ComposerSaveStateScope>
   )
 }
@@ -506,7 +519,8 @@ function TabbedComposerLayout({
 
   return (
     <ComposerSaveStateScope onSaveStateChange={onSaveStateChange}>
-      <div
+      <section
+        aria-label={COMPOSER_REGION_NAME}
         className={collapsed ? COLLAPSED_REGION_CLASS : REGION_CLASS}
         onFocus={latchOpen}
       >
@@ -535,7 +549,7 @@ function TabbedComposerLayout({
             </TabsContent>
           ))}
         </Tabs>
-      </div>
+      </section>
     </ComposerSaveStateScope>
   )
 }

@@ -109,8 +109,10 @@ export type ComposerPendingWorkInput = Readonly<{
  * `Draft with AI` sits inside the reply panel, which cannot be reached without
  * focusing the composer first.
  *
- * The fourth case row 15 names — an open edit — is deliberately absent. The
- * region ORs `editTarget` in itself, because that one it can see.
+ * A fourth kind of pending work — an open edit — is deliberately absent from
+ * this predicate. The region ORs `editTarget` in itself, because that one it
+ * can see. (This used to cite "the fourth case row 15 names"; no row 15 in
+ * either plan enumerates these cases, and the list lives here.)
  *
  * Whitespace does not count on either surface: a box holding one stray space
  * is an empty box to the manager, and treating it as work would leave the

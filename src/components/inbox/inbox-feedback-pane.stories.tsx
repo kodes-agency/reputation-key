@@ -395,30 +395,23 @@ const commands = {
 type Canvas = ReturnType<typeof within>
 
 /**
- * Region 4, derived rather than guessed.
+ * Region 4, by its name.
  *
- * The region has no accessible name of its own — deleting the card's
- * `<h2 id="feedback-handling-title">` removed the one label in the
- * neighbourhood, and a single-mode composer has no `tablist` either — so it
- * cannot be found by role. It CAN be found by what it must contain: the note
- * form's submit and the item action. Their nearest common ancestor is the
- * region's own column, and the two assertions below make that derivation safe
- * in both directions — over-climbing into the pane would pull the thread in, so
- * no message may be inside; under-climbing would land in the note form, so the
- * action must be. A utility class would have been shorter and wrong twice: this
- * project compiles no Tailwind, and a class is not a contract.
+ * The region used to have no accessible name, so this helper derived it from
+ * what it must contain — the note form's submit and the item action — by
+ * climbing to their nearest common ancestor. It is `<section
+ * aria-label="Composer">` now (`reply-composer.tsx`), so it is found the way a
+ * screen reader finds it, which also pins that the landmark exists. The
+ * containment checks stay: the action and the note form must be INSIDE it, and
+ * no thread message may be, so "one primary in the region" below is a claim
+ * about region 4 and not about the whole pane.
  */
 function composerRegion(canvasElement: HTMLElement, actionName: string): HTMLElement {
   const canvas = within(canvasElement)
-  const action = canvas.getByRole('button', { name: actionName })
-  let node = canvas.getByRole('button', { name: NOTE_SUBMIT }).parentElement
-  while (node !== null && !node.contains(action)) node = node.parentElement
-  expect(node).not.toBeNull()
-  const region = node as HTMLElement
-  expect(region).toContainElement(action)
-  // Tight: no thread message is inside it, so "one primary in the region" below
-  // is a claim about region 4 and not about the whole pane.
-  expect(region.querySelector('[role="article"]')).toBeNull()
+  const region = canvas.getByRole('region', { name: 'Composer' })
+  expect(region).toContainElement(canvas.getByRole('button', { name: actionName }))
+  expect(region).toContainElement(canvas.getByRole('button', { name: NOTE_SUBMIT }))
+  expect(region.querySelector('article, [role="article"]')).toBeNull()
   return region
 }
 
@@ -634,6 +627,36 @@ const ANY_DEADLINE_CLAUSE = /·\s(on time|late|timing not measured)/
 // ─── meta ────────────────────────────────────────────────────────────────────
 
 /**
+ * One `InboxDetailState` per story, from a base every story shares.
+ *
+ * The pane takes the state as ONE prop rather than eleven flat ones, so a story
+ * that wants a different `detail` overrides that field here instead of restating
+ * the six commands beside it.
+ */
+const BASE_DETAIL_STATE: InboxDetailState = {
+  ...commands,
+  // The meta-level default lives HERE, not in `meta.args`: Storybook merges args
+  // shallowly, so a story passing its own `detailState` replaces meta's whole
+  // object rather than merging into it. Anything every story should inherit has
+  // to be in the base `mkDetailState` starts from.
+  detail: detailFor(openItem, OPEN_CYCLE),
+  notes: [],
+  notesUnavailable: false,
+  isLoading: false,
+  currentItem: openItem,
+  refetch: () => {},
+  onNoteAdded: () => {},
+  onReplyMutated: () => {},
+  error: null,
+  lastMarkedId: null,
+}
+
+const mkDetailState = (overrides: Partial<InboxDetailState> = {}): InboxDetailState => ({
+  ...BASE_DETAIL_STATE,
+  ...overrides,
+})
+
+/**
  * PropertyManager by default: `inbox.write ∧ feedback.handle` is what the
  * server checks before it populates `feedbackHandling` at all, and
  * `inbox.manage` is what turns the closed chip into a reopen menu. A caller
@@ -646,13 +669,9 @@ const meta: Meta<typeof InboxDetailContent> = {
   tags: ['autodocs'],
   decorators: [withRole('PropertyManager')],
   args: {
-    ...commands,
-    notes: [],
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     currentItem: openItem,
-    detail: detailFor(openItem, OPEN_CYCLE),
     detailFns: detailFns([OPENED_FROM_FEEDBACK]),
+    detailState: mkDetailState(),
   },
 }
 export default meta
@@ -670,7 +689,9 @@ type Story = StoryObj<typeof InboxDetailContent>
  * is on screen at once.
  */
 export const FeedbackOpen: Story = {
-  args: { notes: [teamNote] },
+  args: {
+    detailState: mkDetailState({ notes: [teamNote] }),
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expectTheFourRegions(canvas)
@@ -735,12 +756,14 @@ export const FeedbackOpen: Story = {
 export const FeedbackHandled: Story = {
   args: {
     currentItem: closedItem,
-    detail: detailFor(closedItem, HANDLED_CYCLE),
     detailFns: detailFns([
       OPENED_FROM_FEEDBACK,
       outcomeEvent('2026-03-02T08:00:00Z', FIRST_OUTCOME),
       CLOSED_AS_HANDLED,
     ]),
+    detailState: mkDetailState({
+      detail: detailFor(closedItem, HANDLED_CYCLE),
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -824,13 +847,15 @@ export const FeedbackHandled: Story = {
 export const FeedbackCorrected: Story = {
   args: {
     currentItem: closedItem,
-    detail: detailFor(closedItem, CORRECTED_CYCLE),
     detailFns: detailFns([
       OPENED_FROM_FEEDBACK,
       outcomeEvent('2026-03-02T08:00:00Z', FIRST_OUTCOME),
       CLOSED_AS_HANDLED,
       outcomeEvent('2026-03-03T08:00:00Z', CORRECTION),
     ]),
+    detailState: mkDetailState({
+      detail: detailFor(closedItem, CORRECTED_CYCLE),
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -886,7 +911,6 @@ export const FeedbackCorrected: Story = {
 export const FeedbackWithdrawn: Story = {
   args: {
     currentItem: closedItem,
-    detail: detailFor(closedItem, closedWithNoOutcome('guest_withdrawn')),
     detailFns: detailFns([
       OPENED_FROM_FEEDBACK,
       historyEvent('2026-03-02T07:00:00Z', {
@@ -896,6 +920,9 @@ export const FeedbackWithdrawn: Story = {
         actorType: 'guest',
       }),
     ]),
+    detailState: mkDetailState({
+      detail: detailFor(closedItem, closedWithNoOutcome('guest_withdrawn')),
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -948,7 +975,6 @@ export const FeedbackWithdrawn: Story = {
 export const FeedbackSourceIneligible: Story = {
   args: {
     currentItem: closedItem,
-    detail: detailFor(closedItem, closedWithNoOutcome('source_ineligible')),
     detailFns: detailFns([
       OPENED_FROM_FEEDBACK,
       historyEvent('2026-03-02T07:00:00Z', {
@@ -958,6 +984,9 @@ export const FeedbackSourceIneligible: Story = {
         actorType: 'system',
       }),
     ]),
+    detailState: mkDetailState({
+      detail: detailFor(closedItem, closedWithNoOutcome('source_ineligible')),
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -994,8 +1023,10 @@ export const FeedbackSourceIneligible: Story = {
 export const FeedbackClosedAndReopenable: Story = {
   args: {
     currentItem: closedItem,
-    detail: detailFor(closedItem, closedWithNoOutcome('superseded_by_source_revision')),
     detailFns: detailFns([OPENED_FROM_FEEDBACK]),
+    detailState: mkDetailState({
+      detail: detailFor(closedItem, closedWithNoOutcome('superseded_by_source_revision')),
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -1046,12 +1077,14 @@ export const FeedbackClosedAndReopenable: Story = {
 export const FeedbackOutcomeThisBuildCannotRead: Story = {
   args: {
     currentItem: closedItem,
-    detail: detailFor(closedItem, UNREADABLE_OUTCOME_CYCLE),
     detailFns: detailFns([
       OPENED_FROM_FEEDBACK,
       outcomeEvent('2026-03-02T08:00:00Z', UNREADABLE_OUTCOME),
       CLOSED_AS_HANDLED,
     ]),
+    detailState: mkDetailState({
+      detail: detailFor(closedItem, UNREADABLE_OUTCOME_CYCLE),
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -1117,13 +1150,15 @@ export const FeedbackOutcomeThisBuildCannotRead: Story = {
 export const FeedbackInternalNoteWithheld: Story = {
   args: {
     currentItem: closedItem,
-    detail: detailFor(closedItem, CORRECTED_CYCLE),
     detailFns: detailFns([
       OPENED_FROM_FEEDBACK,
       outcomeEvent('2026-03-02T08:00:00Z', FIRST_OUTCOME, INTERNAL_NOTE),
       // No `internalNote` key at all — what an unauthorized read returns.
       outcomeEvent('2026-03-03T08:00:00Z', CORRECTION),
     ]),
+    detailState: mkDetailState({
+      detail: detailFor(closedItem, CORRECTED_CYCLE),
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -1190,12 +1225,14 @@ export const FeedbackAsMemberReadsButCannotHandle: Story = {
   decorators: [withRole('Member')],
   args: {
     currentItem: closedItem,
-    detail: detailFor(closedItem, null),
     detailFns: detailFns([
       OPENED_FROM_FEEDBACK,
       outcomeEvent('2026-03-02T08:00:00Z', FIRST_OUTCOME),
       CLOSED_AS_HANDLED,
     ]),
+    detailState: mkDetailState({
+      detail: detailFor(closedItem, null),
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -1245,8 +1282,10 @@ export const FeedbackActionIsPermissionGatedNotStateGated: Story = {
   decorators: [withRole('Member')],
   args: {
     currentItem: closedItem,
-    detail: detailFor(closedItem, HANDLED_CYCLE),
     detailFns: detailFns([OPENED_FROM_FEEDBACK]),
+    detailState: mkDetailState({
+      detail: detailFor(closedItem, HANDLED_CYCLE),
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -1339,12 +1378,14 @@ export const FeedbackHandledLight: Story = {
   parameters: { theme: 'light' },
   args: {
     currentItem: closedItem,
-    detail: detailFor(closedItem, HANDLED_CYCLE),
     detailFns: detailFns([
       OPENED_FROM_FEEDBACK,
       outcomeEvent('2026-03-02T08:00:00Z', FIRST_OUTCOME),
       CLOSED_AS_HANDLED,
     ]),
+    detailState: mkDetailState({
+      detail: detailFor(closedItem, HANDLED_CYCLE),
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

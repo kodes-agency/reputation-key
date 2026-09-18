@@ -90,10 +90,7 @@ export function PropertyListSummaryStrip({ summary, fleet, setup, show, onShow }
               value={
                 <span className="inline-flex items-center gap-1">
                   {summary.averageRating.toFixed(1)}
-                  <Star
-                    className="size-4 fill-amber-400 text-amber-400"
-                    aria-hidden="true"
-                  />
+                  <Star className="size-4 fill-current text-rating" aria-hidden="true" />
                   <span className="sr-only">stars</span>
                 </span>
               }

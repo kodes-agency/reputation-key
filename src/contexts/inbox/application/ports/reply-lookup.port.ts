@@ -79,10 +79,18 @@ export type GoogleObservedReplyView = Readonly<{
 export type ReplyView = ReplyEntityView | GoogleObservedReplyView
 
 export type ReplyLookupPort = Readonly<{
-  /** Returns the EFFECTIVE reply for a review: a confirmed internal reply,
-   *  otherwise the governed current Google observation, then a legacy
-   *  google_sync mirror. Without provider truth, the UI can render a compose
-   *  box over a reply that already exists on Google. */
+  /** Returns the EFFECTIVE reply for a review, in this order: the internal
+   *  reply when a live observation CONFIRMS it (`matchedReplyId`); the
+   *  observation when one is live and matches nothing; otherwise the newest
+   *  internal reply of ANY status — a `draft` included, which is what seeds the
+   *  compose box — and finally a legacy `google_sync` mirror row.
+   *
+   *  The "any status" step is load-bearing and was previously described here as
+   *  "a confirmed internal reply": narrowing it to `published` would delete the
+   *  compose seed for every saved, unpublished draft.
+   *
+   *  Without provider truth, the UI can render a compose box over a reply that
+   *  already exists on Google. */
   getEffectiveReplyByReviewId(
     id: ReviewId,
     orgId: OrganizationId,

@@ -1139,7 +1139,7 @@ export const NoPropertyDefaultAt720: Story = atPane({
       expect(saveStateOf(canvasElement).textContent).toBe(NOT_SAVED_STATE),
     )
     const submit = canvas.getByRole('button', { name: 'Submit for approval' })
-    expect(submit).toBeDisabled()
+    expect(submit).toHaveAttribute('aria-disabled', 'true')
     expect(submit).toHaveAccessibleDescription(blocked)
     expect(canvas.getByText(blocked)).toBeVisible()
 
@@ -1168,7 +1168,9 @@ export const AutoDetectDisabledAt720: Story = atPane({
       'Detect automatically — This review is too short to detect its language.'
     await arrive(canvasElement, args.phone, 'Reply…')
     const aiButton = canvas.getByRole('button', { name: 'Draft with AI' })
-    expect(aiButton).toBeDisabled()
+    // Blocked with a reason: `aria-disabled`, so it stays focusable and the
+    // description below is one a keyboard user can actually reach.
+    expect(aiButton).toHaveAttribute('aria-disabled', 'true')
     expect(aiButton).toHaveAccessibleDescription(
       'AI drafting needs enough review text to verify its language.',
     )
@@ -1272,7 +1274,7 @@ export const DetectionOnATypedReplyExplainsSubmitAt720: Story = atPane({
     await waitFor(() =>
       expect(saveStateOf(canvasElement).textContent).toBe(NOT_SAVED_STATE),
     )
-    expect(submit).toBeDisabled()
+    expect(submit).toHaveAttribute('aria-disabled', 'true')
     expect(submit).toHaveAccessibleDescription(blocked)
     expect(canvas.getByText(blocked)).toBeVisible()
 
@@ -1755,7 +1757,10 @@ export const TemplateIsTheRecommendedDraftingControl: Story = {
     expectDraftingControls(canvasElement, 'template', TEMPLATE_EXPLANATION)
     // AI drafting needs review text, and says so where a reader can hear it
     // rather than in the region's prose.
-    expect(canvas.getByRole('button', { name: 'Draft with AI' })).toBeDisabled()
+    expect(canvas.getByRole('button', { name: 'Draft with AI' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
     expect(canvas.getByText('AI drafting needs review text.')).toBeInTheDocument()
     expectSolePrimary(canvasElement, 'Submit for approval')
   },

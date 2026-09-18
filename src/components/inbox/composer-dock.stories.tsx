@@ -266,7 +266,7 @@ function expectReplySurfaceNeutral(canvasElement: HTMLElement): void {
     expect(element.className).not.toMatch(/warn/)
   }
   expect(dock.className).not.toMatch(/border-dashed/)
-  expect(dock.className).toMatch(/rounded-\[10px\]/)
+  expect(dock.className).toMatch(/rounded-xl/)
   expect(dock.className).toMatch(/bg-card/)
 }
 
@@ -425,7 +425,7 @@ export const SingleModeNoteDockAt720: Story = {
     if (!(dock instanceof HTMLElement)) throw new Error('No dock around the note')
     expect(dock).toHaveAttribute('data-private')
     expect(dock.className).toMatch(/border-dashed/)
-    expect(dock.className).toMatch(/rounded-\[10px\]/)
+    expect(dock.className).toMatch(/rounded-xl/)
     expect(within(dock).getByText(NOT_VISIBLE)).toBeVisible()
     expect(dock.querySelectorAll('svg.lucide-lock')).toHaveLength(0)
   },
@@ -510,7 +510,7 @@ export const CollapsedReplyBarStaysNeutralAt390: Story = onPhone({
     expect(bar.className).not.toMatch(/warn/)
     expect(canvas.getByRole('tablist')).not.toHaveAttribute('data-private')
     // Collapsed, there is no dock and no head: the bar is the region.
-    expect(dockOf(canvasElement).className).not.toMatch(/rounded-\[10px\]/)
+    expect(dockOf(canvasElement).className).not.toMatch(/rounded-xl/)
     expect(canvasElement.querySelectorAll('[aria-live="polite"]')).toHaveLength(0)
   },
 })
@@ -573,7 +573,7 @@ export const BlockedSubmitKeepsItsReasonAt720: Story = {
     const submit = within(canvasElement).getByRole('button', {
       name: 'Submit for approval',
     })
-    expect(submit).toBeDisabled()
+    expect(submit).toHaveAttribute('aria-disabled', 'true')
     expect(submit).toHaveAccessibleDescription(
       'Fill every template placeholder before publishing: {guest_name}.',
     )

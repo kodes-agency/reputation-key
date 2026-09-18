@@ -85,7 +85,11 @@ describe('reply autosave mount lifecycle', () => {
     expect(slot.state).toEqual(IDLE)
   })
 
-  it('cancels a debounced save that has not fired when the mount ends', async () => {
+  it('sends a debounced save that has not fired when the mount ends', async () => {
+    // The teardown used to CANCEL this save, which is how a keystroke typed
+    // within 700 ms of dismissing the phone sheet was lost: removing a focused
+    // textarea from the DOM dispatches no `focusout`, so flush-on-blur never
+    // ran either. Teardown now sends it, exactly once, without the timer.
     vi.useFakeTimers()
     const { setState } = statusSlot()
     const save = vi.fn(async () => undefined)
@@ -98,6 +102,24 @@ describe('reply autosave mount lifecycle', () => {
     const teardown = attachReplyAutosave(coordinator, setState)
     coordinator.schedule(changed)
     teardown()
+    await vi.advanceTimersByTimeAsync(700)
+
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(save).toHaveBeenCalledWith(changed)
+  })
+
+  it('sends nothing when a mount ends with no debounce running', async () => {
+    // StrictMode tears every mount down once before anyone can type.
+    vi.useFakeTimers()
+    const { setState } = statusSlot()
+    const save = vi.fn(async () => undefined)
+    const coordinator = createReplyAutosaveCoordinator({
+      initial,
+      save,
+      onState: setState,
+    })
+
+    attachReplyAutosave(coordinator, setState)()
     await vi.advanceTimersByTimeAsync(700)
 
     expect(save).not.toHaveBeenCalled()

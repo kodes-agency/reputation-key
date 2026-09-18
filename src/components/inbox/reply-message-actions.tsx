@@ -192,6 +192,24 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
   const publishBlockedReasonId = useId()
   const rejectReasonId = useId()
   const rejectReasonRef = useRef<HTMLTextAreaElement>(null)
+  /**
+   * The Reject trigger, so closing the panel can hand focus back to it.
+   *
+   * The panel takes focus on open (the effect below), and Cancel closes it by
+   * its own click — removing the focused button, which drops focus to
+   * `<body>` and loses the reader's place in the thread (WCAG 2.4.3), the rule
+   * `inbox-thread.tsx` states for the fold's toggle and follows for the same
+   * reason. The trigger is mounted whenever Cancel is: both depend on
+   * `canReject`. Confirm Reject does NOT close the panel: a refused reject
+   * leaves it open with the reason still typed, and a successful one remounts
+   * this whole row as the rejected view, so `ReplyMessage` — above the row's
+   * key — is what returns the focus that remount takes.
+   */
+  const rejectTriggerRef = useRef<HTMLButtonElement>(null)
+  const closeRejectPanel = () => {
+    setShowRejectInput(false)
+    rejectTriggerRef.current?.focus()
+  }
 
   // Revealing a field is not announced on its own, so focus follows the
   // disclosure into the box the manager is now expected to type in.
@@ -203,8 +221,9 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
 
   return (
     <>
-      {/* `data-reply-actions`: where `useReplyCheckRun` returns a focus a
-          check's own answer took away by unmounting the focused button. */}
+      {/* `data-reply-actions`: where `useReplyFocusReturn` returns a focus
+          that a check's answer or a reject took away by unmounting the
+          focused button. */}
       <div data-reply-actions className="mt-3 flex flex-wrap items-center gap-2">
         {canApprove && (
           <AlertDialog>
@@ -270,6 +289,7 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
             variant="destructive"
             disabled={isSaving}
             aria-expanded={showRejectInput}
+            ref={rejectTriggerRef}
             onClick={() => setShowRejectInput(true)}
           >
             Reject
@@ -319,7 +339,12 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
               size="sm"
               className={TOUCH}
               variant="ghost"
-              onClick={() => setShowRejectInput(false)}
+              // Disabled with its siblings: the Reject trigger is natively
+              // disabled while a write is in flight, so it cannot take focus,
+              // and a Cancel allowed then would drop focus to `<body>` — the
+              // exact loss `closeRejectPanel` exists to prevent.
+              disabled={isSaving}
+              onClick={closeRejectPanel}
             >
               Cancel
             </Button>

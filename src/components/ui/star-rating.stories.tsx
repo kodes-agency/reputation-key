@@ -55,7 +55,8 @@ export const Default: Story = {
     }
     for (const lit of glyphs.slice(0, 4)) {
       expect(lit).toEqual(expect.arrayContaining(['fill-current', 'text-foreground']))
-      expect(lit).not.toContain('fill-amber-400')
+      // `fill-current` is common to both tones; the gold is the ink.
+      expect(lit).not.toContain('text-rating')
     }
     expect(glyphs[4]).toContain('text-muted-foreground/40')
   },
@@ -81,11 +82,12 @@ export const RatingTone: Story = {
   play: async ({ canvasElement }) => {
     const glyphs = glyphClasses(canvasElement)
     for (const lit of glyphs.slice(0, 4)) {
-      expect(lit).toEqual(expect.arrayContaining(['fill-amber-400', 'text-amber-400']))
+      expect(lit).toEqual(expect.arrayContaining(['fill-current', 'text-rating']))
       expect(lit).not.toContain('text-foreground')
     }
     expect(glyphs[4]).toContain('text-muted-foreground/40')
-    expect(glyphs[4]).not.toContain('fill-amber-400')
+    expect(glyphs[4]).not.toContain('text-rating')
+    expect(glyphs[4]).not.toContain('fill-current')
   },
 }
 
@@ -140,10 +142,10 @@ export const HalfStar: Story = {
  * One glyph, and the denominator follows `max` — "out of 1 stars".
  *
  * This is exactly why the inbox list row does NOT use the primitive: its
- * `CompactRating` draws one star beside `5.0` as an icon and must keep
- * announcing "5 out of 5 stars" (`inbox-list-v2.tsx:19`). `max` cannot mean
- * "draw one glyph" and "out of five" at once, so the row keeps its own star and
- * `STAR_FILLED_CLASS`.
+ * `RowIdentity` (`inbox-list-row.tsx`) draws one star beside the rating as an
+ * icon for "rating", not a score out of one. `max` cannot mean "draw one glyph"
+ * without also meaning "out of one", so the row keeps its own `aria-hidden`
+ * star and `STAR_FILLED_CLASS`.
  */
 export const SingleGlyph: Story = {
   args: { value: 5, max: 1, showValue: true },

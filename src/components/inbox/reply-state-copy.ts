@@ -60,6 +60,15 @@ export const REPLY_CHIP_WORDS = {
    */
   needsCheck: 'Needs a check',
   rejected: 'Rejected',
+  /**
+   * A reply status this bundle cannot classify, which only version skew
+   * produces: the server has shipped a status this client predates. Nothing
+   * about the reply's publication can be read from it, so the word says
+   * nothing about Google and asks for no check. Only the thread message uses
+   * it; the inbox row still reads such a reply through `resolveReplyStateCopy`,
+   * whose publication fields decide its word.
+   */
+  statusUnavailable: 'Status unavailable',
 } as const
 
 const waitingForGoogle: ReplyStateCopy = {

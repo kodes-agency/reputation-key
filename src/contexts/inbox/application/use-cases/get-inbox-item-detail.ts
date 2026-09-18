@@ -114,69 +114,98 @@ export const getInboxItemDetail =
       })
     }
 
-    // Attach the review's effective reply (confirmed internal, otherwise the
-    // current governed Google observation, with a legacy mirror fallback).
+    // Attach the review's effective reply; its precedence (including the
+    // saved, unpublished draft that seeds the compose box) is defined on
+    // ReplyLookupPort.getEffectiveReplyByReviewId.
     // Without provider truth, replies published via the GBP UI are invisible
     // and the panel renders a compose box over them. Primary
     // authorization is inbox.read (above); reply.manage is a field-level
     // scope so Staff (who lack it) never receive reply data. Mild tension
     // with ADR 0009 §6 ("each use case maps to exactly one permission") —
     // justified by mandatory leak prevention.
-    let reply: ReplyView | null = null
-    let analysis: InboxReviewAnalysis | null = null
-    let feedbackHandling: FeedbackHandlingState | null = null
-    let responseTarget: ResponseTargetView | null = null
-    if (detail.item.sourceType === 'review' && deps.aiInsights) {
-      analysis = await deps.aiInsights.readCurrentReviewAnalysis({
-        organizationId: ctx.organizationId,
-        propertyId: detail.item.propertyId,
-        reviewId: detail.item.sourceId as ReviewId,
-        actorUserId: ctx.userId,
-      })
-    }
-    if (detail.item.sourceType === 'review' && canForContext(ctx, 'reply.manage')) {
-      reply = await deps.replyLookup.getEffectiveReplyByReviewId(
-        detail.item.sourceId as ReviewId,
-        ctx.organizationId,
-      )
-    }
-    if (
-      detail.item.sourceType === 'feedback' &&
-      deps.feedbackHandlingStore &&
-      canHandleInboxSource(ctx, 'feedback')
-    ) {
+    // The five enrichments are INDEPENDENT of one another — each reads a
+    // different store off the already-loaded `detail` — so they are issued
+    // together. Awaited in sequence, the pane's hot path paid their latencies
+    // one after another; concurrently it pays roughly the slowest one (the
+    // feedback branch's two reads count once, in its own thunk). That branch is
+    // the only one with an internal order (its scope check gates its read), and
+    // that order is kept inside its own thunk.
+    //
+    // Request-level access was settled above (`inbox.read`,
+    // `canReadInboxSource`, the read property-scope assertion). The checks
+    // below are field-level scopes — `reply.manage` for the reply, and the
+    // feedback handle permission plus handle property scope for
+    // feedbackHandling — each evaluated before its own read inside its own
+    // branch or thunk, so running the reads concurrently cannot widen what the
+    // caller receives.
+    const isReview = detail.item.sourceType === 'review'
+    const readFeedbackHandling = async (): Promise<FeedbackHandlingState | null> => {
+      if (
+        detail.item.sourceType !== 'feedback' ||
+        !deps.feedbackHandlingStore ||
+        !canHandleInboxSource(ctx, 'feedback')
+      ) {
+        return null
+      }
       const handlingScopes = await resolveInboxSourceScopes(
         deps.staffPublicApi,
         ctx,
         'handle',
       )
       if (
-        isInboxSourcePropertyWithinScopes(
+        !isInboxSourcePropertyWithinScopes(
           handlingScopes,
           'feedback',
           detail.item.propertyId,
         )
       ) {
-        feedbackHandling = await deps.feedbackHandlingStore.getState(
-          detail.item.id,
-          ctx.organizationId,
-        )
+        return null
       }
-    }
-    if (deps.responseTargetStore && deps.clock) {
-      responseTarget = await deps.responseTargetStore.getCycleTarget(
-        detail.item.id,
-        ctx.organizationId,
-        deps.clock(),
-      )
+      return deps.feedbackHandlingStore.getState(detail.item.id, ctx.organizationId)
     }
 
-    const configuredPropertyLanguage = deps.propertyLookup?.getPropertyReplyLanguageById
-      ? await deps.propertyLookup.getPropertyReplyLanguageById(
-          detail.item.propertyId,
-          ctx.organizationId,
-        )
-      : null
+    const [
+      analysis,
+      reply,
+      feedbackHandling,
+      responseTarget,
+      configuredPropertyLanguage,
+    ]: [
+      InboxReviewAnalysis | null,
+      ReplyView | null,
+      FeedbackHandlingState | null,
+      ResponseTargetView | null,
+      string | null,
+    ] = await Promise.all([
+      isReview && deps.aiInsights
+        ? deps.aiInsights.readCurrentReviewAnalysis({
+            organizationId: ctx.organizationId,
+            propertyId: detail.item.propertyId,
+            reviewId: detail.item.sourceId as ReviewId,
+            actorUserId: ctx.userId,
+          })
+        : null,
+      isReview && canForContext(ctx, 'reply.manage')
+        ? deps.replyLookup.getEffectiveReplyByReviewId(
+            detail.item.sourceId as ReviewId,
+            ctx.organizationId,
+          )
+        : null,
+      readFeedbackHandling(),
+      deps.responseTargetStore && deps.clock
+        ? deps.responseTargetStore.getCycleTarget(
+            detail.item.id,
+            ctx.organizationId,
+            deps.clock(),
+          )
+        : null,
+      deps.propertyLookup?.getPropertyReplyLanguageById
+        ? deps.propertyLookup.getPropertyReplyLanguageById(
+            detail.item.propertyId,
+            ctx.organizationId,
+          )
+        : null,
+    ])
     const propertyDefaultReplyLanguage =
       configuredPropertyLanguage !== null &&
       parseCanonicalReplyLanguageTag(configuredPropertyLanguage) !== null

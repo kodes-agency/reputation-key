@@ -495,6 +495,7 @@ function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetail
   return {
     detail: reviewDetail(),
     notes: [],
+    notesUnavailable: false,
     isLoading: false,
     currentItem: reviewItem,
     updateStatus: idleCommand(reviewItem) as unknown as InboxDetailState['updateStatus'],

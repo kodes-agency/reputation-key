@@ -122,7 +122,7 @@ export function ReplyDraftOriginTag(props: Props) {
       <DropdownMenuTrigger
         type="button"
         disabled={props.disabled}
-        className={`${TAG_CLASS} rounded-sm pb-0.5 text-(--accent) outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset disabled:opacity-50 max-md:min-h-9`}
+        className={`${TAG_CLASS} rounded-sm pb-0.5 text-(--accent) hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-ring disabled:opacity-50 max-md:min-h-9`}
       >
         <Glyph aria-hidden="true" className="size-3.5 shrink-0" />
         <TagWords parts={parts} />

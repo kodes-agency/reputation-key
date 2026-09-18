@@ -95,7 +95,21 @@ export function InboxReopenDialog({
   }
 
   return (
-    <Dialog open={effectiveOpen} onOpenChange={changeOpen}>
+    // Escape and an outside click are refused while the reopen is in flight,
+    // exactly as Cancel is (`disabled={pending}` below). A caller that lets the
+    // refusal reject — the pane, whose `updateStatus` deliberately carries no
+    // toast, so one refused reopen is reported once — has it shown HERE, in the
+    // banner, and a dialog dismissed mid-request would have received it closed,
+    // where nobody sees it. The list's bulk reopen catches its own refusal
+    // (`inbox-bulk-actions.tsx`, `handleReopen`) and reports it in the list's
+    // own live region, so there this dialog just closes.
+    <Dialog
+      open={effectiveOpen}
+      onOpenChange={(next) => {
+        if (!next && pending) return
+        changeOpen(next)
+      }}
+    >
       {children ? <DialogTrigger asChild>{children}</DialogTrigger> : null}
       {/* `showCloseButton={false}`, the mobile sheet's answer to the same
           problem (`inbox-detail-sheet.tsx:95`): the primitive's corner X is a

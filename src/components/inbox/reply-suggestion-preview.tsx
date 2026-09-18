@@ -1,6 +1,7 @@
 import { ShieldCheck, Sparkles } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { languageDisplayName } from './reply-language-options'
+import { INBOX_SCROLL_REGION } from './use-inbox-keyboard-shortcuts'
 import {
   replyTemplateLoadedMessage,
   type PendingReplySuggestion,
@@ -40,7 +41,7 @@ type Props = Readonly<{
  * and the thread, behind it.
  */
 const PROPOSAL_CLASS =
-  'mt-2 max-h-[28svh] overflow-y-auto overscroll-contain whitespace-pre-wrap text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
+  'mt-2 max-h-[28svh] overflow-y-auto overscroll-contain whitespace-pre-wrap text-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
 
 export const ReplySuggestionPreview = (props: Props) => {
   const languageTag = props.suggestion.draft.languageTag
@@ -82,7 +83,7 @@ export const ReplySuggestionPreview = (props: Props) => {
           <span className="font-normal text-muted-foreground">· {languageName}</span>
         )}
       </div>
-      <p className={PROPOSAL_CLASS} tabIndex={0}>
+      <p className={PROPOSAL_CLASS} tabIndex={0} {...{ [INBOX_SCROLL_REGION]: '' }}>
         {props.suggestion.draft.text}
       </p>
       {templateLoadedMessage !== null && (

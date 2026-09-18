@@ -187,10 +187,10 @@ export type InboxDetailBranchState = Pick<
  * Whether the pane is showing the case toolbar at all — the condition under
  * which `InboxDetailContent`, and with it the toolbar, is mounted.
  *
- * Both surfaces branch on it before rendering the content:
- * `inbox-detail-panel.tsx:52` and `inbox-detail-sheet.tsx:120` show the error
- * block (with `Retry`) or skeletons on `error || isLoading || !currentItem`,
- * and mount the content otherwise. The HEADER renders in all three branches.
+ * Both surfaces branch on it before rendering the content: `InboxDetailPanel`
+ * and `InboxDetailSheet` show the error block (with `Retry`) or skeletons when
+ * it is false, and mount the content otherwise. The HEADER renders in all three
+ * branches.
  * That difference only started to matter in PR 2: while Escalate / Resolve
  * lived in the header, the button existed during a first load and after a
  * failed one; row 5 moved it into the toolbar, which is inside the content, so
@@ -203,9 +203,9 @@ export type InboxDetailBranchState = Pick<
  * notesQuery.isLoading`) or on a pane stuck on `Failed to load detail` issued
  * `escalate` from a pane that showed no Escalate button.
  *
- * Both surfaces now branch on THIS predicate (`inbox-detail-panel.tsx`,
- * `inbox-detail-sheet.tsx`), so the key and the button read one condition and
- * cannot drift apart. `!state.error` rather than `=== null` on purpose: it is
+ * Both surfaces call THIS predicate rather than restating the condition inline,
+ * so the key and the button read one condition and cannot drift apart.
+ * `!state.error` rather than `=== null` on purpose: it is
  * the truthiness the two surfaces tested inline before they called this, and
  * the two disagree on an empty error string — which would have shown a pane
  * whose shortcut was refused.
@@ -217,11 +217,10 @@ export function isCaseToolbarShown(state: InboxDetailBranchState): boolean {
 /**
  * The pane's raw inputs → the toolbar's props.
  *
- * Each bound command is `void`ed, as the strip's inline `onAssign` was in the
- * pane before PR 2. An `Action` rejects on failure
- * (`use-action-mutation.ts:101`, `mutateAsync`) and records it on `.error`; a click
- * handler has nowhere to put the promise, and `withFreshCommandRevision` has
- * already spent the one retry a conflict earns.
+ * Each bound command is `.catch`ed. An `Action` rejects on failure
+ * (`useActionMutation` returns `mutateAsync`) and records it on `.error`; a
+ * click handler has nowhere to put the promise, and `withFreshCommandRevision`
+ * has already spent the one retry a conflict earns.
  */
 export function buildInboxCaseToolbarProps(
   input: InboxCaseToolbarInput,
@@ -242,14 +241,19 @@ export function buildInboxCaseToolbarProps(
     isPending: isHeaderCommandPending(input),
     isEscalationActive: isEscalationActive(item),
     onReopen: input.onReopen,
+    // Each `.catch`ed, not merely `void`ed: an `Action` is `mutateAsync` and
+    // rejects on refusal, so a bare `void` made every refused command an
+    // unhandled rejection. What TELLS the manager is the `errorMessage` toast
+    // these commands carry in `use-inbox-detail.ts` — the toolbar narrows them
+    // to `() => void`, so `.error` reaches no renderer here.
     onAssign: (assignedToUserId) => {
-      void input.assign({ data: { ...fence, assignedToUserId } })
+      void input.assign({ data: { ...fence, assignedToUserId } }).catch(() => undefined)
     },
     onEscalate: () => {
-      void input.escalate({ data: fence })
+      void input.escalate({ data: fence }).catch(() => undefined)
     },
     onResolveEscalation: () => {
-      void input.resolveEscalation({ data: fence })
+      void input.resolveEscalation({ data: fence }).catch(() => undefined)
     },
   }
 }

@@ -5,8 +5,12 @@ import {
   useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import {
+  actionErrorMessage,
+  useActionMutation,
+} from '#/components/hooks/use-action-mutation'
 import type { Action } from '#/components/hooks/use-action'
+import { HTTP_STATUS } from '#/shared/http/status'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import {
   inboxCachePolicy,
@@ -77,6 +81,13 @@ function applyRevisionConflict(
  * Runs a revision-fenced command against the authoritative revision returned
  * by the command store. A second conflict is surfaced; this never polls or
  * retries more than once.
+ *
+ * The second conflict is thrown as the 4xx refusal it is: the `_tag` and the
+ * 409 the server maps `revision_conflict` to (`inboxErrorStatus`,
+ * `inbox-shared.ts`) are the shape `actionErrorMessage` shows verbatim, so the
+ * escalate / resolve / assign toast says this sentence rather than the generic
+ * failure, and `isExpectedRefusal` keeps it out of Sentry. `retried` still
+ * rides on it, so the error remains an `InboxRevisionConflictResult` too.
  */
 export function withFreshCommandRevision<TInput extends RevisionedCommandInput, TResult>(
   qc: QueryClient,
@@ -106,6 +117,7 @@ export function withFreshCommandRevision<TInput extends RevisionedCommandInput, 
     throw Object.assign(
       new Error('This item changed again while you were working. Please try again.'),
       retried,
+      { _tag: 'InboxError', status: HTTP_STATUS.CONFLICT },
     )
   }
 }
@@ -120,6 +132,16 @@ export type InboxDetailState = Readonly<{
   detail: InboxItemDetailResult | null
   refetch: () => void
   notes: ReadonlyArray<InboxNoteView>
+  /**
+   * The notes read failed, as opposed to returning none.
+   *
+   * `notes` is `data ?? []` either way, so without this flag a failed read is
+   * indistinguishable from a case nobody has written on — the thread renders a
+   * complete-looking ledger with a colleague's note missing from it, and the
+   * manager files a duplicate onto it. The pane already tells this truth about
+   * Handling History (`inbox-thread.tsx`); notes are held to the same standard.
+   */
+  notesUnavailable: boolean
   isLoading: boolean
   currentItem: InboxItem | null
   updateStatus: Action<Parameters<typeof updateInboxStatusFn>[0], InboxItem>
@@ -180,6 +202,10 @@ function useInboxStatusMutations(
     withFreshCommandRevision(qc, id, inboxFns.updateInboxStatus),
     {
       successMessage: 'Status updated',
+      // No `errorMessage`: this command's caller in the pane is
+      // `InboxReopenDialog`, which catches the refusal and shows the server's
+      // own reason in its `FormErrorBanner`. A toast here would report one
+      // refused reopen twice.
       onSuccess: handleStatusChanged,
     },
   )
@@ -187,6 +213,16 @@ function useInboxStatusMutations(
     withFreshCommandRevision(qc, id, inboxFns.escalateInboxItem),
     {
       successMessage: 'Escalated',
+      // Escalate, resolve and assign are issued from the toolbar, and the first
+      // two from the `e` shortcut; both narrow them to `() => void`
+      // (`buildInboxCaseToolbarProps`, `bindEscalationShortcutCommands`), so the
+      // Action's `.error` reaches no renderer. Without a toast a refused command
+      // left the strip on its OLD value with nothing said — the manager believed
+      // the item had moved. Same wording as the reply commands
+      // (`use-reply-actions.ts`): the server's sentence for a refusal, a generic
+      // one for a failure; a second revision conflict is refused in the same
+      // shape (`withFreshCommandRevision`).
+      errorMessage: actionErrorMessage,
       onSuccess: handleStatusChanged,
     },
   )
@@ -194,6 +230,7 @@ function useInboxStatusMutations(
     withFreshCommandRevision(qc, id, inboxFns.resolveEscalation),
     {
       successMessage: 'Escalation resolved',
+      errorMessage: actionErrorMessage,
       onSuccess: handleStatusChanged,
     },
   )
@@ -201,6 +238,7 @@ function useInboxStatusMutations(
     withFreshCommandRevision(qc, id, inboxFns.assignInboxItem),
     {
       successMessage: 'Assignment updated',
+      errorMessage: actionErrorMessage,
       onSuccess: handleStatusChanged,
     },
   )
@@ -230,6 +268,10 @@ function useInboxDetailQueries(
   return {
     detail,
     notes: notesQuery.data ?? [],
+    // Unavailable means there is nothing to show. A background refetch that
+    // fails after an earlier success leaves the notes on screen, and saying
+    // they are unavailable beneath them would contradict what the rail shows.
+    notesUnavailable: notesQuery.isError && notesQuery.data === undefined,
     isLoading: detailQuery.isLoading || notesQuery.isLoading,
     currentItem: detail?.item ?? fallbackItem,
     error: detailQuery.error ? 'Failed to load detail. Try again.' : null,
@@ -301,6 +343,7 @@ export function useInboxDetail(
   return {
     detail: queries.detail,
     notes: queries.notes,
+    notesUnavailable: queries.notesUnavailable,
     isLoading: queries.isLoading,
     currentItem: queries.currentItem,
     updateStatus: mutations.updateStatus,

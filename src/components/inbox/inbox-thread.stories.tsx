@@ -693,8 +693,10 @@ export const ReviewOnly: Story = {
     await expect(canvasElement.querySelector('details')).toBeNull()
     await expect(canvas.queryByText(/Translated/)).toBeNull()
 
-    // The pending skeleton clears, and leaves no status line behind it.
-    await waitFor(() => expect(canvas.queryByRole('status')).toBeNull())
+    // The pending skeleton clears, and leaves no status line behind it. The
+    // region itself stays — a live region has to outlive its messages to
+    // announce the next one — so what is asserted is that it says nothing.
+    await waitFor(() => expect(canvas.getByRole('status')).toBeEmptyDOMElement())
     await expect(railReading(canvasElement)).toEqual(['Guest review'])
     expectWellFormedRail(canvasElement)
     // Node zero's disc is the reviewer's initials (row 10: no photo here).
@@ -1375,13 +1377,27 @@ const failingHistory = mockServerFn(async () => {
   throw new Error('Storybook: handling history is unreachable')
 }) as unknown as typeof getInboxItemHistoryFn
 
+// The notes read failed, as opposed to returning none. `notes` arrives as
+// `data ?? []` either way, so without the flag the rail looks complete while a
+// colleague's note is missing from it. The line sits in the rail's one status
+// region, beside the history line it mirrors.
+export const NotesUnavailable: Story = {
+  args: { notesUnavailable: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const line = await canvas.findByText('Internal notes are unavailable right now.')
+    await expect(line).toBeVisible()
+    await expect(line.closest('[role="status"]')).not.toBeNull()
+  },
+}
+
 export const HistoryFailed: Story = {
   args: { notes: [colleagueNote], getInboxItemHistory: failingHistory },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const line = await canvas.findByText('Handling history is unavailable right now.')
     await expect(line).toBeVisible()
-    await expect(line).toHaveAttribute('role', 'status')
+    await expect(line.closest('[role="status"]')).not.toBeNull()
     expectBelowTheRail(canvasElement, line)
     // The guest's message and the notes — a different query — survive intact.
     await expect(railReading(canvasElement)).toEqual([

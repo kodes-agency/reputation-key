@@ -205,14 +205,14 @@ export function ReplyCompose(props: ReplyComposeProps) {
             onRegenerate={(languageTag) => void state.regenerateIn(languageTag)}
           />
         )}
-        {state.templates.loadedMessage && (
-          // Announced, not printed: the tag above already SHOWS which
-          // template loaded, in which language. The status stays so a
-          // screen reader still hears the load complete.
-          <p role="status" className="sr-only">
-            {state.templates.loadedMessage}
-          </p>
-        )}
+        {/* Announced, not printed: the tag above already SHOWS which template
+            loaded, in which language. The status stays so a screen reader still
+            hears the load complete — and it is mounted unconditionally with its
+            text behind the condition, because a live region inserted together
+            with its first message is announced by nobody. */}
+        <p role="status" className="sr-only">
+          {state.templates.loadedMessage}
+        </p>
         <Textarea
           ref={textarea}
           aria-label="Public reply"
@@ -287,7 +287,7 @@ export function ReplyCompose(props: ReplyComposeProps) {
         <div className="ml-auto">
           <ReplyComposerFooter
             status={state.autosave.status}
-            error={state.autosave.error ?? state.submitError}
+            error={state.autosave.error}
             canSubmit={state.canSubmit}
             submitBlockedReason={state.submitBlockedReason}
             disabled={busy}

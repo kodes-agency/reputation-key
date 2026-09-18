@@ -15,7 +15,7 @@ import { ReplyCheckStatus } from './reply-check-status'
 import { ReplyMessageActions } from './reply-message-actions'
 import { presentReplyMessage, type ReplyMessageTone } from './reply-message-view'
 import { resolveReplyView, type ReplyData } from './reply-status-view'
-import { useReplyCheckRun } from './use-reply-check-run'
+import { useReplyCheckRun, useReplyFocusReturn } from './use-reply-check-run'
 import { formatDateTime, formatRelativeTime } from './utils'
 import { useRef, type ReactNode } from 'react'
 
@@ -55,12 +55,12 @@ const TONE_CLASS: Readonly<Record<ReplyMessageTone, string>> = {
  * the chip (plan v2.1 PR 3: "a 32 px `H` indicator toned by the chip") — so the
  * rail and the box can never disagree about the state. Concretely:
  *
- * | state (chip)                          | tone     | disc                   |
- * | ------------------------------------- | -------- | ---------------------- |
- * | `Awaiting approval`, `Needs a check`  | accent   | foreground fill, inked |
- * | `Waiting for Google`                  | neutral  | the rail's own disc    |
- * | `Live on Google` (sent or mirrored)   | positive | positive fill          |
- * | `Not published`, `Rejected`           | negative | negative fill          |
+ * | state (chip)                               | tone     | disc                   |
+ * | ------------------------------------------ | -------- | ---------------------- |
+ * | `Awaiting approval`, `Needs a check`       | accent   | foreground fill, inked |
+ * | `Waiting for Google`, `Status unavailable` | neutral  | the rail's own disc    |
+ * | `Live on Google` (sent or mirrored)        | positive | positive fill          |
+ * | `Not published`, `Rejected`                | negative | negative fill          |
  *
  * `Waiting for Google` stays neutral because its chip is neutral
  * (`reply-message-view.ts`: an approved reply is in the machine's hands, not
@@ -96,6 +96,14 @@ const INDICATOR_TONE_CLASS: Readonly<Record<ReplyMessageTone, string>> = {
 function propertyInitial(propertyName: string | null): string | null {
   const firstWord = propertyName?.trim().split(/\s+/u)[0]
   return personInitials(firstWord)
+}
+
+/**
+ * The action row's React key, which is also the state a reject's focus return
+ * waits for: a reject that lands remounts the row under exactly this key.
+ */
+function actionRowKey(replyId: string, status: string): string {
+  return `${replyId}:${status}`
 }
 
 type Props = Readonly<{
@@ -149,9 +157,10 @@ type Props = Readonly<{
  * a fixed position under a thread row keyed by the constant `'reply'`: without
  * the key React carries its local state — a half-typed rejection reason —
  * across a reply-state change and across a change of item. The check's pending
- * state, status line and focus repair live HERE, above that key, for the same
- * reason in reverse: they must survive the remount the check's own result
- * causes, and put focus back when that remount takes the focused button.
+ * state and status line, and the focus repair after a check or a reject, live
+ * HERE, above that key, for the same reason in reverse: they must survive the
+ * remount the action's own result causes, and put focus back when that remount
+ * takes the focused button.
  */
 export function ReplyMessage({
   reply,
@@ -168,8 +177,26 @@ export function ReplyMessage({
   const view = presentReplyMessage(resolveReplyView(reply))
   const articleRef = useRef<HTMLElement>(null)
   const checkRun = useReplyCheckRun(reply, onCheck, articleRef)
+  const focusAfterReject = useReplyFocusReturn(
+    articleRef,
+    reply?.id ?? null,
+    reply ? actionRowKey(reply.id, reply.status) : null,
+    isSaving,
+  )
   // A draft lives in the composer, so it is not a thread message at all.
   if (!view || !reply) return null
+
+  // A reject that lands remounts the row as the rejected view and takes the
+  // focused Confirm Reject with it; focus goes to that view's Edit & resubmit.
+  // A refused one leaves the panel open, so it asks for nothing.
+  const target = reply.id
+  const reject = (reason?: string) => {
+    focusAfterReject.cancel()
+    return onReject(reason).then((result) => {
+      focusAfterReject.request(target, actionRowKey(target, 'rejected'))
+      return result
+    })
+  }
 
   // The item carries the property's name or nothing; the pane header settles
   // on the same neutral noun rather than leaving the author blank.
@@ -242,14 +269,14 @@ export function ReplyMessage({
           )}
 
           <ReplyMessageActions
-            key={`${reply.id}:${reply.status}`}
+            key={actionRowKey(reply.id, reply.status)}
             actions={view.actions}
             text={reply.text}
             isSaving={isSaving}
             isChecking={checkRun.isChecking}
             isEditing={isEditing}
             onApprove={onApprove}
-            onReject={onReject}
+            onReject={reject}
             onCheck={checkRun.check}
             onRetry={onRetry}
             onEditPublished={onEditPublished}

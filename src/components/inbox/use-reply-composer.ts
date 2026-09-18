@@ -149,7 +149,6 @@ export function useReplyComposer(input: ReplyComposerInput) {
   // seed, so the product-state ledger has nothing to classify. Why it is not
   // seeded from the saved reply is `replyDraftOrigin`'s comment.
   const [adoption, setAdoption] = useState<ReplyDraftAdoption | null>(null)
-  const [submitError, setSubmitError] = useState<string | null>(null)
   const history = useReplyComposerHistory()
   const options = useMemo(
     () =>
@@ -215,6 +214,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
     onList: input.onListTemplates,
     onLoad: input.onLoadTemplate,
     onAccept: (nextDraft) => autosave.flush(nextDraft),
+    onServerDraftUnknown: autosave.invalidate,
     onAdopt: (nextDraft, template) => adoptDraft(nextDraft, 'library_template', template),
     onLoadLocalSafe: () => ai.request(undefined, true),
     onDismissSuggestion: ai.dismiss,
@@ -282,13 +282,12 @@ export function useReplyComposer(input: ReplyComposerInput) {
     (isAutoDetectingLanguage && validDraft(draft)
       ? unresolvedLanguageSubmitReason(hasPropertyDefaultOption(options))
       : null)
+  // The footer never calls this while `canSubmit` is false, and `canSubmit`
+  // requires no blocked reason, so the early return is a guard only: the
+  // reason is already on screen, in the footer's own line.
   const submit = async () => {
-    setSubmitError(null)
-    if (submitBlockedReason !== null) {
-      setSubmitError(submitBlockedReason)
-      return
-    }
-    setSubmitError(await submitAfterSave(() => autosave.flush(draft), input.onSubmit))
+    if (submitBlockedReason !== null) return
+    await submitAfterSave(() => autosave.flush(draft), input.onSubmit)
   }
 
   return {
@@ -304,7 +303,6 @@ export function useReplyComposer(input: ReplyComposerInput) {
     templates,
     target,
     hasAiDraft,
-    submitError,
     historyCount: history.count,
     overLimit: replyCommentByteLength(draft.text) > GOOGLE_REPLY_COMMENT_MAX_BYTES,
     canSubmit:

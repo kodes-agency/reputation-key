@@ -224,18 +224,43 @@ const correctFeedbackHandlingOutcome: InboxDetailState['correctFeedbackHandlingO
     { isPending: false, error: null, isSuccess: false, data: null },
   )
 
+/**
+ * One `InboxDetailState` per story, from a base every story shares.
+ *
+ * The pane takes the state as ONE prop rather than eleven flat ones, so a story
+ * that wants a different `detail` overrides that field here instead of restating
+ * the six commands beside it. The commands stay required-by-construction: every
+ * story gets them from the base, and the pane binds all six on first render.
+ */
+const BASE_DETAIL_STATE: InboxDetailState = {
+  updateStatus,
+  escalate,
+  resolveEscalation,
+  assign,
+  markFeedbackHandled,
+  correctFeedbackHandlingOutcome,
+  detail: null,
+  notes: [],
+  notesUnavailable: false,
+  isLoading: false,
+  currentItem: reviewItem,
+  refetch: () => {},
+  onNoteAdded: () => {},
+  onReplyMutated: () => {},
+  error: null,
+  lastMarkedId: null,
+}
+
+const mkDetailState = (overrides: Partial<InboxDetailState> = {}): InboxDetailState => ({
+  ...BASE_DETAIL_STATE,
+  ...overrides,
+})
+
 const meta: Meta<typeof InboxDetailContent> = {
   title: 'Inbox/Detail Content',
   component: InboxDetailContent,
   tags: ['autodocs'],
-  args: {
-    updateStatus,
-    escalate,
-    resolveEscalation,
-    assign,
-    markFeedbackHandled,
-    correctFeedbackHandlingOutcome,
-  },
+  args: { detailState: mkDetailState() },
 }
 export default meta
 type Story = StoryObj<typeof InboxDetailContent>
@@ -245,11 +270,29 @@ export const ReviewAsPropertyManager: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
     currentItem: reviewItem,
-    detail: reviewDetail,
-    notes,
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
+    detailState: mkDetailState({
+      detail: reviewDetail,
+      notes,
+    }),
+  },
+}
+
+// Four regions, and the three a reader moves between are named landmarks. The
+// Conversation scroller is a tab stop — a review with nothing focusable in it is
+// otherwise unscrollable from the keyboard — and it carries the marker that
+// hands it the arrow keys (`INBOX_SCROLL_REGION`), so ArrowDown scrolls the
+// thread instead of opening the next case.
+export const FourNamedRegions: Story = {
+  decorators: [withRole('PropertyManager')],
+  args: { ...ReviewAsPropertyManager.args },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByRole('region', { name: 'Case status' })).toBeVisible()
+    const conversation = canvas.getByRole('region', { name: 'Conversation' })
+    expect(conversation).toHaveAttribute('tabindex', '0')
+    expect(conversation).toHaveAttribute('data-inbox-scroll-region')
+    expect(canvas.getByRole('region', { name: 'Composer' })).toBeInTheDocument()
   },
 }
 
@@ -261,7 +304,10 @@ export const WaitingAnalysisIsRequestedAfterDwell: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
     ...ReviewAsPropertyManager.args,
-    detail: { ...reviewDetail, analysis: { status: 'none' } },
+    detailState: mkDetailState({
+      detail: { ...reviewDetail, analysis: { status: 'none' } },
+      notes,
+    }),
     detailFns: {
       ...detailFns,
       requestReviewAnalysisNow:
@@ -287,21 +333,27 @@ export const ReviewWithMixedAspectPolarities: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
     ...ReviewAsPropertyManager.args,
-    detail: {
-      ...reviewDetail,
-      analysis: {
-        status: 'ready',
-        sentiment: 'mixed',
-        aspects: [
-          { aspect: 'service', polarity: 'negative', intensity: -82 },
-          { aspect: 'room', polarity: 'positive', intensity: 68 },
-        ],
-        primaryCategory: 'service',
-        attention: 'high',
-        issueLabel: 'front desk delays',
-        generatedAtEpochMillis: Date.parse('2026-08-16T12:00:00Z'),
+    // Storybook merges args shallowly, so this `detailState` REPLACES the
+    // parent's rather than extending it: the parent's `notes` have to be named
+    // again, or the mixed-polarity story silently loses its internal note.
+    detailState: mkDetailState({
+      notes,
+      detail: {
+        ...reviewDetail,
+        analysis: {
+          status: 'ready',
+          sentiment: 'mixed',
+          aspects: [
+            { aspect: 'service', polarity: 'negative', intensity: -82 },
+            { aspect: 'room', polarity: 'positive', intensity: 68 },
+          ],
+          primaryCategory: 'service',
+          attention: 'high',
+          issueLabel: 'front desk delays',
+          generatedAtEpochMillis: Date.parse('2026-08-16T12:00:00Z'),
+        },
       },
-    },
+    }),
   },
   // The analysis panel is gone: what the review is about is now a row of topic
   // chips under the guest's words, in the dashboard's vocabulary. The summary
@@ -327,11 +379,11 @@ export const ReviewAsPropertyManagerLight: Story = {
   parameters: { theme: 'light' },
   args: {
     currentItem: reviewItem,
-    detail: reviewDetail,
-    notes,
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
+    detailState: mkDetailState({
+      detail: reviewDetail,
+      notes,
+    }),
   },
 }
 
@@ -350,15 +402,15 @@ export const ReplyToolbarWithLanguages: Story = {
   parameters: { theme: 'light' },
   args: {
     currentItem: reviewItem,
-    detail: {
-      ...reviewDetail,
-      propertyDefaultReplyLanguage: 'bg-Cyrl',
-      reviewReplyLanguage: 'tr-Latn-TR',
-    },
-    notes,
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
+    detailState: mkDetailState({
+      detail: {
+        ...reviewDetail,
+        propertyDefaultReplyLanguage: 'bg-Cyrl',
+        reviewReplyLanguage: 'tr-Latn-TR',
+      },
+      notes,
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -411,16 +463,16 @@ export const ReplyToolbarDetectsMissingReviewLanguage: Story = {
   parameters: { theme: 'light' },
   args: {
     currentItem: reviewItem,
-    detail: {
-      ...reviewDetail,
-      reviewText: 'Много уютно място, а закуската по време на престоя беше чудесна.',
-      propertyDefaultReplyLanguage: null,
-      reviewReplyLanguage: null,
-    },
-    notes,
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
+    detailState: mkDetailState({
+      detail: {
+        ...reviewDetail,
+        reviewText: 'Много уютно място, а закуската по време на престоя беше чудесна.',
+        propertyDefaultReplyLanguage: null,
+        reviewReplyLanguage: null,
+      },
+      notes,
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -458,11 +510,11 @@ export const ReviewAsMember: Story = {
   decorators: [withRole('Member')],
   args: {
     currentItem: reviewItem,
-    detail: reviewDetail,
-    notes,
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
+    detailState: mkDetailState({
+      detail: reviewDetail,
+      notes,
+    }),
   },
 }
 
@@ -488,11 +540,11 @@ export const FeedbackDetail: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
     currentItem: feedbackItem,
-    detail: feedbackDetail,
-    notes: [],
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
+    detailState: mkDetailState({
+      detail: feedbackDetail,
+      notes: [],
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -531,22 +583,22 @@ export const LongReviewText: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
     currentItem: longTextItem,
-    detail: {
-      ...reviewDetail,
-      item: longTextItem,
-      reviewText:
-        'Absolutely magical stay! 🎉✨ From check-in 🛎️ to checkout 🧳 everything ' +
-        'was flawless. The pool 🏊 was heated, the breakfast 🥐🍳☕ was fresh ' +
-        'every morning, and the staff 👏 remembered our names. The room had ' +
-        'a view of the harbor 🌅 that photos cannot do justice. We celebrated ' +
-        'our anniversary 💍 here and the team left champagne 🍾 and a ' +
-        'handwritten note ✍️ in the room. Ten out of ten 💯 — we will be ' +
-        'back every year. '.repeat(3),
-    },
-    notes: [],
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
+    detailState: mkDetailState({
+      detail: {
+        ...reviewDetail,
+        item: longTextItem,
+        reviewText:
+          'Absolutely magical stay! 🎉✨ From check-in 🛎️ to checkout 🧳 everything ' +
+          'was flawless. The pool 🏊 was heated, the breakfast 🥐🍳☕ was fresh ' +
+          'every morning, and the staff 👏 remembered our names. The room had ' +
+          'a view of the harbor 🌅 that photos cannot do justice. We celebrated ' +
+          'our anniversary 💍 here and the team left champagne 🍾 and a ' +
+          'handwritten note ✍️ in the room. Ten out of ten 💯 — we will be ' +
+          'back every year. '.repeat(3),
+      },
+      notes: [],
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -568,15 +620,16 @@ export const StatusUpdating: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
     currentItem: closedReviewItem,
-    detail: { ...reviewDetail, item: closedReviewItem },
-    notes,
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
-    updateStatus: Object.assign(
-      async (_input: Parameters<InboxDetailState['updateStatus']>[0]) => closedReviewItem,
-      { isPending: true, error: null, isSuccess: false, data: null },
-    ),
+    detailState: mkDetailState({
+      detail: { ...reviewDetail, item: closedReviewItem },
+      notes,
+      updateStatus: Object.assign(
+        async (_input: Parameters<InboxDetailState['updateStatus']>[0]) =>
+          closedReviewItem,
+        { isPending: true, error: null, isSuccess: false, data: null },
+      ),
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -595,15 +648,15 @@ export const EscalationPendingLocksToolbar: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
     currentItem: closedReviewItem,
-    detail: { ...reviewDetail, item: closedReviewItem },
-    notes,
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
-    escalate: Object.assign(
-      async (_input: Parameters<InboxDetailState['escalate']>[0]) => closedReviewItem,
-      { isPending: true, error: null, isSuccess: false, data: null },
-    ),
+    detailState: mkDetailState({
+      detail: { ...reviewDetail, item: closedReviewItem },
+      notes,
+      escalate: Object.assign(
+        async (_input: Parameters<InboxDetailState['escalate']>[0]) => closedReviewItem,
+        { isPending: true, error: null, isSuccess: false, data: null },
+      ),
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -620,18 +673,18 @@ export const ReviewContentExpired: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
     currentItem: reviewItem,
-    detail: {
-      ...translatedReviewDetail,
-      reviewText: null,
-      // BQC-1.2: no words, and no score either — the rating is provider-owned
-      // content exactly like the prose.
-      reviewRating: null,
-      reviewContentStatus: 'expired',
-    },
-    notes,
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
+    detailState: mkDetailState({
+      detail: {
+        ...translatedReviewDetail,
+        reviewText: null,
+        // BQC-1.2: no words, and no score either — the rating is provider-owned
+        // content exactly like the prose.
+        reviewRating: null,
+        reviewContentStatus: 'expired',
+      },
+      notes,
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -655,15 +708,15 @@ export const ReviewContentNotFound: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
     currentItem: reviewItem,
-    detail: {
-      ...reviewDetail,
-      reviewText: null,
-      reviewContentStatus: 'not_found',
-    },
-    notes,
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
+    detailState: mkDetailState({
+      detail: {
+        ...reviewDetail,
+        reviewText: null,
+        reviewContentStatus: 'not_found',
+      },
+      notes,
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -686,11 +739,11 @@ export const ReviewWithGoogleTranslation: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
     currentItem: reviewItem,
-    detail: translatedReviewDetail,
-    notes,
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
+    detailState: mkDetailState({
+      detail: translatedReviewDetail,
+      notes,
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -709,11 +762,11 @@ export const ReviewWithoutTranslation: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
     currentItem: reviewItem,
-    detail: reviewDetail,
-    notes,
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
+    detailState: mkDetailState({
+      detail: reviewDetail,
+      notes,
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -741,11 +794,11 @@ export const ReadOnlyReplyKeepsTheNoteTab: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
     currentItem: reviewItem,
-    detail: { ...reviewDetail, reply: publishedReply },
-    notes,
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
+    detailState: mkDetailState({
+      detail: { ...reviewDetail, reply: publishedReply },
+      notes,
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -801,11 +854,11 @@ export const NoteSurvivesModeSwitch: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
     currentItem: reviewItem,
-    detail: { ...reviewDetail, reply: publishedReply },
-    notes,
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
+    detailState: mkDetailState({
+      detail: { ...reviewDetail, reply: publishedReply },
+      notes,
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -868,12 +921,12 @@ export const NoteShortcutIsRefusedDuringALiveEdit: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
     currentItem: reviewItem,
-    detail: { ...reviewDetail, reply: publishedReply },
-    notes,
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
     composerFocusRef: editLockCaret,
+    detailState: mkDetailState({
+      detail: { ...reviewDetail, reply: publishedReply },
+      notes,
+    }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -942,7 +995,7 @@ function PaneAcrossTwoSelections(args: DetailContentProps) {
       <InboxDetailContent
         {...args}
         currentItem={item}
-        detail={{ ...reviewDetail, item }}
+        detailState={{ ...args.detailState, detail: { ...reviewDetail, item } }}
       />
     </>
   )
@@ -983,12 +1036,12 @@ export const SelectingAnotherItemCarriesNothingOver: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
     currentItem: reviewItem,
-    detail: reviewDetail,
-    notes,
-    onNoteAdded: () => {},
-    onReplyMutated: () => {},
     detailFns,
     composerFocusRef: selectionCaret,
+    detailState: mkDetailState({
+      detail: reviewDetail,
+      notes,
+    }),
   },
   render: (args) => <PaneAcrossTwoSelections {...args} />,
   play: async ({ canvasElement }) => {

@@ -552,11 +552,36 @@ function buildContainer(
         findEligibleLegacyFeedbackIds: guest.snippets.findEligibleLegacyFeedbackIds,
       },
       property: property.publicApi,
+      // Named reads, not a spread of the repository.
+      //
+      // `review.lookups.reply` is typed `ReplyRepository`, and the repository
+      // is built as an object literal, so every method is own-enumerable and
+      // `{ ...review.lookups.reply }` handed Inbox `upsert`, `conditionalUpdate`,
+      // `deleteById` and `deleteByReviewIdAndSource` as well. The declared
+      // `ReplyLookupSource` narrows the TYPE, so typed Inbox code cannot call
+      // them — but the object still carried them at runtime, reachable through
+      // any cast, a structural widening of the port, or anything that iterates
+      // or serialises the source. A spread does not trigger excess-property
+      // checking, and the cross-context eslint rule inspects import paths, not
+      // injected objects, so neither noticed. Review's own build comment says
+      // "the repositories themselves stay context-private"; this is what makes
+      // that true at runtime, not only in the types.
       reply: {
-        ...review.lookups.reply,
+        findByReviewId: review.lookups.reply.findByReviewId,
+        findMilestonesByReviewIds: review.lookups.reply.findMilestonesByReviewIds,
+        findStatesByReviewIds: review.lookups.reply.findStatesByReviewIds,
+        findReviewIdsByReplyStage: review.lookups.reply.findReviewIdsByReplyStage,
         getCurrentGoogleReplyByReviewId: review.publicApi.getCurrentGoogleReplyByReviewId,
       },
-      review: review.lookups.review,
+      // Named for the same reason as `reply` above: `review.lookups.review` is
+      // the whole `ReviewRepository`, and `ReviewSourceLookupSource` narrows
+      // the type without narrowing the object.
+      review: {
+        findById: review.lookups.review.findById,
+        findByIds: review.lookups.review.findByIds,
+        findByOrganizationId: review.lookups.review.findByOrganizationId,
+        findByPropertyId: review.lookups.review.findByPropertyId,
+      },
       replyObservationAuthority: review.publicApi.replyObservationAuthority,
       responseTargetAuthority: review.publicApi.responseTargetAuthority,
       sourceTransitionAuthority: review.publicApi.sourceTransitionAuthority,

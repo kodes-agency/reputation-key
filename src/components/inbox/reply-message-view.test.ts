@@ -45,7 +45,23 @@ describe('presentReplyMessage', () => {
     expect(
       presentReplyMessage({ kind: 'compose', reply: reply({ status: 'draft' }) }),
     ).toBeNull()
-    expect(presentReplyMessage({ kind: 'none' })).toBeNull()
+  })
+
+  it('prints an unclassifiable reply as a read-only message with no actions', () => {
+    // The words survive a status this bundle cannot name; the actions do not,
+    // because every one of them is a transition out of a state we cannot read.
+    const view = presentReplyMessage({
+      kind: 'none',
+      reply: reply({ status: 'a_status_this_bundle_predates' as Reply['status'] }),
+    })
+
+    expect(view?.actions).toEqual([])
+    expect(view?.meta).toBeNull()
+    expect(view?.detail).toMatch(/cannot display/i)
+    // A word that claims nothing about Google, in the tone that asks nobody to
+    // act: `Needs a check` would ask for a Check this message cannot offer.
+    expect(view?.chip).toBe('Status unavailable')
+    expect(view?.tone).toBe('neutral')
   })
 
   it('offers approve and reject on a reply awaiting approval', () => {

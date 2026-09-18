@@ -112,6 +112,12 @@ function describeEntry(entry: ThreadEntry): string {
  *  milestone — the churn that used to decide where the reply sorted. */
 const churned = (fields: Partial<ReplyEntityView> = {}) => makeReply(UPDATED_AT, fields)
 
+/**
+ * A status this bundle predates. The cast is the fixture's whole point: the
+ * union cannot spell the case `resolveReplyView` falls through to.
+ */
+const UNKNOWN_STATUS = 'a_status_this_bundle_predates' as ReplyEntityView['status']
+
 const CONFIRMED = { status: 'approved', approvedAt: APPROVED_AT } as const
 const LIVE = { status: 'published', publishedAt: PUBLISHED_AT } as const
 const FAILED = { status: 'publish_failed', approvedAt: APPROVED_AT } as const
@@ -124,7 +130,8 @@ const AMBIGUOUS = { ...FAILED, publicationLastErrorClass: 'ambiguous' } as const
  */
 const REPLY_CASES = {
   compose: { kind: 'compose', reply: churned({ status: 'draft' }) },
-  none: { kind: 'none' },
+  // A status outside `ReplyStatus` — what `none` is FOR (see `UNKNOWN_STATUS`).
+  none: { kind: 'none', reply: churned({ status: UNKNOWN_STATUS }) },
   pending: { kind: 'pending', reply: churned({ status: 'pending_approval' }) },
   approved: { kind: 'approved', reply: churned(CONFIRMED) },
   published: { kind: 'published', reply: churned(LIVE) },
@@ -359,9 +366,10 @@ describe('buildThread', () => {
       // Arrange / Act — the model's field selection against the presenter's.
       const reply = 'reply' in view ? view.reply : null
       const printed = presentReplyMessage(view)?.meta?.at
-      // No printed instant — a draft renders nothing in the thread and `none`
-      // has no row — so the documented `updatedAt` fallback contradicts
-      // nothing. Every other state prints a milestone `updatedAt` is not.
+      // No printed instant — a draft renders nothing in the thread, and `none`
+      // draws a row but prints no milestone, because there is no state to read
+      // one off. Both fall back to `updatedAt`, which contradicts nothing.
+      // Every other state prints a milestone `updatedAt` is not.
       const expected = printed ?? (reply === null ? null : UPDATED_AT)
 
       // Assert
