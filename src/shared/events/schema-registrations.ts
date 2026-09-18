@@ -924,6 +924,17 @@ const merchantAiChangedSchema = z
     occurredAt: event.occurredAt,
   }))
 
+// ADR 0059: identifiers and a closed outcome only. Not `.strict()`: the outbox
+// validates the whole event (envelope included) and PERSISTS the parsed
+// result, so this schema is the allowlist — anything else, report text or a
+// triage classification included, is stripped before the row is written.
+const betaFeedbackOutcomeReachedSchema = z.object({
+  organizationId: z.string().trim().min(1).max(255),
+  userId: z.string().trim().min(1).max(255),
+  reference: databaseUuidSchema,
+  outcome: z.enum(['accepted', 'declined', 'resolved']),
+})
+
 const organizationLifecycleChangedSchema = z
   .object({
     organizationId: z.string().trim().min(1).max(255),
@@ -1613,6 +1624,11 @@ export function registerAllEventSchemas(): void {
     type: 'identity.merchant_ai.changed',
     version: EVENT_VERSION,
     schema: merchantAiChangedSchema,
+  })
+  registerEventSchema({
+    type: 'identity.beta_feedback.outcome_reached',
+    version: EVENT_VERSION,
+    schema: betaFeedbackOutcomeReachedSchema,
   })
   registerEventSchema({
     type: 'identity.organization_lifecycle.changed',

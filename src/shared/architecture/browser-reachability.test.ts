@@ -52,6 +52,9 @@ const DENY_PATTERNS = [
 
 const DENY_EXCLUSIONS: Readonly<Record<string, true>> = {
   'shared/observability/browser-exception-capture.ts': true,
+  // Browser-only memory of event ids the SDK returned; no Node import, and
+  // the beta feedback dialog reads it to offer a Bug the error it just hit.
+  'shared/observability/recorded-browser-errors.ts': true,
   'shared/observability/browser-observability.server.ts': true,
   'shared/observability/sentry-event-scrub.ts': true,
   'shared/observability/sensitive-field-policy.ts': true,

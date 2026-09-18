@@ -126,6 +126,7 @@ export function NotificationRow({
               <Link
                 to={link.path as never}
                 search={link.search as never}
+                hash={link.hash}
                 aria-label={`${rendered.actionLabel}: ${rendered.summary}`}
                 onClick={() => actions.onActivate(notification)}
               >

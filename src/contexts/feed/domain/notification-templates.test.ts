@@ -63,10 +63,13 @@ describe('renderNotification — invariants across every type', () => {
     // Recovery alerts are deliberately content-free: even if an unexpected
     // producer supplies render metadata, this template must ignore it. Other
     // types use the property name to sharpen their operational context.
+    // A beta report outcome is Organization-scoped (ADR 0059): there is no
+    // Property for it to name.
     if (
       type.startsWith('account.organization_') ||
       type === 'portal.responsibility_needed' ||
-      type === 'property.responsibility_needed'
+      type === 'property.responsibility_needed' ||
+      type === 'beta_feedback.outcome'
     ) {
       expect(visibleCopy).not.toContain('Riverside Hotel')
     } else {

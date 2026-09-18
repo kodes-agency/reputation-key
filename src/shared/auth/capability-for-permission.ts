@@ -79,6 +79,9 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   'feedback.handle': 'inbox.use',
   'feedback.respond': 'portal.guest_response',
   'feedback.contact_read': 'portal.guest_contact',
+  // Deliberately NOT a Portal capability: a manager whose Organization has no
+  // Portal policy must still be able to report that, and anything else.
+  'feedback.beta_report': 'feedback.beta_report',
 }
 
 export function capabilityForPermission(permission: Permission): Capability {

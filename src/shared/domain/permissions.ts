@@ -58,6 +58,7 @@ export type Permission =
   | 'feedback.handle'
   | 'feedback.respond'
   | 'feedback.contact_read'
+  | 'feedback.beta_report'
   | 'integration.manage'
   // BQC-2.7: policy administration — AccountAdmin (owner) only by default.
   | 'policy.admin'

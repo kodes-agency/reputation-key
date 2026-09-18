@@ -44,6 +44,7 @@ export const RETENTION_DATA_CLASSES = Object.freeze([
   'recent_activity',
   'operational_action_history',
   'logs_sentry_replay_screenshots',
+  'beta_feedback_masked_layout',
   'ai_derivatives',
   'uploads',
   'provider_tokens',
@@ -65,6 +66,7 @@ const CONTENT_DEADLINE_CLASSES: ReadonlyArray<RetentionDataClass> = Object.freez
   'guest_deidentified_facts',
   'ai_derivatives',
   'uploads',
+  'beta_feedback_masked_layout',
 ])
 
 /**
@@ -707,6 +709,25 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'external.processor_retention_attestation',
     restoreImplication: RESTORE_EXTERNAL,
+  }),
+  rule({
+    id: 'identity.beta_feedback_masked_layout',
+    dataClass: 'beta_feedback_masked_layout',
+    ownerContext: 'identity',
+    ownerRole: 'Beta support owner',
+    sourceKind: 'table',
+    source: 'beta_feedback_masked_layouts',
+    eligibility: {
+      anchorColumn: 'expires_at',
+      horizon: { kind: 'days', days: 30 },
+      predicate: null,
+      query:
+        'SELECT feedback_reference FROM beta_feedback_masked_layouts WHERE expires_at < now() — a database check fixes expires_at to at most 30 days after capture, so the horizon cannot drift per row or be extended by triaging the report.',
+      implementedBoundary:
+        'Live at no more than 30 days via the scheduled subject beta_feedback_masked_layouts.expired. The row holds only a viewport size and a bounded list of rectangles carrying a closed role vocabulary; there is no column page text, a URL or an attribute could occupy.',
+    },
+    evidenceSubject: 'beta_feedback_masked_layouts.expired',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({
     id: 'ai.local_derivatives',

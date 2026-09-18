@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   captureFeedback: vi.fn(),
   pseudonym: vi.fn((_: string, audience: string) => `safe-${audience}`),
   prepareTriage: vi.fn(),
+  listForActor: vi.fn(),
   markDelivered: vi.fn(),
   markFailed: vi.fn(),
 }))
@@ -25,6 +26,7 @@ vi.mock('#/composition', () => ({
     clock: () => NOW,
     betaFeedbackTriageRepo: {
       prepare: mocks.prepareTriage,
+      listForActor: mocks.listForActor,
       markDelivered: mocks.markDelivered,
       markFailed: mocks.markFailed,
     },
@@ -47,7 +49,7 @@ vi.mock('./beta-feedback-rate-limit.server', () => ({
   betaFeedbackPseudonym: mocks.pseudonym,
 }))
 
-import { submitBetaFeedbackHandler } from './beta-feedback'
+import { listMyBetaFeedbackHandler, submitBetaFeedbackHandler } from './beta-feedback'
 import {
   createExecutionPolicy,
   initExecutionPolicy,
@@ -75,16 +77,22 @@ const actor = {
 
 const bug = {
   kind: 'bug',
+  impact: 'cannot_complete',
+  clientErrorEventId: null,
+  maskedLayout: null,
   message: 'The reviews page did not load.',
   routePath: '/properties/private-property-id/reviews',
   viewport: 'wide',
 } as const
 
+// Mirrors the deployed store's posture for the capability under test:
+// `feedback.beta_report` is core, so it is globally enabled and needs no
+// per-organization allowlist. Reporting must not depend on a Portal cohort.
 function feedbackPolicyStore(
   overrides: Partial<CapabilityPolicyStore> = {},
 ): CapabilityPolicyStore {
   return {
-    isCapabilityGloballyEnabled: () => false,
+    isCapabilityGloballyEnabled: (capability) => capability === 'feedback.beta_report',
     isOrgAllowlisted: (candidateOrganizationId, capability) =>
       candidateOrganizationId === actor.organizationId &&
       capability === 'portal.guest_response',
@@ -131,13 +139,15 @@ describe('submit beta feedback server function', () => {
       organizationPseudonym: 'safe-telemetry-organization',
       actorPseudonym: 'safe-telemetry-actor',
       feedbackType: 'bug',
-      impactCode: 'small_issue',
+      impactCode: 'cannot_complete',
+      clientErrorEventId: null,
       routeKey: 'properties.property.reviews',
       viewport: 'wide',
       reporterRole: 'PropertyManager',
       attachmentKind: 'none',
       attachmentCapturedAt: null,
       attachmentExpiresAt: null,
+      maskedLayout: null,
       now: NOW,
     })
     expect(mocks.captureFeedback).toHaveBeenCalledWith({
@@ -145,13 +155,14 @@ describe('submit beta feedback server function', () => {
       source: 'repkey-native-beta-feedback',
       tags: {
         feedback_type: 'bug',
-        feedback_impact: 'small_issue',
+        feedback_impact: 'cannot_complete',
         feedback_route: 'properties.property.reviews',
         feedback_actor: 'safe-telemetry-actor',
         feedback_organization: 'safe-telemetry-organization',
         feedback_viewport: 'wide',
         feedback_role: 'PropertyManager',
         feedback_reference: FEEDBACK_REFERENCE,
+        feedback_client_error: 'none',
         feedback_attachment: 'none',
         feedback_attachment_retention: 'not_applicable',
         feedback_triage_state: 'new',
@@ -216,8 +227,8 @@ describe('submit beta feedback server function', () => {
     mocks.resolveTenantContext.mockResolvedValue({
       ...actor,
       role: 'Member',
-      effectivePermissions: new Set(['feedback.respond']),
-      scopeByPermission: new Map([['feedback.respond', 'assigned-properties']]),
+      effectivePermissions: new Set(['feedback.beta_report']),
+      scopeByPermission: new Map([['feedback.beta_report', 'assigned-properties']]),
     })
 
     await expect(
@@ -227,7 +238,55 @@ describe('submit beta feedback server function', () => {
     expect(mocks.captureFeedback).toHaveBeenCalledTimes(1)
   })
 
-  it('denies an organization outside the feedback capability cohort', async () => {
+  it('stamps the masked layout retention from the server clock, not the browser', async () => {
+    const maskedLayout = {
+      width: 1280,
+      height: 800,
+      boxes: [{ x: 0, y: 0, w: 320, h: 48, role: 'heading' as const }],
+    }
+
+    await withStartContext(() =>
+      submitBetaFeedbackHandler({ data: { ...bug, maskedLayout } }),
+    )
+
+    expect(mocks.prepareTriage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachmentKind: 'masked_layout_v1',
+        attachmentCapturedAt: NOW,
+        // Exactly the accepted 30-day horizon, derived here rather than
+        // anywhere a client clock could reach.
+        attachmentExpiresAt: new Date('2026-09-27T08:00:00.000Z'),
+        maskedLayout,
+      }),
+    )
+  })
+
+  it('tells monitoring a layout exists without sending the geometry', async () => {
+    const maskedLayout = {
+      width: 1280,
+      height: 800,
+      boxes: [{ x: 0, y: 0, w: 320, h: 48, role: 'heading' as const }],
+    }
+
+    await withStartContext(() =>
+      submitBetaFeedbackHandler({ data: { ...bug, maskedLayout } }),
+    )
+
+    const captured = mocks.captureFeedback.mock.calls[0]?.[0] as {
+      message: string
+      tags: Record<string, string>
+    }
+    expect(captured.tags.feedback_attachment).toBe('masked_layout_v1')
+    expect(captured.tags.feedback_attachment_retention).toBe('expires_30d')
+    // A shape summary only; the rectangles stay first-party.
+    expect(captured.message).toContain('Masked layout: 1280x800 heading=1')
+    expect(captured.message).not.toContain('"x"')
+  })
+
+  it('accepts a report from an organization in no Portal cohort', async () => {
+    // Regression: reporting used to run through `feedback.respond`, which maps
+    // to the controlled-beta `portal.guest_response` capability. A manager whose
+    // organization had no Portal policy could not report that, or anything else.
     initCapabilityPolicyStore(
       feedbackPolicyStore({
         isOrgAllowlisted: () => false,
@@ -236,11 +295,20 @@ describe('submit beta feedback server function', () => {
 
     await expect(
       withStartContext(() => submitBetaFeedbackHandler({ data: bug })),
-    ).rejects.toMatchObject({
-      name: 'AuthError',
-      code: 'org_not_allowlisted',
-      status: 403,
-    })
+    ).resolves.toEqual({ reference: FEEDBACK_REFERENCE })
+    expect(mocks.captureFeedback).toHaveBeenCalledTimes(1)
+  })
+
+  it('still denies reporting when the capability is killed', async () => {
+    initCapabilityPolicyStore(
+      feedbackPolicyStore({
+        isCapabilityKilled: (capability) => capability === 'feedback.beta_report',
+      }),
+    )
+
+    await expect(
+      withStartContext(() => submitBetaFeedbackHandler({ data: bug })),
+    ).rejects.toMatchObject({ name: 'AuthError', status: 403 })
     expect(mocks.enforceRateLimit).not.toHaveBeenCalled()
     expect(mocks.captureFeedback).not.toHaveBeenCalled()
   })
@@ -299,5 +367,82 @@ describe('submit beta feedback server function', () => {
     ).rejects.toMatchObject({ name: 'InternalError', status: 500 })
     expect(mocks.captureFeedback).not.toHaveBeenCalled()
     expect(mocks.markDelivered).not.toHaveBeenCalled()
+  })
+})
+
+describe('list my beta feedback server function', () => {
+  const report = {
+    reference: FEEDBACK_REFERENCE,
+    feedbackType: 'bug',
+    impactCode: 'cannot_complete',
+    routeKey: 'properties.property.reviews',
+    deliveryState: 'delivered',
+    triageState: 'accepted',
+    engineeringIssueRef: '472',
+    createdAt: NOW,
+    updatedAt: NOW,
+  } as const
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    initPermissionTable()
+    initCapabilityPolicyStore(feedbackPolicyStore())
+    initExecutionPolicy(
+      createExecutionPolicy({ listAccessiblePropertyIds: async () => [] }),
+    )
+    mocks.resolveTenantContext.mockResolvedValue(actor)
+    mocks.listForActor.mockResolvedValue([report])
+  })
+
+  afterEach(() => {
+    resetExecutionPolicy()
+    resetCapabilityPolicyStore()
+  })
+
+  it("scopes the read to the caller's own actor pseudonym", async () => {
+    // The scoping IS the authorization: the query cannot express another
+    // person's reports, so there is no identifier to get wrong.
+    await expect(withStartContext(() => listMyBetaFeedbackHandler())).resolves.toEqual([
+      report,
+    ])
+    expect(mocks.listForActor).toHaveBeenCalledWith('safe-telemetry-actor')
+    expect(mocks.pseudonym).toHaveBeenCalledWith(
+      'feedback-secret',
+      'telemetry-actor',
+      actor.userId,
+    )
+  })
+
+  it('returns nothing rather than failing when the reporter has no reports', async () => {
+    mocks.listForActor.mockResolvedValue([])
+
+    await expect(withStartContext(() => listMyBetaFeedbackHandler())).resolves.toEqual([])
+  })
+
+  it('denies a reporter whose feedback permission is absent', async () => {
+    mocks.resolveTenantContext.mockResolvedValue({
+      ...actor,
+      role: 'PropertyManager',
+      effectivePermissions: new Set<string>(),
+      scopeByPermission: new Map<string, string>(),
+    })
+
+    await expect(
+      withStartContext(() => listMyBetaFeedbackHandler()),
+    ).rejects.toMatchObject({ name: 'AuthError', status: 403 })
+    expect(mocks.listForActor).not.toHaveBeenCalled()
+  })
+
+  it('still denies the read when the capability is killed', async () => {
+    initCapabilityPolicyStore(
+      feedbackPolicyStore({
+        isCapabilityKilled: (capability) => capability === 'feedback.beta_report',
+      }),
+    )
+
+    await expect(
+      withStartContext(() => listMyBetaFeedbackHandler()),
+    ).rejects.toMatchObject({ name: 'AuthError', status: 403 })
+    expect(mocks.listForActor).not.toHaveBeenCalled()
   })
 })

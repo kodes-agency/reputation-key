@@ -30,6 +30,7 @@ export {
 // everywhere, including rows already in the database.
 export type { NotificationPayload } from '../domain/notification-payload'
 export {
+  BETA_FEEDBACK_REPORTS_ANCHOR,
   formatWaitingAge,
   notificationLink,
   renderNotification,

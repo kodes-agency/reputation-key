@@ -10,7 +10,10 @@ import type { DomainEvent } from '#/shared/events/events'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { betaFeedbackInputSchema } from '#/shared/beta-feedback-contract'
+import {
+  betaFeedbackInputSchema,
+  formatBetaFeedbackMessage,
+} from '#/shared/beta-feedback-contract'
 import {
   METRIC_DEFINITIONS,
   labelValueAllowed,
@@ -126,6 +129,7 @@ describe('OBS-01 synthetic privacy exfiltration canary', () => {
     expect(() =>
       betaFeedbackInputSchema.parse({
         kind: 'bug',
+        impact: 'cannot_complete',
         message: 'A reproducible problem.',
         routePath: '/dashboard',
         viewport: 'regular',
@@ -134,5 +138,86 @@ describe('OBS-01 synthetic privacy exfiltration canary', () => {
         attachment: { content: SECRET },
       }),
     ).toThrow(ZodError)
+  })
+
+  it('keeps the masked layout geometry, with no field a marker can survive in', () => {
+    // BETA.md §3 permits a consented Bug layout. What makes that safe is the
+    // SHAPE: rectangles and a closed role vocabulary. These are the ways one
+    // could try to smuggle content through it, and each is refused.
+    const geometry = { x: 0, y: 0, w: 100, h: 40 }
+    const rejected: ReadonlyArray<unknown> = [
+      // A marker as the role, where the only free-ish string would be.
+      { width: 800, height: 600, boxes: [{ ...geometry, role: REVIEW }] },
+      // A marker smuggled as an extra property on a box.
+      {
+        width: 800,
+        height: 600,
+        boxes: [{ ...geometry, role: 'text', label: CONTACT }],
+      },
+      // A marker smuggled as an extra property on the layout.
+      { width: 800, height: 600, boxes: [{ ...geometry, role: 'text' }], src: SECRET },
+      // Pixels by another name.
+      {
+        width: 800,
+        height: 600,
+        boxes: [{ ...geometry, role: 'text' }],
+        image: `data:image/png;base64,${SECRET}`,
+      },
+      // Coordinates are integers, never strings that could carry text.
+      { width: 800, height: 600, boxes: [{ ...geometry, x: REVIEW, role: 'text' }] },
+      { width: SECRET, height: 600, boxes: [{ ...geometry, role: 'text' }] },
+    ]
+
+    for (const maskedLayout of rejected) {
+      expect(() =>
+        betaFeedbackInputSchema.parse({
+          kind: 'bug',
+          impact: 'cannot_complete',
+          message: 'The layout broke.',
+          routePath: '/dashboard',
+          viewport: 'regular',
+          maskedLayout,
+        }),
+      ).toThrow(ZodError)
+    }
+
+    const accepted = betaFeedbackInputSchema.parse({
+      kind: 'bug',
+      impact: 'cannot_complete',
+      message: 'The layout broke.',
+      routePath: '/dashboard',
+      viewport: 'regular',
+      maskedLayout: { width: 800, height: 600, boxes: [{ ...geometry, role: 'text' }] },
+    })
+    expectNoMarkers(accepted)
+    // What travels onward to monitoring is a shape summary, not the geometry.
+    expectNoMarkers(formatBetaFeedbackMessage(accepted))
+  })
+
+  it('keeps the recorded-error link an opaque id rather than a content channel', () => {
+    // The field exists so a Bug can point at an exception monitoring already
+    // holds. It must never become a second way to carry the report itself.
+    for (const marker of MARKERS) {
+      expect(() =>
+        betaFeedbackInputSchema.parse({
+          kind: 'bug',
+          impact: 'cannot_complete',
+          message: 'A reproducible problem.',
+          routePath: '/dashboard',
+          viewport: 'regular',
+          clientErrorEventId: marker,
+        }),
+      ).toThrow(ZodError)
+    }
+
+    const accepted = betaFeedbackInputSchema.parse({
+      kind: 'bug',
+      impact: 'cannot_complete',
+      message: 'A reproducible problem.',
+      routePath: '/dashboard',
+      viewport: 'regular',
+      clientErrorEventId: 'a'.repeat(32),
+    })
+    expectNoMarkers(accepted)
   })
 })

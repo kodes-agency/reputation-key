@@ -29,7 +29,10 @@ import { hasRole } from '#/shared/domain/roles'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
 import { partitionWorkspaceProperties } from '#/components/features/property/property-workspace'
-import { submitBetaFeedbackFn } from '#/contexts/identity/server/beta-feedback'
+import {
+  listMyBetaFeedbackFn,
+  submitBetaFeedbackFn,
+} from '#/contexts/identity/server/beta-feedback'
 import { useState } from 'react'
 
 export type AuthRouteContext = Readonly<{
@@ -230,6 +233,9 @@ function AuthenticatedLayout() {
           notificationFns={notificationFns}
           submitBetaFeedback={
             hasRole(ctx.role, 'PropertyManager') ? submitBetaFeedbackFn : undefined
+          }
+          listBetaFeedback={
+            hasRole(ctx.role, 'PropertyManager') ? listMyBetaFeedbackFn : undefined
           }
         />
         <main

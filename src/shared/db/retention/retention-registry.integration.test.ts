@@ -196,6 +196,7 @@ describe('retention registry report-only mode', () => {
       'platform.published_outbox_events',
       'platform.event_consumer_receipts',
       'platform.audit_logs',
+      'identity.beta_feedback_masked_layout',
       'integration.provider_tokens',
     ])
 

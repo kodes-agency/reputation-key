@@ -272,6 +272,7 @@ const config = defineConfig(({ mode }) => {
                     '**/shared/observability/sentry-event-scrub.ts',
                     '**/shared/observability/sensitive-field-policy.ts',
                     '**/shared/observability/browser-exception-capture.ts',
+                    '**/shared/observability/recorded-browser-errors.ts',
                     '**/shared/observability/browser-observability.server.ts',
                   ],
                 },

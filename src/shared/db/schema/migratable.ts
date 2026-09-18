@@ -14,6 +14,7 @@
 export * from './ai.schema'
 export * from './activity.schema'
 export * from './audit'
+export * from './beta-feedback-masked-layout.schema'
 export * from './beta-feedback-triage.schema'
 export * from './dac.schema'
 export * from './goal.schema'

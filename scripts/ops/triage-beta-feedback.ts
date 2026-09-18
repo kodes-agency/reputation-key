@@ -8,6 +8,7 @@ import { getEnv } from '../../src/shared/config/env'
 import { parseBetaFeedbackTriageInvocation } from '../../src/contexts/identity/application/beta-feedback-triage-invocation'
 import { BetaFeedbackTriageRepository } from '../../src/contexts/identity/infrastructure/beta-feedback-triage.repository'
 import { betaFeedbackPseudonym } from '../../src/contexts/identity/application/beta-feedback-pseudonym'
+import { resolveBetaFeedbackReporter } from '../../src/contexts/identity/infrastructure/beta-feedback-reporter'
 import { runOperatorCommand } from './operator-command'
 
 const COMMAND = 'ops:triage-beta-feedback'
@@ -58,7 +59,17 @@ async function main(): Promise<void> {
       }
 
       const secret = getEnv().BETTER_AUTH_SECRET
+      // ADR 0059: an outcome the reporter should hear about is resolved to its
+      // reporter here, and the repository writes the notice's fact atomically.
+      const reachesOutcome = ['accepted', 'declined', 'resolved'].includes(
+        invocation.toState,
+      )
+      const current = reachesOutcome ? await repository.find(invocation.reference) : null
+      const outcomeRecipient = current
+        ? await resolveBetaFeedbackReporter(getDb(), secret, current)
+        : null
       await repository.transition({
+        outcomeRecipient,
         transitionId: invocation.transitionId,
         reference: invocation.reference,
         operatorPseudonym: betaFeedbackPseudonym(

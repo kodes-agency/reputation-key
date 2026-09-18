@@ -53,6 +53,15 @@ const AUDIT_EVIDENCE_RETENTION_MS = 365 * DAY_MS
  */
 export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
   {
+    // BETA.md §3: an optional Bug layout is kept no more than 30 days. The
+    // row's own CHECK fixes the deadline at capture; this deletes on it.
+    subject: 'beta_feedback_masked_layouts.expired',
+    table: 'beta_feedback_masked_layouts',
+    keyColumns: ['feedback_reference'],
+    tsColumn: 'expires_at',
+    olderThanMs: 0,
+  },
+  {
     subject: 'guest_response_private_feedback.expired',
     table: 'guest_response_private_feedback',
     keyColumns: ['response_id'],

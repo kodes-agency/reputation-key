@@ -1,6 +1,6 @@
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { organizationId, unbrand, type OrganizationId } from '#/shared/domain/ids'
+import { organizationId, unbrand, userId, type OrganizationId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { NotificationType } from '../domain/notification-types'
@@ -206,6 +206,67 @@ export function registerOrganizationPurgePendingNoticeConsumer(
   })
 }
 
+/** ADR 0059: the reporter hears that their own beta report reached an outcome. */
+export const BETA_FEEDBACK_OUTCOME_CONSUMER =
+  'notification.on-identity-beta-feedback-outcome' as const
+
+type BetaFeedbackOutcomePayload = Readonly<{
+  organizationId: string
+  userId: string
+  reference: string
+  outcome: 'accepted' | 'declined' | 'resolved'
+}>
+
+/**
+ * Enqueue the reporter's in-app notice. The recipient is the reporter named by
+ * the durable fact, and the insert job re-reads that fact through the account
+ * authority before writing, so a queued job cannot redirect it to anyone else.
+ * The resource is the report's opaque reference: a report that is accepted and
+ * later resolved coalesces into one unread row that says where it ended up.
+ */
+export async function handleBetaFeedbackOutcomeEvent(
+  deps: IdentityAccountNotificationConsumerDeps,
+  event: ConsumerEvent,
+): Promise<Readonly<{ status: 'applied' }>> {
+  if (event.propertyId !== null || event.sourceContext !== 'identity') {
+    throw new Error('Beta feedback outcome envelope attribution mismatch')
+  }
+  const payload = validateEventPayload(
+    'identity.beta_feedback.outcome_reached',
+    event.eventVersion,
+    event.payload,
+  ) as BetaFeedbackOutcomePayload | undefined
+  if (!payload || payload.organizationId !== event.organizationId) {
+    throw new Error('Beta feedback outcome envelope attribution mismatch')
+  }
+
+  await deps.queue.add(
+    INSERT_NOTIFICATION_JOB_NAME,
+    {
+      userId: userId(payload.userId),
+      organizationId: organizationId(event.organizationId),
+      propertyId: null,
+      type: 'beta_feedback.outcome',
+      resourceType: 'beta_feedback_report',
+      resourceId: payload.reference,
+      eventId: event.eventId,
+      payload: { reportOutcome: payload.outcome },
+      audience: {
+        kind: 'affected_organization_user',
+        eventId: event.eventId,
+        eventType: 'identity.beta_feedback.outcome_reached',
+      },
+    },
+    { jobId: `${event.eventId}-${payload.userId}` },
+  )
+  await deps.receipts.insertReceipt(
+    event.eventId,
+    BETA_FEEDBACK_OUTCOME_CONSUMER,
+    'applied',
+  )
+  return { status: 'applied' }
+}
+
 export function registerIdentityAccountNotificationConsumers(
   registry: ConsumerRegistry,
   deps: IdentityAccountNotificationConsumerDeps,
@@ -230,5 +291,11 @@ export function registerIdentityAccountNotificationConsumers(
     consumerName: 'notification.on-identity-member-removed',
     module: 'notification.identity-account-outbox-consumers',
     handler: (event) => handleIdentityAccountNotificationEvent(deps, event),
+  })
+  registerConsumer({
+    eventType: 'identity.beta_feedback.outcome_reached',
+    consumerName: 'notification.on-identity-beta-feedback-outcome',
+    module: 'notification.identity-account-outbox-consumers',
+    handler: (event) => handleBetaFeedbackOutcomeEvent(deps, event),
   })
 }

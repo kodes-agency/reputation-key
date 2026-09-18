@@ -25,7 +25,8 @@ import type { NotificationServerFns } from './types'
 
 export type NotificationFixtureOverrides = Readonly<{
   id: string
-  propertyId?: string
+  /** `null` for an Organization-scoped notice (mandatory, or ADR 0059). */
+  propertyId?: string | null
   type?: NotificationType
   priority?: NotificationPriority
   status?: NotificationStatus
@@ -53,9 +54,10 @@ export function makeNotification(overrides: NotificationFixtureOverrides): Notif
     id: notificationId(overrides.id),
     userId: userId('11111111-1111-4111-8111-111111111111'),
     organizationId: organizationId('22222222-2222-4222-8222-222222222222'),
-    propertyId: propertyId(
-      overrides.propertyId ?? '33333333-3333-4333-8333-333333333333',
-    ),
+    propertyId:
+      overrides.propertyId === null
+        ? null
+        : propertyId(overrides.propertyId ?? '33333333-3333-4333-8333-333333333333'),
     type,
     category: classifyNotification(type),
     priority: overrides.priority ?? 'normal',

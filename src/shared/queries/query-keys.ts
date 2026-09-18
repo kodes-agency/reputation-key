@@ -110,6 +110,8 @@ export const identityKeys = {
   merchantAiOverview: () => [...identityKeys.all, 'merchant-ai-overview'] as const,
   /** The Merchant AI notice currently served, independent of any Property. */
   merchantAiNotice: () => [...identityKeys.all, 'merchant-ai-notice'] as const,
+  /** The signed-in reporter's own beta reports and their triage state. */
+  myBetaFeedback: () => [...identityKeys.all, 'beta-feedback', 'mine'] as const,
 }
 
 // ── Properties ──────────────────────────────────────────────────────────

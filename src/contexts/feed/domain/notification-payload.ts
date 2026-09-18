@@ -54,7 +54,14 @@ export type NotificationPayload = Readonly<{
   occurrences?: number
   /** Number of Inbox items represented by one grouped assignment fact. */
   itemCount?: number
+  /**
+   * Where the recipient's own beta report ended up (`beta_feedback.outcome`).
+   * A closed enum, never the report's text — that stays in monitoring.
+   */
+  reportOutcome?: NotificationReportOutcome
 }>
+
+export type NotificationReportOutcome = 'accepted' | 'declined' | 'resolved'
 
 const ACTOR_ROLES: Record<string, true> = {
   account_admin: true,
@@ -63,6 +70,12 @@ const ACTOR_ROLES: Record<string, true> = {
 }
 
 const PLATFORMS: Record<string, true> = { google: true, portal: true }
+
+const REPORT_OUTCOMES: Record<string, true> = {
+  accepted: true,
+  declined: true,
+  resolved: true,
+}
 
 /** Longest free-ish text we accept. Names, not prose. */
 const MAX_NAME_LENGTH = 120
@@ -123,6 +136,10 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   set('goalName', takeText(raw.goalName, MAX_NAME_LENGTH))
   set('occurrences', takeCount(raw.occurrences))
   set('itemCount', takeCount(raw.itemCount))
+  set(
+    'reportOutcome',
+    takeMember<NotificationReportOutcome>(raw.reportOutcome, REPORT_OUTCOMES),
+  )
 
   return parsed as NotificationPayload
 }

@@ -1,11 +1,16 @@
 import {
   type BetaFeedbackInput,
+  type BetaFeedbackReportView,
   classifyBetaFeedbackViewport,
 } from '#/shared/beta-feedback-contract'
 
 export type SubmitBetaFeedback = (
   input: Readonly<{ data: BetaFeedbackInput }>,
 ) => Promise<Readonly<{ reference: string }>>
+
+export type MyBetaFeedbackItem = BetaFeedbackReportView
+
+export type ListMyBetaFeedback = () => Promise<readonly MyBetaFeedbackItem[]>
 
 export type BetaFeedbackFormProps = Readonly<{
   submitFeedback: SubmitBetaFeedback

@@ -58,7 +58,12 @@ provided by composition; modules do not read ambient roots.
    execution policy immediately before the provider effect.
 5. User-facing notification copy is produced only by
    `domain/notification-templates.ts`.
-6. Operational Action History list/export responses are private and no-store.
+6. Mandatory notices are Organization-scoped; every other notice is
+   Property-scoped, with one named exception. `beta_feedback.outcome` is
+   Organization-scoped `workflow_collaboration`: in-app by ADR 0046 defaults,
+   never mailed, and admitted by name in `notifications_mandatory_scope_check`
+   (ADR 0059). A new exception needs its own ADR and a CHECK change.
+7. Operational Action History list/export responses are private and no-store.
 
 ## Verification
 

@@ -1,98 +1,93 @@
-import { useState } from 'react'
-import { CheckCircle2, MessageSquarePlus, ShieldCheck } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
+import { MessageSquarePlus } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '#/components/ui/dialog'
-import { type SubmitBetaFeedback } from './beta-feedback-form-context'
-import { BetaFeedbackForm } from './beta-feedback-form'
+import { BETA_FEEDBACK_REPORTS_ANCHOR } from '#/contexts/feed/application/public-api'
+import type { ListMyBetaFeedback, SubmitBetaFeedback } from './beta-feedback-form-context'
+
+// The app shell mounts this launcher on every authenticated page, but nobody
+// needs the form, the reports panel or TanStack Form until they open it. Split
+// here keeps all of that out of the initial closure the bundle budget guards.
+const BetaFeedbackDialogBody = lazy(() => import('./beta-feedback-dialog-body'))
+// The unread-outcome marker is split for the same reason; it fetches the
+// reporter's list once per app load and shares the reports panel's cache.
+const BetaFeedbackUpdatesDot = lazy(() => import('./beta-feedback-updates-dot'))
 
 type Props = Readonly<{
   submitFeedback: SubmitBetaFeedback
+  listFeedback?: ListMyBetaFeedback
 }>
 
-function PrivacyNotice() {
-  return (
-    <div className="flex gap-3 rounded-lg border bg-muted/35 p-3 text-sm">
-      <ShieldCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-      <div className="space-y-1 text-muted-foreground">
-        <p>
-          Only the text you enter, controlled diagnostic categories, and an opaque receipt
-          are sent.
-        </p>
-        <p>
-          Please don&apos;t include guest names, review text, contact details, passwords,
-          or access codes. RepKey never records a replay or screenshot.
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function FeedbackReceipt({ reference }: Readonly<{ reference: string }>) {
-  return (
-    <div className="space-y-5 py-2" aria-live="polite">
-      <div className="flex gap-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <CheckCircle2 className="size-5" />
-        </div>
-        <div className="space-y-1">
-          <h3 className="font-medium">Thanks — we received it</h3>
-          <p className="text-sm text-muted-foreground">
-            Your report is available to the RepKey beta team. It does not create a public
-            issue.
-          </p>
-        </div>
-      </div>
-      <div className="rounded-md border bg-muted/35 px-3 py-2">
-        <p className="text-xs font-medium text-muted-foreground">Reference</p>
-        <p className="mt-1 break-all font-mono text-sm">{reference}</p>
-      </div>
-      <DialogFooter>
-        <DialogClose asChild>
-          <Button>Done</Button>
-        </DialogClose>
-      </DialogFooter>
-    </div>
-  )
-}
-
-function FeedbackDialogBody({ submitFeedback }: Props) {
-  const [reference, setReference] = useState<string | null>(null)
-
-  if (reference) return <FeedbackReceipt reference={reference} />
-
-  return (
-    <>
-      <PrivacyNotice />
-      <BetaFeedbackForm submitFeedback={submitFeedback} onSubmitted={setReference} />
-    </>
-  )
+function DialogBodyFallback() {
+  return <div className="h-64 animate-pulse rounded-md bg-muted" aria-busy="true" />
 }
 
 /** Low-noise, manager-only entry point mounted by the authenticated app shell. */
-export function BetaFeedbackLauncher({ submitFeedback }: Props) {
+export function BetaFeedbackLauncher({ submitFeedback, listFeedback }: Props) {
   const [open, setOpen] = useState(false)
+  const [initialPanel, setInitialPanel] = useState<'report' | 'reports'>('report')
+  // Bumped when the reports panel records what was seen, so the marker re-reads.
+  const [seenVersion, setSeenVersion] = useState(0)
+  const onReportsSeen = useCallback(() => setSeenVersion((version) => version + 1), [])
+
+  // A report-outcome notification links here with this hash (ADR 0059): the
+  // reports live in this dialog, not on a route. Opening is derived from the
+  // fragment CHANGING, during render, so it needs no state-setting effect; the
+  // previous value starts empty so a deep link that mounts the page opens too.
+  const fragment = useRouterState({ select: (state) => state.location.hash })
+  const [previousFragment, setPreviousFragment] = useState('')
+  if (fragment !== previousFragment) {
+    setPreviousFragment(fragment)
+    if (fragment === BETA_FEEDBACK_REPORTS_ANCHOR && listFeedback) {
+      setInitialPanel('reports')
+      setOpen(true)
+    }
+  }
+  // Then consume the fragment, so the same notification can open it again later.
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (fragment === BETA_FEEDBACK_REPORTS_ANCHOR) {
+      void navigate({ to: '.', hash: '', replace: true })
+    }
+  }, [fragment, navigate])
+
+  const onOpenChange = (next: boolean): void => {
+    setOpen(next)
+    // The next ordinary open starts where a reporter expects: on the form.
+    if (!next) setInitialPanel('report')
+  }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="gap-2"
-          aria-label="Send beta feedback"
-        >
-          <MessageSquarePlus className="size-4" />
-          <span className="hidden sm:inline">Beta feedback</span>
+        {/*
+          The accessible name is built from content rather than aria-label: it
+          starts with the visible word "Feedback" (WCAG 2.5.3), and the
+          code-split marker can append "— 1 report updated" without the
+          launcher carrying that state.
+        */}
+        <Button type="button" variant="ghost" size="sm" className="relative gap-2">
+          <MessageSquarePlus className="size-4" aria-hidden="true" />
+          <span className="sr-only">Feedback: report a problem or share an idea</span>
+          <span className="hidden sm:inline" aria-hidden="true">
+            Feedback
+          </span>
+          {listFeedback && (
+            <Suspense fallback={null}>
+              <BetaFeedbackUpdatesDot
+                listFeedback={listFeedback}
+                seenVersion={seenVersion}
+              />
+            </Suspense>
+          )}
         </Button>
       </DialogTrigger>
       {open && (
@@ -103,11 +98,18 @@ export function BetaFeedbackLauncher({ submitFeedback }: Props) {
           <DialogHeader>
             <DialogTitle>Help shape RepKey</DialogTitle>
             <DialogDescription>
-              Report a problem or suggest an improvement. You&apos;ll receive a reference
-              after it is sent.
+              Tell us what broke or what would work better. You&apos;ll get a reference,
+              and you can follow what happens to it.
             </DialogDescription>
           </DialogHeader>
-          <FeedbackDialogBody submitFeedback={submitFeedback} />
+          <Suspense fallback={<DialogBodyFallback />}>
+            <BetaFeedbackDialogBody
+              submitFeedback={submitFeedback}
+              listFeedback={listFeedback}
+              onReportsSeen={onReportsSeen}
+              initialPanel={initialPanel}
+            />
+          </Suspense>
         </DialogContent>
       )}
     </Dialog>

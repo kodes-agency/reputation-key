@@ -84,6 +84,11 @@ export const notifications = pgTable(
       'notifications_source_content_free_check',
       sql`NOT (COALESCE(${t.payload}, '{}'::jsonb) ? 'rating') AND CASE WHEN COALESCE(${t.payload}, '{}'::jsonb) ? 'guestRating' THEN COALESCE(${t.payload}->>'platform' = 'portal' AND jsonb_typeof(${t.payload}->'guestRating') = 'number' AND ${t.payload}->>'guestRating' = ANY (ARRAY['1', '2', '3', '4', '5']::text[]), false) ELSE true END`,
     ),
+    // ADR 0046 / ADR 0059. Three shapes and no others: a mandatory account
+    // notice belongs to the Organization; a report outcome belongs to the
+    // Organization and points at the report, as `workflow_collaboration`; every
+    // other notice is Property-scoped and may point at neither. Naming the one
+    // informational type keeps the relaxation from widening by accident.
     check(
       'notifications_mandatory_scope_check',
       sql`(
@@ -91,9 +96,14 @@ export const notifications = pgTable(
         AND ${t.propertyId} IS NULL
         AND ${t.resourceType} = 'organization'
       ) OR (
+        ${t.type} = 'beta_feedback.outcome'
+        AND ${t.category} = 'workflow_collaboration'
+        AND ${t.propertyId} IS NULL
+        AND ${t.resourceType} = 'beta_feedback_report'
+      ) OR (
         ${t.category} <> 'mandatory'
         AND ${t.propertyId} IS NOT NULL
-        AND ${t.resourceType} <> 'organization'
+        AND ${t.resourceType} NOT IN ('organization', 'beta_feedback_report')
       )`,
     ),
   ],

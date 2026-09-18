@@ -42,7 +42,10 @@ export const statement = {
   portal: ['read', 'create', 'update', 'delete', 'admin'],
   review: ['read'],
   reply: ['manage'],
-  feedback: ['read', 'handle', 'respond', 'contact_read'],
+  // `beta_report` is the in-app Bug/Suggestion channel. It is deliberately
+  // separate from the guest-feedback actions above: reporting a problem must
+  // not depend on a Portal capability that may be off for the Organization.
+  feedback: ['read', 'handle', 'respond', 'contact_read', 'beta_report'],
   goal: ['read', 'create', 'update', 'cancel'],
   inbox: ['read', 'write', 'manage'],
   notification: ['read', 'update'],
@@ -79,7 +82,7 @@ export const admin = ac.newRole({
   portal: ['read', 'create', 'update'],
   review: ['read'],
   reply: ['manage'],
-  feedback: ['read', 'handle', 'respond', 'contact_read'],
+  feedback: ['read', 'handle', 'respond', 'contact_read', 'beta_report'],
   inbox: ['read', 'write', 'manage'],
   notification: ['read', 'update'],
   organization: ['update'],

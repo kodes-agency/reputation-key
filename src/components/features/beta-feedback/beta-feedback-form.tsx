@@ -1,5 +1,6 @@
-import { useForm } from '@tanstack/react-form'
-import type { z } from 'zod/v4'
+import { useMemo, useState } from 'react'
+import { useForm, useStore } from '@tanstack/react-form'
+import { Bug, Lightbulb } from 'lucide-react'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextarea } from '#/components/forms/form-textarea'
@@ -8,93 +9,221 @@ import { SubmitButton } from '#/components/forms/submit-button'
 import { useAction } from '#/components/hooks/use-action'
 import { Button } from '#/components/ui/button'
 import { DialogClose, DialogFooter } from '#/components/ui/dialog'
-import { Field, FieldGroup, FieldLabel } from '#/components/ui/field'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
+import { Kbd } from '#/components/ui/kbd'
 import { betaFeedbackInputSchema } from '#/shared/beta-feedback-contract'
+import type {
+  BetaFeedbackImpact,
+  BetaFeedbackType,
+} from '#/shared/beta-feedback-contract'
+import type { MaskedLayout } from '#/shared/beta-feedback-layout'
+import { latestRecordedError } from '#/shared/observability/recorded-browser-errors'
+import { captureCurrentMaskedLayout } from './beta-feedback-capture'
+import { BetaFeedbackChoiceGroup, type BetaFeedbackChoice } from './beta-feedback-choice'
+import { BetaFeedbackErrorNotice } from './beta-feedback-error-notice'
+import { BetaFeedbackLayoutConsent } from './beta-feedback-layout-consent'
 import {
   type BetaFeedbackFormProps,
   currentBetaFeedbackContext,
 } from './beta-feedback-form-context'
+import {
+  betaFeedbackFormSchema,
+  emptyBetaFeedbackForm,
+  impactForType,
+  impactOptionsFor,
+  toBetaFeedbackInput,
+} from './beta-feedback-form-model'
 
-type FeedbackFormValues = z.input<typeof betaFeedbackInputSchema>
-
-const defaultValues: FeedbackFormValues = {
-  kind: 'bug',
-  message: '',
-  routePath: '/',
-  viewport: 'regular',
-}
+const TYPE_OPTIONS: ReadonlyArray<BetaFeedbackChoice<BetaFeedbackType>> = [
+  {
+    value: 'bug',
+    label: 'Something is broken',
+    hint: 'An error, a wrong result, or a step that will not complete',
+    icon: <Bug className="size-4" />,
+  },
+  {
+    value: 'suggestion',
+    label: 'I have an idea',
+    hint: 'A change that would make your work easier',
+    icon: <Lightbulb className="size-4" />,
+  },
+]
 
 export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFormProps) {
   const submit = useAction(submitFeedback)
+  // Read once on mount: the list must not shift while the reporter is typing.
+  const [recordedError] = useState(() => latestRecordedError())
+  // Captured once, when the dialog opens over the page the reporter is
+  // describing. Re-capturing later would picture the form, not the bug.
+  const [maskedLayout, setMaskedLayout] = useState<MaskedLayout | null>(() =>
+    captureCurrentMaskedLayout(),
+  )
+
   const form = useForm({
-    defaultValues,
-    validators: { onSubmit: betaFeedbackInputSchema },
+    defaultValues: emptyBetaFeedbackForm,
+    validators: { onSubmit: betaFeedbackFormSchema },
     onSubmit: async ({ value }) => {
-      const data = betaFeedbackInputSchema.parse({
-        ...value,
-        ...currentBetaFeedbackContext(),
-      })
+      const values = betaFeedbackFormSchema.parse(value)
+      const data = betaFeedbackInputSchema.parse(
+        toBetaFeedbackInput(
+          values,
+          currentBetaFeedbackContext(),
+          recordedError?.eventId ?? null,
+          maskedLayout,
+        ),
+      )
       const receipt = await submit({ data })
       onSubmitted(receipt.reference)
     },
   })
 
+  const kind = useStore(form.store, (state) => state.values.kind) as BetaFeedbackType
+  const isBug = kind === 'bug'
+  const impactOptions = useMemo(() => impactOptionsFor(kind), [kind])
+
+  const onKeyDown = (event: React.KeyboardEvent<HTMLFormElement>): void => {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.preventDefault()
+      void form.handleSubmit()
+    }
+  }
+
   return (
-    <form onSubmit={submitHandler(form)} className="space-y-5">
+    <form onSubmit={submitHandler(form)} onKeyDown={onKeyDown} className="space-y-5">
       <FormErrorBanner error={submit.error} />
-      <FieldGroup className="gap-4">
-        <form.Field name="kind">
+
+      <form.Field name="kind">
+        {(field) => (
+          <BetaFeedbackChoiceGroup
+            legend="What would you like to tell us?"
+            name="beta-feedback-kind"
+            layout="cards"
+            value={field.state.value as BetaFeedbackType}
+            options={TYPE_OPTIONS}
+            disabled={submit.isPending}
+            onChange={(next) => {
+              field.handleChange(next)
+              // Impact scales differ per type; keep the form in a valid state.
+              form.setFieldValue(
+                'impact',
+                impactForType(next, form.getFieldValue('impact') as BetaFeedbackImpact),
+              )
+            }}
+          />
+        )}
+      </form.Field>
+
+      {isBug && recordedError && (
+        <form.Field name="includeRecordedError">
           {(field) => (
-            <Field>
-              <FieldLabel htmlFor="beta-feedback-kind">Feedback type</FieldLabel>
-              <Select
-                value={field.state.value}
-                onValueChange={(value) =>
-                  field.handleChange(value as 'bug' | 'suggestion')
-                }
-                disabled={submit.isPending}
-              >
-                <SelectTrigger id="beta-feedback-kind" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bug">Report a bug</SelectItem>
-                  <SelectItem value="suggestion">Make a suggestion</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          )}
-        </form.Field>
-        <form.Field name="message">
-          {(field: BaseFieldApiTextarea) => (
-            <FormTextarea
-              field={field}
-              id="beta-feedback-message"
-              label="Your feedback"
-              placeholder="Tell us what happened or what would make your work easier."
-              rows={6}
-              maxLength={6_000}
+            <BetaFeedbackErrorNotice
+              eventId={recordedError.eventId}
+              checked={field.state.value === true}
+              onCheckedChange={field.handleChange}
               disabled={submit.isPending}
             />
           )}
         </form.Field>
-      </FieldGroup>
-      <DialogFooter>
-        <DialogClose asChild>
-          <Button type="button" variant="outline" disabled={submit.isPending}>
-            Cancel
-          </Button>
-        </DialogClose>
-        <SubmitButton mutation={submit} form={form}>
-          Send feedback
-        </SubmitButton>
+      )}
+
+      {isBug && maskedLayout && (
+        <form.Field name="includeMaskedLayout">
+          {(field) => (
+            <BetaFeedbackLayoutConsent
+              layout={maskedLayout}
+              included={field.state.value === true}
+              onIncludedChange={field.handleChange}
+              onRemove={() => {
+                // Removal discards the capture outright, so a later re-consent
+                // cannot resurrect a picture the reporter chose to drop.
+                field.handleChange(false)
+                setMaskedLayout(null)
+              }}
+              disabled={submit.isPending}
+            />
+          )}
+        </form.Field>
+      )}
+
+      <div className="space-y-4">
+        {isBug && (
+          <form.Field name="context">
+            {(field: BaseFieldApiTextarea) => (
+              <FormTextarea
+                field={field}
+                id="beta-feedback-context"
+                label="What were you doing?"
+                placeholder="Opening the Reviews page for a property…"
+                rows={2}
+                maxLength={2_000}
+                disabled={submit.isPending}
+              />
+            )}
+          </form.Field>
+        )}
+
+        <form.Field name="observed">
+          {(field: BaseFieldApiTextarea) => (
+            <FormTextarea
+              field={field}
+              id="beta-feedback-observed"
+              label={isBug ? 'What happened?' : 'What would make your work easier?'}
+              placeholder={
+                isBug
+                  ? 'The page stayed empty and nothing loaded.'
+                  : 'Tell us what you would change, and what it would let you do.'
+              }
+              rows={isBug ? 3 : 5}
+              maxLength={2_000}
+              disabled={submit.isPending}
+            />
+          )}
+        </form.Field>
+
+        {isBug && (
+          <form.Field name="expected">
+            {(field: BaseFieldApiTextarea) => (
+              <FormTextarea
+                field={field}
+                id="beta-feedback-expected"
+                label="What did you expect instead?"
+                placeholder="The reviews for that property should have appeared."
+                rows={2}
+                maxLength={2_000}
+                disabled={submit.isPending}
+              />
+            )}
+          </form.Field>
+        )}
+      </div>
+
+      <form.Field name="impact">
+        {(field) => (
+          <BetaFeedbackChoiceGroup
+            legend={isBug ? 'How much did this affect you?' : 'How much would this help?'}
+            name="beta-feedback-impact"
+            layout="rows"
+            value={field.state.value as BetaFeedbackImpact}
+            options={impactOptions}
+            disabled={submit.isPending}
+            onChange={field.handleChange}
+          />
+        )}
+      </form.Field>
+
+      <DialogFooter className="items-center gap-2 sm:justify-between">
+        <p className="hidden text-xs text-muted-foreground sm:block">
+          <Kbd>⌘</Kbd> <Kbd>↵</Kbd> to send
+        </p>
+        <div className="flex gap-2">
+          <DialogClose asChild>
+            <Button type="button" variant="outline" disabled={submit.isPending}>
+              Cancel
+            </Button>
+          </DialogClose>
+          <SubmitButton mutation={submit} form={form}>
+            Send report
+          </SubmitButton>
+        </div>
       </DialogFooter>
     </form>
   )

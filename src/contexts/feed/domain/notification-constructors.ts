@@ -21,10 +21,15 @@ import type {
   PropertyId,
 } from '#/shared/domain/ids'
 import { notificationError, type NotificationError } from './notification-errors'
-import { isUrgent, NOTIFICATION_TYPES } from './notification-types'
+import {
+  isUrgent,
+  NOTIFICATION_RESOURCE_TYPES,
+  NOTIFICATION_TYPES,
+} from './notification-types'
 import {
   classifyNotification,
   notificationScopeForType,
+  ORGANIZATION_INFORMATIONAL_TYPES,
 } from './notification-delivery-policy'
 import {
   parseNotificationPayload,
@@ -36,16 +41,17 @@ import { renderNotification } from './notification-templates'
 
 const ALLOWED_TYPES: ReadonlySet<NotificationType> = new Set(NOTIFICATION_TYPES)
 
-const ALLOWED_RESOURCE_TYPES: ReadonlySet<NotificationResourceType> = new Set([
-  'inbox_item',
-  'reply',
-  'goal',
-  'badge',
-  'portal',
-  'property',
-  'integration',
-  'organization',
-])
+const ALLOWED_RESOURCE_TYPES: ReadonlySet<NotificationResourceType> = new Set(
+  NOTIFICATION_RESOURCE_TYPES,
+)
+
+/**
+ * The one resource each Organization-scoped family may point at. Mandatory
+ * account notices point at the Organization; an informational notice points at
+ * the record it is about, so its link and its coalescing key are that record.
+ */
+const organizationResourceFor = (type: NotificationType): NotificationResourceType =>
+  ORGANIZATION_INFORMATIONAL_TYPES.has(type) ? 'beta_feedback_report' : 'organization'
 
 // ── Create notification ─────────────────────────────────────────────
 
@@ -66,6 +72,38 @@ export type CreateNotificationInput = Readonly<{
    */
   payload?: unknown
 }>
+
+/**
+ * The scope rules the database also enforces (`notifications_mandatory_scope_check`,
+ * ADR 0046 / ADR 0059), as one unit: which Property and which resource each
+ * family may name. Returns the refusal, or null when the shape is admitted.
+ */
+function scopeViolation(
+  input: Pick<CreateNotificationInput, 'type' | 'propertyId' | 'resourceType'>,
+): string | null {
+  if (notificationScopeForType(input.type) === 'organization') {
+    const informational = ORGANIZATION_INFORMATIONAL_TYPES.has(input.type)
+    if (input.propertyId !== null) {
+      return informational
+        ? 'Report-outcome notifications are Organization-scoped and cannot name a Property'
+        : 'Mandatory notifications must use Organization scope'
+    }
+    if (input.resourceType !== organizationResourceFor(input.type)) {
+      return informational
+        ? 'Report-outcome notifications must point at the report'
+        : 'Mandatory notifications must use an Organization resource'
+    }
+    return null
+  }
+  if (!input.propertyId) return 'propertyId is required'
+  if (input.resourceType === 'beta_feedback_report') {
+    return 'Property notifications cannot point at a beta report'
+  }
+  if (input.resourceType === 'organization') {
+    return 'Property notifications cannot use an Organization resource'
+  }
+  return null
+}
 
 export const createNotification = (
   input: CreateNotificationInput,
@@ -92,34 +130,8 @@ export const createNotification = (
     )
   }
 
-  const scope = notificationScopeForType(input.type)
-  if (scope === 'organization' && input.propertyId !== null) {
-    return err(
-      notificationError(
-        'invalid_input',
-        'Mandatory notifications must use Organization scope',
-      ),
-    )
-  }
-  if (scope === 'organization' && input.resourceType !== 'organization') {
-    return err(
-      notificationError(
-        'invalid_input',
-        'Mandatory notifications must use an Organization resource',
-      ),
-    )
-  }
-  if (scope === 'property' && !input.propertyId) {
-    return err(notificationError('invalid_input', 'propertyId is required'))
-  }
-  if (scope === 'property' && input.resourceType === 'organization') {
-    return err(
-      notificationError(
-        'invalid_input',
-        'Property notifications cannot use an Organization resource',
-      ),
-    )
-  }
+  const scopeError = scopeViolation(input)
+  if (scopeError) return err(notificationError('invalid_input', scopeError))
 
   // The old `invalid_title` guard is gone: a title is no longer supplied, it is
   // rendered, and every renderer returns a non-empty title for an EMPTY

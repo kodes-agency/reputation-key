@@ -4,6 +4,7 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import type { Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
+import { maskedLayoutExpiry } from '#/shared/beta-feedback-layout'
 import { BetaFeedbackTriageRepository } from './beta-feedback-triage.repository'
 
 const NOW = new Date('2026-08-28T08:00:00.000Z')
@@ -24,6 +25,8 @@ function prepare(reference = randomUUID()) {
     actorPseudonym: HASH_B,
     feedbackType: 'bug' as const,
     impactCode: 'workaround_available' as const,
+    clientErrorEventId: null,
+    maskedLayout: null,
     routeKey: 'properties.list',
     viewport: 'wide' as const,
     reporterRole: 'PropertyManager' as const,
@@ -32,6 +35,31 @@ function prepare(reference = randomUUID()) {
     attachmentExpiresAt: null,
     now: NOW,
   } as const
+}
+
+type DriverFailure = Readonly<{ cause?: { constraint?: string; code?: string } }>
+
+/**
+ * Assert that PostgreSQL refused the write, and name the control that refused
+ * it — the CHECK by name, or a SQLSTATE for the ones the column type catches
+ * first. Drizzle wraps the driver error, so both live on the cause rather than
+ * in the thrown message.
+ */
+async function expectRefusedByDatabase(
+  operation: Promise<unknown>,
+  expected: Readonly<{ constraint: string } | { sqlState: string }>,
+): Promise<void> {
+  const caught = await operation.then(
+    () => null,
+    (error: unknown) => error,
+  )
+  expect(caught, 'expected PostgreSQL to refuse the write').not.toBeNull()
+  const cause = (caught as DriverFailure).cause
+  if ('constraint' in expected) {
+    expect(cause?.constraint).toBe(expected.constraint)
+    return
+  }
+  expect(cause?.code).toBe(expected.sqlState)
 }
 
 beforeAll(async () => {
@@ -44,6 +72,10 @@ afterAll(async () => {
   if (references.size > 0) {
     await lease.pool.query(
       'DELETE FROM beta_feedback_triage_transitions WHERE feedback_reference = ANY($1::uuid[])',
+      [[...references]],
+    )
+    await lease.pool.query(
+      'DELETE FROM beta_feedback_masked_layouts WHERE feedback_reference = ANY($1::uuid[])',
       [[...references]],
     )
     await lease.pool.query(
@@ -237,6 +269,137 @@ describe('beta feedback triage repository (real PostgreSQL)', () => {
       triageState: 'new',
       revision: 1,
     })
+  })
+
+  it('stores an opaque recorded-error reference on a bug', async () => {
+    const eventId = 'f'.repeat(32)
+    const input = { ...prepare(), clientErrorEventId: eventId }
+    await repository.prepare(input)
+
+    expect(await repository.find(input.reference)).toMatchObject({
+      clientErrorEventId: eventId,
+    })
+  })
+
+  // The column is the last line: the contract already rejects these, and this
+  // proves nothing reaching the table can carry content either. Prose is too
+  // long for char(32) and dies on the type; anything that fits meets the CHECK.
+  it('refuses prose as a recorded-error reference at the database', async () => {
+    const reference = randomUUID()
+    await expectRefusedByDatabase(
+      repository.prepare({
+        ...prepare(reference),
+        clientErrorEventId: 'The reviews page crashed for guest Jane.',
+      }),
+      { sqlState: '22001' },
+    )
+    references.delete(reference)
+  })
+
+  it.each([
+    ['uppercase hex', 'A'.repeat(32)],
+    // char(32) blank-pads a short value, so the padded form fails the pattern.
+    ['a short id', 'a'.repeat(31)],
+    ['a 32-character word', 'x'.repeat(32)],
+  ])(
+    'refuses %s as a recorded-error reference at the database',
+    async (_label, clientErrorEventId) => {
+      const reference = randomUUID()
+      await expectRefusedByDatabase(
+        repository.prepare({ ...prepare(reference), clientErrorEventId }),
+        { constraint: 'beta_feedback_triage_client_error_shape' },
+      )
+      references.delete(reference)
+    },
+  )
+
+  it('refuses a recorded-error reference on a suggestion', async () => {
+    const reference = randomUUID()
+    await expectRefusedByDatabase(
+      repository.prepare({
+        ...prepare(reference),
+        feedbackType: 'suggestion',
+        impactCode: 'helpful',
+        clientErrorEventId: 'a'.repeat(32),
+      }),
+      { constraint: 'beta_feedback_triage_client_error_shape' },
+    )
+    references.delete(reference)
+  })
+
+  it('stores and reads back a consented masked layout', async () => {
+    const capturedAt = new Date(NOW)
+    const input = {
+      ...prepare(),
+      attachmentKind: 'masked_layout_v1' as const,
+      attachmentCapturedAt: capturedAt,
+      attachmentExpiresAt: maskedLayoutExpiry(capturedAt),
+      maskedLayout: {
+        width: 1280,
+        height: 800,
+        boxes: [
+          { x: 0, y: 0, w: 1280, h: 64, role: 'container' as const },
+          { x: 16, y: 80, w: 400, h: 32, role: 'heading' as const },
+        ],
+      },
+    }
+    await repository.prepare(input)
+
+    expect(await repository.findMaskedLayout(input.reference)).toEqual(input.maskedLayout)
+    expect(await repository.find(input.reference)).toMatchObject({
+      attachmentKind: 'masked_layout_v1',
+      attachmentExpiresAt: maskedLayoutExpiry(capturedAt),
+    })
+  })
+
+  it('returns null for a report that consented to no layout', async () => {
+    const input = prepare()
+    await repository.prepare(input)
+
+    expect(await repository.findMaskedLayout(input.reference)).toBeNull()
+  })
+
+  it('refuses a layout that would outlive the accepted 30-day horizon', async () => {
+    const capturedAt = new Date(NOW)
+    const reference = randomUUID()
+    await expectRefusedByDatabase(
+      repository.prepare({
+        ...prepare(reference),
+        attachmentKind: 'masked_layout_v1',
+        attachmentCapturedAt: capturedAt,
+        // One day past the horizon: the database, not the application, refuses.
+        attachmentExpiresAt: new Date(capturedAt.getTime() + 31 * 24 * 60 * 60 * 1000),
+        maskedLayout: {
+          width: 1280,
+          height: 800,
+          boxes: [{ x: 0, y: 0, w: 100, h: 40, role: 'text' }],
+        },
+      }),
+      { constraint: 'beta_feedback_triage_attachment_shape' },
+    )
+    references.delete(reference)
+  })
+
+  it('refuses a layout on a suggestion', async () => {
+    const capturedAt = new Date(NOW)
+    const reference = randomUUID()
+    await expectRefusedByDatabase(
+      repository.prepare({
+        ...prepare(reference),
+        feedbackType: 'suggestion',
+        impactCode: 'helpful',
+        attachmentKind: 'masked_layout_v1',
+        attachmentCapturedAt: capturedAt,
+        attachmentExpiresAt: maskedLayoutExpiry(capturedAt),
+        maskedLayout: {
+          width: 1280,
+          height: 800,
+          boxes: [{ x: 0, y: 0, w: 100, h: 40, role: 'text' }],
+        },
+      }),
+      { constraint: 'beta_feedback_triage_attachment_shape' },
+    )
+    references.delete(reference)
   })
 
   it('lists the oldest unresolved receipt first so newer reports cannot starve it', async () => {

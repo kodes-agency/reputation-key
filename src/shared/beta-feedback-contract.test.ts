@@ -8,20 +8,74 @@ import {
 } from './beta-feedback-contract'
 
 describe('beta feedback contract', () => {
-  it.each(['bug', 'suggestion'] as const)('accepts text-only %s feedback', (kind) => {
+  it.each([
+    ['bug', 'cannot_complete'],
+    ['suggestion', 'helpful'],
+  ] as const)('accepts text-only %s feedback', (kind, impact) => {
     expect(
       betaFeedbackInputSchema.parse({
         kind,
+        impact,
         message: 'The workflow could be clearer.',
         routePath: '/dashboard',
         viewport: 'regular',
       }),
     ).toEqual({
       kind,
+      impact,
       message: 'The workflow could be clearer.',
       routePath: '/dashboard',
       viewport: 'regular',
+      clientErrorEventId: null,
+      maskedLayout: null,
     })
+  })
+
+  it.each([
+    ['bug', 'helpful'],
+    ['suggestion', 'cannot_complete'],
+  ] as const)("rejects a %s carrying the other scale's impact", (kind, impact) => {
+    expect(() =>
+      betaFeedbackInputSchema.parse({
+        kind,
+        impact,
+        message: 'The workflow could be clearer.',
+        routePath: '/dashboard',
+        viewport: 'regular',
+      }),
+    ).toThrow(ZodError)
+  })
+
+  it.each([
+    'not-hex-at-all',
+    'ABCDEF01234567890ABCDEF012345678',
+    'a'.repeat(31),
+    'a'.repeat(33),
+    'The page crashed while loading reviews.',
+  ])('rejects %s as a recorded error reference', (clientErrorEventId) => {
+    expect(() =>
+      betaFeedbackInputSchema.parse({
+        kind: 'bug',
+        impact: 'cannot_complete',
+        clientErrorEventId,
+        message: 'The workflow did not complete.',
+        routePath: '/dashboard',
+        viewport: 'regular',
+      }),
+    ).toThrow(ZodError)
+  })
+
+  it('rejects a suggestion that points at a recorded error', () => {
+    expect(() =>
+      betaFeedbackInputSchema.parse({
+        kind: 'suggestion',
+        impact: 'helpful',
+        clientErrorEventId: 'a'.repeat(32),
+        message: 'The workflow could be clearer.',
+        routePath: '/dashboard',
+        viewport: 'regular',
+      }),
+    ).toThrow(ZodError)
   })
 
   it.each(['attachment', 'screenshot', 'replayId'] as const)(
@@ -30,6 +84,7 @@ describe('beta feedback contract', () => {
       expect(() =>
         betaFeedbackInputSchema.parse({
           kind: 'bug',
+          impact: 'cannot_complete',
           message: 'The workflow did not complete.',
           routePath: '/dashboard',
           viewport: 'regular',
@@ -64,6 +119,9 @@ describe('beta feedback contract', () => {
     const marker = 'private-property-id'
     const message = formatBetaFeedbackMessage({
       kind: 'bug',
+      impact: 'cannot_complete',
+      clientErrorEventId: null,
+      maskedLayout: null,
       message: 'The reviews page did not load. '.repeat(300),
       routePath: `/properties/${marker}/reviews`,
       viewport: 'wide',

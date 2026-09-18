@@ -35,7 +35,7 @@ export type { Capability }
  * Capability-policy version. Bump when capability vocabulary or posture changes.
  * Recorded in the boot and release manifests.
  */
-export const CAPABILITY_POLICY_VERSION = 'beta-local-10'
+export const CAPABILITY_POLICY_VERSION = 'beta-local-11'
 
 // ── Runtime capability posture ──────────────────────────────────────
 

@@ -1,10 +1,15 @@
-import { and, asc, eq, ne, or } from 'drizzle-orm'
+import { and, asc, desc, eq, ne, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { organizationId, userId } from '#/shared/domain/ids'
+import { insertOutboxRow } from '#/shared/outbox/commit'
+import { betaFeedbackMaskedLayouts } from '#/shared/db/schema/beta-feedback-masked-layout.schema'
 import {
   betaFeedbackTriage,
   betaFeedbackTriageTransitions,
 } from '#/shared/db/schema/beta-feedback-triage.schema'
+import type { MaskedLayout } from '#/shared/beta-feedback-layout'
 import type {
+  BetaFeedbackReportView,
   BetaFeedbackRouteKey,
   BetaFeedbackViewport,
 } from '#/shared/beta-feedback-contract'
@@ -14,6 +19,11 @@ import {
   type BetaFeedbackTriageState,
   type BetaFeedbackTriageTransition,
 } from '../domain/betaFeedbackTriage'
+import { identityBetaFeedbackOutcomeReached } from '../domain/events'
+import type { BetaFeedbackReporter } from './beta-feedback-reporter'
+
+/** The transaction handle drizzle hands the callback; narrower than Database. */
+type TriageTx = Parameters<Parameters<Database['transaction']>[0]>[0]
 
 type TriageRow = typeof betaFeedbackTriage.$inferSelect
 type TriageTransitionRow = typeof betaFeedbackTriageTransitions.$inferSelect
@@ -33,9 +43,12 @@ export type PreparedBetaFeedbackTriage = Readonly<{
   routeKey: BetaFeedbackRouteKey
   viewport: BetaFeedbackViewport
   reporterRole: 'AccountAdmin' | 'PropertyManager' | 'Member'
-  attachmentKind: 'none'
-  attachmentCapturedAt: null
-  attachmentExpiresAt: null
+  clientErrorEventId: string | null
+  attachmentKind: 'none' | 'masked_layout_v1'
+  attachmentCapturedAt: Date | null
+  attachmentExpiresAt: Date | null
+  /** Present exactly when attachmentKind is masked_layout_v1. */
+  maskedLayout: MaskedLayout | null
   now: Date
 }>
 
@@ -48,6 +61,7 @@ export type BetaFeedbackTriageRecord = BetaFeedbackTriageSnapshot &
     routeKey: BetaFeedbackRouteKey
     viewport: BetaFeedbackViewport
     reporterRole: PreparedBetaFeedbackTriage['reporterRole']
+    clientErrorEventId: string | null
     deliveryFailureCode: string | null
     providerReference: string | null
     attachmentKind: 'none' | 'masked_layout_v1'
@@ -56,6 +70,8 @@ export type BetaFeedbackTriageRecord = BetaFeedbackTriageSnapshot &
     createdAt: Date
     updatedAt: Date
   }>
+
+export type BetaFeedbackReporterItem = BetaFeedbackReportView
 
 export type BetaFeedbackTriageQueueItem = Omit<
   BetaFeedbackTriageRecord,
@@ -82,6 +98,7 @@ function record(row: TriageRow): BetaFeedbackTriageRecord {
     routeKey: row.routeKey as BetaFeedbackRouteKey,
     viewport: row.viewport as BetaFeedbackViewport,
     reporterRole: row.reporterRole as BetaFeedbackTriageRecord['reporterRole'],
+    clientErrorEventId: row.clientErrorEventId,
     deliveryState: row.deliveryState as BetaFeedbackTriageRecord['deliveryState'],
     deliveryFailureCode: row.deliveryFailureCode,
     providerReference: row.providerReference,
@@ -153,8 +170,50 @@ export class BetaFeedbackTriageRepository {
     return new BetaFeedbackTriageRepository(db)
   }
 
+  /**
+   * The triage row and its optional layout commit together: a report that
+   * claims `masked_layout_v1` must never outlive the geometry it names, and a
+   * stored layout must never exist without the row whose expiry governs it.
+   */
   async prepare(input: PreparedBetaFeedbackTriage): Promise<BetaFeedbackTriageRecord> {
+    return this.db.transaction(async (tx) => {
+      const record = await this.insertTriage(tx, input)
+      if (input.maskedLayout && input.attachmentCapturedAt && input.attachmentExpiresAt) {
+        await tx.insert(betaFeedbackMaskedLayouts).values({
+          feedbackReference: input.reference,
+          viewportWidth: input.maskedLayout.width,
+          viewportHeight: input.maskedLayout.height,
+          boxCount: input.maskedLayout.boxes.length,
+          boxes: input.maskedLayout.boxes,
+          capturedAt: input.attachmentCapturedAt,
+          expiresAt: input.attachmentExpiresAt,
+        })
+      }
+      return record
+    })
+  }
+
+  /** Find one report's layout, or null once the sweep has purged it. */
+  async findMaskedLayout(reference: string): Promise<MaskedLayout | null> {
     const rows = await this.db
+      .select()
+      .from(betaFeedbackMaskedLayouts)
+      .where(eq(betaFeedbackMaskedLayouts.feedbackReference, reference))
+      .limit(1)
+    const row = rows[0]
+    if (!row) return null
+    return {
+      width: row.viewportWidth,
+      height: row.viewportHeight,
+      boxes: [...row.boxes],
+    }
+  }
+
+  private async insertTriage(
+    tx: TriageTx,
+    input: PreparedBetaFeedbackTriage,
+  ): Promise<BetaFeedbackTriageRecord> {
+    const rows = await tx
       .insert(betaFeedbackTriage)
       .values({
         reference: input.reference,
@@ -165,6 +224,7 @@ export class BetaFeedbackTriageRepository {
         routeKey: input.routeKey,
         viewport: input.viewport,
         reporterRole: input.reporterRole,
+        clientErrorEventId: input.clientErrorEventId,
         deliveryState: 'prepared',
         providerReference: null,
         deliveryFailureCode: null,
@@ -272,6 +332,49 @@ export class BetaFeedbackTriageRepository {
     return rows.map(queueItem)
   }
 
+  /**
+   * One reporter's own reports, newest first. Scoped by the actor pseudonym, so
+   * a caller can only ever see reports it could have written. Deliberately
+   * narrower than the internal queue: no severity, owner queue, privacy or
+   * security classification crosses back to the person who reported.
+   */
+  // Reached only through the container, so the changed-files audit cannot see
+  // the edge. `fallow dead-code --type-aware --symbol-impact` resolves it:
+  // direct consumer identity/server/beta-feedback.ts, distance 1.
+  // fallow-ignore-next-line unused-class-member
+  async listForActor(
+    actorPseudonym: string,
+    limit = 20,
+  ): Promise<readonly BetaFeedbackReporterItem[]> {
+    const boundedLimit = Math.min(50, Math.max(1, Math.trunc(limit)))
+    const rows = await this.db
+      .select()
+      .from(betaFeedbackTriage)
+      .where(eq(betaFeedbackTriage.actorPseudonym, actorPseudonym))
+      .orderBy(desc(betaFeedbackTriage.createdAt), asc(betaFeedbackTriage.reference))
+      .limit(boundedLimit)
+    return rows.map((row) => ({
+      reference: row.reference,
+      feedbackType: row.feedbackType as BetaFeedbackReporterItem['feedbackType'],
+      impactCode: row.impactCode as BetaFeedbackReporterItem['impactCode'],
+      routeKey: row.routeKey as BetaFeedbackRouteKey,
+      deliveryState: row.deliveryState as BetaFeedbackReporterItem['deliveryState'],
+      triageState: row.triageState as BetaFeedbackTriageState,
+      engineeringIssueRef: row.engineeringIssueRef,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }))
+  }
+
+  /**
+   * Apply one reviewed triage transition.
+   *
+   * When it moves a report INTO an outcome the reporter should hear about, and
+   * the caller resolved who that is, the `identity.beta_feedback.outcome_reached`
+   * fact commits in this same transaction (ADR 0059) — the notice exists if and
+   * only if the state does. A self-transition (such as linking an issue to an
+   * already-accepted report) is not news and writes no fact.
+   */
   async transition(
     input: Readonly<{
       transitionId: string
@@ -279,6 +382,8 @@ export class BetaFeedbackTriageRepository {
       operatorPseudonym: string
       transition: BetaFeedbackTriageTransition
       now: Date
+      /** The reporter, when resolved; null when they are no longer a member. */
+      outcomeRecipient?: BetaFeedbackReporter | null
     }>,
   ): Promise<BetaFeedbackTriageRecord> {
     return this.db.transaction(async (tx) => {
@@ -373,7 +478,35 @@ export class BetaFeedbackTriageRepository {
         supportEvidenceRef: input.transition.supportEvidenceRef,
         occurredAt: input.now,
       })
+
+      const outcome = reporterOutcome(next.triageState)
+      if (
+        outcome !== null &&
+        current.triageState !== next.triageState &&
+        input.outcomeRecipient
+      ) {
+        await insertOutboxRow(
+          tx,
+          identityBetaFeedbackOutcomeReached({
+            organizationId: organizationId(input.outcomeRecipient.organizationId),
+            userId: userId(input.outcomeRecipient.userId),
+            reference: input.reference,
+            outcome,
+            occurredAt: input.now,
+          }),
+          { recordedAt: input.now },
+        )
+      }
       return record(updatedRow)
     })
   }
+}
+
+/** The triage states a reporter is told about; the rest are internal steps. */
+function reporterOutcome(
+  state: BetaFeedbackTriageState,
+): 'accepted' | 'declined' | 'resolved' | null {
+  return state === 'accepted' || state === 'declined' || state === 'resolved'
+    ? state
+    : null
 }

@@ -20,6 +20,10 @@
     "scripts/generate-ai-unicode-case-folding.ts",
     "scripts/generate-ai-zh-orthography-table.ts",
     "scripts/seed-demo-reviews.ts",
+    "scripts/ops/triage-beta-feedback.ts",
+    "scripts/ops/feedback-issue.ts",
+    "scripts/ops/feedback-sync.ts",
+    "scripts/ops/feedback-layout.ts",
     "scripts/test-db-setup.ts",
     "vite.config.ts",
     "drizzle.config.ts"

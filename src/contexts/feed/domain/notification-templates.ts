@@ -41,7 +41,12 @@ export type NotificationLink = Readonly<{
   path: string
   /** Query parameters as a plain object, already decoded. */
   search: Readonly<Record<string, string>>
+  /** Optional fragment, without `#`, for a target that is not a route. */
+  hash?: string
 }>
+
+/** Opens the Feedback dialog on "Your reports" from anywhere in the app. */
+export const BETA_FEEDBACK_REPORTS_ANCHOR = 'beta-feedback-reports'
 
 const ROLE_LABELS: Record<NotificationActorRole, string> = {
   account_admin: 'an account admin',
@@ -342,6 +347,31 @@ const renderGoalResultRevised = (p: NotificationPayload): RenderedNotification =
   summary: facts(p.propertyName ?? '', p.goalName ?? 'goal result updated'),
 })
 
+/**
+ * The recipient's own beta report reached an outcome. The copy never quotes
+ * the report — its words live in monitoring only — so it says what happened
+ * and sends the reporter to their list, which knows which report it was.
+ * Missing outcome degrades to a neutral update rather than guessing one.
+ */
+const REPORT_OUTCOME_COPY = {
+  accepted: ['Your report was accepted', 'It will be worked on.'],
+  declined: [
+    'Your report won\u2019t be taken forward',
+    'The team decided not to act on it.',
+  ],
+  resolved: ['Your report was resolved', 'It has been dealt with.'],
+} as const
+
+// Kept terse on purpose: templates render synchronously in the bell, so this
+// copy ships in the initial bundle, which has almost no headroom.
+const renderBetaFeedbackOutcome = (p: NotificationPayload): RenderedNotification => {
+  const [title, body] =
+    p.reportOutcome === undefined
+      ? ['Your report was updated', 'See where it got to.']
+      : REPORT_OUTCOME_COPY[p.reportOutcome]
+  return { title, body, actionLabel: 'View reports', summary: title.slice(5) }
+}
+
 const RENDERERS: Record<
   NotificationType,
   (payload: NotificationPayload) => RenderedNotification
@@ -372,6 +402,7 @@ const RENDERERS: Record<
   'integration.reauthorization_required': renderIntegrationReauthorizationRequired,
   'goal.completed': renderGoalCompleted,
   'goal.result_revised': renderGoalResultRevised,
+  'beta_feedback.outcome': renderBetaFeedbackOutcome,
 }
 
 /**
@@ -435,5 +466,11 @@ export const notificationLink = (
       return { path: `/properties/${propertyId}/settings`, search: {} }
     case 'integration':
       return { path: '/settings/integrations', search: {} }
+    case 'beta_feedback_report':
+      // A report lives in the Feedback dialog, which every authenticated page
+      // carries, not on a route. The hash opens it on "Your reports"; a hash
+      // rather than a search param because no route's search schema has to
+      // admit it. `/properties` because that is where `/` lands.
+      return { path: '/properties', search: {}, hash: BETA_FEEDBACK_REPORTS_ANCHOR }
   }
 }

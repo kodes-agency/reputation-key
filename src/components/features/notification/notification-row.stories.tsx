@@ -203,3 +203,37 @@ export const ActionNeededCannotBeMuted: Story = {
     await waitFor(() => expect(ownerDocument.querySelector('[role="menu"]')).toBeNull())
   },
 }
+
+/**
+ * ADR 0059: the reporter's own beta report reached an outcome. Organization-
+ * scoped, so no Property chip; the deep link opens the Feedback dialog's
+ * "Your reports" through an anchor, and never carries the report reference.
+ */
+const reportResolved = makeNotification({
+  id: '20000000-0000-4000-8000-0000000000bf',
+  type: 'beta_feedback.outcome',
+  priority: 'normal',
+  status: 'unread',
+  propertyId: null,
+  resourceType: 'beta_feedback_report',
+  resourceId: '00000000-0000-4000-8000-0000000000f1',
+  payload: { reportOutcome: 'resolved' },
+})
+
+export const ReportOutcome: Story = {
+  args: { notification: reportResolved },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Your report was resolved')).toBeInTheDocument()
+    expect(canvas.queryByText('Urgent')).not.toBeInTheDocument()
+    const cta = canvas.getByRole('link', { name: /view reports/i })
+    expect(cta.getAttribute('href')).toMatch(/#beta-feedback-reports$/u)
+    expect(cta.getAttribute('href')).not.toContain(reportResolved.resourceId)
+    expect(canvasElement.textContent).not.toContain(reportResolved.resourceId)
+  },
+}
+
+export const ReportOutcomeLight: Story = {
+  args: { notification: reportResolved },
+  parameters: { theme: 'light' },
+}

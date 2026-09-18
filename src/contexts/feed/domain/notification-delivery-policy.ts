@@ -60,6 +60,9 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   // digest is a cadence (see domain/notification-types.ts).
   'goal.completed': 'recognition',
   'goal.result_revised': 'recognition',
+  // The reporter's own report was accepted, not planned, or resolved. It is
+  // collaboration on something they raised: in-app by default, never mailed.
+  'beta_feedback.outcome': 'workflow_collaboration',
 }
 
 export function classifyNotification(type: NotificationType): NotificationCategory {
@@ -67,14 +70,30 @@ export function classifyNotification(type: NotificationType): NotificationCatego
 }
 
 /**
- * Mandatory account/security notices belong to the Organization. Every other
- * active family remains Property-scoped. Keeping this derived from the same
- * category map prevents callers from inventing a Property for an account fact.
+ * Organization-scoped notices that are NOT mandatory (ADR 0059). Each is about
+ * a record the recipient owns at the Organization level, so there is no
+ * Property to scope it to and no Property preference row to consult: it
+ * resolves through ADR 0046's versioned defaults, and its email channel stays
+ * off. The database admits exactly these types in that shape and no others.
+ */
+export const ORGANIZATION_INFORMATIONAL_TYPES: ReadonlySet<NotificationType> = new Set([
+  'beta_feedback.outcome',
+])
+
+/**
+ * Mandatory account/security notices belong to the Organization, as do the
+ * few informational notices above. Every other active family remains
+ * Property-scoped. Keeping this derived from the category map and one explicit
+ * list prevents callers from inventing a Property for an account fact — or an
+ * Organization scope for a Property one.
  */
 export function notificationScopeForType(
   type: NotificationType,
 ): 'organization' | 'property' {
-  return classifyNotification(type) === 'mandatory' ? 'organization' : 'property'
+  return classifyNotification(type) === 'mandatory' ||
+    ORGANIZATION_INFORMATIONAL_TYPES.has(type)
+    ? 'organization'
+    : 'property'
 }
 
 /**
