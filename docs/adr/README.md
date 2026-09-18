@@ -29,3 +29,4 @@ Missing numbers are retired, merged, or never issued: `0001–0006`, `0009–001
 | [0056](0056-operational-action-history-integrity-claims.md)               | Operational Action History integrity claims                  | accepted | —             |
 | [0057](0057-inbox-queues.md)                                              | Inbox queues                                                 | accepted | —             |
 | [0058](0058-ai-admission-lanes.md)                                        | AI admission lanes and paced review analysis                 | accepted | —             |
+| [0059](0059-organization-scoped-report-outcome-notice.md)                 | Organization-scoped report outcome notice                    | accepted | —             |

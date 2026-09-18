@@ -260,6 +260,38 @@ export const identityOrganizationLifecycleChanged = (
   }
 }
 
+/**
+ * A beta report reached an outcome its reporter should hear about (ADR 0059).
+ *
+ * Identifiers and a closed outcome only: `reference` is the opaque triage key
+ * the reporter already holds as their receipt, and `userId` is the reporter,
+ * resolved at the moment of the transition from their current membership. No
+ * report text, route, severity or triage classification travels.
+ */
+export type IdentityBetaFeedbackOutcomeReached = Readonly<{
+  _tag: 'identity.beta_feedback.outcome_reached'
+  eventId: string
+  organizationId: OrganizationId
+  userId: UserId
+  reference: string
+  outcome: 'accepted' | 'declined' | 'resolved'
+  occurredAt: Date
+  correlationId: string | null
+}>
+export const identityBetaFeedbackOutcomeReached = (
+  args: IdentityEventArgs<IdentityBetaFeedbackOutcomeReached>,
+): IdentityBetaFeedbackOutcomeReached => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.userId !== '', 'userId required')
+  assert(args.reference !== '', 'reference required')
+  return {
+    _tag: 'identity.beta_feedback.outcome_reached',
+    eventId: newEventId(),
+    ...args,
+    correlationId: args.correlationId ?? null,
+  }
+}
+
 export type IdentityEvent =
   | IdentityOrganizationCreated
   | IdentityMemberInvited
@@ -269,3 +301,4 @@ export type IdentityEvent =
   | IdentityMemberRoleChanged
   | IdentityMerchantAiChanged
   | IdentityOrganizationLifecycleChanged
+  | IdentityBetaFeedbackOutcomeReached

@@ -1,5 +1,7 @@
 import { and, asc, desc, eq, ne, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { organizationId, userId } from '#/shared/domain/ids'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import { betaFeedbackMaskedLayouts } from '#/shared/db/schema/beta-feedback-masked-layout.schema'
 import {
   betaFeedbackTriage,
@@ -17,6 +19,8 @@ import {
   type BetaFeedbackTriageState,
   type BetaFeedbackTriageTransition,
 } from '../domain/betaFeedbackTriage'
+import { identityBetaFeedbackOutcomeReached } from '../domain/events'
+import type { BetaFeedbackReporter } from './beta-feedback-reporter'
 
 /** The transaction handle drizzle hands the callback; narrower than Database. */
 type TriageTx = Parameters<Parameters<Database['transaction']>[0]>[0]
@@ -362,6 +366,15 @@ export class BetaFeedbackTriageRepository {
     }))
   }
 
+  /**
+   * Apply one reviewed triage transition.
+   *
+   * When it moves a report INTO an outcome the reporter should hear about, and
+   * the caller resolved who that is, the `identity.beta_feedback.outcome_reached`
+   * fact commits in this same transaction (ADR 0059) — the notice exists if and
+   * only if the state does. A self-transition (such as linking an issue to an
+   * already-accepted report) is not news and writes no fact.
+   */
   async transition(
     input: Readonly<{
       transitionId: string
@@ -369,6 +382,8 @@ export class BetaFeedbackTriageRepository {
       operatorPseudonym: string
       transition: BetaFeedbackTriageTransition
       now: Date
+      /** The reporter, when resolved; null when they are no longer a member. */
+      outcomeRecipient?: BetaFeedbackReporter | null
     }>,
   ): Promise<BetaFeedbackTriageRecord> {
     return this.db.transaction(async (tx) => {
@@ -463,7 +478,35 @@ export class BetaFeedbackTriageRepository {
         supportEvidenceRef: input.transition.supportEvidenceRef,
         occurredAt: input.now,
       })
+
+      const outcome = reporterOutcome(next.triageState)
+      if (
+        outcome !== null &&
+        current.triageState !== next.triageState &&
+        input.outcomeRecipient
+      ) {
+        await insertOutboxRow(
+          tx,
+          identityBetaFeedbackOutcomeReached({
+            organizationId: organizationId(input.outcomeRecipient.organizationId),
+            userId: userId(input.outcomeRecipient.userId),
+            reference: input.reference,
+            outcome,
+            occurredAt: input.now,
+          }),
+          { recordedAt: input.now },
+        )
+      }
       return record(updatedRow)
     })
   }
+}
+
+/** The triage states a reporter is told about; the rest are internal steps. */
+function reporterOutcome(
+  state: BetaFeedbackTriageState,
+): 'accepted' | 'declined' | 'resolved' | null {
+  return state === 'accepted' || state === 'declined' || state === 'resolved'
+    ? state
+    : null
 }

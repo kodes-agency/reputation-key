@@ -1,4 +1,5 @@
-import { lazy, Suspense, useCallback, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { MessageSquarePlus } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
@@ -9,6 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '#/components/ui/dialog'
+import { BETA_FEEDBACK_REPORTS_ANCHOR } from '#/contexts/feed/application/public-api'
 import type { ListMyBetaFeedback, SubmitBetaFeedback } from './beta-feedback-form-context'
 
 // The app shell mounts this launcher on every authenticated page, but nobody
@@ -31,12 +33,40 @@ function DialogBodyFallback() {
 /** Low-noise, manager-only entry point mounted by the authenticated app shell. */
 export function BetaFeedbackLauncher({ submitFeedback, listFeedback }: Props) {
   const [open, setOpen] = useState(false)
+  const [initialPanel, setInitialPanel] = useState<'report' | 'reports'>('report')
   // Bumped when the reports panel records what was seen, so the marker re-reads.
   const [seenVersion, setSeenVersion] = useState(0)
   const onReportsSeen = useCallback(() => setSeenVersion((version) => version + 1), [])
 
+  // A report-outcome notification links here with this hash (ADR 0059): the
+  // reports live in this dialog, not on a route. Opening is derived from the
+  // fragment CHANGING, during render, so it needs no state-setting effect; the
+  // previous value starts empty so a deep link that mounts the page opens too.
+  const fragment = useRouterState({ select: (state) => state.location.hash })
+  const [previousFragment, setPreviousFragment] = useState('')
+  if (fragment !== previousFragment) {
+    setPreviousFragment(fragment)
+    if (fragment === BETA_FEEDBACK_REPORTS_ANCHOR && listFeedback) {
+      setInitialPanel('reports')
+      setOpen(true)
+    }
+  }
+  // Then consume the fragment, so the same notification can open it again later.
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (fragment === BETA_FEEDBACK_REPORTS_ANCHOR) {
+      void navigate({ to: '.', hash: '', replace: true })
+    }
+  }, [fragment, navigate])
+
+  const onOpenChange = (next: boolean): void => {
+    setOpen(next)
+    // The next ordinary open starts where a reporter expects: on the form.
+    if (!next) setInitialPanel('report')
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         {/*
           The accessible name is built from content rather than aria-label: it
@@ -77,6 +107,7 @@ export function BetaFeedbackLauncher({ submitFeedback, listFeedback }: Props) {
               submitFeedback={submitFeedback}
               listFeedback={listFeedback}
               onReportsSeen={onReportsSeen}
+              initialPanel={initialPanel}
             />
           </Suspense>
         </DialogContent>

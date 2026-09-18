@@ -7,6 +7,8 @@ import {
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
+  BETA_FEEDBACK_OUTCOME_CONSUMER,
+  handleBetaFeedbackOutcomeEvent,
   handleIdentityAccountNotificationEvent,
   handleOrganizationPurgePendingNotice,
   IDENTITY_ACCOUNT_NOTIFICATION_CONSUMERS,
@@ -235,5 +237,126 @@ describe('Purge Pending final-notice consumer', () => {
       }),
     ).rejects.toThrow('attribution mismatch')
     expect(deps.queue.add).not.toHaveBeenCalled()
+  })
+})
+
+describe('beta feedback outcome consumer (ADR 0059)', () => {
+  const REFERENCE = '00000000-0000-4000-8000-0000000000f1'
+  const outcomeEvent = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent =>
+    event({
+      eventType: 'identity.beta_feedback.outcome_reached',
+      payload: {
+        organizationId: ORG,
+        userId: 'reporter-user',
+        reference: REFERENCE,
+        outcome: 'resolved',
+      },
+      sourceAggregateId: REFERENCE,
+      ...overrides,
+    })
+
+  beforeEach(() => {
+    consumerRegistry = createConsumerRegistry()
+    clearEventSchemas()
+    registerAllEventSchemas()
+  })
+  afterEach(() => {
+    consumerRegistry = createConsumerRegistry()
+    clearEventSchemas()
+  })
+
+  it('is registered beside the account notices', () => {
+    registerIdentityAccountNotificationConsumers(consumerRegistry, makeDeps())
+
+    expect(consumerRegistry.list()).toContainEqual({
+      eventType: 'identity.beta_feedback.outcome_reached',
+      consumerName: BETA_FEEDBACK_OUTCOME_CONSUMER,
+    })
+  })
+
+  it('enqueues an Organization-scoped notice for the reporter, pointing at the report', async () => {
+    const deps = makeDeps()
+
+    await expect(handleBetaFeedbackOutcomeEvent(deps, outcomeEvent())).resolves.toEqual({
+      status: 'applied',
+    })
+
+    expect(deps.queue.add).toHaveBeenCalledWith(
+      'insert-notification',
+      {
+        userId: 'reporter-user',
+        organizationId: ORG,
+        propertyId: null,
+        type: 'beta_feedback.outcome',
+        resourceType: 'beta_feedback_report',
+        resourceId: REFERENCE,
+        eventId: EVENT_ID,
+        payload: { reportOutcome: 'resolved' },
+        // The insert job re-reads this fact before writing, so a queued job
+        // cannot redirect the notice to anyone else.
+        audience: {
+          kind: 'affected_organization_user',
+          eventId: EVENT_ID,
+          eventType: 'identity.beta_feedback.outcome_reached',
+        },
+      },
+      { jobId: `${EVENT_ID}-reporter-user` },
+    )
+    expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
+      EVENT_ID,
+      BETA_FEEDBACK_OUTCOME_CONSUMER,
+      'applied',
+    )
+  })
+
+  it('refuses a fact attributed to a Property', async () => {
+    const deps = makeDeps()
+
+    await expect(
+      handleBetaFeedbackOutcomeEvent(deps, outcomeEvent({ propertyId: 'property-1' })),
+    ).rejects.toThrow('Beta feedback outcome envelope attribution mismatch')
+    expect(deps.queue.add).not.toHaveBeenCalled()
+  })
+
+  it('refuses a fact whose payload names another Organization', async () => {
+    const deps = makeDeps()
+
+    await expect(
+      handleBetaFeedbackOutcomeEvent(
+        deps,
+        outcomeEvent({
+          payload: {
+            organizationId: 'another-org',
+            userId: 'reporter-user',
+            reference: REFERENCE,
+            outcome: 'resolved',
+          },
+        }),
+      ),
+    ).rejects.toThrow('Beta feedback outcome envelope attribution mismatch')
+    expect(deps.queue.add).not.toHaveBeenCalled()
+  })
+
+  it('carries nothing beyond identifiers and the outcome into the queued notice', async () => {
+    // The outbox stores the schema-parsed payload, so extra keys never reach a
+    // row; this proves the consumer would not forward one even if it did.
+    const deps = makeDeps()
+
+    await handleBetaFeedbackOutcomeEvent(
+      deps,
+      outcomeEvent({
+        payload: {
+          organizationId: ORG,
+          userId: 'reporter-user',
+          reference: REFERENCE,
+          outcome: 'resolved',
+          message: 'The reviews page crashed for guest Jane',
+        },
+      }),
+    )
+
+    expect(JSON.stringify(vi.mocked(deps.queue.add).mock.calls)).not.toContain(
+      'guest Jane',
+    )
   })
 })

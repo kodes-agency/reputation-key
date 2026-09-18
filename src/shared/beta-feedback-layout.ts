@@ -20,7 +20,7 @@
 import { z } from 'zod/v4'
 
 /** Only what a layout diagnosis needs: what KIND of box sat where. */
-export const MASKED_LAYOUT_ROLES = [
+const MASKED_LAYOUT_ROLES = [
   'text',
   'heading',
   'image',
@@ -63,7 +63,7 @@ export type MaskedLayout = z.infer<typeof maskedLayoutSchema>
 export type MaskedLayoutBox = z.infer<typeof maskedLayoutBoxSchema>
 
 /** The one retention horizon BETA.md §3 and the privacy notice both state. */
-export const MASKED_LAYOUT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+const MASKED_LAYOUT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
 export function maskedLayoutExpiry(capturedAt: Date): Date {
   return new Date(capturedAt.getTime() + MASKED_LAYOUT_RETENTION_MS)

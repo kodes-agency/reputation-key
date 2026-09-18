@@ -168,19 +168,12 @@ The owner said to go ahead with all four.
 
 ### Still open
 
-- **Should report outcomes reach the notification bell?** It cannot today
-  without changing a notification-system invariant. Every non-mandatory
-  notification is Property-scoped and the database enforces it
-  (`notifications_mandatory_scope_check`); the only Organization-scoped
-  category, `mandatory`, forces an immediate email that cannot be disabled. A
-  beta report has no Property. The reporter is told instead by a marker on the
-  Feedback entry point and New rows in their list. Moving it to the bell means
-  admitting an Organization-scoped `workflow_collaboration` notice: relax that
-  CHECK and its email-queue twin, derive scope per type rather than per category
-  in `notificationScopeForType`, resolve channels from ADR 0046's versioned
-  defaults when there is no Property preference row, and emit an
-  `identity.beta_feedback.resolved` fact when a report resolves. That is the
-  notification system's decision, so it was not made here.
+- **Report outcomes in the notification bell — built (ADR 0059).** The owner
+  approved relaxing the scope rule for exactly one type. `beta_feedback.outcome`
+  is Organization-scoped `workflow_collaboration`, in-app only, and admitted by
+  name in `notifications_mandatory_scope_check`. The reporter is resolved from
+  their pseudonyms at transition time over current membership, with no stored
+  user-to-report link, and the fact commits with the transition.
 - **Privacy notice wording.** The accepted notice's retention table says of the
   optional masked Bug layout that "provider deletion still needs live proof".
   The implementation never sends the layout to a provider, so the caveat no
@@ -189,16 +182,16 @@ The owner said to go ahead with all four.
 
 ## 6. Verification — what actually ran
 
-| Check                              | Result                                         |
-| ---------------------------------- | ---------------------------------------------- |
-| `pnpm typecheck`                   | clean (app + scripts projects)                 |
-| `pnpm lint` + `check-test-quality` | clean, including the product-state ledger gate |
-| Fallow `audit` (changed files)     | clean                                          |
-| Unit (`--project=unit`)            | 1,020 files, 9,907 passed                      |
-| Storybook (`--project=storybook`)  | 110 files, 920 passed, twice in a row          |
-| Integration (triage + retention)   | 19 passed, against real PostgreSQL             |
-| `check:schema-drift`               | clean                                          |
-| `pnpm build` + `check:bundles`     | initial closure 328,796 B / 329,105 B gzip     |
+| Check                                    | Result                                         |
+| ---------------------------------------- | ---------------------------------------------- |
+| `pnpm typecheck`                         | clean (app + scripts projects)                 |
+| `pnpm lint` + `check-test-quality`       | clean, including the product-state ledger gate |
+| Fallow `audit` (changed files)           | clean                                          |
+| Unit (`--project=unit`)                  | 1,021 files, 9,941 passed                      |
+| Storybook (`--project=storybook`)        | 110 files, 923 passed                          |
+| Integration (feed, identity, db, outbox) | 64 files, 332 passed, real PostgreSQL          |
+| `check:schema-drift`                     | clean                                          |
+| `pnpm build` + `check:bundles`           | initial closure 329,096 B / 329,105 B gzip     |
 
 Specific evidence worth naming:
 
@@ -221,3 +214,20 @@ Specific evidence worth naming:
   main and the closure has 309 B of headroom where it had 68.
 - Browser: the dialog at 1440 and 375, dark and light; the masked layout
   captured from a real page and rendered as a wireframe.
+- **Bell integration, live (ADR 0059):** with a real Organization, user and
+  membership, `ops triage-beta-feedback` accepted and then resolved a report. It
+  resolved the reporter from their pseudonyms and wrote two outcome facts
+  carrying the real ids. Delivered through the real consumer and insert job,
+  including the authorizer that re-reads the durable fact, they became **one**
+  unread `beta_feedback.outcome` row: `coalesced_count` 2, outcome `resolved`,
+  no Property, and no email queued. The live run found two bugs no fake could.
+  The outcome event schema was `.strict()`, and the outbox validates the whole
+  event, so every outcome transition would have thrown and rolled back. The
+  constructor and the row mapper also kept separate resource-type lists, so the
+  row was written and then refused on read. Both are fixed; resource types now
+  have one source.
+- **Bundle budget: 9 B of headroom.** The notification copy renders
+  synchronously in the bell, so it ships in first paint; it has been cut to the
+  minimum. The CSS is still byte-identical to main. The budget was not raised.
+  The documented lever is deferring the ~29 KB Sentry chunk, which `start.ts`
+  imports statically; that is filed as its own task.

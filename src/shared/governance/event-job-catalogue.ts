@@ -287,6 +287,13 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('identity.invitation.canceled', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
   ]),
+  // ADR 0059: tells the reporter their own beta report reached an outcome.
+  ev('identity.beta_feedback.outcome_reached', [
+    durable(
+      'notification.on-identity-beta-feedback-outcome',
+      NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
+    ),
+  ]),
   ev('identity.member.removed', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable(

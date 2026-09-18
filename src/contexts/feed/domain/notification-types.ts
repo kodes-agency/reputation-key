@@ -55,6 +55,8 @@ export const NOTIFICATION_TYPES = [
   // Goal events
   'goal.completed',
   'goal.result_revised',
+  // A beta report the recipient filed reached an outcome (ADR 0059).
+  'beta_feedback.outcome',
 ] as const
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
@@ -89,15 +91,26 @@ export type EmailQueueStatus =
   | 'suppressed'
   | 'cancelled'
 export type DeliveryErrorClass = 'transient' | 'permanent' | 'suppressed'
-export type NotificationResourceType =
-  | 'organization'
-  | 'inbox_item'
-  | 'reply'
-  | 'goal'
-  | 'badge'
-  | 'portal'
-  | 'property'
-  | 'integration'
+/**
+ * Single source for what a notification may point at, like NOTIFICATION_TYPES:
+ * the constructor and the row mapper both derive from this list. They used to
+ * keep separate copies, so adding a resource type in one place wrote rows the
+ * other then refused to read back.
+ */
+export const NOTIFICATION_RESOURCE_TYPES = [
+  'organization',
+  'inbox_item',
+  'reply',
+  'goal',
+  'badge',
+  'portal',
+  'property',
+  'integration',
+  /** The recipient's own beta report, by its opaque triage reference (ADR 0059). */
+  'beta_feedback_report',
+] as const
+
+export type NotificationResourceType = (typeof NOTIFICATION_RESOURCE_TYPES)[number]
 
 // ── In-app notification ─────────────────────────────────────────────
 

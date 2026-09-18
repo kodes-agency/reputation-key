@@ -491,6 +491,12 @@
       "classification": "client_persistence",
       "owner": "Beta feedback reporting",
       "policy": "Read once from this browser's seen-outcome map when the reports panel opens, so an outcome keeps its New marker for the whole visit. Per-viewer convenience only: nothing server-side reads it, and losing it can only make a marker reappear, never hide an outcome."
+    },
+    {
+      "id": "src/components/features/beta-feedback/beta-feedback-dialog-body.tsx:useState(panel)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Beta feedback reporting",
+      "policy": "Seeded once from initialPanel \u2014 'reports' only when a report-outcome notification opened the dialog \u2014 and never synchronized afterwards, so the reporter's own tab choice is not overridden. The dialog body mounts per open, which is the reset boundary."
     }
   ],
   "classificationDefinitions": {

@@ -175,7 +175,7 @@ export const CAPABILITY_FATE = Object.freeze({
   // The report channel must survive the failure it is used to report, so it
   // is core rather than gated behind the feature the reporter is stuck on.
   'feedback.beta_report': CORE(
-    'Reporting a Bug or Suggestion is beta core; a blocked capability must still be reportable.',
+    'Beta core: a blocked capability must still be reportable.',
   ),
   'metric.internal': CORE(
     'Governed internal metrics and always-on analytics are beta core.',

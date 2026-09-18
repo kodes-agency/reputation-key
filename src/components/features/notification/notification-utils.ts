@@ -139,6 +139,8 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
   'integration.reauthorization_required': AlertTriangle,
   'goal.completed': Target,
   'goal.result_revised': Target,
+  // The reporter's own beta report; the same speech bubble as the Feedback entry.
+  'beta_feedback.outcome': MessageSquare,
 }
 
 export function getNotificationIcon(type: NotificationType): LucideIcon {

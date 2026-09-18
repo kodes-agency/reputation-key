@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react'
+import { Link } from '@tanstack/react-router'
+import { BETA_FEEDBACK_REPORTS_ANCHOR } from '#/contexts/feed/application/public-api'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
   clearRecordedErrors,
@@ -299,5 +301,48 @@ export const BugAttachmentsLight: Story = {
     expect(
       view.queryByRole('checkbox', { name: /include a masked picture of this page/i }),
     ).toBeNull()
+  },
+}
+
+// ADR 0059: a report-outcome notification links with this anchor, the same way
+// the notification row renders it. The launcher must open on "Your reports",
+// and consume the anchor so the same notification can open it a second time.
+export const OpensFromOutcomeNotification: Story = {
+  args: { submitFeedback: successfulSubmission, listFeedback },
+  render: (args) => (
+    <div className="flex items-center gap-4">
+      <BetaFeedbackLauncher {...args} />
+      <Link to="." hash={BETA_FEEDBACK_REPORTS_ANCHOR}>
+        View reports
+      </Link>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+
+    for (const attempt of [1, 2]) {
+      await userEvent.click(canvas.getByRole('link', { name: 'View reports' }))
+      const dialog = within(await within(document.body).findByRole('dialog'))
+      const reportsTab = await dialog.findByRole(
+        'tab',
+        { name: /your reports/i },
+        { timeout: LAZY_CHUNK_TIMEOUT_MS },
+      )
+      expect(reportsTab, `open #${attempt}`).toHaveAttribute('aria-selected', 'true')
+      expect(await dialog.findByText(/tracked as/i)).toBeInTheDocument()
+      await userEvent.keyboard('{Escape}')
+      await waitFor(() => expect(within(document.body).queryByRole('dialog')).toBeNull())
+    }
+
+    // An ordinary open afterwards starts on the form again.
+    await userEvent.click(canvas.getByRole('button', { name: /feedback/i }))
+    const dialog = within(await within(document.body).findByRole('dialog'))
+    expect(
+      await dialog.findByRole(
+        'tab',
+        { name: /^report$/i },
+        { timeout: LAZY_CHUNK_TIMEOUT_MS },
+      ),
+    ).toHaveAttribute('aria-selected', 'true')
   },
 }

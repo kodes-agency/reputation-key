@@ -96,6 +96,34 @@ describe('insertNotification', () => {
     })
   })
 
+  it('delivers a report outcome in-app only, with no Property preference to consult', async () => {
+    // ADR 0059: Organization-scoped but not mandatory. ADR 0046's defaults
+    // decide it — in-app on — and nothing can opt it into email.
+    const outcomeInput = {
+      userId: USER_ID,
+      organizationId: ORG_ID,
+      propertyId: null,
+      type: 'beta_feedback.outcome' as const,
+      resourceType: 'beta_feedback_report' as const,
+      resourceId: '00000000-0000-4000-8000-0000000000f1',
+      eventId: 'identity-beta-feedback-event-1',
+      payload: { reportOutcome: 'resolved' as const },
+    }
+
+    const result = await insertNotification(deps)(outcomeInput)
+
+    expect(deps.preferenceRepo.findForDelivery).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      propertyId: null,
+      category: 'workflow_collaboration',
+      type: 'beta_feedback.outcome',
+      resourceType: 'beta_feedback_report',
+    })
+    expect(deps.notificationRepo.insert).toHaveBeenCalledOnce()
+    expect(deps.emailRepo.insert).not.toHaveBeenCalled()
+    expect(deps.enqueueImmediateEmail).not.toHaveBeenCalled()
+  })
+
   it('renders copy from the payload instead of storing caller-supplied text', async () => {
     const result = await insertNotification(deps)(input)
 

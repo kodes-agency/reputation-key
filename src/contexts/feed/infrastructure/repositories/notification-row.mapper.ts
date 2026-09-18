@@ -10,6 +10,7 @@ import {
   userId as toUserId,
 } from '#/shared/domain/ids'
 import {
+  NOTIFICATION_RESOURCE_TYPES,
   NOTIFICATION_TYPES,
   type Notification,
   type NotificationPriority,
@@ -31,16 +32,9 @@ const VALID_TYPES: readonly NotificationType[] = NOTIFICATION_TYPES
 
 const VALID_PRIORITIES: readonly NotificationPriority[] = ['urgent', 'normal']
 const VALID_STATUSES: readonly NotificationStatus[] = ['unread', 'read', 'dismissed']
-const VALID_RESOURCE_TYPES: readonly NotificationResourceType[] = [
-  'organization',
-  'inbox_item',
-  'reply',
-  'goal',
-  'badge',
-  'portal',
-  'property',
-  'integration',
-]
+// Single source: domain/notification-types.ts NOTIFICATION_RESOURCE_TYPES.
+const VALID_RESOURCE_TYPES: readonly NotificationResourceType[] =
+  NOTIFICATION_RESOURCE_TYPES
 
 export const notificationFromRow = (row: NotificationRow): Notification => ({
   id: notificationId(row.id),

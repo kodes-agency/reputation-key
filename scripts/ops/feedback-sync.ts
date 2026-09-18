@@ -16,6 +16,7 @@ import { getDb } from '../../src/shared/db'
 import { getEnv } from '../../src/shared/config/env'
 import { BetaFeedbackTriageRepository } from '../../src/contexts/identity/infrastructure/beta-feedback-triage.repository'
 import { betaFeedbackPseudonym } from '../../src/contexts/identity/application/beta-feedback-pseudonym'
+import { resolveBetaFeedbackReporter } from '../../src/contexts/identity/infrastructure/beta-feedback-reporter'
 import { runOperatorCommand } from './operator-command'
 
 const COMMAND = 'ops:feedback-sync'
@@ -74,11 +75,17 @@ async function main(): Promise<void> {
       if (context.dryRun || !context.ticket || closed.length === 0) return
 
       const secret = getEnv().BETTER_AUTH_SECRET
+      const notified: Array<{ reference: string; reporterNotified: boolean }> = []
       for (const { reference } of closed) {
         // Re-read inside the loop: revisions move, and the transition is CAS.
         const record = await repository.find(reference)
         if (!record || record.triageState !== 'accepted') continue
+        // ADR 0059: the reporter hears about it in the bell, unless they have
+        // since left the Organization.
+        const reporter = await resolveBetaFeedbackReporter(getDb(), secret, record)
+        notified.push({ reference, reporterNotified: reporter !== null })
         await repository.transition({
+          outcomeRecipient: reporter,
           transitionId: randomUUID(),
           reference,
           operatorPseudonym: betaFeedbackPseudonym(
@@ -113,7 +120,7 @@ async function main(): Promise<void> {
 
       io.out(
         JSON.stringify(
-          { command: COMMAND, mode: 'apply', resolved: closed.length },
+          { command: COMMAND, mode: 'apply', resolved: notified.length, notified },
           null,
           2,
         ),

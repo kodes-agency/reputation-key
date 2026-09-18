@@ -148,6 +148,13 @@
       "when": 1790100000000,
       "tag": "0021_beta_feedback_masked_layout",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790200000000,
+      "tag": "0022_beta_feedback_outcome_notification",
+      "breakpoints": true
     }
   ]
 }

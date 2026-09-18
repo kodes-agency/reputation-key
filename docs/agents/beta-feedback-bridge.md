@@ -103,11 +103,12 @@ triager looks at it.
 
 ## Telling the reporter
 
-Not the notification bell. Every non-mandatory notification is Property-scoped
-and the database enforces it (`notifications_mandatory_scope_check`); the only
-Organization-scoped category is `mandatory`, which forces an email that cannot
-be turned off. A report belongs to no Property. So the Feedback entry point shows
-a marker — and its accessible name says "1 report updated" — when a report is
-accepted, not planned or resolved since the reporter last looked, and those rows
-read New in their list. Moving this to the bell would mean relaxing that
-invariant; see the plan's open decisions.
+In the notification bell, and by a marker on the Feedback entry point (ADR 0059).
+When `ops triage-beta-feedback` or `ops feedback-sync` moves a report into
+accepted, not planned or resolved, Identity recomputes the reporter's pseudonyms
+over its own Organization and member rows. It writes
+`identity.beta_feedback.outcome_reached` in the same transaction. The feed turns
+that into an in-app `beta_feedback.outcome` notice, which is never mailed, and
+whose link opens "Your reports". A reporter who has left the Organization is
+not matched and gets no notice; both commands report `reporterNotified` so the
+operator can see it.

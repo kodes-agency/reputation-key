@@ -60,6 +60,13 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['account.organization_access_removed'],
     ['affected_organization_user'],
   ),
+  // ADR 0059: Organization-scoped and informational, not mandatory.
+  route(
+    'identity.beta_feedback.outcome_reached',
+    'notification.on-identity-beta-feedback-outcome',
+    ['beta_feedback.outcome'],
+    ['affected_organization_user'],
+  ),
   {
     ...route(
       'identity.organization_lifecycle.changed',

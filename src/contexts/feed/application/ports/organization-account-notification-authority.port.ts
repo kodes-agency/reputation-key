@@ -4,6 +4,7 @@ export const ORGANIZATION_ACCOUNT_NOTIFICATION_EVENT_TYPES = [
   'identity.invitation.accepted',
   'identity.member.role_changed',
   'identity.member.removed',
+  'identity.beta_feedback.outcome_reached',
 ] as const
 
 export type OrganizationAccountNotificationEventType =

@@ -19,7 +19,10 @@ import type {
   Notification as DomainNotification,
   NotificationCadence,
 } from '../../domain/notification-types'
-import { classifyNotification } from '../../domain/notification-delivery-policy'
+import {
+  classifyNotification,
+  notificationScopeForType,
+} from '../../domain/notification-delivery-policy'
 import {
   applyCoalescence,
   getDefaultCadence,
@@ -71,6 +74,18 @@ const resolveChannelPreferences = async (
       inAppEnabled: true,
       emailEnabled: true,
       emailCadence: 'immediate',
+    }
+  }
+  // ADR 0059: an Organization-scoped informational notice has no Property and
+  // therefore no preference row. ADR 0046 rule 1 says missing rows resolve
+  // through versioned defaults — so in-app follows the category default, and
+  // email is off outright: there is no row that could ever opt it in, and the
+  // email queue's own scope CHECK would refuse it.
+  if (notificationScopeForType(input.type) === 'organization') {
+    return {
+      inAppEnabled: getDefaultEnabled(category, 'in_app'),
+      emailEnabled: false,
+      emailCadence: getDefaultCadence(category),
     }
   }
   if (input.propertyId === null) {
