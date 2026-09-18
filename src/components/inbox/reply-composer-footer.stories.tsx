@@ -204,6 +204,49 @@ export const DeleteDraftRefused: Story = {
 }
 
 /**
+ * A `Retry save` that fails again is reported where the first failure was:
+ * the coordinator puts autosave's `error` back on the line before its retry
+ * rejects. The footer only has to settle the promise, as it does for a
+ * refused delete above.
+ */
+const refusedRetries: Error[] = []
+
+export const RetrySaveRefused: Story = {
+  args: {
+    status: 'error',
+    error: 'Draft could not be saved. Retry before submitting.',
+    canSubmit: false,
+    // A plain function, not `fn()`, for the reason `DeleteDraftRefused` gives.
+    onRetrySave: () => {
+      const refusal = new Error('offline')
+      refusedRetries.push(refusal)
+      return Promise.reject(refusal)
+    },
+  },
+  play: async ({ canvasElement }) => {
+    refusedRetries.length = 0
+    const unhandled: unknown[] = []
+    const record = (event: PromiseRejectionEvent) => {
+      event.preventDefault()
+      unhandled.push(event.reason)
+    }
+    window.addEventListener('unhandledrejection', record)
+    try {
+      await userEvent.click(
+        within(canvasElement).getByRole('button', { name: 'Retry save' }),
+      )
+      expect(refusedRetries).toHaveLength(1)
+      // Two task turns, as in `DeleteDraftRefused`.
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(unhandled).toEqual([])
+    } finally {
+      window.removeEventListener('unhandledrejection', record)
+    }
+  },
+}
+
+/**
  * An unfilled template placeholder blocks the submit, and the reason reaches
  * the reader through the button's `aria-describedby` rather than by being
  * merely visible near it.
@@ -218,10 +261,14 @@ export const SubmitBlocked: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const submit = canvas.getByRole('button', { name: 'Submit for approval' })
-    expect(submit).toBeDisabled()
+    expect(submit).toHaveAttribute('aria-disabled', 'true')
     expect(submit).toHaveAccessibleDescription(
       'Fill every template placeholder before publishing: {guest_name}.',
     )
+    // Focusable so the reason can be reached — and still refusing the click.
+    onSubmit.mockClear()
+    await userEvent.click(submit)
+    expect(onSubmit).not.toHaveBeenCalled()
   },
 }
 

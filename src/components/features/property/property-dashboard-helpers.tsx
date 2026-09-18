@@ -20,7 +20,7 @@ export function Stars({ rating }: { rating: number | null }) {
       {Array.from({ length: 5 }, (_, i) => (
         <Star
           key={i}
-          className={`size-3 ${rating !== null && i < Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`}
+          className={`size-3 ${rating !== null && i < Math.round(rating) ? 'fill-current text-rating' : 'text-muted-foreground/30'}`}
         />
       ))}
     </span>

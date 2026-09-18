@@ -8,6 +8,34 @@ import type { InboxDetailState } from './use-inbox-detail'
 
 type CanPermission = (permission: Permission) => boolean
 
+type EscalationCommands = Pick<InboxDetailState, 'escalate' | 'resolveEscalation'>
+
+/**
+ * The two commands `e` can issue, bound to the item's revision fence. Hook-free
+ * so the node unit project can call them without rendering the hook.
+ *
+ * Each is `.catch`ed, as the toolbar's are (`buildInboxCaseToolbarProps`): an
+ * `Action` is `mutateAsync` and rejects on refusal, and a keypress has nowhere
+ * to put the promise, so a bare `void` left every refused press an unhandled
+ * rejection. What TELLS the manager is the `errorMessage` toast these commands
+ * carry in `use-inbox-detail.ts`.
+ */
+export function bindEscalationShortcutCommands(
+  item: InboxItem | null,
+  { escalate, resolveEscalation }: EscalationCommands,
+) {
+  return {
+    escalate: () => {
+      if (!item) return
+      void escalate({ data: itemCommandFence(item) }).catch(() => undefined)
+    },
+    resolveEscalation: () => {
+      if (!item) return
+      void resolveEscalation({ data: itemCommandFence(item) }).catch(() => undefined)
+    },
+  }
+}
+
 /**
  * Builds the `e` shortcut from the same availability and command fences as the
  * detail toolbar. Keeping the whole policy here prevents the page controller
@@ -31,14 +59,7 @@ export function useInboxEscalationShortcut(
     () => ({
       isAllowed,
       isPending,
-      escalate: () => {
-        if (!item) return
-        void escalate({ data: itemCommandFence(item) })
-      },
-      resolveEscalation: () => {
-        if (!item) return
-        void resolveEscalation({ data: itemCommandFence(item) })
-      },
+      ...bindEscalationShortcutCommands(item, { escalate, resolveEscalation }),
     }),
     [isAllowed, isPending, item, escalate, resolveEscalation],
   )

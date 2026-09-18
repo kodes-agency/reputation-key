@@ -85,7 +85,7 @@ type FakeAction = Mock<(input: unknown) => Promise<undefined>> &
 
 /**
  * A callable `Action` stand-in: a resolving spy carrying the reactive fields
- * `useActionMutation` attaches (`use-action-mutation.ts:102-107`).
+ * `useActionMutation` attaches beside the `mutateAsync` it returns.
  */
 const fakeAction = (isPending: boolean): FakeAction =>
   Object.assign(

@@ -22,7 +22,9 @@
 //     left as muted prose beside RepKey's own sentences;
 //   · the author is a span, not a heading;
 //   · the reject panel outlives neither the rejection it performed nor the
-//     reply it was opened on;
+//     reply it was opened on, and the rejection hands focus to Edit &
+//     resubmit rather than dropping it to <body>;
+//   · a reply in a status this bundle cannot name still prints, read-only;
 //   · Edit reply reports the editor it opens somewhere off screen, and Edit &
 //     resubmit — which unmounts this whole message instead — reports nothing;
 //   · every action goes dead while a write is in flight;
@@ -47,6 +49,7 @@ import {
   replyCheckMutationOptions,
 } from './reply-check-feedback'
 import { ReplyMessage } from './reply-message'
+import { REPLY_CHIP_WORDS } from './reply-state-copy'
 import type { ReplyData } from './reply-status-view'
 import type { ComponentProps, ReactNode } from 'react'
 
@@ -411,6 +414,9 @@ export const RejectRevealsReasonField: Story = {
 
     await userEvent.click(canvas.getByRole('button', { name: 'Cancel' }))
     expect(canvas.queryByRole('textbox', { name: REJECT_REASON_LABEL })).toBeNull()
+    // Cancel removed itself; focus goes back to the trigger that opened the
+    // panel instead of falling to <body> and losing the reader's place.
+    await waitFor(() => expect(reject).toHaveFocus())
   },
 }
 
@@ -452,6 +458,12 @@ export const RejectingClosesThePanel: Story = {
     expect(canvas.queryByRole('button', { name: 'Confirm Reject' })).toBeNull()
     expect(canvas.queryByRole('button', { name: 'Reject' })).toBeNull()
     expect(canvas.getByText(REJECTION_REASON)).toBeVisible()
+    // The row remounted as the rejected view and took the focused Confirm
+    // Reject with it. Focus lands on what that view offers, not on <body>,
+    // where a keyboard user's next Tab would restart the page.
+    await waitFor(() =>
+      expect(canvas.getByRole('button', { name: 'Edit & resubmit' })).toHaveFocus(),
+    )
   },
 }
 
@@ -1434,6 +1446,35 @@ export const NoReplyIsNotInTheThread: Story = {
     expect(canvas.queryByRole('article')).toBeNull()
     expect(canvas.queryByRole('heading')).toBeNull()
     expect(canvas.queryAllByRole('button')).toHaveLength(0)
+  },
+}
+
+// ── a status this bundle cannot name ─────────────────────────────────────────
+
+/**
+ * Version skew: the server has shipped a reply status this client predates,
+ * and `resolveReplyView` falls through to `none`. Nothing else renders that
+ * fall-through; the presenter test builds `none` by hand. The reply still
+ * prints, so an answered review never reads as unanswered, but read-only:
+ * every action is a transition out of a state this bundle cannot read. The
+ * chip claims nothing about Google, and no milestone is known, so there is no
+ * meta line.
+ */
+export const UnknownStatusIsReadOnly: Story = {
+  args: {
+    reply: makeReply({ status: 'a_status_this_bundle_predates' as Reply['status'] }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const article = canvas.getByRole('article', { name: AUTHOR_LABEL })
+    const message = within(article)
+    expect(message.getByText(REPLY_TEXT)).toBeVisible()
+    expect(message.getByText(REPLY_CHIP_WORDS.statusUnavailable)).toBeVisible()
+    expect(message.queryByText(REPLY_CHIP_WORDS.needsCheck)).toBeNull()
+    expect(message.getByText(/cannot display/i)).toBeVisible()
+    expect(article.querySelector('time')).toBeNull()
+    expect(canvas.queryAllByRole('button')).toHaveLength(0)
+    expect(article.textContent ?? '').not.toContain(RAW_ID_MARKER)
   },
 }
 

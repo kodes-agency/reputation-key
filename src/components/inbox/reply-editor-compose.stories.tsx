@@ -359,7 +359,10 @@ export const UnfilledTemplateSlotBlocksSubmit: Story = {
         'Fill every template placeholder before publishing: {guest_name}.',
       ),
     ).toBeVisible()
-    expect(canvas.getByRole('button', { name: /submit for approval/i })).toBeDisabled()
+    expect(canvas.getByRole('button', { name: /submit for approval/i })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
   },
 }
 
@@ -372,6 +375,41 @@ export const SubmitFlow: Story = {
     await userEvent.type(canvas.getByPlaceholderText(/write a reply/i), 'Thanks!')
     await userEvent.click(canvas.getByRole('button', { name: /submit for approval/i }))
     await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+  },
+}
+
+// The save before a submit fails. Whichever save that is — the blur's flush as
+// the pointer leaves the box, or the one `submit()` runs first
+// (`submitAfterSave`) — the line that reports it is autosave's own `error`, the
+// one every failed save prints; the composer adds no sentence of its own. A
+// submit the server refuses AFTER the draft saved is toasted with the server's
+// own sentence by the submit mutation's `errorMessage` (`use-reply-actions.ts`),
+// never reported here as a save failure. The line is a live region Submit
+// points at, because a failed save disables Submit natively and focus has
+// usually left it by then — and nothing was sent.
+const onSaveBeforeSubmitRefused = fn(async () => {
+  throw new Error('offline')
+})
+export const SaveFailureBeforeSubmitIsAnnounced: Story = {
+  args: { initialText: '', onSaveDraft: onSaveBeforeSubmitRefused },
+  play: async ({ canvasElement }) => {
+    onSaveBeforeSubmitRefused.mockClear()
+    onSubmit.mockClear()
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByPlaceholderText(/write a reply/i), 'Thanks!')
+    await userEvent.click(canvas.getByRole('button', { name: /submit for approval/i }))
+
+    const line = await canvas.findByText(
+      'Draft could not be saved. Retry before submitting.',
+    )
+    expect(onSaveBeforeSubmitRefused).toHaveBeenCalled()
+    expect(line).toHaveAttribute('role', 'status')
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('button', { name: /submit for approval/i }),
+      ).toHaveAccessibleDescription(expect.stringContaining('Draft could not be saved')),
+    )
+    expect(onSubmit).not.toHaveBeenCalled()
   },
 }
 
@@ -696,7 +734,10 @@ export const RatingOnlyUsesPropertyTemplate: Story = {
 
     const templateButton = canvas.getByRole('button', { name: 'Template' })
     expect(templateButton).toBeEnabled()
-    expect(canvas.getByRole('button', { name: /draft with ai/i })).toBeDisabled()
+    expect(canvas.getByRole('button', { name: /draft with ai/i })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
     await userEvent.click(templateButton)
     await waitFor(() =>
       expect(onListNoTextTemplate).toHaveBeenCalledWith({
@@ -763,6 +804,46 @@ export const ShortReviewUsesPropertyTemplate: Story = {
         "Review language couldn't be detected — template loaded in Bulgarian (property default).",
       ),
     ).resolves.toBeVisible()
+  },
+}
+
+// The template loads, then the composer's own save of it fails. The load has
+// already written the template server-side, so the box must show it (adopted
+// BEFORE the save, not skipped by the save's failure), the failure is reported
+// where every failed save is — `Retry save` — and nothing claims the LOAD failed.
+let refuseTemplateSaves = true
+const onSaveDraftRefused = fn(async () => {
+  if (refuseTemplateSaves) throw new Error('offline')
+})
+export const TemplateLoadsEvenWhenItsSaveFails: Story = {
+  args: {
+    propertyDefaultReplyLanguage: 'en-Latn-US',
+    reviewReplyLanguage: null,
+    reviewLanguageReadiness: 'no_review_text',
+    onListTemplates: onListLibraryTemplates,
+    onLoadTemplate: onLoadLibraryTemplate,
+    onSaveDraft: onSaveDraftRefused,
+  },
+  play: async ({ canvas }) => {
+    onLoadLibraryTemplate.mockClear()
+    onSaveDraftRefused.mockClear()
+    refuseTemplateSaves = true
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Template' }))
+
+    await waitFor(() => expect(canvas.getByRole('textbox')).toHaveValue(LIBRARY_REPLY))
+    const retry = await canvas.findByRole('button', { name: 'Retry save' })
+    expect(canvas.queryByText(/template could not be loaded/i)).toBeNull()
+
+    // The retry lands, and with it every trace of the failure goes. A second,
+    // template-specific error line used to stay up here, because only another
+    // load cleared it.
+    refuseTemplateSaves = false
+    await userEvent.click(retry)
+    await waitFor(() =>
+      expect(canvas.queryByRole('button', { name: 'Retry save' })).toBeNull(),
+    )
+    expect(canvas.queryByText(/could not be saved/i)).toBeNull()
   },
 }
 
@@ -890,6 +971,124 @@ export const ManualEditWinsOverDelayedSuggestion: Story = {
     resolveDelayed(readySuggestion())
     await waitFor(() => expect(canvas.getByRole('textbox')).toHaveValue('Manual draft'))
     expect(canvas.queryByText(/ai-generated suggestion/i)).not.toBeInTheDocument()
+  },
+}
+
+/**
+ * Typing while a draft is being generated must not lock the composer.
+ *
+ * Each keystroke calls `dismiss()`, which retires the pending ANSWER — and the
+ * request's `finally` used to clear `isGenerating` only if it was still the
+ * newest by that same counter. One character typed before the draft landed
+ * left the flag set for the life of the pane: `busy` disabled every assist
+ * control and `canSubmit` refused the reply for good. The flag now belongs to
+ * the request that raised it (`use-reply-suggestion.ts`, `generatingRequest`).
+ *
+ * `ManualEditWinsOverDelayedSuggestion` above drives the same keystrokes and
+ * checks the TEXT; this checks that the composer comes back.
+ */
+export const TypingDuringGenerationDoesNotLockTheComposer: Story = {
+  args: { onGenerateSuggestion: onGenerateDelayed },
+  play: async ({ canvas }) => {
+    resolveDelayedSuggestion = undefined
+
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+    // While the request runs the button reads `Drafting…` and is disabled.
+    await expect(
+      canvas.findByRole('button', { name: /drafting/i }),
+    ).resolves.toBeDisabled()
+    await userEvent.type(canvas.getByRole('textbox'), 'x')
+    resolveDelayed(readySuggestion())
+
+    // With the flag orphaned it stayed `Drafting…` for good, so this query
+    // never found a `Draft with AI` button again.
+    await waitFor(() =>
+      expect(canvas.getByRole('button', { name: /draft with ai/i })).toBeEnabled(),
+    )
+  },
+}
+
+/**
+ * The save `Draft with AI` runs before generating fails. That failure is
+ * autosave's to report — `Draft could not be saved…` and `Retry save`, as for
+ * every failed save — and the AI row says nothing: the request returns before
+ * it generates (`use-reply-suggestion.ts`, the flush's own `try`), so the error
+ * line no longer claims the draft "could not be generated" beside a head that
+ * reads `Not saved`.
+ *
+ * Typed text, not `initialText`: the coordinator treats the initial text as
+ * saved, so a flush of it would not save anything. The save takes a moment to
+ * fail so the request is seen running (`Drafting…`) before it ends.
+ */
+const onSaveBeforeDraftingRefused = fn(
+  (_text: string) =>
+    new Promise<void>((_resolve, reject) => {
+      setTimeout(() => reject(new Error('offline')), 100)
+    }),
+).mockName('onSaveBeforeDraftingRefused')
+const onGenerateAfterRefusedSave = fn(async () => readySuggestion()).mockName(
+  'onGenerateAfterRefusedSave',
+)
+export const SaveFailureBeforeDraftingIsNotAGenerationFailure: Story = {
+  args: {
+    onSaveDraft: onSaveBeforeDraftingRefused,
+    onGenerateSuggestion: onGenerateAfterRefusedSave,
+  },
+  play: async ({ canvas }) => {
+    onSaveBeforeDraftingRefused.mockClear()
+    onGenerateAfterRefusedSave.mockClear()
+    await userEvent.type(canvas.getByRole('textbox'), 'Thanks!')
+
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+    await expect(
+      canvas.findByRole('button', { name: /drafting/i }),
+    ).resolves.toBeDisabled()
+    await waitFor(() =>
+      expect(canvas.getByRole('button', { name: /draft with ai/i })).toBeEnabled(),
+    )
+
+    expect(
+      canvas.getByText('Draft could not be saved. Retry before submitting.'),
+    ).toBeVisible()
+    expect(canvas.getByRole('button', { name: 'Retry save' })).toBeVisible()
+    expect(canvas.queryByText(/could not be generated/i)).toBeNull()
+    expect(onGenerateAfterRefusedSave).not.toHaveBeenCalled()
+  },
+}
+
+/**
+ * Generation fails after the manager typed while it ran. The keystroke retired
+ * the pending ANSWER (`dismiss()`), but not the request: its failure still
+ * belongs to the request's owner and is printed. Gated on the answer's
+ * currency instead, the failure vanished and the spinner simply stopped.
+ */
+let rejectDelayedSuggestion: ((error: Error) => void) | undefined
+const onGenerateDelayedFailure = fn(
+  () =>
+    new Promise<ReplySuggestionResult>((_resolve, reject) => {
+      rejectDelayedSuggestion = reject
+    }),
+).mockName('onGenerateDelayedFailure')
+const rejectDelayed = (error: Error): void => {
+  if (!rejectDelayedSuggestion)
+    throw new Error('Delayed suggestion request was not started')
+  rejectDelayedSuggestion(error)
+}
+export const GenerationFailureAfterTypingIsReported: Story = {
+  args: { onGenerateSuggestion: onGenerateDelayedFailure },
+  play: async ({ canvas }) => {
+    rejectDelayedSuggestion = undefined
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+    await expect(
+      canvas.findByRole('button', { name: /drafting/i }),
+    ).resolves.toBeDisabled()
+    await userEvent.type(canvas.getByRole('textbox'), 'x')
+    rejectDelayed(new Error('provider timeout'))
+
+    await expect(
+      canvas.findByText('The draft suggestion could not be generated. Try again.'),
+    ).resolves.toBeVisible()
+    expect(canvas.getByRole('button', { name: /draft with ai/i })).toBeEnabled()
   },
 }
 

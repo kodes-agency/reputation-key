@@ -125,8 +125,25 @@ function failedCheckView(reply: ReplyEntity): ReplyMessageView {
 export function presentReplyMessage(view: ResolvedReplyView): ReplyMessageView | null {
   switch (view.kind) {
     case 'compose':
-    case 'none':
       return null
+    // A status this bundle cannot name. It prints as a read-only message with
+    // no actions: every action is a state transition, and offering one on a
+    // state we cannot identify would be a guess. `compose`'s silence is right
+    // for a draft — the composer holds it — and wrong here, where returning
+    // null left the pane showing neither the reply nor a box to write one, so
+    // a manager read it as unanswered and had no control to act on either way.
+    // The chip claims nothing about Google: `Needs a check` would ask for a
+    // Check this message cannot offer.
+    case 'none':
+      return {
+        chip: REPLY_CHIP_WORDS.statusUnavailable,
+        tone: 'neutral',
+        meta: null,
+        detail:
+          'This reply is in a state this version of RepKey cannot display. Reload the page to pick up the current one.',
+        reason: null,
+        actions: [],
+      }
     case 'pending':
       return {
         chip: REPLY_CHIP_WORDS.awaitingApproval,

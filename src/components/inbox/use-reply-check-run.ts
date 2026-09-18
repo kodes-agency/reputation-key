@@ -15,10 +15,18 @@ import {
 type KeyedLine = Readonly<{ key: string; checkedFromKey: string; message: string }>
 
 /**
- * A settled check's reply, until it renders: its state key when the check
- * answered, or null after a rejection, whose re-read state is not known yet.
+ * A settled action's reply, until it renders: the state key the answer left it
+ * in, or null when that state is not known yet (a refused check, whose re-read
+ * has not landed).
  */
 type FocusRequest = Readonly<{ replyId: string; key: string | null }>
+
+export type ReplyFocusReturn = Readonly<{
+  /** Return focus once `replyId` renders in the state `key` names (null: any). */
+  request: (replyId: string, key: string | null) => void
+  /** Forget a pending request: a new action on this reply is starting. */
+  cancel: () => void
+}>
 
 export type ReplyCheckRun = Readonly<{
   /** THIS reply's check is in flight — not merely some write in the pane. */
@@ -44,6 +52,60 @@ function primaryAction(message: HTMLElement | null): HTMLElement | null {
 function isFocusLost(message: HTMLElement): boolean {
   const active = message.ownerDocument.activeElement
   return active === null || active === message.ownerDocument.body || !active.isConnected
+}
+
+/**
+ * Puts focus back in a reply message after an action's answer took it away.
+ *
+ * An answer that changes the view (a check: never sent → Try publishing again,
+ * live → Edit reply; a reject: → Edit & resubmit) unmounts the focused button,
+ * and focus falls to <body>: a keyboard user's next Tab restarts at the top of
+ * the page. After the answer has rendered, a lost focus moves to the new
+ * primary action. Callers hold this above the action row, which `ReplyMessage`
+ * keys by `${reply.id}:${reply.status}`, so a request survives the remount a
+ * new status causes.
+ *
+ * `key` is the caller's name for the state on screen, compared with the key a
+ * request waits for. The request waits for that state — the cache write can
+ * render after the action's own settle — and for `isBusy` to clear, and gives
+ * up on another reply, or once focus is somewhere the manager put it.
+ */
+export function useReplyFocusReturn(
+  messageRef: RefObject<HTMLElement | null>,
+  replyId: string | null,
+  key: string | null,
+  isBusy: boolean,
+): ReplyFocusReturn {
+  const pending = useRef<FocusRequest | null>(null)
+
+  useEffect(() => {
+    const request = pending.current
+    const message = messageRef.current
+    if (request === null) return
+    if (request.replyId !== replyId) {
+      pending.current = null
+      return
+    }
+    const isShowing = request.key === null || request.key === key
+    if (!isShowing || isBusy || !message) return
+    if (!isFocusLost(message)) {
+      pending.current = null
+      return
+    }
+    const action = primaryAction(message)
+    if (!action) return
+    pending.current = null
+    action.focus()
+  })
+
+  return {
+    request: (target, expectedKey) => {
+      pending.current = { replyId: target, key: expectedKey }
+    },
+    cancel: () => {
+      pending.current = null
+    },
+  }
 }
 
 /**
@@ -74,7 +136,13 @@ export function useReplyCheckRun(
   const lineKey = reply ? replyCheckLineKey(reply) : null
   const [checkingReplyId, setCheckingReplyId] = useState<string | null>(null)
   const [line, setLine] = useState<KeyedLine | null>(null)
-  const focusAfterCheck = useRef<FocusRequest | null>(null)
+  // Keyed by `replyCheckLineKey`: it waits for the reply the check returned.
+  const focusAfterCheck = useReplyFocusReturn(
+    messageRef,
+    replyId,
+    lineKey,
+    checkingReplyId !== null,
+  )
 
   // Cleared during render rather than hidden: the line is a live region, and a
   // stale sentence kept in state would be announced again the moment the
@@ -83,33 +151,6 @@ export function useReplyCheckRun(
   if (line !== null && line.key !== lineKey && line.checkedFromKey !== lineKey) {
     setLine(null)
   }
-
-  // A check whose answer changes the view (never sent → Try publishing again,
-  // live → Edit reply) unmounts the focused button, and focus falls to <body>:
-  // a keyboard user's next Tab restarts at the top of the page. After the
-  // answer has rendered, a lost focus moves to the new primary action. It
-  // waits for the reply the check returned — the cache write can render after
-  // the check's own settle — and gives up on another reply, or once focus is
-  // somewhere the manager put it.
-  useEffect(() => {
-    const request = focusAfterCheck.current
-    const message = messageRef.current
-    if (request === null) return
-    if (request.replyId !== replyId) {
-      focusAfterCheck.current = null
-      return
-    }
-    const isShowing = request.key === null || request.key === lineKey
-    if (!isShowing || checkingReplyId !== null || !message) return
-    if (!isFocusLost(message)) {
-      focusAfterCheck.current = null
-      return
-    }
-    const action = primaryAction(message)
-    if (!action) return
-    focusAfterCheck.current = null
-    action.focus()
-  })
 
   const check = () => {
     if (replyId === null || lineKey === null) return
@@ -120,13 +161,13 @@ export function useReplyCheckRun(
     // changes, so an answer identical to the line already there (the same
     // minute, or `Google no longer returns this review.`) would be silent.
     setLine(null)
-    focusAfterCheck.current = null
+    focusAfterCheck.cancel()
     void onCheck()
       .then(
         (result) => {
           const feedback = replyCheckFeedback(result)
           const key = replyCheckLineKey(result.reply)
-          focusAfterCheck.current = { replyId: target, key }
+          focusAfterCheck.request(target, key)
           setLine(
             feedback.kind === 'status'
               ? { key, checkedFromKey, message: feedback.message }
@@ -137,7 +178,7 @@ export function useReplyCheckRun(
         // (use-reply-actions.ts), which toasts before this rejection arrives,
         // and re-reads the reply (`onReplyCheckFailed`).
         () => {
-          focusAfterCheck.current = { replyId: target, key: null }
+          focusAfterCheck.request(target, null)
         },
       )
       .finally(() => {

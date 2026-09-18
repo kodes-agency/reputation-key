@@ -47,8 +47,17 @@ export function ReplyComposerFooter({
   onDelete,
 }: Props) {
   const submitBlockedReasonId = useId()
+  const errorId = useId()
+  const guaranteeId = useId()
   return (
-    <div className="space-y-3">
+    // `flex flex-col gap-3`, not `space-y-3`. Tailwind compiles `space-y-*` to
+    // a margin on `:not(:last-child)`, which is a STRUCTURAL selector: the
+    // always-mounted reason below is still the last child when it is empty and
+    // `sr-only`-positioned, so `space-y-3` gave the action row 12 px of margin
+    // in the ordinary submittable state. A flex `gap` ignores an absolutely
+    // positioned child outright, which is what the two sibling regions
+    // (`inbox-thread.tsx`, `reply-suggestion-controls.tsx`) already rely on.
+    <div className="flex flex-col gap-3">
       {/* `justify-end`: the save state that used to hold the left of this row
           with `mr-auto` is in the dock's head now, and the actions keep their
           place against the trailing edge rather than sliding left into the
@@ -69,7 +78,10 @@ export function ReplyComposerFooter({
             variant="ghost"
             className="max-md:h-9"
             disabled={disabled}
-            onClick={() => void onRetrySave()}
+            // Settled only so a retry that fails again is not an unhandled
+            // rejection: the coordinator has already put the failure back on
+            // the error line below before it rejects.
+            onClick={() => void onRetrySave().catch(() => undefined)}
           >
             Retry save
           </Button>
@@ -92,38 +104,100 @@ export function ReplyComposerFooter({
             one (the app shell's lives in `ui/sidebar.tsx`, and no story or
             standalone render has it), and Radix's `Tooltip` throws without.
 
-            `aria-describedby` is spread only while there IS a blocked reason.
-            `TooltipTrigger asChild` merges props with the child's winning, so
-            a child carrying the key as `undefined` would erase the id Radix
-            points at the open tooltip, and a keyboard user would hear the
-            button without the guarantee. While a reason is shown the button is
-            disabled, takes no focus or hover, and the tooltip cannot open —
-            so the two descriptions never compete. */}
+            BLOCKED-WITH-A-REASON IS `aria-disabled`, NOT `disabled` — the rule
+            `reply-message-actions.tsx` and `reply-editor-views.tsx` already
+            follow, and split the same way they split it. A natively disabled
+            button leaves the tab order and takes its `aria-describedby` with
+            it, so the one sentence that says why this reply cannot be submitted
+            was unreachable precisely when it was on screen.
+
+            The native attribute survives for every blocker that has NOTHING to
+            explain — an in-flight write or AI request, an empty or over-long
+            box, a failed autosave. Those leave no
+            `submitBlockedReason`, so making them `aria-disabled` would only
+            produce a focusable control that announces itself unavailable and
+            says nothing about why. `canSubmit` has more clauses than
+            `submitBlockedReason` has sentences, and this is where that gap is
+            paid.
+
+            While a reason IS shown the button stays focusable, so Radix opens
+            the tooltip too and both descriptions are live at once — which is
+            why `aria-describedby` is spelled out below rather than left to
+            either party. */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 size="sm"
-                className="max-md:h-9"
-                disabled={!canSubmit || disabled}
-                {...(submitBlockedReason !== null
-                  ? { 'aria-describedby': submitBlockedReasonId }
-                  : {})}
-                onClick={() => void onSubmit()}
+                className="max-md:h-9 aria-disabled:opacity-50"
+                disabled={disabled || (!canSubmit && submitBlockedReason === null)}
+                aria-disabled={submitBlockedReason !== null}
+                // Both descriptions, spelled here rather than left to Radix.
+                // `TooltipTrigger asChild` merges through `Slot`, where the
+                // CHILD wins a non-handler prop — so a bare
+                // `aria-describedby={submitBlockedReasonId}` overwrote the id
+                // Radix points at the open tooltip, and the publication
+                // guarantee became unreachable in exactly the state that also
+                // shows a blocking reason. An id whose element is not mounted
+                // is ignored, so listing both is safe while the tooltip is shut.
+                aria-describedby={[
+                  submitBlockedReason !== null ? submitBlockedReasonId : null,
+                  error ? errorId : null,
+                  guaranteeId,
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                // The early return is the guard: there is no form and no
+                // `AlertDialogTrigger` here, so nothing downstream reads a
+                // prevented default (unlike `reply-message-actions.tsx`, where
+                // the trigger honours one).
+                onClick={() => {
+                  if (!canSubmit) return
+                  void onSubmit()
+                }}
               >
                 {isSubmitting ? 'Submitting…' : 'Submit for approval'}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{PUBLICATION_GUARANTEE}</TooltipContent>
+            <TooltipContent id={guaranteeId}>{PUBLICATION_GUARANTEE}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>
-      {submitBlockedReason !== null && (
-        <p id={submitBlockedReasonId} role="status" className="text-xs text-destructive">
-          {submitBlockedReason}
-        </p>
-      )}
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {/* One region, always mounted, holding its message conditionally.
+          A live region has to be in the document — and in the accessibility
+          tree — BEFORE its text changes, or the first message is announced by
+          nobody. `empty:sr-only` is what makes that free: with no reason the
+          element is truly empty, and `sr-only` takes it out of flow rather than
+          out of the tree, the way `hidden` would. One copy of the sentence, so
+          `aria-describedby` and the announcement never disagree and no query
+          matches it twice. The `id` persists for the button to point at. */}
+      <p
+        id={submitBlockedReasonId}
+        role="status"
+        className="text-xs text-destructive empty:sr-only"
+      >
+        {submitBlockedReason}
+      </p>
+      {/* The save-failure line, on the same always-mounted pattern as the
+          reason above and for the same reason. It prints autosave's own
+          `error` and nothing else — the save `submit()` runs before submitting
+          (`submitAfterSave`) fails through the same coordinator, so that
+          failure lands here in autosave's words too. A failed save leaves
+          autosave in `error`, which disables Submit natively, so focus has
+          usually fallen off it and only a live region can tell a
+          screen-reader user that nothing was sent. A refused SUBMIT is not
+          printed here: the submit mutation's `errorMessage` toasts the
+          server's own sentence (`use-reply-actions.ts`), and a line repeating
+          it would report one refusal twice. Polite, not an alert: the dock's
+          head already announces an autosave failure, and an assertive region
+          would repeat and interrupt. Every new attempt to save — a keystroke,
+          `Retry save`, a flush — first emits a status with no error, which
+          empties the line, so a second failure is a fresh change and is
+          announced again. Submit points `aria-describedby` at it while it has
+          something to say. */}
+      <p id={errorId} role="status" className="text-xs text-destructive empty:sr-only">
+        {error}
+      </p>
     </div>
   )
 }

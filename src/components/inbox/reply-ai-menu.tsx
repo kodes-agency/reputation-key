@@ -105,11 +105,22 @@ export function ReplyAiMenu(props: ReplyAiMenuProps) {
           type="button"
           size="sm"
           variant="outline"
-          className={CASE_SQUARE_CLASS}
-          disabled={props.disabled || props.aiDisabled}
+          className={`${CASE_SQUARE_CLASS} aria-disabled:opacity-50`}
+          // Blocked-with-a-reason is `aria-disabled`, not `disabled`: a natively
+          // disabled button leaves the tab order and takes its
+          // `aria-describedby` with it, so the one sentence saying why this
+          // tool is unavailable could never be reached — the rule the Submit
+          // primary (`reply-composer-footer.tsx`) and the reply actions follow.
+          // `disabled` stays for an in-flight write, which has nothing to say,
+          // and for a block that somehow arrives without its sentence.
+          disabled={props.disabled || (props.aiDisabled && !props.aiUnavailableReason)}
+          aria-disabled={props.aiDisabled || undefined}
           title={props.isPrimary ? props.primaryExplanation : undefined}
           aria-describedby={describedBy}
-          onClick={() => void props.onRequestAi()}
+          onClick={() => {
+            if (props.aiDisabled) return
+            void props.onRequestAi()
+          }}
         >
           <Sparkles data-icon="inline-start" aria-hidden="true" />
           <span className={ASSIST_LABEL_CLASS}>

@@ -40,10 +40,10 @@ export type ReplyDraftAdoption = Readonly<{
  *
  * Provenance lives in this mount only; after a reload there is no template
  * tag, and that is intended rather than a gap. The server does keep a
- * `templateId` on the reply (`reply-operations.ts:328`, and `ReplyView`
- * carries it to the client, `reply-lookup.port.ts:28`), but it is not the
+ * `templateId` on the reply (`reply-operations.ts`'s draft upsert, and
+ * `ReplyView.templateId` carries it to the client), but it is not the
  * draft's provenance: a hand-typed save sends no `templateId`
- * (`use-reply-actions.ts:101`), the update spreads it only when present, and so
+ * (`useReplyActions`' `saveDraft`), the update spreads it only when present, and so
  * the id survives every later edit — it names the template the draft last
  * started from, whatever the text now says. The AI tag, by contrast, does
  * survive a reload: every save that is not an AI acceptance writes

@@ -285,11 +285,26 @@ export const LanguageBlockKeepsMenuReachable: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     const draft = canvas.getByRole('button', { name: 'Draft with AI' })
-    await expect(draft).toBeDisabled()
+    // Blocked with a reason is `aria-disabled`: it stays focusable so the
+    // description below can be reached, and refuses the click.
+    await expect(draft).toHaveAttribute('aria-disabled', 'true')
     await expect(draft).toHaveAccessibleDescription(
       'Choose a supported reply language before drafting with AI.',
     )
-    await expect(canvas.getByRole('button', { name: 'Template' })).toBeDisabled()
+    const template = canvas.getByRole('button', { name: 'Template' })
+    await expect(template).toHaveAttribute('aria-disabled', 'true')
+
+    // Both stay in the tab order — that is the point of `aria-disabled` — and
+    // both still refuse the click: the early return in each onClick is the only
+    // thing standing between a blocked tool and its request.
+    draft.focus()
+    await expect(draft).toHaveFocus()
+    await userEvent.click(draft)
+    await expect(args.onRequestAi).not.toHaveBeenCalled()
+    template.focus()
+    await expect(template).toHaveFocus()
+    await userEvent.click(template)
+    await expect(args.onLoadRecommended).not.toHaveBeenCalled()
 
     const chevron = canvas.getByRole('button', {
       name: 'AI tone and language: Professional',

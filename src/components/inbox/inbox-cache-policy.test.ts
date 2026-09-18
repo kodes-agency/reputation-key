@@ -47,14 +47,25 @@ afterEach(() => {
 // ── Key topology the policy relies on ───────────────────────────
 
 describe('inbox key topology (pinned)', () => {
-  it('detail(id) is a prefix of notes(id), activity(id) and history(id)', () => {
-    const detail = inboxKeys.detail(ID)
-    for (const child of [
+  // What matters is what an invalidation REACHES. The on-demand analysis poll
+  // invalidates one `detail(id)` as a prefix every few seconds while it waits
+  // for an analysis it requested (at most 90 s); with the item reads nested
+  // under the detail, each tick refetched
+  // that item's mounted notes and Handling History too, for a change to the
+  // detail alone. The settings pages' `details()` invalidation runs with no
+  // pane mounted, so under the nesting it only marked notes and history stale.
+  // A key `details()` cannot reach, `detail(id)` cannot reach either.
+  it('details() reaches every item detail and nothing else about the item', () => {
+    const reaches = (key: readonly unknown[]) =>
+      inboxKeys.details().every((part, index) => Object.is(part, key[index]))
+
+    expect(reaches(inboxKeys.detail(ID))).toBe(true)
+    for (const sibling of [
       inboxKeys.notes(ID),
       inboxKeys.activity(ID),
       inboxKeys.history(ID),
     ]) {
-      expect(child.slice(0, detail.length)).toEqual(detail)
+      expect(reaches(sibling)).toBe(false)
     }
   })
 })

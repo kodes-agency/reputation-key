@@ -15,16 +15,11 @@ import {
 import { withFreshCommandRevision, type InboxDetailState } from './use-inbox-detail'
 import type { InboxAssignmentOption } from './inbox-owner-view'
 import type { InboxCurrentUser } from './inbox-case-toolbar-props'
-import type { InboxReplyCacheChange } from './inbox-cache-policy'
 import type { NoteDraft } from './composer-policy'
 import { DetailComposerRegion, DetailThreadRegion } from './inbox-detail-regions'
 import { inboxDetailFeedbackPresentation } from './inbox-detail-feedback'
 import type { InboxDetailFns } from './types'
-import type {
-  InboxItem,
-  InboxItemDetailResult,
-  InboxNoteView,
-} from '#/contexts/inbox/application/public-api'
+import type { InboxItem } from '#/contexts/inbox/application/public-api'
 
 // `ReplyEditTarget` and `ComposerMode` are this pane's state and reach their
 // consumers from here, but both are DECLARED beside the control that reads them
@@ -38,10 +33,22 @@ export type { ComposerFocusBox } from './use-inbox-composer-controller'
 
 export type DetailContentProps = Readonly<{
   currentItem: InboxItem
-  detail: InboxItemDetailResult | null
-  notes: ReadonlyArray<InboxNoteView>
-  onNoteAdded: (resultingCommandRevision: number) => void
-  onReplyMutated: (change: InboxReplyCacheChange) => void
+  /**
+   * The pane's server state and its six item commands, as ONE prop.
+   *
+   * Ten of these used to be spelled out individually — `detail`, `notes`, the
+   * two cache callbacks and all six commands — and both callers
+   * (`inbox-detail-panel.tsx`, `inbox-detail-sheet.tsx`) hand-copied the same
+   * ten lines off the object they already held, so adding a seventh command
+   * meant editing three files identically. `notesUnavailable` would have been
+   * the eleventh. The prop types even spelled
+   * themselves as `InboxDetailState['updateStatus']`, which is the object
+   * admitting it was the real unit.
+   *
+   * `currentItem` stays separate on purpose: the panel supplies its own
+   * non-null fallback item while the state's is `InboxItem | null`.
+   */
+  detailState: InboxDetailState
   detailFns: InboxDetailFns
   /**
    * The signed-in viewer. The toolbar's owner control reads `name` for the
@@ -59,12 +66,6 @@ export type DetailContentProps = Readonly<{
    * here is the shorter of the two wires, and it re-subscribes nothing.
    */
   composerFocusRef?: ComposerFocusBox
-  updateStatus: InboxDetailState['updateStatus']
-  escalate: InboxDetailState['escalate']
-  resolveEscalation: InboxDetailState['resolveEscalation']
-  assign: InboxDetailState['assign']
-  markFeedbackHandled: InboxDetailState['markFeedbackHandled']
-  correctFeedbackHandlingOutcome: InboxDetailState['correctFeedbackHandlingOutcome']
 }>
 
 /**
@@ -79,21 +80,25 @@ export type DetailContentProps = Readonly<{
  */
 export function InboxDetailContent({
   currentItem,
-  detail,
-  notes,
-  onNoteAdded,
-  onReplyMutated,
+  detailState,
   detailFns,
   currentUser,
   assignmentOptions = [],
   composerFocusRef,
-  updateStatus,
-  escalate,
-  resolveEscalation,
-  assign,
-  markFeedbackHandled,
-  correctFeedbackHandlingOutcome,
 }: DetailContentProps) {
+  const {
+    detail,
+    notes,
+    notesUnavailable,
+    onNoteAdded,
+    onReplyMutated,
+    updateStatus,
+    escalate,
+    resolveEscalation,
+    assign,
+    markFeedbackHandled,
+    correctFeedbackHandlingOutcome,
+  } = detailState
   const queryClient = useQueryClient()
   const { can } = usePermissions()
   useOnDemandReviewAnalysis({
@@ -233,6 +238,7 @@ export function InboxDetailContent({
         currentItem={currentItem}
         detail={detail}
         notes={notes}
+        notesUnavailable={notesUnavailable}
         currentUserId={currentUser?.id}
         getInboxItemHistory={detailFns.getInboxItemHistory}
         replyActions={threadReplyActions}

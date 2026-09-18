@@ -156,27 +156,31 @@ export function restoreSnapshot(
 }
 
 /**
- * Saves the draft, then submits it, and returns the sentence the composer shows
- * inline (null for none). Only a failed SAVE is the composer's to explain: a
- * refused submit already toasted the server's sentence through the submit
- * mutation's `errorMessage` (`use-reply-actions.ts`), so an inline "save it
- * first" under that toast would report it twice, and wrongly — the draft was
- * saved. The rejection is still settled here so the footer's `void onSubmit()`
- * never leaks an unhandled one.
+ * Saves the draft, then submits it — only after a save that went through —
+ * and settles both, so the footer's `void onSubmit()` never leaks an unhandled
+ * rejection. Neither failure is the composer's to print. A failed SAVE is
+ * autosave's own `error` line (`reply-autosave-coordinator.ts`), which also
+ * turns Submit off and offers `Retry save`. A sentence of the composer's own
+ * used to wait behind that line and outlive it, surfacing — under a head
+ * reading `Saved` — once a retry or a keystroke had moved autosave out of
+ * `error`. A refused SUBMIT is toasted
+ * with the server's sentence by the submit mutation's `errorMessage`
+ * (`use-reply-actions.ts`), and the draft WAS saved, so nothing inline could
+ * add to that but a second, wrong report.
  */
 export async function submitAfterSave(
   flush: () => Promise<unknown>,
   submit: () => Promise<unknown>,
-): Promise<string | null> {
+): Promise<void> {
   try {
     await flush()
   } catch {
-    return 'Save the draft successfully before submitting it.'
+    // Reported by autosave's own `error` line; see above.
+    return
   }
   try {
     await submit()
   } catch {
     // Reported by the submit mutation's toast; see above.
   }
-  return null
 }

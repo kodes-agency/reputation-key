@@ -55,6 +55,8 @@ type Input = Readonly<{
     target: ReplyLanguageTarget,
   ) => Promise<LoadedReplyTemplateDraft>
   onAccept: (draft: ReplyDraftSnapshot) => Promise<void>
+  /** The server's draft is about to be written outside the autosave path. */
+  onServerDraftUnknown: () => void
   onAdopt: (draft: ReplyDraftSnapshot, template: LoadedReplyTemplate) => void
   onLoadLocalSafe: () => Promise<void>
   onDismissSuggestion: () => void
@@ -184,6 +186,7 @@ export function useReplyTemplate(input: Input) {
     onList,
     onLoad,
     onAccept,
+    onServerDraftUnknown,
     onAdopt,
     onLoadLocalSafe,
     onDismissSuggestion,
@@ -238,6 +241,10 @@ export function useReplyTemplate(input: Input) {
       setLoadedState(null)
       onDismissSuggestion()
       try {
+        // Before the request, not after it: the load writes the server's draft
+        // whether or not its answer ever reaches us, so from here on the
+        // coordinator must not trust its last confirmed copy.
+        onServerDraftUnknown()
         const reply = await onLoad(templateId, target)
         if (!isLive(requestSequence) || baseRevision !== revision.current) return
         if (
@@ -255,12 +262,26 @@ export function useReplyTemplate(input: Input) {
         const nextDraft = { text: reply.text, languageTag: reply.replyLanguageTag }
         const library =
           cache.current?.targetKind === target.kind ? cache.current.value : null
-        await onAccept(nextDraft)
+        // ADOPT FIRST, then save. `onLoad` has already succeeded, and its
+        // `onSuccess` has already patched the template into the detail cache
+        // (`use-reply-actions.ts` → `inbox-cache-policy.ts`), so the server's
+        // draft IS this template by the time we get here. With `onAccept`
+        // ahead of `onAdopt` inside the shared `try`, a failed flush threw past
+        // the adopt: the box kept the OLD text while the server held the new
+        // one, the manager was told the template had not loaded, and reopening
+        // the item changed the words under them.
         onAdopt(nextDraft, { templateId, title: templateTitleIn(library, templateId) })
         setLoadedState({
           targetKind: target.kind,
           value: `Template loaded: ${title}`,
         })
+        // The flush is a SAVE, and a failed one is reported where every failed
+        // save is: the autosave coordinator has already said `Draft could not
+        // be saved`, offers `Retry save`, and clears both when a save lands.
+        // It cannot un-load the template, so it must not report a load
+        // failure — and a second, template-specific error line here outlived
+        // a successful retry, because nothing but another load cleared it.
+        await onAccept(nextDraft).catch(() => undefined)
       } catch {
         if (isLive(requestSequence)) {
           setErrorState({
@@ -280,6 +301,7 @@ export function useReplyTemplate(input: Input) {
       onAdopt,
       onDismissSuggestion,
       onLoad,
+      onServerDraftUnknown,
       revision,
       settle,
       target,

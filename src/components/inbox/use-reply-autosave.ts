@@ -16,12 +16,13 @@ type SaveDraft = (
 /** The slice of the coordinator one mount of the composer owns. */
 type AutosaveLifecycle = Readonly<{
   subscribe: (listener: (state: ReplyAutosaveState) => void) => () => void
+  flushOnTeardown: () => void
   dispose: () => void
 }>
 
 /**
- * One mount of the autosave status channel: subscribe, and on teardown detach
- * the listener and cancel queued work.
+ * One mount of the autosave status channel: subscribe, and on teardown send
+ * any unsaved text, then detach the listener and stand the timer down.
  *
  * Teardown must leave the coordinator usable. StrictMode runs mount → teardown
  * → mount against the same instance (the one `useState` keeps), and before this
@@ -38,6 +39,12 @@ export function attachReplyAutosave(
 ) {
   const unsubscribe = coordinator.subscribe(onState)
   return () => {
+    // Hand the latest unsaved text to the server BEFORE standing the
+    // coordinator down. `dispose` cancels the timer and clears `pending`, so
+    // without this line a keystroke inside the 700 ms window — or typed while
+    // a save was in flight — was discarded by the very teardown that should
+    // have saved it, silently, because the listener is detached next.
+    coordinator.flushOnTeardown()
     unsubscribe()
     coordinator.dispose()
   }
@@ -66,5 +73,6 @@ export function useReplyAutosave(initial: ReplyDraftSnapshot, saveDraft: SaveDra
     flush: coordinator.flush,
     acceptAiDraft: coordinator.acceptAiDraft,
     retry: coordinator.retry,
+    invalidate: coordinator.invalidate,
   }
 }

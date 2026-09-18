@@ -75,6 +75,12 @@ type Props = Readonly<{
   item: InboxItem
   detail: InboxItemDetailResult | null
   notes: ReadonlyArray<InboxNoteView>
+  /**
+   * The notes read failed, as opposed to returning none — see `useInboxDetail`.
+   * Required for the reason the pane's copy is: a forgotten prop must not be
+   * able to assert that nothing is missing.
+   */
+  notesUnavailable: boolean
   currentUserId?: string
   getInboxItemHistory: InboxDetailFns['getInboxItemHistory']
   replyActions: ThreadReplyActions
@@ -365,9 +371,13 @@ function ThreadRow({
   }
 }
 
+/**
+ * The skeleton itself. It carries no `role` and no indent of its own: it is
+ * rendered INSIDE the rail's one status region, which owns both.
+ */
 function HistoryPending(): ReactNode {
   return (
-    <div className={cn('py-2.5', AUX_LINE_INDENT)} role="status">
+    <div className="py-2.5">
       <Skeleton className="h-3 w-40" />
       <span className="sr-only">Loading handling history…</span>
     </div>
@@ -378,6 +388,7 @@ export function InboxThread({
   item,
   detail,
   notes,
+  notesUnavailable,
   currentUserId,
   getInboxItemHistory,
   replyActions,
@@ -454,15 +465,40 @@ export function InboxThread({
         </p>
       ) : null}
 
-      {historyQuery.isPending ? <HistoryPending /> : null}
-      {/* A history read that failed is not an item that failed, so it stays a
-          quiet line under the rail rather than a destructive banner over the
-          guest's words. */}
-      {historyQuery.isError ? (
-        <p className={cn('text-xs text-muted-foreground', AUX_LINE_INDENT)} role="status">
-          Handling history is unavailable right now.
-        </p>
-      ) : null}
+      {/* ONE status region for everything the rail says about its own reads —
+          loading, and each read that failed. A read that failed is not an item
+          that failed, so each stays a quiet line under the rail rather than a
+          destructive banner over the guest's words.
+
+          Always mounted, with its lines conditional. A live region has to be in
+          the document — and in the accessibility tree — before its text changes
+          for a reader to be told; one inserted along with its first sentence is
+          announced by nobody. `empty:sr-only` keeps that free: with nothing to
+          say the element is truly empty, and `sr-only` takes it out of FLOW
+          rather than out of the TREE, which is what `hidden` would have done.
+
+          One region rather than three, because a rail that announced from three
+          places would have the reader chasing which one spoke.
+
+          Notes get the same sentence as history because they fail the same way:
+          `notes` is `data ?? []`, so a failed read renders as a case nobody has
+          written on, and the rail would look complete while a colleague's note
+          is missing from it.
+
+          One limit, stated rather than hidden: the pane mounts this thread only
+          once the notes read has settled (`isLoading` covers both reads), so a
+          notes failure on FIRST load is already inside the region when it
+          mounts. It is read in order with the rest of the rail, but it is not
+          announced as a change. A history failure, which settles after mount,
+          is. */}
+      <div
+        role="status"
+        className={cn('text-xs text-muted-foreground empty:sr-only', AUX_LINE_INDENT)}
+      >
+        {historyQuery.isPending ? <HistoryPending /> : null}
+        {historyQuery.isError ? <p>Handling history is unavailable right now.</p> : null}
+        {notesUnavailable ? <p>Internal notes are unavailable right now.</p> : null}
+      </div>
     </div>
   )
 }

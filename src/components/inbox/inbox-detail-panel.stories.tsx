@@ -122,6 +122,7 @@ function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetail
   return {
     detail: null,
     notes: [],
+    notesUnavailable: false,
     isLoading: false,
     currentItem: item,
     updateStatus: makeStatusAction(),
@@ -173,6 +174,7 @@ export const Populated: Story = {
         responseTarget: null,
       },
       notes: [],
+      notesUnavailable: false,
     }),
     onClose: () => {},
     detailFns,

@@ -105,4 +105,17 @@ describe('formatCompactAge', () => {
     expect(formatCompactAge('2026-09-01T12:00:00.000Z', NOW)).toBe('Sep 1')
     expect(formatCompactAge('2025-09-01T12:00:00.000Z', NOW)).toBe('Sep 1, 2025')
   })
+
+  // The list formats every row through this clock, so a row older than a week
+  // must not pay for a new `Intl.DateTimeFormat` — in either year branch.
+  it('builds no formatter per call', () => {
+    const construct = vi.spyOn(Intl, 'DateTimeFormat')
+    try {
+      expect(formatCompactAge('2026-09-01T12:00:00.000Z', NOW)).toBe('Sep 1')
+      expect(formatCompactAge('2025-09-01T12:00:00.000Z', NOW)).toBe('Sep 1, 2025')
+      expect(construct).not.toHaveBeenCalled()
+    } finally {
+      construct.mockRestore()
+    }
+  })
 })

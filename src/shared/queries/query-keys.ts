@@ -20,14 +20,36 @@ export const inboxKeys = {
   propertyCountsFor: (queue: string) =>
     [...inboxKeys.counts(), 'by-property', queue] as const,
   lastVisitCount: () => [...inboxKeys.all, 'last-visit-count'] as const,
-  details: () => [...inboxKeys.all, 'item'] as const,
+  // An item's four reads are SIBLINGS under `all`, keyed by aspect and then by
+  // item — not `item → id → aspect`, which made `notes`, `activity` and
+  // `history` descendants of `detail(id)` and therefore of `details()`.
+  //
+  // Nothing wants that relation: `inbox-cache-policy.ts` write-through patches
+  // a detail after a command and refreshes notes and history BY NAME. What the
+  // nesting did was widen every detail invalidation. The on-demand analysis
+  // poll (`use-on-demand-review-analysis.ts`) invalidates `detail(id)` every
+  // few seconds while it waits for an analysis it requested (at most 90 s),
+  // and under the old shape each tick
+  // refetched that item's mounted notes and Handling History too — neither of
+  // which the analysis changes. The property profile, reply-language and
+  // AI-access settings pages
+  // (`properties/$propertyId/settings/{profile,replies,ai}.tsx`) invalidate
+  // `details()`, but no pane is mounted there, so under the old shape that
+  // only marked cached notes and history stale.
+  // (`activity` was caught by the prefix as well, but nothing observes it.)
+  // The same lesson is written out for `notificationKeys` below; inbox had not
+  // inherited it, and adding `history` in the detail-pane rebuild widened the
+  // blast radius again.
+  //
+  // `details()` still means "every item detail" and now matches ONLY those.
+  details: () => [...inboxKeys.all, 'detail'] as const,
   detail: (id: string) => [...inboxKeys.details(), id] as const,
-  notes: (id: string) => [...inboxKeys.detail(id), 'notes'] as const,
-  activity: (id: string) => [...inboxKeys.detail(id), 'activity'] as const,
+  notes: (id: string) => [...inboxKeys.all, 'notes', id] as const,
+  activity: (id: string) => [...inboxKeys.all, 'activity', id] as const,
   // Handling History is written in the SAME transaction as the command that
   // caused it, unlike the activity feed's ~2.5s BullMQ insert lag, so this key
   // may be invalidated the instant a command resolves.
-  history: (id: string) => [...inboxKeys.detail(id), 'history'] as const,
+  history: (id: string) => [...inboxKeys.all, 'history', id] as const,
   responseTargetPolicies: (propertyId?: string) =>
     [...inboxKeys.all, 'response-target-policies', propertyId ?? 'organization'] as const,
   privateFeedbackTargetAnalytics: (propertyId?: string) =>

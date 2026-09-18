@@ -90,7 +90,7 @@ const MODE_SHORT_LABEL: Readonly<Record<ComposerMode, string>> = {
 }
 
 /**
- * The keys `use-inbox-keyboard-shortcuts.ts:172-175` already binds (`r` →
+ * The keys `use-inbox-keyboard-shortcuts.ts` already binds (`r` →
  * `focusReplyComposer`, `n` → `focusNoteComposer`), printed for the first
  * time. Upper case because that is how a key cap reads; the binding ignores a
  * shifted press, so the hint is the glyph on the key, not a chord.
@@ -146,7 +146,10 @@ const NOTE_HEAD_STATE = 'Not visible to the guest'
 
 /**
  * The segment's track, sized from the canvas's `.seg`: 2 px of track around
- * the thumbs, 2 px between them, a 7 px outer radius over the thumbs' 5 px.
+ * the thumbs and 2 px between them. The radii are the design tokens rather
+ * than the canvas's 7 / 5 px (review P4-2): a 6 px (`rounded-md`) outer radius
+ * over the thumbs' 4 px (`rounded-sm`), still concentric across the 2 px
+ * `p-0.5` track.
  *
  * The shape is still the `default` `TabsList` variant — a `bg-muted` track
  * with a `bg-background` thumb on the active item — because two segments that
@@ -161,7 +164,7 @@ const NOTE_HEAD_STATE = 'Not visible to the guest'
  * rather than stacking a second one over it.
  */
 const LIST_CLASS =
-  'shrink-0 gap-0.5 rounded-[7px] p-0.5 group-data-[orientation=horizontal]/tabs:h-auto'
+  'shrink-0 gap-0.5 rounded-md p-0.5 group-data-[orientation=horizontal]/tabs:h-auto'
 
 /**
  * One thumb: 26 px on the desktop (the canvas's 30 px track less its padding)
@@ -180,7 +183,7 @@ const LIST_CLASS =
  * the thumb's fill alone.
  */
 const TRIGGER_CLASS =
-  'h-[26px] gap-1.5 rounded-[5px] px-2.5 text-[13px] text-muted-foreground data-[state=active]:font-semibold aria-disabled:opacity-50 max-md:h-9 max-md:px-3'
+  'h-[26px] gap-1.5 rounded-sm px-2.5 text-[13px] text-muted-foreground data-[state=active]:font-semibold aria-disabled:opacity-50 max-md:h-9 max-md:px-3'
 
 /**
  * The Note thumb's active label in the warn ink (row 19) — on the NOTE trigger
@@ -221,7 +224,7 @@ const PRIVATE_TRIGGER_CLASS =
  * is meant to read is still text.
  */
 const KBD_CLASS =
-  'ml-0.5 h-4 min-w-4 rounded-[3px] border bg-background px-1 font-mono text-[10px] max-md:hidden'
+  'ml-0.5 h-4 min-w-4 rounded-sm border bg-background px-1 font-mono text-[10px] max-md:hidden'
 
 /**
  * The head row: 42 px (row 14), the segment against the leading edge and the

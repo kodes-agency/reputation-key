@@ -50,7 +50,19 @@ type ResolvedReplyView =
   | Readonly<{ kind: 'failed-check'; reply: ReplyEntityView }>
   | Readonly<{ kind: 'failed-retry'; reply: ReplyEntityView }>
   | Readonly<{ kind: 'rejected'; reply: ReplyEntityView }>
-  | Readonly<{ kind: 'none' }>
+  /**
+   * A reply whose status this bundle cannot classify. Unreachable while the
+   * client and server agree — `ReplyStatus` has six members and every one is
+   * handled above — and reachable the moment they do not: a migration that adds
+   * a value to the `reply_status` Postgres enum ships server-side while a
+   * manager's cached bundle still runs this file (the version skew
+   * `history-event-line.ts` documents for its own enum).
+   *
+   * It carries the reply, unlike `compose`'s `null`: the words are the one thing
+   * still worth showing, and showing them is what stops the pane from reading
+   * as a review nobody has answered.
+   */
+  | Readonly<{ kind: 'none'; reply: ReplyEntityView }>
 
 export function resolveReplyView(reply: ReplyData | null): ResolvedReplyView {
   if (reply?.kind === 'google_observation') return { kind: 'mirror', reply }
@@ -71,7 +83,7 @@ export function resolveReplyView(reply: ReplyData | null): ResolvedReplyView {
       : { kind: 'failed-retry', reply }
   }
   if (reply.status === 'rejected') return { kind: 'rejected', reply }
-  return { kind: 'none' }
+  return { kind: 'none', reply }
 }
 
 type ReplyStatusViewProps = Readonly<{

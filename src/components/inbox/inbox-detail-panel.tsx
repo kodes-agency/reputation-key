@@ -72,20 +72,11 @@ export function InboxDetailPanel({
       ) : (
         <InboxDetailContent
           currentItem={currentItem}
-          detail={detailState.detail}
-          notes={detailState.notes}
-          onNoteAdded={detailState.onNoteAdded}
-          onReplyMutated={detailState.onReplyMutated}
+          detailState={detailState}
           detailFns={detailFns}
           currentUser={currentUser}
           assignmentOptions={assignmentOptions}
           composerFocusRef={composerFocusRef}
-          updateStatus={detailState.updateStatus}
-          escalate={detailState.escalate}
-          resolveEscalation={detailState.resolveEscalation}
-          assign={detailState.assign}
-          markFeedbackHandled={detailState.markFeedbackHandled}
-          correctFeedbackHandlingOutcome={detailState.correctFeedbackHandlingOutcome}
         />
       )}
     </div>

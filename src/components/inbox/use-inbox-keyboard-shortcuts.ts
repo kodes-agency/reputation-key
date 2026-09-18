@@ -105,6 +105,47 @@ function isOverlayTarget(target: unknown): boolean {
 }
 
 /**
+ * Marks a focusable scroller whose arrow keys must SCROLL it rather than walk
+ * the list. Spread onto the element as `{...{ [INBOX_SCROLL_REGION]: '' }}`.
+ *
+ * The thread's scroller became a tab stop so a keyboard user can read a long
+ * review, and the arrow keys are how a focused scroller is read. Claimed by
+ * the list shortcut instead, ArrowDown on the Conversation region opened the
+ * NEXT case — and if that case was not cached, the pane fell back to its
+ * skeleton, the focused region unmounted and focus dropped to `<body>`. `j` and
+ * `k` stay list keys everywhere; only the arrows yield, and only here.
+ */
+export const INBOX_SCROLL_REGION = 'data-inbox-scroll-region'
+
+/**
+ * Everything that owns its own arrow keys, so the list shortcut must not also
+ * act on them: the marked scrollers above, and any control whose keyboard
+ * contract uses the arrows. A dropdown or select trigger opens on ArrowDown —
+ * with only the scroller guard, ArrowDown on the composer's `Draft with AI`
+ * chevron opened its menu AND switched to the next case in the same keystroke.
+ *
+ * A trigger whose popup is a dialog is not one of them. Radix marks every
+ * Popover, Dialog and AlertDialog trigger `aria-haspopup="dialog"` and gives it
+ * no arrow-key handling, so on those buttons (the toolbar's reply-due chip, the
+ * list's Filters, `Review update`) the arrows keep walking the list, as they do
+ * on the plain buttons beside them.
+ */
+const ARROW_KEY_OWNERS = [
+  `[${INBOX_SCROLL_REGION}]`,
+  '[aria-haspopup]:not([aria-haspopup="dialog"])',
+  '[role="combobox"]',
+  '[role="tab"]',
+  '[role="radio"]',
+  '[role="slider"]',
+  'select',
+].join(', ')
+
+function ownsArrowKeys(target: unknown): boolean {
+  const element = target as HTMLElement | null
+  return element?.closest?.(ARROW_KEY_OWNERS) != null
+}
+
+/**
  * An absent callback leaves the keystroke alone — no `preventDefault`, so a
  * key this page cannot act on still reaches the browser.
  */
@@ -179,13 +220,21 @@ export function handleInboxShortcut(
   if (input.isMobile) return
 
   switch (event.key) {
-    case 'j':
     case 'ArrowDown':
+      if (ownsArrowKeys(event.target)) return
       event.preventDefault()
       selectNext(input)
       break
-    case 'k':
+    case 'j':
+      event.preventDefault()
+      selectNext(input)
+      break
     case 'ArrowUp':
+      if (ownsArrowKeys(event.target)) return
+      event.preventDefault()
+      selectPrevious(input)
+      break
+    case 'k':
       event.preventDefault()
       selectPrevious(input)
       break

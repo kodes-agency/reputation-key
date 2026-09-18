@@ -161,27 +161,40 @@ describe('the scope of a regenerate from the result tag', () => {
   })
 })
 
-describe('what a submit leaves inline', () => {
+describe('saving before a submit', () => {
   const refused = () => Promise.reject(new Error('refused'))
   const resolved = () => Promise.resolve(undefined)
 
-  it('asks for a successful save when the draft could not be saved', async () => {
+  it('skips the submit when the draft could not be saved, and settles', async () => {
+    // Autosave's own `error` line reports the failed save; the composer
+    // returns nothing to print.
     let submitted = false
-    const inline = await submitAfterSave(refused, async () => {
+    const settled = submitAfterSave(refused, async () => {
       submitted = true
     })
 
-    expect(inline).toBe('Save the draft successfully before submitting it.')
+    await expect(settled).resolves.toBeUndefined()
     expect(submitted).toBe(false)
   })
 
-  it('leaves nothing inline when the saved draft is refused on submit', async () => {
+  it('settles a submit the server refuses after the draft saved', async () => {
     // The submit mutation's own toast reports the refusal with the server's
-    // sentence; a save sentence under it would be a second, wrong report.
-    expect(await submitAfterSave(resolved, refused)).toBeNull()
+    // sentence; the rejection must still not escape to the footer's `void`.
+    await expect(submitAfterSave(resolved, refused)).resolves.toBeUndefined()
   })
 
-  it('leaves nothing inline when the submit goes through', async () => {
-    expect(await submitAfterSave(resolved, resolved)).toBeNull()
+  it('submits only once the save has gone through', async () => {
+    const order: string[] = []
+    await submitAfterSave(
+      async () => {
+        await Promise.resolve()
+        order.push('save')
+      },
+      async () => {
+        order.push('submit')
+      },
+    )
+
+    expect(order).toEqual(['save', 'submit'])
   })
 })

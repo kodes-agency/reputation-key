@@ -212,4 +212,133 @@ describe('reply autosave coordinator', () => {
 
     expect(observed).toEqual([{ status: 'unsaved', error: null }])
   })
+
+  it('stands the debounce down on teardown without firing the pending save', async () => {
+    vi.useFakeTimers()
+    const save = vi.fn(async () => undefined)
+    const coordinator = createReplyAutosaveCoordinator({
+      initial,
+      save,
+      onState: vi.fn(),
+    })
+
+    coordinator.schedule(changed)
+    coordinator.dispose()
+    await vi.advanceTimersByTimeAsync(700)
+
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('sends a debounce that has not fired when the mount ends', async () => {
+    vi.useFakeTimers()
+    const save = vi.fn(async () => undefined)
+    const coordinator = createReplyAutosaveCoordinator({
+      initial,
+      save,
+      onState: vi.fn(),
+    })
+
+    // Type, then tear the mount down inside the 700 ms window — the phone sheet
+    // dismissed on Escape, which removes a focused textarea from the DOM and so
+    // dispatches no `focusout` for the flush-on-blur to ride.
+    coordinator.schedule(changed)
+    coordinator.flushOnTeardown()
+    coordinator.dispose()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(save).toHaveBeenCalledWith(changed)
+  })
+
+  it('has nothing to send when the mount ends with no debounce running', async () => {
+    vi.useFakeTimers()
+    const save = vi.fn(async () => undefined)
+    const coordinator = createReplyAutosaveCoordinator({
+      initial,
+      save,
+      onState: vi.fn(),
+    })
+
+    // StrictMode's first teardown runs before anyone has typed.
+    coordinator.flushOnTeardown()
+    coordinator.dispose()
+    await vi.advanceTimersByTimeAsync(700)
+
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('writes text typed during an in-flight save once, after that save, on teardown', async () => {
+    vi.useFakeTimers()
+    let releaseFirst: (() => void) | undefined
+    const save = vi
+      .fn<(snapshot: ReplyDraftSnapshot) => Promise<void>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseFirst = resolve
+          }),
+      )
+      .mockResolvedValue(undefined)
+    const coordinator = createReplyAutosaveCoordinator({
+      initial,
+      save,
+      onState: vi.fn(),
+    })
+
+    // The first edit reaches the server and parks there on a slow network.
+    coordinator.schedule(changed)
+    await vi.advanceTimersByTimeAsync(700)
+    expect(save).toHaveBeenCalledTimes(1)
+
+    // More words, then the sheet closes inside the debounce window.
+    const second: ReplyDraftSnapshot = {
+      text: 'Changed, and more',
+      languageTag: 'en-Latn',
+    }
+    coordinator.schedule(second)
+    coordinator.flushOnTeardown()
+    coordinator.dispose()
+    expect(save).toHaveBeenCalledTimes(1)
+
+    // `dispose` cleared `pending`, so handing the text to `enqueue` would have
+    // dropped it. Chained after the in-flight save, it lands — once.
+    releaseFirst?.()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(save).toHaveBeenLastCalledWith(second)
+  })
+
+  it('never reports Saved for text it has not confirmed after a failed save', async () => {
+    // The manager's own reply P is saved. A template load writes T server-side
+    // and the composer's follow-up save of T fails. Undo puts P back in the box.
+    // P equals the last confirmed save — but the server may now hold T, so P
+    // must be written again, not reported as `Saved` and skipped by Submit.
+    vi.useFakeTimers()
+    const observed: ReplyAutosaveState[] = []
+    const mine: ReplyDraftSnapshot = { text: 'My own reply', languageTag: 'en-Latn' }
+    const template: ReplyDraftSnapshot = { text: 'Template text', languageTag: 'en-Latn' }
+    const save = vi
+      .fn<(snapshot: ReplyDraftSnapshot) => Promise<void>>()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue(undefined)
+    const coordinator = createReplyAutosaveCoordinator({
+      initial,
+      save,
+      onState: (state) => observed.push(state),
+    })
+
+    await coordinator.flush(mine)
+    await coordinator.flush(template).catch(() => undefined)
+    expect(observed.at(-1)?.status).toBe('error')
+
+    coordinator.schedule(mine)
+    expect(observed.at(-1)?.status).toBe('pending')
+
+    // Submit's flush must write the box, not trust a stale "Saved".
+    await coordinator.flush(mine)
+    expect(save).toHaveBeenLastCalledWith(mine)
+    expect(save).toHaveBeenCalledTimes(3)
+  })
 })

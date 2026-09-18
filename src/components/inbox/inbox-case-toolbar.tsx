@@ -313,7 +313,7 @@ function ReplyDueDetail({
       <PopoverTrigger
         aria-label={`${chip.label}. Show timing details`}
         className={cn(
-          'group/due ml-auto inline-flex min-h-8 shrink-0 cursor-help items-center gap-1.5 rounded-sm text-[13px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none max-md:min-h-9',
+          'group/due ml-auto inline-flex min-h-8 shrink-0 cursor-help items-center gap-1.5 rounded-sm text-[13px] focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring max-md:min-h-9',
           TONE_CLASS[chip.tone],
         )}
       >

@@ -84,6 +84,16 @@
   --warn-muted: oklch(0.975 0.035 88);
   --warn-line: oklch(0.78 0.13 82 / 0.6);
   --warn-track: oklch(0.8 0.12 82 / 0.22);
+  /* Rating gold — the filled star. A RATING is not a warning, so it is its own
+     token rather than a fourth role on --warn, but it is a token for the same
+     reason the amber family became one: `star-rating.tsx` and
+     `inbox-detail-helpers.tsx` both hard-coded raw `amber-400`, which is a
+     fixed value in both themes and so never inverted. Measured filled-vs-empty
+     against the light surfaces it draws on, the raw value was 1.13:1; this is
+     darkened to carry on white while staying recognisably gold. The glyphs stay
+     aria-hidden beside a printed number, so the ratio is legibility, not a
+     contrast gate. */
+  --rating: oklch(0.72 0.15 75);
   --ring: oklch(0.58 0.16 290);
   --radius: 0.375rem;
 
@@ -154,6 +164,10 @@
   --warn-muted: oklch(0.22 0.035 78);
   --warn-line: oklch(0.6 0.12 78 / 0.45);
   --warn-track: oklch(0.6 0.12 78 / 0.2);
+  /* Lifted for the dark surfaces. Filled-vs-empty measures 5.51:1 on
+     --background, 5.00:1 on --card, 4.60:1 on --surface-elevated — the table in
+     `star-rating.tsx` carries all six and the light figures it fails. */
+  --rating: oklch(0.82 0.16 78);
   --ring: oklch(0.52 0.16 290);
   --radius: 0.375rem;
 
@@ -228,6 +242,9 @@
   --color-warn-muted: var(--warn-muted);
   --color-warn-line: var(--warn-line);
   --color-warn-track: var(--warn-track);
+  /* `text-rating` — the filled star, both themes. Every lit star pairs it with
+     `fill-current`, so the one utility paints both outline and fill. */
+  --color-rating: var(--rating);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

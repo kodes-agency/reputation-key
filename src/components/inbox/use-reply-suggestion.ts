@@ -87,6 +87,26 @@ export function useReplySuggestion(input: Input) {
   const inFlight = useRef<Readonly<{ identity: string; promise: Promise<void> }> | null>(
     null,
   )
+  /**
+   * Which request currently owns `isGenerating`, which is NOT the same question
+   * as which request's ANSWER still counts.
+   *
+   * `sequence` is bumped by three things — a new request, `dismiss()`, and
+   * unmount — because all three retire a pending answer. Clearing the spinner on
+   * `requestSequence === sequence.current` therefore skipped whenever a request
+   * was superseded by a dismiss, and `updateDraft` calls `ai.dismiss()` on every
+   * keystroke while the textarea stays enabled during generation
+   * (`reply-editor-compose.tsx` omits `isGenerating` from its `disabled` list on
+   * purpose). One character typed before the draft landed left `isGenerating`
+   * true for the life of the mount: `busy` disabled every assist control and
+   * `canSubmit` — which reads `!ai.isGenerating` — refused the reply for good.
+   *
+   * Only a new REQUEST takes ownership, and it re-raises the flag itself, so the
+   * owner may always clear unconditionally. A click that joins the request in
+   * flight (`inFlight`) is not a new request: it takes nothing, and the owner's
+   * `finally` clears the flag for both.
+   */
+  const generatingRequest = useRef(0)
 
   useEffect(
     () => () => {
@@ -109,6 +129,7 @@ export function useReplySuggestion(input: Input) {
       // instead of racing it: the later answer would otherwise win.
       if (inFlight.current?.identity === identity) return inFlight.current.promise
       const requestSequence = ++sequence.current
+      generatingRequest.current = requestSequence
       const baseRevision = input.revision.current
       const baseDraft = scope ? scope.draft : input.draft
       const idempotencyKey = idempotencyKeys.current.get(identity) ?? crypto.randomUUID()
@@ -121,7 +142,21 @@ export function useReplySuggestion(input: Input) {
       setOffersTemplate(false)
       const run = async () => {
         try {
-          await input.onFlush(input.draft)
+          // The flush is a SAVE, not a generation, and it has its own failure
+          // message. Inside the generation `try` a rejected save printed "The
+          // draft suggestion could not be generated" while the composer head
+          // printed `Not saved` — two accounts of one event, and the actionable
+          // one was the one the error line did not give. The autosave channel
+          // already says what went wrong and offers `Retry save`, so this
+          // returns and lets it speak. The request still ends as a failure: its
+          // key goes, so the next click is a new draft, and the `finally` below
+          // releases `inFlight` and, for its owner, the spinner.
+          try {
+            await input.onFlush(input.draft)
+          } catch {
+            idempotencyKeys.current.delete(identity)
+            return
+          }
           const result = await onGenerate(
             requestedTone,
             target,
@@ -185,12 +220,22 @@ export function useReplySuggestion(input: Input) {
           )
         } catch {
           idempotencyKeys.current.delete(identity)
-          if (requestSequence === sequence.current) {
+          // Owner, not currency — the same question the `finally` asks. A
+          // THROWN failure of this request belongs to whoever started it;
+          // gating it on `sequence` meant one keystroke during generation
+          // (which calls `dismiss()`) swallowed it entirely, leaving a spinner
+          // that simply stopped and an assist row that said nothing. A
+          // returned refusal (`result.status === 'unavailable'`) does not come
+          // here: it is an ANSWER, and like a draft it must pass the
+          // `sequence` and revision check where the result is applied, so an
+          // edit made while it was pending still drops it without a word. The
+          // next click asks again, and a `busy` refusal has kept its key.
+          if (generatingRequest.current === requestSequence) {
             setError('The draft suggestion could not be generated. Try again.')
           }
         } finally {
           if (inFlight.current?.identity === identity) inFlight.current = null
-          if (requestSequence === sequence.current) setIsGenerating(false)
+          if (generatingRequest.current === requestSequence) setIsGenerating(false)
         }
       }
       const promise = run()

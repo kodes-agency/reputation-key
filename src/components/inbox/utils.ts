@@ -1,23 +1,71 @@
 // Inbox shared formatting utilities
 
+/**
+ * The formatters are module constants, not per-call constructions.
+ *
+ * `new Intl.DateTimeFormat(...)` costs ~26.5 µs on V8 — it resolves the locale
+ * and builds an ICU pattern every time. Every thread node formats its `title`
+ * through `formatDateTime`, and every node older than a week also formats its
+ * visible stamp through `formatRelativeTime`'s absolute branch — one
+ * constructor per node for a recent thread, two once entries age past the
+ * week. On a 50-row rail that is roughly 1.3 ms and 2.7 ms of construction per
+ * render, and it ran again on each keystroke in the internal-note box, which
+ * re-renders the pane. The inbox list's row clock, `formatCompactAge`, runs
+ * once per row and formats every row older than a week the same way.
+ *
+ * `Intl.DateTimeFormat` instances are immutable and safe to share;
+ * `person-initials.ts` already hoists its `Intl.Segmenter` for the same reason.
+ *
+ * Every formatter but `DATE_LOCAL` is zone-stable UTC on purpose — see
+ * `formatRelativeTime` for the one deliberate exception.
+ */
+const DATE_UTC = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
+
+const DATE_TIME_UTC = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZone: 'UTC',
+})
+
+/** The viewer's own zone — `formatRelativeTime`'s absolute branch only. */
+const DATE_LOCAL = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+})
+
+/** `formatCompactAge`'s same-year date; another year takes `DATE_UTC`. */
+const MONTH_DAY_UTC = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  timeZone: 'UTC',
+})
+
+const LIST_DATE_UTC = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'UTC',
+})
+
+const LANGUAGE_NAMES = new Intl.DisplayNames(['en'], { type: 'language' })
+
+const asDate = (date: Date | string): Date =>
+  typeof date === 'string' ? new Date(date) : date
+
 export function formatDate(date: Date | string): string {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(typeof date === 'string' ? new Date(date) : date)
+  return DATE_UTC.format(asDate(date))
 }
 
 export function formatDateTime(date: Date | string): string {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: 'UTC',
-  }).format(typeof date === 'string' ? new Date(date) : date)
+  return DATE_TIME_UTC.format(asDate(date))
 }
 
 /**
@@ -38,7 +86,7 @@ export function formatDateTime(date: Date | string): string {
  * `formatDateTime`.
  */
 export function formatRelativeTime(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date
+  const d = asDate(date)
   const now = new Date()
   const diffMs = now.getTime() - d.getTime()
   const diffMins = Math.floor(diffMs / 60_000)
@@ -50,43 +98,31 @@ export function formatRelativeTime(date: Date | string): string {
   if (diffHours < 24) return `${diffHours}h ago`
   if (diffDays < 7) return `${diffDays}d ago`
 
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(d)
+  return DATE_LOCAL.format(d)
 }
 
 export function formatInboxListDate(date: Date | string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'UTC',
-  }).format(typeof date === 'string' ? new Date(date) : date)
+  return LIST_DATE_UTC.format(asDate(date))
 }
 
 /** The fixed-width list clock: relative under a week, compact absolute after. */
 export function formatCompactAge(date: Date | string, now = new Date()): string {
-  const value = typeof date === 'string' ? new Date(date) : date
+  const value = asDate(date)
   const diffMs = Math.max(0, now.getTime() - value.getTime())
   const hours = Math.floor(diffMs / 3_600_000)
   const days = Math.floor(diffMs / 86_400_000)
   if (hours < 1) return 'now'
   if (hours < 24) return `${hours}h`
   if (days < 7) return `${days}d`
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    ...(value.getUTCFullYear() === now.getUTCFullYear() ? {} : { year: 'numeric' }),
-    timeZone: 'UTC',
-  }).format(value)
+  const sameYear = value.getUTCFullYear() === now.getUTCFullYear()
+  return (sameYear ? MONTH_DAY_UTC : DATE_UTC).format(value)
 }
 
 export function formatReviewLanguage(languageCode: string | null | undefined) {
   if (!languageCode) return null
   try {
     const language = new Intl.Locale(languageCode.replaceAll('_', '-')).language
-    const label = new Intl.DisplayNames(['en'], { type: 'language' }).of(language)
+    const label = LANGUAGE_NAMES.of(language)
     return label && label.toLocaleLowerCase() !== language.toLocaleLowerCase()
       ? label
       : null

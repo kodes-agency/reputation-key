@@ -198,10 +198,10 @@ function MessageHeader({
           one, an expired snippet does not (plan row 7).
 
           `size="sm"` (13 px) is the thread's fact scale: a larger star stands
-          taller than the text it belongs to. `tone="rating"` is the amber (v1
+          taller than the text it belongs to. `tone="rating"` is the gold (v1
           row 12) — the primitive's default stays the foreground tone its
           notification caller shipped with, and the number printed beside it
-          is what makes the amber's low light-theme contrast acceptable here
+          is what makes the gold's low light-theme contrast acceptable here
           and nowhere the stars stand alone (`star-rating.tsx`, `TONE_CLASS`).
           `showValue` prints `5.0` beside the glyphs, which is also the text
           equivalent: the primitive's hidden span narrows to `out of 5 stars`
@@ -267,7 +267,7 @@ function ReviewDisclosure({
 }: Readonly<{ disclosure: GuestReviewDisclosure }>): ReactNode {
   return (
     <details className="w-fit max-w-full text-muted-foreground">
-      <summary className="flex min-h-9 cursor-pointer items-center text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <summary className="flex min-h-9 cursor-pointer items-center text-sm font-medium focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring">
         {disclosure.label}
       </summary>
       <p

@@ -17,11 +17,13 @@ import { resolveReplyView } from './reply-status-view'
 import type { ReplyEditTarget } from './reply-status-view'
 import type { InboxDetailFns } from './types'
 import type { ReplyActions } from './use-reply-actions'
+import { INBOX_SCROLL_REGION } from './use-inbox-keyboard-shortcuts'
 
 export function DetailThreadRegion({
   currentItem,
   detail,
   notes,
+  notesUnavailable,
   currentUserId,
   getInboxItemHistory,
   replyActions,
@@ -30,18 +32,41 @@ export function DetailThreadRegion({
   currentItem: InboxItem
   detail: InboxItemDetailResult | null
   notes: ReadonlyArray<InboxNoteView>
+  notesUnavailable: boolean
   currentUserId: string | undefined
   getInboxItemHistory: InboxDetailFns['getInboxItemHistory']
   replyActions: ThreadReplyActions
   reopen: ReopenState
 }>): ReactNode {
+  // Region 3, named and reachable by keyboard.
+  // `tabIndex={0}` because a scrollport whose content holds nothing focusable
+  // cannot be scrolled from the keyboard at all (axe
+  // `scrollable-region-focusable`, serious). That is not a hypothetical here: a
+  // review with no translation disclosure, no drawn history, no notes and no
+  // reply renders only headings, prose and badges — the `ReviewOnly` story is
+  // exactly it — and a long review was then unreadable without a pointer.
+  // `<section aria-label>` for the same reason region 2 carries one
+  // (`inbox-case-toolbar.tsx`): naming the conversation and the composer is what
+  // lets a reader move between reading the case and writing into it.
+  // `INBOX_SCROLL_REGION` hands the arrow keys to this scroller: without it the
+  // page's list shortcut claimed them, and ArrowDown opened the next case
+  // instead of scrolling this one.
+  // The focus indicator is an INSET outline: the scroller runs edge to edge
+  // inside a column that clips, so a ring drawn outside it would be cut off,
+  // and an outline (not a box-shadow ring) survives forced colours.
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <section
+      aria-label="Conversation"
+      tabIndex={0}
+      {...{ [INBOX_SCROLL_REGION]: '' }}
+      className="min-h-0 flex-1 overflow-y-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+    >
       <div className="flex min-w-0 flex-col gap-6 p-5 lg:p-6">
         <InboxThread
           item={currentItem}
           detail={detail}
           notes={notes}
+          notesUnavailable={notesUnavailable}
           currentUserId={currentUserId}
           getInboxItemHistory={getInboxItemHistory}
           replyActions={replyActions}
@@ -52,7 +77,7 @@ export function DetailThreadRegion({
           </p>
         ) : null}
       </div>
-    </div>
+    </section>
   )
 }
 
