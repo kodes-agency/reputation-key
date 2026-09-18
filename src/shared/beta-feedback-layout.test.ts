@@ -82,6 +82,15 @@ describe('masked layout retention', () => {
 })
 
 describe('masked layout rendering', () => {
+  it('outlines containers and fills content, the way a wireframe reads', () => {
+    const svg = renderMaskedLayoutSvg(layout)
+
+    // One container in the fixture: drawn as a stroke, never a fill.
+    expect((svg.match(/fill="none" stroke=/gu) ?? []).length).toBe(1)
+    // Heading and text: filled blocks.
+    expect((svg.match(/fill-opacity="0.7"/gu) ?? []).length).toBe(2)
+  })
+
   it('builds an SVG of rectangles only', () => {
     const svg = renderMaskedLayoutSvg(layout)
 

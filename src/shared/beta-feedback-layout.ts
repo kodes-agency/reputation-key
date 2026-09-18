@@ -95,13 +95,18 @@ function escapeAttribute(value: number): string {
  * so there is nothing to sanitize.
  */
 export function renderMaskedLayoutSvg(layout: MaskedLayout): string {
+  // Containers are drawn as outlines and content as filled blocks, the way a
+  // wireframe reads: structure first, then what sits inside it. Filling every
+  // container instead stacks them into a flat wash that hides the layout.
   const rects = layout.boxes
-    .map(
-      (box) =>
-        `<rect x="${escapeAttribute(box.x)}" y="${escapeAttribute(box.y)}" ` +
-        `width="${escapeAttribute(box.w)}" height="${escapeAttribute(box.h)}" ` +
-        `rx="2" fill="${ROLE_FILL[box.role]}" fill-opacity="0.55" />`,
-    )
+    .map((box) => {
+      const geometry =
+        `x="${escapeAttribute(box.x)}" y="${escapeAttribute(box.y)}" ` +
+        `width="${escapeAttribute(box.w)}" height="${escapeAttribute(box.h)}" rx="2"`
+      return box.role === 'container'
+        ? `<rect ${geometry} fill="none" stroke="${ROLE_FILL.container}" stroke-opacity="0.35" />`
+        : `<rect ${geometry} fill="${ROLE_FILL[box.role]}" fill-opacity="0.7" />`
+    })
     .join('')
 
   return (

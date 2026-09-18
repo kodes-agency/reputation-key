@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Bug, ExternalLink, Lightbulb, MessageSquareDashed } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
@@ -12,6 +13,13 @@ import {
   reporterRouteLabel,
   type ReporterFeedbackTone,
 } from './beta-feedback-status'
+import {
+  browserStorage,
+  markSeen,
+  readSeenOutcomes,
+  unseenOutcomes,
+  writeSeenOutcomes,
+} from './beta-feedback-updates'
 
 // The panel only ever renders after a click, so the viewer's own zone is safe
 // here and reads better than a pinned one.
@@ -25,11 +33,10 @@ const REPORT_TIME = {
 
 const TONE_CLASS: Readonly<Record<ReporterFeedbackTone, string>> = {
   pending: 'border-border text-muted-foreground',
-  active: 'border-primary/40 bg-primary/5 text-primary',
-  settled:
-    'border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400',
+  active: 'border-primary/20 bg-primary/5 text-primary',
+  settled: 'border-positive/30 bg-positive-muted text-positive',
   closed: 'border-border bg-muted text-muted-foreground',
-  failed: 'border-destructive/40 bg-destructive/5 text-destructive',
+  failed: 'border-destructive/30 bg-destructive/10 text-destructive',
 }
 
 const IN_TEXT_LINK_STYLE = { textDecorationLine: 'underline' } as const
@@ -62,17 +69,20 @@ function TrackedIssue({ reference }: Readonly<{ reference: string }>) {
         target="_blank"
         rel="noopener noreferrer"
         style={IN_TEXT_LINK_STYLE}
-        className="font-mono decoration-1 underline-offset-2 focus-visible:rounded-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+        className="font-mono underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
       >
         #{reference}
-        <ExternalLink className="ml-0.5 inline size-3 align-[-1px]" aria-hidden="true" />
+        <ExternalLink className="ml-0.5 inline size-3 align-middle" aria-hidden="true" />
         <span className="sr-only"> (opens GitHub in a new tab)</span>
       </a>
     </span>
   )
 }
 
-function ReportRow({ item }: Readonly<{ item: MyBetaFeedbackItem }>) {
+function ReportRow({
+  item,
+  isNew,
+}: Readonly<{ item: MyBetaFeedbackItem; isNew: boolean }>) {
   const status = reporterFeedbackStatus(item)
   const Icon = item.feedbackType === 'bug' ? Bug : Lightbulb
 
@@ -88,6 +98,11 @@ function ReportRow({ item }: Readonly<{ item: MyBetaFeedbackItem }>) {
           <Badge variant="outline" className={cn('font-normal', TONE_CLASS[status.tone])}>
             {status.label}
           </Badge>
+          {isNew && (
+            <span className="rounded-full bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
+              New
+            </span>
+          )}
         </div>
         <p className="text-sm text-muted-foreground">{status.description}</p>
         <p className="text-xs text-muted-foreground">
@@ -106,7 +121,7 @@ function ReportRow({ item }: Readonly<{ item: MyBetaFeedbackItem }>) {
 
 function EmptyReports() {
   return (
-    <div className="flex flex-col items-center gap-2 py-10 text-center">
+    <div className="flex flex-col items-center gap-2 py-8 text-center">
       <MessageSquareDashed className="size-6 text-muted-foreground" aria-hidden="true" />
       <p className="text-sm font-medium">Nothing reported yet</p>
       <p className="max-w-xs text-sm text-muted-foreground">
@@ -124,13 +139,35 @@ function EmptyReports() {
 export function BetaFeedbackReports({
   listFeedback,
   enabled,
-}: Readonly<{ listFeedback: ListMyBetaFeedback; enabled: boolean }>) {
+  onSeen,
+}: Readonly<{
+  listFeedback: ListMyBetaFeedback
+  enabled: boolean
+  /** Told once what is on screen has been recorded as seen. */
+  onSeen?: () => void
+}>) {
   const query = useQuery({
     queryKey: identityKeys.myBetaFeedback(),
     queryFn: () => listFeedback(),
     enabled,
     staleTime: 30_000,
   })
+  // Snapshot what had been seen BEFORE this viewing, so an outcome keeps its
+  // "New" marker for the whole visit rather than vanishing on first render.
+  const [seenBeforeOpening] = useState(() => readSeenOutcomes(browserStorage()))
+  const newReferences = useMemo(
+    () =>
+      new Set(
+        unseenOutcomes(query.data ?? [], seenBeforeOpening).map((item) => item.reference),
+      ),
+    [query.data, seenBeforeOpening],
+  )
+
+  useEffect(() => {
+    if (!enabled || !query.data) return
+    writeSeenOutcomes(browserStorage(), markSeen(query.data))
+    onSeen?.()
+  }, [enabled, query.data, onSeen])
 
   if (query.isPending) {
     return (
@@ -155,7 +192,11 @@ export function BetaFeedbackReports({
   return (
     <ul className="max-h-96 overflow-y-auto">
       {items.map((item) => (
-        <ReportRow key={item.reference} item={item} />
+        <ReportRow
+          key={item.reference}
+          item={item}
+          isNew={newReferences.has(item.reference)}
+        />
       ))}
     </ul>
   )

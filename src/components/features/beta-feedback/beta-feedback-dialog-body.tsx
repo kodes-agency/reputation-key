@@ -11,6 +11,7 @@ import { BetaFeedbackReports } from './beta-feedback-reports'
 type Props = Readonly<{
   submitFeedback: SubmitBetaFeedback
   listFeedback?: ListMyBetaFeedback
+  onReportsSeen?: () => void
 }>
 
 type Panel = 'report' | 'reports'
@@ -38,7 +39,7 @@ function PrivacyNotice() {
  * carry the form, the reports panel or their dependencies in the initial
  * closure. Nobody loads this until they open the dialog.
  */
-function BetaFeedbackDialogBody({ submitFeedback, listFeedback }: Props) {
+function BetaFeedbackDialogBody({ submitFeedback, listFeedback, onReportsSeen }: Props) {
   const [reference, setReference] = useState<string | null>(null)
   const [panel, setPanel] = useState<Panel>('report')
   const queryClient = useQueryClient()
@@ -82,7 +83,11 @@ function BetaFeedbackDialogBody({ submitFeedback, listFeedback }: Props) {
         {reportPanel}
       </TabsContent>
       <TabsContent value="reports" className="mt-4">
-        <BetaFeedbackReports listFeedback={listFeedback} enabled={panel === 'reports'} />
+        <BetaFeedbackReports
+          listFeedback={listFeedback}
+          enabled={panel === 'reports'}
+          onSeen={onReportsSeen}
+        />
       </TabsContent>
     </Tabs>
   )

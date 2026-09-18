@@ -160,4 +160,15 @@ describe('masked layout capture', () => {
 
     expect(layout?.boxes.length).toBe(240)
   })
+
+  it('leaves out page shells that span the whole viewport', () => {
+    const layout = capture([
+      { tag: 'div', rect: { x: 0, y: 0, width: 1280, height: 800 } },
+      { tag: 'main', rect: { x: 0, y: 0, width: 1276, height: 792 } },
+      { tag: 'p', rect: { x: 16, y: 80, width: 400, height: 44 } },
+    ])
+
+    // Both shells go; the paragraph that actually shows the layout stays.
+    expect(layout?.boxes.map((b) => b.role)).toEqual(['text'])
+  })
 })

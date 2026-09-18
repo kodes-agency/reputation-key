@@ -30,7 +30,7 @@ function LayoutPreview({ layout }: Readonly<{ layout: MaskedLayout }>) {
       alt={`Masked layout preview: ${summarizeMaskedLayout(layout)}`}
       width={layout.width}
       height={layout.height}
-      className="max-h-48 w-full rounded-md border bg-muted/40 object-contain"
+      className="max-h-60 w-full rounded-md border bg-muted/40 object-contain"
     />
   )
 }

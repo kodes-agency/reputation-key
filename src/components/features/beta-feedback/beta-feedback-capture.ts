@@ -19,6 +19,14 @@ const EXCLUDE_SELECTOR = '[data-beta-feedback-capture-exclude]'
 /** Below this a box is noise; it also keeps the budget for meaningful blocks. */
 const MIN_SIDE_PX = 8
 
+/**
+ * A box covering nearly the whole viewport is a page shell (html, body, the app
+ * root, a full-height layout wrapper). It says nothing about the layout and,
+ * stacked, it washes the picture out — so it is left out, and its share of the
+ * budget goes to blocks that mean something.
+ */
+const SHELL_COVERAGE = 0.95
+
 const TAG_ROLE: Readonly<Record<string, MaskedLayoutRole>> = {
   H1: 'heading',
   H2: 'heading',
@@ -90,6 +98,12 @@ export function captureMaskedLayout(root: CaptureRoot): MaskedLayout | null {
 
     const rect = element.getBoundingClientRect()
     if (!isRendered(element, rect)) continue
+    if (
+      rect.width >= root.viewportWidth * SHELL_COVERAGE &&
+      rect.height >= root.viewportHeight * SHELL_COVERAGE
+    ) {
+      continue
+    }
     // Off-screen blocks say nothing about what the reporter was looking at.
     if (rect.bottom < 0 || rect.top > root.viewportHeight) continue
 

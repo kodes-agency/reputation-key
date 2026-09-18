@@ -485,6 +485,12 @@
       "classification": "local_runtime",
       "owner": "Beta feedback reporting",
       "policy": "One capture of the page geometry, taken when the form mounts over the page being described; re-capturing later would picture the form rather than the bug. It is not server state, and Remove clears it outright so a later re-consent cannot resurrect a picture the reporter dropped."
+    },
+    {
+      "id": "src/components/features/beta-feedback/beta-feedback-reports.tsx:useState(seenBeforeOpening)",
+      "classification": "client_persistence",
+      "owner": "Beta feedback reporting",
+      "policy": "Read once from this browser's seen-outcome map when the reports panel opens, so an outcome keeps its New marker for the whole visit. Per-viewer convenience only: nothing server-side reads it, and losing it can only make a marker reappear, never hide an outcome."
     }
   ],
   "classificationDefinitions": {

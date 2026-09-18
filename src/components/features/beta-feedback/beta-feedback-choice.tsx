@@ -84,11 +84,11 @@ export function BetaFeedbackChoiceGroup<TValue extends string>({
               className={cn(
                 'group relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors',
                 'focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-                'disabled:cursor-not-allowed disabled:opacity-60',
+                'disabled:cursor-not-allowed disabled:opacity-50',
                 selected
                   ? 'border-primary bg-primary/5'
-                  : 'border-border hover:border-foreground/25 hover:bg-muted/40',
-                layout === 'cards' ? 'flex-col gap-2 sm:min-h-24' : 'items-center py-2.5',
+                  : 'border-border hover:border-primary/40 hover:bg-muted/40',
+                layout === 'cards' ? 'flex-col gap-2' : 'items-center py-2.5',
               )}
             >
               {option.icon && (
@@ -109,13 +109,13 @@ export function BetaFeedbackChoiceGroup<TValue extends string>({
                   aria-hidden="true"
                   className={cn(
                     'mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors',
-                    selected ? 'border-primary' : 'border-muted-foreground/40',
+                    selected ? 'border-primary' : 'border-input',
                   )}
                 >
                   {selected && <span className="size-2 rounded-full bg-primary" />}
                 </span>
               )}
-              <span className="min-w-0 space-y-0.5">
+              <span className="min-w-0 space-y-1">
                 <span
                   className={cn(
                     'block text-sm',

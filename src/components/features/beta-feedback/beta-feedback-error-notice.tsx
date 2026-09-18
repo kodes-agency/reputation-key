@@ -21,8 +21,8 @@ export function BetaFeedbackErrorNotice({
   disabled,
 }: Props) {
   return (
-    <div className="flex gap-3 rounded-lg border border-amber-500/35 bg-amber-500/5 p-3">
-      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-500" />
+    <div className="flex gap-3 rounded-lg border border-warn-line bg-warn-muted p-3">
+      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warn" />
       <div className="min-w-0 space-y-2">
         <p className="text-sm font-medium">
           RepKey recorded an error while you were here
