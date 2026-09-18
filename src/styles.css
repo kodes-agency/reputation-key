@@ -1,6 +1,26 @@
 @import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import 'tailwindcss';
+/* Scan what the web image builds from, and nothing else. Tailwind v4 reads
+   every file under the Vite root for class candidates, so a class named in a
+   plan document or an e2e selector became a real rule in this stylesheet. The
+   image never saw those rules: its build stage copies the tree through
+   .dockerignore, which keeps these folders out (docs/legal stays in the image,
+   and holds no class names). CI's bundle budget builds the full checkout, so
+   it charged first paint for bytes that never ship — on 2026-09-18, 65 B gzip
+   from one review record alone, against a closure with 9 B of headroom.
+   Keep this list in step with .dockerignore. */
+@source not '../docs';
+@source not '../review';
+@source not '../e2e';
+@source not '../.storybook';
+@source not '../.codex';
+@source not '../.fallow';
+@source not '../.github';
+@source not '../.od-skills';
+@source not '../.omp';
+@source not '../.pi';
+@source not '../.superpowers';
 @import 'tw-animate-css';
 @plugin '@tailwindcss/typography';
 @custom-variant dark (&:is(.dark *));
