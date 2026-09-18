@@ -3,7 +3,7 @@ ARG SOURCE_REVISION=unknown
 # BQC-8: deterministic external provider sandbox. This bundles the existing
 # dependency-free GBP/mail fixtures so a target cell can exercise its real
 # provider adapters without granting live provider credentials.
-FROM node:22.23.2-trixie-slim@sha256:7b8a0c89c54499bee567618f96578e1a12a800f062fbdbfd1fb6a443fa6f6284 AS build
+FROM node:26.8.2-trixie-slim@sha256:f7bb8247fdb16250dbec7fd0e24f091c6f5f0a29d256f3aef5816a7a369166b2 AS build
 # OpenSSL 3.5.7-1~deb13u2 and PCRE2 10.46-1~deb13u2 fix the known
 # Critical/High CVEs in this base. Pinned exact so the build fails loudly if
 # the archive stops carrying them. Kept aligned with `Dockerfile` on purpose — these
@@ -35,7 +35,7 @@ RUN pnpm exec tsup scripts/perf/cell-stub-server.ts \
     --out-dir dist \
     --clean
 
-FROM node:22.23.2-trixie-slim@sha256:7b8a0c89c54499bee567618f96578e1a12a800f062fbdbfd1fb6a443fa6f6284 AS runtime
+FROM node:26.8.2-trixie-slim@sha256:f7bb8247fdb16250dbec7fd0e24f091c6f5f0a29d256f3aef5816a7a369166b2 AS runtime
 # OpenSSL 3.5.7-1~deb13u2 and PCRE2 10.46-1~deb13u2 fix the known
 # Critical/High CVEs in this base. Pinned exact so the build fails loudly if
 # the archive stops carrying them. Kept aligned with `Dockerfile` on purpose — these
