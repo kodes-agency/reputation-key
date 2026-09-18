@@ -64,6 +64,14 @@
 // statically imports the browser middleware even though instrument.client.ts
 // now retains its dynamic import.
 //
+// Re-measured 2026-09-18 after src/styles.css stopped scanning the folders
+// .dockerignore keeps out of the image (docs, review, e2e, .storybook and the
+// agent folders): 329,096 B → 328,607 B (79 js + 1 css). Only the stylesheet
+// changed, and it now equals, byte for byte, the one built from a tree filtered
+// through .dockerignore — so this gate measures the CSS production ships. The
+// 489 B were rules for class names written in plan documents and e2e selectors.
+// The budget itself is unchanged.
+//
 // Two mechanisms had pinned lazy feature code into first paint: route config and
 // loader value-imports from component barrels, and one broad `app-shared` group
 // that welded `src/contexts/*/server/*` stubs to `src/components/*`. Routes now
