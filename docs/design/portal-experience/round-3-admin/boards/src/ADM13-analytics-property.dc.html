@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Portal analytics — Avela Resort</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=Manrope:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+@font-face{font-family:'Satoshi';src:url('/_blob/bc9aed933eebd2242e24e1a874f3e980') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Satoshi';src:url('/_blob/b4176652b3bb793da8608143a4c2d4d1') format('woff2');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:'Satoshi';src:url('/_blob/d97bb02bcf4b472111e2170c4170bd0c') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+body{margin:0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+a{color:#512da6}a:hover{color:#431096}
+:focus-visible{outline:2px solid #7b65d1;outline-offset:2px}
+button,input,select,textarea{font-family:inherit;font-size:inherit;line-height:inherit;color:inherit}
+.rk-primary{background:#512da6}.rk-primary:hover{background:#6242ae}
+.rk-outline{background:#f7f8fa}.rk-outline:hover{background:#e7e4ff}
+.rk-ghost{background:transparent}.rk-ghost:hover{background:#e7e4ff}
+.rk-destructive{background:#df202e}.rk-destructive:hover{background:#e23743}
+.rk-nav:hover{background:#e7e4ff}
+.rk-row:hover>td,.rk-row:hover>th{background:#f9fafb}
+.rk-sort:hover{color:#101115!important}
+.rk-name:hover{text-decoration:underline!important;text-underline-offset:4px}
+.rk-detail:hover>span{text-decoration-style:solid!important}
+.rk-cell{background:#feffff}.rk-cell-i:hover,.rk-cell-i.is-on{background:#f0f2f5}
+.rk-stretch::after{content:"";position:absolute;inset:0}
+.rk-stretch:focus-visible{outline:none}.rk-stretch:focus-visible::after{outline:2px solid #7b65d1;outline-offset:-3px}
+.rk-input::placeholder{color:#5b5d63;opacity:1}
+.rk-input:focus-visible{outline:none;border-color:#7b65d1!important;box-shadow:0 0 0 3px rgba(123,101,209,.5)!important}
+.rk-menuitem{background:transparent}.rk-menuitem:hover,.rk-menuitem:focus-visible{background:#e7e4ff;outline:none}
+.rk-check:focus-visible+span{outline:2px solid #7b65d1;outline-offset:2px}
+.rk-tile{background:transparent}.rk-tile:hover{background:#f4f5f8}
+summary::-webkit-details-marker{display:none}
+details[open]>summary .rk-chev{transform:rotate(90deg)}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1600px; box-sizing: border-box; overflow: hidden; position: relative; display: flex; background: #f7f8fa; color: #101115; font-family: 'Satoshi', 'Manrope', system-ui, sans-serif; font-size: 14px; line-height: 20px;">
+
+  <nav aria-label="Primary navigation" style="width: 256px; flex: none; height: 1600px; box-sizing: border-box; display: flex; flex-direction: column; background: #f7f8fa; border-right: 1px solid #dcdee2;">
+    <div style="padding: 8px;">
+      <button type="button" class="rk-ghost" aria-label="Avela Resort, switch property" aria-haspopup="menu" aria-expanded="false" style="display: flex; align-items: center; gap: 8px; width: 100%; height: 48px; padding: 8px; box-sizing: border-box; border: 0; border-radius: 6px; text-align: left; color: #101115; cursor: pointer;">
+        <span aria-hidden="true" style="width: 32px; height: 32px; flex: none; border-radius: 8px; background: #e7e4ff; color: #512da6; display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 16px; font-weight: 500;">AR</span>
+        <span style="display: grid; flex: 1; min-width: 0; font-size: 14px; line-height: 1.25;"><span style="font-weight: 500;">Avela Resort</span><span style="font-size: 12px; line-height: 16px; color: #5b5d63;">avela-resort</span></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+      </button>
+    </div>
+    <div style="flex: 1; min-height: 0; padding: 8px;">
+      <ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px;">
+        <li style="position: relative;">
+          <a href="#" class="rk-nav" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 8px 32px 8px 8px; box-sizing: border-box; border-radius: 6px; color: #101115; text-decoration: none; font-size: 14px; line-height: 20px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg><span>Dashboard</span></a>
+          <button type="button" class="rk-ghost" aria-label="Show Dashboard pages" aria-expanded="false" style="position: absolute; top: 6px; right: 4px; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m9 18 6-6-6-6"/></svg></button>
+        </li>
+        <li style="position: relative;">
+          <a href="#" class="rk-nav" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 8px 32px 8px 8px; box-sizing: border-box; border-radius: 6px; color: #101115; text-decoration: none; font-size: 14px; line-height: 20px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></svg><span>Reviews</span><span class="sr-only">, 3 new</span></a>
+          <span aria-hidden="true" style="position: absolute; top: 6px; right: 4px; height: 20px; min-width: 20px; box-sizing: border-box; padding: 0 6px; border-radius: 9999px; background: #df202e; color: #fff; font-size: 12px; line-height: 16px; font-weight: 500; font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: center; pointer-events: none;">3</span>
+        </li>
+        <li>
+          <a href="#" class="rk-nav" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 8px; box-sizing: border-box; border-radius: 6px; color: #101115; text-decoration: none; font-size: 14px; line-height: 20px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg><span>People</span></a>
+        </li>
+        <li>
+          <a href="#" aria-current="page" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 8px; box-sizing: border-box; border-radius: 6px; background: #e7e4ff; color: #101115; text-decoration: none; font-size: 14px; line-height: 20px; font-weight: 500;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg><span>Portals</span></a>
+        </li>
+        <li>
+          <a href="#" class="rk-nav" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 8px; box-sizing: border-box; border-radius: 6px; color: #101115; text-decoration: none; font-size: 14px; line-height: 20px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><span>Goals</span></a>
+        </li>
+        <li>
+          <a href="#" class="rk-nav" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 8px; box-sizing: border-box; border-radius: 6px; color: #101115; text-decoration: none; font-size: 14px; line-height: 20px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg><span>Property settings</span></a>
+        </li>
+      </ul>
+    </div>
+    <div style="padding: 8px;">
+      <ul style="list-style: none; margin: 0; padding: 0;">
+        <li>
+          <a href="#" class="rk-nav" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 8px; box-sizing: border-box; border-radius: 6px; color: #101115; text-decoration: none; font-size: 14px; line-height: 20px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg><span>Settings</span></a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: #f7f8fa;">
+    <header style="height: 52px; flex: none; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid #dcdee2; background: #f7f8fa;">
+      <button type="button" class="rk-ghost" aria-label="Toggle sidebar" style="width: 28px; height: 28px; margin-left: -4px; padding: 0; border: 0; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg></button>
+      <span style="flex: 1;"></span>
+      <button type="button" class="rk-ghost" style="height: 32px; padding: 0 10px; display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M12 8v6"/><path d="M9 11h6"/></svg>Feedback</button>
+      <button type="button" class="rk-ghost" aria-label="Notifications, 2 unread" style="position: relative; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg><span aria-hidden="true" style="position: absolute; top: -2px; right: -2px; width: 16px; height: 16px; border-radius: 9999px; background: #512da6; color: #feffff; font-size: 9px; line-height: 16px; font-weight: 700; text-align: center;">2</span></button>
+      <button type="button" class="rk-ghost" aria-label="Account menu, Elena Petrova" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 9999px; display: flex; align-items: center; justify-content: center; cursor: pointer;"><span aria-hidden="true" style="width: 28px; height: 28px; border-radius: 9999px; background: #512da6; color: #feffff; font-size: 10px; line-height: 12px; font-weight: 500; display: flex; align-items: center; justify-content: center;">EP</span></button>
+    </header>
+
+    <main style="flex: 1; min-height: 0; overflow: hidden; padding: 32px 24px; box-sizing: border-box;">
+      <div style="width: 1136px; margin: 0 auto; display: flex; flex-direction: column;">
+
+        <header style="display: flex; flex-direction: column; gap: 12px;">
+          <nav aria-label="Breadcrumb">
+            <ol style="display: flex; align-items: center; gap: 10px; margin: 0; padding: 0; list-style: none; font-size: 14px; line-height: 20px; color: #5b5d63;">
+              <li><a href="#" style="text-decoration: none;">Properties</a></li>
+              <li aria-hidden="true" style="display: flex;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m9 18 6-6-6-6"/></svg></li>
+              <li><a href="#" style="text-decoration: none;">Avela Resort</a></li>
+              <li aria-hidden="true" style="display: flex;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m9 18 6-6-6-6"/></svg></li>
+              <li><a href="ADM01-portals-overview.dc.html" style="text-decoration: none;">Portals</a></li>
+              <li aria-hidden="true" style="display: flex;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m9 18 6-6-6-6"/></svg></li>
+              <li aria-current="page" style="color: #101115;">Analytics</li>
+            </ol>
+          </nav>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+            <div style="min-width: 0;">
+              <h1 style="margin: 0; font-size: 24px; line-height: 32px; font-weight: 700; letter-spacing: -0.6px; color: #101115;">Portal analytics</h1>
+              <p style="margin: 4px 0 0; font-size: 14px; line-height: 20px; color: #5b5d63;">Avela Resort · all portals · 21 Jun – 18 Sep</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; flex: none;">
+              <button type="button" class="rk-outline" aria-haspopup="listbox" aria-expanded="false" style="height: 44px; box-sizing: border-box; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span class="sr-only">Portals included: </span><span>All portals</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m6 9 6 6 6-6"/></svg></button>
+              <div role="group" aria-label="Time range" style="display: flex; gap: 4px;">
+                <button type="button" class="{{ r30.cls }}" aria-pressed="{{ r30.pressed }}" onClick="{{ r30.pick }}" style="height: 44px; min-width: 80px; box-sizing: border-box; padding: 0 12px; border: 0; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer; {{ r30.look }}">30 days</button>
+                <button type="button" class="{{ r90.cls }}" aria-pressed="{{ r90.pressed }}" onClick="{{ r90.pick }}" style="height: 44px; min-width: 80px; box-sizing: border-box; padding: 0 12px; border: 0; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer; {{ r90.look }}">90 days</button>
+                <button type="button" class="{{ r180.cls }}" aria-pressed="{{ r180.pressed }}" onClick="{{ r180.pick }}" style="height: 44px; min-width: 80px; box-sizing: border-box; padding: 0 12px; border: 0; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer; {{ r180.look }}">6 months</button>
+                <button type="button" class="{{ rAll.cls }}" aria-pressed="{{ rAll.pressed }}" onClick="{{ rAll.pick }}" style="height: 44px; min-width: 80px; box-sizing: border-box; padding: 0 12px; border: 0; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer; {{ rAll.look }}">All time</button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <section aria-labelledby="glance-heading" style="margin-top: 32px;">
+          <h2 id="glance-heading" style="margin: 0 0 12px; font-size: 18px; line-height: 28px; font-weight: 700; letter-spacing: -0.45px; color: #101115;">At a glance</h2>
+          <dl style="margin: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid #dcdee2; border-bottom: 1px solid #dcdee2;">
+            <div style="padding: 16px 16px 16px 0; display: flex; flex-direction: column;">
+              <dt style="display: flex;"><button type="button" class="rk-detail" aria-haspopup="dialog" aria-expanded="false" style="display: inline-flex; align-items: center; gap: 6px; min-height: 24px; margin: -2px 0; padding: 0; border: 0; background: none; font-size: 14px; line-height: 20px; font-weight: 500; color: #5b5d63; cursor: help;"><span style="text-decoration: underline dotted currentColor; text-underline-offset: 4px;">Qualified scans</span></button></dt>
+              <dd style="margin: 4px 0 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 30px; line-height: 36px; font-weight: 700; font-variant-numeric: tabular-nums; color: #101115;">1,087</span>
+                <span style="font-size: 14px; line-height: 20px; color: #5b5d63;"><span style="color: #007a3a; font-weight: 500;">+117</span> vs the 90 days before</span>
+              </dd>
+            </div>
+            <div style="padding: 16px; border-left: 1px solid #dcdee2; display: flex; flex-direction: column;">
+              <dt style="display: flex;"><button type="button" class="rk-detail" aria-haspopup="dialog" aria-expanded="false" style="display: inline-flex; align-items: center; gap: 6px; min-height: 24px; margin: -2px 0; padding: 0; border: 0; background: none; font-size: 14px; line-height: 20px; font-weight: 500; color: #5b5d63; cursor: help;"><span style="text-decoration: underline dotted currentColor; text-underline-offset: 4px;">Private ratings</span></button></dt>
+              <dd style="margin: 4px 0 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 30px; line-height: 36px; font-weight: 700; font-variant-numeric: tabular-nums; color: #101115;">310</span>
+                <span style="font-size: 14px; line-height: 20px; color: #5b5d63;">29% of scans</span>
+              </dd>
+            </div>
+            <div style="padding: 16px; border-left: 1px solid #dcdee2; display: flex; flex-direction: column;">
+              <dt style="display: flex;"><button type="button" class="rk-detail" aria-haspopup="dialog" aria-expanded="false" style="display: inline-flex; align-items: center; gap: 6px; min-height: 24px; margin: -2px 0; padding: 0; border: 0; background: none; font-size: 14px; line-height: 20px; font-weight: 500; color: #5b5d63; cursor: help;"><span style="text-decoration: underline dotted currentColor; text-underline-offset: 4px;">Average private rating</span></button></dt>
+              <dd style="margin: 4px 0 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 30px; line-height: 36px; font-weight: 700; font-variant-numeric: tabular-nums; color: #101115;">4.4<svg width="16" height="16" viewBox="0 0 24 24" fill="#da950b" stroke="#da950b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> stars</span></span>
+                <span style="font-size: 14px; line-height: 20px; color: #5b5d63;"><span style="display: block;">from 310 (288 before)</span><span style="display: block; white-space: nowrap;"><span aria-hidden="true" style="color: #007a3a; font-weight: 500;">↑ 0.1</span><span class="sr-only">up 0.1</span> vs the 90 days before</span></span>
+              </dd>
+            </div>
+            <div style="padding: 16px; border-left: 1px solid #dcdee2; display: flex; flex-direction: column;">
+              <dt style="display: flex;"><button type="button" class="rk-detail" aria-haspopup="dialog" aria-expanded="false" style="display: inline-flex; align-items: center; gap: 6px; min-height: 24px; margin: -2px 0; padding: 0; border: 0; background: none; font-size: 14px; line-height: 20px; font-weight: 500; color: #5b5d63; cursor: help;"><span style="text-decoration: underline dotted currentColor; text-underline-offset: 4px;">Guests who opened Google</span></button></dt>
+              <dd style="margin: 4px 0 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 30px; line-height: 36px; font-weight: 700; font-variant-numeric: tabular-nums; color: #101115;">159</span>
+                <span style="font-size: 14px; line-height: 20px; color: #5b5d63;">15% of scans</span>
+              </dd>
+            </div>
+            <div style="padding: 16px; border-left: 1px solid #dcdee2; display: flex; flex-direction: column;">
+              <dt style="display: flex;"><button type="button" class="rk-detail" aria-haspopup="dialog" aria-expanded="false" style="display: inline-flex; align-items: center; gap: 6px; min-height: 24px; margin: -2px 0; padding: 0; border: 0; background: none; font-size: 14px; line-height: 20px; font-weight: 500; color: #5b5d63; cursor: help;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span style="text-decoration: underline dotted currentColor; text-underline-offset: 4px;">Private notes</span></button></dt>
+              <dd style="margin: 4px 0 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 30px; line-height: 36px; font-weight: 700; font-variant-numeric: tabular-nums; color: #101115;">24</span>
+                <a href="#" style="align-self: flex-start; font-size: 14px; line-height: 20px; text-decoration: none;">3 waiting in Inbox<span class="sr-only">. Open private notes in Inbox Feedback</span></a>
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <section aria-labelledby="funnel-heading" style="margin-top: 24px;">
+          <h2 id="funnel-heading" style="margin: 0 0 12px; font-size: 18px; line-height: 28px; font-weight: 700; letter-spacing: -0.45px; color: #101115;">From scan to Google</h2>
+          <figure style="margin: 0; display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: grid; grid-template-columns: 860px 1fr 244px; align-items: center;">
+              <dl style="margin: 0; display: grid; grid-template-columns: 200px 1fr 260px; grid-auto-rows: 36px; align-items: center; column-gap: 12px; row-gap: 12px; font-size: 14px; line-height: 20px; color: #101115;">
+                <dt style="font-weight: 500;">Qualified scans</dt>
+                <dd aria-hidden="true" style="margin: 0; height: 20px; border-radius: 4px; background: #e4e6ea;"><span style="display: block; width: 100%; height: 20px; border-radius: 4px; background: #5b5d63;"></span></dd>
+                <dd style="margin: 0; white-space: nowrap; font-variant-numeric: tabular-nums;">1,087</dd>
+                <dt style="font-weight: 500;">Private ratings</dt>
+                <dd aria-hidden="true" style="margin: 0; height: 20px; border-radius: 4px; background: #e4e6ea;"><span style="display: block; width: 28.5%; height: 20px; border-radius: 4px; background: #5b5d63;"></span></dd>
+                <dd style="margin: 0; white-space: nowrap; font-variant-numeric: tabular-nums;">310 · 29% of scans</dd>
+                <dt style="font-weight: 500;">Guests who opened Google</dt>
+                <dd aria-hidden="true" style="margin: 0; height: 20px; border-radius: 4px; background: #e4e6ea;"><span style="display: block; width: 14.6%; height: 20px; border-radius: 4px; background: #5b5d63;"></span></dd>
+                <dd style="margin: 0; white-space: nowrap; font-variant-numeric: tabular-nums;">159 · 15% of scans<span style="font-variant-numeric: normal; color: #5b5d63;"> · 51% of rated guests</span></dd>
+              </dl>
+              <span aria-hidden="true" style="justify-self: center; align-self: stretch; width: 1px; background: #dcdee2;"></span>
+              <div style="display: flex; flex-direction: column;">
+                <p style="margin: 0; display: flex; align-items: center; gap: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Private notes <span style="font-variant-numeric: tabular-nums;">24</span></span></p>
+                <p style="margin: 2px 0 0; font-size: 12px; line-height: 16px; color: #5b5d63;">Offered at or below each portal’s setting: <span style="white-space: nowrap;">3<svg width="12" height="12" viewBox="0 0 24 24" fill="#5b5d63" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none; display: inline-block; vertical-align: -1px; margin-left: 1px;"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> stars</span> at all 4 live portals</span></p>
+              </div>
+            </div>
+            <figcaption style="font-size: 14px; line-height: 20px; color: #5b5d63;">29% of qualified scans led to a private rating, and 15% to a guest opening Google.</figcaption>
+          </figure>
+        </section>
+
+        <div style="margin-top: 24px; display: grid; grid-template-columns: 740px 364px; column-gap: 32px; align-items: start;">
+          <section aria-labelledby="time-heading">
+            <h2 id="time-heading" style="margin: 0 0 12px; font-size: 18px; line-height: 28px; font-weight: 700; letter-spacing: -0.45px; color: #101115;">Over time</h2>
+            <figure style="margin: 0; display: flex; flex-direction: column; gap: 8px;">
+              <figcaption id="trend-caption" style="font-size: 14px; line-height: 20px; color: #5b5d63;">Weekly qualified scans, with the average private rating on the right axis. The last bar covers 5 days.</figcaption>
+              <svg width="740" height="240" viewBox="0 0 740 240" role="img" aria-labelledby="trend-caption" style="display:block;overflow:visible;font-family:Satoshi,system-ui,sans-serif"><line x1="32" x2="708" y1="212" y2="212" stroke="#dcdee2" stroke-dasharray="3 3"/><text x="24" y="216" text-anchor="end" font-size="12" fill="#5b5d63">0</text><text x="727" y="216" text-anchor="end" font-size="12" fill="#5b5d63">1</text><path transform="translate(729 206.6) scale(0.45)" d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" fill="#5b5d63" stroke="#5b5d63" stroke-width="2" stroke-linejoin="round"/><line x1="32" x2="708" y1="110" y2="110" stroke="#dcdee2" stroke-dasharray="3 3"/><text x="24" y="114" text-anchor="end" font-size="12" fill="#5b5d63">60</text><text x="727" y="114" text-anchor="end" font-size="12" fill="#5b5d63">3</text><path transform="translate(729 104.6) scale(0.45)" d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" fill="#5b5d63" stroke="#5b5d63" stroke-width="2" stroke-linejoin="round"/><line x1="32" x2="708" y1="8" y2="8" stroke="#dcdee2" stroke-dasharray="3 3"/><text x="24" y="12" text-anchor="end" font-size="12" fill="#5b5d63">120</text><text x="727" y="12" text-anchor="end" font-size="12" fill="#5b5d63">5</text><path transform="translate(729 2.6) scale(0.45)" d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" fill="#5b5d63" stroke="#5b5d63" stroke-width="2" stroke-linejoin="round"/><path d="M44 212V95.3a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4V212z" fill="#5b5d63"/><path d="M96 212V83.4a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4V212z" fill="#5b5d63"/><path d="M148 212V73.2a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4V212z" fill="#5b5d63"/><path d="M200 212V59.6a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4V212z" fill="#5b5d63"/><path d="M252 212V54.5a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4V212z" fill="#5b5d63"/><path d="M304 212V44.3a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4V212z" fill="#5b5d63"/><path d="M356 212V51.1a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4V212z" fill="#5b5d63"/><path d="M408 212V66.4a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4V212z" fill="#5b5d63"/><path d="M460 212V74.9a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4V212z" fill="#5b5d63"/><path d="M512 212V81.7a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4V212z" fill="#5b5d63"/><path d="M564 212V86.8a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4V212z" fill="#5b5d63"/><path d="M616 212V93.6a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4V212z" fill="#5b5d63"/><path d="M668 212V95.3a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4V212z" fill="#dcdee2" stroke="#5b5d63" stroke-width="1.5" stroke-dasharray="3 2"/><polyline points="58,43.7 110,38.6 162,38.6 214,43.7 266,38.6 318,33.5 370,38.6 422,38.6 474,43.7 526,38.6 578,38.6 630,33.5 682,38.6" fill="none" stroke="#101115" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="58" cy="43.7" r="3" fill="#f7f8fa" stroke="#101115" stroke-width="2"/><circle cx="110" cy="38.6" r="3" fill="#f7f8fa" stroke="#101115" stroke-width="2"/><circle cx="162" cy="38.6" r="3" fill="#f7f8fa" stroke="#101115" stroke-width="2"/><circle cx="214" cy="43.7" r="3" fill="#f7f8fa" stroke="#101115" stroke-width="2"/><circle cx="266" cy="38.6" r="3" fill="#f7f8fa" stroke="#101115" stroke-width="2"/><circle cx="318" cy="33.5" r="3" fill="#f7f8fa" stroke="#101115" stroke-width="2"/><circle cx="370" cy="38.6" r="3" fill="#f7f8fa" stroke="#101115" stroke-width="2"/><circle cx="422" cy="38.6" r="3" fill="#f7f8fa" stroke="#101115" stroke-width="2"/><circle cx="474" cy="43.7" r="3" fill="#f7f8fa" stroke="#101115" stroke-width="2"/><circle cx="526" cy="38.6" r="3" fill="#f7f8fa" stroke="#101115" stroke-width="2"/><circle cx="578" cy="38.6" r="3" fill="#f7f8fa" stroke="#101115" stroke-width="2"/><circle cx="630" cy="33.5" r="3" fill="#f7f8fa" stroke="#101115" stroke-width="2"/><circle cx="682" cy="38.6" r="3" fill="#f7f8fa" stroke="#101115" stroke-width="2"/><text x="58" y="234" text-anchor="middle" font-size="12" fill="#5b5d63">22 Jun</text><text x="162" y="234" text-anchor="middle" font-size="12" fill="#5b5d63">6 Jul</text><text x="266" y="234" text-anchor="middle" font-size="12" fill="#5b5d63">20 Jul</text><text x="370" y="234" text-anchor="middle" font-size="12" fill="#5b5d63">3 Aug</text><text x="474" y="234" text-anchor="middle" font-size="12" fill="#5b5d63">17 Aug</text><text x="578" y="234" text-anchor="middle" font-size="12" fill="#5b5d63">31 Aug</text><text x="682" y="234" text-anchor="middle" font-size="12" fill="#5b5d63">14 Sep</text></svg>
+              <div style="min-height: 44px; display: flex; justify-content: space-between; align-items: center; gap: 16px;">
+                <details style="position: relative;">
+                  <summary class="rk-sort" style="min-height: 44px; display: flex; align-items: center; gap: 6px; list-style: none; font-size: 14px; line-height: 20px; color: #5b5d63; cursor: pointer;"><svg class="rk-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m9 18 6-6-6-6"/></svg>View chart values</summary>
+                  <div role="region" aria-label="Chart values" tabindex="0" style="position: absolute; left: 0; top: 48px; z-index: 30; width: 480px; max-height: 320px; overflow-y: auto; box-sizing: border-box; padding: 0 12px; background: #feffff; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);">
+                  <dl style="margin: 0; font-size: 13px; line-height: 20px; color: #5b5d63;">
+                    <div style="display: flex; justify-content: space-between; gap: 16px; padding: 8px 0;"><dt>21–28 Jun <span style="color: #5b5d63;">· 8 days</span></dt><dd style="margin: 0; font-variant-numeric: tabular-nums; color: #101115;">71 qualified scans · 4.3 from 20 private ratings</dd></div>
+                    <div style="display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid #dcdee2;"><dt>Week of 29 Jun</dt><dd style="margin: 0; font-variant-numeric: tabular-nums; color: #101115;">78 qualified scans · 4.4 from 22 private ratings</dd></div>
+                    <div style="display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid #dcdee2;"><dt>Week of 6 Jul</dt><dd style="margin: 0; font-variant-numeric: tabular-nums; color: #101115;">84 qualified scans · 4.4 from 24 private ratings</dd></div>
+                    <div style="display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid #dcdee2;"><dt>Week of 13 Jul</dt><dd style="margin: 0; font-variant-numeric: tabular-nums; color: #101115;">92 qualified scans · 4.3 from 26 private ratings</dd></div>
+                    <div style="display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid #dcdee2;"><dt>Week of 20 Jul</dt><dd style="margin: 0; font-variant-numeric: tabular-nums; color: #101115;">95 qualified scans · 4.4 from 27 private ratings</dd></div>
+                    <div style="display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid #dcdee2;"><dt>Week of 27 Jul</dt><dd style="margin: 0; font-variant-numeric: tabular-nums; color: #101115;">101 qualified scans · 4.5 from 29 private ratings</dd></div>
+                    <div style="display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid #dcdee2;"><dt>Week of 3 Aug</dt><dd style="margin: 0; font-variant-numeric: tabular-nums; color: #101115;">97 qualified scans · 4.4 from 28 private ratings</dd></div>
+                    <div style="display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid #dcdee2;"><dt>Week of 10 Aug</dt><dd style="margin: 0; font-variant-numeric: tabular-nums; color: #101115;">88 qualified scans · 4.4 from 25 private ratings</dd></div>
+                    <div style="display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid #dcdee2;"><dt>Week of 17 Aug</dt><dd style="margin: 0; font-variant-numeric: tabular-nums; color: #101115;">83 qualified scans · 4.3 from 24 private ratings</dd></div>
+                    <div style="display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid #dcdee2;"><dt>Week of 24 Aug</dt><dd style="margin: 0; font-variant-numeric: tabular-nums; color: #101115;">79 qualified scans · 4.4 from 22 private ratings</dd></div>
+                    <div style="display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid #dcdee2;"><dt>Week of 31 Aug</dt><dd style="margin: 0; font-variant-numeric: tabular-nums; color: #101115;">76 qualified scans · 4.4 from 22 private ratings</dd></div>
+                    <div style="display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid #dcdee2;"><dt>Week of 7 Sep</dt><dd style="margin: 0; font-variant-numeric: tabular-nums; color: #101115;">72 qualified scans · 4.5 from 21 private ratings</dd></div>
+                    <div style="display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid #dcdee2;"><dt>14–18 Sep <span style="color: #5b5d63;">· 5 days</span></dt><dd style="margin: 0; font-variant-numeric: tabular-nums; color: #101115;">71 qualified scans · 4.4 from 20 private ratings</dd></div>
+                  </dl>
+                  </div>
+                </details>
+                <span aria-hidden="true" style="display: flex; align-items: center; gap: 16px; font-size: 12px; line-height: 16px; color: #5b5d63;"><span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: #5b5d63;"></span>Qualified scans</span><span style="display: inline-flex; align-items: center; gap: 6px;"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" style="flex:none"><rect x="0.75" y="0.75" width="8.5" height="8.5" rx="2" fill="#dcdee2" stroke="#5b5d63" stroke-width="1.5" stroke-dasharray="3 2"/></svg>Partial week</span><span style="display: inline-flex; align-items: center; gap: 6px;"><svg width="16" height="8" viewBox="0 0 16 8" aria-hidden="true" style="flex:none"><line x1="0" x2="16" y1="4" y2="4" stroke="#101115" stroke-width="2"/><circle cx="8" cy="4" r="3" fill="#f7f8fa" stroke="#101115" stroke-width="2"/></svg>Average private rating</span></span>
+              </div>
+            </figure>
+          </section>
+          <section aria-labelledby="mix-heading">
+            <h2 id="mix-heading" style="margin: 0 0 12px; font-size: 18px; line-height: 28px; font-weight: 700; letter-spacing: -0.45px; color: #101115;">Rating mix</h2>
+            <dl style="margin: 0; height: 240px; display: grid; grid-template-columns: 32px 1fr auto; grid-template-rows: repeat(5, 20px); align-content: space-between; align-items: center; column-gap: 8px; font-size: 14px; line-height: 20px; color: #101115;">
+              <dt style="font-weight: 500; font-variant-numeric: tabular-nums;"><span aria-hidden="true">5★</span><span class="sr-only">5 stars</span></dt>
+              <dd aria-hidden="true" style="margin: 0; height: 8px; border-radius: 9999px; background: #e4e6ea; overflow: hidden;"><span style="display: block; width: 63%; height: 8px; background: #5b5d63;"></span></dd>
+              <dd style="margin: 0; min-width: 80px; text-align: right; font-variant-numeric: tabular-nums;">196 · 63%</dd>
+              <dt style="font-weight: 500; font-variant-numeric: tabular-nums;"><span aria-hidden="true">4★</span><span class="sr-only">4 stars</span></dt>
+              <dd aria-hidden="true" style="margin: 0; height: 8px; border-radius: 9999px; background: #e4e6ea; overflow: hidden;"><span style="display: block; width: 22%; height: 8px; background: #5b5d63;"></span></dd>
+              <dd style="margin: 0; min-width: 80px; text-align: right; font-variant-numeric: tabular-nums;">68 · 22%</dd>
+              <dt style="font-weight: 500; font-variant-numeric: tabular-nums;"><span aria-hidden="true">3★</span><span class="sr-only">3 stars</span></dt>
+              <dd aria-hidden="true" style="margin: 0; height: 8px; border-radius: 9999px; background: #e4e6ea; overflow: hidden;"><span style="display: block; width: 8%; height: 8px; background: #5b5d63;"></span></dd>
+              <dd style="margin: 0; min-width: 80px; text-align: right; font-variant-numeric: tabular-nums;">24 · 8%</dd>
+              <dt style="font-weight: 500; font-variant-numeric: tabular-nums;"><span aria-hidden="true">2★</span><span class="sr-only">2 stars</span></dt>
+              <dd aria-hidden="true" style="margin: 0; height: 8px; border-radius: 9999px; background: #e4e6ea; overflow: hidden;"><span style="display: block; width: 4%; height: 8px; background: #5b5d63;"></span></dd>
+              <dd style="margin: 0; min-width: 80px; text-align: right; font-variant-numeric: tabular-nums;">12 · 4%</dd>
+              <dt style="font-weight: 500; font-variant-numeric: tabular-nums;"><span aria-hidden="true">1★</span><span class="sr-only">1 star</span></dt>
+              <dd aria-hidden="true" style="margin: 0; height: 8px; border-radius: 9999px; background: #e4e6ea; overflow: hidden;"><span style="display: block; width: 3%; height: 8px; background: #5b5d63;"></span></dd>
+              <dd style="margin: 0; min-width: 80px; text-align: right; font-variant-numeric: tabular-nums;">10 · 3%</dd>
+            </dl>
+            <p style="margin: 36px 0 0; min-height: 44px; display: flex; align-items: center; font-size: 14px; line-height: 20px; color: #5b5d63;">From 310 private ratings.</p>
+          </section>
+        </div>
+
+        <section aria-labelledby="portal-heading" style="margin-top: 24px;">
+          <h2 id="portal-heading" style="margin: 0 0 12px; font-size: 18px; line-height: 28px; font-weight: 700; letter-spacing: -0.45px; color: #101115;">By portal</h2>
+          <div style="background: #feffff; border: 1px solid #dcdee2; border-radius: 8px; overflow: hidden;">
+            <table style="width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px; line-height: 20px; color: #101115;">
+              <caption class="sr-only">Portal measures at Avela Resort by group, last 90 days against the 90 days before</caption>
+              <thead>
+                <tr style="height: 56px; border-bottom: 1px solid #dcdee2;">
+                  <th scope="col" style="width: 258px; box-sizing: border-box; padding: 0 12px 0 16px; text-align: left; font-weight: 400;"><button type="button" class="rk-sort" style="display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0; border: 0; background: none; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63; cursor: pointer;">Portal<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;opacity:.4"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></button></th>
+                  <th scope="col" style="width: 120px; box-sizing: border-box; padding: 8px 12px; text-align: right; font-weight: 400;"><button type="button" class="rk-sort" style="display: inline-flex; align-items: center; justify-content: flex-end; min-height: 32px; padding: 0; border: 0; background: none; text-align: right; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63; cursor: pointer;"><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;display:inline-block;vertical-align:-3px;margin-right:4px;opacity:.4"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>Qualified scans</span></button></th>
+                  <th scope="col" style="width: 152px; box-sizing: border-box; padding: 8px 12px; text-align: right; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;"><span class="sr-only">Qualified scans, </span>vs the 90 days before</th>
+                  <th scope="col" style="width: 120px; box-sizing: border-box; padding: 8px 12px; text-align: right; font-weight: 400;"><button type="button" class="rk-sort" style="display: inline-flex; align-items: center; justify-content: flex-end; min-height: 32px; padding: 0; border: 0; background: none; text-align: right; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63; cursor: pointer;"><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;display:inline-block;vertical-align:-3px;margin-right:4px;opacity:.4"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>Private ratings</span></button></th>
+                  <th scope="col" style="width: 136px; box-sizing: border-box; padding: 8px 12px; text-align: right; font-weight: 400;"><button type="button" class="rk-sort" style="display: inline-flex; align-items: center; justify-content: flex-end; min-height: 32px; padding: 0; border: 0; background: none; text-align: right; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63; cursor: pointer;"><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;display:inline-block;vertical-align:-3px;margin-right:4px;opacity:.4"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>Average private rating</span></button></th>
+                  <th scope="col" style="width: 152px; box-sizing: border-box; padding: 8px 12px; text-align: right; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;"><span class="sr-only">Average private rating, </span>vs the 90 days before</th>
+                  <th scope="col" style="width: 112px; box-sizing: border-box; padding: 8px 12px; text-align: right; font-weight: 400;"><button type="button" class="rk-sort" style="display: inline-flex; align-items: center; justify-content: flex-end; min-height: 32px; padding: 0; border: 0; background: none; text-align: right; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63; cursor: pointer;"><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;display:inline-block;vertical-align:-3px;margin-right:4px;opacity:.4"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>Guests who opened Google</span></button></th>
+                  <th scope="col" style="width: 84px; box-sizing: border-box; padding: 8px 12px; text-align: right; font-weight: 400;"><button type="button" class="rk-sort" style="display: inline-flex; align-items: center; justify-content: flex-end; min-height: 32px; padding: 0; border: 0; background: none; text-align: right; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63; cursor: pointer;"><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;display:inline-block;vertical-align:-3px;margin-right:4px;opacity:.4"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>Private notes</span></button></th>
+                </tr>
+              </thead>
+              <tbody>
+              <tr style="height: 44px; background: #f7f8fa; border-bottom: 1px solid #dcdee2;">
+                <th scope="rowgroup" style="padding: 0 12px 0 16px; text-align: left; font-size: 13px; line-height: 20px; font-weight: 500; color: #101115;">Dining<span style="color: #5b5d63;"> · 2 portals</span></th>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">351</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;"><span style="color: #007a3a;">+40</span></td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">97</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;"><span style="display: inline-flex; align-items: center; gap: 4px;">4.2<svg width="14" height="14" viewBox="0 0 24 24" fill="#da950b" stroke="#da950b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> stars</span></span></td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;"><span aria-hidden="true" style="color: #d00021;">↓ 0.1</span><span class="sr-only">down 0.1</span></td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">41</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">11</td>
+              </tr>
+              <tr class="rk-row" style="height: 48px; border-bottom: 1px solid #dcdee2;">
+                <th scope="row" style="padding: 12px 12px 12px 16px; text-align: left; font-weight: 400;"><a href="#" class="rk-name" style="font-weight: 500; text-decoration: none;">Olive Terrace restaurant</a></th>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">351</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 500;"><span style="color: #007a3a;">+40</span></td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">97</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;"><span style="display: inline-flex; align-items: center; gap: 4px;"><span style="font-weight: 500;">4.2</span><svg width="14" height="14" viewBox="0 0 24 24" fill="#da950b" stroke="#da950b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> stars</span></span></td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 500;"><span aria-hidden="true" style="color: #d00021;">↓ 0.1</span><span class="sr-only">down 0.1</span></td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">41</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">11</td>
+              </tr>
+              <tr class="rk-row" style="height: 48px; border-bottom: 1px solid #dcdee2;">
+                <th scope="row" style="padding: 12px 12px 12px 16px; text-align: left; font-weight: 400;"><a href="ADM05-new-portal-experience.dc.html" class="rk-name" style="font-weight: 500; text-decoration: none;">Pool bar</a></th>
+                <td colspan="7" style="padding: 12px; font-size: 13px; line-height: 20px; color: #5b5d63;">Not published yet</td>
+              </tr>
+              </tbody>
+              <tbody>
+              <tr style="height: 44px; background: #f7f8fa; border-bottom: 1px solid #dcdee2;">
+                <th scope="rowgroup" style="padding: 0 12px 0 16px; text-align: left; font-size: 13px; line-height: 20px; font-weight: 500; color: #101115;">Wellness<span style="color: #5b5d63;"> · 1 portal</span></th>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">286</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;"><span style="color: #007a3a;">+21</span></td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">91</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;"><span style="display: inline-flex; align-items: center; gap: 4px;">4.6<svg width="14" height="14" viewBox="0 0 24 24" fill="#da950b" stroke="#da950b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> stars</span></span></td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;"><span style="color: #5b5d63; font-weight: 400;">No change</span></td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">52</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">4</td>
+              </tr>
+              <tr class="rk-row" style="height: 48px; border-bottom: 1px solid #dcdee2;">
+                <th scope="row" style="padding: 12px 12px 12px 16px; text-align: left; font-weight: 400;"><a href="#" class="rk-name" style="font-weight: 500; text-decoration: none;">Spa &amp; thermal pools</a></th>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">286</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 500;"><span style="color: #007a3a;">+21</span></td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">91</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;"><span style="display: inline-flex; align-items: center; gap: 4px;"><span style="font-weight: 500;">4.6</span><svg width="14" height="14" viewBox="0 0 24 24" fill="#da950b" stroke="#da950b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> stars</span></span></td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 500;"><span style="color: #5b5d63; font-weight: 400;">No change</span></td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">52</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">4</td>
+              </tr>
+              </tbody>
+              <tbody>
+              <tr style="height: 44px; background: #f7f8fa; border-bottom: 1px solid #dcdee2;">
+                <th scope="rowgroup" style="padding: 0 12px 0 16px; text-align: left; font-size: 13px; line-height: 20px; font-weight: 500; color: #101115;">Not in a group<span style="color: #5b5d63;"> · 2 portals · 1 new</span></th>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">450</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;"><span style="color: #007a3a;">+56</span></td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">122</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;"><span style="display: inline-flex; align-items: center; gap: 4px;">4.4<svg width="14" height="14" viewBox="0 0 24 24" fill="#da950b" stroke="#da950b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> stars</span></span></td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;"><span aria-hidden="true" style="color: #007a3a;">↑ 0.2</span><span class="sr-only">up 0.2</span></td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">66</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">9</td>
+              </tr>
+              <tr class="rk-row" style="height: 48px; border-bottom: 1px solid #dcdee2;">
+                <th scope="row" style="padding: 12px 12px 12px 16px; text-align: left; font-weight: 400;"><a href="#" class="rk-name" style="font-weight: 500; text-decoration: none;">Guest rooms</a></th>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">38</td>
+                <td style="padding: 12px; text-align: right; font-size: 13px; line-height: 20px; color: #5b5d63; white-space: nowrap;">New · live since 2 Sep</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">4</td>
+                <td style="padding: 12px; text-align: right;"><button type="button" class="rk-detail" aria-haspopup="dialog" aria-expanded="false" style="padding: 0; border: 0; background: none; font-size: 13px; line-height: 20px; color: #5b5d63; cursor: help;"><span style="text-decoration: underline dotted currentColor; text-underline-offset: 4px;">Too few</span><span class="sr-only"> private ratings for an average at Guest rooms</span></button></td>
+                <td style="padding: 12px; text-align: right; font-size: 13px; line-height: 20px; color: #5b5d63; white-space: nowrap;">Too few to compare</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">2</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">0</td>
+              </tr>
+              <tr class="rk-row" style="height: 48px;">
+                <th scope="row" style="padding: 12px 12px 12px 16px; text-align: left; font-weight: 400;"><a href="ADM14-analytics-portal.dc.html" class="rk-name" style="font-weight: 500; text-decoration: none;">Reception</a></th>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">412</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 500;"><span style="color: #007a3a;">+18</span></td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">118</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;"><span style="display: inline-flex; align-items: center; gap: 4px;"><span style="font-weight: 500;">4.4</span><svg width="14" height="14" viewBox="0 0 24 24" fill="#da950b" stroke="#da950b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> stars</span></span></td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 500;"><span aria-hidden="true" style="color: #007a3a;">↑ 0.2</span><span class="sr-only">up 0.2</span></td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">64</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">9</td>
+              </tr>
+              </tbody>
+              <tfoot>
+                <tr style="height: 52px;">
+                  <th scope="row" style="padding: 0 12px 0 16px; border-top: 1px solid #b5b7bd; text-align: left; font-weight: 500;">All portals<span style="display: block; font-size: 12px; line-height: 16px; font-weight: 400; color: #5b5d63;">Includes Guest rooms, new since 2 Sep</span></th>
+                  <td style="padding: 0 12px; border-top: 1px solid #b5b7bd; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums;">1,087</td>
+                  <td style="padding: 0 12px; border-top: 1px solid #b5b7bd; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums;"><span style="color: #007a3a;">+117</span></td>
+                  <td style="padding: 0 12px; border-top: 1px solid #b5b7bd; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums;">310</td>
+                  <td style="padding: 0 12px; border-top: 1px solid #b5b7bd; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums;"><span style="display: inline-flex; align-items: center; gap: 4px;">4.4<svg width="14" height="14" viewBox="0 0 24 24" fill="#da950b" stroke="#da950b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> stars</span></span></td>
+                  <td style="padding: 0 12px; border-top: 1px solid #b5b7bd; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums;"><span aria-hidden="true" style="color: #007a3a;">↑ 0.1</span><span class="sr-only">up 0.1</span></td>
+                  <td style="padding: 0 12px; border-top: 1px solid #b5b7bd; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums;">159</td>
+                  <td style="padding: 0 12px; border-top: 1px solid #b5b7bd; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums;">24</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <p style="margin: 12px 0 0; font-size: 14px; line-height: 20px; color: #5b5d63;">Last 90 days (21 Jun – 18 Sep) against the 90 days before, Europe/Sofia time. Averages compare only when both periods have at least 10 private ratings. Sorted by group, then name.</p>
+        </section>
+
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1600}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var range = (this.state && this.state.range) || '90';
+    var self = this;
+    var rangeButton = function (key) {
+      var on = range === key;
+      return {
+        pressed: on,
+        cls: on ? '' : 'rk-ghost',
+        look: on ? 'background: #f0f2f5;' : '',
+        pick: function () { self.setState({ range: key }); }
+      };
+    };
+    return {
+      r30: rangeButton('30'),
+      r90: rangeButton('90'),
+      r180: rangeButton('180'),
+      rAll: rangeButton('all')
+    };
+  }
+}
+</script>
+</body>
+</html>

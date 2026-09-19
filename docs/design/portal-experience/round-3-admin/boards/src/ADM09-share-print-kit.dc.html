@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pool bar — Share</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=Manrope:wght@400;500;700&family=JetBrains+Mono:wght@400;500&family=Cormorant+Garamond:ital,wght@0,600;1,500&family=Ysabeau+Office:wght@400;600&display=swap">
+<style>
+@font-face{font-family:'Satoshi';src:url('/_blob/bc9aed933eebd2242e24e1a874f3e980') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Satoshi';src:url('/_blob/b4176652b3bb793da8608143a4c2d4d1') format('woff2');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:'Satoshi';src:url('/_blob/d97bb02bcf4b472111e2170c4170bd0c') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+body{margin:0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+a{color:#512da6}a:hover{color:#431096}
+:focus-visible{outline:2px solid #7b65d1;outline-offset:2px}
+button,input,select,textarea{font-family:inherit;font-size:inherit;line-height:inherit;color:inherit}
+.rk-primary{background:#512da6}.rk-primary:hover{background:#6242ae}
+.rk-outline{background:#f7f8fa}.rk-outline:hover{background:#e7e4ff}
+.rk-ghost{background:transparent}.rk-ghost:hover{background:#e7e4ff}
+.rk-destructive{background:#df202e}.rk-destructive:hover{background:#e23743}
+.rk-nav:hover{background:#e7e4ff}
+.rk-row:hover>td,.rk-row:hover>th{background:#f9fafb}
+.rk-sort:hover{color:#101115!important}
+.rk-name:hover{text-decoration:underline!important;text-underline-offset:4px}
+.rk-detail:hover>span{text-decoration-style:solid!important}
+.rk-cell{background:#feffff}.rk-cell-i:hover,.rk-cell-i.is-on{background:#f0f2f5}
+.rk-stretch::after{content:"";position:absolute;inset:0}
+.rk-stretch:focus-visible{outline:none}.rk-stretch:focus-visible::after{outline:2px solid #7b65d1;outline-offset:-3px}
+.rk-input::placeholder{color:#5b5d63;opacity:1}
+.rk-input:focus-visible{outline:none;border-color:#7b65d1!important;box-shadow:0 0 0 3px rgba(123,101,209,.5)!important}
+.rk-menuitem{background:transparent}.rk-menuitem:hover,.rk-menuitem:focus-visible{background:#e7e4ff;outline:none}
+.rk-check:focus-visible+span{outline:2px solid #7b65d1;outline-offset:2px}
+.rk-tile{background:transparent}.rk-tile:hover{background:#f4f5f8}
+.rk-card:has(> .rk-check:focus-visible){outline:2px solid #7b65d1;outline-offset:2px}.rk-card>.rk-check:focus-visible+span{outline:none}
+.rk-summary{list-style:none}.rk-summary::-webkit-details-marker{display:none}.rk-summary:hover>span{color:#101115}
+details[open]>.rk-summary>svg:first-child{transform:rotate(90deg)}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1024px; box-sizing: border-box; overflow: hidden; position: relative; display: flex; background: #f7f8fa; color: #101115; font-family: 'Satoshi', 'Manrope', system-ui, sans-serif; font-size: 14px; line-height: 20px;">
+
+  <nav aria-label="Primary navigation" style="width: 49px; flex: none; height: 1024px; box-sizing: border-box; padding: 8px; display: flex; flex-direction: column; background: #f7f8fa; border-right: 1px solid #dcdee2;">
+    <button type="button" class="rk-ghost" aria-label="Avela Resort, switch property" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer;"><span aria-hidden="true" style="width: 32px; height: 32px; border-radius: 8px; background: #e7e4ff; color: #512da6; display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 16px; font-weight: 500;">AR</span></button>
+    <ul style="list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px;">
+      <li><a href="#" class="rk-nav" aria-label="Dashboard" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></a></li>
+      <li><a href="#" class="rk-nav" aria-label="Reviews, 3 new" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></svg></a></li>
+      <li><a href="#" class="rk-nav" aria-label="People" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg></a></li>
+      <li><a href="ADM01-portals-overview.dc.html" aria-current="page" aria-label="Portals" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; background: #e7e4ff; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></a></li>
+      <li><a href="#" class="rk-nav" aria-label="Goals" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></a></li>
+      <li><a href="#" class="rk-nav" aria-label="Property settings" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg></a></li>
+    </ul>
+    <a href="#" class="rk-nav" aria-label="Settings" style="margin-top: auto; width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></a>
+  </nav>
+
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: #f7f8fa;">
+    <header style="height: 52px; flex: none; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid #dcdee2; background: #f7f8fa;">
+      <span style="flex: 1;"></span>
+      <button type="button" class="rk-ghost" style="height: 32px; padding: 0 10px; display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M12 8v6"/><path d="M9 11h6"/></svg>Feedback</button>
+      <button type="button" class="rk-ghost" aria-label="Notifications, 2 unread" style="position: relative; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg><span aria-hidden="true" style="position: absolute; top: -2px; right: -2px; width: 16px; height: 16px; border-radius: 9999px; background: #512da6; color: #feffff; font-size: 9px; line-height: 16px; font-weight: 700; text-align: center;">2</span></button>
+      <button type="button" class="rk-ghost" aria-label="Account menu, Elena Petrova" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 9999px; display: flex; align-items: center; justify-content: center; cursor: pointer;"><span aria-hidden="true" style="width: 28px; height: 28px; border-radius: 9999px; background: #512da6; color: #feffff; font-size: 10px; line-height: 12px; font-weight: 500; display: flex; align-items: center; justify-content: center;">EP</span></button>
+    </header>
+
+    <main style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+
+      <header style="height: 56px; flex: none; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 0 24px; border-bottom: 1px solid #dcdee2;">
+        <a href="ADM01-portals-overview.dc.html" class="rk-ghost" style="height: 32px; box-sizing: border-box; padding: 0 10px 0 8px; display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>Portals</a>
+        <span aria-hidden="true" style="width: 1px; height: 24px; flex: none; background: #dcdee2;"></span>
+        <div style="display: flex; flex-direction: column; min-width: 0;">
+          <h1 style="margin: 0; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115;">Pool bar</h1>
+          <p style="margin: 0; font-size: 12px; line-height: 16px; color: #5b5d63;">Avela Resort</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <button type="button" class="rk-detail" aria-haspopup="dialog" aria-expanded="false" style="min-height: 32px; display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; font-size: 13px; line-height: 20px; color: #101115; cursor: help;"><span aria-hidden="true" style="width: 7px; height: 7px; flex: none; border-radius: 50%; background: #101115;"></span><span style="text-decoration: underline dotted currentColor; text-underline-offset: 4px;">Live · version 1</span></button>
+        </div>
+        <span style="flex: 1;"></span>
+        <button type="button" class="rk-ghost" aria-label="Portal actions" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; color: #5b5d63; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+      </header>
+
+      <div style="height: 48px; flex: none; box-sizing: border-box; display: flex; border-bottom: 1px solid #dcdee2;">
+        <div style="width: 641px; flex: none; box-sizing: border-box; padding: 0 24px; border-right: 1px solid #dcdee2; display: flex; align-items: stretch;">
+          <div role="tablist" aria-label="Portal" style="display: flex; align-items: stretch; gap: 24px; height: 47px;">
+            <button type="button" role="tab" aria-selected="false" tabindex="-1" class="rk-sort" style="height: 47px; padding: 0; border: 0; background: none; font-size: 14px; line-height: 20px; font-weight: 500; color: #6a6b6f; cursor: pointer;">Experience</button>
+            <button type="button" role="tab" id="tab-share" aria-selected="true" aria-controls="panel-share" style="position: relative; height: 47px; padding: 0; border: 0; background: none; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;">Share<span aria-hidden="true" style="position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: #101115;"></span></button>
+            <button type="button" role="tab" aria-selected="false" tabindex="-1" class="rk-sort" style="height: 47px; padding: 0; border: 0; background: none; font-size: 14px; line-height: 20px; font-weight: 500; color: #6a6b6f; cursor: pointer;">Analytics</button>
+            <button type="button" role="tab" aria-selected="false" tabindex="-1" class="rk-sort" style="height: 47px; padding: 0; border: 0; background: none; font-size: 14px; line-height: 20px; font-weight: 500; color: #6a6b6f; cursor: pointer;">Activity</button>
+          </div>
+        </div>
+        <div style="flex: 1; min-width: 0; box-sizing: border-box; padding: 0 16px; display: flex; align-items: center; gap: 8px;">
+          <div role="tablist" aria-label="Preview" style="display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 6px; background: #f0f2f5;">
+            <button type="button" role="tab" aria-selected="true" style="height: 26px; padding: 0 10px; border: 0; border-radius: 4px; background: #feffff; box-shadow: 0 0 0 1px #85878d, 0 1px 2px rgba(0,0,0,.1); font-size: 13px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;">Print</button>
+            <button type="button" role="tab" aria-selected="false" tabindex="-1" style="height: 26px; padding: 0 10px; border: 0; border-radius: 4px; background: transparent; font-size: 13px; line-height: 20px; color: #5b5d63; cursor: pointer;">Guest page</button>
+          </div>
+          <sc-if value="{{ sides }}" hint-placeholder-val="{{ true }}">
+            <button type="button" class="rk-outline" aria-haspopup="listbox" aria-expanded="false" style="height: 32px; box-sizing: border-box; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;"><span class="sr-only">Side: </span><span>Front</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m6 9 6 6 6-6"/></svg></button>
+          </sc-if>
+        </div>
+      </div>
+
+      <div role="tabpanel" id="panel-share" aria-labelledby="tab-share" style="flex: 1; min-height: 0; display: flex;">
+
+        <div style="width: 641px; flex: none; box-sizing: border-box; padding: 24px 24px 16px; border-right: 1px solid #dcdee2; background: #f7f8fa; overflow-y: auto; display: flex; flex-direction: column; gap: 28px;">
+
+          <section aria-labelledby="code-h" style="display: flex; flex-direction: column; gap: 12px;">
+            <h2 id="code-h" style="margin: 0; font-size: 16px; line-height: 24px; font-weight: 500; color: #101115;">Public code</h2>
+            <div style="display: flex; align-items: flex-start; gap: 24px;">
+              <div role="img" aria-label="QR code for the Pool bar address" style="width: 160px; height: 160px; flex: none; box-sizing: border-box; padding: 5px; background: #feffff; border: 1px solid #dcdee2; border-radius: 6px;"><svg width="148" height="148" viewBox="0 0 37 37" shape-rendering="crispEdges" aria-hidden="true" style="display: block;"><path fill="#101115" d="M4 4h7v1h-7zM12 4h2v1h-2zM17 4h2v1h-2zM22 4h1v1h-1zM24 4h1v1h-1zM26 4h7v1h-7zM4 5h1v1h-1zM10 5h1v1h-1zM13 5h2v1h-2zM17 5h1v1h-1zM19 5h2v1h-2zM23 5h2v1h-2zM26 5h1v1h-1zM32 5h1v1h-1zM4 6h1v1h-1zM6 6h3v1h-3zM10 6h1v1h-1zM12 6h1v1h-1zM14 6h4v1h-4zM20 6h4v1h-4zM26 6h1v1h-1zM28 6h3v1h-3zM32 6h1v1h-1zM4 7h1v1h-1zM6 7h3v1h-3zM10 7h1v1h-1zM12 7h3v1h-3zM18 7h1v1h-1zM23 7h2v1h-2zM26 7h1v1h-1zM28 7h3v1h-3zM32 7h1v1h-1zM4 8h1v1h-1zM6 8h3v1h-3zM10 8h1v1h-1zM13 8h1v1h-1zM15 8h1v1h-1zM18 8h1v1h-1zM20 8h3v1h-3zM24 8h1v1h-1zM26 8h1v1h-1zM28 8h3v1h-3zM32 8h1v1h-1zM4 9h1v1h-1zM10 9h1v1h-1zM12 9h1v1h-1zM14 9h2v1h-2zM17 9h1v1h-1zM20 9h3v1h-3zM26 9h1v1h-1zM32 9h1v1h-1zM4 10h7v1h-7zM12 10h1v1h-1zM14 10h1v1h-1zM16 10h1v1h-1zM18 10h1v1h-1zM20 10h1v1h-1zM22 10h1v1h-1zM24 10h1v1h-1zM26 10h7v1h-7zM12 11h3v1h-3zM17 11h1v1h-1zM19 11h2v1h-2zM22 11h2v1h-2zM4 12h2v1h-2zM9 12h3v1h-3zM14 12h1v1h-1zM16 12h2v1h-2zM19 12h1v1h-1zM21 12h1v1h-1zM23 12h2v1h-2zM26 12h1v1h-1zM28 12h2v1h-2zM32 12h1v1h-1zM6 13h3v1h-3zM11 13h2v1h-2zM14 13h1v1h-1zM16 13h3v1h-3zM20 13h3v1h-3zM24 13h1v1h-1zM26 13h2v1h-2zM31 13h2v1h-2zM4 14h1v1h-1zM6 14h3v1h-3zM10 14h1v1h-1zM13 14h1v1h-1zM15 14h1v1h-1zM18 14h1v1h-1zM21 14h5v1h-5zM27 14h2v1h-2zM31 14h1v1h-1zM5 15h1v1h-1zM9 15h1v1h-1zM11 15h1v1h-1zM15 15h1v1h-1zM17 15h1v1h-1zM20 15h1v1h-1zM23 15h1v1h-1zM25 15h3v1h-3zM30 15h1v1h-1zM32 15h1v1h-1zM6 16h2v1h-2zM10 16h1v1h-1zM12 16h2v1h-2zM16 16h2v1h-2zM19 16h1v1h-1zM22 16h1v1h-1zM27 16h2v1h-2zM30 16h1v1h-1zM32 16h1v1h-1zM4 17h2v1h-2zM7 17h1v1h-1zM9 17h1v1h-1zM11 17h1v1h-1zM14 17h2v1h-2zM17 17h1v1h-1zM19 17h2v1h-2zM23 17h4v1h-4zM29 17h4v1h-4zM4 18h1v1h-1zM7 18h2v1h-2zM10 18h3v1h-3zM14 18h2v1h-2zM17 18h1v1h-1zM20 18h3v1h-3zM27 18h3v1h-3zM32 18h1v1h-1zM4 19h1v1h-1zM6 19h1v1h-1zM8 19h2v1h-2zM14 19h1v1h-1zM18 19h3v1h-3zM24 19h1v1h-1zM29 19h1v1h-1zM32 19h1v1h-1zM4 20h1v1h-1zM6 20h2v1h-2zM9 20h5v1h-5zM16 20h4v1h-4zM21 20h2v1h-2zM24 20h4v1h-4zM30 20h3v1h-3zM5 21h1v1h-1zM8 21h2v1h-2zM13 21h3v1h-3zM18 21h1v1h-1zM20 21h2v1h-2zM23 21h1v1h-1zM26 21h4v1h-4zM4 22h2v1h-2zM7 22h1v1h-1zM10 22h1v1h-1zM12 22h1v1h-1zM15 22h2v1h-2zM18 22h3v1h-3zM24 22h2v1h-2zM28 22h1v1h-1zM30 22h2v1h-2zM7 23h2v1h-2zM11 23h4v1h-4zM17 23h1v1h-1zM20 23h1v1h-1zM22 23h1v1h-1zM25 23h1v1h-1zM27 23h1v1h-1zM29 23h1v1h-1zM31 23h2v1h-2zM4 24h2v1h-2zM8 24h4v1h-4zM14 24h2v1h-2zM17 24h1v1h-1zM19 24h4v1h-4zM24 24h7v1h-7zM32 24h1v1h-1zM12 25h1v1h-1zM17 25h2v1h-2zM20 25h1v1h-1zM22 25h1v1h-1zM24 25h1v1h-1zM28 25h1v1h-1zM30 25h1v1h-1zM32 25h1v1h-1zM4 26h7v1h-7zM12 26h5v1h-5zM19 26h1v1h-1zM21 26h2v1h-2zM24 26h1v1h-1zM26 26h1v1h-1zM28 26h3v1h-3zM4 27h1v1h-1zM10 27h1v1h-1zM12 27h1v1h-1zM14 27h1v1h-1zM16 27h2v1h-2zM21 27h4v1h-4zM28 27h1v1h-1zM31 27h2v1h-2zM4 28h1v1h-1zM6 28h3v1h-3zM10 28h1v1h-1zM13 28h1v1h-1zM18 28h1v1h-1zM22 28h7v1h-7zM31 28h1v1h-1zM4 29h1v1h-1zM6 29h3v1h-3zM10 29h1v1h-1zM13 29h3v1h-3zM17 29h1v1h-1zM20 29h1v1h-1zM25 29h1v1h-1zM29 29h4v1h-4zM4 30h1v1h-1zM6 30h3v1h-3zM10 30h1v1h-1zM12 30h1v1h-1zM16 30h2v1h-2zM20 30h1v1h-1zM22 30h2v1h-2zM26 30h2v1h-2zM32 30h1v1h-1zM4 31h1v1h-1zM10 31h1v1h-1zM12 31h1v1h-1zM14 31h2v1h-2zM19 31h2v1h-2zM24 31h3v1h-3zM29 31h2v1h-2zM4 32h7v1h-7zM12 32h1v1h-1zM16 32h4v1h-4zM21 32h2v1h-2zM24 32h2v1h-2zM27 32h2v1h-2zM30 32h3v1h-3z"/></svg></div>
+              <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;">QR address</span>
+                <div style="height: 24px; display: flex; align-items: center; gap: 8px;">
+                  <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 13px; line-height: 20px; color: #101115;">app.reputationkey.app/p/k7Qm4xT2aPz9?…=3f1c</span>
+                  <button type="button" class="rk-outline" aria-label="Copy QR address" onClick="{{ copyQr }}" style="height: 24px; flex: none; box-sizing: border-box; padding: 0 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 12px; line-height: 16px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>Copy</button>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;">NFC address</span>
+                <div style="height: 24px; display: flex; align-items: center; gap: 8px;">
+                  <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 13px; line-height: 20px; color: #101115;">app.reputationkey.app/p/k7Qm4xT2aPz9?…=9b27</span>
+                  <button type="button" class="rk-outline" aria-label="Copy NFC address" onClick="{{ copyNfc }}" style="height: 24px; flex: none; box-sizing: border-box; padding: 0 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 12px; line-height: 16px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>Copy</button>
+                </div>
+              </div>
+                <p style="margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 20px; color: #101115;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>Opens the live version (1)</p>
+                <p style="margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 20px; font-weight: 500; color: #a45f00;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="10"/><path d="M12 6v6h4"/></svg>Shown once. Download the kit or copy the addresses now.</p>
+              </div>
+            </div>
+            <p role="status" class="sr-only">{{ copiedMsg }}</p>
+          </section>
+
+          <section aria-labelledby="place-h" style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; align-items: baseline; gap: 6px;">
+              <h2 id="place-h" style="margin: 0; font-size: 16px; line-height: 24px; font-weight: 500; color: #101115;">Where it’s placed</h2>
+              <span style="font-size: 12px; line-height: 16px; color: #5b5d63; font-variant-numeric: tabular-nums;">2<span class="sr-only"> places</span></span>
+            </div>
+            <table style="width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; line-height: 20px; color: #101115;">
+              <caption class="sr-only">Where the Pool bar code is placed</caption>
+                            <thead>
+                <tr style="height: 32px; border-bottom: 1px solid #dcdee2;">
+                  <th scope="col" style="width: 272px; box-sizing: border-box; padding: 0 12px 0 0; text-align: left; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;">Place</th>
+                  <th scope="col" style="width: 120px; box-sizing: border-box; padding: 0 12px 0 0; text-align: left; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;">Channel</th>
+                  <th scope="col" style="width: 120px; box-sizing: border-box; padding: 0 12px 0 0; text-align: left; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;">Added</th>
+                  <th scope="col" style="padding: 0; text-align: right; font-weight: 500;"><span class="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="height: 44px; border-bottom: 1px solid #dcdee2;">
+                  <th scope="row" style="padding: 0 12px 0 0; text-align: left; font-weight: 500; color: #101115;">Bar counter table tents</th>
+                  <td style="padding: 0 12px 0 0;"><span style="display: inline-flex; align-items: center; gap: 6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>QR</span></td>
+                  <td style="padding: 0 12px 0 0; color: #5b5d63;"><time datetime="2026-09-19T11:42" title="19 Sep 2026, 11:42">Today</time></td>
+                  <td style="padding: 0; text-align: right;"><button type="button" class="rk-ghost" aria-label="Rename Bar counter table tents" style="height: 24px; box-sizing: border-box; padding: 0 6px; display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: 6px; font-size: 12px; line-height: 16px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>Rename</button></td>
+                </tr>
+                <tr style="height: 44px; border-bottom: 1px solid #dcdee2;">
+                  <th scope="row" style="padding: 0 12px 0 0; text-align: left; font-weight: 500; color: #101115;">Bar NFC card</th>
+                  <td style="padding: 0 12px 0 0;"><span style="display: inline-flex; align-items: center; gap: 6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/><path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/><path d="M12.91 4.1a15.91 15.91 0 0 1 .01 15.8"/><path d="M16.37 2a20.16 20.16 0 0 1 0 20"/></svg>NFC</span></td>
+                  <td style="padding: 0 12px 0 0; color: #5b5d63;"><time datetime="2026-09-19T11:42" title="19 Sep 2026, 11:42">Today</time></td>
+                  <td style="padding: 0; text-align: right;"><button type="button" class="rk-ghost" aria-label="Rename Bar NFC card" style="height: 24px; box-sizing: border-box; padding: 0 6px; display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: 6px; font-size: 12px; line-height: 16px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>Rename</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section aria-labelledby="kit-h" style="display: flex; flex-direction: column; gap: 12px;">
+            <h2 id="kit-h" style="margin: 0; font-size: 16px; line-height: 24px; font-weight: 500; color: #101115;">Print kit</h2>
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+
+              <fieldset aria-describedby="piece-hint" style="margin: 0; padding: 0; border: 0; min-width: 0;">
+                <legend style="margin: 0 0 12px; padding: 0; font-size: 14px; line-height: 14px; font-weight: 500; color: #101115;">Piece<span aria-hidden="true" style="margin-left: 8px; font-size: 12px; line-height: 14px; font-weight: 400; color: #5b5d63;">Table tent suggested for a bar table</span></legend>
+                <p id="piece-hint" class="sr-only">Table tent suggested for a bar table</p>
+                <div style="display: flex; gap: 16px;">
+                <label class="rk-card" style="position: relative; width: 136px; height: 72px; flex: none; box-sizing: border-box; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid {{ k.tent.line }}; border-radius: 6px; background: {{ k.tent.fill }}; cursor: pointer;">
+                  <input type="radio" name="piece" value="tent" class="rk-check sr-only" checked="{{ k.tent.on }}" onChange="{{ k.tent.pick }}">
+                  <span aria-hidden="true" style="position: absolute; bottom: 12px; right: 12px; width: 16px; height: 16px; box-sizing: border-box; border: 1px solid {{ k.tent.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ k.tent.dot }};"></span></span>
+                  <span style="font-size: 13px; line-height: 20px; font-weight: 500; color: #101115; white-space: nowrap;">Table tent</span>
+                  <span style="font-size: 12px; line-height: 16px; color: #5b5d63;">A6, folded</span>
+                </label>
+                <label class="rk-card" style="position: relative; width: 136px; height: 72px; flex: none; box-sizing: border-box; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid {{ k.reception.line }}; border-radius: 6px; background: {{ k.reception.fill }}; cursor: pointer;">
+                  <input type="radio" name="piece" value="reception" class="rk-check sr-only" checked="{{ k.reception.on }}" onChange="{{ k.reception.pick }}">
+                  <span aria-hidden="true" style="position: absolute; bottom: 12px; right: 12px; width: 16px; height: 16px; box-sizing: border-box; border: 1px solid {{ k.reception.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ k.reception.dot }};"></span></span>
+                  <span style="font-size: 13px; line-height: 20px; font-weight: 500; color: #101115; white-space: nowrap;">Reception card</span>
+                  <span style="font-size: 12px; line-height: 16px; color: #5b5d63;">A6</span>
+                </label>
+                <label class="rk-card" style="position: relative; width: 136px; height: 72px; flex: none; box-sizing: border-box; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid {{ k.nfc.line }}; border-radius: 6px; background: {{ k.nfc.fill }}; cursor: pointer;">
+                  <input type="radio" name="piece" value="nfc" class="rk-check sr-only" checked="{{ k.nfc.on }}" onChange="{{ k.nfc.pick }}">
+                  <span aria-hidden="true" style="position: absolute; bottom: 12px; right: 12px; width: 16px; height: 16px; box-sizing: border-box; border: 1px solid {{ k.nfc.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ k.nfc.dot }};"></span></span>
+                  <span style="font-size: 13px; line-height: 20px; font-weight: 500; color: #101115; white-space: nowrap;">NFC card</span>
+                  <span style="font-size: 12px; line-height: 16px; color: #5b5d63;">85 × 54 mm</span>
+                </label>
+                <label class="rk-card" style="position: relative; width: 136px; height: 72px; flex: none; box-sizing: border-box; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid {{ k.sticker.line }}; border-radius: 6px; background: {{ k.sticker.fill }}; cursor: pointer;">
+                  <input type="radio" name="piece" value="sticker" class="rk-check sr-only" checked="{{ k.sticker.on }}" onChange="{{ k.sticker.pick }}">
+                  <span aria-hidden="true" style="position: absolute; bottom: 12px; right: 12px; width: 16px; height: 16px; box-sizing: border-box; border: 1px solid {{ k.sticker.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ k.sticker.dot }};"></span></span>
+                  <span style="font-size: 13px; line-height: 20px; font-weight: 500; color: #101115; white-space: nowrap;">Sticker</span>
+                  <span style="font-size: 12px; line-height: 16px; color: #5b5d63;">60 mm round</span>
+                </label>
+                </div>
+              </fieldset>
+
+              <fieldset style="margin: 0; padding: 0; border: 0; min-width: 0;">
+                <legend style="margin: 0 0 12px; padding: 0; font-size: 14px; line-height: 14px; font-weight: 500; color: #101115;">Languages</legend>
+                <div style="display: flex; gap: 24px;">
+                <label style="min-height: 32px; display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; color: #101115; cursor: pointer;">
+                  <input type="radio" name="kit-lang" value="both" class="rk-check sr-only" checked="{{ l.both.on }}" onChange="{{ l.both.pick }}">
+                  <span aria-hidden="true" style="width: 16px; height: 16px; box-sizing: border-box; flex: none; border: 1px solid {{ l.both.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ l.both.dot }};"></span></span>
+                  <span>English and <span lang="bg">Български</span></span>
+                </label>
+                <label style="min-height: 32px; display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; color: #101115; cursor: pointer;">
+                  <input type="radio" name="kit-lang" value="en" class="rk-check sr-only" checked="{{ l.en.on }}" onChange="{{ l.en.pick }}">
+                  <span aria-hidden="true" style="width: 16px; height: 16px; box-sizing: border-box; flex: none; border: 1px solid {{ l.en.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ l.en.dot }};"></span></span>
+                  <span>English</span>
+                </label>
+                <label style="min-height: 32px; display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; color: #101115; cursor: pointer;">
+                  <input type="radio" name="kit-lang" value="bg" class="rk-check sr-only" checked="{{ l.bg.on }}" onChange="{{ l.bg.pick }}">
+                  <span aria-hidden="true" style="width: 16px; height: 16px; box-sizing: border-box; flex: none; border: 1px solid {{ l.bg.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ l.bg.dot }};"></span></span>
+                  <span lang="bg">Български</span>
+                </label>
+                </div>
+              </fieldset>
+
+              <fieldset style="margin: 0; padding: 0; border: 0; min-width: 0;">
+                <legend style="margin: 0 0 12px; padding: 0; font-size: 14px; line-height: 14px; font-weight: 500; color: #101115;">Call to action</legend>
+                <div style="display: flex; flex-direction: column;">
+                <label style="min-height: 32px; display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; color: #101115; cursor: pointer;">
+                  <input type="radio" name="kit-cta" value="rate" class="rk-check sr-only" checked="{{ c.rate.on }}" onChange="{{ c.rate.pick }}">
+                  <span aria-hidden="true" style="width: 16px; height: 16px; box-sizing: border-box; flex: none; border: 1px solid {{ c.rate.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ c.rate.dot }};"></span></span>
+                  <span>Rate your visit – private, about 30 seconds</span>
+                </label>
+                <label style="min-height: 32px; display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; color: #101115; cursor: pointer;">
+                  <input type="radio" name="kit-cta" value="how" class="rk-check sr-only" checked="{{ c.how.on }}" onChange="{{ c.how.pick }}">
+                  <span aria-hidden="true" style="width: 16px; height: 16px; box-sizing: border-box; flex: none; border: 1px solid {{ c.how.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ c.how.dot }};"></span></span>
+                  <span>How was your visit? Tell us privately</span>
+                </label>
+                </div>
+              </fieldset>
+
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <button type="button" class="rk-primary" style="height: 36px; box-sizing: border-box; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #feffff; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg>Download print kit</button>
+                <button type="button" class="rk-outline" style="height: 36px; box-sizing: border-box; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>QR only (SVG)</button>
+              </div>
+              <details style="margin: 0;">
+                <summary class="rk-summary" style="min-height: 44px; display: flex; align-items: center; gap: 8px; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m9 18 6-6-6-6"/></svg><span style="font-size: 14px; line-height: 20px; color: #5b5d63;">Before you print</span></summary>
+                <ul style="margin: 0; padding: 0 0 12px 24px; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 20px; color: #101115;">
+                  <li>Print at 100% (actual size), not “fit to page”.</li>
+                  <li>Keep the light plate and the quiet zone around the code.</li>
+                  <li>Scan one test print from about 1 m before printing the batch.</li>
+                </ul>
+              </details>
+              </div>
+
+            </div>
+          </section>
+        </div>
+
+        <section aria-labelledby="preview-h" style="flex: 1; min-width: 0; box-sizing: border-box; padding: 24px; background: #f0f2f5; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+          <h2 id="preview-h" class="sr-only">Print preview</h2>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 12px;">
+          <p style="margin: 0; font-size: 13px; line-height: 20px; color: #5b5d63; text-align: center;">{{ cap.top }}</p>
+          <sc-if value="{{ show.a6 }}" hint-placeholder-val="{{ true }}">
+            <div role="img" aria-label="{{ cap.label }}" style="position: relative; flex: none; width: 451px; height: 613px;">
+              <svg width="451" height="613" viewBox="0 0 451 613" shape-rendering="crispEdges" aria-hidden="true" style="position: absolute; left: 0; top: 0;"><g fill="#101115"><rect x="0" y="26" width="12" height="1"/><rect x="439" y="26" width="12" height="1"/><rect x="0" y="586" width="12" height="1"/><rect x="439" y="586" width="12" height="1"/><rect x="26" y="0" width="1" height="12"/><rect x="26" y="601" width="1" height="12"/><rect x="424" y="0" width="1" height="12"/><rect x="424" y="601" width="1" height="12"/></g></svg>
+              <div aria-hidden="true" style="position: absolute; left: 16px; top: 16px; width: 419px; height: 581px; overflow: hidden; background: #121614; color: #F2ECE1; font-family: 'Ysabeau Office', system-ui, sans-serif;">
+                <div style="position: absolute; left: 0; top: 0; width: 419px; height: 166px; background: radial-gradient(120% 90% at 50% 38%, #26302B 0%, #121614 72%);"></div>
+                <svg width="419" height="176" viewBox="0 0 419 176" style="position: absolute; left: 0; top: 0;"><text x="209.5" y="149" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="132" fill="#000000" fill-opacity=".55">A</text><text x="209.5" y="151" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="132" fill="#EEF1EE" fill-opacity=".08">A</text><text x="209.5" y="150" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="132" fill="#1E2622">A</text></svg>
+                <svg style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .05; mix-blend-mode: overlay;"><filter id="gT9"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"></feTurbulence><feColorMatrix type="saturate" values="0"></feColorMatrix></filter><rect width="100%" height="100%" filter="url(#gT9)"/></svg>
+                <p style="position: absolute; left: 11px; top: 33px; width: 397px; box-sizing: border-box; padding-left: .28em; margin: 0; text-align: center; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; color: #F2ECE1; font-size: 13px; line-height: 16px; letter-spacing: .28em; text-transform: uppercase;">Avela Resort</p>
+                <div style="position: absolute; left: 11px; top: 166px; width: 397px; height: 386px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+                  <div lang="{{ art.lang }}" style="display: flex; flex-direction: column; align-items: center;">
+                    <p style="margin: 0; padding-left: .18em; font-size: 12px; line-height: 16px; letter-spacing: .18em; font-weight: 600; text-transform: uppercase; color: #D9BE8C;">{{ art.kicker }}</p>
+                    <p style="margin: 6px 0 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; color: #F2ECE1; font-size: 30px; line-height: 36px;">{{ art.cta }}</p>
+                    <p style="margin: 2px 0 0; font-size: 15px; line-height: 20px; color: #B8B0A3;">{{ art.sub }}</p>
+                  </div>
+                  <sc-if value="{{ art.two }}" hint-placeholder-val="{{ true }}">
+                    <div lang="bg" style="margin-top: 11px; display: flex; flex-direction: column; align-items: center;">
+                      <span style="display: block; width: 32px; height: 1px; margin-bottom: 11px; background: #D9BE8C; opacity: .4;"></span>
+                      <p style="margin: 0; padding-left: .16em; font-size: 11px; line-height: 16px; letter-spacing: .16em; font-weight: 600; text-transform: uppercase; color: #D9BE8C;">Бар на басейна</p>
+                      <p style="margin: 4px 0 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; color: #F2ECE1; font-size: 22px; line-height: 28px;">{{ art.cta2 }}</p>
+                      <p style="margin: 2px 0 0; font-size: 13px; line-height: 18px; color: #B8B0A3;">{{ art.sub2 }}</p>
+                    </div>
+                  </sc-if>
+                  <div style="margin-top: 18px;"><div style="flex: none; width: 160px; height: 160px; overflow: hidden; border-radius: 4px; background: #F2ECE1;"><svg width="160" height="160" viewBox="0 0 37 37" shape-rendering="crispEdges" style="display: block;"><path fill="#121614" d="M4 4h7v1h-7zM12 4h2v1h-2zM17 4h2v1h-2zM22 4h1v1h-1zM24 4h1v1h-1zM26 4h7v1h-7zM4 5h1v1h-1zM10 5h1v1h-1zM13 5h2v1h-2zM17 5h1v1h-1zM19 5h2v1h-2zM23 5h2v1h-2zM26 5h1v1h-1zM32 5h1v1h-1zM4 6h1v1h-1zM6 6h3v1h-3zM10 6h1v1h-1zM12 6h1v1h-1zM14 6h4v1h-4zM20 6h4v1h-4zM26 6h1v1h-1zM28 6h3v1h-3zM32 6h1v1h-1zM4 7h1v1h-1zM6 7h3v1h-3zM10 7h1v1h-1zM12 7h3v1h-3zM18 7h1v1h-1zM23 7h2v1h-2zM26 7h1v1h-1zM28 7h3v1h-3zM32 7h1v1h-1zM4 8h1v1h-1zM6 8h3v1h-3zM10 8h1v1h-1zM13 8h1v1h-1zM15 8h1v1h-1zM18 8h1v1h-1zM20 8h3v1h-3zM24 8h1v1h-1zM26 8h1v1h-1zM28 8h3v1h-3zM32 8h1v1h-1zM4 9h1v1h-1zM10 9h1v1h-1zM12 9h1v1h-1zM14 9h2v1h-2zM17 9h1v1h-1zM20 9h3v1h-3zM26 9h1v1h-1zM32 9h1v1h-1zM4 10h7v1h-7zM12 10h1v1h-1zM14 10h1v1h-1zM16 10h1v1h-1zM18 10h1v1h-1zM20 10h1v1h-1zM22 10h1v1h-1zM24 10h1v1h-1zM26 10h7v1h-7zM12 11h3v1h-3zM17 11h1v1h-1zM19 11h2v1h-2zM22 11h2v1h-2zM4 12h2v1h-2zM9 12h3v1h-3zM14 12h1v1h-1zM16 12h2v1h-2zM19 12h1v1h-1zM21 12h1v1h-1zM23 12h2v1h-2zM26 12h1v1h-1zM28 12h2v1h-2zM32 12h1v1h-1zM6 13h3v1h-3zM11 13h2v1h-2zM14 13h1v1h-1zM16 13h3v1h-3zM20 13h3v1h-3zM24 13h1v1h-1zM26 13h2v1h-2zM31 13h2v1h-2zM4 14h1v1h-1zM6 14h3v1h-3zM10 14h1v1h-1zM13 14h1v1h-1zM15 14h1v1h-1zM18 14h1v1h-1zM21 14h5v1h-5zM27 14h2v1h-2zM31 14h1v1h-1zM5 15h1v1h-1zM9 15h1v1h-1zM11 15h1v1h-1zM15 15h1v1h-1zM17 15h1v1h-1zM20 15h1v1h-1zM23 15h1v1h-1zM25 15h3v1h-3zM30 15h1v1h-1zM32 15h1v1h-1zM6 16h2v1h-2zM10 16h1v1h-1zM12 16h2v1h-2zM16 16h2v1h-2zM19 16h1v1h-1zM22 16h1v1h-1zM27 16h2v1h-2zM30 16h1v1h-1zM32 16h1v1h-1zM4 17h2v1h-2zM7 17h1v1h-1zM9 17h1v1h-1zM11 17h1v1h-1zM14 17h2v1h-2zM17 17h1v1h-1zM19 17h2v1h-2zM23 17h4v1h-4zM29 17h4v1h-4zM4 18h1v1h-1zM7 18h2v1h-2zM10 18h3v1h-3zM14 18h2v1h-2zM17 18h1v1h-1zM20 18h3v1h-3zM27 18h3v1h-3zM32 18h1v1h-1zM4 19h1v1h-1zM6 19h1v1h-1zM8 19h2v1h-2zM14 19h1v1h-1zM18 19h3v1h-3zM24 19h1v1h-1zM29 19h1v1h-1zM32 19h1v1h-1zM4 20h1v1h-1zM6 20h2v1h-2zM9 20h5v1h-5zM16 20h4v1h-4zM21 20h2v1h-2zM24 20h4v1h-4zM30 20h3v1h-3zM5 21h1v1h-1zM8 21h2v1h-2zM13 21h3v1h-3zM18 21h1v1h-1zM20 21h2v1h-2zM23 21h1v1h-1zM26 21h4v1h-4zM4 22h2v1h-2zM7 22h1v1h-1zM10 22h1v1h-1zM12 22h1v1h-1zM15 22h2v1h-2zM18 22h3v1h-3zM24 22h2v1h-2zM28 22h1v1h-1zM30 22h2v1h-2zM7 23h2v1h-2zM11 23h4v1h-4zM17 23h1v1h-1zM20 23h1v1h-1zM22 23h1v1h-1zM25 23h1v1h-1zM27 23h1v1h-1zM29 23h1v1h-1zM31 23h2v1h-2zM4 24h2v1h-2zM8 24h4v1h-4zM14 24h2v1h-2zM17 24h1v1h-1zM19 24h4v1h-4zM24 24h7v1h-7zM32 24h1v1h-1zM12 25h1v1h-1zM17 25h2v1h-2zM20 25h1v1h-1zM22 25h1v1h-1zM24 25h1v1h-1zM28 25h1v1h-1zM30 25h1v1h-1zM32 25h1v1h-1zM4 26h7v1h-7zM12 26h5v1h-5zM19 26h1v1h-1zM21 26h2v1h-2zM24 26h1v1h-1zM26 26h1v1h-1zM28 26h3v1h-3zM4 27h1v1h-1zM10 27h1v1h-1zM12 27h1v1h-1zM14 27h1v1h-1zM16 27h2v1h-2zM21 27h4v1h-4zM28 27h1v1h-1zM31 27h2v1h-2zM4 28h1v1h-1zM6 28h3v1h-3zM10 28h1v1h-1zM13 28h1v1h-1zM18 28h1v1h-1zM22 28h7v1h-7zM31 28h1v1h-1zM4 29h1v1h-1zM6 29h3v1h-3zM10 29h1v1h-1zM13 29h3v1h-3zM17 29h1v1h-1zM20 29h1v1h-1zM25 29h1v1h-1zM29 29h4v1h-4zM4 30h1v1h-1zM6 30h3v1h-3zM10 30h1v1h-1zM12 30h1v1h-1zM16 30h2v1h-2zM20 30h1v1h-1zM22 30h2v1h-2zM26 30h2v1h-2zM32 30h1v1h-1zM4 31h1v1h-1zM10 31h1v1h-1zM12 31h1v1h-1zM14 31h2v1h-2zM19 31h2v1h-2zM24 31h3v1h-3zM29 31h2v1h-2zM4 32h7v1h-7zM12 32h1v1h-1zM16 32h4v1h-4zM21 32h2v1h-2zM24 32h2v1h-2zM27 32h2v1h-2zM30 32h3v1h-3z"/></svg></div></div>
+                  <p style="margin: 12px 0 0; font-size: 11px; line-height: 14px; font-weight: 400; color: #9D968A;">app.reputationkey.app/p/k7Qm4xT2aPz9</p>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ show.nfc }}" hint-placeholder-val="{{ false }}">
+            <div role="img" aria-label="{{ cap.label }}" style="position: relative; flex: none; width: 375px; height: 258px;">
+              <svg width="375" height="258" viewBox="0 0 375 258" shape-rendering="crispEdges" aria-hidden="true" style="position: absolute; left: 0; top: 0;"><g fill="#101115"><rect x="0" y="26" width="12" height="1"/><rect x="363" y="26" width="12" height="1"/><rect x="0" y="231" width="12" height="1"/><rect x="363" y="231" width="12" height="1"/><rect x="26" y="0" width="1" height="12"/><rect x="26" y="246" width="1" height="12"/><rect x="348" y="0" width="1" height="12"/><rect x="348" y="246" width="1" height="12"/></g></svg>
+              <div aria-hidden="true" style="position: absolute; left: 16px; top: 16px; width: 343px; height: 226px; overflow: hidden; background: radial-gradient(70% 115% at 79% 50%, #26302B 0%, #121614 72%); color: #F2ECE1; font-family: 'Ysabeau Office', system-ui, sans-serif;">
+                <svg width="343" height="226" viewBox="0 0 343 226" style="position: absolute; left: 0; top: 0;"><text x="280" y="160" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="140" fill="#000000" fill-opacity=".55">A</text><text x="280" y="162" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="140" fill="#EEF1EE" fill-opacity=".08">A</text><text x="280" y="161" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="140" fill="#1E2622">A</text></svg>
+                <svg style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .05; mix-blend-mode: overlay;"><filter id="gN9"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"></feTurbulence><feColorMatrix type="saturate" values="0"></feColorMatrix></filter><rect width="100%" height="100%" filter="url(#gN9)"/></svg>
+                <p style="position: absolute; left: 31px; top: 27px; margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; color: #F2ECE1; font-size: 11px; line-height: 14px; letter-spacing: .28em; text-transform: uppercase;">Avela Resort</p>
+                <div lang="{{ art.lang }}" style="position: absolute; left: 31px; top: 55px; width: 200px; display: flex; flex-direction: column;">
+                  <p style="margin: 0; font-size: 11px; line-height: 14px; letter-spacing: .14em; font-weight: 600; text-transform: uppercase; color: #D9BE8C;">{{ art.kicker }}</p>
+                  <p style="margin: 6px 0 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; color: #F2ECE1; font-size: 22px; line-height: 26px;">{{ art.cta }}</p>
+                  <p style="margin: 2px 0 0; font-size: 13px; line-height: 16px; color: #B8B0A3;">{{ art.sub }}</p>
+                </div>
+                <div lang="{{ art.lang }}" style="position: absolute; left: 31px; bottom: 27px; width: 200px; display: flex; align-items: flex-start; gap: 8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#CDAE78" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/><path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/><path d="M12.91 4.1a15.91 15.91 0 0 1 .01 15.8"/><path d="M16.37 2a20.16 20.16 0 0 1 0 20"/></svg><p style="margin: 0; font-size: 13px; line-height: 16px; color: #D6CFC3;">{{ art.instr }}</p></div>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ show.sticker }}" hint-placeholder-val="{{ false }}">
+            <div role="img" aria-label="{{ cap.label }}" style="position: relative; flex: none; width: 281px; height: 281px;">
+              <div aria-hidden="true" style="position: absolute; left: 16px; top: 16px; width: 249px; height: 249px; overflow: hidden; border-radius: 50%; background: radial-gradient(90% 60% at 50% 18%, #26302B 0%, #121614 72%); color: #F2ECE1; font-family: 'Ysabeau Office', system-ui, sans-serif;">
+                <svg style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .05; mix-blend-mode: overlay;"><filter id="gS9"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"></feTurbulence><feColorMatrix type="saturate" values="0"></feColorMatrix></filter><rect width="100%" height="100%" filter="url(#gS9)"/></svg>
+                <div lang="{{ art.lang }}" style="position: absolute; left: 11px; top: 28px; width: 227px; display: flex; flex-direction: column; align-items: center; text-align: center;">
+                  <p style="margin: 0; max-width: 150px; padding-left: .18em; font-size: 11px; line-height: 14px; letter-spacing: .18em; font-weight: 600; text-transform: uppercase; color: #D9BE8C;">{{ art.kicker }}</p>
+                  <p style="margin: 4px 0 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; color: #F2ECE1; font-size: 17px; line-height: 22px; white-space: nowrap;">{{ art.cta }}</p>
+                  <p style="margin: 2px 0 0; font-size: 13px; line-height: 16px; color: #B8B0A3; white-space: nowrap;">{{ art.sub }}</p>
+                  <div style="margin-top: 8px;"><div style="flex: none; width: 100px; height: 100px; overflow: hidden; border-radius: 3px; background: #F2ECE1;"><svg width="100" height="100" viewBox="0 0 37 37" shape-rendering="crispEdges" style="display: block;"><path fill="#121614" d="M4 4h7v1h-7zM12 4h2v1h-2zM17 4h2v1h-2zM22 4h1v1h-1zM24 4h1v1h-1zM26 4h7v1h-7zM4 5h1v1h-1zM10 5h1v1h-1zM13 5h2v1h-2zM17 5h1v1h-1zM19 5h2v1h-2zM23 5h2v1h-2zM26 5h1v1h-1zM32 5h1v1h-1zM4 6h1v1h-1zM6 6h3v1h-3zM10 6h1v1h-1zM12 6h1v1h-1zM14 6h4v1h-4zM20 6h4v1h-4zM26 6h1v1h-1zM28 6h3v1h-3zM32 6h1v1h-1zM4 7h1v1h-1zM6 7h3v1h-3zM10 7h1v1h-1zM12 7h3v1h-3zM18 7h1v1h-1zM23 7h2v1h-2zM26 7h1v1h-1zM28 7h3v1h-3zM32 7h1v1h-1zM4 8h1v1h-1zM6 8h3v1h-3zM10 8h1v1h-1zM13 8h1v1h-1zM15 8h1v1h-1zM18 8h1v1h-1zM20 8h3v1h-3zM24 8h1v1h-1zM26 8h1v1h-1zM28 8h3v1h-3zM32 8h1v1h-1zM4 9h1v1h-1zM10 9h1v1h-1zM12 9h1v1h-1zM14 9h2v1h-2zM17 9h1v1h-1zM20 9h3v1h-3zM26 9h1v1h-1zM32 9h1v1h-1zM4 10h7v1h-7zM12 10h1v1h-1zM14 10h1v1h-1zM16 10h1v1h-1zM18 10h1v1h-1zM20 10h1v1h-1zM22 10h1v1h-1zM24 10h1v1h-1zM26 10h7v1h-7zM12 11h3v1h-3zM17 11h1v1h-1zM19 11h2v1h-2zM22 11h2v1h-2zM4 12h2v1h-2zM9 12h3v1h-3zM14 12h1v1h-1zM16 12h2v1h-2zM19 12h1v1h-1zM21 12h1v1h-1zM23 12h2v1h-2zM26 12h1v1h-1zM28 12h2v1h-2zM32 12h1v1h-1zM6 13h3v1h-3zM11 13h2v1h-2zM14 13h1v1h-1zM16 13h3v1h-3zM20 13h3v1h-3zM24 13h1v1h-1zM26 13h2v1h-2zM31 13h2v1h-2zM4 14h1v1h-1zM6 14h3v1h-3zM10 14h1v1h-1zM13 14h1v1h-1zM15 14h1v1h-1zM18 14h1v1h-1zM21 14h5v1h-5zM27 14h2v1h-2zM31 14h1v1h-1zM5 15h1v1h-1zM9 15h1v1h-1zM11 15h1v1h-1zM15 15h1v1h-1zM17 15h1v1h-1zM20 15h1v1h-1zM23 15h1v1h-1zM25 15h3v1h-3zM30 15h1v1h-1zM32 15h1v1h-1zM6 16h2v1h-2zM10 16h1v1h-1zM12 16h2v1h-2zM16 16h2v1h-2zM19 16h1v1h-1zM22 16h1v1h-1zM27 16h2v1h-2zM30 16h1v1h-1zM32 16h1v1h-1zM4 17h2v1h-2zM7 17h1v1h-1zM9 17h1v1h-1zM11 17h1v1h-1zM14 17h2v1h-2zM17 17h1v1h-1zM19 17h2v1h-2zM23 17h4v1h-4zM29 17h4v1h-4zM4 18h1v1h-1zM7 18h2v1h-2zM10 18h3v1h-3zM14 18h2v1h-2zM17 18h1v1h-1zM20 18h3v1h-3zM27 18h3v1h-3zM32 18h1v1h-1zM4 19h1v1h-1zM6 19h1v1h-1zM8 19h2v1h-2zM14 19h1v1h-1zM18 19h3v1h-3zM24 19h1v1h-1zM29 19h1v1h-1zM32 19h1v1h-1zM4 20h1v1h-1zM6 20h2v1h-2zM9 20h5v1h-5zM16 20h4v1h-4zM21 20h2v1h-2zM24 20h4v1h-4zM30 20h3v1h-3zM5 21h1v1h-1zM8 21h2v1h-2zM13 21h3v1h-3zM18 21h1v1h-1zM20 21h2v1h-2zM23 21h1v1h-1zM26 21h4v1h-4zM4 22h2v1h-2zM7 22h1v1h-1zM10 22h1v1h-1zM12 22h1v1h-1zM15 22h2v1h-2zM18 22h3v1h-3zM24 22h2v1h-2zM28 22h1v1h-1zM30 22h2v1h-2zM7 23h2v1h-2zM11 23h4v1h-4zM17 23h1v1h-1zM20 23h1v1h-1zM22 23h1v1h-1zM25 23h1v1h-1zM27 23h1v1h-1zM29 23h1v1h-1zM31 23h2v1h-2zM4 24h2v1h-2zM8 24h4v1h-4zM14 24h2v1h-2zM17 24h1v1h-1zM19 24h4v1h-4zM24 24h7v1h-7zM32 24h1v1h-1zM12 25h1v1h-1zM17 25h2v1h-2zM20 25h1v1h-1zM22 25h1v1h-1zM24 25h1v1h-1zM28 25h1v1h-1zM30 25h1v1h-1zM32 25h1v1h-1zM4 26h7v1h-7zM12 26h5v1h-5zM19 26h1v1h-1zM21 26h2v1h-2zM24 26h1v1h-1zM26 26h1v1h-1zM28 26h3v1h-3zM4 27h1v1h-1zM10 27h1v1h-1zM12 27h1v1h-1zM14 27h1v1h-1zM16 27h2v1h-2zM21 27h4v1h-4zM28 27h1v1h-1zM31 27h2v1h-2zM4 28h1v1h-1zM6 28h3v1h-3zM10 28h1v1h-1zM13 28h1v1h-1zM18 28h1v1h-1zM22 28h7v1h-7zM31 28h1v1h-1zM4 29h1v1h-1zM6 29h3v1h-3zM10 29h1v1h-1zM13 29h3v1h-3zM17 29h1v1h-1zM20 29h1v1h-1zM25 29h1v1h-1zM29 29h4v1h-4zM4 30h1v1h-1zM6 30h3v1h-3zM10 30h1v1h-1zM12 30h1v1h-1zM16 30h2v1h-2zM20 30h1v1h-1zM22 30h2v1h-2zM26 30h2v1h-2zM32 30h1v1h-1zM4 31h1v1h-1zM10 31h1v1h-1zM12 31h1v1h-1zM14 31h2v1h-2zM19 31h2v1h-2zM24 31h3v1h-3zM29 31h2v1h-2zM4 32h7v1h-7zM12 32h1v1h-1zM16 32h4v1h-4zM21 32h2v1h-2zM24 32h2v1h-2zM27 32h2v1h-2zM30 32h3v1h-3z"/></svg></div></div>
+                </div>
+              </div>
+              <svg width="281" height="281" viewBox="0 0 281 281" aria-hidden="true" style="position: absolute; left: 0; top: 0;"><circle cx="140.5" cy="140.5" r="113.5" fill="none" stroke="#F2ECE1" stroke-opacity=".75" stroke-width="1" stroke-dasharray="4 3"/></svg>
+            </div>
+          </sc-if>
+          <p style="margin: 0; max-width: 600px; font-size: 12px; line-height: 16px; color: #5b5d63; text-align: center;"><span style="display: block;">{{ cap.bottom }}</span><span style="display: block;">{{ cap.bottom2 }}</span></p>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1024}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var s = this.state || {};
+    var piece = s.piece || 'tent';
+    var lang = s.lang || 'both';
+    var cta = s.cta || 'rate';
+    var copied = s.copied || '';
+    var self = this;
+    var ring = function (on) {
+      return { ring: on ? '#512da6' : '#85878d', dot: on ? '#512da6' : 'transparent' };
+    };
+    var card = function (key) {
+      var on = piece === key;
+      var r = ring(on);
+      return {
+        on: on,
+        line: on ? '#512da6' : '#dcdee2',
+        fill: on ? '#f6f5fb' : 'transparent',
+        ring: r.ring,
+        dot: r.dot,
+        pick: function () { self.setState({ piece: key }); }
+      };
+    };
+    var option = function (field, key, current) {
+      var on = current === key;
+      var r = ring(on);
+      return {
+        on: on,
+        ring: r.ring,
+        dot: r.dot,
+        pick: function () { var next = {}; next[field] = key; self.setState(next); }
+      };
+    };
+    var words = {
+      rate: { en: ['Rate your visit', 'Private, about 30 seconds'], bg: ['Оценете посещението си', 'Поверително, около 30 секунди'] },
+      how: { en: ['How was your visit?', 'Tell us privately'], bg: ['Как мина посещението ви?', 'Кажете ни поверително'] }
+    };
+    var kicker = { en: 'Pool bar', bg: 'Бар на басейна' };
+    var instr = { en: 'Hold your phone close to the card, then open the link.', bg: 'Доближете телефона до картата и отворете връзката.' };
+    var main = lang === 'bg' ? 'bg' : 'en';
+    var small = piece === 'nfc' || piece === 'sticker';
+    var langShort = { both: 'EN + БГ', en: 'EN', bg: 'БГ' }[lang];
+    var langWords = { both: 'English and Bulgarian', en: 'English', bg: 'Bulgarian' }[lang];
+    var page = small && lang === 'both' ? 'English page, 1 of 2' : langShort;
+    var pageWords = small && lang === 'both' ? 'English page, 1 of 2' : langWords;
+    var perLang = small && lang === 'both' ? ' · one page per language' : '';
+    var caps = {
+      tent: ['Table tent A6 · front · 105 × 148 mm (shown at 96 dpi) · ' + langShort, 'Print preview: table tent, A6, front, Pool bar, ' + langWords + ', 105 by 148 millimetres, shown at 96 dpi', 'Vector PDF with bleed and crop marks · QR on a light plate · 4-module quiet zone · error correction M'],
+      reception: ['Reception card A6 · front · 105 × 148 mm (shown at 96 dpi) · ' + langShort, 'Print preview: reception card, A6, front, Pool bar, ' + langWords + ', 105 by 148 millimetres, shown at 96 dpi', 'Vector PDF with bleed and crop marks · QR on a light plate · 4-module quiet zone · error correction M'],
+      nfc: ['NFC card · front · 85 × 54 mm (shown at 96 dpi) · ' + page, 'Print preview: NFC card, front, Pool bar, ' + pageWords + ', 85 by 54 millimetres, shown at 96 dpi', 'Vector PDF with bleed and crop marks · one URL record on the chip, locked after writing', 'QR on the back' + perLang],
+      sticker: ['Sticker · 60 mm round (shown at 96 dpi) · ' + page, 'Print preview: round sticker, Pool bar, ' + pageWords + ', 60 millimetres across, shown at 96 dpi', 'Vector PDF with a 60 mm round cut line · QR on a light plate · 4-module quiet zone' + perLang]
+    }[piece];
+    return {
+      k: { tent: card('tent'), reception: card('reception'), nfc: card('nfc'), sticker: card('sticker') },
+      l: { both: option('lang', 'both', lang), en: option('lang', 'en', lang), bg: option('lang', 'bg', lang) },
+      c: { rate: option('cta', 'rate', cta), how: option('cta', 'how', cta) },
+      show: { a6: !small, nfc: piece === 'nfc', sticker: piece === 'sticker' },
+      sides: piece !== 'sticker',
+      cap: { top: caps[0], label: caps[1], bottom: caps[2], bottom2: caps[3] || '' },
+      art: {
+        lang: main,
+        kicker: kicker[main],
+        cta: words[cta][main][0],
+        sub: words[cta][main][1],
+        instr: instr[main],
+        two: lang === 'both',
+        cta2: words[cta].bg[0],
+        sub2: words[cta].bg[1]
+      },
+      copyQr: function () { self.setState({ copied: 'qr' }); },
+      copyNfc: function () { self.setState({ copied: 'nfc' }); },
+      copiedMsg: copied === 'qr' ? 'QR address copied' : copied === 'nfc' ? 'NFC address copied' : ''
+    };
+  }
+}
+</script>
+</body>
+</html>

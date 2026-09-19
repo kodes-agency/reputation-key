@@ -1,0 +1,167 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-09-19T03:12:00+03:00"
+  },
+  "title": "Portal Admin Redesign",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "ADM01-portals-overview.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1024,
+      "title": "ADM01 · Portals overview (property)"
+    },
+    "ADM02-all-properties-portals.dc.html": {
+      "x": 1520,
+      "y": 0,
+      "w": 1440,
+      "h": 1200,
+      "title": "ADM02 · All properties · Portals (org scope)"
+    },
+    "ADM03-new-portal-place.dc.html": {
+      "x": 3040,
+      "y": 0,
+      "w": 1440,
+      "h": 1024,
+      "title": "ADM03 · New portal · Place (step 1 of 4)"
+    },
+    "ADM04-phone-portals.dc.html": {
+      "x": 4560,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "ADM04 · Phone · Portals list with attention"
+    },
+    "ADM05-new-portal-experience.dc.html": {
+      "x": 0,
+      "y": 1620,
+      "w": 1440,
+      "h": 1024,
+      "title": "ADM05 · New portal · Experience (step 2, workspace in creation mode)"
+    },
+    "ADM06-workspace-links.dc.html": {
+      "x": 1520,
+      "y": 1620,
+      "w": 1440,
+      "h": 1024,
+      "title": "ADM06 · Portal workspace · Experience with useful links (Property manager)"
+    },
+    "ADM07-review-and-publish.dc.html": {
+      "x": 3040,
+      "y": 1620,
+      "w": 1440,
+      "h": 1024,
+      "title": "ADM07 · Review & publish (with the 1★/5★ fairness pair)"
+    },
+    "ADM08-property-look.dc.html": {
+      "x": 4560,
+      "y": 1620,
+      "w": 1440,
+      "h": 1024,
+      "title": "ADM08 · Property look (Account admin)"
+    },
+    "ADM09-share-print-kit.dc.html": {
+      "x": 0,
+      "y": 3064,
+      "w": 1440,
+      "h": 1024,
+      "title": "ADM09 · Share · first publish with the print kit"
+    },
+    "ADM10-activity-health.dc.html": {
+      "x": 1520,
+      "y": 3064,
+      "w": 1440,
+      "h": 1024,
+      "title": "ADM10 · Portal workspace · Activity with health attention"
+    },
+    "ADM11-restore-version.dc.html": {
+      "x": 3040,
+      "y": 3064,
+      "w": 1440,
+      "h": 1024,
+      "title": "ADM11 · Make an earlier version live again (restore dialog)"
+    },
+    "ADM12-phone-portal-health.dc.html": {
+      "x": 4560,
+      "y": 3064,
+      "w": 390,
+      "h": 844,
+      "title": "ADM12 · Phone · Portal detail from a health alert"
+    },
+    "ADM13-analytics-property.dc.html": {
+      "x": 0,
+      "y": 4508,
+      "w": 1440,
+      "h": 1600,
+      "title": "ADM13 · Portal analytics · property portfolio"
+    },
+    "ADM14-analytics-portal.dc.html": {
+      "x": 1520,
+      "y": 4508,
+      "w": 1440,
+      "h": 1024,
+      "title": "ADM14 · Portal workspace · Analytics (single portal)"
+    }
+  },
+  "order": [
+    "ADM01-portals-overview.dc.html",
+    "ADM02-all-properties-portals.dc.html",
+    "ADM03-new-portal-place.dc.html",
+    "ADM04-phone-portals.dc.html",
+    "ADM05-new-portal-experience.dc.html",
+    "ADM06-workspace-links.dc.html",
+    "ADM07-review-and-publish.dc.html",
+    "ADM08-property-look.dc.html",
+    "ADM09-share-print-kit.dc.html",
+    "ADM10-activity-health.dc.html",
+    "ADM11-restore-version.dc.html",
+    "ADM12-phone-portal-health.dc.html",
+    "ADM13-analytics-property.dc.html",
+    "ADM14-analytics-portal.dc.html"
+  ],
+  "notes": {
+    "g1": {
+      "x": 0,
+      "y": -260,
+      "kind": "title1",
+      "maxW": 4950,
+      "text": "1 · Portals overview, all properties and creating a portal"
+    },
+    "g2": {
+      "x": 0,
+      "y": 1360,
+      "kind": "title1",
+      "maxW": 6000,
+      "text": "2 · Portal workspace, review & publish, property look"
+    },
+    "g3": {
+      "x": 0,
+      "y": 2804,
+      "kind": "title1",
+      "maxW": 4950,
+      "text": "3 · Share, monitoring and version history"
+    },
+    "g4": {
+      "x": 0,
+      "y": 4248,
+      "kind": "title1",
+      "maxW": 2960,
+      "text": "4 · Analytics"
+    },
+    "readme": {
+      "x": -520,
+      "y": -260,
+      "w": 420,
+      "size": "m",
+      "color": "purple",
+      "text": "Portal admin redesign, round 3 (proposal, not approved).\n\nPortal Workspace: one workspace per portal (Experience, Share, Analytics, Activity) with the real guest page beside the editor; Review & publish with the 1★/5★ pair; Property look for brand; honest analytics; health by exception.\n\nEvery board states what exists today and what is new. Full write-up: docs/design/portal-experience/round-3-admin/README.md on ux/portal-redesign."
+    }
+  },
+  "designSystems": []
+}

@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Portals — Avela Resort</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=Manrope:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+@font-face{font-family:'Satoshi';src:url('/_blob/bc9aed933eebd2242e24e1a874f3e980') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Satoshi';src:url('/_blob/b4176652b3bb793da8608143a4c2d4d1') format('woff2');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:'Satoshi';src:url('/_blob/d97bb02bcf4b472111e2170c4170bd0c') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+body{margin:0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+a{color:#512da6}a:hover{color:#431096}
+:focus-visible{outline:2px solid #7b65d1;outline-offset:2px}
+button,input,select,textarea{font-family:inherit;font-size:inherit;line-height:inherit;color:inherit}
+.rk-primary{background:#512da6}.rk-primary:hover{background:#6242ae}
+.rk-outline{background:#f7f8fa}.rk-outline:hover{background:#e7e4ff}
+.rk-ghost{background:transparent}.rk-ghost:hover{background:#e7e4ff}
+.rk-destructive{background:#df202e}.rk-destructive:hover{background:#e23743}
+.rk-nav:hover{background:#e7e4ff}
+.rk-row:hover>td,.rk-row:hover>th{background:#f9fafb}
+.rk-sort:hover{color:#101115!important}
+.rk-name:hover{text-decoration:underline!important;text-underline-offset:4px}
+.rk-detail:hover>span{text-decoration-style:solid!important}
+.rk-cell{background:#feffff}.rk-cell-i:hover,.rk-cell-i.is-on{background:#f0f2f5}
+.rk-cell-i.is-on{box-shadow:inset 0 -2px 0 #101115}
+.rk-stretch::after{content:"";position:absolute;inset:0}
+.rk-stretch:focus-visible{outline:none}.rk-stretch:focus-visible::after{outline:2px solid #7b65d1;outline-offset:-3px}
+.rk-input::placeholder{color:#5b5d63;opacity:1}
+.rk-input:focus-visible{outline:none;border-color:#7b65d1!important;box-shadow:0 0 0 3px rgba(123,101,209,.5)!important}
+.rk-menuitem{background:transparent}.rk-menuitem:hover,.rk-menuitem:focus-visible{background:#e7e4ff;outline:none}
+.rk-check:focus-visible+span{outline:2px solid #7b65d1;outline-offset:2px}
+.rk-tile{background:transparent}.rk-tile:hover{background:#f4f5f8}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1024px; box-sizing: border-box; overflow: hidden; position: relative; display: flex; background: #f7f8fa; color: #101115; font-family: 'Satoshi', 'Manrope', system-ui, sans-serif; font-size: 14px; line-height: 20px;">
+
+  <nav aria-label="Primary navigation" style="width: 256px; flex: none; height: 1024px; box-sizing: border-box; display: flex; flex-direction: column; background: #f7f8fa; border-right: 1px solid #dcdee2;">
+    <div style="padding: 8px;">
+      <button type="button" class="rk-ghost" aria-label="Avela Resort, switch property" aria-haspopup="menu" aria-expanded="false" style="display: flex; align-items: center; gap: 8px; width: 100%; height: 48px; padding: 8px; box-sizing: border-box; border: 0; border-radius: 6px; text-align: left; color: #101115; cursor: pointer;">
+        <span aria-hidden="true" style="width: 32px; height: 32px; flex: none; border-radius: 8px; background: #e7e4ff; color: #512da6; display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 16px; font-weight: 500;">AR</span>
+        <span style="display: grid; flex: 1; min-width: 0; font-size: 14px; line-height: 1.25;"><span style="font-weight: 500;">Avela Resort</span><span style="font-size: 12px; line-height: 16px; color: #5b5d63;">avela-resort</span></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+      </button>
+    </div>
+    <div style="flex: 1; min-height: 0; padding: 8px;">
+      <ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px;">
+        <li style="position: relative;">
+          <a href="#" class="rk-nav" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 8px 32px 8px 8px; box-sizing: border-box; border-radius: 6px; color: #101115; text-decoration: none; font-size: 14px; line-height: 20px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg><span>Dashboard</span></a>
+          <button type="button" class="rk-ghost" aria-label="Show Dashboard pages" aria-expanded="false" style="position: absolute; top: 6px; right: 4px; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m9 18 6-6-6-6"/></svg></button>
+        </li>
+        <li style="position: relative;">
+          <a href="#" class="rk-nav" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 8px 32px 8px 8px; box-sizing: border-box; border-radius: 6px; color: #101115; text-decoration: none; font-size: 14px; line-height: 20px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></svg><span>Reviews</span><span class="sr-only">, 3 new</span></a>
+          <span aria-hidden="true" style="position: absolute; top: 6px; right: 4px; height: 20px; min-width: 20px; box-sizing: border-box; padding: 0 6px; border-radius: 9999px; background: #df202e; color: #fff; font-size: 12px; line-height: 16px; font-weight: 500; font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: center; pointer-events: none;">3</span>
+        </li>
+        <li>
+          <a href="#" class="rk-nav" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 8px; box-sizing: border-box; border-radius: 6px; color: #101115; text-decoration: none; font-size: 14px; line-height: 20px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg><span>People</span></a>
+        </li>
+        <li>
+          <a href="#" aria-current="page" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 8px; box-sizing: border-box; border-radius: 6px; background: #e7e4ff; color: #101115; text-decoration: none; font-size: 14px; line-height: 20px; font-weight: 500;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg><span>Portals</span></a>
+        </li>
+        <li>
+          <a href="#" class="rk-nav" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 8px; box-sizing: border-box; border-radius: 6px; color: #101115; text-decoration: none; font-size: 14px; line-height: 20px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><span>Goals</span></a>
+        </li>
+        <li>
+          <a href="#" class="rk-nav" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 8px; box-sizing: border-box; border-radius: 6px; color: #101115; text-decoration: none; font-size: 14px; line-height: 20px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg><span>Property settings</span></a>
+        </li>
+      </ul>
+    </div>
+    <div style="padding: 8px;">
+      <ul style="list-style: none; margin: 0; padding: 0;">
+        <li>
+          <a href="#" class="rk-nav" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 8px; box-sizing: border-box; border-radius: 6px; color: #101115; text-decoration: none; font-size: 14px; line-height: 20px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg><span>Settings</span></a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: #f7f8fa;">
+    <header style="height: 52px; flex: none; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid #dcdee2; background: #f7f8fa;">
+      <button type="button" class="rk-ghost" aria-label="Toggle sidebar" style="width: 28px; height: 28px; margin-left: -4px; padding: 0; border: 0; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg></button>
+      <span style="flex: 1;"></span>
+      <button type="button" class="rk-ghost" style="height: 32px; padding: 0 10px; display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M12 8v6"/><path d="M9 11h6"/></svg>Feedback</button>
+      <button type="button" class="rk-ghost" aria-label="Notifications, 2 unread" style="position: relative; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg><span aria-hidden="true" style="position: absolute; top: -2px; right: -2px; width: 16px; height: 16px; border-radius: 9999px; background: #512da6; color: #feffff; font-size: 9px; line-height: 16px; font-weight: 700; text-align: center;">2</span></button>
+      <button type="button" class="rk-ghost" aria-label="Account menu, Elena Petrova" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 9999px; display: flex; align-items: center; justify-content: center; cursor: pointer;"><span aria-hidden="true" style="width: 28px; height: 28px; border-radius: 9999px; background: #512da6; color: #feffff; font-size: 10px; line-height: 12px; font-weight: 500; display: flex; align-items: center; justify-content: center;">EP</span></button>
+    </header>
+
+    <main style="flex: 1; min-height: 0; overflow: hidden; padding: 32px 24px; box-sizing: border-box;">
+      <div style="width: 1136px; margin: 0 auto; display: flex; flex-direction: column;">
+
+        <header style="display: flex; flex-direction: column; gap: 12px;">
+          <nav aria-label="Breadcrumb">
+            <ol style="display: flex; align-items: center; gap: 10px; margin: 0; padding: 0; list-style: none; font-size: 14px; line-height: 20px; color: #5b5d63;">
+              <li><a href="#" style="text-decoration: none;">Properties</a></li>
+              <li aria-hidden="true" style="display: flex;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m9 18 6-6-6-6"/></svg></li>
+              <li><a href="#" style="text-decoration: none;">Avela Resort</a></li>
+              <li aria-hidden="true" style="display: flex;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m9 18 6-6-6-6"/></svg></li>
+              <li aria-current="page" style="color: #101115;">Portals</li>
+            </ol>
+          </nav>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+            <div style="min-width: 0;">
+              <h1 style="margin: 0; font-size: 24px; line-height: 32px; font-weight: 700; letter-spacing: -0.6px; color: #101115;">Portals</h1>
+              <p style="margin: 4px 0 0; font-size: 14px; line-height: 20px; color: #5b5d63;">Pages guests reach from codes around Avela Resort · Look: Carved Stillness</p>
+            </div>
+            <div style="display: flex; gap: 8px; flex: none;">
+              <a href="ADM13-analytics-property.dc.html" class="rk-outline" style="height: 36px; box-sizing: border-box; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>Analytics</a>
+              <a href="ADM08-property-look.dc.html" class="rk-outline" style="height: 36px; box-sizing: border-box; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/></svg>Property look</a>
+              <a href="ADM03-new-portal-place.dc.html" class="rk-primary" style="height: 36px; box-sizing: border-box; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #feffff; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M5 12h14"/><path d="M12 5v14"/></svg>New portal</a>
+            </div>
+          </div>
+        </header>
+
+        <h2 class="sr-only">Waiting across the property</h2>
+        <ul style="margin: 32px 0 0; padding: 0; list-style: none; display: flex; align-items: center; gap: 24px; font-size: 14px; line-height: 20px; color: #101115;">
+          <li style="display: flex; align-items: center; gap: 8px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg><span>Elena Petrova changed the property look on 17 Sep. It isn’t live on 4 portals yet.</span><a href="#" style="font-weight: 500; text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; white-space: nowrap;">Review &amp; publish 3 portals</a></li>
+          <li style="display: flex; align-items: center; gap: 8px; padding-left: 24px; border-left: 1px solid #dcdee2;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M7 11h10"/><path d="M7 15h6"/><path d="M7 7h8"/></svg><span>New guest wording is ready.</span><a href="#" style="font-weight: 500; text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; white-space: nowrap;">Review wording</a></li>
+        </ul>
+
+        <h2 class="sr-only">Summary</h2>
+        <dl style="margin: 24px 0 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: #dcdee2; border: 1px solid #dcdee2; border-radius: 8px; overflow: hidden;">
+          <div class="rk-cell rk-cell-i {{ f.onAttn }}" style="position: relative; padding: 12px 16px; display: flex; flex-direction: column; gap: 4px;">
+            <dt style="font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;">Needs attention</dt>
+            <dd style="margin: 0; display: flex; flex-direction: column; gap: 4px;">
+              <button type="button" class="rk-stretch" aria-pressed="{{ f.pAttn }}" onClick="{{ toggleAttn }}" aria-label="Needs attention: 1 portal. Show only these" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font-size: 18px; line-height: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: #101115; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a45f00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>1</button>
+              <sc-if value="{{ f.pAttn }}" hint-placeholder-val="{{ false }}"><span style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; line-height: 16px; font-weight: 500; color: #101115;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M20 6 9 17l-5-5"/></svg>Showing these</span></sc-if>
+              <sc-if value="{{ f.upAttn }}" hint-placeholder-val="{{ true }}"><span style="font-size: 12px; line-height: 16px; color: #5b5d63;">Spa &amp; thermal pools</span></sc-if>
+            </dd>
+          </div>
+          <div class="rk-cell rk-cell-i {{ f.onLive }}" style="position: relative; padding: 12px 16px; display: flex; flex-direction: column; gap: 4px;">
+            <dt style="font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;">Live</dt>
+            <dd style="margin: 0; display: flex; flex-direction: column; gap: 4px;">
+              <button type="button" class="rk-stretch" aria-pressed="{{ f.pLive }}" onClick="{{ toggleLive }}" aria-label="Live: 4 of 5 portals. Show only these" style="align-self: flex-start; padding: 0; border: 0; background: none; font-size: 18px; line-height: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: #101115; cursor: pointer;">4 of 5</button>
+              <sc-if value="{{ f.pLive }}" hint-placeholder-val="{{ false }}"><span style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; line-height: 16px; font-weight: 500; color: #101115;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M20 6 9 17l-5-5"/></svg>Showing these</span></sc-if>
+              <sc-if value="{{ f.upLive }}" hint-placeholder-val="{{ true }}"><span style="font-size: 12px; line-height: 16px; color: #5b5d63;">1 draft</span></sc-if>
+            </dd>
+          </div>
+          <div class="rk-cell rk-cell-i {{ f.onChanges }}" style="position: relative; padding: 12px 16px; display: flex; flex-direction: column; gap: 4px;">
+            <dt style="font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;">Changes not live</dt>
+            <dd style="margin: 0; display: flex; flex-direction: column; gap: 4px;">
+              <button type="button" class="rk-stretch" aria-pressed="{{ f.pChanges }}" onClick="{{ toggleChanges }}" aria-label="Changes not live: 4 portals. Show only these" style="align-self: flex-start; padding: 0; border: 0; background: none; font-size: 18px; line-height: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: #101115; cursor: pointer;">4</button>
+              <sc-if value="{{ f.pChanges }}" hint-placeholder-val="{{ false }}"><span style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; line-height: 16px; font-weight: 500; color: #101115;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M20 6 9 17l-5-5"/></svg>Showing these</span></sc-if>
+              <sc-if value="{{ f.upChanges }}" hint-placeholder-val="{{ true }}"><span style="font-size: 12px; line-height: 16px; color: #5b5d63;">The new look is waiting on each</span></sc-if>
+            </dd>
+          </div>
+          <div class="rk-cell rk-cell-i" style="position: relative; padding: 12px 16px; display: flex; flex-direction: column; gap: 4px;">
+            <dt style="font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;">Private notes waiting</dt>
+            <dd style="margin: 0; display: flex; flex-direction: column; gap: 4px;">
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 18px; line-height: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: #101115;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>3</span>
+              <a href="#" class="rk-stretch" aria-label="3 private notes waiting. Open in Inbox" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; line-height: 16px; color: #512da6; text-decoration: none;">Open in Inbox<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+            </dd>
+          </div>
+        </dl>
+
+        <h2 class="sr-only">All portals</h2>
+        <div style="margin-top: 24px; display: flex; align-items: center; gap: 8px;">
+          <div style="position: relative; width: 288px; flex: none;">
+            <label for="portal-search" class="sr-only">Search portals</label>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;position:absolute;left:10px;top:8px;pointer-events:none"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+            <input id="portal-search" type="search" class="rk-input" placeholder="Search portals" style="width: 288px; height: 32px; box-sizing: border-box; padding: 4px 12px 4px 32px; border: 1px solid #dcdee2; border-radius: 6px; background: transparent; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; color: #101115;">
+          </div>
+          <button type="button" class="rk-outline" aria-haspopup="menu" aria-expanded="false" style="height: 32px; box-sizing: border-box; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M2 5h20"/><path d="M6 12h12"/><path d="M9 19h6"/></svg><span>Show: {{ f.showLabel }}</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m6 9 6 6 6-6"/></svg></button>
+          <button type="button" class="rk-outline" aria-haspopup="menu" aria-expanded="false" style="height: 32px; box-sizing: border-box; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>Group by: Group</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m6 9 6 6 6-6"/></svg></button>
+          <span role="status" style="margin-left: 4px; font-size: 14px; line-height: 20px; color: #5b5d63; font-variant-numeric: tabular-nums;"><sc-if value="{{ f.isFiltered }}" hint-placeholder-val="{{ false }}">{{ f.countLabel }}<span class="sr-only"> portals shown</span></sc-if></span>
+          <sc-if value="{{ f.isFiltered }}" hint-placeholder-val="{{ false }}">
+            <button type="button" class="rk-ghost" onClick="{{ clearFilter }}" style="height: 32px; box-sizing: border-box; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;">Clear</button>
+          </sc-if>
+          <span style="flex: 1;"></span>
+          <button type="button" class="rk-outline" aria-haspopup="menu" aria-expanded="false" aria-label="Time range: last 90 days" style="height: 32px; box-sizing: border-box; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg><span>Last 90 days</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m6 9 6 6 6-6"/></svg></button>
+        </div>
+
+        <div style="margin-top: 16px; background: #feffff; border: 1px solid #dcdee2; border-radius: 8px; overflow: hidden;">
+          <span id="sort-hint" class="sr-only">Sorts the table</span>
+          <table style="width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px; line-height: 20px; color: #101115;">
+            <caption class="sr-only">Portals at Avela Resort by group, last 90 days, needs attention first</caption>
+            <thead>
+              <tr style="height: 48px; border-bottom: 1px solid #dcdee2;">
+                <th scope="col" style="width: 278px; box-sizing: border-box; padding: 0 12px 0 16px; text-align: left; font-weight: 400;"><button type="button" class="rk-sort" aria-describedby="sort-hint" style="display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0; border: 0; background: none; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63; cursor: pointer;">Portal<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;opacity:.4"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></button></th>
+                <th scope="col" style="width: 236px; box-sizing: border-box; padding: 0 12px; text-align: left; font-weight: 400;"><button type="button" class="rk-sort" aria-describedby="sort-hint" style="display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0; border: 0; background: none; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63; cursor: pointer;">Status<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;opacity:.4"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></button></th>
+                <th scope="col" style="width: 92px; box-sizing: border-box; padding: 8px 12px; text-align: right; font-weight: 400;"><button type="button" class="rk-sort" aria-describedby="sort-hint" style="display: inline-block; vertical-align: top; padding: 0; border: 0; background: none; text-align: right; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;display:inline-block;vertical-align:-3px;margin-right:4px;opacity:.4"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>Qualified scans</button></th>
+                <th scope="col" style="width: 88px; box-sizing: border-box; padding: 8px 12px; text-align: right; font-weight: 400;"><button type="button" class="rk-sort" aria-describedby="sort-hint" style="display: inline-block; vertical-align: top; padding: 0; border: 0; background: none; text-align: right; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;display:inline-block;vertical-align:-3px;margin-right:4px;opacity:.4"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>Private ratings</button></th>
+                <th scope="col" style="width: 100px; box-sizing: border-box; padding: 8px 12px; text-align: right; font-weight: 400;"><button type="button" class="rk-sort" aria-describedby="sort-hint" style="display: inline-block; vertical-align: top; padding: 0; border: 0; background: none; text-align: right; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;display:inline-block;vertical-align:-3px;margin-right:4px;opacity:.4"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>Average private rating</button></th>
+                <th scope="col" style="width: 110px; box-sizing: border-box; padding: 8px 12px; text-align: right; font-weight: 400;"><button type="button" class="rk-sort" aria-describedby="sort-hint" style="display: inline-block; vertical-align: top; padding: 0; border: 0; background: none; text-align: right; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;display:inline-block;vertical-align:-3px;margin-right:4px;opacity:.4"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>Guests who opened Google</button></th>
+                <th scope="col" style="width: 98px; box-sizing: border-box; padding: 8px 12px; text-align: right; font-weight: 400;"><button type="button" class="rk-sort" aria-describedby="sort-hint" style="display: inline-block; vertical-align: top; padding: 0; border: 0; background: none; text-align: right; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;display:inline-block;vertical-align:-3px;margin-right:4px;opacity:.4"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;display:inline-block;vertical-align:-2px;margin-right:4px"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Private notes</button></th>
+                <th scope="col" style="width: 84px; box-sizing: border-box; padding: 0 8px; text-align: left; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;">Responsible</th>
+                <th scope="col" style="width: 48px; box-sizing: border-box; padding: 0;"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr style="height: 44px; background: #f7f8fa; border-bottom: 1px solid #dcdee2;">
+                <th scope="rowgroup" colspan="2" style="padding: 0 12px 0 16px; text-align: left; font-size: 13px; line-height: 20px; font-weight: 500; color: #101115;">Wellness<span style="color: #5b5d63;"> · 1 portal · </span><span style="font-size: 12px; line-height: 16px; font-weight: 500; color: #a45f00; white-space: nowrap;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;display:inline-block;vertical-align:-1px;margin-right:4px"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>1 needs attention</span></th>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">286</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">91</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;"><span style="display: inline-flex; align-items: center; gap: 4px;">4.6<svg width="14" height="14" viewBox="0 0 24 24" fill="#da950b" stroke="#da950b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only">stars</span></span></td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">52</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">4</td>
+                <td></td>
+                <td style="padding: 0 8px; text-align: right;"><button type="button" class="rk-ghost" aria-label="Actions for group Wellness" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; color: #5b5d63; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+              </tr>
+              <tr class="rk-row" style="height: 70px; border-bottom: 1px solid #dcdee2;">
+                <th scope="row" style="padding: 12px 12px 11px 16px; text-align: left; font-weight: 400;">
+                  <a href="#" class="rk-name" style="font-weight: 500; text-decoration: none;">Spa &amp; thermal pools</a>
+                  <div style="margin-top: 2px; font-size: 12px; line-height: 16px; color: #5b5d63; white-space: nowrap;">Spa or wellness · QR and NFC · EN, <span lang="bg">БГ</span></div>
+                </th>
+                <td style="padding: 7px 12px 6px;">
+                  <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 20px; color: #101115;"><span aria-hidden="true" style="width: 7px; height: 7px; flex: none; border-radius: 50%; background: #101115;"></span>Live · v3</div>
+                  <div style="margin-top: 2px; display: flex; align-items: center; gap: 4px; font-size: 12px; line-height: 16px; color: #5b5d63;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>1 change not live</div>
+                  <button type="button" class="rk-detail" aria-haspopup="dialog" aria-expanded="false" style="margin: -2px 0 -4px; display: flex; align-items: center; gap: 4px; padding: 4px 0; border: 0; background: none; font-size: 12px; line-height: 16px; font-weight: 500; color: #a45f00; white-space: nowrap; cursor: help;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><span class="sr-only">Spa &amp; thermal pools: </span><span style="text-decoration: underline dotted currentColor; text-underline-offset: 4px;">Partly working · no one responsible</span></button>
+                </td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">286</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">91</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;"><span style="display: inline-flex; align-items: center; gap: 4px;"><span style="font-weight: 500;">4.6</span><svg width="14" height="14" viewBox="0 0 24 24" fill="#da950b" stroke="#da950b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only">stars</span></span></td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">52</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">4</td>
+                <td style="padding: 12px 8px;"><span style="font-size: 12px; line-height: 16px; font-weight: 500; color: #a45f00;">No one</span></td>
+                <td style="padding: 0 8px; text-align: right;"><button type="button" class="rk-ghost" aria-label="Actions for Spa &amp; thermal pools" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; color: #5b5d63; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+              </tr>
+            </tbody>
+
+            <tbody hidden="{{ f.hideDining }}">
+              <tr style="height: 44px; background: #f7f8fa; border-bottom: 1px solid #dcdee2;">
+                <th scope="rowgroup" colspan="2" style="padding: 0 12px 0 16px; text-align: left; font-size: 13px; line-height: 20px; font-weight: 500; color: #101115;">Dining<span style="color: #5b5d63;"> · {{ f.diningCount }}</span></th>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">351</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">97</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;"><span style="display: inline-flex; align-items: center; gap: 4px;">4.2<svg width="14" height="14" viewBox="0 0 24 24" fill="#da950b" stroke="#da950b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only">stars</span></span></td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">41</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">11</td>
+                <td></td>
+                <td style="padding: 0 8px; text-align: right;"><button type="button" class="rk-ghost" aria-label="Actions for group Dining" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; color: #5b5d63; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+              </tr>
+              <tr class="rk-row" style="height: 62px; border-bottom: 1px solid #dcdee2;">
+                <th scope="row" style="padding: 12px 12px 11px 16px; text-align: left; font-weight: 400;">
+                  <a href="#" class="rk-name" style="font-weight: 500; text-decoration: none;">Olive Terrace restaurant</a>
+                  <div style="margin-top: 2px; font-size: 12px; line-height: 16px; color: #5b5d63; white-space: nowrap;">Restaurant or bar table · QR and NFC · EN, <span lang="bg">БГ</span></div>
+                </th>
+                <td style="padding: 12px 12px 11px;">
+                  <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 20px; color: #101115;"><span aria-hidden="true" style="width: 7px; height: 7px; flex: none; border-radius: 50%; background: #101115;"></span>Live · v4</div>
+                  <div style="margin-top: 2px; display: flex; align-items: center; gap: 4px; font-size: 12px; line-height: 16px; color: #5b5d63;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>1 change not live</div>
+                </td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">351</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">97</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;"><span style="display: inline-flex; align-items: center; gap: 4px;"><span style="font-weight: 500;">4.2</span><svg width="14" height="14" viewBox="0 0 24 24" fill="#da950b" stroke="#da950b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only">stars</span></span></td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">41</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">11</td>
+                <td style="padding: 12px 8px;"><span style="display: flex;"><span aria-hidden="true" style="width: 20px; height: 20px; border-radius: 50%; background: #dcdee2; color: #101115; font-size: 10px; line-height: 20px; font-weight: 500; text-align: center;">GI</span><span class="sr-only">Georgi Ivanov</span></span></td>
+                <td style="padding: 0 8px; text-align: right;"><button type="button" class="rk-ghost" aria-label="Actions for Olive Terrace restaurant" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; color: #5b5d63; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+              </tr>
+              <tr class="rk-row" hidden="{{ f.hidePool }}" style="height: 62px; border-bottom: 1px solid #dcdee2;">
+                <th scope="row" style="padding: 12px 12px 11px 16px; text-align: left; font-weight: 400;">
+                  <a href="ADM05-new-portal-experience.dc.html" class="rk-name" style="font-weight: 500; text-decoration: none;">Pool bar</a>
+                  <div style="margin-top: 2px; font-size: 12px; line-height: 16px; color: #5b5d63; white-space: nowrap;">Restaurant or bar table · No code yet · EN, <span lang="bg">БГ</span></div>
+                </th>
+                <td style="padding: 12px 12px 11px;">
+                  <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 20px; color: #101115;"><span aria-hidden="true" style="width: 7px; height: 7px; flex: none; box-sizing: border-box; border-radius: 50%; border: 1.5px solid #b5b7bd;"></span>Draft · not published</div>
+                  <div style="margin-top: 2px; font-size: 12px; line-height: 16px; color: #5b5d63; white-space: nowrap;">Created yesterday by Elena Petrova</div>
+                </td>
+                <td colspan="5" style="padding: 12px; font-size: 13px; line-height: 20px; color: #5b5d63;">Not published yet</td>
+                <td style="padding: 12px 8px;"><span style="display: flex;"><span aria-hidden="true" style="width: 20px; height: 20px; border-radius: 50%; background: #dcdee2; color: #101115; font-size: 10px; line-height: 20px; font-weight: 500; text-align: center;">EP</span><span class="sr-only">Elena Petrova</span></span></td>
+                <td style="padding: 0 8px; text-align: right;"><button type="button" class="rk-ghost" aria-label="Actions for Pool bar" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; color: #5b5d63; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+              </tr>
+            </tbody>
+
+            <tbody hidden="{{ f.hideUngrouped }}">
+              <tr style="height: 44px; background: #f7f8fa; border-bottom: 1px solid #dcdee2;">
+                <th scope="rowgroup" colspan="2" style="padding: 0 12px 0 16px; text-align: left; font-size: 13px; line-height: 20px; font-weight: 500; color: #101115;">Not in a group<span style="color: #5b5d63;"> · 2 portals</span></th>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">450</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">122</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;"><span style="display: inline-flex; align-items: center; gap: 4px;">4.4<svg width="14" height="14" viewBox="0 0 24 24" fill="#da950b" stroke="#da950b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only">stars</span></span></td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">66</td>
+                <td style="padding: 0 12px; text-align: right; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums;">9</td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr class="rk-row" style="height: 62px; border-bottom: 1px solid #dcdee2;">
+                <th scope="row" style="padding: 12px 12px 11px 16px; text-align: left; font-weight: 400;">
+                  <a href="#" class="rk-name" style="font-weight: 500; text-decoration: none;">Guest rooms</a>
+                  <div style="margin-top: 2px; font-size: 12px; line-height: 16px; color: #5b5d63; white-space: nowrap;">Guest room · QR and NFC · EN, <span lang="bg">БГ</span></div>
+                </th>
+                <td style="padding: 12px 12px 11px;">
+                  <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 20px; color: #101115;"><span aria-hidden="true" style="width: 7px; height: 7px; flex: none; border-radius: 50%; background: #101115;"></span>Live · v2</div>
+                  <div style="margin-top: 2px; display: flex; align-items: center; gap: 4px; font-size: 12px; line-height: 16px; color: #5b5d63;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>1 change not live</div>
+                </td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">38</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">4</td>
+                <td style="padding: 12px; text-align: right;"><button type="button" class="rk-detail" aria-haspopup="dialog" aria-expanded="false" style="padding: 4px 0; margin: -4px 0; border: 0; background: none; font-size: 13px; line-height: 20px; color: #5b5d63; cursor: help;"><span style="text-decoration: underline dotted currentColor; text-underline-offset: 4px;">Too few</span><span class="sr-only"> private ratings for an average at Guest rooms</span></button></td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">2</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">0</td>
+                <td style="padding: 12px 8px;"><span style="display: flex;"><span aria-hidden="true" style="width: 20px; height: 20px; border-radius: 50%; background: #dcdee2; color: #101115; font-size: 10px; line-height: 20px; font-weight: 500; text-align: center;">EP</span><span class="sr-only">Elena Petrova</span></span></td>
+                <td style="padding: 0 8px; text-align: right;"><button type="button" class="rk-ghost" aria-label="Actions for Guest rooms" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; color: #5b5d63; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+              </tr>
+              <tr class="rk-row" style="height: 62px;">
+                <th scope="row" style="padding: 12px 12px 11px 16px; text-align: left; font-weight: 400;">
+                  <a href="ADM06-workspace-links.dc.html" class="rk-name" style="font-weight: 500; text-decoration: none;">Reception</a>
+                  <div style="margin-top: 2px; font-size: 12px; line-height: 16px; color: #5b5d63; white-space: nowrap;">Reception desk · QR and NFC · EN, <span lang="bg">БГ</span></div>
+                </th>
+                <td style="padding: 12px 12px 11px;">
+                  <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 20px; color: #101115;"><span aria-hidden="true" style="width: 7px; height: 7px; flex: none; border-radius: 50%; background: #101115;"></span>Live · v5</div>
+                  <button type="button" class="rk-detail" aria-haspopup="dialog" aria-expanded="false" style="margin: -2px 0 -4px; display: flex; align-items: center; gap: 4px; padding: 4px 0; border: 0; background: none; font-size: 12px; line-height: 16px; color: #5b5d63; white-space: nowrap; cursor: help;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg><span class="sr-only">Reception: </span><span style="text-decoration: underline dotted currentColor; text-underline-offset: 4px;">4 changes not live · 1 waits for you</span></button>
+                </td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">412</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">118</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;"><span style="display: inline-flex; align-items: center; gap: 4px;"><span style="font-weight: 500;">4.4</span><svg width="14" height="14" viewBox="0 0 24 24" fill="#da950b" stroke="#da950b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only">stars</span></span></td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">64</td>
+                <td style="padding: 12px; text-align: right; font-variant-numeric: tabular-nums;">9</td>
+                <td style="padding: 12px 8px;"><span style="display: flex;"><span aria-hidden="true" style="width: 20px; height: 20px; border-radius: 50%; background: #dcdee2; color: #101115; font-size: 10px; line-height: 20px; font-weight: 500; text-align: center;">GI</span><span aria-hidden="true" style="width: 20px; height: 20px; margin-left: -1px; border-radius: 50%; background: #dcdee2; box-shadow: 0 0 0 2px #feffff; color: #101115; font-size: 10px; line-height: 20px; font-weight: 500; text-align: center;">EP</span><span class="sr-only">Georgi Ivanov and Elena Petrova</span></span></td>
+                <td style="padding: 0 8px; text-align: right;"><button type="button" class="rk-ghost" aria-label="Actions for Reception" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; color: #5b5d63; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+              </tr>
+            </tbody>
+
+            <tfoot>
+              <tr style="height: 52px;">
+                <th scope="row" colspan="2" style="padding: 0 12px 0 16px; border-top: 1px solid #b5b7bd; text-align: left; font-weight: 500;">{{ f.totalLabel }}</th>
+                <td style="padding: 0 12px; border-top: 1px solid #b5b7bd; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums;">{{ f.tScans }}</td>
+                <td style="padding: 0 12px; border-top: 1px solid #b5b7bd; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums;">{{ f.tRatings }}</td>
+                <td style="padding: 0 12px; border-top: 1px solid #b5b7bd; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums;"><span style="display: inline-flex; align-items: center; gap: 4px;">{{ f.tAvg }}<svg width="14" height="14" viewBox="0 0 24 24" fill="#da950b" stroke="#da950b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only">stars</span></span></td>
+                <td style="padding: 0 12px; border-top: 1px solid #b5b7bd; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums;">{{ f.tGoogle }}</td>
+                <td style="padding: 0 12px; border-top: 1px solid #b5b7bd; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums;">{{ f.tNotes }}</td>
+                <td style="border-top: 1px solid #b5b7bd;"></td>
+                <td style="border-top: 1px solid #b5b7bd;"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <p style="margin: 12px 0 0; font-size: 14px; line-height: 20px; color: #5b5d63;">Last 90 days, Europe/Sofia time · An average needs 5 private ratings · Sorted by what needs attention, then name.</p>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1024}}'>
+class Component extends DCLogic {
+  setShow(key) {
+    var current = (this.state && this.state.show) || 'all';
+    this.setState({ show: current === key ? 'all' : key });
+  }
+  renderVals() {
+    var show = (this.state && this.state.show) || 'all';
+    var all = { tScans: '1,087', tRatings: '310', tAvg: '4.4', tGoogle: '159', tNotes: '24' };
+    var views = {
+      all: { label: 'All', count: '', total: 'All portals · 5', dining: '2 portals', hideDining: false, hidePool: false, hideUngrouped: false, t: all },
+      attention: { label: 'Needs attention', count: '1 of 5', total: 'Shown · 1 of 5 portals', dining: '2 portals', hideDining: true, hidePool: true, hideUngrouped: true, t: { tScans: '286', tRatings: '91', tAvg: '4.6', tGoogle: '52', tNotes: '4' } },
+      live: { label: 'Live', count: '4 of 5', total: 'Shown · 4 of 5 portals', dining: '1 of 2 portals', hideDining: false, hidePool: true, hideUngrouped: false, t: all },
+      changes: { label: 'Changes not live', count: '4 of 5', total: 'Shown · 4 of 5 portals', dining: '1 of 2 portals', hideDining: false, hidePool: true, hideUngrouped: false, t: all }
+    };
+    var v = views[show] || views.all;
+    var on = function (key) { return show === key ? 'is-on' : ''; };
+    var self = this;
+    return {
+      f: {
+        pAttn: show === 'attention',
+        pLive: show === 'live',
+        pChanges: show === 'changes',
+        upAttn: show !== 'attention',
+        upLive: show !== 'live',
+        upChanges: show !== 'changes',
+        onAttn: on('attention'),
+        onLive: on('live'),
+        onChanges: on('changes'),
+        isFiltered: show !== 'all',
+        showLabel: v.label,
+        countLabel: v.count,
+        totalLabel: v.total,
+        diningCount: v.dining,
+        hideDining: v.hideDining,
+        hidePool: v.hidePool,
+        hideUngrouped: v.hideUngrouped,
+        tScans: v.t.tScans,
+        tRatings: v.t.tRatings,
+        tAvg: v.t.tAvg,
+        tGoogle: v.t.tGoogle,
+        tNotes: v.t.tNotes
+      },
+      toggleAttn: function () { self.setShow('attention'); },
+      toggleLive: function () { self.setShow('live'); },
+      toggleChanges: function () { self.setShow('changes'); },
+      clearFilter: function () { self.setState({ show: 'all' }); }
+    };
+  }
+}
+</script>
+</body>
+</html>
