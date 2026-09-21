@@ -15,6 +15,7 @@ import {
 } from '#/shared/db/schema/review.schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type {
+  ReviewProviderHistoryCutoff,
   ReviewProviderPersistedObservation,
   ReviewProviderSnapshotFailureCode,
   ReviewProviderSnapshotRepository,
@@ -135,28 +136,91 @@ async function failLockedRun(
 }
 
 type StartOrResumeInput = Parameters<ReviewProviderSnapshotRepository['startOrResume']>[0]
+type HistoryCutoffScope = Parameters<
+  ReviewProviderSnapshotRepository['fixImportHistoryCutoff']
+>[0]
 
 /**
- * An import fixes its epoch's history cutoff at this transaction's instant:
- * the new run's own `started_at`, or the moment it joined an active run. The
- * first import wins; a later one, or a retry of the same one, keeps it. Called
- * after the run row is locked or inserted, so the Property foreign-key share
- * lock follows the run lock as in every other snapshot transaction.
+ * Fix an epoch's history cutoff at this transaction's instant. The first
+ * import wins; a later one, or a retry of the same one, keeps it.
+ */
+async function fixHistoryCutoff(
+  executor: Pick<Tx, 'insert'>,
+  scope: HistoryCutoffScope,
+): Promise<void> {
+  await executor
+    .insert(reviewProviderHistoryCutoffs)
+    .values({
+      organizationId: scope.organizationId,
+      propertyId: scope.propertyId,
+      sourceEpoch: scope.sourceEpoch,
+      cutoffAt: sql`transaction_timestamp()`,
+    })
+    .onConflictDoNothing()
+}
+
+/**
+ * An import its admission did not cover (one queued before admission fixed
+ * cutoffs) fixes the cutoff when its run starts, or at the moment it joins an
+ * active run. Called after the run row is locked or inserted, so the Property
+ * foreign-key share lock follows the run lock as in every other snapshot
+ * transaction; once admission has fixed the cutoff the insert is a no-op.
  */
 async function recordImportHistoryCutoff(
   tx: Tx,
   input: StartOrResumeInput,
 ): Promise<void> {
   if (input.observationOrigin !== 'historical_onboarding') return
-  await tx
-    .insert(reviewProviderHistoryCutoffs)
-    .values({
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      sourceEpoch: input.sourceEpoch,
-      cutoffAt: sql`transaction_timestamp()`,
-    })
-    .onConflictDoNothing()
+  await fixHistoryCutoff(tx, input)
+}
+
+const timestampFrom = (value: unknown): Date =>
+  value instanceof Date ? value : new Date(String(value))
+
+/**
+ * The epoch's cutoff, the Property's first import cutoff (the lowest epoch
+ * that has one), and whether a snapshot run of the epoch has completed a full
+ * listing since the cutoff: every completed run records its verified
+ * reputation fact in the transaction that completes it.
+ */
+async function readHistoryCutoffRow(
+  db: Database,
+  scope: HistoryCutoffScope,
+): Promise<ReviewProviderHistoryCutoff | null> {
+  const result = await db.execute(sql`
+    SELECT
+      epoch.cutoff_at,
+      (
+        SELECT first_import.cutoff_at
+        FROM review_provider_history_cutoffs first_import
+        WHERE first_import.organization_id = epoch.organization_id
+          AND first_import.property_id = epoch.property_id
+          AND first_import.source_epoch <= epoch.source_epoch
+        ORDER BY first_import.source_epoch
+        LIMIT 1
+      ) AS first_import_cutoff_at,
+      EXISTS (
+        SELECT 1
+        FROM review_google_reputation_snapshot_facts listing
+        WHERE listing.organization_id = epoch.organization_id
+          AND listing.property_id = epoch.property_id
+          AND listing.source_epoch = epoch.source_epoch
+          AND listing.evaluated_at >= epoch.cutoff_at
+      ) AS history_listed
+    FROM review_provider_history_cutoffs epoch
+    WHERE epoch.organization_id = ${scope.organizationId}
+      AND epoch.property_id = ${scope.propertyId}
+      AND epoch.source_epoch = ${scope.sourceEpoch}
+  `)
+  const row = result.rows[0] as
+    | { cutoff_at: unknown; first_import_cutoff_at: unknown; history_listed: unknown }
+    | undefined
+  if (row == null) return null
+  return {
+    cutoffAt: timestampFrom(row.cutoff_at),
+    firstImportCutoffAt: timestampFrom(row.first_import_cutoff_at),
+    historyListed: row.history_listed === true,
+  }
 }
 
 type PageCommitInput = Parameters<ReviewProviderSnapshotRepository['commitPage']>[0]
@@ -761,20 +825,9 @@ export const createReviewProviderSnapshotRepository = (
       return fromRunRow(rows[0])
     }),
 
-  readHistoryCutoff: async (input) => {
-    const rows = await db
-      .select({ cutoffAt: reviewProviderHistoryCutoffs.cutoffAt })
-      .from(reviewProviderHistoryCutoffs)
-      .where(
-        and(
-          eq(reviewProviderHistoryCutoffs.organizationId, input.organizationId),
-          eq(reviewProviderHistoryCutoffs.propertyId, input.propertyId),
-          eq(reviewProviderHistoryCutoffs.sourceEpoch, input.sourceEpoch),
-        ),
-      )
-      .limit(1)
-    return rows[0]?.cutoffAt ?? null
-  },
+  fixImportHistoryCutoff: (input) => fixHistoryCutoff(db, input),
+
+  readHistoryCutoff: (input) => readHistoryCutoffRow(db, input),
 
   readRun: async (input) => {
     const rows = await db

@@ -91,7 +91,16 @@ function makeDeps(
   const repository: ReviewProviderSnapshotRepository = {
     readExpiredActiveRun: vi.fn(async () => null),
     startOrResume: vi.fn(async () => currentRun),
-    readHistoryCutoff: vi.fn(async () => input.historyCutoff ?? null),
+    readHistoryCutoff: vi.fn(async () =>
+      input.historyCutoff == null
+        ? null
+        : {
+            cutoffAt: input.historyCutoff,
+            firstImportCutoffAt: input.historyCutoff,
+            historyListed: false,
+          },
+    ),
+    fixImportHistoryCutoff: vi.fn(async () => undefined),
     readRun: vi.fn(async () => currentRun),
     commitPage: vi.fn(async ({ nextCursorRef }) => ({
       status: 'committed' as const,

@@ -72,6 +72,7 @@ const PRESENCE_PROBE_TABLES = Object.freeze([
   'reviews',
   'replies',
   'review_provider_snapshot_runs',
+  'review_provider_history_cutoffs',
   'review_ai_analysis_heads',
   'review_google_reputation_snapshot_facts',
 ] as const)
@@ -356,6 +357,12 @@ async function purge(
     tx,
     sql`DELETE FROM review_provider_snapshot_runs WHERE organization_id = ${organizationId}`,
   )
+  // Review's own per-epoch import cutoffs. The Property purge must never be
+  // what removes them through its cascade.
+  const historyCutoffs = await countAffected(
+    tx,
+    sql`DELETE FROM review_provider_history_cutoffs WHERE organization_id = ${organizationId}`,
+  )
 
   // Manager-authored Reply text and the actor identifiers around it. The row
   // survives only because an immutable authorization references it.
@@ -446,6 +453,7 @@ async function purge(
     { step: 'reputation_snapshot_facts_deleted', rows: reputationFacts },
     { step: 'provider_subjects_deleted', rows: providerSubjects },
     { step: 'provider_snapshot_runs_deleted', rows: snapshotRuns },
+    { step: 'history_cutoffs_deleted', rows: historyCutoffs },
     { step: 'replies_scrubbed', rows: scrubbedReplies },
     { step: 'material_revisions_scrubbed', rows: scrubbedMaterialRevisions },
     { step: 'reviews_scrubbed', rows: scrubbedReviews },

@@ -50,6 +50,7 @@ import type { ReviewReplyObservationAuthority } from './application/ports/reply-
 import { createReviewSourceTransitionAuthority } from './infrastructure/source-transition-authority'
 import type { ReviewSourceTransitionAuthority } from './application/ports/source-transition-authority.port'
 import { createReviewProviderObservationWriter } from './application/use-cases/sync-reviews'
+import { admitReviewSync } from './application/use-cases/admit-review-sync'
 import { createAiReviewSource } from './application/ai-review-source'
 import type { AiReviewSourcePort } from './application/ports/ai-review-source.port'
 import { createAiSuggestedDraftStore } from './infrastructure/ai-suggested-draft-store'
@@ -610,7 +611,13 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       sourceTransitionAuthority,
       aiReviewSource,
       syncAdmission: Object.freeze({
-        addSyncJob: queue.addSyncJob,
+        // A Google import fixes its epoch's history cutoff before its sync is
+        // queued, and so before the import settles.
+        addSyncJob: admitReviewSync({
+          queue,
+          propertySourceEpoch: propertySourceEpochLookup,
+          historyCutoffs: snapshotRepository,
+        }),
         addTargetedFetchJob: targetedQueue.addTargetedFetchJob,
       }),
       reply: Object.freeze({

@@ -682,16 +682,112 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       await db.execute(sql`
         DELETE FROM review_provider_history_cutoffs WHERE property_id = ${PROPERTY_ID}
       `)
+      await db.execute(sql`
+        DELETE FROM review_google_reputation_snapshot_facts WHERE property_id = ${PROPERTY_ID}
+      `)
     }
+    const databaseNow = async () => {
+      const result = await db.execute(sql`SELECT clock_timestamp() AS now`)
+      return new Date(String(result.rows[0]?.now)).getTime()
+    }
+    const recordCutoff = (sourceEpoch: number, cutoffAt: Date) =>
+      db.execute(sql`
+        INSERT INTO review_provider_history_cutoffs
+          (organization_id, property_id, source_epoch, cutoff_at)
+        VALUES (${ORGANIZATION_ID}, ${PROPERTY_ID}, ${sourceEpoch}, ${cutoffAt})
+      `)
+    /** The verified fact a snapshot run of the epoch records when it completes. */
+    const recordCompletedListing = (sourceEpoch: number, evaluatedAt: Date) =>
+      db.execute(sql`
+        INSERT INTO review_google_reputation_snapshot_facts
+          (run_id, event_id, organization_id, property_id, source_epoch,
+           review_count, average_rating, evaluated_at)
+        VALUES (${crypto.randomUUID()}, ${crypto.randomUUID()}, ${ORGANIZATION_ID},
+          ${PROPERTY_ID}, ${sourceEpoch}, 1, 4, ${evaluatedAt})
+      `)
 
-    it('fixes the cutoff at the start of the first import run and keeps it', async () => {
+    it('fixes the cutoff when the import is admitted, before any run starts, and keeps it', async () => {
+      await resetScope()
+
+      const admissionRequestedAt = await databaseNow()
+      await repository.fixImportHistoryCutoff(scope)
+      const admissionReturnedAt = await databaseNow()
+      const admitted = await repository.readHistoryCutoff(scope)
+      expect(admitted?.cutoffAt.getTime()).toBeGreaterThanOrEqual(admissionRequestedAt)
+      expect(admitted?.cutoffAt.getTime()).toBeLessThanOrEqual(admissionReturnedAt)
+
+      // A retried admission, then the import's own run, keep the first cutoff.
+      await repository.fixImportHistoryCutoff(scope)
+      await repository.startOrResume({
+        ...scope,
+        observationOrigin: 'historical_onboarding',
+      })
+      await expect(repository.readHistoryCutoff(scope)).resolves.toEqual({
+        cutoffAt: admitted?.cutoffAt,
+        firstImportCutoffAt: admitted?.cutoffAt,
+        historyListed: false,
+      })
+      await resetScope()
+    })
+
+    it("reads a relinked epoch's cutoff with the Property's first import cutoff", async () => {
+      await resetScope()
+      const firstImport = new Date('2026-03-02T09:00:00.000Z')
+      const relink = new Date('2026-09-15T10:00:00.000Z')
+      await recordCutoff(0, firstImport)
+      await recordCutoff(2, relink)
+
+      await expect(
+        repository.readHistoryCutoff({ ...scope, sourceEpoch: 2 }),
+      ).resolves.toEqual({
+        cutoffAt: relink,
+        firstImportCutoffAt: firstImport,
+        historyListed: false,
+      })
+      await expect(repository.readHistoryCutoff(scope)).resolves.toEqual({
+        cutoffAt: firstImport,
+        firstImportCutoffAt: firstImport,
+        historyListed: false,
+      })
+      // The disconnected epoch in between never had an import.
+      await expect(
+        repository.readHistoryCutoff({ ...scope, sourceEpoch: 1 }),
+      ).resolves.toBeNull()
+      await resetScope()
+    })
+
+    it('reports the history listed once a run of the epoch completes after its cutoff', async () => {
+      await resetScope()
+      const cutoffAt = new Date('2026-09-15T10:00:00.000Z')
+      await recordCutoff(0, cutoffAt)
+      // A listing that completed before the import was admitted proves nothing
+      // about the history the import takes over; nor does another epoch's.
+      await recordCompletedListing(0, new Date('2026-09-15T09:59:59.000Z'))
+      await recordCompletedListing(1, new Date('2026-09-15T11:00:00.000Z'))
+      await expect(repository.readHistoryCutoff(scope)).resolves.toMatchObject({
+        historyListed: false,
+      })
+
+      await recordCompletedListing(0, new Date('2026-09-15T10:40:00.000Z'))
+
+      await expect(repository.readHistoryCutoff(scope)).resolves.toEqual({
+        cutoffAt,
+        firstImportCutoffAt: cutoffAt,
+        historyListed: true,
+      })
+      await resetScope()
+    })
+
+    it('fixes the cutoff at the start of an import run that no admission fixed, and keeps it', async () => {
       await resetScope()
 
       const first = await repository.startOrResume({
         ...scope,
         observationOrigin: 'historical_onboarding',
       })
-      await expect(repository.readHistoryCutoff(scope)).resolves.toEqual(first.startedAt)
+      await expect(repository.readHistoryCutoff(scope)).resolves.toMatchObject({
+        cutoffAt: first.startedAt,
+      })
 
       await repository.failRun({
         runId: first.id,
@@ -703,19 +799,17 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
         () => OTHER_RUN_ID,
       ).startOrResume({ ...scope, observationOrigin: 'historical_onboarding' })
       expect(later.id).toBe(OTHER_RUN_ID)
-      await expect(repository.readHistoryCutoff(scope)).resolves.toEqual(first.startedAt)
+      await expect(repository.readHistoryCutoff(scope)).resolves.toMatchObject({
+        cutoffAt: first.startedAt,
+      })
       await expect(
         repository.readHistoryCutoff({ ...scope, sourceEpoch: 1 }),
       ).resolves.toBeNull()
       await resetScope()
     })
 
-    it('fixes the cutoff when an import joins a run that is already active', async () => {
+    it('fixes the cutoff when an import no admission fixed joins a run that is already active', async () => {
       await resetScope()
-      const databaseNow = async () => {
-        const result = await db.execute(sql`SELECT clock_timestamp() AS now`)
-        return new Date(String(result.rows[0]?.now)).getTime()
-      }
 
       const discovery = await repository.startOrResume({
         ...scope,
@@ -738,7 +832,7 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       const joinReturnedAt = await databaseNow()
 
       expect(joined).toMatchObject({ id: discovery.id, observationOrigin: 'ongoing' })
-      const cutoff = (await repository.readHistoryCutoff(scope))?.getTime()
+      const cutoff = (await repository.readHistoryCutoff(scope))?.cutoffAt.getTime()
       expect(cutoff).toBeGreaterThanOrEqual(joinRequestedAt)
       expect(cutoff).toBeLessThanOrEqual(joinReturnedAt)
       await resetScope()

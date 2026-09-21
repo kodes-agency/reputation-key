@@ -8,8 +8,10 @@
 // original Google publication time and was overdue before it existed.
 //
 // The cutoff used to live only inside the import run. These tests drive the
-// real snapshot use case, snapshot repository and Review observation writer
-// with a fake Google listing and prove that the cutoff outlives the run.
+// real sync admission, snapshot use case, snapshot repository and Review
+// observation writer with a fake Google listing and prove that the cutoff is
+// fixed before any run can observe the epoch and outlives the import run, and
+// that only the history an import takes over is silent history.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { sql } from 'drizzle-orm'
@@ -19,6 +21,7 @@ import {
   organizationId,
   propertyId,
   reviewId,
+  type OrganizationId,
   type PropertyId,
 } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -32,7 +35,12 @@ import type {
   GoogleReviewPage,
 } from '../application/ports/google-review-api.port'
 import type { ReviewProviderObservationWriter } from '../application/ports/review-provider-snapshot.repository'
+import {
+  GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
+  type SyncPropertyReviewsJobData,
+} from '../application/ports/review-queue.port'
 import type { ReviewProviderSubjectKeyService } from '../application/provider-subject-keyring'
+import { admitReviewSync } from '../application/use-cases/admit-review-sync'
 import { createReviewProviderObservationWriter } from '../application/use-cases/sync-reviews'
 import {
   runReviewProviderSnapshot,
@@ -46,13 +54,17 @@ import { createReviewRepository } from './repositories/review.repository'
 const ORG = organizationId('review-history-cutoff-org')
 const CONNECTION = googleConnectionId('74000000-0000-4000-8000-00000000c001')
 const FAILED_IMPORT_PROPERTY = propertyId('74000000-0000-4000-8000-00000000a001')
+const ADMITTED_IMPORT_PROPERTY = propertyId('74000000-0000-4000-8000-00000000a002')
 const JOINED_IMPORT_PROPERTY = propertyId('74000000-0000-4000-8000-00000000b001')
 const COMPLETED_IMPORT_PROPERTY = propertyId('74000000-0000-4000-8000-00000000c002')
+const RELINKED_PROPERTY = propertyId('74000000-0000-4000-8000-00000000c003')
 const NEVER_IMPORTED_PROPERTY = propertyId('74000000-0000-4000-8000-00000000d001')
 const PROPERTIES = [
   FAILED_IMPORT_PROPERTY,
+  ADMITTED_IMPORT_PROPERTY,
   JOINED_IMPORT_PROPERTY,
   COMPLETED_IMPORT_PROPERTY,
+  RELINKED_PROPERTY,
   NEVER_IMPORTED_PROPERTY,
 ] as const
 const ACCOUNT = 'history-cutoff-account'
@@ -60,6 +72,7 @@ const TEST_KEY_VERSION = 'history-cutoff-test-v1'
 const TEST_KEY = new Uint8Array(32).fill(7)
 const MINUTE_MS = 60_000
 const HOUR_MS = 60 * MINUTE_MS
+const DAY_MS = 24 * HOUR_MS
 
 /** Google published these years before any import started. */
 const YEARS_AGO = new Date('2019-05-01T09:00:00.000Z')
@@ -136,10 +149,37 @@ const logger: LoggerPort = {
   child: () => logger,
 }
 
+/** The Property's own current source epoch, as the Property context reports it. */
+async function sourceEpochOf(property: PropertyId): Promise<number | null> {
+  const result = await db.execute(sql`
+    SELECT source_epoch FROM properties WHERE organization_id = ${ORG} AND id = ${property}
+  `)
+  const sourceEpoch = result.rows[0]?.source_epoch
+  return sourceEpoch == null ? null : Number(sourceEpoch)
+}
+
+const propertySourceEpoch = {
+  getSourceEpoch: async (_organization: OrganizationId, property: PropertyId) => {
+    const sourceEpoch = await sourceEpochOf(property)
+    return sourceEpoch == null ? null : { sourceEpoch }
+  },
+}
+
+let queuedSyncs: SyncPropertyReviewsJobData[] = []
+const admitSync = admitReviewSync({
+  queue: {
+    addSyncJob: async (data) => {
+      queuedSyncs.push(data)
+    },
+  },
+  propertySourceEpoch,
+  historyCutoffs: snapshotRepository,
+})
+
 const runSnapshot = runReviewProviderSnapshot({
   repository: snapshotRepository,
   googleReviewApi,
-  propertySourceEpoch: { getSourceEpoch: async () => ({ sourceEpoch: 0 }) },
+  propertySourceEpoch,
   observationWriter,
   subjectKeyService,
   syncActivity: {
@@ -191,16 +231,44 @@ function step(
   property: PropertyId,
   observationOrigin: 'ongoing' | 'historical_onboarding',
   runId?: string,
+  sourceEpoch = 0,
 ): Promise<RunReviewProviderSnapshotResult> {
   return runSnapshot({
     organizationId: ORG,
     propertyId: property,
     connectionId: CONNECTION,
-    sourceEpoch: 0,
+    sourceEpoch,
     observationOrigin,
     locationName: locationOf(property),
     ...(runId == null ? {} : { runId }),
   })
+}
+
+/**
+ * The Google import admits its Property's review sync, as the import processor
+ * does just before the import settles, and returns the cutoff it fixed.
+ */
+async function admitImport(property: PropertyId): Promise<Date> {
+  await admitSync({
+    organizationId: ORG,
+    propertyId: property,
+    connectionId: CONNECTION,
+    locationName: locationOf(property),
+    initiator: { kind: 'system', id: GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID },
+    correlationId: `google-import:${property}`,
+  })
+  expect(queuedSyncs.at(-1)).toMatchObject({ propertyId: property })
+  const sourceEpoch = await sourceEpochOf(property)
+  const cutoff =
+    sourceEpoch == null
+      ? null
+      : await snapshotRepository.readHistoryCutoff({
+          organizationId: ORG,
+          propertyId: property,
+          sourceEpoch,
+        })
+  if (cutoff == null) throw new Error('The import admission fixed no cutoff')
+  return cutoff.cutoffAt
 }
 
 type RevisionRow = Readonly<{
@@ -236,15 +304,6 @@ async function createdEventOrigin(review: GoogleReview): Promise<string | null> 
   `)
   const row = result.rows[0]
   return row?.origin == null ? null : String(row.origin)
-}
-
-async function runStartedAt(runId: string): Promise<Date> {
-  const result = await db.execute(sql`
-    SELECT started_at FROM review_provider_snapshot_runs WHERE id = ${runId}
-  `)
-  const startedAt = result.rows[0]?.started_at
-  if (startedAt == null) throw new Error('Snapshot run is missing')
-  return new Date(String(startedAt))
 }
 
 async function databaseNow(): Promise<Date> {
@@ -326,6 +385,7 @@ beforeEach(async () => {
   }
   snapshotRunIds = Array.from({ length: 4 }, () => crypto.randomUUID())
   listing = new Map()
+  queuedSyncs = []
   failObservationOf = null
   observedAt = await databaseNow()
 })
@@ -352,6 +412,7 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
       ['main:1', page([lostByImport], 2, null)],
     ])
 
+    const cutoff = await admitImport(property)
     const first = await step(property, 'historical_onboarding')
     expect(first).toMatchObject({ status: 'checkpointed', state: 'scanning' })
     failObservationOf = lostByImport.reviewName
@@ -363,7 +424,6 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
     })
 
     // The discovery sweep finishes the listing well after the import began.
-    const cutoff = await runStartedAt(first.runId)
     failObservationOf = null
     observedAt = new Date(cutoff.getTime() + HOUR_MS)
     const newAfterImport = providerReview(
@@ -392,7 +452,58 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
     ])
   })
 
-  it('takes the cutoff from the moment an import joins an ongoing run already under way', async () => {
+  it('fixes the cutoff when the import is admitted, so a run ahead of the import job sees history', async () => {
+    const property = ADMITTED_IMPORT_PROPERTY
+    const seenBeforeImportJob = providerReview(property, 'seen-before-job', YEARS_AGO)
+    const historyAfterJoin = providerReview(property, 'history-after-join', LAST_YEAR)
+    listing = new Map([['main:0', page([seenBeforeImportJob], 3, 'cursor-page-1')]])
+
+    // The import settles right after admitting its sync. Its job then waits,
+    // retries a failed first step or is lost, while the discovery sweep polls
+    // the now-settled Property and lists part of its history.
+    const cutoff = await admitImport(property)
+    const discovery = await step(property, 'ongoing')
+    expect(discovery).toMatchObject({ status: 'checkpointed', state: 'scanning' })
+
+    observedAt = new Date(cutoff.getTime() + HOUR_MS)
+    const newAfterAdmission = providerReview(
+      property,
+      'new-after-admission',
+      new Date(cutoff.getTime() + 10 * MINUTE_MS),
+    )
+    listing.set('main:1', page([historyAfterJoin, newAfterAdmission], 3, null))
+    // The import's first step finally runs and joins the active discovery run.
+    await expect(step(property, 'historical_onboarding')).resolves.toMatchObject({
+      status: 'checkpointed',
+      runId: discovery.runId,
+      state: 'confirming',
+    })
+
+    expect(await revisionsOf(seenBeforeImportJob)).toEqual([
+      { revision: 1, eligibility: 'historical_onboarding', startAt: null },
+    ])
+    expect(await createdEventOrigin(seenBeforeImportJob)).toBe('historical_onboarding')
+    expect(await revisionsOf(historyAfterJoin)).toEqual([
+      { revision: 1, eligibility: 'historical_onboarding', startAt: null },
+    ])
+    expect(await revisionsOf(newAfterAdmission)).toEqual([
+      {
+        revision: 1,
+        eligibility: 'measured',
+        startAt: newAfterAdmission.sourceCreatedAt,
+      },
+    ])
+    // Joining the run did not move the cutoff the admission fixed.
+    await expect(
+      snapshotRepository.readHistoryCutoff({
+        organizationId: ORG,
+        propertyId: property,
+        sourceEpoch: 0,
+      }),
+    ).resolves.toMatchObject({ cutoffAt: cutoff })
+  })
+
+  it('falls back to the join instant for an import queued before its admission fixed a cutoff', async () => {
     const property = JOINED_IMPORT_PROPERTY
     const seenBeforeImport = providerReview(property, 'seen-before-import', YEARS_AGO)
     const historyAfterJoin = providerReview(property, 'history-after-join', YEARS_AGO, {
@@ -424,20 +535,21 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
     expect(await revisionsOf(newAfterJoin)).toEqual([
       { revision: 1, eligibility: 'measured', startAt: newAfterJoin.sourceCreatedAt },
     ])
-    // Eligibility is immutable: a revision measured before the import joined
-    // stays measured.
+    // Nothing fixed a cutoff before the import joined, and eligibility is
+    // immutable: a revision measured before the join stays measured.
     expect(await revisionsOf(seenBeforeImport)).toEqual([
       { revision: 1, eligibility: 'measured', startAt: YEARS_AGO },
     ])
   })
 
-  it('classifies an old review first listed after the import completed as history', async () => {
+  it('announces, without measuring, an old review Google first lists after the import completed', async () => {
     const property = COMPLETED_IMPORT_PROPERTY
     const imported = providerReview(property, 'imported', LAST_YEAR)
     listing = new Map([
       ['main:0', page([imported], 1, null)],
       ['confirmation:0', page([imported], 1, null)],
     ])
+    const cutoff = await admitImport(property)
     const first = await step(property, 'historical_onboarding')
     expect(first).toMatchObject({ status: 'checkpointed', state: 'confirming' })
     await expect(step(property, 'historical_onboarding', first.runId)).resolves.toEqual({
@@ -450,8 +562,9 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
       runId: first.runId,
     })
 
-    const cutoff = await runStartedAt(first.runId)
     observedAt = new Date(cutoff.getTime() + 2 * HOUR_MS)
+    // Google held this review back (moderation, a successful appeal) while the
+    // import listed and confirmed the whole history.
     const listedLate = providerReview(property, 'listed-late', YEARS_AGO)
     const editedAfterImport = {
       ...imported,
@@ -464,9 +577,12 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
       state: 'confirming',
     })
 
+    // New to the listing, so announced; RepKey saw none of its timing, so it is
+    // never measured and never reminds anyone.
     expect(await revisionsOf(listedLate)).toEqual([
-      { revision: 1, eligibility: 'historical_onboarding', startAt: null },
+      { revision: 1, eligibility: 'legacy_unknown', startAt: null },
     ])
+    expect(await createdEventOrigin(listedLate)).toBe('legacy_unknown')
     // Only a Review's first revision is history. A guest's later edit is new
     // work and is measured from Google's update time.
     expect(await revisionsOf(imported)).toEqual([
@@ -476,6 +592,73 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
         eligibility: 'measured',
         startAt: editedAfterImport.sourceUpdatedAt,
       },
+    ])
+  })
+
+  it('announces, without measuring, what a relink finds from while the Property was disconnected', async () => {
+    const property = RELINKED_PROPERTY
+    // Imported half a year ago, then removed from the workspace and relinked.
+    const firstImport = new Date(observedAt.getTime() - 180 * DAY_MS)
+    await db.execute(sql`
+      INSERT INTO review_provider_history_cutoffs
+        (organization_id, property_id, source_epoch, cutoff_at)
+      VALUES (${ORG}, ${property}, 0, ${firstImport})
+    `)
+    const known = providerReview(property, 'known', LAST_YEAR)
+    listing = new Map([['main:0', page([known], 1, null)]])
+    await expect(step(property, 'ongoing')).resolves.toMatchObject({
+      status: 'checkpointed',
+    })
+    await db.execute(sql`
+      UPDATE properties SET source_epoch = 2 WHERE organization_id = ${ORG} AND id = ${property}
+    `)
+
+    const relinkCutoff = await admitImport(property)
+    observedAt = new Date(relinkCutoff.getTime() + HOUR_MS)
+    const postedWhileDisconnected = providerReview(
+      property,
+      'posted-while-disconnected',
+      new Date(relinkCutoff.getTime() - 7 * DAY_MS),
+      { rating: 1 },
+    )
+    const olderThanFirstImport = providerReview(property, 'older-than-import', YEARS_AGO)
+    const newAfterRelink = providerReview(
+      property,
+      'new-after-relink',
+      new Date(relinkCutoff.getTime() + 10 * MINUTE_MS),
+    )
+    listing = new Map([
+      [
+        'main:0',
+        page(
+          [known, postedWhileDisconnected, olderThanFirstImport, newAfterRelink],
+          4,
+          null,
+        ),
+      ],
+    ])
+    await expect(
+      step(property, 'historical_onboarding', undefined, 2),
+    ).resolves.toMatchObject({ status: 'checkpointed', state: 'confirming' })
+
+    // RepKey would have announced it had the Property stayed connected, but
+    // cannot vouch for its timing: a reply Google shows now may be days old.
+    expect(await revisionsOf(postedWhileDisconnected)).toEqual([
+      { revision: 1, eligibility: 'legacy_unknown', startAt: null },
+    ])
+    expect(await createdEventOrigin(postedWhileDisconnected)).toBe('legacy_unknown')
+    // Google history from before RepKey ever imported the Property stays silent.
+    expect(await revisionsOf(olderThanFirstImport)).toEqual([
+      { revision: 1, eligibility: 'historical_onboarding', startAt: null },
+    ])
+    expect(await createdEventOrigin(olderThanFirstImport)).toBe('historical_onboarding')
+    // A Review RepKey already knew is carried in as history, not as news.
+    expect(await revisionsOf(known)).toEqual([
+      { revision: 1, eligibility: 'historical_onboarding', startAt: null },
+      { revision: 2, eligibility: 'historical_onboarding', startAt: null },
+    ])
+    expect(await revisionsOf(newAfterRelink)).toEqual([
+      { revision: 1, eligibility: 'measured', startAt: newAfterRelink.sourceCreatedAt },
     ])
   })
 

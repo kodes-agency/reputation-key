@@ -30,11 +30,15 @@ material changes and source-epoch carries create exact immutable bindings.
 
 Each revision's Response Target eligibility is fixed when it is created. The
 first Google import of a Property source epoch fixes that epoch's history cutoff
-(`review_provider_history_cutoffs`) when its snapshot run starts or joins an
-active one, and the cutoff outlives the run. Whichever run first observes a
-Review in the epoch, that first revision is `historical_onboarding` when Google
-published the Review at or before the cutoff; later revisions, and Reviews
-published after it, are measured
+(`review_provider_history_cutoffs`) when Review admits the import's sync, before
+any run can observe the epoch, and the cutoff outlives the run. Whichever run
+first observes a Review in the epoch, a first revision dated at or before the
+cutoff is silent, unmeasured `historical_onboarding` only while the import is
+still listing that history and only when Google published it before the
+Property's first import. One a relink finds from while the Property was
+disconnected, or one Google lists after that history was listed in full, is
+`legacy_unknown`: unmeasured, but announced. Later revisions, and Reviews
+published after the cutoff, are measured
 (`docs/operations/inbox-response-targets.md`).
 
 An internal Reply moves from draft through approval and a numbered publication

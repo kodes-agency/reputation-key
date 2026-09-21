@@ -294,10 +294,11 @@ const persistPageObservations = async (
 
 /**
  * The cutoff an import run classifies against: its source epoch's durable
- * history cutoff, fixed when the epoch's first import run started. A retried
+ * history cutoff, fixed when the epoch's first import was admitted. A retried
  * import that starts a later run must not move it. A run that predates the
  * durable record falls back to its own start. Other runs have none here; the
- * observation writer applies the epoch's cutoff to their first sightings.
+ * observation writer applies the epoch's cutoff to their first sightings, and
+ * tells onboarding history from what a relink or a late listing brings in.
  */
 const importHistoryCutoff = async (
   deps: RunReviewProviderSnapshotDeps,
@@ -310,7 +311,7 @@ const importHistoryCutoff = async (
     propertyId: input.propertyId,
     sourceEpoch: input.sourceEpoch,
   })
-  return recorded ?? run.startedAt
+  return recorded?.cutoffAt ?? run.startedAt
 }
 
 /**

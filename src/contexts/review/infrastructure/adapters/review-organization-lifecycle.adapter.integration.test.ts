@@ -58,6 +58,7 @@ const REVIEW_ORG_TABLES = Object.freeze([
   'review_google_reputation_snapshot_facts',
   'review_provider_subjects',
   'review_provider_snapshot_runs',
+  'review_provider_history_cutoffs',
   'material_review_revisions',
   'reviews',
 ] as const)
@@ -247,6 +248,16 @@ async function insertReview(
   )
 }
 
+/** The history cutoff a Google import fixed for the Property's first epoch. */
+async function insertHistoryCutoff(org: string, propertyId: string): Promise<void> {
+  await pool.query(
+    `INSERT INTO review_provider_history_cutoffs
+       (organization_id, property_id, source_epoch, cutoff_at, created_at)
+     VALUES ($1, $2, 0, $3, $3)`,
+    [org, propertyId, AT],
+  )
+}
+
 /**
  * A fully worked Review tenant: provider content, a published Reply with its
  * immutable authorization/attempt/observation chain, a Reply still waiting to
@@ -418,6 +429,8 @@ async function seedReviewWork(): Promise<void> {
                $4::timestamptz, $4::timestamptz)`,
     [SNAPSHOT_RUN_ID, ORG_ID, PROPERTY_ID, AT, EXPIRES_AT],
   )
+  await insertHistoryCutoff(ORG_ID, PROPERTY_ID)
+  await insertHistoryCutoff(OTHER_ORG_ID, OTHER_PROPERTY_ID)
 
   // Provider scheduling and provider notification identifiers.
   for (const [propertyId, nextAt] of [
@@ -668,6 +681,7 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
       'reply_publication_attempts',
       'review_ai_analysis_heads',
       'review_provider_snapshot_runs',
+      'review_provider_history_cutoffs',
     ]) {
       expect({ table, rows: after[table] }).toEqual({ table, rows: 0 })
     }
@@ -765,5 +779,16 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
     )
     // Affirmative absence, never an omitted contributor.
     expect(receipts.rows).toEqual([{ outcome: 'no_data' }])
+  })
+
+  it('counts a history cutoff as Review data, even when it is all Review holds', async () => {
+    // An import of a Property with no reviews, whose snapshot runs were swept.
+    await insertHistoryCutoff(ORG_ID, PROPERTY_ID)
+    const request = await advanceAuthorityTo('closure_requested')
+
+    const result =
+      await createReviewOrganizationLifecycleContributor(db).prepareClosing(request)
+
+    expect(result.outcome).toBe('complete')
   })
 })

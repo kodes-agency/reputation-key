@@ -209,6 +209,7 @@ describe('Review Organization lifecycle contributor', () => {
       'google_reply_observations',
       'reply_publication_attempts',
       'review_provider_subjects',
+      'review_provider_history_cutoffs',
       'idempotency_receipts',
       'review_sync_state',
     ]) {

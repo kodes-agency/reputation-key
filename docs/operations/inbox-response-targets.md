@@ -52,12 +52,15 @@ the Review source fence remains held.
 - A later material revision starts at Google's source-updated time, falling back to
   the accepting observation time. Metadata-only observations do not create a new
   Material Review Revision or target.
-- The durable start of the initial import is its history cutoff, one per Property
-  source epoch. The epoch's first import fixes it when its snapshot run starts (the
-  run's own start), or at the instant the import joins a snapshot run that was
-  already active. It is kept in `review_provider_history_cutoffs`, outlives the
-  import run (runs are swept 30 days after they end) and never moves; a later
-  import in the same epoch keeps the first cutoff.
+- The initial import's history cutoff is fixed once per Property source epoch,
+  when Review admits the sync of the epoch's first import. That is before the sync
+  job is queued, so before the import settles and the discovery sweep may poll the
+  Property, however long the job then waits, retries or is lost. An import queued
+  before admission fixed cutoffs fixes it when its snapshot run starts, or at the
+  instant it joins a snapshot run that was already active. The cutoff is kept in
+  `review_provider_history_cutoffs`, outlives the import run (runs are swept 30
+  days after they end) and never moves; a later import in the same epoch keeps the
+  first cutoff.
 - A Review's first Material Review Revision in an epoch — a first sighting, or a
   Review carried in from an older epoch — whose provider publication time
   (Google's source-created time, falling back to the public reviewed time) is at or
@@ -67,6 +70,16 @@ the Review source fence remains held.
   sync or a targeted fetch. Its `review.created`/`review.updated` fact carries the
   same origin. An import run classifies every review it observes against the same
   cutoff, so a retried import that starts a later run does not move it.
+- Only the Google history an import takes over is onboarding history. A first
+  sighting dated at or before the cutoff is `legacy_unknown` instead, also with no
+  inferred deadline but announced as a new review (ADR 0046), when Google published
+  it after the Property's first import, or when Google lists it only after a
+  snapshot run of the epoch has completed a full listing since the cutoff. The
+  first is what a relink finds from while the Property was disconnected: a reply
+  Google shows then may be days old, so a completion observed at the relink would
+  invent lateness. The second is a review released from moderation or restored
+  after the import listed the history. A Review carried in from an older epoch was
+  already known and stays `historical_onboarding`.
 - A review published after the cutoff remains `measured` even when it arrives on a
   later onboarding page; local page arrival order is never used as the
   classification authority. A later material revision of a Review already known in
@@ -176,10 +189,12 @@ captures those facts for the deployed artifact and environment.
    target due sends only target passed.
 5. Exercise ongoing initial, onboarding-history, material-update, manual-reopen,
    external-current-live completion, RepKey-confirmed completion, and current reply-
-   deletion reopen paths, and an import that fails part-way and is finished by the
-   discovery sweep. Verify saved start/due/completion evidence and separate
+   deletion reopen paths, an import that fails part-way and is finished by the
+   discovery sweep, a relink after a disconnection, and a review Google lists after
+   the import completed. Verify saved start/due/completion evidence and separate
    analytics totals, and that onboarding history produces no `review.created`
-   notification while an ongoing initial review does (ADR 0046).
+   notification while an ongoing initial review, a relink's catch-up and a late
+   listing do (ADR 0046).
 6. Capture a hosted manager-browser check for Organization settings, Property
    private-feedback override, Inbox target state at the due boundary, and a delivered
    reminder. Link that evidence from the release record; do not replace it with a

@@ -5,6 +5,7 @@ import { reviewCreated, reviewUpdated } from '../../domain/events'
 import { calculateExpiresAt, computeReviewContentHash } from '../../domain/rules'
 import type { ReviewCommandStore } from '../ports/review-command-store.port'
 import type {
+  ReviewProviderHistoryCutoff,
   ReviewProviderHistoryCutoffReader,
   ReviewProviderObservationWriter,
 } from '../ports/review-provider-snapshot.repository'
@@ -21,7 +22,7 @@ export type ReviewProviderObservationWriterDeps = Readonly<{
   idGen: () => ReviewId
   commandStore: ReviewCommandStore
   googleReplyObservationStore: GoogleReplyObservationStore
-  /** The initial import's history cutoff, which outlives the import run. */
+  /** The import's history cutoff for each epoch, which outlives the import run. */
   historyCutoffs: ReviewProviderHistoryCutoffReader
 }>
 
@@ -166,14 +167,17 @@ function assertObservationScope(
 }
 
 /**
- * The initial import's history cutoff outlives the import run. A Review's
- * first material revision in this source epoch — a first sighting, or a Review
- * carried in from an older epoch — whose Google publication time is at or
- * before the cutoff is onboarding history, whichever run observes it first: a
- * discovery sweep finishing a failed import, a run the import joined, a push
- * or a manual sync. A later revision of a Review already known in this epoch
- * is new work and keeps the run's origin, as does an origin the run has
- * already decided. An epoch without an import has no cutoff.
+ * The import's history cutoff outlives the import run. Only a Review's first
+ * material revision in this source epoch — a first sighting, or a Review
+ * carried in from an older epoch — can fall at or before it, whichever run
+ * observes it first: the import, a discovery sweep finishing a failed import,
+ * a run the import joined, a push or a manual sync. A later revision of a
+ * Review already known in this epoch is new work and keeps the run's origin,
+ * as does a provider clock the run could not use. An epoch without an import
+ * has no cutoff. A Google publication time after the cutoff is live work (an
+ * import run's own history decision was made against the same cutoff), and a
+ * Review carried in from an older epoch was already known, so it stays
+ * history rather than turning into news.
  */
 async function resolveObservationOrigin(
   deps: ReviewProviderObservationWriterDeps,
@@ -184,18 +188,42 @@ async function resolveObservationOrigin(
   const firstRevisionInEpoch =
     stableIdentity == null &&
     (existing == null || existing.sourceEpoch < input.sourceEpoch)
-  if (input.observationOrigin !== 'ongoing' || !firstRevisionInEpoch) {
+  if (input.observationOrigin === 'legacy_unknown' || !firstRevisionInEpoch) {
     return input.observationOrigin
   }
-  const cutoff = await deps.historyCutoffs.readHistoryCutoff({
+  const history = await deps.historyCutoffs.readHistoryCutoff({
     organizationId: input.organizationId,
     propertyId: input.propertyId,
     sourceEpoch: input.sourceEpoch,
   })
-  const publishedAt = input.review.sourceCreatedAt ?? input.review.reviewedAt
-  return cutoff != null && publishedAt.getTime() <= cutoff.getTime()
-    ? 'historical_onboarding'
-    : 'ongoing'
+  if (history == null) return input.observationOrigin
+  const publishedAt = (input.review.sourceCreatedAt ?? input.review.reviewedAt).getTime()
+  const beforeCutoff =
+    input.observationOrigin === 'historical_onboarding' ||
+    publishedAt <= history.cutoffAt.getTime()
+  if (!beforeCutoff) return 'ongoing'
+  return existing == null
+    ? firstSightingBeforeCutoff(history, publishedAt)
+    : 'historical_onboarding'
+}
+
+/**
+ * A Review first seen at or before the cutoff is onboarding history only
+ * while the import is still listing the Google history it takes over, and
+ * only when Google published it before RepKey's first import of the Property.
+ * One a relink finds from after that first import (published while the
+ * Property was disconnected), or one Google lists only after the epoch's
+ * history was listed in full (released from moderation, say), is new to
+ * RepKey but carries no timing RepKey observed: `legacy_unknown`, never
+ * measured and announced like any other Review.
+ */
+function firstSightingBeforeCutoff(
+  history: ReviewProviderHistoryCutoff,
+  publishedAt: number,
+): ReviewProviderObservationOrigin {
+  const onboardingHistory =
+    !history.historyListed && publishedAt <= history.firstImportCutoffAt.getTime()
+  return onboardingHistory ? 'historical_onboarding' : 'legacy_unknown'
 }
 
 /** Source lifecycle for the observed Review. A known row keeps its own
