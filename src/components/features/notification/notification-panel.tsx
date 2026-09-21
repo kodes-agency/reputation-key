@@ -73,6 +73,8 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
         // to evict settings caches, while refetching the old infinite query
         // replayed every history page already loaded.
         if (next) list.refetch()
+        // The bell is a quick view: it opens on All, not on the tab it closed on.
+        else setFilter('all')
       }}
     >
       <PopoverTrigger asChild>

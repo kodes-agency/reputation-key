@@ -85,7 +85,8 @@ export function useNotifications(
     notifications: mergeNotificationHeadWithHistory(head.data?.page, historyPages),
     unreadCount: head.data?.unreadCount ?? 0,
     watermark: head.data?.watermark ?? null,
-    isLoading: head.isPending,
+    // Placeholder data carries only the count; the rows are still loading.
+    isLoading: head.isPending || head.isPlaceholderData,
     isLoadingMore: history.isFetchingNextPage,
     error: head.error ?? history.error,
     hasMore,

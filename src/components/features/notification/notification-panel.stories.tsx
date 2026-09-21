@@ -163,6 +163,51 @@ export const MarkAllReadIsOptimistic: Story = {
   },
 }
 
+/**
+ * The unread count is the Organization's, whatever the filter, so choosing a
+ * tab must not blank the badge or tell a screen reader there is nothing
+ * unread while that tab's first read is in flight. Tabs activate on Enter, not
+ * on arrowing past them, and the popover opens on All again.
+ */
+export const FilterSwitchKeepsTheCount: Story = {
+  args: {
+    notificationFns: makeNotificationFns({
+      getFeedHead: ((input: Readonly<{ data: Readonly<{ filter: string }> }>) =>
+        input.data.filter === 'all'
+          ? Promise.resolve(
+              notificationFeedHeadFixture(notificationFixtures, unreadCount),
+            )
+          : Promise.withResolvers<never>()
+              .promise) as unknown as NotificationServerFns['getFeedHead'],
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const counted = `Notifications, ${unreadCount} unread`
+    await userEvent.click(await canvas.findByRole('button', { name: counted }))
+    const popover = within(await within(document.body).findByRole('dialog'))
+    const all = await popover.findByRole('tab', { name: 'All' })
+    all.focus()
+    await userEvent.keyboard('{ArrowRight}')
+    expect(popover.getByRole('tab', { name: 'Unread' })).toHaveFocus()
+    expect(all).toHaveAttribute('aria-selected', 'true')
+
+    await userEvent.keyboard('{Enter}')
+    await popover.findByText('Loading notifications…')
+    expect(canvas.getByRole('button', { name: counted })).toBeInTheDocument()
+    expect(canvas.getByText(`${unreadCount} unread notifications`)).toBeInTheDocument()
+    expect(canvas.queryByText('No unread notifications')).toBeNull()
+
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(canvas.getByRole('button', { name: counted }))
+    const reopened = within(await within(document.body).findByRole('dialog'))
+    expect(await reopened.findByRole('tab', { name: 'All' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+  },
+}
+
 /** Reads that never settle → the list holds its skeleton, the badge stays absent. */
 export const Loading: Story = {
   args: {

@@ -28,6 +28,25 @@ export type NotificationHistoryPages = Readonly<{
   pageParams: ReadonlyArray<NotificationFeedCursor | null>
 }>
 
+const NO_ROWS_YET: NotificationPage = {
+  notifications: [],
+  hasMore: false,
+  nextCursor: null,
+}
+
+/**
+ * While another filter's head is read for the first time, carry the previous
+ * head's unread count, but none of its rows. The count is the Organization's
+ * whatever the filter, so a new query key must not blank the badge or make
+ * the live region say there is nothing unread; the rows belong to the old
+ * filter and would be listed under the wrong tab.
+ */
+function carryUnreadCount(
+  previous: NotificationFeedHead | undefined,
+): NotificationFeedHead | undefined {
+  return previous && { ...previous, page: NO_ROWS_YET }
+}
+
 /** Query options for the only notification page allowed to refresh on a timer. */
 export function notificationHeadQueryOptions(
   queryKey: QueryKey,
@@ -39,6 +58,7 @@ export function notificationHeadQueryOptions(
     queryFn: fetchHead,
     ...NOTIFICATION_POLL_OPTIONS,
     refetchInterval: poll ? NOTIFICATION_POLL_INTERVAL : false,
+    placeholderData: carryUnreadCount,
   } as const
 }
 

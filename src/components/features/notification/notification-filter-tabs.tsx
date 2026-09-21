@@ -3,6 +3,10 @@
 // One `TabsContent` per option (the repo's Tabs precedent) so every trigger's
 // `aria-controls` resolves; Radix mounts only the active panel, so `children`
 // renders exactly once.
+//
+// Activation is manual: arrows move focus, Enter or Space chooses. Each tab
+// starts a server read, so automatic activation fired a request (and a
+// loading flash) for every tab a keyboard user merely passed.
 
 import type { ReactNode } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
@@ -31,6 +35,7 @@ export function NotificationFilterTabs({
   return (
     <Tabs
       value={value}
+      activationMode="manual"
       onValueChange={(next) => onChange(parseNotificationFilter(next))}
       className={cn('gap-0', className)}
     >
