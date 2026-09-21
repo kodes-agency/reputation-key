@@ -69,7 +69,7 @@ without resending the token.
 11. Coordination ambiguity denies the refresh before credential decryption or database mutation.
 12. Lifecycle `prepareClosing` stops provider effects and deletes nothing. `verifyPurgeReadiness` is read-only and fails closed while credential, work, attempt, operation, or discovery evidence remains live.
 13. An Organization that never connected Google answers `no_data` — affirmative evidence, never an omitted contributor.
-14. A `reauth_required` connection is never refreshed, and no sync, reply, import or Performance authorization admits it; only a fresh consent (reconnect) returns it to `active`. Its refusals say `reauthorization_required`, not `connection_disconnected`.
+14. A `reauth_required` connection is never refreshed, and no sync, reply, import or Performance authorization admits it; only a fresh consent (reconnect) returns it to `active`. Credential refusals (the active-connection token provider and the refresh) say `reauthorization_required`, not `connection_disconnected`, and the review API adapter reports a reply refused for it the same way. The sync, import and Performance authorizers keep their own refusal codes (`authorization_denied`, `connection_unavailable`, `reauthentication_required`).
 
 ## Verification
 
