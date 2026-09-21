@@ -174,3 +174,154 @@ describe('notification email delivery aggregate (real reads)', () => {
     expect(after.oldestPendingOverdueAgeMs!).toBeGreaterThanOrEqual(239 * MINUTE_MS)
   })
 })
+
+type OutcomeSeed = Readonly<{
+  key: string
+  status: string
+  providerState?: string
+  lastErrorClass?: string
+  retryCount?: number
+  providerMessageId?: string
+  /** SQL fragments for the outcome clocks (NULL columns when omitted). */
+  acceptedAt?: SQL
+  failedAt?: SQL
+  deliveredAt?: SQL
+  bouncedAt?: SQL
+}>
+
+async function seedOutcome(seed: OutcomeSeed) {
+  await db.execute(sql`
+    INSERT INTO notification_email_queue (
+      notification_id, user_id, organization_id, property_id,
+      category, cadence, status, priority, idempotency_key,
+      provider_message_id, provider_state, last_error_class, retry_count,
+      accepted_at, failed_at, delivered_at, bounced_at, created_at, updated_at
+    ) VALUES (
+      gen_random_uuid(), 'user-obs-freshness', ${MARKER_ORG}, ${MARKER_PROP_UUID},
+      'urgent_operational', 'immediate', ${seed.status}, 'urgent', ${seed.key},
+      ${seed.providerMessageId ?? null}, ${seed.providerState ?? null},
+      ${seed.lastErrorClass ?? null}, ${seed.retryCount ?? 0},
+      ${seed.acceptedAt ?? sql`NULL`}, ${seed.failedAt ?? sql`NULL`},
+      ${seed.deliveredAt ?? sql`NULL`}, ${seed.bouncedAt ?? sql`NULL`},
+      NOW() - INTERVAL '2 days', NOW()
+    )
+  `)
+}
+
+const hoursAgo = (hours: number) => sql`NOW() - (${hours} * INTERVAL '1 hour')`
+
+describe('notification email outcome aggregate (real reads)', () => {
+  it('counts refusals, give-ups, bounces, complaints and never-resolved mail in their windows', async () => {
+    const baseline = (await checker.check()).notifications.emailOutcomes
+    await seedProperty()
+
+    // Accepted inside 24h, still within the 6h feedback grace.
+    await seedOutcome({
+      key: 'obs-outcome-accepted',
+      status: 'accepted',
+      providerState: 'accepted',
+      providerMessageId: 'provider-accepted',
+      acceptedAt: hoursAgo(1),
+    })
+    // Refused permanently inside the window; an older refusal is outside it.
+    await seedOutcome({
+      key: 'obs-outcome-permanent',
+      status: 'failed',
+      lastErrorClass: 'permanent',
+      retryCount: 1,
+      failedAt: hoursAgo(2),
+    })
+    await seedOutcome({
+      key: 'obs-outcome-permanent-old',
+      status: 'failed',
+      lastErrorClass: 'permanent',
+      retryCount: 1,
+      failedAt: hoursAgo(30),
+    })
+    // Transient failures: two spent the budget (an urgent row left failed, a
+    // digest row suppressed after it); one is still under the budget.
+    await seedOutcome({
+      key: 'obs-outcome-exhausted-failed',
+      status: 'failed',
+      lastErrorClass: 'transient',
+      retryCount: 5,
+      failedAt: hoursAgo(3),
+    })
+    await seedOutcome({
+      key: 'obs-outcome-exhausted-suppressed',
+      status: 'suppressed',
+      lastErrorClass: 'transient',
+      retryCount: 5,
+      failedAt: hoursAgo(4),
+    })
+    await seedOutcome({
+      key: 'obs-outcome-retrying',
+      status: 'failed',
+      lastErrorClass: 'transient',
+      retryCount: 2,
+      failedAt: hoursAgo(1),
+    })
+    // Provider outcomes the webhook recorded.
+    await seedOutcome({
+      key: 'obs-outcome-bounced',
+      status: 'bounced',
+      providerState: 'bounced',
+      providerMessageId: 'provider-bounced',
+      acceptedAt: hoursAgo(10),
+      bouncedAt: hoursAgo(9),
+    })
+    await seedOutcome({
+      key: 'obs-outcome-complained',
+      status: 'complained',
+      providerState: 'complained',
+      providerMessageId: 'provider-complained',
+      acceptedAt: hoursAgo(12),
+      bouncedAt: hoursAgo(11),
+    })
+    await seedOutcome({
+      key: 'obs-outcome-delivered',
+      status: 'delivered',
+      providerState: 'delivered',
+      providerMessageId: 'provider-delivered',
+      acceptedAt: hoursAgo(2),
+      deliveredAt: hoursAgo(2),
+    })
+    // Accepted and never resolved past the grace: one sent, one captured by
+    // the non-sending transport; one older than the lookback is ignored.
+    await seedOutcome({
+      key: 'obs-outcome-unresolved',
+      status: 'accepted',
+      providerState: 'accepted',
+      providerMessageId: 'provider-unresolved',
+      acceptedAt: hoursAgo(30),
+    })
+    await seedOutcome({
+      key: 'obs-outcome-unresolved-captured',
+      status: 'accepted',
+      providerState: 'accepted',
+      providerMessageId: 'captured-7',
+      acceptedAt: hoursAgo(8),
+    })
+    await seedOutcome({
+      key: 'obs-outcome-unresolved-stale',
+      status: 'accepted',
+      providerState: 'accepted',
+      providerMessageId: 'provider-stale',
+      acceptedAt: hoursAgo(8 * 24),
+    })
+
+    const after = (await checker.check()).notifications.emailOutcomes
+
+    expect(after.acceptedCount).toBe(baseline.acceptedCount + 5)
+    expect(after.permanentFailureCount).toBe(baseline.permanentFailureCount + 1)
+    expect(after.retryExhaustedCount).toBe(baseline.retryExhaustedCount + 2)
+    expect(after.bouncedCount).toBe(baseline.bouncedCount + 1)
+    expect(after.complainedCount).toBe(baseline.complainedCount + 1)
+    expect(after.providerOutcomeCount).toBe(baseline.providerOutcomeCount + 3)
+    expect(after.acceptedUnresolvedCount).toBe(baseline.acceptedUnresolvedCount + 2)
+    expect(after.capturedUnresolvedCount).toBe(baseline.capturedUnresolvedCount + 1)
+    expect(after.oldestAcceptedUnresolvedAgeMs!).toBeGreaterThanOrEqual(
+      30 * 60 * MINUTE_MS - MINUTE_MS,
+    )
+  })
+})

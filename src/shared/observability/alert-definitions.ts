@@ -166,6 +166,46 @@ export const SYNC_SWEEP_LAG_ALERT_MS = 4 * DISCOVERY_SWEEP_INTERVAL_MS
 export const NOTIFICATION_EMAIL_STALLED_ALERT_MS = 2 * 60 * 60 * 1000
 
 /**
+ * The trailing window the email-outcome gauges count over (mirrors the
+ * notification email read in health-metrics.ts).
+ */
+export const NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS = 24 * 60 * 60 * 1000
+
+/**
+ * A permanent refusal is never retried: that email is lost. Isolated refusals
+ * (one bad address among accepted mail) stay a gauge; MORE than half of the
+ * window's attempts refused is provider-level breakage — a revoked API key, a
+ * lapsed domain verification, a transport failure classified permanent — and
+ * the very first refusal with nothing accepted already is.
+ */
+export const NOTIFICATION_EMAIL_PERMANENT_FAILURE_SHARE_ALERT_PERCENT = 50
+
+/**
+ * Resend's published bounce ceiling. Above it the provider may throttle or
+ * suspend the sending domain, which stops every email.
+ */
+export const NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT = 4
+
+/**
+ * Beta volume makes one or two bounces a large rate; a rate is only a signal
+ * once bounces are not isolated. (Each bounce already suppresses its
+ * recipient.)
+ */
+export const NOTIFICATION_EMAIL_BOUNCE_MIN_COUNT = 3
+
+/**
+ * Accepted mail with no provider outcome past the 6h grace, over the gauge's
+ * 7-day lookback. One or two can be a legitimately delayed delivery; more
+ * than two means the provider webhook is not reporting (unset
+ * RESEND_WEBHOOK_SECRET on web, a misconfigured endpoint, failing signatures)
+ * or the mail never reached a provider at all.
+ */
+export const NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT = 2
+
+/** The accepted-unresolved gauge's lookback (mirrors health-metrics.ts). */
+export const NOTIFICATION_EMAIL_UNRESOLVED_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
  * Approved in-app target measured from the durable source fact. This alert is
  * an oldest-outstanding breach signal, not a claim that one snapshot proves a
  * latency percentile; deployed p99 evidence remains a separate release gate.
@@ -215,6 +255,11 @@ const EVAL_CADENCE_MS = 5 * 60 * 1000
 const OWNER = 'Bozhidar Denev'
 
 // ── Definition helper ──────────────────────────────────────────────
+
+/** `part` as a percentage of `whole`, to one decimal (0 when whole is 0). */
+function percentOf(part: number, whole: number): number {
+  return whole <= 0 ? 0 : Math.round((part / whole) * 1000) / 10
+}
 
 /** The per-evaluation reading a definition produces when it breaches. */
 type AlertReading = Readonly<{ value: number; detail: string }>
@@ -764,6 +809,109 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       return {
         value: oldestPendingOverdueAgeMs,
         detail: `${pendingOverdueCount} queued notification email(s) overdue, oldest by ${oldestPendingOverdueAgeMs}ms (> ${NOTIFICATION_EMAIL_STALLED_ALERT_MS}ms) — ${cause}`,
+      }
+    },
+  }),
+
+  // ── what became of attempted email ──
+  // Everything above watches mail that has not gone out. These watch the
+  // mail the delivery path did attempt: a permanent refusal or a spent retry
+  // budget is lost email that nothing retries, bounces and complaints put the
+  // sending domain at risk, and accepted mail that never resolves means the
+  // provider feedback the suppression list depends on is not arriving
+  // (ADR 0046 r.6). Without them email could stop entirely with no page.
+  define({
+    name: 'notification.email-permanent-failures',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    windowMs: NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+    threshold: NOTIFICATION_EMAIL_PERMANENT_FAILURE_SHARE_ALERT_PERCENT,
+    blindedBy: ['health.notificationEmail'],
+    read: (snapshot) => {
+      const { permanentFailureCount, acceptedCount } =
+        snapshot.notifications.emailOutcomes
+      if (permanentFailureCount <= 0) return null
+      const share = percentOf(
+        permanentFailureCount,
+        permanentFailureCount + acceptedCount,
+      )
+      if (share <= NOTIFICATION_EMAIL_PERMANENT_FAILURE_SHARE_ALERT_PERCENT) return null
+      return {
+        value: share,
+        detail: `${permanentFailureCount} permanently refused vs ${acceptedCount} accepted notification email(s) in 24h (${share}% refused) — a provider credential, sending-domain, or transport fault; refused mail is never retried`,
+      }
+    },
+  }),
+  define({
+    name: 'notification.email-bounce-rate',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    windowMs: NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+    threshold: NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT,
+    blindedBy: ['health.notificationEmail'],
+    read: (snapshot) => {
+      const { bouncedCount, acceptedCount } = snapshot.notifications.emailOutcomes
+      if (bouncedCount < NOTIFICATION_EMAIL_BOUNCE_MIN_COUNT) return null
+      const rate = percentOf(bouncedCount, Math.max(acceptedCount, bouncedCount))
+      if (rate <= NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT) return null
+      return {
+        value: rate,
+        detail: `${bouncedCount} bounce(s) against ${acceptedCount} accepted notification email(s) in 24h (${rate}% > ${NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT}%) — the provider may throttle or suspend the sending domain`,
+      }
+    },
+  }),
+  define({
+    name: 'notification.email-complaints',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    windowMs: NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+    threshold: 0,
+    blindedBy: ['health.notificationEmail'],
+    read: (snapshot) => {
+      const { complainedCount } = snapshot.notifications.emailOutcomes
+      if (complainedCount <= 0) return null
+      return {
+        value: complainedCount,
+        detail: `${complainedCount} recipient spam complaint(s) on notification email in 24h — at beta volume one complaint already exceeds the provider's complaint-rate ceiling`,
+      }
+    },
+  }),
+  define({
+    name: 'notification.email-retry-exhausted',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    windowMs: NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+    threshold: 0,
+    blindedBy: ['health.notificationEmail'],
+    read: (snapshot) => {
+      const { retryExhaustedCount } = snapshot.notifications.emailOutcomes
+      if (retryExhaustedCount <= 0) return null
+      return {
+        value: retryExhaustedCount,
+        detail: `${retryExhaustedCount} notification email(s) spent their transient retry budget in 24h — the delivery path gave up and nothing will send them`,
+      }
+    },
+  }),
+  define({
+    name: 'notification.email-provider-feedback-missing',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    windowMs: NOTIFICATION_EMAIL_UNRESOLVED_LOOKBACK_MS,
+    threshold: NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT,
+    blindedBy: ['health.notificationEmail'],
+    read: (snapshot) => {
+      const outcomes = snapshot.notifications.emailOutcomes
+      const unresolved = outcomes.acceptedUnresolvedCount
+      if (unresolved <= NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT) return null
+      const cause =
+        outcomes.capturedUnresolvedCount > 0
+          ? `${outcomes.capturedUnresolvedCount} captured by the non-sending local transport — the mail never reached a provider`
+          : outcomes.providerOutcomeCount === 0
+            ? 'no delivered/bounced/complained event recorded in 24h — the provider webhook looks silent (RESEND_WEBHOOK_SECRET on web, the Resend endpoint, signature failures)'
+            : `${outcomes.providerOutcomeCount} provider outcome(s) did arrive in 24h — delayed delivery or an event type the webhook does not send`
+      return {
+        value: unresolved,
+        detail: `${unresolved} accepted notification email(s) have no provider outcome 6h after acceptance (oldest accepted ${outcomes.oldestAcceptedUnresolvedAgeMs ?? -1}ms ago); ${cause}`,
       }
     },
   }),

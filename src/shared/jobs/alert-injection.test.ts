@@ -30,6 +30,11 @@ import {
   NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
   NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
   NOTIFICATION_EMAIL_STALLED_ALERT_MS,
+  NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT,
+  NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+  NOTIFICATION_EMAIL_PERMANENT_FAILURE_SHARE_ALERT_PERCENT,
+  NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT,
+  NOTIFICATION_EMAIL_UNRESOLVED_LOOKBACK_MS,
   REVIEW_ANALYSIS_STALLED_ALERT_MS,
   WORKER_HEARTBEAT_STALE_ALERT_MS,
   SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS,
@@ -106,6 +111,17 @@ function healthySnapshot(): MutableSnapshot {
       pendingOverdueCount: 0,
       oldestPendingOverdueAgeMs: null,
       attemptedStuckCount: 0,
+      emailOutcomes: {
+        acceptedCount: 0,
+        permanentFailureCount: 0,
+        retryExhaustedCount: 0,
+        bouncedCount: 0,
+        complainedCount: 0,
+        providerOutcomeCount: 0,
+        acceptedUnresolvedCount: 0,
+        oldestAcceptedUnresolvedAgeMs: null,
+        capturedUnresolvedCount: 0,
+      },
       missingForInboxItemCount: 0,
       deliveryLag: {
         sourceReceiptPending: 0,
@@ -228,6 +244,11 @@ describe('alert registry contract (BQC-7.4)', () => {
       'beta-feedback.triage-backlog',
       'db.pool-exhaustion',
       'guest.observation-loss',
+      'notification.email-bounce-rate',
+      'notification.email-complaints',
+      'notification.email-permanent-failures',
+      'notification.email-provider-feedback-missing',
+      'notification.email-retry-exhausted',
       'notification.email-stalled',
       'notification.immediate-email-acceptance-lag',
       'notification.in-app-delivery-lag',
@@ -526,6 +547,63 @@ const BREACHES: readonly Breach[] = [
         pendingOverdueCount: 4,
         oldestPendingOverdueAgeMs: 3 * 60 * 60 * 1000,
       }
+    },
+  },
+  {
+    name: 'notification.email-permanent-failures',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    threshold: NOTIFICATION_EMAIL_PERMANENT_FAILURE_SHARE_ALERT_PERCENT,
+    windowMs: NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+    value: 100,
+    apply: (s) => {
+      s.notifications.emailOutcomes.permanentFailureCount = 4
+    },
+  },
+  {
+    name: 'notification.email-bounce-rate',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    threshold: NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT,
+    windowMs: NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+    value: 10,
+    apply: (s) => {
+      s.notifications.emailOutcomes.acceptedCount = 30
+      s.notifications.emailOutcomes.bouncedCount = 3
+    },
+  },
+  {
+    name: 'notification.email-complaints',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    threshold: 0,
+    windowMs: NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+    value: 1,
+    apply: (s) => {
+      s.notifications.emailOutcomes.complainedCount = 1
+    },
+  },
+  {
+    name: 'notification.email-retry-exhausted',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    threshold: 0,
+    windowMs: NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+    value: 2,
+    apply: (s) => {
+      s.notifications.emailOutcomes.retryExhaustedCount = 2
+    },
+  },
+  {
+    name: 'notification.email-provider-feedback-missing',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    threshold: NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT,
+    windowMs: NOTIFICATION_EMAIL_UNRESOLVED_LOOKBACK_MS,
+    value: 5,
+    apply: (s) => {
+      s.notifications.emailOutcomes.acceptedUnresolvedCount = 5
+      s.notifications.emailOutcomes.oldestAcceptedUnresolvedAgeMs = 26 * 60 * 60 * 1000
     },
   },
   {

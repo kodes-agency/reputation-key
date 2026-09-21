@@ -16,6 +16,11 @@ import {
   NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
   NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
   NOTIFICATION_EMAIL_STALLED_ALERT_MS,
+  NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT,
+  NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+  NOTIFICATION_EMAIL_PERMANENT_FAILURE_SHARE_ALERT_PERCENT,
+  NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT,
+  NOTIFICATION_EMAIL_UNRESOLVED_LOOKBACK_MS,
   REVIEW_ANALYSIS_STALLED_ALERT_MS,
   QUARANTINE_NONEMPTY_ALERT_MS,
   QUARANTINE_REDRIVE_SLA_ALERT_MS,
@@ -62,6 +67,17 @@ function healthy(): MutableSnapshot {
       pendingOverdueCount: 0,
       oldestPendingOverdueAgeMs: null,
       attemptedStuckCount: 0,
+      emailOutcomes: {
+        acceptedCount: 0,
+        permanentFailureCount: 0,
+        retryExhaustedCount: 0,
+        bouncedCount: 0,
+        complainedCount: 0,
+        providerOutcomeCount: 0,
+        acceptedUnresolvedCount: 0,
+        oldestAcceptedUnresolvedAgeMs: null,
+        capturedUnresolvedCount: 0,
+      },
       missingForInboxItemCount: 0,
       deliveryLag: {
         sourceReceiptPending: 0,
@@ -765,6 +781,148 @@ describe('notification.email-stalled', () => {
     s.notifications = { ...s.notifications, emailDeliveryEnabled: true }
 
     expect(evaluateOne('notification.email-stalled', s)).toBeNull()
+  })
+})
+
+// ── what became of attempted email ────────────────────────────────
+
+describe('notification email outcomes', () => {
+  function withOutcomes(
+    outcomes: Partial<MutableSnapshot['notifications']['emailOutcomes']>,
+  ): MutableSnapshot {
+    const s = healthy()
+    s.notifications.emailOutcomes = { ...s.notifications.emailOutcomes, ...outcomes }
+    return s
+  }
+
+  it('pages when most attempts are refused permanently — a revoked key or unverified domain', () => {
+    const event = evaluateOne(
+      'notification.email-permanent-failures',
+      withOutcomes({ permanentFailureCount: 3, acceptedCount: 1 }),
+    )
+
+    expect(event).toMatchObject({
+      name: 'notification.email-permanent-failures',
+      severity: 'P2',
+      value: 75,
+      threshold: NOTIFICATION_EMAIL_PERMANENT_FAILURE_SHARE_ALERT_PERCENT,
+      windowMs: NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+      runbook: 'runbooks.md §15',
+    })
+    expect(event!.detail).toContain('3 permanently refused')
+    // The first refusal with nothing accepted is already every attempt.
+    expect(
+      evaluateOne(
+        'notification.email-permanent-failures',
+        withOutcomes({ permanentFailureCount: 1 }),
+      ),
+    ).toMatchObject({ value: 100 })
+  })
+
+  it('stays quiet on isolated refusals among accepted mail', () => {
+    expect(
+      evaluateOne(
+        'notification.email-permanent-failures',
+        withOutcomes({ permanentFailureCount: 1, acceptedCount: 1 }),
+      ),
+    ).toBeNull()
+    expect(evaluateOne('notification.email-permanent-failures', healthy())).toBeNull()
+  })
+
+  it('pages on a bounce rate above the provider threshold once bounces are not isolated', () => {
+    const event = evaluateOne(
+      'notification.email-bounce-rate',
+      withOutcomes({ bouncedCount: 3, acceptedCount: 40 }),
+    )
+
+    expect(event).toMatchObject({
+      name: 'notification.email-bounce-rate',
+      severity: 'P2',
+      value: 7.5,
+      threshold: NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT,
+    })
+    expect(
+      evaluateOne(
+        'notification.email-bounce-rate',
+        withOutcomes({ bouncedCount: 2, acceptedCount: 10 }),
+      ),
+    ).toBeNull()
+    expect(
+      evaluateOne(
+        'notification.email-bounce-rate',
+        withOutcomes({ bouncedCount: 3, acceptedCount: 100 }),
+      ),
+    ).toBeNull()
+  })
+
+  it('pages on any spam complaint', () => {
+    expect(
+      evaluateOne('notification.email-complaints', withOutcomes({ complainedCount: 1 })),
+    ).toMatchObject({ severity: 'P2', value: 1, threshold: 0 })
+    expect(evaluateOne('notification.email-complaints', healthy())).toBeNull()
+  })
+
+  it('pages when the delivery path gives up on transient failures', () => {
+    const event = evaluateOne(
+      'notification.email-retry-exhausted',
+      withOutcomes({ retryExhaustedCount: 2 }),
+    )
+
+    expect(event).toMatchObject({ severity: 'P2', value: 2, threshold: 0 })
+    expect(event!.detail).toContain('retry budget')
+    expect(evaluateOne('notification.email-retry-exhausted', healthy())).toBeNull()
+  })
+
+  it('pages when accepted mail never resolves, naming a silent webhook', () => {
+    const silent = evaluateOne(
+      'notification.email-provider-feedback-missing',
+      withOutcomes({
+        acceptedCount: 5,
+        acceptedUnresolvedCount: 3,
+        oldestAcceptedUnresolvedAgeMs: 30 * 60 * 60 * 1000,
+      }),
+    )
+
+    expect(silent).toMatchObject({
+      name: 'notification.email-provider-feedback-missing',
+      severity: 'P2',
+      value: 3,
+      threshold: NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT,
+      windowMs: NOTIFICATION_EMAIL_UNRESOLVED_LOOKBACK_MS,
+    })
+    expect(silent!.detail).toContain('webhook')
+
+    const partial = evaluateOne(
+      'notification.email-provider-feedback-missing',
+      withOutcomes({
+        acceptedUnresolvedCount: 4,
+        oldestAcceptedUnresolvedAgeMs: 7 * 60 * 60 * 1000,
+        providerOutcomeCount: 12,
+      }),
+    )
+    expect(partial!.detail).toContain('12 provider outcome')
+
+    const captured = evaluateOne(
+      'notification.email-provider-feedback-missing',
+      withOutcomes({
+        acceptedUnresolvedCount: 3,
+        oldestAcceptedUnresolvedAgeMs: 7 * 60 * 60 * 1000,
+        capturedUnresolvedCount: 3,
+      }),
+    )
+    expect(captured!.detail).toContain('3 captured')
+  })
+
+  it('stays quiet on a couple of delayed deliveries', () => {
+    expect(
+      evaluateOne(
+        'notification.email-provider-feedback-missing',
+        withOutcomes({
+          acceptedUnresolvedCount: NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT,
+          oldestAcceptedUnresolvedAgeMs: 7 * 60 * 60 * 1000,
+        }),
+      ),
+    ).toBeNull()
   })
 })
 

@@ -16,7 +16,7 @@
 
 import { DEFAULT_LEASE_DURATION_MS, type OutboxRepository } from '#/shared/outbox'
 import type { Database } from '#/shared/db'
-import { sql } from 'drizzle-orm'
+import { sql, type SQL } from 'drizzle-orm'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { reviews, replies } from '#/shared/db/schema/review.schema'
 import { reviewSyncState } from '#/shared/db/schema/review-sync.schema'
@@ -126,6 +126,37 @@ export type QuarantineMetrics = Readonly<{
   oldestAgeMs: number | null
 }>
 
+/**
+ * What became of notification email the delivery path already attempted. The
+ * overdue gauges measure mail that has not gone out; without these, mail the
+ * provider refused, bounced or complained about — or accepted and never
+ * resolved — left no signal at all. Counts only, trailing 24h unless noted.
+ */
+export type NotificationEmailOutcomes = Readonly<{
+  /** Rows the provider accepted (the rate denominator). */
+  acceptedCount: number
+  /** Rows the provider refused permanently; nothing retries them. */
+  permanentFailureCount: number
+  /** Transient failures that spent the retry budget: the path gave up. */
+  retryExhaustedCount: number
+  /** Provider bounce events recorded. */
+  bouncedCount: number
+  /** Provider complaint (spam) events recorded. */
+  complainedCount: number
+  /** Delivered, bounced, or complained events recorded: webhook liveness. */
+  providerOutcomeCount: number
+  /**
+   * Accepted rows (7-day lookback) still without any provider outcome once
+   * the 6h feedback grace has passed — the provider webhook never reported
+   * them.
+   */
+  acceptedUnresolvedCount: number
+  /** Age of the oldest such row (null when none). */
+  oldestAcceptedUnresolvedAgeMs: number | null
+  /** Unresolved rows the non-sending capture transport accepted: never sent. */
+  capturedUnresolvedCount: number
+}>
+
 export type HealthSnapshot = Readonly<{
   timestamp: string
   outbox: Readonly<{
@@ -191,6 +222,8 @@ export type HealthSnapshot = Readonly<{
      * grant the global emailDeliveryEnabled flag cannot see.
      */
     attemptedStuckCount: number
+    /** Terminal and provider outcomes of attempted email. */
+    emailOutcomes: NotificationEmailOutcomes
     /**
      * Inbox items created inside the gap window (past the grace edge) with NO
      * notification row for anybody and a delivery not yet decided — "a
@@ -478,8 +511,79 @@ export type NotificationEmailMetrics = Omit<
 >
 
 /**
+ * The delivery path's transient retry budget: a transient failure at this
+ * retry count is never selected again (notification-email.repository's
+ * dueForCadence, the digest batch readiness). Mirrored — shared cannot import
+ * the Feed context.
+ */
+const EMAIL_RETRY_BUDGET = 5
+
+/**
+ * Terminal and provider outcomes of attempted email (NotificationEmailOutcomes).
+ * The 6h grace is how long a healthy provider webhook takes, at most, to report
+ * delivered/bounced/complained for accepted mail; the 7-day lookback bounds the
+ * read to recent mail.
+ */
+function emailOutcomeAggregates() {
+  const q = notificationEmailQueue
+  const inWindow = (at: SQL) => sql`${at} >= NOW() - INTERVAL '24 hours'`
+  const unresolved = sql`${q.status} = 'accepted'
+    AND ${q.acceptedAt} < NOW() - INTERVAL '6 hours'
+    AND ${q.acceptedAt} >= NOW() - INTERVAL '7 days'`
+  return {
+    accepted_24h: sql<number>`count(*) FILTER (WHERE ${inWindow(sql`${q.acceptedAt}`)})::int`,
+    permanent_failures_24h: sql<number>`count(*) FILTER (
+      WHERE ${q.status} = 'failed' AND ${q.lastErrorClass} = 'permanent'
+        AND ${inWindow(sql`${q.failedAt}`)}
+    )::int`,
+    retry_exhausted_24h: sql<number>`count(*) FILTER (
+      WHERE ${q.status} IN ('failed', 'suppressed') AND ${q.lastErrorClass} = 'transient'
+        AND ${q.retryCount} >= ${EMAIL_RETRY_BUDGET} AND ${inWindow(sql`${q.failedAt}`)}
+    )::int`,
+    bounced_24h: sql<number>`count(*) FILTER (
+      WHERE ${q.providerState} = 'bounced' AND ${inWindow(sql`${q.bouncedAt}`)}
+    )::int`,
+    complained_24h: sql<number>`count(*) FILTER (
+      WHERE ${q.providerState} = 'complained' AND ${inWindow(sql`${q.bouncedAt}`)}
+    )::int`,
+    provider_outcomes_24h: sql<number>`count(*) FILTER (
+      WHERE ${inWindow(sql`${q.deliveredAt}`)} OR ${inWindow(sql`${q.bouncedAt}`)}
+    )::int`,
+    accepted_unresolved: sql<number>`count(*) FILTER (WHERE ${unresolved})::int`,
+    oldest_accepted_unresolved_age_ms: sql<number | null>`
+      EXTRACT(EPOCH FROM (NOW() - MIN(${q.acceptedAt}) FILTER (WHERE ${unresolved}))) * 1000
+    `,
+    captured_unresolved: sql<number>`count(*) FILTER (
+      WHERE ${unresolved} AND ${q.providerMessageId} LIKE 'captured-%'
+    )::int`,
+  }
+}
+
+type EmailOutcomeRow = Partial<{
+  [K in keyof ReturnType<typeof emailOutcomeAggregates>]: number | null
+}>
+
+function toEmailOutcomes(row: EmailOutcomeRow | undefined): NotificationEmailOutcomes {
+  return {
+    acceptedCount: row?.accepted_24h ?? 0,
+    permanentFailureCount: row?.permanent_failures_24h ?? 0,
+    retryExhaustedCount: row?.retry_exhausted_24h ?? 0,
+    bouncedCount: row?.bounced_24h ?? 0,
+    complainedCount: row?.complained_24h ?? 0,
+    providerOutcomeCount: row?.provider_outcomes_24h ?? 0,
+    acceptedUnresolvedCount: row?.accepted_unresolved ?? 0,
+    oldestAcceptedUnresolvedAgeMs:
+      row?.oldest_accepted_unresolved_age_ms != null
+        ? Math.round(Number(row.oldest_accepted_unresolved_age_ms))
+        : null,
+    capturedUnresolvedCount: row?.captured_unresolved ?? 0,
+  }
+}
+
+/**
  * Notification email queue health: how many queued emails are past their due
- * time, how far past, and how many of those the delivery path already tried.
+ * time, how far past, and how many of those the delivery path already tried;
+ * and what became of the mail it did attempt (emailOutcomeAggregates).
  *
  * Due time is `next_attempt_at` (a scheduled retry) → `not_before` (a cadence
  * hold) → `created_at` (send as soon as the sweep gets to it). The threshold
@@ -508,6 +612,7 @@ async function readNotificationEmailMetrics(
           WHERE ${overdue} AND ${notificationEmailQueue.attemptedAt} IS NOT NULL
         )::int
       `,
+      ...emailOutcomeAggregates(),
     })
     .from(notificationEmailQueue)
 
@@ -520,6 +625,7 @@ async function readNotificationEmailMetrics(
         ? Math.round(Number(row.oldest_overdue_age_ms))
         : null,
     attemptedStuckCount: row?.attempted ?? 0,
+    emailOutcomes: toEmailOutcomes(row),
   }
 }
 

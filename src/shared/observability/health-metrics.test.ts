@@ -321,6 +321,17 @@ describe('health checker content safety (BQC-4.3)', () => {
         pendingOverdueCount: 4,
         oldestPendingOverdueAgeMs: 3_600_000,
         attemptedStuckCount: 1,
+        emailOutcomes: {
+          acceptedCount: 0,
+          permanentFailureCount: 0,
+          retryExhaustedCount: 0,
+          bouncedCount: 0,
+          complainedCount: 0,
+          providerOutcomeCount: 0,
+          acceptedUnresolvedCount: 0,
+          oldestAcceptedUnresolvedAgeMs: null,
+          capturedUnresolvedCount: 0,
+        },
         missingForInboxItemCount: 0,
         deliveryLag: {
           sourceReceiptPending: 0,
@@ -441,6 +452,44 @@ describe('health checker notification delivery metrics', () => {
     expect(snapshot.notifications.attemptedStuckCount).toBe(2)
   })
 
+  it('reports what became of sent email: refusals, give-ups, bounces, complaints, silence', async () => {
+    const db = fakeDb([
+      REVIEW_ROW,
+      SYNC_ROW,
+      PUBLICATION_ROW,
+      [
+        {
+          overdue: 0,
+          oldest_overdue_age_ms: null,
+          attempted: 0,
+          accepted_24h: 40,
+          permanent_failures_24h: 3,
+          retry_exhausted_24h: 1,
+          bounced_24h: 2,
+          complained_24h: 1,
+          provider_outcomes_24h: 30,
+          accepted_unresolved: 4,
+          oldest_accepted_unresolved_age_ms: 25_200_000.4,
+          captured_unresolved: 1,
+        },
+      ],
+    ])
+
+    const snapshot = await createHealthChecker(db).check()
+
+    expect(snapshot.notifications.emailOutcomes).toEqual({
+      acceptedCount: 40,
+      permanentFailureCount: 3,
+      retryExhaustedCount: 1,
+      bouncedCount: 2,
+      complainedCount: 1,
+      providerOutcomeCount: 30,
+      acceptedUnresolvedCount: 4,
+      oldestAcceptedUnresolvedAgeMs: 25_200_000,
+      capturedUnresolvedCount: 1,
+    })
+  })
+
   it('defaults the email queue metrics to empty when the aggregate returns no row', async () => {
     const db = fakeDb([REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW, []])
 
@@ -451,6 +500,17 @@ describe('health checker notification delivery metrics', () => {
       pendingOverdueCount: 0,
       oldestPendingOverdueAgeMs: null,
       attemptedStuckCount: 0,
+      emailOutcomes: {
+        acceptedCount: 0,
+        permanentFailureCount: 0,
+        retryExhaustedCount: 0,
+        bouncedCount: 0,
+        complainedCount: 0,
+        providerOutcomeCount: 0,
+        acceptedUnresolvedCount: 0,
+        oldestAcceptedUnresolvedAgeMs: null,
+        capturedUnresolvedCount: 0,
+      },
     })
   })
 

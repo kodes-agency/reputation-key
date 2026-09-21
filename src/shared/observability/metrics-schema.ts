@@ -531,6 +531,46 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
       'Overdue pending emails the delivery path ALREADY attempted (attempted_at set). Non-zero cannot be explained by a dark capability — the sweep reached the row, tried, and left it pending.',
   }),
   def({
+    name: 'notification.email.outcomes_24h',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: [
+      'notifications.emailOutcomes.acceptedCount',
+      'notifications.emailOutcomes.permanentFailureCount',
+      'notifications.emailOutcomes.retryExhaustedCount',
+      'notifications.emailOutcomes.bouncedCount',
+      'notifications.emailOutcomes.complainedCount',
+      'notifications.emailOutcomes.providerOutcomeCount',
+    ],
+    emitted: true,
+    description:
+      'What became of attempted notification email in the trailing 24h: provider acceptances (the rate denominator), permanent refusals (never retried), transient failures that spent the retry budget (given up), bounces, complaints, and delivered/bounced/complained events recorded (provider-webhook liveness).',
+  }),
+  def({
+    name: 'notification.email.accepted_unresolved',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: [
+      'notifications.emailOutcomes.acceptedUnresolvedCount',
+      'notifications.emailOutcomes.capturedUnresolvedCount',
+    ],
+    emitted: true,
+    description:
+      'Accepted notification email (7-day lookback) with no delivered, bounced, or complained event 6h after acceptance — the provider webhook never reported it — and the subset a non-sending capture transport accepted (never reached a provider).',
+  }),
+  def({
+    name: 'notification.email.oldest_accepted_unresolved_age_ms',
+    kind: 'gauge',
+    unit: 'ms',
+    labels: {},
+    snapshotPath: ['notifications.emailOutcomes.oldestAcceptedUnresolvedAgeMs'],
+    emitted: true,
+    description:
+      'Age since provider acceptance of the oldest accepted notification email still without a provider outcome past the 6h grace. Null/absent when none.',
+  }),
+  def({
     name: 'notification.email.immediate_acceptance_pending',
     kind: 'gauge',
     unit: 'count',
