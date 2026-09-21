@@ -27,6 +27,7 @@ export function NotificationsCategoryRow({
   inApp,
   email,
   emailAllowed,
+  clockLabel,
   savePreference,
 }: Readonly<{
   category: ConfigurableNotificationCategory
@@ -35,6 +36,8 @@ export function NotificationsCategoryRow({
   inApp: NotificationPreference | undefined
   email: NotificationPreference | undefined
   emailAllowed: boolean
+  /** The recipient's delivery clock, e.g. "Sofia (UTC+3)" (ADR 0046 r.3). */
+  clockLabel: string
   savePreference: (
     category: ConfigurableNotificationCategory,
     channel: 'in_app' | 'email',
@@ -133,6 +136,9 @@ export function NotificationsCategoryRow({
             Allow urgent email to bypass quiet hours
           </Label>
         ) : null}
+        <p className="basis-full text-sm text-muted-foreground">
+          The daily digest and quiet hours use your timezone, {clockLabel}.
+        </p>
       </div>
     </fieldset>
   )

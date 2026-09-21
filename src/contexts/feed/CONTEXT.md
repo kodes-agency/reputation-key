@@ -50,6 +50,13 @@ it never holds the unread `(user, type, resource)` key: every event on a
 resource is emailed, and none of those rows resurfaces as unread if in-app is
 turned back on.
 
+The settings page and in-app timestamps read the same effective timezone the
+delivery jobs resolve (ADR 0046 r.3): the user's own, else the Organization's
+representative zone, else UTC, together with where it came from. A settings
+save writes only what the user changed; because the column cannot hold "follow
+the Organization", a first save that changes only the language stores the zone
+delivery was already using.
+
 ## Runtime
 
 Durable outbox consumers project activity and enqueue deterministic notification

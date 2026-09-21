@@ -49,6 +49,12 @@ export function getDefaultEnabled(
   return DEFAULT_POLICY[category]?.[channel] ?? false
 }
 
+/**
+ * The language a user who never saved one formats notifications in: the
+ * `notification_user_settings.locale` column default.
+ */
+export const DEFAULT_NOTIFICATION_LOCALE = 'en'
+
 export function getDefaultCadence(category: NotificationCategory): NotificationCadence {
   return category === 'mandatory' || category === 'urgent_operational'
     ? 'immediate'

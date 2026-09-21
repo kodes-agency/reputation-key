@@ -202,6 +202,24 @@ export type NotificationUserSettings = Readonly<{
   updatedAt: Date
 }>
 
+/**
+ * Where the notification clock's timezone comes from (ADR 0046 r.3): the
+ * user's own choice, else their Organization's representative zone, else UTC.
+ */
+export type NotificationTimezoneSource = 'user' | 'organization' | 'default'
+
+/**
+ * The language and IANA timezone notifications actually use for one
+ * (user, Organization): quiet hours, the 08:00 digest, and every timestamp.
+ * A user who never saved a timezone gets their Organization's, never a silent
+ * UTC.
+ */
+export type EffectiveNotificationSettings = Readonly<{
+  locale: string
+  timezone: string
+  timezoneSource: NotificationTimezoneSource
+}>
+
 // ── Urgent types (Q9 decision) ──────────────────────────────────────
 
 export const URGENT_TYPES: ReadonlySet<NotificationType> = new Set([

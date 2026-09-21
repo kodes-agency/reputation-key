@@ -117,6 +117,9 @@ import {
 } from './infrastructure/identity-account-outbox-consumers'
 import { createNotificationOrganizationExportContributor } from './infrastructure/adapters/notification-organization-export.adapter'
 import { createNotificationOrganizationLifecycleContributor } from './infrastructure/adapters/notification-organization-lifecycle.adapter'
+import { createNotificationOrganizationScopeResolver } from './infrastructure/repositories/notification-organization-scope.repository'
+import { createNotificationUserSettings } from './infrastructure/notification-user-settings'
+import type { NotificationUserSettingsInput } from './application/dto/notification-user-settings.dto'
 
 import type { OutboxRepository } from '#/shared/outbox'
 
@@ -287,6 +290,15 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   const prefRepo = createNotificationPreferenceRepository(input.db)
   const oneClickUnsubscribeRepo = createOneClickUnsubscribeRepository(input.db)
   const handleResendEvent = createResendEventHandler({ emailRepo, logger: input.logger })
+  // ADR 0046 r.3: the settings page and every timestamp read the same
+  // user-then-Organization zone the delivery jobs resolve. The pool is read at
+  // call time: composition must not touch the database while it is built.
+  const userSettings = createNotificationUserSettings({
+    preferenceRepo: prefRepo,
+    resolveOrganizationScope: (organizationId) =>
+      createNotificationOrganizationScopeResolver(input.db.$client)(organizationId),
+    clock: input.clock,
+  })
   const userLookup = createNotificationDbUserLookupAdapter(input.db)
   const inboxItemLookup = createInboxItemLookupAdapter(
     input.db,
@@ -496,8 +508,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       await notificationRepo.updateStatus(id, userId, orgId, 'dismissed', now)
     },
     getPreferences: (userId: string, orgId: string) => prefRepo.findByUser(userId, orgId),
-    getUserSettings: (userId: string, orgId: string) =>
-      prefRepo.getUserSettings(userId, orgId),
+    getUserSettings: (userId: UserId, orgId: OrganizationId) =>
+      userSettings.read(userId, orgId),
     updatePreference: (
       userId: string,
       orgId: string,
@@ -554,21 +566,10 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     oneClickUnsubscribe: (target: OneClickUnsubscribeTarget) =>
       oneClickUnsubscribeRepo.apply(target, input.clock()),
     updateUserSettings: (
-      userId: string,
-      orgId: string,
-      locale: string,
-      timezone: string,
-    ) => {
-      const now = input.clock()
-      return prefRepo.upsertUserSettings({
-        userId: userId as UserId,
-        organizationId: orgId as OrganizationId,
-        locale,
-        timezone,
-        createdAt: now,
-        updatedAt: now,
-      })
-    },
+      userId: UserId,
+      orgId: OrganizationId,
+      change: NotificationUserSettingsInput,
+    ) => userSettings.save(userId, orgId, change),
   } as const
 
   /** Every durable notification route, enqueueing through `queue`. */

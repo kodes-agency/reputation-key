@@ -406,8 +406,7 @@ export const updateNotificationUserSettingsFn = createServerFn({ method: 'POST' 
           return getContainer().feedPublicApi.updateUserSettings(
             ctx.userId,
             ctx.organizationId,
-            data.locale,
-            data.timezone,
+            data,
           )
         } catch (error) {
           throw catchUntagged(error)

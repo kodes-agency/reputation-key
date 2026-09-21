@@ -20,8 +20,8 @@ function isSupportedNotificationTimezone(timezone: string): boolean {
   }
 }
 
-/** Shared by the settings form and its authenticated server boundary. */
-export const notificationUserSettingsDto = z.object({
+/** Each setting's own rule, shared by the form fields and the save. */
+const notificationUserSettingsFields = z.object({
   locale: z
     .string()
     .max(35)
@@ -32,5 +32,20 @@ export const notificationUserSettingsDto = z.object({
     .max(64)
     .refine(isSupportedNotificationTimezone, 'Enter a valid IANA timezone'),
 })
+
+/** The settings form's shape: both fields are always on screen. */
+export const notificationFormattingFormDto = notificationUserSettingsFields
+
+/**
+ * The authenticated save. It carries only what the user changed: an untouched
+ * timezone must never be written over the one delivery already uses
+ * (ADR 0046 r.3).
+ */
+export const notificationUserSettingsDto = notificationUserSettingsFields
+  .partial()
+  .refine(
+    (value) => value.locale !== undefined || value.timezone !== undefined,
+    'Change the language or the timezone before saving',
+  )
 
 export type NotificationUserSettingsInput = z.infer<typeof notificationUserSettingsDto>

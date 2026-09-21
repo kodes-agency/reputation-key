@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type {
+  EffectiveNotificationSettings,
   NotificationPreference,
-  NotificationUserSettings,
 } from '#/contexts/feed/application/public-api'
 import type { Action } from '#/components/hooks/use-action'
 import { NotificationsSettingsPage } from './notifications-settings-page'
@@ -40,10 +40,18 @@ const preferences: readonly NotificationPreference[] = [
   preference({ category: 'recognition', channel: 'email', cadence: 'daily' }),
 ]
 
-const userSettings = {
+const userSettings: EffectiveNotificationSettings = {
   locale: 'bg',
   timezone: 'Europe/Sofia',
-} as NotificationUserSettings
+  timezoneSource: 'user',
+}
+
+/** A user who never saved anything: delivery runs on the Organization's zone. */
+const organizationSettings: EffectiveNotificationSettings = {
+  locale: 'en',
+  timezone: 'Europe/Sofia',
+  timezoneSource: 'organization',
+}
 
 type PreferenceInput = Readonly<{
   data: Readonly<{
@@ -194,9 +202,45 @@ export const FormattingSubmitsOnEnter: Story = {
     await userEvent.clear(timezone)
     await userEvent.type(timezone, 'Europe/Berlin{Enter}')
     await waitFor(() => expect(updateUserSettingsMock).toHaveBeenCalledOnce())
+    // Only the changed setting travels: the untouched locale is not re-sent.
     expect(updateUserSettingsMock).toHaveBeenCalledWith({
-      data: { locale: 'bg', timezone: 'Europe/Berlin' },
+      data: { timezone: 'Europe/Berlin' },
     })
+  },
+}
+
+export const NewUserSeesTheOrganizationTimezone: Story = {
+  args: { userSettings: organizationSettings },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // Quiet hours and the digest already run on the Organization's zone, so
+    // that is what the page shows — never a UTC placeholder.
+    expect(canvas.getByLabelText('IANA timezone')).toHaveValue('Europe/Sofia')
+    expect(canvas.getByTestId('timezone-source')).toHaveTextContent(
+      "Your organization's timezone",
+    )
+    expect(
+      canvas.getAllByText(/daily digest and quiet hours use your timezone, Sofia/),
+    ).toHaveLength(2)
+    expect(canvas.queryByText(/property-local/)).toBeNull()
+  },
+}
+
+export const SavingTheLocaleKeepsTheOrganizationTimezone: Story = {
+  args: { userSettings: organizationSettings },
+  play: async ({ canvasElement }) => {
+    updateUserSettingsMock.mockClear()
+    const canvas = within(canvasElement)
+    const save = canvas.getByRole('button', { name: 'Save formatting' })
+    // Nothing differs from what is in effect yet.
+    expect(save).toBeDisabled()
+    const locale = canvas.getByLabelText('Locale')
+    await userEvent.clear(locale)
+    await userEvent.type(locale, 'en-GB')
+    await userEvent.click(save)
+    await waitFor(() => expect(updateUserSettingsMock).toHaveBeenCalledOnce())
+    // The timezone is not sent, so the save cannot pin anything over it.
+    expect(updateUserSettingsMock).toHaveBeenCalledWith({ data: { locale: 'en-GB' } })
   },
 }
 

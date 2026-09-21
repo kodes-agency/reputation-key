@@ -18,10 +18,11 @@ import {
 import {
   NOTIFICATION_SETTINGS_CATEGORIES,
   type ConfigurableNotificationCategory,
+  type EffectiveNotificationSettings,
   type NotificationChannel,
   type NotificationPreference,
-  type NotificationUserSettings,
 } from '#/contexts/feed/application/public-api'
+import { describeTimezone } from '#/shared/timezone-display'
 import { NotificationsCategoryRow } from './notifications-category-row'
 import { CATEGORY_COPY } from './notifications-type-rows'
 import {
@@ -41,12 +42,12 @@ export type { NotificationSettingsUpdate } from './notification-formatting-form'
 type NotificationsSettingsViewProps = Readonly<{
   properties: readonly Readonly<{ id: string; name: string }>[]
   propertyId: string
-  initialLocale: string
-  initialTimezone: string
+  /** The language and timezone delivery uses now, Organization fallback applied. */
+  settings: EffectiveNotificationSettings
   /** The selected Property's server-enforced email capability decision. */
   emailAllowed: boolean
   setPropertyId: (value: string) => void
-  updateUserSettings: Action<NotificationSettingsUpdate, NotificationUserSettings>
+  updateUserSettings: Action<NotificationSettingsUpdate, EffectiveNotificationSettings>
   preferenceFor: (
     category: ConfigurableNotificationCategory,
     channel: NotificationChannel,
@@ -59,14 +60,13 @@ type NotificationsSettingsViewProps = Readonly<{
 }>
 
 export function NotificationsSettingsView(props: NotificationsSettingsViewProps) {
+  const clockLabel = describeTimezone(props.settings.timezone).label
   return (
     <div className="min-w-0 space-y-6">
       <Card className="min-w-0">
         <CardHeader>
           <CardTitle>Property</CardTitle>
-          <CardDescription>
-            Preferences and email batches are isolated per property.
-          </CardDescription>
+          <CardDescription>Each property keeps its own preferences.</CardDescription>
         </CardHeader>
         <CardContent>
           <Field className="max-w-sm">
@@ -97,13 +97,13 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
         <CardHeader>
           <CardTitle>Language and timezone</CardTitle>
           <CardDescription>
-            Used for notification formatting. Daily digests remain property-local.
+            Your timezone decides when quiet hours start and end and when the daily digest
+            arrives (08:00), for every property. Notification times are shown in it too.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <NotificationFormattingForm
-            initialLocale={props.initialLocale}
-            initialTimezone={props.initialTimezone}
+            settings={props.settings}
             updateUserSettings={props.updateUserSettings}
           />
         </CardContent>
@@ -137,6 +137,7 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
               inApp={props.preferenceFor(category, 'in_app')}
               email={props.preferenceFor(category, 'email')}
               emailAllowed={props.emailAllowed}
+              clockLabel={clockLabel}
               savePreference={props.savePreference}
             />
           ))}

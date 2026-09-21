@@ -5,6 +5,7 @@
 // ── Domain type re-exports ────────────────────────────────────────────
 export type {
   ConfigurableNotificationCategory,
+  EffectiveNotificationSettings,
   Notification,
   NotificationCadence,
   NotificationCategory,
@@ -13,6 +14,7 @@ export type {
   NotificationPriority,
   NotificationResourceType,
   NotificationStatus,
+  NotificationTimezoneSource,
   NotificationType,
   NotificationUserSettings,
 } from '../domain/notification-types'
