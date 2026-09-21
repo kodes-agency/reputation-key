@@ -321,6 +321,7 @@ describe('health checker content safety (BQC-4.3)', () => {
         pendingOverdueCount: 4,
         oldestPendingOverdueAgeMs: 3_600_000,
         attemptedStuckCount: 1,
+        oldestAttemptedStuckAgeMs: null,
         emailOutcomes: {
           acceptedCount: 0,
           permanentFailureCount: 0,
@@ -442,7 +443,14 @@ describe('health checker notification delivery metrics', () => {
       REVIEW_ROW,
       SYNC_ROW,
       PUBLICATION_ROW,
-      [{ overdue: 9, oldest_overdue_age_ms: 7_200_001.6, attempted: 2 }],
+      [
+        {
+          overdue: 9,
+          oldest_overdue_age_ms: 7_200_001.6,
+          attempted: 2,
+          oldest_attempted_age_ms: 3_600_000.4,
+        },
+      ],
     ])
 
     const snapshot = await createHealthChecker(db).check()
@@ -450,6 +458,7 @@ describe('health checker notification delivery metrics', () => {
     expect(snapshot.notifications.pendingOverdueCount).toBe(9)
     expect(snapshot.notifications.oldestPendingOverdueAgeMs).toBe(7_200_002)
     expect(snapshot.notifications.attemptedStuckCount).toBe(2)
+    expect(snapshot.notifications.oldestAttemptedStuckAgeMs).toBe(3_600_000)
   })
 
   it('reports what became of sent email: refusals, give-ups, bounces, complaints, silence', async () => {
@@ -500,6 +509,7 @@ describe('health checker notification delivery metrics', () => {
       pendingOverdueCount: 0,
       oldestPendingOverdueAgeMs: null,
       attemptedStuckCount: 0,
+      oldestAttemptedStuckAgeMs: null,
       emailOutcomes: {
         acceptedCount: 0,
         permanentFailureCount: 0,

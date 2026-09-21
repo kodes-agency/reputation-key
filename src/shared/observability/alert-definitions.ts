@@ -778,9 +778,9 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
   // outbound email is capability-dark today, so a pending backlog is the
   // EXPECTED state and must stay silent. It fires only when email is
   // globally enabled (so the backlog is a real fault) or when the delivery
-  // path already attempted the row and left it pending — which is a fault
-  // regardless of the global flag, and is how a per-org-allowlisted tenant's
-  // breakage still pages.
+  // path already touched a row and left it unsent — a retry past due or a
+  // quiet-hours hold past its end — which is a fault regardless of the
+  // global flag, and is how a per-org-allowlisted tenant's breakage pages.
   define({
     name: 'notification.email-stalled',
     severity: 'P2',
@@ -789,26 +789,21 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     threshold: NOTIFICATION_EMAIL_STALLED_ALERT_MS,
     blindedBy: ['health.notificationEmail'],
     read: (snapshot) => {
-      const {
-        emailDeliveryEnabled,
-        pendingOverdueCount,
-        oldestPendingOverdueAgeMs,
-        attemptedStuckCount,
-      } = snapshot.notifications
-      if (pendingOverdueCount <= 0) return null
-      if (
-        oldestPendingOverdueAgeMs == null ||
-        oldestPendingOverdueAgeMs <= NOTIFICATION_EMAIL_STALLED_ALERT_MS
-      ) {
-        return null
-      }
-      if (!emailDeliveryEnabled && attemptedStuckCount <= 0) return null
-      const cause = emailDeliveryEnabled
+      const n = snapshot.notifications
+      // Globally dark, an untouched row is expected backlog: only the rows
+      // the delivery path touched (a retry past due, a hold past its end)
+      // and how long they have waited are the fault.
+      const [count, ageMs] = n.emailDeliveryEnabled
+        ? [n.pendingOverdueCount, n.oldestPendingOverdueAgeMs]
+        : [n.attemptedStuckCount, n.oldestAttemptedStuckAgeMs]
+      if (count <= 0) return null
+      if (ageMs == null || ageMs <= NOTIFICATION_EMAIL_STALLED_ALERT_MS) return null
+      const cause = n.emailDeliveryEnabled
         ? 'email delivery is enabled'
-        : `email delivery is globally dark but ${attemptedStuckCount} row(s) were already attempted`
+        : `email delivery is globally dark but ${count} row(s) were already attempted or held`
       return {
-        value: oldestPendingOverdueAgeMs,
-        detail: `${pendingOverdueCount} queued notification email(s) overdue, oldest by ${oldestPendingOverdueAgeMs}ms (> ${NOTIFICATION_EMAIL_STALLED_ALERT_MS}ms) — ${cause}`,
+        value: ageMs,
+        detail: `${count} queued notification email(s) overdue, oldest by ${ageMs}ms (> ${NOTIFICATION_EMAIL_STALLED_ALERT_MS}ms) — ${cause}`,
       }
     },
   }),

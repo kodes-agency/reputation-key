@@ -67,6 +67,7 @@ function healthy(): MutableSnapshot {
       pendingOverdueCount: 0,
       oldestPendingOverdueAgeMs: null,
       attemptedStuckCount: 0,
+      oldestAttemptedStuckAgeMs: null,
       emailOutcomes: {
         acceptedCount: 0,
         permanentFailureCount: 0,
@@ -756,12 +757,26 @@ describe('notification.email-stalled', () => {
     const s = overdue(healthy(), {
       emailDeliveryEnabled: false,
       attemptedStuckCount: 3,
+      oldestAttemptedStuckAgeMs: NOTIFICATION_EMAIL_STALLED_ALERT_MS + 1,
     })
 
     const event = evaluateOne('notification.email-stalled', s)
 
     expect(event).not.toBeNull()
     expect(event!.detail).toContain('already attempted')
+  })
+
+  // While globally dark, an old UNTOUCHED row is an expected dark-scope
+  // backlog; only how long the touched rows have waited is the fault.
+  it('judges only the touched rows while globally dark', () => {
+    const s = overdue(healthy(), {
+      emailDeliveryEnabled: false,
+      oldestPendingOverdueAgeMs: 5 * NOTIFICATION_EMAIL_STALLED_ALERT_MS,
+      attemptedStuckCount: 1,
+      oldestAttemptedStuckAgeMs: 10 * 60 * 1000,
+    })
+
+    expect(evaluateOne('notification.email-stalled', s)).toBeNull()
   })
 
   it('stays silent at the age boundary even with delivery enabled', () => {

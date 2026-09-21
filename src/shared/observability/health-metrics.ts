@@ -209,19 +209,26 @@ export type HealthSnapshot = Readonly<{
      * attemptedStuckCount for the case that is a fault regardless).
      */
     emailDeliveryEnabled: boolean
-    /** `pending` email rows whose due time (next_attempt_at → not_before →
-     *  created_at) has already passed. */
+    /**
+     * Still-sendable email rows — pending, held for quiet hours (`delayed`),
+     * or a transient failure under the retry budget — whose due time
+     * (next_attempt_at → not_before → created_at) has already passed.
+     */
     pendingOverdueCount: number
-    /** Age of the oldest overdue pending row (null when none is overdue). */
+    /** Age of the oldest overdue sendable row (null when none is overdue). */
     oldestPendingOverdueAgeMs: number | null
     /**
-     * Overdue pending rows the delivery path ALREADY TOUCHED (attempted_at
-     * set). Unlike the count above this cannot be explained by a dark
-     * capability — the sweep reached the row, tried, and left it pending. It
-     * is the honest break signal for a per-org-allowlisted tenant, whose
-     * grant the global emailDeliveryEnabled flag cannot see.
+     * Overdue sendable rows the delivery path ALREADY TOUCHED: a scheduled
+     * retry (attempted_at set) or a quiet-hours hold (`delayed`). Unlike the
+     * count above this cannot be explained by a dark capability — the path
+     * reached the row and left it unsent. It is the honest break signal for a
+     * per-org-allowlisted tenant, whose grant the global emailDeliveryEnabled
+     * flag cannot see. (Every attempt moves a row out of `pending`, so
+     * counting pending rows alone left this permanently zero.)
      */
     attemptedStuckCount: number
+    /** Age of the oldest touched overdue row (null when none). */
+    oldestAttemptedStuckAgeMs: number | null
     /** Terminal and provider outcomes of attempted email. */
     emailOutcomes: NotificationEmailOutcomes
     /**
@@ -594,12 +601,17 @@ async function readNotificationEmailMetrics(
   db: Database,
   emailDeliveryEnabled: boolean,
 ): Promise<NotificationEmailMetrics> {
-  const dueAt = sql`COALESCE(
-    ${notificationEmailQueue.nextAttemptAt},
-    ${notificationEmailQueue.notBefore},
-    ${notificationEmailQueue.createdAt}
+  const q = notificationEmailQueue
+  const dueAt = sql`COALESCE(${q.nextAttemptAt}, ${q.notBefore}, ${q.createdAt})`
+  // The delivery path's own "still sendable" set (dueForCadence, minus its
+  // time gates): a transient failure under the budget is a scheduled retry.
+  const sendable = sql`(
+    ${q.status} IN ('pending', 'delayed')
+    OR (${q.status} = 'failed' AND ${q.lastErrorClass} = 'transient'
+      AND ${q.retryCount} < ${EMAIL_RETRY_BUDGET})
   )`
-  const overdue = sql`${notificationEmailQueue.status} = 'pending' AND ${dueAt} < NOW()`
+  const overdue = sql`${sendable} AND ${dueAt} < NOW()`
+  const touched = sql`${overdue} AND (${q.attemptedAt} IS NOT NULL OR ${q.status} = 'delayed')`
 
   const result = await db
     .select({
@@ -607,26 +619,28 @@ async function readNotificationEmailMetrics(
       oldest_overdue_age_ms: sql<number | null>`
         EXTRACT(EPOCH FROM (NOW() - MIN(${dueAt}) FILTER (WHERE ${overdue}))) * 1000
       `,
-      attempted: sql<number>`
-        count(*) FILTER (
-          WHERE ${overdue} AND ${notificationEmailQueue.attemptedAt} IS NOT NULL
-        )::int
+      attempted: sql<number>`count(*) FILTER (WHERE ${touched})::int`,
+      oldest_attempted_age_ms: sql<number | null>`
+        EXTRACT(EPOCH FROM (NOW() - MIN(${dueAt}) FILTER (WHERE ${touched}))) * 1000
       `,
       ...emailOutcomeAggregates(),
     })
-    .from(notificationEmailQueue)
+    .from(q)
 
   const row = result[0]
   return {
     emailDeliveryEnabled,
     pendingOverdueCount: row?.overdue ?? 0,
-    oldestPendingOverdueAgeMs:
-      row?.oldest_overdue_age_ms != null
-        ? Math.round(Number(row.oldest_overdue_age_ms))
-        : null,
+    oldestPendingOverdueAgeMs: roundedAge(row?.oldest_overdue_age_ms),
     attemptedStuckCount: row?.attempted ?? 0,
+    oldestAttemptedStuckAgeMs: roundedAge(row?.oldest_attempted_age_ms),
     emailOutcomes: toEmailOutcomes(row),
   }
+}
+
+/** An aggregate epoch-arithmetic age, rounded (null when the FILTER matched nothing). */
+function roundedAge(value: number | null | undefined): number | null {
+  return value != null ? Math.round(Number(value)) : null
 }
 
 const EMPTY_NOTIFICATION_DELIVERY_LAG: NotificationDeliveryLagRead = {

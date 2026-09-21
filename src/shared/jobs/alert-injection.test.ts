@@ -111,6 +111,7 @@ function healthySnapshot(): MutableSnapshot {
       pendingOverdueCount: 0,
       oldestPendingOverdueAgeMs: null,
       attemptedStuckCount: 0,
+      oldestAttemptedStuckAgeMs: null,
       emailOutcomes: {
         acceptedCount: 0,
         permanentFailureCount: 0,

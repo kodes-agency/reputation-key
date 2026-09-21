@@ -508,7 +508,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.pendingOverdueCount'],
     emitted: true,
     description:
-      'Queued notification emails still `pending` past their due time (next_attempt_at → not_before → created_at).',
+      'Queued notification emails still sendable — pending, held for quiet hours (delayed), or a transient failure under the retry budget — past their due time (next_attempt_at → not_before → created_at).',
   }),
   def({
     name: 'notification.email.oldest_pending_overdue_age_ms',
@@ -528,7 +528,17 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.attemptedStuckCount'],
     emitted: true,
     description:
-      'Overdue pending emails the delivery path ALREADY attempted (attempted_at set). Non-zero cannot be explained by a dark capability — the sweep reached the row, tried, and left it pending.',
+      'Overdue sendable emails the delivery path ALREADY touched: a scheduled retry past due (attempted_at set) or a quiet-hours hold past its end (delayed). Non-zero cannot be explained by a dark capability — the path reached the row and left it unsent.',
+  }),
+  def({
+    name: 'notification.email.oldest_attempted_stuck_age_ms',
+    kind: 'gauge',
+    unit: 'ms',
+    labels: {},
+    snapshotPath: ['notifications.oldestAttemptedStuckAgeMs'],
+    emitted: true,
+    description:
+      'How far past its due time the oldest touched overdue email is — what notification.email-stalled judges while email is globally dark. Null/absent when none.',
   }),
   def({
     name: 'notification.email.outcomes_24h',

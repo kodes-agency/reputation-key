@@ -325,3 +325,57 @@ describe('notification email outcome aggregate (real reads)', () => {
     )
   })
 })
+
+describe('notification email stall aggregate (real reads)', () => {
+  it('counts retries past due and quiet-hours holds past their end as touched overdue rows', async () => {
+    const baseline = (await checker.check()).notifications
+    await seedProperty()
+
+    // A transient failure whose scheduled retry is 3h overdue.
+    await seedEmail({
+      key: 'obs-stall-retry-overdue',
+      status: 'failed',
+      nextAttempt: sql`NOW() - INTERVAL '3 hours'`,
+      attempted: true,
+    })
+    await db.execute(sql`
+      UPDATE notification_email_queue
+         SET last_error_class = 'transient', retry_count = 2
+       WHERE idempotency_key = 'obs-stall-retry-overdue'
+    `)
+    // A quiet-hours hold that ended 30 minutes ago and was never released.
+    await seedEmail({
+      key: 'obs-stall-held',
+      status: 'delayed',
+      notBefore: sql`NOW() - INTERVAL '30 minutes'`,
+    })
+    // Neither a spent retry budget nor a permanent refusal is still sendable.
+    await seedEmail({
+      key: 'obs-stall-exhausted',
+      status: 'failed',
+      nextAttempt: sql`NOW() - INTERVAL '5 hours'`,
+      attempted: true,
+    })
+    await db.execute(sql`
+      UPDATE notification_email_queue
+         SET last_error_class = 'transient', retry_count = 5
+       WHERE idempotency_key = 'obs-stall-exhausted'
+    `)
+    await seedEmail({
+      key: 'obs-stall-permanent',
+      status: 'failed',
+      attempted: true,
+    })
+    await db.execute(sql`
+      UPDATE notification_email_queue
+         SET last_error_class = 'permanent'
+       WHERE idempotency_key = 'obs-stall-permanent'
+    `)
+
+    const after = (await checker.check()).notifications
+
+    expect(after.pendingOverdueCount).toBe(baseline.pendingOverdueCount + 2)
+    expect(after.attemptedStuckCount).toBe(baseline.attemptedStuckCount + 2)
+    expect(after.oldestAttemptedStuckAgeMs!).toBeGreaterThanOrEqual(179 * MINUTE_MS)
+  })
+})
