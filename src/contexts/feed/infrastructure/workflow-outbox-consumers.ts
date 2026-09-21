@@ -41,6 +41,7 @@ import { buildInboxItemPayload } from './notification-payload-facts'
 import {
   inboxNotificationAudience,
   resolveInboxResponsibleRecipients,
+  resolveResponsibleRecipients,
 } from '../application/responsible-recipients'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 
@@ -352,6 +353,61 @@ async function enqueueReplyAuthorNotification(
   )
 }
 
+/**
+ * A reply that failed to publish still needs someone to retry it. The author
+ * gets the notice while they can still act on the Property. Otherwise — they
+ * left, lost access, or are unknown — the Property's responsible managers own
+ * this Google work and get it (AccountAdmins when none is eligible). Delivery
+ * rechecks whichever audience was chosen.
+ */
+async function enqueuePublishFailedNotification(
+  deps: WorkflowNotificationDeliveryDeps,
+  event: ReviewReplyPublishFailed,
+): Promise<void> {
+  const authorCanRetry =
+    event.authorId !== null &&
+    (await deps.responsibleManagers.isEligibleForProperty(
+      event.organizationId,
+      event.propertyId,
+      event.authorId,
+    ))
+  if (authorCanRetry) {
+    await enqueueReplyAuthorNotification(deps, event, 'reply.publish_failed')
+    return
+  }
+
+  const inboxItem = await deps.inboxItemLookup.findInboxItemByReviewId(
+    event.reviewId,
+    event.organizationId,
+  )
+  if (!inboxItem) return
+  const scope = { kind: 'property', propertyId: event.propertyId } as const
+  const recipients = await resolveResponsibleRecipients(deps, event.organizationId, scope)
+  const payload = await buildInboxItemPayload(deps, {
+    inboxItemId: inboxItem,
+    orgId: event.organizationId,
+  })
+  await Promise.all(
+    recipients.map((recipientId) =>
+      deps.queue.add(
+        INSERT_NOTIFICATION_JOB_NAME,
+        {
+          userId: recipientId,
+          organizationId: event.organizationId,
+          propertyId: event.propertyId,
+          type: 'reply.publish_failed',
+          resourceType: 'inbox_item',
+          resourceId: inboxItem,
+          eventId: event.eventId,
+          payload,
+          audience: { kind: 'responsible_scope', scope },
+        },
+        { jobId: `${event.eventId}-${recipientId}` },
+      ),
+    ),
+  )
+}
+
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -595,7 +651,7 @@ export async function handleWorkflowNotificationEvent(
       await enqueueReplyAuthorNotification(deps, parsed, 'reply.published')
       break
     case 'review.reply.publish_failed':
-      await enqueueReplyAuthorNotification(deps, parsed, 'reply.publish_failed')
+      await enqueuePublishFailedNotification(deps, parsed)
       break
   }
 

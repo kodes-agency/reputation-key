@@ -183,7 +183,8 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     'review.reply.publish_failed',
     'notification.on-review-reply-publish_failed',
     ['reply.publish_failed'],
-    ['property_operator'],
+    // The author while eligible; otherwise the Property's responsible managers.
+    ['property_operator', 'responsible_scope'],
   ),
   route(
     'portal.responsibility_became_needed',

@@ -123,7 +123,9 @@ publication outcomes have no actor and always reach the author.
 
 A request to choose a responsible manager reaches AccountAdmins only while the
 Property or Portal still has no eligible manager; one chosen before delivery
-retires it.
+retires it. A failed publication goes to its author while they can still act
+on the Property, otherwise to the Property's responsible managers (AccountAdmins
+when none is eligible), so it always reaches someone who can retry it.
 
 ## Runtime
 

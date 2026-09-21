@@ -36,6 +36,7 @@ const makeDeps = (): Deps => {
   const fakes = createNotificationConsumerDeps()
   fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
   fakes.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+  fakes.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
   return {
     queue: fakes.queue,
     userLookup: fakes.userLookup,
@@ -343,6 +344,56 @@ describe('durable workflow notification consumers', () => {
         ).resolves.toEqual({ status: 'applied' })
 
         expect(deps.fakes.jobs).toEqual([])
+      },
+    )
+  })
+
+  describe('a reply that failed to publish', () => {
+    const publishFailed = (authorId: string | null) =>
+      event('review.reply.publish_failed', {
+        replyId: unbrand(NOTIF_TEST_IDS.replyId),
+        reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
+        authorId,
+      })
+
+    it('goes to the author while they can still act on the Property', async () => {
+      const deps = makeDeps()
+
+      await handleWorkflowNotificationEvent(
+        deps,
+        publishFailed(unbrand(NOTIF_TEST_IDS.authorId)),
+      )
+
+      expect(deps.fakes.jobs.map((job) => job.data)).toEqual([
+        expect.objectContaining({
+          userId: NOTIF_TEST_IDS.authorId,
+          type: 'reply.publish_failed',
+          audience: { kind: 'property_operator' },
+        }),
+      ])
+    })
+
+    it.each([
+      ['has left the Property', unbrand(NOTIF_TEST_IDS.authorId)],
+      ['is unknown', null],
+    ])(
+      'goes to the Property responsible managers when the author %s',
+      async (_label, authorId) => {
+        const deps = makeDeps()
+        deps.fakes.responsibleManagers.isEligibleForProperty.mockResolvedValue(false)
+
+        await handleWorkflowNotificationEvent(deps, publishFailed(authorId))
+
+        expect(deps.fakes.jobs.map((job) => job.data)).toEqual([
+          expect.objectContaining({
+            userId: NOTIF_TEST_IDS.manager1,
+            type: 'reply.publish_failed',
+            audience: {
+              kind: 'responsible_scope',
+              scope: { kind: 'property', propertyId: NOTIF_TEST_IDS.propId },
+            },
+          }),
+        ])
       },
     )
   })
