@@ -1,6 +1,6 @@
 import type { QueryClient, QueryKey } from '@tanstack/react-query'
 import type {
-  Notification,
+  NotificationView,
   NotificationFeedHead,
   NotificationPage,
 } from '#/contexts/feed/application/public-api'
@@ -9,7 +9,7 @@ import type { NotificationHistoryPages } from './notification-feed-pagination'
 type FeedPages = NotificationHistoryPages
 
 /** `null` removes the row. Returning the row unchanged is a no-op. */
-type RowPatch = (row: Notification) => Notification | null
+type RowPatch = (row: NotificationView) => NotificationView | null
 
 function patchPage(page: NotificationPage, patch: RowPatch): NotificationPage {
   const notifications = page.notifications.flatMap((row) => {
@@ -30,7 +30,7 @@ function patchCachedPage(
 }
 
 /** How one row moves the unread tally: `-1` read/removed, `+1` unread, else `0`. */
-function rowUnreadDelta(row: Notification, patched: Notification | null): number {
+function rowUnreadDelta(row: NotificationView, patched: NotificationView | null): number {
   const wasUnread = row.status === 'unread'
   if (patched === null) return wasUnread ? -1 : 0
   if (wasUnread === (patched.status === 'unread')) return 0

@@ -98,6 +98,7 @@ import type { Result } from '#/shared/domain'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { PropertyAccessLookup } from '#/shared/domain/property-access'
 import { createNotificationFeedReads } from './application/notification-feed-reads'
+import { toNotificationView } from './application/notification-view'
 import type { OneClickUnsubscribeTarget } from './application/one-click-unsubscribe-token'
 import { assertBetaNotificationTriggerMatrix } from './application/beta-notification-trigger-matrix'
 import { createNotificationDeliveryRuntime } from './application/notification-delivery-runtime'
@@ -499,7 +500,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       await notificationRepo.markRead(id, userId, orgId, now, now)
     },
     /**
-     * Read -> unread for the row menu. Resolves to the flipped notification, or
+     * Read -> unread for the row menu. Resolves to the flipped row's browser view, or
      * null when the flip is a no-op: either the transition is invalid (the row
      * is already unread or was dismissed) or ADR 0046 r.2's unread-uniqueness
      * key is already held by another row for the same (user, type, resource) —
@@ -509,7 +510,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     markUnread: async (id: string, orgId: string, userId: UserId) => {
       const now = await applyOwnedTransition(id, orgId, userId, markNotificationUnread)
       if (now === null) return null // invalid transition, skip
-      return notificationRepo.markUnread(id, userId, orgId, now)
+      const flipped = await notificationRepo.markUnread(id, userId, orgId, now)
+      return flipped === null ? null : toNotificationView(flipped)
     },
     markAllRead: (userId: string, orgId: string) => {
       const now = input.clock()

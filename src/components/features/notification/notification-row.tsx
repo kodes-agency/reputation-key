@@ -19,7 +19,7 @@ import { cn } from '#/lib/utils'
 import {
   notificationLink,
   renderNotification,
-  type Notification,
+  type NotificationView,
 } from '#/contexts/feed/application/public-api'
 import { CATEGORY_COPY } from '#/components/features/settings/notifications-type-rows'
 import {
@@ -34,7 +34,7 @@ import { NotificationRowMenu } from './notification-row-menu'
 import type { NotificationRowActions } from './types'
 
 type Props = Readonly<{
-  notification: Notification
+  notification: NotificationView
   actions: NotificationRowActions
   /** Persisted locale + IANA timezone. Defaults until user settings resolve. */
   format?: NotificationFormat

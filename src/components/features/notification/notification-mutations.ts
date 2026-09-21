@@ -14,12 +14,12 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { notificationKeys } from '#/shared/queries/query-keys'
-import type { Notification } from '#/contexts/feed/application/public-api'
+import type { NotificationView } from '#/contexts/feed/application/public-api'
 import type { NotificationListFilter } from '#/contexts/feed/application/public-api'
 import { patchNotificationFeedCache } from './notification-feed-cache'
 import type { NotificationServerFns } from './types'
 
-const readNow = (row: Notification): Notification => ({
+const readNow = (row: NotificationView): NotificationView => ({
   ...row,
   status: 'read',
   readAt: new Date(),
@@ -29,7 +29,7 @@ export type NotificationFeedMutations = Readonly<{
   onMarkRead: (notificationId: string) => void
   onMarkUnread: (notificationId: string) => void
   onDismiss: (notificationId: string) => void
-  onMuteCategory: (notification: Notification) => void
+  onMuteCategory: (notification: NotificationView) => void
   markAllRead: () => void
   dismissAll: () => void
   isMarkingAllRead: boolean

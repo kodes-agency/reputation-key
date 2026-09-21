@@ -3,7 +3,7 @@ import {
   isNewerFeedPosition,
   type NotificationFeedCursor,
   type NotificationFeedHead,
-  type Notification,
+  type NotificationView,
   type NotificationPage,
 } from '#/contexts/feed/application/public-api'
 
@@ -77,7 +77,7 @@ export function notificationHistoryQueryOptions(
  * re-sorting to the top, push rows out of it, and those rows are then in
  * neither cache. A head that only shrank still overlaps history.
  */
-export function isHistoryDetached(
+function isHistoryDetached(
   head: NotificationPage,
   historyStart: NotificationFeedCursor | null | undefined,
 ): boolean {
@@ -113,8 +113,8 @@ export function fetchHeadKeepingHistoryContiguous(
 export function mergeNotificationHeadWithHistory(
   head: NotificationPage | undefined,
   historyPages: ReadonlyArray<NotificationPage> = [],
-): ReadonlyArray<Notification> {
-  const notifications: Notification[] = []
+): ReadonlyArray<NotificationView> {
+  const notifications: NotificationView[] = []
   const seen = new Set<string>()
 
   for (const page of head ? [head, ...historyPages] : historyPages) {

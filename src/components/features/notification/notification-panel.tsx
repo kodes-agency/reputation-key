@@ -15,7 +15,7 @@ import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-
 import { groupByReadState, type NotificationFilter } from './notification-filters'
 import { NotificationPopoverContent } from './notification-popover-content'
 import type { NotificationServerFns, NotificationRowActions } from './types'
-import type { Notification } from '#/contexts/feed/application/public-api'
+import type { NotificationView } from '#/contexts/feed/application/public-api'
 
 const PAGE_SIZE = 20
 
@@ -64,7 +64,7 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
 
   const actions: NotificationRowActions = {
     ...mutations,
-    onActivate: (notification: Notification) => {
+    onActivate: (notification: NotificationView) => {
       setOpen(false)
       if (notification.status === 'unread') mutations.onMarkRead(notification.id)
     },

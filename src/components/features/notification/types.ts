@@ -13,7 +13,7 @@ import type {
   muteNotificationCategoryFn,
   getNotificationUserSettingsFn,
 } from '#/contexts/feed/server/notifications'
-import type { Notification } from '#/contexts/feed/application/public-api'
+import type { NotificationView } from '#/contexts/feed/application/public-api'
 
 export type NotificationServerFns = Readonly<{
   /** Atomic feed-head authority used by the bell and full feed. */
@@ -36,10 +36,10 @@ export type NotificationServerFns = Readonly<{
  */
 export type NotificationRowActions = Readonly<{
   /** Deep-link followed: mark read (if unread) and dismiss any open surface. */
-  onActivate: (notification: Notification) => void
+  onActivate: (notification: NotificationView) => void
   onMarkRead: (notificationId: string) => void
   onMarkUnread: (notificationId: string) => void
   onDismiss: (notificationId: string) => void
   /** Disables the in-app channel for this row's category on this property. */
-  onMuteCategory: (notification: Notification) => void
+  onMuteCategory: (notification: NotificationView) => void
 }>

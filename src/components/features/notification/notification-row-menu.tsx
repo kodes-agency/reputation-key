@@ -19,12 +19,12 @@ import {
 import {
   isPreferenceDisableable,
   NOTIFICATION_SETTINGS_CATEGORIES,
-  type Notification,
+  type NotificationView,
 } from '#/contexts/feed/application/public-api'
 import type { NotificationRowActions } from './types'
 
 type Props = Readonly<{
-  notification: Notification
+  notification: NotificationView
   /** Human name of the notification's category, e.g. "Action needed". */
   categoryLabel: string
   /** Used only for the trigger's accessible name, never rendered. */

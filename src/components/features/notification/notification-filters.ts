@@ -9,7 +9,7 @@
 
 import {
   GOVERNING_NOTIFICATION_CATEGORIES,
-  type Notification,
+  type NotificationView,
   type NotificationListFilter,
 } from '#/contexts/feed/application/public-api'
 import { CATEGORY_COPY } from '#/components/features/settings/notifications-type-rows'
@@ -47,7 +47,7 @@ export function parseNotificationFilter(value: unknown): NotificationFilter {
 }
 
 export function matchesNotificationFilter(
-  notification: Notification,
+  notification: NotificationView,
   filter: NotificationFilter,
 ): boolean {
   switch (filter) {
@@ -67,12 +67,12 @@ export function matchesNotificationFilter(
 export type NotificationGroup = Readonly<{
   key: string
   label: string
-  notifications: ReadonlyArray<Notification>
+  notifications: ReadonlyArray<NotificationView>
 }>
 
 /** Popover grouping: what still needs attention, then everything else. */
 export function groupByReadState(
-  notifications: ReadonlyArray<Notification>,
+  notifications: ReadonlyArray<NotificationView>,
 ): ReadonlyArray<NotificationGroup> {
   const unread = notifications.filter((n) => n.status === 'unread')
   const read = notifications.filter((n) => n.status !== 'unread')
@@ -90,11 +90,11 @@ export function groupByReadState(
  * stable group rather than inventing a Property.
  */
 export function groupByProperty(
-  notifications: ReadonlyArray<Notification>,
+  notifications: ReadonlyArray<NotificationView>,
   propertyNames: Readonly<Record<string, string>>,
 ): ReadonlyArray<NotificationGroup> {
   const order: string[] = []
-  const buckets = new Map<string, Notification[]>()
+  const buckets = new Map<string, NotificationView[]>()
   const organizationKey = 'organization-account-security'
 
   for (const notification of notifications) {

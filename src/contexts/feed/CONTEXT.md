@@ -36,7 +36,9 @@ handling.
 Notifications are mutable delivery records. Copy is rendered from typed
 payloads at read/send time so in-app rows, urgent email, and digests cannot
 silently drift. Preferences and current responsibility are rechecked before
-external delivery.
+external delivery. The browser receives a `NotificationView`, never the stored
+row: the event correlation id, the frozen title/body snapshot, `updatedAt` and
+the recipient and Organization ids stay on the server.
 
 Every new Inbox Item is announced to its responsible recipients except Google
 history: an item whose first Handling Cycle was observed as

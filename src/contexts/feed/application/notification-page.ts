@@ -1,4 +1,5 @@
 import type { Notification } from '../domain/notification-types'
+import { toNotificationView, type NotificationView } from './notification-view'
 
 /**
  * A position in feed order (latest activity DESC, id DESC): the row's latest
@@ -13,7 +14,8 @@ export type NotificationFeedCursor = Readonly<{
 }>
 
 export type NotificationPage = Readonly<{
-  notifications: ReadonlyArray<Notification>
+  /** Browser-shaped rows: pages exist only to be sent to the in-app feed. */
+  notifications: ReadonlyArray<NotificationView>
   hasMore: boolean
   /** Where the next page starts: the last row's position, or null at the end. */
   nextCursor: NotificationFeedCursor | null
@@ -53,7 +55,7 @@ export function createNotificationPage(
   const page = rows.slice(0, limit)
   const hasMore = rows.length > limit
   return {
-    notifications: page.map((row) => row.notification),
+    notifications: page.map((row) => toNotificationView(row.notification)),
     hasMore,
     nextCursor: hasMore ? (page.at(-1)?.cursor ?? null) : null,
   }
