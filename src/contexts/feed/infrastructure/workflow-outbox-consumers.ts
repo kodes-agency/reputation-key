@@ -171,9 +171,11 @@ async function enqueueEscalationNotifications(
   const recipients = excludingActor(admins, event.userId)
   if (recipients.length === 0) return
 
+  // Escalating is a person's judgement call; the notice names their role.
   const payload = await buildInboxItemPayload(deps, {
     inboxItemId: event.inboxItemId,
     orgId: event.organizationId,
+    actorId: event.userId,
   })
   await Promise.all(
     recipients.map((recipientId) =>

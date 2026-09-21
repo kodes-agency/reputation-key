@@ -102,19 +102,43 @@ describe('renderNotification — invariants across every type', () => {
 })
 
 describe('renderNotification — the copy that was broken', () => {
-  it('inbox.escalated names the property and the wait instead of the item id', () => {
+  it('inbox.escalated names the property instead of the item id', () => {
     const r = renderNotification('inbox.escalated', {
       propertyName: 'Riverside Hotel',
       guestRating: 2,
       platform: 'portal',
-      waitingHours: 27,
     })
 
     expect(r.title).toBe('Escalated: 2-star feedback at Riverside Hotel')
-    expect(r.body).toContain('Waiting 1d')
-    expect(r.actionLabel).toBe('Respond now')
     expect(r.title).not.toContain('Inbox item')
   })
+
+  // Escalation is a manual flag with no reason field, and it can be set on an
+  // item that already has a reply or is closed. The copy may say who asked for
+  // attention; it may not say why, or that anything is unanswered or overdue.
+  it.each([
+    { platform: 'google', guestRating: undefined },
+    { platform: 'portal', guestRating: 2 },
+  ] as const)(
+    'inbox.escalated says who escalated a $platform item and invents no cause',
+    ({ platform, guestRating }) => {
+      const r = renderNotification('inbox.escalated', {
+        propertyName: 'Riverside Hotel',
+        platform,
+        guestRating,
+        waitingHours: 75,
+        actorRole: 'property_manager',
+      })
+
+      expect(r.body).toBe(
+        'A property manager escalated this for your attention. Open it to see where it stands.',
+      )
+      expect(r.actionLabel).toBe('Open item')
+      expect([r.title, r.body, r.summary].join(' ')).not.toMatch(
+        /unanswered|because|needs a reply|\bnow\b/i,
+      )
+    },
+  )
 
   it('describes an escalation resolution without alarming or blaming managers', () => {
     expect(

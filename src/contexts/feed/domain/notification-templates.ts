@@ -242,21 +242,16 @@ const renderReplyPublishFailed = (p: NotificationPayload): RenderedNotification 
         summary: facts(p.propertyName ?? '', reviewNoun(), 'publish failed'),
       }
 
+/**
+ * Escalation is a manual call with no reason field, and an answered or closed
+ * item can be escalated too. So the copy says who asked for attention and
+ * nothing about why, or about the item being unanswered.
+ */
 const renderInboxEscalated = (p: NotificationPayload): RenderedNotification => ({
   title: `Escalated: ${inboxNoun(p)}${atProperty(p)}`,
-  body: sentence(
-    'This was escalated because it has gone unanswered.',
-    waitedFor(p),
-    'It needs a reply now.',
-  ),
-  actionLabel: 'Respond now',
-  summary: facts(
-    p.propertyName ?? '',
-    inboxNoun(p),
-    formatWaitingAge(p.waitingHours) === ''
-      ? 'escalated'
-      : `unanswered ${formatWaitingAge(p.waitingHours)}`,
-  ),
+  body: `${byRole(p)} escalated this for your attention. Open it to see where it stands.`,
+  actionLabel: 'Open item',
+  summary: facts(p.propertyName ?? '', inboxNoun(p), 'escalated'),
 })
 
 const renderInboxEscalationResolved = (p: NotificationPayload): RenderedNotification => ({

@@ -348,6 +348,29 @@ describe('durable workflow notification consumers', () => {
     )
   })
 
+  it('names the role of whoever escalated, since escalation is always a manual call', async () => {
+    const deps = makeDeps()
+
+    await handleWorkflowNotificationEvent(
+      deps,
+      event('inbox.inbox_item.escalated', {
+        inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+        userId: unbrand(NOTIF_TEST_IDS.submitter),
+        source: 'web',
+      }),
+    )
+
+    const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+    expect(deps.fakes.userLookup.findActorRole).toHaveBeenCalledWith(
+      NOTIF_TEST_IDS.submitter,
+      NOTIF_TEST_IDS.orgId,
+    )
+    expect(data.payload).toMatchObject({ actorRole: 'property_manager' })
+    expect(
+      renderNotification('inbox.escalated', parseNotificationPayload(data.payload)).body,
+    ).toMatch(/^A property manager escalated this/)
+  })
+
   describe('a reply that failed to publish', () => {
     const publishFailed = (authorId: string | null) =>
       event('review.reply.publish_failed', {

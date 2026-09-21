@@ -85,14 +85,14 @@ describe('notification policy', () => {
         propertyName: 'Riverside',
         guestRating: 1,
         platform: 'portal',
-        waitingHours: 30,
+        actorRole: 'account_admin',
       },
       LATER,
     )
 
-    // The newer local guest rating wins; the age it has now waited is reflected.
+    // The newer local guest rating and the latest escalator's role win.
     expect(bumped.title).toBe('Escalated: 1-star feedback at Riverside')
-    expect(bumped.body).toContain('Waiting 1d')
+    expect(bumped.body).toMatch(/^An account admin escalated this/)
   })
 
   it('keeps a fact the repeat event could not resolve (newest wins per key)', () => {
