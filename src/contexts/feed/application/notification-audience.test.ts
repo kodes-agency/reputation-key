@@ -176,6 +176,78 @@ describe('notification audience authorization', () => {
     expect(deps.userLookup.findByRole).not.toHaveBeenCalled()
   })
 
+  describe('a request to choose a responsible manager', () => {
+    const propertyGap = {
+      kind: 'responsibility_gap' as const,
+      scope: { kind: 'property' as const, propertyId: PROPERTY },
+    }
+    const portalGap = {
+      kind: 'responsibility_gap' as const,
+      scope: { kind: 'portal' as const, portalId: PORTAL },
+    }
+
+    it.each([
+      ['Property', propertyGap, 'findForProperty'],
+      ['Portal', portalGap, 'findForPortal'],
+    ] as const)(
+      'reaches a current AccountAdmin only while the %s still has no manager',
+      async (_label, audience, lookup) => {
+        const deps = buildDeps()
+        deps.userLookup.findByRole.mockResolvedValue([RECIPIENT])
+        const authorizeGap = () =>
+          createNotificationAudienceAuthorizer(deps)(authorize({ audience }))
+
+        await expect(authorizeGap()).resolves.toBe(true)
+
+        // Someone chose a manager while the notice waited in the queue.
+        deps.responsibleManagers[lookup].mockResolvedValue([RESPONSIBLE_MANAGER])
+        await expect(authorizeGap()).resolves.toBe(false)
+      },
+    )
+
+    it('never reaches someone who is not an AccountAdmin', async () => {
+      const deps = buildDeps()
+      deps.userLookup.findByRole.mockResolvedValue([RESPONSIBLE_MANAGER])
+
+      await expect(
+        createNotificationAudienceAuthorizer(deps)(authorize({ audience: propertyGap })),
+      ).resolves.toBe(false)
+    })
+
+    it('fails closed when the gap names another Property', async () => {
+      const deps = buildDeps()
+      deps.userLookup.findByRole.mockResolvedValue([RECIPIENT])
+
+      await expect(
+        createNotificationAudienceAuthorizer(deps)(
+          authorize({
+            audience: {
+              ...propertyGap,
+              scope: { kind: 'property', propertyId: 'another-property' },
+            },
+          }),
+        ),
+      ).resolves.toBe(false)
+    })
+
+    it('parses only a Property or Portal gap', () => {
+      expect(parseNotificationAudience(propertyGap)).toEqual(propertyGap)
+      expect(parseNotificationAudience(portalGap)).toEqual(portalGap)
+      expect(
+        parseNotificationAudience({
+          kind: 'responsibility_gap',
+          scope: { kind: 'portal_group', portalGroupId: 'group-1' },
+        }),
+      ).toBeNull()
+      expect(
+        parseNotificationAudience({
+          kind: 'responsibility_gap',
+          scope: { kind: 'property', propertyId: '' },
+        }),
+      ).toBeNull()
+    })
+  })
+
   it('revalidates direct AccountAdmin recovery recipients', async () => {
     const deps = buildDeps()
     deps.userLookup.findByRole.mockResolvedValue([RECIPIENT])

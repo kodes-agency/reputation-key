@@ -56,6 +56,10 @@ export type NotificationAudience =
     }>
   | Readonly<{ kind: 'responsible_scope'; scope: ResponsibleScope }>
   | Readonly<{ kind: 'account_admin' }>
+  | Readonly<{
+      kind: 'responsibility_gap'
+      scope: Exclude<ResponsibleScope, Readonly<{ kind: 'portal_group' }>>
+    }>
   | Readonly<{ kind: 'inbox_assignee'; inboxItemId: InboxItemId }>
   | Readonly<{
       kind: 'bulk_inbox_assignee'
@@ -387,6 +391,15 @@ const parseResponsibleScope: AudienceKindParser = (value) => {
   return null
 }
 
+/** Only a Property or a Portal carries a responsible-manager gap. */
+const parseResponsibilityGap: AudienceKindParser = (value) => {
+  const parsed = parseResponsibleScope(value)
+  if (parsed?.kind !== 'responsible_scope' || parsed.scope.kind === 'portal_group') {
+    return null
+  }
+  return { kind: 'responsibility_gap', scope: parsed.scope }
+}
+
 /**
  * A `Map` — not an object literal — so an attacker-supplied `kind` such as
  * `"constructor"` cannot reach `Object.prototype` and resolve to a callable.
@@ -397,6 +410,7 @@ const AUDIENCE_KIND_PARSERS: ReadonlyMap<string, AudienceKindParser> = new Map<
 >([
   ['affected_organization_user', parseAffectedOrganizationUser],
   ['account_admin', () => ({ kind: 'account_admin' })],
+  ['responsibility_gap', parseResponsibilityGap],
   ['property_operator', () => ({ kind: 'property_operator' })],
   ['inbox_assignee', parseInboxAssignee],
   ['bulk_inbox_assignee', parseBulkInboxAssignee],
@@ -468,6 +482,26 @@ const isAccountAdminRecipient = async (
     await deps.userLookup.findByRole(organizationId, 'AccountAdmin'),
     userId,
   )
+
+/**
+ * "Choose a responsible manager" stands only while no eligible manager holds
+ * the scope; once someone is chosen, a queued request is stale. Recipients
+ * are current AccountAdmins, the people who can choose one.
+ */
+const isResponsibilityGapRecipient = async (
+  deps: Deps,
+  { organizationId, propertyId, userId }: PropertyScopedRequest,
+  scope: AudienceOfKind<'responsibility_gap'>['scope'],
+) => {
+  if (scope.kind === 'property' && scope.propertyId !== propertyId) return false
+  const [admins, managers] = await Promise.all([
+    deps.userLookup.findByRole(organizationId, 'AccountAdmin'),
+    scope.kind === 'property'
+      ? deps.responsibleManagers.findForProperty(organizationId, propertyId)
+      : deps.responsibleManagers.findForPortal(organizationId, portalId(scope.portalId)),
+  ])
+  return managers.length === 0 && includesRecipient(admins, userId)
+}
 
 const isStillInboxAssignee = async (
   deps: Deps,
@@ -753,6 +787,8 @@ export const createNotificationAudienceAuthorizer =
         return isResponsibleScopeRecipient(deps, request, audience.scope)
       case 'account_admin':
         return isAccountAdminRecipient(deps, request)
+      case 'responsibility_gap':
+        return isResponsibilityGapRecipient(deps, request, audience.scope)
       case 'escalation_resolution':
         return isEscalationResolutionRecipient(deps, request, audience)
       case 'handling_cycle':

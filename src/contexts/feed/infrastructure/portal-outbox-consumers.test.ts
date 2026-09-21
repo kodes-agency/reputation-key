@@ -91,6 +91,21 @@ describe('portal notification durable consumer', () => {
     )
   })
 
+  it('asks AccountAdmins only for as long as the Portal still has no manager', async () => {
+    const deps = makeDeps()
+    deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
+
+    await handleNotificationPortalResponsibilityNeeded(deps, event())
+
+    expect(deps.fakes.jobs[0]?.data).toMatchObject({
+      type: 'portal.responsibility_needed',
+      audience: {
+        kind: 'responsibility_gap',
+        scope: { kind: 'portal', portalId: 'portal-1' },
+      },
+    })
+  })
+
   it('replays a legacy v1 envelope using its occurrence as the historical version', async () => {
     const deps = makeDeps()
     deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])

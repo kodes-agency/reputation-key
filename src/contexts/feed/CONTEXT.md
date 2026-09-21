@@ -121,11 +121,16 @@ self-assignment, an AccountAdmin's own escalation or submission, an author
 approving or rejecting their own reply — and keeps everyone else. Google's
 publication outcomes have no actor and always reach the author.
 
+A request to choose a responsible manager reaches AccountAdmins only while the
+Property or Portal still has no eligible manager; one chosen before delivery
+retires it.
+
 ## Runtime
 
 Durable outbox consumers project activity and enqueue deterministic notification
 jobs. A bulk Inbox command (assignment, reopen) notifies once per recipient per
-Property from its completion fact; the per-item facts it covers stay history. The activity worker also exposes bounded projection recovery. Notification
+Property from its completion fact; the per-item facts it covers stay history.
+The activity worker also exposes bounded projection recovery. Notification
 jobs perform insert, urgent-email, digest, and missing-notification repair work.
 A durable delivery is settled once its materialization receipt is claimed: a
 row was written, preferences asked for none, or the recipient no longer

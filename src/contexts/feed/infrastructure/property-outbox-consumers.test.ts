@@ -86,6 +86,21 @@ describe('Property notification durable consumer', () => {
     )
   })
 
+  it('asks AccountAdmins only for as long as the Property still has no manager', async () => {
+    const deps = makeDeps()
+    deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
+
+    await handleNotificationPropertyResponsibilityNeeded(deps, event())
+
+    expect(deps.fakes.jobs[0]?.data).toMatchObject({
+      type: 'property.responsibility_needed',
+      audience: {
+        kind: 'responsibility_gap',
+        scope: { kind: 'property', propertyId: NOTIF_TEST_IDS.propId },
+      },
+    })
+  })
+
   it('fails closed on Organization or Property attribution mismatch', async () => {
     const deps = makeDeps()
     await expect(

@@ -189,7 +189,7 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     'portal.responsibility_became_needed',
     'notification.on-portal-responsibility-needed',
     ['portal.responsibility_needed'],
-    ['account_admin'],
+    ['responsibility_gap'],
   ),
   {
     ...route(
@@ -204,7 +204,7 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     'property.responsibility_became_needed',
     'notification.on-property-responsibility-needed',
     ['property.responsibility_needed'],
-    ['account_admin'],
+    ['responsibility_gap'],
   ),
   route(
     'integration.google_account.reauthorization_required',
@@ -243,6 +243,7 @@ const AUDIENCE_KINDS: ReadonlySet<string> = new Set<AudienceKind>([
   'affected_organization_user',
   'responsible_scope',
   'account_admin',
+  'responsibility_gap',
   'inbox_assignee',
   'bulk_inbox_assignee',
   'escalation_resolution',

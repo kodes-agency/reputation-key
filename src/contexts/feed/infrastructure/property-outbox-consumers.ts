@@ -67,7 +67,11 @@ async function enqueuePropertyResponsibilityNotification(
           resourceId: event.propertyId,
           eventId: event.eventId,
           payload: {},
-          audience: { kind: 'account_admin' },
+          // Rechecked on delivery: a manager chosen meanwhile retires it.
+          audience: {
+            kind: 'responsibility_gap',
+            scope: { kind: 'property', propertyId: event.propertyId },
+          },
         },
         { jobId: `${event.eventId}-${recipientId}` },
       ),

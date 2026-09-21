@@ -77,7 +77,11 @@ async function enqueuePortalResponsibilityNotification(
           resourceId: event.portalId,
           eventId: event.eventId,
           payload: {},
-          audience: { kind: 'account_admin' },
+          // Rechecked on delivery: a manager chosen meanwhile retires it.
+          audience: {
+            kind: 'responsibility_gap',
+            scope: { kind: 'portal', portalId: event.portalId },
+          },
         },
         { jobId: `${event.eventId}-${recipientId}` },
       ),
