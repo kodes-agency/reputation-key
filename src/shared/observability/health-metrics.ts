@@ -191,12 +191,14 @@ export type HealthSnapshot = Readonly<{
      */
     attemptedStuckCount: number
     /**
-     * Inbox items created inside the reconciliation window (past the grace
-     * edge) with NO notification row for anybody — "a review arrived and
-     * nobody was told". Above zero means either the in-process fan-out
-     * dropped it and the reconcile-missing-notifications sweep has not caught
-     * up, or the sweep itself is not running. Saturates at the sweep's scan
-     * cap; the alert on it fires on "above zero", so the cap costs nothing.
+     * Inbox items created inside the gap window (past the grace edge) with NO
+     * notification row for anybody and a delivery not yet decided — "a
+     * review arrived and nobody was told". An item whose recipients all muted
+     * it is decided, so it never counts. Above zero means delivery is late:
+     * the Feed consumer has not taken the item's fact, or a delivery Redis
+     * accepted has not settled and the reconcile-missing-notifications repair
+     * has not caught up. Saturates at its scan cap; the alert pages on any
+     * count above zero, so the cap costs nothing.
      */
     missingForInboxItemCount: number
     /** Bounded end-to-end delivery evidence for every active beta family. */

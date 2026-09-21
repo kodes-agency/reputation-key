@@ -561,9 +561,11 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
   }),
 
   // ── the user was never told ──
-  // A review landed, the inbox has it, and no notification exists after the
-  // grace edge. The bounded reconciliation sweep is the repair authority, so
-  // presence means either delivery is late or that repair is not keeping up.
+  // A review landed, the inbox has it, and past the grace edge it has no
+  // notification while its delivery is still undecided — an item whose
+  // recipients all muted it is decided and never counts. Presence means
+  // delivery is late, or the repair of deliveries that never settled is not
+  // keeping up. A single evaluation pages.
   define({
     name: 'notification.missing-for-inbox-item',
     severity: 'P1',
@@ -575,7 +577,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       if (count <= 0) return null
       return {
         value: count,
-        detail: `${count} inbox item(s) still have no notification past the grace edge — delivery or bounded reconciliation is not keeping up`,
+        detail: `${count} inbox item(s) still have no notification and no decided delivery past the grace edge — delivery or its repair is not keeping up`,
       }
     },
   }),

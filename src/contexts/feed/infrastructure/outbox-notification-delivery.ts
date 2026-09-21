@@ -212,6 +212,37 @@ export function withBetaOutboxNotificationDelivery(
   }
 }
 
+const REPAIR_JOB_ID_PREFIX = 'notification-repair-'
+
+/**
+ * The queue a delivery repair enqueues through, beneath the durable bridge.
+ * Replaying a source fact re-derives every recipient; a delivery that already
+ * settled is left alone, since its job could only settle as a duplicate. Any
+ * other delivery is queued under an id of its own, derived from the delivery:
+ * a retained original job (failed, quarantined) cannot swallow the repair, and
+ * a later sweep converges on the same repair job instead of queueing another.
+ */
+export function withDeliveryRepairJobs(
+  queue: QueuePort,
+  receipts: Pick<OutboxRepository, 'hasReceipt'>,
+): QueuePort {
+  return {
+    add: async (name, data, opts) => {
+      const delivery = parseOutboxNotificationDelivery(data)
+      if (!delivery) {
+        throw new Error('notification delivery repair requires a durable delivery marker')
+      }
+      if (await receipts.hasReceipt(delivery.eventId, delivery.materializedReceiptName)) {
+        return undefined
+      }
+      return queue.add(name, data, {
+        ...opts,
+        jobId: `${REPAIR_JOB_ID_PREFIX}${delivery.receiptKey}`,
+      })
+    },
+  }
+}
+
 export const notificationDeliveryReceiptPrefixes = {
   enqueue: ENQUEUE_RECEIPT_PREFIX,
   materialized: MATERIALIZED_RECEIPT_PREFIX,

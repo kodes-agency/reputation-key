@@ -9,6 +9,7 @@ import type {
 import { MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT } from '../../application/ports/notification-delivery-lag.repository'
 import { BETA_NOTIFICATION_TRIGGER_MATRIX } from '../../application/beta-notification-trigger-matrix'
 import { notificationDeliveryReceiptPrefixes } from '../outbox-notification-delivery'
+import { notificationRouteValues as routeValues } from './notification-route-values'
 
 type PendingRow = Readonly<{
   pending: number
@@ -36,13 +37,6 @@ const asDate = (value: Date | string | null | undefined): Date | null =>
     : value instanceof Date
       ? value
       : new Date(value)
-
-const routeValues = sql.join(
-  BETA_NOTIFICATION_TRIGGER_MATRIX.map(
-    (row) => sql`(${row.eventType}::text, ${row.consumerName}::text)`,
-  ),
-  sql`, `,
-)
 
 const activeNotificationTypeValues = sql.join(
   [

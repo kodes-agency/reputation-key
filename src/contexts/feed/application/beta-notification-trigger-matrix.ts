@@ -86,7 +86,7 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
       ['responsible_scope', 'account_admin'],
     ),
     // ADR 0046: Google history an import brought in is never announced; the
-    // missing-notification sweep honours the same rule.
+    // missing-notification gauge honours the same rule.
     eventCondition:
       'sourceType === feedback || first Handling Cycle is not historical_onboarding',
   },

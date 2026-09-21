@@ -595,7 +595,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.missingForInboxItemCount'],
     emitted: true,
     description:
-      'Inbox items past the reconciliation grace edge with NO notification row for anybody — "a review arrived and nobody was told". Above zero means the in-process fan-out dropped it AND reconcile-missing-notifications has not healed it yet, or that sweep is not running. Saturates at its scan cap (1000); the alert fires on above-zero, so the cap is immaterial.',
+      'Inbox items past the grace edge with NO notification row for anybody and a delivery not yet decided — "a review arrived and nobody was told". Items whose recipients all muted them, or no longer qualify, are decided and never count. Above zero means the Feed consumer has not taken the item\'s fact, or a delivery Redis accepted has not settled and reconcile-missing-notifications has not repaired it yet. Saturates at its scan cap (1000); the alert fires on above-zero, so the cap is immaterial.',
   }),
   def({
     name: 'notification.delivery.source_receipt_pending',

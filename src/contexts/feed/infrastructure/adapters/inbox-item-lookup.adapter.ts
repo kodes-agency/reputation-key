@@ -4,7 +4,7 @@
 // content-free render facts (ADR 0046 r.8) the events do not carry. The
 // property join mirrors notification-property-scope.repository.ts, which
 // already reads `properties` from this context. Whether an item arrived as
-// Google history is the predicate the missing-notification sweep also reads.
+// Google history is the predicate the missing-notification gauge also reads.
 import type { Database } from '#/shared/db'
 import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import {

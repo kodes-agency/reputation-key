@@ -3,7 +3,7 @@
 // single module exposes one merged context surface.
 
 import type { Database } from '#/shared/db'
-import type { ConsumerRegistry } from '#/shared/outbox'
+import { createConsumerRegistry, type ConsumerRegistry } from '#/shared/outbox'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -67,6 +67,7 @@ import { registerGoalNotificationConsumer } from './infrastructure/goal-outbox-c
 import { registerHandlingCycleNotificationConsumers } from './infrastructure/handling-cycle-outbox-consumers'
 import { registerResponseTargetNotificationConsumer } from './infrastructure/response-target-outbox-consumers'
 import { createNotificationGapRepository } from './infrastructure/repositories/notification-gap.repository'
+import { createNotificationDeliveryRepairRepository } from './infrastructure/repositories/notification-delivery-repair.repository'
 import { createResendEventHandler } from './infrastructure/handlers/resend-event-handler'
 import {
   createReconcileMissingNotificationsHandler,
@@ -100,7 +101,11 @@ import type { OneClickUnsubscribeTarget } from './application/one-click-unsubscr
 import { assertBetaNotificationTriggerMatrix } from './application/beta-notification-trigger-matrix'
 import { createNotificationDeliveryRuntime } from './application/notification-delivery-runtime'
 import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
-import { withBetaOutboxNotificationDelivery } from './infrastructure/outbox-notification-delivery'
+import {
+  withBetaOutboxNotificationDelivery,
+  withDeliveryRepairJobs,
+} from './infrastructure/outbox-notification-delivery'
+import type { NotificationJobEnqueuePort } from './infrastructure/inbox-notification-fanout'
 import { createNotificationDeliverySettlement } from './infrastructure/repositories/notification-delivery-settlement.repository'
 import { createNotificationDeliveryLagRepository } from './infrastructure/repositories/notification-delivery-lag.repository'
 import { MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT } from './application/ports/notification-delivery-lag.repository'
@@ -276,6 +281,7 @@ type NotificationBuildInput = Readonly<{
 const buildNotificationFeed = (input: NotificationBuildInput) => {
   const notificationRepo = createNotificationRepository(input.db)
   const gapRepo = createNotificationGapRepository(input.db)
+  const deliveryRepairRepo = createNotificationDeliveryRepairRepository(input.db)
   const deliveryLagRepo = createNotificationDeliveryLagRepository(input.db)
   const emailRepo = createNotificationEmailRepository(input.db)
   const prefRepo = createNotificationPreferenceRepository(input.db)
@@ -334,24 +340,27 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   const notificationDeliveryQueue = policyQueue
     ? withBetaOutboxNotificationDelivery(policyQueue, input.outboxRepo)
     : undefined
-  // Outbox consumers are registered below once their shared dependencies exist.
-
-  // The inbox-item durable consumer and reconciliation sweep share one fan-out
-  // definition (infrastructure/inbox-notification-fanout).
-  const fanoutDeps = notificationDeliveryQueue
-    ? {
-        queue: notificationDeliveryQueue,
-        userLookup,
-        responsibleManagers: input.responsibleManagers,
-        inboxItemLookup,
-        clock: input.clock,
-        logger: input.logger,
-      }
+  // A repair replays a source fact through the same bridge, but queues only
+  // the deliveries that never settled, each under an id of its own.
+  const deliveryRepairQueue = policyQueue
+    ? withBetaOutboxNotificationDelivery(
+        withDeliveryRepairJobs(policyQueue, input.outboxRepo),
+        input.outboxRepo,
+      )
     : undefined
 
+  // The reads every route's fan-out shares; the queue decides how a job travels.
+  const fanoutReads = {
+    userLookup,
+    responsibleManagers: input.responsibleManagers,
+    inboxItemLookup,
+    clock: input.clock,
+    logger: input.logger,
+  }
+
   /**
-   * The window the gauge and the sweep agree on: items old enough to judge
-   * (past the grace edge) and recent enough to be worth healing.
+   * The window of Inbox items the missing-notification gauge judges: old
+   * enough to judge (past the grace edge) and recent enough to be news.
    */
   const gapWindow = () => {
     const now = input.clock().getTime()
@@ -562,92 +571,121 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     },
   } as const
 
-  /**
-   * Context-owned durable consumer registration. It is inert without the
-   * worker queue, so web composition can expose the capability without
-   * exposing Notification repositories or use cases.
-   */
-  const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
-    if (!fanoutDeps) return
+  /** Every durable notification route, enqueueing through `queue`. */
+  const registerNotificationRoutes = (
+    consumerRegistry: ConsumerRegistry,
+    queue: NotificationJobEnqueuePort,
+  ) => {
     registerIdentityAccountNotificationConsumers(consumerRegistry, {
-      queue: fanoutDeps.queue,
+      queue,
       receipts: input.outboxRepo,
     })
     // LIF-01 program bullet 5 — the mandatory final notice at Purge Pending.
     // Registering it does NOT arm the lifecycle: the transition that produces
     // the fact is still driven by a quarantined schedule.
     registerOrganizationPurgePendingNoticeConsumer(consumerRegistry, {
-      queue: fanoutDeps.queue,
+      queue,
       userLookup,
       logger: input.logger,
       receipts: input.outboxRepo,
     })
     registerNotificationConsumers(consumerRegistry, {
-      ...fanoutDeps,
+      ...fanoutReads,
+      queue,
       receipts: input.outboxRepo,
     })
     registerWorkflowNotificationConsumers(consumerRegistry, {
-      ...fanoutDeps,
+      ...fanoutReads,
+      queue,
       receipts: input.outboxRepo,
     })
     registerBulkAssignmentNotificationConsumer(consumerRegistry, {
-      queue: fanoutDeps.queue,
+      queue,
       userLookup,
       receipts: input.outboxRepo,
     })
     registerEscalationResolutionNotificationConsumer(consumerRegistry, {
-      queue: fanoutDeps.queue,
+      queue,
       escalationResolutions,
       responsibleManagers: input.responsibleManagers,
       receipts: input.outboxRepo,
     })
     registerHandlingCycleNotificationConsumers(consumerRegistry, {
-      ...fanoutDeps,
+      ...fanoutReads,
+      queue,
       receipts: input.outboxRepo,
     })
     registerResponseTargetNotificationConsumer(consumerRegistry, {
-      ...fanoutDeps,
+      ...fanoutReads,
+      queue,
       receipts: input.outboxRepo,
     })
     registerGoalNotificationConsumer(consumerRegistry, {
-      queue: fanoutDeps.queue,
+      queue,
       monthlyResultFacts: input.monthlyResultFacts,
       responsibleManagers: input.responsibleManagers,
       userLookup,
       receipts: input.outboxRepo,
     })
     registerPortalNotificationConsumers(consumerRegistry, {
-      queue: fanoutDeps.queue,
+      queue,
       userLookup,
       logger: input.logger,
       receipts: input.outboxRepo,
     })
     registerPortalHealthNotificationConsumer(consumerRegistry, {
-      queue: fanoutDeps.queue,
+      queue,
       responsibleManagers: input.responsibleManagers,
       userLookup,
       logger: input.logger,
       receipts: input.outboxRepo,
     })
     registerPropertyNotificationConsumers(consumerRegistry, {
-      queue: fanoutDeps.queue,
+      queue,
       userLookup,
       logger: input.logger,
       receipts: input.outboxRepo,
     })
     registerIntegrationNotificationConsumers(consumerRegistry, {
-      queue: fanoutDeps.queue,
+      queue,
       userLookup,
       googleConnectionProperties: input.googleConnectionProperties,
       logger: input.logger,
       receipts: input.outboxRepo,
     })
+  }
+
+  /**
+   * Context-owned durable consumer registration. It is inert without the
+   * worker queue, so web composition can expose the capability without
+   * exposing Notification repositories or use cases.
+   */
+  const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
+    if (!notificationDeliveryQueue) return
+    registerNotificationRoutes(consumerRegistry, notificationDeliveryQueue)
     // Executable readiness contract: compare the beta trigger/recipient
     // matrix with the consumers that are actually present in this worker.
     // ARC-03-T7: read the registry this container just registered into — a
     // process-global read would let one container's matrix pass on another
     // container's consumers.
     assertBetaNotificationTriggerMatrix(consumerRegistry.list())
+  }
+
+  /**
+   * The repair replays a source fact through the route's own consumer, bound
+   * here to the delivery-repair queue. This registry is private: the outbox
+   * dispatcher never reads it.
+   */
+  const reconcileMissingNotificationsHandler = () => {
+    if (!deliveryRepairQueue) return undefined
+    const routes = createConsumerRegistry()
+    registerNotificationRoutes(routes, deliveryRepairQueue)
+    return createReconcileMissingNotificationsHandler({
+      deliveries: deliveryRepairRepo,
+      routes,
+      clock: input.clock,
+      logger: input.logger,
+    })
   }
 
   return {
@@ -678,9 +716,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
         handleResendEvent,
         authorizeAudience,
         deliverySettlement,
-        reconcileMissingNotificationsHandler: fanoutDeps
-          ? createReconcileMissingNotificationsHandler({ ...fanoutDeps, gapRepo })
-          : undefined,
+        reconcileMissingNotificationsHandler: reconcileMissingNotificationsHandler(),
       },
     }),
   } as const

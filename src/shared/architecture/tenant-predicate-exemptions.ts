@@ -180,13 +180,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/feed/infrastructure/repositories/notification-gap.repository.ts',
-    symbol: 'findItemsMissingNotifications',
-    reason:
-      'The bounded notification-repair scan searches all tenant inbox projections and returns each row with its tenant identifiers for scoped repair.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/feed/infrastructure/repositories/one-click-unsubscribe.repository.ts',
     symbol: 'targetScopes',
     reason:

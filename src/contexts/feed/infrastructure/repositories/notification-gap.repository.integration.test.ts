@@ -1,14 +1,17 @@
 // Feed notification surface — the notification-gap read against PostgreSQL.
 //
-// The unit test pins the rendered predicate; this one proves the rule only a
-// real database can: an item an import brought in as Google history is never
-// a gap, because the fan-out never announces it (ADR 0046). Were it a gap, the
-// sweep would re-create every notification the fan-out suppressed and the
-// missing-notification alert would page after every import.
+// The unit test pins the rendered predicate; this one proves the rules only a
+// real database can. An item an import brought in as Google history is never
+// a gap, because the fan-out never announces it (ADR 0046); were it a gap, the
+// missing-notification alert would page after every import. And an item whose
+// delivery settled without a notification — every recipient muted it, or no
+// longer qualified — is not a gap either; were it one, the alert would page
+// for a correct outcome and stay firing for a day.
 //
 // The gap read deliberately spans every tenant, so the fixtures live in a
 // created_at window no other suite writes into.
 
+import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
@@ -39,8 +42,9 @@ const { getPool } = setupIntegrationDb({
   orgA: ORG,
   orgB: OTHER_ORG,
   // inbox_items first: its cascade removes the cycles that pin each Review's
-  // material revision, and the Response Targets with them.
-  tables: ['inbox_items', 'reviews', 'properties'],
+  // material revision, and the Response Targets with them. Receipts go with
+  // their outbox facts.
+  tables: ['outbox_events', 'inbox_items', 'reviews', 'properties'],
 })
 
 const minutesAfter = (instant: Date, minutes: number): Date =>
@@ -182,26 +186,43 @@ async function seedImportedAndLiveItems(): Promise<void> {
   )
 }
 
+const ARRIVAL_CONSUMER = 'notification.on-inbox-item-created'
+
+type Delivery = 'consumer_pending' | 'unsettled' | 'applied' | 'obsolete'
+
+/**
+ * Inbox's arrival fact for an item and the receipts its Feed delivery left:
+ * none yet, a delivery Redis accepted that never settled, or one that settled
+ * applied or obsolete without writing a notification.
+ */
+async function seedArrivalDelivery(item: string, delivery: Delivery): Promise<void> {
+  const pool = getPool()
+  const event = randomUUID()
+  await pool.query(
+    `INSERT INTO outbox_events
+       (id, event_type, event_version, payload, organization_id, property_id,
+        source_context, source_aggregate_id, created_at, published_at)
+     VALUES ($1, 'inbox.inbox_item.created', 1, '{}', $2, $3, 'inbox', $4, $5, $5)`,
+    [event, ORG, PROPERTY, item, WINDOW.createdAtOrAfter],
+  )
+  if (delivery === 'consumer_pending') return
+  await pool.query(
+    `INSERT INTO event_consumer_receipts (event_id, consumer_name, status)
+     VALUES ($1, $2, 'applied'), ($1, $3, 'applied')`,
+    [event, ARRIVAL_CONSUMER, `notification.enqueue:${ARRIVAL_CONSUMER}:delivery-1`],
+  )
+  if (delivery === 'unsettled') return
+  await pool.query(
+    `INSERT INTO event_consumer_receipts (event_id, consumer_name, status)
+     VALUES ($1, $2, $3)`,
+    [event, `notification.materialized:${ARRIVAL_CONSUMER}:delivery-1`, delivery],
+  )
+}
+
 const gapRepository = () =>
   createNotificationGapRepository(drizzle(getPool()) as unknown as Database)
 
 describe('notification gap repository against PostgreSQL', () => {
-  it('never offers an item that arrived as Google history, while live reviews and feedback stay gaps', async () => {
-    await seedImportedAndLiveItems()
-
-    const candidates = await gapRepository().findItemsMissingNotifications({
-      ...WINDOW,
-      cursor: null,
-      limit: 100,
-    })
-
-    expect(candidates.map((candidate) => candidate.inboxItemId)).toEqual([
-      LIVE_ITEM,
-      LEGACY_ITEM,
-      FEEDBACK_ITEM,
-    ])
-  })
-
   it('leaves imported history out of the missing-notification gauge', async () => {
     await seedImportedAndLiveItems()
 
@@ -209,4 +230,26 @@ describe('notification gap repository against PostgreSQL', () => {
       gapRepository().countItemsMissingNotifications({ ...WINDOW, scanLimit: 1000 }),
     ).resolves.toBe(3)
   })
+
+  it('counts an item while its delivery is pending, whether the consumer or the insert has not run', async () => {
+    await seedImportedAndLiveItems()
+    await seedArrivalDelivery(LIVE_ITEM, 'consumer_pending')
+    await seedArrivalDelivery(LEGACY_ITEM, 'unsettled')
+
+    await expect(
+      gapRepository().countItemsMissingNotifications({ ...WINDOW, scanLimit: 1000 }),
+    ).resolves.toBe(3)
+  })
+
+  it.each(['applied', 'obsolete'] as const)(
+    'stops counting an item whose delivery settled %s without a notification',
+    async (settlement) => {
+      await seedImportedAndLiveItems()
+      await seedArrivalDelivery(LIVE_ITEM, settlement)
+
+      await expect(
+        gapRepository().countItemsMissingNotifications({ ...WINDOW, scanLimit: 1000 }),
+      ).resolves.toBe(2)
+    },
+  )
 })

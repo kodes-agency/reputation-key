@@ -772,8 +772,9 @@ function buildContainer(
     handleResendEvent: notification.delivery.handleResendEvent,
     notificationAudienceAuthorizer: notification.delivery.authorizeAudience,
     notificationDeliverySettlement: notification.delivery.deliverySettlement,
-    // The notification-gap healing sweep (registered by bootstrap on the
-    // worker path). Undefined when no job queue exists.
+    // The repair sweep for notification deliveries that never settled
+    // (registered by bootstrap on the worker path). Undefined when no job
+    // queue exists.
     reconcileMissingNotificationsHandler:
       notification.delivery.reconcileMissingNotificationsHandler,
     // BQC-2.2: version-gated strong read of persisted policy state.

@@ -63,6 +63,11 @@ export const outboxEvents = pgTable(
     index('outbox_events_consumer_redelivery_due_idx')
       .on(table.consumerRedeliveryNextAt, table.publishedAt)
       .where(sql`${table.publishedAt} IS NOT NULL AND ${table.recoveryFencedAt} IS NULL`),
+    // Query: the fact that announced an Inbox item, whose receipts say whether
+    // its notification delivery settled (the missing-notification gauge).
+    index('outbox_events_inbox_item_created_idx')
+      .on(table.sourceAggregateId)
+      .where(sql`${table.eventType} = 'inbox.inbox_item.created'`),
     check(
       'outbox_events_consumer_redelivery_attempts_nonnegative',
       sql`${table.consumerRedeliveryAttempts} >= 0`,

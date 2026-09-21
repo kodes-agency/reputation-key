@@ -586,8 +586,8 @@ export async function bootstrap(
 
 /**
  * The notification job family: outbound transport selection, one-click
- * unsubscribe signing, the insert handler, the notification-gap healing sweep,
- * and the two capability-gated outbound-email handlers.
+ * unsubscribe signing, the insert handler, the unsettled-delivery repair
+ * sweep, and the two capability-gated outbound-email handlers.
  *
  * It is a separate unit because every declaration below is used only by this
  * family — nothing in the rest of the worker's registration reads them.
@@ -739,10 +739,11 @@ async function registerNotificationJobs(
     'registered insert-notification job handler',
   )
 
-  // ── Notification-gap healing sweep ───────────────────────────────
-  // The notification durable consumer is the delivery path; this sweep is the
-  // at-least-once repair for a committed review whose consumer delivery was
-  // exhausted (quarantined) before a notification row existed.
+  // ── Unsettled notification delivery repair ───────────────────────
+  // The durable consumers are the delivery path; this sweep is the repair for
+  // a delivery Redis accepted that never settled (its insert job exhausted,
+  // or Redis lost it), which outbox redelivery cannot see once the consumer
+  // has recorded its receipt.
   const { JOB_NAME: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME } =
     await import('#/contexts/feed/infrastructure/jobs/reconcile-missing-notifications.job')
   const reconcileMissingNotifications = container.reconcileMissingNotificationsHandler
@@ -760,7 +761,7 @@ async function registerNotificationJobs(
   } else {
     logger.warn(
       { job: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME },
-      'reconcile-missing-notifications not registered — no job queue, so notification gaps will not self-heal',
+      'reconcile-missing-notifications not registered — no job queue, so unsettled notification deliveries will not self-heal',
     )
   }
 

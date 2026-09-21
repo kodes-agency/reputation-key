@@ -74,6 +74,21 @@ feedback is unaffected. The shared fan-out reads the fact through
 predicate: such an item is never a gap, so the sweep does not re-create its
 notification and `notification.missing_for_inbox_item` does not count it.
 
+## Amended 2026-09-22 — repair replays unsettled deliveries
+
+A durable delivery is settled when its materialization receipt is claimed in
+the transaction that decides it: a row, preferences that asked for none, or a
+recipient who no longer qualifies (obsolete). The missing-notification repair
+works from that evidence for every beta route, not from inbox items without a
+row: a delivery whose enqueue receipt has no materialization receipt five
+minutes on is replayed through its route's own consumer, under the source
+fact's event id and delivery marker, and only deliveries still unsettled are
+queued, each under an id of its own. A recipient who muted a type is settled,
+so the repair never re-announces the review, and
+`notification.missing_for_inbox_item` counts only items whose delivery is not
+yet decided. The previous sweep minted an event id no outbox row carried, so
+its receipts and settlements could never be written.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

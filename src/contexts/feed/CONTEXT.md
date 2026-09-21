@@ -41,7 +41,7 @@ external delivery.
 Every new Inbox Item is announced to its responsible recipients except Google
 history: an item whose first Handling Cycle was observed as
 `historical_onboarding`, a past review an import brought in, is never
-announced. The fan-out and the missing-notification sweep share one predicate,
+announced. The fan-out and the missing-notification gauge share one predicate,
 so such an item is never a gap either (ADR 0046).
 
 ## Runtime
@@ -49,6 +49,11 @@ so such an item is never a gap either (ADR 0046).
 Durable outbox consumers project activity and enqueue deterministic notification
 jobs. The activity worker also exposes bounded projection recovery. Notification
 jobs perform insert, urgent-email, digest, and missing-notification repair work.
+A durable delivery is settled once its materialization receipt is claimed: a
+row was written, preferences asked for none, or the recipient no longer
+qualified. The repair replays a delivery Redis accepted that never settled
+through its route's own consumer, under the source fact's event id; a settled
+delivery is never repaired, and never counts as a gap.
 All queue, clock, logger, identifier, and upstream lookup dependencies are
 provided by composition; modules do not read ambient roots.
 

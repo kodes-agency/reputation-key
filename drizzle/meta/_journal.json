@@ -162,6 +162,13 @@
       "when": 1790300000000,
       "tag": "0023_review_import_history_cutoff",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790400000000,
+      "tag": "0024_notification_gap_indexes",
+      "breakpoints": true
     }
   ]
 }

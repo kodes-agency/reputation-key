@@ -1,7 +1,7 @@
 // Feed notification surface — delivery runtime.
 //
 // ARC-03-T12: the worker's email/notification delivery jobs, the Resend webhook
-// and the notification-gap healing sweep used to be assembled in the
+// and the unsettled-delivery repair sweep used to be assembled in the
 // composition root out of Notification's private repository trio plus three
 // loose handlers. This names the whole delivery surface as ONE
 // Notification-owned capability, so the root forwards a capability rather than
@@ -22,7 +22,7 @@ export function createNotificationDeliveryRuntime<
     repos: TRepos
     /**
      * Webhook ingestion, audience authorization, and the bounded sweep that
-     * repairs a durable delivery missing its notification row. Queue-backed
+     * repairs a durable delivery that never settled. Queue-backed
      * capabilities stay undefined when no job queue is configured.
      */
     handlers: THandlers
