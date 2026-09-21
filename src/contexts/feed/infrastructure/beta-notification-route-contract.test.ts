@@ -1,13 +1,15 @@
 // Every beta notification route, from its real producer.
 //
-// Consumer tests hand-build their envelopes, and that is how a whole class of
-// routes shipped dead while every suite stayed green: the delayed execution
-// gate keyed Property scope by action, so each Organization-scoped route was
-// denied before its handler ran. Here each BETA_NOTIFICATION_TRIGGER_MATRIX
-// row starts from the upstream context's real event constructor and travels
-// the production path — toOutboxEvent, a jsonb round trip, buildConsumerEvent
-// — before it meets the REAL delayed execution policy. Nothing on that path is
-// mocked; only the consumers' own reads are fakes.
+// Consumer tests hand-build their envelopes, and that is how whole routes
+// shipped dead while every suite stayed green: the delayed execution gate
+// keyed Property scope by action, so each Organization-scoped route was denied
+// before its handler ran, and the Portal Health consumer rejected the envelope
+// aggregate its producer really writes. Here each
+// BETA_NOTIFICATION_TRIGGER_MATRIX row starts from the upstream context's real
+// event constructor and travels the production path — toOutboxEvent, a jsonb
+// round trip, buildConsumerEvent — into the REAL delayed execution policy, the
+// worker's dispatcher, the registered consumer and the durable delivery
+// bridge. Nothing on that path is mocked; only the consumers' reads are fakes.
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DomainEvent } from '#/shared/events/events'
@@ -99,7 +101,21 @@ import {
   registerIdentityAccountNotificationConsumers,
   registerOrganizationPurgePendingNoticeConsumer,
 } from './identity-account-outbox-consumers'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import {
+  INSERT_NOTIFICATION_JOB_NAME,
+  type InsertNotificationJobData,
+} from './jobs/insert-notification.job'
+import type { GoogleConnectionPropertyLookup } from './integration-outbox-consumers'
+import {
+  parseOutboxNotificationDelivery,
+  withBetaOutboxNotificationDelivery,
+} from './outbox-notification-delivery'
+import { parseNotificationAudience } from '../application/notification-audience'
+import type { EscalationResolutionLookupPort } from '../application/ports/escalation-resolution-lookup.port'
+import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
+import type { OutboxRepository } from '#/shared/outbox'
+import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
+import type { Job } from 'bullmq'
 import { URGENT_EMAIL_JOB_NAME } from './jobs/urgent-email.job'
 
 const ORG = organizationId('org-route-contract')
@@ -367,12 +383,19 @@ function deliveredEnvelope(fact: DomainEvent): ConsumerEvent {
   })
 }
 
-/** Every notification consumer the worker registers, over inert fakes. */
-function registerNotificationRoutes(): ConsumerRegistry {
-  const registry = createConsumerRegistry()
-  const fakes = createNotificationConsumerDeps()
-  const receipts = { insertReceipt: vi.fn(async () => {}) }
-  const lookups = {
+type RouteDeps = ReturnType<typeof createNotificationConsumerDeps> &
+  Readonly<{
+    receipts: Pick<OutboxRepository, 'insertReceipt'>
+    escalationResolutions: EscalationResolutionLookupPort
+    monthlyResultFacts: MonthlyResultNotificationFactsLookup
+    googleConnectionProperties: GoogleConnectionPropertyLookup
+  }>
+
+/** Reads that find nothing, for tests that never run a handler. */
+function inertRouteDeps(): RouteDeps {
+  return {
+    ...createNotificationConsumerDeps(),
+    receipts: { insertReceipt: vi.fn(async () => {}) },
     escalationResolutions: {
       findEscalationResolutionFacts: vi.fn(async () => null),
     },
@@ -384,23 +407,26 @@ function registerNotificationRoutes(): ConsumerRegistry {
       findGoogleNotificationAnchor: vi.fn(async () => null),
     },
   }
-  registerIdentityAccountNotificationConsumers(registry, { ...fakes, receipts })
-  registerOrganizationPurgePendingNoticeConsumer(registry, { ...fakes, receipts })
-  registerNotificationConsumers(registry, { ...fakes, receipts })
-  registerWorkflowNotificationConsumers(registry, { ...fakes, receipts })
-  registerBulkAssignmentNotificationConsumer(registry, { ...fakes, receipts })
-  registerEscalationResolutionNotificationConsumer(registry, {
-    ...fakes,
-    ...lookups,
-    receipts,
-  })
-  registerHandlingCycleNotificationConsumers(registry, { ...fakes, receipts })
-  registerResponseTargetNotificationConsumer(registry, { ...fakes, receipts })
-  registerGoalNotificationConsumer(registry, { ...fakes, ...lookups, receipts })
-  registerPortalNotificationConsumers(registry, { ...fakes, receipts })
-  registerPortalHealthNotificationConsumer(registry, { ...fakes, receipts })
-  registerPropertyNotificationConsumers(registry, { ...fakes, receipts })
-  registerIntegrationNotificationConsumers(registry, { ...fakes, ...lookups, receipts })
+}
+
+/** Every notification consumer the worker registers, over the given reads. */
+function registerNotificationRoutes(
+  deps: RouteDeps = inertRouteDeps(),
+): ConsumerRegistry {
+  const registry = createConsumerRegistry()
+  registerIdentityAccountNotificationConsumers(registry, deps)
+  registerOrganizationPurgePendingNoticeConsumer(registry, deps)
+  registerNotificationConsumers(registry, deps)
+  registerWorkflowNotificationConsumers(registry, deps)
+  registerBulkAssignmentNotificationConsumer(registry, deps)
+  registerEscalationResolutionNotificationConsumer(registry, deps)
+  registerHandlingCycleNotificationConsumers(registry, deps)
+  registerResponseTargetNotificationConsumer(registry, deps)
+  registerGoalNotificationConsumer(registry, deps)
+  registerPortalNotificationConsumers(registry, deps)
+  registerPortalHealthNotificationConsumer(registry, deps)
+  registerPropertyNotificationConsumers(registry, deps)
+  registerIntegrationNotificationConsumers(registry, deps)
   return registry
 }
 
@@ -506,4 +532,275 @@ describe('every beta notification route passes the delayed execution gate', () =
     expect(organizationNotice.decision.reason).toBe('allowed')
     expect(propertyNotice.decision.reason).toBe('allowed')
   })
+})
+
+const MANAGER = userId('user-manager')
+const ADMIN = userId('user-admin')
+
+/** Reads that find each route's subject still current, so every route has work. */
+function currentRouteDeps(): RouteDeps {
+  const deps = inertRouteDeps()
+  const item = {
+    propertyId: PROPERTY,
+    portalId: null,
+    assignedTo: null,
+    propertyName: 'Riverside Hotel',
+    guestRating: null,
+    sourceType: 'review',
+    createdAt: OCCURRED_AT,
+  }
+  const cycle = {
+    ...item,
+    sourceId: REVIEW,
+    currentCycleNumber: handlingCycleScope.cycleNumber,
+    currentSourceRevision: handlingCycleScope.sourceRevision,
+    stateRevision: handlingCycleScope.stateRevision,
+    status: 'open',
+  } as const
+  const goal = {
+    programId: GOAL.programId,
+    assignmentId: GOAL.assignmentId,
+    monthlyResultId: GOAL.monthlyResultId,
+    programName: 'Monthly rating goal',
+    subject: { kind: 'property', propertyId: PROPERTY },
+  } as const
+  deps.userLookup.findByRole.mockResolvedValue([ADMIN])
+  deps.responsibleManagers.findForProperty.mockResolvedValue([MANAGER])
+  deps.responsibleManagers.findForPortal.mockResolvedValue([MANAGER])
+  deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+  deps.inboxItemLookup.findInboxItemByReviewId.mockResolvedValue(ITEM)
+  deps.inboxItemLookup.findInboxItemFacts.mockResolvedValue(item)
+  deps.inboxItemLookup.findHandlingCycleNotificationFacts.mockResolvedValue(cycle)
+  deps.inboxItemLookup.findResponseTargetReminderNotificationFacts.mockResolvedValue({
+    ...cycle,
+    sourceType: 'review',
+    targetKind: 'google_review_response',
+    reminderKind: 'target_passed',
+    scheduledFor: SCHEDULED_FOR,
+  })
+  return {
+    ...deps,
+    escalationResolutions: {
+      findEscalationResolutionFacts: vi.fn(async () => ({
+        propertyId: PROPERTY,
+        assignedTo: null,
+        propertyName: 'Riverside Hotel',
+        isEscalated: false,
+        resolvedAt: OCCURRED_AT,
+        resolvedBy: ACTOR,
+      })),
+    },
+    monthlyResultFacts: {
+      findMonthlyResultNotificationFacts: vi.fn(async () => goal),
+      findMonthlyResultRevisionNotificationFacts: vi.fn(async () => ({
+        ...goal,
+        programVersionId: GOAL.programVersionId,
+        revisionId: '4d1f0c1e-2b7a-4c55-9a51-000000000010',
+        revision: 2,
+        evaluationState: 'eligible' as const,
+        achieved: true,
+      })),
+    },
+    googleConnectionProperties: {
+      findGoogleNotificationAnchor: vi.fn(async () => PROPERTY),
+    },
+  }
+}
+
+type Receipt = Readonly<{ eventId: string; consumerName: string; status: string }>
+
+/**
+ * Run one produced fact through the worker's dispatcher, its consumers
+ * enqueueing through the durable delivery bridge onto a recording queue.
+ */
+async function dispatch(fact: DomainEvent, deps: RouteDeps = currentRouteDeps()) {
+  const receipts: Receipt[] = []
+  const recordReceipt = async (eventId: string, consumerName: string, status: string) => {
+    receipts.push({ eventId, consumerName, status })
+  }
+  const queued: InsertNotificationJobData[] = []
+  const recordingQueue = {
+    add: async (_name: string, data: unknown) => {
+      queued.push(data as InsertNotificationJobData)
+    },
+  }
+  const registry = registerNotificationRoutes({
+    ...deps,
+    queue: withBetaOutboxNotificationDelivery(recordingQueue, {
+      insertReceipt: recordReceipt,
+    }) as RouteDeps['queue'],
+    receipts: { insertReceipt: recordReceipt },
+  })
+  const envelope = deliveredEnvelope(fact)
+  const repo = {
+    hasReceipt: async () => false,
+    insertReceipt: recordReceipt,
+  } as unknown as OutboxRepository
+
+  await createDispatcherHandler(repo, { consumers: registry })({
+    id: envelope.eventId,
+    name: envelope.eventType,
+    data: envelope,
+  } as unknown as Job)
+
+  return { envelope, receipts, queued }
+}
+
+/**
+ * A fact per conditional row that its condition turns away, and the receipt
+ * the consumer records for it. A condition that only chooses between the
+ * row's own types has none.
+ */
+const NO_NOTICE: Readonly<
+  Record<
+    string,
+    Readonly<{
+      fact: () => DomainEvent
+      status: 'applied' | 'obsolete'
+      arrange?: (deps: RouteDeps) => void
+    }>
+  >
+> = {
+  'identity.organization_lifecycle.changed': {
+    fact: () =>
+      identityOrganizationLifecycleChanged({
+        organizationId: ORG,
+        closureLineageId: CLOSURE_LINEAGE,
+        state: 'closing',
+        revision: 2,
+        reactivationRequired: true,
+        recoverableUntil: new Date('2026-10-02T09:00:00.000Z'),
+        occurredAt: OCCURRED_AT,
+      }),
+    status: 'obsolete',
+  },
+  'inbox.inbox_item.created': {
+    fact: PRODUCED_FACTS['inbox.inbox_item.created']!,
+    status: 'applied',
+    arrange: (deps) =>
+      deps.inboxItemLookup.isHistoricalOnboardingItem.mockResolvedValue(true),
+  },
+  'inbox.handling_cycle.opened': {
+    fact: () =>
+      inboxHandlingCycleOpened({
+        ...handlingCycleScope,
+        actorType: 'provider',
+        userId: null,
+        openReason: 'review_observed',
+      }),
+    status: 'applied',
+  },
+  'portal.health.changed': {
+    fact: () =>
+      portalHealthChanged({
+        portalId: PORTAL,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        previousStatus: 'unavailable',
+        previousReason: 'property_unavailable',
+        status: 'healthy',
+        reason: 'operational',
+        sourceVersion: 'health-fence-2',
+        occurredAt: OCCURRED_AT,
+      }),
+    status: 'obsolete',
+  },
+  'goal.monthly_result.closed': {
+    fact: () =>
+      goalMonthlyResultClosed({
+        ...GOAL,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        evaluationState: 'eligible',
+        achieved: false,
+        occurredAt: OCCURRED_AT,
+      }),
+    status: 'obsolete',
+  },
+  'goal.monthly_result.revised': {
+    fact: () =>
+      goalMonthlyResultRevised({
+        ...GOAL,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        evaluationState: 'eligible',
+        achieved: true,
+        revisionId: '4d1f0c1e-2b7a-4c55-9a51-000000000010',
+        revision: 2,
+        supersedesRevisionId: '4d1f0c1e-2b7a-4c55-9a51-000000000011',
+        outcomeChanged: false,
+        availabilityChanged: false,
+        occurredAt: OCCURRED_AT,
+      }),
+    status: 'obsolete',
+  },
+}
+const CONDITION_ONLY_CHOOSES_TYPE: ReadonlySet<string> = new Set([
+  'inbox.response_target.reminder_due',
+])
+
+describe('every beta notification route delivers from its real producer', () => {
+  it('has a turned-away fact for every row whose condition can turn one away', () => {
+    expect(
+      BETA_NOTIFICATION_TRIGGER_MATRIX.filter(
+        (route) =>
+          'eventCondition' in route &&
+          !CONDITION_ONLY_CHOOSES_TYPE.has(route.eventType) &&
+          NO_NOTICE[route.eventType] === undefined,
+      ).map((route) => route.eventType),
+    ).toEqual([])
+  })
+
+  for (const route of BETA_NOTIFICATION_TRIGGER_MATRIX) {
+    it(`${route.eventType}: ${route.consumerName} queues its notification durably`, async () => {
+      const { envelope, receipts, queued } = await dispatch(
+        PRODUCED_FACTS[route.eventType]!(),
+      )
+      const routeTypes: ReadonlyArray<string> = route.notifications.map(
+        ({ type }) => type,
+      )
+
+      expect(receipts).toContainEqual({
+        eventId: envelope.eventId,
+        consumerName: route.consumerName,
+        status: 'applied',
+      })
+      expect(queued.length).toBeGreaterThan(0)
+      for (const job of queued) {
+        expect(routeTypes).toContain(job.type)
+        expect(parseOutboxNotificationDelivery(job)).toMatchObject({
+          eventId: envelope.eventId,
+          eventType: route.eventType,
+          consumerName: route.consumerName,
+        })
+        expect(parseNotificationAudience(job.audience), job.type).not.toBeNull()
+        const gate = await gateJob(
+          INSERT_NOTIFICATION_JOB_NAME,
+          job,
+          'worker:default',
+          'worker',
+        )
+        expect(gate.decision.reason, job.type).toBe('allowed')
+      }
+    })
+  }
+
+  for (const [eventType, noNotice] of Object.entries(NO_NOTICE)) {
+    it(`${eventType}: a fact its condition turns away queues nothing`, async () => {
+      const deps = currentRouteDeps()
+      noNotice.arrange?.(deps)
+      const route = BETA_NOTIFICATION_TRIGGER_MATRIX.find(
+        (candidate) => candidate.eventType === eventType,
+      )!
+
+      const { envelope, receipts, queued } = await dispatch(noNotice.fact(), deps)
+
+      expect(queued).toEqual([])
+      expect(receipts).toContainEqual({
+        eventId: envelope.eventId,
+        consumerName: route.consumerName,
+        status: noNotice.status,
+      })
+    })
+  }
 })
