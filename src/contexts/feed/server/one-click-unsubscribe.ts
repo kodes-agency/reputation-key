@@ -4,6 +4,12 @@ import {
   verifyOneClickUnsubscribeToken,
   type OneClickUnsubscribeTarget,
 } from '../application/one-click-unsubscribe-token'
+import {
+  isLandingPageConfirmation,
+  unsubscribeLandingPage,
+  unsubscribeOutcomePage,
+  type OneClickOutcome,
+} from './one-click-unsubscribe-page'
 
 const NO_STORE = { 'cache-control': 'no-store' } as const
 
@@ -128,49 +134,76 @@ export type OneClickUnsubscribePostDeps = Readonly<{
   oneClickUnsubscribe: (target: OneClickUnsubscribeTarget) => Promise<number>
 }>
 
+async function applyOneClickRequest(
+  deps: OneClickUnsubscribePostDeps,
+  request: Request,
+): Promise<OneClickOutcome> {
+  const { logger, rawKeys } = deps
+  if (!rawKeys) {
+    logger.error('One-click unsubscribe endpoint is disabled — HMAC keys are unset')
+    return 'disabled'
+  }
+
+  try {
+    const rejection = await oneClickFormRejection(request)
+    if (rejection !== null) {
+      // Content-free: never the token, never the body.
+      logger.warn({ reason: rejection }, 'One-click unsubscribe request rejected')
+      return 'invalid_request'
+    }
+
+    const token = new URL(request.url).searchParams.get('token') ?? ''
+    const target = verifyOneClickUnsubscribeToken(rawKeys, token)
+    // Acknowledge invalid/stale tokens so this public capability cannot be
+    // used as a signature or retained-row existence oracle.
+    if (!target) return 'accepted'
+
+    const scopes = await deps.oneClickUnsubscribe(target)
+    logger.info(
+      { targetKind: target.kind, scopes },
+      'Optional notification email scopes unsubscribed',
+    )
+    return 'accepted'
+  } catch (err) {
+    logger.error({ err }, 'One-click unsubscribe preference write failed')
+    return 'failed'
+  }
+}
+
+/** What a mail client's RFC 8058 POST gets back. */
+const RFC_8058_RESPONSES: Readonly<Record<OneClickOutcome, () => Response>> = {
+  accepted: () => empty(204),
+  invalid_request: () =>
+    Response.json(
+      { error: 'Bad Request', code: 'invalid_unsubscribe_request' },
+      { status: 400, headers: NO_STORE },
+    ),
+  disabled: () =>
+    Response.json(
+      { error: 'Service Unavailable', code: 'unsubscribe_disabled' },
+      { status: 503, headers: NO_STORE },
+    ),
+  failed: () =>
+    Response.json(
+      { error: 'Internal Server Error', code: 'unsubscribe_failed' },
+      { status: 500, headers: NO_STORE },
+    ),
+}
+
 export const createOneClickUnsubscribePostHandler =
   (deps: OneClickUnsubscribePostDeps) =>
   async (request: Request): Promise<Response> =>
     trace('notification.oneClickUnsubscribe', async () => {
-      const { logger, rawKeys } = deps
-      if (!rawKeys) {
-        logger.error('One-click unsubscribe endpoint is disabled — HMAC keys are unset')
-        return Response.json(
-          { error: 'Service Unavailable', code: 'unsubscribe_disabled' },
-          { status: 503, headers: NO_STORE },
-        )
-      }
-
-      try {
-        const rejection = await oneClickFormRejection(request)
-        if (rejection !== null) {
-          // Content-free: never the token, never the body.
-          logger.warn({ reason: rejection }, 'One-click unsubscribe request rejected')
-          return Response.json(
-            { error: 'Bad Request', code: 'invalid_unsubscribe_request' },
-            { status: 400, headers: NO_STORE },
-          )
-        }
-
-        const token = new URL(request.url).searchParams.get('token') ?? ''
-        const target = verifyOneClickUnsubscribeToken(rawKeys, token)
-        if (!target) {
-          // Acknowledge invalid/stale tokens so this public capability cannot be
-          // used as a signature or retained-row existence oracle.
-          return empty(204)
-        }
-
-        const scopes = await deps.oneClickUnsubscribe(target)
-        logger.info(
-          { targetKind: target.kind, scopes },
-          'Optional notification email scopes unsubscribed',
-        )
-        return empty(204)
-      } catch (err) {
-        logger.error({ err }, 'One-click unsubscribe preference write failed')
-        return Response.json(
-          { error: 'Internal Server Error', code: 'unsubscribe_failed' },
-          { status: 500, headers: NO_STORE },
-        )
-      }
+      const outcome = await applyOneClickRequest(deps, request)
+      return isLandingPageConfirmation(request)
+        ? unsubscribeOutcomePage(outcome, request)
+        : RFC_8058_RESPONSES[outcome]()
     })
+
+/**
+ * GET on the List-Unsubscribe URL: a confirm page, never an unsubscribe. Link
+ * scanners fetch every URL in a message, so acting on a GET would unsubscribe
+ * people who never asked.
+ */
+export const handleOneClickUnsubscribeGet = (request: Request): Response =>
+  unsubscribeLandingPage(request)
