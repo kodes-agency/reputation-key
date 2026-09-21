@@ -211,6 +211,36 @@ export const notificationEmailQueue = pgTable(
   ],
 )
 
+// ── Durable recipient suppression ──────────────────────────────────
+
+/**
+ * Addresses the provider refused for good: a permanent bounce, a spam
+ * complaint, or its own suppression list. Keyed by a SHA-256 digest of the
+ * normalized address, never the address itself, and by nothing else — a dead
+ * address is dead for every Organization and every user who might carry it.
+ * Outside queue retention on purpose: the queue rows that proved it are
+ * deleted after 90 days, and a complainer must not be mailed again then.
+ */
+export const notificationEmailSuppressions = pgTable(
+  'notification_email_suppressions',
+  {
+    addressHash: varchar('address_hash', { length: 64 }).primaryKey(),
+    reason: varchar('reason', { length: 24 }).notNull(),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    check(
+      'notification_email_suppressions_address_hash_valid',
+      sql`${t.addressHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      'notification_email_suppressions_reason_valid',
+      sql`${t.reason} IN ('bounced', 'complained', 'suppressed')`,
+    ),
+  ],
+)
+
 // ── Immutable daily-digest attempts ────────────────────────────────
 
 /**

@@ -62,7 +62,7 @@ function fakeDeps() {
       markDelayed: vi.fn(async () => {}),
       markFailed: vi.fn(async () => {}),
       markSuppressed: vi.fn(async () => {}),
-      isRecipientSuppressed: vi.fn(async () => false),
+      isAddressSuppressed: vi.fn(async (_address: string) => false),
     },
     preferenceRepo: {
       findForDelivery: vi.fn(async () => null),
@@ -432,11 +432,13 @@ describe('immediate notification email job', () => {
 
   // ── ADR 0046 r.6: bounced recipients ──────────────────────────────
 
-  it('suppresses instead of sending when the provider already reported a bounce', async () => {
-    deps.emailRepo.isRecipientSuppressed.mockResolvedValue(true)
+  it('suppresses instead of sending when the provider already refused the address', async () => {
+    deps.emailRepo.isAddressSuppressed.mockResolvedValue(true)
 
     await run()
 
+    // Keyed by the address mail would go to, not by the user or the org.
+    expect(deps.emailRepo.isAddressSuppressed).toHaveBeenCalledWith('manager@example.com')
     expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
       entry.id,
       ORG,

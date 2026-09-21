@@ -34,6 +34,7 @@ import type {
   ProviderStateTransition,
 } from '../../application/ports/notification-email-repository.port'
 import { digestBatchIdempotencyKey, digestMemberSet } from '../digest-batch-identity'
+import { createNotificationEmailSuppressionStore } from './notification-email-suppression.repository'
 import { notificationError } from '../../domain/notification-errors'
 
 type EmailRow = typeof notificationEmailQueue.$inferSelect
@@ -195,6 +196,8 @@ const providerStateColumns = (state: ProviderDeliveryState, occurredAt: Date) =>
 }
 
 export const createNotificationEmailRepository = (db: Database) => ({
+  ...createNotificationEmailSuppressionStore(db),
+
   insert: async (email: NotificationEmail): Promise<NotificationEmail> => {
     const rows = await db
       .insert(notificationEmailQueue)
@@ -539,24 +542,6 @@ export const createNotificationEmailRepository = (db: Database) => ({
       )
       .returning({ id: notificationEmailQueue.id })
     return rows.length
-  },
-
-  isRecipientSuppressed: async (userId: string, orgId: string): Promise<boolean> => {
-    const rows = await db
-      .select({ id: notificationEmailQueue.id })
-      .from(notificationEmailQueue)
-      .where(
-        and(
-          eq(notificationEmailQueue.userId, userId),
-          eq(notificationEmailQueue.organizationId, orgId),
-          or(
-            inArray(notificationEmailQueue.providerState, ['bounced', 'complained']),
-            eq(notificationEmailQueue.suppressionReason, PROVIDER_SUPPRESSION_REASON),
-          ),
-        ),
-      )
-      .limit(1)
-    return rows.length > 0
   },
 
   findOpenDigestBatch: async (

@@ -54,9 +54,12 @@ already have been accepted, so it fails closed rather than mail twice.
 In the queue, `delayed` (r.6) is the pre-send quiet-hours deferral and stays
 sendable. A delivery delay the provider reports after acceptance is recorded
 only as `provider_state = 'delivery_delayed'`; the row stays `accepted`, so it
-is never sent twice. A provider `failed` after acceptance is terminal, and a
-provider `suppressed` stops mail to that recipient as a bounce or complaint
-does. Suppressions made locally (a disabled preference) never count as the
+is never sent twice. A provider `failed` after acceptance is terminal. A
+permanent bounce, a complaint, or a provider `suppressed` stops mail to that
+ADDRESS: it is recorded in a durable suppression list keyed by a digest of
+the normalized address, outside queue retention and across Organizations, and
+checked before every send. A transient or undetermined bounce ends only its
+message. Suppressions made locally (a disabled preference) never count as the
 provider refusing the recipient.
 
 Delivery is authorized twice. The audience authorizer admits a recipient

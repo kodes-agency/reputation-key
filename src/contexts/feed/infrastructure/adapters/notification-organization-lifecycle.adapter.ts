@@ -340,8 +340,10 @@ const verifyPurgeReadiness = async (
 /**
  * Purge: irreversible, content-free, idempotent.
  *
- * Every table this context owns in `data-fate-authority.ts` is scrubbed by
- * organization scope. Deletion order runs children before parents so a
+ * Every Organization-scoped table this context owns in
+ * `data-fate-authority.ts` is scrubbed by organization scope. The one table
+ * that is not, `notification_email_suppressions`, holds address digests that
+ * belong to no Organization, and is kept: a dead address stays dead. Deletion order runs children before parents so a
  * cascade can never silently absorb a row this receipt claims to have counted:
  *
  *   * `notification_digest_batch_members` — batch composition; cascades from

@@ -102,6 +102,27 @@ describe('resend webhook route', () => {
     })
   })
 
+  it('forwards the bounce type, so only a permanent bounce suppresses the address', async () => {
+    const bounced = JSON.stringify({
+      type: 'email.bounced',
+      created_at: '2026-08-21T09:05:00.000Z',
+      data: {
+        email_id: 'prov-1',
+        bounce: { type: 'Transient', subType: 'MailboxFull', message: 'Mailbox full' },
+      },
+    })
+
+    await handleResendWebhookPost(mkRequest(bounced))
+
+    expect(mocks.handleResendEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'email.bounced', bounceType: 'Transient' }),
+    )
+    // The provider's diagnostic text is recipient-side content; it stays out.
+    expect(JSON.stringify(mocks.handleResendEvent.mock.calls[0])).not.toContain(
+      'Mailbox full',
+    )
+  })
+
   it('rejects a forged signature with 401 and never reaches the handler', async () => {
     const response = await handleResendWebhookPost(
       mkRequest(body, { signature: 'v1,ZGVhZGJlZWY=' }),

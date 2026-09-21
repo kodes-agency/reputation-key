@@ -332,10 +332,11 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
     const dueIds = async (repo: ReturnType<typeof createNotificationEmailRepository>) =>
       (await repo.findDueByUser(ORG, USER, 'daily', NEXT_DAY)).map((entry) => entry.id)
 
-    it('ends a provider-suppressed message as suppressed and stops mailing the recipient', async () => {
+    it('ends a provider-suppressed message as suppressed', async () => {
+      // Stopping further mail to the address is the durable suppression's job
+      // (notification-email-suppression.repository.test.ts).
       const repo = createNotificationEmailRepository(db)
       await repo.markAccepted(EMAIL_A, ORG, PROPERTY, 'resend-suppressed-1', NOW)
-      await expect(repo.isRecipientSuppressed(USER, ORG)).resolves.toBe(false)
 
       const moved = await repo.recordProviderState(
         'resend-suppressed-1',
@@ -349,15 +350,6 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
         providerState: 'suppressed',
         suppressionReason: 'provider_suppressed',
       })
-      await expect(repo.isRecipientSuppressed(USER, ORG)).resolves.toBe(true)
-    })
-
-    it('does not mistake a local suppression for the provider refusing the address', async () => {
-      const repo = createNotificationEmailRepository(db)
-
-      await repo.markSuppressed(EMAIL_A, ORG, PROPERTY, 'preference_disabled', NOW)
-
-      await expect(repo.isRecipientSuppressed(USER, ORG)).resolves.toBe(false)
     })
 
     it('ends a failure after acceptance as permanent, so no sweep sends it again', async () => {
@@ -374,7 +366,6 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
         failedAt: LATER,
       })
       expect(await dueIds(repo)).not.toContain(EMAIL_A)
-      await expect(repo.isRecipientSuppressed(USER, ORG)).resolves.toBe(false)
     })
 
     it('keeps a provider-delayed message in flight until the provider settles it', async () => {

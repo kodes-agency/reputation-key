@@ -63,7 +63,8 @@ export function buildFakeInsertNotificationDeps(): FakeInsertNotificationDeps {
       findDueRecipients: vi.fn(async () => []),
       findDueByUser: vi.fn(async () => []),
       suppressRecipient: vi.fn(async () => 0),
-      isRecipientSuppressed: vi.fn(async () => false),
+      isAddressSuppressed: vi.fn(async () => false),
+      suppressAddress: vi.fn(async () => {}),
       findOpenDigestBatch: vi.fn(async () => null),
       findDigestBatchEntries: vi.fn(async () => []),
       prepareDigestBatch: vi.fn(async () => {

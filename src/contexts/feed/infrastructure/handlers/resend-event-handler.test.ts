@@ -23,19 +23,26 @@ function fakeDeps(
   const emailRepo = {
     recordProviderState: vi.fn(async () => overrides.moved ?? [movedRow()]),
     suppressRecipient: vi.fn(async () => overrides.suppressed ?? 3),
+    suppressAddress: vi.fn(async () => {}),
   }
   return {
     emailRepo,
+    userLookup: {
+      getEmail: vi.fn(
+        async (user: string): Promise<string | null> => `${user}@example.com`,
+      ),
+    },
     logger: createFakeJobLogger(),
   }
 }
 
-const run = (deps: ReturnType<typeof fakeDeps>, type: string) =>
+const run = (deps: ReturnType<typeof fakeDeps>, type: string, bounceType?: string) =>
   applyResendEvent(deps as unknown as ResendEventDeps, {
     type,
     providerMessageId: 'prov-1',
     occurredAt: OCCURRED_AT,
     eventId: 'msg_2abc',
+    ...(bounceType === undefined ? {} : { bounceType }),
   })
 
 describe('resend delivery event handler (ADR 0046 r.6)', () => {
@@ -70,6 +77,56 @@ describe('resend delivery event handler (ADR 0046 r.6)', () => {
       OCCURRED_AT,
     )
     expect(result).toEqual({ applied: true, rows: 1, suppressed: 3 })
+  })
+
+  it('keeps a permanent bounce, keyed by address, beyond the queue rows retention deletes', async () => {
+    const deps = fakeDeps()
+
+    await run(deps, 'email.bounced', 'Permanent')
+
+    expect(deps.userLookup.getEmail).toHaveBeenCalledWith(userId('user-1'))
+    expect(deps.emailRepo.suppressAddress).toHaveBeenCalledWith(
+      'user-1@example.com',
+      'bounced',
+      OCCURRED_AT,
+    )
+  })
+
+  it('records a transient bounce without suppressing the recipient', async () => {
+    // A full mailbox must not stop every notice, mandatory ones included.
+    for (const bounceType of ['Transient', 'Undetermined']) {
+      const deps = fakeDeps()
+
+      const result = await run(deps, 'email.bounced', bounceType)
+
+      expect(deps.emailRepo.recordProviderState).toHaveBeenCalledWith(
+        'prov-1',
+        'bounced',
+        OCCURRED_AT,
+      )
+      expect(deps.emailRepo.suppressRecipient).not.toHaveBeenCalled()
+      expect(deps.emailRepo.suppressAddress).not.toHaveBeenCalled()
+      expect(result).toEqual({ applied: true, rows: 1, suppressed: 0 })
+    }
+  })
+
+  it('keeps a complaint and a provider suppression by address too', async () => {
+    const complained = fakeDeps()
+    const suppressed = fakeDeps()
+
+    await run(complained, 'email.complained')
+    await run(suppressed, 'email.suppressed')
+
+    expect(complained.emailRepo.suppressAddress).toHaveBeenCalledWith(
+      'user-1@example.com',
+      'complained',
+      OCCURRED_AT,
+    )
+    expect(suppressed.emailRepo.suppressAddress).toHaveBeenCalledWith(
+      'user-1@example.com',
+      'suppressed',
+      OCCURRED_AT,
+    )
   })
 
   it('suppresses the recipient on a spam complaint', async () => {

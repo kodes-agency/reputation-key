@@ -105,7 +105,7 @@ function baseDeps(options: Options = {}) {
       markDelayed: vi.fn(async () => {}),
       markAccepted: vi.fn(async (_id: string) => {}),
       markFailed: vi.fn(async () => {}),
-      isRecipientSuppressed: vi.fn(async () => false),
+      isAddressSuppressed: vi.fn(async (_address: string) => false),
       findOpenDigestBatch: vi.fn(async () => options.openBatch ?? null),
       findDigestBatchEntries: vi.fn(async () => options.batchEntries ?? due),
       prepareDigestBatch: vi.fn(async (input) => ({
@@ -622,12 +622,13 @@ describe('digest preferences link (ADR 0046 r.7)', () => {
 })
 
 describe('digest suppression and failure visibility (ADR 0046 r.6)', () => {
-  it('suppresses without sending when the recipient already bounced', async () => {
+  it('suppresses without sending when the provider already refused the address', async () => {
     const deps = baseDeps()
-    deps.emailRepo.isRecipientSuppressed.mockResolvedValue(true)
+    deps.emailRepo.isAddressSuppressed.mockResolvedValue(true)
 
     await runHandler(deps)
 
+    expect(deps.emailRepo.isAddressSuppressed).toHaveBeenCalledWith('manager@example.com')
     expect(deps.emailSender.send).not.toHaveBeenCalled()
     expect(deps.emailRepo.markSuppressed).toHaveBeenCalledTimes(2)
     expect(deps.logger.warn).toHaveBeenCalledWith(

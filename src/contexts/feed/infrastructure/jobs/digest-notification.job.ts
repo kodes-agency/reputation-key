@@ -759,13 +759,15 @@ async function sendUserDigest(
   const deliverable = await selectDeliverableEntries(deps, ctx, openBatch)
   if (deliverable === null) return
 
-  if (await deps.emailRepo.isRecipientSuppressed(ctx.userId, ctx.orgId)) {
-    await abandonDelivery(deps, ctx, openBatch, deliverable, 'recipient_bounced')
-    return
-  }
   const recipient = await deps.userLookup.getEmail(ctx.userId)
   if (!recipient) {
     await abandonDelivery(deps, ctx, openBatch, deliverable, 'recipient_unavailable')
+    return
+  }
+  // ADR 0046 r.6: an address the provider refused for good, from any
+  // Organization, is never attempted again.
+  if (await deps.emailRepo.isAddressSuppressed(recipient)) {
+    await abandonDelivery(deps, ctx, openBatch, deliverable, 'recipient_bounced')
     return
   }
 

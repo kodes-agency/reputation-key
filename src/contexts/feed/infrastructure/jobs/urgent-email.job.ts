@@ -391,13 +391,6 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       return
     }
 
-    // ADR 0046 r.6: never attempt a recipient the provider already rejected
-    // terminally. Attempting again earns another bounce against our domain.
-    if (await deps.emailRepo.isRecipientSuppressed(entry.userId, orgId)) {
-      await suppress(ids, 'recipient_bounced')
-      return
-    }
-
     if (!mandatory && (await deferForQuietHours(scope, entry, preference))) return
 
     const notification = mandatory
@@ -430,6 +423,13 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     const recipient = await deps.userLookup.getEmail(entry.userId)
     if (!recipient) {
       await suppress(ids, 'recipient_unavailable')
+      return
+    }
+    // ADR 0046 r.6: never attempt an address the provider refused for good,
+    // from any Organization. Attempting again earns another bounce or
+    // complaint against our domain.
+    if (await deps.emailRepo.isAddressSuppressed(recipient)) {
+      await suppress(ids, 'recipient_bounced')
       return
     }
 

@@ -43,6 +43,9 @@ export type ProviderStateTransition = Readonly<{
 export type ProviderDeliveryState =
   'delivered' | 'delivery_delayed' | 'bounced' | 'complained' | 'failed' | 'suppressed'
 
+/** Why the provider refused an address for good. */
+export type EmailSuppressionReason = 'bounced' | 'complained' | 'suppressed'
+
 export type NotificationDigestBatchState =
   'prepared' | 'retryable' | 'accepted' | 'terminal'
 
@@ -195,11 +198,18 @@ export type NotificationEmailRepositoryPort = Readonly<{
     updatedAt: Date,
   ): Promise<number>
   /**
-   * True once the provider has refused the recipient in this org: a bounced or
-   * complained row, or a message the provider suppressed. A suppression we
-   * made ourselves (a disabled preference, say) does not count.
+   * True once the provider has refused this address for good: a permanent
+   * bounce, a complaint, or its own suppression list, from any Organization.
+   * Durable: it outlives the queue rows that proved it. A suppression we made
+   * ourselves (a disabled preference, say) never counts.
    */
-  isRecipientSuppressed(userId: UserId, orgId: OrganizationId): Promise<boolean>
+  isAddressSuppressed(address: string): Promise<boolean>
+  /** Record that the provider refused this address for good. */
+  suppressAddress(
+    address: string,
+    reason: EmailSuppressionReason,
+    at: Date,
+  ): Promise<void>
   /** Return the sole prepared/retryable recipient batch, if one exists. */
   findOpenDigestBatch(
     orgId: OrganizationId,

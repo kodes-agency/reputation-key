@@ -15,9 +15,12 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 import { providerEventCorrelationId } from '../delivery-correlation'
 import type {
+  EmailSuppressionReason,
   NotificationEmailRepositoryPort,
   ProviderDeliveryState,
+  ProviderStateTransition,
 } from '../../application/ports/notification-email-repository.port'
+import type { UserLookupPort } from '../../application/ports/notification-user-lookup.port'
 
 /**
  * The Resend event types we act on, mapped to the delivery states the queue
@@ -43,11 +46,28 @@ const STATE_BY_EVENT: Readonly<Record<string, ProviderDeliveryState | undefined>
  * too. A failure is not one of these: its causes (quota, domain, API key)
  * are rarely the recipient's.
  */
-const SUPPRESSING_STATES: Readonly<Record<string, true | undefined>> = {
-  bounced: true,
-  complained: true,
-  suppressed: true,
+const SUPPRESSING_STATES: Readonly<Record<string, EmailSuppressionReason | undefined>> = {
+  bounced: 'bounced',
+  complained: 'complained',
+  suppressed: 'suppressed',
 }
+
+/**
+ * Only a permanent bounce proves the address dead; Resend's own suppression
+ * list takes nothing else. A transient bounce (a full mailbox) or an
+ * undetermined one ends only that message. A bounce with no type at all is an
+ * unfamiliar payload, so it is treated as the old code treated every bounce.
+ */
+const isPermanentBounce = (bounceType: string | undefined): boolean =>
+  bounceType === undefined || bounceType.toLowerCase() === 'permanent'
+
+const suppressionReasonFor = (
+  state: ProviderDeliveryState,
+  bounceType: string | undefined,
+): EmailSuppressionReason | undefined =>
+  state === 'bounced' && !isPermanentBounce(bounceType)
+    ? undefined
+    : SUPPRESSING_STATES[state]
 
 export type ResendEventInput = Readonly<{
   /** Resend event type, e.g. `email.bounced`. */
@@ -58,6 +78,8 @@ export type ResendEventInput = Readonly<{
   occurredAt: Date
   /** `svix-id`, for correlating a retry with its first delivery in logs. */
   eventId: string
+  /** `data.bounce.type` of a bounce: `Permanent`, `Transient` or `Undetermined`. */
+  bounceType?: string
 }>
 
 export type ResendEventResult = Readonly<{
@@ -73,8 +95,40 @@ export type ResendEventResult = Readonly<{
 
 export type ResendEventDeps = Readonly<{
   emailRepo: NotificationEmailRepositoryPort
+  /** The recipient's address, to key a durable suppression by. */
+  userLookup: Pick<UserLookupPort, 'getEmail'>
   logger: LoggerPort
 }>
+
+/**
+ * One cascade per distinct (user, organization): every still-sendable row for
+ * that recipient is dead too. The address itself is recorded durably, so the
+ * refusal outlives queue retention and reaches every Organization that would
+ * mail it.
+ */
+async function suppressRecipients(
+  deps: ResendEventDeps,
+  moved: readonly ProviderStateTransition[],
+  reason: EmailSuppressionReason,
+  occurredAt: Date,
+): Promise<number> {
+  const seen = new Set<string>()
+  let suppressed = 0
+  for (const row of moved) {
+    const key = `${row.organizationId as string}:${row.userId as string}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    const address = await deps.userLookup.getEmail(row.userId)
+    if (address) await deps.emailRepo.suppressAddress(address, reason, occurredAt)
+    suppressed += await deps.emailRepo.suppressRecipient(
+      row.userId,
+      row.organizationId,
+      `provider_${reason}`,
+      occurredAt,
+    )
+  }
+  return suppressed
+}
 
 export async function applyResendEvent(
   deps: ResendEventDeps,
@@ -108,10 +162,12 @@ export async function applyResendEvent(
     return { applied: false, rows: 0, suppressed: 0, reason: 'unknown_message' }
   }
 
-  if (!SUPPRESSING_STATES[state]) {
+  const reason = suppressionReasonFor(state, input.bounceType)
+  if (!reason) {
     const fields = {
       eventType: input.type,
       deliveryState: state,
+      ...(input.bounceType === undefined ? {} : { bounceType: input.bounceType }),
       rows: moved.length,
       correlationId,
     }
@@ -124,21 +180,7 @@ export async function applyResendEvent(
     return { applied: true, rows: moved.length, suppressed: 0 }
   }
 
-  // One cascade per distinct (user, organization): a bounce is a property of
-  // the ADDRESS, so every still-sendable row for that recipient is dead too.
-  const seen = new Set<string>()
-  let suppressed = 0
-  for (const row of moved) {
-    const key = `${row.organizationId as string}:${row.userId as string}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    suppressed += await deps.emailRepo.suppressRecipient(
-      row.userId,
-      row.organizationId,
-      `provider_${state}`,
-      input.occurredAt,
-    )
-  }
+  const suppressed = await suppressRecipients(deps, moved, reason, input.occurredAt)
   deps.logger.error(
     {
       eventType: input.type,

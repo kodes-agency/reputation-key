@@ -312,7 +312,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   const emailRepo = createNotificationEmailRepository(input.db)
   const prefRepo = createNotificationPreferenceRepository(input.db)
   const oneClickUnsubscribeRepo = createOneClickUnsubscribeRepository(input.db)
-  const handleResendEvent = createResendEventHandler({ emailRepo, logger: input.logger })
   // ADR 0046 r.3: the settings page and every timestamp read the same
   // user-then-Organization zone the delivery jobs resolve. The pool is read at
   // call time: composition must not touch the database while it is built.
@@ -323,6 +322,11 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     clock: input.clock,
   })
   const userLookup = createNotificationDbUserLookupAdapter(input.db)
+  const handleResendEvent = createResendEventHandler({
+    emailRepo,
+    userLookup,
+    logger: input.logger,
+  })
   const inboxItemLookup = createInboxItemLookupAdapter(
     input.db,
     input.feedbackPortalLookup,

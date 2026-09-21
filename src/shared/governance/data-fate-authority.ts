@@ -376,6 +376,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'notificationDigestBatchMembers',
       'notificationDigestBatches',
       'notificationEmailQueue',
+      'notificationEmailSuppressions',
       'notificationPreferences',
       'notificationUserSettings',
       'notifications',

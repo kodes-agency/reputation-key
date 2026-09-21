@@ -32,7 +32,10 @@ const REQUESTED_AT = new Date('2026-07-28T00:00:00.000Z')
 const RECOVERABLE_UNTIL = new Date('2026-08-27T00:00:00.000Z')
 const OCCURRED_AT = new Date('2026-08-28T00:00:00.000Z')
 
-/** Every table Notification owns in `data-fate-authority.ts`. */
+/**
+ * Every Organization-scoped table Notification owns in `data-fate-authority.ts`
+ * (`notification_email_suppressions` belongs to no Organization).
+ */
 const OWNED_TABLES = [
   'notification_digest_batch_members',
   'notification_digest_batches',

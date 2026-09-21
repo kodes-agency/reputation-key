@@ -28,11 +28,16 @@ import { trace } from '#/shared/observability/trace'
 // Only the fields we act on. Resend adds fields freely, so the schema stays
 // permissive about everything else — and deliberately never reads `data.to`,
 // `data.subject` or `data.html`: BQC-1.6 keeps recipient content out of this
-// process entirely, and the queue row already knows who it was for.
+// process entirely, and the queue row already knows who it was for. Of a
+// bounce only its `type` is read, a classification (Permanent, Transient,
+// Undetermined): the provider's message is the recipient server's text.
 const resendEventSchema = z.object({
   type: z.string().min(1),
   created_at: z.string().optional(),
-  data: z.object({ email_id: z.string().min(1) }),
+  data: z.object({
+    email_id: z.string().min(1),
+    bounce: z.object({ type: z.string().min(1).max(32).optional() }).optional(),
+  }),
 })
 
 /**
@@ -79,6 +84,7 @@ export async function handleResendWebhookPost(request: Request): Promise<Respons
 
       const event = resendEventSchema.parse(JSON.parse(rawBody))
       const parsedAt = event.created_at ? new Date(event.created_at) : null
+      const bounceType = event.data.bounce?.type
       const result = await getContainer().handleResendEvent({
         type: event.type,
         providerMessageId: event.data.email_id,
@@ -86,6 +92,8 @@ export async function handleResendWebhookPost(request: Request): Promise<Respons
         // time: it would write an invalid date into the delivery record.
         occurredAt: parsedAt && !Number.isNaN(parsedAt.getTime()) ? parsedAt : new Date(),
         eventId: verification.id,
+        // Only a permanent bounce suppresses the address.
+        ...(bounceType === undefined ? {} : { bounceType }),
       })
 
       // 200 even for an ignored or unmatched event: a retry cannot change it,
