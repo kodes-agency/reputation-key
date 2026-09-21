@@ -156,14 +156,32 @@ describe('calendarPeriodRange', () => {
     )
   })
 
-  it('chooses the earliest instant when a monthly midnight repeats', () => {
+  // PostgreSQL's `AT TIME ZONE` resolves a repeated local time to the later,
+  // standard-time instant, and the Goal monthly-result guard derives the month
+  // it accepts that way. Havana's midnight on 1 November repeats (DST ends at
+  // 01:00 CDT), so an app that picked the earlier instant wrote Octobers and
+  // Novembers the database rejected.
+  it('chooses the later, standard-time instant when a monthly midnight repeats', () => {
     expect(
       calendarPeriodRange(
         new Date('2015-11-15T12:00:00.000Z'),
         'America/Havana',
         'monthly',
       ).start,
-    ).toEqual(new Date('2015-11-01T04:00:00.000Z'))
+    ).toEqual(new Date('2015-11-01T05:00:00.000Z'))
+  })
+
+  it('ends a month at the instant PostgreSQL gives a repeated midnight', () => {
+    expect(
+      calendarPeriodRange(
+        new Date('2026-10-15T12:00:00.000Z'),
+        'America/Havana',
+        'monthly',
+      ),
+    ).toEqual({
+      start: new Date('2026-10-01T04:00:00.000Z'),
+      end: new Date('2026-11-01T05:00:00.000Z'),
+    })
   })
 
   it('rejects a monthly boundary skipped by a midnight DST transition', () => {

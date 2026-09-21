@@ -10,6 +10,7 @@ import type {
   GoalProgramVersion,
   GoalSubjectAssignment,
 } from '../../application/ports/goal-program.repository'
+import { firstFullMonthlyPeriodAtOrAfter } from '../../domain/goal-program'
 import { createGoalProgramRepository } from './goal-program.repository'
 
 describe.sequential('Goal Program repository (integration)', () => {
@@ -60,6 +61,7 @@ describe.sequential('Goal Program repository (integration)', () => {
     start: Date,
     end: Date,
     at: Date,
+    timezone = 'UTC',
   ): GoalMonthlyResult => ({
     id: randomUUID(),
     assignmentId: subjectAssignment.id,
@@ -69,7 +71,7 @@ describe.sequential('Goal Program repository (integration)', () => {
     propertyId: subjectAssignment.propertyId,
     periodStart: start,
     periodEnd: end,
-    propertyTimezone: 'UTC',
+    propertyTimezone: timezone,
     status: 'open',
     evaluation: {
       state: 'updating',
@@ -103,8 +105,10 @@ describe.sequential('Goal Program repository (integration)', () => {
       effectiveFrom: Date
       at: Date
       withOpenResult?: Readonly<{ end: Date }>
+      timezone?: string
     }>,
   ): GoalProgramBundle {
+    const timezone = input.timezone ?? 'UTC'
     const programId = randomUUID()
     const version: GoalProgramVersion = {
       id: randomUUID(),
@@ -117,7 +121,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       metric: 'portal_rating_count',
       metricMinimumSample: 0,
       targetValue: 25,
-      propertyTimezone: 'UTC',
+      propertyTimezone: timezone,
       effectiveFrom: input.effectiveFrom,
       effectiveTo: null,
       changeReason: 'created',
@@ -155,6 +159,7 @@ describe.sequential('Goal Program repository (integration)', () => {
               input.effectiveFrom,
               input.withOpenResult.end,
               input.at,
+              timezone,
             ),
           ]
         : [],
@@ -530,5 +535,49 @@ describe.sequential('Goal Program repository (integration)', () => {
         eventAt: periodStart,
       }),
     ).resolves.toEqual([])
+  })
+
+  // Havana's midnight on 1 November 2026 happens twice. The monthly-result
+  // guard derives the month it accepts with `AT TIME ZONE`, so the months the
+  // app computes must match PostgreSQL's reading of that midnight, or every
+  // Havana Goal stops at October and maintenance fails each hour.
+  it('accepts the Havana months the app derives across a repeated local midnight', async () => {
+    const repository = createGoalProgramRepository(getDb())
+    const targetPropertyId = await createPropertyFixture('Havana Goal Property')
+    const timezone = 'America/Havana'
+    const october = firstFullMonthlyPeriodAtOrAfter(
+      new Date('2026-09-15T12:00:00.000Z'),
+      timezone,
+    )
+    const november = firstFullMonthlyPeriodAtOrAfter(october.end, timezone)
+    const original = programBundle({
+      propertyId: targetPropertyId,
+      status: 'active',
+      effectiveFrom: october.start,
+      at: october.start,
+      withOpenResult: { end: october.end },
+      timezone,
+    })
+    const subjectAssignment = original.assignments[0]!
+
+    await expect(
+      repository.create({ bundle: original, auditAction: 'goal.program.created' }),
+    ).resolves.toBeUndefined()
+    await expect(
+      repository.appendResults({
+        program: original.program,
+        version: original.version,
+        results: [
+          result(
+            subjectAssignment,
+            november.start,
+            november.end,
+            november.start,
+            timezone,
+          ),
+        ],
+        at: november.start,
+      }),
+    ).resolves.toBe(1)
   })
 })

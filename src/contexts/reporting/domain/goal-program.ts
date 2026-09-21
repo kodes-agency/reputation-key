@@ -144,13 +144,18 @@ function validReadingValue(metric: GoalMetric, value: number | null): value is n
   return Number.isInteger(value) && value >= 0
 }
 
-/** First complete property-local month that does not start before `at`. */
+/**
+ * First complete property-local month that does not start before `at`. The
+ * local month containing `at` can start after it: an instant inside a repeated
+ * midnight hour belongs to the new local month, whose first instant is the
+ * midnight's later occurrence.
+ */
 export function firstFullMonthlyPeriodAtOrAfter(
   at: Date,
   timezone: string,
 ): Readonly<{ start: Date; end: Date }> {
   const current = calendarPeriodRange(at, timezone, 'monthly')
-  if (at.getTime() === current.start.getTime()) return current
+  if (at.getTime() <= current.start.getTime()) return current
   return calendarPeriodRange(current.end, timezone, 'monthly')
 }
 
