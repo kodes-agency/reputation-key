@@ -44,6 +44,14 @@ delivered|delayed|bounced|complained|failed|suppressed|cancelled`.
 8. Payload parsing admits only Property/resource/status metadata and excludes
    Review text, Guest text/media, sensitive scores, and other employees' data.
 
+In the queue, `delayed` (r.6) is the pre-send quiet-hours deferral and stays
+sendable. A delivery delay the provider reports after acceptance is recorded
+only as `provider_state = 'delivery_delayed'`; the row stays `accepted`, so it
+is never sent twice. A provider `failed` after acceptance is terminal, and a
+provider `suppressed` stops mail to that recipient as a bounce or complaint
+does. Suppressions made locally (a disabled preference) never count as the
+provider refusing the recipient.
+
 The unsubscribe guard takes `MailClass = 'mandatory' | 'optional'`; a digest is
 always optional. Copy renders from `type` plus the closed payload at read time,
 so template corrections reach every channel and historical row.

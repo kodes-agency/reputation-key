@@ -35,6 +35,14 @@ export type ProviderStateTransition = Readonly<{
   propertyId: PropertyId | null
 }>
 
+/**
+ * What the provider reports about a message after accepting it (ADR 0046 r.6).
+ * `delivery_delayed` is the provider still trying; it is recorded but leaves
+ * the message in flight, unlike the queue's own pre-send `delayed`.
+ */
+export type ProviderDeliveryState =
+  'delivered' | 'delivery_delayed' | 'bounced' | 'complained' | 'failed' | 'suppressed'
+
 export type NotificationDigestBatchState =
   'prepared' | 'retryable' | 'accepted' | 'terminal'
 
@@ -145,7 +153,7 @@ export type NotificationEmailRepositoryPort = Readonly<{
    */
   recordProviderState(
     providerMessageId: string,
-    state: 'delivered' | 'bounced' | 'complained',
+    state: ProviderDeliveryState,
     occurredAt: Date,
   ): Promise<readonly ProviderStateTransition[]>
   /**
@@ -158,7 +166,11 @@ export type NotificationEmailRepositoryPort = Readonly<{
     reason: string,
     updatedAt: Date,
   ): Promise<number>
-  /** True once the recipient has any bounced/complained row in this org. */
+  /**
+   * True once the provider has refused the recipient in this org: a bounced or
+   * complained row, or a message the provider suppressed. A suppression we
+   * made ourselves (a disabled preference, say) does not count.
+   */
   isRecipientSuppressed(userId: UserId, orgId: OrganizationId): Promise<boolean>
   /** Return the sole prepared/retryable recipient batch, if one exists. */
   findOpenDigestBatch(

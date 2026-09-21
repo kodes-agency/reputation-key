@@ -316,6 +316,103 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
     await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toBeNull()
   })
 
+  describe('provider delivery events after acceptance (ADR 0046 r.6)', () => {
+    const LATER = new Date('2026-08-25T08:05:00.000Z')
+    const NEXT_DAY = new Date('2026-08-26T08:00:00.000Z')
+
+    const emailRow = async (id: string) =>
+      (
+        await db
+          .select()
+          .from(notificationEmailQueue)
+          .where(eq(notificationEmailQueue.id, id))
+      )[0]
+
+    const dueIds = async (repo: ReturnType<typeof createNotificationEmailRepository>) =>
+      (await repo.findDueByUser(ORG, USER, 'daily', NEXT_DAY)).map((entry) => entry.id)
+
+    it('ends a provider-suppressed message as suppressed and stops mailing the recipient', async () => {
+      const repo = createNotificationEmailRepository(db)
+      await repo.markAccepted(EMAIL_A, ORG, PROPERTY, 'resend-suppressed-1', NOW)
+      await expect(repo.isRecipientSuppressed(USER, ORG)).resolves.toBe(false)
+
+      const moved = await repo.recordProviderState(
+        'resend-suppressed-1',
+        'suppressed',
+        LATER,
+      )
+
+      expect(moved.map((row) => row.emailId)).toEqual([EMAIL_A])
+      expect(await emailRow(EMAIL_A)).toMatchObject({
+        status: 'suppressed',
+        providerState: 'suppressed',
+        suppressionReason: 'provider_suppressed',
+      })
+      await expect(repo.isRecipientSuppressed(USER, ORG)).resolves.toBe(true)
+    })
+
+    it('does not mistake a local suppression for the provider refusing the address', async () => {
+      const repo = createNotificationEmailRepository(db)
+
+      await repo.markSuppressed(EMAIL_A, ORG, PROPERTY, 'preference_disabled', NOW)
+
+      await expect(repo.isRecipientSuppressed(USER, ORG)).resolves.toBe(false)
+    })
+
+    it('ends a failure after acceptance as permanent, so no sweep sends it again', async () => {
+      const repo = createNotificationEmailRepository(db)
+      await repo.markAccepted(EMAIL_A, ORG, PROPERTY, 'resend-failed-1', NOW)
+
+      const moved = await repo.recordProviderState('resend-failed-1', 'failed', LATER)
+
+      expect(moved).toHaveLength(1)
+      expect(await emailRow(EMAIL_A)).toMatchObject({
+        status: 'failed',
+        providerState: 'failed',
+        lastErrorClass: 'permanent',
+        failedAt: LATER,
+      })
+      expect(await dueIds(repo)).not.toContain(EMAIL_A)
+      await expect(repo.isRecipientSuppressed(USER, ORG)).resolves.toBe(false)
+    })
+
+    it('keeps a provider-delayed message in flight until the provider settles it', async () => {
+      // The queue's own `delayed` is the quiet-hours deferral and is sendable;
+      // a provider delay must never make an accepted message sendable again.
+      const repo = createNotificationEmailRepository(db)
+      await repo.markAccepted(EMAIL_A, ORG, PROPERTY, 'resend-delayed-1', NOW)
+
+      await repo.recordProviderState('resend-delayed-1', 'delivery_delayed', LATER)
+
+      expect(await emailRow(EMAIL_A)).toMatchObject({
+        status: 'accepted',
+        providerState: 'delivery_delayed',
+      })
+      expect(await dueIds(repo)).not.toContain(EMAIL_A)
+      await repo.recordProviderState('resend-delayed-1', 'delivered', NEXT_DAY)
+      expect(await emailRow(EMAIL_A)).toMatchObject({
+        status: 'delivered',
+        providerState: 'delivered',
+      })
+    })
+
+    it('never lets a late failure, suppression or delay overwrite a delivered message', async () => {
+      const repo = createNotificationEmailRepository(db)
+      await repo.markAccepted(EMAIL_A, ORG, PROPERTY, 'resend-late-1', NOW)
+      await repo.recordProviderState('resend-late-1', 'delivered', LATER)
+
+      for (const state of ['failed', 'suppressed', 'delivery_delayed'] as const) {
+        await expect(
+          repo.recordProviderState('resend-late-1', state, NEXT_DAY),
+        ).resolves.toEqual([])
+      }
+      expect(await emailRow(EMAIL_A)).toMatchObject({
+        status: 'delivered',
+        providerState: 'delivered',
+      })
+    })
+  })
+
   it('terminates only the frozen members when provider-visible retry content drifts', async () => {
     const repo = createNotificationEmailRepository(db)
     const input = digestBatchInput()

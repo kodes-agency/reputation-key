@@ -85,6 +85,59 @@ describe('resend delivery event handler (ADR 0046 r.6)', () => {
     )
   })
 
+  it('suppresses the recipient when the provider suppressed the message', async () => {
+    // Resend accepts the send (200, id stored), then drops it because the
+    // address is on its suppression list and says so only by this webhook.
+    const deps = fakeDeps()
+
+    const result = await run(deps, 'email.suppressed')
+
+    expect(deps.emailRepo.recordProviderState).toHaveBeenCalledWith(
+      'prov-1',
+      'suppressed',
+      OCCURRED_AT,
+    )
+    expect(deps.emailRepo.suppressRecipient).toHaveBeenCalledWith(
+      userId('user-1'),
+      organizationId('org-1'),
+      'provider_suppressed',
+      OCCURRED_AT,
+    )
+    expect(result).toEqual({ applied: true, rows: 1, suppressed: 3 })
+  })
+
+  it('records a failure after acceptance as terminal, loudly, without suppressing the address', async () => {
+    const deps = fakeDeps()
+
+    const result = await run(deps, 'email.failed')
+
+    expect(deps.emailRepo.recordProviderState).toHaveBeenCalledWith(
+      'prov-1',
+      'failed',
+      OCCURRED_AT,
+    )
+    expect(deps.emailRepo.suppressRecipient).not.toHaveBeenCalled()
+    expect(result).toEqual({ applied: true, rows: 1, suppressed: 0 })
+    expect(deps.logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ deliveryState: 'failed', rows: 1 }),
+      'Email failed at the provider after it was accepted',
+    )
+  })
+
+  it('records a provider delivery delay without suppressing anyone', async () => {
+    const deps = fakeDeps()
+
+    const result = await run(deps, 'email.delivery_delayed')
+
+    expect(deps.emailRepo.recordProviderState).toHaveBeenCalledWith(
+      'prov-1',
+      'delivery_delayed',
+      OCCURRED_AT,
+    )
+    expect(deps.emailRepo.suppressRecipient).not.toHaveBeenCalled()
+    expect(result).toEqual({ applied: true, rows: 1, suppressed: 0 })
+  })
+
   it('cascades once per recipient even when the event moves several rows', async () => {
     const deps = fakeDeps({
       moved: [movedRow('user-1'), movedRow('user-1'), movedRow('user-2')],

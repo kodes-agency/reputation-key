@@ -14,26 +14,39 @@
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 import { providerEventCorrelationId } from '../delivery-correlation'
-import type { NotificationEmailRepositoryPort } from '../../application/ports/notification-email-repository.port'
+import type {
+  NotificationEmailRepositoryPort,
+  ProviderDeliveryState,
+} from '../../application/ports/notification-email-repository.port'
 
 /**
  * The Resend event types we act on, mapped to the delivery states the queue
  * models. Everything else Resend emits (`email.sent`, `email.opened`,
  * `email.clicked`, …) is either redundant with `accepted` or engagement
  * telemetry we deliberately do not store.
+ *
+ * `email.suppressed` and `email.failed` arrive AFTER Resend accepted the send
+ * and returned an id. Ignoring them left dropped mail reading `accepted`
+ * forever, and kept mailing an address Resend had already refused.
  */
-const STATE_BY_EVENT: Readonly<
-  Record<string, 'delivered' | 'bounced' | 'complained' | undefined>
-> = {
+const STATE_BY_EVENT: Readonly<Record<string, ProviderDeliveryState | undefined>> = {
   'email.delivered': 'delivered',
+  'email.delivery_delayed': 'delivery_delayed',
   'email.bounced': 'bounced',
   'email.complained': 'complained',
+  'email.failed': 'failed',
+  'email.suppressed': 'suppressed',
 }
 
-/** A terminal negative state means the address is dead. Stop mailing it. */
+/**
+ * The provider refused the ADDRESS, not just this message: it is dead to us
+ * too. A failure is not one of these: its causes (quota, domain, API key)
+ * are rarely the recipient's.
+ */
 const SUPPRESSING_STATES: Readonly<Record<string, true | undefined>> = {
   bounced: true,
   complained: true,
+  suppressed: true,
 }
 
 export type ResendEventInput = Readonly<{
@@ -96,10 +109,18 @@ export async function applyResendEvent(
   }
 
   if (!SUPPRESSING_STATES[state]) {
-    deps.logger.info(
-      { eventType: input.type, deliveryState: state, rows: moved.length, correlationId },
-      'Recorded email delivery state',
-    )
+    const fields = {
+      eventType: input.type,
+      deliveryState: state,
+      rows: moved.length,
+      correlationId,
+    }
+    // A message lost after acceptance is exactly what support cannot see.
+    if (state === 'failed') {
+      deps.logger.error(fields, 'Email failed at the provider after it was accepted')
+    } else {
+      deps.logger.info(fields, 'Recorded email delivery state')
+    }
     return { applied: true, rows: moved.length, suppressed: 0 }
   }
 

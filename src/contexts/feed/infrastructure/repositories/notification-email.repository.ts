@@ -29,6 +29,7 @@ import type {
   NotificationDigestBatch,
   NotificationEmailRecipient,
   PreparedNotificationDigestBatch,
+  ProviderDeliveryState,
   ProviderStateTransition,
 } from '../../application/ports/notification-email-repository.port'
 import { digestBatchIdempotencyKey, digestMemberSet } from '../digest-batch-identity'
@@ -127,14 +128,59 @@ const dueForCadence = (cadence: string, now: Date) =>
  * webhooks arrive out of order often enough that a late `delivered` would
  * otherwise erase a `bounced` and we would keep mailing a dead address.
  * `delivered` may only advance an accepted row; the negative terminals may
- * also overwrite `delivered`, never each other's row a second time.
+ * also overwrite `delivered`, never each other's row a second time. A failure
+ * or suppression only ever follows acceptance: the provider reports either
+ * INSTEAD of delivering.
  */
 const PROVIDER_STATE_PREDECESSORS: Readonly<
-  Record<'delivered' | 'bounced' | 'complained', readonly EmailQueueStatus[]>
+  Record<ProviderDeliveryState, readonly EmailQueueStatus[]>
 > = {
   delivered: ['accepted'],
+  delivery_delayed: ['accepted'],
   bounced: ['accepted', 'delivered'],
   complained: ['accepted', 'delivered'],
+  failed: ['accepted'],
+  suppressed: ['accepted'],
+}
+
+/**
+ * The reason on a row the PROVIDER suppressed. Local suppressions also set
+ * `provider_state = 'suppressed'` (a disabled preference, a changed digest), so
+ * only this reason says the provider refused the address.
+ */
+const PROVIDER_SUPPRESSION_REASON = 'provider_suppressed'
+
+/** The columns each provider-reported state writes. */
+const providerStateColumns = (state: ProviderDeliveryState, occurredAt: Date) => {
+  switch (state) {
+    case 'delivered':
+      return { status: state, providerState: state, deliveredAt: occurredAt }
+    // Still in flight at the provider. The status stays `accepted`: the queue's
+    // own `delayed` is the sendable quiet-hours state, and the sweep would mail
+    // the message again.
+    case 'delivery_delayed':
+      return { providerState: state }
+    case 'bounced':
+    case 'complained':
+      return { status: state, providerState: state, bouncedAt: occurredAt }
+    // Terminal: an accepted message the provider then failed to send. It is
+    // not retried, because the idempotency key would only replay the failure.
+    case 'failed':
+      return {
+        status: state,
+        providerState: state,
+        lastErrorClass: 'permanent',
+        failedAt: occurredAt,
+        nextAttemptAt: null,
+      }
+    case 'suppressed':
+      return {
+        status: state,
+        providerState: state,
+        suppressionReason: PROVIDER_SUPPRESSION_REASON,
+        nextAttemptAt: null,
+      }
+  }
 }
 
 export const createNotificationEmailRepository = (db: Database) => ({
@@ -395,19 +441,12 @@ export const createNotificationEmailRepository = (db: Database) => ({
    */
   recordProviderState: async (
     providerMessageId: string,
-    state: 'delivered' | 'bounced' | 'complained',
+    state: ProviderDeliveryState,
     occurredAt: Date,
   ): Promise<readonly ProviderStateTransition[]> => {
     const rows = await db
       .update(notificationEmailQueue)
-      .set({
-        status: state,
-        providerState: state,
-        ...(state === 'delivered'
-          ? { deliveredAt: occurredAt }
-          : { bouncedAt: occurredAt }),
-        updatedAt: occurredAt,
-      })
+      .set({ ...providerStateColumns(state, occurredAt), updatedAt: occurredAt })
       .where(
         and(
           eq(notificationEmailQueue.providerMessageId, providerMessageId),
@@ -467,7 +506,10 @@ export const createNotificationEmailRepository = (db: Database) => ({
         and(
           eq(notificationEmailQueue.userId, userId),
           eq(notificationEmailQueue.organizationId, orgId),
-          inArray(notificationEmailQueue.providerState, ['bounced', 'complained']),
+          or(
+            inArray(notificationEmailQueue.providerState, ['bounced', 'complained']),
+            eq(notificationEmailQueue.suppressionReason, PROVIDER_SUPPRESSION_REASON),
+          ),
         ),
       )
       .limit(1)
