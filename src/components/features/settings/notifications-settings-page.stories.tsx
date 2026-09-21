@@ -404,3 +404,19 @@ export const RapidChangesBuildOnEachOther: Story = {
     releaseSaves[1]!()
   },
 }
+
+export const QuietHoursNeedTwoDifferentTimes: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText('Action needed: Quiet from'), '22:00')
+    await userEvent.type(
+      canvas.getByLabelText('Action needed: quiet hours until'),
+      '22:00',
+    )
+    // Delivery reads equal times as no quiet hours at all.
+    expect(
+      canvas.getByRole('button', { name: 'Save quiet hours for Action needed' }),
+    ).toBeDisabled()
+    expect(canvas.getByText('Choose different start and end times.')).toBeVisible()
+  },
+}

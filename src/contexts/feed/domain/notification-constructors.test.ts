@@ -431,6 +431,14 @@ describe('notification constructors', () => {
       code: 'invalid_input',
     },
     {
+      // `deliveryTiming` treats equal times as no quiet hours at all, so a user
+      // who saved 22:00-22:00 believing quiet hours were on got every email.
+      caseName: 'quiet hours that start and end at the same time',
+      input: { quietHoursStart: '22:00', quietHoursEnd: '22:00' },
+      message: 'Quiet hours must start and end at different times',
+      code: 'invalid_input',
+    },
+    {
       caseName: 'in-app urgent bypass',
       input: { channel: 'in_app' as const, urgentBypassEnabled: true },
       message: 'Urgent bypass applies only to email',

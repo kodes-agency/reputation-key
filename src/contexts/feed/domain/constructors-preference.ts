@@ -67,6 +67,16 @@ export const createNotificationPreference = (
       notificationError('invalid_input', 'Quiet hours require a valid start and end'),
     )
   }
+  // Delivery reads equal times as "no quiet hours" (`isQuietMinute`), so a
+  // saved 22:00-22:00 looked like quiet hours and silenced nothing.
+  if (input.quietHoursStart !== null && input.quietHoursStart === input.quietHoursEnd) {
+    return err(
+      notificationError(
+        'invalid_input',
+        'Quiet hours must start and end at different times',
+      ),
+    )
+  }
   if (!isPreferenceDisableable(input.category, input.channel) && !input.enabled) {
     return err(
       notificationError(

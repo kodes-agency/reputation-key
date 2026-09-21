@@ -284,16 +284,22 @@ export const notificationPreferenceCategory = z.enum([
   'recognition',
 ])
 const notificationChannel = z.enum(['in_app', 'email'])
-const updateNotificationPreferenceDto = z.object({
-  propertyId: z.uuid(),
-  category: notificationPreferenceCategory,
-  channel: notificationChannel,
-  enabled: z.boolean(),
-  cadence: z.enum(['immediate', 'daily']),
-  urgentBypassEnabled: z.boolean(),
-  quietHoursStart: quietTime,
-  quietHoursEnd: quietTime,
-})
+export const updateNotificationPreferenceDto = z
+  .object({
+    propertyId: z.uuid(),
+    category: notificationPreferenceCategory,
+    channel: notificationChannel,
+    enabled: z.boolean(),
+    cadence: z.enum(['immediate', 'daily']),
+    urgentBypassEnabled: z.boolean(),
+    quietHoursStart: quietTime,
+    quietHoursEnd: quietTime,
+  })
+  .refine(
+    (data) =>
+      data.quietHoursStart === null || data.quietHoursStart !== data.quietHoursEnd,
+    'Quiet hours must start and end at different times',
+  )
 
 /** @public Consumed by the notification preferences settings route. */
 export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })

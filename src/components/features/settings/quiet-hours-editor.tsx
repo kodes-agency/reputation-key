@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
@@ -20,8 +20,11 @@ export function QuietHoursEditor({
 }>) {
   const [nextStart, setNextStart] = useState(start ?? '')
   const [nextEnd, setNextEnd] = useState(end ?? '')
-  // One end of a range without the other is not a saveable window.
+  const sameTimesHintId = useId()
+  // One end of a range without the other is not a saveable window, and equal
+  // ends are no window at all: delivery would never hold anything back.
   const halfOpen = (nextStart === '') !== (nextEnd === '')
+  const sameTimes = nextStart !== '' && nextStart === nextEnd
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
       <Label>
@@ -50,11 +53,17 @@ export function QuietHoursEditor({
         type="button"
         variant="outline"
         aria-label={`Save quiet hours for ${categoryLabel}`}
-        disabled={disabled || halfOpen}
+        aria-describedby={sameTimes ? sameTimesHintId : undefined}
+        disabled={disabled || halfOpen || sameTimes}
         onClick={() => onSave(nextStart || null, nextEnd || null)}
       >
         Save quiet hours
       </Button>
+      {sameTimes ? (
+        <p id={sameTimesHintId} className="basis-full text-sm text-muted-foreground">
+          Choose different start and end times.
+        </p>
+      ) : null}
     </div>
   )
 }
