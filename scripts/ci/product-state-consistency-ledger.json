@@ -295,6 +295,18 @@
       "policy": "Seed from persisted end time and keep input local until Save; NotificationsCategoryRow keys the editor by category and persisted start/end, so a changed server window remounts the draft."
     },
     {
+      "id": "src/components/features/settings/use-notification-preference-saves.ts:useState(runner)",
+      "classification": "local_runtime",
+      "owner": "Notification preference save ordering",
+      "policy": "The lazy initializer constructs one page-lifetime serial runner that orders each preference row's saves; it holds only in-flight save promises, never a server-owned record, and the preferences query stays the authority."
+    },
+    {
+      "id": "src/components/features/settings/use-notification-preference-saves.ts:useState(requested)",
+      "classification": "local_runtime",
+      "owner": "Notification preference save ordering",
+      "policy": "Starts empty and holds only the values requested for a row while that row's saves are in flight, so the next edit builds on them and the control reflects the click; the entry is removed when the row's last save settles, after the mutation's refetch, leaving the preferences query as the only render source."
+    },
+    {
       "id": "src/components/features/staff/portal-responsibilities-modal.tsx:useState(primaryPortalId)",
       "classification": "server_draft",
       "owner": "Staff portal-responsibility editor",
