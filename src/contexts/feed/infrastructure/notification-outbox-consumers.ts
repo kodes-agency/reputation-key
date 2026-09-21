@@ -146,8 +146,9 @@ export function registerNotificationConsumers(
   deps: NotificationConsumerDeps,
 ): void {
   const { registerConsumer } = registry
-  // Consumer names MUST stay string literals here — both governance catalogue
-  // guards discover durable consumers by scanning registerConsumer calls.
+  // Consumer names and modules stay string literals, or string constants this
+  // file declares or imports: the registration guard reads them from source
+  // (outbox-consumer-registration.test) and fails on anything it cannot read.
   registerConsumer({
     eventType: 'inbox.inbox_item.created',
     consumerName: 'notification.on-inbox-item-created',

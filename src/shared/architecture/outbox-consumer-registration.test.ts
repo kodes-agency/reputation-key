@@ -4,8 +4,8 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { clearTestContainerEnv } from '#/shared/testing/clear-container-env'
-import { readFileSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, join, relative, resolve } from 'node:path'
 import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
 import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
 import { walk } from '#/shared/testing/source-tree'
@@ -25,34 +25,74 @@ const ROOT = process.cwd()
 
 type DiscoveredRegistration = Readonly<{
   file: string
-  consumerName: string
+  /** Undefined when the guard cannot read the name — which fails it. */
+  consumerName: string | undefined
   module: string | undefined
 }>
 
 /**
- * Every registerConsumer({ ... }) call in production source, with the
+ * The string a `const` holds, declared in `src` or named-imported by it from a
+ * module that declares it — one hop, the way registration names are shared.
+ */
+function resolveConstant(src: string, file: string, name: string): string | undefined {
+  const declared = (text: string) =>
+    new RegExp(`\\bconst\\s+${name}\\s*=\\s*'([^']+)'`).exec(text)?.[1]
+  const local = declared(src)
+  if (local !== undefined) return local
+  const from = new RegExp(
+    `import\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*from\\s*'([^']+)'`,
+  ).exec(src)?.[1]
+  if (from === undefined) return undefined
+  const target = from.startsWith('#/')
+    ? join(ROOT, 'src', from.slice(2))
+    : resolve(ROOT, dirname(file), from)
+  return existsSync(`${target}.ts`)
+    ? declared(readFileSync(`${target}.ts`, 'utf-8'))
+    : undefined
+}
+
+/** A `field:` given as a string literal or as a readable string constant. */
+function readName(head: string, src: string, file: string, field: string) {
+  const value = new RegExp(`\\b${field}:\\s*(?:'([^']+)'|([A-Za-z_$][\\w$]*)\\s*,)`).exec(
+    head,
+  )
+  if (!value) return undefined
+  return value[1] ?? resolveConstant(src, file, value[2]!)
+}
+
+/**
+ * Every registerConsumer({ ... }) call in one source file, with the
  * consumerName and the catalogue module it declares. Parsed from the head of
  * each call object (everything up to `handler:`) so a multi-line handler body
- * can never be mistaken for the next registration's fields.
+ * can never be mistaken for the next registration's fields. A registration
+ * whose names cannot be read is returned with them undefined, never skipped.
  */
-function discoverRegistrations(): ReadonlyArray<DiscoveredRegistration> {
+function parseRegistrations(
+  src: string,
+  file: string,
+): ReadonlyArray<DiscoveredRegistration> {
   const out: DiscoveredRegistration[] = []
+  for (const m of src.matchAll(/registerConsumer\(\s*\{/g)) {
+    const from = m.index + m[0].length
+    const handlerAt = src.indexOf('handler:', from)
+    const head = src.slice(from, handlerAt === -1 ? src.length : handlerAt)
+    out.push({
+      file,
+      consumerName: readName(head, src, file, 'consumerName'),
+      module: readName(head, src, file, 'module'),
+    })
+  }
+  return out
+}
+
+/** Every registerConsumer({ ... }) call in production source. */
+function discoverRegistrations(): ReadonlyArray<DiscoveredRegistration> {
   const files = walk(join(ROOT, 'src')).filter(
     (f) => f.endsWith('.ts') && !f.endsWith('.test.ts'),
   )
-  for (const abs of files) {
-    const src = readFileSync(abs, 'utf-8')
-    const file = relative(ROOT, abs)
-    for (const m of src.matchAll(/registerConsumer\(\s*\{/g)) {
-      const from = m.index + m[0].length
-      const handlerAt = src.indexOf('handler:', from)
-      const head = src.slice(from, handlerAt === -1 ? src.length : handlerAt)
-      const consumerName = /consumerName:\s*'([^']+)'/.exec(head)?.[1]
-      if (consumerName === undefined) continue
-      out.push({ file, consumerName, module: /module:\s*'([^']+)'/.exec(head)?.[1] })
-    }
-  }
-  return out
+  return files.flatMap((abs) =>
+    parseRegistrations(readFileSync(abs, 'utf-8'), relative(ROOT, abs)),
+  )
 }
 
 /** Consumer-module rows the delayed-execution gate can resolve an action for. */
@@ -177,6 +217,29 @@ describe('BQR-2.2: outbox consumer registration', () => {
       const registrations = discoverRegistrations()
       expect(registrations.length).toBeGreaterThanOrEqual(15)
       expect(CATALOGUE_CONSUMER_MODULES.size).toBeGreaterThan(0)
+    })
+
+    // A name this guard cannot read would pass every check below unseen.
+    it('every registerConsumer call names its consumer in a form the guard reads', () => {
+      const unread = discoverRegistrations()
+        .filter((r) => r.consumerName === undefined)
+        .map((r) => r.file)
+      expect(unread).toEqual([])
+    })
+
+    it('refuses rather than skips a registration whose names it cannot read', () => {
+      const src = [
+        'registerConsumer({',
+        "  eventType: 'x.y',",
+        '  consumerName: namedElsewhere(),',
+        '  module: `notification.${kind}`,',
+        '  handler: async () => ({ status: "applied" }),',
+        '})',
+      ].join('\n')
+
+      expect(parseRegistrations(src, 'src/example.ts')).toEqual([
+        { file: 'src/example.ts', consumerName: undefined, module: undefined },
+      ])
     })
 
     it('every registerConsumer call declares a module', () => {
