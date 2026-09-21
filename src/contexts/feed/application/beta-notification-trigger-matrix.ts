@@ -78,12 +78,18 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     // transition; only Purge Pending produces the mandatory final notice.
     eventCondition: 'state === purge_pending',
   },
-  route(
-    'inbox.inbox_item.created',
-    'notification.on-inbox-item-created',
-    ['review.created', 'feedback.created'],
-    ['responsible_scope', 'account_admin'],
-  ),
+  {
+    ...route(
+      'inbox.inbox_item.created',
+      'notification.on-inbox-item-created',
+      ['review.created', 'feedback.created'],
+      ['responsible_scope', 'account_admin'],
+    ),
+    // ADR 0046: Google history an import brought in is never announced; the
+    // missing-notification sweep honours the same rule.
+    eventCondition:
+      'sourceType === feedback || first Handling Cycle is not historical_onboarding',
+  },
   {
     ...route(
       'inbox.handling_cycle.opened',

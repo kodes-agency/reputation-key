@@ -99,6 +99,7 @@ const makeDeps = () => {
         sourceType: 'review',
         createdAt: new Date('2026-08-27T08:00:00.000Z'),
       })),
+      isHistoricalOnboardingItem: vi.fn(async () => false),
       findHandlingCycleNotificationFacts: vi.fn(
         async (): Promise<HandlingCycleNotificationFacts | null> => ({
           propertyId: PROPERTY,

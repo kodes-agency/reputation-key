@@ -157,6 +157,22 @@ describe('notification durable outbox consumer', () => {
     )
   })
 
+  it('settles imported Google history with an applied receipt and no notification job', async () => {
+    const deps = makeDeps()
+    deps.fakes.inboxItemLookup.isHistoricalOnboardingItem.mockResolvedValue(true)
+
+    await expect(handleNotificationInboxItemCreated(deps, event())).resolves.toEqual({
+      status: 'applied',
+    })
+
+    expect(deps.fakes.jobs).toHaveLength(0)
+    expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
+      EVENT_ID,
+      ON_INBOX_ITEM_CREATED_CONSUMER,
+      'applied',
+    )
+  })
+
   it('marks a vanished inbox item obsolete instead of retrying it forever', async () => {
     const deps = makeDeps()
     deps.fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue(null)

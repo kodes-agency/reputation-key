@@ -8,6 +8,10 @@
 // coalesces into it and bumps the user-visible "Updated N times" counter, so
 // the sweep only ever touches items with zero notifications and leaves
 // partially-delivered ones to the durable consumer's receipt fencing.
+//
+// An item that arrived as Google history is never a gap either: the fan-out
+// never announces it (ADR 0046), so healing it would re-create exactly the
+// notification that was withheld, and the gauge would page after every import.
 
 export type MissingNotificationCandidate = Readonly<{
   inboxItemId: string

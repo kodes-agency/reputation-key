@@ -178,7 +178,8 @@ captures those facts for the deployed artifact and environment.
    external-current-live completion, RepKey-confirmed completion, and current reply-
    deletion reopen paths, and an import that fails part-way and is finished by the
    discovery sweep. Verify saved start/due/completion evidence and separate
-   analytics totals.
+   analytics totals, and that onboarding history produces no `review.created`
+   notification while an ongoing initial review does (ADR 0046).
 6. Capture a hosted manager-browser check for Organization settings, Property
    private-feedback override, Inbox target state at the due boundary, and a delivered
    reminder. Link that evidence from the release record; do not replace it with a

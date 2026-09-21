@@ -5,6 +5,9 @@
 // already do: the projection this context owns is keyed by inbox item, so the
 // existence question is answerable here without a cross-context call.
 //
+// An item that arrived as Google history is never a gap: the fan-out never
+// announces it (ADR 0046), and both read the same shared predicate.
+//
 // Two casts are load-bearing:
 //   - `inbox_items.id` is uuid and `notifications.resource_id` is varchar(255),
 //     so the anti-join needs `id::text` — PostgreSQL has no uuid = varchar
@@ -21,6 +24,7 @@ import type {
   MissingNotificationCandidate,
   NotificationGapRepositoryPort,
 } from '../../application/ports/notification-gap.repository'
+import { historicalOnboardingItem } from '../historical-onboarding-item'
 
 /** No notification row anywhere points at this inbox item. */
 const noNotificationExists = sql`NOT EXISTS (
@@ -56,7 +60,8 @@ export const createNotificationGapRepository = (
         sql`${inboxItems.createdAt} >= ${createdAtOrAfter}::timestamptz
           AND ${inboxItems.createdAt} < ${createdBefore}::timestamptz
           ${afterCursor}
-          AND ${noNotificationExists}`,
+          AND ${noNotificationExists}
+          AND NOT ${historicalOnboardingItem}`,
       )
       .orderBy(inboxItems.createdAt, inboxItems.id)
       .limit(limit)
@@ -80,6 +85,7 @@ export const createNotificationGapRepository = (
         WHERE ${inboxItems.createdAt} >= ${createdAtOrAfter}::timestamptz
           AND ${inboxItems.createdAt} < ${createdBefore}::timestamptz
           AND ${noNotificationExists}
+          AND NOT ${historicalOnboardingItem}
         LIMIT ${scanLimit}
       ) AS gap
     `)
