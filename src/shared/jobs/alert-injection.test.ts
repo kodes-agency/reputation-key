@@ -232,6 +232,7 @@ describe('alert registry contract (BQC-7.4)', () => {
       'notification.immediate-email-acceptance-lag',
       'notification.in-app-delivery-lag',
       'notification.missing-for-inbox-item',
+      'observability.snapshot-degraded',
       'queue.oldest-age',
       'queue.quarantine-growth',
       'queue.quarantine-nonempty',
@@ -371,6 +372,17 @@ const BREACHES: readonly Breach[] = [
         zeroSnapshotEnrollmentCount: 1,
         eligibleReviewCountMissed: 18,
       }
+    },
+  },
+  {
+    name: 'observability.snapshot-degraded',
+    severity: 'P1',
+    runbook: 'runbooks.md §23',
+    threshold: 0,
+    windowMs: 5 * 60 * 1000,
+    value: 2, // health.outbox blinds queue.oldest-age and queue.stalled
+    apply: (s) => {
+      s.degraded = ['health.outbox']
     },
   },
   {
@@ -1015,14 +1027,50 @@ describe('health-check job alert wiring', () => {
     expect(dispatched).toHaveLength(2)
   })
 
-  it('reports the firing/dispatched sets in the job result', async () => {
+  it('reports the firing/dispatched/held sets in the job result', async () => {
     const { deps } = wiredDeps(stalledSnapshot())
     const handler = createHealthCheckHandler(deps)
     const result = await handler({ id: '1', data: {} } as never)
     expect(result.alerts).toEqual({
       firing: ['queue.stalled'],
       dispatched: ['queue.stalled'],
+      held: [],
     })
+  })
+
+  it('holds a firing alert through its section degrading, then resumes without a second page', async () => {
+    const quarantined = healthySnapshot()
+    quarantined.quarantine = { count: 2, oldestAgeMs: QUARANTINE_NONEMPTY_ALERT_MS + 1 }
+    const { deps, dispatched, state, readOperationsSnapshot } = wiredDeps(quarantined)
+    const handler = createHealthCheckHandler(deps)
+
+    await handler({ id: '1', data: {} } as never)
+    expect(dispatched.map((e) => e.name)).toEqual(['queue.quarantine-nonempty'])
+
+    // Queue Redis stalls: the quarantine signal degrades to its null fallback.
+    const blind = healthySnapshot()
+    blind.degraded = ['health.quarantine']
+    readOperationsSnapshot.mockResolvedValue(blind)
+    const heldRun = await handler({ id: '2', data: {} } as never)
+    expect(heldRun.alerts?.held).toEqual([
+      'queue.quarantine-growth',
+      'queue.quarantine-nonempty',
+    ])
+    expect(state.all().sort()).toEqual([
+      'observability.snapshot-degraded',
+      'queue.quarantine-nonempty',
+    ])
+    expect(dispatched.map((e) => e.name)).toEqual([
+      'queue.quarantine-nonempty',
+      'observability.snapshot-degraded',
+    ])
+
+    // The signal recovers and the dead letter is still there: same incident,
+    // no second page; the degradation alert clears.
+    readOperationsSnapshot.mockResolvedValue(quarantined)
+    await handler({ id: '3', data: {} } as never)
+    expect(dispatched).toHaveLength(2)
+    expect(state.all()).toEqual(['queue.quarantine-nonempty'])
   })
 
   it('a snapshot read failure warns and never breaks the health check', async () => {
@@ -1082,6 +1130,7 @@ describe('health-check job alert wiring', () => {
     expect(result.alerts).toEqual({
       firing: ['guest.observation-loss'],
       dispatched: ['guest.observation-loss'],
+      held: [],
     })
   })
 

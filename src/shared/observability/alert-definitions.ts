@@ -26,6 +26,7 @@
 // exact contract.
 
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
+import type { SnapshotSection } from '#/shared/observability/metrics-schema'
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -96,6 +97,15 @@ export type AlertDefinition = Readonly<{
    * lands in a later slice (evaluate: null — nothing may dispatch it).
    */
   implemented: boolean
+  /**
+   * Snapshot sections whose degraded fallback evaluates this alert quiet.
+   * While one of them is degraded the reading is unknown, not healthy:
+   * evaluateAlerts holds the alert's prior state (a firing alert is neither
+   * cleared nor re-paged, a quiet one cannot fire) and
+   * observability.snapshot-degraded pages for the blindness. Alerts that fire
+   * on their own section's fallback (fail-visible) declare none.
+   */
+  blindedBy: readonly SnapshotSection[]
   /** Pure evaluation; null exactly when implemented is false. */
   evaluate:
     ((snapshot: OperationsSnapshot, aux: AlertAuxReads) => AlertEvent | null) | null
@@ -222,14 +232,16 @@ function define(
     runbook: string
     windowMs: number
     threshold: number
+    blindedBy?: readonly SnapshotSection[]
     read: (snapshot: OperationsSnapshot, aux: AlertAuxReads) => AlertReading | null
   }>,
 ): AlertDefinition {
-  const { read, ...statics } = def
+  const { read, blindedBy = [], ...statics } = def
   return {
     ...statics,
     owner: OWNER,
     implemented: true,
+    blindedBy,
     evaluate: (snapshot, aux) => {
       const reading = read(snapshot, aux)
       if (reading === null) return null
@@ -248,7 +260,15 @@ function registered(
     threshold: number
   }>,
 ): AlertDefinition {
-  return { ...def, owner: OWNER, implemented: false, evaluate: null }
+  return { ...def, owner: OWNER, implemented: false, blindedBy: [], evaluate: null }
+}
+
+/** Implemented alerts whose input section is degraded in this snapshot. */
+function blindedAlerts(degraded: readonly string[]): readonly AlertDefinition[] {
+  return ALERT_DEFINITIONS.filter(
+    (def) =>
+      def.implemented && def.blindedBy.some((section) => degraded.includes(section)),
+  )
 }
 
 // ── Definitions ────────────────────────────────────────────────────
@@ -358,6 +378,33 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     },
   }),
 
+  // ── the monitoring's own inputs ──
+  // A degraded snapshot section reports a zero fallback, and zeros evaluate
+  // quiet: every alert reading it would otherwise clear and stay dark exactly
+  // while the database or Queue Redis is struggling. Those alerts hold their
+  // state (evaluateAlerts); this is the page that says they cannot see.
+  define({
+    name: 'observability.snapshot-degraded',
+    severity: 'P1',
+    runbook: 'runbooks.md §23',
+    windowMs: EVAL_CADENCE_MS,
+    threshold: 0,
+    read: (snapshot) => {
+      const blinded = blindedAlerts(snapshot.degraded)
+      if (blinded.length === 0) return null
+      const sections = snapshot.degraded.filter((section) =>
+        blinded.some((def) => def.blindedBy.some((input) => input === section)),
+      )
+      return {
+        value: blinded.length,
+        detail:
+          `operations snapshot section(s) ${sections.join(', ')} unreadable — ` +
+          `${blinded.length} alert(s) cannot evaluate and hold their last state: ` +
+          blinded.map((def) => def.name).join(', '),
+      }
+    },
+  }),
+
   // ── queue oldest age and stalled/quarantine growth ──
   define({
     name: 'queue.oldest-age',
@@ -365,6 +412,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §7',
     windowMs: OUTBOX_OLDEST_UNPUBLISHED_ALERT_MS,
     threshold: OUTBOX_OLDEST_UNPUBLISHED_ALERT_MS,
+    blindedBy: ['health.outbox'],
     read: (snapshot) => {
       const age = snapshot.outbox.oldestUnpublishedAgeMs
       if (age == null || age <= OUTBOX_OLDEST_UNPUBLISHED_ALERT_MS) return null
@@ -383,6 +431,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §7',
     windowMs: EVAL_CADENCE_MS,
     threshold: 0,
+    blindedBy: ['health.outbox'],
     read: (snapshot) => {
       const count = snapshot.outbox.stalledLeaseCount
       if (count <= 0) return null
@@ -398,6 +447,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §4',
     windowMs: QUARANTINE_REDRIVE_SLA_ALERT_MS,
     threshold: QUARANTINE_REDRIVE_SLA_ALERT_MS,
+    blindedBy: ['health.quarantine'],
     read: (snapshot) => {
       const q = snapshot.quarantine
       if (q == null || q.count <= 0) return null
@@ -420,6 +470,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §14',
     windowMs: QUARANTINE_NONEMPTY_ALERT_MS,
     threshold: QUARANTINE_NONEMPTY_ALERT_MS,
+    blindedBy: ['health.quarantine'],
     read: (snapshot) => {
       const q = snapshot.quarantine
       if (q == null || q.count <= 0) return null
@@ -440,6 +491,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §3',
     windowMs: SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS * 1000,
     threshold: SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS,
+    blindedBy: ['health.reviews'],
     read: (snapshot) => {
       const { refreshDueCount, oldestDueAgeSeconds } = snapshot.reviews
       // oldestDueAgeSeconds counts DOWN toward the hard expiry — the breach
@@ -462,6 +514,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §13',
     windowMs: EVAL_CADENCE_MS,
     threshold: 0,
+    blindedBy: ['health.sync'],
     read: (snapshot) => {
       const count = snapshot.sync.failedSyncCount
       if (count <= 0) return null
@@ -484,6 +537,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §13',
     windowMs: SYNC_SWEEP_LAG_ALERT_MS,
     threshold: SYNC_SWEEP_LAG_ALERT_MS,
+    blindedBy: ['health.sync'],
     read: (snapshot) => {
       const { dueForIncrementalCount, oldestDueAgeMs, gbpPushEnabled } = snapshot.sync
       if (dueForIncrementalCount <= 0) return null
@@ -573,6 +627,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §15',
     windowMs: EVAL_CADENCE_MS,
     threshold: 0,
+    blindedBy: ['health.notificationGap'],
     read: (snapshot) => {
       const count = snapshot.notifications.missingForInboxItemCount
       if (count <= 0) return null
@@ -588,6 +643,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §15',
     windowMs: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
     threshold: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
+    blindedBy: ['health.notificationDeliveryLag'],
     read: (snapshot) => {
       const lag = snapshot.notifications.deliveryLag
       const pending = lag.sourceReceiptPending + lag.materializationPending
@@ -621,6 +677,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §15',
     windowMs: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
     threshold: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
+    blindedBy: ['health.notificationDeliveryLag', 'health.notificationEmail'],
     read: (snapshot) => {
       const email = snapshot.notifications.deliveryLag.immediateEmailAcceptance
       if (email.sourceUnlinked > 0) {
@@ -687,6 +744,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §15',
     windowMs: NOTIFICATION_EMAIL_STALLED_ALERT_MS,
     threshold: NOTIFICATION_EMAIL_STALLED_ALERT_MS,
+    blindedBy: ['health.notificationEmail'],
     read: (snapshot) => {
       const {
         emailDeliveryEnabled,
@@ -771,6 +829,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §6',
     windowMs: REPLY_AMBIGUOUS_ALERT_MS,
     threshold: REPLY_AMBIGUOUS_ALERT_MS,
+    blindedBy: ['health.replyPublication'],
     read: (snapshot) => {
       const { counts, oldestAmbiguousAgeMs } = snapshot.replyPublication
       if ((counts.ambiguous ?? 0) <= 0) return null
@@ -849,6 +908,12 @@ export type AlertEvaluation = Readonly<{
   toDispatch: readonly AlertEvent[]
   /** All currently-firing alert names (state-store reconciliation input). */
   firing: readonly string[]
+  /**
+   * Alerts not evaluated because an input section is degraded. A held alert
+   * that was firing stays in `firing`, so its state is neither cleared nor
+   * re-paged; one that was quiet cannot open an edge on a fallback reading.
+   */
+  held: readonly string[]
 }>
 
 /**
@@ -857,7 +922,9 @@ export type AlertEvaluation = Readonly<{
  * `previouslyFiring`: an alert already in the firing state does NOT
  * re-dispatch. The caller persists the state (Redis, 24h TTL) — a
  * continuously-firing alert re-notifies only after its state key expires,
- * and the caller clears state on recovery (name absent from `firing`).
+ * and the caller clears state on recovery (name absent from `firing`). An
+ * alert whose input section is degraded is held, not evaluated: unknown is
+ * not recovery.
  */
 export function evaluateAlerts(
   snapshot: OperationsSnapshot,
@@ -866,12 +933,17 @@ export function evaluateAlerts(
 ): AlertEvaluation {
   const toDispatch: AlertEvent[] = []
   const firing: string[] = []
+  const held = new Set(blindedAlerts(snapshot.degraded).map((def) => def.name))
   for (const def of ALERT_DEFINITIONS) {
     if (!def.implemented || def.evaluate === null) continue
+    if (held.has(def.name)) {
+      if (previouslyFiring.has(def.name)) firing.push(def.name)
+      continue
+    }
     const event = def.evaluate(snapshot, aux)
     if (event === null) continue
     firing.push(def.name)
     if (!previouslyFiring.has(def.name)) toDispatch.push(event)
   }
-  return { toDispatch, firing }
+  return { toDispatch, firing, held: [...held] }
 }

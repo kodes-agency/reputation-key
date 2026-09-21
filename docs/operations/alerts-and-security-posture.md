@@ -122,13 +122,14 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 
 **Dispatch:** every firing alert emits a schema-conformant structured `error` log line (`[alert] <name> firing`, fields: alert/severity/owner/runbook/value/threshold/windowMs/detail/firedAt — content-free) and, when `ALERT_WEBHOOK_URL` is set, POSTs the same payload to that operator webhook (3s timeout, best-effort — the log line is the durable record).
 
-**Hysteresis:** edge-trigger — an alert dispatches on the ok→firing transition, re-notifies at most every 24h while continuously firing (Redis state key TTL), and clears on recovery so the next breach fires immediately.
+**Hysteresis:** edge-trigger — an alert dispatches on the ok→firing transition, re-notifies at most every 24h while continuously firing (Redis state key TTL), and clears on recovery so the next breach fires immediately. An alert whose snapshot section is degraded (`health.<signal>` marker) is held rather than evaluated: unknown is not recovery, so a firing alert keeps its state and a quiet one cannot fire until the signal reads again, while `observability.snapshot-degraded` pages for the blindness.
 
 | Alert                                         | Sev | Threshold / window                                                                                                              | Runbook |
 | --------------------------------------------- | --- | ------------------------------------------------------------------------------------------------------------------------------- | ------- |
 | `worker.heartbeat.stale`                      | P1  | heartbeat missing or age > 10min                                                                                                | §7      |
 | `worker.job-runtime-unready`                  | P1  | any governed family violates handler/scheduler, dark-work, freshness, queue-age, stall, repair, or dead-letter contract         | §17     |
 | `guest.observation-loss`                      | P1  | any suppressed scan/review-link observation in trailing 24h, or the content-free monitor is unavailable                         | §18     |
+| `observability.snapshot-degraded`             | P1  | any degraded snapshot section blinds at least one alert (those alerts hold their state until the section reads again)           | §23     |
 | `queue.oldest-age`                            | P2  | oldest unpublished outbox event > 15min                                                                                         | §7      |
 | `queue.stalled`                               | P2  | any lease held > 2× its lease (single eval — stalled work IS the impact)                                                        | §7      |
 | `queue.quarantine-growth`                     | P2  | oldest quarantined job > 24h (redrive SLA)                                                                                      | §4      |

@@ -798,3 +798,23 @@ epochs, sequences, counts, timestamps, coded outcomes, and the recovery
 decision—never review or reviewer content.
 
 ---
+
+## 23. Operations Snapshot Degraded (Alerts Blind)
+
+**Alert:** `observability.snapshot-degraded` (P1) — at least one operations-snapshot section that an alert reads failed or outlasted its 5-second budget on this evaluation. The detail names the degraded `health.<signal>` markers and every alert they blind.
+
+**What it means:** a degraded signal reports a zero fallback, and zeros evaluate quiet. The alerts that read it are therefore UNKNOWN, not healthy, so they hold their last state instead of clearing: one that was already firing stays firing (no clear, no second page), and one that was quiet cannot fire until the signal reads again. This alert is the page for that blindness — without it, a database or Queue Redis incident would silence the very alerts meant to report it. Sections that fire their own alert on the fallback (`workers.heartbeat`, `jobs`, `guest.observationLoss`) and sections no alert reads (`queues`, `runtime`) never raise it.
+
+**First three things to check:**
+
+1. `degraded` on `/api/health/metrics`. `health.quarantine` alone points at Queue Redis (§7). The PostgreSQL-backed markers (`health.outbox`, `health.reviews`, `health.sync`, `health.replyPublication`, `health.notificationEmail`) degrading together point at database saturation or an outage (§8). A lone `health.notificationGap` or `health.notificationDeliveryLag` means that bounded scan has outgrown the budget.
+2. Worker logs for `Span health.check.<signal> failed` (the content-free error name of a read that failed) and `[health-check] alerts held` (the held alert names). A signal that only timed out leaves no failure line — the marker alone means it outlasted the budget.
+3. `db.pool.waiting` / `db.pool-exhaustion`: a saturated pool starves each database signal in turn, and the pool gauge survives a stalled `runtime` read on purpose.
+
+**Remediate:** restore the failing dependency first (§7 Redis, §8 database). For a scan that keeps outlasting the budget, bound or index that read; never widen the budget to hide it, and never clear the held alerts' state to quiet the page.
+
+**Verification:** `degraded` carries no `health.*` marker, this alert clears on the next evaluation, and the held alerts evaluate on real readings again — a breach they were holding stays firing without a second page, a recovered one clears.
+
+**Escalation:** Bozhidar Denev.
+
+---

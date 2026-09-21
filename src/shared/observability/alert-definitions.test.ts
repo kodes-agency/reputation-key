@@ -11,6 +11,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import {
   ALERT_DEFINITIONS,
+  evaluateAlerts,
   BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
   NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
   NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
@@ -340,6 +341,67 @@ describe('worker.job-runtime-unready', () => {
     const unavailableEvent = evaluateOne('worker.job-runtime-unready', unavailable)
     expect(unavailableEvent).toMatchObject({ value: 1, threshold: 0 })
     expect(unavailableEvent!.detail).toContain('unavailable')
+  })
+})
+
+// ── degraded snapshot sections: the alerts that cannot see ─────────
+
+describe('observability.snapshot-degraded', () => {
+  it('fires when a degraded section blinds alerts, naming the section and each alert', () => {
+    const s = healthy()
+    s.degraded = ['health.outbox']
+
+    const event = evaluateOne('observability.snapshot-degraded', s)
+
+    expect(event).toMatchObject({
+      name: 'observability.snapshot-degraded',
+      severity: 'P1',
+      value: 2,
+      threshold: 0,
+      runbook: 'runbooks.md §23',
+    })
+    expect(event!.detail).toContain('health.outbox')
+    expect(event!.detail).toContain('queue.oldest-age')
+    expect(event!.detail).toContain('queue.stalled')
+  })
+
+  it('stays quiet when nothing is degraded or only fail-visible sections are', () => {
+    expect(evaluateOne('observability.snapshot-degraded', healthy())).toBeNull()
+
+    // Each of these either feeds no alert or fires its own alert on the
+    // fallback, so none of them leaves an alert blind.
+    const s = healthy()
+    s.degraded = ['queues', 'workers.heartbeat', 'jobs', 'guest.observationLoss']
+    expect(evaluateOne('observability.snapshot-degraded', s)).toBeNull()
+  })
+})
+
+describe('evaluateAlerts on a degraded snapshot', () => {
+  it('holds an alert already firing when its section degrades instead of clearing it', () => {
+    const s = healthy()
+    s.degraded = ['health.quarantine']
+    s.quarantine = null
+
+    const result = evaluateAlerts(s, AUX, new Set(['queue.quarantine-nonempty']))
+
+    expect(result.firing).toContain('queue.quarantine-nonempty')
+    expect(result.held).toEqual(['queue.quarantine-growth', 'queue.quarantine-nonempty'])
+    expect(result.toDispatch.map((event) => event.name)).toEqual([
+      'observability.snapshot-degraded',
+    ])
+  })
+
+  it('opens no new edge on a degraded section, whatever its fallback reads', () => {
+    const s = healthy()
+    s.degraded = ['health.quarantine']
+    s.quarantine = { count: 1, oldestAgeMs: QUARANTINE_NONEMPTY_ALERT_MS + 1 }
+
+    const result = evaluateAlerts(s, AUX, new Set())
+
+    expect(result.firing).not.toContain('queue.quarantine-nonempty')
+    expect(result.toDispatch.map((event) => event.name)).not.toContain(
+      'queue.quarantine-nonempty',
+    )
   })
 })
 

@@ -75,6 +75,8 @@ export const SNAPSHOT_SECTIONS = [
   'guest.observationLoss',
 ] as const
 
+export type SnapshotSection = (typeof SNAPSHOT_SECTIONS)[number]
+
 /** Route-class label: dotted server-fn / use-case names (e.g. review.syncReviews). */
 // eslint-disable-next-line security/detect-unsafe-regex -- BQC-7.7 (owner: platform): each outer-group iteration must consume a literal dot, so repetitions cannot overlap; safe-regex star-height false positive
 const USE_CASE_PATTERN = /^[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9_-]+)*$/

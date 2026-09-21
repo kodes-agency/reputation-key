@@ -8,7 +8,8 @@
 // pure), and dispatches newly-firing alerts through the container-owned
 // AlertDispatcher (shared/observability/alert-dispatcher.ts). Hysteresis is
 // edge-trigger + 24h re-notify via the Redis firing-state store
-// (shared/health/alert-state.ts); recovery clears the state. This supersedes
+// (shared/health/alert-state.ts); recovery clears the state, but an alert
+// whose snapshot section is degraded is held, not cleared. This supersedes
 // the BQC-3.7 warn-only threshold logs (warnOnOpsThresholds), whose four
 // signals are now formal definitions (queue.oldest-age, queue.stalled,
 // queue.quarantine-growth).
@@ -37,6 +38,12 @@ export type HealthCheckResult = Readonly<{
     firing: readonly string[]
     /** Alerts dispatched on THIS run (ok→firing edges). */
     dispatched: readonly string[]
+    /**
+     * Alerts not evaluated because a snapshot section they read is degraded:
+     * their prior state is kept, not cleared (observability.snapshot-degraded
+     * pages for the blindness).
+     */
+    held: readonly string[]
   }>
 }>
 
@@ -101,7 +108,13 @@ async function evaluateAndDispatch(
       '[health-check] alert hysteresis state unavailable — evaluating fail-visible',
     )
   }
-  const { toDispatch, firing } = evaluateAlerts(snapshot, aux, previouslyFiring)
+  const { toDispatch, firing, held } = evaluateAlerts(snapshot, aux, previouslyFiring)
+  if (held.length > 0) {
+    deps.logger.warn(
+      { degraded: snapshot.degraded, held },
+      '[health-check] alerts held — their snapshot section is degraded',
+    )
+  }
 
   const dispatched: string[] = []
   for (const event of toDispatch) {
@@ -140,7 +153,7 @@ async function evaluateAndDispatch(
     }
   }
 
-  return { firing, dispatched }
+  return { firing, dispatched, held }
 }
 
 export function createHealthCheckHandler(deps: HealthCheckDeps) {
