@@ -3,7 +3,8 @@
 // (source_type, source_id, organization_id) — at most one row — and reads the
 // content-free render facts (ADR 0046 r.8) the events do not carry. The
 // property join mirrors notification-property-scope.repository.ts, which
-// already reads `properties` from this context.
+// already reads `properties` from this context. Whether an item arrived as
+// Google history is the predicate the missing-notification sweep also reads.
 import type { Database } from '#/shared/db'
 import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import {
@@ -29,6 +30,7 @@ import type {
   ResponseTargetReminderNotificationFacts,
 } from '../../application/ports/notification-inbox-item-lookup.port'
 import type { FeedbackPortalLookupPort } from '../../application/ports/feedback-portal-lookup.port'
+import { historicalOnboardingItem } from '../historical-onboarding-item'
 
 const findInboxItemFacts = async (
   db: Database,
@@ -112,6 +114,23 @@ export const createInboxItemLookupAdapter = (
     orgId: OrganizationId,
   ): Promise<InboxItemFacts | null> {
     return findInboxItemFacts(db, feedbackPortalLookup, id, orgId)
+  },
+
+  async isHistoricalOnboardingItem(
+    id: InboxItemId,
+    orgId: OrganizationId,
+  ): Promise<boolean> {
+    const rows = await db
+      .select({ historical: historicalOnboardingItem })
+      .from(inboxItems)
+      .where(
+        and(
+          eq(inboxItems.organizationId, unbrand(orgId)),
+          eq(inboxItems.id, unbrand(id)),
+        ),
+      )
+      .limit(1)
+    return rows[0]?.historical === true
   },
 
   async findHandlingCycleNotificationFacts(

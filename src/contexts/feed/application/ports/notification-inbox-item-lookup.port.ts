@@ -79,6 +79,17 @@ export type InboxItemLookupPort = Readonly<{
     orgId: OrganizationId,
   ): Promise<InboxItemFacts | null>
 
+  /**
+   * Whether the item arrived as Google history: its first Handling Cycle's
+   * Response Target was observed as `historical_onboarding`, a past review an
+   * import brought in. History is never announced as new (ADR 0046). False
+   * for private feedback, a live or legacy Review, and an item that is gone.
+   */
+  isHistoricalOnboardingItem(
+    inboxItemId: InboxItemId,
+    orgId: OrganizationId,
+  ): Promise<boolean>
+
   /** Resolve the current source cycle/head together with content-free item facts. */
   findHandlingCycleNotificationFacts(
     inboxItemId: InboxItemId,

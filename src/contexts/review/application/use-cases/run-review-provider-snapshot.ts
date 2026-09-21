@@ -250,6 +250,7 @@ const persistPageObservations = async (
   observationScope: string,
   replyReadGeneration: number,
 ): Promise<readonly ReviewProviderPersistedObservation[]> => {
+  const historyCutoff = await importHistoryCutoff(deps, input, run)
   const observations: ReviewProviderPersistedObservation[] = []
   for (const review of reviews) {
     // Parsing happens before the source writer so malformed provider resources
@@ -266,7 +267,7 @@ const persistPageObservations = async (
       propertyId: input.propertyId,
       connectionId: input.connectionId,
       sourceEpoch: input.sourceEpoch,
-      observationOrigin: observationOriginForReview(run, review),
+      observationOrigin: observationOriginForReview(run, historyCutoff, review),
       observationKey: sha256Hex(
         `repkey-review-provider-observation-key-v1\0${observationScope}\0${review.reviewName}`,
       ),
@@ -292,24 +293,47 @@ const persistPageObservations = async (
 }
 
 /**
+ * The cutoff an import run classifies against: its source epoch's durable
+ * history cutoff, fixed when the epoch's first import was admitted. A retried
+ * import that starts a later run must not move it. A run that predates the
+ * durable record falls back to its own start. Other runs have none here; the
+ * observation writer applies the epoch's cutoff to their first sightings, and
+ * tells onboarding history from what a relink or a late listing brings in.
+ */
+const importHistoryCutoff = async (
+  deps: RunReviewProviderSnapshotDeps,
+  input: RunReviewProviderSnapshotInput,
+  run: Pick<ReviewProviderSnapshotRun, 'observationOrigin' | 'startedAt'>,
+): Promise<Date | null> => {
+  if (run.observationOrigin !== 'historical_onboarding') return null
+  const recorded = await deps.repository.readHistoryCutoff({
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    sourceEpoch: input.sourceEpoch,
+  })
+  return recorded?.cutoffAt ?? run.startedAt
+}
+
+/**
  * An initial import is a baseline, not a licence to exclude reviews that were
- * actually published while its bounded pages were still running. The run's
- * durable start instant is the only stable cutoff across continuations and
+ * actually published while its bounded pages were still running. The epoch's
+ * durable history cutoff is the only stable cutoff across continuations and
  * retries. Provider publication time is preferred because local arrival order
  * changes under pagination; an unusable provider clock is excluded rather
  * than converted into performance evidence.
  */
 const observationOriginForReview = (
-  run: Pick<ReviewProviderSnapshotRun, 'observationOrigin' | 'startedAt'>,
+  run: Pick<ReviewProviderSnapshotRun, 'observationOrigin'>,
+  historyCutoff: Date | null,
   review: GoogleReview,
 ): ReviewProviderObservationOrigin => {
-  if (run.observationOrigin !== 'historical_onboarding') {
+  if (run.observationOrigin !== 'historical_onboarding' || historyCutoff == null) {
     return run.observationOrigin
   }
   const publishedAt = review.sourceCreatedAt ?? review.reviewedAt
   const publishedAtMs = publishedAt.getTime()
   if (!Number.isFinite(publishedAtMs)) return 'legacy_unknown'
-  return publishedAtMs > run.startedAt.getTime() ? 'ongoing' : 'historical_onboarding'
+  return publishedAtMs > historyCutoff.getTime() ? 'ongoing' : 'historical_onboarding'
 }
 
 const finishPhase = async (

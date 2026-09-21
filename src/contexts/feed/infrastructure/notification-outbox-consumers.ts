@@ -112,9 +112,10 @@ export async function handleNotificationInboxItemCreated(
 
   // A source that never notifies anybody is a permanent property of the event,
   // not a transient failure: record it as processed-without-effect so
-  // redelivery short-circuits on the receipt. Everything else (including "no
-  // recipients", which the fan-out already warns about) is 'applied' — the
-  // consumer did all the work the event admits.
+  // redelivery short-circuits on the receipt. Everything else (including
+  // imported Google history, which is never announced, and "no recipients",
+  // which the fan-out already warns about) is 'applied' — the consumer did all
+  // the work the event admits.
   const status =
     outcome.kind === 'skipped' && outcome.reason === 'unknown_source'
       ? 'obsolete'

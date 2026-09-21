@@ -62,6 +62,44 @@ describe('fanoutInboxItemNotifications', () => {
     expect(deps.jobs).toHaveLength(0)
   })
 
+  it('does not announce a review an import brought in as Google history', async () => {
+    deps.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+    deps.inboxItemLookup.isHistoricalOnboardingItem.mockResolvedValue(true)
+
+    await expect(fanoutInboxItemNotifications(deps, input())).resolves.toEqual({
+      kind: 'skipped',
+      reason: 'historical_onboarding',
+    })
+
+    expect(deps.jobs).toHaveLength(0)
+    expect(deps.inboxItemLookup.isHistoricalOnboardingItem).toHaveBeenCalledWith(
+      NOTIF_TEST_IDS.inboxItemId,
+      NOTIF_TEST_IDS.orgId,
+    )
+  })
+
+  it('always announces private feedback: the history rule is for Google reviews only', async () => {
+    deps.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
+      propertyId: unbrand(NOTIF_TEST_IDS.propId),
+      portalId: 'portal-1',
+      assignedTo: null,
+      propertyName: 'Riverside Hotel',
+      guestRating: 2,
+      sourceType: 'feedback',
+      createdAt: new Date('2026-06-01T09:00:00.000Z'),
+    })
+    deps.responsibleManagers.findForPortal.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+    // Even a lookup that answered yes cannot silence a guest's feedback.
+    deps.inboxItemLookup.isHistoricalOnboardingItem.mockResolvedValue(true)
+
+    await expect(
+      fanoutInboxItemNotifications(deps, input({ sourceType: 'feedback' })),
+    ).resolves.toEqual({ kind: 'enqueued', recipients: 1 })
+    expect(deps.jobs[0]!.data).toEqual(
+      expect.objectContaining({ type: 'feedback.created' }),
+    )
+  })
+
   it('stamps a deterministic job id per recipient when a scope is given, so a redelivery converges', async () => {
     deps.responsibleManagers.findForProperty.mockResolvedValue([
       NOTIF_TEST_IDS.manager1,

@@ -6,6 +6,7 @@ import { insertOutboxRow } from '#/shared/outbox/commit'
 import {
   reviewProviderDeletionCandidates,
   reviewGoogleReputationSnapshotFacts,
+  reviewProviderHistoryCutoffs,
   reviewProviderSnapshotMembers,
   reviewProviderSnapshotRuns,
   reviewProviderSubjectHmacKeyVersions,
@@ -14,6 +15,7 @@ import {
 } from '#/shared/db/schema/review.schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type {
+  ReviewProviderHistoryCutoff,
   ReviewProviderPersistedObservation,
   ReviewProviderSnapshotFailureCode,
   ReviewProviderSnapshotRepository,
@@ -131,6 +133,94 @@ async function failLockedRun(
       'Snapshot run disappeared while failing',
     )
   return terminal[0]
+}
+
+type StartOrResumeInput = Parameters<ReviewProviderSnapshotRepository['startOrResume']>[0]
+type HistoryCutoffScope = Parameters<
+  ReviewProviderSnapshotRepository['fixImportHistoryCutoff']
+>[0]
+
+/**
+ * Fix an epoch's history cutoff at this transaction's instant. The first
+ * import wins; a later one, or a retry of the same one, keeps it.
+ */
+async function fixHistoryCutoff(
+  executor: Pick<Tx, 'insert'>,
+  scope: HistoryCutoffScope,
+): Promise<void> {
+  await executor
+    .insert(reviewProviderHistoryCutoffs)
+    .values({
+      organizationId: scope.organizationId,
+      propertyId: scope.propertyId,
+      sourceEpoch: scope.sourceEpoch,
+      cutoffAt: sql`transaction_timestamp()`,
+    })
+    .onConflictDoNothing()
+}
+
+/**
+ * An import its admission did not cover (one queued before admission fixed
+ * cutoffs) fixes the cutoff when its run starts, or at the moment it joins an
+ * active run. Called after the run row is locked or inserted, so the Property
+ * foreign-key share lock follows the run lock as in every other snapshot
+ * transaction; once admission has fixed the cutoff the insert is a no-op.
+ */
+async function recordImportHistoryCutoff(
+  tx: Tx,
+  input: StartOrResumeInput,
+): Promise<void> {
+  if (input.observationOrigin !== 'historical_onboarding') return
+  await fixHistoryCutoff(tx, input)
+}
+
+const timestampFrom = (value: unknown): Date =>
+  value instanceof Date ? value : new Date(String(value))
+
+/**
+ * The epoch's cutoff, the Property's first import cutoff (the lowest epoch
+ * that has one), and whether a snapshot run of the epoch has completed a full
+ * listing since the cutoff: every completed run records its verified
+ * reputation fact in the transaction that completes it.
+ */
+async function readHistoryCutoffRow(
+  db: Database,
+  scope: HistoryCutoffScope,
+): Promise<ReviewProviderHistoryCutoff | null> {
+  const result = await db.execute(sql`
+    SELECT
+      epoch.cutoff_at,
+      (
+        SELECT first_import.cutoff_at
+        FROM review_provider_history_cutoffs first_import
+        WHERE first_import.organization_id = epoch.organization_id
+          AND first_import.property_id = epoch.property_id
+          AND first_import.source_epoch <= epoch.source_epoch
+        ORDER BY first_import.source_epoch
+        LIMIT 1
+      ) AS first_import_cutoff_at,
+      EXISTS (
+        SELECT 1
+        FROM review_google_reputation_snapshot_facts listing
+        WHERE listing.organization_id = epoch.organization_id
+          AND listing.property_id = epoch.property_id
+          AND listing.source_epoch = epoch.source_epoch
+          AND listing.evaluated_at >= epoch.cutoff_at
+      ) AS history_listed
+    FROM review_provider_history_cutoffs epoch
+    WHERE epoch.organization_id = ${scope.organizationId}
+      AND epoch.property_id = ${scope.propertyId}
+      AND epoch.source_epoch = ${scope.sourceEpoch}
+  `)
+  const row = result.rows[0] as
+    | { cutoff_at: unknown; first_import_cutoff_at: unknown; history_listed: unknown }
+    | undefined
+  if (row == null) return null
+  return {
+    cutoffAt: timestampFrom(row.cutoff_at),
+    firstImportCutoffAt: timestampFrom(row.first_import_cutoff_at),
+    historyListed: row.history_listed === true,
+  }
 }
 
 type PageCommitInput = Parameters<ReviewProviderSnapshotRepository['commitPage']>[0]
@@ -708,7 +798,10 @@ export const createReviewProviderSnapshotRepository = (
           ),
         )
         .for('update')
-      if (existing[0]) return fromRunRow(existing[0])
+      if (existing[0]) {
+        await recordImportHistoryCutoff(tx, input)
+        return fromRunRow(existing[0])
+      }
       const rows = await tx
         .insert(reviewProviderSnapshotRuns)
         .values({
@@ -728,8 +821,13 @@ export const createReviewProviderSnapshotRepository = (
           'snapshot_run_insert_empty',
           'Snapshot run insert returned no row',
         )
+      await recordImportHistoryCutoff(tx, input)
       return fromRunRow(rows[0])
     }),
+
+  fixImportHistoryCutoff: (input) => fixHistoryCutoff(db, input),
+
+  readHistoryCutoff: (input) => readHistoryCutoffRow(db, input),
 
   readRun: async (input) => {
     const rows = await db

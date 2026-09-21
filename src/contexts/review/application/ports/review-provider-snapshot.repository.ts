@@ -123,7 +123,34 @@ export type ReviewProviderLinkedCandidate = ReviewProviderDeletionCandidate &
     reviewName: string
   }>
 
+/**
+ * The Google history the first import of one Property source epoch takes
+ * over. The cutoff is fixed when that import is admitted, outlives the import
+ * run and never moves.
+ */
+export type ReviewProviderHistoryCutoff = Readonly<{
+  cutoffAt: Date
+  /**
+   * The Property's first import cutoff: this epoch's own, or an earlier
+   * epoch's when this one began with a relink.
+   */
+  firstImportCutoffAt: Date
+  /**
+   * A snapshot run of this epoch has completed a full listing since the
+   * cutoff, so every Review the import took over has been listed once.
+   */
+  historyListed: boolean
+}>
+
 export type ReviewProviderSnapshotRepository = Readonly<{
+  /**
+   * An `historical_onboarding` request also fixes the epoch's history cutoff
+   * at this transaction's instant — the new run's own start, or the moment the
+   * import joined a run that was already active — unless the import's
+   * admission, or an earlier import, already fixed it. Only an import queued
+   * before admission fixed cutoffs gets its cutoff here. An active run is
+   * resumed with its own origin.
+   */
   startOrResume(
     input: Readonly<{
       organizationId: OrganizationId
@@ -132,6 +159,31 @@ export type ReviewProviderSnapshotRepository = Readonly<{
       observationOrigin: ReviewProviderObservationOrigin
     }>,
   ): Promise<ReviewProviderSnapshotRun>
+
+  /**
+   * Fix the epoch's history cutoff at this instant, as a Google import is
+   * admitted and before any snapshot run can observe the epoch. A retried
+   * admission, or a later import in the same epoch, keeps the first cutoff.
+   */
+  fixImportHistoryCutoff(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      sourceEpoch: number
+    }>,
+  ): Promise<void>
+
+  /**
+   * The history cutoff of one Property source epoch, or null when no import
+   * has been admitted in that epoch.
+   */
+  readHistoryCutoff(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      sourceEpoch: number
+    }>,
+  ): Promise<ReviewProviderHistoryCutoff | null>
 
   readRun(
     input: Readonly<{
@@ -258,6 +310,11 @@ export type ReviewProviderSnapshotRepository = Readonly<{
     }>,
   ): Promise<Readonly<{ deleted: number; nextReviewId: ReviewId | null }>>
 }>
+
+export type ReviewProviderHistoryCutoffReader = Pick<
+  ReviewProviderSnapshotRepository,
+  'readHistoryCutoff'
+>
 
 /** Request-scoped source writer supplied by the normal Review sync path. */
 export type ReviewProviderObservationWriter = Readonly<{

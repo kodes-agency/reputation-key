@@ -255,7 +255,7 @@ The alert remains quiet when email is globally dark and the database contains on
 
 **Verification:** source-unlinked and saturation return to `0`; awaiting and attempted-awaiting drain; the oldest awaiting source age returns to null; and an unsaturated accepted sample reports p99 at or below 300,000 ms. Retain a deployed provider acceptance record and alert-injection result separately—the local snapshot is necessary evidence, not proof of the deployed target.
 
-**What `notification.missing-for-inbox-item` means:** an inbox item past the grace edge still has no notification attached — a review arrived, was projected into the inbox, and nobody has been told yet. The bounded `reconcile-missing-notifications` sweep is the repair authority, so a non-zero count means either ordinary delivery is late or that repair is not keeping up. A single occurrence pages because the manager-facing journey is already incomplete.
+**What `notification.missing-for-inbox-item` means:** an inbox item past the grace edge still has no notification attached — a review arrived, was projected into the inbox, and nobody has been told yet. The bounded `reconcile-missing-notifications` sweep is the repair authority, so a non-zero count means either ordinary delivery is late or that repair is not keeping up. A single occurrence pages because the manager-facing journey is already incomplete. Reviews an import brought in as Google history (`historical_onboarding`) are never announced and never counted, so an import's past reviews having no notification is expected (ADR 0046).
 
 **First three things to check:**
 

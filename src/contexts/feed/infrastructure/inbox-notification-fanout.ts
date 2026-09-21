@@ -2,8 +2,9 @@
 // "an insert-notification job is queued for every recipient".
 //
 // The durable outbox consumer and reconciliation sweep share this definition,
-// so recipient resolution, AccountAdmin fallback, source-to-type mapping, and
-// the payload allowlist cannot drift.
+// so recipient resolution, AccountAdmin fallback, source-to-type mapping, the
+// payload allowlist, and the rule that Google history is never announced
+// cannot drift.
 //
 // Content-free by construction: the job data carries identifiers plus the
 // ADR 0046 r.8 fact allowlist that buildInboxItemPayload assembles, never
@@ -81,9 +82,25 @@ export type InboxFanoutInput = Readonly<{
 export type InboxFanoutOutcome =
   | Readonly<{
       kind: 'skipped'
-      reason: 'unknown_source' | 'no_property' | 'no_recipients'
+      reason: 'unknown_source' | 'no_property' | 'historical_onboarding' | 'no_recipients'
     }>
   | Readonly<{ kind: 'enqueued'; recipients: number }>
+
+/**
+ * History does not fan out (ADR 0046): a past review an import brought in is
+ * not news, and announcing each one as new buries the Property's real work.
+ * Only a Google review can be history; private feedback is always new.
+ */
+const isImportedHistory = (
+  deps: InboxFanoutDeps,
+  input: InboxFanoutInput,
+): Promise<boolean> =>
+  input.sourceType === 'review'
+    ? deps.inboxItemLookup.isHistoricalOnboardingItem(
+        brandInboxItemId(input.inboxItemId),
+        brandOrganizationId(input.organizationId),
+      )
+    : Promise.resolve(false)
 
 /**
  * Resolve current source-specific responsibility: Property for Google reviews,
@@ -149,6 +166,14 @@ export const fanoutInboxItemNotifications = async (
       correlationId,
     })
     return { kind: 'skipped', reason: 'no_property' }
+  }
+
+  if (await isImportedHistory(deps, input)) {
+    deps.logger.debug(
+      { correlationId },
+      'inbox notification fan-out: Google history is never announced',
+    )
+    return { kind: 'skipped', reason: 'historical_onboarding' }
   }
 
   const { recipients, audience } = await resolveRecipients(

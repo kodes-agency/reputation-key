@@ -73,6 +73,7 @@ export const createNotificationConsumerDeps = (): FakeNotificationConsumerDeps =
       sourceType: 'review',
       createdAt: new Date('2026-06-01T09:00:00.000Z'),
     })),
+    isHistoricalOnboardingItem: vi.fn(async () => false),
     findHandlingCycleNotificationFacts: vi.fn(async () => ({
       propertyId: 'prop-1',
       portalId: null,

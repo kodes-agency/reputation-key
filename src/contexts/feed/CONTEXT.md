@@ -38,6 +38,12 @@ payloads at read/send time so in-app rows, urgent email, and digests cannot
 silently drift. Preferences and current responsibility are rechecked before
 external delivery.
 
+Every new Inbox Item is announced to its responsible recipients except Google
+history: an item whose first Handling Cycle was observed as
+`historical_onboarding`, a past review an import brought in, is never
+announced. The fan-out and the missing-notification sweep share one predicate,
+so such an item is never a gap either (ADR 0046).
+
 ## Runtime
 
 Durable outbox consumers project activity and enqueue deterministic notification

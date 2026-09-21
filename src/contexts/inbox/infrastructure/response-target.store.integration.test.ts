@@ -39,7 +39,10 @@ const HISTORICAL_ITEM = inboxItemId('79000000-0000-4000-8000-000000000042')
 const HISTORICAL_REVIEW = reviewId('79000000-0000-4000-8000-000000000043')
 const UNKNOWN_ITEM = inboxItemId('79000000-0000-4000-8000-000000000044')
 const UNKNOWN_REVIEW = reviewId('79000000-0000-4000-8000-000000000045')
+const LATE_ITEM = inboxItemId('79000000-0000-4000-8000-000000000046')
+const LATE_REVIEW = reviewId('79000000-0000-4000-8000-000000000047')
 const OPENED_AT = new Date('2026-08-28T08:00:00.000Z')
+const PUBLISHED_IN_2015 = new Date('2015-06-01T10:00:00.000Z')
 
 const db = getDb()
 let pool: Pool
@@ -138,6 +141,55 @@ async function seedReviewSource(
     [sourceId, ORG, PROPERTY, '1'.repeat(64), eligibility, startAt, OPENED_AT],
   )
 }
+
+/**
+ * The Review projection's path: a measured cycle opened at the instant Review
+ * observed the revision, timed from Google's own publication.
+ */
+async function projectMeasuredReview(
+  id: ReturnType<typeof inboxItemId>,
+  sourceId: ReturnType<typeof reviewId>,
+  publishedAt: Date,
+): Promise<void> {
+  await seedReviewSource(sourceId, 'measured', publishedAt)
+  await commandStore(db).createItem(makeReviewItem(id, sourceId), null, {
+    sourceRevision: 1,
+    openedReason: 'review_observed',
+    actorType: 'provider',
+    triggerEventId: null,
+    openedAt: OPENED_AT,
+    responseTarget: {
+      reviewAuthority: {
+        authority: 'review.inbox-projection-revision.v1',
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        reviewId: sourceId,
+        sourceEpoch: 0,
+        materialReviewRevision: 1,
+        eligibility: 'measured',
+        responseTargetStartAt: publishedAt,
+        observedAt: OPENED_AT,
+      },
+      targetStart: { basis: 'review_provenance' },
+    },
+  })
+}
+
+const releasedReminderKinds = async (
+  itemIds: ReadonlyArray<ReturnType<typeof inboxItemId>>,
+): Promise<ReadonlyArray<Readonly<{ inbox_item_id: string; reminder_kind: string }>>> =>
+  (
+    await pool.query<{ inbox_item_id: string; reminder_kind: string }>(
+      `SELECT payload->>'inboxItemId' AS inbox_item_id,
+              payload->>'reminderKind' AS reminder_kind
+       FROM outbox_events
+       WHERE organization_id = $1
+         AND event_type = 'inbox.response_target.reminder_due'
+         AND payload->>'inboxItemId' = ANY($2::text[])
+       ORDER BY payload->>'scheduledFor'`,
+      [ORG, itemIds],
+    )
+  ).rows
 
 async function seedScope(
   input?: Readonly<{
@@ -570,6 +622,126 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
       reopenCount: 0,
       averageTimeToFirstHandlingMinutes: 2_940,
     })
+  })
+
+  it('prompts once, with target passed, for a Review target already passed when it was snapshotted', async () => {
+    await seedScope()
+    // First observed at OPENED_AT: one Review Google published in 2015, and
+    // one published 30 hours earlier, whose halfway has passed but whose
+    // target has not.
+    await projectMeasuredReview(REVIEW_ITEM, REVIEW, PUBLISHED_IN_2015)
+    await projectMeasuredReview(
+      LATE_ITEM,
+      LATE_REVIEW,
+      new Date('2026-08-27T02:00:00.000Z'),
+    )
+    const targets = createResponseTargetStore(db)
+
+    // The snapshot stays honest: the old Review is measured, and overdue.
+    await expect(
+      targets.getCycleTarget(REVIEW_ITEM, ORG, OPENED_AT),
+    ).resolves.toMatchObject({
+      eligibility: 'measured',
+      startAt: PUBLISHED_IN_2015,
+      dueAt: new Date('2015-06-03T10:00:00.000Z'),
+      evaluation: { state: 'active', overdue: true },
+    })
+    const slots = await pool.query(
+      `SELECT inbox_item_id, reminder_kind, scheduled_for
+       FROM inbox_response_target_reminders
+       WHERE inbox_item_id = ANY($1::uuid[])
+       ORDER BY scheduled_for`,
+      [[REVIEW_ITEM, LATE_ITEM]],
+    )
+    // A slot already due when the target is recorded keeps its snapshot
+    // instant; only the halfway prompts that are already due are left out.
+    expect(slots.rows).toEqual([
+      {
+        inbox_item_id: REVIEW_ITEM,
+        reminder_kind: 'target_passed',
+        scheduled_for: new Date('2015-06-03T10:00:00.000Z'),
+      },
+      {
+        inbox_item_id: LATE_ITEM,
+        reminder_kind: 'target_passed',
+        scheduled_for: new Date('2026-08-29T02:00:00.000Z'),
+      },
+    ])
+
+    await expect(
+      targets.releaseDueReminders({ now: OPENED_AT, limit: 100 }),
+    ).resolves.toEqual({ released: 1 })
+    await expect(
+      targets.releaseDueReminders({
+        now: new Date('2026-08-29T02:00:00.000Z'),
+        limit: 100,
+      }),
+    ).resolves.toEqual({ released: 1 })
+    expect(await releasedReminderKinds([REVIEW_ITEM, LATE_ITEM])).toEqual([
+      { inbox_item_id: REVIEW_ITEM, reminder_kind: 'target_passed' },
+      { inbox_item_id: LATE_ITEM, reminder_kind: 'target_passed' },
+    ])
+
+    // Performance never depended on reminder slots: both cycles are measured
+    // and the 2015 one still counts as overdue.
+    await expect(
+      targets.getGoogleReviewAnalytics({
+        organizationId: ORG,
+        propertyIds: [PROPERTY],
+        now: OPENED_AT,
+      }),
+    ).resolves.toMatchObject({
+      measuredCycleCount: 2,
+      activeCount: 2,
+      currentOverdueCount: 1,
+    })
+  })
+
+  it('releases only the target-passed reminder when halfway and target-passed fall due together', async () => {
+    await seedScope({ organizationMinutes: 2_880 })
+    const targets = createResponseTargetStore(db)
+    // No release ran between halfway (08-29 08:00) and the target (08-30 08:00).
+    const lateRelease = new Date('2026-08-30T09:00:00.000Z')
+
+    await expect(
+      targets.releaseDueReminders({ now: lateRelease, limit: 10 }),
+    ).resolves.toEqual({ released: 1 })
+    await expect(
+      targets.releaseDueReminders({ now: new Date('2026-09-02T08:00:00Z'), limit: 10 }),
+    ).resolves.toEqual({ released: 0 })
+
+    expect(await releasedReminderKinds([ITEM])).toEqual([
+      { inbox_item_id: ITEM, reminder_kind: 'target_passed' },
+    ])
+    const slots = await pool.query(
+      `SELECT reminder_kind, delivered_at, cancelled_at
+       FROM inbox_response_target_reminders
+       WHERE inbox_item_id = $1 ORDER BY scheduled_for`,
+      [ITEM],
+    )
+    expect(slots.rows).toEqual([
+      { reminder_kind: 'halfway', delivered_at: null, cancelled_at: lateRelease },
+      { reminder_kind: 'target_passed', delivered_at: lateRelease, cancelled_at: null },
+    ])
+  })
+
+  it('never releases a superseded halfway reminder when the batch limit splits the pair', async () => {
+    await seedScope({ organizationMinutes: 2_880 })
+    const targets = createResponseTargetStore(db)
+    const lateRelease = new Date('2026-08-30T09:00:00.000Z')
+
+    // A one-slot batch holds only the earlier halfway slot; the next pass
+    // owns the target-passed slot.
+    await expect(
+      targets.releaseDueReminders({ now: lateRelease, limit: 1 }),
+    ).resolves.toEqual({ released: 0 })
+    await expect(
+      targets.releaseDueReminders({ now: lateRelease, limit: 1 }),
+    ).resolves.toEqual({ released: 1 })
+
+    expect(await releasedReminderKinds([ITEM])).toEqual([
+      { inbox_item_id: ITEM, reminder_kind: 'target_passed' },
+    ])
   })
 
   it('terminalizes a superseded target while keeping the new cycle on provider timing', async () => {

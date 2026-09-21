@@ -57,6 +57,23 @@ subscribes to `inbox.inbox_item.created`, after the item exists. Reply routing
 resolves `reviewId → inboxItemId` through `InboxItemLookupPort`. The only action
 URL is `/inbox?itemId=<id>`; a hard-deleted unresolved item is skipped.
 
+## Amended 2026-09-21 — imported Google history does not notify
+
+A Review whose Inbox Item's first Handling Cycle was observed as
+`historical_onboarding`, Google history an import brought in (ADR 0055,
+`docs/operations/inbox-response-targets.md`), produces no `review.created`
+notification. A single import once announced 260 past reviews as new for one
+Property; history is not news, and ADR 0058 paces its AI work for the same
+reason. Only the history an import takes over is `historical_onboarding`: what
+a relink finds from while the Property was disconnected, and a review Google
+lists only after the import's history was listed in full, are `legacy_unknown`.
+Reviews observed as ongoing (`measured`) or `legacy_unknown` notify as before, a
+later material revision still notifies as `review.updated`, and private
+feedback is unaffected. The shared fan-out reads the fact through
+`InboxItemLookupPort`, and missing-notification repair applies the same
+predicate: such an item is never a gap, so the sweep does not re-create its
+notification and `notification.missing_for_inbox_item` does not count it.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

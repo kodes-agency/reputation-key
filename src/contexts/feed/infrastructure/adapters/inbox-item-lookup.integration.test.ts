@@ -14,12 +14,20 @@ const PORTAL_B = 'b7100000-0000-4000-8000-000000000021'
 const RESPONSE = 'b7100000-0000-4000-8000-000000000030'
 const ITEM_A = inboxItemId('b7100000-0000-4000-8000-000000000040')
 const ITEM_B = inboxItemId('b7100000-0000-4000-8000-000000000041')
+const HISTORY_ITEM = inboxItemId('b7100000-0000-4000-8000-000000000050')
+const HISTORY_REVIEW = 'b7100000-0000-4000-8000-000000000051'
+const LIVE_ITEM = inboxItemId('b7100000-0000-4000-8000-000000000052')
+const LIVE_REVIEW = 'b7100000-0000-4000-8000-000000000053'
+const PUBLISHED = new Date('2012-07-07T10:00:00.000Z')
+const OBSERVED = new Date('2026-09-16T20:40:00.000Z')
+const GOOGLE_TARGET_MINUTES = 2880
 
 const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
   orgB: ORG_B,
   // Guest tables are cleanup-only: earlier versions of this test seeded them,
   // and their Portal FKs must be cleared before the fixture Portal is deleted.
+  // Reviews go after the cycles that pin their material revisions.
   tables: [
     'inbox_handling_cycle_transitions',
     'inbox_handling_cycle_heads',
@@ -28,6 +36,7 @@ const { getPool } = setupIntegrationDb({
     'guest_responses',
     'feedback',
     'portals',
+    'reviews',
     'properties',
   ],
 })
@@ -90,6 +99,97 @@ async function seedFeedbackHandlingCycle(
   )
 }
 
+/**
+ * A Google Review item as the Inbox projection commits it: the Review's first
+ * material revision, the item, its first Handling Cycle, and that cycle's
+ * Response Target carrying Review's eligibility.
+ */
+async function seedReviewItem(
+  id: string,
+  review: string,
+  eligibility: 'measured' | 'historical_onboarding',
+): Promise<void> {
+  const pool = getPool()
+  const measured = eligibility === 'measured'
+  await pool.query(
+    `INSERT INTO reviews (
+       id, organization_id, property_id, platform, external_id,
+       external_location_id, rating, reviewed_at, expires_at,
+       source_epoch, source_revision, source_observation_sequence,
+       analysis_sequence, ai_source_byte_length, ai_source_digest,
+       source_content_state, created_at, updated_at
+     ) VALUES (
+       $1, $2, $3, 'google', $4, 'locations/inbox-item-lookup-test', 4, $5, $6,
+       0, 1, 0, 1, 1, $7, 'active', $8, $8
+     )`,
+    [
+      review,
+      ORG_A,
+      PROPERTY_A,
+      `external-${review}`,
+      PUBLISHED,
+      new Date('2099-01-01T00:00:00.000Z'),
+      '0'.repeat(64),
+      OBSERVED,
+    ],
+  )
+  await pool.query(
+    `INSERT INTO material_review_revisions (
+       review_id, revision, organization_id, property_id, source_epoch,
+       normalization_version, source_digest, normalized_digest, rating,
+       normalized_text, response_target_eligibility, response_target_start_at,
+       content_state, created_at, updated_at
+     ) VALUES (
+       $1, 1, $2, $3, 0, 'review-material-v1', $4, $4, 4,
+       'inbox item lookup review', $5, $6, 'active', $7, $7
+     )`,
+    [
+      review,
+      ORG_A,
+      PROPERTY_A,
+      '1'.repeat(64),
+      eligibility,
+      measured ? PUBLISHED : null,
+      OBSERVED,
+    ],
+  )
+  await pool.query(
+    `INSERT INTO inbox_items
+       (id, organization_id, property_id, source_type, source_id, source_date,
+        platform, created_at, updated_at)
+     VALUES ($1, $2, $3, 'review', $4, $5, 'google', $6, $6)`,
+    [id, ORG_A, PROPERTY_A, review, PUBLISHED, OBSERVED],
+  )
+  await pool.query(
+    `INSERT INTO inbox_handling_cycles
+       (inbox_item_id, cycle_number, organization_id, property_id, source_type,
+        source_id, source_revision, review_id, material_review_revision,
+        opened_reason, opened_at)
+     VALUES ($1, 1, $2, $3, 'review', $4, 1, $4, 1, 'review_observed', $5)`,
+    [id, ORG_A, PROPERTY_A, review, OBSERVED],
+  )
+  await pool.query(
+    `INSERT INTO inbox_handling_cycle_response_targets
+       (inbox_item_id, cycle_number, organization_id, property_id, source_type,
+        source_id, source_revision, target_kind, performance_eligibility,
+        duration_minutes, policy_source, policy_version, start_at, due_at)
+     VALUES ($1, 1, $2, $3, 'review', $4, 1, 'google_review_response', $5,
+        $6, $7, $8, $9, $10)`,
+    [
+      id,
+      ORG_A,
+      PROPERTY_A,
+      review,
+      eligibility,
+      measured ? GOOGLE_TARGET_MINUTES : null,
+      measured ? 'builtin_default' : null,
+      measured ? 1 : null,
+      measured ? PUBLISHED : null,
+      measured ? new Date(PUBLISHED.getTime() + GOOGLE_TARGET_MINUTES * 60_000) : null,
+    ],
+  )
+}
+
 describe('createInboxItemLookupAdapter.findInboxItemFacts', () => {
   it('uses Guest-owned Portal attribution and returns the current assignee', async () => {
     await seedPropertyAndPortal(ORG_A, PROPERTY_A, PORTAL_A)
@@ -149,5 +249,39 @@ describe('createInboxItemLookupAdapter.findInboxItemFacts', () => {
         status: 'open',
       }),
     )
+  })
+})
+
+describe('createInboxItemLookupAdapter.isHistoricalOnboardingItem', () => {
+  const lookup = () =>
+    createInboxItemLookupAdapter(drizzle(getPool()) as unknown as Database, {
+      findPortalId: vi.fn().mockResolvedValue(null),
+    })
+
+  it('recognises a review whose first Handling Cycle was observed as Google history', async () => {
+    await seedPropertyAndPortal(ORG_A, PROPERTY_A, PORTAL_A)
+    await seedReviewItem(HISTORY_ITEM, HISTORY_REVIEW, 'historical_onboarding')
+
+    await expect(lookup().isHistoricalOnboardingItem(HISTORY_ITEM, ORG_A)).resolves.toBe(
+      true,
+    )
+  })
+
+  it('answers no for a live review, private feedback, another Organization, and a missing item', async () => {
+    await seedPropertyAndPortal(ORG_A, PROPERTY_A, PORTAL_A)
+    await seedReviewItem(HISTORY_ITEM, HISTORY_REVIEW, 'historical_onboarding')
+    await seedReviewItem(LIVE_ITEM, LIVE_REVIEW, 'measured')
+    await seedInboxItem(ITEM_A, ORG_A, PROPERTY_A, RESPONSE, null)
+    await seedFeedbackHandlingCycle(ITEM_A, ORG_A, PROPERTY_A, RESPONSE)
+
+    const adapter = lookup()
+    const answers = await Promise.all([
+      adapter.isHistoricalOnboardingItem(LIVE_ITEM, ORG_A),
+      adapter.isHistoricalOnboardingItem(ITEM_A, ORG_A),
+      adapter.isHistoricalOnboardingItem(HISTORY_ITEM, ORG_B),
+      adapter.isHistoricalOnboardingItem(ITEM_B, ORG_A),
+    ])
+
+    expect(answers).toEqual([false, false, false, false])
   })
 })

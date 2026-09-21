@@ -3,8 +3,10 @@ import {
   buildResponseTargetSnapshot,
   classifyResponseTargetCompletion,
   evaluateResponseTarget,
+  isSupersededReminder,
   resolveGoogleReviewTargetPolicy,
   resolvePrivateFeedbackTargetPolicy,
+  schedulableReminders,
 } from './response-target'
 
 const START = new Date('2026-08-28T10:15:00.000Z')
@@ -161,6 +163,77 @@ describe('Google Review Response Target', () => {
         propertyOverride: policy,
       }),
     ).toThrow(/policy is invalid/i)
+  })
+})
+
+describe('schedulableReminders', () => {
+  const snapshotFrom = (startAt: Date) =>
+    buildResponseTargetSnapshot({
+      targetKind: 'google_review_response',
+      policy: {
+        durationMinutes: 2_880,
+        policySource: 'builtin_default',
+        policyVersion: 1,
+      },
+      startAt,
+    })
+
+  it('keeps both slots for a target that starts when it is recorded', () => {
+    expect(schedulableReminders(snapshotFrom(START), START)).toEqual([
+      { kind: 'halfway', scheduledFor: new Date('2026-08-29T10:15:00.000Z') },
+      { kind: 'target_passed', scheduledFor: new Date('2026-08-30T10:15:00.000Z') },
+    ])
+  })
+
+  it('drops a halfway slot already due when the target is recorded, even one due that very instant', () => {
+    // Published a day before it was first observed: halfway is the recording
+    // instant itself, so only the target-passed prompt can still help anyone.
+    expect(
+      schedulableReminders(snapshotFrom(START), new Date('2026-08-29T10:15:00.000Z')),
+    ).toEqual([
+      { kind: 'target_passed', scheduledFor: new Date('2026-08-30T10:15:00.000Z') },
+    ])
+  })
+
+  it('keeps only the target-passed slot of a target already overdue when it is recorded', () => {
+    // Published at 09:00 and first observed at 14:30 under a 4-hour target: the
+    // review is new and still unanswered, so the manager is prompted once, at
+    // the next release, rather than never.
+    const snapshot = buildResponseTargetSnapshot({
+      targetKind: 'google_review_response',
+      policy: {
+        durationMinutes: 240,
+        policySource: 'organization_policy',
+        policyVersion: 3,
+      },
+      startAt: new Date('2026-08-28T09:00:00.000Z'),
+    })
+
+    expect(schedulableReminders(snapshot, new Date('2026-08-28T14:30:00.000Z'))).toEqual([
+      { kind: 'target_passed', scheduledFor: new Date('2026-08-28T13:00:00.000Z') },
+    ])
+  })
+
+  it('refuses an unreadable recording instant rather than silently dropping every slot', () => {
+    expect(() => schedulableReminders(snapshotFrom(START), new Date(Number.NaN))).toThrow(
+      /timestamp is invalid/i,
+    )
+  })
+})
+
+describe('isSupersededReminder', () => {
+  const DUE = new Date('2026-08-30T10:15:00.000Z')
+
+  it('supersedes a halfway reminder once the target itself has passed', () => {
+    expect(isSupersededReminder('halfway', DUE, DUE)).toBe(true)
+    expect(
+      isSupersededReminder('halfway', DUE, new Date('2026-09-02T10:15:00.000Z')),
+    ).toBe(true)
+  })
+
+  it('keeps a halfway reminder while the target is ahead, and never supersedes target-passed', () => {
+    expect(isSupersededReminder('halfway', DUE, new Date(DUE.getTime() - 1))).toBe(false)
+    expect(isSupersededReminder('target_passed', DUE, DUE)).toBe(false)
   })
 })
 

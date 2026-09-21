@@ -104,6 +104,7 @@ const makeDeps = () => {
     inboxItemLookup: {
       findInboxItemByReviewId: vi.fn(async () => ITEM),
       findInboxItemFacts: vi.fn(async (): Promise<InboxItemFacts | null> => facts),
+      isHistoricalOnboardingItem: vi.fn(async () => false),
       findHandlingCycleNotificationFacts: vi.fn(async () => facts),
       findResponseTargetReminderNotificationFacts: vi.fn(
         async (): Promise<ResponseTargetReminderNotificationFacts | null> => facts,

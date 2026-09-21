@@ -681,6 +681,41 @@ export const reviewProviderSnapshotRuns = pgTable(
   ],
 )
 
+/**
+ * The initial Google import's history cutoff for one Property source epoch.
+ * Written once, when Review admits the sync of the epoch's first import (an
+ * import queued before admission fixed it writes it when its run starts or
+ * joins an active one), and read for every later provider observation: a
+ * Review first seen in the epoch whose Google publication time is at or
+ * before the cutoff is history, whichever run observes it. Snapshot runs are
+ * swept 30 days after they end, so the cutoff cannot live on the run.
+ */
+export const reviewProviderHistoryCutoffs = pgTable(
+  'review_provider_history_cutoffs',
+  {
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    cutoffAt: timestamp('cutoff_at', { withTimezone: true }).notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.organizationId, t.propertyId, t.sourceEpoch],
+      name: 'review_provider_history_cutoffs_pk',
+    }),
+    foreignKey({
+      name: 'review_provider_history_cutoffs_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('cascade'),
+    check(
+      'review_provider_history_cutoffs_source_epoch_valid',
+      sql`${t.sourceEpoch} BETWEEN 0 AND 2147483647`,
+    ),
+  ],
+)
+
 /** Append-only, content-minimal proof emitted only when one Google provider
  * snapshot has completed both scans and its bounded deletion reconciliation. */
 export const reviewGoogleReputationSnapshotFacts = pgTable(
