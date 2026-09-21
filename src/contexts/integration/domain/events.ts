@@ -75,7 +75,12 @@ export type IntegrationGoogleAccountReauthorizationRequired = Readonly<{
   eventId: string
   connectionId: GoogleConnectionId
   organizationId: OrganizationId
-  cause: 'member_removed' | 'account_admin_role_lost'
+  /**
+   * `provider_revoked`: Google refused the refresh grant for good (revoked or
+   * expired). The other two: the person whose grant it is left the
+   * Organization or lost the AccountAdmin role.
+   */
+  cause: 'member_removed' | 'account_admin_role_lost' | 'provider_revoked'
   occurredAt: Date
   correlationId: string | null
 }>

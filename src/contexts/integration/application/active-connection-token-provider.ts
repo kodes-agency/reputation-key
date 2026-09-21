@@ -8,7 +8,7 @@
 import type { GoogleConnectionRepository } from './ports/google-connection.repository'
 import type { TokenEncryptionPort } from './ports/token-encryption.port'
 import type { GoogleConnection } from '../domain/types'
-import { integrationError } from '../domain/errors'
+import { integrationError, unusableConnectionError } from '../domain/errors'
 import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { TOKEN_EXPIRY_BUFFER_MS } from './constants'
 
@@ -66,7 +66,7 @@ export const createActiveConnectionTokenProvider = (
       throw integrationError('connection_not_found', 'Google connection not found')
     }
     if (connection.status !== 'active' || connection.credentialUseState !== 'active') {
-      throw integrationError('connection_disconnected', 'Google account is not connected')
+      throw unusableConnectionError(connection.status, 'Google account is not connected')
     }
     return connection
   }

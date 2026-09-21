@@ -82,5 +82,27 @@ export function createSequentialIntegrationCommandStore(deps: {
       await recordAndEmit(command.event)
       return updated
     },
+
+    requireReauthorization: async (command) => {
+      const current = await deps.connectionRepo.findById(
+        command.organizationId,
+        command.connectionId,
+      )
+      if (
+        current?.status !== 'active' ||
+        current.credentialUseState !== 'active' ||
+        current.lifecycleVersion !== command.expected.lifecycleVersion ||
+        current.credentialGeneration !== command.expected.credentialGeneration
+      ) {
+        return false
+      }
+      await deps.connectionRepo.updateStatus(
+        command.organizationId,
+        command.connectionId,
+        'reauth_required',
+      )
+      await recordAndEmit(command.event)
+      return true
+    },
   }
 }

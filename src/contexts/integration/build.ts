@@ -581,6 +581,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   // ── Use Cases ────────────────────────────────────────────────────
   const refreshGoogleTokenUseCase = refreshGoogleToken({
     connectionRepo,
+    commandStore,
     oauth: oauthPort,
     encryption: encryptionPort,
     clock: deps.clock,

@@ -983,10 +983,12 @@ const googleAccountDisconnectedSchema = z.object({
   organizationId: z.string(),
 })
 
+// `provider_revoked` is additive: rows written with the two departure causes
+// (including by the fence_google_connector_departure_v1 trigger) stay valid.
 const googleAccountReauthorizationRequiredSchema = z.object({
   connectionId: z.string(),
   organizationId: z.string(),
-  cause: z.enum(['member_removed', 'account_admin_role_lost']),
+  cause: z.enum(['member_removed', 'account_admin_role_lost', 'provider_revoked']),
   occurredAt: z.iso.datetime(),
 })
 

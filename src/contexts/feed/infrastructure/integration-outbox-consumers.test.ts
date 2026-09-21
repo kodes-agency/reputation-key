@@ -92,6 +92,39 @@ describe('Google reauthorization notification durable consumer', () => {
     )
   })
 
+  // A refresh Google refused for good records this cause. The fact used to be
+  // rejected by the schema, so the admins were never told to reconnect.
+  it('fans out a reauthorization Google caused by revoking the grant', async () => {
+    const deps = makeDeps()
+
+    await expect(
+      handleNotificationGoogleReauthorizationRequired(
+        deps,
+        event({
+          payload: {
+            connectionId: CONNECTION,
+            organizationId: ORG,
+            cause: 'provider_revoked',
+            occurredAt: '2026-08-27T03:00:00.000Z',
+          },
+        }),
+      ),
+    ).resolves.toEqual({ status: 'applied' })
+    expect(deps.fakes.jobs).toEqual([
+      expect.objectContaining({
+        name: 'insert-notification',
+        data: expect.objectContaining({
+          userId: ADMIN,
+          propertyId: PROPERTY,
+          type: 'integration.reauthorization_required',
+          resourceType: 'integration',
+          resourceId: CONNECTION,
+          audience: { kind: 'account_admin' },
+        }),
+      }),
+    ])
+  })
+
   it('fails closed before fan-out or receipt on an Organization mismatch', async () => {
     const deps = makeDeps()
     await expect(

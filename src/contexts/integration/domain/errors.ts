@@ -3,6 +3,7 @@
 // Error codes form a closed union so ts-pattern .exhaustive() works at the server boundary.
 
 import { createTaggedError } from '#/shared/domain/errors'
+import type { GoogleConnectionStatus } from './types'
 
 export type IntegrationErrorCode =
   | 'forbidden'
@@ -50,6 +51,24 @@ export const integrationError = (
     { recoverable },
     integrationError,
   )
+
+export const reauthorizationRequiredError = (): Error & IntegrationError =>
+  integrationError(
+    'reauthorization_required',
+    'Google connection requires reauthorization',
+  )
+
+/**
+ * The refusal for a connection whose credential may not be used. One that is
+ * waiting for a fresh consent says so; every other state reads as disconnected.
+ */
+export const unusableConnectionError = (
+  status: GoogleConnectionStatus,
+  message: string,
+): Error & IntegrationError =>
+  status === 'reauth_required'
+    ? reauthorizationRequiredError()
+    : integrationError('connection_disconnected', message)
 
 export const isIntegrationError = (e: unknown): e is IntegrationError => {
   if (typeof e !== 'object' || e === null || !('_tag' in e)) return false

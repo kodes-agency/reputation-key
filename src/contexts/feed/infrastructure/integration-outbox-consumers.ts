@@ -34,7 +34,7 @@ export type IntegrationNotificationConsumerDeps = Readonly<{
 type Payload = Readonly<{
   connectionId: string
   organizationId: string
-  cause: 'member_removed' | 'account_admin_role_lost'
+  cause: IntegrationGoogleAccountReauthorizationRequired['cause']
   occurredAt: string
 }>
 

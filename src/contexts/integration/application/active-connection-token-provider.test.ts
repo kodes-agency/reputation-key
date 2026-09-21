@@ -137,6 +137,26 @@ describe('ActiveConnectionTokenProvider.getAccessToken', () => {
     )
   })
 
+  // A connection Google revoked says so, so a forced refresh after a 401 can
+  // tell the caller the answered 401 is final rather than an unknown outcome.
+  it('refuses a connection waiting for reauthorization without refreshing it', async () => {
+    const { provider, conn, refreshCalls } = setup({ status: 'reauth_required' })
+    const waitingForConsent = (e: unknown) =>
+      isIntegrationError(e) && e.code === 'reauthorization_required'
+
+    await expect(provider.getAccessToken(ORG_ID, conn.id as string)).rejects.toSatisfy(
+      waitingForConsent,
+    )
+    await expect(
+      provider.forceRefreshAccessToken(
+        ORG_ID,
+        conn.id as string,
+        conn.credentialGeneration,
+      ),
+    ).rejects.toSatisfy(waitingForConsent)
+    expect(refreshCalls()).toHaveLength(0)
+  })
+
   it.each(['cleanup_only', 'none'] as const)(
     'never decrypts or refreshes credentials in %s use state',
     async (credentialUseState) => {
