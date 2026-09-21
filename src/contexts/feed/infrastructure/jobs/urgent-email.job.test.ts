@@ -220,6 +220,16 @@ describe('immediate notification email job', () => {
     expect(sentPayload().text).toContain(`${BASE_URL}/settings/notifications`)
   })
 
+  it('opens the preferences of the Property the email is about', async () => {
+    // Without the Property the settings page opens on the organization's
+    // first Property, and a manager of many has to hunt for the right one.
+    await run()
+
+    const preferencesUrl = `${BASE_URL}/settings/notifications?propertyId=${PROPERTY as string}`
+    expect(sentPayload().html).toContain(preferencesUrl)
+    expect(sentPayload().text).toContain(preferencesUrl)
+  })
+
   it('refuses to dispatch optional mail when the base URL cannot form a preferences link', async () => {
     // The guard is in the job, not a template convention: a relative or empty
     // base URL must fail the send rather than ship an email with no way out.

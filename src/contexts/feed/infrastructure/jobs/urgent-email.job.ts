@@ -329,9 +329,19 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       ids.propId,
     )
     const mailClass = mailClassForCategory(entry.category)
+    // Optional mail is always about one Property, and the settings route opens
+    // the Property `?propertyId=` names while the reader can still see it — so
+    // "Manage preferences" lands on this email's Property, not the first one.
     const preferencesUrl = mandatory
       ? null
-      : assertPreferencesLink(mailClass, absoluteUrl(deps.baseUrl, PREFERENCES_PATH))
+      : assertPreferencesLink(
+          mailClass,
+          absoluteUrl(
+            deps.baseUrl,
+            PREFERENCES_PATH,
+            ids.propId === null ? undefined : { propertyId: ids.propId },
+          ),
+        )
     const email = renderNotificationEmail({
       rendered: renderNotification(notification.type, notification.payload),
       actionUrl: absoluteUrl(deps.baseUrl, link.path, link.search),
