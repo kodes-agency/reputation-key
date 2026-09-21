@@ -5,6 +5,8 @@ import {
   buildNotification,
   buildNotificationEmail,
   createFakeJobLogger,
+  createResendSenderAnswering,
+  RESEND_NETWORK_FAILURE,
 } from './test-fixtures'
 import {
   organizationId,
@@ -623,6 +625,27 @@ describe('digest suppression and failure visibility (ADR 0046 r.6)', () => {
       }),
     )
     expect(deps.emailRepo.markFailed).not.toHaveBeenCalled()
+  })
+
+  it('keeps the batch retryable when the real adapter reports a network failure', async () => {
+    // The SDK returns statusCode null for a connectivity blip. Classified
+    // permanent, that made the batch terminal and lost the day's digest.
+    const deps = baseDeps()
+
+    await runHandler({
+      ...deps,
+      emailSender: createResendSenderAnswering(RESEND_NETWORK_FAILURE, () => NOW),
+    } as typeof deps)
+
+    expect(deps.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settlement: expect.objectContaining({
+          kind: 'rejected',
+          classification: 'transient',
+          nextAttemptAt: new Date('2026-07-11T08:00:30.000Z'),
+        }),
+      }),
+    )
   })
 
   it('logs a provider rejection instead of treating it as a send', async () => {

@@ -128,6 +128,52 @@ describe('resend email adapter', () => {
     expect(outcome).toMatchObject({ kind: 'rejected', classification: 'transient' })
   })
 
+  it('retries a request the SDK reports as never answered', async () => {
+    // The exact answer resend@6 gives for DNS, refused/reset connection, TLS
+    // and lost-response failures. It never throws for them.
+    const { client } = fakeClient({
+      data: null,
+      error: {
+        name: 'application_error',
+        statusCode: null,
+        message: 'Unable to fetch data. The request could not be resolved.',
+      },
+    })
+
+    const outcome = await adapter(() => client).send(request)
+
+    expect(outcome).toEqual({
+      kind: 'rejected',
+      classification: 'transient',
+      providerCode: 'application_error',
+    })
+  })
+
+  it('retries a concurrent use of the idempotency key but not a payload mismatch', async () => {
+    const concurrent = fakeClient({
+      data: null,
+      error: {
+        name: 'concurrent_idempotent_requests',
+        statusCode: 409,
+        message: 'Another request with the same idempotency key is in progress.',
+      },
+    })
+    const mismatch = fakeClient({
+      data: null,
+      error: {
+        name: 'invalid_idempotent_request',
+        statusCode: 409,
+        message: 'The request body does not match the original request.',
+      },
+    })
+
+    const retried = await adapter(() => concurrent.client).send(request)
+    const terminal = await adapter(() => mismatch.client).send(request)
+
+    expect(retried).toMatchObject({ kind: 'rejected', classification: 'transient' })
+    expect(terminal).toMatchObject({ kind: 'rejected', classification: 'permanent' })
+  })
+
   it('treats a 200 with no id as a rejection rather than a silent success', async () => {
     const { client } = fakeClient({ data: null, error: null })
 

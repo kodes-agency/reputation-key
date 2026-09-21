@@ -93,6 +93,46 @@ describe('notification delivery policy', () => {
     ).toBe('permanent')
   })
 
+  it('retries a request the provider never answered instead of abandoning it', () => {
+    // The Resend SDK does not throw on a DNS failure, a refused or reset
+    // connection, or a response lost mid-body: it returns this exact error with
+    // statusCode null. The idempotency key makes the retry safe either way.
+    expect(
+      classifyProviderRejection({
+        statusCode: null,
+        providerCode: 'application_error',
+        message: 'Unable to fetch data. The request could not be resolved.',
+      }),
+    ).toBe('transient')
+  })
+
+  it('retries a timeout and a concurrent use of the same idempotency key', () => {
+    expect(
+      classifyProviderRejection({
+        statusCode: 408,
+        providerCode: null,
+        message: 'Request Timeout',
+      }),
+    ).toBe('transient')
+    expect(
+      classifyProviderRejection({
+        statusCode: 409,
+        providerCode: 'concurrent_idempotent_requests',
+        message: 'Another request with the same idempotency key is in progress.',
+      }),
+    ).toBe('transient')
+  })
+
+  it('keeps a reused idempotency key with a different payload terminal', () => {
+    expect(
+      classifyProviderRejection({
+        statusCode: 409,
+        providerCode: 'invalid_idempotent_request',
+        message: 'The request body does not match the original request.',
+      }),
+    ).toBe('permanent')
+  })
+
   it('requires the outbound-email capability only for email preference mutations', () => {
     expect(requiredCapabilityForPreferenceChannel('email')).toBe(
       'notification.send_email',

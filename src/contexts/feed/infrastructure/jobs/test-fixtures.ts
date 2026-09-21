@@ -26,6 +26,11 @@ import type {
   NotificationType,
 } from '../../domain/notification-types'
 import type { NotificationPayload } from '../../domain/notification-payload'
+import type { EmailSenderPort } from '../../application/ports/email-sender.port'
+import {
+  createResendEmailAdapter,
+  type ResendSendResult,
+} from '../adapters/resend-email.adapter'
 import type { DigestItem } from './digest-assembly'
 
 const NOW = new Date('2026-08-21T08:00:00.000Z')
@@ -141,6 +146,39 @@ export function buildDigestItem(
     }),
   }
 }
+
+/**
+ * What resend@6 RETURNS — it does not throw — when a request never gets an
+ * answer: a DNS failure, a refused or reset connection, a TLS failure, or a
+ * response lost mid-body.
+ */
+export const RESEND_NETWORK_FAILURE: ResendSendResult = Object.freeze({
+  data: null,
+  error: Object.freeze({
+    name: 'application_error',
+    statusCode: null,
+    message: 'Unable to fetch data. The request could not be resolved.',
+  }),
+})
+
+/**
+ * The real Resend adapter over a client that answers every send with `answer`,
+ * so a job test exercises the adapter's classification instead of restating it.
+ */
+export const createResendSenderAnswering = (
+  answer: ResendSendResult,
+  clock: () => Date,
+): EmailSenderPort =>
+  createResendEmailAdapter({
+    config: {
+      apiKey: 're_live_0123456789abcdef',
+      from: 'Reputation Key <notifications@test.example>',
+      appBaseUrl: 'https://app.example.com',
+    },
+    logger: createFakeJobLogger(),
+    clock,
+    clientFactory: () => ({ emails: { send: async () => answer } }),
+  })
 
 export type FakeJobLogger = LoggerPort & {
   info: Mock

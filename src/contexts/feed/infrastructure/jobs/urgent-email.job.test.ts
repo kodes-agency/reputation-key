@@ -4,6 +4,8 @@ import {
   buildNotification,
   buildNotificationEmail,
   createFakeJobLogger,
+  createResendSenderAnswering,
+  RESEND_NETWORK_FAILURE,
 } from './test-fixtures'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { NotificationDeliveryOutcome } from '../../domain/notification-delivery-policy'
@@ -156,6 +158,30 @@ describe('immediate notification email job', () => {
       NOW,
     )
     expect(deps.emailRepo.markAccepted).not.toHaveBeenCalled()
+  })
+
+  it('hands a network failure back to the queue instead of dropping the email', async () => {
+    // Real adapter, real classification: the SDK answers a connectivity blip
+    // with statusCode null, and that used to end here as failed/permanent with
+    // no BullMQ retry and no sweep ever picking the row up again.
+    const wired = {
+      ...deps,
+      emailSender: createResendSenderAnswering(RESEND_NETWORK_FAILURE, () => NOW),
+    }
+
+    await expect(
+      createUrgentEmailJobHandler(
+        wired as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+      )(job),
+    ).rejects.toThrow('Transient email provider rejection')
+    expect(deps.emailRepo.markFailed).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      PROPERTY,
+      'transient',
+      new Date('2026-01-15T15:00:30.000Z'),
+      NOW,
+    )
   })
 
   it('persists provider suppression without retrying', async () => {

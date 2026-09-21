@@ -220,6 +220,22 @@ export function isDailyDigestWindow(now: Date, timezone: string): boolean {
   return minute >= 8 * 60 && minute < 9 * 60
 }
 
+/** A timeout and a rate or quota limit: the provider asks to be tried again. */
+const RETRYABLE_STATUS_CODES: ReadonlySet<number> = new Set([408, 429])
+
+/**
+ * Transient means "try again under the same idempotency key", which the
+ * provider dedupes, so a retry can never mail twice. That makes transient the
+ * safe answer whenever the provider did not say no for good:
+ *
+ *  - `statusCode: null` is how the Resend SDK reports a request that never got
+ *    an answer — DNS, a refused or reset connection, TLS, a response lost
+ *    mid-body. It returns that rather than throwing, so treating it as
+ *    permanent dropped urgent mail and whole digests on any connectivity blip.
+ *  - 409 `concurrent_idempotent_requests` means the first request with this
+ *    key is still in flight. A 409 `invalid_idempotent_request` (same key,
+ *    different body) stays permanent: retrying it cannot succeed.
+ */
 export function classifyProviderRejection(
   input: Readonly<{
     statusCode: number | null
@@ -235,8 +251,13 @@ export function classifyProviderRejection(
   ) {
     return 'suppressed'
   }
-  return input.statusCode === 429 ||
-    (input.statusCode !== null && input.statusCode >= 500)
+  if (input.statusCode === null) return 'transient'
+  if (input.statusCode === 409) {
+    return input.providerCode === 'concurrent_idempotent_requests'
+      ? 'transient'
+      : 'permanent'
+  }
+  return RETRYABLE_STATUS_CODES.has(input.statusCode) || input.statusCode >= 500
     ? 'transient'
     : 'permanent'
 }
