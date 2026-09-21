@@ -112,6 +112,8 @@ const GOAL_METRIC_CORRECTION_OUTBOX =
   'src/contexts/reporting/infrastructure/metric-correction-outbox-consumers.ts'
 const REVIEW_OUTBOX = 'src/contexts/review/infrastructure/outbox-consumers.ts'
 const INBOX_OUTBOX = 'src/contexts/inbox/infrastructure/outbox-consumers.ts'
+const INBOX_PROPERTY_LIFECYCLE_OUTBOX =
+  'src/contexts/inbox/infrastructure/property-lifecycle-outbox-consumers.ts'
 const INBOX_GUEST_FEEDBACK_OUTBOX =
   'src/contexts/inbox/infrastructure/guest-feedback-outbox-consumers.ts'
 const AI_OUTBOX = 'src/contexts/ai/infrastructure/outbox-consumers.ts'
@@ -336,6 +338,7 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
     durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
+    durable('inbox.on-property-archived', INBOX_PROPERTY_LIFECYCLE_OUTBOX),
   ]),
   ev('property.restored', [
     durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),

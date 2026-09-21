@@ -76,6 +76,11 @@ Archive atomically changes the stable Property row to `archived`, advances its
 source epoch, creates a 30-day recovery deadline, invalidates the current Google
 review destination, and records `property.archived`. Archived Properties are
 excluded from normal external effects and public work by lifecycle admission.
+Owners of scheduled work react to the fact themselves: Inbox cancels the
+Property's unreleased Response Target reminder slots, and Notification treats a
+reminder released for a non-active Property as obsolete. Restore re-arms none of
+those slots; a cancelled slot is terminal
+(`docs/operations/inbox-response-targets.md`).
 
 Restore is permitted only before the recovery deadline. It rechecks current
 Property access and an eligible Responsible Manager,

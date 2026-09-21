@@ -31,6 +31,12 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { guestFeedbackRetracted } from '#/contexts/guest/domain/events'
+import { propertyArchived, propertyRestored } from '#/contexts/property/domain/events'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import { createConsumerRegistry, type ConsumerEvent } from '#/shared/outbox'
+import { createMockLogger } from '#/shared/testing/mock-logger'
+import { buildInboxContext, type InboxContextBuildInput } from '../build'
+import type { ReviewLookupPort } from '../application/ports/review-lookup.port'
 import { releaseDueResponseTargetReminders } from '../application/use-cases/release-response-target-reminders'
 import type { InboxItem } from '../domain/types'
 import { inboxItemStatusChanged } from '../domain/events'
@@ -109,6 +115,95 @@ function createTimeTraveller() {
       current = at
     },
     tick: () => releaseDue(),
+    now: () => current,
+  }
+}
+
+/**
+ * The durable consumers Inbox's worker registers, reading the traveller's
+ * clock. Only consumer registration is exercised, so foreign sources stay
+ * unimplemented.
+ */
+function inboxWorkerConsumers(clock: () => Date) {
+  const registry = createConsumerRegistry()
+  buildInboxContext({
+    db,
+    clock,
+    idGen: () => crypto.randomUUID(),
+    staffPublicApi: {} as StaffPublicApi,
+    reviewLookup: {} as ReviewLookupPort,
+    sources: {
+      feedback: {},
+      property: {},
+      reply: {},
+      review: {},
+      replyObservationAuthority: {},
+      responseTargetAuthority: {},
+      sourceTransitionAuthority: {},
+    } as InboxContextBuildInput['sources'],
+    logger: createMockLogger(),
+    authorizeCommand: async () => ({ allowed: true }),
+  }).worker.registerOutboxConsumers(registry)
+  return registry
+}
+
+/** Record a Property lifecycle fact and return it as the dispatcher delivers it. */
+async function recordLifecycleFact(
+  fact: ReturnType<typeof propertyArchived> | ReturnType<typeof propertyRestored>,
+): Promise<ConsumerEvent> {
+  const row = toOutboxEvent(fact)
+  await createOutboxRepository(db).insert({ ...row, id: fact.eventId })
+  return {
+    eventId: fact.eventId,
+    eventType: fact._tag,
+    eventVersion: 1,
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    sourceContext: 'property',
+    sourceAggregateId: PROPERTY,
+    occurredAt: fact.occurredAt.toISOString(),
+    payload: row.payload,
+  }
+}
+
+/**
+ * Commit the Property's lifecycle state the way its lifecycle command does,
+ * then hand the content-free fact to every Inbox consumer registered for it,
+ * as the durable dispatcher would.
+ */
+async function transitionProperty(
+  scheduler: ReturnType<typeof createTimeTraveller>,
+  to: 'archived' | 'active',
+): Promise<void> {
+  const { rows } = await pool.query<{ source_epoch: number }>(
+    `UPDATE properties
+        SET lifecycle_state = $2, source_epoch = source_epoch + 1
+      WHERE id = $1
+      RETURNING source_epoch`,
+    [PROPERTY, to],
+  )
+  const scope = {
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    userId: MANAGER,
+    sourceEpoch: rows[0].source_epoch,
+    occurredAt: scheduler.now(),
+  }
+  const event = await recordLifecycleFact(
+    to === 'archived'
+      ? propertyArchived({
+          ...scope,
+          previousState: 'active',
+          recoveryDeadline: WELL_PAST_TARGET,
+        })
+      : propertyRestored({
+          ...scope,
+          previousState: 'archived',
+          googleBindingReadiness: 'ready',
+        }),
+  )
+  for (const consumer of inboxWorkerConsumers(scheduler.now).listFor(event.eventType)) {
+    await consumer.handler(event)
   }
 }
 
@@ -370,5 +465,94 @@ describe.sequential('Response Target reminder time travel (PostgreSQL)', () => {
       handledLateCount: 0,
       averageTimeToFirstHandlingMinutes: null,
     })
+  })
+
+  it('cancels every pending slot when the Property is archived, and Restore does not re-arm them', async () => {
+    await seed()
+    const scheduler = createTimeTraveller()
+
+    scheduler.travelTo(BEFORE_HALFWAY)
+    await transitionProperty(scheduler, 'archived')
+    for (const at of [HALFWAY, BETWEEN]) {
+      scheduler.travelTo(at)
+      await expect(scheduler.tick()).resolves.toEqual({ released: 0 })
+    }
+    await transitionProperty(scheduler, 'active')
+    for (const at of [TARGET, WELL_PAST_TARGET]) {
+      scheduler.travelTo(at)
+      await expect(scheduler.tick()).resolves.toEqual({ released: 0 })
+    }
+
+    expect(await releasedFactKinds()).toEqual([])
+    expect(await reminderRows()).toEqual([
+      {
+        reminder_kind: 'halfway',
+        scheduled_for: HALFWAY,
+        delivered_at: null,
+        cancelled_at: BEFORE_HALFWAY,
+      },
+      {
+        reminder_kind: 'target_passed',
+        scheduled_for: TARGET,
+        delivered_at: null,
+        cancelled_at: BEFORE_HALFWAY,
+      },
+    ])
+  })
+
+  it('leaves a released reminder delivered and cancels only what is still pending', async () => {
+    await seed()
+    const scheduler = createTimeTraveller()
+
+    scheduler.travelTo(HALFWAY)
+    await expect(scheduler.tick()).resolves.toEqual({ released: 1 })
+    scheduler.travelTo(BETWEEN)
+    await transitionProperty(scheduler, 'archived')
+    scheduler.travelTo(WELL_PAST_TARGET)
+    await expect(scheduler.tick()).resolves.toEqual({ released: 0 })
+
+    expect(await releasedFactKinds()).toEqual(['halfway'])
+    expect(await reminderRows()).toEqual([
+      {
+        reminder_kind: 'halfway',
+        scheduled_for: HALFWAY,
+        delivered_at: HALFWAY,
+        cancelled_at: null,
+      },
+      {
+        reminder_kind: 'target_passed',
+        scheduled_for: TARGET,
+        delivered_at: null,
+        cancelled_at: BETWEEN,
+      },
+    ])
+  })
+
+  it('ignores an archive fact delivered after the Property was restored', async () => {
+    await seed()
+    const scheduler = createTimeTraveller()
+
+    // Archived and restored again before the dispatcher delivered the fact.
+    scheduler.travelTo(BEFORE_HALFWAY)
+    const lateArchive = await recordLifecycleFact(
+      propertyArchived({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        userId: MANAGER,
+        previousState: 'active',
+        sourceEpoch: 1,
+        recoveryDeadline: WELL_PAST_TARGET,
+        occurredAt: OPENED_AT,
+      }),
+    )
+    const consumers = inboxWorkerConsumers(scheduler.now).listFor('property.archived')
+    expect(consumers).toHaveLength(1)
+    await expect(consumers[0].handler(lateArchive)).resolves.toEqual({
+      status: 'obsolete',
+    })
+
+    scheduler.travelTo(HALFWAY)
+    await expect(scheduler.tick()).resolves.toEqual({ released: 1 })
+    expect(await releasedFactKinds()).toEqual(['halfway'])
   })
 })

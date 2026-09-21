@@ -186,6 +186,7 @@ const emptyResponseTargetStore: ResponseTargetStore = {
     averageTimeToResponseMinutes: null,
   }),
   releaseDueReminders: async () => ({ released: 0 }),
+  cancelArchivedPropertyRemindersOnce: async () => 'obsolete',
 }
 
 const emptyResponseTargetPolicyStore: ResponseTargetPolicyStore = {

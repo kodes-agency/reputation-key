@@ -91,4 +91,18 @@ export type ResponseTargetStore = Readonly<{
       limit: number
     }>,
   ): Promise<Readonly<{ released: number }>>
+  /**
+   * Apply one `property.archived` delivery: while the Property is still not
+   * active, cancel its unreleased reminder slots and co-commit the receipt.
+   * A Property that is active again makes the fact `obsolete`.
+   */
+  cancelArchivedPropertyRemindersOnce(
+    input: Readonly<{
+      eventId: string
+      consumerName: string
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      at: Date
+    }>,
+  ): Promise<'applied' | 'duplicate' | 'obsolete'>
 }>

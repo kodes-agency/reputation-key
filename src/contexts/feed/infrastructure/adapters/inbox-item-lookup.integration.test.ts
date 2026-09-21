@@ -285,3 +285,76 @@ describe('createInboxItemLookupAdapter.isHistoricalOnboardingItem', () => {
     expect(answers).toEqual([false, false, false, false])
   })
 })
+
+describe('createInboxItemLookupAdapter.findResponseTargetReminderNotificationFacts', () => {
+  const OPENED = new Date('2026-09-16T08:00:00.000Z')
+  const HALFWAY = new Date('2026-09-16T10:00:00.000Z')
+
+  /** A measured four-hour feedback target whose halfway reminder was released. */
+  async function seedReleasedHalfwayReminder(): Promise<void> {
+    const pool = getPool()
+    await pool.query(
+      `INSERT INTO inbox_handling_cycle_response_targets
+         (inbox_item_id, cycle_number, organization_id, property_id, source_type,
+          source_id, source_revision, target_kind, performance_eligibility,
+          duration_minutes, policy_source, policy_version, start_at, due_at)
+       VALUES ($1, 1, $2, $3, 'feedback', $4, 1, 'private_feedback_handling',
+          'measured', 240, 'builtin_default', 1, $5, $6)`,
+      [
+        ITEM_A,
+        ORG_A,
+        PROPERTY_A,
+        RESPONSE,
+        OPENED,
+        new Date(OPENED.getTime() + 240 * 60_000),
+      ],
+    )
+    await pool.query(
+      `INSERT INTO inbox_response_target_reminders
+         (inbox_item_id, cycle_number, reminder_kind, organization_id, property_id,
+          target_kind, scheduled_for, delivered_at)
+       VALUES ($1, 1, 'halfway', $2, $3, 'private_feedback_handling', $4, $4)`,
+      [ITEM_A, ORG_A, PROPERTY_A, HALFWAY],
+    )
+  }
+
+  const reminder = {
+    inboxItemId: ITEM_A,
+    organizationId: ORG_A,
+    cycleNumber: 1,
+    targetKind: 'private_feedback_handling',
+    reminderKind: 'halfway',
+    scheduledFor: HALFWAY,
+  } as const
+
+  it('stops answering once the Property is archived, so a released reminder notifies nobody', async () => {
+    await seedPropertyAndPortal(ORG_A, PROPERTY_A, PORTAL_A)
+    await seedInboxItem(ITEM_A, ORG_A, PROPERTY_A, RESPONSE, null)
+    await seedFeedbackHandlingCycle(ITEM_A, ORG_A, PROPERTY_A, RESPONSE)
+    await seedReleasedHalfwayReminder()
+    const lookup = createInboxItemLookupAdapter(
+      drizzle(getPool()) as unknown as Database,
+      { findPortalId: vi.fn().mockResolvedValue(portalId(PORTAL_A)) },
+    )
+
+    await expect(
+      lookup.findResponseTargetReminderNotificationFacts(reminder),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        propertyId: PROPERTY_A,
+        reminderKind: 'halfway',
+        scheduledFor: HALFWAY,
+        status: 'open',
+      }),
+    )
+
+    await getPool().query(
+      `UPDATE properties SET lifecycle_state = 'archived' WHERE id = $1`,
+      [PROPERTY_A],
+    )
+
+    await expect(
+      lookup.findResponseTargetReminderNotificationFacts(reminder),
+    ).resolves.toBeNull()
+  })
+})

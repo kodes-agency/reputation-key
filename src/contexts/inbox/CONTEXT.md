@@ -35,7 +35,9 @@ Each measured cycle snapshots its duration, policy version, start/due time, and
 halfway/target-passed reminder slots. A halfway slot already due when the target
 is recorded is never created, and one still pending once its target has passed is
 cancelled rather than released, so a target overdue on arrival, or a late
-release, prompts once, with target passed.
+release, prompts once, with target passed. Archiving a Property cancels its
+unreleased slots (`inbox.on-property-archived`), as Organization closing does,
+and Restore re-arms none of them: a cancelled slot is terminal.
 
 ## Runtime
 

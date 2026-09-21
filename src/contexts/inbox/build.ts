@@ -81,6 +81,7 @@ import { createFeedbackHandlingStore } from './infrastructure/feedback-handling.
 import { createResponseTargetStore } from './infrastructure/response-target.store'
 import { createResponseTargetPolicyStore } from './infrastructure/response-target-policy.store'
 import { registerInboxConsumers } from './infrastructure/outbox-consumers'
+import { registerInboxPropertyLifecycleConsumers } from './infrastructure/property-lifecycle-outbox-consumers'
 import { registerGuestFeedbackConsumer } from './infrastructure/guest-feedback-outbox-consumers'
 import { createFeedbackLookupAdapter } from './infrastructure/adapters/feedback-lookup.adapter'
 import { createPropertyLookupAdapter } from './infrastructure/adapters/property-lookup.adapter'
@@ -378,6 +379,10 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
       feedbackLookup,
       inboxRepo,
       idGen: () => inboxItemId(input.idGen()),
+      clock: input.clock,
+    })
+    registerInboxPropertyLifecycleConsumers(consumerRegistry, {
+      responseTargetStore,
       clock: input.clock,
     })
   }

@@ -93,6 +93,7 @@ const store = (): ResponseTargetStore => ({
     averageTimeToResponseMinutes: null,
   })),
   releaseDueReminders: vi.fn(async () => ({ released: 0 })),
+  cancelArchivedPropertyRemindersOnce: vi.fn(async () => 'applied' as const),
 })
 
 const peopleApi = (ids: readonly (typeof PROPERTY)[] | null): StaffPublicApi => ({

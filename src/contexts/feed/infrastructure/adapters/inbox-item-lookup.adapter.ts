@@ -225,6 +225,18 @@ export const createInboxItemLookupAdapter = (
           eq(inboxHandlingCycleHeads.status, 'open'),
         ),
       )
+      // A Property outside the workspace has no work to prompt: a reminder
+      // released before Inbox cancelled its slots is obsolete, both at fan-out
+      // and when the queued notification is materialized.
+      .innerJoin(
+        properties,
+        and(
+          eq(properties.id, inboxResponseTargetReminders.propertyId),
+          eq(properties.organizationId, inboxResponseTargetReminders.organizationId),
+          isNull(properties.deletedAt),
+          eq(properties.lifecycleState, 'active'),
+        ),
+      )
       .where(
         and(
           eq(inboxResponseTargetReminders.inboxItemId, input.inboxItemId),
