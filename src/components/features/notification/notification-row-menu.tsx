@@ -81,7 +81,7 @@ export function NotificationRowMenu({
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => actions.onMuteCategory(notification)}>
               <BellOff aria-hidden="true" />
-              Mute {categoryLabel.toLowerCase()}
+              Mute {categoryLabel.toLowerCase()} for this property
             </DropdownMenuItem>
           </>
         )}

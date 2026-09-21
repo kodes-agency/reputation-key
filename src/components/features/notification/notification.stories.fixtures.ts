@@ -233,6 +233,7 @@ type FeedRead = Readonly<{
   data: Readonly<{ limit: number; before?: NotificationFeedCursor }>
 }>
 type RowCommand = Readonly<{ data: Readonly<{ notificationId: string }> }>
+type MuteCommand = Readonly<{ data: Readonly<{ propertyId: string; category: string }> }>
 
 /** Rows strictly after `cursor` in feed order, as the endpoint reads them. */
 function rowsAfter(
@@ -249,7 +250,7 @@ function rowsAfter(
 /**
  * A `NotificationServerFns` bundle over rows the commands really change: the
  * head and "Load more" page the CURRENT rows by limit and cursor, and mark
- * read, dismiss and the bulk commands rewrite them. A story can act on one
+ * read, dismiss, mute and the bulk commands rewrite them. A story can act on one
  * surface and watch another read the result. Filters are not applied.
  */
 export function makeStatefulNotificationFns(
@@ -281,6 +282,12 @@ export function makeStatefulNotificationFns(
     },
     dismissAll: async () => {
       rows = []
+    },
+    // The server hides every row of a muted in-app category for that Property.
+    muteCategory: async ({ data }: MuteCommand) => {
+      rows = rows.filter(
+        (row) => row.propertyId !== data.propertyId || row.category !== data.category,
+      )
     },
   }
   // Same two-step cast as `makeNotificationFns`, for the same reason.

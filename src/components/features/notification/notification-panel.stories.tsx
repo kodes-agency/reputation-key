@@ -13,9 +13,11 @@
 // that one factory.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { isPreferenceDisableable } from '#/contexts/feed/application/public-api'
+import { Toaster } from '#/components/ui/sonner'
 import {
+  makeNotification,
   makeNotificationFns,
+  makeStatefulNotificationFns,
   notificationFeedHeadFixture,
   notificationFixtures,
   notificationPageFixture,
@@ -27,10 +29,6 @@ import type { NotificationServerFns } from './types'
 const ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222'
 
 const unreadCount = notificationFixtures.filter((n) => n.status === 'unread').length
-const muteableIndex = notificationFixtures.findIndex((notification) =>
-  isPreferenceDisableable(notification.category, 'in_app'),
-)
-const muteableNotification = notificationFixtures[muteableIndex]!
 
 const loadedFns = makeNotificationFns({
   getFeedHead: (async () => ({
@@ -46,6 +44,15 @@ const meta: Meta<typeof NotificationPanel> = {
   tags: ['autodocs'],
   parameters: { layout: 'centered' },
   args: { notificationFns: loadedFns, organizationId: ORGANIZATION_ID },
+  // The app's toaster: failures and mutes must be seen, not only announced.
+  decorators: [
+    (Story) => (
+      <>
+        <Story />
+        <Toaster />
+      </>
+    ),
+  ],
 }
 export default meta
 type Story = StoryObj<typeof NotificationPanel>
@@ -194,39 +201,100 @@ export const Empty: Story = {
   },
 }
 
-/** Muting sends only the semantic command; server policy preserves other fields. */
+const HARBOUR = '66666666-6666-4666-8666-666666666666'
+const RIVERSIDE = '33333333-3333-4333-8333-333333333333'
+const workflowRow = (n: number, propertyId: string, propertyName: string) =>
+  makeNotification({
+    id: `40000000-0000-4000-8000-00000000000${n}`,
+    type: 'review.created',
+    status: 'unread',
+    propertyId,
+    payload: { propertyName, platform: 'google' },
+    createdAt: new Date(Date.now() - n * 60_000),
+  })
+/** Two Harbour workflow rows, and one at Riverside that a Harbour mute must keep. */
+const muteFeed = [
+  workflowRow(1, HARBOUR, 'Harbour View Suites'),
+  workflowRow(2, RIVERSIDE, 'Riverside Hotel'),
+  workflowRow(3, HARBOUR, 'Harbour View Suites'),
+]
+
+/** The toast carrying `message`, once it has entered (sonner animates it in). */
+async function expectToast(message: string | RegExp): Promise<void> {
+  const text = await within(document.body).findByText(message)
+  await waitFor(() => expect(text).toBeVisible())
+}
+
+/**
+ * Muting sends only the semantic command, takes that Property's rows of the
+ * category out of the list at once (the server hides them from now on, earlier
+ * ones included), and says so where a sighted user can see it.
+ */
+const muteServer = makeStatefulNotificationFns(muteFeed)
+const readMuteFeedHead = fn(muteServer.getFeedHead)
+const muteInApp = fn(muteServer.muteCategory)
+
 export const MuteCategory: Story = {
   args: {
-    notificationFns: (() => {
-      const muteCategory = fn(async () => undefined)
-      return makeNotificationFns({
-        getFeedHead: (async () =>
-          notificationFeedHeadFixture(
-            notificationFixtures,
-            unreadCount,
-          )) as unknown as NotificationServerFns['getFeedHead'],
-        muteCategory: muteCategory as unknown as NotificationServerFns['muteCategory'],
-      })
-    })(),
+    notificationFns: {
+      ...muteServer,
+      getFeedHead: readMuteFeedHead as unknown as NotificationServerFns['getFeedHead'],
+      muteCategory: muteInApp as unknown as NotificationServerFns['muteCategory'],
+    },
   },
-  play: async ({ args, canvasElement }) => {
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
-    const portal = within(document.body)
+    // Scoped to the popover: a sonner toast is a list item of its own.
+    const portal = within(await within(document.body).findByRole('dialog'))
+    await waitFor(() => expect(portal.getAllByRole('listitem')).toHaveLength(3))
+    const readsBefore = readMuteFeedHead.mock.calls.length
     await userEvent.click(
-      (await portal.findAllByRole('button', { name: /^More actions for:/ }))[
-        muteableIndex
-      ]!,
+      portal.getAllByRole('button', { name: /^More actions for:/ })[0]!,
     )
-    await userEvent.click(await portal.findByRole('menuitem', { name: /^Mute/ }))
-    await waitFor(() => {
-      expect(args.notificationFns.muteCategory).toHaveBeenCalledWith({
-        data: {
-          propertyId: muteableNotification.propertyId,
-          category: muteableNotification.category,
-        },
-      })
+    await userEvent.click(
+      await within(document.body).findByRole('menuitem', {
+        name: 'Mute workflow and collaboration for this property',
+      }),
+    )
+
+    await waitFor(() => expect(portal.getAllByRole('listitem')).toHaveLength(1))
+    expect(portal.getByText('New review at Riverside Hotel')).toBeInTheDocument()
+    expect(muteInApp).toHaveBeenCalledWith({
+      data: { propertyId: HARBOUR, category: 'workflow_collaboration' },
     })
+    await expectToast(
+      'In-app workflow and collaboration notices muted for Harbour View Suites, including earlier ones.',
+    )
+    // The feed is read again, so the badge and any loaded history follow.
+    await waitFor(() =>
+      expect(readMuteFeedHead.mock.calls.length).toBeGreaterThan(readsBefore),
+    )
+  },
+}
+
+/** A failed dismiss puts the row back and says why, instead of silently undoing itself. */
+export const FailedDismissSaysSo: Story = {
+  args: {
+    notificationFns: makeNotificationFns({
+      getFeedHead: (async () =>
+        notificationFeedHeadFixture(
+          notificationFixtures,
+          unreadCount,
+        )) as unknown as NotificationServerFns['getFeedHead'],
+      dismiss: (async () => {
+        throw new Error('network down')
+      }) as unknown as NotificationServerFns['dismiss'],
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
+    const portal = within(await within(document.body).findByRole('dialog'))
+    const before = (await portal.findAllByRole('listitem')).length
+    await userEvent.click(portal.getAllByRole('button', { name: /^Dismiss:/ })[0]!)
+    await expectToast("Couldn't dismiss that notification. Try again.")
+    await waitFor(() => expect(portal.getAllByRole('listitem')).toHaveLength(before))
   },
 }
 
