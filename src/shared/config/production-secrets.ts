@@ -38,6 +38,7 @@ const KNOWN_PLACEHOLDERS: ReadonlySet<string> = new Set([
   'e2e-ops-metrics-token-0123456789abcdef',
   // .env.example documented examples
   'replace-me-with-a-long-random-secret-min-32-chars',
+  're_xxxxxxxxxxxx',
   'xxxxxxxx.apps.googleusercontent.com',
   'GOCSPX-xxxxxxxxxxxxxxxxxxxx',
   'dev-only-salt-not-for-production',

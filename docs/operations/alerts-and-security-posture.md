@@ -104,7 +104,11 @@ secret matches the known test/CI/`.env.example` placeholder family
 (`src/shared/config/production-secrets.ts`): the web process via the
 first-registered nitro plugin (`production-secret-guard.ts`), the worker via
 `assertProductionSecrets` in `src/worker/index.ts`. The error names offending
-FIELDS only, never values.
+FIELDS only, never values. Separately, a production worker with
+`notification.send_email` enabled refuses to boot when its `RESEND_API_KEY`
+would select the capture transport (`src/shared/email/transport-selection.ts`):
+capture reports every send as accepted, so notification mail would be marked
+sent while nothing left the process.
 
 **Health/metrics exposure.** `/api/health/metrics` is token-gated
 (`OPS_METRICS_TOKEN`, BQC-7.2 — absent or wrong credential 404s, keeping the

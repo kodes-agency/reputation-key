@@ -70,6 +70,18 @@ describe('capturing email sender', () => {
     expect(sender.captured).toHaveLength(1)
   })
 
+  it('keeps only the most recent captures, so a long-running worker does not grow forever', async () => {
+    const sender = createCapturingEmailSender({ clock })
+
+    for (let index = 0; index <= 100; index += 1) {
+      await sender.send(request({ idempotencyKey: `key-${index}` }))
+    }
+
+    expect(sender.captured).toHaveLength(100)
+    expect(sender.captured[0]?.idempotencyKey).toBe('key-1')
+    expect(sender.last?.idempotencyKey).toBe('key-100')
+  })
+
   it('clear() empties the capture log', async () => {
     const sender = createCapturingEmailSender({ clock })
     await sender.send(request())

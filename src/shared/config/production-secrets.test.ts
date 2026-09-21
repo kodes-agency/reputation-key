@@ -57,6 +57,9 @@ describe('findPlaceholderSecrets (BQC-7.6)', () => {
       ['NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS', `v1:${'33'.repeat(32)}`],
       ['OPS_METRICS_TOKEN', 'e2e-ops-metrics-token-0123456789abcdef'],
       ['BETTER_AUTH_SECRET', 'replace-me-with-a-long-random-secret-min-32-chars'],
+      // The .env.example Resend key: in production it switched notification
+      // mail to capture, which reports every send as accepted.
+      ['RESEND_API_KEY', 're_xxxxxxxxxxxx'],
     ]
     for (const [field, value] of cases) {
       const flagged = findPlaceholderSecrets({ ...REAL, [field]: value })

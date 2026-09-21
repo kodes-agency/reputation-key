@@ -602,51 +602,22 @@ async function registerNotificationJobs(
     await import('#/contexts/feed/infrastructure/jobs/insert-notification.job')
   const { createNotificationDbUserLookupAdapter: createNotifUserLookup } =
     await import('#/contexts/feed/infrastructure/adapters/notification-db-user-lookup.adapter')
-  const { createResendEmailAdapter } =
-    await import('#/contexts/feed/infrastructure/adapters/resend-email.adapter')
   const { notificationId, notificationEmailId } = await import('#/shared/domain/ids')
   const notifUserLookup = createNotifUserLookup(container.db)
   // Outbound email transport is chosen ONCE, here, and logged loudly. Before
   // this the real Resend adapter was constructed unconditionally, so a local
   // boot with a real key in .env mailed real inboxes, and a boot with the
   // .env.example placeholder failed deep inside a BullMQ job instead of at
-  // wiring time. Rules live in shared/email/transport-selection.ts.
-  const { decideEmailTransport } = await import('#/shared/email/transport-selection')
-  const { createCapturingEmailSender } =
-    await import('#/contexts/feed/infrastructure/adapters/capturing-email-sender.adapter')
-  const emailTransport = decideEmailTransport({
-    NODE_ENV: runtime.notification.nodeEnv,
-    RESEND_API_KEY: runtime.notification.resendApiKey,
-    ...(runtime.notification.resendBaseUrl
-      ? { RESEND_BASE_URL: runtime.notification.resendBaseUrl }
-      : {}),
+  // wiring time. A production worker that would capture admitted mail refuses
+  // to boot. Rules live in shared/email/transport-selection.ts.
+  const { createNotificationEmailSender } =
+    await import('#/contexts/feed/infrastructure/adapters/notification-email-sender')
+  const notifEmailSender = createNotificationEmailSender({
+    transport: runtime.notification,
+    outboundEmailEnabled: isCapabilityJobEnabled('notification.send_email'),
+    logger,
+    clock: container.clock,
   })
-  const notifEmailSender =
-    emailTransport.mode === 'capture'
-      ? createCapturingEmailSender({ clock: container.clock })
-      : createResendEmailAdapter({
-          config: {
-            apiKey: runtime.notification.resendApiKey,
-            ...(runtime.notification.resendBaseUrl
-              ? { baseUrl: runtime.notification.resendBaseUrl }
-              : {}),
-            from: runtime.notification.emailFrom,
-            appBaseUrl: runtime.notification.appBaseUrl,
-          },
-          logger,
-          clock: container.clock,
-        })
-  if (emailTransport.mode === 'capture') {
-    logger.warn(
-      { transport: 'capture', reason: emailTransport.reason },
-      'NOTIFICATION EMAIL IS BEING CAPTURED, NOT SENT — no message will reach a recipient',
-    )
-  } else {
-    logger.info(
-      { transport: 'send', reason: emailTransport.reason },
-      'notification email will be delivered through Resend',
-    )
-  }
   // Deep links in email are absolute; the base URL is injected, never read
   // from env inside a job.
   const notifBaseUrl = runtime.notification.appBaseUrl

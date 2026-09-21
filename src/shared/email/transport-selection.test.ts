@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decideEmailTransport } from './transport-selection'
+import { assertEmailTransportAdmitted, decideEmailTransport } from './transport-selection'
 
 const LIVE_KEY = 're_A1b2C3d4E5f6G7h8I9j0'
 
@@ -61,5 +61,47 @@ describe('email transport selection', () => {
     expect(
       decideEmailTransport({ NODE_ENV: 'development', RESEND_API_KEY: LIVE_KEY }).mode,
     ).toBe('send')
+  })
+})
+
+describe('production capture refusal', () => {
+  // `cp .env.example` in production: capture reports every send as accepted,
+  // so the database says mail went out while nothing reached anyone.
+  const placeholder = decideEmailTransport({
+    NODE_ENV: 'production',
+    RESEND_API_KEY: 're_xxxxxxxxxxxx',
+  })
+
+  it('refuses a production process that would capture admitted notification mail', () => {
+    expect(() =>
+      assertEmailTransportAdmitted(placeholder, {
+        NODE_ENV: 'production',
+        outboundEmailEnabled: true,
+      }),
+    ).toThrow(/notification email would be captured, not sent/)
+  })
+
+  it('lets production capture while outbound email is not enabled', () => {
+    expect(() =>
+      assertEmailTransportAdmitted(placeholder, {
+        NODE_ENV: 'production',
+        outboundEmailEnabled: false,
+      }),
+    ).not.toThrow()
+  })
+
+  it('never refuses outside production, or when mail is really sent', () => {
+    expect(() =>
+      assertEmailTransportAdmitted(placeholder, {
+        NODE_ENV: 'development',
+        outboundEmailEnabled: true,
+      }),
+    ).not.toThrow()
+    expect(() =>
+      assertEmailTransportAdmitted(
+        decideEmailTransport({ NODE_ENV: 'production', RESEND_API_KEY: LIVE_KEY }),
+        { NODE_ENV: 'production', outboundEmailEnabled: true },
+      ),
+    ).not.toThrow()
   })
 })

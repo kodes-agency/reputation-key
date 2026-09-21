@@ -58,3 +58,24 @@ export function decideEmailTransport(
     ? { mode: 'capture', reason: 'placeholder_key' }
     : { mode: 'send', reason: 'live_key' }
 }
+
+/**
+ * Capture is a development convenience, never a production posture. It
+ * reports every send as accepted, so a production worker whose key is the
+ * `.env.example` placeholder or mistyped used to mark every urgent email and
+ * digest "sent" while nothing left the process, behind one boot-time warning.
+ * With outbound email admitted, that worker now refuses to boot. The message
+ * names the variable, never its value.
+ */
+export function assertEmailTransportAdmitted(
+  decision: EmailTransportDecision,
+  runtime: Readonly<{ NODE_ENV: string; outboundEmailEnabled: boolean }>,
+): void {
+  if (decision.mode !== 'capture') return
+  if (runtime.NODE_ENV !== 'production' || !runtime.outboundEmailEnabled) return
+  throw new Error(
+    `[CONFIG] notification.send_email is enabled but RESEND_API_KEY is not a usable ` +
+      `Resend key (${decision.reason}): notification email would be captured, not sent. ` +
+      'Set the live key, or keep notification.send_email disabled.',
+  )
+}
