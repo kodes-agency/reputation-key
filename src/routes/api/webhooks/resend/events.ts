@@ -8,10 +8,11 @@
 // only on non-2xx, so the happy path acks with 200 — and so does an event we
 // deliberately ignore, because retrying it forever would not change the outcome.
 //
-// Fail-closed-at-the-route, matching /api/health/metrics: `RESEND_WEBHOOK_SECRET`
-// is OPTIONAL in the env schema so a deployment without Resend webhooks still
-// boots, and this endpoint answers 503 `webhook_disabled` rather than accepting
-// unverified state transitions.
+// Fail-closed-at-the-route: `RESEND_WEBHOOK_SECRET` is OPTIONAL in the env
+// schema so a deployment without Resend webhooks still boots, and this endpoint
+// answers 503 `webhook_disabled` rather than accepting unverified state
+// transitions. That answer goes out before any authentication, so it names no
+// configuration; the variable name is in the operator log only.
 //
 // Webhook routes may resolve narrow runtime operations from the composition
 // container, but never import context infrastructure directly.
@@ -51,11 +52,7 @@ export async function handleResendWebhookPost(request: Request): Promise<Respons
         'Resend webhook received while RESEND_WEBHOOK_SECRET is unset — endpoint disabled',
       )
       return Response.json(
-        {
-          error: 'Service Unavailable',
-          message: 'Resend webhook is disabled: RESEND_WEBHOOK_SECRET is not configured',
-          code: 'webhook_disabled',
-        },
+        { error: 'Service Unavailable', code: 'webhook_disabled' },
         { status: 503 },
       )
     }

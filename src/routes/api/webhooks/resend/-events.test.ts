@@ -72,6 +72,19 @@ describe('resend webhook route', () => {
     expect(mocks.handleResendEvent).not.toHaveBeenCalled()
   })
 
+  it('tells an unauthenticated caller nothing about the missing configuration', async () => {
+    // The 503 goes out before any signature check, so anyone on the internet
+    // can read it. The variable name belongs in the operator log only.
+    mocks.secret.value = undefined
+
+    const response = await handleResendWebhookPost(mkRequest())
+
+    await expect(response.json()).resolves.toEqual({
+      error: 'Service Unavailable',
+      code: 'webhook_disabled',
+    })
+  })
+
   it('accepts a correctly signed event and forwards it to the handler', async () => {
     const response = await handleResendWebhookPost(mkRequest())
 
