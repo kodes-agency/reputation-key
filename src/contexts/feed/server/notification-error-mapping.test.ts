@@ -113,7 +113,7 @@ describe('notification server functions map Feed refusals', () => {
     '%s answers a stale or foreign id with 404, not an untagged 500',
     async (_name, serverFn) => {
       await expect(
-        withStartContext(() =>
+        withStartContext<unknown>(() =>
           serverFn({ data: { notificationId: STALE_NOTIFICATION_ID } }),
         ),
       ).rejects.toMatchObject({

@@ -204,7 +204,6 @@ describe.sequential('notification list filters (real PostgreSQL)', () => {
           userId: CONCURRENT_USER,
           organizationId: ORG_A,
           visiblePropertyIds: null,
-          visiblePropertyIds: null,
           limit: 1,
           filter: 'unread',
         }),
