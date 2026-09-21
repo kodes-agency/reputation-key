@@ -100,6 +100,7 @@ export type QuarantineReadPort = {
     types?: import('bullmq').JobType | import('bullmq').JobType[],
     start?: number,
     end?: number,
+    asc?: boolean,
   ): Promise<QuarantinedJobHandle[]>
 }
 
@@ -404,7 +405,12 @@ export type QuarantinedEntry = Readonly<{
   publicationState: 'pending_failure' | 'confirmed_failed'
 }>
 
-/** List quarantined jobs (waiting/delayed — the quarantine queue has no worker). */
+/**
+ * List quarantined jobs (waiting/delayed — the quarantine queue has no
+ * worker), OLDEST first: the entry an age alert pages about must be the one
+ * an operator can reach. BullMQ LPUSHes the wait list, so a default page would
+ * show only the newest `limit` entries.
+ */
 export async function listQuarantinedJobs(
   quarantineQueue: QuarantineReadPort,
   limit = 100,
@@ -413,6 +419,7 @@ export async function listQuarantinedJobs(
     ['waiting', 'delayed', 'prioritized'],
     0,
     limit - 1,
+    true,
   )
   const out: QuarantinedEntry[] = []
   for (const job of jobs) {

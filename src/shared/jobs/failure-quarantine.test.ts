@@ -411,6 +411,35 @@ describe('listQuarantinedJobs (BQC-3.6)', () => {
     expect(typeof list[0]!.quarantineJobId).toBe('string')
   })
 
+  it('lists the OLDEST dead letters first, so an aged entry stays reachable behind newer ones', async () => {
+    const quarantine = fakeQueue()
+    for (let i = 0; i < 150; i++) {
+      await quarantineExhaustedJob(
+        quarantine,
+        fakeJob({ id: `orig-${i}` }),
+        new Error('x'),
+      )
+    }
+    // BullMQ LPUSHes the wait list: its default page is the NEWEST entries.
+    const newestFirst = [...quarantine.jobs.values()].reverse()
+    vi.mocked(quarantine.getJobs).mockImplementation((async (
+      _types: unknown,
+      start = 0,
+      end = -1,
+      asc = false,
+    ) =>
+      (asc ? [...newestFirst].reverse() : newestFirst).slice(
+        start,
+        end < 0 ? undefined : end + 1,
+      )) as never)
+
+    const list = await listQuarantinedJobs(quarantine)
+
+    expect(list).toHaveLength(100)
+    expect(list[0]!.envelope.originalJobId).toBe('orig-0')
+    expect(list.map((entry) => entry.envelope.originalJobId)).not.toContain('orig-149')
+  })
+
   it('reports a staged copy as pending until the failed transition is confirmed', async () => {
     const quarantine = fakeQueue()
     const original = fakeJob({ attemptsMade: 2, opts: { attempts: 3 } })

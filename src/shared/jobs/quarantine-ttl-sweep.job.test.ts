@@ -91,6 +91,25 @@ function makeQueue(jobs: FakeJob[]): QuarantineTtlQueuePort & { jobs: FakeJob[] 
   }
 }
 
+/**
+ * BullMQ-faithful ordering: the quarantine wait list is LPUSHed, so a default
+ * page (asc=false) is the NEWEST entries and asc=true pages from the oldest.
+ */
+function makeLpushQueue(
+  jobsNewestFirst: FakeJob[],
+): QuarantineTtlQueuePort & { jobs: FakeJob[] } {
+  const queue = makeQueue(jobsNewestFirst)
+  return {
+    jobs: queue.jobs,
+    getJobs: vi.fn(async (_types: unknown, start = 0, end = -1, asc = false) =>
+      (asc ? [...queue.jobs].reverse() : queue.jobs).slice(
+        start,
+        end < 0 ? undefined : end + 1,
+      ),
+    ) as never,
+  }
+}
+
 function handlerDeps(
   queue: QuarantineTtlQueuePort,
   overrides: Record<string, unknown> = {},
@@ -149,6 +168,21 @@ describe('quarantine TTL sweep job (BQC-7.8)', () => {
       `run-${QUARANTINE_TTL_SUBJECT}`,
       expect.objectContaining({ rowsDeleted: 2, outcome: 'completed' }),
     )
+  })
+
+  it('removes expired entries that sit behind more than a page of fresher ones', async () => {
+    const fresh = Array.from({ length: 120 }, (_, i) => makeJob(`fresh-${i}`, DAY_MS))
+    const expired = Array.from({ length: 5 }, (_, i) =>
+      makeJob(`expired-${i}`, (31 + i) * DAY_MS),
+    )
+    const queue = makeLpushQueue([...fresh, ...expired])
+
+    const handler = createQuarantineTtlSweepHandler(handlerDeps(queue))
+    const result = await handler({} as never)
+
+    expect(result).toMatchObject({ removed: 5, skipped: 0, capped: false })
+    for (const job of expired) expect(job.remove).toHaveBeenCalledTimes(1)
+    expect(queue.jobs).toHaveLength(120)
   })
 
   it('skips entries whose remove() fails (locked by an in-flight redrive) without failing the run', async () => {

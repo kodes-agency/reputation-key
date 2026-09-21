@@ -6,11 +6,12 @@
 // envelopes accumulate forever — unbounded Redis growth holding failure
 // metadata past its usefulness. This sweep is the lifecycle bound:
 //
-//   - Pages the quarantine queue (bounded page size), re-reading the HEAD
-//     each round: removals shift the list, so re-reading avoids skipping
-//     entries; a round with zero removals or a short page ends the scan.
-//     Entries cluster oldest-first (FIFO dead letter), so an all-fresh head
-//     page means the tail is fresher still.
+//   - Pages the quarantine queue OLDEST-first (bounded page size),
+//     re-reading the head each round: removals shift the list, so re-reading
+//     avoids skipping entries; a round with zero removals or a short page
+//     ends the scan. BullMQ LPUSHes the wait list, so only an ascending read
+//     starts at the oldest entry — the default page is the newest, and an
+//     all-fresh newest page says nothing about the aged tail behind it.
 //   - Removes entries older than the TTL (QUARANTINE_TTL_DAYS, default 30d)
 //     via job.remove() — NEVER obliterate/clean (the queue-quarantine.ts
 //     containment constraint: deletion is per-entry, never a bulk wipe).
@@ -62,6 +63,7 @@ export type QuarantineTtlQueuePort = Readonly<{
     types?: import('bullmq').JobType | import('bullmq').JobType[],
     start?: number,
     end?: number,
+    asc?: boolean,
   ): Promise<QuarantineTtlJobHandle[]>
 }>
 
@@ -165,20 +167,21 @@ export const createQuarantineTtlSweepHandler = (deps: QuarantineTtlDeps) => {
 
       try {
         for (;;) {
-          // Re-read the HEAD each round: every removal shifts the list down,
-          // so absolute paging would skip entries.
+          // Re-read the oldest page each round: every removal shifts the
+          // list, so absolute paging would skip entries.
           const page = await deps.queue.getJobs(
             [...QUARANTINE_JOB_TYPES],
             0,
             pageSize - 1,
+            true,
           )
           pages += 1
           if (page.length === 0) break
           scanned += page.length
 
           const removedThisPage = await processHeadPage(boundDeps, page, counters, logger)
-          // Short page = the tail is reached; a full page with no removals =
-          // the head is fresh (FIFO dead letter — the tail is fresher).
+          // Short page = the whole queue was seen; a full page with no
+          // removals = the oldest entries are fresh, so every newer one is.
           if (counters.capped || page.length < pageSize || removedThisPage === 0) break
         }
       } catch (err) {

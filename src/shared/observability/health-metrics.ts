@@ -36,6 +36,7 @@ export type QuarantineMetricsPort = Readonly<{
     types?: import('bullmq').JobType | import('bullmq').JobType[],
     start?: number,
     end?: number,
+    asc?: boolean,
   ) => Promise<ReadonlyArray<{ data: unknown; timestamp?: number }>>
 }>
 
@@ -235,7 +236,12 @@ export type HealthChecker = Readonly<{
  */
 const EXPIRED_LEASE_SCAN_LIMIT = 1000
 
-/** Bounded scan for quarantine age — the quarantine is operator-drained. */
+/**
+ * Bounded scan for quarantine age — the quarantine is operator-drained. The
+ * scan reads the OLDEST entries: BullMQ LPUSHes the wait list, so its default
+ * page is the newest, and a steady trickle of fresh dead letters would hide
+ * the aged ones the age alerts exist to catch.
+ */
 const QUARANTINE_AGE_SCAN_LIMIT = 100
 
 type OutboxMetrics = HealthSnapshot['outbox']
@@ -317,6 +323,7 @@ async function readQuarantineMetrics(
     ['waiting', 'delayed', 'prioritized'],
     0,
     QUARANTINE_AGE_SCAN_LIMIT - 1,
+    true,
   )
   let oldestAgeMs: number | null = null
   for (const job of jobs) {

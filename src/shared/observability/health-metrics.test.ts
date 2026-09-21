@@ -152,6 +152,41 @@ describe('health checker quarantine metrics (BQC-3.7)', () => {
     expect(snapshot.quarantine!.oldestAgeMs).toBeLessThanOrEqual(3_700_000)
   })
 
+  // BullMQ LPUSHes the wait list, so its default page (asc=false) is the
+  // NEWEST entries. A fake that ignores `asc` hides exactly that.
+  it('ages the quarantine by its OLDEST entries even behind a full page of newer ones', async () => {
+    const minuteAgo = new Date(Date.now() - 60_000).toISOString()
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 3_600_000).toISOString()
+    const newestFirst = [
+      ...Array.from({ length: 150 }, () => ({ data: { quarantinedAt: minuteAgo } })),
+      ...Array.from({ length: 50 }, () => ({ data: { quarantinedAt: twoDaysAgo } })),
+    ]
+    const quarantine: QuarantineMetricsPort = {
+      getJobCounts: vi.fn(async () => ({ waiting: newestFirst.length })),
+      getJobs: vi.fn(async (_types, start = 0, end = -1, asc = false) =>
+        (asc ? [...newestFirst].reverse() : newestFirst).slice(
+          start,
+          end < 0 ? undefined : end + 1,
+        ),
+      ),
+    }
+    const db = fakeDb([
+      [{ cnt: 0, age_ms: null }],
+      [{ claimed: 0, oldest_claimed_age_ms: null, stalled: 0 }],
+      REVIEW_ROW,
+      SYNC_ROW,
+      PUBLICATION_ROW,
+      NOTIFICATION_ROW,
+    ])
+
+    const snapshot = await createHealthChecker(db, fakeOutboxRepo([]), {
+      quarantineQueue: quarantine,
+    }).check()
+
+    expect(snapshot.quarantine!.count).toBe(200)
+    expect(snapshot.quarantine!.oldestAgeMs).toBeGreaterThanOrEqual(2 * 24 * 3_600_000)
+  })
+
   it('reports null oldestAgeMs for an empty quarantine', async () => {
     const quarantine = fakeQuarantine({ waiting: 0 }, [])
     const db = fakeDb([
