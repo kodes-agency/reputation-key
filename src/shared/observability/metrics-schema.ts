@@ -55,9 +55,19 @@ export const PUBLICATION_STATES = [
   'cancelled',
 ] as const
 
-/** OperationsSnapshot degraded-section markers (operations-snapshot.ts). */
+/**
+ * OperationsSnapshot degraded-section markers (operations-snapshot.ts). The
+ * health section degrades per signal (HEALTH_SIGNALS in health-metrics.ts).
+ */
 export const SNAPSHOT_SECTIONS = [
-  'health',
+  'health.outbox',
+  'health.quarantine',
+  'health.reviews',
+  'health.sync',
+  'health.replyPublication',
+  'health.notificationEmail',
+  'health.notificationGap',
+  'health.notificationDeliveryLag',
   'queues',
   'workers.heartbeat',
   'runtime',

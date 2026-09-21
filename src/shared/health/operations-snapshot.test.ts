@@ -10,6 +10,7 @@ import {
 } from './operations-snapshot'
 import type { Database } from '#/shared/db'
 import type { OutboxRepository } from '#/shared/outbox'
+import { SNAPSHOT_SECTIONS } from '#/shared/observability/metrics-schema'
 
 const FIXED_NOW = new Date('2026-01-15T12:00:00.000Z')
 const clock = () => FIXED_NOW
@@ -303,7 +304,19 @@ describe('createOperationsSnapshot', () => {
 
     const snapshot = await reader.read()
 
-    expect(snapshot.degraded).toEqual(['health'])
+    // Every database-backed signal degrades on its own marker; the absent
+    // quarantine handle and unwired notification readers are not failures.
+    expect(snapshot.degraded).toEqual([
+      'health.outbox',
+      'health.reviews',
+      'health.sync',
+      'health.replyPublication',
+      'health.notificationEmail',
+    ])
+    // Degraded markers are a closed label set (BQC-7.3 schema).
+    for (const marker of snapshot.degraded) {
+      expect(SNAPSHOT_SECTIONS).toContain(marker)
+    }
     expect(snapshot.outbox.unpublishedCount).toBe(0)
     expect(snapshot.timestamp).toBe(FIXED_NOW.toISOString())
     // Null handles are absent, not degraded: queues [] and stale heartbeat.
@@ -311,6 +324,74 @@ describe('createOperationsSnapshot', () => {
     expect(snapshot.workers.heartbeat).toEqual({ at: null, ageMs: null, stale: true })
     // The runtime section is unaffected by a degraded health read.
     expect(snapshot.versions.policyStore).toBe(11)
+  })
+
+  it('degrades only the failing health signal and keeps every signal read alongside it', async () => {
+    const reader = createOperationsSnapshot({
+      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+      outboxRepo: fakeOutboxRepo(),
+      queues: {
+        default: null,
+        background: null,
+        domainEvents: null,
+        quarantine: fakeQueue(2),
+      },
+      redis: null,
+      clock,
+      versions: VERSIONS,
+      runtime: RUNTIME,
+      readMissingNotificationCount: async () => 4,
+      readNotificationDeliveryLag: async () => {
+        throw new Error('anti-join scan failed')
+      },
+    })
+
+    const snapshot = await reader.read()
+
+    expect(snapshot.degraded).toEqual(['health.notificationDeliveryLag'])
+    expect(snapshot.outbox.unpublishedCount).toBe(3)
+    expect(snapshot.quarantine?.count).toBe(2)
+    expect(snapshot.reviews.refreshDueCount).toBe(1)
+    expect(snapshot.replyPublication.counts.ambiguous).toBe(1)
+    expect(snapshot.notifications.missingForInboxItemCount).toBe(4)
+    expect(snapshot.notifications.deliveryLag.sourceReceiptPending).toBe(0)
+  })
+
+  it('does not let a hanging Queue Redis read blank the database signals', async () => {
+    vi.useFakeTimers()
+    try {
+      const hanging = {
+        getJobCounts: vi.fn(() => new Promise<Record<string, number>>(() => {})),
+        getJobs: vi.fn(async () => []),
+      }
+      const reader = createOperationsSnapshot({
+        db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+        outboxRepo: fakeOutboxRepo(),
+        queues: {
+          default: null,
+          background: null,
+          domainEvents: null,
+          quarantine: hanging,
+        },
+        redis: null,
+        clock,
+        versions: VERSIONS,
+        runtime: RUNTIME,
+      })
+
+      const pending = reader.read()
+      await vi.advanceTimersByTimeAsync(OPS_SECTION_BUDGET_MS)
+      const snapshot = await pending
+
+      // The queue-depth section reads the same hanging handle, so it degrades
+      // too; the database-backed health signals do not.
+      expect(snapshot.degraded).toEqual(['health.quarantine', 'queues'])
+      expect(snapshot.quarantine).toBeNull()
+      expect(snapshot.outbox.unpublishedCount).toBe(3)
+      expect(snapshot.reviews.refreshDueCount).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('degrades the queues and heartbeat sections when their reads throw', async () => {

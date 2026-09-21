@@ -225,9 +225,75 @@ export type HealthSnapshot = Readonly<{
   }>
 }>
 
-export type HealthChecker = Readonly<{
-  check: () => Promise<HealthSnapshot>
+/**
+ * The independent reads the health snapshot is assembled from. Each one can
+ * fail or stall on its own (a slow anti-join, an unreachable Queue Redis), so
+ * a caller that budgets them can degrade exactly the signal that broke.
+ */
+export const HEALTH_SIGNALS = [
+  'outbox',
+  'quarantine',
+  'reviews',
+  'sync',
+  'replyPublication',
+  'notificationEmail',
+  'notificationGap',
+  'notificationDeliveryLag',
+] as const
+
+export type HealthSignal = (typeof HEALTH_SIGNALS)[number]
+
+/** What each health signal read resolves to. */
+export type HealthSignalValues = Readonly<{
+  outbox: HealthSnapshot['outbox']
+  quarantine: HealthSnapshot['quarantine']
+  reviews: HealthSnapshot['reviews']
+  sync: HealthSnapshot['sync']
+  replyPublication: HealthSnapshot['replyPublication']
+  notificationEmail: NotificationEmailMetrics
+  notificationGap: number
+  notificationDeliveryLag: NotificationDeliveryLagMetrics
 }>
+
+export type HealthSignalReads = Readonly<{
+  [K in HealthSignal]: () => Promise<HealthSignalValues[K]>
+}>
+
+export type HealthChecker = Readonly<{
+  /** Every signal, read in order; the first failure rejects the whole read. */
+  check: () => Promise<HealthSnapshot>
+  /**
+   * The same reads one signal at a time, for a caller that budgets each and
+   * degrades only the one that fails (the operations snapshot): one broken
+   * read must not blank every other signal, and every alert that reads it.
+   */
+  signals: HealthSignalReads
+}>
+
+/** One health snapshot from its signal values. */
+export function assembleHealthSnapshot(
+  now: Date,
+  values: HealthSignalValues,
+): HealthSnapshot {
+  return {
+    timestamp: now.toISOString(),
+    outbox: values.outbox,
+    quarantine: values.quarantine,
+    reviews: values.reviews,
+    sync: values.sync,
+    notifications: {
+      ...values.notificationEmail,
+      missingForInboxItemCount: values.notificationGap,
+      deliveryLag: values.notificationDeliveryLag,
+    },
+    replyPublication: values.replyPublication,
+    workers: {
+      defaultQueueName: 'default',
+      backgroundQueueName: 'background',
+      domainEventsQueueName: 'domain-events',
+    },
+  }
+}
 
 /**
  * Bounded scan for the expired-lease signal — an exact count is unnecessary
@@ -406,7 +472,7 @@ async function readReplyPublicationMetrics(
  * injected reader, not from this file's `notification_email_queue` query, and
  * the caller composes the two.
  */
-type NotificationEmailMetrics = Omit<
+export type NotificationEmailMetrics = Omit<
   HealthSnapshot['notifications'],
   'missingForInboxItemCount' | 'deliveryLag'
 >
@@ -639,6 +705,68 @@ async function readSyncStateMetrics(
   }
 }
 
+const EMPTY_OUTBOX_METRICS: OutboxMetrics = {
+  unpublishedCount: 0,
+  oldestUnpublishedAgeMs: null,
+  expiredLeaseCount: 0,
+  claimedCount: 0,
+  oldestClaimedAgeMs: null,
+  stalledLeaseCount: 0,
+}
+
+/** Each signal's read, traced under its own span so a failure names it. */
+function createHealthSignalReads(
+  db: Database,
+  outboxRepo: OutboxRepository | undefined,
+  deps: HealthMetricsDeps | undefined,
+): HealthSignalReads {
+  return {
+    // Outbox metrics (only if outbox repo is available)
+    outbox: () =>
+      trace('health.check.outbox', async () =>
+        outboxRepo
+          ? readOutboxMetrics(
+              db,
+              outboxRepo,
+              deps?.leaseDurationMs ?? DEFAULT_LEASE_DURATION_MS,
+            )
+          : EMPTY_OUTBOX_METRICS,
+      ),
+    quarantine: () =>
+      trace('health.check.quarantine', async () =>
+        deps?.quarantineQueue
+          ? readQuarantineMetrics(deps.quarantineQueue, new Date())
+          : null,
+      ),
+    // Review content lifecycle metrics (columns from migration 0006 / Drizzle)
+    reviews: () => trace('health.check.reviews', () => readReviewContentMetrics(db)),
+    // Sync state metrics (migration 0007 / Drizzle)
+    sync: () =>
+      trace('health.check.sync', () =>
+        readSyncStateMetrics(db, deps?.gbpPushEnabled === true),
+      ),
+    // BQC-7.3: reply publication-state counts + ambiguity age (0015).
+    replyPublication: () =>
+      trace('health.check.replyPublication', () => readReplyPublicationMetrics(db)),
+    // Notification delivery health: is the queued email actually going out?
+    notificationEmail: () =>
+      trace('health.check.notificationEmail', () =>
+        readNotificationEmailMetrics(db, deps?.emailDeliveryEnabled === true),
+      ),
+    // Notification EXISTENCE health: did the in-app notification get written
+    // at all? Injected because the query lives in the notification context
+    // (see readMissingNotificationCount).
+    notificationGap: () =>
+      trace('health.check.notificationGap', async () =>
+        deps?.readMissingNotificationCount ? deps.readMissingNotificationCount() : 0,
+      ),
+    notificationDeliveryLag: () =>
+      trace('health.check.notificationDeliveryLag', () =>
+        readNotificationDeliveryLagMetrics(deps?.readNotificationDeliveryLag, new Date()),
+      ),
+  }
+}
+
 /**
  * Create a health checker that queries operational metrics from the database.
  */
@@ -647,74 +775,32 @@ export function createHealthChecker(
   outboxRepo?: OutboxRepository,
   deps?: HealthMetricsDeps,
 ): HealthChecker {
+  const signals = createHealthSignalReads(db, outboxRepo, deps)
   return {
+    signals,
     check: async () => {
       return trace('health.check', async () => {
         const now = new Date()
-
-        // Outbox metrics (only if outbox repo is available)
-        const outboxMetrics: OutboxMetrics = outboxRepo
-          ? await readOutboxMetrics(
-              db,
-              outboxRepo,
-              deps?.leaseDurationMs ?? DEFAULT_LEASE_DURATION_MS,
-            )
-          : {
-              unpublishedCount: 0,
-              oldestUnpublishedAgeMs: null,
-              expiredLeaseCount: 0,
-              claimedCount: 0,
-              oldestClaimedAgeMs: null,
-              stalledLeaseCount: 0,
-            }
-
-        const quarantineMetrics = deps?.quarantineQueue
-          ? await readQuarantineMetrics(deps.quarantineQueue, now)
-          : null
-
-        // Review content lifecycle metrics (columns from migration 0006 / Drizzle)
-        const reviewMetrics = await readReviewContentMetrics(db)
-
-        // Sync state metrics (migration 0007 / Drizzle)
-        const syncMetrics = await readSyncStateMetrics(db, deps?.gbpPushEnabled === true)
-
-        // BQC-7.3: reply publication-state counts + ambiguity age (0015).
-        const replyPublication = await readReplyPublicationMetrics(db)
-
-        // Notification delivery health: is the queued email actually going out?
-        const notificationEmail = await readNotificationEmailMetrics(
-          db,
-          deps?.emailDeliveryEnabled === true,
-        )
-        // Notification EXISTENCE health: did the in-app notification get
-        // written at all? Injected because the query lives in the
-        // notification context (see readMissingNotificationCount).
-        const [missingForInboxItemCount, deliveryLag] = await Promise.all([
-          deps?.readMissingNotificationCount
-            ? deps.readMissingNotificationCount()
-            : Promise.resolve(0),
-          readNotificationDeliveryLagMetrics(deps?.readNotificationDeliveryLag, now),
+        const outbox = await signals.outbox()
+        const quarantine = await signals.quarantine()
+        const reviews = await signals.reviews()
+        const sync = await signals.sync()
+        const replyPublication = await signals.replyPublication()
+        const notificationEmail = await signals.notificationEmail()
+        const [notificationGap, notificationDeliveryLag] = await Promise.all([
+          signals.notificationGap(),
+          signals.notificationDeliveryLag(),
         ])
-        const notifications = {
-          ...notificationEmail,
-          missingForInboxItemCount,
-          deliveryLag,
-        }
-
-        return {
-          timestamp: now.toISOString(),
-          outbox: outboxMetrics,
-          quarantine: quarantineMetrics,
-          reviews: reviewMetrics,
-          sync: syncMetrics,
-          notifications,
+        return assembleHealthSnapshot(now, {
+          outbox,
+          quarantine,
+          reviews,
+          sync,
           replyPublication,
-          workers: {
-            defaultQueueName: 'default',
-            backgroundQueueName: 'background',
-            domainEventsQueueName: 'domain-events',
-          },
-        }
+          notificationEmail,
+          notificationGap,
+          notificationDeliveryLag,
+        })
       })
     },
   }
