@@ -17,6 +17,7 @@ import {
   userId,
   type OrganizationId,
   type PropertyId,
+  type UserId,
 } from '#/shared/domain/ids'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
@@ -101,6 +102,15 @@ export type WorkflowNotificationConsumerDeps = Readonly<{
 
 type WorkflowNotificationDeliveryDeps = Omit<WorkflowNotificationConsumerDeps, 'receipts'>
 
+/**
+ * Nobody is told about their own action: they already know what they did.
+ * A system actor (`null`) excludes nobody.
+ */
+const excludingActor = (
+  recipients: readonly UserId[],
+  actorId: UserId | null,
+): readonly UserId[] => recipients.filter((recipientId) => recipientId !== actorId)
+
 async function enqueueAssignmentNotification(
   deps: WorkflowNotificationDeliveryDeps,
   event: InboxItemAssigned,
@@ -108,6 +118,8 @@ async function enqueueAssignmentNotification(
   // The atomic bulk-completion fact owns grouped delivery. Per-item facts
   // remain activity/audit facts but must not also produce N notifications.
   if (event.bulkId) return
+  // "Assign to me" is a claim: the only recipient is the person who clicked.
+  if (event.assignedTo === event.userId) return
 
   const payload = await buildInboxItemPayload(deps, {
     inboxItemId: event.inboxItemId,
@@ -138,17 +150,16 @@ async function enqueueEscalationNotifications(
   deps: WorkflowNotificationDeliveryDeps,
   event: InboxItemEscalated,
 ): Promise<void> {
-  const recipients = await deps.userLookup.findByRole(
-    event.organizationId,
-    'AccountAdmin',
-  )
-  if (recipients.length === 0) {
+  const admins = await deps.userLookup.findByRole(event.organizationId, 'AccountAdmin')
+  if (admins.length === 0) {
     deps.logger.warn(
       { correlationId: event.correlationId ?? undefined },
       'notification escalation delivery: no recipients found, skipping',
     )
     return
   }
+  const recipients = excludingActor(admins, event.userId)
+  if (recipients.length === 0) return
 
   const payload = await buildInboxItemPayload(deps, {
     inboxItemId: event.inboxItemId,
@@ -200,7 +211,7 @@ async function enqueueNoteNotifications(
     : facts
       ? inboxNotificationAudience(facts)
       : ({ kind: 'account_admin' } as const)
-  const filtered = recipients.filter((recipientId) => recipientId !== event.userId)
+  const filtered = excludingActor(recipients, event.userId)
   if (filtered.length === 0) {
     deps.logger.warn(
       { correlationId: event.correlationId ?? undefined },
@@ -238,17 +249,17 @@ async function enqueueSubmittedNotifications(
   deps: WorkflowNotificationDeliveryDeps,
   event: ReviewReplySubmitted,
 ): Promise<void> {
-  const recipients = await deps.userLookup.findByRole(
-    event.organizationId,
-    'AccountAdmin',
-  )
-  if (recipients.length === 0) {
+  const admins = await deps.userLookup.findByRole(event.organizationId, 'AccountAdmin')
+  if (admins.length === 0) {
     deps.logger.warn(
       { correlationId: event.correlationId ?? undefined },
       'notification reply-submitted delivery: no recipients found, skipping',
     )
     return
   }
+  // An AccountAdmin who submits still has to approve, but needs no prompt.
+  const recipients = excludingActor(admins, event.userId)
+  if (recipients.length === 0) return
 
   const inboxItem = await deps.inboxItemLookup.findInboxItemByReviewId(
     event.reviewId,
@@ -287,12 +298,20 @@ type ReplyAuthorEvent =
   | ReviewReplyPublished
   | ReviewReplyPublishFailed
 
+/** Who approved or rejected. Publication outcomes come from Google, not a person. */
+const replyDecider = (event: ReplyAuthorEvent): UserId | null =>
+  event._tag === 'review.reply.approved' || event._tag === 'review.reply.rejected'
+    ? event.userId
+    : null
+
 async function enqueueReplyAuthorNotification(
   deps: WorkflowNotificationDeliveryDeps,
   event: ReplyAuthorEvent,
   type: InsertNotificationJobData['type'],
 ): Promise<void> {
   if (!event.authorId) return
+  // Deciding on your own reply is not news to you; Google's verdict still is.
+  if (replyDecider(event) === event.authorId) return
 
   const inboxItem = await deps.inboxItemLookup.findInboxItemByReviewId(
     event.reviewId,

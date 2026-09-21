@@ -257,6 +257,90 @@ describe('durable workflow notification consumers', () => {
     )
   })
 
+  describe('never tells a person about their own action', () => {
+    const recipientsOf = (deps: Deps) =>
+      deps.fakes.jobs.map((job) => (job.data as { userId: string }).userId)
+
+    it('skips the notice when a manager assigns the item to themselves', async () => {
+      const deps = makeDeps()
+
+      await expect(
+        handleWorkflowNotificationEvent(
+          deps,
+          event('inbox.inbox_item.assigned', {
+            inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+            assignedTo: unbrand(NOTIF_TEST_IDS.manager1),
+            userId: unbrand(NOTIF_TEST_IDS.manager1),
+            source: 'web',
+          }),
+        ),
+      ).resolves.toEqual({ status: 'applied' })
+
+      expect(deps.fakes.jobs).toEqual([])
+      expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
+        EVENT_ID,
+        'notification.on-inbox-inbox_item-assigned',
+        'applied',
+      )
+    })
+
+    it.each([
+      {
+        eventType: 'inbox.inbox_item.escalated' as const,
+        payload: { inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId) },
+      },
+      {
+        eventType: 'review.reply.submitted' as const,
+        payload: {
+          replyId: unbrand(NOTIF_TEST_IDS.replyId),
+          reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
+        },
+      },
+    ])(
+      'tells the other AccountAdmins, not the admin who acted, about $eventType',
+      async ({ eventType, payload }) => {
+        const deps = makeDeps()
+        deps.fakes.userLookup.findByRole.mockResolvedValue([
+          NOTIF_TEST_IDS.admin1,
+          NOTIF_TEST_IDS.admin2,
+        ])
+
+        await handleWorkflowNotificationEvent(
+          deps,
+          event(eventType, {
+            ...payload,
+            userId: unbrand(NOTIF_TEST_IDS.admin1),
+            source: 'web',
+          }),
+        )
+
+        expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.admin2])
+      },
+    )
+
+    it.each(['review.reply.approved', 'review.reply.rejected'] as const)(
+      'skips the author notice when the author decided %s on their own reply',
+      async (eventType) => {
+        const deps = makeDeps()
+
+        await expect(
+          handleWorkflowNotificationEvent(
+            deps,
+            event(eventType, {
+              replyId: unbrand(NOTIF_TEST_IDS.replyId),
+              reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
+              userId: unbrand(NOTIF_TEST_IDS.authorId),
+              authorId: unbrand(NOTIF_TEST_IDS.authorId),
+              source: 'web',
+            }),
+          ),
+        ).resolves.toEqual({ status: 'applied' })
+
+        expect(deps.fakes.jobs).toEqual([])
+      },
+    )
+  })
+
   it.each([
     {
       eventType: 'inbox.inbox_item.escalated' as const,

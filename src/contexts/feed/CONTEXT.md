@@ -115,6 +115,12 @@ notices unread. The feed head therefore carries, from the same snapshot as the
 unread count, the filter's share of it (`filterUnreadCount`); a tab offers the
 action exactly while that share is above zero.
 
+Nobody is notified about their own action. Every route whose fact names a
+person as the actor drops that person from its recipients — a claim, a
+self-assignment, an AccountAdmin's own escalation or submission, an author
+approving or rejecting their own reply — and keeps everyone else. Google's
+publication outcomes have no actor and always reach the author.
+
 ## Runtime
 
 Durable outbox consumers project activity and enqueue deterministic notification

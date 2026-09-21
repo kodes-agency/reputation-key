@@ -185,6 +185,28 @@ describe('bulk-assignment notification durable consumer', () => {
     expect(deps.receipts.insertReceipt).toHaveBeenCalledTimes(1)
   })
 
+  it('does not tell an actor about items they assigned to themselves', async () => {
+    const deps = makeDeps()
+    const selfAssigned = transitions.map((transition) => ({
+      ...transition,
+      nextAssignee: ACTOR,
+    }))
+
+    await expect(
+      handleNotificationBulkAssignmentCompleted(
+        deps,
+        event({ transitions: selfAssigned }),
+      ),
+    ).resolves.toEqual({ status: 'applied' })
+
+    expect(deps.fakes.jobs).toEqual([])
+    expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
+      EVENT_ID,
+      ON_INBOX_BULK_ASSIGNMENT_COMPLETED_CONSUMER,
+      'applied',
+    )
+  })
+
   it('rejects non-canonical or mixed-target completion facts before enqueue', async () => {
     const deps = makeDeps()
     await expect(

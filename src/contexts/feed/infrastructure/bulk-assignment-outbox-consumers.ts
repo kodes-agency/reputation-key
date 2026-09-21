@@ -96,9 +96,10 @@ export async function handleNotificationBulkAssignmentCompleted(
   const payload = parse(event)
   const nextAssignee = payload.transitions[0]!.nextAssignee
 
-  // A release has no next assignee. The actor already knows what they did and
-  // AccountAdmins are not a substitute recipient, so it has no notification.
-  if (nextAssignee !== null) {
+  // A release has no next assignee, and assigning items to yourself makes the
+  // actor the assignee. The actor already knows what they did and
+  // AccountAdmins are not a substitute recipient, so neither has a notification.
+  if (nextAssignee !== null && nextAssignee !== payload.userId) {
     const org = organizationId(payload.organizationId)
     const actorRole = await deps.userLookup.findActorRole(userId(payload.userId), org)
     const byProperty = new Map<string, Transition[]>()
