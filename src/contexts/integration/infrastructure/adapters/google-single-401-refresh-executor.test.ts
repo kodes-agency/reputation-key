@@ -23,7 +23,7 @@ const DESCRIPTOR = Object.freeze({
 })
 const OPTIONS = Object.freeze({ authorization: AUTHORIZATION, deadlineMs: 10_000 })
 
-const unauthorized = (): GoogleProviderExecutionResult => ({
+const unauthorized = (): Extract<GoogleProviderExecutionResult, { ok: true }> => ({
   ok: true,
   status: 401,
   headers: { contentType: 'application/json', cacheControl: null, retryAfter: null },
