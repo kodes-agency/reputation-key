@@ -607,36 +607,42 @@ describe('Google OAuth refresh refusals', () => {
     return outcome as Error
   }
 
-  it.each([
-    { status: 400, error: 'invalid_grant' },
-    { status: 401, error: 'unauthorized_client' },
-  ])(
-    'reads a $status $error answer as a grant that needs reauthorization',
-    async ({ status, error }) => {
-      const { adapter, responseBody } = refreshAnsweredWith(
-        status,
-        JSON.stringify({ error, error_description: DESCRIPTION }),
-      )
+  it('reads a 400 invalid_grant answer as a grant that needs reauthorization', async () => {
+    const { adapter, responseBody } = refreshAnsweredWith(
+      400,
+      JSON.stringify({ error: 'invalid_grant', error_description: DESCRIPTION }),
+    )
 
-      const failure = await refusal(
-        adapter.refreshAccessToken('refresh-token-secret', authorization),
-      )
+    const failure = await refusal(
+      adapter.refreshAccessToken('refresh-token-secret', authorization),
+    )
 
-      expect(failure).toMatchObject({
-        _tag: 'IntegrationError',
-        code: 'reauthorization_required',
-      })
-      expect(JSON.stringify(failure)).not.toContain(DESCRIPTION)
-      expect(failure.message).not.toContain('refresh-token-secret')
-      expect([...responseBody].every((byte) => byte === 0)).toBe(true)
-    },
-  )
+    expect(failure).toMatchObject({
+      _tag: 'IntegrationError',
+      code: 'reauthorization_required',
+    })
+    expect(JSON.stringify(failure)).not.toContain(DESCRIPTION)
+    expect(failure.message).not.toContain('refresh-token-secret')
+    expect([...responseBody].every((byte) => byte === 0)).toBe(true)
+  })
 
+  // Both name RepKey's own client, not one tenant's grant: a wrong client ID
+  // or secret would otherwise end every connection's grant at once.
   it.each([
     {
       name: 'invalid_client, which is RepKey configuration',
       status: 401,
       body: JSON.stringify({ error: 'invalid_client' }),
+    },
+    {
+      name: 'unauthorized_client, a grant issued to another client',
+      status: 400,
+      body: JSON.stringify({ error: 'unauthorized_client' }),
+    },
+    {
+      name: 'a 401 unauthorized_client',
+      status: 401,
+      body: JSON.stringify({ error: 'unauthorized_client' }),
     },
     {
       name: 'a 5xx even when it names invalid_grant',
@@ -685,9 +691,15 @@ describe('Google OAuth refresh refusals', () => {
         ),
       )
       .mockResolvedValueOnce(jsonResponse({ error: 'invalid_grant' }, { status: 500 }))
+      .mockResolvedValueOnce(
+        jsonResponse({ error: 'unauthorized_client' }, { status: 400 }),
+      )
 
     await expect(adapter.refreshAccessToken('refresh-token')).rejects.toMatchObject({
       code: 'reauthorization_required',
+    })
+    await expect(adapter.refreshAccessToken('refresh-token')).rejects.toMatchObject({
+      code: 'token_refresh_failed',
     })
     await expect(adapter.refreshAccessToken('refresh-token')).rejects.toMatchObject({
       code: 'token_refresh_failed',

@@ -56,17 +56,16 @@ const ambiguousExchangeError = () =>
   )
 
 /**
- * The RFC 6749 §5.2 codes with which Google refuses a refresh credential for
- * good: `invalid_grant` (revoked, expired or otherwise dead grant) and
- * `unauthorized_client` (the grant may no longer be used by this client). Only
- * a fresh consent recovers either. `invalid_client` means RepKey's own client
- * configuration is wrong, so it stays a retryable failure like a 5xx answer,
- * a timeout or a gateway refusal.
+ * The RFC 6749 §5.2 code with which Google refuses one refresh credential for
+ * good: `invalid_grant` (revoked, expired or otherwise dead grant). Only a
+ * fresh consent recovers it. `invalid_client` and `unauthorized_client` (a
+ * grant presented by a client other than the one it was issued to) mean
+ * RepKey's own client configuration is wrong. Reading either as a revocation
+ * would end every connection at once, beyond what fixing the configuration can
+ * undo, so both stay a retryable failure like a 5xx answer, a timeout or a
+ * gateway refusal.
  */
-const REVOKED_REFRESH_GRANT_ERRORS: ReadonlySet<string> = new Set([
-  'invalid_grant',
-  'unauthorized_client',
-])
+const REVOKED_REFRESH_GRANT_ERRORS: ReadonlySet<string> = new Set(['invalid_grant'])
 /** Statuses a token endpoint error answer uses (400, or 401 for a client). */
 const OAUTH_ERROR_STATUSES: ReadonlySet<number> = new Set([400, 401])
 

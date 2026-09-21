@@ -44,12 +44,13 @@ dependencies are unavailable.
 The callback preserves one encrypted provider response behind a leased,
 server-generated exchange-attempt identifier. Refresh uses a renewable Redis
 single-flight lease and credential-generation compare-and-swap. A refresh Google
-refuses for good (`invalid_grant`, `unauthorized_client`) moves the connection
-to `reauth_required` under that lease, fenced on the lifecycle and credential
-generations the refresh started from, and commits
+refuses for good (`invalid_grant`) moves the connection to `reauth_required`
+under that lease, fenced on the lifecycle and credential generations the
+refresh started from, and commits
 `integration.google_account.reauthorization_required` (cause `provider_revoked`)
-in the same transaction. `invalid_client`, 5xx answers, timeouts and
-coordination denials stay a retryable `token_refresh_failed`. Disconnect erases
+in the same transaction. `invalid_client` and `unauthorized_client` name
+RepKey's own client configuration, not one grant, so they stay a retryable
+`token_refresh_failed` like 5xx answers, timeouts and coordination denials. Disconnect erases
 the local binding before gateway dispatch and reconciles ambiguous outcomes
 without resending the token.
 
