@@ -28,7 +28,11 @@ import { ON_INBOX_ITEM_CREATED_CONSUMER } from '../notification-outbox-consumers
 import { notificationDeliveryReceiptPrefixes } from '../outbox-notification-delivery'
 import { withHealthReadTimeout } from './health-read-timeout'
 
-/** No notification row anywhere points at this inbox item. */
+/**
+ * No notification row anywhere points at this inbox item. The predicate must
+ * keep matching notifications_inbox_item_resource_idx, or the anti-join scans
+ * the whole table.
+ */
 const noNotificationExists = sql`NOT EXISTS (
   SELECT 1
   FROM ${notifications}

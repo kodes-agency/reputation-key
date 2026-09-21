@@ -176,6 +176,13 @@
       "when": 1790500000000,
       "tag": "0025_mandatory_repeat_email",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790600000000,
+      "tag": "0026_notification_feed_indexes",
+      "breakpoints": true
     }
   ]
 }

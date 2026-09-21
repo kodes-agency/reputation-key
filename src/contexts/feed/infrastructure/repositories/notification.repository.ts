@@ -26,7 +26,14 @@ const notOptedOutInApp = sql`NOT EXISTS (
     AND notifications.category NOT IN ('mandatory', 'urgent_operational')
 )`
 
-// Paginated, newest-first read of a user's visible notifications.
+// Latest activity: a coalesced row sorts by its newest absorbed event, so a
+// re-fired alert rises to the top instead of keeping its original slot while
+// its timestamp says "just now". Must stay textually identical to the
+// expression in notifications_feed_activity_idx, or every poll sorts again.
+const lastActivityAt = sql`COALESCE(${notifications.coalescedLatestAt}, ${notifications.createdAt})`
+
+// Paginated read of a user's visible notifications, newest activity first
+// with id as the tiebreak so rows sharing an instant keep one order.
 // The filter is applied BEFORE limit/offset so every returned page belongs to
 // the requested feed. Dismissed rows are always hidden, not deleted.
 const selectUserNotifications = (
@@ -50,7 +57,7 @@ const selectUserNotifications = (
     .select()
     .from(notifications)
     .where(and(...conditions))
-    .orderBy(desc(notifications.createdAt))
+    .orderBy(desc(lastActivityAt), desc(notifications.id))
     .limit(limit)
     .offset(offset)
     .then((rows) => rows.map(notificationFromRow))

@@ -88,6 +88,11 @@ Quiet hours that start and end at the same time are refused on save. Rows
 stored that way earlier read back as no quiet hours, which is how delivery has
 always treated them, so they never block a later save of their row.
 
+The in-app feed is ordered by latest activity, newest first:
+`COALESCE(coalesced_latest_at, created_at)`, with id as the tiebreak. A
+coalesced row therefore moves to the top when a repeat event is absorbed, the
+same instant its row starts reading "Updated N times".
+
 ## Runtime
 
 Durable outbox consumers project activity and enqueue deterministic notification

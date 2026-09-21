@@ -75,11 +75,25 @@ export const notifications = pgTable(
     index('notifications_user_status_idx').on(t.userId, t.status, t.createdAt),
     // Query: list by org (admin views)
     index('notifications_org_idx').on(t.organizationId, t.createdAt),
+    // Query: the in-app feed head and its keyset pages, newest activity first
+    // with id as the tiebreak. A coalesced row sorts by its newest absorbed
+    // event. Partial on the rows a feed can show; every feed query carries the
+    // predicate, the unread filter included.
+    index('notifications_feed_activity_idx')
+      .on(
+        t.userId,
+        t.organizationId,
+        sql`(COALESCE(${t.coalescedLatestAt}, ${t.createdAt})) DESC`,
+        t.id.desc(),
+      )
+      .where(sql`status <> 'dismissed'`),
     // Query: does any notification point at this Inbox item — the
     // missing-notification gauge's anti-join, every health snapshot.
     index('notifications_inbox_item_resource_idx')
       .on(t.resourceId)
       .where(sql`${t.resourceType} = 'inbox_item'`),
+    // Query: the 90-day retention sweep selects expired rows oldest first.
+    index('notifications_created_at_idx').on(t.createdAt),
     foreignKey({
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
