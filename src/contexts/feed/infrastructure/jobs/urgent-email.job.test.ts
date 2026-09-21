@@ -86,6 +86,7 @@ function fakeDeps() {
       propertyNames: new Map([[PROPERTY as string, 'Riverside Hotel']]),
     })),
     authorizeScope: vi.fn(async () => true),
+    isRecipientEligible: vi.fn(async () => true),
     logger: createFakeJobLogger(),
     clock: () => NOW,
     baseUrl: BASE_URL,
@@ -149,6 +150,35 @@ describe('immediate notification email job', () => {
     await run()
 
     expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+  })
+
+  it('suppresses mail to a recipient removed after the email was queued', async () => {
+    // Deferred by quiet hours at 21:00, removed from the Organization at 22:00:
+    // at 07:00 the Property's name must not reach a former employee.
+    const audience = {
+      kind: 'responsible_scope',
+      scope: { kind: 'property', propertyId: PROPERTY as string },
+    }
+    deps.emailRepo.findById.mockResolvedValue({ ...entry, recipientAudience: audience })
+    deps.isRecipientEligible.mockResolvedValue(false)
+
+    await run()
+
+    expect(deps.isRecipientEligible).toHaveBeenCalledWith({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      userId: entry.userId,
+      audience,
+    })
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      PROPERTY,
+      'recipient_ineligible',
+      NOW,
+    )
+    expect(deps.userLookup.getEmail).not.toHaveBeenCalled()
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
   })
 
   it('suppresses delivery when the current property preference is disabled', async () => {
@@ -337,6 +367,8 @@ describe('immediate notification email job', () => {
 
     expect(deps.resolvePropertyScope).not.toHaveBeenCalled()
     expect(deps.authorizeScope).not.toHaveBeenCalled()
+    // `organization_access_removed` is addressed to someone no longer a member.
+    expect(deps.isRecipientEligible).not.toHaveBeenCalled()
     expect(deps.preferenceRepo.findForDelivery).not.toHaveBeenCalled()
     expect(deps.preferenceRepo.getUserSettings).not.toHaveBeenCalled()
     expect(deps.emailRepo.markAccepted).toHaveBeenCalledWith(

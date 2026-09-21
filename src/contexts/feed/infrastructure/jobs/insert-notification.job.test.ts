@@ -112,6 +112,25 @@ describe('insert-notification job', () => {
     )
   })
 
+  it('queues the email with the audience the recipient was admitted under', async () => {
+    const deps = buildDeps()
+    vi.mocked(deps.preferenceRepo.findForDelivery).mockImplementation(
+      async (_userId, _orgId, _propertyId, _category, channel) =>
+        channel === 'email'
+          ? ({ enabled: true, cadence: 'immediate' } as Awaited<
+              ReturnType<typeof deps.preferenceRepo.findForDelivery>
+            >)
+          : null,
+    )
+    const handler = createInsertNotificationHandler(deps)
+
+    await handler({ data } as Job<InsertNotificationJobData>)
+
+    expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientAudience: data.audience }),
+    )
+  })
+
   it('suppresses a stale recipient without persisting or retrying', async () => {
     const deps = buildDeps(false)
     const handler = createInsertNotificationHandler(deps)
@@ -140,6 +159,7 @@ describe('insert-notification job', () => {
         delivery: expect.anything(),
       }),
       delivery,
+      data.audience,
     )
     expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
   })

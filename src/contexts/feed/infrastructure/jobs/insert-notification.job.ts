@@ -31,6 +31,7 @@ export type NotificationDeliverySettlement = Readonly<{
   settleAuthorized: (
     input: InsertNotificationInput,
     delivery: OutboxNotificationDelivery,
+    audience: NotificationAudience,
   ) => Promise<'applied' | 'duplicate'>
   settleObsolete: (
     source: Pick<InsertNotificationInput, 'organizationId'>,
@@ -117,10 +118,14 @@ export const createInsertNotificationHandler = (deps: InsertNotificationJobDeps)
         const input =
           decision === true ? queued : withItemCount(queued, decision.itemCount)
         if (delivery) {
-          const outcome = await deps.deliverySettlement!.settleAuthorized(input, delivery)
+          const outcome = await deps.deliverySettlement!.settleAuthorized(
+            input,
+            delivery,
+            audience,
+          )
           logger.info({ settlement: outcome }, 'Durable notification delivery settled')
         } else {
-          await useCase(input)
+          await useCase(input, audience)
           logger.info('Notification inserted')
         }
       } catch (err) {

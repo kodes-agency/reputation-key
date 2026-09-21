@@ -173,6 +173,12 @@ export type NotificationEmail = Readonly<{
   sentAt: Date | null
   failedAt: Date | null
   retryCount: number
+  /**
+   * The identifier-only audience descriptor that admitted the recipient, kept
+   * so send time can recheck their standing. Opaque here; the application
+   * layer parses it. `null` on rows queued before it was stored.
+   */
+  recipientAudience: unknown
   createdAt: Date
   updatedAt: Date
 }>

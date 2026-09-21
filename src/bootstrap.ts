@@ -754,6 +754,7 @@ async function registerNotificationJobs(
     resolvePropertyScope: resolveNotificationProperty,
     resolveOrganizationScope: resolveNotificationOrgScope,
     authorizeScope: authorizeUrgentNotification,
+    isRecipientEligible: container.notificationWorkerRuntime.recipientStanding,
     baseUrl: notifBaseUrl,
     oneClickUnsubscribeUrl: notificationUnsubscribeUrl,
   })
@@ -783,6 +784,7 @@ async function registerNotificationJobs(
     preferenceRepo: container.notificationWorkerRuntime.preferenceRepo,
     resolveOrganizationScope: resolveNotificationOrgScope,
     authorizeScope: createScheduledScopeAuthorizer('system:notification.email_digest'),
+    isRecipientEligible: container.notificationWorkerRuntime.recipientStanding,
     baseUrl: notifBaseUrl,
     activeOneClickUnsubscribeKeyVersion: notificationUnsubscribeKeyVersion,
     oneClickUnsubscribeUrl: notificationUnsubscribeUrl,

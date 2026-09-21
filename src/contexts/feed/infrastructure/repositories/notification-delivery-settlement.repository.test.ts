@@ -170,11 +170,11 @@ describe.sequential('notification delivery settlement (real PostgreSQL)', () => 
       logger,
       enqueueImmediateEmail,
     })
-    const { audience: _audience, ...notificationInput } = input
+    const { audience, ...notificationInput } = input
 
-    await expect(settlement.settleAuthorized(notificationInput, delivery)).resolves.toBe(
-      'applied',
-    )
+    await expect(
+      settlement.settleAuthorized(notificationInput, delivery, audience),
+    ).resolves.toBe('applied')
 
     const rows = await db
       .select()
@@ -197,6 +197,8 @@ describe.sequential('notification delivery settlement (real PostgreSQL)', () => 
       category: 'mandatory',
       cadence: 'immediate',
       status: 'pending',
+      // Kept so the send path can recheck the recipient's standing.
+      recipientAudience: input.audience,
     })
     expect(enqueueImmediateEmail).toHaveBeenCalledWith({
       notificationEmailId: emails[0]!.id,
@@ -251,11 +253,11 @@ describe.sequential('notification delivery settlement (real PostgreSQL)', () => 
         notificationEmailId(`82000000-0000-4000-9000-${String(id++).padStart(12, '0')}`),
       logger,
     })
-    const { audience: _audience, ...notificationInput } = input
+    const { audience, ...notificationInput } = input
 
     const outcomes = await Promise.all([
-      settlement.settleAuthorized(notificationInput, delivery),
-      settlement.settleAuthorized(notificationInput, delivery),
+      settlement.settleAuthorized(notificationInput, delivery, audience),
+      settlement.settleAuthorized(notificationInput, delivery, audience),
     ])
 
     expect(outcomes.sort()).toEqual(['applied', 'duplicate'])
@@ -324,10 +326,10 @@ describe.sequential('notification delivery settlement (real PostgreSQL)', () => 
       },
       logger,
     })
-    const { audience: _audience, ...notificationInput } = input
+    const { audience, ...notificationInput } = input
 
     await expect(
-      settlement.settleAuthorized(notificationInput, delivery),
+      settlement.settleAuthorized(notificationInput, delivery, audience),
     ).rejects.toThrow('email construction interrupted')
 
     const receipts = await db
@@ -396,10 +398,10 @@ describe.sequential('notification delivery settlement (real PostgreSQL)', () => 
       emailIdGen: () => notificationEmailId('82000000-0000-4000-9000-000000000013'),
       logger,
     })
-    const { audience: _audience, ...notificationInput } = input
+    const { audience, ...notificationInput } = input
 
     await expect(
-      settlement.settleAuthorized(notificationInput, delivery),
+      settlement.settleAuthorized(notificationInput, delivery, audience),
     ).rejects.toThrow('durable source attribution mismatch')
 
     expect(

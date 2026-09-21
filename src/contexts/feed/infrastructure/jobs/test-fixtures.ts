@@ -49,6 +49,7 @@ export type EmailOverrides = Partial<{
   priority: NotificationPriority
   idempotencyKey: string
   retryCount: number
+  recipientAudience: unknown
 }>
 
 export function buildNotificationEmail(
@@ -80,6 +81,7 @@ export function buildNotificationEmail(
     sentAt: null,
     failedAt: null,
     retryCount: overrides.retryCount ?? 0,
+    recipientAudience: overrides.recipientAudience ?? null,
     createdAt: NOW,
     updatedAt: NOW,
   }

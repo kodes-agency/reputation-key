@@ -51,6 +51,7 @@ import { createNotificationDbUserLookupAdapter } from './infrastructure/adapters
 import type { ResponsibleManagerLookupPort } from './application/ports/responsible-manager-lookup.port'
 import type { FeedbackPortalLookupPort } from './application/ports/feedback-portal-lookup.port'
 import { createNotificationAudienceAuthorizer } from './application/notification-audience'
+import { createNotificationRecipientStanding } from './application/notification-recipient-standing'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { createDisplayNameLookupAdapter } from './infrastructure/adapters/display-name-lookup.adapter'
 import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
@@ -339,6 +340,11 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     portalHealthLookup: input.portalHealthLookup,
     monthlyResultFacts: input.monthlyResultFacts,
     organizationAccountAuthority,
+  })
+  // Asked again immediately before every Property-scoped email is sent.
+  const recipientStanding = createNotificationRecipientStanding({
+    userLookup,
+    responsibleManagers: input.responsibleManagers,
   })
 
   /**
@@ -746,6 +752,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       handlers: {
         handleResendEvent,
         authorizeAudience,
+        recipientStanding,
         deliverySettlement,
         reconcileMissingNotificationsHandler: reconcileMissingNotificationsHandler(),
       },

@@ -768,6 +768,8 @@ function buildContainer(
       notificationRepo: notification.delivery.repos.notificationRepo,
       emailRepo: notification.delivery.repos.emailRepo,
       preferenceRepo: notification.delivery.repos.preferenceRepo,
+      // Rechecked immediately before every Property-scoped email is sent.
+      recipientStanding: notification.delivery.recipientStanding,
     }),
     handleResendEvent: notification.delivery.handleResendEvent,
     notificationAudienceAuthorizer: notification.delivery.authorizeAudience,

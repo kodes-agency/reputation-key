@@ -157,6 +157,10 @@ export const notificationEmailQueue = pgTable(
     sentAt: timestamp('sent_at', { withTimezone: true }),
     failedAt: timestamp('failed_at', { withTimezone: true }),
     retryCount: integer('retry_count').notNull().default(0),
+    // The identifier-only audience descriptor that admitted the recipient, so
+    // send time can recheck their standing (Feed CONTEXT.md invariant 4).
+    // Null on rows queued before it was stored.
+    recipientAudience: jsonb('recipient_audience'),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },

@@ -36,9 +36,17 @@ handling.
 Notifications are mutable delivery records. Copy is rendered from typed
 payloads at read/send time so in-app rows, urgent email, and digests cannot
 silently drift. Preferences and current responsibility are rechecked before
-external delivery. The browser receives a `NotificationView`, never the stored
-row: the event correlation id, the frozen title/body snapshot, `updatedAt` and
-the recipient and Organization ids stay on the server.
+external delivery: each queued email keeps the audience descriptor that
+admitted its recipient, and immediately before a Property-scoped send the
+recipient must still be an eligible manager for the Property (membership,
+access, participation) and, for a responsible-scope, Portal-health or
+AccountAdmin audience, still hold that responsibility or role. A digest drops
+only the rows that fail. Organization-scoped mandatory mail is exempt: an
+access-removed notice goes to someone who is no longer a member.
+
+The browser receives a `NotificationView`, never the stored row: the event
+correlation id, the frozen title/body snapshot, `updatedAt` and the recipient
+and Organization ids stay on the server.
 
 Every new Inbox Item is announced to its responsible recipients except Google
 history: an item whose first Handling Cycle was observed as

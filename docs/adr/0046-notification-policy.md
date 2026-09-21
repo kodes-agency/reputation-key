@@ -59,6 +59,15 @@ provider `suppressed` stops mail to that recipient as a bounce or complaint
 does. Suppressions made locally (a disabled preference) never count as the
 provider refusing the recipient.
 
+Delivery is authorized twice. The audience authorizer admits a recipient
+when the notification is inserted, and the queued email keeps that audience
+descriptor (identifiers only). Immediately before a Property-scoped send,
+urgent or digest, the recipient's standing is rechecked: still an eligible
+manager for the Property, and for a responsible-scope, Portal-health or
+AccountAdmin audience still responsible or still an AccountAdmin. A row that
+fails is suppressed as `recipient_ineligible`. Standing is not freshness: the
+send never asks whether the item that raised the notice has moved on.
+
 Queued email has a maximum age. Rows are queued even while outbound email is
 dark for their Organization or Property, because the capability gates the
 send, not the insert. A row past its bound is suppressed as `stale` rather

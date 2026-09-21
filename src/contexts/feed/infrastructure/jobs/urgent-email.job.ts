@@ -41,6 +41,7 @@ import type { NotificationPreferenceRepositoryPort } from '../../application/por
 import type { NotificationRepositoryPort } from '../../application/ports/notification-repository.port'
 import type { UserLookupPort } from '../../application/ports/notification-user-lookup.port'
 import type { EmailSenderPort } from '../../application/ports/email-sender.port'
+import type { NotificationRecipientStanding } from '../../application/notification-recipient-standing'
 import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
 import type { NotificationOrganizationScopeResolver } from '../repositories/notification-organization-scope.repository'
 import { deliveryTiming } from '../../domain/notification-delivery-policy'
@@ -72,6 +73,8 @@ export type UrgentEmailDeps = Readonly<{
   resolvePropertyScope: NotificationPropertyScopeResolver
   resolveOrganizationScope: NotificationOrganizationScopeResolver
   authorizeScope: ScheduledScopeAuthorizer
+  /** The recipient's current membership, access and responsibility. */
+  isRecipientEligible: NotificationRecipientStanding
   logger: LoggerPort
   clock: () => Date
   /** `env.BETTER_AUTH_URL`. Injected, never read from env inside the job. */
@@ -406,6 +409,22 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
         )
     if (!notification || !notificationMatchesEntry(notification, entry, propId)) {
       await suppress(ids, 'notification_unavailable')
+      return
+    }
+    // CONTEXT.md invariant 4. Quiet hours and retries can hold a row for
+    // hours; a recipient removed or moved off the Property since must not get
+    // it. Organization mandatory mail is exempt: an access-removed notice is
+    // addressed to someone who is no longer a member.
+    if (
+      propId !== null &&
+      !(await deps.isRecipientEligible({
+        organizationId: orgId,
+        propertyId: propId,
+        userId: entry.userId,
+        audience: entry.recipientAudience,
+      }))
+    ) {
+      await suppress(ids, 'recipient_ineligible')
       return
     }
     const recipient = await deps.userLookup.getEmail(entry.userId)

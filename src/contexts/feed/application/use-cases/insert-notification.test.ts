@@ -189,6 +189,24 @@ describe('insertNotification', () => {
     })
   })
 
+  it('queues the email with the audience that admitted its recipient', async () => {
+    // Send time rechecks that the recipient still holds this standing.
+    const audience = {
+      kind: 'responsible_scope' as const,
+      scope: { kind: 'property' as const, propertyId: PROPERTY_ID },
+    }
+    ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_userId, _orgId, _propertyId, _category, channel) =>
+        channel === 'email' ? preference('email', true, 'immediate') : null,
+    )
+
+    await insertNotification(deps)(input, audience)
+
+    expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientAudience: audience }),
+    )
+  })
+
   it('skips every channel when concrete property preferences disable both', async () => {
     ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
       async (_userId, _orgId, _propertyId, _category, channel) =>

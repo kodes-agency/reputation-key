@@ -120,10 +120,11 @@ describe.sequential(
           throw new Error('READONLY You can not write against a read only replica.')
         }),
       })
-      const { audience: _audience, ...notificationInput } = input
+      const { audience, ...notificationInput } = input
       await settlement.settleAuthorized(
         notificationInput,
         parseOutboxNotificationDelivery(queued)!,
+        audience,
       )
       return logger
     }

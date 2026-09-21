@@ -70,6 +70,7 @@ const emailFromRow = (row: EmailRow): NotificationEmail => ({
   sentAt: row.sentAt,
   failedAt: row.failedAt,
   retryCount: row.retryCount,
+  recipientAudience: row.recipientAudience ?? null,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 })
@@ -221,6 +222,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
         sentAt: email.sentAt,
         failedAt: email.failedAt,
         retryCount: email.retryCount,
+        recipientAudience: email.recipientAudience ?? null,
         createdAt: email.createdAt,
         updatedAt: email.updatedAt,
       })

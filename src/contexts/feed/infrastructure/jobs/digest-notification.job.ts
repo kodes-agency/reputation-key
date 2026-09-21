@@ -47,6 +47,7 @@ import type { NotificationPreferenceRepositoryPort } from '../../application/por
 import type { NotificationRepositoryPort } from '../../application/ports/notification-repository.port'
 import type { UserLookupPort } from '../../application/ports/notification-user-lookup.port'
 import type { EmailSenderPort } from '../../application/ports/email-sender.port'
+import type { NotificationRecipientStanding } from '../../application/notification-recipient-standing'
 import type { NotificationOrganizationScopeResolver } from '../repositories/notification-organization-scope.repository'
 import type { NotificationEmail } from '../../domain/notification-types'
 import {
@@ -94,6 +95,8 @@ export type DigestDeps = Readonly<{
   clock: () => Date
   batchIdGen: () => string
   authorizeScope: ScheduledScopeAuthorizer
+  /** The recipient's current membership, access and responsibility. */
+  isRecipientEligible: NotificationRecipientStanding
   /** `env.BETTER_AUTH_URL`. Injected, never read from env inside the job. */
   baseUrl: string
   activeOneClickUnsubscribeKeyVersion: () => string
@@ -140,8 +143,36 @@ async function authorizedEntries(
 }
 
 /**
- * Preference + quiet-hours filter. Both terminal branches persist AND log: a
- * suppression nobody can see is indistinguishable from a lost email.
+ * CONTEXT.md invariant 4, per row: a digest gathers a day of rows, and the
+ * recipient may since have left the Organization, lost a Property or been
+ * relieved of the responsibility that selected them. Only those rows go; the
+ * recipient's other Properties still arrive. Answers are shared within one
+ * recipient's pass.
+ */
+function recipientStandingFor(
+  deps: DigestDeps,
+  ctx: RecipientContext,
+): (entry: NotificationEmail) => Promise<boolean> {
+  const verdicts = new Map<string, Promise<boolean>>()
+  return (entry) => {
+    const key = `${entry.propertyId as string}\0${JSON.stringify(entry.recipientAudience)}`
+    const cached = verdicts.get(key)
+    if (cached) return cached
+    const verdict = deps.isRecipientEligible({
+      organizationId: ctx.orgId,
+      propertyId: propertyId(entry.propertyId as string),
+      userId: ctx.userId,
+      audience: entry.recipientAudience,
+    })
+    verdicts.set(key, verdict)
+    return verdict
+  }
+}
+
+/**
+ * Standing + preference + quiet-hours filter. Every terminal branch persists
+ * AND logs: a suppression nobody can see is indistinguishable from a lost
+ * email.
  */
 async function partitionDeliverable(
   deps: DigestDeps,
@@ -149,9 +180,24 @@ async function partitionDeliverable(
   entries: readonly NotificationEmail[],
 ): Promise<readonly NotificationEmail[]> {
   const deliverable: NotificationEmail[] = []
+  const hasStanding = recipientStandingFor(deps, ctx)
   for (const entry of entries) {
     const propId = propertyId(entry.propertyId as string)
     const emailId = notificationEmailId(entry.id as string)
+    if (!(await hasStanding(entry))) {
+      await deps.emailRepo.markSuppressed(
+        emailId,
+        ctx.orgId,
+        propId,
+        'recipient_ineligible',
+        ctx.now,
+      )
+      deps.logger.warn(
+        { correlationId: emailCorrelationId(entry.id), reason: 'recipient_ineligible' },
+        'Digest entry suppressed',
+      )
+      continue
+    }
     const preference = await deps.preferenceRepo.findForDelivery(
       ctx.userId,
       ctx.orgId,

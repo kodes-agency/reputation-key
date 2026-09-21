@@ -170,6 +170,9 @@ function baseDeps(options: Options = {}) {
     clock: () => now,
     batchIdGen: vi.fn(() => '86000000-0000-4000-8000-000000000099'),
     authorizeScope: vi.fn(async (_org: string, _property?: string) => true),
+    isRecipientEligible: vi.fn(
+      async (_input: { propertyId: string; audience: unknown }) => true,
+    ),
     baseUrl: BASE_URL,
     activeOneClickUnsubscribeKeyVersion: vi.fn(
       () => options.activeUnsubscribeKeyVersion ?? 'v1',
@@ -716,6 +719,33 @@ describe('digest suppression and failure visibility (ADR 0046 r.6)', () => {
       organizationId(ORG),
       PROP_A,
       'stale',
+      NOW,
+    )
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+    const payload = deps.emailSender.send.mock.calls[0]![0]
+    expect(payload.html).toContain('Hillcrest')
+    expect(payload.html).not.toContain('Riverside')
+  })
+
+  it('drops a Property the recipient lost access to, and still sends the rest', async () => {
+    const deps = baseDeps()
+    deps.isRecipientEligible.mockImplementation(
+      async ({ propertyId }) => propertyId !== PROP_A,
+    )
+
+    await runHandler(deps)
+
+    expect(deps.isRecipientEligible).toHaveBeenCalledWith({
+      organizationId: organizationId(ORG),
+      propertyId: PROP_A,
+      userId: userId(USER),
+      audience: entryFor(PROP_A).recipientAudience,
+    })
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entryFor(PROP_A).id,
+      organizationId(ORG),
+      PROP_A,
+      'recipient_ineligible',
       NOW,
     )
     expect(deps.emailSender.send).toHaveBeenCalledTimes(1)

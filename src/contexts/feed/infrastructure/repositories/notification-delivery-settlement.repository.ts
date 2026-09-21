@@ -9,6 +9,7 @@ import type { InsertNotificationInput } from '../../application/use-cases/insert
 import { insertNotification } from '../../application/use-cases/insert-notification'
 import type { NotificationEmailRepositoryPort } from '../../application/ports/notification-email-repository.port'
 import type { NotificationDeliverySettlement } from '../jobs/insert-notification.job'
+import type { NotificationAudience } from '../../application/notification-audience'
 import type { OutboxNotificationDelivery } from '../outbox-notification-delivery'
 import { createNotificationRepository } from './notification.repository'
 import { createNotificationEmailRepository } from './notification-email.repository'
@@ -96,6 +97,7 @@ export const createNotificationDeliverySettlement = (
     settleAuthorized: async (
       input: InsertNotificationInput,
       delivery: OutboxNotificationDelivery,
+      audience: NotificationAudience,
     ) => {
       const outcome = await deps.db.transaction(
         async (tx): Promise<TransactionOutcome> => {
@@ -137,7 +139,7 @@ export const createNotificationDeliverySettlement = (
             logger: deps.logger,
             // Redis is deliberately outside the database transaction. The
             // captured immediate row is enqueued only after commit below.
-          })(input)
+          })(input, audience)
 
           return { kind: 'applied', immediateEmail: insertedEmail }
         },

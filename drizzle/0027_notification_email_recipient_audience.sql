@@ -1,0 +1,15 @@
+-- Feed CONTEXT.md invariant 4: email delivery rechecks responsibility
+-- immediately before the provider effect.
+--
+-- The recipient of a Property-scoped email is authorized once, when the
+-- notification is inserted. Quiet hours, the daily digest and retries can hold
+-- the email for hours, and until now nothing asked again whether the recipient
+-- was still an Organization member with access to the Property, still
+-- responsible for the scope that selected them. A manager removed at 22:00 was
+-- still mailed the Property's name at 07:00.
+--
+-- The queue row now keeps the audience descriptor that admitted its recipient
+-- — the identifier-only value already carried on the insert job — so the send
+-- path can recheck the recipient's standing. Rows queued before this column
+-- existed keep NULL and are rechecked for membership and Property access only.
+ALTER TABLE "notification_email_queue" ADD COLUMN "recipient_audience" jsonb;

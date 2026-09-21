@@ -29,6 +29,7 @@ import {
   getDefaultEnabled,
 } from '../../domain/notification-policy'
 import { effectiveEmailCadence } from '../../domain/notification-cadence'
+import type { NotificationAudience } from '../notification-audience'
 
 // ── Input ───────────────────────────────────────────────────────────
 
@@ -187,6 +188,7 @@ const enqueueEmailEntry = async (
   notification: DomainNotification,
   cadence: NotificationCadence,
   idempotencyKey: string,
+  audience: NotificationAudience | null,
 ): Promise<void> => {
   const emailResult = createNotificationEmail(
     {
@@ -200,6 +202,8 @@ const enqueueEmailEntry = async (
       priority: notification.priority,
       idempotencyKey,
       notBefore: null,
+      // Kept so the send path can recheck the recipient's standing.
+      recipientAudience: audience,
     },
     deps.clock,
   )
@@ -233,7 +237,11 @@ const asEmailOnlyAnchor = (notification: DomainNotification): DomainNotification
 
 export const insertNotification =
   (deps: InsertNotificationDeps) =>
-  async (input: InsertNotificationInput): Promise<DomainNotification | null> => {
+  async (
+    input: InsertNotificationInput,
+    /** Why the recipient was admitted; stored with any queued email. */
+    audience: NotificationAudience | null = null,
+  ): Promise<DomainNotification | null> => {
     const { logger } = deps
 
     // 1. Construct + validate the domain entity
@@ -287,6 +295,7 @@ export const insertNotification =
               coalesced,
               emailCadence,
               emailKeyFor(coalesced, input),
+              audience,
             )
           }
           return coalesced
@@ -303,7 +312,13 @@ export const insertNotification =
 
     // 4. Enqueue the email-queue entry when the email channel is on
     if (emailEnabled) {
-      await enqueueEmailEntry(deps, inserted, emailCadence, emailKeyFor(inserted, input))
+      await enqueueEmailEntry(
+        deps,
+        inserted,
+        emailCadence,
+        emailKeyFor(inserted, input),
+        audience,
+      )
     }
 
     // 5. Return notification only if in-app channel is enabled
