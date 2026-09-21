@@ -6,6 +6,7 @@ import { insertOutboxRow } from '#/shared/outbox/commit'
 import {
   reviewProviderDeletionCandidates,
   reviewGoogleReputationSnapshotFacts,
+  reviewProviderHistoryCutoffs,
   reviewProviderSnapshotMembers,
   reviewProviderSnapshotRuns,
   reviewProviderSubjectHmacKeyVersions,
@@ -131,6 +132,31 @@ async function failLockedRun(
       'Snapshot run disappeared while failing',
     )
   return terminal[0]
+}
+
+type StartOrResumeInput = Parameters<ReviewProviderSnapshotRepository['startOrResume']>[0]
+
+/**
+ * An import fixes its epoch's history cutoff at this transaction's instant:
+ * the new run's own `started_at`, or the moment it joined an active run. The
+ * first import wins; a later one, or a retry of the same one, keeps it. Called
+ * after the run row is locked or inserted, so the Property foreign-key share
+ * lock follows the run lock as in every other snapshot transaction.
+ */
+async function recordImportHistoryCutoff(
+  tx: Tx,
+  input: StartOrResumeInput,
+): Promise<void> {
+  if (input.observationOrigin !== 'historical_onboarding') return
+  await tx
+    .insert(reviewProviderHistoryCutoffs)
+    .values({
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      sourceEpoch: input.sourceEpoch,
+      cutoffAt: sql`transaction_timestamp()`,
+    })
+    .onConflictDoNothing()
 }
 
 type PageCommitInput = Parameters<ReviewProviderSnapshotRepository['commitPage']>[0]
@@ -708,7 +734,10 @@ export const createReviewProviderSnapshotRepository = (
           ),
         )
         .for('update')
-      if (existing[0]) return fromRunRow(existing[0])
+      if (existing[0]) {
+        await recordImportHistoryCutoff(tx, input)
+        return fromRunRow(existing[0])
+      }
       const rows = await tx
         .insert(reviewProviderSnapshotRuns)
         .values({
@@ -728,8 +757,24 @@ export const createReviewProviderSnapshotRepository = (
           'snapshot_run_insert_empty',
           'Snapshot run insert returned no row',
         )
+      await recordImportHistoryCutoff(tx, input)
       return fromRunRow(rows[0])
     }),
+
+  readHistoryCutoff: async (input) => {
+    const rows = await db
+      .select({ cutoffAt: reviewProviderHistoryCutoffs.cutoffAt })
+      .from(reviewProviderHistoryCutoffs)
+      .where(
+        and(
+          eq(reviewProviderHistoryCutoffs.organizationId, input.organizationId),
+          eq(reviewProviderHistoryCutoffs.propertyId, input.propertyId),
+          eq(reviewProviderHistoryCutoffs.sourceEpoch, input.sourceEpoch),
+        ),
+      )
+      .limit(1)
+    return rows[0]?.cutoffAt ?? null
+  },
 
   readRun: async (input) => {
     const rows = await db

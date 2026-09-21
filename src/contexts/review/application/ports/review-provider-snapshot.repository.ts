@@ -124,6 +124,12 @@ export type ReviewProviderLinkedCandidate = ReviewProviderDeletionCandidate &
   }>
 
 export type ReviewProviderSnapshotRepository = Readonly<{
+  /**
+   * An `historical_onboarding` request also fixes the epoch's history cutoff
+   * at this transaction's instant — the new run's own start, or the moment the
+   * import joined a run that was already active — unless an earlier import
+   * already fixed it. An active run is resumed with its own origin.
+   */
   startOrResume(
     input: Readonly<{
       organizationId: OrganizationId
@@ -132,6 +138,19 @@ export type ReviewProviderSnapshotRepository = Readonly<{
       observationOrigin: ReviewProviderObservationOrigin
     }>,
   ): Promise<ReviewProviderSnapshotRun>
+
+  /**
+   * The initial import's history cutoff for one Property source epoch, or null
+   * when no import has started in that epoch. It outlives the import run and
+   * never moves once fixed.
+   */
+  readHistoryCutoff(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      sourceEpoch: number
+    }>,
+  ): Promise<Date | null>
 
   readRun(
     input: Readonly<{
@@ -258,6 +277,11 @@ export type ReviewProviderSnapshotRepository = Readonly<{
     }>,
   ): Promise<Readonly<{ deleted: number; nextReviewId: ReviewId | null }>>
 }>
+
+export type ReviewProviderHistoryCutoffReader = Pick<
+  ReviewProviderSnapshotRepository,
+  'readHistoryCutoff'
+>
 
 /** Request-scoped source writer supplied by the normal Review sync path. */
 export type ReviewProviderObservationWriter = Readonly<{

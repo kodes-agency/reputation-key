@@ -553,6 +553,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'replyPublicationAuthorizations',
       'reviewAiAnalysisHeads',
       'reviewProviderDeletionCandidates',
+      'reviewProviderHistoryCutoffs',
       'reviewProviderSnapshotRuns',
       'reviewProviderSubjectHmacKeyVersions',
       'reviewProviderSubjects',

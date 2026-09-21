@@ -2,7 +2,7 @@
 
 **Owner:** Inbox, with Review-owned Google timing authority and Notification-owned delivery  
 **Package:** IBX-01  
-**Migrations:** `0158_inbox_response_targets`, `0166_review_response_target_provenance`, `0167_inbox_response_target_terminal_outcomes`  
+**Migrations:** `0158_inbox_response_targets`, `0166_review_response_target_provenance`, `0167_inbox_response_target_terminal_outcomes`, `0023_review_import_history_cutoff`  
 **Time model:** elapsed minutes on UTC instants; Property timezone is display-only
 
 ## Repository contract
@@ -46,12 +46,28 @@ the Review source fence remains held.
 - A later material revision starts at Google's source-updated time, falling back to
   the accepting observation time. Metadata-only observations do not create a new
   Material Review Revision or target.
-- The durable start of the initial import is its history cutoff. Reviews whose
-  provider publication time is at or before that instant are stored as
-  `historical_onboarding` with no inferred deadline. A review published after the
-  cutoff remains `measured` even when it arrives on a later onboarding page; local
-  page arrival order is never used as the classification authority. Older records
-  without reliable provenance are `legacy_unknown`.
+- The durable start of the initial import is its history cutoff, one per Property
+  source epoch. The epoch's first import fixes it when its snapshot run starts (the
+  run's own start), or at the instant the import joins a snapshot run that was
+  already active. It is kept in `review_provider_history_cutoffs`, outlives the
+  import run (runs are swept 30 days after they end) and never moves; a later
+  import in the same epoch keeps the first cutoff.
+- A Review's first Material Review Revision in an epoch — a first sighting, or a
+  Review carried in from an older epoch — whose provider publication time
+  (Google's source-created time, falling back to the public reviewed time) is at or
+  before that epoch's cutoff is stored as `historical_onboarding` with no inferred
+  deadline, whichever run observes it first: the import itself, the discovery sweep
+  that finishes a failed import, a run the import joined, a push reconcile, a manual
+  sync or a targeted fetch. Its `review.created`/`review.updated` fact carries the
+  same origin. An import run classifies every review it observes against the same
+  cutoff, so a retried import that starts a later run does not move it.
+- A review published after the cutoff remains `measured` even when it arrives on a
+  later onboarding page; local page arrival order is never used as the
+  classification authority. A later material revision of a Review already known in
+  the epoch is new work and is measured from Google's source-updated time. An epoch
+  with no import has no cutoff, so its reviews are measured as before. Eligibility
+  is fixed when a revision is created: a cutoff never reclassifies an existing
+  revision. Older records without reliable provenance are `legacy_unknown`.
 - A governed manual reopen or an exact provider-reply deletion opens a new measured
   target at the live reopen/deletion observation instant, including when the Review's
   original imported cycle was excluded. This measures the new operational work; it
@@ -122,7 +138,7 @@ The statements above describe checked-in migrations, composition, workers, serve
 functions, UI wiring, and automated tests. They are **local repository evidence**.
 They do not by themselves prove that a hosted Railway environment has:
 
-- applied migrations 0158, 0166, and 0167;
+- applied migrations 0158, 0166, 0167, and 0023;
 - installed and ticked the recurring schedule against the intended worker service;
 - kept the worker, outbox dispatcher, Notification insertion worker, and database
   healthy through a release;
@@ -137,7 +153,8 @@ captures those facts for the deployed artifact and environment.
 
 1. Apply every journaled migration to a fresh PostgreSQL database and run schema-
    drift verification. Do not backfill legacy deadlines from Inbox creation/closure,
-   provider fetch time, or today's policy.
+   provider fetch time, or today's policy. `0023` backfills only history cutoffs,
+   from the import runs still on record; it never touches a revision or a target.
 2. Run the Response Target domain, policy, presentation, authority, reminder,
    consumer, migration, and real-PostgreSQL store suites. Preserve the database
    proofs for snapshot precedence, exact-current races, terminalization, analytics,
@@ -149,7 +166,8 @@ captures those facts for the deployed artifact and environment.
    de-duplicated audience is used.
 5. Exercise ongoing initial, onboarding-history, material-update, manual-reopen,
    external-current-live completion, RepKey-confirmed completion, and current reply-
-   deletion reopen paths. Verify saved start/due/completion evidence and separate
+   deletion reopen paths, and an import that fails part-way and is finished by the
+   discovery sweep. Verify saved start/due/completion evidence and separate
    analytics totals.
 6. Capture a hosted manager-browser check for Organization settings, Property
    private-feedback override, Inbox target state at the due boundary, and a delivered

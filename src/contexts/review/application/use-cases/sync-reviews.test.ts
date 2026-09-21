@@ -110,11 +110,12 @@ function scopeObservation(
   }
 }
 
-function scopeWriter(existing: Review) {
+function scopeWriter(existing: Review | null, historyCutoff: Date | null = null) {
+  const createdAt = existing?.createdAt ?? SCOPE_NOW
   const upsert = vi.fn(
     async (review: Omit<Review, 'createdAt' | 'updatedAt'>): Promise<Review> => ({
       ...review,
-      createdAt: existing.createdAt,
+      createdAt,
       updatedAt: SCOPE_NOW,
     }),
   )
@@ -123,7 +124,7 @@ function scopeWriter(existing: Review) {
       ...review,
       sourceRevision: review.sourceRevision + 1,
       analysisSequence: 1,
-      createdAt: existing.createdAt,
+      createdAt,
       updatedAt: SCOPE_NOW,
     }),
   )
@@ -132,10 +133,11 @@ function scopeWriter(existing: Review) {
       ...review,
       sourceRevision: review.sourceRevision + 1,
       analysisSequence: 1,
-      createdAt: existing.createdAt,
+      createdAt,
       updatedAt: SCOPE_NOW,
     }),
   )
+  const readHistoryCutoff = vi.fn(async () => historyCutoff)
   const writer = createReviewProviderObservationWriter({
     reviewRepo: {
       findByExternalId: vi.fn(async () => existing),
@@ -144,6 +146,7 @@ function scopeWriter(existing: Review) {
     } as unknown as ReviewRepository,
     clock: () => SCOPE_NOW,
     idGen: vi.fn(() => {
+      if (existing == null) return SCOPE_REVIEW
       throw new Error('must preserve the existing ReviewId')
     }),
     commandStore: {
@@ -162,8 +165,21 @@ function scopeWriter(existing: Review) {
         duplicate: false,
       })),
     } satisfies GoogleReplyObservationStore,
+    historyCutoffs: { readHistoryCutoff },
   })
-  return { writer, upsert, upsertAndRecord, reobserveExpiredAndRecord }
+  return { writer, upsert, upsertAndRecord, reobserveExpiredAndRecord, readHistoryCutoff }
+}
+
+/** The origin the writer recorded, on both the revision write and its event. */
+async function recordedOrigins(
+  upsertAndRecord: ReturnType<typeof scopeWriter>['upsertAndRecord'],
+) {
+  const call = upsertAndRecord.mock.calls[0] as unknown as unknown[]
+  const eventFor = call[1] as (
+    persisted: Review,
+  ) => Readonly<{ _tag: string; observationOrigin?: string }>
+  const persisted = await upsertAndRecord.mock.results[0]?.value
+  return { stored: call[4], event: eventFor(persisted) }
 }
 
 describe('Review provider observation identity', () => {
@@ -341,6 +357,7 @@ describe('Review provider observation identity', () => {
           duplicate: false,
         })),
       } satisfies GoogleReplyObservationStore,
+      historyCutoffs: { readHistoryCutoff: vi.fn(async () => null) },
     })
     const subject = {
       contractVersion: 'review-provider-subject-v1' as const,
@@ -386,5 +403,107 @@ describe('Review provider observation identity', () => {
       'ongoing',
     )
     expect(result).toEqual({ reviewId: stableReview, sourceRevision: 8, isNew: false })
+  })
+})
+
+describe('initial import history cutoff', () => {
+  const publishedAt = SCOPE_PROVIDER_REVIEW.reviewedAt
+
+  it('records a first sighting published at the import cutoff as onboarding history', async () => {
+    const { writer, upsertAndRecord, readHistoryCutoff } = scopeWriter(null, publishedAt)
+
+    await writer.persist(scopeObservation({ sourceEpoch: 4 }))
+
+    expect(readHistoryCutoff).toHaveBeenCalledWith({
+      organizationId: SCOPE_ORG,
+      propertyId: SCOPE_PROPERTY,
+      sourceEpoch: 4,
+    })
+    await expect(recordedOrigins(upsertAndRecord)).resolves.toEqual({
+      stored: 'historical_onboarding',
+      event: expect.objectContaining({
+        _tag: 'review.created',
+        observationOrigin: 'historical_onboarding',
+      }),
+    })
+  })
+
+  it('measures a first sighting published after the import cutoff', async () => {
+    const { writer, upsertAndRecord } = scopeWriter(
+      null,
+      new Date(publishedAt.getTime() - 1),
+    )
+
+    await writer.persist(scopeObservation({ sourceEpoch: 4 }))
+
+    await expect(recordedOrigins(upsertAndRecord)).resolves.toMatchObject({
+      stored: 'ongoing',
+      event: { observationOrigin: 'ongoing' },
+    })
+  })
+
+  it('keeps measuring first sightings on a property that was never imported', async () => {
+    const { writer, upsertAndRecord } = scopeWriter(null, null)
+
+    await writer.persist(scopeObservation({ sourceEpoch: 4 }))
+
+    await expect(recordedOrigins(upsertAndRecord)).resolves.toMatchObject({
+      stored: 'ongoing',
+    })
+  })
+
+  it("treats a Review carried into a new source epoch by that epoch's cutoff", async () => {
+    const existing = scopeReview({ sourceEpoch: 3 })
+    const { writer, upsertAndRecord, readHistoryCutoff } = scopeWriter(
+      existing,
+      new Date('2026-09-01T00:00:00.000Z'),
+    )
+
+    await writer.persist(scopeObservation({ sourceEpoch: 4 }))
+
+    expect(readHistoryCutoff).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceEpoch: 4 }),
+    )
+    await expect(recordedOrigins(upsertAndRecord)).resolves.toMatchObject({
+      stored: 'historical_onboarding',
+      event: { _tag: 'review.updated', observationOrigin: 'historical_onboarding' },
+    })
+  })
+
+  it('never turns a later revision of a Review known in this epoch into history', async () => {
+    const existing = scopeReview({ sourceEpoch: 4 })
+    const { writer, upsertAndRecord, readHistoryCutoff } = scopeWriter(
+      existing,
+      new Date('2026-09-01T00:00:00.000Z'),
+    )
+
+    await writer.persist(
+      scopeObservation({
+        sourceEpoch: 4,
+        review: { ...SCOPE_PROVIDER_REVIEW, text: 'The guest edited this review' },
+      }),
+    )
+
+    expect(readHistoryCutoff).not.toHaveBeenCalled()
+    await expect(recordedOrigins(upsertAndRecord)).resolves.toMatchObject({
+      stored: 'ongoing',
+      event: { observationOrigin: 'ongoing' },
+    })
+  })
+
+  it('keeps an origin the run already decided', async () => {
+    const { writer, upsertAndRecord, readHistoryCutoff } = scopeWriter(
+      null,
+      new Date(publishedAt.getTime() - 1),
+    )
+
+    await writer.persist(
+      scopeObservation({ sourceEpoch: 4, observationOrigin: 'historical_onboarding' }),
+    )
+
+    expect(readHistoryCutoff).not.toHaveBeenCalled()
+    await expect(recordedOrigins(upsertAndRecord)).resolves.toMatchObject({
+      stored: 'historical_onboarding',
+    })
   })
 })

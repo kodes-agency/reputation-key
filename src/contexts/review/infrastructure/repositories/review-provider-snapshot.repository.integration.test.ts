@@ -19,7 +19,7 @@ import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { getPool } from '#/shared/db/pool'
 import { properties, reviewProviderSnapshotRuns } from '#/shared/db/schema'
-import { organizationId } from '#/shared/domain/ids'
+import { organizationId, propertyId } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createReviewProviderSnapshotRepository } from './review-provider-snapshot.repository'
@@ -667,5 +667,81 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
     expect(providerSubjectRows.rows).toEqual([
       expect.objectContaining({ state: 'linked' }),
     ])
+  })
+
+  describe('initial import history cutoff', () => {
+    const scope = {
+      organizationId: organizationId(ORGANIZATION_ID),
+      propertyId: propertyId(PROPERTY_ID),
+      sourceEpoch: 0,
+    }
+    const resetScope = async () => {
+      await db
+        .delete(reviewProviderSnapshotRuns)
+        .where(eq(reviewProviderSnapshotRuns.propertyId, PROPERTY_ID))
+      await db.execute(sql`
+        DELETE FROM review_provider_history_cutoffs WHERE property_id = ${PROPERTY_ID}
+      `)
+    }
+
+    it('fixes the cutoff at the start of the first import run and keeps it', async () => {
+      await resetScope()
+
+      const first = await repository.startOrResume({
+        ...scope,
+        observationOrigin: 'historical_onboarding',
+      })
+      await expect(repository.readHistoryCutoff(scope)).resolves.toEqual(first.startedAt)
+
+      await repository.failRun({
+        runId: first.id,
+        organizationId: scope.organizationId,
+        code: 'observation_failed',
+      })
+      const later = await createReviewProviderSnapshotRepository(
+        db,
+        () => OTHER_RUN_ID,
+      ).startOrResume({ ...scope, observationOrigin: 'historical_onboarding' })
+      expect(later.id).toBe(OTHER_RUN_ID)
+      await expect(repository.readHistoryCutoff(scope)).resolves.toEqual(first.startedAt)
+      await expect(
+        repository.readHistoryCutoff({ ...scope, sourceEpoch: 1 }),
+      ).resolves.toBeNull()
+      await resetScope()
+    })
+
+    it('fixes the cutoff when an import joins a run that is already active', async () => {
+      await resetScope()
+      const databaseNow = async () => {
+        const result = await db.execute(sql`SELECT clock_timestamp() AS now`)
+        return new Date(String(result.rows[0]?.now)).getTime()
+      }
+
+      const discovery = await repository.startOrResume({
+        ...scope,
+        observationOrigin: 'ongoing',
+      })
+      await expect(repository.readHistoryCutoff(scope)).resolves.toBeNull()
+      // The discovery run has been scanning for an hour when the import starts.
+      await db
+        .update(reviewProviderSnapshotRuns)
+        .set({
+          startedAt: sql`${reviewProviderSnapshotRuns.startedAt} - interval '1 hour'`,
+        })
+        .where(eq(reviewProviderSnapshotRuns.id, discovery.id))
+
+      const joinRequestedAt = await databaseNow()
+      const joined = await repository.startOrResume({
+        ...scope,
+        observationOrigin: 'historical_onboarding',
+      })
+      const joinReturnedAt = await databaseNow()
+
+      expect(joined).toMatchObject({ id: discovery.id, observationOrigin: 'ongoing' })
+      const cutoff = (await repository.readHistoryCutoff(scope))?.getTime()
+      expect(cutoff).toBeGreaterThanOrEqual(joinRequestedAt)
+      expect(cutoff).toBeLessThanOrEqual(joinReturnedAt)
+      await resetScope()
+    })
   })
 })

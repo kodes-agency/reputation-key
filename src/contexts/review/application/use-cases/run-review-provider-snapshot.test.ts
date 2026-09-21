@@ -83,12 +83,15 @@ function makeDeps(
     }>
     /** Drives the observation writer's new-vs-seen answer. */
     observationIsNew?: boolean
+    /** The source epoch's durable import history cutoff. */
+    historyCutoff?: Date
   }> = {},
 ): RunReviewProviderSnapshotDeps {
   const currentRun = input.currentRun ?? run()
   const repository: ReviewProviderSnapshotRepository = {
     readExpiredActiveRun: vi.fn(async () => null),
     startOrResume: vi.fn(async () => currentRun),
+    readHistoryCutoff: vi.fn(async () => input.historyCutoff ?? null),
     readRun: vi.fn(async () => currentRun),
     commitPage: vi.fn(async ({ nextCursorRef }) => ({
       status: 'committed' as const,
@@ -308,6 +311,39 @@ describe('runReviewProviderSnapshot', () => {
     )
     expect(deps.observationWriter.persist).toHaveBeenNthCalledWith(
       2,
+      expect.objectContaining({ observationOrigin: 'ongoing' }),
+    )
+  })
+
+  it('classifies a retried import against the first import cutoff, not its own start', async () => {
+    const deps = makeDeps({
+      currentRun: run({
+        observationOrigin: 'historical_onboarding',
+        startedAt: new Date('2026-08-16T06:00:00.000Z'),
+      }),
+      historyCutoff: new Date('2026-08-16T00:00:00.000Z'),
+      page: {
+        reviews: [
+          {
+            ...review,
+            reviewedAt: new Date('2026-08-16T03:00:00.000Z'),
+            sourceCreatedAt: new Date('2026-08-16T03:00:00.000Z'),
+          },
+        ],
+        totalReviewCount: 1,
+        averageRating: 5,
+        nextCursorRef: null,
+      },
+    })
+
+    await runReviewProviderSnapshot(deps)(request)
+
+    expect(deps.repository.readHistoryCutoff).toHaveBeenCalledWith({
+      organizationId,
+      propertyId,
+      sourceEpoch: 1,
+    })
+    expect(deps.observationWriter.persist).toHaveBeenCalledWith(
       expect.objectContaining({ observationOrigin: 'ongoing' }),
     )
   })

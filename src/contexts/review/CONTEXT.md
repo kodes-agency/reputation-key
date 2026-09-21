@@ -28,6 +28,15 @@ A stable Review survives source deletion and content expiry. Erasable source
 content and immutable observations attach to numbered Material Review Revisions;
 material changes and source-epoch carries create exact immutable bindings.
 
+Each revision's Response Target eligibility is fixed when it is created. The
+first Google import of a Property source epoch fixes that epoch's history cutoff
+(`review_provider_history_cutoffs`) when its snapshot run starts or joins an
+active one, and the cutoff outlives the run. Whichever run first observes a
+Review in the epoch, that first revision is `historical_onboarding` when Google
+published the Review at or before the cutoff; later revisions, and Reviews
+published after it, are measured
+(`docs/operations/inbox-response-targets.md`).
+
 An internal Reply moves from draft through approval and a numbered publication
 cycle. Provider acknowledgement enters `pending_observation`; only an exact current
 Google Reply Observation proves publication. Publication authorizations, attempts,

@@ -4,7 +4,11 @@ import { defaultReviewLifecycle, type Review } from '../../domain/types'
 import { reviewCreated, reviewUpdated } from '../../domain/events'
 import { calculateExpiresAt, computeReviewContentHash } from '../../domain/rules'
 import type { ReviewCommandStore } from '../ports/review-command-store.port'
-import type { ReviewProviderObservationWriter } from '../ports/review-provider-snapshot.repository'
+import type {
+  ReviewProviderHistoryCutoffReader,
+  ReviewProviderObservationWriter,
+} from '../ports/review-provider-snapshot.repository'
+import type { ReviewProviderObservationOrigin } from '../ports/response-target-authority.port'
 import type { GoogleReplyObservationStore } from '../ports/google-reply-observation-store.port'
 import { computeAiReviewSourceProvenance } from '../ai-review-source'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
@@ -17,6 +21,8 @@ export type ReviewProviderObservationWriterDeps = Readonly<{
   idGen: () => ReviewId
   commandStore: ReviewCommandStore
   googleReplyObservationStore: GoogleReplyObservationStore
+  /** The initial import's history cutoff, which outlives the import run. */
+  historyCutoffs: ReviewProviderHistoryCutoffReader
 }>
 
 export function providerReplyObservationKey(
@@ -80,7 +86,12 @@ export const createReviewProviderObservationWriter = (
     const persisted = await persistObservation(deps, review, now, {
       ...classifyObservation(existing, stableIdentity, review, now),
       observationKey: input.observationKey,
-      observationOrigin: input.observationOrigin,
+      observationOrigin: await resolveObservationOrigin(
+        deps,
+        input,
+        existing,
+        stableIdentity,
+      ),
     })
     await deps.googleReplyObservationStore.record({
       organizationId: input.organizationId,
@@ -152,6 +163,39 @@ function assertObservationScope(
       'Review provider subject identity mismatch',
     )
   }
+}
+
+/**
+ * The initial import's history cutoff outlives the import run. A Review's
+ * first material revision in this source epoch — a first sighting, or a Review
+ * carried in from an older epoch — whose Google publication time is at or
+ * before the cutoff is onboarding history, whichever run observes it first: a
+ * discovery sweep finishing a failed import, a run the import joined, a push
+ * or a manual sync. A later revision of a Review already known in this epoch
+ * is new work and keeps the run's origin, as does an origin the run has
+ * already decided. An epoch without an import has no cutoff.
+ */
+async function resolveObservationOrigin(
+  deps: ReviewProviderObservationWriterDeps,
+  input: ProviderObservationInput,
+  existing: Review | null,
+  stableIdentity: StableIdentity,
+): Promise<ReviewProviderObservationOrigin> {
+  const firstRevisionInEpoch =
+    stableIdentity == null &&
+    (existing == null || existing.sourceEpoch < input.sourceEpoch)
+  if (input.observationOrigin !== 'ongoing' || !firstRevisionInEpoch) {
+    return input.observationOrigin
+  }
+  const cutoff = await deps.historyCutoffs.readHistoryCutoff({
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    sourceEpoch: input.sourceEpoch,
+  })
+  const publishedAt = input.review.sourceCreatedAt ?? input.review.reviewedAt
+  return cutoff != null && publishedAt.getTime() <= cutoff.getTime()
+    ? 'historical_onboarding'
+    : 'ongoing'
 }
 
 /** Source lifecycle for the observed Review. A known row keeps its own

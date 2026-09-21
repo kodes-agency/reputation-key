@@ -463,12 +463,17 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   // BQR-2.3: atomic review upsert + outbox insert for sync path
   const commandStore = createAtomicReviewCommandStore(input.db, input.clock)
 
+  const snapshotRepository = createReviewProviderSnapshotRepository(
+    input.db,
+    input.snapshotRunIdGen,
+  )
   const observationWriter = createReviewProviderObservationWriter({
     reviewRepo,
     clock: input.clock,
     idGen: () => reviewId(input.idGen()),
     commandStore,
     googleReplyObservationStore,
+    historyCutoffs: snapshotRepository,
   })
   const syncActivity = createReviewSyncActivityRecorder(input.db)
   const targetedReviewReferences: TargetedGoogleReviewReferenceResolver =
@@ -484,10 +489,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   })
   const useCases = {
     runReviewProviderSnapshot: runReviewProviderSnapshot({
-      repository: createReviewProviderSnapshotRepository(
-        input.db,
-        input.snapshotRunIdGen,
-      ),
+      repository: snapshotRepository,
       googleReviewApi: input.googleReviewApi,
       propertySourceEpoch: propertySourceEpochLookup,
       observationWriter,
