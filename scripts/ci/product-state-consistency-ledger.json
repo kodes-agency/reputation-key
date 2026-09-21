@@ -172,6 +172,11 @@
       "policy": "The helper is intentionally generic over a caller-supplied QueryKey; its only production caller passes notificationKeys.list from notification-queries.ts, which owns Organization, filter, and page-size identity."
     },
     {
+      "id": "src/components/features/notification/notification-feed-pagination.ts:queryKey#3",
+      "owner": "Notification history re-anchoring",
+      "policy": "The head-fetch wrapper resets only the caller-supplied history key when a refreshed head no longer reaches it; its only production caller passes notificationKeys.list from notification-queries.ts for the same Organization, filter, and page size as the head it wraps."
+    },
+    {
       "id": "src/components/features/portal/portal-group-cache-policy.ts:queryKey#1",
       "owner": "Portal Group cache fan-out",
       "policy": "The mapped value comes only from affectedProjectionKeys, whose closed array is built from portalKeys.groups, portalKeys.goalSubjects, and portalKeys.goalSubjectNames for the exact Property."
