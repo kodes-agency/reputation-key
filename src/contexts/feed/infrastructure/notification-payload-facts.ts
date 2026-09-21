@@ -17,8 +17,9 @@
 //     wrapped so BullMQ delivery does not retry a permanently unavailable detail.
 
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
+import type { InboxItemId, OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
+import type { PropertyNameLookupPort } from '../application/ports/notification-property-name-lookup.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type {
   NotificationPayload,
@@ -124,4 +125,25 @@ export const buildInboxItemPayload = async (
   if (input.publishOutcome) payload.publishOutcome = input.publishOutcome
   if (input.publishFailureCause) payload.publishFailureCause = input.publishFailureCause
   return payload as NotificationPayload
+}
+
+export type PropertyPayloadDeps = Readonly<{
+  propertyNames: PropertyNameLookupPort
+  logger: LoggerPort
+}>
+
+/**
+ * The Property's name for a Property-scoped notice with no Inbox item behind
+ * it (grouped assignment, goals, Portal and Property responsibility), so a
+ * reader with several Properties can tell its rows and emails apart.
+ */
+export const buildPropertyPayload = async (
+  deps: PropertyPayloadDeps,
+  orgId: OrganizationId,
+  propertyId: PropertyId,
+): Promise<NotificationPayload> => {
+  const name = await attempt(deps.logger, 'property name', () =>
+    deps.propertyNames.findPropertyName(orgId, propertyId),
+  )
+  return name === null ? {} : { propertyName: name }
 }

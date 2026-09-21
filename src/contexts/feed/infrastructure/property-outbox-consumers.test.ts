@@ -44,6 +44,7 @@ const makeDeps = () => {
   return {
     queue: fakes.queue,
     userLookup: fakes.userLookup,
+    propertyNames: fakes.propertyNames,
     logger: fakes.logger,
     receipts: { insertReceipt: vi.fn(async () => {}) },
     fakes,
@@ -94,10 +95,28 @@ describe('Property notification durable consumer', () => {
 
     expect(deps.fakes.jobs[0]?.data).toMatchObject({
       type: 'property.responsibility_needed',
+      payload: { propertyName: 'Riverside Hotel' },
       audience: {
         kind: 'responsibility_gap',
         scope: { kind: 'property', propertyId: NOTIF_TEST_IDS.propId },
       },
+    })
+    expect(deps.fakes.propertyNames.findPropertyName).toHaveBeenCalledWith(
+      NOTIF_TEST_IDS.orgId,
+      NOTIF_TEST_IDS.propId,
+    )
+  })
+
+  it('still asks when the Property name cannot be read', async () => {
+    const deps = makeDeps()
+    deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
+    deps.fakes.propertyNames.findPropertyName.mockRejectedValue(new Error('db down'))
+
+    await handleNotificationPropertyResponsibilityNeeded(deps, event())
+
+    expect(deps.fakes.jobs[0]?.data).toMatchObject({
+      type: 'property.responsibility_needed',
+      payload: {},
     })
   })
 

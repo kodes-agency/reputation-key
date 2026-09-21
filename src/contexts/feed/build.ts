@@ -52,6 +52,7 @@ import type { ResponsibleManagerLookupPort } from './application/ports/responsib
 import type { FeedbackPortalLookupPort } from './application/ports/feedback-portal-lookup.port'
 import { createNotificationAudienceAuthorizer } from './application/notification-audience'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
+import { createPropertyNameLookupAdapter } from './infrastructure/adapters/property-name-lookup.adapter'
 import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
 import { registerNotificationConsumers } from './infrastructure/notification-outbox-consumers'
 import { registerWorkflowNotificationConsumers } from './infrastructure/workflow-outbox-consumers'
@@ -325,6 +326,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     input.db,
     input.feedbackPortalLookup,
   )
+  const propertyNames = createPropertyNameLookupAdapter(input.db)
   const escalationResolutions = createEscalationResolutionLookupAdapter(input.db)
   const organizationAccountAuthority = createOrganizationAccountNotificationAuthority(
     input.db,
@@ -623,6 +625,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     registerBulkAssignmentNotificationConsumer(consumerRegistry, {
       queue,
       userLookup,
+      propertyNames,
+      logger: input.logger,
       receipts: input.outboxRepo,
     })
     registerEscalationResolutionNotificationConsumer(consumerRegistry, {
@@ -646,11 +650,14 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       monthlyResultFacts: input.monthlyResultFacts,
       responsibleManagers: input.responsibleManagers,
       userLookup,
+      propertyNames,
+      logger: input.logger,
       receipts: input.outboxRepo,
     })
     registerPortalNotificationConsumers(consumerRegistry, {
       queue,
       userLookup,
+      propertyNames,
       logger: input.logger,
       receipts: input.outboxRepo,
     })
@@ -658,12 +665,14 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       queue,
       responsibleManagers: input.responsibleManagers,
       userLookup,
+      propertyNames,
       logger: input.logger,
       receipts: input.outboxRepo,
     })
     registerPropertyNotificationConsumers(consumerRegistry, {
       queue,
       userLookup,
+      propertyNames,
       logger: input.logger,
       receipts: input.outboxRepo,
     })

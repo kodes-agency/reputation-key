@@ -12,6 +12,10 @@ import {
 } from '../application/portal-health-notification'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import {
+  buildPropertyPayload,
+  type PropertyPayloadDeps,
+} from './notification-payload-facts'
 
 export const ON_PORTAL_HEALTH_CHANGED_CONSUMER =
   'notification.on-portal-health-changed' as const
@@ -28,13 +32,14 @@ type Payload = Readonly<{
   occurredAt: string
 }>
 
-export type PortalHealthNotificationConsumerDeps = Readonly<{
-  queue: NotificationJobEnqueuePort
-  responsibleManagers: ResponsibleManagerLookupPort
-  userLookup: Pick<UserLookupPort, 'findByRole'>
-  receipts: Pick<OutboxRepository, 'insertReceipt'>
-  logger: LoggerPort
-}>
+export type PortalHealthNotificationConsumerDeps = PropertyPayloadDeps &
+  Readonly<{
+    queue: NotificationJobEnqueuePort
+    responsibleManagers: ResponsibleManagerLookupPort
+    userLookup: Pick<UserLookupPort, 'findByRole'>
+    receipts: Pick<OutboxRepository, 'insertReceipt'>
+    logger: LoggerPort
+  }>
 
 function parse(event: ConsumerEvent): Payload {
   const payload = validateEventPayload(
@@ -86,6 +91,7 @@ export async function handleNotificationPortalHealthChanged(
       'Portal Health notification has no eligible recipients',
     )
   }
+  const where = await buildPropertyPayload(deps, organization, property)
 
   await Promise.all(
     recipients.map((recipient) =>
@@ -99,7 +105,7 @@ export async function handleNotificationPortalHealthChanged(
           resourceType: 'portal' as const,
           resourceId: portal,
           eventId: event.eventId,
-          payload: {},
+          payload: where,
           audience: {
             kind: 'portal_health' as const,
             portalId: portal,

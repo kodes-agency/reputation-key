@@ -6,16 +6,21 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import {
+  buildPropertyPayload,
+  type PropertyPayloadDeps,
+} from './notification-payload-facts'
 
 export const ON_PROPERTY_RESPONSIBILITY_NEEDED_CONSUMER =
   'notification.on-property-responsibility-needed' as const
 
-export type PropertyNotificationConsumerDeps = Readonly<{
-  queue: NotificationJobEnqueuePort
-  userLookup: UserLookupPort
-  logger: LoggerPort
-  receipts: Pick<OutboxRepository, 'insertReceipt'>
-}>
+export type PropertyNotificationConsumerDeps = PropertyPayloadDeps &
+  Readonly<{
+    queue: NotificationJobEnqueuePort
+    userLookup: UserLookupPort
+    logger: LoggerPort
+    receipts: Pick<OutboxRepository, 'insertReceipt'>
+  }>
 
 type Payload = Readonly<{
   organizationId: string
@@ -54,6 +59,7 @@ async function enqueuePropertyResponsibilityNotification(
     )
     return
   }
+  const where = await buildPropertyPayload(deps, event.organizationId, event.propertyId)
   await Promise.all(
     recipients.map((recipientId) =>
       deps.queue.add(
@@ -66,7 +72,7 @@ async function enqueuePropertyResponsibilityNotification(
           resourceType: 'property',
           resourceId: event.propertyId,
           eventId: event.eventId,
-          payload: {},
+          payload: where,
           // Rechecked on delivery: a manager chosen meanwhile retires it.
           audience: {
             kind: 'responsibility_gap',

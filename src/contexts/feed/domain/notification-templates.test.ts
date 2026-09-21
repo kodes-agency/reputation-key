@@ -60,15 +60,14 @@ describe('renderNotification — invariants across every type', () => {
     const r = renderNotification(type, FULL)
 
     const visibleCopy = [r.title, r.body, r.summary].join(' ')
-    // Recovery alerts are deliberately content-free: even if an unexpected
-    // producer supplies render metadata, this template must ignore it. Other
-    // types use the property name to sharpen their operational context.
-    // A beta report outcome is Organization-scoped (ADR 0059): there is no
-    // Property for it to name.
+    // Every Property-scoped notice names its Property: a reader with several
+    // cannot otherwise tell rows or urgent emails apart. Account notices and a
+    // beta report outcome are Organization-scoped (ADR 0059), and the Google
+    // connection belongs to the Organization: the Property its notice is
+    // filed under is only a delivery anchor, so naming it would mislead.
     if (
       type.startsWith('account.organization_') ||
-      type === 'portal.responsibility_needed' ||
-      type === 'property.responsibility_needed' ||
+      type === 'integration.reauthorization_required' ||
       type === 'beta_feedback.outcome'
     ) {
       expect(visibleCopy).not.toContain('Riverside Hotel')
@@ -462,26 +461,40 @@ describe('notificationLink', () => {
     })
   })
 
-  it('renders a gentle portal responsibility recovery prompt without content', () => {
-    expect(renderNotification('portal.responsibility_needed', {})).toEqual({
-      title: 'Portal needs a responsible manager',
+  it('renders a gentle portal responsibility recovery prompt that says where', () => {
+    expect(
+      renderNotification('portal.responsibility_needed', {
+        propertyName: 'Riverside Hotel',
+      }),
+    ).toEqual({
+      title: 'A portal at Riverside Hotel needs a responsible manager',
       body: 'Choose an eligible manager so portal updates reach the right people.',
       actionLabel: 'Choose manager',
-      summary: 'responsible manager needed',
+      summary: 'Riverside Hotel · responsible manager needed',
     })
+    expect(renderNotification('portal.responsibility_needed', {}).title).toBe(
+      'A portal needs a responsible manager',
+    )
     expect(notificationLink('portal', 'portal-1', 'prop-1')).toEqual({
       path: '/properties/prop-1/portals/portal-1',
       search: { tab: 'settings' },
     })
   })
 
-  it('renders a gentle Property responsibility recovery prompt without content', () => {
-    expect(renderNotification('property.responsibility_needed', {})).toEqual({
-      title: 'Property needs a responsible manager',
+  it('renders a gentle Property responsibility recovery prompt that names it', () => {
+    expect(
+      renderNotification('property.responsibility_needed', {
+        propertyName: 'Riverside Hotel',
+      }),
+    ).toEqual({
+      title: 'Riverside Hotel needs a responsible manager',
       body: 'Choose an eligible manager so property-wide updates reach the right people.',
       actionLabel: 'Choose manager',
-      summary: 'Property responsible manager needed',
+      summary: 'Riverside Hotel · responsible manager needed',
     })
+    expect(renderNotification('property.responsibility_needed', {}).title).toBe(
+      'A property needs a responsible manager',
+    )
     expect(notificationLink('property', 'prop-1', 'prop-1')).toEqual({
       path: '/properties/prop-1/settings',
       search: {},
@@ -502,7 +515,8 @@ describe('notificationLink', () => {
   })
 
   // Google refused the grant for good: sync and replies have already stopped,
-  // so the notice leads with the one action that restores them.
+  // so the notice leads with the one action that restores them. The
+  // connection is the Organization's, so its delivery Property is not named.
   it('asks admins to reconnect a Google grant that stopped working, and says why', () => {
     expect(
       renderNotification('integration.reauthorization_required', {
@@ -510,10 +524,10 @@ describe('notificationLink', () => {
         reauthorizationCause: 'provider_revoked',
       }),
     ).toEqual({
-      title: 'Reconnect Google at Riverside Hotel',
+      title: 'Reconnect Google',
       body: 'Google no longer accepts RepKey\u2019s access, so review updates and replies are paused.',
       actionLabel: 'Reconnect Google',
-      summary: 'Riverside Hotel · Google access ended',
+      summary: 'Google access ended',
     })
   })
 
@@ -562,6 +576,18 @@ describe('notificationLink', () => {
       summary: 'Riverside Hotel · review · reconnect Google',
     })
   })
+
+  it.each(['goal.completed', 'goal.result_revised'] as const)(
+    '%s says which Property the goal belongs to in its title',
+    (type) => {
+      const title = renderNotification(type, {
+        goalName: 'Reply within 24h',
+        propertyName: 'Riverside Hotel',
+      }).title
+
+      expect(title).toMatch(/: Reply within 24h at Riverside Hotel$/)
+    },
+  )
 
   it('covers every resource type', () => {
     const types: ReadonlyArray<Parameters<typeof notificationLink>[0]> = [

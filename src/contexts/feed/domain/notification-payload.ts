@@ -38,7 +38,10 @@ export type NotificationActorRole = 'account_admin' | 'property_manager' | 'staf
 export type NotificationPlatform = 'google' | 'portal'
 
 export type NotificationPayload = Readonly<{
-  /** Tenant-authored property name. Present on every payload we mint. */
+  /**
+   * Tenant-authored property name, minted on every Property-scoped notice
+   * except the Google connection's, whose Property is only a delivery anchor.
+   */
   propertyName?: string
   /** Locally collected 1-5 guest rating; valid only with platform=portal. */
   guestRating?: NotificationGuestRating

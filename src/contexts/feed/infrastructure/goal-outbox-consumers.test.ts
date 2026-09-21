@@ -120,6 +120,14 @@ const makeDeps = () => {
       isEligibleForProperty: vi.fn(async () => true),
     },
     userLookup: { findByRole: vi.fn(async () => [ADMIN]) },
+    propertyNames: { findPropertyName: vi.fn(async () => 'Riverside Hotel') },
+    logger: {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      child: vi.fn(),
+    },
     receipts: { insertReceipt: vi.fn(async () => undefined) },
     jobs,
   }
@@ -188,7 +196,10 @@ describe('canonical Goal monthly-result notification consumer', () => {
           resourceType: 'goal',
           resourceId: IDS.result,
           eventId: IDS.event,
-          payload: { goalName: 'Monthly guest engagement' },
+          payload: {
+            goalName: 'Monthly guest engagement',
+            propertyName: 'Riverside Hotel',
+          },
           // Delivery rechecks the result itself, not only responsibility: a
           // correction may un-achieve the month before the job runs.
           audience: {
@@ -317,7 +328,10 @@ describe('canonical Goal monthly-result notification consumer', () => {
           resourceType: 'goal',
           resourceId: IDS.result,
           eventId: IDS.event,
-          payload: { goalName: 'Monthly guest engagement' },
+          payload: {
+            goalName: 'Monthly guest engagement',
+            propertyName: 'Riverside Hotel',
+          },
           audience: {
             kind: 'goal_result_revision',
             programId: IDS.program,

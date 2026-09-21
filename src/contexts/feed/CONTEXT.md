@@ -115,6 +115,11 @@ notices unread. The feed head therefore carries, from the same snapshot as the
 unread count, the filter's share of it (`filterUnreadCount`); a tab offers the
 action exactly while that share is above zero.
 
+Every Property-scoped notice names its Property, read when it is fanned out,
+so a reader with several Properties can tell rows and urgent emails apart. The
+Google connection's notice is the exception: the connection belongs to the
+Organization, and the Property it is filed under is only a delivery anchor.
+
 A waiting age is never frozen into a row. A notice about something still
 waiting on its reader (an approval, an escalation, a Response Target reminder)
 stores when the current wait began, the start of the current cycle's measured

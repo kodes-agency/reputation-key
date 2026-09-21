@@ -47,6 +47,7 @@ const makeDeps = () => {
   return {
     queue: fakes.queue,
     userLookup: fakes.userLookup,
+    propertyNames: fakes.propertyNames,
     logger: fakes.logger,
     receipts: { insertReceipt: vi.fn(async () => {}) },
     fakes,
@@ -99,6 +100,7 @@ describe('portal notification durable consumer', () => {
 
     expect(deps.fakes.jobs[0]?.data).toMatchObject({
       type: 'portal.responsibility_needed',
+      payload: { propertyName: 'Riverside Hotel' },
       audience: {
         kind: 'responsibility_gap',
         scope: { kind: 'portal', portalId: 'portal-1' },

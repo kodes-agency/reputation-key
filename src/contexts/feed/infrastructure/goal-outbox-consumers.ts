@@ -13,19 +13,24 @@ import {
 } from '../application/responsible-recipients'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import {
+  buildPropertyPayload,
+  type PropertyPayloadDeps,
+} from './notification-payload-facts'
 
 export const ON_GOAL_MONTHLY_RESULT_CLOSED_CONSUMER =
   'notification.on-goal-monthly-result-closed' as const
 export const ON_GOAL_MONTHLY_RESULT_REVISED_CONSUMER =
   'notification.on-goal-monthly-result-revised' as const
 
-export type GoalNotificationConsumerDeps = Readonly<{
-  queue: NotificationJobEnqueuePort
-  monthlyResultFacts: MonthlyResultNotificationFactsLookup
-  responsibleManagers: ResponsibleManagerLookupPort
-  userLookup: Pick<UserLookupPort, 'findByRole'>
-  receipts: Pick<OutboxRepository, 'insertReceipt'>
-}>
+export type GoalNotificationConsumerDeps = PropertyPayloadDeps &
+  Readonly<{
+    queue: NotificationJobEnqueuePort
+    monthlyResultFacts: MonthlyResultNotificationFactsLookup
+    responsibleManagers: ResponsibleManagerLookupPort
+    userLookup: Pick<UserLookupPort, 'findByRole'>
+    receipts: Pick<OutboxRepository, 'insertReceipt'>
+  }>
 
 type Payload = Readonly<{
   organizationId?: string
@@ -190,6 +195,8 @@ export async function handleNotificationGoalMonthlyResultClosed(
   // Monthly-result closure is a system evaluation and carries no synchronous
   // human actor; current responsible recipients are the audience authority.
   const recipients = await resolveResponsibleRecipients(deps, organization, scope)
+  // A Goal subject sits inside one Property, the one this fact is filed under.
+  const where = await buildPropertyPayload(deps, organization, property)
 
   await Promise.all(
     recipients.map((recipient) =>
@@ -203,7 +210,7 @@ export async function handleNotificationGoalMonthlyResultClosed(
           resourceType: 'goal' as const,
           resourceId: payload.monthlyResultId,
           eventId: event.eventId,
-          payload: { goalName: facts.programName },
+          payload: { goalName: facts.programName, ...where },
           // Delivery rechecks that the month is STILL achieved: a correction
           // may un-achieve it before this job runs.
           audience: {
@@ -280,6 +287,7 @@ export async function handleNotificationGoalMonthlyResultRevised(
   const property = propertyId(payload.propertyId)
   const scope = scopeFromFacts(facts.subject)
   const recipients = await resolveResponsibleRecipients(deps, organization, scope)
+  const where = await buildPropertyPayload(deps, organization, property)
 
   await Promise.all(
     recipients.map((recipient) =>
@@ -293,7 +301,7 @@ export async function handleNotificationGoalMonthlyResultRevised(
           resourceType: 'goal' as const,
           resourceId: payload.monthlyResultId,
           eventId: event.eventId,
-          payload: { goalName: facts.programName },
+          payload: { goalName: facts.programName, ...where },
           audience: {
             kind: 'goal_result_revision' as const,
             programId: payload.programId,

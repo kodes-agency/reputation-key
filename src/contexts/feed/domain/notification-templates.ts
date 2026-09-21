@@ -344,11 +344,13 @@ const renderNoteAdded = (p: NotificationPayload): RenderedNotification => ({
   summary: facts(p.propertyName ?? '', inboxNoun(p), 'new note'),
 })
 
-const renderPortalResponsibilityNeeded = (): RenderedNotification => ({
-  title: 'Portal needs a responsible manager',
+const renderPortalResponsibilityNeeded = (
+  p: NotificationPayload,
+): RenderedNotification => ({
+  title: `A portal${atProperty(p)} needs a responsible manager`,
   body: 'Choose an eligible manager so portal updates reach the right people.',
   actionLabel: 'Choose manager',
-  summary: 'responsible manager needed',
+  summary: facts(p.propertyName ?? '', 'responsible manager needed'),
 })
 
 const renderPortalHealthAttention = (p: NotificationPayload): RenderedNotification => ({
@@ -358,50 +360,53 @@ const renderPortalHealthAttention = (p: NotificationPayload): RenderedNotificati
   summary: facts(p.propertyName ?? '', 'Portal may need attention'),
 })
 
-const renderPropertyResponsibilityNeeded = (): RenderedNotification => ({
-  title: 'Property needs a responsible manager',
+const renderPropertyResponsibilityNeeded = (
+  p: NotificationPayload,
+): RenderedNotification => ({
+  title: `${p.propertyName ?? 'A property'} needs a responsible manager`,
   body: 'Choose an eligible manager so property-wide updates reach the right people.',
   actionLabel: 'Choose manager',
-  summary: 'Property responsible manager needed',
+  summary: facts(p.propertyName ?? '', 'responsible manager needed'),
 })
 
-// Google refused the grant itself: updates and replies have already stopped,
-// so the copy says so and leads with the one action that restores them.
+/**
+ * The Google connection belongs to the Organization. The Property its notice
+ * is filed under is only a delivery anchor, so the copy never names it.
+ *
+ * When Google refused the grant itself, updates and replies have already
+ * stopped, so the copy says so and leads with the one action that restores
+ * them.
+ */
 const renderIntegrationReauthorizationRequired = (
   p: NotificationPayload,
 ): RenderedNotification =>
   p.reauthorizationCause === 'provider_revoked'
     ? {
-        title: `Reconnect Google${atProperty(p)}`,
+        title: 'Reconnect Google',
         body: 'Google no longer accepts RepKey\u2019s access, so review updates and replies are paused.',
         actionLabel: 'Reconnect Google',
-        summary: facts(p.propertyName ?? '', 'Google access ended'),
+        summary: 'Google access ended',
       }
     : {
-        title: `Google connection needs attention${atProperty(p)}`,
+        title: 'Google connection needs attention',
         body: 'Reconnect the account to keep Google review updates and replies working.',
         actionLabel: 'Review connection',
-        summary: facts(p.propertyName ?? '', 'Google connection needs attention'),
+        summary: 'Google connection needs attention',
       }
 
+/** "Goal completed: Reply within 24h at Riverside Hotel". */
+const goalTitle = (lead: string, p: NotificationPayload): string =>
+  `${lead}${p.goalName === undefined ? '' : `: ${p.goalName}`}${atProperty(p)}`
+
 const renderGoalCompleted = (p: NotificationPayload): RenderedNotification => ({
-  title:
-    p.goalName === undefined
-      ? `Goal completed${atProperty(p)}`
-      : `Goal completed: ${p.goalName}`,
-  body: sentence(
-    p.propertyName === undefined ? '' : `${p.propertyName} hit its target.`,
-    'Open the property to see the numbers.',
-  ),
+  title: goalTitle('Goal completed', p),
+  body: 'It hit its target. Open the property to see the numbers.',
   actionLabel: 'View progress',
   summary: facts(p.propertyName ?? '', p.goalName ?? 'goal completed'),
 })
 
 const renderGoalResultRevised = (p: NotificationPayload): RenderedNotification => ({
-  title:
-    p.goalName === undefined
-      ? `Goal result updated${atProperty(p)}`
-      : `Goal result updated: ${p.goalName}`,
+  title: goalTitle('Goal result updated', p),
   body: 'A monthly result changed. Open the property to see the current metrics.',
   actionLabel: 'View result',
   summary: facts(p.propertyName ?? '', p.goalName ?? 'goal result updated'),

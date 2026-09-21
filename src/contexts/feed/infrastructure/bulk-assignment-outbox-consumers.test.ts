@@ -74,6 +74,8 @@ const makeDeps = () => {
   return {
     queue: fakes.queue,
     userLookup: fakes.userLookup,
+    propertyNames: fakes.propertyNames,
+    logger: fakes.logger,
     receipts: { insertReceipt: vi.fn(async () => {}) },
     fakes,
   }
@@ -101,6 +103,10 @@ describe('bulk-assignment notification durable consumer', () => {
 
   it('partitions by Property and carries exact current-assignee audiences', async () => {
     const deps = makeDeps()
+    deps.fakes.propertyNames.findPropertyName.mockImplementation(
+      async (_org, property) =>
+        property === PROPERTY_A ? 'Riverside Hotel' : 'Harbour View Suites',
+    )
 
     await expect(
       handleNotificationBulkAssignmentCompleted(deps, event()),
@@ -115,7 +121,12 @@ describe('bulk-assignment notification durable consumer', () => {
             propertyId: PROPERTY_A,
             type: 'inbox.bulk_assigned',
             resourceId: ITEM_A1,
-            payload: { itemCount: 2, actorRole: 'property_manager' },
+            // One row per Property, so each says which Property it is.
+            payload: {
+              propertyName: 'Riverside Hotel',
+              itemCount: 2,
+              actorRole: 'property_manager',
+            },
             audience: {
               kind: 'bulk_inbox_assignee',
               inboxItemIds: [ITEM_A1, ITEM_A2],
@@ -127,7 +138,11 @@ describe('bulk-assignment notification durable consumer', () => {
           data: expect.objectContaining({
             propertyId: PROPERTY_B,
             resourceId: ITEM_B,
-            payload: { itemCount: 1, actorRole: 'property_manager' },
+            payload: {
+              propertyName: 'Harbour View Suites',
+              itemCount: 1,
+              actorRole: 'property_manager',
+            },
             audience: {
               kind: 'bulk_inbox_assignee',
               inboxItemIds: [ITEM_B],

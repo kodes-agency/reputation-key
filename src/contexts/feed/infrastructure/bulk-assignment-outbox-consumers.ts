@@ -15,16 +15,21 @@ import {
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import {
+  buildPropertyPayload,
+  type PropertyPayloadDeps,
+} from './notification-payload-facts'
 import { isSafeOpaqueIdentifier } from '#/shared/domain/safe-identifier'
 
 export const ON_INBOX_BULK_ASSIGNMENT_COMPLETED_CONSUMER =
   'notification.on-inbox-bulk-assignment-completed' as const
 
-export type BulkAssignmentNotificationConsumerDeps = Readonly<{
-  queue: NotificationJobEnqueuePort
-  userLookup: Pick<UserLookupPort, 'findActorRole'>
-  receipts: Pick<OutboxRepository, 'insertReceipt'>
-}>
+export type BulkAssignmentNotificationConsumerDeps = PropertyPayloadDeps &
+  Readonly<{
+    queue: NotificationJobEnqueuePort
+    userLookup: Pick<UserLookupPort, 'findActorRole'>
+    receipts: Pick<OutboxRepository, 'insertReceipt'>
+  }>
 
 type Transition = Readonly<{
   inboxItemId: string
@@ -110,11 +115,12 @@ export async function handleNotificationBulkAssignmentCompleted(
     }
 
     await Promise.all(
-      [...byProperty.entries()].map(([property, transitions]) => {
+      [...byProperty.entries()].map(async ([property, transitions]) => {
         const inboxItemIds = transitions.map((transition) =>
           inboxItemId(transition.inboxItemId),
         )
         const recipient = userId(nextAssignee)
+        const where = await buildPropertyPayload(deps, org, propertyId(property))
         return deps.queue.add(
           INSERT_NOTIFICATION_JOB_NAME,
           {
@@ -128,6 +134,7 @@ export async function handleNotificationBulkAssignmentCompleted(
             resourceId: inboxItemIds[0]!,
             eventId: event.eventId,
             payload: {
+              ...where,
               itemCount: transitions.length,
               ...(actorRole ? { actorRole } : {}),
             },
