@@ -80,13 +80,22 @@ export const WORKFLOW_NOTIFICATION_CONSUMERS = [
 ] as const
 
 type WorkflowEventType = (typeof WORKFLOW_NOTIFICATION_CONSUMERS)[number]['eventType']
+
+/**
+ * The durable rejection fact. The reason stays on the reply (ADR 0030); the
+ * fact says only whether there is one, and a fact recorded before it said so
+ * says neither (`null`).
+ */
+type DurableReplyRejected = Omit<ReviewReplyRejected, 'reason' | 'hasReason'> &
+  Readonly<{ hasReason: boolean | null }>
+
 type WorkflowEvent =
   | InboxItemAssigned
   | InboxItemEscalated
   | InboxNoteAdded
   | ReviewReplySubmitted
   | ReviewReplyApproved
-  | ReviewReplyRejected
+  | DurableReplyRejected
   | ReviewReplyPublished
   | ReviewReplyPublishFailed
 
@@ -294,7 +303,7 @@ async function enqueueSubmittedNotifications(
 
 type ReplyAuthorEvent =
   | ReviewReplyApproved
-  | ReviewReplyRejected
+  | DurableReplyRejected
   | ReviewReplyPublished
   | ReviewReplyPublishFailed
 
@@ -322,7 +331,7 @@ async function enqueueReplyAuthorNotification(
   const payload = await buildInboxItemPayload(deps, {
     inboxItemId: inboxItem,
     orgId: event.organizationId,
-    moderationReason: event._tag === 'review.reply.rejected' ? event.reason : null,
+    hasModerationReason: event._tag === 'review.reply.rejected' ? event.hasReason : null,
     publishFailureCause:
       event._tag === 'review.reply.publish_failed' ? (event.cause ?? null) : null,
   })
@@ -430,7 +439,7 @@ const parseReplyDecision = (
   payload: Readonly<Record<string, unknown>>,
   common: WorkflowEventCommon,
   property: PropertyId,
-): ReviewReplyApproved | ReviewReplyRejected | ReviewReplyPublished => {
+): ReviewReplyApproved | DurableReplyRejected | ReviewReplyPublished => {
   const actor = nullableString(payload, 'userId')
   const author = nullableString(payload, 'authorId')
   const base = {
@@ -457,7 +466,7 @@ const parseReplyDecision = (
     ...base,
     _tag: 'review.reply.rejected',
     userId: base.userId,
-    reason: null,
+    hasReason: typeof payload.hasReason === 'boolean' ? payload.hasReason : null,
   }
 }
 

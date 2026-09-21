@@ -18,6 +18,12 @@ import {
   type FakeNotificationConsumerDeps,
 } from './notification-consumer-test-fixtures'
 import { unbrand } from '#/shared/domain/ids'
+import { reviewReplyRejected } from '#/contexts/review/domain/events'
+import { toOutboxEvent } from '#/shared/outbox/event-adapter'
+import { buildConsumerEvent } from '#/shared/outbox/envelope'
+import { parseNotificationPayload } from '../domain/notification-payload'
+import { renderNotification } from '../domain/notification-templates'
+import type { InsertNotificationJobData } from './jobs/insert-notification.job'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -339,6 +345,65 @@ describe('durable workflow notification consumers', () => {
         expect(deps.fakes.jobs).toEqual([])
       },
     )
+  })
+
+  describe('a rejected reply recorded through the outbox', () => {
+    const recordRejection = (reason: string | null): ConsumerEvent => {
+      const fact = reviewReplyRejected({
+        replyId: NOTIF_TEST_IDS.replyId,
+        reviewId: NOTIF_TEST_IDS.reviewId,
+        propertyId: NOTIF_TEST_IDS.propId,
+        organizationId: NOTIF_TEST_IDS.orgId,
+        userId: NOTIF_TEST_IDS.admin1,
+        authorId: NOTIF_TEST_IDS.authorId,
+        reason,
+        occurredAt: NOTIF_TEST_IDS.now,
+      })
+      const row = toOutboxEvent(fact)
+      return buildConsumerEvent({
+        id: fact.eventId,
+        eventType: row.eventType,
+        eventVersion: row.eventVersion ?? 1,
+        payload: row.payload,
+        organizationId: row.organizationId,
+        propertyId: row.propertyId ?? null,
+        sourceContext: row.sourceContext,
+        sourceAggregateId: row.sourceAggregateId,
+        recordedAt: NOTIF_TEST_IDS.now,
+      })
+    }
+
+    const deliverRejection = async (reason: string | null) => {
+      const deps = makeDeps()
+      const recorded = recordRejection(reason)
+      await handleWorkflowNotificationEvent(deps, recorded)
+      const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+      const { body } = renderNotification(
+        'reply.rejected',
+        parseNotificationPayload(data.payload),
+      )
+      return { recorded, data, body }
+    }
+
+    it('tells the author a reason is waiting without carrying its words', async () => {
+      const { recorded, data, body } = await deliverRejection(
+        'Too defensive, drop the refund mention',
+      )
+
+      expect(body).toBe(
+        'The approver left a reason. Open the reply to read it, then edit and resubmit.',
+      )
+      expect(JSON.stringify([recorded, data])).not.toContain('refund')
+    })
+
+    it('says there was no reason only when the approver gave none', async () => {
+      const { data, body } = await deliverRejection(null)
+
+      // Explicit, so a later reasonless rejection that coalesces into an
+      // unread row replaces "a reason is waiting" (newest wins per key).
+      expect(data.payload).toMatchObject({ hasModerationReason: false })
+      expect(body).toBe('It was sent back without a reason. Edit it and resubmit.')
+    })
   })
 
   it.each([

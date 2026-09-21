@@ -131,6 +131,20 @@ describe('parseNotificationPayload', () => {
     })
   })
 
+  describe('flags', () => {
+    it.each([true, false])('keeps whether a rejection came with a reason: %s', (flag) => {
+      expect(
+        parseNotificationPayload({ hasModerationReason: flag }).hasModerationReason,
+      ).toBe(flag)
+    })
+
+    it.each(['true', 1, null, 'Too defensive'])('rejects %p', (flag) => {
+      expect(
+        parseNotificationPayload({ hasModerationReason: flag }).hasModerationReason,
+      ).toBeUndefined()
+    })
+  })
+
   describe('text', () => {
     it('trims and drops whitespace-only values', () => {
       expect(

@@ -14,7 +14,8 @@
 //
 //   ALLOWED   tenant-authored property and goal names, the locally collected
 //             1-5 guest rating, actor ROLE, counts, ages in hours, platform
-//             enum, and an internal moderation reason (staff-authored).
+//             enum, whether an approver gave a reason, and an internal
+//             moderation reason (staff-authored; historical rows only).
 //   FORBIDDEN Google/provider review ratings and content, reply text,
 //             guest/reviewer name, media URLs, sentiment or any derived score,
 //             and any other employee's NAME or email.
@@ -46,8 +47,16 @@ export type NotificationPayload = Readonly<{
   waitingHours?: number
   /** Role of the person whose action produced this notification. */
   actorRole?: NotificationActorRole
-  /** Staff-authored moderation reason (reply.rejected only). */
+  /**
+   * Staff-authored moderation reason (reply.rejected only). Only rows written
+   * before the reason left the durable fact carry it (ADR 0030).
+   */
   moderationReason?: string
+  /**
+   * Whether the approver gave a reason (reply.rejected only). The reason
+   * itself stays on the reply. Absent when the fact did not say.
+   */
+  hasModerationReason?: boolean
   /** Tenant-authored goal name (goal.completed). */
   goalName?: string
   /** Repeat-event count when a row has coalesced. */
@@ -129,6 +138,10 @@ const takeMember = <T extends string>(
 ): T | undefined =>
   typeof value === 'string' && allowed[value] === true ? (value as T) : undefined
 
+/** A real boolean only; "true", 1 and null are not flags. */
+const takeFlag = (value: unknown): boolean | undefined =>
+  typeof value === 'boolean' ? value : undefined
+
 /** Shape of the untrusted input: the payload keys, each still `unknown`. */
 type RawPayload = Partial<Record<keyof NotificationPayload, unknown>>
 
@@ -155,6 +168,7 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   set('waitingHours', takeCount(raw.waitingHours))
   set('actorRole', takeMember(raw.actorRole, ACTOR_ROLES))
   set('moderationReason', takeText(raw.moderationReason, MAX_REASON_LENGTH))
+  set('hasModerationReason', takeFlag(raw.hasModerationReason))
   set('goalName', takeText(raw.goalName, MAX_NAME_LENGTH))
   set('occurrences', takeCount(raw.occurrences))
   set('itemCount', takeCount(raw.itemCount))

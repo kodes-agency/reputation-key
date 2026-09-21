@@ -234,6 +234,24 @@ describe('review domain events', () => {
   })
 
   it.each([
+    ['a written reason', 'Too defensive, drop the refund mention', true],
+    ['no reason', null, false],
+    ['a blank reason', '   ', false],
+  ])(
+    'records whether a rejection came with a reason, given %s',
+    (_label, reason, hasReason) => {
+      const rejected = reviewReplyRejected({
+        ...baseReply,
+        userId: userId('approver-1'),
+        authorId: userId('author-1'),
+        reason,
+      })
+
+      expect(rejected.hasReason).toBe(hasReason)
+    },
+  )
+
+  it.each([
     ['invalid occurredAt', { occurredAt: new Date(Number.NaN) }, 'valid Date'],
     ['empty organizationId', { organizationId: organizationId('') }, 'nonempty'],
     ['non-UUID replyId', { replyId: replyId('reply-1') }, 'replyId'],

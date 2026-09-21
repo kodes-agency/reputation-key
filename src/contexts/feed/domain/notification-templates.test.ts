@@ -181,16 +181,42 @@ describe('renderNotification — the copy that was broken', () => {
     expect(JSON.stringify(payload)).not.toContain('rating')
   })
 
-  it('reply.rejected surfaces the moderation reason', () => {
+  it('reply.rejected still quotes a reason stored on a historical row', () => {
     const withReason = renderNotification('reply.rejected', {
       moderationReason: 'Tone is too defensive.',
     })
-    const without = renderNotification('reply.rejected', {})
 
     expect(withReason.body).toContain('Reason: Tone is too defensive.')
     // The old copy prefixed the title verbatim: "Rejected: <reason>".
     expect(withReason.title).not.toContain('Rejected:')
-    expect(without.body).toContain('without a reason')
+  })
+
+  it('reply.rejected says whether the approver left a reason, never what it says', () => {
+    const withReason = renderNotification('reply.rejected', { hasModerationReason: true })
+    const withoutReason = renderNotification('reply.rejected', {
+      hasModerationReason: false,
+    })
+    // A row recorded before the fact said either way must not guess.
+    const unknown = renderNotification('reply.rejected', {})
+
+    expect(withReason.body).toBe(
+      'The approver left a reason. Open the reply to read it, then edit and resubmit.',
+    )
+    expect(withoutReason.body).toBe(
+      'It was sent back without a reason. Edit it and resubmit.',
+    )
+    expect(unknown.body).toBe(
+      'Open it to see any note from the approver, then edit and resubmit.',
+    )
+  })
+
+  it('reply.rejected follows the latest rejection once rows coalesce', () => {
+    const rendered = renderNotification('reply.rejected', {
+      moderationReason: 'Tone is too defensive.',
+      hasModerationReason: false,
+    })
+
+    expect(rendered.body).toBe('It was sent back without a reason. Edit it and resubmit.')
   })
 
   it('renders a provider review without any source rating clause', () => {

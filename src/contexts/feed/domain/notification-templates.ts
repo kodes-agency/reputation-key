@@ -189,14 +189,28 @@ const renderReplyApproved = (p: NotificationPayload): RenderedNotification => ({
   summary: facts(p.propertyName ?? '', reviewNoun()),
 })
 
+/**
+ * The approver's reason never enters a notification (ADR 0030); only whether
+ * there is one does. The flag outranks a quoted reason, which only historical
+ * rows carry, because a coalesced row's flag describes the latest rejection.
+ * With neither, the copy must not claim the reason is there or missing.
+ */
+const rejectionReasonBody = (p: NotificationPayload): string => {
+  if (p.hasModerationReason === true) {
+    return 'The approver left a reason. Open the reply to read it, then edit and resubmit.'
+  }
+  if (p.hasModerationReason === false) {
+    return 'It was sent back without a reason. Edit it and resubmit.'
+  }
+  if (p.moderationReason !== undefined) {
+    return sentence(`Reason: ${p.moderationReason}`, 'Edit it and resubmit.')
+  }
+  return 'Open it to see any note from the approver, then edit and resubmit.'
+}
+
 const renderReplyRejected = (p: NotificationPayload): RenderedNotification => ({
   title: `Your reply needs changes${atProperty(p)}`,
-  body: sentence(
-    p.moderationReason === undefined
-      ? 'It was sent back without a reason.'
-      : `Reason: ${p.moderationReason}`,
-    'Edit it and resubmit.',
-  ),
+  body: rejectionReasonBody(p),
   actionLabel: 'Edit reply',
   summary: facts(p.propertyName ?? '', reviewNoun()),
 })

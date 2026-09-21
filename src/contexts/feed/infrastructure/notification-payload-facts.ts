@@ -7,10 +7,10 @@
 // Two rules hold everywhere below:
 //
 //  1. ALLOWLIST. Only what ADR 0046 r.8 permits crosses this boundary: property
-//     name, locally collected Portal rating, platform enum, waiting age, actor ROLE, the
-//     staff-authored moderation reason, and registered display names
-//     (goal/badge/portal). The inbox row also holds a snippet, a reviewer name
-//     and media — those are never read here.
+//     name, locally collected Portal rating, platform enum, waiting age, actor ROLE,
+//     whether an approver gave a reason (never the reason), and registered
+//     display names (goal/badge/portal). The inbox row also holds a snippet, a
+//     reviewer name and media — those are never read here.
 //  2. BEST EFFORT. A failed or empty lookup degrades the COPY, never loses the
 //     notification: every template renders correctly from `{}`. Each lookup is
 //     wrapped so BullMQ delivery does not retry a permanently unavailable detail.
@@ -62,8 +62,8 @@ export type InboxPayloadInput = Readonly<{
   orgId: OrganizationId
   /** Whoever's action produced this notification. Resolved to a ROLE, never a name. */
   actorId?: UserId | null
-  /** Staff-authored rejection reason (reply.rejected only). */
-  moderationReason?: string | null
+  /** Whether the approver gave a reason (reply.rejected only); null when unknown. */
+  hasModerationReason?: boolean | null
   /** Closed cause of a failed publication (reply.publish_failed only). */
   publishFailureCause?: NotificationPublishFailureCause | null
 }>
@@ -106,7 +106,11 @@ export const buildInboxItemPayload = async (
     )
   }
   if (actorRole !== null) payload.actorRole = actorRole
-  if (input.moderationReason) payload.moderationReason = input.moderationReason
+  // Set even when false: a rejection without a reason must replace the flag of
+  // an earlier one that had a reason when the two rows coalesce.
+  if (typeof input.hasModerationReason === 'boolean') {
+    payload.hasModerationReason = input.hasModerationReason
+  }
   if (input.publishFailureCause) payload.publishFailureCause = input.publishFailureCause
   return payload as NotificationPayload
 }

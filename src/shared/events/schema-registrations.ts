@@ -109,6 +109,11 @@ const replyEventSchema = z.object({
 const replyPublishFailedSchema = replyEventSchema.extend({
   cause: z.enum(['google_reauthorization_required']).optional(),
 })
+// The approver's reason stays on the reply; the fact says only whether there
+// is one. Optional because rows recorded before the flag existed lack it.
+const replyRejectedSchema = replyEventSchema.extend({
+  hasReason: z.boolean().optional(),
+})
 
 const googleReviewPushAcceptedSchema = z.object({
   organizationId: z.string().trim().min(1).max(255),
@@ -1310,7 +1315,7 @@ export function registerAllEventSchemas(): void {
   registerEventSchema({
     type: 'review.reply.rejected',
     version: EVENT_VERSION,
-    schema: replyEventSchema,
+    schema: replyRejectedSchema,
   })
   registerEventSchema({
     type: 'review.reply.published',

@@ -341,12 +341,20 @@ export type ReviewReplyRejected = Readonly<{
   userId: UserId
   authorId: UserId | null
   reason: string | null
+  /**
+   * Whether the approver wrote a reason. The outbox strips `reason` itself
+   * (ADR 0030), so this flag is all a durable consumer learns about it.
+   */
+  hasReason: boolean
   source: 'web' | 'import'
   occurredAt: Date
   correlationId: string | null
 }>
 export const reviewReplyRejected = (
-  args: Omit<ReviewReplyRejected, '_tag' | 'eventId' | 'correlationId' | 'source'> & {
+  args: Omit<
+    ReviewReplyRejected,
+    '_tag' | 'eventId' | 'correlationId' | 'source' | 'hasReason'
+  > & {
     source?: 'web' | 'import'
     correlationId?: string | null
   },
@@ -356,6 +364,7 @@ export const reviewReplyRejected = (
     ...args,
     _tag: 'review.reply.rejected',
     eventId: newEventId(),
+    hasReason: args.reason !== null && args.reason.trim() !== '',
     correlationId: args.correlationId ?? null,
     source: args.source ?? 'web',
   }

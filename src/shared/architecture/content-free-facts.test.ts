@@ -28,6 +28,8 @@ const REGISTER: Readonly<Record<string, string>> = {
   // The durable outbox schema already strips it, but activity audit detail
   // (on-reply-rejected) and notification email bodies copy it.
   'ReviewReplyRejected.reason': 'BQC-1 gap: protected content on the bus',
+  // What the durable fact keeps instead: that a reason exists, never its words.
+  'ReviewReplyRejected.hasReason': 'boolean presence fact, never the reason text',
   // By-design non-sensitive display names (no PII, no review content).
   'PortalGroupCreated.name': 'by-design non-sensitive display name',
   'PortalGroupUpdated.name': 'by-design non-sensitive display name',
