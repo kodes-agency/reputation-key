@@ -119,10 +119,12 @@ export function buildResponseTargetSnapshot(
 }
 
 /**
- * Only a reminder still ahead of the moment its target is recorded gets a
- * slot. A slot already due then — a Review first observed long after Google
- * published it — would fire on the next release tick for a moment nobody
- * could have acted on.
+ * A halfway reminder gets a slot only while it is still ahead of the moment
+ * its target is recorded: one already due then (a Review first observed long
+ * after Google published it) would prompt about a halfway point nobody could
+ * have acted on. The target-passed slot always stays. A target already
+ * overdue when it is recorded is still unanswered work, so it prompts once,
+ * at the next release.
  */
 export function schedulableReminders(
   snapshot: ResponseTargetSnapshot,
@@ -132,7 +134,9 @@ export function schedulableReminders(
     throw inboxError('invalid_input', 'Response Target timestamp is invalid')
   }
   return snapshot.reminders.filter(
-    (reminder) => reminder.scheduledFor.getTime() > recordedAt.getTime(),
+    (reminder) =>
+      reminder.kind === 'target_passed' ||
+      reminder.scheduledFor.getTime() > recordedAt.getTime(),
   )
 }
 

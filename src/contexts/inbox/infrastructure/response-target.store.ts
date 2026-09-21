@@ -159,9 +159,9 @@ export function resolveReviewCycleTargetProvenance(
 }
 
 /**
- * Record the snapshot's reminder slots that are still ahead of the target's
- * own creation. The schedule trigger only accepts a slot equal to the
- * snapshot, so a slot already due is left out rather than moved later.
+ * Record the snapshot's reminder slots, leaving out a halfway slot already
+ * due when the target is created. The schedule trigger only accepts a slot
+ * equal to the snapshot, so that slot is left out rather than moved later.
  */
 async function insertSchedulableReminders(
   tx: Tx,

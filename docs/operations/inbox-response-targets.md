@@ -21,12 +21,14 @@ use a Property override.
 
 Each measured Handling Cycle stores an immutable snapshot of duration, policy
 source/version, start/due instants, and one halfway plus one target-passed reminder
-slot. A slot that is already due when the target is recorded is not created: the
-schedule guard accepts only the snapshot's own instants, so the slot is left out
-rather than moved later. A target that was already overdue when it was snapshotted
-(a Review first observed long after Google published it) therefore reminds no one,
-and one whose halfway had passed keeps only its target-passed slot. The target
-itself is still measured and counts as overdue. A policy change affects only later
+slot. A halfway slot that is already due when the target is recorded is not
+created: the schedule guard accepts only the snapshot's own instants, so the slot is
+left out rather than moved later. The target-passed slot is always kept, so a target
+already overdue when it is snapshotted (a Review first observed after its target had
+elapsed, on a short policy or after a sync outage) is still unanswered work and
+prompts once, with target passed, at the next release. Onboarding history and
+`legacy_unknown` cycles are not measured and have no slots. The target itself is
+still measured and counts as overdue. A policy change affects only later
 cycles. Overdue is derived from the
 current UTC instant; it neither closes nor escalates an Inbox item. The manager UI
 refreshes detail at the saved due instant so an open target changes to
@@ -185,8 +187,8 @@ captures those facts for the deployed artifact and environment.
 4. Exercise halfway and target-passed reminders with assignment changed between
    admission and delivery. Verify the old audience is denied and the newly resolved,
    de-duplicated audience is used. Verify that a target already overdue when it is
-   snapshotted records no reminder slot, and that a release finding both slots of a
-   target due sends only target passed.
+   snapshotted records only its target-passed slot and prompts once, and that a
+   release finding both slots of a target due sends only target passed.
 5. Exercise ongoing initial, onboarding-history, material-update, manual-reopen,
    external-current-live completion, RepKey-confirmed completion, and current reply-
    deletion reopen paths, an import that fails part-way and is finished by the

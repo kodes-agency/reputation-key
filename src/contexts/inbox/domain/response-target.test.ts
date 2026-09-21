@@ -185,7 +185,7 @@ describe('schedulableReminders', () => {
     ])
   })
 
-  it('drops a slot already due when the target is recorded, even one due that very instant', () => {
+  it('drops a halfway slot already due when the target is recorded, even one due that very instant', () => {
     // Published a day before it was first observed: halfway is the recording
     // instant itself, so only the target-passed prompt can still help anyone.
     expect(
@@ -195,11 +195,23 @@ describe('schedulableReminders', () => {
     ])
   })
 
-  it('records no slot for a target that had already passed when it was recorded', () => {
-    // Google published this Review in 2015; RepKey first observed it today.
-    expect(
-      schedulableReminders(snapshotFrom(new Date('2015-06-01T10:00:00.000Z')), START),
-    ).toEqual([])
+  it('keeps only the target-passed slot of a target already overdue when it is recorded', () => {
+    // Published at 09:00 and first observed at 14:30 under a 4-hour target: the
+    // review is new and still unanswered, so the manager is prompted once, at
+    // the next release, rather than never.
+    const snapshot = buildResponseTargetSnapshot({
+      targetKind: 'google_review_response',
+      policy: {
+        durationMinutes: 240,
+        policySource: 'organization_policy',
+        policyVersion: 3,
+      },
+      startAt: new Date('2026-08-28T09:00:00.000Z'),
+    })
+
+    expect(schedulableReminders(snapshot, new Date('2026-08-28T14:30:00.000Z'))).toEqual([
+      { kind: 'target_passed', scheduledFor: new Date('2026-08-28T13:00:00.000Z') },
+    ])
   })
 
   it('refuses an unreadable recording instant rather than silently dropping every slot', () => {

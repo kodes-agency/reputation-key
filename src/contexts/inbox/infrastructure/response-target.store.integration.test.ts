@@ -624,7 +624,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
     })
   })
 
-  it('schedules no reminder a Review target had already passed when it was snapshotted', async () => {
+  it('prompts once, with target passed, for a Review target already passed when it was snapshotted', async () => {
     await seedScope()
     // First observed at OPENED_AT: one Review Google published in 2015, and
     // one published 30 hours earlier, whose halfway has passed but whose
@@ -653,7 +653,14 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
        ORDER BY scheduled_for`,
       [[REVIEW_ITEM, LATE_ITEM]],
     )
+    // A slot already due when the target is recorded keeps its snapshot
+    // instant; only the halfway prompts that are already due are left out.
     expect(slots.rows).toEqual([
+      {
+        inbox_item_id: REVIEW_ITEM,
+        reminder_kind: 'target_passed',
+        scheduled_for: new Date('2015-06-03T10:00:00.000Z'),
+      },
       {
         inbox_item_id: LATE_ITEM,
         reminder_kind: 'target_passed',
@@ -663,7 +670,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
 
     await expect(
       targets.releaseDueReminders({ now: OPENED_AT, limit: 100 }),
-    ).resolves.toEqual({ released: 0 })
+    ).resolves.toEqual({ released: 1 })
     await expect(
       targets.releaseDueReminders({
         now: new Date('2026-08-29T02:00:00.000Z'),
@@ -671,6 +678,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
       }),
     ).resolves.toEqual({ released: 1 })
     expect(await releasedReminderKinds([REVIEW_ITEM, LATE_ITEM])).toEqual([
+      { inbox_item_id: REVIEW_ITEM, reminder_kind: 'target_passed' },
       { inbox_item_id: LATE_ITEM, reminder_kind: 'target_passed' },
     ])
 
