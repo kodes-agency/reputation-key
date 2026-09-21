@@ -14,6 +14,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { Toaster } from '#/components/ui/sonner'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   makeNotification,
   makeNotificationFns,
@@ -301,6 +302,28 @@ export const ErrorState: Story = {
     await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
     const portal = within(document.body)
     expect(await portal.findByRole('button', { name: /retry/i })).toBeInTheDocument()
+  },
+}
+
+/**
+ * The session ended under the open tab (signed out elsewhere, expired, or a
+ * password change revoked it): the bell offers sign-in, not a Retry that can
+ * never succeed.
+ */
+export const SessionEnded: Story = {
+  args: {
+    notificationFns: makeNotificationFns({
+      getFeedHead: (async () => {
+        throw new ServerFunctionError('AuthError', 'Unauthorized', 'unauthorized', 401)
+      }) as unknown as NotificationServerFns['getFeedHead'],
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const popover = await openBell(canvasElement)
+    expect(
+      await popover.findByRole('link', { name: 'Sign in again' }),
+    ).toBeInTheDocument()
+    expect(popover.queryByRole('button', { name: /retry/i })).toBeNull()
   },
 }
 

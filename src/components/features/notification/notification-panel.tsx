@@ -105,6 +105,7 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
           isLoading={list.isLoading}
           isLoadingMore={list.isLoadingMore}
           error={list.error}
+          loadMoreError={list.loadMoreError}
           hasMore={list.hasMore}
           unreadCount={count}
           filter={filter}

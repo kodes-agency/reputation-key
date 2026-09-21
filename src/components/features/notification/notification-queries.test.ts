@@ -21,6 +21,7 @@ import {
   focusManager,
 } from '@tanstack/react-query'
 import { notificationKeys } from '#/shared/queries/query-keys'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   makeNotification,
   notificationPageFixture,
@@ -147,6 +148,49 @@ describe('notification polling posture', () => {
       unreadCount: 7,
       watermark: '2026-08-27T12:00:00.000Z',
     })
+    unsubscribe()
+  })
+
+  it('stops polling the head once the session has ended', async () => {
+    const fetchHead = vi.fn(async () => {
+      throw new ServerFunctionError('AuthError', 'Unauthorized', 'unauthorized', 401)
+    })
+    const observer = new QueryObserver(
+      client,
+      notificationHeadQueryOptions(
+        notificationKeys.head('org-1', 20, 'all'),
+        fetchHead,
+        true,
+      ),
+    )
+    const unsubscribe = observer.subscribe(() => {})
+
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL * 3)
+
+    // Every tick would be another 401: nothing a retry can fix until sign-in.
+    expect(fetchHead).toHaveBeenCalledTimes(1)
+    unsubscribe()
+  })
+
+  it('keeps polling through a failure a later tick can recover from', async () => {
+    const fetchHead = vi.fn(async () => {
+      throw new ServerFunctionError('InternalError', 'Unavailable', 'internal_error', 503)
+    })
+    const observer = new QueryObserver(
+      client,
+      notificationHeadQueryOptions(
+        notificationKeys.head('org-1', 20, 'all'),
+        fetchHead,
+        true,
+      ),
+    )
+    const unsubscribe = observer.subscribe(() => {})
+
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL * 2)
+
+    expect(fetchHead).toHaveBeenCalledTimes(3)
     unsubscribe()
   })
 })

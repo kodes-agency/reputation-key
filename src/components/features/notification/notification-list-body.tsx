@@ -1,5 +1,7 @@
 // List-state machine for the notification feed: error → loading → empty → list.
-// Selected by early returns (no chained ternary).
+// Selected by early returns (no chained ternary). A failure only takes over
+// the list when there are no rows to keep; otherwise it is a notice beside
+// them (notification-list-notices.tsx).
 //
 // Real list semantics: each group is a heading + a <ul> of <li> rows, so a
 // screen reader announces "list, 4 items" and supports list navigation. The
@@ -10,8 +12,7 @@
 // (use-notification-focus-recovery.ts).
 
 import { useRef, type ReactNode, type RefObject } from 'react'
-import { Inbox, Loader2, RefreshCw } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { Inbox } from 'lucide-react'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Skeleton } from '#/components/ui/skeleton'
 import { NotificationRow } from './notification-row'
@@ -19,12 +20,20 @@ import type { NotificationGroup } from './notification-filters'
 import type { NotificationFormat } from './notification-utils'
 import type { NotificationRowActions } from './types'
 import { useNotificationFocusRecovery } from './use-notification-focus-recovery'
+import {
+  NotificationErrorState,
+  NotificationLoadMore,
+  NotificationRefreshNotice,
+} from './notification-list-notices'
 
 export type NotificationListBodyProps = Readonly<{
   groups: ReadonlyArray<NotificationGroup>
   isLoading: boolean
   isLoadingMore: boolean
+  /** The head read failed. Rows already loaded stay listed beneath a notice. */
   error: Error | null
+  /** The last "Load more" failed. */
+  loadMoreError?: Error | null
   hasMore: boolean
   onRetry: () => void
   onLoadMore: () => void
@@ -36,18 +45,6 @@ export type NotificationListBodyProps = Readonly<{
   /** The focusable list group, for a caller that must hand focus to the list. */
   listRef?: RefObject<HTMLDivElement | null>
 }>
-
-function NotificationErrorState({ onRetry }: Readonly<{ onRetry: () => void }>) {
-  return (
-    <div className="flex flex-col items-center gap-3 px-4 py-6 text-center">
-      <p className="text-sm text-muted-foreground">Couldn't load notifications.</p>
-      <Button variant="outline" size="sm" onClick={onRetry}>
-        <RefreshCw aria-hidden="true" className="size-3" />
-        Retry
-      </Button>
-    </div>
-  )
-}
 
 function NotificationLoadingState() {
   return (
@@ -122,9 +119,12 @@ export function NotificationListBody(props: NotificationListBodyProps) {
 }
 
 function NotificationListState(props: NotificationListBodyProps): ReactNode {
-  if (props.error) return <NotificationErrorState onRetry={props.onRetry} />
+  const hasRows = props.groups.length > 0
+  if (props.error && !hasRows) {
+    return <NotificationErrorState error={props.error} onRetry={props.onRetry} />
+  }
   if (props.isLoading) return <NotificationLoadingState />
-  if (props.groups.length === 0) {
+  if (!hasRows) {
     return (
       <div className="px-3 py-6">
         <EmptyState icon={Inbox} title={props.emptyTitle ?? "You're all caught up"} />
@@ -134,6 +134,9 @@ function NotificationListState(props: NotificationListBodyProps): ReactNode {
 
   return (
     <div className="flex flex-col gap-2 py-1">
+      {props.error && (
+        <NotificationRefreshNotice error={props.error} onRetry={props.onRetry} />
+      )}
       {props.groups.map((group) => (
         <NotificationSection
           key={group.key}
@@ -144,24 +147,11 @@ function NotificationListState(props: NotificationListBodyProps): ReactNode {
         />
       ))}
       {props.hasMore && (
-        <div className="px-3 py-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={props.onLoadMore}
-            disabled={props.isLoadingMore}
-            className="w-full text-xs text-muted-foreground"
-          >
-            {props.isLoadingMore ? (
-              <>
-                <Loader2 aria-hidden="true" className="size-3 animate-spin" />
-                Loading…
-              </>
-            ) : (
-              'Load more'
-            )}
-          </Button>
-        </div>
+        <NotificationLoadMore
+          isLoadingMore={props.isLoadingMore}
+          error={props.loadMoreError}
+          onLoadMore={props.onLoadMore}
+        />
       )}
     </div>
   )

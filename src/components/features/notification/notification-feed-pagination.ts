@@ -1,4 +1,5 @@
 import type { QueryClient, QueryKey } from '@tanstack/react-query'
+import { httpStatus } from '#/shared/security/expected-refusal'
 import {
   isNewerFeedPosition,
   type NotificationFeedCursor,
@@ -47,7 +48,14 @@ function carryUnreadCount(
   return previous && { ...previous, page: NO_ROWS_YET }
 }
 
-/** Query options for the only notification page allowed to refresh on a timer. */
+/**
+ * Query options for the only notification page allowed to refresh on a timer.
+ *
+ * The timer stops once a read answers 401: the session ended under the open
+ * tab (signed out elsewhere, expired, or revoked by a password change), and
+ * every tick would be another refusal. The list offers sign-in instead; a
+ * window focus or Retry still reads again, so signing in elsewhere recovers.
+ */
 export function notificationHeadQueryOptions(
   queryKey: QueryKey,
   fetchHead: FetchNotificationFeedHead,
@@ -57,7 +65,8 @@ export function notificationHeadQueryOptions(
     queryKey,
     queryFn: fetchHead,
     ...NOTIFICATION_POLL_OPTIONS,
-    refetchInterval: poll ? NOTIFICATION_POLL_INTERVAL : false,
+    refetchInterval: (query: Readonly<{ state: Readonly<{ error: unknown }> }>) =>
+      poll && httpStatus(query.state.error) !== 401 ? NOTIFICATION_POLL_INTERVAL : false,
     placeholderData: carryUnreadCount,
   } as const
 }

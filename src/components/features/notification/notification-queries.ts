@@ -88,7 +88,9 @@ export function useNotifications(
     // Placeholder data carries only the count; the rows are still loading.
     isLoading: head.isPending || head.isPlaceholderData,
     isLoadingMore: history.isFetchingNextPage,
-    error: head.error ?? history.error,
+    // Kept apart: a failed "Load more" must not hide the rows the head holds.
+    error: head.error,
+    loadMoreError: history.error,
     hasMore,
     refetch: () => {
       void head.refetch()

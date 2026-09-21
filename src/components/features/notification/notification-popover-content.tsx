@@ -17,6 +17,7 @@ type Props = Readonly<{
   isLoading: boolean
   isLoadingMore: boolean
   error: Error | null
+  loadMoreError?: Error | null
   hasMore: boolean
   unreadCount: number
   filter: NotificationFilter
@@ -65,6 +66,7 @@ export function NotificationPopoverContent(props: Props) {
             isLoading={props.isLoading}
             isLoadingMore={props.isLoadingMore}
             error={props.error}
+            loadMoreError={props.loadMoreError}
             hasMore={props.hasMore}
             onRetry={props.onRetry}
             onLoadMore={props.onLoadMore}

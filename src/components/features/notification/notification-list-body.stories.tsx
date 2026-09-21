@@ -10,6 +10,7 @@ import {
   notificationFixtures,
   notificationPropertyFixtures,
 } from './notification.stories.fixtures'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { groupByProperty, groupByReadState } from './notification-filters'
 import { NotificationListBody } from './notification-list-body'
 import type { NotificationRowActions } from './types'
@@ -51,11 +52,57 @@ export default meta
 type Story = StoryObj<typeof NotificationListBody>
 
 export const ErrorState: Story = {
-  args: { error: new Error('Notifications service unavailable') },
+  args: { groups: [], error: new Error('Notifications service unavailable') },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/couldn't load notifications/i)).toBeInTheDocument()
     expect(canvas.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+  },
+}
+
+/**
+ * One failed refresh (a deploy, a dropped connection) keeps the rows the user
+ * was reading; it used to swap the whole list for the error state.
+ */
+export const RefreshFailureKeepsTheRows: Story = {
+  args: { error: new Error('Notifications service unavailable') },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getAllByRole('listitem')).toHaveLength(notificationFixtures.length)
+    expect(canvas.getByText(/couldn't refresh notifications/i)).toBeInTheDocument()
+    expect(canvas.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+  },
+}
+
+const sessionEnded = new ServerFunctionError(
+  'AuthError',
+  'Unauthorized',
+  'unauthorized',
+  401,
+)
+
+/** A 401 cannot be retried into success: the way out is signing in again. */
+export const SessionEnded: Story = {
+  args: { groups: [], error: sessionEnded },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText(/your session has ended/i)).toBeInTheDocument()
+    expect(canvas.getByRole('link', { name: 'Sign in again' })).toHaveAttribute(
+      'href',
+      expect.stringMatching(/^\/login\?redirect=/),
+    )
+    expect(canvas.queryByRole('button', { name: /retry/i })).toBeNull()
+  },
+}
+
+/** A failed "Load more" says so beside the button and keeps every loaded row. */
+export const LoadMoreFailure: Story = {
+  args: { hasMore: true, loadMoreError: new Error('Notifications service unavailable') },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getAllByRole('listitem')).toHaveLength(notificationFixtures.length)
+    expect(canvas.getByText(/couldn't load older notifications/i)).toBeInTheDocument()
+    expect(canvas.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
   },
 }
 
