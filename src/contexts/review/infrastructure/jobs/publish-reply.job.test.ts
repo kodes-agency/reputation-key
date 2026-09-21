@@ -28,6 +28,8 @@ import { createHash } from 'node:crypto'
 import { describe, it, expect, vi } from 'vitest'
 import { createGoogleAuthorizedProviderExecutor } from '#/contexts/integration/infrastructure/adapters/google-authorized-provider-executor.adapter'
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
+import { createSingle401RefreshExecutor } from '#/contexts/integration/infrastructure/adapters/google-single-401-refresh-executor'
+import { integrationError } from '#/contexts/integration/domain/errors'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import { createPublishReplyHandler } from './publish-reply.job'
 
@@ -378,6 +380,41 @@ describe('publish-reply job handler', () => {
     }
     expect(event._tag).toBe('review.reply.publish_failed')
     expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
+  })
+
+  it('names the reconnect remedy on the publish_failed fact of a reply blocked by reauthorization', async () => {
+    const deps = makeDeps()
+    deps.googleReviewApi.replyToReview.mockRejectedValue(
+      Object.assign(new Error('Google review API request failed'), {
+        _tag: 'GoogleReviewApiError',
+        code: 'reauthorization_required',
+        recoverable: false,
+      }),
+    )
+    const handler = createPublishReplyHandler(deps as never)
+
+    await expect(handler(makeJob(0))).resolves.toBeUndefined()
+
+    expect(deps.replyCommandStore.markPublicationTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'reply-1' }),
+      'terminal_rejection',
+      expect.objectContaining({
+        _tag: 'review.reply.publish_failed',
+        cause: 'google_reauthorization_required',
+      }),
+    )
+    expect(deps.replyCommandStore.markPublicationRetryQueued).not.toHaveBeenCalled()
+  })
+
+  it('names no cause for any other terminal refusal', async () => {
+    const deps = makeDeps()
+    deps.googleReviewApi.replyToReview.mockRejectedValue(gbpApiError(403))
+    const handler = createPublishReplyHandler(deps as never)
+
+    await handler(makeJob(0))
+
+    const event = deps.replyCommandStore.markPublicationTerminal.mock.calls[0]![2]
+    expect(event).not.toHaveProperty('cause')
   })
 
   it('429 rate limit retries within budget, then becomes publish_failed on attempt five', async () => {
@@ -1298,5 +1335,160 @@ describe('publish-reply job over the real provider adapters (incident b129e390)'
       expect.any(String),
     )
     expect(JSON.stringify(deps.logger.error.mock.calls)).not.toContain('quiet')
+  })
+})
+
+// Google revoked the grant: the reply PUT is answered 401 and the forced
+// refresh is refused for good. Over the REAL executor, 401-refresh wrapper and
+// review API adapter (only permit admission, the gateway and the refresh are
+// fakes), the reply used to read as an unknown dispatch, stayed "sending" and
+// ended on the 72-hour read ladder with "Google rejected the reply".
+describe('publish-reply job when Google revoked the grant (real provider adapters)', () => {
+  const ORG = '0UM0PoDLJNJ3yGCeBMERaQkQyxer9BuC'
+  const IDS = {
+    property: '00000000-0000-4000-8000-00000000b001',
+    connection: '00000000-0000-4000-8000-00000000b002',
+    review: '00000000-0000-4000-8000-00000000b003',
+    reply: '00000000-0000-4000-8000-00000000b004',
+  }
+
+  function revokedGrantDeps(authorize: 'authorized' | 'refused' = 'authorized') {
+    const deps = makeDeps()
+    let current = {
+      ...approvedReply,
+      id: IDS.reply,
+      reviewId: IDS.review,
+      organizationId: ORG,
+    }
+    deps.replyRepo.findById.mockImplementation(async () => current)
+    deps.replyCommandStore.markPublicationSending.mockImplementation(async () => {
+      if (current.publicationState !== 'authorized') return null
+      current = {
+        ...current,
+        publicationState: 'sending',
+        publicationAttempts: current.publicationAttempts + 1,
+      }
+      return current
+    })
+    deps.reviewRepo.findById.mockResolvedValue({
+      ...review,
+      id: IDS.review,
+      organizationId: ORG,
+      propertyId: IDS.property,
+      googleConnectionId: IDS.connection,
+    })
+    const gateway = {
+      execute: vi.fn(async () => ({
+        ok: true as const,
+        status: 401,
+        headers: {
+          contentType: 'application/json; charset=utf-8',
+          cacheControl: null,
+          retryAfter: null,
+        },
+        body: new TextEncoder().encode('{"error":{"status":"UNAUTHENTICATED"}}'),
+      })),
+    }
+    const refreshAccessToken = vi.fn(async () => {
+      throw integrationError(
+        'reauthorization_required',
+        'Google connection requires reauthorization',
+      )
+    })
+    const executor = createSingle401RefreshExecutor({
+      executor: createGoogleAuthorizedProviderExecutor({
+        bindCredential: (credential) =>
+          createHash('sha256').update(credential, 'utf8').digest('hex'),
+        admit: vi.fn(async () => ({ ok: true as const, permitId: 'permit-1' })),
+        gateway,
+      }),
+      refreshAccessToken,
+      getAccessToken: async () => 'unused-access-token',
+      reauthorize: async ({ authorization }) => authorization,
+    })
+    const googleReviewApi = createGoogleReviewApiAdapter({
+      // The refresh use case has moved the connection to reauth_required.
+      connectionRepo: {
+        findById: vi.fn(async () => ({ status: 'reauth_required' })),
+      } as never,
+      logger: { warn: vi.fn() } as never,
+      cursorStore: {} as never,
+      executor,
+      authorizeReplyPublicationProviderCall: vi.fn(async (input) => {
+        if (authorize === 'refused') {
+          throw new Error(
+            'Google reply publication authorization is unavailable: runtime_unavailable',
+          )
+        }
+        return {
+          accessToken: 'ya29.revoked-access-token',
+          authorization: {
+            capability: 'property.publish_reply' as const,
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            connectionId: input.connectionId,
+            initiatorUserId: null,
+            expectedCredentialGeneration: 1,
+            authorizationVector: {
+              generation: 1,
+              propertySourceEpoch: input.sourceEpoch,
+              publicationCycle: input.publicationCycle,
+              publicationAttemptNumber: input.attemptNumber,
+              expectedReplyDigest: googleReplyTextDigest(approvedReply.text),
+            },
+            publication: {
+              reviewId: input.reviewId,
+              replyId: input.replyId,
+              publicationCycle: input.publicationCycle,
+              attemptNumber: input.attemptNumber,
+              sourceEpoch: input.sourceEpoch,
+              materialReviewRevision: input.materialReviewRevision,
+            },
+          },
+        }
+      }),
+      nowMs: () => NOW.getTime(),
+    })
+    const handler = createPublishReplyHandler({ ...deps, googleReviewApi } as never)
+    const job = makeJob(0, {
+      ...JOB_DATA,
+      replyId: IDS.reply,
+      organizationId: ORG,
+      propertyId: IDS.property,
+    })
+    return { deps, handler, gateway, refreshAccessToken, job }
+  }
+
+  const expectTerminalWithReconnectCause = (deps: ReturnType<typeof makeDeps>) => {
+    expect(deps.replyCommandStore.markPublicationTerminal).toHaveBeenCalledOnce()
+    expect(deps.replyCommandStore.markPublicationTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({ id: IDS.reply }),
+      'terminal_rejection',
+      expect.objectContaining({
+        _tag: 'review.reply.publish_failed',
+        cause: 'google_reauthorization_required',
+      }),
+    )
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationRetryQueued).not.toHaveBeenCalled()
+  }
+
+  it('ends a reply answered 401 terminal on attempt 1, naming the reconnect remedy', async () => {
+    const { deps, handler, gateway, refreshAccessToken, job } = revokedGrantDeps()
+
+    await expect(handler(job)).resolves.toBeUndefined()
+
+    expect(gateway.execute).toHaveBeenCalledOnce()
+    expect(refreshAccessToken).toHaveBeenCalledOnce()
+    expectTerminalWithReconnectCause(deps)
+  })
+
+  it('ends a reply whose publication authority was refused the same way, sending nothing', async () => {
+    const { deps, handler, gateway, job } = revokedGrantDeps('refused')
+
+    await expect(handler(job)).resolves.toBeUndefined()
+
+    expect(gateway.execute).not.toHaveBeenCalled()
+    expectTerminalWithReconnectCause(deps)
   })
 })

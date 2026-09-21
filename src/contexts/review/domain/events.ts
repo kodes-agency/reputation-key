@@ -11,6 +11,7 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import type { ReviewPlatform } from './types'
+import type { PublicationFailureCause } from './reply-publication-workflow'
 
 const DATABASE_UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
@@ -368,6 +369,8 @@ export type ReviewReplyPublishFailed = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   authorId: UserId | null
+  /** Present only when the remedy is not a retry: Google must be reconnected first. */
+  cause?: PublicationFailureCause
   occurredAt: Date
   correlationId: string | null
 }>

@@ -1004,6 +1004,39 @@ export const createGoogleReviewApiAdapter = (
     }
   }
 
+  /**
+   * A reply refused while its connection waits for an AccountAdmin to
+   * reconnect Google is the reconnect case, not a changed approval, so the
+   * publish job can tell its author so. An unreadable connection keeps the
+   * refusal as it was; both codes are terminal.
+   */
+  const withReauthorizationCause = async (
+    input: GoogleReplyPublicationInput,
+    refusal: GoogleReviewApiError,
+  ): Promise<GoogleReviewApiError> => {
+    if (refusal.code !== 'authorization_changed') return refusal
+    let status: string | null
+    try {
+      const connection = await deps.connectionRepo.findById(
+        input.organizationId,
+        input.connectionId,
+      )
+      status = connection?.status ?? null
+    } catch {
+      deps.logger.warn(
+        { event: 'google_reply_refusal_connection_unreadable' },
+        'Google reply refusal kept its code; the connection could not be read',
+      )
+      return refusal
+    }
+    if (status !== 'reauth_required') return refusal
+    return reviewApiError(
+      'reauthorization_required',
+      false,
+      refusal.failure === undefined ? {} : { failure: refusal.failure },
+    )
+  }
+
   const replyViaExecutor = async (
     input: GoogleReplyPublicationInput,
   ): Promise<GoogleReplyPublicationOutcome> => {
@@ -1026,7 +1059,10 @@ export const createGoogleReviewApiAdapter = (
         attemptNumber: input.attemptNumber,
       })
     } catch {
-      throw reviewApiError('authorization_changed', false)
+      throw await withReauthorizationCause(
+        input,
+        reviewApiError('authorization_changed', false),
+      )
     }
     assertReplyAuthorizationBinds(authorized.authorization, input)
     try {
@@ -1049,7 +1085,7 @@ export const createGoogleReviewApiAdapter = (
       // The raw helper has already zeroed the body and dropped the headers,
       // so the correlation id is honestly unknown here.
       if (isAcceptedNonJsonWrite(error)) return { providerCorrelationId: null }
-      throw executorErrorToReviewApiError(error)
+      throw await withReauthorizationCause(input, executorErrorToReviewApiError(error))
     }
   }
 

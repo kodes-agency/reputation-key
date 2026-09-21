@@ -5,6 +5,7 @@ import type {
   GoogleAuthorizedProviderExecutor,
   GoogleProviderExecutionResult,
 } from '../../application/ports/google-authorized-provider-executor.port'
+import { integrationError } from '../../domain/errors'
 import { createSingle401RefreshExecutor } from './google-single-401-refresh-executor'
 
 const AUTHORIZATION: GoogleProviderCallAuthorization = Object.freeze({
@@ -111,5 +112,56 @@ describe('createSingle401RefreshExecutor dispatch evidence', () => {
     const { executor } = refreshingExecutor([unauthorized(), retried])
 
     await expect(executor.execute(DESCRIPTOR, OPTIONS)).resolves.toBe(retried)
+  })
+})
+
+// Google answers 401 at once when it revokes a grant, and the forced refresh is
+// then refused for good. The answered 401 is the whole outcome. Throwing
+// instead made the caller read a refused reply as an unknown dispatch: the
+// reply stayed "sending" and went onto the 72-hour read ladder.
+describe('createSingle401RefreshExecutor after Google refused the grant', () => {
+  function afterRefreshFailure(refreshFailure: Error) {
+    const first = unauthorized()
+    const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>(async () => first)
+    const reauthorize = vi.fn(
+      async ({ authorization }: { authorization: GoogleProviderCallAuthorization }) =>
+        authorization,
+    )
+    const executor = createSingle401RefreshExecutor({
+      executor: { execute },
+      refreshAccessToken: async () => {
+        throw refreshFailure
+      },
+      getAccessToken: async () => 'unused-access-token',
+      reauthorize,
+    })
+    return { executor, execute, reauthorize, first }
+  }
+
+  it('returns the answered 401 once the grant needs reauthorization', async () => {
+    const { executor, execute, reauthorize, first } = afterRefreshFailure(
+      integrationError(
+        'reauthorization_required',
+        'Google connection requires reauthorization',
+      ),
+    )
+
+    const result = await executor.execute(DESCRIPTOR, OPTIONS)
+
+    expect(result).toMatchObject({ ok: true, status: 401 })
+    expect(result).toBe(first)
+    expect([...first.body].every((byte) => byte === 0)).toBe(true)
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(reauthorize).not.toHaveBeenCalled()
+  })
+
+  it('still fails a refresh that Google may accept later', async () => {
+    const refreshFailure = integrationError(
+      'token_refresh_failed',
+      'Google credential provider is unavailable',
+    )
+    const { executor } = afterRefreshFailure(refreshFailure)
+
+    await expect(executor.execute(DESCRIPTOR, OPTIONS)).rejects.toBe(refreshFailure)
   })
 })

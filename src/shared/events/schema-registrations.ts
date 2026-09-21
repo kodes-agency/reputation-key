@@ -105,6 +105,11 @@ const replyEventSchema = z.object({
   occurredAt: z.string().optional(),
 })
 
+// The optional cause is additive: earlier rows and producers omit it.
+const replyPublishFailedSchema = replyEventSchema.extend({
+  cause: z.enum(['google_reauthorization_required']).optional(),
+})
+
 const googleReviewPushAcceptedSchema = z.object({
   organizationId: z.string().trim().min(1).max(255),
   propertyId: databaseUuidSchema,
@@ -1320,7 +1325,7 @@ export function registerAllEventSchemas(): void {
   registerEventSchema({
     type: 'review.reply.publish_failed',
     version: EVENT_VERSION,
-    schema: replyEventSchema,
+    schema: replyPublishFailedSchema,
   })
   registerEventSchema({
     type: 'review.reply.publication_cancelled',

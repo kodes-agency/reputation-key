@@ -418,6 +418,9 @@ const PRE_REQUEST_TERMINAL_CODES: ReadonlySet<string> = new Set([
   // it as an unknown outcome left the reply 'sending' until every attempt was
   // spent instead of reporting the permission problem.
   'authorization_changed',
+  // The Google connection waits for an AccountAdmin to reconnect it (refused
+  // before sending, or answered 401 for a grant Google revoked).
+  'reauthorization_required',
 ])
 
 type IntegrationErrorShape = Readonly<{
@@ -612,6 +615,19 @@ function classifyReviewApiError(
   if (byDispatch) return byDispatch
   if (err.code === 'provider_rate_limited') return 'retryable'
   return 'ambiguous'
+}
+
+/** Why a terminal publication failure needs more than a retry, when known. */
+export type PublicationFailureCause = 'google_reauthorization_required'
+
+/**
+ * The cause the `publish_failed` fact carries so its notice can name the
+ * remedy. Structural inspection only, like the classifier below.
+ */
+export function publicationFailureCause(err: unknown): PublicationFailureCause | null {
+  const code =
+    isReviewApiErrorShape(err) || isIntegrationErrorShape(err) ? err.code : null
+  return code === 'reauthorization_required' ? 'google_reauthorization_required' : null
 }
 
 /**

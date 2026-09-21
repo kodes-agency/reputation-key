@@ -73,8 +73,10 @@ import {
   canDeferUncertainSend,
   classifyPublicationFailure,
   nextAmbiguousReconcileDueAt,
+  publicationFailureCause,
   publicationFailureEvidence,
   UNCERTAIN_SEND_RECHECK_DELAY_MS,
+  type PublicationFailureCause,
 } from '../../domain/reply-publication-workflow'
 import { reviewReplyPublishFailed } from '../../domain/events'
 import { sha256Hex } from '#/shared/domain/sha256'
@@ -101,13 +103,19 @@ type PublishHandlerDeps = Readonly<{
 }>
 
 /** The publish_failed fact — identifier-only, propertyId from the parent review. */
-function buildPublishFailedEvent(review: Review, reply: Reply, occurredAt: Date) {
+function buildPublishFailedEvent(
+  review: Review,
+  reply: Reply,
+  occurredAt: Date,
+  cause: PublicationFailureCause | null = null,
+) {
   return reviewReplyPublishFailed({
     replyId: reply.id,
     reviewId: reply.reviewId,
     propertyId: review.propertyId,
     organizationId: reply.organizationId,
     authorId: reply.createdBy,
+    ...(cause === null ? {} : { cause }),
     occurredAt,
   })
 }
@@ -583,7 +591,12 @@ async function handlePublishFailure(
     await deps.replyCommandStore.markPublicationTerminal(
       claimed,
       'terminal_rejection',
-      buildPublishFailedEvent(review, claimed, deps.clock()),
+      buildPublishFailedEvent(
+        review,
+        claimed,
+        deps.clock(),
+        publicationFailureCause(err),
+      ),
     )
     return
   }

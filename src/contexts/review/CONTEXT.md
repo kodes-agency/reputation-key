@@ -54,7 +54,12 @@ A request RepKey refused before sending is retryable, except a malformed request
 which is a terminal rejection; a 4xx answer other than 429 is terminal; a 429 is
 retryable; an unknown dispatch or any other answer is uncertain. An uncertain
 attempt is never written again unless there is positive evidence it never left
-RepKey (see Invariant 9).
+RepKey (see Invariant 9). A write refused because the Google connection waits
+for an AccountAdmin to reconnect it (`reauthorization_required`, whether refused
+before sending or answered 401 for a revoked grant) is a terminal rejection,
+and its `publish_failed` fact carries cause `google_reauthorization_required` so
+the author is told to have Google reconnected rather than that Google rejected
+the reply.
 
 A Property reply library has at most one rendering profile and a retained set of
 enabled or disabled templates. Settings edits templates by ID, so a title rename

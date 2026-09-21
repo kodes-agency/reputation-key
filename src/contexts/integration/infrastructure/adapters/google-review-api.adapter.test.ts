@@ -941,6 +941,81 @@ describe('GoogleReviewApiAdapter', () => {
   })
 })
 
+// A reply cannot be published until an AccountAdmin reconnects Google. The
+// publish job has to learn that, not that the approval binding changed, or the
+// author is told Google rejected the reply and to retry it.
+describe('GoogleReviewApiAdapter reply while Google needs reconnecting', () => {
+  const waitingForConsent = { ...connection, status: 'reauth_required' }
+
+  it('reports reauthorization_required when publication authority is refused for that reason', async () => {
+    const execute = vi.fn()
+    const { api } = createAdapter({
+      execute,
+      authorizeReplyPublicationProviderCall: vi
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            'Google reply publication authorization is unavailable: runtime_unavailable',
+          ),
+        ),
+      findById: vi.fn().mockResolvedValue(waitingForConsent),
+    })
+
+    await expect(api.replyToReview(publicationInput())).rejects.toMatchObject({
+      _tag: 'GoogleReviewApiError',
+      code: 'reauthorization_required',
+      recoverable: false,
+    })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('reports the answered 401 of a revoked grant as reauthorization_required', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 401,
+      headers: { contentType: 'application/json', cacheControl: null, retryAfter: null },
+      body: new Uint8Array(),
+    })
+    const { api } = createAdapter({
+      execute,
+      findById: vi.fn().mockResolvedValue(waitingForConsent),
+    })
+
+    await expect(api.replyToReview(publicationInput())).rejects.toMatchObject({
+      code: 'reauthorization_required',
+      recoverable: false,
+      failure: { dispatch: 'answered', providerStatus: 401 },
+    })
+  })
+
+  it('keeps authorization_changed while the connection is still usable', async () => {
+    const { api } = createAdapter({
+      execute: vi.fn(),
+      authorizeReplyPublicationProviderCall: vi
+        .fn()
+        .mockRejectedValue(new Error('authorization vector changed')),
+    })
+
+    await expect(api.replyToReview(publicationInput())).rejects.toMatchObject({
+      code: 'authorization_changed',
+    })
+  })
+
+  it('keeps authorization_changed when the connection cannot be read', async () => {
+    const { api } = createAdapter({
+      execute: vi.fn(),
+      authorizeReplyPublicationProviderCall: vi
+        .fn()
+        .mockRejectedValue(new Error('authorization vector changed')),
+      findById: vi.fn().mockRejectedValue(new Error('database unavailable')),
+    })
+
+    await expect(api.replyToReview(publicationInput())).rejects.toMatchObject({
+      code: 'authorization_changed',
+    })
+  })
+})
+
 // D2: the incident reply was refused by the executor's compile step with no
 // permit and no fetch, but `executorErrorToReviewApiError` dropped the code and
 // the dispatch, so the publish job read it as ambiguous. The review error now
