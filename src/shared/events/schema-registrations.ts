@@ -355,6 +355,29 @@ const inboxBulkAssignmentCompletedSchema = z.object({
   occurredAt: z.string().optional(),
 })
 
+const inboxBulkReopenCompletedSchema = z.object({
+  organizationId: z.string(),
+  userId: z.string(),
+  bulkId: z.string(),
+  reopened: z
+    .array(
+      z.object({
+        inboxItemId: databaseUuidSchema,
+        propertyId: databaseUuidSchema,
+        sourceType: z.enum(['review', 'feedback']),
+        sourceId: databaseUuidSchema,
+        cycleNumber: z.number().int().positive().safe(),
+        sourceRevision: z.number().int().positive().safe(),
+        stateRevision: z.number().int().positive().safe(),
+      }),
+    )
+    .min(1)
+    .max(100),
+  count: z.number().int().min(1).max(100),
+  source: z.literal('web'),
+  occurredAt: z.string().optional(),
+})
+
 const handlingCycleFactScopeSchema = z.object({
   inboxItemId: databaseUuidSchema,
   cycleNumber: z.number().int().positive().safe(),
@@ -412,6 +435,9 @@ const inboxHandlingCycleReopenedSchema = handlingCycleFactScopeSchema
       'provider_reply_deleted',
       'provider_reply_diverged',
     ]),
+    // Set when a bulk reopen owns the notice through its completion fact.
+    // Optional: facts recorded before bulk reopens were marked lack it.
+    bulkId: z.string().trim().min(1).nullable().optional(),
   })
   .refine((value) => (value.actorType === 'user') === (value.userId !== null), {
     message: 'Handling Cycle actor attribution is invalid',
@@ -1388,6 +1414,11 @@ export function registerAllEventSchemas(): void {
     type: 'inbox.inbox_items.bulk_assignment_completed',
     version: EVENT_VERSION,
     schema: inboxBulkAssignmentCompletedSchema,
+  })
+  registerEventSchema({
+    type: 'inbox.inbox_items.bulk_reopen_completed',
+    version: EVENT_VERSION,
+    schema: inboxBulkReopenCompletedSchema,
   })
   registerEventSchema({
     type: 'inbox.handling_cycle.opened',

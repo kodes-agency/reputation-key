@@ -49,12 +49,14 @@ import type {
 import { inboxError } from '../domain/errors'
 import {
   inboxBulkAssignmentCompleted,
+  inboxBulkReopenCompleted,
   inboxHandlingCycleClosed,
   inboxHandlingCycleOpened,
   inboxHandlingCycleReopened,
   inboxItemAssigned,
   inboxItemStatusChanged,
   inboxItemUnassigned,
+  type InboxBulkReopenedCycle,
 } from '../domain/events'
 import { inboxItemFromRow, inboxItemToInsertRow } from './mappers/inbox.mapper'
 import { inboxNoteFromRow, inboxNoteToInsertRow } from './mappers/inbox-note.mapper'
@@ -204,7 +206,10 @@ async function assertManualReopenHonest(tx: Tx, head: HandlingCycleHead): Promis
   if (decision.isErr()) throw decision.error
 }
 
-const lifecycleFactFor = (transition: HandlingCycleTransition): DomainEvent => {
+const lifecycleFactFor = (
+  transition: HandlingCycleTransition,
+  bulkId: string | null = null,
+): DomainEvent => {
   const scope = {
     inboxItemId: transition.inboxItemId,
     cycleNumber: transition.cycleNumber,
@@ -234,6 +239,7 @@ const lifecycleFactFor = (transition: HandlingCycleTransition): DomainEvent => {
       reopenReason: transition.transitionReason as Parameters<
         typeof inboxHandlingCycleReopened
       >[0]['reopenReason'],
+      bulkId,
       source: transition.actorType === 'user' ? 'web' : 'import',
     })
   }
@@ -250,6 +256,8 @@ async function insertNextHandlingCycleDecision(
   decision: HandlingCycleDecision,
   createdAt: Date,
   responseTarget?: HandlingCycleCreationAnchor['responseTarget'],
+  /** Stamped on a reopen fact that a bulk completion fact covers. */
+  bulkId: string | null = null,
 ): Promise<ReadonlyArray<DomainEvent>> {
   const superseded = decision.transitions.find(
     (transition) =>
@@ -279,7 +287,7 @@ async function insertNextHandlingCycleDecision(
     .values(
       decision.transitions.map((transition) => transitionInsert(transition, createdAt)),
     )
-  return decision.transitions.map(lifecycleFactFor)
+  return decision.transitions.map((transition) => lifecycleFactFor(transition, bulkId))
 }
 
 const normalizeCreationAnchor = (
@@ -479,7 +487,9 @@ async function insertItemIdempotent(
       // Initial Review remains represented by inbox_item.created. Guest
       // private-feedback creation has its own canonical opened fact.
       if (insertedItem.sourceType === 'feedback') {
-        openingFacts = decision.transitions.map(lifecycleFactFor)
+        openingFacts = decision.transitions.map((transition) =>
+          lifecycleFactFor(transition),
+        )
       }
     }
     return { item: insertedItem, created: true, openingFacts }
@@ -1642,7 +1652,7 @@ async function resolveBulkReopenAssignee(
 /**
  * Reopen one already-locked item: drop an assignee who lost eligibility,
  * record the next Handling Cycle and its facts, advance the fenced head, and
- * flip the Inbox row.
+ * flip the Inbox row. Returns the cycle it opened for the completion fact.
  */
 async function reopenLockedBulkItem(
   tx: Tx,
@@ -1658,7 +1668,7 @@ async function reopenLockedBulkItem(
     responseTarget: ReviewCycleTargetAnchor | undefined
     now: Date
   }>,
-): Promise<void> {
+): Promise<InboxBulkReopenedCycle> {
   const { item, event, itemRow, headRow, now } = input
   const actorId = webActorId(event)
   if (actorId === null) {
@@ -1701,6 +1711,7 @@ async function reopenLockedBulkItem(
     decision.value,
     now,
     input.responseTarget,
+    input.bulkId,
   )
   const updatedHeads = await tx
     .update(inboxHandlingCycleHeads)
@@ -1761,6 +1772,15 @@ async function reopenLockedBulkItem(
   for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
   if (unassignedFact) await insertOutboxRow(tx, unassignedFact)
   await insertOutboxRow(tx, event)
+  return {
+    inboxItemId: item.id,
+    propertyId: item.propertyId,
+    sourceType: item.sourceType,
+    sourceId: item.sourceId,
+    cycleNumber: decision.value.head.currentCycleNumber,
+    sourceRevision: decision.value.head.currentSourceRevision,
+    stateRevision: decision.value.head.stateRevision,
+  }
 }
 
 export const createAtomicInboxCommandStore = (
@@ -2443,6 +2463,7 @@ export const createAtomicInboxCommandStore = (
             event.oldStatus !== item.status ||
             event.newStatus !== first.newStatus ||
             event.bulkId !== first.bulkId ||
+            event.userId !== first.userId ||
             event.occurredAt.getTime() !== first.occurredAt.getTime()
           )
         })
@@ -2450,6 +2471,13 @@ export const createAtomicInboxCommandStore = (
           throw inboxError(
             'invalid_input',
             'Inbox bulk status facts do not match their command items',
+          )
+        }
+        const actorId = webActorId(first)
+        if (actorId === null) {
+          throw inboxError(
+            'invalid_input',
+            'Inbox bulk reopen requires an authenticated web actor',
           )
         }
         const now = first.occurredAt
@@ -2522,6 +2550,7 @@ export const createAtomicInboxCommandStore = (
             .for('update')
           const headByItemId = new Map(headRows.map((row) => [row.inboxItemId, row]))
           const itemById = new Map(lockedItemRows.map((row) => [row.id, row]))
+          const reopened: InboxBulkReopenedCycle[] = []
 
           for (const { event, item, originalIndex } of ordered) {
             const itemRow = itemById.get(item.id)
@@ -2538,21 +2567,37 @@ export const createAtomicInboxCommandStore = (
               continue
             }
 
-            await reopenLockedBulkItem(tx, authorizeCommand, {
-              item,
-              event,
-              itemRow,
-              headRow,
-              reason: governance.reason,
-              explanation,
-              bulkId: first.bulkId,
-              responseTarget: reviewResponseTargets?.get(item.id),
-              now,
-            })
+            reopened.push(
+              await reopenLockedBulkItem(tx, authorizeCommand, {
+                item,
+                event,
+                itemRow,
+                headRow,
+                reason: governance.reason,
+                explanation,
+                bulkId: first.bulkId,
+                responseTarget: reviewResponseTargets?.get(item.id),
+                now,
+              }),
+            )
             results[originalIndex] = {
               inboxItemId: item.id,
               outcome: 'reopened',
             }
+          }
+          // One grouped notice per recipient comes from this fact; the
+          // bulk-stamped per-item reopen facts stay history only.
+          if (reopened.length > 0) {
+            await insertOutboxRow(
+              tx,
+              inboxBulkReopenCompleted({
+                organizationId: organizationId(commandOrganizationId),
+                userId: userId(actorId),
+                bulkId: first.bulkId,
+                reopened,
+                occurredAt: now,
+              }),
+            )
           }
           return {
             updated: results.filter((result) => result?.outcome === 'reopened').length,

@@ -42,6 +42,7 @@ export const NOTIFICATION_TYPES = [
   'inbox.escalated',
   'inbox.escalation_resolved',
   'inbox.reopened',
+  'inbox.bulk_reopened',
   'inbox.response_target_halfway',
   'inbox.response_target_passed',
   'inbox.assigned',

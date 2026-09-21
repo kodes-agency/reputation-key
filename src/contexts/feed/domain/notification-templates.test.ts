@@ -238,6 +238,25 @@ describe('renderNotification — the copy that was broken', () => {
     expect(rendered.actionLabel).toBe('Open Inbox')
   })
 
+  it('renders a grouped bulk reopen from a content-free count', () => {
+    const rendered = renderNotification('inbox.bulk_reopened', {
+      propertyName: 'Riverside Hotel',
+      actorRole: 'account_admin',
+      itemCount: 60,
+    })
+    const single = renderNotification('inbox.bulk_reopened', { itemCount: 1 })
+
+    expect(rendered.title).toBe('60 follow-ups reopened at Riverside Hotel')
+    expect(rendered.body).toBe(
+      'An account admin reopened 60 items. Open the Inbox to review the latest status.',
+    )
+    expect(rendered.actionLabel).toBe('Open Inbox')
+    expect(single.title).toBe('Follow-up reopened')
+    expect(single.body).toBe(
+      'Someone reopened an item. Open the Inbox to review the latest status.',
+    )
+  })
+
   it('omits the property clause entirely when no name is known', () => {
     const r = renderNotification('review.created', {})
     expect(r.title).toBe('New review')

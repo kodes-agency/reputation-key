@@ -40,6 +40,9 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'inbox.escalated': 'urgent_operational',
   'inbox.escalation_resolved': 'workflow_collaboration',
   'inbox.reopened': 'urgent_operational',
+  // One grouped notice for a bulk reopen: the same attention as a single
+  // reopen, but one row and at most one email per recipient per Property.
+  'inbox.bulk_reopened': 'urgent_operational',
   'inbox.response_target_halfway': 'workflow_collaboration',
   // A passed target belongs in the operational-attention category, but it is
   // deliberately absent from URGENT_TYPES: it respects quiet hours and never

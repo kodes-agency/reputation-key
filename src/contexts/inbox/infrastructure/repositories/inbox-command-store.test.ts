@@ -863,6 +863,92 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     expect(facts.rows).toEqual([{ inbox_item_id: first.id }])
   })
 
+  it('closes a bulk reopen with one fact naming only the cycles it reopened', async () => {
+    const [landed, stale] = [
+      '4d000000-0000-0000-0000-00000000002a',
+      '4d000000-0000-0000-0000-00000000002b',
+    ].map((id, index) =>
+      makeItem({
+        id: inboxItemId(id),
+        sourceType: 'feedback',
+        sourceId: feedbackId(`4d000000-0000-0000-0000-00000000001${index + 6}`),
+        platform: null,
+        status: 'closed',
+        closedAt: NOW,
+      }),
+    ) as [InboxItem, InboxItem]
+    const store = createAtomicInboxCommandStore(db)
+    for (const item of [landed, stale]) {
+      await store.createItem(item, null, {
+        sourceRevision: 1,
+        openedReason: 'legacy_backfill',
+        actorType: 'system',
+        triggerEventId: null,
+        openedAt: NOW,
+      })
+    }
+    await pool.query(`UPDATE inbox_items SET command_revision = 2 WHERE id = $1`, [
+      stale.id,
+    ])
+    const bulkId = '4d000000-0000-4000-8000-0000000000b1'
+
+    await store.bulkUpdateStatus(
+      [landed, stale],
+      [landed, stale].map((item) =>
+        inboxItemBulkStatusChanged({
+          inboxItemId: item.id,
+          organizationId: item.organizationId,
+          propertyId: item.propertyId,
+          oldStatus: 'closed',
+          newStatus: 'open',
+          bulkId,
+          userId: USER_A,
+          occurredAt: NOW,
+        }),
+      ),
+      { reason: 'new_information', explanation: null },
+    )
+
+    const head = await pool.query(
+      `SELECT current_cycle_number::int AS "cycleNumber",
+              current_source_revision::int AS "sourceRevision",
+              state_revision::int AS "stateRevision"
+       FROM inbox_handling_cycle_heads WHERE inbox_item_id = $1`,
+      [landed.id],
+    )
+    const completed = await pool.query(
+      `SELECT payload FROM outbox_events
+       WHERE organization_id = $1
+         AND event_type = 'inbox.inbox_items.bulk_reopen_completed'`,
+      [ORG_A],
+    )
+    expect(completed.rows).toEqual([
+      {
+        payload: expect.objectContaining({
+          userId: USER_A,
+          bulkId,
+          count: 1,
+          reopened: [
+            {
+              inboxItemId: landed.id,
+              propertyId: landed.propertyId,
+              sourceType: 'feedback',
+              sourceId: landed.sourceId,
+              ...head.rows[0],
+            },
+          ],
+        }),
+      },
+    ])
+    const reopened = await pool.query(
+      `SELECT payload->>'inboxItemId' AS "inboxItemId", payload->>'bulkId' AS "bulkId"
+       FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'inbox.handling_cycle.reopened'`,
+      [ORG_A],
+    )
+    expect(reopened.rows).toEqual([{ inboxItemId: landed.id, bulkId }])
+  })
+
   it('serializes opposite-order bulk reopen batches without a row-lock cycle', async () => {
     const reviewRepo = createReviewRepository(db, () => new Date())
     const firstReviewId = reviewId('4d000000-0000-0000-0000-000000000018')

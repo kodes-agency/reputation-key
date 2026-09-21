@@ -276,6 +276,22 @@ const renderInboxReopened = (p: NotificationPayload): RenderedNotification => ({
   summary: facts(p.propertyName ?? '', inboxNoun(p), 'follow-up reopened'),
 })
 
+const renderInboxBulkReopened = (p: NotificationPayload): RenderedNotification => {
+  const count = p.itemCount ?? 1
+  return {
+    title:
+      count === 1
+        ? `Follow-up reopened${atProperty(p)}`
+        : `${count} follow-ups reopened${atProperty(p)}`,
+    body: sentence(
+      `${byRole(p)} reopened ${count === 1 ? 'an item' : `${count} items`}.`,
+      'Open the Inbox to review the latest status.',
+    ),
+    actionLabel: 'Open Inbox',
+    summary: facts(p.propertyName ?? '', `${count} reopened`),
+  }
+}
+
 const renderResponseTargetHalfway = (p: NotificationPayload): RenderedNotification => ({
   title: `Response target is halfway${atProperty(p)}`,
   body: 'This item remains open. Open it when you are ready to continue the follow-up.',
@@ -425,6 +441,7 @@ const RENDERERS: Record<
   'inbox.escalated': renderInboxEscalated,
   'inbox.escalation_resolved': renderInboxEscalationResolved,
   'inbox.reopened': renderInboxReopened,
+  'inbox.bulk_reopened': renderInboxBulkReopened,
   'inbox.response_target_halfway': renderResponseTargetHalfway,
   'inbox.response_target_passed': renderResponseTargetPassed,
   'inbox.assigned': renderInboxAssigned,

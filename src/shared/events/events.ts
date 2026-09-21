@@ -96,6 +96,7 @@ export type {
   InboxItemStatusChanged,
   InboxItemAssigned,
   InboxBulkAssignmentCompleted,
+  InboxBulkReopenCompleted,
   InboxHandlingCycleOpened,
   InboxHandlingCycleClosed,
   InboxHandlingCycleReopened,

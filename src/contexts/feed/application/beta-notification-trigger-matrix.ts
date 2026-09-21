@@ -99,11 +99,21 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ),
     eventCondition: 'openReason === material_revision_changed',
   },
+  {
+    ...route(
+      'inbox.handling_cycle.reopened',
+      'notification.on-inbox-handling-cycle-reopened',
+      ['inbox.reopened'],
+      ['handling_cycle'],
+    ),
+    // A bulk reopen's completion fact notifies for every item it stamped.
+    eventCondition: 'bulkId is absent',
+  },
   route(
-    'inbox.handling_cycle.reopened',
-    'notification.on-inbox-handling-cycle-reopened',
-    ['inbox.reopened'],
-    ['handling_cycle'],
+    'inbox.inbox_items.bulk_reopen_completed',
+    'notification.on-inbox-bulk-reopen-completed',
+    ['inbox.bulk_reopened'],
+    ['bulk_handling_cycle'],
   ),
   {
     ...route(
@@ -236,6 +246,7 @@ const AUDIENCE_KINDS: ReadonlySet<string> = new Set<AudienceKind>([
   'bulk_inbox_assignee',
   'escalation_resolution',
   'handling_cycle',
+  'bulk_handling_cycle',
   'response_target_reminder',
   'property_operator',
   'portal_health',

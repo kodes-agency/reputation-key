@@ -34,6 +34,16 @@ import {
   type ActionablePortalHealthStatus,
 } from './portal-health-notification'
 
+/** One exact Handling Cycle, as the Inbox head showed it when the notice was queued. */
+export type HandlingCycleRef = Readonly<{
+  inboxItemId: InboxItemId
+  sourceType: 'review' | 'feedback'
+  sourceId: string
+  cycleNumber: number
+  sourceRevision: number
+  stateRevision: number
+}>
+
 /**
  * Durable description of why a recipient may receive a notification.
  * Identifiers only: no review, guest, staff, or provider content enters the queue.
@@ -65,6 +75,11 @@ export type NotificationAudience =
       cycleNumber: number
       sourceRevision: number
       stateRevision: number
+      actorUserId: UserId | null
+    }>
+  | Readonly<{
+      kind: 'bulk_handling_cycle'
+      cycles: ReadonlyArray<HandlingCycleRef>
       actorUserId: UserId | null
     }>
   | Readonly<{
@@ -240,6 +255,33 @@ const parseHandlingCycle: AudienceKindParser = (value) => {
   }
 }
 
+/** One bulk command reopens at most 100 items, each at most once. */
+const parseBulkHandlingCycle: AudienceKindParser = (value) => {
+  if (
+    !Array.isArray(value.cycles) ||
+    value.cycles.length === 0 ||
+    value.cycles.length > 100 ||
+    !(value.actorUserId === null || isIdentifier(value.actorUserId))
+  ) {
+    return null
+  }
+  const cycles = value.cycles.map((cycle: unknown) =>
+    isRecord(cycle) ? parseHandlingCycleCore(cycle) : null,
+  )
+  const parsed = cycles.filter((cycle): cycle is HandlingCycleRef => cycle !== null)
+  if (
+    parsed.length !== cycles.length ||
+    new Set(parsed.map((cycle) => cycle.inboxItemId)).size !== parsed.length
+  ) {
+    return null
+  }
+  return {
+    kind: 'bulk_handling_cycle',
+    cycles: parsed,
+    actorUserId: value.actorUserId === null ? null : brandUserId(value.actorUserId),
+  }
+}
+
 const parseResponseTargetReminder: AudienceKindParser = (value) => {
   const core = parseHandlingCycleCore(value)
   if (!core) return null
@@ -360,6 +402,7 @@ const AUDIENCE_KIND_PARSERS: ReadonlyMap<string, AudienceKindParser> = new Map<
   ['bulk_inbox_assignee', parseBulkInboxAssignee],
   ['escalation_resolution', parseEscalationResolution],
   ['handling_cycle', parseHandlingCycle],
+  ['bulk_handling_cycle', parseBulkHandlingCycle],
   ['response_target_reminder', parseResponseTargetReminder],
   ['portal_health', parsePortalHealth],
   ['goal_completion', parseGoalCompletion],
@@ -478,24 +521,24 @@ const isEscalationResolutionRecipient = async (
   return recipients.includes(userId)
 }
 
-const isHandlingCycleRecipient = async (
+/** The cycle is still the exact open head, and the user is responsible for it now. */
+const isCurrentCycleRecipient = async (
   deps: Deps,
   { organizationId, propertyId, userId }: PropertyScopedRequest,
-  audience: AudienceOfKind<'handling_cycle'>,
+  cycle: HandlingCycleRef,
 ) => {
-  if (userId === audience.actorUserId) return false
   const facts = await deps.inboxItemLookup.findHandlingCycleNotificationFacts(
-    audience.inboxItemId,
+    cycle.inboxItemId,
     organizationId,
   )
   if (
     !facts ||
     facts.propertyId !== propertyId ||
-    facts.sourceType !== audience.sourceType ||
-    facts.sourceId !== audience.sourceId ||
-    facts.currentCycleNumber !== audience.cycleNumber ||
-    facts.currentSourceRevision !== audience.sourceRevision ||
-    facts.stateRevision !== audience.stateRevision ||
+    facts.sourceType !== cycle.sourceType ||
+    facts.sourceId !== cycle.sourceId ||
+    facts.currentCycleNumber !== cycle.cycleNumber ||
+    facts.currentSourceRevision !== cycle.sourceRevision ||
+    facts.stateRevision !== cycle.stateRevision ||
     facts.status !== 'open'
   ) {
     return false
@@ -506,6 +549,31 @@ const isHandlingCycleRecipient = async (
       ? await resolveResponsibleRecipients(deps, organizationId, currentAudience.scope)
       : await deps.userLookup.findByRole(organizationId, 'AccountAdmin')
   return recipients.includes(userId)
+}
+
+const isHandlingCycleRecipient = async (
+  deps: Deps,
+  request: PropertyScopedRequest,
+  audience: AudienceOfKind<'handling_cycle'>,
+) => {
+  if (request.userId === audience.actorUserId) return false
+  return isCurrentCycleRecipient(deps, request, audience)
+}
+
+/**
+ * A grouped notice counts every cycle in it, so it stands only while each one
+ * is still the open head and the recipient is still responsible for each.
+ */
+const isBulkHandlingCycleRecipient = async (
+  deps: Deps,
+  request: PropertyScopedRequest,
+  audience: AudienceOfKind<'bulk_handling_cycle'>,
+) => {
+  if (request.userId === audience.actorUserId) return false
+  const current = await Promise.all(
+    audience.cycles.map((cycle) => isCurrentCycleRecipient(deps, request, cycle)),
+  )
+  return current.every(Boolean)
 }
 
 const isResponseTargetReminderRecipient = async (
@@ -689,6 +757,8 @@ export const createNotificationAudienceAuthorizer =
         return isEscalationResolutionRecipient(deps, request, audience)
       case 'handling_cycle':
         return isHandlingCycleRecipient(deps, request, audience)
+      case 'bulk_handling_cycle':
+        return isBulkHandlingCycleRecipient(deps, request, audience)
       case 'response_target_reminder':
         return isResponseTargetReminderRecipient(deps, request, audience)
       case 'portal_health':

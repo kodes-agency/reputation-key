@@ -499,6 +499,8 @@ export type InboxHandlingCycleReopened = Readonly<{
   userId: UserId | null
   triggerEventId: string | null
   reopenReason: ManualReopenReason | 'provider_reply_deleted' | 'provider_reply_diverged'
+  /** The bulk reopen command this belongs to; its completion fact covers it. */
+  bulkId: string | null
   source: 'web' | 'import'
   occurredAt: Date
   correlationId: string | null
@@ -509,6 +511,7 @@ export const inboxHandlingCycleReopened = (
     Readonly<{
       reopenReason:
         ManualReopenReason | 'provider_reply_deleted' | 'provider_reply_diverged'
+      bulkId?: string | null
       source?: 'web' | 'import'
       correlationId?: string | null
     }>,
@@ -522,7 +525,84 @@ export const inboxHandlingCycleReopened = (
     _tag: 'inbox.handling_cycle.reopened',
     eventId: newEventId(),
     ...args,
+    bulkId: args.bulkId ?? null,
     source: args.source ?? 'import',
+    correlationId: args.correlationId ?? null,
+  }
+}
+
+/** The Handling Cycle one bulk-reopened item now has open. */
+export type InboxBulkReopenedCycle = Readonly<{
+  inboxItemId: InboxItemId
+  propertyId: PropertyId
+  sourceType: SourceType
+  sourceId: ReviewId | FeedbackId
+  cycleNumber: number
+  sourceRevision: number
+  stateRevision: number
+}>
+
+const isPositiveSafeInteger = (value: number): boolean =>
+  Number.isSafeInteger(value) && value > 0
+
+/**
+ * Content-free close fact for one atomic bulk reopen command. Every item keeps
+ * its own `inbox.handling_cycle.reopened` fact, stamped with the bulkId; this
+ * envelope lets a durable consumer send one grouped notice instead of one per
+ * item, without guessing whether every item fact has arrived.
+ */
+export type InboxBulkReopenCompleted = Readonly<{
+  _tag: 'inbox.inbox_items.bulk_reopen_completed'
+  eventId: string
+  organizationId: OrganizationId
+  userId: UserId
+  bulkId: string
+  reopened: ReadonlyArray<InboxBulkReopenedCycle>
+  count: number
+  source: 'web'
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const inboxBulkReopenCompleted = (args: {
+  organizationId: OrganizationId
+  userId: UserId
+  bulkId: string
+  reopened: ReadonlyArray<InboxBulkReopenedCycle>
+  occurredAt: Date
+  correlationId?: string | null
+}): InboxBulkReopenCompleted => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.bulkId !== '', 'bulk reopen bulkId required')
+  assert(args.reopened.length > 0, 'bulk reopen cycles required')
+  assert(args.reopened.length <= 100, 'bulk reopen limit exceeded')
+  assert(
+    new Set(args.reopened.map((cycle) => cycle.inboxItemId)).size ===
+      args.reopened.length,
+    'bulk reopen cycles must be unique',
+  )
+  assert(
+    args.reopened.every(
+      (cycle) =>
+        isPositiveSafeInteger(cycle.cycleNumber) &&
+        isPositiveSafeInteger(cycle.sourceRevision) &&
+        isPositiveSafeInteger(cycle.stateRevision),
+    ),
+    'bulk reopen cycle revisions must be positive',
+  )
+  const reopened = [...args.reopened].sort((left, right) =>
+    left.inboxItemId.localeCompare(right.inboxItemId),
+  )
+  return {
+    _tag: 'inbox.inbox_items.bulk_reopen_completed',
+    eventId: newEventId(),
+    organizationId: args.organizationId,
+    userId: args.userId,
+    bulkId: args.bulkId,
+    reopened,
+    count: reopened.length,
+    source: 'web',
+    occurredAt: args.occurredAt,
     correlationId: args.correlationId ?? null,
   }
 }
@@ -637,5 +717,6 @@ export type InboxEvent =
   | InboxHandlingCycleOpened
   | InboxHandlingCycleClosed
   | InboxHandlingCycleReopened
+  | InboxBulkReopenCompleted
   | InboxResponseTargetReminderDue
   | InboxResponseTargetPolicyChanged

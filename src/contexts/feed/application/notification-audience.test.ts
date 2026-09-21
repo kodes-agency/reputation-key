@@ -508,6 +508,97 @@ describe('notification audience authorization', () => {
     expect(parseNotificationAudience({ ...valid, actorUserId: '' })).toBeNull()
   })
 
+  describe('a grouped bulk reopen', () => {
+    const cycle = (item: typeof INBOX_ITEM, stateRevision = 3) => ({
+      inboxItemId: item,
+      sourceType: 'review' as const,
+      sourceId: `review-${item}`,
+      cycleNumber: 2,
+      sourceRevision: 1,
+      stateRevision,
+    })
+    const audience = {
+      kind: 'bulk_handling_cycle' as const,
+      cycles: [cycle(INBOX_ITEM), cycle(SECOND_INBOX_ITEM)],
+      actorUserId: userId('bulk-actor'),
+    }
+    const currentHead = (item: string, stateRevision = 3) => ({
+      propertyId: PROPERTY,
+      portalId: null,
+      assignedTo: null,
+      propertyName: 'Riverside Hotel',
+      guestRating: null,
+      sourceType: 'review' as const,
+      sourceId: `review-${item}`,
+      createdAt: new Date('2026-08-27T08:00:00.000Z'),
+      currentCycleNumber: 2,
+      currentSourceRevision: 1,
+      stateRevision,
+      status: 'open' as const,
+    })
+    const depsWithHeads = (stateRevisions: Readonly<Record<string, number>> = {}) => {
+      const deps = buildDeps()
+      deps.inboxItemLookup.findHandlingCycleNotificationFacts.mockImplementation(
+        async (item: string) => currentHead(item, stateRevisions[item] ?? 3),
+      )
+      deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+      return deps
+    }
+
+    it('authorizes a recipient still responsible for every cycle still open', async () => {
+      await expect(
+        createNotificationAudienceAuthorizer(depsWithHeads())(authorize({ audience })),
+      ).resolves.toBe(true)
+    })
+
+    it('drops the notice once any cycle in the group has moved on', async () => {
+      const deps = depsWithHeads({ [SECOND_INBOX_ITEM]: 4 })
+
+      await expect(
+        createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+      ).resolves.toBe(false)
+    })
+
+    it('never delivers the grouped notice to the manager who reopened the items', async () => {
+      const deps = depsWithHeads()
+
+      await expect(
+        createNotificationAudienceAuthorizer(deps)(
+          authorize({ audience: { ...audience, actorUserId: RECIPIENT } }),
+        ),
+      ).resolves.toBe(false)
+      expect(
+        deps.inboxItemLookup.findHandlingCycleNotificationFacts,
+      ).not.toHaveBeenCalled()
+    })
+
+    it('parses only a bounded, unique, complete list of cycles', () => {
+      expect(parseNotificationAudience(audience)).toEqual(audience)
+      expect(parseNotificationAudience({ ...audience, cycles: [] })).toBeNull()
+      expect(
+        parseNotificationAudience({
+          ...audience,
+          cycles: [cycle(INBOX_ITEM), cycle(INBOX_ITEM)],
+        }),
+      ).toBeNull()
+      expect(
+        parseNotificationAudience({
+          ...audience,
+          cycles: [{ ...cycle(INBOX_ITEM), cycleNumber: 0 }],
+        }),
+      ).toBeNull()
+      expect(
+        parseNotificationAudience({
+          ...audience,
+          cycles: Array.from({ length: 101 }, (_, index) =>
+            cycle(inboxItemId(`item-${index}`)),
+          ),
+        }),
+      ).toBeNull()
+      expect(parseNotificationAudience({ ...audience, actorUserId: '' })).toBeNull()
+    })
+  })
+
   it('revalidates an exact active Response Target reminder and current responsibility', async () => {
     const deps = buildDeps()
     deps.inboxItemLookup.findResponseTargetReminderNotificationFacts.mockResolvedValue({

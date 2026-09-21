@@ -267,6 +267,12 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       NOTIFICATION_HANDLING_CYCLE_OUTBOX,
     ),
   ]),
+  ev('inbox.inbox_items.bulk_reopen_completed', [
+    durable(
+      'notification.on-inbox-bulk-reopen-completed',
+      NOTIFICATION_HANDLING_CYCLE_OUTBOX,
+    ),
+  ]),
   ev('inbox.response_target.reminder_due', [
     durable(
       'notification.on-inbox-response-target-reminder-due',

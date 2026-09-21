@@ -124,7 +124,8 @@ publication outcomes have no actor and always reach the author.
 ## Runtime
 
 Durable outbox consumers project activity and enqueue deterministic notification
-jobs. The activity worker also exposes bounded projection recovery. Notification
+jobs. A bulk Inbox command (assignment, reopen) notifies once per recipient per
+Property from its completion fact; the per-item facts it covers stay history. The activity worker also exposes bounded projection recovery. Notification
 jobs perform insert, urgent-email, digest, and missing-notification repair work.
 A durable delivery is settled once its materialization receipt is claimed: a
 row was written, preferences asked for none, or the recipient no longer

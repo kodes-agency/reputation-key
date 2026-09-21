@@ -133,6 +133,7 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
   'inbox.escalated': AlertTriangle,
   'inbox.escalation_resolved': CheckCircle,
   'inbox.reopened': MessageSquare,
+  'inbox.bulk_reopened': MessageSquare,
   'inbox.response_target_halfway': Clock,
   'inbox.response_target_passed': Clock,
   'inbox.assigned': UserPlus,
