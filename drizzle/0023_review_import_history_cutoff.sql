@@ -9,10 +9,13 @@
 -- started at its original publication time: overdue on creation, with both
 -- reminders due at once. Snapshot runs are also swept 30 days after they end.
 --
--- One row per Property source epoch, written once by the transaction that
--- starts or joins the epoch's first import run. A new epoch has its own
--- cutoff; Property deletion cascades the row. Identifiers and one instant
--- only, no provider content.
+-- One row per Property source epoch, written once when Review admits the sync
+-- of the epoch's first import, before that job is queued (an import queued
+-- before admission fixed it writes the row when its run starts or joins an
+-- active one). A relinked epoch has its own row; there, only reviews published
+-- before the Property's first import are history. Review's Organization purge
+-- deletes the rows, and Property deletion cascades them. Identifiers and one
+-- instant only, no provider content.
 CREATE TABLE "review_provider_history_cutoffs" (
 	"organization_id" varchar(255) NOT NULL,
 	"property_id" uuid NOT NULL,
