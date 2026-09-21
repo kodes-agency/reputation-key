@@ -383,6 +383,8 @@ describe('publish-reply job handler', () => {
       _tag: string
     }
     expect(event._tag).toBe('review.reply.publish_failed')
+    // Refused before or by Google: nothing was posted, and the notice says so.
+    expect(event).toMatchObject({ outcome: 'refused' })
     expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
   })
 
@@ -442,6 +444,12 @@ describe('publish-reply job handler', () => {
     expect(deps.replyCommandStore.markPublicationTerminal.mock.calls[0]![1]).toBe(
       'retryable',
     )
+    // A retryable failure proves this attempt did not publish.
+    expect(
+      deps.replyCommandStore.markPublicationTerminal.mock.calls[0]![2],
+    ).toMatchObject({
+      outcome: 'not_sent',
+    })
   })
 
   it('5xx provider error → ambiguous, preserving sending until targeted readback', async () => {
@@ -565,6 +573,8 @@ describe('publish-reply job handler', () => {
       _tag: string
     }
     expect(event._tag).toBe('review.reply.publish_failed')
+    // The reply may be live: the notice must not call it failed or offer a retry.
+    expect(event).toMatchObject({ outcome: 'unconfirmed' })
     expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
   })
 
@@ -591,6 +601,11 @@ describe('publish-reply job handler', () => {
     expect(deps.replyCommandStore.markPublicationTerminal.mock.calls[0]![1]).toBe(
       'terminal_rejection',
     )
+    expect(
+      deps.replyCommandStore.markPublicationTerminal.mock.calls[0]![2],
+    ).toMatchObject({
+      outcome: 'refused',
+    })
   })
 
   it('persisted sending + lost provider subject remains check-only', async () => {
@@ -612,7 +627,10 @@ describe('publish-reply job handler', () => {
     // Loss of read access is not a read: ambiguous at once, first ladder rung.
     expect(deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledWith(
       sending,
-      expect.objectContaining({ _tag: 'review.reply.publish_failed' }),
+      expect.objectContaining({
+        _tag: 'review.reply.publish_failed',
+        outcome: 'unconfirmed',
+      }),
       NOW,
       new Date(NOW.getTime() - 30_000 + 15 * 60_000),
     )
@@ -794,7 +812,10 @@ describe('publish-reply job handler', () => {
     expect(deps.replyCommandStore.deferUncertainSend).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledWith(
       sending,
-      expect.objectContaining({ _tag: 'review.reply.publish_failed' }),
+      expect.objectContaining({
+        _tag: 'review.reply.publish_failed',
+        outcome: 'unconfirmed',
+      }),
       NOW,
       new Date(attemptStartedAt.getTime() + 30 * 60_000),
     )
@@ -835,7 +856,10 @@ describe('publish-reply job handler', () => {
     })
     expect(deps.replyCommandStore.settleNeverDispatchedAttempt).toHaveBeenCalledWith(
       sending,
-      expect.objectContaining({ _tag: 'review.reply.publish_failed' }),
+      expect.objectContaining({
+        _tag: 'review.reply.publish_failed',
+        outcome: 'not_sent',
+      }),
       NOW,
     )
     expect(deps.googleReviewApi.getReview).not.toHaveBeenCalled()
@@ -1170,7 +1194,10 @@ describe('publish-reply job handler', () => {
     expect(deps.replyCommandStore.deferUncertainSend).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledWith(
       sending,
-      expect.objectContaining({ _tag: 'review.reply.publish_failed' }),
+      expect.objectContaining({
+        _tag: 'review.reply.publish_failed',
+        outcome: 'unconfirmed',
+      }),
       NOW,
       new Date(attemptStartedAt.getTime() + 30 * 60_000),
     )

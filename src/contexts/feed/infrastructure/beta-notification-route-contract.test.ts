@@ -311,7 +311,7 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
   'review.reply.published': () =>
     reviewReplyPublished({ ...replyFact, userId: ACTOR, authorId: RECIPIENT }),
   'review.reply.publish_failed': () =>
-    reviewReplyPublishFailed({ ...replyFact, authorId: RECIPIENT }),
+    reviewReplyPublishFailed({ ...replyFact, authorId: RECIPIENT, outcome: 'not_sent' }),
   'portal.responsibility_became_needed': () =>
     portalResponsibilityNeeded({
       portalId: PORTAL,

@@ -105,14 +105,19 @@ const replyEventSchema = z.object({
   occurredAt: z.string().optional(),
 })
 
-// The optional cause is additive: earlier rows and producers omit it.
-const replyPublishFailedSchema = replyEventSchema.extend({
-  cause: z.enum(['google_reauthorization_required']).optional(),
-})
 // The approver's reason stays on the reply; the fact says only whether there
 // is one. Optional because rows recorded before the flag existed lack it.
 const replyRejectedSchema = replyEventSchema.extend({
   hasReason: z.boolean().optional(),
+})
+
+// Two independent closed facts about an unconfirmed publication, both
+// additive (earlier rows and producers omit them):
+// - `outcome`: how it ended (nothing sent, refused, or not confirmed);
+// - `cause`: present only when the remedy is reconnecting Google, not a retry.
+const replyPublishFailedSchema = replyEventSchema.extend({
+  outcome: z.enum(['not_sent', 'refused', 'unconfirmed']).optional(),
+  cause: z.enum(['google_reauthorization_required']).optional(),
 })
 
 const googleReviewPushAcceptedSchema = z.object({

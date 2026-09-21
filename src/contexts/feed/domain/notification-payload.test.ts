@@ -145,6 +145,20 @@ describe('parseNotificationPayload', () => {
     })
   })
 
+  describe('publication outcome', () => {
+    it.each(['not_sent', 'refused', 'unconfirmed'] as const)('keeps %s', (outcome) => {
+      expect(parseNotificationPayload({ publishOutcome: outcome }).publishOutcome).toBe(
+        outcome,
+      )
+    })
+
+    it.each(['rejected', 'Google said no', 1, null])('drops %p', (outcome) => {
+      expect(
+        parseNotificationPayload({ publishOutcome: outcome }).publishOutcome,
+      ).toBeUndefined()
+    })
+  })
+
   describe('text', () => {
     it('trims and drops whitespace-only values', () => {
       expect(

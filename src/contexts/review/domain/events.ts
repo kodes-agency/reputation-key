@@ -370,6 +370,17 @@ export const reviewReplyRejected = (
   }
 }
 
+/**
+ * How a publication ended without a confirmed live reply, which is what the
+ * people told about it need:
+ * - `not_sent`: nothing reached Google (never dispatched, or a retryable
+ *   failure ran out of attempts), so it is safe to try again.
+ * - `refused`: Google or RepKey refused the request; nothing was posted.
+ * - `unconfirmed`: Google may have the reply; RepKey could not confirm it and
+ *   will not send it twice.
+ */
+export type ReplyPublishFailureOutcome = 'not_sent' | 'refused' | 'unconfirmed'
+
 export type ReviewReplyPublishFailed = Readonly<{
   _tag: 'review.reply.publish_failed'
   eventId: string
@@ -378,6 +389,7 @@ export type ReviewReplyPublishFailed = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   authorId: UserId | null
+  outcome: ReplyPublishFailureOutcome
   /** Present only when the remedy is not a retry: Google must be reconnected first. */
   cause?: PublicationFailureCause
   occurredAt: Date

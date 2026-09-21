@@ -23,6 +23,7 @@ import type {
   NotificationPayload,
   NotificationPlatform,
   NotificationPublishFailureCause,
+  NotificationPublishOutcome,
 } from '../domain/notification-payload'
 
 const MS_PER_HOUR = 3_600_000
@@ -64,6 +65,8 @@ export type InboxPayloadInput = Readonly<{
   actorId?: UserId | null
   /** Whether the approver gave a reason (reply.rejected only); null when unknown. */
   hasModerationReason?: boolean | null
+  /** How the publication ended (reply.publish_failed only); null when unknown. */
+  publishOutcome?: NotificationPublishOutcome | null
   /** Closed cause of a failed publication (reply.publish_failed only). */
   publishFailureCause?: NotificationPublishFailureCause | null
 }>
@@ -111,6 +114,7 @@ export const buildInboxItemPayload = async (
   if (typeof input.hasModerationReason === 'boolean') {
     payload.hasModerationReason = input.hasModerationReason
   }
+  if (input.publishOutcome) payload.publishOutcome = input.publishOutcome
   if (input.publishFailureCause) payload.publishFailureCause = input.publishFailureCause
   return payload as NotificationPayload
 }

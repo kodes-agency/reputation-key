@@ -85,6 +85,7 @@ import {
 import {
   reviewReplyPublicationCancelled,
   reviewReplyPublishFailed,
+  type ReplyPublishFailureOutcome,
 } from '../../domain/events'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
@@ -114,6 +115,7 @@ function buildPublishFailedEvent(
   review: Review,
   reply: Reply,
   occurredAt: Date,
+  outcome: ReplyPublishFailureOutcome,
   cause: PublicationFailureCause | null = null,
 ) {
   return reviewReplyPublishFailed({
@@ -122,6 +124,7 @@ function buildPublishFailedEvent(
     propertyId: review.propertyId,
     organizationId: reply.organizationId,
     authorId: reply.createdBy,
+    outcome,
     ...(cause === null ? {} : { cause }),
     occurredAt,
   })
@@ -289,7 +292,7 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
         await deps.replyCommandStore.markPublicationTerminal(
           claimed,
           'terminal_rejection',
-          buildPublishFailedEvent(review, claimed, deps.clock()),
+          buildPublishFailedEvent(review, claimed, deps.clock(), 'refused'),
         )
         return
       }
@@ -411,7 +414,7 @@ async function markUncertainAttemptAmbiguous(
     : undefined
   await deps.replyCommandStore.markPublicationAmbiguous(
     reply,
-    buildPublishFailedEvent(review, reply, now),
+    buildPublishFailedEvent(review, reply, now, 'unconfirmed'),
     now,
     dueAt,
   )
@@ -473,7 +476,7 @@ async function reconcileUncertainAttempt(
     const now = deps.clock()
     const settled = await deps.replyCommandStore.settleNeverDispatchedAttempt(
       reply,
-      buildPublishFailedEvent(review, reply, now),
+      buildPublishFailedEvent(review, reply, now, 'not_sent'),
       now,
     )
     deps.logger.info(
@@ -647,6 +650,7 @@ async function handlePublishFailure(
         review,
         claimed,
         deps.clock(),
+        'refused',
         publicationFailureCause(err),
       ),
     )
@@ -662,7 +666,7 @@ async function handlePublishFailure(
       await deps.replyCommandStore.markPublicationTerminal(
         claimed,
         'retryable',
-        buildPublishFailedEvent(review, claimed, deps.clock()),
+        buildPublishFailedEvent(review, claimed, deps.clock(), 'not_sent'),
       )
     } else {
       await deps.replyCommandStore.markPublicationRetryQueued(claimed)
@@ -681,7 +685,7 @@ async function handlePublishFailure(
     )
     await deps.replyCommandStore.markPublicationAmbiguous(
       claimed,
-      buildPublishFailedEvent(review, claimed, deps.clock()),
+      buildPublishFailedEvent(review, claimed, deps.clock(), 'unconfirmed'),
     )
     throw err
   }

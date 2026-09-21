@@ -18,7 +18,10 @@ import {
   type FakeNotificationConsumerDeps,
 } from './notification-consumer-test-fixtures'
 import { unbrand } from '#/shared/domain/ids'
-import { reviewReplyRejected } from '#/contexts/review/domain/events'
+import {
+  reviewReplyPublishFailed,
+  reviewReplyRejected,
+} from '#/contexts/review/domain/events'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { parseNotificationPayload } from '../domain/notification-payload'
@@ -419,6 +422,44 @@ describe('durable workflow notification consumers', () => {
         ])
       },
     )
+  })
+
+  it('carries what happened to an unpublished reply from its recorded fact', async () => {
+    const fact = reviewReplyPublishFailed({
+      replyId: NOTIF_TEST_IDS.replyId,
+      reviewId: NOTIF_TEST_IDS.reviewId,
+      propertyId: NOTIF_TEST_IDS.propId,
+      organizationId: NOTIF_TEST_IDS.orgId,
+      authorId: NOTIF_TEST_IDS.authorId,
+      outcome: 'unconfirmed',
+      occurredAt: NOTIF_TEST_IDS.now,
+    })
+    const row = toOutboxEvent(fact)
+    const deps = makeDeps()
+
+    await handleWorkflowNotificationEvent(
+      deps,
+      buildConsumerEvent({
+        id: fact.eventId,
+        eventType: row.eventType,
+        eventVersion: row.eventVersion ?? 1,
+        payload: row.payload,
+        organizationId: row.organizationId,
+        propertyId: row.propertyId ?? null,
+        sourceContext: row.sourceContext,
+        sourceAggregateId: row.sourceAggregateId,
+        recordedAt: NOTIF_TEST_IDS.now,
+      }),
+    )
+
+    const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+    expect(data.payload).toMatchObject({ publishOutcome: 'unconfirmed' })
+    expect(
+      renderNotification('reply.publish_failed', parseNotificationPayload(data.payload)),
+    ).toMatchObject({
+      title: 'Reply not confirmed on Google at Riverside Hotel',
+      actionLabel: 'View reply',
+    })
   })
 
   describe('a rejected reply recorded through the outbox', () => {

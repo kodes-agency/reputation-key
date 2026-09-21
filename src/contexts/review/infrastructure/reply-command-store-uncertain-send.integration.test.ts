@@ -162,6 +162,7 @@ const publishFailed = (occurredAt: Date) =>
     propertyId: PROP_A,
     organizationId: ORG_A,
     authorId: USER_A,
+    outcome: 'unconfirmed',
     occurredAt,
   })
 

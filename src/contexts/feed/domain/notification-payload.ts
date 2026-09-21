@@ -14,8 +14,9 @@
 //
 //   ALLOWED   tenant-authored property and goal names, the locally collected
 //             1-5 guest rating, actor ROLE, counts, ages in hours, platform
-//             enum, whether an approver gave a reason, and an internal
-//             moderation reason (staff-authored; historical rows only).
+//             enum, whether an approver gave a reason, how a publication
+//             ended (closed enum), and an internal moderation reason
+//             (staff-authored; historical rows only).
 //   FORBIDDEN Google/provider review ratings and content, reply text,
 //             guest/reviewer name, media URLs, sentiment or any derived score,
 //             and any other employee's NAME or email.
@@ -57,6 +58,11 @@ export type NotificationPayload = Readonly<{
    * itself stays on the reply. Absent when the fact did not say.
    */
   hasModerationReason?: boolean
+  /**
+   * How a publication ended without a confirmed live reply
+   * (reply.publish_failed only). Absent on rows recorded before facts said.
+   */
+  publishOutcome?: NotificationPublishOutcome
   /** Tenant-authored goal name (goal.completed). */
   goalName?: string
   /** Repeat-event count when a row has coalesced. */
@@ -84,6 +90,8 @@ export type NotificationReauthorizationCause =
 
 export type NotificationPublishFailureCause = 'google_reauthorization_required'
 
+export type NotificationPublishOutcome = 'not_sent' | 'refused' | 'unconfirmed'
+
 const ACTOR_ROLES: Record<string, true> = {
   account_admin: true,
   property_manager: true,
@@ -106,6 +114,12 @@ const REAUTHORIZATION_CAUSES: Record<string, true> = {
 
 const PUBLISH_FAILURE_CAUSES: Record<string, true> = {
   google_reauthorization_required: true,
+}
+
+const PUBLISH_OUTCOMES: Record<string, true> = {
+  not_sent: true,
+  refused: true,
+  unconfirmed: true,
 }
 
 /** Longest free-ish text we accept. Names, not prose. */
@@ -169,6 +183,10 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   set('actorRole', takeMember(raw.actorRole, ACTOR_ROLES))
   set('moderationReason', takeText(raw.moderationReason, MAX_REASON_LENGTH))
   set('hasModerationReason', takeFlag(raw.hasModerationReason))
+  set(
+    'publishOutcome',
+    takeMember<NotificationPublishOutcome>(raw.publishOutcome, PUBLISH_OUTCOMES),
+  )
   set('goalName', takeText(raw.goalName, MAX_NAME_LENGTH))
   set('occurrences', takeCount(raw.occurrences))
   set('itemCount', takeCount(raw.itemCount))

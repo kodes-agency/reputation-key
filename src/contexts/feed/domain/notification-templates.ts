@@ -222,25 +222,49 @@ const renderReplyPublished = (p: NotificationPayload): RenderedNotification => (
   summary: facts(p.propertyName ?? '', reviewNoun()),
 })
 
+const PUBLISH_FAILURE_BODIES = {
+  not_sent: 'Nothing reached Google, so it is safe to try again.',
+  refused: 'Nothing was posted to Google. Check the Google connection, then try again.',
+  unconfirmed:
+    "RepKey couldn't confirm it on Google and won't send it twice. Open it to check.",
+} as const
+
 // A connection waiting for a fresh consent refuses every retry, and the
 // author may not be the one allowed to reconnect it, so the copy says who can.
-const renderReplyPublishFailed = (p: NotificationPayload): RenderedNotification =>
-  p.publishFailureCause === 'google_reauthorization_required'
-    ? {
-        title: `Reply not published${atProperty(p)}`,
-        body: 'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry — the draft is saved.',
-        actionLabel: 'Open reply',
-        summary: facts(p.propertyName ?? '', reviewNoun(), 'reconnect Google'),
-      }
-    : {
-        title: `Reply failed to publish${atProperty(p)}`,
-        body: sentence(
-          `Google rejected the reply to a ${reviewNoun()}.`,
-          'Open it and retry — the draft is saved.',
-        ),
-        actionLabel: 'Retry publish',
-        summary: facts(p.propertyName ?? '', reviewNoun(), 'publish failed'),
-      }
+const renderReplyPublishNeedsReconnect = (
+  p: NotificationPayload,
+): RenderedNotification => ({
+  title: `Reply not published${atProperty(p)}`,
+  body: 'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry — the draft is saved.',
+  actionLabel: 'Open reply',
+  summary: facts(p.propertyName ?? '', reviewNoun(), 'reconnect Google'),
+})
+
+/**
+ * One fact covers every way a publication ends without a confirmed live
+ * reply, and Google never saw most of them, so the copy follows the outcome
+ * and never says Google rejected it. A reply that may be live gets no retry;
+ * neither does a row too old to say. When the remedy is reconnecting Google,
+ * that cause decides the copy instead: a retry alone cannot succeed. It can
+ * reach a responsible manager instead of the author, so it never says "your".
+ */
+const renderReplyPublishFailed = (p: NotificationPayload): RenderedNotification => {
+  if (p.publishFailureCause === 'google_reauthorization_required') {
+    return renderReplyPublishNeedsReconnect(p)
+  }
+  const outcome = p.publishOutcome
+  const state = outcome === 'unconfirmed' ? 'not confirmed' : 'not published'
+  return {
+    title: `Reply ${state}${outcome === 'unconfirmed' ? ' on Google' : ''}${atProperty(p)}`,
+    body:
+      outcome === undefined
+        ? 'Open the reply to see where it stands.'
+        : PUBLISH_FAILURE_BODIES[outcome],
+    actionLabel:
+      outcome === 'not_sent' || outcome === 'refused' ? 'Retry publish' : 'View reply',
+    summary: facts(p.propertyName ?? '', reviewNoun(), state),
+  }
+}
 
 /**
  * Escalation is a manual call with no reason field, and an answered or closed

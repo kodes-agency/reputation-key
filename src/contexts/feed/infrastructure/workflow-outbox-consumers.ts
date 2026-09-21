@@ -29,6 +29,7 @@ import type {
   InboxNoteAdded,
 } from '#/contexts/inbox/application/public-api'
 import type {
+  ReplyPublishFailureOutcome,
   ReviewReplyApproved,
   ReviewReplyPublished,
   ReviewReplyPublishFailed,
@@ -90,6 +91,13 @@ type WorkflowEventType = (typeof WORKFLOW_NOTIFICATION_CONSUMERS)[number]['event
 type DurableReplyRejected = Omit<ReviewReplyRejected, 'reason' | 'hasReason'> &
   Readonly<{ hasReason: boolean | null }>
 
+/**
+ * The durable publish-failure fact. One recorded before it said how the
+ * publication ended says nothing (`null`), and the notice claims no cause.
+ */
+type DurableReplyPublishFailed = Omit<ReviewReplyPublishFailed, 'outcome'> &
+  Readonly<{ outcome: ReplyPublishFailureOutcome | null }>
+
 type WorkflowEvent =
   | InboxItemAssigned
   | InboxItemEscalated
@@ -98,7 +106,7 @@ type WorkflowEvent =
   | ReviewReplyApproved
   | DurableReplyRejected
   | ReviewReplyPublished
-  | ReviewReplyPublishFailed
+  | DurableReplyPublishFailed
 
 export type WorkflowNotificationConsumerDeps = Readonly<{
   queue: NotificationJobEnqueuePort
@@ -308,7 +316,7 @@ type ReplyAuthorEvent =
   | ReviewReplyApproved
   | DurableReplyRejected
   | ReviewReplyPublished
-  | ReviewReplyPublishFailed
+  | DurableReplyPublishFailed
 
 /** Who approved or rejected. Publication outcomes come from Google, not a person. */
 const replyDecider = (event: ReplyAuthorEvent): UserId | null =>
@@ -335,6 +343,7 @@ async function enqueueReplyAuthorNotification(
     inboxItemId: inboxItem,
     orgId: event.organizationId,
     hasModerationReason: event._tag === 'review.reply.rejected' ? event.hasReason : null,
+    publishOutcome: event._tag === 'review.reply.publish_failed' ? event.outcome : null,
     publishFailureCause:
       event._tag === 'review.reply.publish_failed' ? (event.cause ?? null) : null,
   })
@@ -364,7 +373,7 @@ async function enqueueReplyAuthorNotification(
  */
 async function enqueuePublishFailedNotification(
   deps: WorkflowNotificationDeliveryDeps,
-  event: ReviewReplyPublishFailed,
+  event: DurableReplyPublishFailed,
 ): Promise<void> {
   const authorCanRetry =
     event.authorId !== null &&
@@ -388,6 +397,7 @@ async function enqueuePublishFailedNotification(
   const payload = await buildInboxItemPayload(deps, {
     inboxItemId: inboxItem,
     orgId: event.organizationId,
+    publishOutcome: event.outcome,
   })
   await Promise.all(
     recipients.map((recipientId) =>
@@ -605,7 +615,12 @@ function parseWorkflowEvent(event: ConsumerEvent): WorkflowEvent {
         reviewId: reviewId(requiredString(parsed, 'reviewId')),
         propertyId: resolvedProperty,
         authorId: author === null ? null : userId(author),
-        // The schema admits only the closed cause, so it is kept as recorded.
+        // The schema admits only the closed vocabularies, so each is kept as
+        // recorded: how the publication ended, and the reconnect remedy.
+        outcome:
+          typeof parsed.outcome === 'string'
+            ? (parsed.outcome as ReplyPublishFailureOutcome)
+            : null,
         ...(parsed.cause === 'google_reauthorization_required'
           ? { cause: parsed.cause }
           : {}),

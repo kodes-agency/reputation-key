@@ -38,6 +38,7 @@ export type {
   ReviewReplyPublicationRequested,
   ReviewReplyRejected,
   ReviewReplyPublishFailed,
+  ReplyPublishFailureOutcome,
   ReviewReplyUpdated,
   ReviewReplyPublicationCancelled,
   ReviewEvent,

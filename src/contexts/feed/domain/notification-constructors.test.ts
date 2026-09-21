@@ -68,18 +68,21 @@ describe('notification constructors', () => {
 
   it('renders title and body from the type and payload, not from the caller', () => {
     const result = createNotification(
-      { ...base, payload: { propertyName: 'Riverside Hotel' } },
+      {
+        ...base,
+        payload: { propertyName: 'Riverside Hotel', publishOutcome: 'not_sent' },
+      },
       () => NOW,
     )
 
     if (result.isErr()) throw result.error
     expect(result.value).toMatchObject({
-      title: 'Reply failed to publish at Riverside Hotel',
-      payload: { propertyName: 'Riverside Hotel' },
+      title: 'Reply not published at Riverside Hotel',
+      payload: { propertyName: 'Riverside Hotel', publishOutcome: 'not_sent' },
       coalescedCount: 1,
       coalescedLatestAt: null,
     })
-    expect(result.value.body).toContain('Google rejected the reply to a review')
+    expect(result.value.body).toBe('Nothing reached Google, so it is safe to try again.')
   })
 
   it('renders a usable title with no payload at all', () => {
@@ -89,7 +92,7 @@ describe('notification constructors', () => {
     const result = createNotification(base, () => NOW)
 
     if (result.isErr()) throw result.error
-    expect(result.value.title).toBe('Reply failed to publish')
+    expect(result.value.title).toBe('Reply not published')
     expect(result.value.payload).toEqual({})
   })
 

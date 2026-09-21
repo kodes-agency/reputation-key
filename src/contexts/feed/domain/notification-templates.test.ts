@@ -243,6 +243,53 @@ describe('renderNotification — the copy that was broken', () => {
     expect(rendered.body).toBe('It was sent back without a reason. Edit it and resubmit.')
   })
 
+  // One fact covers every way a publication can end without a confirmed live
+  // reply, most of which Google never saw. Each outcome gets the sentence that
+  // is true for it. The notice can reach a responsible manager instead of the
+  // author, so none of it says "your".
+  it.each([
+    [
+      'not_sent',
+      'Reply not published at Riverside Hotel',
+      'Nothing reached Google, so it is safe to try again.',
+      'Retry publish',
+    ],
+    [
+      'refused',
+      'Reply not published at Riverside Hotel',
+      'Nothing was posted to Google. Check the Google connection, then try again.',
+      'Retry publish',
+    ],
+    [
+      'unconfirmed',
+      'Reply not confirmed on Google at Riverside Hotel',
+      "RepKey couldn't confirm it on Google and won't send it twice. Open it to check.",
+      'View reply',
+    ],
+  ] as const)(
+    'reply.publish_failed words a %s outcome as what happened',
+    (publishOutcome, title, body, actionLabel) => {
+      const r = renderNotification('reply.publish_failed', {
+        propertyName: 'Riverside Hotel',
+        publishOutcome,
+      })
+
+      expect(r).toMatchObject({ title, body, actionLabel })
+      expect([r.title, r.body].join(' ')).not.toMatch(/rejected|your/i)
+    },
+  )
+
+  it('reply.publish_failed claims no cause and offers no retry when the outcome is unknown', () => {
+    // Rows recorded before the fact carried an outcome, including replies
+    // that may be live on Google.
+    expect(renderNotification('reply.publish_failed', {})).toEqual({
+      title: 'Reply not published',
+      body: 'Open the reply to see where it stands.',
+      actionLabel: 'View reply',
+      summary: 'review · not published',
+    })
+  })
+
   it('renders a provider review without any source rating clause', () => {
     const r = renderNotification('review.created', { propertyName: 'Riverside' })
     expect(r.title).toBe('New review at Riverside')
@@ -451,10 +498,26 @@ describe('notificationLink', () => {
     })
   })
 
-  it('keeps the rejection wording for a publish failure with no named cause', () => {
-    expect(renderNotification('reply.publish_failed', {}).body).toBe(
-      'Google rejected the reply to a review. Open it and retry \u2014 the draft is saved.',
-    )
+  it('follows the outcome for a publish failure with no named cause', () => {
+    expect(
+      renderNotification('reply.publish_failed', { publishOutcome: 'refused' }).body,
+    ).toBe('Nothing was posted to Google. Check the Google connection, then try again.')
+  })
+
+  // The outcome says what happened; the cause names the only remedy that works.
+  it('names the reconnect remedy over the outcome when Google must be reconnected', () => {
+    expect(
+      renderNotification('reply.publish_failed', {
+        propertyName: 'Riverside Hotel',
+        publishOutcome: 'refused',
+        publishFailureCause: 'google_reauthorization_required',
+      }),
+    ).toEqual({
+      title: 'Reply not published at Riverside Hotel',
+      body: 'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry \u2014 the draft is saved.',
+      actionLabel: 'Open reply',
+      summary: 'Riverside Hotel · review · reconnect Google',
+    })
   })
 
   it('covers every resource type', () => {

@@ -130,6 +130,8 @@ describe('settleIfNeverDispatched', () => {
         reviewId: reply.reviewId,
         propertyId: PROP_ID,
         authorId: reply.createdBy,
+        // Nothing reached Google, so the notice may say it is safe to retry.
+        outcome: 'not_sent',
         occurredAt: NOW,
       }),
       NOW,

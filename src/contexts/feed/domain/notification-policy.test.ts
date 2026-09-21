@@ -111,16 +111,16 @@ describe('notification policy', () => {
     {
       type: 'reply.publish_failed' as const,
       cause: { publishFailureCause: 'google_reauthorization_required' },
-      title: 'Reply failed to publish at Riverside',
+      body: 'Open the reply to see where it stands.',
     },
     {
       type: 'integration.reauthorization_required' as const,
       cause: { reauthorizationCause: 'provider_revoked' },
-      title: 'Google connection needs attention at Riverside',
+      body: 'Reconnect the account to keep Google review updates and replies working.',
     },
   ])(
     'lets a repeat $type without a cause drop the earlier one',
-    ({ type, cause, title }) => {
+    ({ type, cause, body }) => {
       const bumped = applyCoalescence(
         unread({ propertyName: 'Riverside', ...cause }, type),
         { propertyName: 'Riverside' },
@@ -128,7 +128,7 @@ describe('notification policy', () => {
       )
 
       expect(bumped.payload).toEqual({ propertyName: 'Riverside', occurrences: 2 })
-      expect(bumped.title).toBe(title)
+      expect(bumped.body).toContain(body)
     },
   )
 
