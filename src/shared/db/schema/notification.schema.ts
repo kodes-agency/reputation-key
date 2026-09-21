@@ -75,6 +75,11 @@ export const notifications = pgTable(
     index('notifications_user_status_idx').on(t.userId, t.status, t.createdAt),
     // Query: list by org (admin views)
     index('notifications_org_idx').on(t.organizationId, t.createdAt),
+    // Query: does any notification point at this Inbox item — the
+    // missing-notification gauge's anti-join, every health snapshot.
+    index('notifications_inbox_item_resource_idx')
+      .on(t.resourceId)
+      .where(sql`${t.resourceType} = 'inbox_item'`),
     foreignKey({
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
