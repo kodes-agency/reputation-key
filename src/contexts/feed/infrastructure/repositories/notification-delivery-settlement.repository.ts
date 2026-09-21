@@ -66,10 +66,16 @@ async function enqueueImmediateAfterCommit(
     })
   } catch (err) {
     // The queue row committed with the notification and remains pending. The
-    // existing digest orphan sweep is the repair authority for this secondary
-    // Redis edge; no tenant/entity identifiers are logged.
+    // digest run's orphan sweep re-enqueues it, Property- and
+    // Organization-scoped alike. `correlationId` is the opaque string the
+    // urgent-email envelope carries, so an operator can find the stranded row;
+    // no tenant/entity identifiers are logged.
     deps.logger.error(
-      { err, cadence: 'immediate' },
+      {
+        err,
+        correlationId: `notification-email:${unbrand(email.id)}`,
+        cadence: 'immediate',
+      },
       'Immediate notification email enqueue failed after delivery settlement',
     )
   }

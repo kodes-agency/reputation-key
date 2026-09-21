@@ -62,6 +62,7 @@ type Options = Readonly<{
   userTimezone?: string | null
   orgTimezone?: string | null
   immediateOrphans?: readonly NotificationEmail[]
+  organizationOrphans?: readonly NotificationEmail[]
   openBatch?: NotificationDigestBatch | null
   batchEntries?: readonly NotificationEmail[]
   activeUnsubscribeKeyVersion?: string
@@ -92,6 +93,12 @@ function baseDeps(options: Options = {}) {
       ),
       findDueByUser: vi.fn(async () => due),
       findDueByProperty: vi.fn(async () => options.immediateOrphans ?? []),
+      findDueOrganizationScopes: vi.fn(async () => [
+        ...new Set(
+          (options.organizationOrphans ?? []).map((entry) => entry.organizationId),
+        ),
+      ]),
+      findDueByOrganization: vi.fn(async () => options.organizationOrphans ?? []),
       markSuppressed: vi.fn(async () => {}),
       markDelayed: vi.fn(async () => {}),
       markAccepted: vi.fn(async (_id: string) => {}),
@@ -160,7 +167,7 @@ function baseDeps(options: Options = {}) {
     logger: createFakeJobLogger(),
     clock: () => now,
     batchIdGen: vi.fn(() => '86000000-0000-4000-8000-000000000099'),
-    authorizeScope: vi.fn(async (_org: string, _property: string) => true),
+    authorizeScope: vi.fn(async (_org: string, _property?: string) => true),
     baseUrl: BASE_URL,
     activeOneClickUnsubscribeKeyVersion: vi.fn(
       () => options.activeUnsubscribeKeyVersion ?? 'v1',
@@ -746,6 +753,55 @@ describe('immediate orphan sweep', () => {
     await runHandler(deps)
 
     expect(deps.enqueueImmediate).not.toHaveBeenCalled()
+  })
+
+  it('re-enqueues Organization-scoped mandatory rows, authorized per Organization', async () => {
+    // An access-removed or purge-pending notice has no Property, so walking
+    // Properties never found it: a failed enqueue stranded it for good.
+    const mandatory = buildNotificationEmail({
+      id: 'mandatory-1',
+      propertyId: null,
+      category: 'mandatory',
+      cadence: 'immediate',
+      status: 'failed',
+      retryCount: 3,
+    })
+    const deps = baseDeps({ organizationOrphans: [mandatory] })
+
+    await runHandler(deps)
+
+    expect(deps.authorizeScope).toHaveBeenCalledWith(ORG)
+    expect(deps.emailRepo.findDueByOrganization).toHaveBeenCalledWith(
+      organizationId(ORG),
+      NOW,
+    )
+    expect(deps.enqueueImmediate).toHaveBeenCalledWith({
+      notificationEmailId: 'mandatory-1',
+      organizationId: ORG,
+    })
+  })
+
+  it('leaves an Organization that fails the scope gate for a later sweep', async () => {
+    const deps = baseDeps({
+      organizationOrphans: [
+        buildNotificationEmail({
+          id: 'mandatory-1',
+          propertyId: null,
+          category: 'mandatory',
+          cadence: 'immediate',
+        }),
+      ],
+    })
+    deps.authorizeScope.mockImplementation(
+      async (_org: string, property?: string) => property !== undefined,
+    )
+
+    await runHandler(deps)
+
+    expect(deps.emailRepo.findDueByOrganization).not.toHaveBeenCalled()
+    expect(deps.enqueueImmediate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ notificationEmailId: 'mandatory-1' }),
+    )
   })
 })
 

@@ -15,6 +15,7 @@ import {
   organizationId as toOrgId,
   propertyId as toPropertyId,
   userId as toUserId,
+  type OrganizationId,
 } from '#/shared/domain/ids'
 import type {
   DeliveryErrorClass,
@@ -105,8 +106,8 @@ const SENDABLE: readonly EmailQueueStatus[] = ['pending', 'failed', 'delayed']
 
 /**
  * "Due" = still sendable, retry budget intact, and both time gates open.
- * Shared by the property-scoped and the recipient-scoped reads so the digest
- * sweep and the orphan sweep can never disagree about what is due.
+ * Shared by the property-, Organization- and recipient-scoped reads so the
+ * digest sweep and the orphan sweep can never disagree about what is due.
  */
 const dueForCadence = (cadence: string, now: Date) =>
   and(
@@ -274,6 +275,37 @@ export const createNotificationEmailRepository = (db: Database) => ({
           eq(notificationEmailQueue.organizationId, orgId),
           eq(notificationEmailQueue.propertyId, propertyId),
           dueForCadence(cadence, now),
+        ),
+      )
+      .orderBy(asc(notificationEmailQueue.createdAt))
+      .limit(500)
+    return rows.map(emailFromRow)
+  },
+
+  findDueOrganizationScopes: async (now: Date): Promise<readonly OrganizationId[]> => {
+    const rows = await db
+      .selectDistinct({ organizationId: notificationEmailQueue.organizationId })
+      .from(notificationEmailQueue)
+      .where(
+        and(isNull(notificationEmailQueue.propertyId), dueForCadence('immediate', now)),
+      )
+      .orderBy(asc(notificationEmailQueue.organizationId))
+      .limit(5_000)
+    return rows.map((row) => toOrgId(row.organizationId))
+  },
+
+  findDueByOrganization: async (
+    orgId: string,
+    now: Date,
+  ): Promise<NotificationEmail[]> => {
+    const rows = await db
+      .select()
+      .from(notificationEmailQueue)
+      .where(
+        and(
+          eq(notificationEmailQueue.organizationId, orgId),
+          isNull(notificationEmailQueue.propertyId),
+          dueForCadence('immediate', now),
         ),
       )
       .orderBy(asc(notificationEmailQueue.createdAt))

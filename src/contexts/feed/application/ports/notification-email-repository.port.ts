@@ -119,6 +119,17 @@ export type NotificationEmailRepositoryPort = Readonly<{
     cadence: NotificationCadence,
     now: Date,
   ): Promise<readonly NotificationEmail[]>
+  /**
+   * Organizations with a due immediate row that has no Property: the
+   * Organization-scoped mandatory notices. The sweep authorizes each one
+   * before it reads that Organization's rows.
+   */
+  findDueOrganizationScopes(now: Date): Promise<readonly OrganizationId[]>
+  /** Due Organization-scoped (Property-less) rows for one Organization. */
+  findDueByOrganization(
+    orgId: OrganizationId,
+    now: Date,
+  ): Promise<readonly NotificationEmail[]>
   markAccepted(
     id: NotificationEmailId,
     orgId: OrganizationId,

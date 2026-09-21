@@ -141,9 +141,10 @@ const enqueueImmediateEmailBestEffort = async (
     // `correlationId` is the same opaque string the urgent-email job envelope
     // carries, so this failure and the digest sweep's later re-enqueue join on
     // one field. No tenant/entity ids (BQC-7.3, see below). Recovery "depends
-    // on" the sweep rather than being guaranteed by it: the sweep is a no-op
-    // when outbound email is dark, when no queue is configured, and for
-    // non-active properties.
+    // on" the sweep rather than being guaranteed by it: the sweep covers
+    // Organization-scoped mandatory rows as well as Property-scoped ones, but
+    // it is a no-op when outbound email is dark, when no queue is configured,
+    // and for non-active properties.
     deps.logger.error(
       {
         err: enqueueErr,

@@ -18,9 +18,10 @@
 // Note the dispatch axis: "daily digest" is a CADENCE (`cadence === 'daily'`),
 // never a category. This job has always selected on cadence and continues to.
 //
-// The `immediate`-cadence orphan sweep is unchanged in spirit: it stays
-// property-scoped because an urgent email IS property-scoped, and it is the
-// recovery path for an enqueue that failed at insert time.
+// The `immediate`-cadence orphan sweep runs first on every tick. It lives in
+// `immediate-orphan-sweep.ts`: the recovery path for an immediate email whose
+// enqueue failed or whose job gave up, for Property- and Organization-scoped
+// rows alike.
 
 import type { Job } from 'bullmq'
 import type { Pool } from 'pg'
@@ -73,10 +74,12 @@ import {
   recipientTimezoneSource,
   resolveRecipientTimezone,
 } from './recipient-timezone'
+import {
+  sweepImmediateOrphans,
+  type ImmediateEmailEnqueue,
+} from './immediate-orphan-sweep'
 
 export const DIGEST_JOB_NAME = 'digest-notification' as const
-
-type PropertyScope = Readonly<{ organization_id: string; property_id: string }>
 
 export type DigestDeps = Readonly<{
   pool: Pool
@@ -97,11 +100,7 @@ export type DigestDeps = Readonly<{
     target: Readonly<{ kind: 'digest'; id: string }>,
     keyVersion: string,
   ) => string
-  enqueueImmediate: (data: {
-    notificationEmailId: string
-    organizationId: string
-    propertyId: string
-  }) => Promise<void>
+  enqueueImmediate: ImmediateEmailEnqueue
 }>
 
 const retryAt = (now: Date, retryCount: number): Date =>
@@ -738,48 +737,6 @@ async function sendUserDigest(
     unsubscribeKeyVersion,
     localDate,
   )
-}
-
-// ── Immediate orphan sweep ──────────────────────────────────────────
-
-/**
- * Recovery path for an urgent email whose enqueue failed at insert time (the
- * queue row survives, the job does not). Property-scoped on purpose: an urgent
- * email belongs to exactly one property, and the scope gate is per property.
- */
-async function sweepImmediateOrphans(deps: DigestDeps, now: Date): Promise<void> {
-  const scopes = await deps.pool.query<PropertyScope>(
-    `SELECT organization_id, id::text AS property_id
-       FROM properties
-      WHERE deleted_at IS NULL
-        AND lifecycle_state = 'active'`,
-  )
-  for (const scope of scopes.rows) {
-    if (!(await deps.authorizeScope(scope.organization_id, scope.property_id))) continue
-    try {
-      const orphans = await deps.emailRepo.findDueByProperty(
-        organizationId(scope.organization_id),
-        propertyId(scope.property_id),
-        'immediate',
-        now,
-      )
-      for (const entry of orphans) {
-        await deps.enqueueImmediate({
-          notificationEmailId: entry.id as string,
-          organizationId: scope.organization_id,
-          propertyId: scope.property_id,
-        })
-      }
-      if (orphans.length > 0) {
-        deps.logger.info(
-          { orphans: orphans.length },
-          'Re-enqueued immediate notification emails missed by the urgent path',
-        )
-      }
-    } catch (error) {
-      deps.logger.error({ error }, 'Immediate email orphan sweep failed for property')
-    }
-  }
 }
 
 export const createDigestNotificationJobHandler = (deps: DigestDeps) => {
