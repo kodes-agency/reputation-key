@@ -14,6 +14,10 @@ import { isNotificationError } from '../domain/notification-errors'
 import { NOTIFICATION_LIST_FILTERS } from '../application/notification-list-filter'
 import { createNotificationPage } from '../application/notification-page'
 import { notificationUserSettingsDto } from '../application/dto/notification-user-settings.dto'
+import {
+  notificationPreferenceCategory,
+  updateNotificationPreferenceDto,
+} from '../application/dto/notification-preference.dto'
 import { requiredCapabilityForPreferenceChannel } from '../domain/notification-delivery-policy'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -273,33 +277,6 @@ export const getNotificationPreferencesFn = createServerFn({ method: 'GET' }).ha
 )
 
 // ── updateNotificationPreferenceFn ────────────────────────────────
-
-const quietTime = z
-  .string()
-  .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
-  .nullable()
-export const notificationPreferenceCategory = z.enum([
-  'urgent_operational',
-  'workflow_collaboration',
-  'recognition',
-])
-const notificationChannel = z.enum(['in_app', 'email'])
-export const updateNotificationPreferenceDto = z
-  .object({
-    propertyId: z.uuid(),
-    category: notificationPreferenceCategory,
-    channel: notificationChannel,
-    enabled: z.boolean(),
-    cadence: z.enum(['immediate', 'daily']),
-    urgentBypassEnabled: z.boolean(),
-    quietHoursStart: quietTime,
-    quietHoursEnd: quietTime,
-  })
-  .refine(
-    (data) =>
-      data.quietHoursStart === null || data.quietHoursStart !== data.quietHoursEnd,
-    'Quiet hours must start and end at different times',
-  )
 
 /** @public Consumed by the notification preferences settings route. */
 export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })

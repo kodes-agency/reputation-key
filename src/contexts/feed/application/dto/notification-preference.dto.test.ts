@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   notificationPreferenceCategory,
   updateNotificationPreferenceDto,
-} from './notifications'
+} from './notification-preference.dto'
 
 describe('notification preference API contract', () => {
   it('refuses Organization mandatory policy on Property preference endpoints', () => {
