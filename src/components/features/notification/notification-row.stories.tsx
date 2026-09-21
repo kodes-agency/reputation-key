@@ -264,6 +264,30 @@ export const ReportOutcome: Story = {
   },
 }
 
+/**
+ * ADR 0059: the report outcome cannot be switched off; dismissing it is the
+ * control. Its category is configurable per Property, but it has no Property,
+ * so a Mute item would promise a switch the server has no row for.
+ */
+export const ReportOutcomeCannotBeMuted: Story = {
+  args: { notification: reportResolved },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const ownerDocument = canvasElement.ownerDocument
+    await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
+    const menu = within(ownerDocument.body)
+    const dismiss = await menu.findByRole('menuitem', { name: 'Dismiss' })
+    await waitFor(() => expect(dismiss).toBeVisible())
+    expect(menu.queryByRole('menuitem', { name: /^Mute/ })).toBeNull()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => {
+      expect(ownerDocument.querySelector('[role="menu"]')).toBeNull()
+      expect(canvasElement).not.toHaveAttribute('aria-hidden')
+      expect(ownerDocument.body.style.pointerEvents).toBe('')
+    })
+  },
+}
+
 export const ReportOutcomeLight: Story = {
   args: { notification: reportResolved },
   parameters: { theme: 'light' },

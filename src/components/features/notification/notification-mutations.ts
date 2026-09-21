@@ -115,8 +115,9 @@ export function useNotificationMutations(
       void run(dismiss({ data: { notificationId: id } }), 'Notification dismissed.')
     },
     onMuteCategory: (notification) => {
+      // The row menu never offers these; the guard keeps the command honest.
       if (notification.propertyId === null || notification.category === 'mandatory') {
-        announce('This account notice is always on.')
+        announce("This notice can't be muted. Dismiss it instead.")
         return
       }
       void run(

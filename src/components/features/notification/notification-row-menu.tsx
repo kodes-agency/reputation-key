@@ -39,7 +39,11 @@ export function NotificationRowMenu({
   actions,
 }: Props) {
   const isUnread = notification.status === 'unread'
+  // A mute is a per-Property in-app switch. An Organization-scoped row
+  // (mandatory, or the ADR 0059 report outcome) has no Property to switch
+  // off, even when its category is configurable elsewhere.
   const canMute =
+    notification.propertyId !== null &&
     notification.category !== 'mandatory' &&
     NOTIFICATION_SETTINGS_CATEGORIES.includes(notification.category) &&
     isPreferenceDisableable(notification.category, 'in_app')
