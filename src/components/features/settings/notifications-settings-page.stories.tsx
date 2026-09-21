@@ -117,8 +117,8 @@ export const EmailAllowed: Story = {
     const canvas = within(canvasElement)
     // No "unavailable" notice, and the email controls are operable.
     expect(canvas.queryByTestId('email-unavailable-notice')).toBeNull()
-    const emailSwitch = canvas.getByLabelText('Email', {
-      selector: '#workflow_collaboration-email',
+    const emailSwitch = canvas.getByRole('switch', {
+      name: 'Workflow and collaboration: Email',
     })
     expect(emailSwitch).toBeEnabled()
     expect(canvas.queryByRole('heading', { name: 'Recognition' })).toBeNull()
@@ -155,14 +155,12 @@ export const EmailUnavailableForProperty: Story = {
     // write failed with a generic toast. It must now say so and be inert.
     expect(canvas.getByTestId('email-unavailable-notice')).toBeInTheDocument()
     expect(
-      canvas.getByLabelText('Email', { selector: '#workflow_collaboration-email' }),
+      canvas.getByRole('switch', { name: 'Workflow and collaboration: Email' }),
     ).toBeDisabled()
-    expect(
-      canvas.queryByLabelText('Email', { selector: '#recognition-email' }),
-    ).toBeNull()
+    expect(canvas.queryByRole('switch', { name: /^Past awards/ })).toBeNull()
     // In-app is a separate capability and stays operable.
     expect(
-      canvas.getByLabelText('In-app', { selector: '#workflow_collaboration-in_app' }),
+      canvas.getByRole('switch', { name: 'Workflow and collaboration: In-app' }),
     ).toBeEnabled()
   },
 }
@@ -173,22 +171,50 @@ export const MandatoryCategoryIsOrganizationPolicy: Story = {
     // Mandatory account notices are Organization policy, not a Property
     // preference with disabled controls that imply it could later be changed.
     expect(canvas.queryByRole('heading', { name: 'Account and safety' })).toBeNull()
-    expect(
-      canvas.queryByLabelText('In-app', { selector: '#mandatory-in_app' }),
-    ).toBeNull()
-    expect(canvas.queryByLabelText('Email', { selector: '#mandatory-email' })).toBeNull()
+    expect(canvas.queryByRole('switch', { name: /^Account and safety/ })).toBeNull()
   },
 }
 
 export const ActionNeededKeepsInAppOn: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    const locked = canvas.getByRole('switch', { name: 'Action needed: In-app' })
+    expect(locked).toBeDisabled()
+    // A dimmed switch alone does not say why it cannot be turned off.
+    expect(canvas.getByText('Always on')).toBeVisible()
+    expect(locked).toHaveAccessibleDescription(/Always on/)
+    expect(canvas.getByRole('switch', { name: 'Action needed: Email' })).toBeEnabled()
+  },
+}
+
+export const EveryControlNamesItsCategory: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // Both rows used to announce the same "In-app", "Email", "Cadence",
+    // "Quiet from" and "until", so a screen-reader user tabbing through could
+    // not tell which category they were changing.
+    for (const category of ['Action needed', 'Workflow and collaboration']) {
+      expect(canvas.getByRole('group', { name: category })).toBeInTheDocument()
+      expect(
+        canvas.getByRole('switch', { name: `${category}: In-app` }),
+      ).toBeInTheDocument()
+      expect(
+        canvas.getByRole('switch', { name: `${category}: Email` }),
+      ).toBeInTheDocument()
+      expect(
+        canvas.getByRole('combobox', { name: `${category}: Cadence` }),
+      ).toBeInTheDocument()
+      expect(canvas.getByLabelText(`${category}: Quiet from`)).toBeInTheDocument()
+      expect(canvas.getByLabelText(`${category}: quiet hours until`)).toBeInTheDocument()
+      expect(
+        canvas.getByRole('button', { name: `Save quiet hours for ${category}` }),
+      ).toBeInTheDocument()
+    }
     expect(
-      canvas.getByLabelText('In-app', { selector: '#urgent_operational-in_app' }),
-    ).toBeDisabled()
-    expect(
-      canvas.getByLabelText('Email', { selector: '#urgent_operational-email' }),
-    ).toBeEnabled()
+      canvas.getByRole('switch', {
+        name: 'Action needed: Allow urgent email to bypass quiet hours',
+      }),
+    ).toBeInTheDocument()
   },
 }
 
@@ -314,7 +340,7 @@ export const QuietHoursCanBeCleared: Story = {
     if (!fieldset) throw new Error('workflow notification fieldset is missing')
     const row = within(fieldset)
     await userEvent.clear(row.getByLabelText(/quiet from/i))
-    await userEvent.clear(row.getByLabelText(/^until/i))
+    await userEvent.clear(row.getByLabelText(/quiet hours until/i))
     await userEvent.click(row.getByRole('button', { name: /save quiet hours/i }))
 
     await waitFor(() =>

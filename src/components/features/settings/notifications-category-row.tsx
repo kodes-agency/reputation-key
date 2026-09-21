@@ -47,6 +47,12 @@ export function NotificationsCategoryRow({
   const inAppLocked = !isPreferenceDisableable(category, 'in_app')
   const emailLocked = !isPreferenceDisableable(category, 'email')
   const emailControlsDisabled = emailLocked || !emailAllowed
+  const headingId = `${category}-heading`
+  const lockedNoteId = `${category}-in_app-locked`
+  // Every row repeats "In-app", "Email", "Cadence" and "Quiet from", so each
+  // control's name carries the category: a screen-reader user tabbing through
+  // otherwise cannot tell which category a control changes.
+  const named = (control: string) => `${label}: ${control}`
   // The title track carries an explicit floor and the controls row spans the
   // whole grid. With `1fr auto auto` and the controls row spanning only columns
   // 2-3, that 670px row sized both `auto` tracks to the full width of the
@@ -54,34 +60,47 @@ export function NotificationsCategoryRow({
   // wrapped one character per line. `min-w-0` on the text made it worse by
   // removing the min-content floor that had been hiding the squeeze.
   return (
-    <fieldset className="grid min-w-0 gap-4 py-5 md:grid-cols-[minmax(12rem,1fr)_auto_auto]">
+    <fieldset
+      aria-labelledby={headingId}
+      className="grid min-w-0 gap-4 py-5 md:grid-cols-[minmax(12rem,1fr)_auto_auto]"
+    >
       {/*
         Not a <legend>: a legend is not a grid item, so the explicit
         col-start/row-start placements below computed against a grid it never
         joined and the category title floated away from its own controls.
       */}
-      <div role="heading" aria-level={3} className="min-w-0 font-medium">
+      <div id={headingId} role="heading" aria-level={3} className="min-w-0 font-medium">
         {label}
       </div>
       <p className="min-w-0 text-sm text-muted-foreground md:col-start-1">
         {description}
       </p>
-      <Label className="flex items-center gap-2 md:col-start-2 md:row-start-1">
-        <Switch
-          id={`${category}-in_app`}
-          checked={inApp?.enabled ?? getDefaultEnabled(category, 'in_app')}
-          disabled={inAppLocked}
-          onCheckedChange={(enabled) =>
-            void savePreference(category, 'in_app', { enabled })
-          }
-        />
-        In-app
-      </Label>
+      <div className="flex items-center gap-2 md:col-start-2 md:row-start-1">
+        <Label className="flex items-center gap-2">
+          <Switch
+            id={`${category}-in_app`}
+            checked={inApp?.enabled ?? getDefaultEnabled(category, 'in_app')}
+            disabled={inAppLocked}
+            aria-label={named('In-app')}
+            aria-describedby={inAppLocked ? lockedNoteId : undefined}
+            onCheckedChange={(enabled) =>
+              void savePreference(category, 'in_app', { enabled })
+            }
+          />
+          In-app
+        </Label>
+        {inAppLocked ? (
+          <span id={lockedNoteId} className="text-sm text-muted-foreground">
+            Always on
+          </span>
+        ) : null}
+      </div>
       <Label className="flex items-center gap-2 md:col-start-3 md:row-start-1">
         <Switch
           id={`${category}-email`}
           checked={email?.enabled ?? getDefaultEnabled(category, 'email')}
           disabled={emailControlsDisabled}
+          aria-label={named('Email')}
           onCheckedChange={(enabled) =>
             void savePreference(category, 'email', { enabled })
           }
@@ -102,6 +121,7 @@ export function NotificationsCategoryRow({
           >
             <SelectTrigger
               id={`${category}-cadence`}
+              aria-label={named('Cadence')}
               className="h-11 min-h-11 w-44 min-w-0"
             >
               <SelectValue />
@@ -118,6 +138,7 @@ export function NotificationsCategoryRow({
           key={`${category}:${email?.quietHoursStart}:${email?.quietHoursEnd}`}
           start={email?.quietHoursStart ?? null}
           end={email?.quietHoursEnd ?? null}
+          categoryLabel={label}
           disabled={emailControlsDisabled}
           onSave={(quietHoursStart, quietHoursEnd) =>
             void savePreference(category, 'email', { quietHoursStart, quietHoursEnd })
@@ -129,6 +150,7 @@ export function NotificationsCategoryRow({
               id={`${category}-urgent-bypass`}
               checked={email?.urgentBypassEnabled ?? false}
               disabled={emailControlsDisabled}
+              aria-label={named('Allow urgent email to bypass quiet hours')}
               onCheckedChange={(urgentBypassEnabled) =>
                 void savePreference(category, 'email', { urgentBypassEnabled })
               }

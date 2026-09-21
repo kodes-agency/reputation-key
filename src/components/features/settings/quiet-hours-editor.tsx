@@ -6,11 +6,14 @@ import { Label } from '#/components/ui/label'
 export function QuietHoursEditor({
   start,
   end,
+  categoryLabel,
   disabled = false,
   onSave,
 }: Readonly<{
   start: string | null
   end: string | null
+  /** Named in every control, since each category row has its own editor. */
+  categoryLabel: string
   /** Set when email delivery is unavailable for the selected property. */
   disabled?: boolean
   onSave: (start: string | null, end: string | null) => void
@@ -26,6 +29,7 @@ export function QuietHoursEditor({
         <Input
           className="w-32 min-w-0"
           type="time"
+          aria-label={`${categoryLabel}: Quiet from`}
           value={nextStart}
           disabled={disabled}
           onChange={(event) => setNextStart(event.target.value)}
@@ -36,6 +40,7 @@ export function QuietHoursEditor({
         <Input
           className="w-32 min-w-0"
           type="time"
+          aria-label={`${categoryLabel}: quiet hours until`}
           value={nextEnd}
           disabled={disabled}
           onChange={(event) => setNextEnd(event.target.value)}
@@ -44,6 +49,7 @@ export function QuietHoursEditor({
       <Button
         type="button"
         variant="outline"
+        aria-label={`Save quiet hours for ${categoryLabel}`}
         disabled={disabled || halfOpen}
         onClick={() => onSave(nextStart || null, nextEnd || null)}
       >
