@@ -277,6 +277,48 @@ export const FilterSwitchKeepsTheCount: Story = {
   },
 }
 
+/** Ten rows: taller than a landscape phone, so the list has to scroll. */
+const tallFeed = Array.from({ length: 10 }, (_, n) =>
+  makeNotification({
+    id: `50000000-0000-4000-8000-${n.toString().padStart(12, '0')}`,
+    type: 'review.created',
+    status: n < 4 ? 'unread' : 'read',
+    payload: { propertyName: 'Harbour View Suites', platform: 'google' },
+    createdAt: new Date(Date.now() - (n + 1) * 7 * 60_000),
+  }),
+)
+
+/**
+ * The bell where the app puts it, at the right end of the top bar, on a phone.
+ * The popover must stay inside the viewport at 320-375 px and in landscape,
+ * with its footer reachable. Geometry is measured against compiled Tailwind by
+ * e2e/storybook-metrics/notification-popover.metrics.ts; this runner compiles
+ * none, so its play only opens the bell.
+ */
+export const PhoneTopBar: Story = {
+  args: {
+    notificationFns: makeNotificationFns({
+      getFeedHead: (async () =>
+        notificationFeedHeadFixture(
+          tallFeed,
+        )) as unknown as NotificationServerFns['getFeedHead'],
+    }),
+  },
+  parameters: { layout: 'fullscreen', viewport: { defaultViewport: 'mobileNarrow' } },
+  render: (args) => (
+    <header className="flex h-12 items-center justify-end border-b px-2">
+      <NotificationPanel {...args} />
+    </header>
+  ),
+  play: async ({ canvasElement }) => {
+    const popover = await openBell(canvasElement)
+    await waitFor(() => expect(popover.getAllByRole('listitem')).toHaveLength(10))
+    expect(
+      popover.getByRole('link', { name: 'View all notifications' }),
+    ).toBeInTheDocument()
+  },
+}
+
 /** Reads that never settle → the list holds its skeleton, the badge stays absent. */
 export const Loading: Story = {
   args: {

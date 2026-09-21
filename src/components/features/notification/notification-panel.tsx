@@ -18,6 +18,8 @@ import type { NotificationServerFns, NotificationRowActions } from './types'
 import type { NotificationView } from '#/contexts/feed/application/public-api'
 
 const PAGE_SIZE = 20
+/** Half the 1rem the width cap leaves, so the popover never touches an edge. */
+const POPOVER_VIEWPORT_MARGIN_PX = 8
 
 // Screen-reader live region announcing the unread count.
 function NotificationAriaLive({ count }: Readonly<{ count: number }>) {
@@ -98,8 +100,16 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
       <NotificationAriaLive count={count} />
       <NotificationAnnouncer announcement={announcement} />
       {/* Radix gives PopoverContent role="dialog"; an unnamed dialog is a
-          serious axe violation, so the panel names itself. */}
-      <PopoverContent align="end" aria-label="Notifications" className="w-96 p-0">
+          serious axe violation, so the panel names itself. It is positioned
+          `fixed`, where the page cannot scroll to a clipped edge, so it is
+          capped to the viewport on both axes (24rem was 64px too wide for a
+          320px phone) and its list scrolls inside it, footer in reach. */}
+      <PopoverContent
+        align="end"
+        aria-label="Notifications"
+        collisionPadding={POPOVER_VIEWPORT_MARGIN_PX}
+        className="flex max-h-(--radix-popover-content-available-height) w-[min(24rem,calc(100vw-1rem))] flex-col p-0"
+      >
         <NotificationPopoverContent
           groups={groups}
           isLoading={list.isLoading}

@@ -37,7 +37,7 @@ export function NotificationPopoverContent(props: Props) {
 
   return (
     <>
-      <div className="flex items-center justify-between gap-2 px-4 py-3">
+      <div className="flex shrink-0 items-center justify-between gap-2 px-4 py-3">
         <h2 className="text-sm font-semibold">Notifications</h2>
         {hasAnything && (
           <div className="flex items-center gap-1">
@@ -55,12 +55,16 @@ export function NotificationPopoverContent(props: Props) {
         )}
       </div>
       <Separator />
+      {/* The list is the part that gives: on a short or landscape phone it
+          shrinks and scrolls, so the header and the footer stay on screen. */}
       <NotificationFilterTabs
         value={props.filter}
         onChange={props.onFilterChange}
+        className="min-h-0 flex-1"
         listClassName="px-2 pt-2"
+        contentClassName="flex min-h-0 flex-col"
       >
-        <div className="max-h-96 overflow-y-auto px-1 pb-1">
+        <div className="max-h-96 min-h-0 flex-1 overflow-y-auto px-1 pb-1">
           <NotificationListBody
             groups={props.groups}
             isLoading={props.isLoading}
@@ -77,7 +81,7 @@ export function NotificationPopoverContent(props: Props) {
         </div>
       </NotificationFilterTabs>
       <Separator />
-      <div className="px-2 py-2">
+      <div className="shrink-0 px-2 py-2">
         <Button asChild variant="ghost" size="sm" className="w-full text-xs">
           <Link to="/notifications" onClick={props.onViewAll}>
             View all notifications

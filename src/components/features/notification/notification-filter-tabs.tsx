@@ -23,6 +23,7 @@ type Props = Readonly<{
   children: ReactNode
   className?: string
   listClassName?: string
+  contentClassName?: string
 }>
 
 export function NotificationFilterTabs({
@@ -31,6 +32,7 @@ export function NotificationFilterTabs({
   children,
   className,
   listClassName,
+  contentClassName,
 }: Props) {
   return (
     <Tabs
@@ -42,7 +44,13 @@ export function NotificationFilterTabs({
       <TabsList
         variant="line"
         aria-label="Filter notifications"
-        className={cn('h-auto w-full flex-wrap justify-start gap-x-1', listClassName)}
+        // The vendored list pins its height with a group variant, which a
+        // plain `h-auto` cannot outrank; wrapped tabs then spilled over the
+        // list below on a phone.
+        className={cn(
+          'w-full flex-wrap justify-start gap-x-1 group-data-[orientation=horizontal]/tabs:h-auto',
+          listClassName,
+        )}
       >
         {NOTIFICATION_FILTERS.map((option) => (
           <TabsTrigger
@@ -55,7 +63,7 @@ export function NotificationFilterTabs({
         ))}
       </TabsList>
       {NOTIFICATION_FILTERS.map((option) => (
-        <TabsContent key={option.value} value={option.value}>
+        <TabsContent key={option.value} value={option.value} className={contentClassName}>
           {children}
         </TabsContent>
       ))}
