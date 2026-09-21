@@ -47,6 +47,10 @@ export function NotificationsCategoryRow({
   const inAppLocked = !isPreferenceDisableable(category, 'in_app')
   const emailLocked = !isPreferenceDisableable(category, 'email')
   const emailControlsDisabled = emailLocked || !emailAllowed
+  const emailOn = email?.enabled ?? getDefaultEnabled(category, 'email')
+  // Cadence, quiet hours and the urgent bypass only shape email, so while email
+  // is off they cannot take effect. They wait, values kept, until it is on.
+  const emailTimingDisabled = emailControlsDisabled || !emailOn
   const headingId = `${category}-heading`
   const lockedNoteId = `${category}-in_app-locked`
   // Every row repeats "In-app", "Email", "Cadence" and "Quiet from", so each
@@ -112,7 +116,7 @@ export function NotificationsCategoryRow({
           <FieldLabel htmlFor={`${category}-cadence`}>Cadence</FieldLabel>
           <Select
             value={email?.cadence ?? getDefaultCadence(category)}
-            disabled={emailControlsDisabled}
+            disabled={emailTimingDisabled}
             onValueChange={(value) =>
               void savePreference(category, 'email', {
                 cadence: value as NotificationCadence,
@@ -139,7 +143,7 @@ export function NotificationsCategoryRow({
           start={email?.quietHoursStart ?? null}
           end={email?.quietHoursEnd ?? null}
           categoryLabel={label}
-          disabled={emailControlsDisabled}
+          disabled={emailTimingDisabled}
           onSave={(quietHoursStart, quietHoursEnd) =>
             void savePreference(category, 'email', { quietHoursStart, quietHoursEnd })
           }
@@ -149,7 +153,7 @@ export function NotificationsCategoryRow({
             <Switch
               id={`${category}-urgent-bypass`}
               checked={email?.urgentBypassEnabled ?? false}
-              disabled={emailControlsDisabled}
+              disabled={emailTimingDisabled}
               aria-label={named('Allow urgent email to bypass quiet hours')}
               onCheckedChange={(urgentBypassEnabled) =>
                 void savePreference(category, 'email', { urgentBypassEnabled })
@@ -158,6 +162,11 @@ export function NotificationsCategoryRow({
             Allow urgent email to bypass quiet hours
           </Label>
         ) : null}
+        {emailControlsDisabled || emailOn ? null : (
+          <p className="basis-full text-sm text-muted-foreground">
+            Turn on email to choose when it arrives.
+          </p>
+        )}
         <p className="basis-full text-sm text-muted-foreground">
           The daily digest and quiet hours use your timezone, {clockLabel}.
         </p>

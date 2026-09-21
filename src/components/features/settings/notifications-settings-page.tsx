@@ -7,6 +7,7 @@ import {
   NotificationsSettingsView,
   type NotificationSettingsUpdate,
 } from './notifications-settings-view'
+import type { EmailAvailability } from './email-availability-notice'
 import {
   useNotificationPreferenceSaves,
   type PreferenceUpdate,
@@ -18,7 +19,8 @@ type Props = Readonly<{
   /** Null only without an active Organization, where nothing is configurable. */
   userSettings: EffectiveNotificationSettings | null
   propertyId: string
-  emailAllowed: boolean
+  emailAvailability: EmailAvailability
+  retryEmailAvailability: () => void
   setPropertyId: (value: string) => void
   updatePreference: Action<PreferenceUpdate, NotificationPreference>
   updateUserSettings: Action<NotificationSettingsUpdate, EffectiveNotificationSettings>
@@ -40,7 +42,8 @@ export function NotificationsSettingsPage({
   preferences,
   userSettings,
   propertyId,
-  emailAllowed,
+  emailAvailability,
+  retryEmailAvailability,
   setPropertyId,
   updatePreference,
   updateUserSettings,
@@ -70,7 +73,8 @@ export function NotificationsSettingsPage({
       properties={properties}
       settings={settings}
       propertyId={propertyId}
-      emailAllowed={emailAllowed}
+      emailAvailability={emailAvailability}
+      retryEmailAvailability={retryEmailAvailability}
       setPropertyId={setPropertyId}
       preferenceFor={preferenceFor}
       savePreference={savePreference}
@@ -83,7 +87,8 @@ function NotificationFormattingBoundary({
   properties,
   settings,
   propertyId,
-  emailAllowed,
+  emailAvailability,
+  retryEmailAvailability,
   setPropertyId,
   preferenceFor,
   savePreference,
@@ -94,7 +99,8 @@ function NotificationFormattingBoundary({
       properties={properties}
       propertyId={propertyId}
       settings={settings}
-      emailAllowed={emailAllowed}
+      emailAvailability={emailAvailability}
+      retryEmailAvailability={retryEmailAvailability}
       setPropertyId={setPropertyId}
       preferenceFor={preferenceFor}
       savePreference={savePreference}

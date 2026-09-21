@@ -85,6 +85,7 @@ const updatePreference = asAction(updatePreferenceMock)
 const updateUserSettings = asAction(updateUserSettingsMock)
 
 const setPropertyId = fn()
+const retryEmailAvailability = fn()
 
 const meta = {
   title: 'Settings/NotificationsSettingsPage',
@@ -102,7 +103,8 @@ const meta = {
     preferences,
     userSettings,
     propertyId: PROPERTY_ID,
-    emailAllowed: true,
+    emailAvailability: 'allowed',
+    retryEmailAvailability,
     setPropertyId,
     updatePreference,
     updateUserSettings,
@@ -147,7 +149,7 @@ export const TitleColumnKeepsItsWidth: Story = {
 }
 
 export const EmailUnavailableForProperty: Story = {
-  args: { emailAllowed: false },
+  args: { emailAvailability: 'unavailable' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // The defect this story exists for: the whole Email column used to render
@@ -418,5 +420,66 @@ export const QuietHoursNeedTwoDifferentTimes: Story = {
       canvas.getByRole('button', { name: 'Save quiet hours for Action needed' }),
     ).toBeDisabled()
     expect(canvas.getByText('Choose different start and end times.')).toBeVisible()
+  },
+}
+
+export const EmailTimingWaitsForEmail: Story = {
+  // Held open so the row keeps showing the requested state, as it does in the
+  // app until the refetch lands; the static fixture never reflects a save.
+  args: { updatePreference: asAction(slowUpdatePreferenceMock) },
+  play: async ({ canvasElement }) => {
+    slowUpdatePreferenceMock.mockClear()
+    releaseSaves.length = 0
+    const canvas = within(canvasElement)
+    // Workflow email is off: its cadence and quiet hours cannot take effect,
+    // so they are not offered as if they could.
+    const cadence = canvas.getByRole('combobox', {
+      name: 'Workflow and collaboration: Cadence',
+    })
+    expect(cadence).toBeDisabled()
+    expect(canvas.getByLabelText('Workflow and collaboration: Quiet from')).toBeDisabled()
+    expect(
+      within(canvas.getByRole('group', { name: 'Workflow and collaboration' })).getByText(
+        'Turn on email to choose when it arrives.',
+      ),
+    ).toBeVisible()
+    // Action needed email is on by default, so its timing stays editable.
+    expect(canvas.getByRole('combobox', { name: 'Action needed: Cadence' })).toBeEnabled()
+    await userEvent.click(
+      canvas.getByRole('switch', { name: 'Workflow and collaboration: Email' }),
+    )
+    expect(cadence).toBeEnabled()
+    releaseSaves[0]!()
+  },
+}
+
+export const ChecksEmailAvailabilityFirst: Story = {
+  args: { emailAvailability: 'checking' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // An in-flight check is not a "no": saying email is not enabled here was
+    // wrong for every property that does allow it.
+    expect(
+      canvas.getByText('Checking whether email is available for this property…'),
+    ).toBeVisible()
+    expect(canvas.queryByTestId('email-unavailable-notice')).toBeNull()
+    expect(canvas.getByRole('switch', { name: 'Action needed: Email' })).toBeDisabled()
+  },
+}
+
+export const EmailAvailabilityCheckFailed: Story = {
+  args: { emailAvailability: 'unknown' },
+  play: async ({ canvasElement }) => {
+    retryEmailAvailability.mockClear()
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByText("Couldn't check whether email is available for this property.", {
+        exact: false,
+      }),
+    ).toBeVisible()
+    expect(canvas.queryByTestId('email-unavailable-notice')).toBeNull()
+    expect(canvas.getByRole('switch', { name: 'Action needed: Email' })).toBeDisabled()
+    await userEvent.click(canvas.getByRole('button', { name: 'Check again' }))
+    expect(retryEmailAvailability).toHaveBeenCalledOnce()
   },
 }

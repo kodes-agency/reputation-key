@@ -23,6 +23,10 @@ import {
 } from '#/contexts/feed/application/public-api'
 import { describeTimezone } from '#/shared/timezone-display'
 import { NotificationsCategoryRow } from './notifications-category-row'
+import {
+  EmailAvailabilityNotice,
+  type EmailAvailability,
+} from './email-availability-notice'
 import type { PreferencePatch, PreferenceValues } from './notification-preference-saves'
 import { CATEGORY_COPY } from './notifications-type-rows'
 import {
@@ -39,8 +43,9 @@ type NotificationsSettingsViewProps = Readonly<{
   propertyId: string
   /** The language and timezone delivery uses now, Organization fallback applied. */
   settings: EffectiveNotificationSettings
-  /** The selected Property's server-enforced email capability decision. */
-  emailAllowed: boolean
+  /** The selected Property's server-enforced email capability, as far as known. */
+  emailAvailability: EmailAvailability
+  retryEmailAvailability: () => void
   setPropertyId: (value: string) => void
   updateUserSettings: Action<NotificationSettingsUpdate, EffectiveNotificationSettings>
   preferenceFor: (
@@ -56,6 +61,7 @@ type NotificationsSettingsViewProps = Readonly<{
 
 export function NotificationsSettingsView(props: NotificationsSettingsViewProps) {
   const clockLabel = describeTimezone(props.settings.timezone).label
+  const emailAllowed = props.emailAvailability === 'allowed'
   return (
     <div className="min-w-0 space-y-6">
       <Card className="min-w-0">
@@ -113,16 +119,10 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
           </CardDescription>
         </CardHeader>
         <CardContent className="divide-y">
-          {!props.emailAllowed ? (
-            <p
-              role="status"
-              className="pb-5 text-sm text-muted-foreground"
-              data-testid="email-unavailable-notice"
-            >
-              Email delivery is not enabled for this property, so the email controls below
-              are unavailable. In-app notifications are unaffected.
-            </p>
-          ) : null}
+          <EmailAvailabilityNotice
+            availability={props.emailAvailability}
+            onRetry={props.retryEmailAvailability}
+          />
           {NOTIFICATION_SETTINGS_CATEGORIES.map((category) => (
             <NotificationsCategoryRow
               key={category}
@@ -131,7 +131,7 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
               description={CATEGORY_COPY[category].description}
               inApp={props.preferenceFor(category, 'in_app')}
               email={props.preferenceFor(category, 'email')}
-              emailAllowed={props.emailAllowed}
+              emailAllowed={emailAllowed}
               clockLabel={clockLabel}
               savePreference={props.savePreference}
             />

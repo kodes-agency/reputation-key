@@ -111,6 +111,15 @@ function NotificationSettingsPropertyScope({
     enabled: propertyId !== '',
     staleTime: 60_000,
   })
+  // Only a settled "allowed" enables the email controls. An in-flight or failed
+  // check is neither a yes nor a no, and says so instead of "not enabled".
+  const emailAvailability = emailCapability.isPending
+    ? 'checking'
+    : emailCapability.isError
+      ? 'unknown'
+      : emailCapability.data.allowed
+        ? 'allowed'
+        : 'unavailable'
   const updatePreference = useActionMutation(updateNotificationPreferenceFn, {
     invalidateKeys: [notificationKeys.preferences(organizationId)],
   })
@@ -126,10 +135,10 @@ function NotificationSettingsPropertyScope({
           preferences={preferences}
           userSettings={userSettings}
           propertyId={propertyId}
-          // Strictly true only once the decision is known. Treating an
-          // in-flight or failed check as "allowed" is what rendered a whole
-          // column of controls that could only ever fail.
-          emailAllowed={emailCapability.data?.allowed === true}
+          // Treating an in-flight or failed check as "allowed" is what rendered
+          // a whole column of controls that could only ever fail.
+          emailAvailability={emailAvailability}
+          retryEmailAvailability={() => void emailCapability.refetch()}
           setPropertyId={setPropertyId}
           updatePreference={updatePreference}
           updateUserSettings={updateUserSettings}
