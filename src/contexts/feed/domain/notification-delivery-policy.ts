@@ -57,7 +57,10 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   // was DROPPED entirely for any tenant without preference rows — nothing was
   // persisted and nothing was mailed. A completed goal is recognition under
   // ADR 0046 ("On privately"). The digest category itself is retired; a daily
-  // digest is a cadence (see domain/notification-types.ts).
+  // digest is a cadence (see domain/notification-types.ts). Goal results are
+  // the category's only live types, so people see it as "Goals" (ADR 0046,
+  // amended 2026-09-22). Not workflow: muting a goal row must not also mute
+  // assignments and notes.
   'goal.completed': 'recognition',
   'goal.result_revised': 'recognition',
   // The reporter's own report was accepted, not planned, or resolved. It is
@@ -110,23 +113,21 @@ export const NOTIFICATION_CATEGORIES: ReadonlyArray<NotificationCategory> = [
 
 /**
  * Categories offered as Property preference controls. `mandatory` is
- * Organization policy and therefore has no Property preference row;
- * `recognition` stays in the persisted model for history but is post-core.
+ * Organization policy and therefore has no Property preference row.
+ * `recognition` carries the live goal results, so it is a control like the
+ * others: in-app on by default, email opt-in (ADR 0046).
  */
 export const NOTIFICATION_SETTINGS_CATEGORIES: ReadonlyArray<ConfigurableNotificationCategory> =
-  ['urgent_operational', 'workflow_collaboration']
+  ['urgent_operational', 'workflow_collaboration', 'recognition']
 
 /**
- * Active settings categories that govern at least one notification type —
- * derived from `CATEGORY_BY_TYPE`, never hand-listed, so it cannot drift.
- *
- * This is the list a FILTER may offer. Retained `recognition` is excluded
- * because that post-core category is not an active beta control.
+ * Categories that govern at least one notification type — derived from
+ * `CATEGORY_BY_TYPE`, never hand-listed, so it cannot drift. This is the list
+ * a FILTER may offer.
  */
 export const GOVERNING_NOTIFICATION_CATEGORIES: ReadonlyArray<NotificationCategory> =
-  NOTIFICATION_CATEGORIES.filter(
-    (category) =>
-      category !== 'recognition' && Object.values(CATEGORY_BY_TYPE).includes(category),
+  NOTIFICATION_CATEGORIES.filter((category) =>
+    Object.values(CATEGORY_BY_TYPE).includes(category),
   )
 
 function minuteOfDay(value: string): number {

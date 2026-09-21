@@ -96,6 +96,21 @@ so the repair never re-announces the review, and
 yet decided. The previous sweep minted an event id no outbox row carried, so
 its receipts and settlements could never be written.
 
+## Amended 2026-09-22 — goal results are the Recognition category, shown as "Goals"
+
+`goal.completed` and `goal.result_revised` are live and classified `recognition`,
+but the category had been left out of settings, filters and row mute as
+"post-core history". People could not mute the only positive notices in the
+product, filter to them, or reach the opt-in email this ADR promises. One
+Program over every Portal can close up to 250 results in the same hour. The
+category stays `recognition` in the model and is shown as **Goals** ("Goal
+results for your properties."). It gets a Property settings row (in-app on by
+default, email opt-in), a filter tab and a Mute action on its rows. Goals are
+not reclassified as workflow, because muting a goal row would then also mute
+assignments and notes. Every category a live notification type uses must now be
+configurable, mandatory, or Organization-informational (ADR 0059), and must
+have a filter. A test enforces this in both directions.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

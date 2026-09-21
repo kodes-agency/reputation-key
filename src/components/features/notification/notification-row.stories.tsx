@@ -205,6 +205,37 @@ export const ActionNeededCannotBeMuted: Story = {
 }
 
 /**
+ * Goal results are a configurable category, so their rows offer a mute. One
+ * Program over every Portal can close hundreds of results in the same hour.
+ */
+export const GoalResultCanBeMuted: Story = {
+  args: {
+    notification: makeNotification({
+      id: '20000000-0000-4000-8000-0000000000a1',
+      type: 'goal.completed',
+      status: 'read',
+      resourceType: 'goal',
+      payload: { propertyName: 'Harbour View Suites', goalName: 'Monthly ratings' },
+    }),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const ownerDocument = canvasElement.ownerDocument
+    await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
+    const menu = within(ownerDocument.body)
+    const mute = await menu.findByRole('menuitem', { name: 'Mute goals' })
+    await waitFor(() => expect(mute).toBeVisible())
+    await userEvent.click(mute)
+    expect(actions.onMuteCategory).toHaveBeenCalledWith(args.notification)
+    await waitFor(() => {
+      expect(ownerDocument.querySelector('[role="menu"]')).toBeNull()
+      expect(canvasElement).not.toHaveAttribute('aria-hidden')
+      expect(ownerDocument.body.style.pointerEvents).toBe('')
+    })
+  },
+}
+
+/**
  * ADR 0059: the reporter's own beta report reached an outcome. Organization-
  * scoped, so no Property chip; the deep link opens the Feedback dialog's
  * "Your reports" through an anchor, and never carries the report reference.

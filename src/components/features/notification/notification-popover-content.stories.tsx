@@ -66,8 +66,8 @@ export const Default: Story = {
 }
 
 /**
- * Tabs are derived from GOVERNING_NOTIFICATION_CATEGORIES, so `mandatory` — which
- * governs zero notification types — must never appear as a filter.
+ * Tabs are derived from GOVERNING_NOTIFICATION_CATEGORIES: a category earns a
+ * filter exactly when it governs a live notification type.
  */
 export const FilterTabs: Story = {
   play: async ({ canvasElement }) => {
@@ -76,10 +76,16 @@ export const FilterTabs: Story = {
     // Derived from the domain, never hand-listed. `Account` appeared when the
     // Organization access/role/purge-pending notices made `mandatory` govern
     // real types: a category the reader cannot switch off is still one they
-    // may filter TO. `Recognition` stays absent — it is retained for history
-    // and post-core, so it must not advertise a beta control.
-    expect(tabs).toEqual(['All', 'Unread', 'Urgent', 'Account', 'Action', 'Workflow'])
-    expect(tabs).not.toContain('Recognition')
+    // may filter TO. `Goals` is the live goal-result category (`recognition`).
+    expect(tabs).toEqual([
+      'All',
+      'Unread',
+      'Urgent',
+      'Account',
+      'Action',
+      'Workflow',
+      'Goals',
+    ])
     onFilterChange.mockClear()
     await userEvent.click(canvas.getByRole('tab', { name: 'Urgent' }))
     expect(onFilterChange).toHaveBeenCalledWith('urgent')

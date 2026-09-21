@@ -1,8 +1,8 @@
 // Feed filtering + grouping. Pure functions over rows the server already sent.
 //
 // The category tabs are derived from GOVERNING_NOTIFICATION_CATEGORIES, not
-// hardcoded. Retained post-core categories remain visible through All/Unread
-// without advertising a dedicated beta control. `mandatory` DOES govern types
+// hardcoded. `recognition` shows as "Goals", the goal results it governs
+// (ADR 0046, amended 2026-09-22). `mandatory` DOES govern types
 // now (Organization access granted/removed, role changed, purge pending), so
 // it earns a tab: a category the reader cannot switch off is still one they
 // may filter to. One list per question, both from the domain.

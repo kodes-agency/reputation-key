@@ -123,7 +123,27 @@ export const EmailAllowed: Story = {
       name: 'Workflow and collaboration: Email',
     })
     expect(emailSwitch).toBeEnabled()
-    expect(canvas.queryByRole('heading', { name: 'Recognition' })).toBeNull()
+  },
+}
+
+/**
+ * Goal results are live notices, so they get a row like any other optional
+ * category: in-app on by default, email opt-in (ADR 0046). They used to sit in
+ * a hidden `recognition` category nobody could mute or email.
+ */
+export const GoalsAreConfigurable: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const heading = canvas.getByRole('heading', { name: 'Goals' })
+    const fieldset = heading.closest('fieldset')
+    if (!fieldset) throw new Error('goal notification fieldset is missing')
+    const row = within(fieldset)
+    expect(row.getByText('Goal results for your properties.')).toBeInTheDocument()
+    expect(
+      row.getByLabelText('In-app', { selector: '#recognition-in_app' }),
+    ).toBeEnabled()
+    expect(row.getByLabelText('Email', { selector: '#recognition-email' })).toBeEnabled()
+    expect(canvas.queryByText(/past awards/i)).toBeNull()
   },
 }
 
@@ -159,7 +179,7 @@ export const EmailUnavailableForProperty: Story = {
     expect(
       canvas.getByRole('switch', { name: 'Workflow and collaboration: Email' }),
     ).toBeDisabled()
-    expect(canvas.queryByRole('switch', { name: /^Past awards/ })).toBeNull()
+    expect(canvas.getByRole('switch', { name: 'Goals: Email' })).toBeDisabled()
     // In-app is a separate capability and stays operable.
     expect(
       canvas.getByRole('switch', { name: 'Workflow and collaboration: In-app' }),

@@ -112,16 +112,18 @@ describe('notification delivery policy', () => {
 
   // ── Category surfaces ─────────────────────────────────────────────
 
-  it('keeps retained Recognition data out of active beta controls', () => {
+  it('offers goal results (recognition) as a Property control and a filter', () => {
     expect(NOTIFICATION_CATEGORIES).toContain('recognition')
     expect(NOTIFICATION_SETTINGS_CATEGORIES).toEqual([
       'urgent_operational',
       'workflow_collaboration',
+      'recognition',
     ])
     expect(GOVERNING_NOTIFICATION_CATEGORIES).toEqual([
       'mandatory',
       'urgent_operational',
       'workflow_collaboration',
+      'recognition',
     ])
   })
 
