@@ -208,15 +208,25 @@ const renderReplyPublished = (p: NotificationPayload): RenderedNotification => (
   summary: facts(p.propertyName ?? '', reviewNoun()),
 })
 
-const renderReplyPublishFailed = (p: NotificationPayload): RenderedNotification => ({
-  title: `Reply failed to publish${atProperty(p)}`,
-  body: sentence(
-    `Google rejected the reply to a ${reviewNoun()}.`,
-    'Open it and retry — the draft is saved.',
-  ),
-  actionLabel: 'Retry publish',
-  summary: facts(p.propertyName ?? '', reviewNoun(), 'publish failed'),
-})
+// A connection waiting for a fresh consent refuses every retry, and the
+// author may not be the one allowed to reconnect it, so the copy says who can.
+const renderReplyPublishFailed = (p: NotificationPayload): RenderedNotification =>
+  p.publishFailureCause === 'google_reauthorization_required'
+    ? {
+        title: `Reply not published${atProperty(p)}`,
+        body: 'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry — the draft is saved.',
+        actionLabel: 'Open reply',
+        summary: facts(p.propertyName ?? '', reviewNoun(), 'reconnect Google'),
+      }
+    : {
+        title: `Reply failed to publish${atProperty(p)}`,
+        body: sentence(
+          `Google rejected the reply to a ${reviewNoun()}.`,
+          'Open it and retry — the draft is saved.',
+        ),
+        actionLabel: 'Retry publish',
+        summary: facts(p.propertyName ?? '', reviewNoun(), 'publish failed'),
+      }
 
 const renderInboxEscalated = (p: NotificationPayload): RenderedNotification => ({
   title: `Escalated: ${inboxNoun(p)}${atProperty(p)}`,

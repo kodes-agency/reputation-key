@@ -69,6 +69,17 @@ describe('parseNotificationPayload', () => {
     ).toEqual({})
   })
 
+  it('keeps the reconnect cause of a failed publication and drops anything else', () => {
+    expect(
+      parseNotificationPayload({
+        publishFailureCause: 'google_reauthorization_required',
+      }),
+    ).toEqual({ publishFailureCause: 'google_reauthorization_required' })
+    expect(
+      parseNotificationPayload({ publishFailureCause: 'rejected by Google' }),
+    ).toEqual({})
+  })
+
   it('returns an empty payload for non-object input', () => {
     for (const input of [null, undefined, 'x', 7, true, ['a']]) {
       expect(parseNotificationPayload(input)).toEqual({})

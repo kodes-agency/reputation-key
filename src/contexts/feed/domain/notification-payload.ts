@@ -64,12 +64,16 @@ export type NotificationPayload = Readonly<{
    * (`integration.reauthorization_required`). The event's closed cause.
    */
   reauthorizationCause?: NotificationReauthorizationCause
+  /** Why a reply could not be published when a retry alone cannot fix it. */
+  publishFailureCause?: NotificationPublishFailureCause
 }>
 
 export type NotificationReportOutcome = 'accepted' | 'declined' | 'resolved'
 
 export type NotificationReauthorizationCause =
   'provider_revoked' | 'member_removed' | 'account_admin_role_lost'
+
+export type NotificationPublishFailureCause = 'google_reauthorization_required'
 
 const ACTOR_ROLES: Record<string, true> = {
   account_admin: true,
@@ -89,6 +93,10 @@ const REAUTHORIZATION_CAUSES: Record<string, true> = {
   provider_revoked: true,
   member_removed: true,
   account_admin_role_lost: true,
+}
+
+const PUBLISH_FAILURE_CAUSES: Record<string, true> = {
+  google_reauthorization_required: true,
 }
 
 /** Longest free-ish text we accept. Names, not prose. */
@@ -159,6 +167,13 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
     takeMember<NotificationReauthorizationCause>(
       raw.reauthorizationCause,
       REAUTHORIZATION_CAUSES,
+    ),
+  )
+  set(
+    'publishFailureCause',
+    takeMember<NotificationPublishFailureCause>(
+      raw.publishFailureCause,
+      PUBLISH_FAILURE_CAUSES,
     ),
   )
 

@@ -304,6 +304,8 @@ async function enqueueReplyAuthorNotification(
     inboxItemId: inboxItem,
     orgId: event.organizationId,
     moderationReason: event._tag === 'review.reply.rejected' ? event.reason : null,
+    publishFailureCause:
+      event._tag === 'review.reply.publish_failed' ? (event.cause ?? null) : null,
   })
   await deps.queue.add(
     INSERT_NOTIFICATION_JOB_NAME,
@@ -517,6 +519,10 @@ function parseWorkflowEvent(event: ConsumerEvent): WorkflowEvent {
         reviewId: reviewId(requiredString(parsed, 'reviewId')),
         propertyId: resolvedProperty,
         authorId: author === null ? null : userId(author),
+        // The schema admits only the closed cause, so it is kept as recorded.
+        ...(parsed.cause === 'google_reauthorization_required'
+          ? { cause: parsed.cause }
+          : {}),
       }
     }
   }

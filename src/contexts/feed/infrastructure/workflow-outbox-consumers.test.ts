@@ -180,6 +180,39 @@ describe('durable workflow notification consumers', () => {
     },
   )
 
+  // The Google connection must be reconnected before any retry can publish;
+  // the author has to hear that, not that Google rejected the reply.
+  it('carries the reconnect cause of a failed publication to its author', async () => {
+    const deps = makeDeps()
+    const failure = (extra: Readonly<Record<string, unknown>>) =>
+      event('review.reply.publish_failed', {
+        replyId: unbrand(NOTIF_TEST_IDS.replyId),
+        reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
+        authorId: unbrand(NOTIF_TEST_IDS.authorId),
+        ...extra,
+      })
+
+    await handleWorkflowNotificationEvent(
+      deps,
+      failure({ cause: 'google_reauthorization_required' }),
+    )
+    await handleWorkflowNotificationEvent(deps, failure({}))
+
+    expect(deps.fakes.jobs.map(({ data }) => data)).toEqual([
+      expect.objectContaining({
+        userId: unbrand(NOTIF_TEST_IDS.authorId),
+        type: 'reply.publish_failed',
+        payload: expect.objectContaining({
+          publishFailureCause: 'google_reauthorization_required',
+        }),
+      }),
+      expect.objectContaining({
+        type: 'reply.publish_failed',
+        payload: expect.not.objectContaining({ publishFailureCause: expect.anything() }),
+      }),
+    ])
+  })
+
   it('uses the same per-recipient job identity after an ambiguous replay', async () => {
     const deps = makeDeps()
     const approval = event('review.reply.approved', {

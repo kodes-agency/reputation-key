@@ -366,6 +366,28 @@ describe('notificationLink', () => {
     ).toBe('Google connection needs attention')
   })
 
+  // Retrying cannot publish the reply until Google is reconnected, and the
+  // author may not be the one who can reconnect it.
+  it('tells a reply author Google must be reconnected before a retry can publish', () => {
+    expect(
+      renderNotification('reply.publish_failed', {
+        propertyName: 'Riverside Hotel',
+        publishFailureCause: 'google_reauthorization_required',
+      }),
+    ).toEqual({
+      title: 'Reply not published at Riverside Hotel',
+      body: 'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry \u2014 the draft is saved.',
+      actionLabel: 'Open reply',
+      summary: 'Riverside Hotel · review · reconnect Google',
+    })
+  })
+
+  it('keeps the rejection wording for a publish failure with no named cause', () => {
+    expect(renderNotification('reply.publish_failed', {}).body).toBe(
+      'Google rejected the reply to a review. Open it and retry \u2014 the draft is saved.',
+    )
+  })
+
   it('covers every resource type', () => {
     const types: ReadonlyArray<Parameters<typeof notificationLink>[0]> = [
       'inbox_item',
