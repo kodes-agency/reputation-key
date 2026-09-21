@@ -28,11 +28,12 @@ import type { NotificationType } from '#/contexts/feed/application/public-api'
 
 // ── Locale-aware timestamps ─────────────────────────────────────────
 //
-// The user's `locale` and `timezone` are persisted on NotificationUserSettings
-// and the settings page advertises them as "used for notification formatting",
-// so they are used here rather than a hardcoded 'en-US'. Until the settings
-// query resolves we format with DEFAULT_FORMAT — a fixed value, not the
-// browser's, so the server and the first client render agree.
+// Timestamps use the same language and timezone as delivery: the user's saved
+// settings, with their Organization's timezone when they never chose one
+// (ADR 0046 r.3; the settings server function resolves it). Until that query
+// resolves we format with DEFAULT_FORMAT — a fixed value, not the browser's,
+// so the server and the first client render agree — and the absolute time
+// names its zone, so a fallback UTC tooltip says so.
 
 export type NotificationFormat = Readonly<{ locale: string; timeZone: string }>
 
@@ -99,13 +100,17 @@ export function formatRelativeTime(
   return dateFormatter(format.locale, format.timeZone).format(then)
 }
 
-/** Absolute timestamp for the row's `title`/`dateTime` affordances. */
+/** Absolute timestamp, zone named, for the row's `title`/`dateTime` affordances. */
 export function formatAbsoluteTime(
   date: Date | string,
   format: NotificationFormat = DEFAULT_NOTIFICATION_FORMAT,
 ): string {
   const then = typeof date === 'string' ? new Date(date) : date
-  return formatDateTime(then, { locale: format.locale, timeZone: format.timeZone })
+  return formatDateTime(then, {
+    locale: format.locale,
+    timeZone: format.timeZone,
+    timeZoneName: true,
+  })
 }
 
 // ── Icon by notification type ───────────────────────────────────────
