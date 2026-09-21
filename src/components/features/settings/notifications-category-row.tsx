@@ -15,10 +15,10 @@ import {
   isPreferenceDisableable,
   type ConfigurableNotificationCategory,
   type NotificationCadence,
-  type NotificationPreference,
 } from '#/contexts/feed/application/public-api'
 import { QuietHoursEditor } from './quiet-hours-editor'
 import type { NotificationPreferencePatch } from './notifications-settings-view'
+import type { PreferenceValues } from './notification-preference-saves'
 
 export function NotificationsCategoryRow({
   category,
@@ -33,8 +33,8 @@ export function NotificationsCategoryRow({
   category: ConfigurableNotificationCategory
   label: string
   description: string
-  inApp: NotificationPreference | undefined
-  email: NotificationPreference | undefined
+  inApp: PreferenceValues | undefined
+  email: PreferenceValues | undefined
   emailAllowed: boolean
   /** The recipient's delivery clock, e.g. "Sofia (UTC+3)" (ADR 0046 r.3). */
   clockLabel: string

@@ -355,3 +355,52 @@ export const QuietHoursCanBeCleared: Story = {
     )
   },
 }
+
+/** Each save waits until the play function releases it, like a slow network. */
+const releaseSaves: Array<() => void> = []
+const slowUpdatePreferenceMock = fn(
+  (input: PreferenceInput) =>
+    new Promise<NotificationPreference>((resolve) => {
+      releaseSaves.push(() =>
+        resolve(
+          preference({ category: input.data.category, channel: input.data.channel }),
+        ),
+      )
+    }),
+)
+
+export const RapidChangesBuildOnEachOther: Story = {
+  args: { updatePreference: asAction(slowUpdatePreferenceMock) },
+  play: async ({ canvasElement }) => {
+    slowUpdatePreferenceMock.mockClear()
+    releaseSaves.length = 0
+    const canvas = within(canvasElement)
+    const email = canvas.getByRole('switch', {
+      name: 'Workflow and collaboration: Email',
+    })
+    await userEvent.click(email)
+    // The switch answers at once instead of after the round trip.
+    expect(email).toBeChecked()
+    await userEvent.click(
+      canvas.getByRole('combobox', { name: 'Workflow and collaboration: Cadence' }),
+    )
+    await userEvent.click(
+      await within(document.body).findByRole('option', { name: 'Immediate' }),
+    )
+    // One request per row at a time, so the second cannot land first.
+    expect(slowUpdatePreferenceMock).toHaveBeenCalledOnce()
+    releaseSaves[0]!()
+    await waitFor(() => expect(slowUpdatePreferenceMock).toHaveBeenCalledTimes(2))
+    // Built on the first request, not on the stale snapshot: turning Email on
+    // survives choosing Immediate.
+    expect(slowUpdatePreferenceMock).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({
+        category: 'workflow_collaboration',
+        channel: 'email',
+        enabled: true,
+        cadence: 'immediate',
+      }),
+    })
+    releaseSaves[1]!()
+  },
+}

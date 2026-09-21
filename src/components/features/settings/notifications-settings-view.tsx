@@ -20,22 +20,17 @@ import {
   type ConfigurableNotificationCategory,
   type EffectiveNotificationSettings,
   type NotificationChannel,
-  type NotificationPreference,
 } from '#/contexts/feed/application/public-api'
 import { describeTimezone } from '#/shared/timezone-display'
 import { NotificationsCategoryRow } from './notifications-category-row'
+import type { PreferencePatch, PreferenceValues } from './notification-preference-saves'
 import { CATEGORY_COPY } from './notifications-type-rows'
 import {
   NotificationFormattingForm,
   type NotificationSettingsUpdate,
 } from './notification-formatting-form'
 
-export type NotificationPreferencePatch = Partial<
-  Pick<
-    NotificationPreference,
-    'enabled' | 'cadence' | 'urgentBypassEnabled' | 'quietHoursStart' | 'quietHoursEnd'
-  >
->
+export type NotificationPreferencePatch = PreferencePatch
 
 export type { NotificationSettingsUpdate } from './notification-formatting-form'
 
@@ -51,7 +46,7 @@ type NotificationsSettingsViewProps = Readonly<{
   preferenceFor: (
     category: ConfigurableNotificationCategory,
     channel: NotificationChannel,
-  ) => NotificationPreference | undefined
+  ) => PreferenceValues | undefined
   savePreference: (
     category: ConfigurableNotificationCategory,
     channel: NotificationChannel,
