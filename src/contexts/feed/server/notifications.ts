@@ -95,12 +95,10 @@ export const getNotificationFeedHeadFn = createServerFn({ method: 'GET' })
           // One public/repository call owns all three values. Separate list
           // and count reads would reintroduce a race between the bell badge
           // and its visible rows.
-          return await feedPublicApi.getFeedHead(
-            ctx.userId,
-            ctx.organizationId,
-            data.limit,
-            data.filter,
-          )
+          return await feedPublicApi.getFeedHead(ctx, {
+            limit: data.limit,
+            filter: data.filter,
+          })
         } catch (e) {
           throw catchUntagged(e)
         }
@@ -120,7 +118,7 @@ export const getNotificationsFn = createServerFn({ method: 'GET' })
         await requireExecutionAllowed({ actor: ctx, action: 'notification.read' })
         try {
           const { feedPublicApi } = getContainer()
-          return await feedPublicApi.getNotifications(ctx.userId, ctx.organizationId, {
+          return await feedPublicApi.getNotifications(ctx, {
             limit: data.limit,
             filter: data.filter,
             before: data.before ?? null,

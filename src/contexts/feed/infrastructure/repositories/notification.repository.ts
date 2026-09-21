@@ -1,7 +1,7 @@
 // Feed notification surface — Drizzle repository adapter for notifications
 // Per architecture: factory pattern `createXxxRepository(db)` returning port interface.
 
-import { and, eq, desc, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, eq, desc, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notifications } from '#/shared/db/schema/notification.schema'
 import { unbrand } from '#/shared/domain/ids'
@@ -44,9 +44,26 @@ const lastActivityCursorAt = sql<string>`to_char(${lastActivityAt} AT TIME ZONE 
 type NotificationFeedQuery = Readonly<{
   userId: string
   organizationId: string
+  /** Current Property access; null reads every Property. */
+  visiblePropertyIds: ReadonlyArray<string> | null
   filter: NotificationListFilter
   limit: number
 }>
+
+// A Property notice is shown only while the reader can still access that
+// Property: access can end after delivery (a revoked or expired grant), and
+// the rows must not outlive it in the feed or the badge. Organization-scoped
+// notices have no Property and are never gated. Undefined: no restriction.
+const withinVisibleProperties = (
+  visiblePropertyIds: ReadonlyArray<string> | null,
+): SQL | undefined => {
+  if (visiblePropertyIds === null) return undefined
+  if (visiblePropertyIds.length === 0) return isNull(notifications.propertyId)
+  return or(
+    isNull(notifications.propertyId),
+    inArray(notifications.propertyId, [...visiblePropertyIds]),
+  )
+}
 
 type NotificationFeedPageQuery = NotificationFeedQuery &
   Readonly<{
@@ -69,6 +86,7 @@ const selectFeedRows = (
     eq(notifications.userId, query.userId),
     eq(notifications.organizationId, query.organizationId),
     notOptedOutInApp,
+    withinVisibleProperties(query.visiblePropertyIds),
   ]
   conditions.push(ne(notifications.status, 'dismissed'))
   if (query.filter === 'unread') conditions.push(eq(notifications.status, 'unread'))
@@ -97,18 +115,18 @@ const selectFeedRows = (
 
 const countVisibleUnread = async (
   db: Database,
-  userId: string,
-  orgId: string,
+  query: NotificationFeedQuery,
 ): Promise<number> => {
   const rows = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(notifications)
     .where(
       and(
-        eq(notifications.userId, userId),
-        eq(notifications.organizationId, orgId),
+        eq(notifications.userId, query.userId),
+        eq(notifications.organizationId, query.organizationId),
         eq(notifications.status, 'unread'),
         notOptedOutInApp,
+        withinVisibleProperties(query.visiblePropertyIds),
       ),
     )
 
@@ -406,11 +424,7 @@ export const createNotificationRepository = (db: Database) => ({
         // the cast at this adapter boundary rather than weakening the port.
         const snapshot = tx as unknown as Database
         const rows = await selectFeedRows(snapshot, { ...query, before: null })
-        const unreadCount = await countVisibleUnread(
-          snapshot,
-          query.userId,
-          query.organizationId,
-        )
+        const unreadCount = await countVisibleUnread(snapshot, query)
         const watermarkResult = await snapshot.execute(
           sql<{ watermark: Date | string }>`SELECT transaction_timestamp() AS watermark`,
         )

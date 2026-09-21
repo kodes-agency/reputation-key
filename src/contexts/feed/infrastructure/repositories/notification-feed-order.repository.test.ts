@@ -27,7 +27,13 @@ const PROPERTY = '83000000-0000-4000-8000-000000000001'
 const USER = 'user-notification-feed-order'
 
 const feedQuery = (limit: number) =>
-  ({ userId: USER, organizationId: ORG, limit, filter: 'all' }) as const
+  ({
+    userId: USER,
+    organizationId: ORG,
+    visiblePropertyIds: null,
+    limit,
+    filter: 'all',
+  }) as const
 
 let pool: Pool
 

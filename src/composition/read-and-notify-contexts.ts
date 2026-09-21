@@ -161,6 +161,7 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
           input.portal.publicApi.portal.findPortalHealthNotificationFacts,
       },
       isEmailDeliveryAllowed,
+      propertyAccess: input.identity.publicApi.people.getAccessiblePropertyIds,
     },
   })
 

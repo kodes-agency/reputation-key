@@ -126,7 +126,10 @@ timeout, so a stalled statement is cancelled rather than left running.
 1. Durable facts and queue payloads contain identifiers and governed facts, not
    review text, reply text, notes, reviewer identity, or provider snippets.
 2. Every read and mutation remains organization-scoped; notification mutations
-   additionally prove row ownership by the current user.
+   additionally prove row ownership by the current user. The in-app feed and
+   its unread badge also follow the reader's current Property access for
+   `notification.read`, so a revoked or expired grant hides that Property's
+   rows; Organization-scoped notices are never Property-gated.
 3. Activity replay and notification delivery are idempotent. Redelivery must
    converge through receipts and deterministic identities.
 4. Email delivery rechecks preference, capability, responsibility, and delayed

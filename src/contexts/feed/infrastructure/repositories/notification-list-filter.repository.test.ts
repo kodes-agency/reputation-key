@@ -130,6 +130,7 @@ describe.sequential('notification list filters (real PostgreSQL)', () => {
     const page = await createNotificationRepository(getDb()).readFeedPage({
       userId: USER,
       organizationId: ORG_A,
+      visiblePropertyIds: null,
       limit: 2,
       filter: 'urgent',
       before: null,
@@ -144,7 +145,13 @@ describe.sequential('notification list filters (real PostgreSQL)', () => {
   it('applies unread and category filters in the tenant query', async () => {
     const repo = createNotificationRepository(getDb())
 
-    const firstPage = { userId: USER, organizationId: ORG_A, limit: 10, before: null }
+    const firstPage = {
+      userId: USER,
+      organizationId: ORG_A,
+      visiblePropertyIds: null,
+      limit: 10,
+      before: null,
+    }
     const unread = await repo.readFeedPage({ ...firstPage, filter: 'unread' })
     const workflow = await repo.readFeedPage({
       ...firstPage,
@@ -163,6 +170,7 @@ describe.sequential('notification list filters (real PostgreSQL)', () => {
     const head = await createNotificationRepository(getDb()).readFeedHead({
       userId: USER,
       organizationId: ORG_A,
+      visiblePropertyIds: null,
       limit: 2,
       filter: 'all',
     })
@@ -195,6 +203,8 @@ describe.sequential('notification list filters (real PostgreSQL)', () => {
         repo.readFeedHead({
           userId: CONCURRENT_USER,
           organizationId: ORG_A,
+          visiblePropertyIds: null,
+          visiblePropertyIds: null,
           limit: 1,
           filter: 'unread',
         }),

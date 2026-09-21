@@ -96,8 +96,8 @@ import type {
 import type { NotificationError } from './domain/notification-errors'
 import type { Result } from '#/shared/domain'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
-import type { NotificationListFilter } from './application/notification-list-filter'
-import type { NotificationFeedCursor } from './application/notification-page'
+import type { PropertyAccessLookup } from '#/shared/domain/property-access'
+import { createNotificationFeedReads } from './application/notification-feed-reads'
 import type { OneClickUnsubscribeTarget } from './application/one-click-unsubscribe-token'
 import { assertBetaNotificationTriggerMatrix } from './application/beta-notification-trigger-matrix'
 import { createNotificationDeliveryRuntime } from './application/notification-delivery-runtime'
@@ -289,10 +289,16 @@ type NotificationBuildInput = Readonly<{
    * evidence judges only mail that may be sent (composition-owned policy).
    */
   isEmailDeliveryAllowed: IsEmailDeliveryAllowed
+  /** Identity-owned current Property access; the in-app feed follows it. */
+  propertyAccess: PropertyAccessLookup
 }>
 
 const buildNotificationFeed = (input: NotificationBuildInput) => {
   const notificationRepo = createNotificationRepository(input.db)
+  const feedReads = createNotificationFeedReads({
+    repo: notificationRepo,
+    propertyAccess: input.propertyAccess,
+  })
   const gapRepo = createNotificationGapRepository(input.db)
   const deliveryRepairRepo = createNotificationDeliveryRepairRepository(input.db)
   const deliveryLagRepo = createNotificationDeliveryLagRepository(
@@ -484,33 +490,9 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
 
     // Query methods exposed for server functions
     findById: (id: string, orgId: string) => notificationRepo.findById(id, orgId),
-    getFeedHead: (
-      userId: string,
-      orgId: string,
-      limit: number,
-      filter: NotificationListFilter,
-    ) =>
-      notificationRepo.readFeedHead({
-        userId,
-        organizationId: orgId,
-        limit,
-        filter,
-      }),
-    /** A keyset page below the head, continuing strictly after `before`. */
-    getNotifications: (
-      userId: string,
-      orgId: string,
-      page: Readonly<{
-        limit: number
-        filter: NotificationListFilter
-        before: NotificationFeedCursor | null
-      }>,
-    ) =>
-      notificationRepo.readFeedPage({
-        userId,
-        organizationId: orgId,
-        ...page,
-      }),
+    // Feed reads resolve the reader's current Property access themselves.
+    getFeedHead: feedReads.getFeedHead,
+    getNotifications: feedReads.getNotifications,
     markRead: async (id: string, orgId: string, userId: UserId) => {
       const now = await applyOwnedTransition(id, orgId, userId, markNotificationRead)
       if (now === null) return // invalid transition, skip

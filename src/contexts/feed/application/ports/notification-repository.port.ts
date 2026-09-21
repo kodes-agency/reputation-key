@@ -26,6 +26,11 @@ import type {
 export type NotificationFeedQuery = Readonly<{
   userId: UserId
   organizationId: OrganizationId
+  /**
+   * The Properties the reader can currently access, or null for every
+   * Property. Organization-scoped notices (no Property) are always visible.
+   */
+  visiblePropertyIds: ReadonlyArray<PropertyId> | null
   filter: NotificationListFilter
   limit: number
 }>
@@ -59,6 +64,8 @@ export type NotificationRepositoryPort = Readonly<{
   /**
    * Read the first page and exact unread count from one repeatable-read
    * PostgreSQL snapshot. The returned watermark identifies that shared read.
+   * Both honour `visiblePropertyIds`, so the badge never counts a row the
+   * reader cannot see.
    */
   readFeedHead(query: NotificationFeedQuery): Promise<NotificationFeedHead>
 

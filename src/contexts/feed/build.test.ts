@@ -36,6 +36,7 @@ function buildWith(db: Database) {
       monthlyResultFacts: {} as never,
       portalHealthLookup: {} as never,
       isEmailDeliveryAllowed: () => false,
+      propertyAccess: async () => null,
     },
   })
 }
