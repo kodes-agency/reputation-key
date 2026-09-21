@@ -102,9 +102,11 @@ export type PropertyPublicApi = Readonly<{
 
   /**
    * Stable Property scope used only to persist/deliver an Organization-level
-   * Google connection notice. Prefers an affected linked Property, then the
-   * first active Property in the Organization. Null only when the Organization
-   * has no Property rows at all.
+   * Google connection notice. Only an active Property qualifies, because
+   * urgent email resolves no delivery scope for any other state: a linked
+   * Property with an active Google binding first, then any linked Property,
+   * then the first active Property in the Organization. Null when the
+   * Organization has no active Property.
    */
   findGoogleNotificationAnchor: (
     connectionId: GoogleConnectionId,

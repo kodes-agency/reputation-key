@@ -6,6 +6,7 @@ import type { Database } from '#/shared/db'
 import type { ConsumerRegistry } from '#/shared/outbox'
 
 import type { PropertyRepository } from './application/ports/property.repository'
+import type { Property } from './domain/types'
 import { createPropertyResponsibilityRuntime } from './application/property-responsibility-runtime'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
@@ -194,14 +195,18 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       connectionId: GoogleConnectionId,
       orgId: OrganizationId,
     ) => {
-      const linked = [
-        ...(await deps.repo.findIdsByGoogleConnection(connectionId, orgId)),
-      ].sort()
-      if (linked[0]) return linked[0]
-      const active = [...(await deps.repo.list(orgId))]
-        .map((candidate) => candidate.id as string)
-        .sort()
-      return active[0] ?? null
+      // Only an active Property can deliver the notice: urgent email resolves
+      // no scope for any other state and would hold the row forever.
+      const rank = (candidate: Property): number =>
+        candidate.googleConnectionId !== connectionId
+          ? 2
+          : candidate.googleBindingState === 'active'
+            ? 0
+            : 1
+      const [anchor] = [...(await deps.repo.list(orgId))]
+        .filter((candidate) => candidate.lifecycleState === 'active')
+        .sort((a, b) => rank(a) - rank(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      return anchor?.id ?? null
     },
     clearGoogleConnectionRef: async (
       orgId: OrganizationId,

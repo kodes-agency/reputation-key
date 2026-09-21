@@ -237,4 +237,53 @@ describe('PropertyPublicApi', () => {
       ),
     ).resolves.toBe(first.id)
   })
+
+  it('anchors the Google notice to an active Property, never an archived one', async () => {
+    const connection = googleConnectionId('81000000-0000-4000-8000-000000000001')
+    const archivedLinked = buildTestProperty({
+      id: '81000000-0000-4000-8000-000000000010',
+      slug: 'notice-archived',
+      googleConnectionId: connection,
+      googleBindingState: 'active',
+      lifecycleState: 'archived',
+    })
+    const unboundLinked = buildTestProperty({
+      id: '81000000-0000-4000-8000-000000000020',
+      slug: 'notice-unbound',
+      googleConnectionId: connection,
+      googleBindingState: 'disconnected',
+    })
+    const boundLinked = buildTestProperty({
+      id: '81000000-0000-4000-8000-000000000030',
+      slug: 'notice-bound',
+      googleConnectionId: connection,
+      googleBindingState: 'active',
+    })
+    const unlinked = buildTestProperty({
+      id: '81000000-0000-4000-8000-000000000040',
+      slug: 'notice-unlinked',
+    })
+    const orgId = archivedLinked.organizationId
+    const anchorFor = (properties: ReadonlyArray<typeof archivedLinked>) => {
+      const scoped = createInMemoryPropertyRepo()
+      scoped.seed(properties)
+      return buildPropertyContext({
+        db: {} as never,
+        repo: scoped,
+        clock: () => new Date('2025-01-01'),
+        ...runtimeDeps,
+        staffPublicApi: createStubStaffApi(),
+        identityManagerFacts,
+      }).publicApi.findGoogleNotificationAnchor(connection, orgId)
+    }
+
+    await expect(
+      anchorFor([archivedLinked, unboundLinked, boundLinked, unlinked]),
+    ).resolves.toBe(boundLinked.id)
+    await expect(anchorFor([archivedLinked, unboundLinked, unlinked])).resolves.toBe(
+      unboundLinked.id,
+    )
+    await expect(anchorFor([archivedLinked, unlinked])).resolves.toBe(unlinked.id)
+    await expect(anchorFor([archivedLinked])).resolves.toBeNull()
+  })
 })
