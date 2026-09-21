@@ -4,7 +4,12 @@
 // Real list semantics: each group is a heading + a <ul> of <li> rows, so a
 // screen reader announces "list, 4 items" and supports list navigation. The
 // rows used to be bare <div>s inside a <div>.
+//
+// Every state renders inside one focusable, named group: where keyboard focus
+// goes when the row holding it is removed and no row is left to move to
+// (use-notification-focus-recovery.ts).
 
+import { useRef, type ReactNode, type RefObject } from 'react'
 import { Inbox, Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
@@ -13,6 +18,7 @@ import { NotificationRow } from './notification-row'
 import type { NotificationGroup } from './notification-filters'
 import type { NotificationFormat } from './notification-utils'
 import type { NotificationRowActions } from './types'
+import { useNotificationFocusRecovery } from './use-notification-focus-recovery'
 
 export type NotificationListBodyProps = Readonly<{
   groups: ReadonlyArray<NotificationGroup>
@@ -27,6 +33,8 @@ export type NotificationListBodyProps = Readonly<{
   emptyTitle?: string
   /** Group-label heading level. The popover nests under an h2, the page under an h1. */
   headingLevel?: 2 | 3
+  /** The focusable list group, for a caller that must hand focus to the list. */
+  listRef?: RefObject<HTMLDivElement | null>
 }>
 
 function NotificationErrorState({ onRetry }: Readonly<{ onRetry: () => void }>) {
@@ -94,6 +102,26 @@ function NotificationSection({
 }
 
 export function NotificationListBody(props: NotificationListBodyProps) {
+  const ownRef = useRef<HTMLDivElement>(null)
+  const listRef = props.listRef ?? ownRef
+  const rowIds = props.groups.flatMap((group) => group.notifications.map((row) => row.id))
+  const focusRecovery = useNotificationFocusRecovery(listRef, rowIds)
+
+  return (
+    <div
+      ref={listRef}
+      role="group"
+      aria-label="Notification list"
+      tabIndex={-1}
+      className="outline-none"
+      {...focusRecovery}
+    >
+      <NotificationListState {...props} />
+    </div>
+  )
+}
+
+function NotificationListState(props: NotificationListBodyProps): ReactNode {
   if (props.error) return <NotificationErrorState onRetry={props.onRetry} />
   if (props.isLoading) return <NotificationLoadingState />
   if (props.groups.length === 0) {

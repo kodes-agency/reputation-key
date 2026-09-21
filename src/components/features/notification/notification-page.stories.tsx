@@ -163,6 +163,26 @@ export const DismissAllRequiresConfirmation: Story = {
   },
 }
 
+/**
+ * The confirmed dialog cannot hand focus back to "Dismiss all": that button is
+ * disabled once nothing is left. Focus goes to the emptied list instead of
+ * falling to <body>.
+ */
+export const DismissAllFocusesTheList: Story = {
+  args: DismissAllRequiresConfirmation.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await canvas.findAllByRole('listitem')
+    await userEvent.click(canvas.getByRole('button', { name: /dismiss all/i }))
+    const dialog = await within(document.body).findByRole('alertdialog')
+    await userEvent.click(
+      await within(dialog).findByRole('button', { name: 'Dismiss all' }),
+    )
+    const list = await canvas.findByRole('group', { name: 'Notification list' })
+    await waitFor(() => expect(list).toHaveFocus())
+  },
+}
+
 export const Empty: Story = {
   args: { notificationFns: makeNotificationFns() },
   play: async ({ canvasElement }) => {

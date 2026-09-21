@@ -137,6 +137,74 @@ export const DismissRemovesRowOptimistically: Story = {
   },
 }
 
+/** Row commands that never settle: everything the user sees is optimistic. */
+const pendingRowFns = (rows: typeof notificationFixtures) =>
+  makeNotificationFns({
+    getFeedHead: (async () =>
+      notificationFeedHeadFixture(
+        rows,
+      )) as unknown as NotificationServerFns['getFeedHead'],
+    dismiss: (() =>
+      Promise.withResolvers<void>()
+        .promise) as unknown as NotificationServerFns['dismiss'],
+    markRead: (() =>
+      Promise.withResolvers<void>()
+        .promise) as unknown as NotificationServerFns['markRead'],
+  })
+
+async function openBell(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
+  return within(await within(document.body).findByRole('dialog'))
+}
+
+/**
+ * The dismissed row takes its focused button with it. Focus moves to the same
+ * control on the next row, so a keyboard user can clear one notice after
+ * another, instead of landing on <body> outside the non-modal popover.
+ */
+export const DismissKeepsFocusInTheList: Story = {
+  args: { notificationFns: pendingRowFns(notificationFixtures) },
+  play: async ({ canvasElement }) => {
+    const popover = await openBell(canvasElement)
+    const [first, second] = await popover.findAllByRole('button', { name: /^Dismiss:/ })
+    first!.focus()
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(second).toHaveFocus())
+  },
+}
+
+/** Marking read moves the row from New to Earlier (a remount); focus stays on New. */
+export const MarkReadFromTheMenuKeepsFocus: Story = {
+  args: { notificationFns: pendingRowFns(notificationFixtures) },
+  play: async ({ canvasElement }) => {
+    const popover = await openBell(canvasElement)
+    const triggers = await popover.findAllByRole('button', { name: /^More actions for:/ })
+    triggers[0]!.focus()
+    await userEvent.keyboard('{Enter}')
+    const markRead = await within(document.body).findByRole('menuitem', {
+      name: 'Mark as read',
+    })
+    await waitFor(() => expect(markRead).toHaveFocus())
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(triggers[1]).toHaveFocus())
+    await waitFor(() => expect(document.querySelector('[role="menu"]')).toBeNull())
+  },
+}
+
+/** With no row left to move to, focus lands on the list itself, which says it is empty. */
+export const DismissingTheLastRowFocusesTheList: Story = {
+  args: { notificationFns: pendingRowFns(notificationFixtures.slice(0, 1)) },
+  play: async ({ canvasElement }) => {
+    const popover = await openBell(canvasElement)
+    ;(await popover.findByRole('button', { name: /^Dismiss:/ })).focus()
+    await userEvent.keyboard('{Enter}')
+    const list = await popover.findByRole('group', { name: 'Notification list' })
+    await waitFor(() => expect(list).toHaveFocus())
+    expect(within(list).getByText(/nothing here right now/i)).toBeInTheDocument()
+  },
+}
+
 /** Mark-all-read is optimistic too: the "New" group empties immediately. */
 export const MarkAllReadIsOptimistic: Story = {
   args: {

@@ -9,7 +9,7 @@
 // addressed to you — not an audit log. The description says so rather than
 // implying a completeness the endpoint does not provide.
 
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { CheckCheck, Settings2, Trash2 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
@@ -53,6 +53,8 @@ export function NotificationPage({
   onFilterChange,
 }: Props) {
   const { announcement, announce } = useNotificationAnnouncer()
+  const listRef = useRef<HTMLDivElement>(null)
+  const dismissAllConfirmed = useRef(false)
   const list = useNotifications(
     notificationFns.getFeedHead,
     notificationFns.getList,
@@ -110,7 +112,17 @@ export function NotificationPage({
                   Dismiss all
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent>
+              <AlertDialogContent
+                onCloseAutoFocus={(event) => {
+                  if (!dismissAllConfirmed.current) return
+                  dismissAllConfirmed.current = false
+                  // "Dismiss all" is disabled once nothing is left, so the
+                  // dialog cannot hand focus back to it; the emptied list
+                  // takes it instead of <body>.
+                  event.preventDefault()
+                  listRef.current?.focus()
+                }}
+              >
                 <AlertDialogHeader>
                   <AlertDialogTitle>Dismiss all notifications?</AlertDialogTitle>
                   <AlertDialogDescription>
@@ -120,7 +132,12 @@ export function NotificationPage({
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Keep notifications</AlertDialogCancel>
-                  <AlertDialogAction onClick={mutations.dismissAll}>
+                  <AlertDialogAction
+                    onClick={() => {
+                      dismissAllConfirmed.current = true
+                      mutations.dismissAll()
+                    }}
+                  >
                     Dismiss all
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -148,6 +165,7 @@ export function NotificationPage({
           actions={actions}
           format={format}
           headingLevel={2}
+          listRef={listRef}
           emptyTitle={
             filter === 'all'
               ? "You're all caught up"

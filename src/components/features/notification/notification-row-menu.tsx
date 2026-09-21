@@ -52,6 +52,7 @@ export function NotificationRowMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
+          data-row-control="menu"
           variant="ghost"
           size="icon-xs"
           className="text-muted-foreground"

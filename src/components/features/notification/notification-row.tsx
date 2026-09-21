@@ -57,6 +57,7 @@ export function NotificationRow({
 
   return (
     <li
+      data-notification-id={notification.id}
       className={cn(
         // Elevation by lightness, never by shadow (DESIGN.md, Tonal Stack).
         'rounded-xl px-3 py-3 transition-colors',
@@ -124,6 +125,7 @@ export function NotificationRow({
                 the same way page-header.tsx does for breadcrumbs.
               */}
               <Link
+                data-row-control="open"
                 to={link.path as never}
                 search={link.search as never}
                 hash={link.hash}
@@ -147,6 +149,7 @@ export function NotificationRow({
                 invisible control.
               */}
               <Button
+                data-row-control="dismiss"
                 variant="ghost"
                 size="icon-xs"
                 className="text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:opacity-100"
