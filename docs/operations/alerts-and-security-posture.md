@@ -144,7 +144,7 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 | `routing.region-attempts`                     | P2  | any quarantined wrong/unresolved/denied-region attempt                                                                          | §12     |
 | `db.pool-exhaustion`                          | P1  | any connection request queued behind a saturated pool                                                                           | §8      |
 | `notification.in-app-delivery-lag`            | P1  | oldest incomplete active-family delivery is over 60s from its durable source clock                                              | §15     |
-| `notification.immediate-email-acceptance-lag` | P2  | source-to-provider acceptance exceeds 5min, or source linkage/bounded evidence is unevaluable                                   | §15     |
+| `notification.immediate-email-acceptance-lag` | P2  | source-to-provider acceptance exceeds 5min in a scope that may send email, or source linkage/bounded evidence is unevaluable    | §15     |
 | `notification.missing-for-inbox-item`         | P1  | any inbox item still missing a notification past the grace edge (delivery/repair is not keeping up)                             | §15     |
 | `notification.email-stalled`                  | P2  | oldest overdue queued email > 2h AND (email globally enabled OR rows already attempted) — silent while email is capability-dark | §15     |
 | `beta-feedback.triage-backlog`                | P2  | oldest delivered unresolved local feedback receipt > 72h, or aggregate observation unavailable                                  | §16     |

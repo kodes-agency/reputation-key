@@ -99,8 +99,11 @@ qualified. The repair replays a delivery Redis accepted that never settled
 through its route's own consumer, under the source fact's event id; a settled
 delivery is never repaired, and never counts as a gap, and a delivery the
 original fan-out never queued is never queued by the repair.
-All queue, clock, logger, identifier, and upstream lookup dependencies are
-provided by composition; modules do not read ambient roots.
+All queue, clock, logger, identifier, capability-policy, and upstream lookup
+dependencies are provided by composition; modules do not read ambient roots.
+Delivery-lag evidence judges immediate email only in scopes where the injected
+`notification.send_email` decision allows sending: a capability-dark scope's
+rows are never attempted, so they are not late mail.
 
 ## Invariants
 

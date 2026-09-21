@@ -3,6 +3,7 @@ import type { Database } from '#/shared/db'
 import { notificationEmailQueue, notifications } from '#/shared/db/schema'
 import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import type {
+  IsEmailDeliveryAllowed,
   NotificationDeliveryLagReport,
   NotificationDeliveryLagRepository,
 } from '../../application/ports/notification-delivery-lag.repository'
@@ -23,6 +24,8 @@ type MaterializationPendingRow = Readonly<{
 }>
 
 type ImmediateEmailAcceptanceRow = Readonly<{
+  organizationId: string
+  propertyId: string | null
   status: string
   lastErrorClass: string | null
   retryCount: number
@@ -64,10 +67,13 @@ const nearestRankP99 = (values: ReadonlyArray<number>): number | null => {
 /**
  * Reads only identifiers, receipt names, and timestamps. Event payload is
  * intentionally absent from both SELECT lists, so content cannot leak into a
- * health response or log through this repository.
+ * health response or log through this repository. The email rows' scope
+ * identifiers are read only to ask `isEmailDeliveryAllowed`; the report
+ * carries counts and clocks.
  */
 export const createNotificationDeliveryLagRepository = (
   db: Database,
+  isEmailDeliveryAllowed: IsEmailDeliveryAllowed,
 ): NotificationDeliveryLagRepository => {
   return {
     read: async (window): Promise<NotificationDeliveryLagReport> => {
@@ -152,6 +158,8 @@ export const createNotificationDeliveryLagRepository = (
           routes(event_type, consumer_name) AS (VALUES ${routeValues}),
           active_types(notification_type) AS (VALUES ${activeNotificationTypeValues})
         SELECT
+          email.organization_id AS "organizationId",
+          email.property_id::text AS "propertyId",
           email.status,
           email.last_error_class AS "lastErrorClass",
           email.retry_count AS "retryCount",
@@ -173,6 +181,9 @@ export const createNotificationDeliveryLagRepository = (
         -- idempotency key names (mandatoryRepeatEmailKey:
         -- event:<eventId>:<userId>:email). Every other email is timed from the
         -- event that created its notification.
+        -- Event id + Organization identify the source. Its Property is not an
+        -- invariant: an Organization-level fact (a Google account needing
+        -- reauthorization) raises a notice anchored to a Property.
         LEFT JOIN ${outboxEvents} AS source_event
          ON source_event.id::text = CASE
               WHEN email.idempotency_key LIKE 'event:%'
@@ -180,7 +191,6 @@ export const createNotificationDeliveryLagRepository = (
               ELSE notification.event_id
             END
          AND source_event.organization_id = email.organization_id
-         AND source_event.property_id IS NOT DISTINCT FROM email.property_id::text
         LEFT JOIN routes AS source_route
           ON source_route.event_type = source_event.event_type
         WHERE email.cadence = 'immediate'
@@ -200,7 +210,16 @@ export const createNotificationDeliveryLagRepository = (
       const sourceReceiptPending = sourceRow?.pending ?? 0
       const materializationPending = materializationRow?.pending ?? 0
       const immediateEmailSaturated = immediateEmailRows.rows.length > window.scanLimit
-      const immediateEmailSample = immediateEmailRows.rows.slice(0, window.scanLimit)
+      // Only scopes where email may be sent now: a capability-dark scope's
+      // pending rows are never attempted, so they are not late mail.
+      const immediateEmailSample = immediateEmailRows.rows
+        .slice(0, window.scanLimit)
+        .filter((row) =>
+          isEmailDeliveryAllowed({
+            organizationId: row.organizationId,
+            propertyId: row.propertyId,
+          }),
+        )
       const awaitingImmediateEmail = immediateEmailSample.filter(
         isAwaitingProviderAcceptance,
       )

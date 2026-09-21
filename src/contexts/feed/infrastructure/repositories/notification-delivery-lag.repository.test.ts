@@ -448,7 +448,7 @@ describe.sequential('notification delivery lag report (real PostgreSQL)', () => 
   })
 
   it('reports bounded lag, excludes retained policy holds, and exposes no payloads', async () => {
-    const repo = createNotificationDeliveryLagRepository(db)
+    const repo = createNotificationDeliveryLagRepository(db, () => true)
     const report = await repo.read({
       recordedAtOrAfter: new Date('2026-08-27T07:00:00.000Z'),
       recordedBefore: new Date('2026-08-27T07:55:00.000Z'),
@@ -683,7 +683,7 @@ describe.sequential(
     })
 
     it('measures each repeat email from the event that queued it', async () => {
-      const report = await createNotificationDeliveryLagRepository(db).read({
+      const report = await createNotificationDeliveryLagRepository(db, () => true).read({
         recordedAtOrAfter: new Date('2026-08-29T06:00:00.000Z'),
         recordedBefore: new Date('2026-08-29T08:00:00.000Z'),
         scanLimit: 10,
@@ -697,6 +697,242 @@ describe.sequential(
         acceptedSampleCount: 2,
         sourceUnlinked: 0,
         saturated: false,
+      })
+    })
+  },
+)
+
+// The five-minute acceptance target only means something where email may be
+// sent. An Organization whose `notification.send_email` capability is denied
+// (not allowlisted, suspended, killed) still gets pending immediate rows, and
+// nothing will ever attempt them.
+const SCOPE_WINDOW_START = new Date('2026-08-28T07:00:00.000Z')
+const SCOPE_WINDOW_END = new Date('2026-08-28T07:55:00.000Z')
+const ALLOWED_ORG = organizationId('notification-delivery-lag-allowed-org')
+const DARK_ORG = organizationId('notification-delivery-lag-dark-org')
+const ALLOWED_PROPERTY = propertyId('84000000-0000-4000-8000-000000000001')
+const DARK_PROPERTY = propertyId('84000000-0000-4000-8000-000000000002')
+const ALLOWED_ACCEPTED_SOURCE = '84000000-0000-4000-8000-000000000010'
+const ALLOWED_REAUTH_SOURCE = '84000000-0000-4000-8000-000000000011'
+const DARK_PENDING_SOURCE = '84000000-0000-4000-8000-000000000012'
+const ALLOWED_ACCEPTED_NOTIFICATION = '84000000-0000-4000-8000-000000000020'
+const ALLOWED_REAUTH_NOTIFICATION = '84000000-0000-4000-8000-000000000021'
+const DARK_PENDING_NOTIFICATION = '84000000-0000-4000-8000-000000000022'
+const ALLOWED_ACCEPTED_SOURCE_RECORDED = new Date('2026-08-28T07:48:00.000Z')
+const ALLOWED_REAUTH_SOURCE_RECORDED = new Date('2026-08-28T07:40:00.000Z')
+const DARK_PENDING_SOURCE_RECORDED = new Date('2026-08-28T07:10:00.000Z')
+
+describe.sequential(
+  'notification email acceptance by delivery scope (real PostgreSQL)',
+  () => {
+    let lease: TestLease
+    let db: Database
+
+    const cleanup = async () => {
+      for (const org of [ALLOWED_ORG, DARK_ORG]) {
+        await db
+          ?.delete(notificationEmailQueue)
+          .where(eq(notificationEmailQueue.organizationId, org))
+        await db?.delete(notifications).where(eq(notifications.organizationId, org))
+        await db?.delete(outboxEvents).where(eq(outboxEvents.organizationId, org))
+        await db?.delete(properties).where(eq(properties.organizationId, org))
+      }
+    }
+
+    beforeAll(async () => {
+      lease = await acquireTestLease(getEnv().DATABASE_URL)
+      db = drizzle(lease.pool) as Database
+      await cleanup()
+      await db.insert(properties).values([
+        {
+          id: ALLOWED_PROPERTY,
+          organizationId: ALLOWED_ORG,
+          name: 'Email Allowed Property',
+          slug: 'notification-delivery-lag-allowed',
+          timezone: 'UTC',
+        },
+        {
+          id: DARK_PROPERTY,
+          organizationId: DARK_ORG,
+          name: 'Email Dark Property',
+          slug: 'notification-delivery-lag-dark',
+          timezone: 'UTC',
+        },
+      ])
+      await db.insert(outboxEvents).values([
+        {
+          id: ALLOWED_ACCEPTED_SOURCE,
+          eventType: 'review.reply.publish_failed',
+          eventVersion: 1,
+          payload: {},
+          organizationId: ALLOWED_ORG,
+          propertyId: ALLOWED_PROPERTY,
+          sourceContext: 'review',
+          sourceAggregateId: '84000000-0000-4000-8000-000000000030',
+          createdAt: ALLOWED_ACCEPTED_SOURCE_RECORDED,
+          publishedAt: ALLOWED_ACCEPTED_SOURCE_RECORDED,
+        },
+        {
+          // An Organization-level source: the Google account is not a Property,
+          // though its notice is anchored to one.
+          id: ALLOWED_REAUTH_SOURCE,
+          eventType: 'integration.google_account.reauthorization_required',
+          eventVersion: 1,
+          payload: {},
+          organizationId: ALLOWED_ORG,
+          propertyId: null,
+          sourceContext: 'integration',
+          sourceAggregateId: '84000000-0000-4000-8000-000000000031',
+          createdAt: ALLOWED_REAUTH_SOURCE_RECORDED,
+          publishedAt: ALLOWED_REAUTH_SOURCE_RECORDED,
+        },
+        {
+          id: DARK_PENDING_SOURCE,
+          eventType: 'review.reply.publish_failed',
+          eventVersion: 1,
+          payload: {},
+          organizationId: DARK_ORG,
+          propertyId: DARK_PROPERTY,
+          sourceContext: 'review',
+          sourceAggregateId: '84000000-0000-4000-8000-000000000032',
+          createdAt: DARK_PENDING_SOURCE_RECORDED,
+          publishedAt: DARK_PENDING_SOURCE_RECORDED,
+        },
+      ])
+      await db.insert(notifications).values([
+        {
+          id: ALLOWED_ACCEPTED_NOTIFICATION,
+          userId: 'lag-scope-user',
+          organizationId: ALLOWED_ORG,
+          propertyId: ALLOWED_PROPERTY,
+          type: 'reply.publish_failed',
+          category: 'urgent_operational',
+          priority: 'urgent',
+          status: 'unread',
+          resourceType: 'inbox_item',
+          resourceId: ALLOWED_ACCEPTED_NOTIFICATION,
+          eventId: ALLOWED_ACCEPTED_SOURCE,
+          title: 'Accepted in an allowed scope',
+          payload: {},
+          createdAt: ALLOWED_ACCEPTED_SOURCE_RECORDED,
+          updatedAt: ALLOWED_ACCEPTED_SOURCE_RECORDED,
+        },
+        {
+          id: ALLOWED_REAUTH_NOTIFICATION,
+          userId: 'lag-scope-user',
+          organizationId: ALLOWED_ORG,
+          propertyId: ALLOWED_PROPERTY,
+          type: 'integration.reauthorization_required',
+          category: 'urgent_operational',
+          priority: 'urgent',
+          status: 'unread',
+          resourceType: 'property',
+          resourceId: ALLOWED_PROPERTY,
+          eventId: ALLOWED_REAUTH_SOURCE,
+          title: 'Reauthorization in an allowed scope',
+          payload: {},
+          createdAt: ALLOWED_REAUTH_SOURCE_RECORDED,
+          updatedAt: ALLOWED_REAUTH_SOURCE_RECORDED,
+        },
+        {
+          id: DARK_PENDING_NOTIFICATION,
+          userId: 'lag-scope-user',
+          organizationId: DARK_ORG,
+          propertyId: DARK_PROPERTY,
+          type: 'reply.publish_failed',
+          category: 'urgent_operational',
+          priority: 'urgent',
+          status: 'unread',
+          resourceType: 'inbox_item',
+          resourceId: DARK_PENDING_NOTIFICATION,
+          eventId: DARK_PENDING_SOURCE,
+          title: 'Pending in a capability-dark scope',
+          payload: {},
+          createdAt: DARK_PENDING_SOURCE_RECORDED,
+          updatedAt: DARK_PENDING_SOURCE_RECORDED,
+        },
+      ])
+      await db.insert(notificationEmailQueue).values([
+        {
+          notificationId: ALLOWED_ACCEPTED_NOTIFICATION,
+          userId: 'lag-scope-user',
+          organizationId: ALLOWED_ORG,
+          propertyId: ALLOWED_PROPERTY,
+          category: 'urgent_operational',
+          cadence: 'immediate',
+          status: 'accepted',
+          priority: 'urgent',
+          idempotencyKey: 'lag-scope-allowed-accepted',
+          attemptedAt: new Date('2026-08-28T07:49:00.000Z'),
+          acceptedAt: new Date('2026-08-28T07:49:00.000Z'),
+          createdAt: ALLOWED_ACCEPTED_SOURCE_RECORDED,
+          updatedAt: new Date('2026-08-28T07:49:00.000Z'),
+        },
+        {
+          notificationId: ALLOWED_REAUTH_NOTIFICATION,
+          userId: 'lag-scope-user',
+          organizationId: ALLOWED_ORG,
+          propertyId: ALLOWED_PROPERTY,
+          category: 'urgent_operational',
+          cadence: 'immediate',
+          status: 'pending',
+          priority: 'urgent',
+          idempotencyKey: 'lag-scope-allowed-reauth',
+          createdAt: ALLOWED_REAUTH_SOURCE_RECORDED,
+          updatedAt: ALLOWED_REAUTH_SOURCE_RECORDED,
+        },
+        {
+          notificationId: DARK_PENDING_NOTIFICATION,
+          userId: 'lag-scope-user',
+          organizationId: DARK_ORG,
+          propertyId: DARK_PROPERTY,
+          category: 'urgent_operational',
+          cadence: 'immediate',
+          status: 'pending',
+          priority: 'urgent',
+          idempotencyKey: 'lag-scope-dark-pending',
+          createdAt: DARK_PENDING_SOURCE_RECORDED,
+          updatedAt: DARK_PENDING_SOURCE_RECORDED,
+        },
+      ])
+    })
+
+    afterAll(async () => {
+      await cleanup()
+      await lease?.release()
+    })
+
+    it('judges only scopes where email may send, and links Organization-level sources', async () => {
+      const asked: Array<{ organizationId: string; propertyId: string | null }> = []
+      const repo = createNotificationDeliveryLagRepository(db, (scope) => {
+        asked.push(scope)
+        return scope.organizationId === ALLOWED_ORG
+      })
+
+      const report = await repo.read({
+        recordedAtOrAfter: SCOPE_WINDOW_START,
+        recordedBefore: SCOPE_WINDOW_END,
+        scanLimit: 10,
+      })
+
+      // The dark Organization's untouched pending row is not an acceptance
+      // candidate; the allowed reauthorization row is, with its source clock.
+      expect(report.immediateEmailAcceptance).toEqual({
+        awaitingProviderAcceptance: 1,
+        attemptedAwaitingProviderAcceptance: 0,
+        oldestAwaitingSourceRecordedAt: ALLOWED_REAUTH_SOURCE_RECORDED,
+        acceptedLatencyP99Ms: 60_000,
+        acceptedSampleCount: 1,
+        sourceUnlinked: 0,
+        saturated: false,
+      })
+      expect(asked).toContainEqual({
+        organizationId: DARK_ORG,
+        propertyId: DARK_PROPERTY,
+      })
+      expect(asked).toContainEqual({
+        organizationId: ALLOWED_ORG,
+        propertyId: ALLOWED_PROPERTY,
       })
     })
   },

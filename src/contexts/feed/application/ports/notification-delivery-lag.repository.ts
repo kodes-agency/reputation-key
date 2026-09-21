@@ -9,6 +9,24 @@ export type NotificationDeliveryLagWindow = Readonly<{
   scanLimit: number
 }>
 
+/** The scope a queued notification email would be delivered under. */
+export type EmailDeliveryScope = Readonly<{
+  organizationId: string
+  /** Null only for Organization-scoped mandatory notices. */
+  propertyId: string | null
+}>
+
+/**
+ * The current `notification.send_email` decision for one scope. Composition
+ * supplies it: the capability store is process policy that Feed does not read.
+ */
+export type IsEmailDeliveryAllowed = (scope: EmailDeliveryScope) => boolean
+
+/**
+ * Provider-acceptance evidence for scopes where email may be sent now. Rows of
+ * a capability-dark scope (not allowlisted, suspended, killed) stay pending by
+ * design — nothing will ever attempt them — so they are not late mail.
+ */
 export type ImmediateEmailAcceptanceReport = Readonly<{
   /** Sendable immediate rows that have not received provider acceptance. */
   awaitingProviderAcceptance: number

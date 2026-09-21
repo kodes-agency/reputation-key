@@ -622,7 +622,7 @@ describe('notification.immediate-email-acceptance-lag', () => {
     })
   })
 
-  it('uses attempted work as per-Organization activation evidence and stays quiet at the boundary', () => {
+  it('fires on attempted work while globally dark and stays quiet at the boundary', () => {
     const perOrganization = healthy()
     perOrganization.notifications.deliveryLag.immediateEmailAcceptance = {
       ...perOrganization.notifications.deliveryLag.immediateEmailAcceptance,
@@ -646,17 +646,24 @@ describe('notification.immediate-email-acceptance-lag', () => {
     expect(
       evaluateOne('notification.immediate-email-acceptance-lag', boundary),
     ).toBeNull()
+  })
 
-    const intentionallyDark = healthy()
-    intentionallyDark.notifications.deliveryLag.immediateEmailAcceptance = {
-      ...intentionallyDark.notifications.deliveryLag.immediateEmailAcceptance,
+  // The read already excludes capability-dark scopes (their rows are never
+  // attempted), so an awaiting row here is mail that may be sent. Requiring
+  // accepted or attempted evidence as well hid exactly the allowlisted
+  // Organization whose urgent job was never enqueued or never ran.
+  it("fires on a sendable scope's untouched backlog without other email evidence", () => {
+    const untouched = healthy()
+    untouched.notifications.deliveryLag.immediateEmailAcceptance = {
+      ...untouched.notifications.deliveryLag.immediateEmailAcceptance,
       awaitingProviderAcceptance: 5,
       oldestAwaitingSourceRecordedAt: '2026-08-20T20:00:00.000Z',
       oldestAwaitingSourceAgeMs: 4 * 60 * 60 * 1000,
     }
+
     expect(
-      evaluateOne('notification.immediate-email-acceptance-lag', intentionallyDark),
-    ).toBeNull()
+      evaluateOne('notification.immediate-email-acceptance-lag', untouched),
+    ).toMatchObject({ value: 4 * 60 * 60 * 1000 })
   })
 
   it('fails honestly when active evidence is unlinked or the bounded sample saturates', () => {

@@ -677,7 +677,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §15',
     windowMs: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
     threshold: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
-    blindedBy: ['health.notificationDeliveryLag', 'health.notificationEmail'],
+    blindedBy: ['health.notificationDeliveryLag'],
     read: (snapshot) => {
       const email = snapshot.notifications.deliveryLag.immediateEmailAcceptance
       if (email.sourceUnlinked > 0) {
@@ -686,12 +686,10 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
           detail: `${email.sourceUnlinked} immediate notification email row(s) have no active durable source clock; the five-minute acceptance target cannot be evaluated`,
         }
       }
-      const activeEvidence =
-        snapshot.notifications.emailDeliveryEnabled ||
-        email.acceptedSampleCount > 0 ||
-        email.attemptedAwaitingProviderAcceptance > 0
-      if (!activeEvidence) return null
-
+      // The read counts only scopes where email may be sent now, so every
+      // awaiting row here is mail that should already have gone out — no
+      // global-flag or prior-send guard (that hid an allowlisted
+      // Organization whose urgent job was never enqueued or never ran).
       if (email.saturated) {
         return {
           value: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS + 1,

@@ -34,6 +34,7 @@ describe('buildFeedContext', () => {
         googleConnectionProperties: {} as never,
         monthlyResultFacts: {} as never,
         portalHealthLookup: {} as never,
+        isEmailDeliveryAllowed: () => false,
       },
     })
 

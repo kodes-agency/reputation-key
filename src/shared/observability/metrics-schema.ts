@@ -540,7 +540,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     ],
     emitted: true,
     description:
-      'Sendable immediate notification emails that have not received provider acceptance inside the bounded source-clock window.',
+      'Immediate notification emails in scopes that may send email now (scoped notification.send_email) that have not received provider acceptance inside the bounded source-clock window. Capability-dark scopes are excluded: their rows are never attempted.',
   }),
   def({
     name: 'notification.email.immediate_acceptance_attempted_pending',
@@ -552,7 +552,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     ],
     emitted: true,
     description:
-      'Immediate notification emails still awaiting acceptance after a provider attempt began; also proves per-Organization delivery activation.',
+      'Immediate notification emails still awaiting acceptance after a provider attempt began (the awaiting subset the delivery path already touched).',
   }),
   def({
     name: 'notification.email.immediate_acceptance_oldest_source_age_ms',

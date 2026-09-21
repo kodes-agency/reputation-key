@@ -108,7 +108,10 @@ import {
 import type { NotificationJobEnqueuePort } from './infrastructure/inbox-notification-fanout'
 import { createNotificationDeliverySettlement } from './infrastructure/repositories/notification-delivery-settlement.repository'
 import { createNotificationDeliveryLagRepository } from './infrastructure/repositories/notification-delivery-lag.repository'
-import { MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT } from './application/ports/notification-delivery-lag.repository'
+import {
+  MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT,
+  type IsEmailDeliveryAllowed,
+} from './application/ports/notification-delivery-lag.repository'
 import { registerPortalHealthNotificationConsumer } from './infrastructure/portal-health-outbox-consumers'
 import { createOrganizationAccountNotificationAuthority } from './infrastructure/adapters/organization-account-notification-authority.adapter'
 import {
@@ -279,13 +282,21 @@ type NotificationBuildInput = Readonly<{
   monthlyResultFacts: MonthlyResultNotificationFactsLookup
   /** Portal-owned exact current Health state fence for delayed delivery. */
   portalHealthLookup: Pick<PortalPublicApi, 'findPortalHealthNotificationFacts'>
+  /**
+   * Current `notification.send_email` decision per scope, so delivery-lag
+   * evidence judges only mail that may be sent (composition-owned policy).
+   */
+  isEmailDeliveryAllowed: IsEmailDeliveryAllowed
 }>
 
 const buildNotificationFeed = (input: NotificationBuildInput) => {
   const notificationRepo = createNotificationRepository(input.db)
   const gapRepo = createNotificationGapRepository(input.db)
   const deliveryRepairRepo = createNotificationDeliveryRepairRepository(input.db)
-  const deliveryLagRepo = createNotificationDeliveryLagRepository(input.db)
+  const deliveryLagRepo = createNotificationDeliveryLagRepository(
+    input.db,
+    input.isEmailDeliveryAllowed,
+  )
   const emailRepo = createNotificationEmailRepository(input.db)
   const prefRepo = createNotificationPreferenceRepository(input.db)
   const oneClickUnsubscribeRepo = createOneClickUnsubscribeRepository(input.db)
