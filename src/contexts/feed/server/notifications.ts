@@ -1,6 +1,10 @@
 // Feed notification surface — server functions
 // Per architecture: "Server functions are the HTTP entry points into a context."
 // Resolves tenant context from authenticated session, NOT from client payload.
+//
+// Every `return` inside a `try` is `return await`. The public API is async, so
+// an un-awaited rejection settles after the `try` has exited: the local catch
+// never maps it, and a stale id or a refused mute surfaces as an untagged 500.
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
@@ -44,7 +48,7 @@ async function runBulkNotificationMutation<T>(
   await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
   try {
     const { feedPublicApi } = getContainer()
-    return mutation(feedPublicApi, ctx)
+    return await mutation(feedPublicApi, ctx)
   } catch (e) {
     throw catchUntagged(e)
   }
@@ -80,7 +84,7 @@ export const getNotificationFeedHeadFn = createServerFn({ method: 'GET' })
           // One public/repository call owns all three values. Separate list
           // and count reads would reintroduce a race between the bell badge
           // and its visible rows.
-          return feedPublicApi.getFeedHead(
+          return await feedPublicApi.getFeedHead(
             ctx.userId,
             ctx.organizationId,
             data.limit,
@@ -138,7 +142,7 @@ export const markNotificationReadFn = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
         try {
           const { feedPublicApi } = getContainer()
-          return feedPublicApi.markRead(
+          return await feedPublicApi.markRead(
             data.notificationId,
             ctx.organizationId,
             ctx.userId,
@@ -179,7 +183,7 @@ export const markNotificationUnreadFn = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
         try {
           const { feedPublicApi } = getContainer()
-          return feedPublicApi.markUnread(
+          return await feedPublicApi.markUnread(
             data.notificationId,
             ctx.organizationId,
             ctx.userId,
@@ -238,7 +242,7 @@ export const dismissNotificationFn = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
         try {
           const { feedPublicApi } = getContainer()
-          return feedPublicApi.dismiss(
+          return await feedPublicApi.dismiss(
             data.notificationId,
             ctx.organizationId,
             ctx.userId,
@@ -266,7 +270,7 @@ export const getNotificationPreferencesFn = createServerFn({ method: 'GET' }).ha
       await requireExecutionAllowed({ actor: ctx, action: 'notification.read' })
       try {
         const { feedPublicApi } = getContainer()
-        return feedPublicApi.getPreferences(ctx.userId, ctx.organizationId)
+        return await feedPublicApi.getPreferences(ctx.userId, ctx.organizationId)
       } catch (e) {
         throw catchUntagged(e)
       }
@@ -295,7 +299,7 @@ export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
         })
         try {
           const { feedPublicApi } = getContainer()
-          return feedPublicApi.updatePreference(
+          return await feedPublicApi.updatePreference(
             ctx.userId,
             ctx.organizationId,
             data.propertyId,
@@ -339,7 +343,7 @@ export const muteNotificationCategoryFn = createServerFn({ method: 'POST' })
         })
         try {
           const { feedPublicApi } = getContainer()
-          return feedPublicApi.mutePreferenceCategory(
+          return await feedPublicApi.mutePreferenceCategory(
             ctx.userId,
             ctx.organizationId,
             data.propertyId,
@@ -365,7 +369,7 @@ export const getNotificationUserSettingsFn = createServerFn({ method: 'GET' }).h
       if (!ctx) return null
       await requireExecutionAllowed({ actor: ctx, action: 'notification.read' })
       try {
-        return getContainer().feedPublicApi.getUserSettings(
+        return await getContainer().feedPublicApi.getUserSettings(
           ctx.userId,
           ctx.organizationId,
         )
@@ -386,7 +390,7 @@ export const updateNotificationUserSettingsFn = createServerFn({ method: 'POST' 
         const ctx = await resolveTenantContext(await headersFromContext())
         await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
         try {
-          return getContainer().feedPublicApi.updateUserSettings(
+          return await getContainer().feedPublicApi.updateUserSettings(
             ctx.userId,
             ctx.organizationId,
             data,
