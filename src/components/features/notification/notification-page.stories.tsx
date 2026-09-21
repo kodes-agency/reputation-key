@@ -2,13 +2,16 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
+  makeNotification,
   makeNotificationFns,
+  makeStatefulNotificationFns,
   notificationFeedHeadFixture,
   notificationFixtures,
   notificationPageFixture,
   notificationPropertyFixtures,
 } from './notification.stories.fixtures'
 import { NotificationPage } from './notification-page'
+import { NotificationPanel } from './notification-panel'
 import {
   matchesNotificationFilter,
   parseNotificationFilter,
@@ -183,5 +186,53 @@ export const ErrorState: Story = {
     expect(
       await within(canvasElement).findByRole('button', { name: /retry/i }),
     ).toBeInTheDocument()
+  },
+}
+
+/** More rows than the bell's page of 20, so its "Load more" has history to load. */
+const longFeed = Array.from({ length: 25 }, (_, n) =>
+  makeNotification({
+    id: `30000000-0000-4000-8000-${n.toString().padStart(12, '0')}`,
+    type: 'review.created',
+    status: 'unread',
+    payload: { propertyName: 'Riverside Hotel', platform: 'google' },
+    createdAt: new Date(Date.now() - (n + 1) * 60_000),
+  }),
+)
+
+/**
+ * The bell and the page are two surfaces over one feed. History the bell
+ * loaded through "Load more" is never re-read on its own, so it has to follow
+ * what the page does: after "Mark all read" here, reopening the bell must not
+ * list those rows under "New" while its badge says there is nothing unread.
+ */
+export const BellHistoryFollowsThePage: Story = {
+  args: { notificationFns: makeStatefulNotificationFns(longFeed) },
+  render: (args) => (
+    <>
+      <NotificationPanel
+        notificationFns={args.notificationFns}
+        organizationId={args.organizationId}
+      />
+      <NotificationPage {...args} />
+    </>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const bell = await canvas.findByRole('button', { name: 'Notifications, 25 unread' })
+    await userEvent.click(bell)
+    const popover = within(await within(document.body).findByRole('dialog'))
+    await userEvent.click(await popover.findByRole('button', { name: 'Load more' }))
+    await waitFor(() => expect(popover.getAllByRole('listitem')).toHaveLength(25))
+    await userEvent.keyboard('{Escape}')
+
+    await userEvent.click(canvas.getByRole('button', { name: /mark all read/i }))
+    await canvas.findByRole('button', { name: 'Notifications' })
+    await userEvent.click(canvas.getByRole('button', { name: 'Notifications' }))
+
+    const reopened = within(await within(document.body).findByRole('dialog'))
+    await reopened.findByRole('heading', { name: 'Earlier' })
+    expect(reopened.queryByRole('heading', { name: 'New' })).toBeNull()
+    expect(reopened.queryByText('Unread.')).toBeNull()
   },
 }

@@ -40,7 +40,7 @@ describe('notification optimistic cache updates', () => {
       pages: [notificationPageFixture([target, older])],
       pageParams: [20],
     })
-    const undo = patchNotificationFeedCache(client, listKey, headKey, (row) =>
+    const undo = patchNotificationFeedCache(client, 'org-1', (row) =>
       row.id === target.id
         ? { ...row, status: 'read' as const, readAt: new Date(0) }
         : row,
@@ -72,7 +72,6 @@ describe('notification optimistic cache updates', () => {
   })
 
   it('sets an exact zero for bulk read and restores the whole snapshot on failure', () => {
-    const listKey = notificationKeys.list('org-1', 20, 'all')
     const headKey = notificationKeys.head('org-1', 20, 'all')
     const cached = makeNotification({
       id: '10000000-0000-4000-8000-000000000030',
@@ -88,8 +87,7 @@ describe('notification optimistic cache updates', () => {
 
     const undo = patchNotificationFeedCache(
       client,
-      listKey,
-      headKey,
+      'org-1',
       (row) => ({ ...row, status: 'read' as const, readAt: new Date(0) }),
       { unreadCount: 0 },
     )
@@ -100,7 +98,6 @@ describe('notification optimistic cache updates', () => {
   })
 
   it('cancels an in-flight head read so its older answer cannot overwrite the write', async () => {
-    const listKey = notificationKeys.list('org-1', 20, 'all')
     const headKey = notificationKeys.head('org-1', 20, 'all')
     const row = makeNotification({
       id: '10000000-0000-4000-8000-000000000040',
@@ -123,7 +120,7 @@ describe('notification optimistic cache updates', () => {
     const unsubscribe = observer.subscribe(() => {})
     expect(answers).toHaveLength(1)
 
-    patchNotificationFeedCache(client, listKey, headKey, (current) =>
+    patchNotificationFeedCache(client, 'org-1', (current) =>
       current.id === row.id
         ? { ...current, status: 'read' as const, readAt: new Date(0) }
         : current,
@@ -135,5 +132,45 @@ describe('notification optimistic cache updates', () => {
     expect(head?.unreadCount).toBe(0)
     expect(head?.page.notifications[0]?.status).toBe('read')
     unsubscribe()
+  })
+
+  it('patches every surface that holds the row, not only the one that acted', () => {
+    const [shown, loadedLater] = [
+      makeNotification({ id: '10000000-0000-4000-8000-000000000050', status: 'unread' }),
+      makeNotification({ id: '10000000-0000-4000-8000-000000000051', status: 'unread' }),
+    ]
+    const bellHead = notificationKeys.head('org-1', 20, 'all')
+    const bellHistory = notificationKeys.list('org-1', 20, 'all')
+    const pageHead = notificationKeys.head('org-1', 50, 'unread')
+    const pageHistory = notificationKeys.list('org-1', 50, 'unread')
+    // The bell (20 per page) loaded the row through "Load more"; the page (50
+    // per page, Unread tab) holds it in its own history.
+    client.setQueryData(bellHead, notificationFeedHeadFixture([shown], 2, true))
+    client.setQueryData(bellHistory, {
+      pages: [notificationPageFixture([loadedLater])],
+      pageParams: [null],
+    })
+    client.setQueryData(pageHead, notificationFeedHeadFixture([shown], 2, true))
+    client.setQueryData(pageHistory, {
+      pages: [notificationPageFixture([loadedLater])],
+      pageParams: [null],
+    })
+
+    // Marked read from the page's head.
+    patchNotificationFeedCache(client, 'org-1', (row) =>
+      row.id === loadedLater.id
+        ? { ...row, status: 'read' as const, readAt: new Date(0) }
+        : row,
+    )
+
+    type History = { pages: ReadonlyArray<ReturnType<typeof notificationPageFixture>> }
+    const rows = (key: readonly unknown[]) =>
+      client.getQueryData<History>(key)?.pages.flatMap((page) => page.notifications)
+    expect(rows(bellHistory)?.map((row) => row.status)).toEqual(['read'])
+    // A read row no longer belongs under the Unread filter.
+    expect(rows(pageHistory)).toEqual([])
+    // The unread count is the Organization's, so every head drops by one.
+    expect(client.getQueryData<NotificationFeedHead>(bellHead)?.unreadCount).toBe(1)
+    expect(client.getQueryData<NotificationFeedHead>(pageHead)?.unreadCount).toBe(1)
   })
 })

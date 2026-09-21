@@ -145,6 +145,13 @@ function createLiveFeed(size: number) {
     remove: (removed: string) => {
       rows = rows.filter((current) => label(current.id) !== removed)
     },
+    // What another tab, or the other surface in this one, does to the feed.
+    markAllRead: () => {
+      rows = rows.map((current) => ({ ...current, status: 'read' as const }))
+    },
+    dismissAll: () => {
+      rows = []
+    },
     holdHeads: () => {
       heldHeads = []
     },
@@ -205,6 +212,13 @@ function observeLiveFeed(feed: ReturnType<typeof createLiveFeed>) {
         headObserver.getCurrentResult().data?.page,
         historyObserver.getCurrentResult().data?.pages,
       ).map((row) => feed.label(row.id)),
+    unreadVisible: () =>
+      mergeNotificationHeadWithHistory(
+        headObserver.getCurrentResult().data?.page,
+        historyObserver.getCurrentResult().data?.pages,
+      )
+        .filter((row) => row.status === 'unread')
+        .map((row) => feed.label(row.id)),
     historyPageCount: () => historyObserver.getCurrentResult().data?.pages.length ?? 0,
     stop: () => {
       unsubscribeHead()
@@ -285,16 +299,40 @@ describe('notification history paging on a live feed', () => {
     feed.arrive(5)
     feed.holdHeads()
     await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL)
-    patchNotificationFeedCache(
-      client,
-      notificationKeys.list('org-1', FEED_LIMIT, 'all'),
-      notificationKeys.head('org-1', FEED_LIMIT, 'all'),
-      (row) => (feed.label(row.id) === 'R0' ? { ...row, status: 'read' as const } : row),
+    patchNotificationFeedCache(client, 'org-1', (row) =>
+      feed.label(row.id) === 'R0' ? { ...row, status: 'read' as const } : row,
     )
     feed.releaseHeads()
     await vi.advanceTimersByTimeAsync(0)
 
     expect(view.historyPageCount()).toBe(1)
+    view.stop()
+  })
+
+  it('drops loaded history once the badge proves its unread rows were read elsewhere', async () => {
+    const feed = createLiveFeed(60)
+    const view = observeLiveFeed(feed)
+    await vi.advanceTimersByTimeAsync(0)
+    await view.loadMore()
+
+    feed.markAllRead()
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL)
+
+    // The badge now says 0, so no row on screen may still say "unread".
+    expect(view.unreadVisible()).toEqual([])
+    view.stop()
+  })
+
+  it('drops loaded history once the refreshed head is the whole feed', async () => {
+    const feed = createLiveFeed(60)
+    const view = observeLiveFeed(feed)
+    await vi.advanceTimersByTimeAsync(0)
+    await view.loadMore()
+
+    feed.dismissAll()
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL)
+
+    expect(view.visible()).toEqual([])
     view.stop()
   })
 })

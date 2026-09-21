@@ -100,7 +100,12 @@ carries a server-minted `nextCursor` (the last row's latest-activity instant to
 the microsecond, and its id), and the next page reads strictly after it. Rows
 arriving or leaving above a page cannot shift it. The head is bounded, so when
 a refreshed head no longer reaches the loaded history the client resets that
-history and "Load more" continues from the head's own cursor.
+history and "Load more" continues from the head's own cursor. Loaded history is
+never re-read, so the client also resets it when a refreshed head proves it
+stale: the head is the whole feed, or the rows on screen hold more unread than
+the unread count. An optimistic write patches every cached feed of the
+Organization (the bell's and the page's, every filter), not only the surface
+that acted.
 
 ## Runtime
 

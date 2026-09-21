@@ -86,10 +86,34 @@ function isHistoryDetached(
 }
 
 /**
- * The head fetch, keeping loaded history contiguous with it. When a refreshed
- * head no longer reaches loaded history, that history is reset, so the list
- * shows the head alone and "Load more" continues from the head's own cursor
- * rather than leaving a silent gap in the middle of the list.
+ * True when a refreshed head proves loaded history stale. History is never
+ * re-read (it would replay every page), so a change made in another tab, or
+ * on the other surface before this one loaded it, stays in it. Two answers of
+ * the head expose such a change without another request:
+ *
+ *  - the head is the whole feed (`hasMore` off), so nothing below it exists
+ *    and every history row is either shown by the head or gone;
+ *  - the rows on screen hold more unread than the Organization-wide unread
+ *    count, so some of them were read, dismissed or muted since loading: the
+ *    "New" rows a badge of 0 would contradict.
+ */
+function isHistoryStale(
+  head: NotificationFeedHead,
+  pages: ReadonlyArray<NotificationPage>,
+): boolean {
+  if (!head.page.hasMore) return true
+  const unread = mergeNotificationHeadWithHistory(head.page, pages).filter(
+    (row) => row.status === 'unread',
+  )
+  return unread.length > head.unreadCount
+}
+
+/**
+ * The head fetch, keeping loaded history contiguous with it and true to it.
+ * When a refreshed head no longer reaches loaded history, or proves it stale,
+ * that history is reset, so the list shows the head alone and "Load more"
+ * continues from the head's own cursor rather than leaving a silent gap in
+ * the middle of the list or rows the server has since changed.
  *
  * A read the head was written to during (an optimistic write, which also
  * cancels it) describes the feed from before that write, so it changes
@@ -109,7 +133,11 @@ export function fetchHeadKeepingHistoryContiguous(
     const head = await fetchHead()
     if (headWrites() !== writesBefore) return head
     const history = qc.getQueryData<NotificationHistoryPages>(historyKey)
-    if (history && isHistoryDetached(head.page, history.pageParams[0])) {
+    if (
+      history &&
+      (isHistoryDetached(head.page, history.pageParams[0]) ||
+        isHistoryStale(head, history.pages))
+    ) {
       await qc.resetQueries({ queryKey: historyKey, exact: true })
     }
     return head

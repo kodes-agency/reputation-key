@@ -63,13 +63,7 @@ export function NotificationPage({
   )
   const count = list.unreadCount
   const format = useNotificationFormat(notificationFns.getUserSettings, organizationId)
-  const mutations = useNotificationMutations(
-    notificationFns,
-    organizationId,
-    announce,
-    PAGE_SIZE,
-    filter,
-  )
+  const mutations = useNotificationMutations(notificationFns, organizationId, announce)
 
   const propertyNames = useMemo(
     () => Object.fromEntries(properties.map((property) => [property.id, property.name])),

@@ -52,13 +52,7 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
   )
   const count = list.unreadCount
   const format = useNotificationFormat(notificationFns.getUserSettings, organizationId)
-  const mutations = useNotificationMutations(
-    notificationFns,
-    organizationId,
-    announce,
-    PAGE_SIZE,
-    filter,
-  )
+  const mutations = useNotificationMutations(notificationFns, organizationId, announce)
 
   const groups = useMemo(() => groupByReadState(list.notifications), [list.notifications])
 

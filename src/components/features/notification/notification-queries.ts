@@ -8,7 +8,8 @@
 // ordinary query; loaded history is a disabled infinite query advanced only by
 // the user's "Load more" action. The two caches are merged by stable row id.
 // History pages are keyset pages that start where the head ends; a head poll
-// that no longer reaches them resets them rather than leave a gap between.
+// that no longer reaches them, or proves them stale, resets them rather than
+// leave a gap between or rows the server has since changed.
 //
 // Polling is VISIBILITY-AWARE, using the query library's own primitives rather
 // than a hand-rolled `visibilitychange` listener (@tanstack/react-query 5.101):

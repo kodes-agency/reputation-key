@@ -228,3 +228,64 @@ export function makeNotificationFns(
   }
   return { ...base, ...overrides }
 }
+
+type FeedRead = Readonly<{
+  data: Readonly<{ limit: number; before?: NotificationFeedCursor }>
+}>
+type RowCommand = Readonly<{ data: Readonly<{ notificationId: string }> }>
+
+/** Rows strictly after `cursor` in feed order, as the endpoint reads them. */
+function rowsAfter(
+  rows: ReadonlyArray<NotificationView>,
+  cursor: NotificationFeedCursor,
+): ReadonlyArray<NotificationView> {
+  const at = Date.parse(cursor.at.replace(/(\.\d{3})\d{3}Z$/, '$1Z'))
+  return rows.filter((row) => {
+    const rowAt = (row.coalescedLatestAt ?? row.createdAt).getTime()
+    return rowAt < at || (rowAt === at && row.id < cursor.id)
+  })
+}
+
+/**
+ * A `NotificationServerFns` bundle over rows the commands really change: the
+ * head and "Load more" page the CURRENT rows by limit and cursor, and mark
+ * read, dismiss and the bulk commands rewrite them. A story can act on one
+ * surface and watch another read the result. Filters are not applied.
+ */
+export function makeStatefulNotificationFns(
+  initial: ReadonlyArray<NotificationView>,
+  overrides: Partial<NotificationServerFns> = {},
+): NotificationServerFns {
+  let rows = [...initial]
+  const read = (row: NotificationView): NotificationView =>
+    row.status === 'unread' ? { ...row, status: 'read', readAt: new Date() } : row
+  const pageOf = (candidates: ReadonlyArray<NotificationView>, limit: number) =>
+    notificationPageFixture(candidates.slice(0, limit), candidates.length > limit)
+
+  const server = {
+    getFeedHead: async ({ data }: FeedRead) => ({
+      page: pageOf(rows, data.limit),
+      unreadCount: rows.filter((row) => row.status === 'unread').length,
+      watermark: 'stateful-feed-head',
+    }),
+    getList: async ({ data }: FeedRead) =>
+      pageOf(data.before ? rowsAfter(rows, data.before) : rows, data.limit),
+    markRead: async ({ data }: RowCommand) => {
+      rows = rows.map((row) => (row.id === data.notificationId ? read(row) : row))
+    },
+    dismiss: async ({ data }: RowCommand) => {
+      rows = rows.filter((row) => row.id !== data.notificationId)
+    },
+    markAllRead: async () => {
+      rows = rows.map(read)
+    },
+    dismissAll: async () => {
+      rows = []
+    },
+  }
+  // Same two-step cast as `makeNotificationFns`, for the same reason.
+  return makeNotificationFns({
+    ...(server as unknown as Partial<NotificationServerFns>),
+    ...overrides,
+  })
+}

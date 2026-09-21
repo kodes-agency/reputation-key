@@ -15,7 +15,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { notificationKeys } from '#/shared/queries/query-keys'
 import type { NotificationView } from '#/contexts/feed/application/public-api'
-import type { NotificationListFilter } from '#/contexts/feed/application/public-api'
 import { patchNotificationFeedCache } from './notification-feed-cache'
 import type { NotificationServerFns } from './types'
 
@@ -40,25 +39,23 @@ export function useNotificationMutations(
   fns: NotificationServerFns,
   organizationId: string,
   announce: (text: string) => void,
-  limit = 20,
-  filter: NotificationListFilter = 'all',
 ): NotificationFeedMutations {
   const qc = useQueryClient()
-  const listKey = notificationKeys.list(organizationId, limit, filter)
-  const headKey = notificationKeys.head(organizationId, limit, filter)
   const invalidateKeys = [notificationKeys.feed(organizationId)]
+  const patchFeed = (
+    patch: Parameters<typeof patchNotificationFeedCache>[2],
+    options?: Parameters<typeof patchNotificationFeedCache>[3],
+  ) => patchNotificationFeedCache(qc, organizationId, patch, options)
 
   const markRead = useActionMutation(fns.markRead, {
     invalidateKeys,
     optimistic: (input) =>
-      patchNotificationFeedCache(qc, listKey, headKey, (row) =>
-        row.id === input.data.notificationId ? readNow(row) : row,
-      ),
+      patchFeed((row) => (row.id === input.data.notificationId ? readNow(row) : row)),
   })
   const markUnread = useActionMutation(fns.markUnread, {
     invalidateKeys,
     optimistic: (input) =>
-      patchNotificationFeedCache(qc, listKey, headKey, (row) =>
+      patchFeed((row) =>
         row.id === input.data.notificationId
           ? { ...row, status: 'unread', readAt: null }
           : row,
@@ -67,25 +64,19 @@ export function useNotificationMutations(
   const dismiss = useActionMutation(fns.dismiss, {
     invalidateKeys,
     optimistic: (input) =>
-      patchNotificationFeedCache(qc, listKey, headKey, (row) =>
-        row.id === input.data.notificationId ? null : row,
-      ),
+      patchFeed((row) => (row.id === input.data.notificationId ? null : row)),
   })
   const markAllRead = useActionMutation(fns.markAllRead, {
     invalidateKeys,
     optimistic: () =>
-      patchNotificationFeedCache(
-        qc,
-        listKey,
-        headKey,
-        (row) => (row.status === 'unread' ? readNow(row) : row),
-        { unreadCount: 0 },
-      ),
+      patchFeed((row) => (row.status === 'unread' ? readNow(row) : row), {
+        unreadCount: 0,
+      }),
   })
   const dismissAll = useActionMutation(fns.dismissAll, {
     invalidateKeys,
     optimistic: () =>
-      patchNotificationFeedCache(qc, listKey, headKey, () => null, {
+      patchFeed(() => null, {
         clearContinuation: true,
         unreadCount: 0,
       }),

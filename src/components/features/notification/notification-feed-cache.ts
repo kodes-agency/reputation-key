@@ -2,11 +2,15 @@ import type { QueryClient, QueryKey } from '@tanstack/react-query'
 import type {
   NotificationView,
   NotificationFeedHead,
+  NotificationListFilter,
   NotificationPage,
 } from '#/contexts/feed/application/public-api'
+import { notificationKeys } from '#/shared/queries/query-keys'
+import { matchesNotificationFilter } from './notification-filters'
 import type { NotificationHistoryPages } from './notification-feed-pagination'
 
 type FeedPages = NotificationHistoryPages
+type CachedFeed = NotificationFeedHead | FeedPages
 
 /** `null` removes the row. Returning the row unchanged is a no-op. */
 type RowPatch = (row: NotificationView) => NotificationView | null
@@ -39,7 +43,8 @@ function rowUnreadDelta(row: NotificationView, patched: NotificationView | null)
 
 /**
  * Sum the unread movement across the de-duplicated union of the supplied pages,
- * so a row on the head/history boundary is counted exactly once.
+ * so a row held by several caches (a head/history boundary, or the bell and
+ * the page) is counted exactly once.
  */
 function unreadDeltaAcross(
   pages: ReadonlyArray<NotificationPage>,
@@ -57,15 +62,40 @@ function unreadDeltaAcross(
   return delta
 }
 
+const isHistory = (data: CachedFeed): data is FeedPages => 'pages' in data
+const pagesOf = (data: CachedFeed): ReadonlyArray<NotificationPage> =>
+  isHistory(data) ? data.pages : [data.page]
+
+/** The filter a feed key was read under: `list(org, limit, filter)`, and its head. */
+function filterOf(queryKey: QueryKey): NotificationListFilter {
+  const identity = queryKey.find(
+    (part): part is Readonly<{ filter: NotificationListFilter }> =>
+      typeof part === 'object' && part !== null && 'filter' in part,
+  )
+  return identity?.filter ?? 'all'
+}
+
+/** The patch as one cache sees it: a changed row that left its filter leaves it. */
+function patchWithin(filter: NotificationListFilter, patch: RowPatch): RowPatch {
+  return (row) => {
+    const patched = patch(row)
+    if (patched === null || patched === row) return patched
+    return matchesNotificationFilter(patched, filter) ? patched : null
+  }
+}
+
 /**
- * Optimistically patch the refreshed head and every loaded history page. The
- * unread count is derived from their de-duplicated union, so a boundary row is
- * counted once. The returned thunk restores every touched cache on failure.
+ * Optimistically patch every cached feed of the Organization: the bell's and
+ * the page's heads and loaded history pages, for every filter. Patching only
+ * the surface that acted left the other one's history (disabled, so never
+ * refetched) showing rows the server had already changed. The unread count is
+ * the Organization's, not the filter's, so one delta, taken over the
+ * de-duplicated union of every cached row, moves every head. The returned
+ * thunk restores every touched cache on failure.
  */
 export function patchNotificationFeedCache(
   qc: QueryClient,
-  listKey: QueryKey,
-  headKey: QueryKey,
+  organizationId: string,
   patch: RowPatch,
   options: Readonly<{
     clearContinuation?: boolean
@@ -76,34 +106,42 @@ export function patchNotificationFeedCache(
   // poll) answers with the feed from before this write, and would land on top
   // of it: the badge would go 5 → 0 → 5 → 0. Cancelling reverts that query to
   // its last settled data synchronously, so the patch below applies to it, and
-  // the success invalidation reads the server again afterwards.
-  void qc.cancelQueries({ queryKey: listKey })
-  const previousPages = qc.getQueryData<FeedPages>(listKey)
-  const previousHead = qc.getQueryData<NotificationFeedHead>(headKey)
-  if (!previousPages && !previousHead) return undefined
+  // the success invalidation reads the server again afterwards. A query with
+  // no data yet has nothing to protect and keeps its first read.
+  void qc.cancelQueries({
+    queryKey: notificationKeys.feed(organizationId),
+    predicate: (query) => query.state.data !== undefined,
+  })
+  const previous = qc
+    .getQueriesData<CachedFeed>({ queryKey: notificationKeys.lists(organizationId) })
+    .flatMap(([key, data]) => (data ? [{ key, data }] : []))
+  if (previous.length === 0) return undefined
 
+  // Heads first: the freshest copy of a row decides its delta.
+  const heads = previous.filter((entry) => !isHistory(entry.data))
+  const histories = previous.filter((entry) => isHistory(entry.data))
   const unreadDelta = unreadDeltaAcross(
-    [...(previousHead ? [previousHead.page] : []), ...(previousPages?.pages ?? [])],
+    [...heads, ...histories].flatMap((entry) => pagesOf(entry.data)),
     patch,
   )
 
-  if (previousHead) {
-    qc.setQueryData<NotificationFeedHead>(headKey, {
-      ...previousHead,
-      page: patchCachedPage(previousHead.page, patch, options.clearContinuation),
-      unreadCount:
-        options.unreadCount ?? Math.max(0, previousHead.unreadCount + unreadDelta),
-    })
-  }
-
-  if (previousPages) {
-    const pages = previousPages.pages.map((page) =>
-      patchCachedPage(page, patch, options.clearContinuation),
+  for (const { key, data } of previous) {
+    const within = patchWithin(filterOf(key), patch)
+    const patchOne = (page: NotificationPage) =>
+      patchCachedPage(page, within, options.clearContinuation)
+    qc.setQueryData<CachedFeed>(
+      key,
+      isHistory(data)
+        ? { ...data, pages: data.pages.map(patchOne) }
+        : {
+            ...data,
+            page: patchOne(data.page),
+            unreadCount:
+              options.unreadCount ?? Math.max(0, data.unreadCount + unreadDelta),
+          },
     )
-    qc.setQueryData<FeedPages>(listKey, { ...previousPages, pages })
   }
   return () => {
-    if (previousPages) qc.setQueryData(listKey, previousPages)
-    if (previousHead) qc.setQueryData(headKey, previousHead)
+    for (const { key, data } of previous) qc.setQueryData(key, data)
   }
 }
