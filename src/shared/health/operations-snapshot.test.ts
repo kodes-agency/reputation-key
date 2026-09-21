@@ -451,17 +451,76 @@ describe('createOperationsSnapshot', () => {
     const snapshot = await reader.read()
 
     expect(snapshot.degraded).toEqual(['runtime'])
-    expect(snapshot.db).toEqual({ pool: null, migrationVersion: null })
-    expect(snapshot.release).toEqual({ sha: 'unknown' })
-    // Static version identity survives (policy store read nulled).
+    // Only the database read is lost. The in-process pool gauge survives — a
+    // saturated pool is exactly when the migration read stalls, and
+    // db.pool-exhaustion reads this gauge.
+    expect(snapshot.db).toEqual({
+      pool: { max: 10, totalCount: 3, idleCount: 2, waitingCount: 0 },
+      migrationVersion: null,
+    })
+    expect(snapshot.cache.tenant).toEqual({ hits: 5, misses: 2, evictions: 1, size: 3 })
+    expect(snapshot.release).toEqual({ sha: 'abc1234' })
     expect(snapshot.versions).toEqual({
       capabilityPolicy: 'test-cap',
       executionPolicy: 'test-exec',
-      policyStore: null,
+      policyStore: 11,
       sourceContentPolicy: 1,
       runtime: process.version,
     })
     expect(snapshot.outbox.unpublishedCount).toBe(3)
+  })
+
+  it('keeps a saturated pool gauge when the migration read outlasts the budget', async () => {
+    vi.useFakeTimers()
+    try {
+      const reader = createOperationsSnapshot({
+        db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+        outboxRepo: fakeOutboxRepo(),
+        queues: { default: null, background: null, domainEvents: null, quarantine: null },
+        redis: null,
+        clock,
+        versions: VERSIONS,
+        runtime: {
+          ...RUNTIME,
+          poolStats: () => ({ max: 10, totalCount: 10, idleCount: 0, waitingCount: 4 }),
+          migrationVersion: () => new Promise<number | null>(() => {}),
+        },
+      })
+
+      const pending = reader.read()
+      await vi.advanceTimersByTimeAsync(OPS_SECTION_BUDGET_MS)
+      const snapshot = await pending
+
+      expect(snapshot.degraded).toEqual(['runtime'])
+      expect(snapshot.db.pool?.waitingCount).toBe(4)
+      expect(snapshot.db.migrationVersion).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('falls back to the empty runtime section when an in-process runtime read throws', async () => {
+    const reader = createOperationsSnapshot({
+      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+      outboxRepo: fakeOutboxRepo(),
+      queues: { default: null, background: null, domainEvents: null, quarantine: null },
+      redis: null,
+      clock,
+      versions: VERSIONS,
+      runtime: {
+        ...RUNTIME,
+        tenantCache: () => {
+          throw new Error('stats unavailable')
+        },
+      },
+    })
+
+    const snapshot = await reader.read()
+
+    expect(snapshot.degraded).toEqual(['runtime'])
+    expect(snapshot.db).toEqual({ pool: null, migrationVersion: 17 })
+    expect(snapshot.release).toEqual({ sha: 'unknown' })
+    expect(snapshot.versions.policyStore).toBeNull()
   })
 
   it('degrades only the jobs section when the durable runtime report fails', async () => {

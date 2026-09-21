@@ -335,13 +335,13 @@ type RuntimeSection = Readonly<{
   versions: OperationsVersions
 }>
 
-/** BQC-7.3 runtime section: pool/migration gauges, cache counters, identity. */
-async function readRuntimeSection(deps: OperationsSnapshotDeps): Promise<RuntimeSection> {
+/** The runtime section's in-process readings: everything but the migration read. */
+type RuntimeFacts = Omit<RuntimeSection, 'db'> &
+  Readonly<{ pool: OperationsDbSection['pool'] }>
+
+function readRuntimeFacts(deps: OperationsSnapshotDeps): RuntimeFacts {
   return {
-    db: {
-      pool: (deps.runtime?.poolStats ?? getPoolStats)(),
-      migrationVersion: await (deps.runtime?.migrationVersion ?? appliedMigrationCount)(),
-    },
+    pool: (deps.runtime?.poolStats ?? getPoolStats)(),
     cache: { tenant: (deps.runtime?.tenantCache ?? getTenantCacheStats)() },
     release: { sha: (deps.runtime?.releaseSha ?? getReleaseSha)() },
     versions: {
@@ -354,12 +354,10 @@ async function readRuntimeSection(deps: OperationsSnapshotDeps): Promise<Runtime
   }
 }
 
-/** Fallback runtime payload when the section degrades (shape intact). */
-function zeroRuntimeSection(
-  versions: OperationsSnapshotDeps['versions'],
-): RuntimeSection {
+/** Fallback in-process readings when one of them throws (shape intact). */
+function zeroRuntimeFacts(versions: OperationsSnapshotDeps['versions']): RuntimeFacts {
   return {
-    db: { pool: null, migrationVersion: null },
+    pool: null,
     cache: { tenant: { hits: 0, misses: 0, evictions: 0, size: 0 } },
     release: { sha: 'unknown' },
     versions: {
@@ -370,6 +368,37 @@ function zeroRuntimeSection(
       runtime: process.version,
     },
   }
+}
+
+/**
+ * BQC-7.3 runtime section: pool/migration gauges, cache counters, identity.
+ * Only the migration count touches the database, so only it is budgeted: a
+ * saturated pool is exactly when that read stalls, and the in-process pool
+ * gauge db.pool-exhaustion reads must survive it. Either half degrading marks
+ * the section degraded.
+ */
+async function readRuntimeSection(
+  deps: OperationsSnapshotDeps,
+  markDegraded: () => void,
+): Promise<RuntimeSection> {
+  let facts: RuntimeFacts
+  try {
+    facts = readRuntimeFacts(deps)
+  } catch {
+    markDegraded()
+    facts = zeroRuntimeFacts(deps.versions)
+  }
+  const readMigrationVersion = deps.runtime?.migrationVersion ?? appliedMigrationCount
+  const migrationVersion = await withBudget(
+    Promise.resolve().then(readMigrationVersion),
+    OPS_SECTION_BUDGET_MS,
+    () => {
+      markDegraded()
+      return null
+    },
+  )
+  const { pool, ...identity } = facts
+  return { ...identity, db: { pool, migrationVersion } }
 }
 
 const STALE_HEARTBEAT: WorkerHeartbeat = { at: null, ageMs: null, stale: true }
@@ -442,9 +471,8 @@ export function createOperationsSnapshot(
               return STALE_HEARTBEAT
             },
           ),
-          withBudget(readRuntimeSection(deps), OPS_SECTION_BUDGET_MS, () => {
+          readRuntimeSection(deps, () => {
             flags.runtime = true
-            return zeroRuntimeSection(deps.versions)
           }),
           deps.jobRuntime
             ? withBudget<JobRuntimeReport | undefined>(
