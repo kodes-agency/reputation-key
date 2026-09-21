@@ -400,11 +400,38 @@ describe('gateDispatcherConsumer (stubbed policy)', () => {
     expect(outcome.kind).toBe('allow')
     expect(lastRequest()).toMatchObject({
       principal: { kind: 'system', id: 'consumer:inbox.on-review-created' },
-      action: 'system:inbox.update',
+      action: 'system:inbox.project_review',
+      resourceScope: 'organization',
       organizationId: 'org-1',
       propertyId: PROP,
       executionKind: 'consumer',
       correlationId: 'evt-9',
+    })
+  })
+
+  it("names the consumer module's own row scope, not the scope of a job sharing its action", async () => {
+    installStub()
+    decideMock.mockResolvedValue(ALLOW)
+
+    await gateDispatcherConsumer(
+      'notification.on-identity-member-removed',
+      'notification.identity-account-outbox-consumers',
+      {
+        eventId: 'evt-10',
+        eventType: 'identity.member.removed',
+        eventVersion: 1,
+        payload: {},
+        organizationId: 'org-1',
+        propertyId: null,
+        sourceContext: 'identity',
+        sourceAggregateId: 'user-1',
+      },
+    )
+
+    expect(lastRequest()).toMatchObject({
+      action: 'system:notification.insert',
+      resourceScope: 'organization',
+      propertyId: undefined,
     })
   })
 })
@@ -506,5 +533,41 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
     expect(outcome.kind).toBe('allow')
     expect(outcome.decision.action).toBe('system:review.reconcile')
     expect(outcome.decision.freshRead).toBe(false)
+  })
+
+  it('goal-program.maintain firing allows under its tenant-cross row (regression: a property-scoped consumer sharing system:goal.maintain denied it missing_scope)', async () => {
+    installRealPolicy({})
+
+    const outcome = await gateJob(
+      'goal-program.maintain',
+      {},
+      'schedule:goal-program.maintain',
+      'schedule',
+    )
+
+    expect(outcome.kind).toBe('allow')
+    expect(outcome.decision.action).toBe('system:goal.maintain')
+  })
+
+  it('an Organization-scoped insert-notification job allows without a Property', async () => {
+    installRealPolicy({})
+
+    const outcome = await gateJob(
+      'insert-notification',
+      {
+        userId: 'user-1',
+        organizationId: 'org-fixture',
+        propertyId: null,
+        type: 'account.organization_access_removed',
+        resourceType: 'organization',
+        resourceId: 'org-fixture',
+        eventId: 'evt-11',
+      },
+      'worker:default',
+      'worker',
+    )
+
+    expect(outcome.kind).toBe('allow')
+    expect(outcome.decision.action).toBe('system:notification.insert')
   })
 })

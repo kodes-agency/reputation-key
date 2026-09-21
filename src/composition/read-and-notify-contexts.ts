@@ -43,8 +43,9 @@ export type ReadAndNotifyContextsInput = Readonly<{
 }>
 
 export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
-  const authorizeGoalCorrectionScope =
-    createScheduledScopeAuthorizer('system:goal.maintain')
+  const authorizeGoalCorrectionScope = createScheduledScopeAuthorizer(
+    'system:goal.reconcile',
+  )
   const goalCorrectionPolicy = {
     authorize: async (request: {
       actor: unknown

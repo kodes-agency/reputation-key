@@ -286,6 +286,7 @@ export async function gateJob(
     principal: { kind: 'system', id: principalId },
     // Unknown rows pass the job name through — decide() denies unknown_action.
     action: row?.action ?? jobName,
+    resourceScope: row?.resourceScope,
     organizationId: resolveOrganizationId(payload, row),
     propertyId: await resolvePropertyId(jobName, payload, resolveScope),
     capabilityAtEnqueue: envelopeCapability(payload),
@@ -342,6 +343,7 @@ export async function gateDispatcherConsumer(
   const decision = await getDelayedExecutionPolicy().decide({
     principal: { kind: 'system', id: `consumer:${consumerName}` },
     action: row?.action ?? module,
+    resourceScope: row?.resourceScope,
     organizationId: envelope.organizationId,
     propertyId: envelope.propertyId ?? undefined,
     executionKind: 'consumer',

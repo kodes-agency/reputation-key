@@ -144,6 +144,46 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
     expect(conflicts).toEqual([])
   })
 
+  // One action shared by rows of different scopes let the strictest row
+  // decide for all of them: the property-scoped insert-notification job made
+  // every Organization-scoped notification consumer deny missing_scope.
+  it('never aliases one delayed action to different resource scopes', () => {
+    const scopesByAction = new Map<string, Set<string>>()
+    for (const row of ENTRY_POINT_CATALOGUE) {
+      if (!['job', 'consumer', 'schedule'].includes(row.kind)) continue
+      const scopes = scopesByAction.get(row.action) ?? new Set<string>()
+      scopes.add(`${row.resourceScope} (${row.kind} ${row.name})`)
+      scopesByAction.set(row.action, scopes)
+    }
+
+    const conflicts = [...scopesByAction]
+      .filter(
+        ([, scopes]) => new Set([...scopes].map((scope) => scope.split(' ')[0])).size > 1,
+      )
+      .map(([action, scopes]) => `${action}: ${[...scopes].sort().join(', ')}`)
+
+    expect(conflicts).toEqual([])
+  })
+
+  it('decides the property scope from the entry-point row the request names', async () => {
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
+    const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+    const request = {
+      principal: { kind: 'system', id: 'consumer:notification.on-member-removed' },
+      action: 'system:notification.insert',
+      organizationId: 'org-fixture',
+      executionKind: 'consumer',
+      now: new Date(),
+    } as const
+
+    await expect(
+      policy.decide({ ...request, resourceScope: 'organization' }),
+    ).resolves.toMatchObject({ allowed: true, reason: 'allowed' })
+    await expect(
+      policy.decide({ ...request, resourceScope: 'property' }),
+    ).resolves.toMatchObject({ allowed: false, reason: 'missing_scope' })
+  })
+
   it('catalogue-derived contract data: capability, fresh read, scope per action', () => {
     expect(capabilityForSystemAction('system:review.sync')).toBe('property.connect_gbp')
     expect(capabilityForSystemAction('system:reply.publish')).toBe(

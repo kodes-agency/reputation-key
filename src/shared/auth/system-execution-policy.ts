@@ -10,9 +10,10 @@
 //   2. Actions with external effects (from the entry-point catalogue:
 //      GBP sync/publish/import, S3 image processing, email) require a
 //      fresh/strong policy read immediately before the decision.
-//   3. Scope is validated from the catalogue: property-scoped actions
+//   3. Scope is validated from the catalogue: a property-scoped entry point
 //      without a propertyId, or any action without an organizationId,
-//      deny as missing_scope.
+//      denies as missing_scope. The scope is the resolved entry-point row's,
+//      never borrowed from another row that shares the action.
 //   4. policyVersionAtEnqueue that differs from the running policy version
 //      annotates the outcome as stale_context — an annotation only, never
 //      a decision override.
@@ -20,7 +21,10 @@
 //      were checked at the interactive enqueue boundary); capability,
 //      suspension, and consent are re-checked here.
 
-import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
+import {
+  ENTRY_POINT_CATALOGUE,
+  type ResourceScope,
+} from '#/shared/governance/entry-point-catalogue'
 import {
   checkBetaCapability,
   type Capability,
@@ -44,12 +48,13 @@ for (const r of DELAYED_ROWS) {
     CAPABILITY_BY_ACTION.set(r.action, r.capability)
   }
 }
-const PROPERTY_SCOPED_ACTIONS: Set<string> = new Set(
-  DELAYED_ROWS.filter((r) => r.resourceScope === 'property').map((r) => r.action),
-)
-const TENANT_CROSS_ACTIONS: ReadonlySet<string> = new Set(
-  DELAYED_ROWS.filter((r) => r.resourceScope === 'tenant_cross').map((r) => r.action),
-)
+// Every row of one action declares the same scope (pinned by the catalogue
+// guard in system-execution-policy.test), so an authorization that names only
+// an action still reads the scope its entry points declare.
+const SCOPE_BY_ACTION = new Map<string, ResourceScope>()
+for (const r of DELAYED_ROWS) {
+  if (!SCOPE_BY_ACTION.has(r.action)) SCOPE_BY_ACTION.set(r.action, r.resourceScope)
+}
 const FRESH_READ_ACTIONS: Set<string> = new Set(
   DELAYED_ROWS.filter((r) => r.externalEffect).map((r) => r.action),
 )
@@ -71,6 +76,11 @@ export type DelayedDecisionRequest = Readonly<{
   principal: Readonly<{ kind: 'system'; id: string }>
   /** Canonical action from the entry-point catalogue. */
   action: string
+  /**
+   * Scope of the entry-point row being executed. The gate passes the row it
+   * resolved; a request that names only an action gets that action's scope.
+   */
+  resourceScope?: ResourceScope
   organizationId: string
   propertyId?: string
   /** Capability recorded by the producer; must match the catalogue when present. */
@@ -169,10 +179,11 @@ export function createDelayedExecutionPolicy(
       }
 
       // Rule 3: catalogue-driven scope validation.
+      const scope = request.resourceScope ?? SCOPE_BY_ACTION.get(request.action)
       if (!request.organizationId) {
         return finish(request, false, 'missing_scope', freshRead)
       }
-      if (PROPERTY_SCOPED_ACTIONS.has(request.action) && !request.propertyId) {
+      if (scope === 'property' && !request.propertyId) {
         return finish(request, false, 'missing_scope', freshRead)
       }
 
@@ -191,7 +202,7 @@ export function createDelayedExecutionPolicy(
       if (
         request.executionKind === 'schedule' &&
         request.organizationId === 'tenant-cross' &&
-        TENANT_CROSS_ACTIONS.has(request.action)
+        scope === 'tenant_cross'
       ) {
         return finish(request, true, 'allowed', freshRead)
       }
