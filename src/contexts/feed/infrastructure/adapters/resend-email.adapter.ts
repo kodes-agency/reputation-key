@@ -24,7 +24,10 @@ import type {
   EmailSenderPort,
   EmailSendRequest,
 } from '../../application/ports/email-sender.port'
-import { classifyProviderRejection } from '../../domain/notification-delivery-policy'
+import {
+  classifyProviderRejection,
+  rejectionProvesNonAcceptance,
+} from '../../domain/notification-delivery-policy'
 
 /** What this adapter hands Resend — the whole port payload, nothing dropped. */
 export type ResendSendPayload = Readonly<{
@@ -129,7 +132,14 @@ export const createResendEmailAdapter = (
           { toPrefix: maskEmail(params.to), providerCode, statusCode, classification },
           'Email provider rejected message',
         )
-        return { kind: 'rejected' as const, classification, providerCode }
+        return {
+          kind: 'rejected' as const,
+          classification,
+          providerCode,
+          ...(rejectionProvesNonAcceptance(statusCode)
+            ? { refusedBeforeAcceptance: true as const }
+            : {}),
+        }
       }
 
       dependencies.logger.info(

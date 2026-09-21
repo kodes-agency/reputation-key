@@ -11,6 +11,12 @@ export type NotificationDeliveryOutcome =
       kind: 'rejected'
       classification: DeliveryErrorClass
       providerCode: string | null
+      /**
+       * Present when the provider answered before accepting anything (see
+       * `rejectionProvesNonAcceptance`), so a send under a NEW idempotency key
+       * cannot mail twice. Absent when the message may still have been accepted.
+       */
+      refusedBeforeAcceptance?: true
     }>
 
 export type QuietHours = Readonly<{
@@ -299,6 +305,22 @@ export function classifyProviderRejection(
   return RETRYABLE_STATUS_CODES.has(input.statusCode) || input.statusCode >= 500
     ? 'transient'
     : 'permanent'
+}
+
+/**
+ * Whether a rejection proves the provider never accepted the message. Only an
+ * answer it gives before taking the message does: a rate or quota limit, a
+ * validation failure. No answer, a timeout, a 5xx, or a 409 on the idempotency
+ * key can each follow a message it accepted, so none of them proves anything.
+ */
+export function rejectionProvesNonAcceptance(statusCode: number | null): boolean {
+  return (
+    statusCode !== null &&
+    statusCode >= 400 &&
+    statusCode < 500 &&
+    statusCode !== 408 &&
+    statusCode !== 409
+  )
 }
 
 export function requiredCapabilityForPreferenceChannel(

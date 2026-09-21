@@ -38,6 +38,13 @@ import { notificationError } from '../../domain/notification-errors'
 type EmailRow = typeof notificationEmailQueue.$inferSelect
 type DigestBatchRow = typeof notificationDigestBatches.$inferSelect
 
+/**
+ * `outcome_class` of a retryable batch whose last attempt the provider refused
+ * before accepting anything. Any other transient rejection records
+ * `transient`: the provider may have accepted that attempt.
+ */
+const REFUSED_OUTCOME_CLASS = 'refused'
+
 const emailFromRow = (row: EmailRow): NotificationEmail => ({
   id: notificationEmailId(row.id),
   notificationId: notificationId(row.notificationId),
@@ -78,6 +85,8 @@ const digestBatchFromRow = (row: DigestBatchRow): NotificationDigestBatch => ({
   unsubscribeKeyVersion: row.unsubscribeKeyVersion,
   state: row.state as NotificationDigestBatch['state'],
   retryCount: row.retryCount,
+  lastAttemptRefused:
+    row.state === 'retryable' && row.outcomeClass === REFUSED_OUTCOME_CLASS,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 })
@@ -721,11 +730,16 @@ export const createNotificationEmailRepository = (db: Database) => ({
       const batch = rows[0]
       if (!batch) return false
       const mismatch = batch.contentDigest !== input.expectedContentDigest
+      const settlesDrift =
+        input.settlement.kind === 'content_mismatch' ||
+        input.settlement.kind === 'superseded'
+      if (input.settlement.kind !== 'invalidated' && settlesDrift !== mismatch) {
+        return false
+      }
+      // Re-keying a batch the provider may have accepted could mail it twice.
       if (
-        (input.settlement.kind === 'content_mismatch' && !mismatch) ||
-        (input.settlement.kind !== 'content_mismatch' &&
-          input.settlement.kind !== 'invalidated' &&
-          mismatch)
+        input.settlement.kind === 'superseded' &&
+        !digestBatchFromRow(batch).lastAttemptRefused
       ) {
         return false
       }
@@ -782,6 +796,30 @@ export const createNotificationEmailRepository = (db: Database) => ({
             attemptedAt: input.settlement.acceptedAt,
             acceptedAt: input.settlement.acceptedAt,
             updatedAt: input.settlement.acceptedAt,
+          })
+          .where(eq(notificationDigestBatches.id, input.batchId))
+        return true
+      }
+
+      if (input.settlement.kind === 'superseded') {
+        // The members stay sendable and leave the frozen set, so a fresh
+        // batch can take them; a queue row belongs to one batch at a time.
+        await tx
+          .delete(notificationDigestBatchMembers)
+          .where(
+            and(
+              eq(notificationDigestBatchMembers.batchId, input.batchId),
+              eq(notificationDigestBatchMembers.organizationId, input.organizationId),
+              eq(notificationDigestBatchMembers.userId, input.userId),
+            ),
+          )
+        await tx
+          .update(notificationDigestBatches)
+          .set({
+            state: 'terminal',
+            outcomeClass: 'superseded',
+            terminalReason: 'provider_request_changed',
+            updatedAt: input.settlement.detectedAt,
           })
           .where(eq(notificationDigestBatches.id, input.batchId))
         return true
@@ -876,7 +914,10 @@ export const createNotificationEmailRepository = (db: Database) => ({
         .update(notificationDigestBatches)
         .set({
           state: retryable ? 'retryable' : 'terminal',
-          outcomeClass: input.settlement.classification,
+          outcomeClass:
+            retryable && input.settlement.refusedBeforeAcceptance
+              ? REFUSED_OUTCOME_CLASS
+              : input.settlement.classification,
           terminalReason: retryable ? null : 'provider_rejected',
           retryCount: sql`${notificationDigestBatches.retryCount} + 1`,
           attemptedAt: input.settlement.failedAt,

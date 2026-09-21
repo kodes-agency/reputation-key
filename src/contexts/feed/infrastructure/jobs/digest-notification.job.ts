@@ -281,6 +281,7 @@ async function recordOutcomes(
             nextAttemptAt:
               outcome.classification === 'transient' ? retryAt(ctx.now, maxRetry) : null,
             failedAt: ctx.now,
+            refusedBeforeAcceptance: outcome.refusedBeforeAcceptance === true,
           },
   })
   if (!settled) {
@@ -298,6 +299,7 @@ async function buildProviderRequest(
   items: readonly DigestItem[],
   batchId: string,
   unsubscribeKeyVersion: string,
+  localDate: string,
 ): Promise<
   Readonly<{
     to: string
@@ -318,7 +320,7 @@ async function buildProviderRequest(
   )
   const email = renderDigestEmail({
     recipientName: await deps.userLookup.getName(ctx.userId),
-    dateLabel: localDateLabel(ctx.now, ctx.timezone),
+    dateLabel: localDateLabel(localDate),
     groups: groupItemsByProperty(items, orgScope.propertyNames, (path, search) =>
       absoluteUrl(deps.baseUrl, path, search),
     ),
@@ -520,9 +522,69 @@ async function abandonDelivery(
 }
 
 /**
+ * A batch the provider refused outright (a rate or quota limit) was never
+ * accepted, so its idempotency key protects no delivered mail. When its content
+ * has changed since — a repeat event coalesced into a member, the recipient was
+ * renamed — the batch is retired and the same members go out in a fresh batch
+ * under a new key, rather than the day's digest being suppressed.
+ */
+async function reprepareRefusedBatch(
+  deps: DigestDeps,
+  ctx: RecipientContext,
+  openBatch: NotificationDigestBatch,
+  deliverable: readonly NotificationEmail[],
+  request: Awaited<ReturnType<typeof buildProviderRequest>>,
+  items: readonly DigestItem[],
+  contentDigest: string,
+): Promise<void> {
+  const superseded = await deps.emailRepo.settleDigestBatch({
+    batchId: openBatch.id,
+    organizationId: ctx.orgId,
+    userId: ctx.userId,
+    expectedContentDigest: contentDigest,
+    settlement: { kind: 'superseded', detectedAt: ctx.now },
+  })
+  if (!superseded) {
+    deps.logger.warn(
+      { batchId: openBatch.id },
+      'Refused digest batch changed before it could be re-prepared',
+    )
+    return
+  }
+  const batchId = notificationDigestBatchId(deps.batchIdGen())
+  const unsubscribeKeyVersion = deps.activeOneClickUnsubscribeKeyVersion()
+  const fresh = await buildProviderRequest(
+    deps,
+    ctx,
+    request.to,
+    items,
+    batchId as string,
+    unsubscribeKeyVersion,
+    openBatch.localDate,
+  )
+  deps.logger.info(
+    { batchId: openBatch.id, replacementBatchId: batchId },
+    'Refused digest batch re-prepared under a new key because its content changed',
+  )
+  await prepareAndDispatchBatch(
+    deps,
+    ctx,
+    batchId,
+    deliverable,
+    fresh,
+    items,
+    digestProviderRequest(fresh),
+    unsubscribeKeyVersion,
+    openBatch.localDate,
+  )
+}
+
+/**
  * Retry path for a batch already frozen by an earlier sweep. Membership and
  * provider-visible content must both still match what was recorded, otherwise
- * the retry would send different mail under the same idempotency key.
+ * the retry would send different mail under the same idempotency key. Changed
+ * content re-prepares a batch the provider refused; any other batch may have
+ * been accepted, so its members are suppressed rather than mailed twice.
  */
 async function retryOpenBatch(
   deps: DigestDeps,
@@ -541,6 +603,18 @@ async function retryOpenBatch(
     return
   }
   if (contentDigest !== openBatch.contentDigest) {
+    if (openBatch.lastAttemptRefused) {
+      await reprepareRefusedBatch(
+        deps,
+        ctx,
+        openBatch,
+        deliverable,
+        request,
+        items,
+        contentDigest,
+      )
+      return
+    }
     await deps.emailRepo.settleDigestBatch({
       batchId: openBatch.id,
       organizationId: ctx.orgId,
@@ -567,10 +641,10 @@ async function prepareAndDispatchBatch(
   items: readonly DigestItem[],
   contentDigest: string,
   unsubscribeKeyVersion: string,
+  localDate: string,
 ): Promise<void> {
   const memberIds = deliverable.map((entry) => notificationEmailId(entry.id as string))
   const memberDigest = digestMemberSet(memberIds)
-  const localDate = localDateKey(ctx.now, ctx.timezone)
   const prepared = await deps.emailRepo.prepareDigestBatch({
     id: batchId,
     organizationId: ctx.orgId,
@@ -638,6 +712,7 @@ async function sendUserDigest(
   const batchId = openBatch?.id ?? notificationDigestBatchId(deps.batchIdGen())
   const unsubscribeKeyVersion =
     openBatch?.unsubscribeKeyVersion ?? deps.activeOneClickUnsubscribeKeyVersion()
+  const localDate = openBatch?.localDate ?? localDateKey(ctx.now, ctx.timezone)
   const request = await buildProviderRequest(
     deps,
     ctx,
@@ -645,6 +720,7 @@ async function sendUserDigest(
     items,
     batchId as string,
     unsubscribeKeyVersion,
+    localDate,
   )
   const contentDigest = digestProviderRequest(request)
   if (openBatch) {
@@ -660,6 +736,7 @@ async function sendUserDigest(
     items,
     contentDigest,
     unsubscribeKeyVersion,
+    localDate,
   )
 }
 

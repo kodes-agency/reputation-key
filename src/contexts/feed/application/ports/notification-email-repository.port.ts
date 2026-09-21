@@ -58,6 +58,12 @@ export type NotificationDigestBatch = Readonly<{
   unsubscribeKeyVersion: string
   state: NotificationDigestBatchState
   retryCount: number
+  /**
+   * A retryable batch whose last attempt the provider refused before accepting
+   * anything: its idempotency key protects no delivered mail, so it may be
+   * re-keyed. False whenever the provider may have accepted an attempt.
+   */
+  lastAttemptRefused: boolean
   createdAt: Date
   updatedAt: Date
 }>
@@ -78,9 +84,20 @@ export type DigestBatchSettlement =
       classification: DeliveryErrorClass
       nextAttemptAt: Date | null
       failedAt: Date
+      /** The provider answered before accepting anything (a rate limit, say). */
+      refusedBeforeAcceptance: boolean
     }>
   | Readonly<{
       kind: 'content_mismatch'
+      detectedAt: Date
+    }>
+  | Readonly<{
+      /**
+       * Retire a batch whose last attempt was refused and whose content has
+       * changed since, and free its members for a fresh batch under a new key.
+       * Refused unless the batch really is `lastAttemptRefused`.
+       */
+      kind: 'superseded'
       detectedAt: Date
     }>
   | Readonly<{

@@ -44,6 +44,13 @@ delivered|delayed|bounced|complained|failed|suppressed|cancelled`.
 8. Payload parsing admits only Property/resource/status metadata and excludes
    Review text, Guest text/media, sensitive scores, and other employees' data.
 
+A daily digest is frozen as a batch with one idempotency key (r.5), and every
+retry must send the same content under it; its date label comes from the
+batch's local date, not the retry's clock. If the content changes before a
+retry, a batch the provider refused outright (a rate or quota limit) is retired
+and its members are re-sent in a new batch under a new key. Any other batch may
+already have been accepted, so it fails closed rather than mail twice.
+
 In the queue, `delayed` (r.6) is the pre-send quiet-hours deferral and stays
 sendable. A delivery delay the provider reports after acceptance is recorded
 only as `provider_state = 'delivery_delayed'`; the row stays `accepted`, so it

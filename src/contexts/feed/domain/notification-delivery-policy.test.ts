@@ -4,6 +4,7 @@ import {
   classifyNotification,
   deliveryTiming,
   isDailyDigestWindow,
+  rejectionProvesNonAcceptance,
   requiredCapabilityForPreferenceChannel,
   GOVERNING_NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORIES,
@@ -271,6 +272,20 @@ describe('notification delivery policy', () => {
         message: 'Another request with the same idempotency key is in progress.',
       }),
     ).toBe('transient')
+  })
+
+  it('treats only an answer given before acceptance as proof the message was not accepted', () => {
+    // A rate or quota limit or a validation failure is answered before the
+    // provider takes the message. No answer, a timeout, a 5xx or a conflict
+    // on the idempotency key may all follow a message it accepted.
+    expect([429, 422, 400].map(rejectionProvesNonAcceptance)).toEqual([true, true, true])
+    expect([null, 408, 409, 500, 503].map(rejectionProvesNonAcceptance)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+    ])
   })
 
   it('keeps a reused idempotency key with a different payload terminal', () => {

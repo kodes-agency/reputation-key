@@ -65,8 +65,14 @@ describe('local date keys', () => {
   })
 
   it('produces a human date label for the subject line', () => {
-    expect(localDateLabel(new Date('2026-08-21T09:00:00Z'), 'UTC')).toBe(
-      'Friday 21 August',
-    )
+    expect(localDateLabel('2026-08-21')).toBe('Friday 21 August')
+  })
+
+  it('labels the day the digest was keyed for, not the day a retry runs', () => {
+    // A digest batch is frozen with its local-date key. Labelling from the
+    // clock instead changed the content of a retry that crossed midnight.
+    const key = localDateKey(new Date('2026-08-21T05:30:00Z'), 'America/Denver')
+
+    expect(localDateLabel(key)).toBe('Thursday 20 August')
   })
 })

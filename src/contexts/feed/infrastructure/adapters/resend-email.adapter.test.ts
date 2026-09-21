@@ -174,6 +174,28 @@ describe('resend email adapter', () => {
     expect(terminal).toMatchObject({ kind: 'rejected', classification: 'permanent' })
   })
 
+  it('says when the provider refused before accepting, and only then', async () => {
+    const rateLimited = fakeClient({
+      data: null,
+      error: { name: 'rate_limit_exceeded', statusCode: 429, message: 'slow down' },
+    })
+    const unavailable = fakeClient({
+      data: null,
+      error: { name: 'application_error', statusCode: 503, message: 'unavailable' },
+    })
+
+    const refused = await adapter(() => rateLimited.client).send(request)
+    const unknown = await adapter(() => unavailable.client).send(request)
+
+    expect(refused).toEqual({
+      kind: 'rejected',
+      classification: 'transient',
+      providerCode: 'rate_limit_exceeded',
+      refusedBeforeAcceptance: true,
+    })
+    expect(unknown).not.toHaveProperty('refusedBeforeAcceptance')
+  })
+
   it('treats a 200 with no id as a rejection rather than a silent success', async () => {
     const { client } = fakeClient({ data: null, error: null })
 

@@ -178,6 +178,7 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
           classification: 'transient',
           nextAttemptAt: retryAt,
           failedAt: NOW,
+          refusedBeforeAcceptance: false,
         },
       }),
     ).resolves.toBe(true)
@@ -409,6 +410,109 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
       expect(await emailRow(EMAIL_A)).toMatchObject({
         status: 'delivered',
         providerState: 'delivered',
+      })
+    })
+  })
+
+  describe('re-keying a batch the provider refused', () => {
+    const refuse = async (
+      repo: ReturnType<typeof createNotificationEmailRepository>,
+      refusedBeforeAcceptance: boolean,
+    ) => {
+      const input = digestBatchInput()
+      await repo.prepareDigestBatch(input)
+      await repo.settleDigestBatch({
+        batchId: input.id,
+        organizationId: ORG,
+        userId: USER,
+        expectedContentDigest: input.contentDigest,
+        settlement: {
+          kind: 'rejected',
+          classification: 'transient',
+          nextAttemptAt: new Date('2026-08-25T08:01:00.000Z'),
+          failedAt: NOW,
+          refusedBeforeAcceptance,
+        },
+      })
+      return input
+    }
+
+    const supersede = (repo: ReturnType<typeof createNotificationEmailRepository>) =>
+      repo.settleDigestBatch({
+        batchId: BATCH,
+        organizationId: ORG,
+        userId: USER,
+        expectedContentDigest: 'd'.repeat(64),
+        settlement: { kind: 'superseded', detectedAt: NOW },
+      })
+
+    it('remembers that the provider refused the last attempt', async () => {
+      const repo = createNotificationEmailRepository(db)
+
+      await refuse(repo, true)
+
+      await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toMatchObject({
+        state: 'retryable',
+        lastAttemptRefused: true,
+      })
+    })
+
+    it('retires a refused batch whose content changed and frees its members for a new one', async () => {
+      const repo = createNotificationEmailRepository(db)
+      const input = await refuse(repo, true)
+
+      await expect(supersede(repo)).resolves.toBe(true)
+
+      await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toBeNull()
+      const [retired] = await db
+        .select()
+        .from(notificationDigestBatches)
+        .where(eq(notificationDigestBatches.id, input.id))
+      expect(retired).toMatchObject({ state: 'terminal', outcomeClass: 'superseded' })
+      const states = await db
+        .select({ id: notificationEmailQueue.id, status: notificationEmailQueue.status })
+        .from(notificationEmailQueue)
+        .where(eq(notificationEmailQueue.organizationId, ORG))
+      expect(new Map(states.map((row) => [row.id, row.status]))).toEqual(
+        new Map([
+          [EMAIL_A, 'failed'],
+          [EMAIL_B, 'failed'],
+          [EMAIL_LATE, 'pending'],
+        ]),
+      )
+      const replacement = digestBatchInput(
+        notificationDigestBatchId('81000000-0000-4000-8000-000000000023'),
+      )
+      await expect(repo.prepareDigestBatch(replacement)).resolves.toMatchObject({
+        created: true,
+        batch: { id: replacement.id, sequence: 2 },
+      })
+    })
+
+    it('never retires a batch the provider may have accepted', async () => {
+      const repo = createNotificationEmailRepository(db)
+      await repo.prepareDigestBatch(digestBatchInput())
+      await expect(supersede(repo)).resolves.toBe(false)
+
+      await repo.settleDigestBatch({
+        batchId: BATCH,
+        organizationId: ORG,
+        userId: USER,
+        expectedContentDigest: digestBatchInput().contentDigest,
+        settlement: {
+          kind: 'rejected',
+          classification: 'transient',
+          nextAttemptAt: new Date('2026-08-25T08:01:00.000Z'),
+          failedAt: NOW,
+          refusedBeforeAcceptance: false,
+        },
+      })
+
+      await expect(supersede(repo)).resolves.toBe(false)
+      await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toMatchObject({
+        id: BATCH,
+        state: 'retryable',
+        lastAttemptRefused: false,
       })
     })
   })

@@ -112,6 +112,7 @@ function baseDeps(options: Options = {}) {
           unsubscribeKeyVersion: input.unsubscribeKeyVersion,
           state: 'prepared' as const,
           retryCount: 0,
+          lastAttemptRefused: false,
           createdAt: input.preparedAt,
           updatedAt: input.preparedAt,
         },
@@ -432,6 +433,35 @@ describe('digest idempotency (ADR 0046 r.5)', () => {
     )
   })
 
+  it('keeps failing closed when the provider may have accepted the last attempt', async () => {
+    // A 5xx, a timeout or a lost response may follow an accepted message, so
+    // a new key could mail the digest twice. The frozen key stays binding.
+    const first = baseDeps()
+    await runHandler(first)
+    const prepared = (await first.emailRepo.prepareDigestBatch.mock.results[0]!.value)
+      .batch
+    const retry = baseDeps({
+      openBatch: {
+        ...prepared,
+        state: 'retryable',
+        retryCount: 1,
+        lastAttemptRefused: false,
+      },
+      batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
+    })
+    retry.userLookup.getName.mockResolvedValue('A different recipient name')
+
+    await runHandler(retry)
+
+    expect(retry.emailSender.send).not.toHaveBeenCalled()
+    expect(retry.emailRepo.prepareDigestBatch).not.toHaveBeenCalled()
+    expect(retry.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settlement: expect.objectContaining({ kind: 'content_mismatch' }),
+      }),
+    )
+  })
+
   it('terminates an open batch when a member loses delivery authorization', async () => {
     const first = baseDeps()
     await runHandler(first)
@@ -716,5 +746,127 @@ describe('immediate orphan sweep', () => {
     await runHandler(deps)
 
     expect(deps.enqueueImmediate).not.toHaveBeenCalled()
+  })
+})
+
+describe('digest retries after the content changed', () => {
+  const freeze = async () => {
+    const first = baseDeps()
+    await runHandler(first)
+    const batch = (await first.emailRepo.prepareDigestBatch.mock.results[0]!.value).batch
+    return { first, batch }
+  }
+
+  it('renders a retry with the day the batch was frozen for, even after midnight', async () => {
+    const { first, batch } = await freeze()
+    const retry = baseDeps({
+      now: new Date('2026-07-12T00:30:00.000Z'),
+      openBatch: batch,
+      batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
+    })
+
+    await runHandler(retry)
+
+    expect(retry.emailSender.send).toHaveBeenCalledTimes(1)
+    expect(retry.emailSender.send.mock.calls[0]![0].subject).toBe(
+      first.emailSender.send.mock.calls[0]![0].subject,
+    )
+    expect(retry.emailRepo.settleDigestBatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        settlement: expect.objectContaining({ kind: 'content_mismatch' }),
+      }),
+    )
+  })
+
+  it('re-prepares under a new key, instead of suppressing, a batch the provider refused', async () => {
+    // Refused (a rate limit) means never accepted, so the old key protects
+    // nothing. Suppressing the members lost the whole day's digest.
+    const { batch } = await freeze()
+    const refused = { ...batch, state: 'retryable' as const, lastAttemptRefused: true }
+    const retry = baseDeps({
+      openBatch: refused,
+      batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
+      activeUnsubscribeKeyVersion: 'v2',
+    })
+    retry.userLookup.getName.mockResolvedValue('Alexandra')
+    retry.batchIdGen.mockReturnValue('86000000-0000-4000-8000-000000000100')
+
+    await runHandler(retry)
+
+    expect(retry.emailRepo.settleDigestBatch).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        batchId: refused.id,
+        settlement: expect.objectContaining({ kind: 'superseded' }),
+      }),
+    )
+    expect(retry.emailRepo.prepareDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: '86000000-0000-4000-8000-000000000100',
+        localDate: refused.localDate,
+        memberIds: [entryFor(PROP_A).id, entryFor(PROP_B).id],
+        unsubscribeKeyVersion: 'v2',
+      }),
+    )
+    const sent = retry.emailSender.send.mock.calls[0]![0]
+    expect(sent.idempotencyKey).not.toBe(refused.providerIdempotencyKey)
+    expect(sent.text).toContain('Hi Alexandra,')
+    expect(sent.headers?.['List-Unsubscribe']).toContain(
+      'v2-digest-86000000-0000-4000-8000-000000000100',
+    )
+    expect(retry.emailRepo.settleDigestBatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        settlement: expect.objectContaining({ kind: 'content_mismatch' }),
+      }),
+    )
+  })
+
+  it('does not re-prepare when another worker changed the refused batch first', async () => {
+    const { batch } = await freeze()
+    const retry = baseDeps({
+      openBatch: { ...batch, state: 'retryable', lastAttemptRefused: true },
+      batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
+    })
+    retry.userLookup.getName.mockResolvedValue('Alexandra')
+    retry.emailRepo.settleDigestBatch.mockResolvedValueOnce(false)
+
+    await runHandler(retry)
+
+    expect(retry.emailRepo.prepareDigestBatch).not.toHaveBeenCalled()
+    expect(retry.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  it('records whether the provider refused an attempt or may have accepted it', async () => {
+    const rateLimited = baseDeps()
+    const unavailable = baseDeps()
+    const answering = (statusCode: number, name: string) =>
+      createResendSenderAnswering(
+        { data: null, error: { name, statusCode, message: 'rejected' } },
+        () => NOW,
+      )
+
+    await runHandler({
+      ...rateLimited,
+      emailSender: answering(429, 'rate_limit_exceeded'),
+    } as typeof rateLimited)
+    await runHandler({
+      ...unavailable,
+      emailSender: answering(503, 'application_error'),
+    } as typeof unavailable)
+
+    const settledWith = (refusedBeforeAcceptance: boolean) =>
+      expect.objectContaining({
+        settlement: expect.objectContaining({
+          kind: 'rejected',
+          classification: 'transient',
+          refusedBeforeAcceptance,
+        }),
+      })
+    expect(rateLimited.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      settledWith(true),
+    )
+    expect(unavailable.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      settledWith(false),
+    )
   })
 })
