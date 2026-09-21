@@ -25,15 +25,22 @@ const handleOneClickUnsubscribePost = (request: Request) =>
     oneClickUnsubscribe: mocks.apply,
   })(request)
 
+const url = (token: string) =>
+  `https://app.example.com/api/notifications/unsubscribe?token=${encodeURIComponent(token)}`
+
 function request(token: string, body = 'List-Unsubscribe=One-Click'): Request {
-  return new Request(
-    `https://app.example.com/api/notifications/unsubscribe?token=${encodeURIComponent(token)}`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body,
-    },
-  )
+  return new Request(url(token), {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body,
+  })
+}
+
+/** A multipart POST built by the platform, the way a mail receiver's HTTP client does. */
+function multipartRequest(token: string, fill: (form: FormData) => void): Request {
+  const form = new FormData()
+  fill(form)
+  return new Request(url(token), { method: 'POST', body: form })
 }
 
 describe('RFC 8058 one-click unsubscribe route', () => {
@@ -77,6 +84,99 @@ describe('RFC 8058 one-click unsubscribe route', () => {
 
     expect(extra.status).toBe(400)
     expect(wrongType.status).toBe(400)
+    expect(mocks.apply).not.toHaveBeenCalled()
+  })
+
+  it('applies the multipart/form-data POST RFC 8058 says receivers SHOULD send', async () => {
+    const token = createOneClickUnsubscribeToken(KEYS, TARGET)
+
+    const response = await handleOneClickUnsubscribePost(
+      multipartRequest(token, (form) => form.append('List-Unsubscribe', 'One-Click')),
+    )
+
+    expect(response.status).toBe(204)
+    expect(mocks.apply).toHaveBeenCalledWith(TARGET)
+  })
+
+  it('applies the RFC 8058 section 8 example exactly as the RFC prints it', async () => {
+    // The RFC writes its delimiters as the bare declared boundary, without the
+    // `--` multipart requires (hence its Content-Length of 124). A receiver
+    // that copied the example sends precisely these bytes.
+    const token = createOneClickUnsubscribeToken(KEYS, TARGET)
+    const body = [
+      '---FormBoundaryjWmhtjORrn',
+      'Content-Disposition: form-data; name="List-Unsubscribe"',
+      '',
+      'One-Click',
+      '---FormBoundaryjWmhtjORrn--',
+    ].join('\r\n')
+
+    const response = await handleOneClickUnsubscribePost(
+      new Request(url(token), {
+        method: 'POST',
+        headers: {
+          'content-type': 'multipart/form-data; boundary=---FormBoundaryjWmhtjORrn',
+        },
+        body,
+      }),
+    )
+
+    expect(Buffer.byteLength(body)).toBe(124)
+    expect(response.status).toBe(204)
+    expect(mocks.apply).toHaveBeenCalledWith(TARGET)
+  })
+
+  it('tolerates the line break a sender leaves after the urlencoded field', async () => {
+    const token = createOneClickUnsubscribeToken(KEYS, TARGET)
+
+    const response = await handleOneClickUnsubscribePost(
+      request(token, 'List-Unsubscribe=One-Click\r\n'),
+    )
+
+    expect(response.status).toBe(204)
+    expect(mocks.apply).toHaveBeenCalledWith(TARGET)
+  })
+
+  it('refuses a multipart body that is not exactly the one-click field', async () => {
+    const token = createOneClickUnsubscribeToken(KEYS, TARGET)
+    const asFile = await handleOneClickUnsubscribePost(
+      multipartRequest(token, (form) =>
+        form.append('List-Unsubscribe', new Blob(['One-Click']), 'one-click.txt'),
+      ),
+    )
+    const extra = await handleOneClickUnsubscribePost(
+      multipartRequest(token, (form) => {
+        form.append('List-Unsubscribe', 'One-Click')
+        form.append('confirm', 'yes')
+      }),
+    )
+    const malformed = await handleOneClickUnsubscribePost(
+      new Request(url(token), {
+        method: 'POST',
+        headers: { 'content-type': 'multipart/form-data; boundary=abc' },
+        body: 'List-Unsubscribe=One-Click',
+      }),
+    )
+
+    expect([asFile.status, extra.status, malformed.status]).toEqual([400, 400, 400])
+    expect(mocks.apply).not.toHaveBeenCalled()
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      { reason: 'unreadable_form' },
+      'One-click unsubscribe request rejected',
+    )
+  })
+
+  it('refuses an oversized body before parsing it', async () => {
+    const token = createOneClickUnsubscribeToken(KEYS, TARGET)
+
+    const response = await handleOneClickUnsubscribePost(
+      multipartRequest(token, (form) => {
+        form.append('List-Unsubscribe', 'One-Click')
+        form.append('padding', 'x'.repeat(8_192))
+      }),
+    )
+
+    expect(response.status).toBe(400)
     expect(mocks.apply).not.toHaveBeenCalled()
   })
 
