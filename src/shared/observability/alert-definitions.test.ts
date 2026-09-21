@@ -16,6 +16,7 @@ import {
   NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
   NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
   NOTIFICATION_EMAIL_STALLED_ALERT_MS,
+  NOTIFICATION_EMAIL_BOUNCE_MIN_COUNT,
   NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT,
   NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
   NOTIFICATION_EMAIL_PERMANENT_FAILURE_SHARE_ALERT_PERCENT,
@@ -856,10 +857,14 @@ describe('notification email outcomes', () => {
       value: 7.5,
       threshold: NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT,
     })
+    // Isolated bounces are a large rate at beta volume, but not yet a signal.
     expect(
       evaluateOne(
         'notification.email-bounce-rate',
-        withOutcomes({ bouncedCount: 2, acceptedCount: 10 }),
+        withOutcomes({
+          bouncedCount: NOTIFICATION_EMAIL_BOUNCE_MIN_COUNT - 1,
+          acceptedCount: 10,
+        }),
       ),
     ).toBeNull()
     expect(
