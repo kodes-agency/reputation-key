@@ -342,6 +342,30 @@ describe('notificationLink', () => {
     })
   })
 
+  // Google refused the grant for good: sync and replies have already stopped,
+  // so the notice leads with the one action that restores them.
+  it('asks admins to reconnect a Google grant that stopped working, and says why', () => {
+    expect(
+      renderNotification('integration.reauthorization_required', {
+        propertyName: 'Riverside Hotel',
+        reauthorizationCause: 'provider_revoked',
+      }),
+    ).toEqual({
+      title: 'Reconnect Google at Riverside Hotel',
+      body: 'Google no longer accepts RepKey\u2019s access, so review updates and replies are paused.',
+      actionLabel: 'Reconnect Google',
+      summary: 'Riverside Hotel · Google access ended',
+    })
+  })
+
+  it('keeps the general wording when a connector left rather than Google refusing', () => {
+    expect(
+      renderNotification('integration.reauthorization_required', {
+        reauthorizationCause: 'member_removed',
+      }).title,
+    ).toBe('Google connection needs attention')
+  })
+
   it('covers every resource type', () => {
     const types: ReadonlyArray<Parameters<typeof notificationLink>[0]> = [
       'inbox_item',

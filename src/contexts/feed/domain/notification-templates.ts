@@ -315,14 +315,24 @@ const renderPropertyResponsibilityNeeded = (): RenderedNotification => ({
   summary: 'Property responsible manager needed',
 })
 
+// Google refused the grant itself: updates and replies have already stopped,
+// so the copy says so and leads with the one action that restores them.
 const renderIntegrationReauthorizationRequired = (
   p: NotificationPayload,
-): RenderedNotification => ({
-  title: `Google connection needs attention${atProperty(p)}`,
-  body: 'Reconnect the account to keep Google review updates and replies working.',
-  actionLabel: 'Review connection',
-  summary: facts(p.propertyName ?? '', 'Google connection needs attention'),
-})
+): RenderedNotification =>
+  p.reauthorizationCause === 'provider_revoked'
+    ? {
+        title: `Reconnect Google${atProperty(p)}`,
+        body: 'Google no longer accepts RepKey\u2019s access, so review updates and replies are paused.',
+        actionLabel: 'Reconnect Google',
+        summary: facts(p.propertyName ?? '', 'Google access ended'),
+      }
+    : {
+        title: `Google connection needs attention${atProperty(p)}`,
+        body: 'Reconnect the account to keep Google review updates and replies working.',
+        actionLabel: 'Review connection',
+        summary: facts(p.propertyName ?? '', 'Google connection needs attention'),
+      }
 
 const renderGoalCompleted = (p: NotificationPayload): RenderedNotification => ({
   title:

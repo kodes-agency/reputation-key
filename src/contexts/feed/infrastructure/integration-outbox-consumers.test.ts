@@ -119,6 +119,7 @@ describe('Google reauthorization notification durable consumer', () => {
           type: 'integration.reauthorization_required',
           resourceType: 'integration',
           resourceId: CONNECTION,
+          payload: { reauthorizationCause: 'provider_revoked' },
           audience: { kind: 'account_admin' },
         }),
       }),

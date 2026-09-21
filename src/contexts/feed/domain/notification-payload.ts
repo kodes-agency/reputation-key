@@ -59,9 +59,17 @@ export type NotificationPayload = Readonly<{
    * A closed enum, never the report's text — that stays in monitoring.
    */
   reportOutcome?: NotificationReportOutcome
+  /**
+   * Why a Google connection needs a fresh consent
+   * (`integration.reauthorization_required`). The event's closed cause.
+   */
+  reauthorizationCause?: NotificationReauthorizationCause
 }>
 
 export type NotificationReportOutcome = 'accepted' | 'declined' | 'resolved'
+
+export type NotificationReauthorizationCause =
+  'provider_revoked' | 'member_removed' | 'account_admin_role_lost'
 
 const ACTOR_ROLES: Record<string, true> = {
   account_admin: true,
@@ -75,6 +83,12 @@ const REPORT_OUTCOMES: Record<string, true> = {
   accepted: true,
   declined: true,
   resolved: true,
+}
+
+const REAUTHORIZATION_CAUSES: Record<string, true> = {
+  provider_revoked: true,
+  member_removed: true,
+  account_admin_role_lost: true,
 }
 
 /** Longest free-ish text we accept. Names, not prose. */
@@ -139,6 +153,13 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   set(
     'reportOutcome',
     takeMember<NotificationReportOutcome>(raw.reportOutcome, REPORT_OUTCOMES),
+  )
+  set(
+    'reauthorizationCause',
+    takeMember<NotificationReauthorizationCause>(
+      raw.reauthorizationCause,
+      REAUTHORIZATION_CAUSES,
+    ),
   )
 
   return parsed as NotificationPayload

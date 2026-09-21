@@ -55,6 +55,20 @@ describe('parseNotificationPayload', () => {
     expect(parsed).toEqual({ propertyName: 'Riverside Hotel' })
   })
 
+  // The reason a Google connection needs reauthorization is a closed fact from
+  // the integration.google_account.reauthorization_required event, never text.
+  it('keeps a known Google reauthorization cause and drops anything else', () => {
+    expect(
+      parseNotificationPayload({ reauthorizationCause: 'provider_revoked' }),
+    ).toEqual({ reauthorizationCause: 'provider_revoked' })
+    expect(parseNotificationPayload({ reauthorizationCause: 'member_removed' })).toEqual({
+      reauthorizationCause: 'member_removed',
+    })
+    expect(
+      parseNotificationPayload({ reauthorizationCause: 'Token has been revoked.' }),
+    ).toEqual({})
+  })
+
   it('returns an empty payload for non-object input', () => {
     for (const input of [null, undefined, 'x', 7, true, ['a']]) {
       expect(parseNotificationPayload(input)).toEqual({})

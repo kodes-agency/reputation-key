@@ -96,7 +96,7 @@ export async function handleNotificationGoogleReauthorizationRequired(
               resourceType: 'integration',
               resourceId: fact.connectionId,
               eventId: fact.eventId,
-              payload: {},
+              payload: { reauthorizationCause: fact.cause },
               audience: { kind: 'account_admin' },
             },
             { jobId: `${fact.eventId}-${recipientId}` },
