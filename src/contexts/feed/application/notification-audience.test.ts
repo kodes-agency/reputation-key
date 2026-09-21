@@ -840,6 +840,48 @@ describe('notification audience authorization', () => {
     ).resolves.toBe(false)
   })
 
+  it('delivers a superseded Goal correction while the current head holds its outcome', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+    const audience = {
+      kind: 'goal_result_revision' as const,
+      programId: 'program-1',
+      programVersionId: 'program-version-2',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+      revisionId: 'revision-1',
+      revision: 1,
+      evaluationState: 'eligible' as const,
+      achieved: false,
+    }
+    const head = (achieved: boolean) => ({
+      programId: 'program-1',
+      programVersionId: 'program-version-2',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+      revisionId: 'revision-2',
+      revision: 2,
+      evaluationState: 'eligible' as const,
+      achieved,
+      programName: 'Guest rating average',
+      subject: { kind: 'property' as const, propertyId: PROPERTY },
+    })
+
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue(
+      head(false),
+    )
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue(
+      head(true),
+    )
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+  })
+
   it('parses only complete, internally consistent Goal revision audiences', () => {
     const valid = {
       kind: 'goal_result_revision',

@@ -197,28 +197,57 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
     }
   })
 
-  it('returns non-achieved and unavailable correction facts only for the current revision fence', async () => {
-    const seeded = await seedClosedResult({ kind: 'property' })
-    const firstRevisionId = randomUUID()
+  async function appendRevision(
+    monthlyResultId: string,
+    input: Readonly<{
+      revision: number
+      supersedesRevisionId: string | null
+      evaluationState: 'eligible' | 'unavailable'
+      value: number | null
+      achieved: boolean | null
+      at: string
+    }>,
+  ): Promise<string> {
+    const id = randomUUID()
+    const eligible = input.evaluationState === 'eligible'
     await lease.pool.query(
       `INSERT INTO goal_result_revisions
          (id, monthly_result_id, organization_id, property_id, revision,
           supersedes_revision_id, evaluation_state, value, sample_count,
           achieved, reason, source_complete_through, evaluation_watermark,
           change_reason, created_by, created_at)
-       VALUES ($1, $2, $3, $4, 1, NULL, 'unavailable', NULL, 0, NULL,
-               'reading_unavailable', NULL, $5, 'metric correction', 'system', $5)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+               'metric correction', 'system', $13)`,
       [
-        firstRevisionId,
-        seeded.monthlyResultId,
+        id,
+        monthlyResultId,
         organizationId,
         propertyId,
-        new Date('2026-08-03T12:00:00.000Z'),
+        input.revision,
+        input.supersedesRevisionId,
+        input.evaluationState,
+        input.value,
+        input.value ?? 0,
+        input.achieved,
+        eligible ? null : 'reading_unavailable',
+        eligible ? new Date('2026-08-01T00:00:00.000Z') : null,
+        new Date(input.at),
       ],
     )
+    return id
+  }
+
+  it('resolves a correction to the current head of its result', async () => {
+    const seeded = await seedClosedResult({ kind: 'property' })
+    const firstRevisionId = await appendRevision(seeded.monthlyResultId, {
+      revision: 1,
+      supersedesRevisionId: null,
+      evaluationState: 'unavailable',
+      value: null,
+      achieved: null,
+      at: '2026-08-03T12:00:00.000Z',
+    })
     const lookup = createMonthlyResultNotificationFactsLookup(getDb())
-    const revisionLookup = lookup.findMonthlyResultRevisionNotificationFacts
-    if (!revisionLookup) throw new Error('revision notification lookup is missing')
     const firstFence = {
       organizationId,
       propertyId,
@@ -230,7 +259,9 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
       revision: 1,
     }
 
-    await expect(revisionLookup(firstFence)).resolves.toMatchObject({
+    await expect(
+      lookup.findMonthlyResultRevisionNotificationFacts(firstFence),
+    ).resolves.toMatchObject({
       programId: seeded.programId,
       programVersionId: seeded.programVersionId,
       monthlyResultId: seeded.monthlyResultId,
@@ -240,35 +271,79 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
       achieved: null,
     })
 
-    const secondRevisionId = randomUUID()
-    await lease.pool.query(
-      `INSERT INTO goal_result_revisions
-         (id, monthly_result_id, organization_id, property_id, revision,
-          supersedes_revision_id, evaluation_state, value, sample_count,
-          achieved, reason, source_complete_through, evaluation_watermark,
-          change_reason, created_by, created_at)
-       VALUES ($1, $2, $3, $4, 2, $5, 'eligible', 8, 8, false,
-               NULL, $6, $7, 'metric correction', 'system', $7)`,
-      [
-        secondRevisionId,
-        seeded.monthlyResultId,
-        organizationId,
-        propertyId,
-        firstRevisionId,
-        new Date('2026-08-01T00:00:00.000Z'),
-        new Date('2026-08-04T12:00:00.000Z'),
-      ],
-    )
+    const secondRevisionId = await appendRevision(seeded.monthlyResultId, {
+      revision: 2,
+      supersedesRevisionId: firstRevisionId,
+      evaluationState: 'eligible',
+      value: 8,
+      achieved: false,
+      at: '2026-08-04T12:00:00.000Z',
+    })
 
-    await expect(revisionLookup(firstFence)).resolves.toBeNull()
-    await expect(
-      revisionLookup({
-        ...firstFence,
+    // A superseded correction resolves to the head that replaced it; the
+    // caller decides whether that head still says what its notice says.
+    for (const fence of [
+      firstFence,
+      { ...firstFence, revisionId: secondRevisionId, revision: 2 },
+    ]) {
+      await expect(
+        lookup.findMonthlyResultRevisionNotificationFacts(fence),
+      ).resolves.toMatchObject({
         revisionId: secondRevisionId,
         revision: 2,
+        evaluationState: 'eligible',
+        achieved: false,
+      })
+    }
+    for (const mismatch of [
+      { revisionId: randomUUID() },
+      { revision: 2 },
+      { revisionId: secondRevisionId, revision: 1 },
+      { programVersionId: randomUUID() },
+    ]) {
+      await expect(
+        lookup.findMonthlyResultRevisionNotificationFacts({ ...firstFence, ...mismatch }),
+      ).resolves.toBeNull()
+    }
+  })
+
+  // Probe scenario A: the month closed achieved, r1 un-achieved it, and r2 (a
+  // smaller change, still a miss, so no notice of its own) landed before r1's
+  // notice was handled. r1's notice must still resolve, or "Goal completed"
+  // stands uncorrected.
+  it('keeps an un-achieving correction resolvable after a smaller one supersedes it', async () => {
+    const seeded = await seedClosedResult({ kind: 'property' })
+    const missId = await appendRevision(seeded.monthlyResultId, {
+      revision: 1,
+      supersedesRevisionId: null,
+      evaluationState: 'eligible',
+      value: 9,
+      achieved: false,
+      at: '2026-08-03T12:00:00.000Z',
+    })
+    const smallerId = await appendRevision(seeded.monthlyResultId, {
+      revision: 2,
+      supersedesRevisionId: missId,
+      evaluationState: 'eligible',
+      value: 8,
+      achieved: false,
+      at: '2026-08-04T12:00:00.000Z',
+    })
+    const lookup = createMonthlyResultNotificationFactsLookup(getDb())
+
+    await expect(
+      lookup.findMonthlyResultRevisionNotificationFacts({
+        organizationId,
+        propertyId,
+        programId: seeded.programId,
+        programVersionId: seeded.programVersionId,
+        assignmentId: seeded.assignmentId,
+        monthlyResultId: seeded.monthlyResultId,
+        revisionId: missId,
+        revision: 1,
       }),
     ).resolves.toMatchObject({
-      revisionId: secondRevisionId,
+      revisionId: smallerId,
       revision: 2,
       evaluationState: 'eligible',
       achieved: false,

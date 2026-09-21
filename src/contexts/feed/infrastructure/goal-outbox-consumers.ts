@@ -247,14 +247,16 @@ export async function handleNotificationGoalMonthlyResultRevised(
     revisionId: payload.revisionId,
     revision: payload.revision,
   })
+  // The facts describe the result's CURRENT head, which may be a later,
+  // smaller correction without flags of its own. The notice stands while that
+  // head still says what this correction said.
   if (
     !facts ||
     facts.programId !== payload.programId ||
     facts.programVersionId !== payload.programVersionId ||
     facts.assignmentId !== payload.assignmentId ||
     facts.monthlyResultId !== payload.monthlyResultId ||
-    facts.revisionId !== payload.revisionId ||
-    facts.revision !== payload.revision ||
+    facts.revision < payload.revision ||
     facts.evaluationState !== payload.evaluationState ||
     facts.achieved !== payload.achieved ||
     (facts.subject.kind === 'property' && facts.subject.propertyId !== payload.propertyId)

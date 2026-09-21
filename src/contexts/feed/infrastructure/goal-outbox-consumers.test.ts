@@ -394,6 +394,64 @@ describe('canonical Goal monthly-result notification consumer', () => {
     })
   })
 
+  // Revision flags compare each correction with the one before it, so a
+  // smaller follow-up correction carries none. When one lands before this
+  // correction's notice is handled, the notice must still go out as long as
+  // the current head says the same thing; otherwise "Goal completed" stands.
+  it('notifies a superseded correction whose outcome the current head still holds', async () => {
+    const deps = makeDeps()
+    const laterRevision = '91000000-0000-4000-8000-000000000008'
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue({
+      programId: IDS.program,
+      programVersionId: IDS.version,
+      monthlyResultId: IDS.result,
+      assignmentId: IDS.assignment,
+      revisionId: laterRevision,
+      revision: 2,
+      evaluationState: 'eligible',
+      achieved: false,
+      programName: 'Monthly guest engagement',
+      subject: { kind: 'property', propertyId: IDS.property },
+    })
+
+    await expect(
+      handleNotificationGoalMonthlyResultRevised(deps, revisedEvent({ achieved: false })),
+    ).resolves.toEqual({ status: 'applied' })
+
+    expect(deps.jobs).toHaveLength(1)
+    expect(deps.jobs[0]?.data).toMatchObject({
+      type: 'goal.result_revised',
+      audience: {
+        kind: 'goal_result_revision',
+        revisionId: IDS.revision,
+        revision: 1,
+        evaluationState: 'eligible',
+        achieved: false,
+      },
+    })
+  })
+
+  it('drops a correction whose outcome a later correction reversed', async () => {
+    const deps = makeDeps()
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue({
+      programId: IDS.program,
+      programVersionId: IDS.version,
+      monthlyResultId: IDS.result,
+      assignmentId: IDS.assignment,
+      revisionId: '91000000-0000-4000-8000-000000000008',
+      revision: 2,
+      evaluationState: 'eligible',
+      achieved: true,
+      programName: 'Monthly guest engagement',
+      subject: { kind: 'property', propertyId: IDS.property },
+    })
+
+    await expect(
+      handleNotificationGoalMonthlyResultRevised(deps, revisedEvent({ achieved: false })),
+    ).resolves.toEqual({ status: 'obsolete' })
+    expect(deps.jobs).toEqual([])
+  })
+
   it('suppresses a superseded or mismatched revision at durable handling time', async () => {
     const deps = makeDeps()
     deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue(

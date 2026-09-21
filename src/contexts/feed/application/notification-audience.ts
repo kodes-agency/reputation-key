@@ -566,14 +566,15 @@ const isGoalResultRevisionRecipient = async (
     revisionId: audience.revisionId,
     revision: audience.revision,
   })
+  // Judged against the result's current head, as at handling time: a later
+  // correction without flags must not silence this one while it still holds.
   if (
     !facts ||
     facts.programId !== audience.programId ||
     facts.programVersionId !== audience.programVersionId ||
     facts.assignmentId !== audience.assignmentId ||
     facts.monthlyResultId !== audience.monthlyResultId ||
-    facts.revisionId !== audience.revisionId ||
-    facts.revision !== audience.revision ||
+    facts.revision < audience.revision ||
     facts.evaluationState !== audience.evaluationState ||
     facts.achieved !== audience.achieved ||
     (facts.subject.kind === 'property' && facts.subject.propertyId !== propertyId)
