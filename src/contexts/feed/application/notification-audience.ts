@@ -81,7 +81,8 @@ export type NotificationAudience =
       portalId: string
       status: ActionablePortalHealthStatus
       reason: ActionablePortalHealthReason
-      sourceVersion: string
+      /** When the Health interval this notice announces opened (ISO). */
+      effectiveFrom: string
     }>
   | Readonly<{
       kind: 'goal_result_revision'
@@ -257,9 +258,7 @@ const parsePortalHealth: AudienceKindParser = (value) => {
     !isIdentifier(value.portalId) ||
     !(value.status === 'degraded' || value.status === 'unavailable') ||
     !isActionablePortalHealthReason(value.reason) ||
-    typeof value.sourceVersion !== 'string' ||
-    value.sourceVersion.trim().length === 0 ||
-    value.sourceVersion.length > 160
+    !isIsoDate(value.effectiveFrom)
   ) {
     return null
   }
@@ -268,7 +267,7 @@ const parsePortalHealth: AudienceKindParser = (value) => {
     portalId: value.portalId,
     status: value.status,
     reason: value.reason,
-    sourceVersion: value.sourceVersion,
+    effectiveFrom: value.effectiveFrom,
   }
 }
 
@@ -519,6 +518,11 @@ const isResponseTargetReminderRecipient = async (
   return recipients.includes(userId)
 }
 
+/**
+ * The notice stands while the Health interval it announced is still open. The
+ * interval's source version is no fence: every same-status reconcile re-stamps
+ * it, although nothing about the Portal's Health changed.
+ */
 const isPortalHealthRecipient = async (
   deps: Deps,
   { organizationId, propertyId, userId }: PropertyScopedRequest,
@@ -534,7 +538,7 @@ const isPortalHealthRecipient = async (
     facts.propertyId !== propertyId ||
     facts.status !== audience.status ||
     facts.reason !== audience.reason ||
-    facts.sourceVersion !== audience.sourceVersion
+    facts.effectiveFrom.toISOString() !== audience.effectiveFrom
   ) {
     return false
   }

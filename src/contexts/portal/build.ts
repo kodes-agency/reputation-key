@@ -567,7 +567,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
             propertyId: portal.propertyId,
             status: health.status,
             reason: health.reason,
-            sourceVersion: health.sourceVersion,
+            effectiveFrom: health.effectiveFrom,
           }
         : null
     },

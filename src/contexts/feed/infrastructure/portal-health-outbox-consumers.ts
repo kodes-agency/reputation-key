@@ -42,11 +42,13 @@ function parse(event: ConsumerEvent): Payload {
     event.eventVersion,
     event.payload,
   ) as Payload | undefined
+  // Organization and Property bind the fact's scope. The envelope aggregate is
+  // not the Portal: the fact also names its Property, which the outbox ranks
+  // first, so comparing the Portal id to it refused every real delivery.
   if (
     !payload ||
     payload.organizationId !== event.organizationId ||
-    payload.propertyId !== event.propertyId ||
-    payload.portalId !== event.sourceAggregateId
+    payload.propertyId !== event.propertyId
   ) {
     throw new Error('Portal Health envelope attribution mismatch')
   }
@@ -103,7 +105,8 @@ export async function handleNotificationPortalHealthChanged(
             portalId: portal,
             status: payload.status,
             reason: payload.reason,
-            sourceVersion: payload.sourceVersion,
+            // The fact occurs when the interval it opened takes effect.
+            effectiveFrom: new Date(payload.occurredAt).toISOString(),
           },
         },
         { jobId: `${event.eventId}-${unbrand(recipient)}` },

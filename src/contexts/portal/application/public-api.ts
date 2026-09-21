@@ -233,7 +233,10 @@ export type PortalPublicApi = Readonly<{
     orgId: OrganizationId,
     portalId: PortalId,
   ) => Promise<ReadonlyArray<import('#/shared/domain/ids').UserId>>
-  /** Exact current enum/fence state for delayed health-notification admission. */
+  /**
+   * The current Health interval for delayed health-notification admission:
+   * its status and reason, and the instant it opened, which identifies it.
+   */
   findPortalHealthNotificationFacts: (
     orgId: OrganizationId,
     portalId: PortalId,
@@ -241,7 +244,7 @@ export type PortalPublicApi = Readonly<{
     propertyId: PropertyId
     status: PortalHealthStatus
     reason: PortalHealthReason
-    sourceVersion: string
+    effectiveFrom: Date
   }> | null>
 }>
 

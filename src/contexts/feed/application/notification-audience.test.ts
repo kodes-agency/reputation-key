@@ -15,6 +15,7 @@ import {
 const ORG = organizationId('org-1')
 const PROPERTY = propertyId('11111111-1111-4111-8111-111111111111')
 const PORTAL = portalId('22222222-2222-4222-8222-222222222222')
+const HEALTH_SINCE = '2026-08-27T08:00:00.000Z'
 const RECIPIENT = userId('manager-1')
 const RESPONSIBLE_MANAGER = userId('responsible-manager-1')
 const REPLACEMENT_ASSIGNEE = userId('replacement-assignee-1')
@@ -722,7 +723,7 @@ describe('notification audience authorization', () => {
       propertyId: PROPERTY,
       status: 'degraded',
       reason: 'google_destination_unavailable',
-      sourceVersion: 'health-source-v3',
+      effectiveFrom: new Date(HEALTH_SINCE),
     })
     deps.responsibleManagers.findForPortal.mockResolvedValue([RECIPIENT])
     const audience = {
@@ -730,7 +731,7 @@ describe('notification audience authorization', () => {
       portalId: PORTAL,
       status: 'degraded' as const,
       reason: 'google_destination_unavailable' as const,
-      sourceVersion: 'health-source-v3',
+      effectiveFrom: HEALTH_SINCE,
     }
 
     await expect(
@@ -741,8 +742,44 @@ describe('notification audience authorization', () => {
       propertyId: PROPERTY,
       status: 'healthy',
       reason: 'operational',
-      sourceVersion: 'health-source-v4',
+      effectiveFrom: new Date('2026-08-27T09:00:00.000Z'),
     })
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+  })
+
+  // Every same-status reconcile (an unrelated property.updated, say) re-stamps
+  // the open interval's source version. That is not a new Health state, so a
+  // notice queued for the interval still stands; a later interval that merely
+  // repeats the status and reason is a different notice.
+  it('keys Portal Health delivery to the interval the fact opened', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForPortal.mockResolvedValue([RECIPIENT])
+    const audience = {
+      kind: 'portal_health' as const,
+      portalId: PORTAL,
+      status: 'unavailable' as const,
+      reason: 'property_unavailable' as const,
+      effectiveFrom: HEALTH_SINCE,
+    }
+    const current = (effectiveFrom: string) => ({
+      propertyId: PROPERTY,
+      status: 'unavailable' as const,
+      reason: 'property_unavailable' as const,
+      effectiveFrom: new Date(effectiveFrom),
+    })
+
+    deps.portalHealthLookup.findPortalHealthNotificationFacts.mockResolvedValue(
+      current(HEALTH_SINCE),
+    )
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+
+    deps.portalHealthLookup.findPortalHealthNotificationFacts.mockResolvedValue(
+      current('2026-08-27T11:00:00.000Z'),
+    )
     await expect(
       createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
     ).resolves.toBe(false)
@@ -754,14 +791,14 @@ describe('notification audience authorization', () => {
       portalId: PORTAL,
       status: 'unavailable',
       reason: 'public_address_unavailable',
-      sourceVersion: 'health-source-v3',
+      effectiveFrom: HEALTH_SINCE,
     }
     expect(parseNotificationAudience(valid)).toEqual(valid)
     expect(parseNotificationAudience({ ...valid, status: 'healthy' })).toBeNull()
     expect(
       parseNotificationAudience({ ...valid, reason: 'publication_draft' }),
     ).toBeNull()
-    expect(parseNotificationAudience({ ...valid, sourceVersion: '' })).toBeNull()
+    expect(parseNotificationAudience({ ...valid, effectiveFrom: 'yesterday' })).toBeNull()
   })
 
   it('revalidates the exact current Goal result revision and responsibility', async () => {
