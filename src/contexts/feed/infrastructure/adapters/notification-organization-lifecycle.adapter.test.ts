@@ -42,6 +42,7 @@ const purgeCounts = {
   digestBatchMembers: 30,
   preferences: 6,
   userSettings: 3,
+  unsubscribeScopes: 4,
 }
 
 const emptyPurgeCounts = {
@@ -51,6 +52,7 @@ const emptyPurgeCounts = {
   digestBatchMembers: 0,
   preferences: 0,
   userSettings: 0,
+  unsubscribeScopes: 0,
 }
 
 describe('Notification Organization lifecycle contributor', () => {
@@ -113,6 +115,7 @@ describe('Notification lifecycle evidence references', () => {
         digestBatchMembers: 9_007_199_254,
         preferences: 9_007_199_254,
         userSettings: 9_007_199_254,
+        unsubscribeScopes: 9_007_199_254,
       }),
     ]
     for (const ref of refs) {
@@ -129,7 +132,7 @@ describe('Notification lifecycle evidence references', () => {
       notificationClosingEvidenceRef({ cancelledEmails: 12, closedDigestBatches: 2 }),
     ).toBe('notification:closing:mail-12:batch-2')
     expect(notificationPurgeEvidenceRef(purgeCounts)).toBe(
-      'notification:purge:notif-41:mail-12:batch-2:member-30:pref-6:setting-3',
+      'notification:purge:notif-41:mail-12:batch-2:member-30:pref-6:setting-3:unsub-4',
     )
   })
 

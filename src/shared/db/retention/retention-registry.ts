@@ -563,6 +563,25 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({
+    id: 'notification.unsubscribe_scopes',
+    dataClass: 'notifications',
+    ownerContext: 'notification',
+    ownerRole: 'Notification context owner',
+    sourceKind: 'table',
+    source: 'notification_unsubscribe_scopes',
+    eligibility: {
+      anchorColumn: 'created_at',
+      horizon: { kind: 'days', days: 365 },
+      predicate: null,
+      query:
+        "Delete notification_unsubscribe_scopes older than 365 days: the optional scopes a delivered message's one-click unsubscribe link stands for, kept past the 90-day queue so the link works while the mail is in an inbox.",
+      implementedBoundary:
+        'Live as the scheduled notification_unsubscribe_scopes subject; Property hard delete cascades.',
+    },
+    evidenceSubject: 'notification_unsubscribe_scopes',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+  }),
+  rule({
     id: 'activity.recent_activity',
     dataClass: 'recent_activity',
     ownerContext: 'activity',

@@ -163,7 +163,10 @@ Property's responsible managers (AccountAdmins when none is eligible), so it
 always reaches someone who can retry it.
 
 The signed List-Unsubscribe URL accepts an RFC 8058 one-click POST in either
-form encoding and answers 204. A browser GET on the same URL gets a confirm
+form encoding and answers 204. Its token names only the queue row or digest
+batch, which retention deletes after 90 days, so the optional scopes a message
+stands for are kept when it is sent, for a year; a valid token that matches
+nothing still answers 204 and is logged as a warning. A browser GET on the same URL gets a confirm
 page and never unsubscribes, because link scanners fetch every URL in a
 message; that page's form is answered with a page. No answer reveals whether
 a token is valid.

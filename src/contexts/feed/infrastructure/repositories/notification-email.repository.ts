@@ -35,6 +35,10 @@ import type {
 } from '../../application/ports/notification-email-repository.port'
 import { digestBatchIdempotencyKey, digestMemberSet } from '../digest-batch-identity'
 import { createNotificationEmailSuppressionStore } from './notification-email-suppression.repository'
+import {
+  createNotificationUnsubscribeScopeStore,
+  digestUnsubscribeScopesInsert,
+} from './notification-unsubscribe-scope.repository'
 import { notificationError } from '../../domain/notification-errors'
 
 type EmailRow = typeof notificationEmailQueue.$inferSelect
@@ -197,6 +201,7 @@ const providerStateColumns = (state: ProviderDeliveryState, occurredAt: Date) =>
 
 export const createNotificationEmailRepository = (db: Database) => ({
   ...createNotificationEmailSuppressionStore(db),
+  ...createNotificationUnsubscribeScopeStore(db),
 
   insert: async (email: NotificationEmail): Promise<NotificationEmail> => {
     const rows = await db
@@ -717,6 +722,16 @@ export const createNotificationEmailRepository = (db: Database) => ({
           sortIndex,
           createdAt: input.preparedAt,
         })),
+      )
+      // The batch's unsubscribe link must outlive the rows retention deletes.
+      await tx.execute(
+        digestUnsubscribeScopesInsert({
+          batchId: input.id,
+          organizationId: input.organizationId,
+          userId: input.userId,
+          memberIds: input.memberIds,
+          recordedAt: input.preparedAt,
+        }),
       )
       return { batch: digestBatchFromRow(row), created: true }
     })

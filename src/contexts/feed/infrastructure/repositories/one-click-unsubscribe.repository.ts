@@ -2,15 +2,29 @@ import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { OneClickUnsubscribeTarget } from '../../application/one-click-unsubscribe-token'
 
+/**
+ * The scopes kept when the message was sent, which outlive queue retention,
+ * together with the queue rows a token issued before they were kept still
+ * resolves through.
+ */
 function targetScopes(target: OneClickUnsubscribeTarget): SQL {
+  const kept = sql`
+    SELECT user_id, organization_id, property_id, category
+    FROM notification_unsubscribe_scopes
+    WHERE target_kind = ${target.kind} AND target_id = ${target.id}::uuid
+  `
   if (target.kind === 'email') {
     return sql`
+      ${kept}
+      UNION
       SELECT user_id, organization_id, property_id, category
       FROM notification_email_queue
       WHERE id = ${target.id}::uuid
     `
   }
   return sql`
+    ${kept}
+    UNION
     SELECT q.user_id, q.organization_id, q.property_id, q.category
     FROM notification_digest_batch_members AS member
     JOIN notification_email_queue AS q

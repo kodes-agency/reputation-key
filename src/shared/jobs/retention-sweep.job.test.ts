@@ -506,6 +506,18 @@ describe('retention rule registry (BQC-3.7)', () => {
     })
   })
 
+  it('keeps one-click unsubscribe scopes for a year, beyond the 90-day queue', () => {
+    // An unsubscribe link must keep working while the mail sits in an inbox.
+    expect(
+      RETENTION_RULES.find((rule) => rule.subject === 'notification_unsubscribe_scopes'),
+    ).toMatchObject({
+      table: 'notification_unsubscribe_scopes',
+      keyColumns: ['target_kind', 'target_id', 'property_id', 'category'],
+      tsColumn: 'created_at',
+      olderThanMs: 365 * 24 * 60 * 60 * 1000,
+    })
+  })
+
   it('covers the action-audit table at the 365d beta audit horizon (BQC-7.8)', () => {
     const logs = RETENTION_RULES.find((rule) => rule.subject === 'audit_logs')
     expect(logs).toMatchObject({

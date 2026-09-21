@@ -186,6 +186,15 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
       "status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed', 'cancelled')",
   },
   {
+    // What a delivered message's one-click unsubscribe link stands for. It
+    // outlives the 90-day queue so the link keeps working in an inbox.
+    subject: 'notification_unsubscribe_scopes',
+    table: 'notification_unsubscribe_scopes',
+    keyColumns: ['target_kind', 'target_id', 'property_id', 'category'],
+    tsColumn: 'created_at',
+    olderThanMs: 365 * DAY_MS,
+  },
+  {
     subject: 'recent_activity_replay_facts',
     table: 'recent_activity_replay_facts',
     keyColumns: ['replay_key'],

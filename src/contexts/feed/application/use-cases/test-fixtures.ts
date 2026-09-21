@@ -65,6 +65,7 @@ export function buildFakeInsertNotificationDeps(): FakeInsertNotificationDeps {
       suppressRecipient: vi.fn(async () => 0),
       isAddressSuppressed: vi.fn(async () => false),
       suppressAddress: vi.fn(async () => {}),
+      recordEmailUnsubscribeScope: vi.fn(async () => {}),
       findOpenDigestBatch: vi.fn(async () => null),
       findDigestBatchEntries: vi.fn(async () => []),
       prepareDigestBatch: vi.fn(async () => {

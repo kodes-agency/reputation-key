@@ -190,6 +190,7 @@ describe('retention registry report-only mode', () => {
       'notification.delivery_records',
       'notification.terminal_digest_batches',
       'notification.terminal_email_queue',
+      'notification.unsubscribe_scopes',
       'activity.recent_activity',
       'activity.replay_facts',
       'activity.actor_label_redactions',

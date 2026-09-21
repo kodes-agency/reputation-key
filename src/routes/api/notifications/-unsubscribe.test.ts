@@ -212,6 +212,20 @@ describe('RFC 8058 one-click unsubscribe route', () => {
     expect(mocks.apply).toHaveBeenCalledWith(TARGET)
   })
 
+  it('warns, without changing the answer, when a valid capability matched nothing', async () => {
+    // A silent 204 that changed no preference reads as a working unsubscribe.
+    mocks.apply.mockResolvedValue(0)
+    const token = createOneClickUnsubscribeToken(KEYS, TARGET)
+
+    const response = await handleOneClickUnsubscribePost(request(token))
+
+    expect(response.status).toBe(204)
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      { targetKind: 'email', scopes: 0 },
+      'One-click unsubscribe matched no optional scope',
+    )
+  })
+
   it('returns a retryable failure when the preference write fails', async () => {
     mocks.apply.mockRejectedValue(new Error('database unavailable'))
     const token = createOneClickUnsubscribeToken(KEYS, TARGET)

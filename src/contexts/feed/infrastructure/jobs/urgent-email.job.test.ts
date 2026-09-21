@@ -62,6 +62,7 @@ function fakeDeps() {
       markDelayed: vi.fn(async () => {}),
       markFailed: vi.fn(async () => {}),
       markSuppressed: vi.fn(async () => {}),
+      recordEmailUnsubscribeScope: vi.fn(async () => {}),
       isAddressSuppressed: vi.fn(async (_address: string) => false),
     },
     preferenceRepo: {
@@ -293,6 +294,20 @@ describe('immediate notification email job', () => {
 
   // ── ADR 0046 r.7: preferences link + one-click unsubscribe ─────────
 
+  it('keeps what the unsubscribe link stands for before the mail leaves', async () => {
+    // Retention deletes the queue row after 90 days; the link must still work.
+    await run()
+
+    expect(deps.emailRepo.recordEmailUnsubscribeScope).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      NOW,
+    )
+    expect(
+      deps.emailRepo.recordEmailUnsubscribeScope.mock.invocationCallOrder[0],
+    ).toBeLessThan(deps.emailSender.send.mock.invocationCallOrder[0]!)
+  })
+
   it('sets List-Unsubscribe and the one-click directive for optional mail', async () => {
     await run()
 
@@ -369,6 +384,7 @@ describe('immediate notification email job', () => {
     expect(deps.authorizeScope).not.toHaveBeenCalled()
     // `organization_access_removed` is addressed to someone no longer a member.
     expect(deps.isRecipientEligible).not.toHaveBeenCalled()
+    expect(deps.emailRepo.recordEmailUnsubscribeScope).not.toHaveBeenCalled()
     expect(deps.preferenceRepo.findForDelivery).not.toHaveBeenCalled()
     expect(deps.preferenceRepo.getUserSettings).not.toHaveBeenCalled()
     expect(deps.emailRepo.markAccepted).toHaveBeenCalledWith(

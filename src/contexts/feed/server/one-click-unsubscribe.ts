@@ -159,6 +159,15 @@ async function applyOneClickRequest(
     if (!target) return 'accepted'
 
     const scopes = await deps.oneClickUnsubscribe(target)
+    if (scopes === 0) {
+      // Still 204, so the answer reveals nothing; but a valid capability that
+      // changed no preference reads as a working unsubscribe, so say so.
+      logger.warn(
+        { targetKind: target.kind, scopes },
+        'One-click unsubscribe matched no optional scope',
+      )
+      return 'accepted'
+    }
     logger.info(
       { targetKind: target.kind, scopes },
       'Optional notification email scopes unsubscribed',

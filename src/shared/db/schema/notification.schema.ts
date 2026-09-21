@@ -211,6 +211,49 @@ export const notificationEmailQueue = pgTable(
   ],
 )
 
+// ── One-click unsubscribe scopes ───────────────────────────────────
+
+/**
+ * What a delivered message's one-click unsubscribe link stands for: the
+ * optional (Property, category) scopes it named. The signed token carries only
+ * the queue row or digest batch id, and retention deletes those after 90 days
+ * while the mail stays in an inbox. Kept when the message is sent, so the link
+ * keeps working for a year.
+ */
+export const notificationUnsubscribeScopes = pgTable(
+  'notification_unsubscribe_scopes',
+  {
+    targetKind: varchar('target_kind', { length: 16 }).notNull(),
+    targetId: uuid('target_id').notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    userId: varchar('user_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    category: varchar('category', { length: 40 }).notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.targetKind, t.targetId, t.propertyId, t.category],
+      name: 'notification_unsubscribe_scopes_pk',
+    }),
+    index('notification_unsubscribe_scopes_organization_idx').on(t.organizationId),
+    index('notification_unsubscribe_scopes_retention_idx').on(t.createdAt),
+    foreignKey({
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+      name: 'notification_unsubscribe_scopes_property_tenant_fk',
+    }).onDelete('cascade'),
+    check(
+      'notification_unsubscribe_scopes_target_kind_valid',
+      sql`${t.targetKind} IN ('email', 'digest')`,
+    ),
+    check(
+      'notification_unsubscribe_scopes_optional_only',
+      sql`${t.category} <> 'mandatory'`,
+    ),
+  ],
+)
+
 // ── Durable recipient suppression ──────────────────────────────────
 
 /**

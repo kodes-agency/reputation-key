@@ -197,6 +197,13 @@
       "when": 1790800000000,
       "tag": "0028_notification_email_suppressions",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790500000000,
+      "tag": "0025_notification_unsubscribe_scopes",
+      "breakpoints": true
     }
   ]
 }

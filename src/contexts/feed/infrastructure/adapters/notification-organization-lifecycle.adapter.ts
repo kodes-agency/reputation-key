@@ -34,6 +34,7 @@ import {
   notificationDigestBatches,
   notificationEmailQueue,
   notificationPreferences,
+  notificationUnsubscribeScopes,
   notificationUserSettings,
   notifications,
 } from '#/shared/db/schema/notification.schema'
@@ -83,6 +84,7 @@ export type NotificationLifecyclePurgeCounts = Readonly<{
   digestBatchMembers: number
   preferences: number
   userSettings: number
+  unsubscribeScopes: number
 }>
 
 const total = (values: readonly number[]): number =>
@@ -136,6 +138,7 @@ export const notificationPurgeEvidenceRef = (
       `member-${counts.digestBatchMembers}`,
       `pref-${counts.preferences}`,
       `setting-${counts.userSettings}`,
+      `unsub-${counts.unsubscribeScopes}`,
     ].join(':'),
   )
 
@@ -170,6 +173,7 @@ export const notificationPurgeOutcome = (
       counts.digestBatchMembers,
       counts.preferences,
       counts.userSettings,
+      counts.unsubscribeScopes,
     ]) === 0
       ? 'no_data'
       : 'complete',
@@ -330,6 +334,11 @@ const verifyPurgeReadiness = async (
       notificationUserSettings,
       eq(notificationUserSettings.organizationId, organization),
     ),
+    await countRows(
+      tx,
+      notificationUnsubscribeScopes,
+      eq(notificationUnsubscribeScopes.organizationId, organization),
+    ),
   ])
 
   const counts = { sendableEmails, openDigestBatches, retainedRows }
@@ -356,6 +365,8 @@ const verifyPurgeReadiness = async (
  *     tenant content this phase exists to erase.
  *   * `notification_preferences` / `notification_user_settings` — the tenant's
  *     own delivery policy, locale and timezone.
+ *   * `notification_unsubscribe_scopes` — what each delivered message's
+ *     one-click unsubscribe link stands for.
  *
  * Idempotent by construction: a replay matches zero rows. In practice the
  * shared store never re-runs it, because the committed receipt replays first.
@@ -398,6 +409,11 @@ const purge = async (
     .where(eq(notificationUserSettings.organizationId, organization))
     .returning({ id: notificationUserSettings.id })
 
+  const unsubscribeScopes = await tx
+    .delete(notificationUnsubscribeScopes)
+    .where(eq(notificationUnsubscribeScopes.organizationId, organization))
+    .returning({ targetId: notificationUnsubscribeScopes.targetId })
+
   return notificationPurgeOutcome({
     notifications: notificationRows.length,
     emails: emails.length,
@@ -405,6 +421,7 @@ const purge = async (
     digestBatchMembers: digestBatchMembers.length,
     preferences: preferences.length,
     userSettings: userSettings.length,
+    unsubscribeScopes: unsubscribeScopes.length,
   })
 }
 

@@ -210,6 +210,16 @@ export type NotificationEmailRepositoryPort = Readonly<{
     reason: EmailSuppressionReason,
     at: Date,
   ): Promise<void>
+  /**
+   * Keep the optional scope an urgent email's one-click unsubscribe link
+   * stands for, before the email is sent, so the link outlives queue
+   * retention. A digest batch keeps its scopes when it is prepared.
+   */
+  recordEmailUnsubscribeScope(
+    id: NotificationEmailId,
+    orgId: OrganizationId,
+    recordedAt: Date,
+  ): Promise<void>
   /** Return the sole prepared/retryable recipient batch, if one exists. */
   findOpenDigestBatch(
     orgId: OrganizationId,
@@ -222,8 +232,9 @@ export type NotificationEmailRepositoryPort = Readonly<{
     userId: UserId,
   ): Promise<readonly NotificationEmail[]>
   /**
-   * Atomically create a batch and exact memberships, or return the open batch
-   * won by another worker. Candidate rows are revalidated under the lock.
+   * Atomically create a batch, its exact memberships and the unsubscribe
+   * scopes it stands for, or return the open batch won by another worker.
+   * Candidate rows are revalidated under the lock.
    */
   prepareDigestBatch(input: {
     id: NotificationDigestBatchId

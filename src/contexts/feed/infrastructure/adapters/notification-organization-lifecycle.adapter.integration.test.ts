@@ -41,6 +41,7 @@ const OWNED_TABLES = [
   'notification_digest_batches',
   'notification_email_queue',
   'notification_preferences',
+  'notification_unsubscribe_scopes',
   'notification_user_settings',
   'notifications',
 ] as const
@@ -283,6 +284,19 @@ async function seedFixture(label: string): Promise<Fixture> {
     ],
   )
 
+  // What the delivered email's one-click unsubscribe link stands for.
+  await lease.pool.query(
+    `INSERT INTO notification_unsubscribe_scopes (
+       target_kind, target_id, organization_id, user_id, property_id, category, created_at
+     ) VALUES ('email', $1, $2, $3, $4, 'workflow_collaboration', $5)`,
+    [
+      fixture.acceptedEmailId,
+      fixture.organizationId,
+      fixture.userId,
+      fixture.propertyId,
+      REQUESTED_AT,
+    ],
+  )
   await lease.pool.query(
     `INSERT INTO notification_preferences (
        id, user_id, organization_id, property_id, category, channel, enabled, cadence,
@@ -603,7 +617,8 @@ describe.sequential('Notification Organization lifecycle contributor', () => {
 
     expect(result).toEqual({
       outcome: 'complete',
-      evidenceRef: 'notification:purge:notif-5:mail-5:batch-1:member-1:pref-1:setting-1',
+      evidenceRef:
+        'notification:purge:notif-5:mail-5:batch-1:member-1:pref-1:setting-1:unsub-1',
     })
     expect(replay).toEqual(result)
     expect(await receiptRows(fixture.organizationId)).toHaveLength(1)
@@ -625,7 +640,8 @@ describe.sequential('Notification Organization lifecycle contributor', () => {
 
     expect(result).toEqual({
       outcome: 'no_data',
-      evidenceRef: 'notification:purge:notif-0:mail-0:batch-0:member-0:pref-0:setting-0',
+      evidenceRef:
+        'notification:purge:notif-0:mail-0:batch-0:member-0:pref-0:setting-0:unsub-0',
     })
   })
 })

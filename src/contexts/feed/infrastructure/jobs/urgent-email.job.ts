@@ -434,6 +434,11 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     }
 
     const { email, headers } = composeEmail(notification, entry, ids, mandatory)
+    // The one-click link names only this row, which retention deletes after
+    // 90 days; what it stands for is kept before the mail leaves.
+    if (requiresPreferencesLink(mailClassForCategory(entry.category))) {
+      await deps.emailRepo.recordEmailUnsubscribeScope(emailId, orgId, deps.clock())
+    }
     await sendAndRecord(ids, entry, recipient, email, headers)
   }
 }
