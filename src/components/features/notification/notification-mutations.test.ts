@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { QueryClient } from '@tanstack/react-query'
+import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { notificationKeys } from '#/shared/queries/query-keys'
+import type { NotificationFeedHead } from '#/contexts/feed/application/public-api'
 import {
   makeNotification,
+  notificationFeedHeadFixture,
   notificationPageFixture,
 } from './notification.stories.fixtures'
 import { patchNotificationFeedCache } from './notification-feed-cache'
+
+/** Lets settled promises and zero-delay timers run. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 describe('notification optimistic cache updates', () => {
   let client: QueryClient
@@ -92,5 +97,43 @@ describe('notification optimistic cache updates', () => {
     expect(client.getQueryData<{ unreadCount: number }>(headKey)?.unreadCount).toBe(0)
     undo?.()
     expect(client.getQueryData(headKey)).toEqual(snapshot)
+  })
+
+  it('cancels an in-flight head read so its older answer cannot overwrite the write', async () => {
+    const listKey = notificationKeys.list('org-1', 20, 'all')
+    const headKey = notificationKeys.head('org-1', 20, 'all')
+    const row = makeNotification({
+      id: '10000000-0000-4000-8000-000000000040',
+      status: 'unread',
+    })
+    // Opening the bell starts this read; the click lands before it answers,
+    // and the answer describes the feed from before the click.
+    const beforeTheWrite = notificationFeedHeadFixture([row], 1)
+    const answers: Array<PromiseWithResolvers<NotificationFeedHead>> = []
+    client.setQueryData(headKey, beforeTheWrite)
+    const observer = new QueryObserver(client, {
+      queryKey: headKey,
+      queryFn: () => {
+        const answer = Promise.withResolvers<NotificationFeedHead>()
+        answers.push(answer)
+        return answer.promise
+      },
+    })
+    // Subscribing to a stale head starts the read.
+    const unsubscribe = observer.subscribe(() => {})
+    expect(answers).toHaveLength(1)
+
+    patchNotificationFeedCache(client, listKey, headKey, (current) =>
+      current.id === row.id
+        ? { ...current, status: 'read' as const, readAt: new Date(0) }
+        : current,
+    )
+    answers[0]?.resolve(beforeTheWrite)
+    await settle()
+
+    const head = client.getQueryData<NotificationFeedHead>(headKey)
+    expect(head?.unreadCount).toBe(0)
+    expect(head?.page.notifications[0]?.status).toBe('read')
+    unsubscribe()
   })
 })

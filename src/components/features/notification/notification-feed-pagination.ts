@@ -90,14 +90,24 @@ function isHistoryDetached(
  * head no longer reaches loaded history, that history is reset, so the list
  * shows the head alone and "Load more" continues from the head's own cursor
  * rather than leaving a silent gap in the middle of the list.
+ *
+ * A read the head was written to during (an optimistic write, which also
+ * cancels it) describes the feed from before that write, so it changes
+ * nothing: not the head, and not loaded history. The write count is compared
+ * rather than the query's abort signal, because reading that signal makes the
+ * query cancel itself whenever its last observer unmounts mid-read.
  */
 export function fetchHeadKeepingHistoryContiguous(
   qc: QueryClient,
+  headKey: QueryKey,
   historyKey: QueryKey,
   fetchHead: FetchNotificationFeedHead,
 ): FetchNotificationFeedHead {
+  const headWrites = () => qc.getQueryState(headKey)?.dataUpdateCount ?? 0
   return async () => {
+    const writesBefore = headWrites()
     const head = await fetchHead()
+    if (headWrites() !== writesBefore) return head
     const history = qc.getQueryData<NotificationHistoryPages>(historyKey)
     if (history && isHistoryDetached(head.page, history.pageParams[0])) {
       await qc.resetQueries({ queryKey: historyKey, exact: true })

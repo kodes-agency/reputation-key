@@ -72,6 +72,12 @@ export function patchNotificationFeedCache(
     unreadCount?: number
   }> = {},
 ): (() => void) | undefined {
+  // A read already in flight (opening the bell starts one, and so does every
+  // poll) answers with the feed from before this write, and would land on top
+  // of it: the badge would go 5 → 0 → 5 → 0. Cancelling reverts that query to
+  // its last settled data synchronously, so the patch below applies to it, and
+  // the success invalidation reads the server again afterwards.
+  void qc.cancelQueries({ queryKey: listKey })
   const previousPages = qc.getQueryData<FeedPages>(listKey)
   const previousHead = qc.getQueryData<NotificationFeedHead>(headKey)
   if (!previousPages && !previousHead) return undefined

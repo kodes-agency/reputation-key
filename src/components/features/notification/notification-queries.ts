@@ -60,18 +60,13 @@ export function useNotifications(
 ) {
   const qc = useQueryClient()
   const historyKey = notificationKeys.list(organizationId, limit, filter)
+  const headKey = notificationKeys.head(organizationId, limit, filter)
   const fetchPage = (before: NotificationFeedCursor | null) =>
     getList({ data: { limit, filter, ...(before ? { before } : {}) } })
-  const fetchHead = fetchHeadKeepingHistoryContiguous(qc, historyKey, () =>
+  const fetchHead = fetchHeadKeepingHistoryContiguous(qc, headKey, historyKey, () =>
     getFeedHead({ data: { limit, filter } }),
   )
-  const head = useQuery(
-    notificationHeadQueryOptions(
-      notificationKeys.head(organizationId, limit, filter),
-      fetchHead,
-      poll,
-    ),
-  )
+  const head = useQuery(notificationHeadQueryOptions(headKey, fetchHead, poll))
   const history = useInfiniteQuery(
     notificationHistoryQueryOptions(
       historyKey,
