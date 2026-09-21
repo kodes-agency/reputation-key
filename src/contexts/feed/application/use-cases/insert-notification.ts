@@ -179,6 +179,21 @@ const enqueueEmailEntry = async (
   }
 }
 
+/**
+ * The row an email-only recipient gets: the email queue's anchor and nothing
+ * else, stored already read. Unread, it held ADR 0046 r.2's unread
+ * (user, type, resource) key while hidden from the feed, so the database
+ * folded every later event on the resource into it and the email queue handed
+ * back the first, already-sent entry. Read, it sits outside that key: each
+ * event gets its own row, its own `${id}:email` idempotency key and its own
+ * email, and turning in-app back on does not resurface it as unread.
+ */
+const asEmailOnlyAnchor = (notification: DomainNotification): DomainNotification => ({
+  ...notification,
+  status: 'read',
+  readAt: notification.createdAt,
+})
+
 // ── Use case ────────────────────────────────────────────────────────
 
 export const insertNotification =
@@ -213,7 +228,8 @@ export const insertNotification =
     // facts (so the row can now read "…Updated 3 times", and a re-escalation
     // that has waited longer says so). No second email: the original queue
     // entry still stands for the same resource. In-app only — an email-only
-    // recipient has no unread row to absorb into.
+    // recipient has no unread row to absorb into, and their anchor is stored
+    // read (step 3) so the database cannot absorb into it either.
     if (inAppEnabled) {
       const existing = await deps.notificationRepo.findUnreadByUserTypeResource(
         input.userId,
@@ -230,7 +246,9 @@ export const insertNotification =
     }
 
     // 3. Persist the notification row (in-app anchor + email FK)
-    const inserted = await deps.notificationRepo.insert(result.value)
+    const inserted = await deps.notificationRepo.insert(
+      inAppEnabled ? result.value : asEmailOnlyAnchor(result.value),
+    )
 
     // 4. Enqueue the email-queue entry when the email channel is on
     if (emailEnabled) {

@@ -44,6 +44,12 @@ history: an item whose first Handling Cycle was observed as
 announced. The fan-out and the missing-notification gauge share one predicate,
 so such an item is never a gap either (ADR 0046).
 
+ADR 0046 r.2's one-unread-row coalescing is an in-app rule. A recipient with
+in-app off and email on gets an email-only anchor row stored already read, so
+it never holds the unread `(user, type, resource)` key: every event on a
+resource is emailed, and none of those rows resurfaces as unread if in-app is
+turned back on.
+
 ## Runtime
 
 Durable outbox consumers project activity and enqueue deterministic notification

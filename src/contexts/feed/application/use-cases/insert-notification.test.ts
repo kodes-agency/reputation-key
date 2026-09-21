@@ -312,6 +312,26 @@ describe('insertNotification', () => {
     expect(deps.emailRepo.insert).not.toHaveBeenCalled()
   })
 
+  it('stores an email-only anchor already read, so it never holds the unread key', async () => {
+    // With in-app off the row is only the email's anchor. Stored unread (and
+    // hidden), it held ADR 0046 r.2's unread (user, type, resource) key, the
+    // database folded every later event into it, and no later email went out.
+    ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_userId, _orgId, _propertyId, _category, channel) =>
+        channel === 'email'
+          ? preference('email', true, 'immediate')
+          : preference('in_app', false),
+    )
+
+    await expect(insertNotification(deps)(input)).resolves.toBeNull()
+
+    expect(deps.notificationRepo.findUnreadByUserTypeResource).not.toHaveBeenCalled()
+    expect(deps.notificationRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'read', readAt: NOW }),
+    )
+    expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
+  })
+
   // ── goal.completed regression ───────────────────────────────────────
 
   it('persists goal.completed for a tenant with no preference rows', async () => {
