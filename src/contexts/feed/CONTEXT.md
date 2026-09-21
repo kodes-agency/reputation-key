@@ -93,6 +93,13 @@ The in-app feed is ordered by latest activity, newest first:
 coalesced row therefore moves to the top when a repeat event is absorbed, the
 same instant its row starts reading "Updated N times".
 
+Pages below the polled head continue by keyset, never by offset: each page
+carries a server-minted `nextCursor` (the last row's latest-activity instant to
+the microsecond, and its id), and the next page reads strictly after it. Rows
+arriving or leaving above a page cannot shift it. The head is bounded, so when
+a refreshed head no longer reaches the loaded history the client resets that
+history and "Load more" continues from the head's own cursor.
+
 ## Runtime
 
 Durable outbox consumers project activity and enqueue deterministic notification

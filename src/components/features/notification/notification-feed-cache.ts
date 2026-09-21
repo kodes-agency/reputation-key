@@ -4,11 +4,9 @@ import type {
   NotificationFeedHead,
   NotificationPage,
 } from '#/contexts/feed/application/public-api'
+import type { NotificationHistoryPages } from './notification-feed-pagination'
 
-type FeedPages = Readonly<{
-  pages: ReadonlyArray<NotificationPage>
-  pageParams: ReadonlyArray<number>
-}>
+type FeedPages = NotificationHistoryPages
 
 /** `null` removes the row. Returning the row unchanged is a no-op. */
 type RowPatch = (row: Notification) => Notification | null

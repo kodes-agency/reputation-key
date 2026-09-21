@@ -16,7 +16,19 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import type { NotificationListFilter } from '../notification-list-filter'
-import type { NotificationFeedHead } from '../notification-page'
+import type {
+  NotificationFeedCursor,
+  NotificationFeedHead,
+  NotificationPage,
+} from '../notification-page'
+
+/** Whose feed, which filter, and how many rows a page may hold. */
+export type NotificationFeedQuery = Readonly<{
+  userId: UserId
+  organizationId: OrganizationId
+  filter: NotificationListFilter
+  limit: number
+}>
 
 export type NotificationRepositoryPort = Readonly<{
   /**
@@ -44,31 +56,19 @@ export type NotificationRepositoryPort = Readonly<{
     propertyId: PropertyId,
   ): Promise<Map<string, Notification>>
 
-  findUnreadByUser(
-    userId: UserId,
-    orgId: OrganizationId,
-    limit: number,
-    offset: number,
-  ): Promise<readonly Notification[]>
-
   /**
-   * Read the offset-zero page and exact unread count from one repeatable-read
+   * Read the first page and exact unread count from one repeatable-read
    * PostgreSQL snapshot. The returned watermark identifies that shared read.
    */
-  readFeedHead(
-    userId: UserId,
-    orgId: OrganizationId,
-    limit: number,
-    filter: NotificationListFilter,
-  ): Promise<NotificationFeedHead>
+  readFeedHead(query: NotificationFeedQuery): Promise<NotificationFeedHead>
 
-  findByUser(
-    userId: UserId,
-    orgId: OrganizationId,
-    limit: number,
-    offset: number,
-    filter: NotificationListFilter,
-  ): Promise<readonly Notification[]>
+  /**
+   * One keyset page in feed order (latest activity DESC, id DESC), strictly
+   * after `before`. Rows arriving or leaving above the cursor cannot shift it.
+   */
+  readFeedPage(
+    query: NotificationFeedQuery & Readonly<{ before: NotificationFeedCursor | null }>,
+  ): Promise<NotificationPage>
 
   markRead(
     id: NotificationId,

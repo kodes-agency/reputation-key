@@ -7,6 +7,8 @@
 // notification page progressively more expensive. Page zero now has its own
 // ordinary query; loaded history is a disabled infinite query advanced only by
 // the user's "Load more" action. The two caches are merged by stable row id.
+// History pages are keyset pages that start where the head ends; a head poll
+// that no longer reaches them resets them rather than leave a gap between.
 //
 // Polling is VISIBILITY-AWARE, using the query library's own primitives rather
 // than a hand-rolled `visibilitychange` listener (@tanstack/react-query 5.101):
@@ -26,13 +28,14 @@
 // Deliberately NOT a push transport: SSE/websockets would need Redis fan-out
 // across replicas to be correct, and 30s polling is not the bottleneck today.
 
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { notificationKeys } from '#/shared/queries/query-keys'
 import {
   DEFAULT_NOTIFICATION_FORMAT,
   type NotificationFormat,
 } from './notification-utils'
 import {
+  fetchHeadKeepingHistoryContiguous,
   mergeNotificationHeadWithHistory,
   notificationHeadQueryOptions,
   notificationHistoryQueryOptions,
@@ -42,7 +45,10 @@ import type {
   getNotificationsFn,
   getNotificationUserSettingsFn,
 } from '#/contexts/feed/server/notifications'
-import type { NotificationListFilter } from '#/contexts/feed/application/public-api'
+import type {
+  NotificationFeedCursor,
+  NotificationListFilter,
+} from '#/contexts/feed/application/public-api'
 
 export function useNotifications(
   getFeedHead: typeof getNotificationFeedHeadFn,
@@ -52,8 +58,13 @@ export function useNotifications(
   filter: NotificationListFilter = 'all',
   poll = false,
 ) {
-  const fetchPage = (offset: number) => getList({ data: { limit, offset, filter } })
-  const fetchHead = () => getFeedHead({ data: { limit, filter } })
+  const qc = useQueryClient()
+  const historyKey = notificationKeys.list(organizationId, limit, filter)
+  const fetchPage = (before: NotificationFeedCursor | null) =>
+    getList({ data: { limit, filter, ...(before ? { before } : {}) } })
+  const fetchHead = fetchHeadKeepingHistoryContiguous(qc, historyKey, () =>
+    getFeedHead({ data: { limit, filter } }),
+  )
   const head = useQuery(
     notificationHeadQueryOptions(
       notificationKeys.head(organizationId, limit, filter),
@@ -63,9 +74,9 @@ export function useNotifications(
   )
   const history = useInfiniteQuery(
     notificationHistoryQueryOptions(
-      notificationKeys.list(organizationId, limit, filter),
+      historyKey,
       fetchPage,
-      limit,
+      head.data?.page.nextCursor ?? null,
     ),
   )
   const historyPages = history.data?.pages ?? []

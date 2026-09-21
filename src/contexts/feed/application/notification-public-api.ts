@@ -55,4 +55,9 @@ export {
 export type { UserLookupPort } from './ports/notification-user-lookup.port'
 export type { InboxItemLookupPort } from './ports/notification-inbox-item-lookup.port'
 export type { NotificationListFilter } from './notification-list-filter'
-export type { NotificationFeedHead, NotificationPage } from './notification-page'
+export type {
+  NotificationFeedCursor,
+  NotificationFeedHead,
+  NotificationPage,
+} from './notification-page'
+export { isNewerFeedPosition } from './notification-page'

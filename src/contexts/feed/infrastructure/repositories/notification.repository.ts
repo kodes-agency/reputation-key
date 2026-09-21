@@ -9,7 +9,11 @@ import type { Notification, NotificationStatus } from '../../domain/notification
 import { notificationFromRow } from './notification-row.mapper'
 import { notificationError } from '../../domain/notification-errors'
 import type { NotificationListFilter } from '../../application/notification-list-filter'
-import { createNotificationPage } from '../../application/notification-page'
+import {
+  createNotificationPage,
+  type NotificationFeedCursor,
+  type NotificationFeedRow,
+} from '../../application/notification-page'
 
 // ── Repository ──────────────────────────────────────────────────────
 
@@ -32,35 +36,63 @@ const notOptedOutInApp = sql`NOT EXISTS (
 // expression in notifications_feed_activity_idx, or every poll sorts again.
 const lastActivityAt = sql`COALESCE(${notifications.coalescedLatestAt}, ${notifications.createdAt})`
 
-// Paginated read of a user's visible notifications, newest activity first
-// with id as the tiebreak so rows sharing an instant keep one order.
-// The filter is applied BEFORE limit/offset so every returned page belongs to
+// The cursor half of the keyset: the latest-activity instant as fixed-width
+// UTC text with microseconds. A JS Date keeps only milliseconds, so a cursor
+// built from one could split two rows that share a millisecond.
+const lastActivityCursorAt = sql<string>`to_char(${lastActivityAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
+
+type NotificationFeedQuery = Readonly<{
+  userId: string
+  organizationId: string
+  filter: NotificationListFilter
+  limit: number
+}>
+
+type NotificationFeedPageQuery = NotificationFeedQuery &
+  Readonly<{
+    /** Continue strictly after this position; null reads from the top. */
+    before: NotificationFeedCursor | null
+  }>
+
+// Keyset read of a user's visible notifications, newest activity first with id
+// as the tiebreak so rows sharing an instant keep one order. A page continues
+// strictly after the previous page's last row, so rows arriving above it or
+// leaving above it can neither shift it nor make it skip a row.
+// The filter is applied BEFORE the limit so every returned page belongs to
 // the requested feed. Dismissed rows are always hidden, not deleted.
-const selectUserNotifications = (
+// Reads `limit + 1` rows: the extra one is has-more evidence for the page.
+const selectFeedRows = (
   db: Database,
-  userId: string,
-  orgId: string,
-  limit: number,
-  offset: number,
-  filter: NotificationListFilter,
-): Promise<Notification[]> => {
+  query: NotificationFeedPageQuery,
+): Promise<NotificationFeedRow[]> => {
   const conditions = [
-    eq(notifications.userId, userId),
-    eq(notifications.organizationId, orgId),
+    eq(notifications.userId, query.userId),
+    eq(notifications.organizationId, query.organizationId),
     notOptedOutInApp,
   ]
   conditions.push(ne(notifications.status, 'dismissed'))
-  if (filter === 'unread') conditions.push(eq(notifications.status, 'unread'))
-  else if (filter === 'urgent') conditions.push(eq(notifications.priority, 'urgent'))
-  else if (filter !== 'all') conditions.push(eq(notifications.category, filter))
+  if (query.filter === 'unread') conditions.push(eq(notifications.status, 'unread'))
+  else if (query.filter === 'urgent')
+    conditions.push(eq(notifications.priority, 'urgent'))
+  else if (query.filter !== 'all')
+    conditions.push(eq(notifications.category, query.filter))
+  if (query.before) {
+    conditions.push(
+      sql`(${lastActivityAt}, ${notifications.id}) < (${query.before.at}::timestamptz, ${query.before.id}::uuid)`,
+    )
+  }
   return db
-    .select()
+    .select({ row: notifications, cursorAt: lastActivityCursorAt })
     .from(notifications)
     .where(and(...conditions))
     .orderBy(desc(lastActivityAt), desc(notifications.id))
-    .limit(limit)
-    .offset(offset)
-    .then((rows) => rows.map(notificationFromRow))
+    .limit(query.limit + 1)
+    .then((rows) =>
+      rows.map(({ row, cursorAt }) => ({
+        notification: notificationFromRow(row),
+        cursor: { at: cursorAt, id: row.id },
+      })),
+    )
 }
 
 const countVisibleUnread = async (
@@ -367,34 +399,18 @@ export const createNotificationRepository = (db: Database) => ({
     return map
   },
 
-  findUnreadByUser: async (
-    userId: string,
-    orgId: string,
-    limit: number,
-    offset: number,
-  ): Promise<Notification[]> =>
-    selectUserNotifications(db, userId, orgId, limit, offset, 'unread'),
-
-  readFeedHead: async (
-    userId: string,
-    orgId: string,
-    limit: number,
-    filter: NotificationListFilter,
-  ) =>
+  readFeedHead: async (query: NotificationFeedQuery) =>
     db.transaction(
       async (tx) => {
         // The transaction handle has the same query surface as Database. Keep
         // the cast at this adapter boundary rather than weakening the port.
         const snapshot = tx as unknown as Database
-        const rows = await selectUserNotifications(
+        const rows = await selectFeedRows(snapshot, { ...query, before: null })
+        const unreadCount = await countVisibleUnread(
           snapshot,
-          userId,
-          orgId,
-          limit + 1,
-          0,
-          filter,
+          query.userId,
+          query.organizationId,
         )
-        const unreadCount = await countVisibleUnread(snapshot, userId, orgId)
         const watermarkResult = await snapshot.execute(
           sql<{ watermark: Date | string }>`SELECT transaction_timestamp() AS watermark`,
         )
@@ -413,7 +429,7 @@ export const createNotificationRepository = (db: Database) => ({
           )
         }
         return {
-          page: createNotificationPage(rows, limit),
+          page: createNotificationPage(rows, query.limit),
           unreadCount,
           watermark: watermark.toISOString(),
         }
@@ -421,12 +437,7 @@ export const createNotificationRepository = (db: Database) => ({
       { isolationLevel: 'repeatable read', accessMode: 'read only' },
     ),
 
-  findByUser: async (
-    userId: string,
-    orgId: string,
-    limit: number,
-    offset: number,
-    filter: NotificationListFilter,
-  ): Promise<Notification[]> =>
-    selectUserNotifications(db, userId, orgId, limit, offset, filter),
+  /** One keyset page below the head: rows strictly after `before`. */
+  readFeedPage: async (query: NotificationFeedPageQuery) =>
+    createNotificationPage(await selectFeedRows(db, query), query.limit),
 })

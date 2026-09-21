@@ -12,6 +12,7 @@
 import {
   classifyNotification,
   type Notification,
+  type NotificationFeedCursor,
   type NotificationPage,
   type NotificationPayload,
   type NotificationPriority,
@@ -164,11 +165,26 @@ export const notificationUserSettingsFixture = {
   updatedAt: new Date('2026-08-01T00:00:00.000Z'),
 } satisfies NotificationUserSettings
 
+/**
+ * The position the server would mint for a row: latest activity as fixed-width
+ * UTC with microseconds, then the id. A Date only has milliseconds, so the
+ * fixture pads them.
+ */
+export function feedCursorFixture(notification: Notification): NotificationFeedCursor {
+  const at = (notification.coalescedLatestAt ?? notification.createdAt).toISOString()
+  return { at: at.replace(/Z$/, '000Z'), id: notification.id }
+}
+
 export function notificationPageFixture(
   notifications: ReadonlyArray<Notification> = [],
   hasMore = false,
 ): NotificationPage {
-  return { notifications, hasMore }
+  const last = notifications.at(-1)
+  return {
+    notifications,
+    hasMore,
+    nextCursor: hasMore && last ? feedCursorFixture(last) : null,
+  }
 }
 
 export function notificationFeedHeadFixture(

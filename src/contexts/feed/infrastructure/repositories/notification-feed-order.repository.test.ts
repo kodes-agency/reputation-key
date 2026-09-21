@@ -26,6 +26,9 @@ const ORG = 'org-notification-feed-order'
 const PROPERTY = '83000000-0000-4000-8000-000000000001'
 const USER = 'user-notification-feed-order'
 
+const feedQuery = (limit: number) =>
+  ({ userId: USER, organizationId: ORG, limit, filter: 'all' }) as const
+
 let pool: Pool
 
 type Row = Readonly<{
@@ -72,6 +75,7 @@ async function removeFixtures() {
 type PlanNode = Readonly<{
   'Node Type': string
   'Index Name'?: string
+  'Index Cond'?: string
   'Relation Name'?: string
   Plans?: ReadonlyArray<PlanNode>
 }>
@@ -148,12 +152,7 @@ describe.sequential('notification feed order (real PostgreSQL)', () => {
     await insertNotification({ id: newer, createdAt: '2026-08-25T11:00:00Z' })
     await insertNotification({ id: newest, createdAt: '2026-08-25T11:30:00Z' })
 
-    const head = await createNotificationRepository(getDb()).readFeedHead(
-      USER,
-      ORG,
-      3,
-      'all',
-    )
+    const head = await createNotificationRepository(getDb()).readFeedHead(feedQuery(3))
 
     expect(head.page.notifications.map((row) => row.id)).toEqual([refired, newest, newer])
   })
@@ -168,25 +167,90 @@ describe.sequential('notification feed order (real PostgreSQL)', () => {
       await insertNotification({ id, createdAt: '2026-08-25T09:00:00Z' })
     }
 
-    const head = await createNotificationRepository(getDb()).readFeedHead(
-      USER,
-      ORG,
-      3,
-      'all',
-    )
+    const head = await createNotificationRepository(getDb()).readFeedHead(feedQuery(3))
 
     expect(head.page.notifications.map((row) => row.id)).toEqual([...ids].reverse())
   })
 
   it('serves the polled feed head from an index in feed order, without a sort', async () => {
     const plan = await planOfCapturedQuery(
-      (db) => createNotificationRepository(db).readFeedHead(USER, ORG, 20, 'all'),
+      (db) => createNotificationRepository(db).readFeedHead(feedQuery(20)),
       (sql) => /from "notifications"/i.test(sql) && /order by/i.test(sql),
     )
 
     expect(plan.map((node) => node['Index Name'])).toContain(
       'notifications_feed_activity_idx',
     )
+    expect(plan.map((node) => node['Node Type'])).not.toContain('Sort')
+  })
+
+  it('continues a page after its cursor, whatever arrives or leaves above it', async () => {
+    const ids = [0, 1, 2, 3, 4, 5].map((n) => `83000000-0000-4000-8000-00000000003${n}`)
+    for (const [n, id] of ids.entries()) {
+      await insertNotification({ id, createdAt: `2026-08-25T10:0${5 - n}:00Z` })
+    }
+    const repo = createNotificationRepository(getDb())
+    const head = await repo.readFeedHead(feedQuery(2))
+    expect(head.page.notifications.map((row) => row.id)).toEqual(ids.slice(0, 2))
+
+    // Above the cursor, a row arrives and a head row is dismissed.
+    await insertNotification({
+      id: '83000000-0000-4000-8000-000000000039',
+      createdAt: '2026-08-25T11:00:00Z',
+    })
+    await pool.query(`UPDATE notifications SET status = 'dismissed' WHERE id = $1`, [
+      ids[1],
+    ])
+
+    const second = await repo.readFeedPage({
+      ...feedQuery(2),
+      before: head.page.nextCursor,
+    })
+    const third = await repo.readFeedPage({ ...feedQuery(2), before: second.nextCursor })
+
+    expect(second.notifications.map((row) => row.id)).toEqual(ids.slice(2, 4))
+    expect(third.notifications.map((row) => row.id)).toEqual(ids.slice(4, 6))
+    expect(third.hasMore).toBe(false)
+    expect(third.nextCursor).toBeNull()
+  })
+
+  it('keeps two rows that share a millisecond apart across a page boundary', async () => {
+    // Truncated to milliseconds these would tie, and the id tiebreak would
+    // put `second` first: a millisecond cursor would then skip it.
+    const first = '83000000-0000-4000-8000-000000000041'
+    const second = '83000000-0000-4000-8000-000000000042'
+    await insertNotification({ id: first, createdAt: '2026-08-25T09:00:00.123456Z' })
+    await insertNotification({ id: second, createdAt: '2026-08-25T09:00:00.123400Z' })
+    const repo = createNotificationRepository(getDb())
+
+    const head = await repo.readFeedHead(feedQuery(1))
+    const next = await repo.readFeedPage({
+      ...feedQuery(1),
+      before: head.page.nextCursor,
+    })
+
+    expect(head.page.notifications.map((row) => row.id)).toEqual([first])
+    expect(head.page.nextCursor).toEqual({ at: '2026-08-25T09:00:00.123456Z', id: first })
+    expect(next.notifications.map((row) => row.id)).toEqual([second])
+  })
+
+  it('seeks a keyset page through the feed index instead of filtering it', async () => {
+    const plan = await planOfCapturedQuery(
+      (db) =>
+        createNotificationRepository(db).readFeedPage({
+          ...feedQuery(20),
+          before: {
+            at: '2026-08-25T09:00:00.000000Z',
+            id: '83000000-0000-4000-8000-000000000099',
+          },
+        }),
+      (sql) => /from "notifications"/i.test(sql) && /order by/i.test(sql),
+    )
+
+    const feedScan = plan.find(
+      (node) => node['Index Name'] === 'notifications_feed_activity_idx',
+    )
+    expect(feedScan?.['Index Cond']).toContain('ROW(')
     expect(plan.map((node) => node['Node Type'])).not.toContain('Sort')
   })
 

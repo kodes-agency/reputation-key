@@ -56,14 +56,25 @@ async function runBulkNotificationMutation<T>(
 
 // ── getNotificationsFn ────────────────────────────────────────────
 
-const getNotificationsDto = z.object({
-  limit: z.coerce.number().min(1).max(100).optional().default(20),
-  offset: z.coerce.number().min(0).optional().default(0),
-  filter: z.enum(NOTIFICATION_LIST_FILTERS).optional().default('all'),
+/**
+ * A page position the server minted as a previous page's `nextCursor`. There
+ * is no offset: an offset shifts under the reader whenever a row arrives or
+ * leaves above it, so "Load more" skipped or repeated rows.
+ */
+const notificationFeedCursor = z.object({
+  at: z.iso.datetime(),
+  id: z.uuid(),
 })
 
-/** Offset-zero feed authority. History continues to use getNotificationsFn. */
-export const getNotificationFeedHeadDto = getNotificationsDto.omit({ offset: true })
+export const getNotificationsDto = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  filter: z.enum(NOTIFICATION_LIST_FILTERS).optional().default('all'),
+  /** Continue strictly after this position; absent reads from the top. */
+  before: notificationFeedCursor.optional(),
+})
+
+/** First-page feed authority. History continues with getNotificationsFn. */
+export const getNotificationFeedHeadDto = getNotificationsDto.omit({ before: true })
 
 export const getNotificationFeedHeadFn = createServerFn({ method: 'GET' })
   .validator(getNotificationFeedHeadDto)
@@ -109,14 +120,11 @@ export const getNotificationsFn = createServerFn({ method: 'GET' })
         await requireExecutionAllowed({ actor: ctx, action: 'notification.read' })
         try {
           const { feedPublicApi } = getContainer()
-          const rows = await feedPublicApi.getNotifications(
-            ctx.userId,
-            ctx.organizationId,
-            data.limit + 1,
-            data.offset,
-            data.filter,
-          )
-          return createNotificationPage(rows, data.limit)
+          return await feedPublicApi.getNotifications(ctx.userId, ctx.organizationId, {
+            limit: data.limit,
+            filter: data.filter,
+            before: data.before ?? null,
+          })
         } catch (e) {
           throw catchUntagged(e)
         }

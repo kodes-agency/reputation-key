@@ -97,6 +97,7 @@ import type { NotificationError } from './domain/notification-errors'
 import type { Result } from '#/shared/domain'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { NotificationListFilter } from './application/notification-list-filter'
+import type { NotificationFeedCursor } from './application/notification-page'
 import type { OneClickUnsubscribeTarget } from './application/one-click-unsubscribe-token'
 import { assertBetaNotificationTriggerMatrix } from './application/beta-notification-trigger-matrix'
 import { createNotificationDeliveryRuntime } from './application/notification-delivery-runtime'
@@ -488,14 +489,28 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       orgId: string,
       limit: number,
       filter: NotificationListFilter,
-    ) => notificationRepo.readFeedHead(userId, orgId, limit, filter),
+    ) =>
+      notificationRepo.readFeedHead({
+        userId,
+        organizationId: orgId,
+        limit,
+        filter,
+      }),
+    /** A keyset page below the head, continuing strictly after `before`. */
     getNotifications: (
       userId: string,
       orgId: string,
-      limit: number,
-      offset: number,
-      filter: NotificationListFilter,
-    ) => notificationRepo.findByUser(userId, orgId, limit, offset, filter),
+      page: Readonly<{
+        limit: number
+        filter: NotificationListFilter
+        before: NotificationFeedCursor | null
+      }>,
+    ) =>
+      notificationRepo.readFeedPage({
+        userId,
+        organizationId: orgId,
+        ...page,
+      }),
     markRead: async (id: string, orgId: string, userId: UserId) => {
       const now = await applyOwnedTransition(id, orgId, userId, markNotificationRead)
       if (now === null) return // invalid transition, skip
