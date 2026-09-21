@@ -462,6 +462,87 @@ describe('canonical Goal Program service', () => {
     expect(repository.revise).toHaveBeenCalledOnce()
   })
 
+  // The open month belongs to the version's own timezone. A Property that
+  // moved east starts its next local month BEFORE that month ends (Sofia's
+  // April begins 2026-03-31T21:00Z, inside UTC March), and closing the old
+  // version there would leave March outside its version window for good.
+  it('starts a revision after the open month when the Property timezone moved east', async () => {
+    const { service, repository, subjects, setNow } = setup()
+    const created = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'Monthly ratings',
+        metric: 'portal_rating_count',
+        targetValue: 25,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    setNow(new Date('2026-03-20T12:00:00.000Z'))
+    vi.mocked(subjects.getTimezone).mockResolvedValue('Europe/Sofia')
+
+    const revised = await service.revise(
+      {
+        propertyId: 'property-1',
+        programId: created.program.id,
+        metric: 'portal_rating_count',
+        targetValue: 40,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        reason: 'The property moved to Sofia time',
+      },
+      actor,
+    )
+
+    // March (UTC) ends 2026-04-01T00:00Z; the first Sofia month that starts
+    // at or after it is May.
+    expect(revised.version).toMatchObject({
+      propertyTimezone: 'Europe/Sofia',
+      effectiveFrom: new Date('2026-04-30T21:00:00.000Z'),
+    })
+    expect(repository.revise).toHaveBeenCalledWith(
+      expect.objectContaining({
+        version: expect.objectContaining({
+          effectiveFrom: new Date('2026-04-30T21:00:00.000Z'),
+        }),
+      }),
+    )
+  })
+
+  it('keeps the next local month when the Property timezone moved west', async () => {
+    const { service, subjects, setNow } = setup(new Date('2026-02-28T22:00:00.000Z'))
+    vi.mocked(subjects.getTimezone).mockResolvedValue('Europe/Sofia')
+    const created = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'Monthly ratings',
+        metric: 'portal_rating_count',
+        targetValue: 25,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    expect(created.results[0]?.periodEnd).toEqual(new Date('2026-03-31T21:00:00.000Z'))
+    setNow(new Date('2026-03-20T12:00:00.000Z'))
+    vi.mocked(subjects.getTimezone).mockResolvedValue('UTC')
+
+    const revised = await service.revise(
+      {
+        propertyId: 'property-1',
+        programId: created.program.id,
+        metric: 'portal_rating_count',
+        targetValue: 40,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        reason: 'The property moved to UTC',
+      },
+      actor,
+    )
+
+    expect(revised.version).toMatchObject({
+      propertyTimezone: 'UTC',
+      effectiveFrom: new Date('2026-04-01T00:00:00.000Z'),
+    })
+  })
+
   it('bulk-adds and removes explicit subjects in one fenced next-month revision', async () => {
     const { service, repository, setNow } = setup()
     const created = await service.create(
@@ -1162,6 +1243,42 @@ describe('canonical Goal Program service', () => {
       name: 'GoalProgramMaintenanceError',
       stats: { inspected: 1, failed: 1 },
     })
+  })
+
+  // A result whose month runs past its version or assignment window can never
+  // be updated: the database guard rejects every write. Before revisions
+  // respected the open month, a timezone move could leave one behind, and it
+  // failed every hourly run for every tenant.
+  it('reports a result stranded outside its version window without failing the run', async () => {
+    const { service, repository, setNow } = setup()
+    const created = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'Monthly ratings',
+        metric: 'portal_rating_count',
+        targetValue: 25,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    const closedEarly = {
+      ...created.version,
+      effectiveTo: new Date('2026-03-31T21:00:00.000Z'),
+    }
+    vi.mocked(repository.getVersion).mockResolvedValue(closedEarly)
+    vi.mocked(repository.updateResult).mockRejectedValue(
+      Object.assign(new Error('goal monthly result falls outside its window'), {
+        code: '23514',
+      }),
+    )
+    setNow(new Date('2026-04-03T00:00:00.000Z'))
+
+    await expect(service.maintain()).resolves.toMatchObject({
+      reconciled: 0,
+      stranded: 1,
+      failed: 0,
+    })
+    expect(repository.updateResult).not.toHaveBeenCalled()
   })
 
   it('moves a due result through reconciling before immutable closure', async () => {
