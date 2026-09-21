@@ -23,7 +23,7 @@ import { createNotificationRepository } from './notification.repository'
 import { createNotificationGapRepository } from './notification-gap.repository'
 
 const ORG = 'org-notification-feed-order'
-const PROPERTY = '83000000-0000-4000-8000-000000000001'
+const PROPERTY = '86100000-0000-4000-8000-000000000001'
 const USER = 'user-notification-feed-order'
 
 const feedQuery = (limit: number) =>
@@ -146,9 +146,9 @@ beforeEach(async () => {
 
 describe.sequential('notification feed order (real PostgreSQL)', () => {
   it('lifts a coalesced row to its newest absorbed event', async () => {
-    const refired = '83000000-0000-4000-8000-000000000010'
-    const newer = '83000000-0000-4000-8000-000000000011'
-    const newest = '83000000-0000-4000-8000-000000000012'
+    const refired = '86100000-0000-4000-8000-000000000010'
+    const newer = '86100000-0000-4000-8000-000000000011'
+    const newest = '86100000-0000-4000-8000-000000000012'
     await insertNotification({
       id: refired,
       type: 'inbox.escalated',
@@ -165,9 +165,9 @@ describe.sequential('notification feed order (real PostgreSQL)', () => {
 
   it('breaks an activity tie on id so equal instants keep one order', async () => {
     const ids = [
-      '83000000-0000-4000-8000-000000000021',
-      '83000000-0000-4000-8000-000000000022',
-      '83000000-0000-4000-8000-000000000023',
+      '86100000-0000-4000-8000-000000000021',
+      '86100000-0000-4000-8000-000000000022',
+      '86100000-0000-4000-8000-000000000023',
     ]
     for (const id of ids) {
       await insertNotification({ id, createdAt: '2026-08-25T09:00:00Z' })
@@ -191,7 +191,7 @@ describe.sequential('notification feed order (real PostgreSQL)', () => {
   })
 
   it('continues a page after its cursor, whatever arrives or leaves above it', async () => {
-    const ids = [0, 1, 2, 3, 4, 5].map((n) => `83000000-0000-4000-8000-00000000003${n}`)
+    const ids = [0, 1, 2, 3, 4, 5].map((n) => `86100000-0000-4000-8000-00000000003${n}`)
     for (const [n, id] of ids.entries()) {
       await insertNotification({ id, createdAt: `2026-08-25T10:0${5 - n}:00Z` })
     }
@@ -201,7 +201,7 @@ describe.sequential('notification feed order (real PostgreSQL)', () => {
 
     // Above the cursor, a row arrives and a head row is dismissed.
     await insertNotification({
-      id: '83000000-0000-4000-8000-000000000039',
+      id: '86100000-0000-4000-8000-000000000039',
       createdAt: '2026-08-25T11:00:00Z',
     })
     await pool.query(`UPDATE notifications SET status = 'dismissed' WHERE id = $1`, [
@@ -223,8 +223,8 @@ describe.sequential('notification feed order (real PostgreSQL)', () => {
   it('keeps two rows that share a millisecond apart across a page boundary', async () => {
     // Truncated to milliseconds these would tie, and the id tiebreak would
     // put `second` first: a millisecond cursor would then skip it.
-    const first = '83000000-0000-4000-8000-000000000041'
-    const second = '83000000-0000-4000-8000-000000000042'
+    const first = '86100000-0000-4000-8000-000000000041'
+    const second = '86100000-0000-4000-8000-000000000042'
     await insertNotification({ id: first, createdAt: '2026-08-25T09:00:00.123456Z' })
     await insertNotification({ id: second, createdAt: '2026-08-25T09:00:00.123400Z' })
     const repo = createNotificationRepository(getDb())
@@ -247,7 +247,7 @@ describe.sequential('notification feed order (real PostgreSQL)', () => {
           ...feedQuery(20),
           before: {
             at: '2026-08-25T09:00:00.000000Z',
-            id: '83000000-0000-4000-8000-000000000099',
+            id: '86100000-0000-4000-8000-000000000099',
           },
         }),
       (sql) => /from "notifications"/i.test(sql) && /order by/i.test(sql),
