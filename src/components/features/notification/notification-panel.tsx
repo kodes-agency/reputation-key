@@ -4,18 +4,43 @@
 // `'no-active-organization'`, so the public-route header wrote into a different
 // cache namespace than the app shell: the same signed-in user saw two different
 // unread counts depending on which page they were on.
+//
+// The bell is on every page, /login and the guest Portal included (the public
+// Header imports it even where it hides), but the popover body — rows, row
+// menu, templates, filter tabs — matters only once it is opened. It is split
+// out of the first-paint closure the bundle budget guards, and fetched when
+// the pointer reaches the bell or the bell takes focus, so it is usually in
+// place before the click. The trigger, the badge and the polling head stay
+// eager.
 
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
+import { Skeleton } from '#/components/ui/skeleton'
 import { useNotificationFormat, useNotifications } from './notification-queries'
 import { useNotificationMutations } from './notification-mutations'
 import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-announcer'
 import { groupByReadState, type NotificationFilter } from './notification-filters'
-import { NotificationPopoverContent } from './notification-popover-content'
 import type { NotificationServerFns, NotificationRowActions } from './types'
 import type { NotificationView } from '#/contexts/feed/application/public-api'
+
+const loadPopoverContent = () => import('./notification-popover-content')
+const NotificationPopoverContent = lazy(() =>
+  loadPopoverContent().then((module) => ({ default: module.NotificationPopoverContent })),
+)
+
+/** Stands in for the popover body while its chunk arrives. */
+function PopoverContentFallback() {
+  return (
+    <div role="status" aria-busy="true" className="flex flex-col gap-3 p-4">
+      <span className="sr-only">Loading notifications…</span>
+      <Skeleton className="h-4 w-32" />
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="h-16 w-full" />
+    </div>
+  )
+}
 
 const PAGE_SIZE = 20
 /** Half the 1rem the width cap leaves, so the popover never touches an edge. */
@@ -84,6 +109,8 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
           variant="ghost"
           size="icon-sm"
           className="relative"
+          onPointerEnter={() => void loadPopoverContent()}
+          onFocus={() => void loadPopoverContent()}
           aria-label={`Notifications${count > 0 ? `, ${count} unread` : ''}`}
         >
           <Bell aria-hidden="true" className="size-4" />
@@ -110,24 +137,26 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
         collisionPadding={POPOVER_VIEWPORT_MARGIN_PX}
         className="flex max-h-(--radix-popover-content-available-height) w-[min(24rem,calc(100vw-1rem))] flex-col p-0"
       >
-        <NotificationPopoverContent
-          groups={groups}
-          isLoading={list.isLoading}
-          isLoadingMore={list.isLoadingMore}
-          error={list.error}
-          loadMoreError={list.loadMoreError}
-          hasMore={list.hasMore}
-          unreadCount={count}
-          filter={filter}
-          onFilterChange={setFilter}
-          isMarkingAllRead={mutations.isMarkingAllRead}
-          onRetry={list.refetch}
-          onLoadMore={list.loadMore}
-          onMarkAllRead={mutations.markAllRead}
-          actions={actions}
-          format={format}
-          onViewAll={() => setOpen(false)}
-        />
+        <Suspense fallback={<PopoverContentFallback />}>
+          <NotificationPopoverContent
+            groups={groups}
+            isLoading={list.isLoading}
+            isLoadingMore={list.isLoadingMore}
+            error={list.error}
+            loadMoreError={list.loadMoreError}
+            hasMore={list.hasMore}
+            unreadCount={count}
+            filter={filter}
+            onFilterChange={setFilter}
+            isMarkingAllRead={mutations.isMarkingAllRead}
+            onRetry={list.refetch}
+            onLoadMore={list.loadMore}
+            onMarkAllRead={mutations.markAllRead}
+            actions={actions}
+            format={format}
+            onViewAll={() => setOpen(false)}
+          />
+        </Suspense>
       </PopoverContent>
     </Popover>
   )

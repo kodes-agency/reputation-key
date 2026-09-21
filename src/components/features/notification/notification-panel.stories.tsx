@@ -25,6 +25,7 @@ import {
   notificationUserSettingsFixture,
 } from './notification.stories.fixtures'
 import { NotificationPanel } from './notification-panel'
+import { findOpenBellPopover, openBell } from './notification.stories.bell'
 import type { NotificationServerFns } from './types'
 
 const ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222'
@@ -97,10 +98,8 @@ export const AtomicFeedHeadAuthority: Story = {
 /** Clicking the real bell opens the real popover. */
 export const OpensOnClick: Story = {
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
     // Radix portals the popover outside the story canvas.
-    const portal = within(document.body)
+    const portal = await openBell(canvasElement)
     expect(
       await portal.findByRole('heading', { name: 'Notifications' }),
     ).toBeInTheDocument()
@@ -127,9 +126,7 @@ export const DismissRemovesRowOptimistically: Story = {
     }),
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
-    const portal = within(document.body)
+    const portal = await openBell(canvasElement)
     const before = (await portal.findAllByRole('listitem')).length
     await userEvent.click(portal.getAllByRole('button', { name: /^Dismiss:/ })[0])
     await waitFor(() => {
@@ -152,12 +149,6 @@ const pendingRowFns = (rows: typeof notificationFixtures) =>
       Promise.withResolvers<void>()
         .promise) as unknown as NotificationServerFns['markRead'],
   })
-
-async function openBell(canvasElement: HTMLElement) {
-  const canvas = within(canvasElement)
-  await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
-  return within(await within(document.body).findByRole('dialog'))
-}
 
 /**
  * The dismissed row takes its focused button with it. Focus moves to the same
@@ -221,9 +212,7 @@ export const MarkAllReadIsOptimistic: Story = {
     }),
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
-    const portal = within(document.body)
+    const portal = await openBell(canvasElement)
     await userEvent.click(await portal.findByRole('button', { name: /mark all read/i }))
     await waitFor(() => {
       expect(portal.queryByRole('heading', { name: 'New' })).toBeNull()
@@ -254,7 +243,7 @@ export const FilterSwitchKeepsTheCount: Story = {
     const canvas = within(canvasElement)
     const counted = `Notifications, ${unreadCount} unread`
     await userEvent.click(await canvas.findByRole('button', { name: counted }))
-    const popover = within(await within(document.body).findByRole('dialog'))
+    const popover = await findOpenBellPopover()
     const all = await popover.findByRole('tab', { name: 'All' })
     all.focus()
     await userEvent.keyboard('{ArrowRight}')
@@ -269,7 +258,7 @@ export const FilterSwitchKeepsTheCount: Story = {
 
     await userEvent.keyboard('{Escape}')
     await userEvent.click(canvas.getByRole('button', { name: counted }))
-    const reopened = within(await within(document.body).findByRole('dialog'))
+    const reopened = await findOpenBellPopover()
     expect(await reopened.findByRole('tab', { name: 'All' })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -350,9 +339,7 @@ export const ErrorState: Story = {
     }),
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
-    const portal = within(document.body)
+    const portal = await openBell(canvasElement)
     expect(await portal.findByRole('button', { name: /retry/i })).toBeInTheDocument()
   },
 }
@@ -382,9 +369,7 @@ export const SessionEnded: Story = {
 export const Empty: Story = {
   args: { notificationFns: makeNotificationFns() },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
-    const portal = within(document.body)
+    const portal = await openBell(canvasElement)
     expect(await portal.findByText(/nothing here right now/i)).toBeInTheDocument()
   },
 }
@@ -431,10 +416,8 @@ export const MuteCategory: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
     // Scoped to the popover: a sonner toast is a list item of its own.
-    const portal = within(await within(document.body).findByRole('dialog'))
+    const portal = await openBell(canvasElement)
     await waitFor(() => expect(portal.getAllByRole('listitem')).toHaveLength(3))
     const readsBefore = readMuteFeedHead.mock.calls.length
     await userEvent.click(
@@ -476,9 +459,7 @@ export const FailedDismissSaysSo: Story = {
     }),
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
-    const portal = within(await within(document.body).findByRole('dialog'))
+    const portal = await openBell(canvasElement)
     const before = (await portal.findAllByRole('listitem')).length
     await userEvent.click(portal.getAllByRole('button', { name: /^Dismiss:/ })[0]!)
     await expectToast("Couldn't dismiss that notification. Try again.")
@@ -507,9 +488,7 @@ export const HonoursPersistedLocale: Story = {
     }),
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
-    const portal = within(document.body)
+    const portal = await openBell(canvasElement)
     await portal.findAllByRole('listitem')
     await waitFor(() => {
       expect(portal.getAllByText(/vor \d+ Minuten/).length).toBeGreaterThan(0)

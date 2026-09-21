@@ -12,6 +12,7 @@ import {
 } from './notification.stories.fixtures'
 import { NotificationPage } from './notification-page'
 import { NotificationPanel } from './notification-panel'
+import { findOpenBellPopover } from './notification.stories.bell'
 import {
   matchesNotificationFilter,
   parseNotificationFilter,
@@ -241,7 +242,7 @@ export const BellHistoryFollowsThePage: Story = {
     const canvas = within(canvasElement)
     const bell = await canvas.findByRole('button', { name: 'Notifications, 25 unread' })
     await userEvent.click(bell)
-    const popover = within(await within(document.body).findByRole('dialog'))
+    const popover = await findOpenBellPopover()
     await userEvent.click(await popover.findByRole('button', { name: 'Load more' }))
     await waitFor(() => expect(popover.getAllByRole('listitem')).toHaveLength(25))
     await userEvent.keyboard('{Escape}')
@@ -250,7 +251,7 @@ export const BellHistoryFollowsThePage: Story = {
     await canvas.findByRole('button', { name: 'Notifications' })
     await userEvent.click(canvas.getByRole('button', { name: 'Notifications' }))
 
-    const reopened = within(await within(document.body).findByRole('dialog'))
+    const reopened = await findOpenBellPopover()
     await reopened.findByRole('heading', { name: 'Earlier' })
     expect(reopened.queryByRole('heading', { name: 'New' })).toBeNull()
     expect(reopened.queryByText('Unread.')).toBeNull()
