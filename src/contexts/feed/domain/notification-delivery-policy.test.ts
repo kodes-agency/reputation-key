@@ -12,6 +12,41 @@ import {
 import { NOTIFICATION_TYPES } from './notification-types'
 import { getDefaultEnabled } from './notification-policy'
 
+/** Instants in 2026 at which `timezone` changes its UTC offset, to the hour. */
+function dstTransitions2026(timezone: string): Date[] {
+  const format = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+  })
+  const offsetAt = (instant: number): number => {
+    const parts = format.formatToParts(instant)
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      Number(parts.find((entry) => entry.type === type)?.value)
+    const wallClock = Date.UTC(
+      part('year'),
+      part('month') - 1,
+      part('day'),
+      part('hour'),
+      part('minute'),
+    )
+    return wallClock - Math.floor(instant / 60_000) * 60_000
+  }
+  const HOUR = 60 * 60_000
+  const transitions: Date[] = []
+  for (let day = Date.UTC(2026, 0, 1); day < Date.UTC(2027, 0, 1); day += 24 * HOUR) {
+    if (offsetAt(day) === offsetAt(day + 24 * HOUR)) continue
+    let instant = day + HOUR
+    while (offsetAt(instant) === offsetAt(day)) instant += HOUR
+    transitions.push(new Date(instant))
+  }
+  return transitions
+}
+
 describe('notification delivery policy', () => {
   it('defers a non-urgent immediate email until quiet hours end across the DST spring gap', () => {
     const result = deliveryTiming({
@@ -43,6 +78,121 @@ describe('notification delivery policy', () => {
       kind: 'defer',
       until: new Date('2026-11-01T12:00:00.000Z'),
     })
+  })
+
+  it('defers to a one-hour evening window on the spring-forward day instead of throwing', () => {
+    // Quiet 00:30–23:30 leaves 60 minutes to deliver in. The old jump added
+    // the remaining WALL-CLOCK minutes as real time, overshot the window by
+    // the hour the clocks lose, and threw a RangeError out of the job.
+    const result = deliveryTiming({
+      now: new Date('2026-03-08T05:30:00.000Z'),
+      timezone: 'America/New_York',
+      quietHoursStart: '00:30',
+      quietHoursEnd: '23:30',
+      urgent: false,
+      urgentBypassEnabled: false,
+    })
+
+    expect(result).toEqual({
+      kind: 'defer',
+      until: new Date('2026-03-09T03:30:00.000Z'),
+    })
+  })
+
+  it('defers to a one-hour morning window across the night the clocks spring forward', () => {
+    const result = deliveryTiming({
+      now: new Date('2026-03-07T14:00:00.000Z'),
+      timezone: 'America/New_York',
+      quietHoursStart: '09:00',
+      quietHoursEnd: '08:00',
+      urgent: false,
+      urgentBypassEnabled: false,
+    })
+
+    expect(result).toEqual({
+      kind: 'defer',
+      until: new Date('2026-03-08T12:00:00.000Z'),
+    })
+  })
+
+  it('waits for the next day when the only delivery hour vanishes in the DST gap', () => {
+    // 02:00–03:00 does not exist in New York on 8 March 2026, so the next
+    // minute outside quiet hours is 02:00 on the 9th — two days away.
+    const result = deliveryTiming({
+      now: new Date('2026-03-07T08:00:00.000Z'),
+      timezone: 'America/New_York',
+      quietHoursStart: '03:00',
+      quietHoursEnd: '02:00',
+      urgent: false,
+      urgentBypassEnabled: false,
+    })
+
+    expect(result).toEqual({
+      kind: 'defer',
+      until: new Date('2026-03-09T06:00:00.000Z'),
+    })
+  })
+
+  it('never throws and never defers into quiet time around any 2026 DST transition', () => {
+    // Zones chosen for their shifts: 60 min, 30 min (Lord Howe), 2 h (Troll)
+    // and a 45-minute offset (Chatham).
+    const zones = [
+      'America/New_York',
+      'Australia/Lord_Howe',
+      'Antarctica/Troll',
+      'Pacific/Chatham',
+    ]
+    const windows = [
+      ['00:30', '23:30'],
+      ['09:00', '08:00'],
+      ['22:00', '07:00'],
+      ['03:00', '02:00'],
+    ] as const
+    const HOUR = 60 * 60_000
+    for (const timezone of zones) {
+      const minuteOf = (instant: Date) => {
+        const [hour, minute] = new Intl.DateTimeFormat('en-GB', {
+          timeZone: timezone,
+          hour: '2-digit',
+          minute: '2-digit',
+          hourCycle: 'h23',
+        })
+          .format(instant)
+          .split(':')
+          .map(Number)
+        return hour! * 60 + minute!
+      }
+      const transitions = dstTransitions2026(timezone)
+      expect(transitions, timezone).toHaveLength(2)
+      for (const transition of transitions) {
+        for (const [quietHoursStart, quietHoursEnd] of windows) {
+          const [start, end] = [quietHoursStart, quietHoursEnd].map((value) => {
+            const [hour, minute] = value.split(':').map(Number)
+            return hour! * 60 + minute!
+          })
+          const quiet = (minute: number) =>
+            start! < end!
+              ? minute >= start! && minute < end!
+              : minute >= start! || minute < end!
+          for (let offset = -30; offset <= 6; offset += 1) {
+            const now = new Date(transition.getTime() + offset * HOUR)
+            const result = deliveryTiming({
+              now,
+              timezone,
+              quietHoursStart,
+              quietHoursEnd,
+              urgent: false,
+              urgentBypassEnabled: false,
+            })
+            if (result.kind === 'send') continue
+            const label = `${timezone} ${quietHoursStart}-${quietHoursEnd} at ${now.toISOString()}`
+            expect(result.until.getTime(), label).toBeGreaterThan(now.getTime())
+            expect(result.until.getTime() - now.getTime(), label).toBeLessThan(50 * HOUR)
+            expect(quiet(minuteOf(result.until)), label).toBe(false)
+          }
+        }
+      }
+    }
   })
 
   it('allows urgent quiet-hours bypass only after explicit opt-in', () => {

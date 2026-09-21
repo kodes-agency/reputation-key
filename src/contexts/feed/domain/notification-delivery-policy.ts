@@ -140,19 +140,45 @@ function minuteOfDay(value: string): number {
   return hour * 60 + minute
 }
 
-function localMinute(date: Date, timezone: string): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
+const MINUTE_MS = 60_000
+
+/**
+ * The largest daylight-saving shift in the tz database: Antarctica/Troll moves
+ * two hours. A jump across quiet time stops this far short of the window's
+ * wall-clock end, so a spring-forward inside the jump cannot carry it past the
+ * end and into the next quiet window.
+ */
+const MAX_DST_SHIFT_MINUTES = 120
+
+/**
+ * How far ahead a sendable minute is looked for. A quiet window is shorter
+ * than a day, but a transition day can erase a sendable window no longer than
+ * its shift (02:00–03:00 does not exist in New York on a spring-forward night),
+ * which moves the answer into the following day.
+ */
+const SEARCH_HORIZON_MINUTES = 50 * 60
+
+/** One formatter per timezone lookup, reused for every minute probed. */
+function localMinuteReader(timezone: string): (instant: number) => number {
+  const format = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
-  }).formatToParts(date)
-  const hour = Number(parts.find((part) => part.type === 'hour')?.value)
-  const minute = Number(parts.find((part) => part.type === 'minute')?.value)
-  if (!Number.isInteger(hour) || !Number.isInteger(minute)) {
-    throw new RangeError(`Unable to resolve timezone: ${timezone}`)
+  })
+  return (instant) => {
+    const parts = format.formatToParts(instant)
+    const hour = Number(parts.find((part) => part.type === 'hour')?.value)
+    const minute = Number(parts.find((part) => part.type === 'minute')?.value)
+    if (!Number.isInteger(hour) || !Number.isInteger(minute)) {
+      throw new RangeError(`Unable to resolve timezone: ${timezone}`)
+    }
+    return hour * 60 + minute
   }
-  return hour * 60 + minute
+}
+
+function localMinute(date: Date, timezone: string): number {
+  return localMinuteReader(timezone)(date.getTime())
 }
 
 function isQuietMinute(minute: number, start: number, end: number): boolean {
@@ -160,34 +186,47 @@ function isQuietMinute(minute: number, start: number, end: number): boolean {
   return start < end ? minute >= start && minute < end : minute >= start || minute < end
 }
 
+/** Wall-clock minutes from a quiet `minute` until its quiet window ends. */
+function quietMinutesRemaining(minute: number, start: number, end: number): number {
+  return start < end ? end - minute : minute < end ? end - minute : 1_440 - minute + end
+}
+
+/**
+ * The first whole minute after `now` that falls outside quiet hours, walked in
+ * real time. The remaining quiet time is a WALL-CLOCK distance, which a
+ * daylight-saving change stretches or shrinks: jumping all of it as real time
+ * overshot a short sendable window on a spring-forward day and threw.
+ *
+ * When the clock advances by exactly that distance, no change fell in between
+ * and the window's end is the answer. Otherwise each jump stops
+ * MAX_DST_SHIFT_MINUTES short and the rest is walked minute by minute, so the
+ * answer is never inside quiet hours. A fall-back hour replayed just before
+ * the window starts can be skipped: late, never early.
+ */
 function firstNonQuietMinute(
   now: Date,
   timezone: string,
   start: number,
   end: number,
 ): Date {
-  let low = Math.floor(now.getTime() / 60_000) * 60_000
-  let high = low + 60_000
-  const maximum = low + 27 * 60 * 60_000
+  const minuteAt = localMinuteReader(timezone)
+  const first = Math.floor(now.getTime() / MINUTE_MS) * MINUTE_MS
+  const horizon = first + SEARCH_HORIZON_MINUTES * MINUTE_MS
+  let candidate = first + MINUTE_MS
 
-  while (
-    high <= maximum &&
-    isQuietMinute(localMinute(new Date(high), timezone), start, end)
-  ) {
-    const local = localMinute(new Date(high), timezone)
-    const remaining =
-      start < end ? end - local : local < end ? end - local : 1_440 - local + end
-    high += Math.max(remaining, 1) * 60_000
+  while (candidate < horizon) {
+    const minute = minuteAt(candidate)
+    if (!isQuietMinute(minute, start, end)) return new Date(candidate)
+    const remaining = quietMinutesRemaining(minute, start, end)
+    const windowEnd = candidate + remaining * MINUTE_MS
+    if ((minuteAt(windowEnd) - minute + 1_440) % 1_440 === remaining) {
+      return new Date(windowEnd)
+    }
+    candidate += Math.max(remaining - MAX_DST_SHIFT_MINUTES, 1) * MINUTE_MS
   }
-  if (high > maximum)
-    throw new RangeError(`Unable to resolve quiet-hours end in ${timezone}`)
-
-  while (high - low > 60_000) {
-    const middle = low + Math.floor((high - low) / 120_000) * 60_000
-    if (isQuietMinute(localMinute(new Date(middle), timezone), start, end)) low = middle
-    else high = middle
-  }
-  return new Date(high)
+  // Nothing sendable within two days. Deferring to the horizon lets the send
+  // path evaluate quiet hours again then, instead of failing the delivery now.
+  return new Date(horizon)
 }
 
 export function deliveryTiming(
