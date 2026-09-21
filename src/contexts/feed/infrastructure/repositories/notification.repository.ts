@@ -108,15 +108,17 @@ export const createNotificationRepository = (db: Database) => ({
       // drizzle needs its predicate (`targetWhere`) alongside the columns —
       // without the predicate PostgreSQL cannot infer which index arbitrates.
       // Reaching this branch means two events raced past the use case's unread
-      // lookup, so it coalesces exactly like the checked path: bump the count,
-      // stamp the latest arrival, re-store the freshly rendered copy.
+      // lookup, so it coalesces like the checked path (`applyCoalescence`):
+      // bump the count, stamp the latest arrival, merge the payload newest-wins
+      // with the count written in as `occurrences`. Live surfaces render from
+      // that payload; the title/body snapshot is the fresh event's fallback.
       .onConflictDoUpdate({
         target: [notifications.userId, notifications.type, notifications.resourceId],
         targetWhere: sql`status = 'unread'`,
         set: {
           title: notification.title,
           body: notification.body,
-          payload: notification.payload,
+          payload: sql`COALESCE(${notifications.payload}, '{}'::jsonb) || excluded.payload || jsonb_build_object('occurrences', ${notifications.coalescedCount} + 1)`,
           priority: notification.priority,
           coalescedCount: sql`${notifications.coalescedCount} + 1`,
           coalescedLatestAt: notification.updatedAt,
