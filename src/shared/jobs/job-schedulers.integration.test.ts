@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Queue } from 'bullmq'
 import { Redis } from 'ioredis'
-import { reconcileJobSchedulers } from './job-schedulers'
+import {
+  reconcileJobSchedulers,
+  restoreMissingJobSchedulers,
+  type JobSchedulerRegistration,
+} from './job-schedulers'
 
 describe.sequential('job scheduler reconciliation (real Redis)', () => {
   let connection: Redis
@@ -77,6 +81,55 @@ describe.sequential('job scheduler reconciliation (real Redis)', () => {
         name: 'operator-maintenance',
         every: 86_400_000,
       },
+    ])
+  })
+
+  it('restores schedulers lost with Redis state and leaves the surviving ones alone', async () => {
+    const desired: JobSchedulerRegistration[] = [
+      {
+        schedulerId: 'health-check-recurring',
+        jobName: 'health-check',
+        repeat: { every: 300_000 },
+        jobOptions: { attempts: 3 },
+      },
+      {
+        schedulerId: 'digest-notification-recurring',
+        jobName: 'digest-notification',
+        repeat: { pattern: '0 * * * *' },
+        jobOptions: { attempts: 3 },
+      },
+    ]
+    await reconcileJobSchedulers({
+      queue,
+      managedJobNames: ['health-check', 'digest-notification'],
+      desired,
+    })
+    const digestBefore = await queue.getJobScheduler('digest-notification-recurring')
+
+    // One scheduler's keys vanish; the other survives with its next run.
+    await queue.removeJobScheduler('health-check-recurring')
+    const partial = await restoreMissingJobSchedulers({ queue, desired })
+
+    expect(partial.restoredSchedulerIds).toEqual(['health-check-recurring'])
+    expect((await queue.getJobScheduler('digest-notification-recurring'))?.next).toBe(
+      digestBefore?.next,
+    )
+
+    // Everything this queue held in Redis is gone.
+    await queue.obliterate({ force: true })
+    const total = await restoreMissingJobSchedulers({ queue, desired })
+
+    expect(total.restoredSchedulerIds).toEqual([
+      'health-check-recurring',
+      'digest-notification-recurring',
+    ])
+    expect(
+      (await queue.getJobSchedulers(0, -1, true))
+        .map(({ key, name }) => ({ key, name }))
+        .sort((left, right) => left.key.localeCompare(right.key)),
+    ).toEqual([
+      { key: 'digest-notification-recurring', name: 'digest-notification' },
+      { key: 'health-check-recurring', name: 'health-check' },
     ])
   })
 })

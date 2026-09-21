@@ -172,7 +172,9 @@ the relay redrives the backlog when that resource returns (runbooks §7).
 Logical database numbers on one daemon are never accepted as isolation.
 **No AOF/persistence is required for correctness** — enabling platform-side
 Redis persistence is optional operational comfort, never a correctness
-dependency.
+dependency. Recurring job schedulers live in Queue Redis too; the worker's
+one-minute scheduler watchdog re-installs any that a Redis restart dropped
+(runbooks §7).
 
 BullMQ history prune is count-based (`removeOnComplete: 100`,
 `removeOnFail: 50`, queue factory) plus the dead-letter lifecycle below.

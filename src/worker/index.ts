@@ -37,7 +37,11 @@ import {
 } from '#/shared/jobs/redis-topology'
 import { createGatedJobHandler } from '#/shared/jobs/delayed-execution-gate'
 import { assertJobReadiness } from '#/shared/jobs/readiness'
-import { reconcileJobSchedulers } from '#/shared/jobs/job-schedulers'
+import {
+  JOB_SCHEDULER_WATCHDOG_INTERVAL_MS,
+  reconcileJobSchedulers,
+  startJobSchedulerWatchdog,
+} from '#/shared/jobs/job-schedulers'
 import {
   JOB_OPERATIONAL_CONTRACTS,
   createOperationalSchedulerPlan,
@@ -214,6 +218,9 @@ async function main() {
   // ── Background queue — cron-scheduled maintenance jobs ────────────
   // Separate queue so retained background work never blocks user-facing jobs.
   // This runtime carries no dark work. Lower concurrency.
+  // The governed job-family catalogue is the single source of cadence and
+  // posture.
+  const schedulerPlan = createOperationalSchedulerPlan()
   if (container.backgroundQueue) {
     backgroundWorker = createJobWorker(
       'background',
@@ -231,10 +238,8 @@ async function main() {
       )
     }
 
-    // The governed job-family catalogue is the single source of cadence and
-    // posture. Every family is managed so a stale/accidental scheduler for
+    // Every family is managed so a stale/accidental scheduler for
     // on-demand, dark, or quarantined work is removed.
-    const schedulerPlan = createOperationalSchedulerPlan()
     const scheduleReconciliation = await reconcileJobSchedulers({
       queue: container.backgroundQueue,
       managedJobNames: schedulerPlan.managedJobNames,
@@ -255,16 +260,16 @@ async function main() {
     logger.warn('No background queue available — cron jobs not scheduled')
   }
 
+  const bootObservation = {
+    contracts: JOB_OPERATIONAL_CONTRACTS,
+    registeredHandlers: new Set(registry.getAll().keys()),
+    registeredSchedulers: container.backgroundQueue
+      ? new Set(schedulerPlan.desired.map((schedule) => schedule.jobName))
+      : new Set<string>(),
+    runtimeStartedAt,
+  }
   if (runtimeObservationStore) {
-    const schedulerNames = new Set(
-      createOperationalSchedulerPlan().desired.map((schedule) => schedule.jobName),
-    )
-    await runtimeObservationStore.recordBoot({
-      contracts: JOB_OPERATIONAL_CONTRACTS,
-      registeredHandlers: new Set(registry.getAll().keys()),
-      registeredSchedulers: container.backgroundQueue ? schedulerNames : new Set(),
-      runtimeStartedAt,
-    })
+    await runtimeObservationStore.recordBoot(bootObservation)
     const runtimeReport = await createJobRuntimeReportReader({
       contracts: JOB_OPERATIONAL_CONTRACTS,
       store: runtimeObservationStore,
@@ -305,6 +310,23 @@ async function main() {
     )
   }
 
+  // Schedulers — and the boot observations beside them — live only in Queue
+  // Redis, which needs no persistence (ADR 0053). A restart without it, or a
+  // failover to an empty replica, would leave this reconnected worker running
+  // with none of them: no digest, no repair sweep, and no health-check to
+  // report it. The watchdog puts back whatever went missing.
+  const stopSchedulerWatchdog = container.backgroundQueue
+    ? startJobSchedulerWatchdog({
+        queue: container.backgroundQueue,
+        desired: schedulerPlan.desired,
+        intervalMs: JOB_SCHEDULER_WATCHDOG_INTERVAL_MS,
+        logger,
+        onRestored: async () => {
+          await runtimeObservationStore?.recordBoot(bootObservation)
+        },
+      })
+    : () => {}
+
   // ── Outbox relay + dispatcher ─────────────────────────────────────
   // The only delivery path: every command commits its fact as an outbox row,
   // the relay claims unpublished rows (SKIP LOCKED over the partial index
@@ -336,6 +358,7 @@ async function main() {
     // Stop the outbox relay first (stop claiming new events)
     stopRelay()
     logger.info('Outbox relay stopped')
+    stopSchedulerWatchdog()
 
     const result = await drainWorkerResources({
       workers: [
