@@ -16,6 +16,9 @@ export type IntegrationErrorCode =
   // fail-closed 'invalid_state' redirect as a bad state signature.
   | 'oauth_state_invalid'
   | 'token_refresh_failed'
+  // Google refuses the connection's refresh credential for good (revoked or
+  // expired grant); only a fresh consent from an AccountAdmin recovers it.
+  | 'reauthorization_required'
   | 'gbp_api_error'
   | 'gbp_api_rate_limited'
   | 'import_not_found'
