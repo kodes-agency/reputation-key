@@ -193,9 +193,9 @@ describe('job scheduler watchdog', () => {
     await vi.advanceTimersByTimeAsync(JOB_SCHEDULER_WATCHDOG_INTERVAL_MS)
     stop()
 
-    expect(queue.upsertJobScheduler.mock.calls.map((call) => call[0])).toEqual([
-      'health-check-recurring',
-      'digest-notification-recurring',
+    expect(queue.upsertJobScheduler.mock.calls).toEqual([
+      ['health-check-recurring', HEALTH_CHECK.repeat, expect.anything()],
+      ['digest-notification-recurring', DIGEST.repeat, expect.anything()],
     ])
     expect(onRestored).toHaveBeenCalledOnce()
     expect(warn).toHaveBeenCalledWith(
