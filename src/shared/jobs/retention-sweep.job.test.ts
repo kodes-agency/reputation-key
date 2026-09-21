@@ -495,11 +495,14 @@ describe('retention rule registry (BQC-3.7)', () => {
   })
 
   it('uses the queue state machine terminal names for email retention', () => {
+    // ADR 0046 r.6: `cancelled` is terminal too. Organization closure and the
+    // restore fence write it, and a row nothing will ever send must not be
+    // kept forever.
     expect(
       RETENTION_RULES.find((rule) => rule.subject === 'notification_email_queue'),
     ).toMatchObject({
       extraWhere:
-        "status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed')",
+        "status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed', 'cancelled')",
     })
   })
 

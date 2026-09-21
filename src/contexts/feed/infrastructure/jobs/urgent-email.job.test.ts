@@ -118,6 +118,39 @@ describe('immediate notification email job', () => {
     expect(deps.emailSender.send).not.toHaveBeenCalled()
   })
 
+  it('suppresses, and never sends, a row queued weeks before email was admitted', async () => {
+    // The Organization ran in-app only for two months, then was allowlisted:
+    // the backlog must not arrive as a burst of "act now" mail.
+    deps.emailRepo.findById.mockResolvedValue({
+      ...entry,
+      createdAt: new Date(NOW.getTime() - 60 * 24 * 60 * 60_000),
+    })
+
+    await run()
+
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      PROPERTY,
+      'stale',
+      NOW,
+    )
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  it('still sends a day-old row whose quiet-hours deferral has just ended', async () => {
+    deps.emailRepo.findById.mockResolvedValue({
+      ...entry,
+      status: 'delayed',
+      createdAt: new Date(NOW.getTime() - 30 * 60 * 60_000),
+      notBefore: new Date(NOW.getTime() - 5 * 60_000),
+    })
+
+    await run()
+
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+  })
+
   it('suppresses delivery when the current property preference is disabled', async () => {
     deps.preferenceRepo.findForDelivery.mockResolvedValue({ enabled: false } as never)
     await run()

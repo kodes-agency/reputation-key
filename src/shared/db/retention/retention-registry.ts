@@ -553,7 +553,7 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
       anchorColumn: 'created_at',
       horizon: { kind: 'days', days: 90 },
       predicate:
-        "status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed')",
+        "status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed', 'cancelled')",
       query:
         'Delete terminal notification_email_queue rows older than 90 days; retain open retry work.',
       implementedBoundary:

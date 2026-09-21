@@ -183,7 +183,7 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     tsColumn: 'created_at',
     olderThanMs: 90 * DAY_MS,
     extraWhere:
-      "status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed')",
+      "status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed', 'cancelled')",
   },
   {
     subject: 'recent_activity_replay_facts',

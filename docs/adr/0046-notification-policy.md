@@ -59,6 +59,16 @@ provider `suppressed` stops mail to that recipient as a bounce or complaint
 does. Suppressions made locally (a disabled preference) never count as the
 provider refusing the recipient.
 
+Queued email has a maximum age. Rows are queued even while outbound email is
+dark for their Organization or Property, because the capability gates the
+send, not the insert. A row past its bound is suppressed as `stale` rather
+than sent, so admitting a scope, or lifting a stop, never flushes a backlog:
+immediate mail keeps a day, daily-digest rows two days, and mandatory
+Organization notices a week. The bound counts from when the row became due,
+so a quiet-hours deferral never counts against it. An open digest batch was
+fresh when it was frozen and is left to its bounded retries. `cancelled` rows
+are terminal and age out with the other terminal states after 90 days.
+
 The unsubscribe guard takes `MailClass = 'mandatory' | 'optional'`; a digest is
 always optional. Copy renders from `type` plus the closed payload at read time,
 so template corrections reach every channel and historical row.

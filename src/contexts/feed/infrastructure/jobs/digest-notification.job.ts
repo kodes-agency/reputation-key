@@ -54,6 +54,7 @@ import {
   isDailyDigestWindow,
 } from '../../domain/notification-delivery-policy'
 import { getDefaultEnabled } from '../../domain/notification-policy'
+import { isStaleQueuedEmail, STALE_EMAIL_REASON } from '../../domain/email-freshness'
 import { renderDigestEmail } from '../email/render'
 import { emailCorrelationId } from '../delivery-correlation'
 import {
@@ -220,6 +221,35 @@ async function suppressAll(
       'Digest entry suppressed',
     )
   }
+}
+
+/**
+ * Retire rows past their freshness bound — typically queued while email was
+ * dark for their scope — so a newly admitted scope never mails its backlog.
+ * One log line for the lot: a backlog can be hundreds of rows.
+ */
+async function retireStaleEntries(
+  deps: DigestDeps,
+  ctx: RecipientContext,
+  entries: readonly NotificationEmail[],
+): Promise<readonly NotificationEmail[]> {
+  const stale = entries.filter((entry) => isStaleQueuedEmail(entry, ctx.now))
+  for (const entry of stale) {
+    await deps.emailRepo.markSuppressed(
+      notificationEmailId(entry.id as string),
+      ctx.orgId,
+      propertyId(entry.propertyId as string),
+      STALE_EMAIL_REASON,
+      ctx.now,
+    )
+  }
+  if (stale.length > 0) {
+    deps.logger.warn(
+      { stale: stale.length, reason: STALE_EMAIL_REASON },
+      'Digest entries suppressed as too old to send',
+    )
+  }
+  return entries.filter((entry) => !stale.includes(entry))
 }
 
 /**
@@ -487,11 +517,13 @@ async function selectDeliverableEntries(
     await invalidateBatch(deps, ctx, openBatch, 'digest_authorization_changed')
     return null
   }
+  // A frozen batch was fresh when prepared and retries on a bounded budget.
+  const fresh = openBatch ? authorized : await retireStaleEntries(deps, ctx, authorized)
   const candidates = openBatch
-    ? authorized
+    ? fresh
     : isDailyDigestWindow(ctx.now, ctx.timezone)
-      ? authorized
-      : authorized.filter((entry) => entry.status === 'delayed')
+      ? fresh
+      : fresh.filter((entry) => entry.status === 'delayed')
   if (candidates.length === 0) return null
 
   const deliverable = await partitionDeliverable(deps, ctx, candidates)

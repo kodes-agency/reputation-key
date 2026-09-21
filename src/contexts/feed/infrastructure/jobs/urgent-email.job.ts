@@ -44,6 +44,7 @@ import type { EmailSenderPort } from '../../application/ports/email-sender.port'
 import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
 import type { NotificationOrganizationScopeResolver } from '../repositories/notification-organization-scope.repository'
 import { deliveryTiming } from '../../domain/notification-delivery-policy'
+import { isStaleQueuedEmail, STALE_EMAIL_REASON } from '../../domain/email-freshness'
 import { getDefaultEnabled } from '../../domain/notification-policy'
 import { notificationLink, renderNotification } from '../../domain/notification-templates'
 import { renderNotificationEmail, type RenderedEmail } from '../email/render'
@@ -365,6 +366,11 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     const mandatory = propId === null
     if (!hasValidDeliveryScope(entry, mandatory)) {
       await suppress(ids, 'invalid_delivery_scope')
+      return
+    }
+    // A backlog queued while email was dark is retired, never flushed.
+    if (isStaleQueuedEmail(entry, deps.clock())) {
+      await suppress(ids, STALE_EMAIL_REASON)
       return
     }
 

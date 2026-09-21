@@ -27,6 +27,8 @@ const PROP_B = '22222222-2222-4222-8222-222222222222'
 const BASE_URL = 'https://app.example.com'
 // 08:00 UTC — inside the digest window for a UTC recipient.
 const NOW = new Date('2026-07-11T08:00:00.000Z')
+const HOUR = 60 * 60_000
+const DAY = 24 * HOUR
 
 const entryFor = (property: string, user = USER): NotificationEmail =>
   buildNotificationEmail({
@@ -702,6 +704,26 @@ describe('digest suppression and failure visibility (ADR 0046 r.6)', () => {
     expect(deps.emailRepo.markAccepted).not.toHaveBeenCalled()
   })
 
+  it('suppresses rows queued long before email was admitted and sends only the fresh ones', async () => {
+    const stale = { ...entryFor(PROP_A), createdAt: new Date(NOW.getTime() - 30 * DAY) }
+    const fresh = { ...entryFor(PROP_B), createdAt: new Date(NOW.getTime() - 20 * HOUR) }
+    const deps = baseDeps({ dueByUser: [stale, fresh] })
+
+    await runHandler(deps)
+
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      stale.id,
+      organizationId(ORG),
+      PROP_A,
+      'stale',
+      NOW,
+    )
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+    const payload = deps.emailSender.send.mock.calls[0]![0]
+    expect(payload.html).toContain('Hillcrest')
+    expect(payload.html).not.toContain('Riverside')
+  })
+
   it('suppresses a preference-disabled row with a visible reason', async () => {
     const deps = baseDeps()
     deps.preferenceRepo.findForDelivery.mockResolvedValue({ enabled: false } as never)
@@ -753,6 +775,39 @@ describe('immediate orphan sweep', () => {
     await runHandler(deps)
 
     expect(deps.enqueueImmediate).not.toHaveBeenCalled()
+  })
+
+  it('suppresses a stale orphan instead of re-enqueueing it once its scope is admitted', async () => {
+    const fresh = buildNotificationEmail({
+      id: 'orphan-fresh',
+      propertyId: PROP_A,
+      cadence: 'immediate',
+    })
+    const stale = {
+      ...buildNotificationEmail({
+        id: 'orphan-stale',
+        propertyId: PROP_A,
+        cadence: 'immediate',
+      }),
+      createdAt: new Date(NOW.getTime() - 60 * DAY),
+    }
+    const deps = baseDeps({ immediateOrphans: [stale, { ...fresh, createdAt: NOW }] })
+
+    await runHandler(deps)
+
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      'orphan-stale',
+      organizationId(ORG),
+      PROP_A,
+      'stale',
+      NOW,
+    )
+    expect(deps.enqueueImmediate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ notificationEmailId: 'orphan-stale' }),
+    )
+    expect(deps.enqueueImmediate).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationEmailId: 'orphan-fresh' }),
+    )
   })
 
   it('re-enqueues Organization-scoped mandatory rows, authorized per Organization', async () => {
