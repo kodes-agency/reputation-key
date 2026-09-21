@@ -13,7 +13,7 @@
 // "property/resource/status metadata" ONLY:
 //
 //   ALLOWED   tenant-authored property and goal names, the locally collected
-//             1-5 guest rating, actor ROLE, counts, ages in hours, platform
+//             1-5 guest rating, actor ROLE, counts, when a wait began, platform
 //             enum, whether an approver gave a reason, how a publication
 //             ended (closed enum), and an internal moderation reason
 //             (staff-authored; historical rows only).
@@ -44,8 +44,17 @@ export type NotificationPayload = Readonly<{
   guestRating?: NotificationGuestRating
   /** Review source platform. */
   platform?: NotificationPlatform
-  /** Hours the resource has been waiting for action, floored. Drives urgency copy. */
+  /**
+   * Historical rows only: an age frozen when the row was written and measured
+   * from the item's first arrival. Copy never renders it; see `waitingSince`.
+   */
   waitingHours?: number
+  /**
+   * When the current wait began (ISO instant): the start of the current
+   * cycle's Response Target, stamped only on notices about something still
+   * waiting. Copy measures the age from it when it is read.
+   */
+  waitingSince?: string
   /** Role of the person whose action produced this notification. */
   actorRole?: NotificationActorRole
   /**
@@ -152,6 +161,13 @@ const takeMember = <T extends string>(
 ): T | undefined =>
   typeof value === 'string' && allowed[value] === true ? (value as T) : undefined
 
+/** A valid instant, normalised to ISO-8601 UTC. Never throws. */
+const takeInstant = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined
+  const time = Date.parse(value)
+  return Number.isFinite(time) ? new Date(time).toISOString() : undefined
+}
+
 /** A real boolean only; "true", 1 and null are not flags. */
 const takeFlag = (value: unknown): boolean | undefined =>
   typeof value === 'boolean' ? value : undefined
@@ -180,6 +196,7 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
     set('guestRating', takeGuestRating(raw.guestRating))
   }
   set('waitingHours', takeCount(raw.waitingHours))
+  set('waitingSince', takeInstant(raw.waitingSince))
   set('actorRole', takeMember(raw.actorRole, ACTOR_ROLES))
   set('moderationReason', takeText(raw.moderationReason, MAX_REASON_LENGTH))
   set('hasModerationReason', takeFlag(raw.hasModerationReason))

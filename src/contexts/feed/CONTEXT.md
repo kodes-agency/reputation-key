@@ -115,6 +115,12 @@ notices unread. The feed head therefore carries, from the same snapshot as the
 unread count, the filter's share of it (`filterUnreadCount`); a tab offers the
 action exactly while that share is above zero.
 
+A waiting age is never frozen into a row. A notice about something still
+waiting on its reader (an approval, an escalation, a Response Target reminder)
+stores when the current wait began, the start of the current cycle's measured
+Response Target, and each surface measures the age when it shows it. Notices
+about finished work, closed items and met targets carry no wait.
+
 Nobody is notified about their own action. Every route whose fact names a
 person as the actor drops that person from its recipients — a claim, a
 self-assignment, an AccountAdmin's own escalation or submission, an author

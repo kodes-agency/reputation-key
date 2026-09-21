@@ -42,6 +42,17 @@ type Story = StoryObj<typeof NotificationRow>
 
 const [escalated, pendingApproval, newFeedback, noMetadata] = notificationFixtures
 
+const HOUR = 60 * 60 * 1000
+
+/** The escalated fixture, 26 hours into the current cycle's wait. */
+const escalatedWaiting = {
+  ...escalated,
+  payload: {
+    ...escalated.payload,
+    waitingSince: new Date(Date.now() - 26 * HOUR).toISOString(),
+  },
+}
+
 const muteableReview = makeNotification({
   id: '20000000-0000-4000-8000-000000000002',
   type: 'review.created',
@@ -51,7 +62,7 @@ const muteableReview = makeNotification({
 
 /** Urgent + unread: pill, unread dot, rating glyphs, waiting age, accent CTA. */
 export const UrgentUnread: Story = {
-  args: { notification: escalated },
+  args: { notification: escalatedWaiting },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // Copy comes from renderNotification, never from the stored snapshot.
@@ -65,7 +76,7 @@ export const UrgentUnread: Story = {
     expect(canvas.getAllByText(/Riverside Hotel/).length).toBeGreaterThan(0)
     // Rating is never glyph-or-colour alone.
     expect(canvas.getByText('Rated 2 out of 5 stars')).toBeInTheDocument()
-    // 26 waiting hours renders as the compact "1d" the domain formats.
+    // 26 hours into the wait renders as the compact "1d", measured now.
     expect(canvas.getAllByText(/Waiting 1d/).length).toBeGreaterThan(0)
     // The deep link carries the resource id as a typed search param.
     const cta = canvas.getByRole('link')
@@ -79,6 +90,25 @@ export const Coalesced: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText('Updated 3 times')).toBeInTheDocument()
+  },
+}
+
+/**
+ * A notice about finished work carries no wait. A row written before waits
+ * were anchored still holds a frozen age; it must not come back as a chip.
+ */
+export const OutcomeShowsNoWait: Story = {
+  args: {
+    notification: makeNotification({
+      id: '20000000-0000-4000-8000-000000000003',
+      type: 'reply.published',
+      payload: { propertyName: 'Riverside Hotel', platform: 'google', waitingHours: 50 },
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText(/Your reply is live on Google/)).toBeInTheDocument()
+    expect(canvas.queryByText(/Waiting/)).not.toBeInTheDocument()
   },
 }
 

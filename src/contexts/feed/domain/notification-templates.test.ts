@@ -14,9 +14,9 @@ import { describe, it, expect } from 'vitest'
 import type { NotificationPayload } from './notification-payload'
 import { parseNotificationPayload } from './notification-payload'
 import {
-  formatWaitingAge,
   notificationLink,
   renderNotification,
+  waitingAge,
 } from './notification-templates'
 import { NOTIFICATION_TYPES, type NotificationType } from './notification-types'
 
@@ -179,16 +179,16 @@ describe('renderNotification — the copy that was broken', () => {
     })
   })
 
-  it('reply.pending_approval leads with the decision and says who and how long', () => {
+  it('reply.pending_approval leads with the decision and says who drafted it', () => {
     const r = renderNotification('reply.pending_approval', {
       propertyName: 'Riverside Hotel',
-      waitingHours: 5,
       actorRole: 'staff',
     })
 
     expect(r.title).toBe('Approve a reply at Riverside Hotel')
-    expect(r.body).toContain('A team member drafted a reply to a review')
-    expect(r.body).toContain('Waiting 5h')
+    expect(r.body).toBe(
+      'A team member drafted a reply to a review. It stays unpublished until you approve it.',
+    )
     expect(r.actionLabel).toBe('Review reply')
   })
 
@@ -345,16 +345,59 @@ describe('renderNotification — coalescing (ADR 0046 r.2)', () => {
   })
 })
 
-describe('formatWaitingAge', () => {
+// The wait is measured from the instant the current Response Target started,
+// at the moment the copy is read, so an old row never shows the age it had
+// when it arrived.
+describe('waiting age', () => {
+  const SINCE = '2026-09-20T09:00:00.000Z'
+  const at = (iso: string) => new Date(iso)
+
   it.each([
-    [undefined, ''],
-    [0, ''],
-    [1, '1h'],
-    [23, '23h'],
-    [24, '1d'],
-    [49, '2d'],
-  ])('%p -> %p', (hours, expected) => {
-    expect(formatWaitingAge(hours)).toBe(expected)
+    ['2026-09-20T09:59:59.000Z', ''],
+    ['2026-09-20T10:00:00.000Z', '1h'],
+    ['2026-09-21T08:59:00.000Z', '23h'],
+    ['2026-09-21T09:00:00.000Z', '1d'],
+    ['2026-09-22T10:00:00.000Z', '2d'],
+  ])('at %s reads "%s"', (now, expected) => {
+    expect(waitingAge({ waitingSince: SINCE }, at(now))).toBe(expected)
+  })
+
+  it('reads nothing when nothing is waiting, however old a frozen age is', () => {
+    expect(waitingAge({ waitingHours: 48 }, at('2026-09-22T10:00:00.000Z'))).toBe('')
+  })
+
+  it('puts the live age in the email facts, never in the sentence', () => {
+    const payload: NotificationPayload = {
+      propertyName: 'Riverside Hotel',
+      waitingSince: SINCE,
+    }
+
+    const early = renderNotification(
+      'reply.pending_approval',
+      payload,
+      at('2026-09-20T14:30:00.000Z'),
+    )
+    const later = renderNotification(
+      'reply.pending_approval',
+      payload,
+      at('2026-09-22T10:00:00.000Z'),
+    )
+
+    expect(early.summary).toBe('Riverside Hotel · review · waiting 5h')
+    expect(later.summary).toBe('Riverside Hotel · review · waiting 2d')
+    expect(later.body).not.toMatch(/waiting/i)
+  })
+
+  it('says nothing about a wait without a clock to measure it against', () => {
+    expect(
+      renderNotification('inbox.escalated', { waitingSince: SINCE }).summary,
+    ).not.toMatch(/waiting/)
+  })
+
+  it.each(NOTIFICATION_TYPES)('%s never renders the frozen age of an old row', (type) => {
+    const r = renderNotification(type, { waitingHours: 48 }, at('2026-09-22T10:00:00Z'))
+
+    expect([r.title, r.body, r.summary].join(' ')).not.toMatch(/waiting|2d/i)
   })
 })
 

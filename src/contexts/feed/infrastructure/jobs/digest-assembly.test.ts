@@ -8,6 +8,8 @@ import {
 } from './digest-assembly'
 import { buildDigestItem } from './test-fixtures'
 
+const NOW = new Date('2026-09-22T07:00:00.000Z')
+
 const url = (path: string, search: Readonly<Record<string, string>>) =>
   `https://app.test${path}${Object.keys(search).length > 0 ? `?${new URLSearchParams(search)}` : ''}`
 
@@ -89,7 +91,7 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
   ]
 
   it('produces one group per property with first-appearance order preserved', () => {
-    const groups = groupItemsByProperty(items, new Map(), url)
+    const groups = groupItemsByProperty(items, new Map(), url, NOW)
 
     expect(groups.map((group) => group.propertyName)).toEqual([
       'Riverside Hotel',
@@ -100,7 +102,7 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
   })
 
   it('renders every line through the shared renderer and never leaks an id', () => {
-    const groups = groupItemsByProperty(items, new Map(), url)
+    const groups = groupItemsByProperty(items, new Map(), url, NOW)
 
     for (const group of groups) {
       for (const item of group.items) {
@@ -113,7 +115,7 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
   })
 
   it('builds an absolute deep link per line, keyed on the row property', () => {
-    const groups = groupItemsByProperty(items, new Map(), url)
+    const groups = groupItemsByProperty(items, new Map(), url, NOW)
 
     // Inbox items link to the item; a goal links to its PROPERTY page, which is
     // where the previous builder used the goalId and produced a dead link.
@@ -130,9 +132,28 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
       nameless,
       new Map([['prop-c', 'Seaside Lodge']]),
       url,
+      NOW,
     )
 
     expect(groups[0]!.propertyName).toBe('Seaside Lodge')
+  })
+
+  it('measures a waiting age when the digest is assembled, not when the row was written', () => {
+    const waiting = [
+      buildDigestItem({
+        propertyId: 'prop-a',
+        type: 'reply.pending_approval',
+        payload: {
+          propertyName: 'Riverside Hotel',
+          waitingSince: '2026-09-20T07:00:00.000Z',
+        },
+        resourceId: 'inbox-3',
+      }),
+    ]
+
+    const groups = groupItemsByProperty(waiting, new Map(), url, NOW)
+
+    expect(groups[0]!.items[0]!.rendered.summary).toContain('waiting 2d')
   })
 
   it('never renders a bare property UUID as a heading', () => {
@@ -144,7 +165,7 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
       }),
     ]
 
-    const groups = groupItemsByProperty(nameless, new Map(), url)
+    const groups = groupItemsByProperty(nameless, new Map(), url, NOW)
 
     expect(groups[0]!.propertyName).toBe('Property')
   })

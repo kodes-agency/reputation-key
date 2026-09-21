@@ -89,6 +89,7 @@ export const createNotificationConsumerDeps = (): FakeNotificationConsumerDeps =
       status: 'open',
     })),
     findResponseTargetReminderNotificationFacts: vi.fn(async () => null),
+    findWaitingSince: vi.fn(async () => null),
   } as unknown as MockedPort<InboxItemLookupPort>
 
   return {

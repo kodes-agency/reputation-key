@@ -28,6 +28,7 @@ const { getPool } = setupIntegrationDb({
   // Guest tables are cleanup-only: earlier versions of this test seeded them,
   // and their Portal FKs must be cleared before the fixture Portal is deleted.
   // Reviews go after the cycles that pin their material revisions.
+  // Response Targets are immutable and leave only with their cycle (cascade).
   tables: [
     'inbox_handling_cycle_transitions',
     'inbox_handling_cycle_heads',
@@ -356,5 +357,75 @@ describe('createInboxItemLookupAdapter.findResponseTargetReminderNotificationFac
     await expect(
       lookup.findResponseTargetReminderNotificationFacts(reminder),
     ).resolves.toBeNull()
+  })
+})
+
+/** A measured private-feedback target on cycle 1, started `startAt`. */
+async function seedMeasuredTarget(
+  id: string,
+  organization: string,
+  property: string,
+  sourceId: string,
+  startAt: Date,
+): Promise<void> {
+  await getPool().query(
+    `INSERT INTO inbox_handling_cycle_response_targets
+       (inbox_item_id, cycle_number, organization_id, property_id, source_type,
+        source_id, source_revision, target_kind, performance_eligibility,
+        duration_minutes, policy_source, policy_version, start_at, due_at)
+     VALUES ($1, 1, $2, $3, 'feedback', $4, 1, 'private_feedback_handling',
+             'measured', 60, 'builtin_default', 1, $5,
+             $5::timestamptz + interval '60 minutes')`,
+    [id, organization, property, sourceId, startAt],
+  )
+}
+
+describe('createInboxItemLookupAdapter.findWaitingSince', () => {
+  const STARTED = new Date('2026-09-20T09:00:00.000Z')
+  const lookup = () =>
+    createInboxItemLookupAdapter(drizzle(getPool()) as unknown as Database, {
+      findPortalId: vi.fn().mockResolvedValue(portalId(PORTAL_A)),
+    })
+
+  const seedWaitingItem = async () => {
+    await seedPropertyAndPortal(ORG_A, PROPERTY_A, PORTAL_A)
+    await seedInboxItem(ITEM_A, ORG_A, PROPERTY_A, RESPONSE, null)
+    await seedFeedbackHandlingCycle(ITEM_A, ORG_A, PROPERTY_A, RESPONSE)
+    await seedMeasuredTarget(ITEM_A, ORG_A, PROPERTY_A, RESPONSE, STARTED)
+  }
+
+  it("starts the wait at the current cycle's Response Target, not at the item", async () => {
+    await seedWaitingItem()
+
+    await expect(lookup().findWaitingSince(ITEM_A, ORG_A)).resolves.toEqual(STARTED)
+  })
+
+  it('finds nothing waiting once the target is met', async () => {
+    await seedWaitingItem()
+    await getPool().query(
+      `UPDATE inbox_handling_cycle_response_targets
+          SET completion_at = start_at + interval '10 minutes', result = 'on_time',
+              stop_reason = 'private_feedback_handled'
+        WHERE inbox_item_id = $1`,
+      [ITEM_A],
+    )
+
+    await expect(lookup().findWaitingSince(ITEM_A, ORG_A)).resolves.toBeNull()
+  })
+
+  it('finds nothing waiting on a closed item', async () => {
+    await seedWaitingItem()
+    await getPool().query(
+      `UPDATE inbox_handling_cycle_heads SET status = 'closed' WHERE inbox_item_id = $1`,
+      [ITEM_A],
+    )
+
+    await expect(lookup().findWaitingSince(ITEM_A, ORG_A)).resolves.toBeNull()
+  })
+
+  it("never reads another Organization's item", async () => {
+    await seedWaitingItem()
+
+    await expect(lookup().findWaitingSince(ITEM_A, ORG_B)).resolves.toBeNull()
   })
 })

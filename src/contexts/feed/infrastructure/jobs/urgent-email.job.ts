@@ -343,7 +343,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
           ),
         )
     const email = renderNotificationEmail({
-      rendered: renderNotification(notification.type, notification.payload),
+      rendered: renderNotification(notification.type, notification.payload, deps.clock()),
       actionUrl: absoluteUrl(deps.baseUrl, link.path, link.search),
       preferencesUrl,
       priority: entry.priority,

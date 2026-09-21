@@ -7,7 +7,8 @@
 // Two rules hold everywhere below:
 //
 //  1. ALLOWLIST. Only what ADR 0046 r.8 permits crosses this boundary: property
-//     name, locally collected Portal rating, platform enum, waiting age, actor ROLE,
+//     name, locally collected Portal rating, platform enum, when the current
+//     wait began, actor ROLE,
 //     whether an approver gave a reason (never the reason), and registered
 //     display names (goal/badge/portal). The inbox row also holds a snippet, a
 //     reviewer name and media — those are never read here.
@@ -26,8 +27,6 @@ import type {
   NotificationPublishOutcome,
 } from '../domain/notification-payload'
 
-const MS_PER_HOUR = 3_600_000
-
 /**
  * `inbox_items.source_type` -> the platform the content came from. A review is
  * Google-sourced; feedback is collected through our own portal.
@@ -40,7 +39,6 @@ const PLATFORM_BY_SOURCE: Readonly<Record<string, NotificationPlatform>> = {
 export type InboxPayloadDeps = Readonly<{
   inboxItemLookup: InboxItemLookupPort
   userLookup: UserLookupPort
-  clock: () => Date
   logger: LoggerPort
 }>
 
@@ -69,26 +67,38 @@ export type InboxPayloadInput = Readonly<{
   publishOutcome?: NotificationPublishOutcome | null
   /** Closed cause of a failed publication (reply.publish_failed only). */
   publishFailureCause?: NotificationPublishFailureCause | null
+  /**
+   * Stamp when the current wait began, for a notice about something still
+   * waiting on the reader (approval, escalation, a Response Target reminder).
+   * Notices about work already done carry no wait.
+   */
+  measureWait?: boolean
 }>
 
 /**
- * Facts for the nine inbox-keyed notification types: where it happened, how bad
- * a locally collected Portal rating, how long it has been waiting, and — where
- * a person's action drove it — the role of whoever acted. Google/provider
- * ratings never cross into Notification storage.
+ * Facts for the inbox-keyed notification types: where it happened, how bad a
+ * locally collected Portal rating, when the current wait began (where the
+ * notice is about a wait), and — where a person's action drove it — the role
+ * of whoever acted. Google/provider ratings never cross into Notification
+ * storage.
  */
 export const buildInboxItemPayload = async (
   deps: InboxPayloadDeps,
   input: InboxPayloadInput,
 ): Promise<NotificationPayload> => {
   const actorId = input.actorId
-  const [facts, actorRole] = await Promise.all([
+  const [facts, actorRole, waitingSince] = await Promise.all([
     attempt(deps.logger, 'inbox item facts', () =>
       deps.inboxItemLookup.findInboxItemFacts(input.inboxItemId, input.orgId),
     ),
     actorId
       ? attempt(deps.logger, 'actor role', () =>
           deps.userLookup.findActorRole(actorId, input.orgId),
+        )
+      : null,
+    input.measureWait
+      ? attempt(deps.logger, 'waiting since', () =>
+          deps.inboxItemLookup.findWaitingSince(input.inboxItemId, input.orgId),
         )
       : null,
   ])
@@ -101,13 +111,10 @@ export const buildInboxItemPayload = async (
     }
     const platform = PLATFORM_BY_SOURCE[facts.sourceType]
     if (platform !== undefined) payload.platform = platform
-    // Floored hours since the item landed. Below one hour the templates render
-    // no age at all, so a fresh item never claims to have been waiting.
-    payload.waitingHours = Math.max(
-      0,
-      Math.floor((deps.clock().getTime() - facts.createdAt.getTime()) / MS_PER_HOUR),
-    )
   }
+  // An instant, not an age: copy measures it when it is read, so an old row
+  // never shows the age it had when it arrived.
+  if (waitingSince !== null) payload.waitingSince = waitingSince.toISOString()
   if (actorRole !== null) payload.actorRole = actorRole
   // Set even when false: a rejection without a reason must replace the flag of
   // an earlier one that had a reason when the two rows coalesce.

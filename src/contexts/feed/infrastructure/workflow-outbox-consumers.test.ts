@@ -374,6 +374,80 @@ describe('durable workflow notification consumers', () => {
     ).toMatch(/^A property manager escalated this/)
   })
 
+  describe('how long something has waited', () => {
+    const WAIT_STARTED = new Date('2026-06-01T07:00:00.000Z')
+
+    it.each([
+      {
+        eventType: 'inbox.inbox_item.escalated' as const,
+        payload: { inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId) },
+      },
+      {
+        eventType: 'review.reply.submitted' as const,
+        payload: {
+          replyId: unbrand(NOTIF_TEST_IDS.replyId),
+          reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
+        },
+      },
+    ])(
+      "stamps $eventType with when the current wait began, not the item's age",
+      async ({ eventType, payload }) => {
+        const deps = makeDeps()
+        deps.fakes.inboxItemLookup.findWaitingSince.mockResolvedValue(WAIT_STARTED)
+
+        await handleWorkflowNotificationEvent(
+          deps,
+          event(eventType, { ...payload, userId: unbrand(NOTIF_TEST_IDS.submitter) }),
+        )
+
+        const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+        expect(deps.fakes.inboxItemLookup.findWaitingSince).toHaveBeenCalledWith(
+          NOTIF_TEST_IDS.inboxItemId,
+          NOTIF_TEST_IDS.orgId,
+        )
+        expect(data.payload).toMatchObject({ waitingSince: WAIT_STARTED.toISOString() })
+        expect(data.payload).not.toHaveProperty('waitingHours')
+      },
+    )
+
+    it('stamps no wait on a notice about work that is already done', async () => {
+      const deps = makeDeps()
+      deps.fakes.inboxItemLookup.findWaitingSince.mockResolvedValue(WAIT_STARTED)
+
+      await handleWorkflowNotificationEvent(
+        deps,
+        event('review.reply.published', {
+          replyId: unbrand(NOTIF_TEST_IDS.replyId),
+          reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
+          userId: null,
+          authorId: unbrand(NOTIF_TEST_IDS.authorId),
+          source: 'web',
+        }),
+      )
+
+      const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+      expect(data.payload).not.toHaveProperty('waitingSince')
+      expect(data.payload).not.toHaveProperty('waitingHours')
+    })
+
+    it('stamps no wait when nothing is waiting any more', async () => {
+      const deps = makeDeps()
+      deps.fakes.inboxItemLookup.findWaitingSince.mockResolvedValue(null)
+
+      await handleWorkflowNotificationEvent(
+        deps,
+        event('inbox.inbox_item.escalated', {
+          inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+          userId: unbrand(NOTIF_TEST_IDS.submitter),
+          source: 'web',
+        }),
+      )
+
+      const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+      expect(data.payload).not.toHaveProperty('waitingSince')
+    })
+  })
+
   describe('a reply that failed to publish', () => {
     const publishFailed = (authorId: string | null) =>
       event('review.reply.publish_failed', {

@@ -31,6 +31,8 @@ const OWNER = userId('owner-response-target-notification')
 const ADMIN = userId('admin-response-target-notification')
 const ASSIGNEE = userId('assignee-response-target-notification')
 const SCHEDULED_FOR = '2026-08-28T10:00:00.000Z'
+/** The current cycle's target start; the item itself is older (see createdAt). */
+const TARGET_STARTED = new Date('2026-08-28T09:00:00.000Z')
 const OCCURRED_AT = '2026-08-28T10:00:01.000Z'
 
 const event = (
@@ -109,6 +111,7 @@ const makeDeps = () => {
       findResponseTargetReminderNotificationFacts: vi.fn(
         async (): Promise<ResponseTargetReminderNotificationFacts | null> => facts,
       ),
+      findWaitingSince: vi.fn(async (): Promise<Date | null> => TARGET_STARTED),
     },
     clock: () => new Date('2026-08-28T11:00:00.000Z'),
     logger: {
@@ -202,6 +205,20 @@ describe('Response Target reminder durable consumer', () => {
       )
     },
   )
+
+  it("measures the wait from the current cycle's target, not the item's first arrival", async () => {
+    const deps = makeDeps()
+
+    await handleNotificationResponseTargetReminder(deps, event())
+
+    expect(deps.inboxItemLookup.findWaitingSince).toHaveBeenCalledWith(ITEM, ORG)
+    expect(deps.jobs[0]!.data).toEqual(
+      expect.objectContaining({
+        payload: expect.objectContaining({ waitingSince: TARGET_STARTED.toISOString() }),
+      }),
+    )
+    expect(deps.jobs[0]!.data).not.toHaveProperty('payload.waitingHours')
+  })
 
   it('narrows an assigned halfway reminder to the current eligible assignee', async () => {
     const deps = makeDeps()

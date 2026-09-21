@@ -145,6 +145,19 @@ describe('parseNotificationPayload', () => {
     })
   })
 
+  describe('when a wait began', () => {
+    it('keeps a valid instant in ISO form', () => {
+      expect(
+        parseNotificationPayload({ waitingSince: '2026-09-20T11:00:00+02:00' })
+          .waitingSince,
+      ).toBe('2026-09-20T09:00:00.000Z')
+    })
+
+    it.each(['yesterday', '', 1_790_000_000_000, null])('drops %p', (waitingSince) => {
+      expect(parseNotificationPayload({ waitingSince }).waitingSince).toBeUndefined()
+    })
+  })
+
   describe('publication outcome', () => {
     it.each(['not_sent', 'refused', 'unconfirmed'] as const)('keeps %s', (outcome) => {
       expect(parseNotificationPayload({ publishOutcome: outcome }).publishOutcome).toBe(

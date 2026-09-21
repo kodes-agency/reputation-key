@@ -120,6 +120,7 @@ const makeDeps = () => {
         status: 'open',
       })),
       findResponseTargetReminderNotificationFacts: vi.fn(async () => null),
+      findWaitingSince: vi.fn(async (): Promise<Date | null> => null),
     },
     clock: () => new Date('2026-08-27T11:00:00.000Z'),
     logger: {
@@ -434,10 +435,11 @@ describe('Handling Cycle notification durable consumers', () => {
             resourceType: 'inbox_item',
             resourceId: ITEM,
             eventId: EVENT_ID,
+            // A revision opens a new wait; it has not waited yet, so the
+            // notice carries no age at all.
             payload: {
               propertyName: 'Riverside Hotel',
               platform: 'google',
-              waitingHours: 3,
               actorRole: 'property_manager',
             },
             audience: {

@@ -184,6 +184,7 @@ async function enqueueEscalationNotifications(
     inboxItemId: event.inboxItemId,
     orgId: event.organizationId,
     actorId: event.userId,
+    measureWait: true,
   })
   await Promise.all(
     recipients.map((recipientId) =>
@@ -291,6 +292,7 @@ async function enqueueSubmittedNotifications(
     inboxItemId: inboxItem,
     orgId: event.organizationId,
     actorId: event.userId,
+    measureWait: true,
   })
   const jobs: InsertNotificationJobData[] = recipients.map((recipientId) => ({
     userId: recipientId,

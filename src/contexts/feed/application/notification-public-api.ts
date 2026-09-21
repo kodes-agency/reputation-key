@@ -37,9 +37,9 @@ export {
 export type { NotificationPayload } from '../domain/notification-payload'
 export {
   BETA_FEEDBACK_REPORTS_ANCHOR,
-  formatWaitingAge,
   notificationLink,
   renderNotification,
+  waitingAge,
 } from '../domain/notification-templates'
 
 // ── Category surfaces ─────────────────────────────────────────────────

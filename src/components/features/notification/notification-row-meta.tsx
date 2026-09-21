@@ -3,12 +3,15 @@
 // Every field is optional (ADR 0046 r.8 payloads carry only what was captured),
 // so this renders nothing at all rather than a row of empty separators. No
 // identifier ever appears here — `resourceId` lives in the deep link only.
+//
+// The waiting age is measured now, from when the current wait began, and only
+// a notice about something still waiting carries that instant.
 
 import { Clock, Layers } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { StarRating } from '#/components/ui/star-rating'
 import {
-  formatWaitingAge,
+  waitingAge,
   type NotificationPayload,
 } from '#/contexts/feed/application/public-api'
 
@@ -19,7 +22,7 @@ type Props = Readonly<{
 }>
 
 export function NotificationRowMeta({ payload, coalescedCount }: Props) {
-  const waiting = formatWaitingAge(payload.waitingHours)
+  const waiting = waitingAge(payload, new Date())
   const hasProperty = payload.propertyName !== undefined
   const hasRating = payload.guestRating !== undefined
   const hasRepeats = coalescedCount > 1

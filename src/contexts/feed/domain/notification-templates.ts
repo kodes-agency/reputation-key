@@ -15,7 +15,9 @@
 //      approval" — the title says what the reader must do.
 //   3. Say WHERE. A locally collected guest rating may add context to Portal
 //      feedback, but Google/provider ratings never enter Notification storage.
-//   4. Say HOW LONG. `waitingHours` turns a queue item into an SLA breach.
+//   4. Say HOW LONG, where something is still waiting. `waitingSince` is an
+//      instant measured when the copy is read, so it is a fact beside the
+//      sentence (email facts line, in-app meta strip), never inside it.
 //   5. One primary action, imperative, ≤ 3 words.
 //   6. Degrade gracefully. Every field is optional; missing metadata must
 //      shorten the sentence, never produce "undefined" or an empty title.
@@ -61,20 +63,19 @@ const capitalise = (value: string): string =>
 const atProperty = (payload: NotificationPayload): string =>
   payload.propertyName === undefined ? '' : ` at ${payload.propertyName}`
 
-/**
- * "3h" / "2d" — compact age. Returns "" below one hour so fresh items do not
- * get a misleading "0h" badge.
- */
-export const formatWaitingAge = (hours: number | undefined): string => {
-  if (hours === undefined || hours < 1) return ''
-  if (hours < 24) return `${hours}h`
-  return `${Math.floor(hours / 24)}d`
-}
+const MS_PER_HOUR = 3_600_000
 
-/** "waiting 3h" clause, or "" when the item is fresh or unmeasured. */
-const waitedFor = (payload: NotificationPayload): string => {
-  const age = formatWaitingAge(payload.waitingHours)
-  return age === '' ? '' : `Waiting ${age}.`
+/**
+ * "3h" / "2d": how long the current wait has lasted at `now`. Returns "" when
+ * nothing is waiting, and below one hour so a fresh item gets no "0h".
+ */
+export const waitingAge = (payload: NotificationPayload, now: Date): string => {
+  if (payload.waitingSince === undefined) return ''
+  const hours = Math.floor(
+    (now.getTime() - Date.parse(payload.waitingSince)) / MS_PER_HOUR,
+  )
+  if (hours < 1) return ''
+  return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`
 }
 
 const byRole = (payload: NotificationPayload): string =>
@@ -167,19 +168,9 @@ const renderFeedbackCreated = (p: NotificationPayload): RenderedNotification => 
 
 const renderReplyPendingApproval = (p: NotificationPayload): RenderedNotification => ({
   title: `Approve a reply${atProperty(p)}`,
-  body: sentence(
-    `${byRole(p)} drafted a reply to a ${reviewNoun()}.`,
-    'It stays unpublished until you approve it.',
-    waitedFor(p),
-  ),
+  body: `${byRole(p)} drafted a reply to a ${reviewNoun()}. It stays unpublished until you approve it.`,
   actionLabel: 'Review reply',
-  summary: facts(
-    p.propertyName ?? '',
-    reviewNoun(),
-    formatWaitingAge(p.waitingHours) === ''
-      ? ''
-      : `waiting ${formatWaitingAge(p.waitingHours)}`,
-  ),
+  summary: facts(p.propertyName ?? '', reviewNoun()),
 })
 
 const renderReplyApproved = (p: NotificationPayload): RenderedNotification => ({
@@ -481,18 +472,26 @@ const RENDERERS: Record<
  *
  * `occurrences > 1` appends a repeat marker, because a row that coalesced three
  * escalations should not read identically to one that fired once (ADR 0046 r.2).
+ * `now`, which email passes, adds the live waiting age to the facts line; the
+ * in-app row shows it in its own strip.
  */
 export const renderNotification = (
   type: NotificationType,
   payload: NotificationPayload,
+  now?: Date,
 ): RenderedNotification => {
   const rendered = RENDERERS[type](payload)
+  const age = now === undefined ? '' : waitingAge(payload, now)
   const repeats = payload.occurrences ?? 1
-  if (repeats <= 1) return rendered
   return {
     ...rendered,
-    body: sentence(rendered.body, `Updated ${repeats} times.`),
-    summary: facts(rendered.summary, `${repeats}x`),
+    body:
+      repeats > 1 ? sentence(rendered.body, `Updated ${repeats} times.`) : rendered.body,
+    summary: facts(
+      rendered.summary,
+      age === '' ? '' : `waiting ${age}`,
+      repeats > 1 ? `${repeats}x` : '',
+    ),
   }
 }
 

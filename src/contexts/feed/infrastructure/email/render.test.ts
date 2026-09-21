@@ -21,11 +21,16 @@ const urgent = (rendered: RenderedNotification) =>
     priority: 'urgent',
   })
 
-const pendingApproval = renderNotification('reply.pending_approval', {
-  propertyName: 'Riverside Hotel',
-  waitingHours: 3,
-  actorRole: 'staff',
-})
+// Rendered when the email is sent, three hours into the wait.
+const pendingApproval = renderNotification(
+  'reply.pending_approval',
+  {
+    propertyName: 'Riverside Hotel',
+    waitingSince: '2026-09-22T06:00:00.000Z',
+    actorRole: 'staff',
+  },
+  new Date('2026-09-22T09:00:00.000Z'),
+)
 
 const portalFeedback = renderNotification('feedback.created', {
   propertyName: 'Riverside Hotel',

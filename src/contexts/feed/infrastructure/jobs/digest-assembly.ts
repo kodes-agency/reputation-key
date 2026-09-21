@@ -44,6 +44,8 @@ export function groupItemsByProperty(
   items: ReadonlyArray<DigestItem>,
   propertyNames: ReadonlyMap<string, string>,
   buildActionUrl: (path: string, search: Readonly<Record<string, string>>) => string,
+  /** When the digest is assembled; a waiting age is measured against it. */
+  now: Date,
 ): ReadonlyArray<DigestGroup> {
   const order: string[] = []
   const byProperty = new Map<string, DigestGroup['items'][number][]>()
@@ -56,7 +58,7 @@ export function groupItemsByProperty(
     }
     const link = notificationLink(notification.resourceType, notification.resourceId, key)
     byProperty.get(key)!.push({
-      rendered: renderNotification(notification.type, notification.payload),
+      rendered: renderNotification(notification.type, notification.payload, now),
       actionUrl: buildActionUrl(link.path, link.search),
     })
   }

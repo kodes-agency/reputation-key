@@ -87,6 +87,45 @@ const findInboxItemFacts = async (
   }
 }
 
+/**
+ * An open item's current cycle waits from the start of its measured Response
+ * Target until the target completes. The target, not the item, is the clock:
+ * a later cycle restarts it (ADR 0055).
+ */
+const findWaitingSince = async (
+  db: Database,
+  id: InboxItemId,
+  orgId: OrganizationId,
+): Promise<Date | null> => {
+  const rows = await db
+    .select({ startAt: inboxHandlingCycleResponseTargets.startAt })
+    .from(inboxHandlingCycleHeads)
+    .innerJoin(
+      inboxHandlingCycleResponseTargets,
+      and(
+        eq(
+          inboxHandlingCycleResponseTargets.inboxItemId,
+          inboxHandlingCycleHeads.inboxItemId,
+        ),
+        eq(
+          inboxHandlingCycleResponseTargets.cycleNumber,
+          inboxHandlingCycleHeads.currentCycleNumber,
+        ),
+        eq(inboxHandlingCycleResponseTargets.performanceEligibility, 'measured'),
+        isNull(inboxHandlingCycleResponseTargets.completionAt),
+      ),
+    )
+    .where(
+      and(
+        eq(inboxHandlingCycleHeads.organizationId, unbrand(orgId)),
+        eq(inboxHandlingCycleHeads.inboxItemId, unbrand(id)),
+        eq(inboxHandlingCycleHeads.status, 'open'),
+      ),
+    )
+    .limit(1)
+  return rows[0]?.startAt ?? null
+}
+
 export const createInboxItemLookupAdapter = (
   db: Database,
   feedbackPortalLookup: FeedbackPortalLookupPort,
@@ -173,6 +212,10 @@ export const createInboxItemLookupAdapter = (
       stateRevision: head.stateRevision,
       status: head.status,
     }
+  },
+
+  findWaitingSince(id: InboxItemId, orgId: OrganizationId): Promise<Date | null> {
+    return findWaitingSince(db, id, orgId)
   },
 
   async findResponseTargetReminderNotificationFacts(

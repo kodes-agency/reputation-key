@@ -103,6 +103,7 @@ export async function handleNotificationResponseTargetReminder(
   const notificationPayload = await buildInboxItemPayload(deps, {
     inboxItemId: itemId,
     orgId,
+    measureWait: true,
   })
   const audience: NotificationAudience = {
     kind: 'response_target_reminder',
