@@ -419,6 +419,12 @@ export type InboxHandlingCycleOpened = Readonly<{
   userId: UserId | null
   triggerEventId: string | null
   openReason: Exclude<HandlingCycleOpenReason, 'manual_reopen'>
+  /**
+   * Opened by the same command that created the item: the source already had
+   * this revision before the Inbox first showed the item, so no one saw an
+   * earlier one change.
+   */
+  openedWithItem: boolean
   source: 'import'
   occurredAt: Date
   correlationId: string | null
@@ -426,7 +432,10 @@ export type InboxHandlingCycleOpened = Readonly<{
 
 export const inboxHandlingCycleOpened = (
   args: HandlingCycleFactScope &
-    Readonly<{ openReason: Exclude<HandlingCycleOpenReason, 'manual_reopen'> }>,
+    Readonly<{
+      openReason: Exclude<HandlingCycleOpenReason, 'manual_reopen'>
+      openedWithItem?: boolean
+    }>,
 ): InboxHandlingCycleOpened => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(args.cycleNumber > 0, 'cycleNumber must be positive')
@@ -437,6 +446,7 @@ export const inboxHandlingCycleOpened = (
     _tag: 'inbox.handling_cycle.opened',
     eventId: newEventId(),
     ...args,
+    openedWithItem: args.openedWithItem ?? false,
     source: 'import',
     correlationId: args.correlationId ?? null,
   }

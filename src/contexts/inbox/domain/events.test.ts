@@ -121,6 +121,29 @@ describe('inbox events', () => {
     })
   })
 
+  it('marks a cycle opened by the command that created its item, and only that one', () => {
+    const open = (openedWithItem?: boolean) =>
+      inboxHandlingCycleOpened({
+        inboxItemId: ITEM_ID,
+        cycleNumber: 2,
+        stateRevision: 3,
+        organizationId: ORG_ID,
+        propertyId: PROP_ID,
+        sourceType: 'review',
+        sourceId: reviewId('review-cycle-event-1'),
+        sourceRevision: 2,
+        openReason: 'material_revision_changed',
+        actorType: 'provider',
+        userId: null,
+        triggerEventId: null,
+        occurredAt: NOW,
+        ...(openedWithItem === undefined ? {} : { openedWithItem }),
+      })
+
+    expect(open(true).openedWithItem).toBe(true)
+    expect(open().openedWithItem).toBe(false)
+  })
+
   it('marks a reopen that belongs to a bulk command, and only that one', () => {
     const reopen = (bulkId?: string | null) =>
       inboxHandlingCycleReopened({

@@ -505,6 +505,12 @@ describe('Handling Cycle notification durable consumers', () => {
     ['initial review observation', { openReason: 'review_observed' }],
     ['initial feedback submission', { openReason: 'feedback_submitted' }],
     ['legacy backfill', { openReason: 'legacy_backfill' }],
+    // Inbox caught up while creating the item: nobody saw the older revision,
+    // so "New review" is the whole story and "Review updated" would be noise.
+    [
+      'revision the item was created with',
+      { openReason: 'material_revision_changed', openedWithItem: true },
+    ],
   ])(
     'records %s without duplicating the item-created arrival notification',
     async (_label, change) => {

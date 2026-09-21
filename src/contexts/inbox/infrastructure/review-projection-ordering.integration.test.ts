@@ -149,7 +149,47 @@ async function cleanAll(): Promise<void> {
   await deleteTestOrganizations(pool, [ORG])
 }
 
-async function seedActiveReview(): Promise<void> {
+async function insertMaterialRevisions(from: number, to: number): Promise<void> {
+  for (let revision = from; revision <= to; revision += 1) {
+    const index = revision - 1
+    await pool.query(
+      `INSERT INTO material_review_revisions (
+         review_id, revision, organization_id, property_id, source_epoch,
+         normalization_version, source_digest, normalized_digest, rating,
+         normalized_text, response_target_eligibility, response_target_start_at,
+         content_state, created_at, updated_at
+       ) VALUES (
+         $1, $2, $3, $4, 0, 'review-material-v1', $5, $5, $6,
+         $7, 'measured', $8, 'active', $9, $9
+       )`,
+      [
+        REVIEW,
+        revision,
+        ORG,
+        PROPERTY,
+        String(revision).repeat(64),
+        3 + index,
+        `revision-${revision}`,
+        TARGET_STARTS[index],
+        OBSERVED[index],
+      ],
+    )
+  }
+}
+
+/** Review observes later material revisions after the Inbox item exists. */
+async function advanceReview(from: 1 | 2, to: 2 | 3): Promise<void> {
+  await insertMaterialRevisions(from + 1, to)
+  await pool.query(
+    `UPDATE reviews
+     SET source_revision = $2, source_observation_sequence = $2,
+         analysis_sequence = $2, source_updated_at = $3, last_fetched_at = $3
+     WHERE id = $1`,
+    [REVIEW, to, OBSERVED[to - 1]],
+  )
+}
+
+async function seedActiveReview(revisions: 1 | 2 | 3 = 3): Promise<void> {
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, 'Inbox projection ordering', $2, NOW())`,
@@ -171,7 +211,7 @@ async function seedActiveReview(): Promise<void> {
        ai_source_digest, source_content_state, created_at, updated_at
      ) VALUES (
        $1, $2, $3, 'google', 'ordering-review', 'locations/ordering', 5, $4, $5,
-       $6, $7, $6, $7, $5, 0, 3, 3, 3, 1, $8, 'active', $6, $7
+       $6, $7, $6, $7, $5, 0, $9, $9, $9, 1, $8, 'active', $6, $7
      )`,
     [
       REVIEW,
@@ -180,34 +220,12 @@ async function seedActiveReview(): Promise<void> {
       TARGET_STARTS[0],
       new Date('2027-08-01T12:00:00.000Z'),
       OBSERVED[0],
-      OBSERVED[2],
+      OBSERVED[revisions - 1],
       'a'.repeat(64),
+      revisions,
     ],
   )
-  for (const [index, observedAt] of OBSERVED.entries()) {
-    await pool.query(
-      `INSERT INTO material_review_revisions (
-         review_id, revision, organization_id, property_id, source_epoch,
-         normalization_version, source_digest, normalized_digest, rating,
-         normalized_text, response_target_eligibility, response_target_start_at,
-         content_state, created_at, updated_at
-       ) VALUES (
-         $1, $2, $3, $4, 0, 'review-material-v1', $5, $5, $6,
-         $7, 'measured', $8, 'active', $9, $9
-       )`,
-      [
-        REVIEW,
-        index + 1,
-        ORG,
-        PROPERTY,
-        String(index + 1).repeat(64),
-        3 + index,
-        `revision-${index + 1}`,
-        TARGET_STARTS[index],
-        observedAt,
-      ],
-    )
-  }
+  await insertMaterialRevisions(1, revisions)
 }
 
 function deps(): InboxConsumerDeps {
@@ -363,6 +381,46 @@ describe.sequential('Review source event delivery-order convergence', () => {
 
     for (const candidate of sourceEvents) await deliver(candidate)
     expect(await readRevision()).toBe(settled)
+  })
+
+  describe('which material revisions a manager can be told changed', () => {
+    const materialRevisionFacts = async () =>
+      (
+        await pool.query(
+          `SELECT (payload->>'cycleNumber')::int AS "cycleNumber",
+                  payload->'openedWithItem' AS "openedWithItem"
+           FROM outbox_events
+           WHERE organization_id = $1
+             AND event_type = 'inbox.handling_cycle.opened'
+             AND payload->>'openReason' = 'material_revision_changed'
+           ORDER BY 1`,
+          [ORG],
+        )
+      ).rows
+
+    it('marks the revisions a Review already had when its item is first projected', async () => {
+      await deliver(event('review.created', 1))
+
+      expect(await materialRevisionFacts()).toEqual([
+        { cycleNumber: 2, openedWithItem: true },
+        { cycleNumber: 3, openedWithItem: true },
+      ])
+    })
+
+    it('leaves unmarked the revisions observed after the item existed', async () => {
+      await cleanAll()
+      await seedActiveReview(1)
+      await cleanInboxProjection()
+      await deliver(event('review.created', 1))
+      await advanceReview(1, 3)
+
+      await deliver(event('review.updated', 3))
+
+      expect(await materialRevisionFacts()).toEqual([
+        { cycleNumber: 2, openedWithItem: false },
+        { cycleNumber: 3, openedWithItem: false },
+      ])
+    })
   })
 
   it('late creation after erasure keeps stable history closed and creates no targets', async () => {

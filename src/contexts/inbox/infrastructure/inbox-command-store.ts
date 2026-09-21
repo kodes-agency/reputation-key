@@ -206,9 +206,15 @@ async function assertManualReopenHonest(tx: Tx, head: HandlingCycleHead): Promis
   if (decision.isErr()) throw decision.error
 }
 
+/**
+ * What a transition's command adds to its fact: the bulk reopen it belongs
+ * to, or that the command also created the item.
+ */
+type LifecycleFactMarks = Readonly<{ bulkId?: string; openedWithItem?: boolean }>
+
 const lifecycleFactFor = (
   transition: HandlingCycleTransition,
-  bulkId: string | null = null,
+  marks: LifecycleFactMarks = {},
 ): DomainEvent => {
   const scope = {
     inboxItemId: transition.inboxItemId,
@@ -239,7 +245,7 @@ const lifecycleFactFor = (
       reopenReason: transition.transitionReason as Parameters<
         typeof inboxHandlingCycleReopened
       >[0]['reopenReason'],
-      bulkId,
+      bulkId: marks.bulkId ?? null,
       source: transition.actorType === 'user' ? 'web' : 'import',
     })
   }
@@ -248,6 +254,7 @@ const lifecycleFactFor = (
     openReason: transition.transitionReason as Parameters<
       typeof inboxHandlingCycleOpened
     >[0]['openReason'],
+    openedWithItem: marks.openedWithItem ?? false,
   })
 }
 
@@ -256,8 +263,7 @@ async function insertNextHandlingCycleDecision(
   decision: HandlingCycleDecision,
   createdAt: Date,
   responseTarget?: HandlingCycleCreationAnchor['responseTarget'],
-  /** Stamped on a reopen fact that a bulk completion fact covers. */
-  bulkId: string | null = null,
+  marks: LifecycleFactMarks = {},
 ): Promise<ReadonlyArray<DomainEvent>> {
   const superseded = decision.transitions.find(
     (transition) =>
@@ -287,7 +293,7 @@ async function insertNextHandlingCycleDecision(
     .values(
       decision.transitions.map((transition) => transitionInsert(transition, createdAt)),
     )
-  return decision.transitions.map((transition) => lifecycleFactFor(transition, bulkId))
+  return decision.transitions.map((transition) => lifecycleFactFor(transition, marks))
 }
 
 const normalizeCreationAnchor = (
@@ -778,6 +784,8 @@ async function lockReviewProjectionRows(
  * Replay every attested Material Revision the Inbox head has not reached yet,
  * opening one Handling Cycle per revision at that revision's own observation
  * instant. A gap in the attested history is a conflict, never a silent skip.
+ * `withItemCreation` marks the opened facts when this command also created the
+ * item, so they are not mistaken for a change someone already saw.
  */
 async function catchUpProjectionRevisions(
   tx: Tx,
@@ -786,6 +794,7 @@ async function catchUpProjectionRevisions(
     revisions: CurrentReviewInboxProjectionPermit['revisions']
     active: boolean
     current: HandlingCycleHead
+    withItemCreation: boolean
   }>,
 ): Promise<Readonly<{ head: HandlingCycleHead; advanced: boolean }>> {
   let current = input.current
@@ -815,6 +824,7 @@ async function catchUpProjectionRevisions(
       decision.value,
       revision.observedAt,
       input.active ? projectionTargetAnchor(revision) : null,
+      { openedWithItem: input.withItemCreation },
     )
     const [advancedHead] = await tx
       .update(inboxHandlingCycleHeads)
@@ -1711,7 +1721,7 @@ async function reopenLockedBulkItem(
     decision.value,
     now,
     input.responseTarget,
-    input.bulkId,
+    { bulkId: input.bulkId },
   )
   const updatedHeads = await tx
     .update(inboxHandlingCycleHeads)
@@ -3001,6 +3011,7 @@ export const createAtomicInboxCommandStore = (
             revisions: command.projection.revisions,
             active,
             current,
+            withItemCreation: inserted.created,
           })
           if (catchUp.advanced) projectedChange = true
           current = catchUp.head

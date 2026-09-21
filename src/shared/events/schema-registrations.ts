@@ -404,6 +404,9 @@ const inboxHandlingCycleOpenedSchema = handlingCycleFactScopeSchema
       'provider_reply_deleted',
       'provider_reply_diverged',
     ]),
+    // True when the command that created the item opened this cycle.
+    // Optional: facts recorded before the mark existed lack it.
+    openedWithItem: z.boolean().optional(),
   })
   .refine((value) => (value.actorType === 'user') === (value.userId !== null), {
     message: 'Handling Cycle actor attribution is invalid',

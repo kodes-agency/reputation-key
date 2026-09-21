@@ -20,6 +20,7 @@ import { reviewReplyPublicationRequested } from '#/contexts/review/domain/events
 import {
   inboxBulkAssignmentCompleted,
   inboxBulkReopenCompleted,
+  inboxHandlingCycleOpened,
   inboxHandlingCycleReopened,
 } from '#/contexts/inbox/domain/events'
 import { goalMonthlyResultClosed } from '#/contexts/reporting/domain/goal-events'
@@ -856,6 +857,29 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
         },
       ],
     })
+  })
+
+  it('keeps the mark on a cycle opened by the command that created its item', () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+    const event = inboxHandlingCycleOpened({
+      inboxItemId: inboxItemId('6a000000-0000-4000-8000-000000000010'),
+      cycleNumber: 2,
+      stateRevision: 3,
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('6a000000-0000-4000-8000-000000000020'),
+      sourceType: 'review',
+      sourceId: reviewId('6a000000-0000-4000-8000-000000000030'),
+      sourceRevision: 2,
+      openReason: 'material_revision_changed',
+      actorType: 'provider',
+      userId: null,
+      triggerEventId: null,
+      openedWithItem: true,
+      occurredAt: NOW,
+    })
+
+    expect(toOutboxEvent(event).payload).toMatchObject({ openedWithItem: true })
   })
 
   it('keeps the bulk command on a reopen fact that belongs to one', () => {

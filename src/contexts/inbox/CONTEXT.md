@@ -43,7 +43,10 @@ and Restore re-arms none of them: a cancelled slot is terminal.
 
 Source lifecycle facts arrive through durable, apply-once consumers. Inbox-owned
 command stores atomically commit item/cycle state, receipts, history, and
-identifier-only facts. `review.reply.observed` is a wake-up hint; the exact-current
+identifier-only facts. When a Review is first projected after it has already
+changed, the replayed Material Revision cycles are real history but nobody saw
+the earlier revision; their `inbox.handling_cycle.opened` facts carry
+`openedWithItem: true` so Notification announces the item once, as new. `review.reply.observed` is a wake-up hint; the exact-current
 permit is checked under Review's observation fence before Inbox commits closure or
 reopen work. The reminder job runs every five minutes and Notification revalidates
 recipients immediately before delivery.

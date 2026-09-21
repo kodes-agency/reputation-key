@@ -97,7 +97,8 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
       ['review.updated'],
       ['handling_cycle'],
     ),
-    eventCondition: 'openReason === material_revision_changed',
+    // A revision the item was created with is covered by review.created.
+    eventCondition: 'openReason === material_revision_changed && !openedWithItem',
   },
   {
     ...route(

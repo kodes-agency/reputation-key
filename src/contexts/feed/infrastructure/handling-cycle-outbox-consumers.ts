@@ -62,6 +62,7 @@ type HandlingCyclePayload = Readonly<{
   userId: string | null
   triggerEventId: string | null
   openReason?: string
+  openedWithItem?: boolean
   reopenReason?: string
   bulkId?: string | null
   source: 'web' | 'import'
@@ -106,15 +107,18 @@ function parse(event: ConsumerEvent): Parsed {
 /**
  * Initial observations/submissions are already represented by
  * `inbox.inbox_item.created`; consuming them again would produce two arrival
- * notifications. Only a material Review revision maps from `opened`. A reopen
- * stamped with a bulkId is covered by its bulk completion fact.
+ * notifications. Only a material Review revision maps from `opened`, and not
+ * one the item was created with: nobody saw the earlier revision, so "New
+ * review" already says it all. A reopen stamped with a bulkId is covered by
+ * its bulk completion fact.
  */
 function notificationTypeFor(payload: Parsed): NotificationType | null {
   if (payload.eventType === REOPENED_EVENT) {
     return payload.bulkId ? null : 'inbox.reopened'
   }
   return payload.openReason === 'material_revision_changed' &&
-    payload.sourceType === 'review'
+    payload.sourceType === 'review' &&
+    payload.openedWithItem !== true
     ? 'review.updated'
     : null
 }
