@@ -37,3 +37,33 @@ export const notificationUserSettingsDto = z
   )
 
 export type NotificationUserSettingsInput = z.infer<typeof notificationUserSettingsDto>
+
+/** The settings form's values: both pickers are always on screen. */
+export type NotificationFormattingValues = Readonly<{ locale: string; timezone: string }>
+
+/**
+ * Only what the user changed. The pickers start on the values delivery already
+ * uses, so sending an untouched timezone back would pin the Organization's
+ * zone as the user's own choice, and an untouched legacy value the pickers no
+ * longer offer would be refused.
+ */
+export function changedNotificationFormatting(
+  inEffect: NotificationFormattingValues,
+  value: NotificationFormattingValues,
+): Partial<NotificationFormattingValues> {
+  return {
+    ...(value.locale === inEffect.locale ? {} : { locale: value.locale }),
+    ...(value.timezone === inEffect.timezone ? {} : { timezone: value.timezone }),
+  }
+}
+
+/**
+ * The settings form's submit-time schema, relative to the values in effect:
+ * it keeps the fields the user changed and checks them with the save's own
+ * rules, reporting a refusal on the field it concerns.
+ */
+export const notificationFormattingFormDto = (inEffect: NotificationFormattingValues) =>
+  z
+    .object({ locale: z.string(), timezone: z.string() })
+    .transform((value) => changedNotificationFormatting(inEffect, value))
+    .pipe(notificationUserSettingsDto)

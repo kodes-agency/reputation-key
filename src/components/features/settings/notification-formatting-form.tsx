@@ -5,7 +5,7 @@ import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { TimezoneCombobox } from '#/components/forms/timezone-combobox'
-import { Field, FieldLabel } from '#/components/ui/field'
+import { Field, FieldError, FieldLabel } from '#/components/ui/field'
 import {
   Select,
   SelectContent,
@@ -19,8 +19,10 @@ import type {
   NotificationTimezoneSource,
 } from '#/contexts/feed/application/public-api'
 import {
+  changedNotificationFormatting,
   NOTIFICATION_LOCALES,
-  notificationUserSettingsDto,
+  notificationFormattingFormDto,
+  type NotificationFormattingValues,
   type NotificationLocale,
   type NotificationUserSettingsInput,
 } from '#/contexts/feed/application/dto/notification-user-settings.dto'
@@ -34,8 +36,6 @@ type Props = Readonly<{
   settings: EffectiveNotificationSettings
   updateUserSettings: Action<NotificationSettingsUpdate, EffectiveNotificationSettings>
 }>
-
-type FormattingValues = Readonly<{ locale: string; timezone: string }>
 
 const TIMEZONE_SOURCE_HINT: Readonly<Record<NotificationTimezoneSource, string>> = {
   user: 'Your own timezone.',
@@ -60,33 +60,19 @@ function localeOptions(stored: string) {
     : [{ value: stored, label: stored }, ...offered]
 }
 
-/**
- * Only what the user changed. The fields start on the values delivery already
- * uses, so sending an untouched timezone back would pin the Organization's zone
- * — or, before this, a UTC placeholder — as the user's own choice. A legacy
- * value the pickers no longer offer is likewise left alone unless replaced.
- */
-function changedFormatting(
-  settings: EffectiveNotificationSettings,
-  value: FormattingValues,
-): Partial<FormattingValues> {
-  return {
-    ...(value.locale === settings.locale ? {} : { locale: value.locale }),
-    ...(value.timezone === settings.timezone ? {} : { timezone: value.timezone }),
-  }
-}
-
 export function NotificationFormattingForm({ settings, updateUserSettings }: Props) {
   const pending = updateUserSettings.isPending
+  // Validates what the save will carry: only the changed fields, by the save's
+  // own rules, so an untouched value delivery is using is never judged.
+  const formattingDto = notificationFormattingFormDto(settings)
   const form = useForm({
     defaultValues: {
       locale: settings.locale,
       timezone: settings.timezone,
-    } satisfies FormattingValues,
+    } satisfies NotificationFormattingValues,
+    validators: { onSubmit: formattingDto },
     onSubmit: async ({ value }) => {
-      // Both values come from pickers, and the save schema admits exactly what
-      // they offer, so a parse failure here is a programming error.
-      const data = notificationUserSettingsDto.parse(changedFormatting(settings, value))
+      const data = formattingDto.parse(value)
       try {
         await updateUserSettings({ data })
         toast.success('Notification formatting updated')
@@ -119,6 +105,7 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
             >
               {TIMEZONE_SOURCE_HINT[settings.timezoneSource]}
             </p>
+            <FieldError errors={field.state.meta.errors} />
           </Field>
         )}
       </form.Field>
@@ -147,6 +134,7 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
                 </SelectGroup>
               </SelectContent>
             </Select>
+            <FieldError errors={field.state.meta.errors} />
           </Field>
         )}
       </form.Field>
@@ -156,7 +144,9 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
             mutation={updateUserSettings}
             form={form}
             // Nothing to save until something differs from what is in effect.
-            disabled={Object.keys(changedFormatting(settings, values)).length === 0}
+            disabled={
+              Object.keys(changedNotificationFormatting(settings, values)).length === 0
+            }
             className="w-fit"
           >
             Save formatting

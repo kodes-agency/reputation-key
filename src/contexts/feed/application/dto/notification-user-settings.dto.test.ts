@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   NOTIFICATION_LOCALES,
+  notificationFormattingFormDto,
   notificationUserSettingsDto,
 } from './notification-user-settings.dto'
 
@@ -50,5 +51,27 @@ describe('notificationUserSettingsDto', () => {
     for (const locale of NOTIFICATION_LOCALES) {
       expect(Intl.DateTimeFormat.supportedLocalesOf([locale])).toEqual([locale])
     }
+  })
+})
+
+describe('notificationFormattingFormDto', () => {
+  // A value saved before the pickers existed, still in effect.
+  const legacy = notificationFormattingFormDto({ locale: 'de-DE', timezone: '+03:00' })
+
+  it('checks only what changed, so an untouched legacy value never blocks a save', () => {
+    expect(legacy.safeParse({ locale: 'de-DE', timezone: 'Europe/Sofia' })).toEqual({
+      success: true,
+      data: { timezone: 'Europe/Sofia' },
+    })
+  })
+
+  it('refuses a changed value on the field it concerns', () => {
+    const result = notificationFormattingFormDto({
+      locale: 'en',
+      timezone: 'Europe/Sofia',
+    }).safeParse({ locale: 'en', timezone: 'Etc/GMT-3' })
+
+    expect(result.success).toBe(false)
+    expect(result.error?.issues.map((issue) => issue.path)).toEqual([['timezone']])
   })
 })
