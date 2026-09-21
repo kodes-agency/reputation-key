@@ -204,7 +204,14 @@ export async function handleNotificationGoalMonthlyResultClosed(
           resourceId: payload.monthlyResultId,
           eventId: event.eventId,
           payload: { goalName: facts.programName },
-          audience: { kind: 'responsible_scope' as const, scope },
+          // Delivery rechecks that the month is STILL achieved: a correction
+          // may un-achieve it before this job runs.
+          audience: {
+            kind: 'goal_completion' as const,
+            programId: payload.programId,
+            assignmentId: payload.assignmentId,
+            monthlyResultId: payload.monthlyResultId,
+          },
         },
         { jobId: `${event.eventId}-${unbrand(recipient)}` },
       ),

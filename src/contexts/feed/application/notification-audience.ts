@@ -19,7 +19,10 @@ import {
 } from './responsible-recipients'
 import { resolveEscalationResolutionRecipients } from './escalation-resolution-recipients'
 import { resolveResponseTargetReminderRecipients } from './response-target-reminder-recipients'
-import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
+import type {
+  GoalSubject,
+  MonthlyResultNotificationFactsLookup,
+} from '#/contexts/reporting/application/public-api'
 import {
   ORGANIZATION_ACCOUNT_NOTIFICATION_EVENT_TYPES,
   type OrganizationAccountNotificationAuthorityPort,
@@ -83,6 +86,12 @@ export type NotificationAudience =
       reason: ActionablePortalHealthReason
       /** When the Health interval this notice announces opened (ISO). */
       effectiveFrom: string
+    }>
+  | Readonly<{
+      kind: 'goal_completion'
+      programId: string
+      assignmentId: string
+      monthlyResultId: string
     }>
   | Readonly<{
       kind: 'goal_result_revision'
@@ -271,6 +280,22 @@ const parsePortalHealth: AudienceKindParser = (value) => {
   }
 }
 
+const parseGoalCompletion: AudienceKindParser = (value) => {
+  if (
+    !isIdentifier(value.programId) ||
+    !isIdentifier(value.assignmentId) ||
+    !isIdentifier(value.monthlyResultId)
+  ) {
+    return null
+  }
+  return {
+    kind: 'goal_completion',
+    programId: value.programId,
+    assignmentId: value.assignmentId,
+    monthlyResultId: value.monthlyResultId,
+  }
+}
+
 const parseGoalResultRevision: AudienceKindParser = (value) => {
   const evaluation = parseClosedGoalEvaluation(value.evaluationState, value.achieved)
   if (
@@ -337,6 +362,7 @@ const AUDIENCE_KIND_PARSERS: ReadonlyMap<string, AudienceKindParser> = new Map<
   ['handling_cycle', parseHandlingCycle],
   ['response_target_reminder', parseResponseTargetReminder],
   ['portal_health', parsePortalHealth],
+  ['goal_completion', parseGoalCompletion],
   ['goal_result_revision', parseGoalResultRevision],
   ['responsible_scope', parseResponsibleScope],
 ])
@@ -549,6 +575,48 @@ const isPortalHealthRecipient = async (
   return recipients.includes(userId)
 }
 
+const goalSubjectScope = (subject: GoalSubject): ResponsibleScope =>
+  subject.kind === 'property'
+    ? { kind: 'property', propertyId: subject.propertyId }
+    : subject.kind === 'portal_group'
+      ? { kind: 'portal_group', portalGroupId: subject.portalGroupId }
+      : { kind: 'portal', portalId: subject.portalId }
+
+/**
+ * "Goal completed" is checked against the result as it stands at delivery: a
+ * correction that un-achieved the month since the close was handled makes the
+ * lookup answer null, and the notice is dropped.
+ */
+const isGoalCompletionRecipient = async (
+  deps: Deps,
+  { organizationId, propertyId, userId }: PropertyScopedRequest,
+  audience: AudienceOfKind<'goal_completion'>,
+) => {
+  const facts = await deps.monthlyResultFacts.findMonthlyResultNotificationFacts({
+    organizationId,
+    propertyId,
+    assignmentId: audience.assignmentId,
+    monthlyResultId: audience.monthlyResultId,
+  })
+  if (
+    !facts ||
+    facts.programId !== audience.programId ||
+    facts.assignmentId !== audience.assignmentId ||
+    facts.monthlyResultId !== audience.monthlyResultId ||
+    (facts.subject.kind === 'property' && facts.subject.propertyId !== propertyId)
+  ) {
+    return false
+  }
+  return includesRecipient(
+    await resolveResponsibleRecipients(
+      deps,
+      organizationId,
+      goalSubjectScope(facts.subject),
+    ),
+    userId,
+  )
+}
+
 const isGoalResultRevisionRecipient = async (
   deps: Deps,
   { organizationId, propertyId, userId }: PropertyScopedRequest,
@@ -581,14 +649,12 @@ const isGoalResultRevisionRecipient = async (
   ) {
     return false
   }
-  const scope: ResponsibleScope =
-    facts.subject.kind === 'property'
-      ? { kind: 'property', propertyId: facts.subject.propertyId }
-      : facts.subject.kind === 'portal_group'
-        ? { kind: 'portal_group', portalGroupId: facts.subject.portalGroupId }
-        : { kind: 'portal', portalId: facts.subject.portalId }
   return includesRecipient(
-    await resolveResponsibleRecipients(deps, organizationId, scope),
+    await resolveResponsibleRecipients(
+      deps,
+      organizationId,
+      goalSubjectScope(facts.subject),
+    ),
     userId,
   )
 }
@@ -627,6 +693,8 @@ export const createNotificationAudienceAuthorizer =
         return isResponseTargetReminderRecipient(deps, request, audience)
       case 'portal_health':
         return isPortalHealthRecipient(deps, request, audience)
+      case 'goal_completion':
+        return isGoalCompletionRecipient(deps, request, audience)
       case 'goal_result_revision':
         return isGoalResultRevisionRecipient(deps, request, audience)
       case 'inbox_assignee':

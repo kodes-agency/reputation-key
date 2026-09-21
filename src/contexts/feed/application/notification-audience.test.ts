@@ -882,6 +882,55 @@ describe('notification audience authorization', () => {
     ).resolves.toBe(false)
   })
 
+  it('delivers a Goal completion only while the month is still achieved', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+    deps.monthlyResultFacts.findMonthlyResultNotificationFacts.mockResolvedValue({
+      programId: 'program-1',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+      programName: 'Guest rating average',
+      subject: { kind: 'property', propertyId: PROPERTY },
+    })
+    const audience = {
+      kind: 'goal_completion' as const,
+      programId: 'program-1',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+    }
+
+    expect(parseNotificationAudience(audience)).toEqual(audience)
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+    expect(
+      deps.monthlyResultFacts.findMonthlyResultNotificationFacts,
+    ).toHaveBeenCalledWith({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+    })
+
+    // The lookup answers null once the current head is no longer achieved.
+    deps.monthlyResultFacts.findMonthlyResultNotificationFacts.mockResolvedValue(null)
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+  })
+
+  it('parses only complete Goal completion audiences', () => {
+    const valid = {
+      kind: 'goal_completion',
+      programId: 'program-1',
+      assignmentId: 'assignment-1',
+      monthlyResultId: 'monthly-result-1',
+    }
+    expect(parseNotificationAudience(valid)).toEqual(valid)
+    expect(parseNotificationAudience({ ...valid, monthlyResultId: '' })).toBeNull()
+    expect(parseNotificationAudience({ ...valid, programId: undefined })).toBeNull()
+  })
+
   it('parses only complete, internally consistent Goal revision audiences', () => {
     const valid = {
       kind: 'goal_result_revision',

@@ -349,4 +349,43 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
       achieved: false,
     })
   })
+
+  // "Goal completed" announces the month as it stands, not as it first
+  // closed: a correction that un-achieved it before the notice was handled or
+  // delivered must stop it, and one that achieves it again restores it.
+  it('confirms a completion only while the current head is achieved', async () => {
+    const seeded = await seedClosedResult({ kind: 'property' })
+    const lookup = createMonthlyResultNotificationFactsLookup(getDb())
+    const exact = {
+      organizationId,
+      propertyId,
+      assignmentId: seeded.assignmentId,
+      monthlyResultId: seeded.monthlyResultId,
+    }
+    const missId = await appendRevision(seeded.monthlyResultId, {
+      revision: 1,
+      supersedesRevisionId: null,
+      evaluationState: 'eligible',
+      value: 9,
+      achieved: false,
+      at: '2026-08-03T12:00:00.000Z',
+    })
+
+    await expect(lookup.findMonthlyResultNotificationFacts(exact)).resolves.toBeNull()
+
+    await appendRevision(seeded.monthlyResultId, {
+      revision: 2,
+      supersedesRevisionId: missId,
+      evaluationState: 'eligible',
+      value: 11,
+      achieved: true,
+      at: '2026-08-04T12:00:00.000Z',
+    })
+    await expect(lookup.findMonthlyResultNotificationFacts(exact)).resolves.toMatchObject(
+      {
+        monthlyResultId: seeded.monthlyResultId,
+        programName: seeded.programName,
+      },
+    )
+  })
 })

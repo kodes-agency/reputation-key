@@ -189,9 +189,13 @@ describe('canonical Goal monthly-result notification consumer', () => {
           resourceId: IDS.result,
           eventId: IDS.event,
           payload: { goalName: 'Monthly guest engagement' },
+          // Delivery rechecks the result itself, not only responsibility: a
+          // correction may un-achieve the month before the job runs.
           audience: {
-            kind: 'responsible_scope',
-            scope: { kind: 'property', propertyId: IDS.property },
+            kind: 'goal_completion',
+            programId: IDS.program,
+            assignmentId: IDS.assignment,
+            monthlyResultId: IDS.result,
           },
         },
         opts: { jobId: `${IDS.event}-${MANAGER}` },

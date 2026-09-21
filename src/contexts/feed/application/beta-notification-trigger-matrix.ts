@@ -206,7 +206,7 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
       'goal.monthly_result.closed',
       'notification.on-goal-monthly-result-closed',
       ['goal.completed'],
-      ['responsible_scope'],
+      ['goal_completion'],
     ),
     eventCondition: 'achieved === true',
   },
@@ -239,6 +239,7 @@ const AUDIENCE_KINDS: ReadonlySet<string> = new Set<AudienceKind>([
   'response_target_reminder',
   'property_operator',
   'portal_health',
+  'goal_completion',
   'goal_result_revision',
 ])
 

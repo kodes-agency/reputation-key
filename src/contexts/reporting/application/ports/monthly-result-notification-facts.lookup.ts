@@ -50,6 +50,12 @@ export type MonthlyResultRevisionNotificationFacts = MonthlyResultNotificationFa
  * this port never broadens a miss to a looser Program or subject lookup.
  */
 export type MonthlyResultNotificationFactsLookup = Readonly<{
+  /**
+   * Facts for a closed result that is achieved as it stands NOW: its latest
+   * correction when it has one, the closed row otherwise. Null once a
+   * correction has un-achieved it, so "Goal completed" is never confirmed for
+   * a month that was missed.
+   */
   findMonthlyResultNotificationFacts(
     input: FindMonthlyResultNotificationFactsInput,
   ): Promise<MonthlyResultNotificationFacts | null>

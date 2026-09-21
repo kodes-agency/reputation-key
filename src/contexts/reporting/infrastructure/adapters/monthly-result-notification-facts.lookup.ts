@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { Database } from '#/shared/db'
 import {
@@ -29,8 +29,19 @@ export const createMonthlyResultNotificationFactsLookup = (
           propertySubjectId: goalSubjectAssignments.propertySubjectId,
           portalGroupId: goalSubjectAssignments.portalGroupId,
           portalId: goalSubjectAssignments.portalId,
+          closedAchieved: goalMonthlyResults.achieved,
+          headRevisionId: goalResultRevisions.id,
+          headAchieved: goalResultRevisions.achieved,
         })
         .from(goalMonthlyResults)
+        .leftJoin(
+          goalResultRevisions,
+          and(
+            eq(goalResultRevisions.organizationId, goalMonthlyResults.organizationId),
+            eq(goalResultRevisions.propertyId, goalMonthlyResults.propertyId),
+            eq(goalResultRevisions.monthlyResultId, goalMonthlyResults.id),
+          ),
+        )
         .innerJoin(
           goalSubjectAssignments,
           and(
@@ -70,12 +81,15 @@ export const createMonthlyResultNotificationFactsLookup = (
             eq(goalMonthlyResults.assignmentId, input.assignmentId),
             eq(goalMonthlyResults.id, input.monthlyResultId),
             eq(goalMonthlyResults.status, 'closed'),
-            eq(goalMonthlyResults.achieved, true),
           ),
         )
+        .orderBy(sql`${goalResultRevisions.revision} DESC NULLS LAST`)
         .limit(1)
 
-      if (!row) return null
+      // A completion stands on the result as it is NOW: the latest correction
+      // when there is one, the closed row otherwise.
+      const achieved = row?.headRevisionId ? row.headAchieved : row?.closedAchieved
+      if (!row || achieved !== true) return null
       const subjectId = row.propertySubjectId ?? row.portalGroupId ?? row.portalId ?? ''
       const subject = parseGoalSubject(row.subjectKind, subjectId, input.propertyId)
       if (!subject) return null
