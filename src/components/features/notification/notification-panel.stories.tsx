@@ -319,6 +319,16 @@ export const PhoneTopBar: Story = {
   },
 }
 
+/**
+ * The same popover in the light theme, where the popover surface and an
+ * unread row's elevated surface are the same white unless the list sits on
+ * the page tone. Measured by the same metrics file.
+ */
+export const PhoneTopBarLight: Story = {
+  ...PhoneTopBar,
+  parameters: { ...PhoneTopBar.parameters, theme: 'light' },
+}
+
 /** Reads that never settle → the list holds its skeleton, the badge stays absent. */
 export const Loading: Story = {
   args: {
