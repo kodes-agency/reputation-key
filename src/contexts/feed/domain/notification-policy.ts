@@ -68,6 +68,17 @@ export function isPreferenceDisableable(
   return !(category === 'urgent_operational' && channel === 'in_app')
 }
 
+/** Payload keys that describe one occurrence rather than the resource. */
+const OCCURRENCE_CAUSE_KEYS: ReadonlySet<string> = new Set<keyof NotificationPayload>([
+  'publishFailureCause',
+  'reauthorizationCause',
+])
+
+const withoutOccurrenceCauses = (payload: NotificationPayload): NotificationPayload =>
+  Object.fromEntries(
+    Object.entries(payload).filter(([key]) => !OCCURRENCE_CAUSE_KEYS.has(key)),
+  ) as NotificationPayload
+
 /**
  * ADR 0046 r.2 — absorb a repeat event into the single unread row instead of
  * stacking another one.
@@ -79,7 +90,10 @@ export function isPreferenceDisableable(
  *
  * Payload merge is newest-wins per key: a fresh payload missing a key keeps the
  * value the row already had, because a later event that could not resolve the
- * property name should not erase the name the first one captured.
+ * property name should not erase the name the first one captured. A closed
+ * cause is the exception: it names the remedy for one occurrence, and a fresh
+ * event without one had none, so the earlier cause is dropped rather than
+ * left advertising a remedy that no longer applies.
  */
 export function applyCoalescence(
   existing: Notification,
@@ -88,7 +102,7 @@ export function applyCoalescence(
 ): Notification {
   const coalescedCount = existing.coalescedCount + 1
   const payload: NotificationPayload = {
-    ...existing.payload,
+    ...withoutOccurrenceCauses(existing.payload),
     ...freshPayload,
     occurrences: coalescedCount,
   }

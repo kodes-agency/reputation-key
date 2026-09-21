@@ -12,14 +12,17 @@ import type { Notification } from './notification-types'
 const NOW = new Date('2026-01-01T00:00:00.000Z')
 const LATER = new Date('2026-01-01T09:00:00.000Z')
 
-const unread = (payload: Record<string, unknown>): Notification => {
+const unread = (
+  payload: Record<string, unknown>,
+  type: Notification['type'] = 'inbox.escalated',
+): Notification => {
   const result = createNotification(
     {
       id: notificationId('notification-1'),
       userId: userId('user-1'),
       organizationId: organizationId('org-1'),
       propertyId: propertyId('11111111-1111-4111-8111-111111111111'),
-      type: 'inbox.escalated',
+      type,
       resourceType: 'inbox_item',
       resourceId: 'item-1',
       eventId: 'event-1',
@@ -101,6 +104,33 @@ describe('notification policy', () => {
 
     expect(bumped.payload.propertyName).toBe('Riverside')
   })
+
+  // A cause names the remedy for one occurrence. A later event with none had
+  // none, so the row must stop advertising the earlier remedy.
+  it.each([
+    {
+      type: 'reply.publish_failed' as const,
+      cause: { publishFailureCause: 'google_reauthorization_required' },
+      title: 'Reply failed to publish at Riverside',
+    },
+    {
+      type: 'integration.reauthorization_required' as const,
+      cause: { reauthorizationCause: 'provider_revoked' },
+      title: 'Google connection needs attention at Riverside',
+    },
+  ])(
+    'lets a repeat $type without a cause drop the earlier one',
+    ({ type, cause, title }) => {
+      const bumped = applyCoalescence(
+        unread({ propertyName: 'Riverside', ...cause }, type),
+        { propertyName: 'Riverside' },
+        LATER,
+      )
+
+      expect(bumped.payload).toEqual({ propertyName: 'Riverside', occurrences: 2 })
+      expect(bumped.title).toBe(title)
+    },
+  )
 
   it('accumulates across repeated bumps', () => {
     const once = applyCoalescence(unread({}), {}, LATER)
