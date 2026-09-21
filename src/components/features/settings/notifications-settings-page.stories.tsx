@@ -192,20 +192,38 @@ export const ActionNeededKeepsInAppOn: Story = {
   },
 }
 
-export const FormattingSubmitsOnEnter: Story = {
+export const FormattingSavesAPickedTimezone: Story = {
   play: async ({ canvasElement }) => {
     updateUserSettingsMock.mockClear()
     const canvas = within(canvasElement)
-    const timezone = canvas.getByLabelText('IANA timezone')
-    // Locale and timezone were bare inputs with no enclosing form, so Enter did
-    // nothing at all and the only way to save was finding the button.
-    await userEvent.clear(timezone)
-    await userEvent.type(timezone, 'Europe/Berlin{Enter}')
+    const portal = within(document.body)
+    // A picker, not free text: a hotel manager should not need to know IANA
+    // names, and a typed fixed offset ignored daylight saving.
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Timezone' }))
+    await userEvent.type(
+      portal.getByPlaceholderText('Search a city, region or UTC offset'),
+      'Berlin',
+    )
+    await userEvent.click(await portal.findByRole('option', { name: /Berlin/ }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Save formatting' }))
     await waitFor(() => expect(updateUserSettingsMock).toHaveBeenCalledOnce())
-    // Only the changed setting travels: the untouched locale is not re-sent.
+    // Only the changed setting travels: the untouched format is not re-sent.
     expect(updateUserSettingsMock).toHaveBeenCalledWith({
       data: { timezone: 'Europe/Berlin' },
     })
+  },
+}
+
+export const SeedsFormattingFromTheServer: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // Render source is the query result, not a stale local mirror.
+    expect(
+      canvas.getByRole('combobox', { name: 'Date and time format' }),
+    ).toHaveTextContent('Bulgarian')
+    expect(canvas.getByRole('combobox', { name: 'Timezone' })).toHaveTextContent(
+      /Sofia \(UTC\+[23]\)/,
+    )
   },
 }
 
@@ -215,7 +233,9 @@ export const NewUserSeesTheOrganizationTimezone: Story = {
     const canvas = within(canvasElement)
     // Quiet hours and the digest already run on the Organization's zone, so
     // that is what the page shows — never a UTC placeholder.
-    expect(canvas.getByLabelText('IANA timezone')).toHaveValue('Europe/Sofia')
+    expect(canvas.getByRole('combobox', { name: 'Timezone' })).toHaveTextContent(
+      /Sofia \(UTC\+[23]\)/,
+    )
     expect(canvas.getByTestId('timezone-source')).toHaveTextContent(
       "Your organization's timezone",
     )
@@ -234,9 +254,10 @@ export const SavingTheLocaleKeepsTheOrganizationTimezone: Story = {
     const save = canvas.getByRole('button', { name: 'Save formatting' })
     // Nothing differs from what is in effect yet.
     expect(save).toBeDisabled()
-    const locale = canvas.getByLabelText('Locale')
-    await userEvent.clear(locale)
-    await userEvent.type(locale, 'en-GB')
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Date and time format' }))
+    await userEvent.click(
+      await within(document.body).findByRole('option', { name: 'English (UK)' }),
+    )
     await userEvent.click(save)
     await waitFor(() => expect(updateUserSettingsMock).toHaveBeenCalledOnce())
     // The timezone is not sent, so the save cannot pin anything over it.
@@ -244,24 +265,26 @@ export const SavingTheLocaleKeepsTheOrganizationTimezone: Story = {
   },
 }
 
-export const SeedsFormattingFromTheServer: Story = {
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    // Render source is the query result, not a stale local mirror.
-    expect(canvas.getByLabelText('Locale')).toHaveValue('bg')
-    expect(canvas.getByLabelText('IANA timezone')).toHaveValue('Europe/Sofia')
+export const KeepsALegacyTimezoneTheListNoLongerOffers: Story = {
+  args: {
+    userSettings: { locale: 'de-DE', timezone: '+03:00', timezoneSource: 'user' },
   },
-}
-
-export const FormattingRejectsAnUnknownTimezone: Story = {
   play: async ({ canvasElement }) => {
     updateUserSettingsMock.mockClear()
     const canvas = within(canvasElement)
-    const timezone = canvas.getByLabelText('IANA timezone')
-    await userEvent.clear(timezone)
-    await userEvent.type(timezone, 'Sofia{Enter}')
-    await expect(canvas.findByText('Enter a valid IANA timezone')).resolves.toBeVisible()
-    expect(updateUserSettingsMock).not.toHaveBeenCalled()
+    // A free-text value saved before the pickers still shows as itself, not
+    // as an empty "Choose a timezone" that hides what delivery is using.
+    expect(canvas.getByRole('combobox', { name: 'Timezone' })).toHaveTextContent('+03:00')
+    expect(
+      canvas.getByRole('combobox', { name: 'Date and time format' }),
+    ).toHaveTextContent('de-DE')
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Date and time format' }))
+    await userEvent.click(
+      await within(document.body).findByRole('option', { name: 'English (US)' }),
+    )
+    await userEvent.click(canvas.getByRole('button', { name: 'Save formatting' }))
+    await waitFor(() => expect(updateUserSettingsMock).toHaveBeenCalledOnce())
+    expect(updateUserSettingsMock).toHaveBeenCalledWith({ data: { locale: 'en' } })
   },
 }
 
