@@ -32,7 +32,10 @@ corrections supersede rather than rewrite them.
 
 Google Review and private-feedback Response Targets default to 48 elapsed hours.
 Each measured cycle snapshots its duration, policy version, start/due time, and
-halfway/target-passed reminder slots.
+halfway/target-passed reminder slots. A slot already due when the target is
+recorded is never created, and a halfway slot still pending once its target has
+passed is cancelled rather than released, so a target overdue on arrival reminds
+no one and a late release prompts once.
 
 ## Runtime
 

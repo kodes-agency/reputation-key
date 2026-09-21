@@ -28,9 +28,12 @@ import {
   buildResponseTargetSnapshot,
   classifyResponseTargetCompletion,
   evaluateResponseTarget,
+  isSupersededReminder,
   resolveGoogleReviewTargetPolicy,
   resolvePrivateFeedbackTargetPolicy,
+  schedulableReminders,
   type ResponseTargetResult,
+  type ResponseTargetSnapshot,
 } from '../domain/response-target'
 import { inboxResponseTargetReminderDue } from '../domain/events'
 import { inboxError } from '../domain/errors'
@@ -155,6 +158,34 @@ export function resolveReviewCycleTargetProvenance(
   }
 }
 
+/**
+ * Record the snapshot's reminder slots that are still ahead of the target's
+ * own creation. The schedule trigger only accepts a slot equal to the
+ * snapshot, so a slot already due is left out rather than moved later.
+ */
+async function insertSchedulableReminders(
+  tx: Tx,
+  cycle: HandlingCycle,
+  snapshot: ResponseTargetSnapshot,
+  createdAt: Date,
+): Promise<void> {
+  const reminders = schedulableReminders(snapshot, createdAt)
+  if (reminders.length === 0) return
+  await tx.insert(inboxResponseTargetReminders).values(
+    reminders.map((reminder) => ({
+      inboxItemId: cycle.inboxItemId,
+      cycleNumber: cycle.cycleNumber,
+      organizationId: cycle.organizationId,
+      propertyId: cycle.propertyId,
+      targetKind: snapshot.targetKind,
+      reminderKind: reminder.kind,
+      scheduledFor: reminder.scheduledFor,
+      createdAt,
+      updatedAt: createdAt,
+    })),
+  )
+}
+
 /** Insert the immutable source-specific target beside its Handling Cycle. */
 export async function insertResponseTargetForHandlingCycle(
   tx: Tx,
@@ -229,19 +260,7 @@ export async function insertResponseTargetForHandlingCycle(
       createdAt,
       updatedAt: createdAt,
     })
-    await tx.insert(inboxResponseTargetReminders).values(
-      snapshot.reminders.map((reminder) => ({
-        inboxItemId: cycle.inboxItemId,
-        cycleNumber: cycle.cycleNumber,
-        organizationId: cycle.organizationId,
-        propertyId: cycle.propertyId,
-        targetKind: snapshot.targetKind,
-        reminderKind: reminder.kind,
-        scheduledFor: reminder.scheduledFor,
-        createdAt,
-        updatedAt: createdAt,
-      })),
-    )
+    await insertSchedulableReminders(tx, cycle, snapshot, createdAt)
     return
   }
 
@@ -310,19 +329,7 @@ export async function insertResponseTargetForHandlingCycle(
     createdAt,
     updatedAt: createdAt,
   })
-  await tx.insert(inboxResponseTargetReminders).values(
-    snapshot.reminders.map((reminder) => ({
-      inboxItemId: cycle.inboxItemId,
-      cycleNumber: cycle.cycleNumber,
-      organizationId: cycle.organizationId,
-      propertyId: cycle.propertyId,
-      targetKind: snapshot.targetKind,
-      reminderKind: reminder.kind,
-      scheduledFor: reminder.scheduledFor,
-      createdAt,
-      updatedAt: createdAt,
-    })),
-  )
+  await insertSchedulableReminders(tx, cycle, snapshot, createdAt)
 }
 
 type StopReason = 'private_feedback_handled' | 'guest_withdrawn'
@@ -854,7 +861,10 @@ export const createResponseTargetStore = (db: Database): ResponseTargetStore => 
       }
       const released = await db.transaction(async (tx) => {
         const due = await tx
-          .select({ reminder: inboxResponseTargetReminders })
+          .select({
+            reminder: inboxResponseTargetReminders,
+            targetDueAt: inboxHandlingCycleResponseTargets.dueAt,
+          })
           .from(inboxResponseTargetReminders)
           .innerJoin(
             inboxHandlingCycleResponseTargets,
@@ -906,10 +916,20 @@ export const createResponseTargetStore = (db: Database): ResponseTargetStore => 
             skipLocked: true,
           })
         let released = 0
-        for (const { reminder } of due) {
+        for (const { reminder, targetDueAt } of due) {
+          const reminderKind =
+            reminder.reminderKind === 'halfway' ? 'halfway' : 'target_passed'
+          // A halfway slot still pending once its target has passed closes
+          // without a fact, so a late release prompts once, not twice.
+          const superseded =
+            targetDueAt !== null && isSupersededReminder(reminderKind, targetDueAt, now)
           const [saved] = await tx
             .update(inboxResponseTargetReminders)
-            .set({ deliveredAt: now, updatedAt: now })
+            .set(
+              superseded
+                ? { cancelledAt: now, updatedAt: now }
+                : { deliveredAt: now, updatedAt: now },
+            )
             .where(
               and(
                 eq(inboxResponseTargetReminders.inboxItemId, reminder.inboxItemId),
@@ -920,15 +940,14 @@ export const createResponseTargetStore = (db: Database): ResponseTargetStore => 
               ),
             )
             .returning({ eventId: inboxResponseTargetReminders.eventId })
-          if (!saved) continue
+          if (!saved || superseded) continue
           const fact = inboxResponseTargetReminderDue({
             inboxItemId: inboxItemId(reminder.inboxItemId),
             cycleNumber: reminder.cycleNumber,
             organizationId: organizationId(reminder.organizationId),
             propertyId: propertyId(reminder.propertyId),
             targetKind: reminder.targetKind as ResponseTargetView['targetKind'],
-            reminderKind:
-              reminder.reminderKind === 'halfway' ? 'halfway' : 'target_passed',
+            reminderKind,
             scheduledFor: reminder.scheduledFor,
             occurredAt: now,
           })

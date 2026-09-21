@@ -118,6 +118,37 @@ export function buildResponseTargetSnapshot(
   }
 }
 
+/**
+ * Only a reminder still ahead of the moment its target is recorded gets a
+ * slot. A slot already due then — a Review first observed long after Google
+ * published it — would fire on the next release tick for a moment nobody
+ * could have acted on.
+ */
+export function schedulableReminders(
+  snapshot: ResponseTargetSnapshot,
+  recordedAt: Date,
+): ReadonlyArray<ResponseTargetSnapshot['reminders'][number]> {
+  if (!Number.isFinite(recordedAt.getTime())) {
+    throw inboxError('invalid_input', 'Response Target timestamp is invalid')
+  }
+  return snapshot.reminders.filter(
+    (reminder) => reminder.scheduledFor.getTime() > recordedAt.getTime(),
+  )
+}
+
+/**
+ * Once the target itself has passed, a halfway reminder still waiting for
+ * release is superseded: the target-passed reminder says all it would, so
+ * releasing both would only double the prompt.
+ */
+export function isSupersededReminder(
+  reminderKind: ResponseTargetReminderKind,
+  dueAt: Date,
+  now: Date,
+): boolean {
+  return reminderKind === 'halfway' && dueAt.getTime() <= now.getTime()
+}
+
 type EvaluatedTarget = Readonly<{
   eligibility: ResponseTargetEligibility
   startAt: Date | null

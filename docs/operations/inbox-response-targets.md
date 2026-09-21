@@ -21,7 +21,13 @@ use a Property override.
 
 Each measured Handling Cycle stores an immutable snapshot of duration, policy
 source/version, start/due instants, and one halfway plus one target-passed reminder
-slot. A policy change affects only later cycles. Overdue is derived from the
+slot. A slot that is already due when the target is recorded is not created: the
+schedule guard accepts only the snapshot's own instants, so the slot is left out
+rather than moved later. A target that was already overdue when it was snapshotted
+(a Review first observed long after Google published it) therefore reminds no one,
+and one whose halfway had passed keeps only its target-passed slot. The target
+itself is still measured and counts as overdue. A policy change affects only later
+cycles. Overdue is derived from the
 current UTC instant; it neither closes nor escalates an Inbox item. The manager UI
 refreshes detail at the saved due instant so an open target changes to
 `Target time passed` without waiting for another user action.
@@ -92,7 +98,9 @@ The local composition is fully wired:
 1. `release-response-target-reminders` is an enabled five-minute recurring job in
    the governed job catalogue, and Bootstrap registers its worker handler.
 2. Inbox locks due active/current slots with `SKIP LOCKED`, marks each slot once,
-   and co-commits one identifier-only outbox fact with a stable event ID.
+   and co-commits one identifier-only outbox fact with a stable event ID. Once a
+   target has passed, a halfway slot still pending is cancelled without a fact, so
+   a release that finds both slots due sends only the target-passed reminder.
 3. Notification registers the corresponding outbox consumer. Admission resolves
    the exact current cycle, target, assignment, and source responsibility.
 4. The queued audience repeats the same exact-current authorization immediately
@@ -163,7 +171,9 @@ captures those facts for the deployed artifact and environment.
    `release-response-target-reminders` tick from the deployed artifact.
 4. Exercise halfway and target-passed reminders with assignment changed between
    admission and delivery. Verify the old audience is denied and the newly resolved,
-   de-duplicated audience is used.
+   de-duplicated audience is used. Verify that a target already overdue when it is
+   snapshotted records no reminder slot, and that a release finding both slots of a
+   target due sends only target passed.
 5. Exercise ongoing initial, onboarding-history, material-update, manual-reopen,
    external-current-live completion, RepKey-confirmed completion, and current reply-
    deletion reopen paths, and an import that fails part-way and is finished by the
