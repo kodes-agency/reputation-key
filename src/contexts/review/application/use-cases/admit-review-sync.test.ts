@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId } from '#/shared/domain/ids'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import {
   DISCOVERY_SWEEP_SYNC_INITIATOR_ID,
   GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
@@ -12,7 +13,7 @@ const IMPORT_SYNC = {
   organizationId: ORG,
   propertyId: PROPERTY,
   connectionId: '75000000-0000-4000-8000-000000000002',
-  locationName: 'accounts/admission/locations/1',
+  locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
   initiator: { kind: 'system' as const, id: GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID },
   correlationId: 'google-import:item-1',
 }
