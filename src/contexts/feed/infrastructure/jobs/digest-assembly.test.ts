@@ -183,7 +183,7 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
 
     expect(riverside.items.map((item) => item.rendered.summary)).toEqual([
       'review',
-      'review · new note',
+      'review · internal note',
     ])
   })
 

@@ -214,7 +214,7 @@ const renderReplyRejected = (p: NotificationPayload): RenderedNotification => ({
 const renderReplyPublished = (p: NotificationPayload): RenderedNotification => ({
   title: `Your reply is live on Google${atProperty(p)}`,
   body: 'Guests can see it now. No further action needed.',
-  actionLabel: 'View on review',
+  actionLabel: 'View reply',
   summary: factsAt(p, 'review'),
 })
 
@@ -262,6 +262,9 @@ const renderReplyPublishFailed = (p: NotificationPayload): RenderedNotification 
   }
 }
 
+/** The shared close of a notice that asks the reader to look, not to act. */
+const SEE_WHERE = 'Open it to see where it stands.'
+
 /**
  * Escalation is a manual call with no reason field, and an answered or closed
  * item can be escalated too. So the copy says who asked for attention and
@@ -269,84 +272,79 @@ const renderReplyPublishFailed = (p: NotificationPayload): RenderedNotification 
  */
 const renderInboxEscalated = (p: NotificationPayload): RenderedNotification => ({
   title: `Escalated: ${inboxNoun(p)}${atProperty(p)}`,
-  body: `${byRole(p)} escalated this for your attention. Open it to see where it stands.`,
+  body: `${byRole(p)} escalated this for your attention. ${SEE_WHERE}`,
   actionLabel: 'Open item',
   summary: factsAt(p, ratedNoun(p), 'escalated'),
 })
 
+// The words below follow the glossary and the Inbox thread: an escalation is
+// "resolved", an item is "reopened", a note is an Internal Note, and private
+// feedback is handled, never replied to. "Follow-up" is the Inbox's word for a
+// feedback outcome, so no notice uses it for anything else.
+
 const renderInboxEscalationResolved = (p: NotificationPayload): RenderedNotification => ({
-  title: `Follow-up updated${atProperty(p)}`,
-  body: 'This item is no longer marked for extra attention. You can open it to review the latest status.',
+  title: `Escalation resolved${atProperty(p)}`,
+  body: `This item is no longer escalated. ${SEE_WHERE}`,
   actionLabel: 'View item',
-  summary: factsAt(p, 'follow-up updated'),
+  summary: factsAt(p, 'escalation resolved'),
 })
 
 const renderInboxReopened = (p: NotificationPayload): RenderedNotification => ({
-  title: `Follow-up reopened${atProperty(p)}`,
-  body: sentence(
-    `This ${inboxNoun(p)} needs another look.`,
-    'Open it to review the latest status.',
-  ),
+  title: `Reopened: ${inboxNoun(p)}${atProperty(p)}`,
+  body: `This ${inboxNoun(p)} needs another look. ${SEE_WHERE}`,
   actionLabel: 'View item',
-  summary: factsAt(p, ratedNoun(p), 'follow-up reopened'),
+  summary: factsAt(p, ratedNoun(p), 'reopened'),
 })
+
+/** "an item" / "7 items" for the grouped Inbox notices. */
+const someItems = (count: number): string => (count === 1 ? 'an item' : `${count} items`)
 
 const renderInboxBulkReopened = (p: NotificationPayload): RenderedNotification => {
   const count = p.itemCount ?? 1
   return {
-    title:
-      count === 1
-        ? `Follow-up reopened${atProperty(p)}`
-        : `${count} follow-ups reopened${atProperty(p)}`,
-    body: sentence(
-      `${byRole(p)} reopened ${count === 1 ? 'an item' : `${count} items`}.`,
-      'Open the Inbox to review the latest status.',
-    ),
+    title: `${count} ${count === 1 ? 'item' : 'items'} reopened${atProperty(p)}`,
+    body: `${byRole(p)} reopened ${someItems(count)}. Open the Inbox to see where ${count === 1 ? 'it stands' : 'they stand'}.`,
     actionLabel: 'Open Inbox',
     summary: factsAt(p, `${count} reopened`),
   }
 }
 
 const renderResponseTargetHalfway = (p: NotificationPayload): RenderedNotification => ({
-  title: `Response target is halfway${atProperty(p)}`,
-  body: 'This item remains open. Open it when you are ready to continue the follow-up.',
+  title: `Halfway to the response target${atProperty(p)}`,
+  body: 'This item is still open. Open it when you are ready to continue.',
   actionLabel: 'View item',
   summary: factsAt(p, ratedNoun(p), 'target halfway'),
 })
 
 const renderResponseTargetPassed = (p: NotificationPayload): RenderedNotification => ({
-  title: `Response target time has passed${atProperty(p)}`,
-  body: 'This item remains open. Review it and choose the next step when practical.',
+  title: `Response target passed${atProperty(p)}`,
+  body: 'This item is still open. Review it and choose the next step when practical.',
   actionLabel: 'View item',
-  summary: factsAt(p, ratedNoun(p), 'target time passed'),
+  summary: factsAt(p, ratedNoun(p), 'target passed'),
 })
 
 const renderInboxAssigned = (p: NotificationPayload): RenderedNotification => ({
   title: `Assigned to you: ${inboxNoun(p)}${atProperty(p)}`,
-  body: sentence(`${byRole(p)} assigned this to you.`, 'You own the reply.'),
+  body: `${byRole(p)} assigned this to you. The next step is yours.`,
   actionLabel: 'Open item',
   summary: factsAt(p, ratedNoun(p), 'assigned to you'),
 })
 
 const renderInboxBulkAssigned = (p: NotificationPayload): RenderedNotification => {
   const count = p.itemCount ?? 1
-  const noun = count === 1 ? 'Inbox item' : 'Inbox items'
   return {
-    title: `${count} ${noun.toLowerCase()} assigned to you${atProperty(p)}`,
-    body: sentence(
-      `${byRole(p)} assigned ${count === 1 ? 'an item' : `${count} items`} to you.`,
-      'Open the Inbox to review your work.',
-    ),
+    title: `${count} ${count === 1 ? 'item' : 'items'} assigned to you${atProperty(p)}`,
+    body: `${byRole(p)} assigned ${someItems(count)} to you. Open the Inbox to see your work.`,
     actionLabel: 'Open Inbox',
-    summary: factsAt(p, `${count} ${noun.toLowerCase()}`, 'assigned'),
+    summary: factsAt(p, `${count} assigned to you`),
   }
 }
 
 const renderNoteAdded = (p: NotificationPayload): RenderedNotification => ({
-  title: `New note on ${inboxNoun(p)}${atProperty(p)}`,
-  body: sentence(`${byRole(p)} left a note on this item.`, 'Open it to read the thread.'),
+  title: `New internal note on ${p.platform === 'portal' ? 'feedback' : 'a review'}${atProperty(p)}`,
+  body: `${byRole(p)} left a note on this item. Open it to read the thread.`,
   actionLabel: 'Read note',
-  summary: factsAt(p, ratedNoun(p), 'new note'),
+  summary: factsAt(p, ratedNoun(p), 'internal note'),
 })
 
 const renderPortalResponsibilityNeeded = (

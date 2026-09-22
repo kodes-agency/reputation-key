@@ -160,16 +160,19 @@ describe('renderNotification — the copy that was broken', () => {
     },
   )
 
-  it('describes an escalation resolution without alarming or blaming managers', () => {
+  // The Inbox thread says "Escalation resolved"; the notice for the same event
+  // says the same, not "Follow-up updated", which the Inbox uses for a
+  // feedback outcome.
+  it('describes an escalation resolution in the Inbox words, without alarm or blame', () => {
     expect(
       renderNotification('inbox.escalation_resolved', {
         propertyName: 'Riverside Hotel',
       }),
     ).toEqual({
-      title: 'Follow-up updated at Riverside Hotel',
-      body: 'This item is no longer marked for extra attention. You can open it to review the latest status.',
+      title: 'Escalation resolved at Riverside Hotel',
+      body: 'This item is no longer escalated. Open it to see where it stands.',
       actionLabel: 'View item',
-      summary: 'Riverside Hotel · follow-up updated',
+      summary: 'Riverside Hotel · escalation resolved',
     })
   })
 
@@ -192,11 +195,51 @@ describe('renderNotification — the copy that was broken', () => {
         guestRating: 2,
       }),
     ).toEqual({
-      title: 'Follow-up reopened at Riverside Hotel',
-      body: 'This feedback needs another look. Open it to review the latest status.',
+      title: 'Reopened: feedback at Riverside Hotel',
+      body: 'This feedback needs another look. Open it to see where it stands.',
       actionLabel: 'View item',
-      summary: 'Riverside Hotel · 2-star feedback · follow-up reopened',
+      summary: 'Riverside Hotel · 2-star feedback · reopened',
     })
+  })
+
+  it.each([
+    ['google', 'New internal note on a review at Riverside Hotel'],
+    ['portal', 'New internal note on feedback at Riverside Hotel'],
+  ] as const)('names a %s Internal Note the way the Inbox does', (platform, title) => {
+    expect(
+      renderNotification('inbox_note.added', {
+        propertyName: 'Riverside Hotel',
+        platform,
+      }).title,
+    ).toBe(title)
+  })
+
+  // Reply exists only for Reviews (glossary); private feedback is handled.
+  it.each(NOTIFICATION_TYPES)('%s never offers a reply on private feedback', (type) => {
+    const r = renderNotification(type, { platform: 'portal', guestRating: 2 })
+
+    if (!type.startsWith('reply.') && !type.startsWith('review.')) {
+      expect([r.title, r.body, r.actionLabel].join(' ')).not.toMatch(/\breply\b/i)
+    }
+  })
+
+  it.each(NOTIFICATION_TYPES)('%s never calls its event a follow-up', (type) => {
+    const r = renderNotification(type, FULL)
+
+    expect([r.title, r.body, r.summary].join(' ')).not.toMatch(/follow-up/i)
+  })
+
+  it('names the target reminders plainly', () => {
+    expect(renderNotification('inbox.response_target_halfway', {}).title).toBe(
+      'Halfway to the response target',
+    )
+    expect(renderNotification('inbox.response_target_passed', {}).title).toBe(
+      'Response target passed',
+    )
+  })
+
+  it('opens a published reply without implying it leaves for Google', () => {
+    expect(renderNotification('reply.published', {}).actionLabel).toBe('View reply')
   })
 
   it('reply.pending_approval leads with the decision and says who drafted it', () => {
@@ -322,9 +365,9 @@ describe('renderNotification — the copy that was broken', () => {
       itemCount: 7,
     })
 
-    expect(rendered.title).toBe('7 inbox items assigned to you at Riverside Hotel')
+    expect(rendered.title).toBe('7 items assigned to you at Riverside Hotel')
     expect(rendered.body).toBe(
-      'An account admin assigned 7 items to you. Open the Inbox to review your work.',
+      'An account admin assigned 7 items to you. Open the Inbox to see your work.',
     )
     expect(rendered.actionLabel).toBe('Open Inbox')
   })
@@ -337,14 +380,14 @@ describe('renderNotification — the copy that was broken', () => {
     })
     const single = renderNotification('inbox.bulk_reopened', { itemCount: 1 })
 
-    expect(rendered.title).toBe('60 follow-ups reopened at Riverside Hotel')
+    expect(rendered.title).toBe('60 items reopened at Riverside Hotel')
     expect(rendered.body).toBe(
-      'An account admin reopened 60 items. Open the Inbox to review the latest status.',
+      'An account admin reopened 60 items. Open the Inbox to see where they stand.',
     )
     expect(rendered.actionLabel).toBe('Open Inbox')
-    expect(single.title).toBe('Follow-up reopened')
+    expect(single.title).toBe('1 item reopened')
     expect(single.body).toBe(
-      'Someone reopened an item. Open the Inbox to review the latest status.',
+      'Someone reopened an item. Open the Inbox to see where it stands.',
     )
   })
 
