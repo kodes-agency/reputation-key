@@ -148,6 +148,14 @@ type QueuePort = Readonly<{
 }>
 
 /**
+ * What the repair queue answers for a delivery it leaves alone. The bridge
+ * above it then records no enqueue receipt: nothing was queued, and a receipt
+ * for a delivery the original fan-out never made would itself read as one
+ * owed a repair.
+ */
+const NOT_QUEUED: unique symbol = Symbol('notification delivery not queued')
+
+/**
  * Decorate an outbox-backed enqueue with its materialization identity. Redis
  * acceptance happens first; only then is the per-delivery enqueue receipt
  * written. A failure on either side leaves the base consumer unacknowledged,
@@ -173,6 +181,7 @@ export function withOutboxNotificationDelivery(
         { ...(data as Readonly<Record<string, unknown>>), delivery },
         opts,
       )
+      if (queued === NOT_QUEUED) return undefined
       await receipts.insertReceipt(job.eventId, delivery.enqueueReceiptName, 'applied')
       return queued
     },
@@ -237,13 +246,32 @@ async function releaseDeadLetteredRepair(queue: RepairQueuePort, jobId: string) 
 }
 
 /**
+ * A delivery is owed a repair only when the original fan-out queued it — its
+ * enqueue receipt exists — and it never settled. The consumer re-derives every
+ * job from current state, so a delivery it derives now can carry an identity
+ * the original fan-out never queued: a Google connection's anchor Property
+ * that moved, a recipient who joined since. Queueing that would tell a
+ * recipient twice, or tell one the original fan-out never chose.
+ */
+async function isOwedRepair(
+  receipts: Pick<OutboxRepository, 'hasReceipt'>,
+  delivery: OutboxNotificationDelivery,
+): Promise<boolean> {
+  if (await receipts.hasReceipt(delivery.eventId, delivery.materializedReceiptName)) {
+    return false
+  }
+  return receipts.hasReceipt(delivery.eventId, delivery.enqueueReceiptName)
+}
+
+/**
  * The queue a delivery repair enqueues through, beneath the durable bridge.
- * Replaying a source fact re-derives every recipient; a delivery that already
- * settled is left alone, since its job could only settle as a duplicate. Any
- * other delivery is queued under an id of its own, derived from the delivery:
- * a retained original job (failed, quarantined) cannot swallow the repair, and
- * a later sweep converges on the same repair job instead of queueing another,
- * unless that repair job itself dead-lettered.
+ * Replaying a source fact re-derives every recipient; only a delivery owed a
+ * repair is queued — a settled one could only settle as a duplicate, and one
+ * the original fan-out never queued is not a repair. It is queued under an id
+ * of its own, derived from the delivery: a retained original job (failed,
+ * quarantined) cannot swallow the repair, and a later sweep converges on the
+ * same repair job instead of queueing another, unless that repair job itself
+ * dead-lettered.
  */
 export function withDeliveryRepairJobs(
   queue: RepairQueuePort,
@@ -255,9 +283,7 @@ export function withDeliveryRepairJobs(
       if (!delivery) {
         throw new Error('notification delivery repair requires a durable delivery marker')
       }
-      if (await receipts.hasReceipt(delivery.eventId, delivery.materializedReceiptName)) {
-        return undefined
-      }
+      if (!(await isOwedRepair(receipts, delivery))) return NOT_QUEUED
       const jobId = `${REPAIR_JOB_ID_PREFIX}${delivery.receiptKey}`
       await releaseDeadLetteredRepair(queue, jobId)
       return queue.add(name, data, { ...opts, jobId })

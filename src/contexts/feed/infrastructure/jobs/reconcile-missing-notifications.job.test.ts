@@ -32,6 +32,7 @@ import {
 } from '#/shared/auth/beta-capabilities'
 import {
   feedbackId,
+  googleConnectionId,
   inboxItemId,
   organizationId,
   propertyId,
@@ -40,6 +41,7 @@ import {
 import { inboxItemCreated } from '#/contexts/inbox/domain/events'
 import { identityMemberRemoved } from '#/contexts/identity/domain/events'
 import { goalMonthlyResultClosed } from '#/contexts/reporting/domain/goal-events'
+import { integrationGoogleAccountReauthorizationRequired } from '#/contexts/integration/domain/events'
 import type {
   NotificationDeliveryRepairRepositoryPort,
   UnsettledDeliveryCursor,
@@ -50,6 +52,7 @@ import { createNotificationConsumerDeps } from '../notification-consumer-test-fi
 import { registerNotificationConsumers } from '../notification-outbox-consumers'
 import { registerIdentityAccountNotificationConsumers } from '../identity-account-outbox-consumers'
 import { registerGoalNotificationConsumer } from '../goal-outbox-consumers'
+import { registerIntegrationNotificationConsumers } from '../integration-outbox-consumers'
 import {
   parseOutboxNotificationDelivery,
   withBetaOutboxNotificationDelivery,
@@ -66,6 +69,8 @@ import {
 
 const ORG = organizationId('org-repair-sweep')
 const PROPERTY = propertyId('88000000-0000-4000-8000-000000000001')
+const OTHER_PROPERTY = propertyId('88000000-0000-4000-8000-000000000003')
+const CONNECTION = googleConnectionId('88000000-0000-4000-8000-000000000004')
 const MANAGER = userId('manager-repair-1')
 const SECOND_MANAGER = userId('manager-repair-2')
 const REMOVED = userId('member-repair-removed')
@@ -221,14 +226,20 @@ function deliveryRepairRepository(
   return { repository, queries }
 }
 
-/** The routes this suite exercises, registered over `queue`. */
+/**
+ * The routes this suite exercises, registered over `queue`. `recipients` are
+ * the responsible managers and the AccountAdmins alike; `googleAnchor` is the
+ * Property a Google connection's notices are anchored on.
+ */
 function registerRoutes(
   queue: NotificationJobEnqueuePort,
   store: ReceiptStore,
   recipients: readonly string[],
+  googleAnchor: string,
 ): ConsumerRegistry {
   const registry = createConsumerRegistry()
   const fakes = createNotificationConsumerDeps()
+  fakes.userLookup.findByRole.mockResolvedValue(recipients)
   fakes.responsibleManagers.findForPortal.mockResolvedValue(recipients)
   fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
     propertyId: PROPERTY,
@@ -256,6 +267,12 @@ function registerRoutes(
       findMonthlyResultRevisionNotificationFacts: vi.fn(async () => null),
     },
   })
+  registerIntegrationNotificationConsumers(registry, {
+    ...deps,
+    googleConnectionProperties: {
+      findGoogleNotificationAnchor: vi.fn(async () => googleAnchor),
+    },
+  })
   return registry
 }
 
@@ -278,17 +295,21 @@ async function deliverThenSweep(
   facts: readonly UnpublishedEvent[],
   options: Readonly<{
     recipients?: readonly string[]
+    /** The Google anchor when the fact was delivered, and when it is repaired. */
+    googleAnchor?: Readonly<{ delivered: string; repaired: string }>
     sweep?: Partial<ReconcileMissingNotificationsDeps>
   }> = {},
 ): Promise<Harness> {
   let now = new Date(NOW.getTime() - 30 * MINUTE)
   const store = receiptStore(() => now)
   const recipients = options.recipients ?? [MANAGER]
+  const googleAnchor = options.googleAnchor ?? { delivered: PROPERTY, repaired: PROPERTY }
   const original = recordingQueue()
   const delivered = registerRoutes(
     withBetaOutboxNotificationDelivery(original.queue, store),
     store,
     recipients,
+    googleAnchor.delivered,
   )
   for (const fact of facts) {
     for (const route of delivered.listFor(fact.eventType)) {
@@ -309,6 +330,7 @@ async function deliverThenSweep(
       ),
       store,
       recipients,
+      googleAnchor.repaired,
     ),
     clock: () => NOW,
     logger,
@@ -425,6 +447,37 @@ describe('reconcile-missing-notifications sweep', () => {
     await sweep(job)
 
     expect(repair.jobs.map((queued) => queued.data.userId)).toEqual([SECOND_MANAGER])
+  })
+
+  it('never re-announces a recipient the consumer now derives under another identity', async () => {
+    const reauthorization = stored(
+      integrationGoogleAccountReauthorizationRequired({
+        connectionId: CONNECTION,
+        organizationId: ORG,
+        cause: 'member_removed',
+        occurredAt: new Date(NOW.getTime() - 30 * MINUTE),
+      }),
+      new Date(NOW.getTime() - 30 * MINUTE),
+    )
+    // The connection was unlinked after the fan-out, so the replay anchors both
+    // AccountAdmins' notices on another Property: a new receipt key for each.
+    const { sweep, original, repair, store } = await deliverThenSweep([reauthorization], {
+      recipients: [MANAGER, SECOND_MANAGER],
+      googleAnchor: { delivered: PROPERTY, repaired: OTHER_PROPERTY },
+    })
+    // The first admin was told; the second admin's job was lost.
+    await settle(
+      store,
+      original.jobs.find((queued) => queued.data.userId === MANAGER)!,
+      'applied',
+    )
+    const receiptsBefore = [...store.receipts.keys()]
+
+    await sweep(job)
+
+    expect(repair.jobs).toEqual([])
+    // Nor does the replay leave an enqueue receipt that nothing will settle.
+    expect([...store.receipts.keys()]).toEqual(receiptsBefore)
   })
 
   it('stops once the worker settles the repaired delivery', async () => {

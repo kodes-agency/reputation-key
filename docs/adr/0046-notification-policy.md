@@ -82,8 +82,10 @@ recipient who no longer qualifies (obsolete). The missing-notification repair
 works from that evidence for every beta route, not from inbox items without a
 row: a delivery whose enqueue receipt has no materialization receipt five
 minutes on is replayed through its route's own consumer, under the source
-fact's event id and delivery marker, and only deliveries still unsettled are
-queued, each under an id of its own. A recipient who muted a type is settled,
+fact's event id and delivery marker, and only deliveries the original fan-out
+queued that are still unsettled are queued, each under an id of its own; an
+identity the consumer derives only now (a moved Google anchor, a recipient who
+joined since) is not a repair. A recipient who muted a type is settled,
 so the repair never re-announces the review, and
 `notification.missing_for_inbox_item` counts only items whose delivery is not
 yet decided. The previous sweep minted an event id no outbox row carried, so

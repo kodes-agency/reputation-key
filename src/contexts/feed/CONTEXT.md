@@ -53,7 +53,8 @@ A durable delivery is settled once its materialization receipt is claimed: a
 row was written, preferences asked for none, or the recipient no longer
 qualified. The repair replays a delivery Redis accepted that never settled
 through its route's own consumer, under the source fact's event id; a settled
-delivery is never repaired, and never counts as a gap.
+delivery is never repaired, and never counts as a gap, and a delivery the
+original fan-out never queued is never queued by the repair.
 All queue, clock, logger, identifier, and upstream lookup dependencies are
 provided by composition; modules do not read ambient roots.
 

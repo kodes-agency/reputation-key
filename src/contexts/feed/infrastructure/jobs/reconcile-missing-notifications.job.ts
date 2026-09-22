@@ -14,7 +14,9 @@
 //     delivery marker and settlement verifies the same durable source;
 //   - the consumer re-derives its recipients, and the repair queue beneath the
 //     bridge skips every delivery that already settled, so a recipient who
-//     muted the type is never re-announced;
+//     muted the type is never re-announced, and every delivery the original
+//     fan-out never queued, so an identity derived only now (a moved anchor
+//     Property, a recipient who joined since) never tells anyone twice;
 //   - each repaired delivery is queued under an id derived from it, so a
 //     retained original job cannot swallow it and a later firing converges on
 //     the same job instead of queueing another — unless that repair job
