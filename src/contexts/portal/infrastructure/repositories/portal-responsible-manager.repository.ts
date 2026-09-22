@@ -1,6 +1,8 @@
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { portalResponsibleManagers, portals } from '#/shared/db/schema/portal.schema'
+import { properties } from '#/shared/db/schema/property.schema'
+import type { Tx } from '#/shared/outbox/commit'
 import { portalError } from '../../domain/errors'
 import type { PortalResponsibleManager } from '../../domain/portal-responsible-manager'
 import type { PortalResponsibleManagerRepository } from '../../application/ports/portal-responsible-manager.repository'
@@ -15,6 +17,36 @@ import { nextLockedPortalRevision } from '../portal-command-revision'
 const fromRow = (
   row: typeof portalResponsibleManagers.$inferSelect,
 ): PortalResponsibleManager => row
+
+/**
+ * Only a live Portal of an active Property asks for a replacement manager. A
+ * deleted or archived Portal, or any Portal of an archived Property, is outside
+ * the workspace: its gap is still recorded in `responsibility_needed_since`,
+ * but an urgent notice would only ask admins to staff something they removed.
+ */
+async function announcesResponsibilityGap(
+  tx: Tx,
+  portal: Readonly<{
+    organizationId: string
+    propertyId: string
+    publicationState: string
+    deletedAt: Date | null
+  }>,
+): Promise<boolean> {
+  if (portal.deletedAt !== null || portal.publicationState === 'archived') return false
+  const [property] = await tx
+    .select({ lifecycleState: properties.lifecycleState })
+    .from(properties)
+    .where(
+      and(
+        eq(properties.organizationId, portal.organizationId),
+        eq(properties.id, portal.propertyId),
+        isNull(properties.deletedAt),
+      ),
+    )
+    .limit(1)
+  return property?.lifecycleState === 'active'
+}
 
 export const createPortalResponsibleManagerRepository = (
   db: Database,
@@ -64,6 +96,7 @@ export const createPortalResponsibleManagerRepository = (
           id: portals.id,
           revision: portals.responsibleManagerRevision,
           responsibilityNeededSince: portals.responsibilityNeededSince,
+          publicationState: portals.publicationState,
         })
         .from(portals)
         .where(
@@ -187,7 +220,15 @@ export const createPortalResponsibleManagerRepository = (
           'responsible managers changed; reload them',
         )
       }
-      const responsibilityNeededEvent = becameResponsibilityNeeded
+      const announcesGap =
+        becameResponsibilityNeeded &&
+        (await announcesResponsibilityGap(tx, {
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          publicationState: portal.publicationState,
+          deletedAt: null,
+        }))
+      const responsibilityNeededEvent = announcesGap
         ? portalResponsibilityNeeded({
             organizationId: organizationId(input.organizationId),
             propertyId: propertyId(input.propertyId),
@@ -345,7 +386,12 @@ export const createPortalResponsibleManagerRepository = (
               eq(portals.id, rawPortalId),
             ),
           )
-          .returning({ id: portals.id, updatedAt: portals.updatedAt })
+          .returning({
+            id: portals.id,
+            updatedAt: portals.updatedAt,
+            publicationState: portals.publicationState,
+            deletedAt: portals.deletedAt,
+          })
         if (!updated || !row) {
           throw portalError(
             'revision_conflict',
@@ -361,7 +407,15 @@ export const createPortalResponsibleManagerRepository = (
           occurredAt: input.at,
         })
         await insertOutboxRow(tx, updatedEvent, { recordedAt: input.at })
-        if (remaining.length === 0) {
+        if (
+          remaining.length === 0 &&
+          (await announcesResponsibilityGap(tx, {
+            organizationId: input.organizationId,
+            propertyId: row.propertyId,
+            publicationState: updated.publicationState,
+            deletedAt: updated.deletedAt,
+          }))
+        ) {
           const event = portalResponsibilityNeeded({
             organizationId: organizationId(input.organizationId),
             propertyId: propertyId(row.propertyId),

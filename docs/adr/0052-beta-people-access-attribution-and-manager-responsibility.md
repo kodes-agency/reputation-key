@@ -60,6 +60,15 @@ Authorization never derives from Team membership, lead status, or Portal
 responsibility. Removing Property access preserves participation and history.
 `effective_to = null` means the half-open interval is active.
 
+## Amended 2026-09-22 — no recovery alert outside the workspace
+
+The recovery alert asks for work only an active Property can have. A Property
+that is archived, and a Portal that is deleted, archived, or belongs to such a
+Property, still records `responsibility_needed_since` when it loses its last
+manager, but raises no `responsibility_became_needed` fact, so no urgent notice
+asks AccountAdmins to staff something they removed. Restore already requires
+an eligible Property Responsible Manager before it can proceed.
+
 ## Consequences
 
 - People UI manages Staff Participants and attribution, never Teams.

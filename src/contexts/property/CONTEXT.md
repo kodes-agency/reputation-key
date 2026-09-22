@@ -60,7 +60,9 @@ foreign keys deliberately stop cross-owner deletion.
 9. Disconnect preserves the last destination only as `awaiting_refresh`; credential scrub clears it. Neither state is a public rendering authority.
 10. Property creation never infers a Responsible Manager from the creator. Losing
     all eligible managers records `responsibilityNeededSince`; no replacement is
-    guessed and offboarding is not blocked.
+    guessed and offboarding is not blocked. Only an active Property also raises
+    `property.responsibility_became_needed`: an archived one needs a manager to
+    be restored, not an urgent notice (ADR 0052).
 11. Responsible Manager history is owned by the Property aggregate. Its behavior at permanent erasure remains part of the future support-mediated LIF-01 workflow; normal product actions cannot erase it.
 12. `verifyPurgeReadiness` fails closed while any Property is still `active` or
     `disconnecting`.
