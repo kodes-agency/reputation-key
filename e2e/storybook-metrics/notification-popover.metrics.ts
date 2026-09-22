@@ -122,3 +122,34 @@ for (const theme of ['dark', 'light'] as const) {
     expect(await liftOf(unread)).toBeGreaterThanOrEqual(1.04)
   })
 }
+
+// ── Opening the bell arms nothing, visibly ──────────────────────────────────
+//
+// Radix used to focus "Mark all read" on open, and after a pointer open no ring
+// showed it, so one stray Space marked everything read. Focus now starts on the
+// notification list. A keyboard open must SHOW it there: `:focus-visible`
+// follows real key presses, which the Vitest story runner cannot send, and the
+// ring is a compiled Tailwind class the runner does not have.
+
+test('a keyboard open puts visible focus on the list, not on "Mark all read"', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await openStory(page, STORY)
+  // The play opened the bell by pointer. Close it; Radix returns focus to the
+  // bell, and a key opens it again.
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Notifications' })).toHaveCount(0)
+  await page.keyboard.press('Enter')
+
+  const list = page.locator('[data-slot="popover-content"] [data-notification-list]')
+  await expect(list).toBeFocused()
+  expect(await list.evaluate((element) => element.matches(':focus-visible'))).toBe(true)
+  expect(await list.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe(
+    'none',
+  )
+
+  await page.keyboard.press('Space')
+  await expect(page.getByRole('button', { name: /mark all read/i })).toBeVisible()
+  await expect(page.getByText('Unread.').first()).toBeAttached()
+})
