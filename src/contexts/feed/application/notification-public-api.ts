@@ -20,12 +20,14 @@ export type {
 } from '../domain/notification-types'
 
 export {
-  effectiveEmailCadence,
   getDefaultCadence,
   getDefaultEnabled,
   isPreferenceDisableable,
-  offeredEmailCadences,
 } from '../domain/notification-policy'
+export {
+  effectiveEmailCadence,
+  offeredEmailCadences,
+} from '../domain/notification-cadence'
 
 // ── Render layer (ADR 0046 r.8) ───────────────────────────────────────
 // The ONE source of user-facing notification copy. Every surface — the in-app

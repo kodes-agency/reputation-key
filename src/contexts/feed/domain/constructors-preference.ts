@@ -14,7 +14,8 @@ import type {
   PropertyId,
 } from '#/shared/domain/ids'
 import { notificationError, type NotificationError } from './notification-errors'
-import { isPreferenceDisableable, offeredEmailCadences } from './notification-policy'
+import { isPreferenceDisableable } from './notification-policy'
+import { offeredEmailCadences } from './notification-cadence'
 
 const CATEGORIES: Readonly<Record<NotificationCategory, true>> = {
   mandatory: true,

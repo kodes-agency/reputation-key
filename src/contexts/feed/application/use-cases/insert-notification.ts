@@ -25,10 +25,10 @@ import {
 } from '../../domain/notification-delivery-policy'
 import {
   applyCoalescence,
-  effectiveEmailCadence,
   getDefaultCadence,
   getDefaultEnabled,
 } from '../../domain/notification-policy'
+import { effectiveEmailCadence } from '../../domain/notification-cadence'
 
 // ── Input ───────────────────────────────────────────────────────────
 
