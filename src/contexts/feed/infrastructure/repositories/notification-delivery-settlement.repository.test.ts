@@ -584,12 +584,13 @@ describe.sequential('email-only notification delivery (real PostgreSQL)', () => 
     // Turning in-app back on must not resurface the email-only history as a
     // pile of unread rows the user was already emailed about.
     await preferWorkflow('in_app', true)
-    const head = await createNotificationRepository(db).readFeedHead(
-      EMAIL_ONLY_USER,
-      EMAIL_ONLY_ORG,
-      20,
-      'all',
-    )
+    const head = await createNotificationRepository(db).readFeedHead({
+      userId: EMAIL_ONLY_USER,
+      organizationId: EMAIL_ONLY_ORG,
+      visiblePropertyIds: null,
+      filter: 'all',
+      limit: 20,
+    })
     expect(head.unreadCount).toBe(0)
   })
 

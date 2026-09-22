@@ -263,11 +263,11 @@ describe.sequential('notification feed order (real PostgreSQL)', () => {
   it('answers the missing-notification anti-join from an index', async () => {
     const plan = await planOfCapturedQuery(
       (db) =>
-        createNotificationGapRepository(db).findItemsMissingNotifications({
+        createNotificationGapRepository(db).countItemsMissingNotifications({
           createdAtOrAfter: new Date('2026-08-24T00:00:00Z'),
           createdBefore: new Date('2026-08-25T00:00:00Z'),
-          cursor: null,
-          limit: 50,
+          scanLimit: 50,
+          statementTimeoutMs: 2_000,
         }),
       (sql) => /not exists/i.test(sql),
     )

@@ -90,6 +90,7 @@ function buildFeedPublicApi() {
       googleConnectionProperties: {} as never,
       monthlyResultFacts: {} as never,
       portalHealthLookup: {} as never,
+      isEmailDeliveryAllowed: () => true,
       propertyAccess: async () => null,
     },
   }).publicApi
