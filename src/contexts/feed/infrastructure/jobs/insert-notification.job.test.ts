@@ -90,6 +90,28 @@ describe('insert-notification job', () => {
     })
   })
 
+  // A grouped notice counts the items that still stand when it is delivered,
+  // not the ones its command touched.
+  it('restates a grouped notice at the count that still stands', async () => {
+    const deps = buildDeps()
+    deps.authorizeAudience.mockResolvedValue({ itemCount: 2 })
+    const handler = createInsertNotificationHandler(deps)
+    const grouped: InsertNotificationJobData = {
+      ...data,
+      type: 'inbox.bulk_reopened',
+      payload: { propertyName: 'Riverside Hotel', itemCount: 5 },
+    }
+
+    await handler({ data: grouped } as Job<InsertNotificationJobData>)
+
+    expect(deps.notificationRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: { propertyName: 'Riverside Hotel', itemCount: 2 },
+        title: '2 items reopened at Riverside Hotel',
+      }),
+    )
+  })
+
   it('suppresses a stale recipient without persisting or retrying', async () => {
     const deps = buildDeps(false)
     const handler = createInsertNotificationHandler(deps)

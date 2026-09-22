@@ -132,9 +132,16 @@ export type NotificationAudienceAuthorizationInput = Readonly<{
   audience: NotificationAudience
 }>
 
+/**
+ * Whether the recipient may still receive the notice. A grouped notice
+ * answers with how many of its items still stand for the recipient, so its
+ * count is restated at delivery; `false` suppresses any notice.
+ */
+export type NotificationAudienceDecision = boolean | Readonly<{ itemCount: number }>
+
 export type NotificationAudienceAuthorizer = (
   input: NotificationAudienceAuthorizationInput,
-) => Promise<boolean>
+) => Promise<NotificationAudienceDecision>
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -595,19 +602,21 @@ const isHandlingCycleRecipient = async (
 }
 
 /**
- * A grouped notice counts every cycle in it, so it stands only while each one
- * is still the open head and the recipient is still responsible for each.
+ * A grouped notice stands while any of its cycles is still the open head and
+ * the recipient still responsible for it, and counts only those. Per-item
+ * reopen facts notify nobody, so one changed item must not silence the rest.
  */
 const isBulkHandlingCycleRecipient = async (
   deps: Deps,
   request: PropertyScopedRequest,
   audience: AudienceOfKind<'bulk_handling_cycle'>,
-) => {
+): Promise<NotificationAudienceDecision> => {
   if (request.userId === audience.actorUserId) return false
   const current = await Promise.all(
     audience.cycles.map((cycle) => isCurrentCycleRecipient(deps, request, cycle)),
   )
-  return current.every(Boolean)
+  const itemCount = current.filter(Boolean).length
+  return itemCount === 0 ? false : { itemCount }
 }
 
 const isResponseTargetReminderRecipient = async (

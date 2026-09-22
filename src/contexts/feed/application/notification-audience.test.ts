@@ -617,14 +617,24 @@ describe('notification audience authorization', () => {
       return deps
     }
 
-    it('authorizes a recipient still responsible for every cycle still open', async () => {
+    it('counts every cycle still open that the recipient is responsible for', async () => {
       await expect(
         createNotificationAudienceAuthorizer(depsWithHeads())(authorize({ audience })),
-      ).resolves.toBe(true)
+      ).resolves.toEqual({ itemCount: 2 })
     })
 
-    it('drops the notice once any cycle in the group has moved on', async () => {
+    // Per-item reopen facts notify nobody, so one changed item must not
+    // silence the rest: the notice stands for the cycles that still stand.
+    it('still delivers once one cycle has moved on, counting only the rest', async () => {
       const deps = depsWithHeads({ [SECOND_INBOX_ITEM]: 4 })
+
+      await expect(
+        createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+      ).resolves.toEqual({ itemCount: 1 })
+    })
+
+    it('drops the notice once every cycle in the group has moved on', async () => {
+      const deps = depsWithHeads({ [INBOX_ITEM]: 4, [SECOND_INBOX_ITEM]: 4 })
 
       await expect(
         createNotificationAudienceAuthorizer(deps)(authorize({ audience })),

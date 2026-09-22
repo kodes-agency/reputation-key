@@ -156,6 +156,8 @@ when none is eligible), so it always reaches someone who can retry it.
 Durable outbox consumers project activity and enqueue deterministic notification
 jobs. A bulk Inbox command (assignment, reopen) notifies once per recipient per
 Property from its completion fact; the per-item facts it covers stay history.
+So a grouped reopen stands while any of its items is still the open head the
+recipient is responsible for, and says how many are when it is delivered.
 The activity worker also exposes bounded projection recovery. Notification
 jobs perform insert, urgent-email, digest, and missing-notification repair work.
 A durable delivery is settled once its materialization receipt is claimed: a
