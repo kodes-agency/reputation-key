@@ -774,9 +774,10 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       if (!timezone) throw new GoalProgramError('not_found')
       const readinessSubject = input.subjects[0]
       if (!readinessSubject) throw new GoalProgramError('invalid_subject')
-      // When the Property's timezone moved east, the month between the open
-      // month's end and the next local month start is complete in neither
-      // timezone, so it is not evaluated.
+      // When the Property's timezone moved east, the next local month begins
+      // before the open month ends, so the revision starts one local month
+      // later and the skipped local month is not evaluated under either
+      // version. The caller shows the returned start date.
       const period = firstFullMonthlyPeriodAtOrAfter(
         earliestRevisionStart(current.results, now),
         timezone,

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useForm, useStore } from '@tanstack/react-form'
+import { toast } from 'sonner'
 import type { reviseGoalProgram } from '#/contexts/reporting/server/goal-programs'
 import type {
   GoalMetric,
@@ -33,6 +34,11 @@ import {
   goalSubjectsFromKeys,
   type GoalSubjectKey,
 } from './goal-subject-picker'
+import {
+  goalRevisionScheduledMessage,
+  goalRevisionStartDate,
+  type GoalVersionStart,
+} from './goal-revision-start'
 
 type GoalProgramRevisionDialogProps = Readonly<{
   reviseGoalProgramFn: typeof reviseGoalProgram
@@ -57,10 +63,15 @@ const METRICS: readonly Readonly<{ id: GoalMetric; label: string }>[] = [
 
 export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps) {
   const [open, setOpen] = useState(false)
+  // The start the server chose. It stays on screen: after the Property's
+  // timezone moved east it is a month later than "next month".
+  const [scheduled, setScheduled] = useState<GoalVersionStart | null>(null)
   const mutation = useActionMutation(props.reviseGoalProgramFn, {
-    successMessage: 'Goal revision scheduled for the next full month',
     invalidateKeys: [goalKeys.all],
-    onSuccess: () => setOpen(false),
+    onSuccess: ({ version }) => {
+      setScheduled(version)
+      toast.success(goalRevisionScheduledMessage(version))
+    },
   })
   const initialFormValues = (): ReviseGoalProgramFormInput => ({
     metric: props.metric,
@@ -84,7 +95,10 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
   const metric = useStore(form.store, (state) => state.values.metric)
 
   const onOpenChange = (next: boolean) => {
-    if (next) form.reset(initialFormValues())
+    if (next) {
+      form.reset(initialFormValues())
+      setScheduled(null)
+    }
     setOpen(next)
   }
 
@@ -105,8 +119,8 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
           <DialogHeader>
             <DialogTitle>Revise goal</DialogTitle>
             <DialogDescription>
-              The current month remains unchanged. This version starts with the next
-              complete month.
+              The month in progress keeps the current version. This version starts with
+              the first full month in the Property's timezone that begins after it ends.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -187,8 +201,13 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
             )}
           </form.Field>
           <FormErrorBanner error={mutation.error} />
+          {scheduled ? (
+            <p role="status" className="rounded-md bg-muted/50 p-3 text-sm">
+              {`Revision scheduled. This version starts ${goalRevisionStartDate(scheduled)} (${scheduled.propertyTimezone}).`}
+            </p>
+          ) : null}
           <DialogFooter>
-            <SubmitButton mutation={mutation} form={form}>
+            <SubmitButton mutation={mutation} form={form} disabled={scheduled !== null}>
               Schedule revision
             </SubmitButton>
           </DialogFooter>
