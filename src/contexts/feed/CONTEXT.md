@@ -93,7 +93,8 @@ always treated them, so they never block a later save of their row.
 The in-app feed is ordered by latest activity, newest first:
 `COALESCE(coalesced_latest_at, created_at)`, with id as the tiebreak. A
 coalesced row therefore moves to the top when a repeat event is absorbed, the
-same instant its row starts reading "Updated N times".
+same instant its body starts saying how often it repeated ("This happened N
+times.").
 
 Pages below the polled head continue by keyset, never by offset: each page
 carries a server-minted `nextCursor` (the last row's latest-activity instant to
