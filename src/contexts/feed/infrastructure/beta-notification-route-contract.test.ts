@@ -110,7 +110,10 @@ import {
   parseOutboxNotificationDelivery,
   withBetaOutboxNotificationDelivery,
 } from './outbox-notification-delivery'
-import { parseNotificationAudience } from '../application/notification-audience'
+import {
+  createNotificationAudienceAuthorizer,
+  parseNotificationAudience,
+} from '../application/notification-audience'
 import type { EscalationResolutionLookupPort } from '../application/ports/escalation-resolution-lookup.port'
 import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
 import type { OutboxRepository } from '#/shared/outbox'
@@ -609,15 +612,24 @@ function currentRouteDeps(): RouteDeps {
 
 type Receipt = Readonly<{ eventId: string; consumerName: string; status: string }>
 
+const recordInto =
+  (receipts: Receipt[]) =>
+  async (eventId: string, consumerName: string, status: string) => {
+    receipts.push({ eventId, consumerName, status })
+  }
+
 /**
  * Run one produced fact through the worker's dispatcher, its consumers
  * enqueueing through the durable delivery bridge onto a recording queue.
+ * `receipts` are the ones the consumers and the bridge wrote; `gateDenials`
+ * the ones the dispatcher wrote itself, which it does only when the gate
+ * denies a consumer terminally — under the consumer's own name, as
+ * `obsolete`, without running it.
  */
 async function dispatch(fact: DomainEvent, deps: RouteDeps = currentRouteDeps()) {
   const receipts: Receipt[] = []
-  const recordReceipt = async (eventId: string, consumerName: string, status: string) => {
-    receipts.push({ eventId, consumerName, status })
-  }
+  const gateDenials: Receipt[] = []
+  const recordReceipt = recordInto(receipts)
   const queued: InsertNotificationJobData[] = []
   const recordingQueue = {
     add: async (_name: string, data: unknown) => {
@@ -634,7 +646,7 @@ async function dispatch(fact: DomainEvent, deps: RouteDeps = currentRouteDeps())
   const envelope = deliveredEnvelope(fact)
   const repo = {
     hasReceipt: async () => false,
-    insertReceipt: recordReceipt,
+    insertReceipt: recordInto(gateDenials),
   } as unknown as OutboxRepository
 
   await createDispatcherHandler(repo, { consumers: registry })({
@@ -643,7 +655,7 @@ async function dispatch(fact: DomainEvent, deps: RouteDeps = currentRouteDeps())
     data: envelope,
   } as unknown as Job)
 
-  return { envelope, receipts, queued }
+  return { envelope, receipts, gateDenials, queued }
 }
 
 /**
@@ -739,7 +751,7 @@ const CONDITION_ONLY_CHOOSES_TYPE: ReadonlySet<string> = new Set([
   'inbox.response_target.reminder_due',
 ])
 
-describe('every beta notification route delivers from its real producer', () => {
+describe('every beta notification route queues its notice from its real producer', () => {
   it('has a turned-away fact for every row whose condition can turn one away', () => {
     expect(
       BETA_NOTIFICATION_TRIGGER_MATRIX.filter(
@@ -753,13 +765,14 @@ describe('every beta notification route delivers from its real producer', () => 
 
   for (const route of BETA_NOTIFICATION_TRIGGER_MATRIX) {
     it(`${route.eventType}: ${route.consumerName} queues its notification durably`, async () => {
-      const { envelope, receipts, queued } = await dispatch(
+      const { envelope, receipts, gateDenials, queued } = await dispatch(
         PRODUCED_FACTS[route.eventType]!(),
       )
       const routeTypes: ReadonlyArray<string> = route.notifications.map(
         ({ type }) => type,
       )
 
+      expect(gateDenials).toEqual([])
       expect(receipts).toContainEqual({
         eventId: envelope.eventId,
         consumerName: route.consumerName,
@@ -793,8 +806,13 @@ describe('every beta notification route delivers from its real producer', () => 
         (candidate) => candidate.eventType === eventType,
       )!
 
-      const { envelope, receipts, queued } = await dispatch(noNotice.fact(), deps)
+      const { envelope, receipts, gateDenials, queued } = await dispatch(
+        noNotice.fact(),
+        deps,
+      )
 
+      // The consumer ran and turned the fact away; the gate did not refuse it.
+      expect(gateDenials).toEqual([])
       expect(queued).toEqual([])
       expect(receipts).toContainEqual({
         eventId: envelope.eventId,
@@ -803,4 +821,45 @@ describe('every beta notification route delivers from its real producer', () => 
       })
     })
   }
+})
+
+/**
+ * The gate admits Purge Pending and the bridge queues its notice durably, but
+ * the delivery-time recipient check still refuses it: the notice goes to every
+ * AccountAdmin with no Property, and the check admits a Property-less notice
+ * only for an affected Organization user. Which audience the mandatory final
+ * notice should have is an open product decision; its producer schedule is
+ * quarantined meanwhile. Deciding it makes this test fail — then the route
+ * joins the ones above.
+ */
+describe('a route whose notice the recipient check still refuses', () => {
+  it('identity.organization_lifecycle.changed: Purge Pending reaches no AccountAdmin', async () => {
+    const deps = currentRouteDeps()
+    const { queued } = await dispatch(
+      PRODUCED_FACTS['identity.organization_lifecycle.changed']!(),
+      deps,
+    )
+    const authorize = createNotificationAudienceAuthorizer({
+      ...deps,
+      portalHealthLookup: {
+        findPortalHealthNotificationFacts: vi.fn(async () => null),
+      },
+      organizationAccountAuthority: {
+        isAffectedRecipient: vi.fn(async () => true),
+      },
+    })
+
+    // Every queued recipient is a current AccountAdmin.
+    expect(queued.map((job) => job.userId)).toEqual([ADMIN])
+    for (const job of queued) {
+      await expect(
+        authorize({
+          userId: job.userId,
+          organizationId: job.organizationId,
+          propertyId: job.propertyId,
+          audience: parseNotificationAudience(job.audience)!,
+        }),
+      ).resolves.toBe(false)
+    }
+  })
 })
