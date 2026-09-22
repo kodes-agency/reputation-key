@@ -15,9 +15,10 @@
 //      approval" — the title says what the reader must do.
 //   3. Say WHERE. A locally collected guest rating may add context to Portal
 //      feedback, but Google/provider ratings never enter Notification storage.
-//   4. Say HOW LONG, where something is still waiting. `waitingSince` is an
-//      instant measured when the copy is read, so it is a fact beside the
-//      sentence (email facts line, in-app meta strip), never inside it.
+//   4. Say HOW LONG something had waited when the notice was raised, where
+//      it was waiting. The read measures it (`waitedHours`); it is a fact
+//      beside the sentence (email facts line, in-app meta strip), never
+//      inside it, and never an age that keeps growing after the fact.
 //   5. One primary action, imperative, ≤ 3 words.
 //   6. Degrade gracefully. Every field is optional; missing metadata must
 //      shorten the sentence, never produce "undefined" or an empty title.
@@ -61,18 +62,13 @@ const ROLE_LABELS: Record<NotificationActorRole, string> = {
 const atProperty = (payload: NotificationPayload): string =>
   payload.propertyName === undefined ? '' : ` at ${payload.propertyName}`
 
-const MS_PER_HOUR = 3_600_000
-
 /**
- * "3h" / "2d": how long the current wait has lasted at `now`. Returns "" when
- * nothing is waiting, and below one hour so a fresh item gets no "0h".
+ * "3h" / "2d": how long the item had waited when the notice was raised.
+ * Returns "" when nothing was waiting, and below one hour so a fresh item gets
+ * no "0h".
  */
-export const waitingAge = (payload: NotificationPayload, now: Date): string => {
-  if (payload.waitingSince === undefined) return ''
-  const hours = Math.floor(
-    (now.getTime() - Date.parse(payload.waitingSince)) / MS_PER_HOUR,
-  )
-  if (hours < 1) return ''
+export const waitingAge = ({ waitedHours: hours }: NotificationPayload): string => {
+  if (hours === undefined || hours < 1) return ''
   return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`
 }
 
@@ -500,16 +496,15 @@ const REPEATED: Partial<Record<NotificationType, string>> = {
  *
  * `occurrences > 1` ends the body with one repeat sentence, because a row that
  * coalesced three escalations should not read like one that fired once (ADR
- * 0046 r.2). `now`, which email passes, adds the live waiting age to the facts
- * line; the in-app row shows it in its own strip.
+ * 0046 r.2). The wait the notice was raised with ends the facts line email
+ * shows; the in-app row shows it in its own strip.
  */
 export const renderNotification = (
   type: NotificationType,
   payload: NotificationPayload,
-  now?: Date,
 ): RenderedNotification => {
   const rendered = RENDERERS[type](payload)
-  const age = now === undefined ? '' : waitingAge(payload, now)
+  const age = waitingAge(payload)
   const repeats = payload.occurrences ?? 1
   return {
     ...rendered,
@@ -520,7 +515,7 @@ export const renderNotification = (
             (REPEATED[type] ?? 'This happened # times.').replace('#', `${repeats}`),
           )
         : rendered.body,
-    summary: facts(rendered.summary, age === '' ? '' : `waiting ${age}`),
+    summary: facts(rendered.summary, age === '' ? '' : `waited ${age}`),
   }
 }
 

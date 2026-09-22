@@ -319,11 +319,8 @@ async function buildProviderRequest(
   const email = renderDigestEmail({
     recipientName: await deps.userLookup.getName(ctx.userId),
     dateLabel: localDateLabel(ctx.now, ctx.timezone),
-    groups: groupItemsByProperty(
-      items,
-      orgScope.propertyNames,
-      (path, search) => absoluteUrl(deps.baseUrl, path, search),
-      ctx.now,
+    groups: groupItemsByProperty(items, orgScope.propertyNames, (path, search) =>
+      absoluteUrl(deps.baseUrl, path, search),
     ),
     preferencesUrl,
   })

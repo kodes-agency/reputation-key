@@ -21,16 +21,12 @@ const urgent = (rendered: RenderedNotification) =>
     priority: 'urgent',
   })
 
-// Rendered when the email is sent, three hours into the wait.
-const pendingApproval = renderNotification(
-  'reply.pending_approval',
-  {
-    propertyName: 'Riverside Hotel',
-    waitingSince: '2026-09-22T06:00:00.000Z',
-    actorRole: 'staff',
-  },
-  new Date('2026-09-22T09:00:00.000Z'),
-)
+// Raised three hours into the wait, as the read measured it.
+const pendingApproval = renderNotification('reply.pending_approval', {
+  propertyName: 'Riverside Hotel',
+  waitedHours: 3,
+  actorRole: 'staff',
+})
 
 const portalFeedback = renderNotification('feedback.created', {
   propertyName: 'Riverside Hotel',
@@ -81,7 +77,7 @@ describe('renderNotificationEmail — parts', () => {
 
   it('emits the summary as the preheader', () => {
     expect(email.html).toContain('data-skip-in-text="true"')
-    expect(email.html).toContain('Riverside Hotel · review · waiting 3h')
+    expect(email.html).toContain('Riverside Hotel · review · waited 3h')
   })
 
   it('marks urgency with a pill rather than a red banner', () => {
@@ -277,8 +273,8 @@ describe('renderDigestEmail', () => {
 
 describe('toPlainFacts', () => {
   it('rewrites the rating token and leaves everything else alone', () => {
-    expect(toPlainFacts('Riverside Hotel · 2-star review · waiting 3h')).toBe(
-      'Riverside Hotel · 2/5 review · waiting 3h',
+    expect(toPlainFacts('Riverside Hotel · 2-star review · waited 3h')).toBe(
+      'Riverside Hotel · 2/5 review · waited 3h',
     )
     expect(toPlainFacts('Harbour Lodge · Q3 rating lift')).toBe(
       'Harbour Lodge · Q3 rating lift',

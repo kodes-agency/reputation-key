@@ -2,9 +2,9 @@
 //
 // The title already names the Property and the copy says how often a row
 // repeated, so the strip shows only what the sentences deliberately leave
-// out: a locally collected rating, as stars, and how long something has been
-// waiting. The age is measured now, from when the current wait began, and only
-// a notice about something still waiting carries that instant.
+// out: a locally collected rating, as stars, and how long the item had waited
+// when the notice was raised. That age is fixed, like the row's own time: the
+// item may have been answered since, so it never keeps counting.
 //
 // Every field is optional (ADR 0046 r.8 payloads carry only what was captured),
 // so this renders nothing at all rather than a row of empty separators. No
@@ -27,7 +27,7 @@ type Props = Readonly<{
 }>
 
 export function NotificationRowMeta({ payload }: Props) {
-  const waiting = waitingAge(payload, new Date())
+  const waiting = waitingAge(payload)
   const rating = payload.guestRating
 
   if (rating === undefined && waiting === '') return null
@@ -40,7 +40,7 @@ export function NotificationRowMeta({ payload }: Props) {
       {waiting !== '' && (
         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
           <Clock aria-hidden="true" className="size-3" />
-          Waiting {waiting}
+          Waited {waiting}
         </span>
       )}
     </div>

@@ -8,8 +8,6 @@ import {
 } from './digest-assembly'
 import { buildDigestItem } from './test-fixtures'
 
-const NOW = new Date('2026-09-22T07:00:00.000Z')
-
 const url = (path: string, search: Readonly<Record<string, string>>) =>
   `https://app.test${path}${Object.keys(search).length > 0 ? `?${new URLSearchParams(search)}` : ''}`
 
@@ -91,7 +89,7 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
   ]
 
   it('produces one group per property with first-appearance order preserved', () => {
-    const groups = groupItemsByProperty(items, new Map(), url, NOW)
+    const groups = groupItemsByProperty(items, new Map(), url)
 
     expect(groups.map((group) => group.propertyName)).toEqual([
       'Riverside Hotel',
@@ -102,7 +100,7 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
   })
 
   it('renders every line through the shared renderer and never leaks an id', () => {
-    const groups = groupItemsByProperty(items, new Map(), url, NOW)
+    const groups = groupItemsByProperty(items, new Map(), url)
 
     for (const group of groups) {
       for (const item of group.items) {
@@ -115,7 +113,7 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
   })
 
   it('builds an absolute deep link per line, keyed on the row property', () => {
-    const groups = groupItemsByProperty(items, new Map(), url, NOW)
+    const groups = groupItemsByProperty(items, new Map(), url)
 
     // Inbox items link to the item; a goal links to its PROPERTY's goals with
     // the result it reports, where the previous builder used the goalId and
@@ -136,7 +134,7 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
       }),
     ]
 
-    const groups = groupItemsByProperty(grouped, new Map(), url, NOW)
+    const groups = groupItemsByProperty(grouped, new Map(), url)
 
     expect(groups[0]!.items[0]!.actionUrl).toBe(
       'https://app.test/inbox?queue=mine&propertyId=prop-a',
@@ -152,13 +150,14 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
       nameless,
       new Map([['prop-c', 'Seaside Lodge']]),
       url,
-      NOW,
     )
 
     expect(groups[0]!.propertyName).toBe('Seaside Lodge')
   })
 
-  it('measures a waiting age when the digest is assembled, not when the row was written', () => {
+  // However late the digest is assembled, a line shows the wait its notice
+  // was raised with: the item may have been answered since.
+  it('shows the wait a notice was raised with, not one measured at assembly', () => {
     const waiting = [
       buildDigestItem({
         propertyId: 'prop-a',
@@ -166,20 +165,21 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
         payload: {
           propertyName: 'Riverside Hotel',
           waitingSince: '2026-09-20T07:00:00.000Z',
+          waitedHours: 5,
         },
         resourceId: 'inbox-3',
       }),
     ]
 
-    const groups = groupItemsByProperty(waiting, new Map(), url, NOW)
+    const groups = groupItemsByProperty(waiting, new Map(), url)
 
-    expect(groups[0]!.items[0]!.rendered.summary).toContain('waiting 2d')
+    expect(groups[0]!.items[0]!.rendered.summary).toBe('review · waited 5h')
   })
 
   // The group heading already names the Property, and each title says it
   // again ("New review at Riverside Hotel"); the facts line need not.
   it("leaves the group's Property out of each line's facts", () => {
-    const groups = groupItemsByProperty(items, new Map(), url, NOW)
+    const groups = groupItemsByProperty(items, new Map(), url)
     const riverside = groups.find((group) => group.propertyName === 'Riverside Hotel')!
 
     expect(riverside.items.map((item) => item.rendered.summary)).toEqual([
@@ -197,7 +197,7 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
       }),
     ]
 
-    const groups = groupItemsByProperty(nameless, new Map(), url, NOW)
+    const groups = groupItemsByProperty(nameless, new Map(), url)
 
     expect(groups[0]!.propertyName).toBe('Property')
   })

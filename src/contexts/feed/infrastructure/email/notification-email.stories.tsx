@@ -15,12 +15,8 @@ import { renderDigestEmail, renderNotificationEmail } from './render'
 const ACTION_URL = 'https://app.reputationkey.app/inbox?itemId=itm-2f9c'
 const PREFERENCES_URL = 'https://app.reputationkey.app/settings/notifications'
 
-/** When the previews are sent; a waiting age is measured against it. */
-const SENT_AT = new Date('2026-08-21T08:00:00.000Z')
-
-/** When a wait that has lasted `hours` at SENT_AT began. */
-const waitingFor = (hours: number) =>
-  new Date(SENT_AT.getTime() - hours * 3_600_000).toISOString()
+// Payloads below are as the email jobs read them: a wait is `waitedHours`, how
+// long the item had waited when its notice was raised, projected by the read.
 
 // The preview shell below — subject card, `srcDoc` iframe, plain-text
 // disclosure — is duplicated in src/shared/email/transactional-email.stories.tsx.
@@ -68,7 +64,7 @@ const single = (
   priority: 'urgent' | 'normal' = 'urgent',
 ) =>
   renderNotificationEmail({
-    rendered: renderNotification(type, payload, SENT_AT),
+    rendered: renderNotification(type, payload),
     actionUrl: ACTION_URL,
     preferencesUrl: PREFERENCES_URL,
     priority,
@@ -79,7 +75,7 @@ const single = (
  * group's Property out of the line's facts: the heading and title name it.
  */
 const digestItem = (type: NotificationType, payload: NotificationPayload, id: string) => {
-  const rendered = renderNotification(type, payload, SENT_AT)
+  const rendered = renderNotification(type, payload)
   return {
     rendered: {
       ...rendered,
@@ -105,7 +101,7 @@ type Story = StoryObj<typeof EmailPreview>
 export const UrgentReplyApproval: Story = {
   args: single('reply.pending_approval', {
     propertyName: 'Riverside Hotel',
-    waitingSince: waitingFor(3),
+    waitedHours: 3,
     actorRole: 'staff',
   }),
 }
@@ -119,7 +115,7 @@ export const UrgentEscalation: Story = {
     propertyName: 'Harbour Lodge',
     guestRating: 1,
     platform: 'portal',
-    waitingSince: waitingFor(52),
+    waitedHours: 52,
     actorRole: 'property_manager',
   }),
 }
@@ -140,7 +136,7 @@ export const CoalescedOccurrences: Story = {
     propertyName: 'Riverside Hotel',
     guestRating: 2,
     platform: 'portal',
-    waitingSince: waitingFor(26),
+    waitedHours: 26,
     occurrences: 4,
   }),
 }
@@ -159,7 +155,7 @@ export const Digest: Story = {
             'reply.pending_approval',
             {
               propertyName: 'Riverside Hotel',
-              waitingSince: waitingFor(9),
+              waitedHours: 9,
               actorRole: 'staff',
             },
             'a2',
@@ -175,7 +171,7 @@ export const Digest: Story = {
               propertyName: 'Harbour Lodge',
               guestRating: 1,
               platform: 'portal',
-              waitingSince: waitingFor(30),
+              waitedHours: 30,
             },
             'b1',
           ),

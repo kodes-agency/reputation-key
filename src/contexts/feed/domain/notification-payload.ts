@@ -4,7 +4,7 @@
 // READ time (see `notification-templates.ts`), not frozen into a string at
 // enqueue time. That is what lets a notification say
 //
-//   "New guest feedback · Riverside Hotel · waiting 3h"
+//   "New guest feedback · Riverside Hotel · waited 3h"
 //
 // instead of "New review received", while still obeying the source-content
 // boundary.
@@ -57,9 +57,16 @@ export type NotificationPayload = Readonly<{
   /**
    * When the current wait began (ISO instant): the start of the current
    * cycle's Response Target, stamped only on notices about something still
-   * waiting. Copy measures the age from it when it is read.
+   * waiting. A repeat event that measured no wait drops it.
    */
   waitingSince?: string
+  /**
+   * How long that wait had lasted, in whole hours, when the row's latest
+   * event was raised. The read projects it from `waitingSince` and the row's
+   * time; it is never stored and never parsed, so an age cannot grow after
+   * the fact or outlive the wait.
+   */
+  waitedHours?: number
   /** Role of the person whose action produced this notification. */
   actorRole?: NotificationActorRole
   /**

@@ -130,11 +130,14 @@ A row that absorbed repeat events keeps their count in `coalesced_count` only.
 Every read projects that column into the payload the copy renders from, and
 the copy says it once, in the words for what repeated ("3 notes added").
 
-A waiting age is never frozen into a row. A notice about something still
-waiting on its reader (an approval, an escalation, a Response Target reminder)
-stores when the current wait began, the start of the current cycle's measured
-Response Target, and each surface measures the age when it shows it. Notices
-about finished work, closed items and met targets carry no wait.
+A waiting age is never stored. A notice about something still waiting on its
+reader (an approval, an escalation, a Response Target reminder) stores when the
+current wait began, the start of the current cycle's measured Response Target.
+The read measures that wait to the row's latest event, the time the row shows,
+and every surface shows that fixed age ("waited 2d"): the item may have been
+answered since, so no surface measures against its own clock. Notices about
+finished work, closed items and met targets carry no wait, and a repeat event
+that measured none drops the row's earlier one.
 
 Nobody is notified about their own action. Every route whose fact names a
 person as the actor drops that person from its recipients — a claim, a

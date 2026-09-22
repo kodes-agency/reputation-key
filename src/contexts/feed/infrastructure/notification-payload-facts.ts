@@ -113,8 +113,8 @@ export const buildInboxItemPayload = async (
     const platform = PLATFORM_BY_SOURCE[facts.sourceType]
     if (platform !== undefined) payload.platform = platform
   }
-  // An instant, not an age: copy measures it when it is read, so an old row
-  // never shows the age it had when it arrived.
+  // An instant, not an age: the read measures it to the row's latest event,
+  // and a repeat event without one drops it.
   if (waitingSince !== null) payload.waitingSince = waitingSince.toISOString()
   if (actorRole !== null) payload.actorRole = actorRole
   // Set even when false: a rejection without a reason must replace the flag of

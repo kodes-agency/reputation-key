@@ -99,6 +99,35 @@ export function withRepeatCount(
   return coalescedCount > 1 ? { ...rest, occurrences: coalescedCount } : rest
 }
 
+const MS_PER_HOUR = 3_600_000
+
+/**
+ * How long the wait had lasted when the row's latest event was raised,
+ * projected into the payload the copy reads. The read measures to the row's
+ * own time, never the reader's clock: the item may have been answered since,
+ * and an age that kept growing would say it is still waiting.
+ */
+export function withWaitAtNotice(
+  payload: NotificationPayload,
+  raisedAt: Date,
+): NotificationPayload {
+  const { waitedHours: _stale, ...rest } = payload
+  if (rest.waitingSince === undefined) return rest
+  const waited = raisedAt.getTime() - Date.parse(rest.waitingSince)
+  return { ...rest, waitedHours: Math.max(0, Math.floor(waited / MS_PER_HOUR)) }
+}
+
+/**
+ * A wait is what the event that measured it saw. A repeat event that measured
+ * none (the item was answered or closed, or its target met) ended it, so the
+ * row's earlier wait goes rather than surviving the newest-wins merge.
+ */
+const withoutEarlierWait = ({
+  waitingSince: _since,
+  waitedHours: _waited,
+  ...rest
+}: NotificationPayload): NotificationPayload => rest
+
 /**
  * ADR 0046 r.2 — absorb a repeat event into the single unread row instead of
  * stacking another one.
@@ -109,10 +138,14 @@ export function withRepeatCount(
  *
  * Payload merge is newest-wins per key: a fresh payload missing a key keeps the
  * value the row already had, because a later event that could not resolve the
- * property name should not erase the name the first one captured. A closed
- * cause is the exception: it names the remedy for one occurrence, and a fresh
+ * property name should not erase the name the first one captured. Two facts
+ * are the exception, because each describes one occurrence rather than the
+ * resource: a closed cause names the remedy for one occurrence, and a fresh
  * event without one had none, so the earlier cause is dropped rather than
- * left advertising a remedy that no longer applies.
+ * left advertising a remedy that no longer applies
+ * (`withoutOccurrenceCauses`); and a wait ends when a repeat event measured
+ * none (`withoutEarlierWait`). A publish failure's `publishOutcome` needs no
+ * exception: every publish failure fact now carries one, so the newest wins.
  */
 export function applyCoalescence(
   existing: Notification,
@@ -121,7 +154,7 @@ export function applyCoalescence(
 ): Notification {
   const coalescedCount = existing.coalescedCount + 1
   const payload = withRepeatCount(
-    { ...withoutOccurrenceCauses(existing.payload), ...freshPayload },
+    { ...withoutEarlierWait(withoutOccurrenceCauses(existing.payload)), ...freshPayload },
     coalescedCount,
   )
   const rendered = renderNotification(existing.type, payload)

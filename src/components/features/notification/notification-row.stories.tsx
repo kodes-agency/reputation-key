@@ -42,15 +42,10 @@ type Story = StoryObj<typeof NotificationRow>
 
 const [escalated, pendingApproval, newFeedback, noMetadata] = notificationFixtures
 
-const HOUR = 60 * 60 * 1000
-
-/** The escalated fixture, 26 hours into the current cycle's wait. */
+/** The escalated fixture, raised 26 hours into the current cycle's wait. */
 const escalatedWaiting = {
   ...escalated,
-  payload: {
-    ...escalated.payload,
-    waitingSince: new Date(Date.now() - 26 * HOUR).toISOString(),
-  },
+  payload: { ...escalated.payload, waitedHours: 26 },
 }
 
 const muteableReview = makeNotification({
@@ -78,8 +73,9 @@ export const UrgentUnread: Story = {
     // the stars.
     expect(canvas.getByText('Rated 2 out of 5 stars')).toBeInTheDocument()
     expect(canvasElement.textContent).not.toMatch(/2-star/)
-    // 26 hours into the wait renders as the compact "1d", measured now.
-    expect(canvas.getAllByText(/Waiting 1d/).length).toBeGreaterThan(0)
+    // Raised 26 hours into the wait renders as the compact "1d": the wait the
+    // notice was raised with, which never grows while the row sits unread.
+    expect(canvas.getAllByText(/Waited 1d/).length).toBeGreaterThan(0)
     // The deep link carries the resource id as a typed search param.
     const cta = canvas.getByRole('link')
     expect(cta).toHaveAttribute('href', expect.stringContaining(escalated.resourceId))
@@ -124,7 +120,7 @@ export const OutcomeShowsNoWait: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/Your reply is live on Google/)).toBeInTheDocument()
-    expect(canvas.queryByText(/Waiting/)).not.toBeInTheDocument()
+    expect(canvas.queryByText(/Wait/)).not.toBeInTheDocument()
   },
 }
 
@@ -142,7 +138,7 @@ export const NoMetadata: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvasElement.textContent).not.toContain('undefined')
-    expect(canvas.queryByText(/Waiting/)).not.toBeInTheDocument()
+    expect(canvas.queryByText(/Wait/)).not.toBeInTheDocument()
     // A CTA is still offered — an unlabelled row would be a dead end.
     expect(canvas.getByRole('link')).toBeInTheDocument()
   },

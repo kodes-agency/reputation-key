@@ -4,6 +4,7 @@ import {
   getDefaultCadence,
   getDefaultEnabled,
   isPreferenceDisableable,
+  withWaitAtNotice,
 } from './notification-policy'
 import { createNotification } from './notification-constructors'
 import { notificationId, organizationId, propertyId, userId } from '#/shared/domain/ids'
@@ -133,6 +134,80 @@ describe('notification policy', () => {
     },
   )
 
+  // Both occurrence facts go in the same merge: a repeat that named no cause
+  // and measured no wait keeps neither from the earlier event.
+  it('drops an earlier cause and an earlier wait together', () => {
+    const bumped = applyCoalescence(
+      unread(
+        {
+          propertyName: 'Riverside',
+          publishOutcome: 'refused',
+          publishFailureCause: 'google_reauthorization_required',
+          waitingSince: '2025-12-25T00:00:00.000Z',
+        },
+        'reply.publish_failed',
+      ),
+      { propertyName: 'Riverside', publishOutcome: 'not_sent' },
+      LATER,
+    )
+
+    expect(bumped.payload).toEqual({
+      propertyName: 'Riverside',
+      publishOutcome: 'not_sent',
+      occurrences: 2,
+    })
+    expect(bumped.body).toContain(
+      'Nothing was posted to Google, so it is safe to try again.',
+    )
+  })
+
+  // Every publish failure fact carries its outcome, so the newest one decides
+  // the copy: a failure that may be live must not keep offering a retry.
+  it('takes the outcome of the latest publish failure', () => {
+    const bumped = applyCoalescence(
+      unread({ publishOutcome: 'not_sent' }, 'reply.publish_failed'),
+      { publishOutcome: 'unconfirmed' },
+      LATER,
+    )
+
+    expect(bumped.payload.publishOutcome).toBe('unconfirmed')
+    expect(bumped.title).toBe('Reply not confirmed on Google')
+  })
+
+  // Escalated while waiting, then answered, then escalated again: the second
+  // escalation measured no wait, so the row must not keep the first one's.
+  it('drops the earlier wait once a repeat event measured none', () => {
+    const bumped = applyCoalescence(
+      unread({ propertyName: 'Riverside', waitingSince: '2025-12-25T00:00:00.000Z' }),
+      { propertyName: 'Riverside' },
+      LATER,
+    )
+
+    expect(bumped.payload.waitingSince).toBeUndefined()
+    expect(bumped.body).toMatch(/ Escalated 2 times\.$/)
+  })
+
+  it('takes the wait the repeat event measured', () => {
+    const bumped = applyCoalescence(
+      unread({ waitingSince: '2025-12-25T00:00:00.000Z' }),
+      { waitingSince: '2025-12-31T12:00:00.000Z' },
+      LATER,
+    )
+
+    expect(bumped.payload.waitingSince).toBe('2025-12-31T12:00:00.000Z')
+  })
+
+  it('never stores the wait a row was read with', () => {
+    const read = unread({ waitingSince: '2025-12-25T00:00:00.000Z' })
+    const bumped = applyCoalescence(
+      { ...read, payload: { ...read.payload, waitedHours: 168 } },
+      { waitingSince: '2025-12-31T12:00:00.000Z' },
+      LATER,
+    )
+
+    expect(bumped.payload.waitedHours).toBeUndefined()
+  })
+
   it('accumulates across repeated bumps', () => {
     const once = applyCoalescence(unread({}), {}, LATER)
     const twice = applyCoalescence(once, {}, LATER)
@@ -151,5 +226,38 @@ describe('notification policy', () => {
     expect(bumped.propertyId).toBe(original.propertyId)
     expect(bumped.status).toBe('unread')
     expect(bumped.createdAt).toBe(original.createdAt)
+  })
+})
+
+// A notice says how long its item had waited when the notice was raised. The
+// reader's clock never enters: the item may have been answered since, and an
+// age that keeps growing would say it is still waiting.
+describe('the wait a notice was raised with', () => {
+  const SINCE = '2026-09-20T09:00:00.000Z'
+
+  it.each([
+    ['2026-09-20T09:59:59.000Z', 0],
+    ['2026-09-20T14:30:00.000Z', 5],
+    ['2026-09-22T10:00:00.000Z', 49],
+  ])('raised at %s had waited %i whole hours', (raisedAt, hours) => {
+    expect(
+      withWaitAtNotice({ waitingSince: SINCE }, new Date(raisedAt)).waitedHours,
+    ).toBe(hours)
+  })
+
+  it('says nothing when the notice measured no wait', () => {
+    const payload = withWaitAtNotice(
+      { propertyName: 'Riverside', waitedHours: 30 },
+      new Date('2026-09-22T10:00:00.000Z'),
+    )
+
+    expect(payload).toEqual({ propertyName: 'Riverside' })
+  })
+
+  it('never reads a wait that began after the notice as negative', () => {
+    expect(
+      withWaitAtNotice({ waitingSince: SINCE }, new Date('2026-09-20T08:00:00.000Z'))
+        .waitedHours,
+    ).toBe(0)
   })
 })

@@ -76,6 +76,31 @@ describe('notification row mapper', () => {
     },
   )
 
+  // A wait is read as it stood when the row's latest event was raised, the
+  // instant the row shows, so an item answered since never reads as still
+  // waiting and an unread row's age never grows.
+  it.each([
+    ['a row that fired once, to its creation', null, 72],
+    ['a coalesced row, to its latest event', new Date('2026-09-19T10:00:00.000Z'), 96],
+  ])('measures the wait of %s', (_case, coalescedLatestAt, waitedHours) => {
+    const read = notificationFromRow(
+      row({
+        type: 'inbox.escalated',
+        payload: { waitingSince: '2026-09-15T10:00:00.000Z' },
+        coalescedCount: coalescedLatestAt === null ? 1 : 2,
+        coalescedLatestAt,
+      }),
+    )
+
+    expect(read.payload.waitedHours).toBe(waitedHours)
+  })
+
+  it('never reads a stored wait back as the wait a notice was raised with', () => {
+    const read = notificationFromRow(row({ payload: { waitedHours: 500 } }))
+
+    expect(read.payload.waitedHours).toBeUndefined()
+  })
+
   it('still refuses a resource type nobody declared', () => {
     expect(() => notificationFromRow(row({ resourceType: 'spaceship' }))).toThrow(
       /Invalid notification\.resourceType: spaceship/u,
