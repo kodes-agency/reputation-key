@@ -198,6 +198,7 @@ describe('Portal Health notification durable consumer', () => {
     ['publication_draft', 'unavailable'],
     ['publication_disabled', 'unavailable'],
     ['publication_archived', 'unavailable'],
+    ['property_unavailable', 'unavailable'],
     ['responsibility_needed', 'degraded'],
     ['google_destination_awaiting_refresh', 'degraded'],
   ] as const)('records %s as receipt-only', async (reason, status) => {

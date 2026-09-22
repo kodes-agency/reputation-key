@@ -13,9 +13,12 @@ const PORTAL_HEALTH_REASONS = [
   'google_destination_unavailable',
 ] as const
 
-/** Only automatic states that give a manager a concrete recovery action. */
+/**
+ * Only automatic states that give a manager a concrete recovery action.
+ * `property_unavailable` is not one: it is what archiving (or suspending) the
+ * Property produces, an intentional state like an archived publication.
+ */
 const ACTIONABLE_PORTAL_HEALTH_REASONS = [
-  'property_unavailable',
   'publication_snapshot_unavailable',
   'public_address_unavailable',
   'google_destination_unavailable',
