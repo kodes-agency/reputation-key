@@ -73,21 +73,39 @@ const ARRIVED = new Date('2031-03-07T05:30:00.000Z')
 type QueuedJob = Readonly<{ name: string; data: unknown; opts?: JobsOptions }>
 
 /**
- * BullMQ's add as far as the sweep can observe it: a job id already held is
- * a no-op that returns the held job.
+ * BullMQ as far as the sweep can observe it: a job id already held, in any
+ * state, is a no-op add that returns the held job; a held job reports its
+ * state and can be removed; a job that spent its attempts stays held in the
+ * failed set. `jobs` is every job the queue accepted, in order.
  */
 function recordingQueue() {
   const jobs: QueuedJob[] = []
+  const held = new Map<string, Readonly<{ job: QueuedJob; state: string }>>()
   const queue = {
     add: vi.fn(async (name: string, data: unknown, opts?: JobsOptions) => {
-      const held = jobs.find((job) => opts?.jobId && job.opts?.jobId === opts.jobId)
-      if (held) return held
+      const holding = opts?.jobId ? held.get(opts.jobId) : undefined
+      if (holding) return holding.job
       const job = opts === undefined ? { name, data } : { name, data, opts }
+      if (opts?.jobId) held.set(opts.jobId, { job, state: 'waiting' })
       jobs.push(job)
       return job
     }),
+    getJob: vi.fn(async (id: string) => {
+      const holding = held.get(id)
+      if (!holding) return undefined
+      return {
+        getState: async () => holding.state,
+        remove: async () => {
+          held.delete(id)
+        },
+      }
+    }),
   }
-  return { queue: queue as unknown as Queue, jobs }
+  const exhaust = (id: string) => {
+    const holding = held.get(id)
+    if (holding) held.set(id, { ...holding, state: 'failed' })
+  }
+  return { queue: queue as unknown as Queue, jobs, exhaust }
 }
 
 describe.sequential('missing-notification repair through the Feed build', () => {
@@ -296,6 +314,39 @@ describe.sequential('missing-notification repair through the Feed build', () => 
 
     await sweep(feed)
     expect(insertJobsOf(repair.jobs)).toHaveLength(1)
+  })
+
+  it('queues a repair again after its own job dead-lettered, until it settles', async () => {
+    const { eventId } = await arriveAndDispatch(
+      { type: 'feedback', id: '86000000-0000-4000-8000-000000000031' },
+      '86000000-0000-4000-8000-000000000030',
+    )
+    const repair = recordingQueue()
+    const feed = buildFeed(repair.queue)
+    await sweep(feed)
+    const [first] = insertJobsOf(repair.jobs)
+    // The repair job spent its attempts too; BullMQ keeps it in the failed set.
+    repair.exhaust(first!.opts!.jobId!)
+
+    await sweep(feed)
+
+    const repaired = insertJobsOf(repair.jobs)
+    expect(repaired.map((queued) => queued.opts?.jobId)).toEqual([
+      first!.opts!.jobId,
+      first!.opts!.jobId,
+    ])
+    await insertWorker(feed)({
+      data: repaired[1]!.data,
+    } as Job<InsertNotificationJobData>)
+    await sweep(feed)
+    expect(insertJobsOf(repair.jobs)).toHaveLength(2)
+    const rows = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(eq(notifications.organizationId, ORG), eq(notifications.eventId, eventId)),
+      )
+    expect(rows).toHaveLength(1)
   })
 
   it('never re-announces a delivery that settled without a notification', async () => {

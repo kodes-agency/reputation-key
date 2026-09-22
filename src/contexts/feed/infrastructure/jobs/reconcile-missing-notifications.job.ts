@@ -17,7 +17,8 @@
 //     muted the type is never re-announced;
 //   - each repaired delivery is queued under an id derived from it, so a
 //     retained original job cannot swallow it and a later firing converges on
-//     the same job instead of queueing another.
+//     the same job instead of queueing another — unless that repair job
+//     itself spent its attempts, in which case the next firing queues it again.
 // Each replay is authorized first, exactly as the dispatcher authorizes the
 // consumer.
 //

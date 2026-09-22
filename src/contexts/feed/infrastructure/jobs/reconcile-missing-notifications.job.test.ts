@@ -110,14 +110,37 @@ function receiptStore(clock: () => Date) {
 }
 type ReceiptStore = ReturnType<typeof receiptStore>
 
-/** BullMQ's add as the sweep observes it: a held job id is a no-op. */
+/**
+ * BullMQ as the sweep observes it: an add under a job id it still holds, in
+ * any state, is a no-op; a held job reports its state and can be removed; and
+ * a job that spent its attempts stays held in the failed set. `jobs` is every
+ * job the queue accepted, in order.
+ */
 function recordingQueue() {
   const jobs: Queued[] = []
+  const held = new Map<string, 'waiting' | 'failed'>()
   const add = vi.fn(async (name: string, data: unknown, opts?: JobsOptions) => {
-    if (opts?.jobId && jobs.some((job) => job.opts?.jobId === opts.jobId)) return
+    if (opts?.jobId && held.has(opts.jobId)) return
+    if (opts?.jobId) held.set(opts.jobId, 'waiting')
     jobs.push({ name, data: data as Record<string, unknown>, ...(opts ? { opts } : {}) })
   })
-  return { jobs, add, queue: { add } }
+  const getJob = vi.fn(async (id: string) =>
+    held.has(id)
+      ? {
+          getState: async () => held.get(id)!,
+          remove: async () => {
+            held.delete(id)
+          },
+        }
+      : undefined,
+  )
+  return {
+    jobs,
+    add,
+    queue: { add, getJob },
+    exhaust: (id: string) => held.set(id, 'failed'),
+    stateOf: (id: string) => held.get(id),
+  }
 }
 
 /** The fact as its producer commits it, stored for the relay. */
@@ -366,6 +389,22 @@ describe('reconcile-missing-notifications sweep', () => {
 
     expect(repair.add).toHaveBeenCalledTimes(2)
     expect(repair.jobs).toHaveLength(1)
+  })
+
+  it('queues a repair again once its own job has spent every attempt', async () => {
+    const { sweep, repair } = await deliverThenSweep([feedbackArrival()])
+    await sweep(job)
+    const repairJobId = repair.jobs[0]!.opts!.jobId!
+    // The repair failed too, and BullMQ holds it in the failed set.
+    repair.exhaust(repairJobId)
+
+    await sweep(job)
+
+    expect(repair.jobs.map((queued) => queued.opts?.jobId)).toEqual([
+      repairJobId,
+      repairJobId,
+    ])
+    expect(repair.stateOf(repairJobId)).toBe('waiting')
   })
 
   it('queues only the recipients still owed a notification', async () => {

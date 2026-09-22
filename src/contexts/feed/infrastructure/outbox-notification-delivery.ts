@@ -214,16 +214,39 @@ export function withBetaOutboxNotificationDelivery(
 
 const REPAIR_JOB_ID_PREFIX = 'notification-repair-'
 
+type HeldJobPort = Readonly<{
+  getState(): Promise<string>
+  remove(): Promise<void>
+}>
+
+type RepairQueuePort = QueuePort &
+  Readonly<{
+    getJob(id: string): Promise<HeldJobPort | undefined>
+  }>
+
+/**
+ * BullMQ keeps a job that spent its attempts in its failed set, and an add
+ * under an id it still holds is a no-op. A repair job that dead-lettered is
+ * released, so this firing queues it again with a fresh attempt budget; its
+ * quarantine copy stays for the operator. A waiting, delayed or active repair
+ * job is left alone — the add converges on it.
+ */
+async function releaseDeadLetteredRepair(queue: RepairQueuePort, jobId: string) {
+  const held = await queue.getJob(jobId)
+  if (held && (await held.getState()) === 'failed') await held.remove()
+}
+
 /**
  * The queue a delivery repair enqueues through, beneath the durable bridge.
  * Replaying a source fact re-derives every recipient; a delivery that already
  * settled is left alone, since its job could only settle as a duplicate. Any
  * other delivery is queued under an id of its own, derived from the delivery:
  * a retained original job (failed, quarantined) cannot swallow the repair, and
- * a later sweep converges on the same repair job instead of queueing another.
+ * a later sweep converges on the same repair job instead of queueing another,
+ * unless that repair job itself dead-lettered.
  */
 export function withDeliveryRepairJobs(
-  queue: QueuePort,
+  queue: RepairQueuePort,
   receipts: Pick<OutboxRepository, 'hasReceipt'>,
 ): QueuePort {
   return {
@@ -235,10 +258,9 @@ export function withDeliveryRepairJobs(
       if (await receipts.hasReceipt(delivery.eventId, delivery.materializedReceiptName)) {
         return undefined
       }
-      return queue.add(name, data, {
-        ...opts,
-        jobId: `${REPAIR_JOB_ID_PREFIX}${delivery.receiptKey}`,
-      })
+      const jobId = `${REPAIR_JOB_ID_PREFIX}${delivery.receiptKey}`
+      await releaseDeadLetteredRepair(queue, jobId)
+      return queue.add(name, data, { ...opts, jobId })
     },
   }
 }
