@@ -405,14 +405,14 @@ const goalTitle = (lead: string, p: NotificationPayload): string =>
 
 const renderGoalCompleted = (p: NotificationPayload): RenderedNotification => ({
   title: goalTitle('Goal completed', p),
-  body: 'It hit its target. Open the property to see the numbers.',
+  body: 'It hit its target. Open Goals to see the numbers.',
   actionLabel: 'View progress',
   summary: factsAt(p, p.goalName ?? 'goal completed'),
 })
 
 const renderGoalResultRevised = (p: NotificationPayload): RenderedNotification => ({
   title: goalTitle('Goal result updated', p),
-  body: 'A monthly result changed. Open the property to see the current metrics.',
+  body: 'A monthly result changed. Open Goals to see the current metrics.',
   actionLabel: 'View result',
   summary: factsAt(p, p.goalName ?? 'goal result updated'),
 })
@@ -518,9 +518,22 @@ export const renderNotification = (
   }
 }
 
+/** A page of the row's Property, or the Property list for a row without one. */
+const propertyLink = (
+  propertyId: string | null,
+  page: string,
+  search: Readonly<Record<string, string>> = {},
+): NotificationLink =>
+  propertyId === null
+    ? { path: '/properties', search: {} }
+    : { path: `/properties/${propertyId}${page}`, search }
+
 /**
  * Deep link for a notification. Every action-oriented type is inbox-item keyed
  * (CONTEXT.md decision log), so the honest target is the inbox detail pane.
+ * A grouped assignment is the exception: it opens the recipient's own queue at
+ * that Property, which is what its copy promises, when the caller passes the
+ * notification `type`.
  *
  * Returned as `{ path, search }` rather than a string because TanStack Router
  * requires the typed form — passing `'/inbox?itemId=x'` as `to` silently fails
@@ -535,27 +548,33 @@ export const notificationLink = (
   resourceType: NotificationResourceType,
   resourceId: string,
   propertyId: string | null,
+  type?: NotificationType,
 ): NotificationLink => {
   switch (resourceType) {
     case 'organization':
       return { path: '/settings/profile', search: {} }
     case 'inbox_item':
-      return { path: '/inbox', search: { itemId: resourceId } }
+      return type === 'inbox.bulk_assigned'
+        ? {
+            path: '/inbox',
+            search:
+              propertyId === null ? { queue: 'mine' } : { queue: 'mine', propertyId },
+          }
+        : { path: '/inbox', search: { itemId: resourceId } }
     case 'reply':
       // Legacy rows only: pre-2026-07 reply notifications stamped a replyId,
       // which no longer resolves. Land on the inbox list rather than 404.
       return { path: '/inbox', search: {} }
     case 'goal':
-      return { path: `/properties/${propertyId}`, search: {} }
+      // A monthly result's numbers live on the Property's Goals page.
+      return propertyLink(propertyId, '/goals')
     case 'badge':
-      return { path: `/properties/${propertyId}`, search: {} }
+      return propertyLink(propertyId, '')
     case 'portal':
-      return {
-        path: `/properties/${propertyId}/portals/${resourceId}`,
-        search: { tab: 'settings' },
-      }
+      return propertyLink(propertyId, `/portals/${resourceId}`, { tab: 'settings' })
     case 'property':
-      return { path: `/properties/${propertyId}/settings`, search: {} }
+      // The only Property notice asks for a manager, and the picker is here.
+      return propertyLink(propertyId, '/settings/people')
     case 'integration':
       return { path: '/settings/integrations', search: {} }
     case 'beta_feedback_report':

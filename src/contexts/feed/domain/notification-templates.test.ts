@@ -487,11 +487,31 @@ describe('notificationLink', () => {
   })
 
   // Regression: the previous builder used the goal's resourceId as a
-  // propertyId, producing a dead /properties/<goalId> route.
-  it('links a goal to its property, not to its own id', () => {
+  // propertyId, producing a dead /properties/<goalId> route. The goal's
+  // results live on the Property's Goals page, not its overview.
+  it("links a goal to its Property's goals, not to its own id", () => {
     expect(notificationLink('goal', 'goal-9', 'prop-1')).toEqual({
-      path: '/properties/prop-1',
+      path: '/properties/prop-1/goals',
       search: {},
+    })
+  })
+
+  it.each(['goal', 'badge', 'portal', 'property'] as const)(
+    'never builds a %s link into a Property it does not have',
+    (resourceType) => {
+      expect(notificationLink(resourceType, 'r', null).path).toBe('/properties')
+    },
+  )
+
+  // A grouped assignment is many items: it opens the recipient's own queue at
+  // that Property, not whichever item happened to sort first.
+  it("opens a grouped assignment on the recipient's queue at that Property", () => {
+    expect(notificationLink('inbox_item', UUID, 'prop-1', 'inbox.bulk_assigned')).toEqual(
+      { path: '/inbox', search: { queue: 'mine', propertyId: 'prop-1' } },
+    )
+    expect(notificationLink('inbox_item', UUID, 'prop-1', 'inbox.assigned')).toEqual({
+      path: '/inbox',
+      search: { itemId: UUID },
     })
   })
 
@@ -536,8 +556,10 @@ describe('notificationLink', () => {
     expect(renderNotification('property.responsibility_needed', {}).title).toBe(
       'A property needs a responsible manager',
     )
+    // "Choose manager" lands where the manager picker is, not on whichever
+    // setup section the settings hub redirects to first.
     expect(notificationLink('property', 'prop-1', 'prop-1')).toEqual({
-      path: '/properties/prop-1/settings',
+      path: '/properties/prop-1/settings/people',
       search: {},
     })
   })
@@ -549,7 +571,7 @@ describe('notificationLink', () => {
       }),
     ).toEqual({
       title: 'Goal result updated: Monthly guest engagement',
-      body: 'A monthly result changed. Open the property to see the current metrics.',
+      body: 'A monthly result changed. Open Goals to see the current metrics.',
       actionLabel: 'View result',
       summary: 'Monthly guest engagement',
     })

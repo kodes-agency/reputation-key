@@ -69,6 +69,7 @@ export function groupItemsByProperty(
           notification.resourceType,
           notification.resourceId,
           key,
+          notification.type,
         )
         const rendered = renderNotification(notification.type, notification.payload, now)
         return {

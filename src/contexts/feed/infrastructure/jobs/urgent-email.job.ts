@@ -327,6 +327,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       notification.resourceType,
       notification.resourceId,
       ids.propId,
+      notification.type,
     )
     const mailClass = mailClassForCategory(entry.category)
     // Optional mail is always about one Property, and the settings route opens

@@ -129,8 +129,9 @@ export async function handleNotificationBulkAssignmentCompleted(
             propertyId: propertyId(property),
             type: 'inbox.bulk_assigned' as const,
             resourceType: 'inbox_item' as const,
-            // Opens the first canonically sorted item; the copy and count make
-            // clear that the row represents the whole Property-scoped group.
+            // The first canonically sorted item is the row's resource identity;
+            // its link opens the recipient's queue at this Property instead
+            // (notificationLink), since the row stands for the whole group.
             resourceId: inboxItemIds[0]!,
             eventId: event.eventId,
             payload: {

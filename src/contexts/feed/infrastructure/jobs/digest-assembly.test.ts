@@ -117,10 +117,29 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
   it('builds an absolute deep link per line, keyed on the row property', () => {
     const groups = groupItemsByProperty(items, new Map(), url, NOW)
 
-    // Inbox items link to the item; a goal links to its PROPERTY page, which is
-    // where the previous builder used the goalId and produced a dead link.
+    // Inbox items link to the item; a goal links to its PROPERTY's goals, where
+    // the previous builder used the goalId and produced a dead link.
     expect(groups[0]!.items[0]!.actionUrl).toBe('https://app.test/inbox?itemId=inbox-1')
-    expect(groups[1]!.items[0]!.actionUrl).toBe('https://app.test/properties/prop-b')
+    expect(groups[1]!.items[0]!.actionUrl).toBe(
+      'https://app.test/properties/prop-b/goals',
+    )
+  })
+
+  it("opens a grouped assignment line on the recipient's queue", () => {
+    const grouped = [
+      buildDigestItem({
+        propertyId: 'prop-a',
+        type: 'inbox.bulk_assigned',
+        payload: { propertyName: 'Riverside Hotel', itemCount: 4 },
+        resourceId: 'inbox-5',
+      }),
+    ]
+
+    const groups = groupItemsByProperty(grouped, new Map(), url, NOW)
+
+    expect(groups[0]!.items[0]!.actionUrl).toBe(
+      'https://app.test/inbox?queue=mine&propertyId=prop-a',
+    )
   })
 
   it('falls back to the resolved property name when the payload has none', () => {
