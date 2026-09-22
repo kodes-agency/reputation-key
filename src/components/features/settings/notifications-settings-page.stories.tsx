@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import type {
-  EffectiveNotificationSettings,
-  NotificationPreference,
+import {
+  NOTIFICATION_SETTINGS_CATEGORIES,
+  type EffectiveNotificationSettings,
+  type NotificationPreference,
 } from '#/contexts/feed/application/public-api'
 import type { Action } from '#/components/hooks/use-action'
 import { NotificationsSettingsPage } from './notifications-settings-page'
@@ -172,8 +173,10 @@ export const GoalEmailIsDailyOnly: Story = {
     })
     expect(goalCadence).toHaveTextContent('Daily at 08:00')
     expect(goalCadence).toBeDisabled()
+    // A category whose email is on still offers the choice. (Workflow's email
+    // is off in these fixtures, and cadence waits until email is on.)
     expect(
-      canvas.getByLabelText('Cadence', { selector: '#workflow_collaboration-cadence' }),
+      canvas.getByLabelText('Cadence', { selector: '#urgent_operational-cadence' }),
     ).toBeEnabled()
 
     await userEvent.click(
@@ -331,9 +334,10 @@ export const NewUserSeesTheOrganizationTimezone: Story = {
     expect(canvas.getByTestId('timezone-source')).toHaveTextContent(
       "Your organization's timezone",
     )
+    // Every category row says it, Goals included.
     expect(
       canvas.getAllByText(/daily digest and quiet hours use your timezone, Sofia/),
-    ).toHaveLength(2)
+    ).toHaveLength(NOTIFICATION_SETTINGS_CATEGORIES.length)
     expect(canvas.queryByText(/property-local/)).toBeNull()
   },
 }

@@ -306,7 +306,9 @@ export const GoalResultCanBeMuted: Story = {
     const ownerDocument = canvasElement.ownerDocument
     await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
     const menu = within(ownerDocument.body)
-    const mute = await menu.findByRole('menuitem', { name: 'Mute goals' })
+    const mute = await menu.findByRole('menuitem', {
+      name: 'Mute goals for this property',
+    })
     await waitFor(() => expect(mute).toBeVisible())
     await userEvent.click(mute)
     expect(actions.onMuteCategory).toHaveBeenCalledWith(args.notification)
