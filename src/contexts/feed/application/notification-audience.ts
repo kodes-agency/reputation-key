@@ -13,16 +13,14 @@ import type { ResponsibleManagerLookupPort } from './ports/responsible-manager-l
 import type { InboxItemLookupPort } from './ports/notification-inbox-item-lookup.port'
 import type { EscalationResolutionLookupPort } from './ports/escalation-resolution-lookup.port'
 import {
+  goalSubjectScope,
   inboxNotificationAudience,
   resolveResponsibleRecipients,
   type ResponsibleScope,
 } from './responsible-recipients'
 import { resolveEscalationResolutionRecipients } from './escalation-resolution-recipients'
 import { resolveResponseTargetReminderRecipients } from './response-target-reminder-recipients'
-import type {
-  GoalSubject,
-  MonthlyResultNotificationFactsLookup,
-} from '#/contexts/reporting/application/public-api'
+import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
 import {
   ORGANIZATION_ACCOUNT_NOTIFICATION_EVENT_TYPES,
   type OrganizationAccountNotificationAuthorityPort,
@@ -685,13 +683,6 @@ const isPortalHealthRecipient = async (
   })
   return recipients.includes(userId)
 }
-
-const goalSubjectScope = (subject: GoalSubject): ResponsibleScope =>
-  subject.kind === 'property'
-    ? { kind: 'property', propertyId: subject.propertyId }
-    : subject.kind === 'portal_group'
-      ? { kind: 'portal_group', portalGroupId: subject.portalGroupId }
-      : { kind: 'portal', portalId: subject.portalId }
 
 /**
  * "Goal completed" is checked against the result as it stands at delivery: a
