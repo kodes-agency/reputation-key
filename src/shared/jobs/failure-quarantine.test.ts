@@ -405,8 +405,9 @@ describe('findQuarantinedJob', () => {
         fakeJob({ id: `orig-${i}` }),
         new Error('x'),
       )
-      if (result.quarantined) ids.push(result.quarantineJobId)
+      if (result.quarantineJobId !== undefined) ids.push(result.quarantineJobId)
     }
+    expect(ids).toHaveLength(150)
 
     const entry = await findQuarantinedJob(quarantine, ids[149]!)
 
