@@ -239,7 +239,11 @@ describe('notification gap repository against PostgreSQL', () => {
     await seedImportedAndLiveItems()
 
     await expect(
-      gapRepository().countItemsMissingNotifications({ ...WINDOW, scanLimit: 1000 }),
+      gapRepository().countItemsMissingNotifications({
+        ...WINDOW,
+        scanLimit: 1000,
+        statementTimeoutMs: 2_000,
+      }),
     ).resolves.toBe(3)
   })
 
@@ -249,7 +253,11 @@ describe('notification gap repository against PostgreSQL', () => {
     await seedArrivalDelivery(LEGACY_ITEM, 'unsettled')
 
     await expect(
-      gapRepository().countItemsMissingNotifications({ ...WINDOW, scanLimit: 1000 }),
+      gapRepository().countItemsMissingNotifications({
+        ...WINDOW,
+        scanLimit: 1000,
+        statementTimeoutMs: 2_000,
+      }),
     ).resolves.toBe(3)
   })
 
@@ -258,7 +266,11 @@ describe('notification gap repository against PostgreSQL', () => {
     await seedArrivalDelivery(LIVE_ITEM, 'gate_denied')
 
     await expect(
-      gapRepository().countItemsMissingNotifications({ ...WINDOW, scanLimit: 1000 }),
+      gapRepository().countItemsMissingNotifications({
+        ...WINDOW,
+        scanLimit: 1000,
+        statementTimeoutMs: 2_000,
+      }),
     ).resolves.toBe(3)
   })
 
@@ -269,7 +281,11 @@ describe('notification gap repository against PostgreSQL', () => {
       await seedArrivalDelivery(LIVE_ITEM, settlement)
 
       await expect(
-        gapRepository().countItemsMissingNotifications({ ...WINDOW, scanLimit: 1000 }),
+        gapRepository().countItemsMissingNotifications({
+          ...WINDOW,
+          scanLimit: 1000,
+          statementTimeoutMs: 2_000,
+        }),
       ).resolves.toBe(2)
     },
   )

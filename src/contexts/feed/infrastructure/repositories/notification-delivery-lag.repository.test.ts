@@ -707,6 +707,7 @@ describe.sequential(
         recordedAtOrAfter: new Date('2026-08-29T06:00:00.000Z'),
         recordedBefore: new Date('2026-08-29T08:00:00.000Z'),
         scanLimit: 10,
+        statementTimeoutMs: 2_000,
       })
 
       expect(report.immediateEmailAcceptance).toEqual({

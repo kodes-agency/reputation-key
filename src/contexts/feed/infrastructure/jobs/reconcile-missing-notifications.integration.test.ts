@@ -168,6 +168,7 @@ describe.sequential('missing-notification repair through the Feed build', () => 
         clock: () => NOW,
         idGen: () => `86000000-0000-4000-9000-${String(++id).padStart(12, '0')}`,
         logger,
+        isEmailDeliveryAllowed: () => true,
         responsibleManagers: {
           findForProperty: async () => [MANAGER],
           findForPortal: async () => [MANAGER],

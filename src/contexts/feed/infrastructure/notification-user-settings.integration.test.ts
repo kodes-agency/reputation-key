@@ -37,6 +37,7 @@ const buildFeed = (db: Database) => {
       clock: () => NOW,
       idGen: () => '86000000-0000-4000-8000-000000000096',
       logger,
+      isEmailDeliveryAllowed: () => true,
       responsibleManagers: {} as never,
       feedbackPortalLookup: {} as never,
       googleConnectionProperties: {} as never,
