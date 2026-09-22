@@ -63,11 +63,20 @@ responsibility. Removing Property access preserves participation and history.
 ## Amended 2026-09-22 — no recovery alert outside the workspace
 
 The recovery alert asks for work only an active Property can have. A Property
-that is archived, and a Portal that is deleted, archived, or belongs to such a
-Property, still records `responsibility_needed_since` when it loses its last
-manager, but raises no `responsibility_became_needed` fact, so no urgent notice
-asks AccountAdmins to staff something they removed. Restore already requires
-an eligible Property Responsible Manager before it can proceed.
+that is not active (archived, or suspended while its Organization closes), and
+a Portal that is deleted, archived, or belongs to such a Property, still records
+`responsibility_needed_since` when it loses its last manager. It raises no
+`responsibility_became_needed` fact, so no urgent notice asks AccountAdmins to
+staff something they removed.
+
+Restore brings back the alerts that still apply. Restore cannot proceed until
+the Property has an eligible Responsible Manager, so the Property's own gap is
+closed first. That check does not cover its Portals. On `property.restored`,
+Portal raises `portal.responsibility_became_needed` again for each live Portal
+of the Property (not deleted, not archived) that still has no manager.
+Returning a Property suspended by Organization closure to `active` has no
+self-service path yet. When one is built, it must re-announce both Property and
+Portal gaps in the same way.
 
 ## Consequences
 

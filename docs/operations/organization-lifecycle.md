@@ -92,7 +92,10 @@ source epoch.
 
 Restore is permitted only before the recovery deadline. It rechecks current
 Property access and an eligible Responsible Manager,
-then advances the source epoch and records `property.restored`. The returned
+then advances the source epoch and records `property.restored`. Portal reacts
+by raising `portal.responsibility_became_needed` for each live Portal of the
+Property that still has no manager, because those gaps stayed silent while it
+was archived and Restore checks only the Property's own manager. The returned
 Google-binding readiness is either `ready` or `reconnect_required`; Restore does
 not silently recreate provider authority.
 

@@ -154,6 +154,8 @@ const METRIC_CURRENT_GOOGLE_REPUTATION_OUTBOX =
 
 // ── Event families ──────────────────────────────────────────────────
 
+const PORTAL_PROPERTY_LIFECYCLE_OUTBOX =
+  'src/contexts/portal/infrastructure/property-lifecycle-outbox-consumers.ts'
 const PORTAL_HEALTH_OUTBOX =
   'src/contexts/portal/infrastructure/portal-health-outbox-consumers.ts'
 
@@ -343,6 +345,7 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
   ]),
   ev('property.restored', [
     durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
+    durable('portal.on-property-restored', PORTAL_PROPERTY_LIFECYCLE_OUTBOX),
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
   ]),

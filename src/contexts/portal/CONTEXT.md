@@ -35,7 +35,10 @@ The eligible creator is the initial Portal Responsible Manager. Multiple eligibl
 managers may be assigned; losing the last sets `responsibilityNeededSince`, and
 nobody is auto-promoted. Only a live Portal of an active Property also raises
 `portal.responsibility_became_needed`; a deleted or archived Portal, or one whose
-Property is archived, records the gap silently (ADR 0052).
+Property is not active, records the gap silently. When the Property is restored,
+the `portal.on-property-restored` worker consumer raises the fact for each of its
+live Portals (not deleted, not archived) that still has no manager, because
+Restore itself checks only the Property's manager (ADR 0052).
 
 The beta has no Portal image-upload UI, server function, application use case,
 issuance model, or image job. `portal.upload` remains safety-blocked.

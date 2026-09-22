@@ -69,6 +69,7 @@ export type SystemAction =
   | 'system:health.check'
   | 'system:outbox.redeliver'
   | 'system:portal.health_reconcile'
+  | 'system:portal.responsibility_reannounce'
   | 'system:portal.destination_revalidate'
   | 'system:property.import'
   | 'system:property.import_v2'
@@ -326,6 +327,12 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   consumer(
     'portal.health-outbox-consumers',
     'system:portal.health_reconcile',
+    'portal.write',
+    'property',
+  ),
+  consumer(
+    'portal.property-lifecycle',
+    'system:portal.responsibility_reannounce',
     'portal.write',
     'property',
   ),
