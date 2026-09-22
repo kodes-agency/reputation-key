@@ -330,7 +330,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
             achieved: true,
           },
         },
-        opts: { jobId: `${IDS.event}-${MANAGER}` },
+        opts: { jobId: `goal-result-revised-${IDS.result}-r1-${MANAGER}` },
       },
     ])
     expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
@@ -433,6 +433,49 @@ describe('canonical Goal monthly-result notification consumer', () => {
         achieved: false,
       },
     })
+  })
+
+  // Under consumer lag an earlier correction and a later one can both be
+  // handled after the later one committed, and both still agree with the head.
+  // Keyed by the event, they were two notices about one state of the result.
+  it('converges lagging corrections the head still agrees with on one job per recipient', async () => {
+    const deps = makeDeps()
+    const laterEvent = '91000000-0000-4000-8000-000000000009'
+    const laterRevision = '91000000-0000-4000-8000-000000000008'
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue({
+      programId: IDS.program,
+      programVersionId: IDS.version,
+      monthlyResultId: IDS.result,
+      assignmentId: IDS.assignment,
+      revisionId: laterRevision,
+      revision: 3,
+      evaluationState: 'eligible',
+      achieved: false,
+      programName: 'Monthly guest engagement',
+      subject: { kind: 'property', propertyId: IDS.property },
+    })
+
+    await handleNotificationGoalMonthlyResultRevised(
+      deps,
+      revisedEvent({ achieved: false, revision: 1 }),
+    )
+    await handleNotificationGoalMonthlyResultRevised(
+      deps,
+      revisedEvent(
+        {
+          achieved: false,
+          revision: 3,
+          revisionId: laterRevision,
+          supersedesRevisionId: '91000000-0000-4000-8000-00000000000a',
+        },
+        { eventId: laterEvent },
+      ),
+    )
+
+    expect(deps.jobs.map((job) => job.opts)).toEqual([
+      { jobId: `goal-result-revised-${IDS.result}-r3-${MANAGER}` },
+      { jobId: `goal-result-revised-${IDS.result}-r3-${MANAGER}` },
+    ])
   })
 
   it('drops a correction whose outcome a later correction reversed', async () => {

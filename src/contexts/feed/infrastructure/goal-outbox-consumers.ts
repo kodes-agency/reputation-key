@@ -306,7 +306,12 @@ export async function handleNotificationGoalMonthlyResultRevised(
             achieved: payload.achieved,
           },
         },
-        { jobId: `${event.eventId}-${unbrand(recipient)}` },
+        // Keyed by the head this notice was judged against, not the event:
+        // corrections handled late, after a later one committed, all describe
+        // that head, so they converge on one notice per recipient.
+        {
+          jobId: `goal-result-revised-${payload.monthlyResultId}-r${facts.revision}-${unbrand(recipient)}`,
+        },
       ),
     ),
   )
