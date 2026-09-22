@@ -67,7 +67,7 @@ export function registerInboxPropertyLifecycleConsumers(
   registerConsumer({
     eventType: 'property.archived',
     consumerName: 'inbox.on-property-archived',
-    module: 'inbox.outbox-consumers',
+    module: 'inbox.property-lifecycle',
     handler: (event) => handleInboxPropertyArchived(deps, event),
   })
 }

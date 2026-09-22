@@ -107,6 +107,7 @@ export type SystemAction =
   | 'system:inbox.update'
   | 'system:inbox.project_review'
   | 'system:inbox.project_guest_feedback'
+  | 'system:inbox.cancel_property_reminders'
   | 'system:ai.trend'
   | 'system:ai.trend_schedule'
   // operator commands
@@ -341,6 +342,15 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:inbox.project_guest_feedback',
     'portal.read',
     'organization',
+  ),
+  // Cancelling an archived Property's Response Target reminders is cleanup:
+  // ungated, because a denied consumer is never retried, and scoped to the
+  // one Property the lifecycle fact names.
+  consumer(
+    'inbox.property-lifecycle',
+    'system:inbox.cancel_property_reminders',
+    'none',
+    'property',
   ),
   consumer(
     'notification.outbox-consumers',
