@@ -12,6 +12,7 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { JobRegistry } from '#/shared/jobs/registry'
 import type { GoogleReviewApiPort } from './application/ports/google-review-api.port'
 import type { PropertySourceEpochPort } from './application/ports/property-source-epoch.port'
+import type { PropertyPublicationScopePort } from './application/ports/property-publication-scope.port'
 import type { ReviewRepository } from './application/ports/review.repository'
 import type { ReviewObservationRepository } from './application/ports/review-observation.repository'
 import type { ReplyRepository } from './application/ports/reply.repository'
@@ -25,7 +26,10 @@ import type {
 import type { TargetedGoogleReviewReferenceResolver } from './application/ports/targeted-google-review-reference.port'
 import type { ReplyQueuePort } from './application/ports/reply-queue.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { PropertySourceEpochPublicApi } from '#/contexts/property/application/public-api'
+import type {
+  PropertyLifecyclePublicApi,
+  PropertySourceEpochPublicApi,
+} from '#/contexts/property/application/public-api'
 import type { AiReplyProvenancePublicKeyring } from './application/ports/ai-suggested-draft-store.port'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
 import { createReviewOrganizationExportContributor } from './infrastructure/adapters/review-organization-export.adapter'
@@ -140,8 +144,8 @@ export type ReviewContextBuildInput = Readonly<{
   staffPublicApi: StaffPublicApi
   /** Identity-owned current actor/member/permission/Property decision. */
   publicationActorAuthority: ReplyPublicationActorAuthority
-  /** Property-owned source epoch used to reject stale provider work. */
-  propertyApi: PropertySourceEpochPublicApi
+  /** Property-owned source epoch and lifecycle used to reject stale provider work. */
+  propertyApi: PropertySourceEpochPublicApi & PropertyLifecyclePublicApi
   /** Worker-only Review provider-subject key material; absent on web. */
   providerSubjectKeyring?: ReviewProviderSubjectSecretKeyring
   /** Web-side verification keys for browser-held AI reply suggestions. */
@@ -411,6 +415,16 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   const propertySourceEpochLookup: PropertySourceEpochPort = {
     getSourceEpoch: (orgId, pid) => input.propertyApi.getSourceEpoch(orgId, pid),
   }
+  // Reply commands refuse up front what the provider authorizer would refuse.
+  const propertyPublicationScope: PropertyPublicationScopePort = {
+    getPublicationScope: async (orgId, pid) => {
+      const [scope, active] = await Promise.all([
+        input.propertyApi.getSourceEpoch(orgId, pid),
+        input.propertyApi.isPropertyActive(orgId, pid),
+      ])
+      return scope ? { active, sourceEpoch: scope.sourceEpoch } : null
+    },
+  }
 
   // BQC-3.3: atomic reply state and outbox writes for the reply command family.
   const replyCommandStore = createAtomicReplyCommandStore(
@@ -440,6 +454,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       : undefined,
     dispatchEvidence,
     googleReplyObservationStore,
+    propertyPublicationScope,
     clock: input.clock,
     idGen: () => replyId(input.idGen()),
     staffPublicApi: input.staffPublicApi,

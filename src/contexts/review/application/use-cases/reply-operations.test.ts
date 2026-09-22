@@ -308,6 +308,9 @@ function makeDeps(overrides: Partial<ReplyDeps> = {}): TestReplyDeps {
         async (): Promise<ReplyDispatchEvidence> => 'possibly_dispatched',
       ),
     },
+    propertyPublicationScope: {
+      getPublicationScope: vi.fn(async () => ({ active: true, sourceEpoch: 0 })),
+    },
     clock: () => NOW,
     idGen: () => REPLY_ID,
     staffPublicApi: makeStaffApi(null),
@@ -1711,5 +1714,108 @@ describe('reply ops — refuse text Google cannot be sent', () => {
     )
     expect(result.text).toBe('Hi Jane,\n\nThank you.')
     expect(deps.queue.addPublishJob).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ── Property publication scope ─────────────────────────────────────────
+//
+// Google is asked to publish only for an active Property at the source epoch
+// the Review was observed at; the provider authorizer refuses anything else,
+// and the worker reports that refusal as "Google rejected the reply". The
+// commands refuse up front, in words, and reserve no publication cycle.
+
+describe('Property publication scope', () => {
+  const REMOVED =
+    "This property has been removed, so RepKey won't send its replies to Google. Restore it from the Removed list to publish this reply."
+  const NOT_RECHECKED =
+    "RepKey hasn't checked this review on Google since its property was restored or reconnected. Try again after the next sync."
+
+  const archived = {
+    getPublicationScope: vi.fn(async () => ({ active: false, sourceEpoch: 1 })),
+  }
+  const restored = {
+    getPublicationScope: vi.fn(async () => ({ active: true, sourceEpoch: 2 })),
+  }
+
+  const expectNoPublicationCycle = (deps: TestReplyDeps) => {
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+  }
+
+  it('refuses to approve a reply for a removed Property and reserves no cycle', async () => {
+    const deps = makeDeps({
+      replyRepo: replyRepoWith(makeReply({ status: 'pending_approval' })),
+      propertyPublicationScope: archived,
+    })
+
+    await expect(
+      approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_transition', message: REMOVED })
+    expect(archived.getPublicationScope).toHaveBeenCalledWith(ORG_ID, PROP_ID)
+    expectNoPublicationCycle(deps)
+  })
+
+  it('refuses to approve until the Review is observed at the restored Property epoch', async () => {
+    const deps = makeDeps({
+      replyRepo: replyRepoWith(makeReply({ status: 'pending_approval' })),
+      reviewRepo: {
+        findById: vi.fn(async () => makeReview({ sourceEpoch: 1 })),
+      } as unknown as ReviewRepository,
+      propertyPublicationScope: restored,
+    })
+
+    await expect(
+      approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_transition', message: NOT_RECHECKED })
+    expectNoPublicationCycle(deps)
+  })
+
+  it('refuses to republish an edited reply for a removed Property', async () => {
+    const deps = makeDeps({
+      replyRepo: replyRepoWith(
+        makeReply({
+          status: 'published',
+          text: 'Old public reply',
+          publicationState: 'published',
+          publicationAttempts: 1,
+          publishedAt: NOW,
+        }),
+      ),
+      propertyPublicationScope: archived,
+    })
+
+    await expect(
+      editPublishedReply(deps)(
+        { reviewId: REVIEW_ID, text: 'Improved public reply' },
+        MANAGER_CTX,
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_transition', message: REMOVED })
+    expectNoPublicationCycle(deps)
+  })
+
+  it('refuses a retry for a removed Property before settling any attempt', async () => {
+    const deps = makeDeps({
+      replyRepo: replyRepoWith(
+        makeReply({
+          status: 'publish_failed',
+          publicationState: 'ambiguous',
+          publicationCycle: 1,
+          publicationAttempts: 2,
+          publicationLastErrorClass: 'ambiguous',
+          reconcileDueAt: NOW,
+        }),
+      ),
+      propertyPublicationScope: archived,
+    })
+    vi.mocked(deps.dispatchEvidence.findDispatchEvidence).mockResolvedValue(
+      'never_dispatched',
+    )
+
+    await expect(
+      retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_transition', message: REMOVED })
+    expect(deps.commandStore.settleNeverDispatchedAttempt).not.toHaveBeenCalled()
+    expectNoPublicationCycle(deps)
   })
 })

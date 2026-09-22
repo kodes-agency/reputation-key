@@ -8,6 +8,7 @@ import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 import type { GoogleReplyObservationStore } from '../ports/google-reply-observation-store.port'
 import type { ReplyPublicationDispatchEvidencePort } from '../ports/reply-publication-dispatch-evidence.port'
 import type { AiSuggestedDraftStore } from '../ports/ai-suggested-draft-store.port'
+import type { PropertyPublicationScopePort } from '../ports/property-publication-scope.port'
 import type { ReplyId, ReviewId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Reply, Review } from '../../domain/types'
@@ -55,6 +56,8 @@ export type ReplyDeps = Readonly<{
    */
   dispatchEvidence: ReplyPublicationDispatchEvidencePort
   googleReplyObservationStore: GoogleReplyObservationStore
+  /** Property lifecycle and source epoch, read before any publication write. */
+  propertyPublicationScope: PropertyPublicationScopePort
   clock: () => Date
   idGen: () => ReplyId
   staffPublicApi: StaffPublicApi
@@ -117,6 +120,34 @@ async function resolvePublicationAuthorizationFence(
     baseObservationRevision: head?.observationRevision ?? 0,
   }
 }
+
+const PROPERTY_REMOVED =
+  "This property has been removed, so RepKey won't send its replies to Google. Restore it from the Removed list to publish this reply."
+const REVIEW_NOT_RECHECKED =
+  "RepKey hasn't checked this review on Google since its property was restored or reconnected. Try again after the next sync."
+
+/**
+ * Refuse, before any write, a publication Google would never be asked to make.
+ * The provider authorizer admits a reply only for an active Property at the
+ * source epoch its Review was observed at, and the worker reports its refusal
+ * as "Google rejected the reply" (urgent, to the author). A removed Property,
+ * or one restored or relinked since the Review was last observed, gets the
+ * real reason here instead, and no publication cycle is reserved.
+ */
+async function assertPropertyAcceptsPublication(
+  deps: Pick<ReplyDeps, 'propertyPublicationScope'>,
+  review: Review,
+): Promise<void> {
+  const scope = await deps.propertyPublicationScope.getPublicationScope(
+    review.organizationId,
+    review.propertyId,
+  )
+  if (!scope?.active) throw reviewError('invalid_transition', PROPERTY_REMOVED)
+  if (scope.sourceEpoch !== review.sourceEpoch) {
+    throw reviewError('invalid_transition', REVIEW_NOT_RECHECKED)
+  }
+}
+
 async function assertCurrentAiDraftBinding(
   deps: ReplyDeps,
   ctx: AuthContext,
@@ -429,6 +460,7 @@ export const approveReply =
   async (input: ApproveReplyInput, ctx: AuthContext): Promise<Reply> => {
     // D6-001: scope reply mutations to the caller's assigned properties.
     const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
+    await assertPropertyAcceptsPublication(deps, review)
     assertReplyTextSendable(reply.text)
     assertReplySlotsFilled(reply.text)
     await assertCurrentAiDraftBinding(deps, ctx, reply)
@@ -516,6 +548,7 @@ export const editPublishedReply =
     if (text === reply.text) {
       return reply
     }
+    await assertPropertyAcceptsPublication(deps, review)
 
     return authorizeAndEnqueuePublication(
       deps,
@@ -636,6 +669,7 @@ export const retryPublish =
     const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
 
     if (isSettledPublishedReply(reply)) return reply
+    await assertPropertyAcceptsPublication(deps, review)
 
     // Any state descended from an unknown provider outcome may be sent again
     // only on positive evidence that the attempt never reached Google (D4).
