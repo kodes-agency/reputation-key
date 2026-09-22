@@ -59,6 +59,14 @@ turned back on. Consequences of that choice, pending product confirmation:
   read by the user. The Organization export reports them as stored, and once
   in-app is back on they show in the feed as read history, one row per event.
 
+Mandatory notices coalesce in-app like any other: every account notice keys
+on the Organization, so a second role change while the first is unread bumps
+that row. Mandatory mail is not coalesced. The repeat's email is anchored on
+the same unread row and keyed on its own event (`event:<eventId>:<userId>:email`),
+so the queue admits one email per mandatory event on one row, where every other
+row still carries at most one. The email renders the row's merged, newest facts,
+and the delivery-lag report times it from its own event, read from that key.
+
 A read or dismiss that lands between the unread lookup and the bump is kept:
 the bump only touches a row that is still unread, and the event opens a fresh
 unread row (with its own email) instead.

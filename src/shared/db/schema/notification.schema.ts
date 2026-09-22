@@ -163,7 +163,12 @@ export const notificationEmailQueue = pgTable(
     uniqueIndex('email_queue_organization_idempotency_unique')
       .on(t.organizationId, t.idempotencyKey)
       .where(sql`${t.propertyId} IS NULL`),
-    uniqueIndex('email_queue_notification_unique').on(t.notificationId),
+    // One email per notification, except mandatory: a mandatory notice is
+    // mailed once per event, and a repeat that ADR 0046 r.2 coalesced in-app
+    // anchors its email on the unread row the first event created.
+    uniqueIndex('email_queue_non_mandatory_notification_unique')
+      .on(t.notificationId)
+      .where(sql`${t.category} <> 'mandatory'`),
     uniqueIndex('email_queue_id_tenant_recipient_unique').on(
       t.id,
       t.organizationId,

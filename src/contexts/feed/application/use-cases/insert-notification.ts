@@ -114,6 +114,14 @@ const resolveChannelPreferences = async (
 
 // ── Email-queue enqueue ─────────────────────────────────────────────
 
+/**
+ * The idempotency key of a mandatory repeat's email: the event, per recipient.
+ * It leads with `event:` so the delivery-lag report can tell it from a row's
+ * own `${notificationId}:email` key and read the source event out of it.
+ */
+export const mandatoryRepeatEmailKey = (eventId: string, userId: string): string =>
+  `event:${eventId}:${userId}:email`
+
 const enqueueImmediateEmailBestEffort = async (
   deps: InsertNotificationDeps,
   notification: DomainNotification,
@@ -146,12 +154,37 @@ const enqueueImmediateEmailBestEffort = async (
   }
 }
 
+/**
+ * A MANDATORY event that landed in an unread row another event created: a
+ * second role change, a second purge-pending notice. ADR 0046 r.2 still
+ * coalesces it in-app, but mandatory notices always go by email, so it gets an
+ * email of its own. A replay of the row's own event is not a repeat.
+ */
+const isMandatoryRepeat = (
+  anchor: DomainNotification,
+  input: InsertNotificationInput,
+): boolean => anchor.category === 'mandatory' && anchor.eventId !== input.eventId
+
+/**
+ * The email a row carries for the event that created it is keyed on the row.
+ * A mandatory repeat's email is anchored on the same row but keyed on its own
+ * event: the row's key would hand back the first event's, already-sent email.
+ */
+const emailKeyFor = (
+  anchor: DomainNotification,
+  input: InsertNotificationInput,
+): string =>
+  isMandatoryRepeat(anchor, input)
+    ? mandatoryRepeatEmailKey(input.eventId, unbrand(input.userId))
+    : `${unbrand(anchor.id)}:email`
+
 // Create + persist the email-queue row. Urgent rows trigger an immediate
 // delivery job; normal rows are left 'pending' for the daily digest.
 const enqueueEmailEntry = async (
   deps: InsertNotificationDeps,
   notification: DomainNotification,
   cadence: NotificationCadence,
+  idempotencyKey: string,
 ): Promise<void> => {
   const emailResult = createNotificationEmail(
     {
@@ -163,7 +196,7 @@ const enqueueEmailEntry = async (
       category: notification.category,
       cadence,
       priority: notification.priority,
-      idempotencyKey: `${unbrand(notification.id)}:email`,
+      idempotencyKey,
       notBefore: null,
     },
     deps.clock,
@@ -227,9 +260,11 @@ export const insertNotification =
     // stamped, payload merged newest-wins, copy re-rendered from the merged
     // facts (so the row can now read "…Updated 3 times", and a re-escalation
     // that has waited longer says so). No second email: the original queue
-    // entry still stands for the same resource. In-app only — an email-only
-    // recipient has no unread row to absorb into, and their anchor is stored
-    // read (step 3) so the database cannot absorb into it either.
+    // entry still stands for the same resource — except for a mandatory
+    // notice, which is mailed once per event (`isMandatoryRepeat`). In-app
+    // only — an email-only recipient has no unread row to absorb into, and
+    // their anchor is stored read (step 3) so the database cannot absorb into
+    // it either.
     if (inAppEnabled) {
       const existing = await deps.notificationRepo.findUnreadByUserTypeResource(
         input.userId,
@@ -244,18 +279,30 @@ export const insertNotification =
         // dismiss committed after the lookup, the event is not the user's old
         // news: it falls through to a fresh unread row (step 3), whose upsert
         // re-coalesces atomically if yet another unread row appeared meanwhile.
-        if (await deps.notificationRepo.refreshUnread(coalesced)) return coalesced
+        if (await deps.notificationRepo.refreshUnread(coalesced)) {
+          if (emailEnabled && isMandatoryRepeat(coalesced, input)) {
+            await enqueueEmailEntry(
+              deps,
+              coalesced,
+              emailCadence,
+              emailKeyFor(coalesced, input),
+            )
+          }
+          return coalesced
+        }
       }
     }
 
-    // 3. Persist the notification row (in-app anchor + email FK)
+    // 3. Persist the notification row (in-app anchor + email FK). The upsert
+    // can still fold this event into an unread row that raced past the lookup;
+    // `emailKeyFor` then treats it as the repeat it is.
     const inserted = await deps.notificationRepo.insert(
       inAppEnabled ? result.value : asEmailOnlyAnchor(result.value),
     )
 
     // 4. Enqueue the email-queue entry when the email channel is on
     if (emailEnabled) {
-      await enqueueEmailEntry(deps, inserted, emailCadence)
+      await enqueueEmailEntry(deps, inserted, emailCadence, emailKeyFor(inserted, input))
     }
 
     // 5. Return notification only if in-app channel is enabled

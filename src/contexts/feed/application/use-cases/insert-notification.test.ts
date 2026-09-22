@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { insertNotification, type InsertNotificationDeps } from './insert-notification'
+import {
+  insertNotification,
+  mandatoryRepeatEmailKey,
+  type InsertNotificationDeps,
+} from './insert-notification'
 import { buildFakeInsertNotificationDeps } from './test-fixtures'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type {
@@ -335,6 +339,90 @@ describe('insertNotification', () => {
       }),
     )
     expect(result).toMatchObject({ status: 'unread', eventId: 'event-2' })
+  })
+
+  // ── Mandatory repeats (ADR 0046: mandatory notices always go by email) ──
+  //
+  // Every account notice keys on (organization, orgId), so a second role change
+  // coalesces into the first one's unread row. The in-app row still coalesces;
+  // the email must not: each mandatory event is mailed, anchored on that row
+  // and keyed on the event, because the row's own `${id}:email` key would hand
+  // back the first, already-sent email.
+
+  const roleChange = (eventId: string) => ({
+    userId: USER_ID,
+    organizationId: ORG_ID,
+    propertyId: null,
+    type: 'account.organization_role_changed' as const,
+    resourceType: 'organization' as const,
+    resourceId: ORG_ID,
+    eventId,
+  })
+
+  it('emails a repeat mandatory notice that coalesced into the unread row', async () => {
+    const first = (await insertNotification(buildFakeInsertNotificationDeps())(
+      roleChange('identity-role-event-1'),
+    )) as Notification
+    ;(
+      deps.notificationRepo.findUnreadByUserTypeResource as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(first)
+
+    const result = await insertNotification(deps)(roleChange('identity-role-event-2'))
+
+    expect(result).toMatchObject({ id: first.id, coalescedCount: 2 })
+    expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
+    expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
+    expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notificationId: first.id,
+        propertyId: null,
+        category: 'mandatory',
+        cadence: 'immediate',
+        idempotencyKey: mandatoryRepeatEmailKey('identity-role-event-2', USER_ID),
+      }),
+    )
+    expect(deps.enqueueImmediateEmail).toHaveBeenCalledOnce()
+    expect(deps.enqueueImmediateEmail).toHaveBeenCalledWith({
+      notificationEmailId: 'email-1',
+      organizationId: 'org-1',
+    })
+  })
+
+  it('emails a mandatory repeat the database folded into a raced unread row', async () => {
+    // Both events passed the unread lookup; the insert's upsert folded this one
+    // into the row the other event created.
+    const raced = (await insertNotification(buildFakeInsertNotificationDeps())(
+      roleChange('identity-role-event-1'),
+    )) as Notification
+    ;(deps.notificationRepo.insert as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...raced,
+      id: 'notif-raced',
+      coalescedCount: 2,
+    })
+
+    await insertNotification(deps)(roleChange('identity-role-event-2'))
+
+    expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
+    expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notificationId: 'notif-raced',
+        idempotencyKey: mandatoryRepeatEmailKey('identity-role-event-2', USER_ID),
+      }),
+    )
+  })
+
+  it('sends no second email when a mandatory event is replayed into its own row', async () => {
+    const first = (await insertNotification(buildFakeInsertNotificationDeps())(
+      roleChange('identity-role-event-1'),
+    )) as Notification
+    ;(
+      deps.notificationRepo.findUnreadByUserTypeResource as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(first)
+
+    await insertNotification(deps)(roleChange('identity-role-event-1'))
+
+    expect(deps.emailRepo.insert).not.toHaveBeenCalled()
+    expect(deps.enqueueImmediateEmail).not.toHaveBeenCalled()
   })
 
   it('stores an email-only anchor already read, so it never holds the unread key', async () => {

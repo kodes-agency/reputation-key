@@ -168,8 +168,17 @@ export const createNotificationDeliveryLagRepository = (
          AND notification.user_id = email.user_id
          AND notification.property_id IS NOT DISTINCT FROM email.property_id
         JOIN active_types ON active_types.notification_type = notification.type
+        -- A mandatory repeat's email is anchored on the unread row an earlier
+        -- event created, but it exists because of its own event, which its
+        -- idempotency key names (mandatoryRepeatEmailKey:
+        -- event:<eventId>:<userId>:email). Every other email is timed from the
+        -- event that created its notification.
         LEFT JOIN ${outboxEvents} AS source_event
-         ON source_event.id::text = notification.event_id
+         ON source_event.id::text = CASE
+              WHEN email.idempotency_key LIKE 'event:%'
+                THEN split_part(email.idempotency_key, ':', 2)
+              ELSE notification.event_id
+            END
          AND source_event.organization_id = email.organization_id
          AND source_event.property_id IS NOT DISTINCT FROM email.property_id::text
         LEFT JOIN routes AS source_route

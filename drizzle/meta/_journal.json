@@ -169,6 +169,13 @@
       "when": 1790400000000,
       "tag": "0024_notification_gap_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790500000000,
+      "tag": "0025_mandatory_repeat_email",
+      "breakpoints": true
     }
   ]
 }

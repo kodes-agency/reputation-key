@@ -32,7 +32,9 @@ Rules:
    delivery/event evidence; event ID is not the uniqueness key. This is an
    in-app rule: a recipient with in-app off gets a read email-only anchor per
    event, so each event is emailed (amended 2026-09-22, pending product
-   confirmation; see the Feed CONTEXT.md).
+   confirmation; see the Feed CONTEXT.md). A mandatory notice coalesces in-app
+   too, but is still emailed once per event: the repeat's email is anchored
+   on the unread row and keyed on its own event (amended 2026-09-22).
 3. Use the user IANA timezone with Organization fallback and test DST.
 4. A multi-Property user receives one digest in their chosen timezone.
 5. Application idempotency outlives the provider's 24-hour dedupe window.
@@ -100,7 +102,8 @@ its receipts and settlements could never be written.
 - Resource coalescing and durable idempotency prevent duplicate delivery for
   in-app recipients. For email-only recipients only durable idempotency does:
   each event is its own email, and deliveries of one resource under different
-  event ids are not merged.
+  event ids are not merged. Mandatory mail is never merged: a second role
+  change or purge-pending notice is a second email.
 - Recognition email requires explicit opt-in.
 - Provider/capability admission remains the outbound activation authority.
 
