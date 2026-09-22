@@ -127,16 +127,19 @@ const renderOrganizationAccessRemoved = (): RenderedNotification => ({
 })
 
 /**
- * LIF-01 program bullet 5. Deliberately states the consequence without naming
- * a deadline the template cannot verify. No shipped page exposes pending-purge
- * actions, so the copy directs the AccountAdmin to support; the generic
- * Organization notification link still opens their profile and says so.
+ * LIF-01 program bullet 5. Purge Pending has no timer: support begins the
+ * irreversible purge, so deletion can start at any time and only support can
+ * cancel it first. The subject leads with "deletion" so a 60-character clip
+ * keeps it. No shipped page exposes pending-purge actions; the generic
+ * Organization link still opens the profile, and the label says so.
  */
-const renderOrganizationPurgePending = (): RenderedNotification => ({
-  title: 'Final notice: this organization is scheduled for permanent deletion',
-  body: 'The recovery window has ended. Data will be permanently erased and cannot be restored. No self-service action is available. Contact support immediately while deletion is still pending.',
+const renderOrganizationPurgePending = (
+  p: NotificationPayload,
+): RenderedNotification => ({
+  title: `Final notice: permanent deletion of ${p.organizationName ?? 'this organization'}`,
+  body: 'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only RepKey support can stop it, and only before it starts. Contact support now.',
   actionLabel: 'Open profile',
-  summary: 'organization purge pending',
+  summary: facts(p.organizationName ?? '', 'permanent deletion pending'),
 })
 
 const renderReviewCreated = (p: NotificationPayload): RenderedNotification => ({

@@ -74,7 +74,7 @@ const makeDeps = () => {
   return {
     queue: fakes.queue,
     userLookup: fakes.userLookup,
-    propertyNames: fakes.propertyNames,
+    displayNames: fakes.displayNames,
     logger: fakes.logger,
     receipts: { insertReceipt: vi.fn(async () => {}) },
     fakes,
@@ -103,9 +103,8 @@ describe('bulk-assignment notification durable consumer', () => {
 
   it('partitions by Property and carries exact current-assignee audiences', async () => {
     const deps = makeDeps()
-    deps.fakes.propertyNames.findPropertyName.mockImplementation(
-      async (_org, property) =>
-        property === PROPERTY_A ? 'Riverside Hotel' : 'Harbour View Suites',
+    deps.fakes.displayNames.findPropertyName.mockImplementation(async (_org, property) =>
+      property === PROPERTY_A ? 'Riverside Hotel' : 'Harbour View Suites',
     )
 
     await expect(

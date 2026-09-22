@@ -47,7 +47,7 @@ const makeDeps = () => {
   return {
     queue: fakes.queue,
     userLookup: fakes.userLookup,
-    propertyNames: fakes.propertyNames,
+    displayNames: fakes.displayNames,
     logger: fakes.logger,
     receipts: { insertReceipt: vi.fn(async () => {}) },
     fakes,

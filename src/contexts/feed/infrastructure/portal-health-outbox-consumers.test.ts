@@ -75,7 +75,7 @@ const makeDeps = () => {
       isEligibleForProperty: vi.fn(async () => true),
     },
     userLookup: { findByRole: vi.fn(async () => [ADMIN]) },
-    propertyNames: { findPropertyName: vi.fn(async () => 'Riverside Hotel') },
+    displayNames: { findPropertyName: vi.fn(async () => 'Riverside Hotel') },
     receipts: { insertReceipt: vi.fn(async () => undefined) },
     logger: {
       debug: vi.fn(),

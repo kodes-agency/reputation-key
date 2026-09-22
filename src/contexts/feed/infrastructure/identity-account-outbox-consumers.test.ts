@@ -48,6 +48,7 @@ const makeDeps = () => {
     queue: fakes.queue,
     receipts: { insertReceipt: vi.fn(async () => undefined) },
     userLookup: fakes.userLookup,
+    displayNames: fakes.displayNames,
     logger: fakes.logger,
     fakes,
   }
@@ -181,9 +182,10 @@ describe('Purge Pending final-notice consumer', () => {
     recordedAt: '2026-09-27T09:30:00.000Z',
   })
 
-  it('sends the notice at purge_pending', async () => {
+  it('sends the notice at purge_pending, naming the organization', async () => {
     const deps = makeDeps()
     deps.fakes.userLookup.findByRole.mockResolvedValue(['admin-1'])
+    deps.fakes.displayNames.findOrganizationName.mockResolvedValue('Riverside Group')
 
     const result = await handleOrganizationPurgePendingNotice(
       deps,
@@ -191,12 +193,14 @@ describe('Purge Pending final-notice consumer', () => {
     )
 
     expect(result).toEqual({ status: 'applied' })
+    expect(deps.fakes.displayNames.findOrganizationName).toHaveBeenCalledWith(ORG)
     expect(deps.queue.add).toHaveBeenCalledWith(
       'insert-notification',
       expect.objectContaining({
         userId: 'admin-1',
         type: 'account.organization_purge_pending',
         eventId: EVENT_ID,
+        payload: { organizationName: 'Riverside Group' },
       }),
       { jobId: `${EVENT_ID}-admin-1` },
     )

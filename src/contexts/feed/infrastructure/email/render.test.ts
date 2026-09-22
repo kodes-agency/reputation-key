@@ -105,6 +105,29 @@ describe('renderNotificationEmail — parts', () => {
   })
 })
 
+describe('renderNotificationEmail — the final deletion notice', () => {
+  const email = renderNotificationEmail({
+    rendered: renderNotification('account.organization_purge_pending', {
+      organizationName: 'The Grand Riverside Metropolitan Hospitality Group',
+    }),
+    actionUrl: 'https://app.test/settings/profile',
+    preferencesUrl: null,
+    priority: 'normal',
+  })
+
+  it('keeps the decision in a subject clipped to 60 characters', () => {
+    expect(email.subject.length).toBeLessThanOrEqual(60)
+    expect(email.subject).toMatch(/^Final notice: permanent deletion of /)
+  })
+
+  it('is mandatory mail that says so accurately and offers no way out', () => {
+    expect(email.html).toContain('You received this required notice')
+    expect(email.html).not.toContain('account access notice')
+    expect(email.html).not.toContain(PREFERENCES_URL)
+    expect(email.text).not.toContain(PREFERENCES_URL)
+  })
+})
+
 describe('renderNotificationEmail — star rating', () => {
   const email = urgent(portalFeedback)
 

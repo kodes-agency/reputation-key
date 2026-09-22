@@ -19,7 +19,7 @@
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InboxItemId, OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
-import type { PropertyNameLookupPort } from '../application/ports/notification-property-name-lookup.port'
+import type { DisplayNameLookupPort } from '../application/ports/notification-display-name-lookup.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type {
   NotificationPayload,
@@ -128,7 +128,7 @@ export const buildInboxItemPayload = async (
 }
 
 export type PropertyPayloadDeps = Readonly<{
-  propertyNames: PropertyNameLookupPort
+  displayNames: Pick<DisplayNameLookupPort, 'findPropertyName'>
   logger: LoggerPort
 }>
 
@@ -143,7 +143,23 @@ export const buildPropertyPayload = async (
   propertyId: PropertyId,
 ): Promise<NotificationPayload> => {
   const name = await attempt(deps.logger, 'property name', () =>
-    deps.propertyNames.findPropertyName(orgId, propertyId),
+    deps.displayNames.findPropertyName(orgId, propertyId),
   )
   return name === null ? {} : { propertyName: name }
+}
+
+export type OrganizationPayloadDeps = Readonly<{
+  displayNames: Pick<DisplayNameLookupPort, 'findOrganizationName'>
+  logger: LoggerPort
+}>
+
+/** The Organization's name for an Organization-scoped notice. */
+export const buildOrganizationPayload = async (
+  deps: OrganizationPayloadDeps,
+  orgId: OrganizationId,
+): Promise<NotificationPayload> => {
+  const name = await attempt(deps.logger, 'organization name', () =>
+    deps.displayNames.findOrganizationName(orgId),
+  )
+  return name === null ? {} : { organizationName: name }
 }

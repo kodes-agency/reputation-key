@@ -44,7 +44,7 @@ const makeDeps = () => {
   return {
     queue: fakes.queue,
     userLookup: fakes.userLookup,
-    propertyNames: fakes.propertyNames,
+    displayNames: fakes.displayNames,
     logger: fakes.logger,
     receipts: { insertReceipt: vi.fn(async () => {}) },
     fakes,
@@ -101,7 +101,7 @@ describe('Property notification durable consumer', () => {
         scope: { kind: 'property', propertyId: NOTIF_TEST_IDS.propId },
       },
     })
-    expect(deps.fakes.propertyNames.findPropertyName).toHaveBeenCalledWith(
+    expect(deps.fakes.displayNames.findPropertyName).toHaveBeenCalledWith(
       NOTIF_TEST_IDS.orgId,
       NOTIF_TEST_IDS.propId,
     )
@@ -110,7 +110,7 @@ describe('Property notification durable consumer', () => {
   it('still asks when the Property name cannot be read', async () => {
     const deps = makeDeps()
     deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
-    deps.fakes.propertyNames.findPropertyName.mockRejectedValue(new Error('db down'))
+    deps.fakes.displayNames.findPropertyName.mockRejectedValue(new Error('db down'))
 
     await handleNotificationPropertyResponsibilityNeeded(deps, event())
 

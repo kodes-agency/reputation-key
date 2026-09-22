@@ -429,13 +429,20 @@ describe('notificationLink', () => {
     })
   })
 
-  it('renders pending-purge copy without implying self-service', () => {
-    expect(renderNotification('account.organization_purge_pending', {})).toEqual({
-      title: 'Final notice: this organization is scheduled for permanent deletion',
-      body: 'The recovery window has ended. Data will be permanently erased and cannot be restored. No self-service action is available. Contact support immediately while deletion is still pending.',
+  it('names the organization in the final deletion notice and says what, when and who can stop it', () => {
+    expect(
+      renderNotification('account.organization_purge_pending', {
+        organizationName: 'Riverside Group',
+      }),
+    ).toEqual({
+      title: 'Final notice: permanent deletion of Riverside Group',
+      body: 'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only RepKey support can stop it, and only before it starts. Contact support now.',
       actionLabel: 'Open profile',
-      summary: 'organization purge pending',
+      summary: 'Riverside Group · permanent deletion pending',
     })
+    expect(renderNotification('account.organization_purge_pending', {}).title).toBe(
+      'Final notice: permanent deletion of this organization',
+    )
   })
 
   it('deep-links an inbox item through typed search params', () => {

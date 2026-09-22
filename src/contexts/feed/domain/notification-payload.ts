@@ -12,7 +12,7 @@
 // THE BOUNDARY (ADR 0046 r.8, ADR 0031, BQC-1.2). Payload carries
 // "property/resource/status metadata" ONLY:
 //
-//   ALLOWED   tenant-authored property and goal names, the locally collected
+//   ALLOWED   tenant-authored organization, property and goal names, the locally collected
 //             1-5 guest rating, actor ROLE, counts, when a wait began, platform
 //             enum, whether an approver gave a reason, how a publication
 //             ended (closed enum), and an internal moderation reason
@@ -43,6 +43,8 @@ export type NotificationPayload = Readonly<{
    * except the Google connection's, whose Property is only a delivery anchor.
    */
   propertyName?: string
+  /** Tenant-authored organization name (Organization-scoped notices). */
+  organizationName?: string
   /** Locally collected 1-5 guest rating; valid only with platform=portal. */
   guestRating?: NotificationGuestRating
   /** Review source platform. */
@@ -193,6 +195,7 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   }
 
   set('propertyName', takeText(raw.propertyName, MAX_NAME_LENGTH))
+  set('organizationName', takeText(raw.organizationName, MAX_NAME_LENGTH))
   const platform = takeMember<NotificationPlatform>(raw.platform, PLATFORMS)
   set('platform', platform)
   if (platform === 'portal') {

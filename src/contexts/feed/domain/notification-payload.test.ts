@@ -145,6 +145,13 @@ describe('parseNotificationPayload', () => {
     })
   })
 
+  it('keeps the organization display name as a trimmed name', () => {
+    expect(
+      parseNotificationPayload({ organizationName: '  Riverside Group  ' })
+        .organizationName,
+    ).toBe('Riverside Group')
+  })
+
   describe('when a wait began', () => {
     it('keeps a valid instant in ISO form', () => {
       expect(
