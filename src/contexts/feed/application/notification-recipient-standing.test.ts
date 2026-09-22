@@ -75,7 +75,7 @@ describe('notification recipient standing at send time', () => {
         portalId: 'portal-1',
         status: 'degraded',
         reason: 'google_destination_unavailable',
-        sourceVersion: 'v1',
+        effectiveFrom: '2026-09-21T06:00:00.000Z',
       }),
     ).resolves.toBe(false)
     expect(deps.responsibleManagers.findForPortal).toHaveBeenCalledWith(ORG, 'portal-1')
