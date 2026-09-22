@@ -60,6 +60,7 @@ export function buildFakeInsertNotificationDeps(): FakeInsertNotificationDeps {
       markFailed: vi.fn(async () => {}),
       markSuppressed: vi.fn(async () => {}),
       recordProviderState: vi.fn(async () => []),
+      findProviderMessageRecipients: vi.fn(async () => []),
       findDueRecipients: vi.fn(async () => []),
       findDueByUser: vi.fn(async () => []),
       suppressRecipient: vi.fn(async () => 0),

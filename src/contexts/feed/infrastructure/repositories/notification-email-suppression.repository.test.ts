@@ -119,6 +119,43 @@ describe.sequential('durable email suppression (real PostgreSQL)', () => {
     await expect(repo.isAddressSuppressed(ADDRESS)).resolves.toBe(true)
   })
 
+  it('writes a complaint the first delivery lost once the provider retries it', async () => {
+    const repo = createNotificationEmailRepository(db)
+    await repo.markAccepted(EMAIL, ORG, PROPERTY, 'resend-suppression-1', NOW)
+    const event = {
+      type: 'email.complained',
+      providerMessageId: 'resend-suppression-1',
+      occurredAt: LATER,
+      eventId: 'msg_suppression',
+    }
+    // The status change commits; the suppression write after it fails.
+    await expect(
+      applyResendEvent(
+        {
+          emailRepo: repo,
+          userLookup: {
+            getEmail: async () => {
+              throw new Error('identity store unavailable')
+            },
+          },
+          logger: createFakeJobLogger(),
+        },
+        event,
+      ),
+    ).rejects.toThrow('identity store unavailable')
+
+    await applyResendEvent(
+      {
+        emailRepo: repo,
+        userLookup: { getEmail: async () => ADDRESS },
+        logger: createFakeJobLogger(),
+      },
+      event,
+    )
+
+    await expect(repo.isAddressSuppressed(ADDRESS)).resolves.toBe(true)
+  })
+
   it('keeps a spam complaint as durably as a hard bounce', async () => {
     const repo = await deliverEvent('email.complained')
 

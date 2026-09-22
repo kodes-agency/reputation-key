@@ -83,7 +83,10 @@ export type ResendEventInput = Readonly<{
 }>
 
 export type ResendEventResult = Readonly<{
-  /** Whether the event moved any queue row. */
+  /**
+   * Whether the event took effect: it moved a queue row, or re-applied the
+   * suppression of a message whose row an earlier delivery already moved.
+   */
   applied: boolean
   /** Rows moved by this event. */
   rows: number
@@ -151,7 +154,23 @@ export async function applyResendEvent(
     state,
     input.occurredAt,
   )
+  const reason = suppressionReasonFor(state, input.bounceType)
   if (moved.length === 0) {
+    // The state change commits on its own, before the suppression below. If
+    // that suppression failed, the provider retries into a row that no longer
+    // moves; the address must still be refused. Both writes are idempotent,
+    // so re-applying them on any refusal of a message that is ours is safe.
+    const owned = reason
+      ? await deps.emailRepo.findProviderMessageRecipients(input.providerMessageId)
+      : []
+    if (reason && owned.length > 0) {
+      const suppressed = await suppressRecipients(deps, owned, reason, input.occurredAt)
+      deps.logger.warn(
+        { eventType: input.type, deliveryState: state, suppressed, correlationId },
+        'Resend event re-applied the suppression of a message already recorded',
+      )
+      return { applied: true, rows: 0, suppressed }
+    }
     // Either the provider message id is not ours (a stale webhook from a
     // rotated account) or the transition would go backwards. Both are worth a
     // line: a silent no-op here looks exactly like a working webhook.
@@ -162,7 +181,6 @@ export async function applyResendEvent(
     return { applied: false, rows: 0, suppressed: 0, reason: 'unknown_message' }
   }
 
-  const reason = suppressionReasonFor(state, input.bounceType)
   if (!reason) {
     const fields = {
       eventType: input.type,

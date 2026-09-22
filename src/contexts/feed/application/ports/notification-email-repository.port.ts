@@ -188,6 +188,15 @@ export type NotificationEmailRepositoryPort = Readonly<{
     occurredAt: Date,
   ): Promise<readonly ProviderStateTransition[]>
   /**
+   * Every queue row the provider knows by this message id, whatever its
+   * state: a digest's members share one. Lets a retried event re-apply a
+   * suppression its first delivery committed the state change for but failed
+   * to write.
+   */
+  findProviderMessageRecipients(
+    providerMessageId: string,
+  ): Promise<readonly ProviderStateTransition[]>
+  /**
    * Stop mailing a dead address: suppress every still-sendable row the
    * recipient has in this organization. Returns the number of rows suppressed.
    */

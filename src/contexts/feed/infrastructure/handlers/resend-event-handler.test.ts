@@ -18,10 +18,15 @@ const movedRow = (user = 'user-1', org = 'org-1') => ({
 })
 
 function fakeDeps(
-  overrides: Partial<{ moved: ReturnType<typeof movedRow>[]; suppressed: number }> = {},
+  overrides: Partial<{
+    moved: ReturnType<typeof movedRow>[]
+    owned: ReturnType<typeof movedRow>[]
+    suppressed: number
+  }> = {},
 ) {
   const emailRepo = {
     recordProviderState: vi.fn(async () => overrides.moved ?? [movedRow()]),
+    findProviderMessageRecipients: vi.fn(async () => overrides.owned ?? []),
     suppressRecipient: vi.fn(async () => overrides.suppressed ?? 3),
     suppressAddress: vi.fn(async () => {}),
   }
@@ -242,5 +247,48 @@ describe('resend delivery event handler (ADR 0046 r.6)', () => {
       expect.stringContaining('matched no queue row'),
     )
     expect(deps.emailRepo.suppressRecipient).not.toHaveBeenCalled()
+  })
+
+  describe('a retried event whose row already moved', () => {
+    // The status change commits before the suppression is written. When the
+    // suppression then fails, the provider retries, but the row is already
+    // `complained`: nothing moves, and the suppression must still be written.
+    it('writes the suppression the first delivery failed to record', async () => {
+      const deps = fakeDeps({ moved: [], owned: [movedRow()] })
+
+      const result = await run(deps, 'email.complained')
+
+      expect(deps.emailRepo.findProviderMessageRecipients).toHaveBeenCalledWith('prov-1')
+      expect(deps.emailRepo.suppressAddress).toHaveBeenCalledWith(
+        'user-1@example.com',
+        'complained',
+        OCCURRED_AT,
+      )
+      expect(deps.emailRepo.suppressRecipient).toHaveBeenCalledWith(
+        userId('user-1'),
+        organizationId('org-1'),
+        'provider_complained',
+        OCCURRED_AT,
+      )
+      expect(result).toEqual({ applied: true, rows: 0, suppressed: 3 })
+    })
+
+    it('still ends only the message for a transient bounce', async () => {
+      const deps = fakeDeps({ moved: [], owned: [movedRow()] })
+
+      const result = await run(deps, 'email.bounced', 'Transient')
+
+      expect(deps.emailRepo.suppressAddress).not.toHaveBeenCalled()
+      expect(result.reason).toBe('unknown_message')
+    })
+
+    it('reports a message that is not ours as unknown', async () => {
+      const deps = fakeDeps({ moved: [], owned: [] })
+
+      const result = await run(deps, 'email.bounced', 'Permanent')
+
+      expect(deps.emailRepo.suppressAddress).not.toHaveBeenCalled()
+      expect(result.reason).toBe('unknown_message')
+    })
   })
 })

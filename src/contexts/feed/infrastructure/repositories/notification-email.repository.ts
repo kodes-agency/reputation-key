@@ -166,6 +166,28 @@ const PROVIDER_STATE_PREDECESSORS: Readonly<
  */
 const PROVIDER_SUPPRESSION_REASON = 'provider_suppressed'
 
+/** What a provider event needs to know about each row it concerns. */
+const TRANSITION_COLUMNS = {
+  id: notificationEmailQueue.id,
+  userId: notificationEmailQueue.userId,
+  organizationId: notificationEmailQueue.organizationId,
+  propertyId: notificationEmailQueue.propertyId,
+}
+
+const transitionFromRow = (
+  row: Readonly<{
+    id: string
+    userId: string
+    organizationId: string
+    propertyId: string | null
+  }>,
+): ProviderStateTransition => ({
+  emailId: notificationEmailId(row.id),
+  userId: toUserId(row.userId),
+  organizationId: toOrgId(row.organizationId),
+  propertyId: row.propertyId === null ? null : toPropertyId(row.propertyId),
+})
+
 /** The columns each provider-reported state writes. */
 const providerStateColumns = (state: ProviderDeliveryState, occurredAt: Date) => {
   switch (state) {
@@ -504,18 +526,18 @@ export const createNotificationEmailRepository = (db: Database) => ({
           inArray(notificationEmailQueue.status, [...PROVIDER_STATE_PREDECESSORS[state]]),
         ),
       )
-      .returning({
-        id: notificationEmailQueue.id,
-        userId: notificationEmailQueue.userId,
-        organizationId: notificationEmailQueue.organizationId,
-        propertyId: notificationEmailQueue.propertyId,
-      })
-    return rows.map((row) => ({
-      emailId: notificationEmailId(row.id),
-      userId: toUserId(row.userId),
-      organizationId: toOrgId(row.organizationId),
-      propertyId: row.propertyId === null ? null : toPropertyId(row.propertyId),
-    }))
+      .returning(TRANSITION_COLUMNS)
+    return rows.map(transitionFromRow)
+  },
+
+  findProviderMessageRecipients: async (
+    providerMessageId: string,
+  ): Promise<readonly ProviderStateTransition[]> => {
+    const rows = await db
+      .select(TRANSITION_COLUMNS)
+      .from(notificationEmailQueue)
+      .where(eq(notificationEmailQueue.providerMessageId, providerMessageId))
+    return rows.map(transitionFromRow)
   },
 
   /**
