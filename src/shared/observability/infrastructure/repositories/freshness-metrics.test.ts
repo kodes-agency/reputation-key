@@ -6,9 +6,9 @@
 //
 //   sync.oldestDueAgeMs — MIN over PAST-DUE next_incremental_at only, so a
 //     property parked in the future can never inflate it.
-//   notifications.* — "overdue" is COALESCE(next_attempt_at, not_before,
-//     created_at) in the past, only for status='pending'; attemptedStuckCount
-//     is the subset the delivery path already touched.
+//   notifications.* — "overdue" is a still-sendable row whose due time (the
+//     later of next_attempt_at and not_before, else created_at) has passed;
+//     attemptedStuckCount is the subset the delivery path already touched.
 //
 // Determinism: the scratch database is shared, so every assertion is a DELTA
 // over a pre-seed baseline (counts) or a lower bound (MIN ages — a leftover
@@ -380,6 +380,27 @@ describe('notification email stall aggregate (real reads)', () => {
     expect(after.pendingOverdueCount).toBe(baseline.pendingOverdueCount + 2)
     expect(after.attemptedStuckCount).toBe(baseline.attemptedStuckCount + 2)
     expect(after.oldestAttemptedStuckAgeMs!).toBeGreaterThanOrEqual(179 * MINUTE_MS)
+  })
+
+  it('holds a row until BOTH its retry time and its quiet-hours end have passed', async () => {
+    const baseline = (await checker.check()).notifications
+    await seedProperty()
+
+    // A transient failure at 21:30 (retry due 21:34), then a quiet-hours hold
+    // until 07:00: markDelayed leaves the old next_attempt_at behind, and the
+    // sender needs both gates open, so the row is not due before 07:00.
+    await seedEmail({
+      key: 'obs-stall-held-after-retry',
+      status: 'delayed',
+      nextAttempt: sql`NOW() - INTERVAL '3 hours'`,
+      notBefore: sql`NOW() + INTERVAL '5 hours'`,
+      attempted: true,
+    })
+
+    const after = (await checker.check()).notifications
+
+    expect(after.pendingOverdueCount).toBe(baseline.pendingOverdueCount)
+    expect(after.attemptedStuckCount).toBe(baseline.attemptedStuckCount)
   })
 })
 

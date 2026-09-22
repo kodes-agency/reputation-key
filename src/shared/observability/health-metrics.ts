@@ -216,7 +216,8 @@ export type HealthSnapshot = Readonly<{
     /**
      * Still-sendable email rows — pending, held for quiet hours (`delayed`),
      * or a transient failure under the retry budget — whose due time
-     * (next_attempt_at → not_before → created_at) has already passed.
+     * (the later of next_attempt_at and not_before, else created_at) has
+     * already passed.
      */
     pendingOverdueCount: number
     /** Age of the oldest overdue sendable row (null when none is overdue). */
@@ -602,8 +603,10 @@ function toEmailOutcomes(row: EmailOutcomeRow | undefined): NotificationEmailOut
  * time, how far past, and how many of those the delivery path already tried;
  * and what became of the mail it did attempt (emailOutcomeAggregates).
  *
- * Due time is `next_attempt_at` (a scheduled retry) → `not_before` (a cadence
- * hold) → `created_at` (send as soon as the sweep gets to it). The threshold
+ * Due time is the LATER of `next_attempt_at` (a scheduled retry) and
+ * `not_before` (a cadence or quiet-hours hold) — the sender needs both gates
+ * open, and a hold leaves an earlier retry's `next_attempt_at` behind — else
+ * `created_at` (send as soon as the sweep gets to it). The threshold
  * lives in the alert definition, not here: this read reports the age, the
  * policy decides what age is too old.
  */
@@ -612,7 +615,7 @@ async function readNotificationEmailMetrics(
   emailDeliveryEnabled: boolean,
 ): Promise<NotificationEmailMetrics> {
   const q = notificationEmailQueue
-  const dueAt = sql`COALESCE(${q.nextAttemptAt}, ${q.notBefore}, ${q.createdAt})`
+  const dueAt = sql`COALESCE(GREATEST(${q.nextAttemptAt}, ${q.notBefore}), ${q.createdAt})`
   // The delivery path's own "still sendable" set (dueForCadence, minus its
   // time gates): a transient failure under the budget is a scheduled retry.
   const sendable = sql`(

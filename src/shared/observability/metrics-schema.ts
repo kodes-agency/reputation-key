@@ -508,7 +508,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.pendingOverdueCount'],
     emitted: true,
     description:
-      'Queued notification emails still sendable — pending, held for quiet hours (delayed), or a transient failure under the retry budget — past their due time (next_attempt_at → not_before → created_at).',
+      'Queued notification emails still sendable — pending, held for quiet hours (delayed), or a transient failure under the retry budget — past their due time (the later of next_attempt_at and not_before, else created_at).',
   }),
   def({
     name: 'notification.email.oldest_pending_overdue_age_ms',
