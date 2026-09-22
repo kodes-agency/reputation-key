@@ -121,12 +121,13 @@ function baseDeps(options: Options = {}) {
           unsubscribeKeyVersion: input.unsubscribeKeyVersion,
           state: 'prepared' as const,
           retryCount: 0,
-          lastAttemptRefused: false,
+          everyAttemptRefused: false,
           createdAt: input.preparedAt,
           updatedAt: input.preparedAt,
         },
         created: true,
       })),
+      startDigestAttempt: vi.fn(async () => true),
       settleDigestBatch: vi.fn(async () => true),
     },
     preferenceRepo: {
@@ -404,6 +405,33 @@ describe('digest idempotency (ADR 0046 r.5)', () => {
     )
   })
 
+  it('records that an attempt started before it calls the provider', async () => {
+    const deps = baseDeps()
+
+    await runHandler(deps)
+
+    const batchId = deps.emailRepo.prepareDigestBatch.mock.calls[0]![0].id
+    expect(deps.emailRepo.startDigestAttempt).toHaveBeenCalledWith({
+      batchId,
+      organizationId: organizationId(ORG),
+      userId: userId(USER),
+      startedAt: NOW,
+    })
+    expect(deps.emailRepo.startDigestAttempt.mock.invocationCallOrder[0]!).toBeLessThan(
+      deps.emailSender.send.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('calls no provider for a batch that closed before its attempt could start', async () => {
+    const deps = baseDeps()
+    deps.emailRepo.startDigestAttempt.mockResolvedValue(false)
+
+    await runHandler(deps)
+
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expect(deps.emailRepo.settleDigestBatch).not.toHaveBeenCalled()
+  })
+
   it('settles the batch and every exact member in one repository transaction', async () => {
     const deps = baseDeps()
 
@@ -457,7 +485,7 @@ describe('digest idempotency (ADR 0046 r.5)', () => {
         ...prepared,
         state: 'retryable',
         retryCount: 1,
-        lastAttemptRefused: false,
+        everyAttemptRefused: false,
       },
       batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
     })
@@ -924,7 +952,7 @@ describe('digest retries after the content changed', () => {
     // Refused (a rate limit) means never accepted, so the old key protects
     // nothing. Suppressing the members lost the whole day's digest.
     const { batch } = await freeze()
-    const refused = { ...batch, state: 'retryable' as const, lastAttemptRefused: true }
+    const refused = { ...batch, state: 'retryable' as const, everyAttemptRefused: true }
     const retry = baseDeps({
       openBatch: refused,
       batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
@@ -966,7 +994,7 @@ describe('digest retries after the content changed', () => {
   it('does not re-prepare when another worker changed the refused batch first', async () => {
     const { batch } = await freeze()
     const retry = baseDeps({
-      openBatch: { ...batch, state: 'retryable', lastAttemptRefused: true },
+      openBatch: { ...batch, state: 'retryable', everyAttemptRefused: true },
       batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
     })
     retry.userLookup.getName.mockResolvedValue('Alexandra')

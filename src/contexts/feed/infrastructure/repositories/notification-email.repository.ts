@@ -45,11 +45,25 @@ type EmailRow = typeof notificationEmailQueue.$inferSelect
 type DigestBatchRow = typeof notificationDigestBatches.$inferSelect
 
 /**
- * `outcome_class` of a retryable batch whose last attempt the provider refused
- * before accepting anything. Any other transient rejection records
- * `transient`: the provider may have accepted that attempt.
+ * `outcome_class` of a retryable batch the provider refused on EVERY attempt,
+ * before accepting anything. Only such a batch may be re-keyed: its key
+ * protects no delivered mail.
  */
 const REFUSED_OUTCOME_CLASS = 'refused'
+
+/**
+ * `outcome_class` of an attempt recorded as started, while every earlier
+ * attempt was refused. The settlement turns it into `refused` only when the
+ * provider refused this attempt too; a worker that dies mid-call leaves it
+ * here, and the next start reads it as possibly accepted.
+ */
+const IN_FLIGHT_OUTCOME_CLASS = 'in_flight'
+
+/**
+ * `outcome_class` once any attempt may have been accepted — a 5xx, a timeout,
+ * a lost answer or a lost worker. Sticky: a later refusal cannot clear it.
+ */
+const POSSIBLY_ACCEPTED_OUTCOME_CLASS = 'transient'
 
 const emailFromRow = (row: EmailRow): NotificationEmail => ({
   id: notificationEmailId(row.id),
@@ -92,7 +106,7 @@ const digestBatchFromRow = (row: DigestBatchRow): NotificationDigestBatch => ({
   unsubscribeKeyVersion: row.unsubscribeKeyVersion,
   state: row.state as NotificationDigestBatch['state'],
   retryCount: row.retryCount,
-  lastAttemptRefused:
+  everyAttemptRefused:
     row.state === 'retryable' && row.outcomeClass === REFUSED_OUTCOME_CLASS,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
@@ -759,6 +773,36 @@ export const createNotificationEmailRepository = (db: Database) => ({
     })
   },
 
+  startDigestAttempt: async (input: {
+    batchId: string
+    organizationId: string
+    userId: string
+    startedAt: Date
+  }): Promise<boolean> => {
+    const rows = await db
+      .update(notificationDigestBatches)
+      .set({
+        outcomeClass: sql`CASE
+          WHEN ${notificationDigestBatches.outcomeClass} IS NULL
+            OR ${notificationDigestBatches.outcomeClass} = ${REFUSED_OUTCOME_CLASS}
+          THEN ${IN_FLIGHT_OUTCOME_CLASS}
+          ELSE ${POSSIBLY_ACCEPTED_OUTCOME_CLASS}
+        END`,
+        attemptedAt: input.startedAt,
+        updatedAt: input.startedAt,
+      })
+      .where(
+        and(
+          eq(notificationDigestBatches.id, input.batchId),
+          eq(notificationDigestBatches.organizationId, input.organizationId),
+          eq(notificationDigestBatches.userId, input.userId),
+          inArray(notificationDigestBatches.state, ['prepared', 'retryable']),
+        ),
+      )
+      .returning({ id: notificationDigestBatches.id })
+    return rows.length > 0
+  },
+
   settleDigestBatch: async (input: {
     batchId: string
     organizationId: string
@@ -795,7 +839,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
       // Re-keying a batch the provider may have accepted could mail it twice.
       if (
         input.settlement.kind === 'superseded' &&
-        !digestBatchFromRow(batch).lastAttemptRefused
+        !digestBatchFromRow(batch).everyAttemptRefused
       ) {
         return false
       }
@@ -970,8 +1014,12 @@ export const createNotificationEmailRepository = (db: Database) => ({
         .update(notificationDigestBatches)
         .set({
           state: retryable ? 'retryable' : 'terminal',
+          // Refused only when this attempt was refused AND every earlier
+          // one was: the start of this attempt left `in_flight` only then.
           outcomeClass:
-            retryable && input.settlement.refusedBeforeAcceptance
+            retryable &&
+            input.settlement.refusedBeforeAcceptance &&
+            batch.outcomeClass === IN_FLIGHT_OUTCOME_CLASS
               ? REFUSED_OUTCOME_CLASS
               : input.settlement.classification,
           terminalReason: retryable ? null : 'provider_rejected',

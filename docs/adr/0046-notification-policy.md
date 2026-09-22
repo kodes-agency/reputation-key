@@ -47,9 +47,12 @@ delivered|delayed|bounced|complained|failed|suppressed|cancelled`.
 A daily digest is frozen as a batch with one idempotency key (r.5), and every
 retry must send the same content under it; its date label comes from the
 batch's local date, not the retry's clock. If the content changes before a
-retry, a batch the provider refused outright (a rate or quota limit) is retired
-and its members are re-sent in a new batch under a new key. Any other batch may
-already have been accepted, so it fails closed rather than mail twice.
+retry, a batch the provider refused outright (a rate or quota limit) on every
+attempt is retired and its members are re-sent in a new batch under a new key.
+Any other batch may already have been accepted, so it fails closed rather than
+mail twice. Each attempt is recorded as started before the provider call, so
+an attempt whose worker never reported back counts as possibly accepted, and
+no later refusal makes the batch look safe to re-key.
 
 In the queue, `delayed` (r.6) is the pre-send quiet-hours deferral and stays
 sendable. A delivery delay the provider reports after acceptance is recorded

@@ -429,6 +429,22 @@ async function dispatch(
   contentDigest: string,
 ): Promise<void> {
   const maxRetry = Math.max(...items.map((item) => item.entry.retryCount))
+  // Before the call, never after: an attempt that never reports back must
+  // count as possibly accepted, or a later refusal would make the batch look
+  // safe to re-key.
+  const started = await deps.emailRepo.startDigestAttempt({
+    batchId: batch.id,
+    organizationId: ctx.orgId,
+    userId: ctx.userId,
+    startedAt: ctx.now,
+  })
+  if (!started) {
+    deps.logger.warn(
+      { batchId: batch.id },
+      'Digest attempt not started because the batch closed first',
+    )
+    return
+  }
 
   try {
     const outcome = await deps.emailSender.send({
@@ -599,8 +615,8 @@ async function abandonDelivery(
 }
 
 /**
- * A batch the provider refused outright (a rate or quota limit) was never
- * accepted, so its idempotency key protects no delivered mail. When its content
+ * A batch the provider refused outright on every attempt (a rate or quota
+ * limit) was never accepted, so its idempotency key protects no delivered mail. When its content
  * has changed since — a repeat event coalesced into a member, the recipient was
  * renamed — the batch is retired and the same members go out in a fresh batch
  * under a new key, rather than the day's digest being suppressed.
@@ -680,7 +696,7 @@ async function retryOpenBatch(
     return
   }
   if (contentDigest !== openBatch.contentDigest) {
-    if (openBatch.lastAttemptRefused) {
+    if (openBatch.everyAttemptRefused) {
       await reprepareRefusedBatch(
         deps,
         ctx,

@@ -72,6 +72,7 @@ export function buildFakeInsertNotificationDeps(): FakeInsertNotificationDeps {
       prepareDigestBatch: vi.fn(async () => {
         throw new Error('prepareDigestBatch is outside this fixture scope')
       }),
+      startDigestAttempt: vi.fn(async () => false),
       settleDigestBatch: vi.fn(async () => false),
     },
     preferenceRepo: {

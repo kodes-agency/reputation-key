@@ -62,11 +62,12 @@ export type NotificationDigestBatch = Readonly<{
   state: NotificationDigestBatchState
   retryCount: number
   /**
-   * A retryable batch whose last attempt the provider refused before accepting
+   * A retryable batch the provider refused on every attempt, before accepting
    * anything: its idempotency key protects no delivered mail, so it may be
-   * re-keyed. False whenever the provider may have accepted an attempt.
+   * re-keyed. False once any attempt may have been accepted, including one
+   * whose worker never reported back.
    */
-  lastAttemptRefused: boolean
+  everyAttemptRefused: boolean
   createdAt: Date
   updatedAt: Date
 }>
@@ -96,9 +97,9 @@ export type DigestBatchSettlement =
     }>
   | Readonly<{
       /**
-       * Retire a batch whose last attempt was refused and whose content has
-       * changed since, and free its members for a fresh batch under a new key.
-       * Refused unless the batch really is `lastAttemptRefused`.
+       * Retire a batch whose content has changed since it was frozen, and free
+       * its members for a fresh batch under a new key. Refused unless the
+       * batch really is `everyAttemptRefused`.
        */
       kind: 'superseded'
       detectedAt: Date
@@ -257,6 +258,17 @@ export type NotificationEmailRepositoryPort = Readonly<{
     unsubscribeKeyVersion: string
     preparedAt: Date
   }): Promise<PreparedNotificationDigestBatch>
+  /**
+   * Record that a provider attempt is starting, BEFORE the call: an attempt
+   * that never reports back must count as possibly accepted. False when the
+   * batch is no longer open, and nothing may be sent for it.
+   */
+  startDigestAttempt(input: {
+    batchId: NotificationDigestBatchId
+    organizationId: OrganizationId
+    userId: UserId
+    startedAt: Date
+  }): Promise<boolean>
   /** Update the batch and every exact member in one transaction. */
   settleDigestBatch(input: {
     batchId: NotificationDigestBatchId
