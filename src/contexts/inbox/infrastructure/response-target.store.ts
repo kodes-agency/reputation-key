@@ -965,6 +965,8 @@ export const createResponseTargetStore = (db: Database): ResponseTargetStore => 
   // terminal column, so Restore never re-arms a slot (repair rules in
   // docs/operations/inbox-response-targets.md). A Property that is active
   // again by delivery time means the fact arrived late: it cancels nothing.
+  // The row is read FOR SHARE so a Restore in flight commits before this
+  // decides (and the Restore wins) or waits until the cancellation commits.
   cancelArchivedPropertyRemindersOnce: async ({
     eventId,
     consumerName,
@@ -978,6 +980,7 @@ export const createResponseTargetStore = (db: Database): ResponseTargetStore => 
           .select({ lifecycleState: properties.lifecycleState })
           .from(properties)
           .where(and(eq(properties.organizationId, orgId), eq(properties.id, pid)))
+          .for('share')
           .limit(1)
         const status =
           property && property.lifecycleState !== 'active' ? 'applied' : 'obsolete'

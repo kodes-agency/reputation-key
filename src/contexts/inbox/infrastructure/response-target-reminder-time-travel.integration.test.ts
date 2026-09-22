@@ -147,6 +147,26 @@ function inboxWorkerConsumers(clock: () => Date) {
   return registry
 }
 
+/**
+ * Resolves 'waiting' once a backend is blocked reading the Property row under
+ * a lock, or 'gave_up' when `stop` reports the delivery already settled.
+ */
+async function waitForPropertyLockWait(
+  stop: () => boolean,
+): Promise<'waiting' | 'gave_up'> {
+  for (;;) {
+    const waiting = await pool.query(
+      `SELECT 1
+       FROM pg_stat_activity
+       WHERE wait_event_type = 'Lock'
+         AND query ILIKE '%from "properties"%for share%'`,
+    )
+    if (waiting.rowCount === 1) return 'waiting'
+    if (stop()) return 'gave_up'
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}
+
 /** Record a Property lifecycle fact and return it as the dispatcher delivers it. */
 async function recordLifecycleFact(
   fact: ReturnType<typeof propertyArchived> | ReturnType<typeof propertyRestored>,
@@ -526,6 +546,59 @@ describe.sequential('Response Target reminder time travel (PostgreSQL)', () => {
         cancelled_at: BETWEEN,
       },
     ])
+  })
+
+  // A Restore racing the delivery: the consumer must decide on the state the
+  // Restore commits, not on the archived row it could read before, or it
+  // cancels the slots of a Property that is active again.
+  it('waits for a Restore in flight and then cancels nothing', async () => {
+    await seed()
+    const scheduler = createTimeTraveller()
+    scheduler.travelTo(BEFORE_HALFWAY)
+    await pool.query(
+      `UPDATE properties SET lifecycle_state = 'archived', source_epoch = 1 WHERE id = $1`,
+      [PROPERTY],
+    )
+    const archive = await recordLifecycleFact(
+      propertyArchived({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        userId: MANAGER,
+        previousState: 'active',
+        sourceEpoch: 1,
+        recoveryDeadline: WELL_PAST_TARGET,
+        occurredAt: BEFORE_HALFWAY,
+      }),
+    )
+    const restore = await pool.connect()
+    try {
+      await restore.query('BEGIN')
+      await restore.query(
+        `UPDATE properties SET lifecycle_state = 'active', source_epoch = 2 WHERE id = $1`,
+        [PROPERTY],
+      )
+      const [consumer] = inboxWorkerConsumers(scheduler.now).listFor('property.archived')
+      let settled = false
+      const delivery = consumer!.handler(archive).finally(() => {
+        settled = true
+      })
+
+      const first = await Promise.race([
+        delivery.then(() => 'delivered' as const),
+        waitForPropertyLockWait(() => settled),
+      ])
+      await restore.query('COMMIT')
+
+      expect(first).toBe('waiting')
+      await expect(delivery).resolves.toEqual({ status: 'obsolete' })
+    } finally {
+      await restore.query('ROLLBACK').catch(() => undefined)
+      restore.release()
+    }
+
+    scheduler.travelTo(HALFWAY)
+    await expect(scheduler.tick()).resolves.toEqual({ released: 1 })
+    expect(await releasedFactKinds()).toEqual(['halfway'])
   })
 
   it('ignores an archive fact delivered after the Property was restored', async () => {
