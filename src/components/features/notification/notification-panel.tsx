@@ -13,7 +13,7 @@
 // place before the click. The trigger, the badge and the polling head stay
 // eager.
 
-import { lazy, Suspense, useMemo, useState } from 'react'
+import { Suspense, useMemo, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
@@ -21,14 +21,25 @@ import { Skeleton } from '#/components/ui/skeleton'
 import { useNotificationFormat, useNotifications } from './notification-queries'
 import { useNotificationMutations } from './notification-mutations'
 import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-announcer'
+import { lazyPopoverBody } from './notification-popover-loader'
 import { groupByReadState, type NotificationFilter } from './notification-filters'
 import type { NotificationServerFns, NotificationRowActions } from './types'
 import type { NotificationView } from '#/contexts/feed/application/public-api'
 
 const loadPopoverContent = () => import('./notification-popover-content')
-const NotificationPopoverContent = lazy(() =>
-  loadPopoverContent().then((module) => ({ default: module.NotificationPopoverContent })),
+// A failed load renders "Couldn't load notifications" in the popover, not the
+// route error page (notification-popover-loader.tsx).
+const NotificationPopoverContent = lazyPopoverBody(() =>
+  loadPopoverContent().then((module) => module.NotificationPopoverContent),
 )
+
+/**
+ * Starts fetching the body before the click. Only a head start: a failure here
+ * is nobody's yet, and opening the bell imports again, which shows it.
+ */
+const preloadPopoverContent = () => {
+  loadPopoverContent().catch(() => undefined)
+}
 
 /** Stands in for the popover body while its chunk arrives. */
 function PopoverContentFallback() {
@@ -126,8 +137,8 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
           variant="ghost"
           size="icon-sm"
           className="relative"
-          onPointerEnter={() => void loadPopoverContent()}
-          onFocus={() => void loadPopoverContent()}
+          onPointerEnter={preloadPopoverContent}
+          onFocus={preloadPopoverContent}
           aria-label={`Notifications${count > 0 ? `, ${count} unread` : ''}`}
         >
           <Bell aria-hidden="true" className="size-4" />
