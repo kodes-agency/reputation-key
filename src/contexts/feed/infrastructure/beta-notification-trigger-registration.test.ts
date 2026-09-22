@@ -44,6 +44,7 @@ describe('registered durable notification matrix', () => {
     registerOrganizationPurgePendingNoticeConsumer(consumerRegistry, {
       queue: fakes.queue,
       userLookup: fakes.userLookup,
+      displayNames: fakes.displayNames,
       logger: fakes.logger,
       receipts,
     })
@@ -53,6 +54,8 @@ describe('registered durable notification matrix', () => {
     registerBulkAssignmentNotificationConsumer(consumerRegistry, {
       queue: fakes.queue,
       userLookup: fakes.userLookup,
+      displayNames: fakes.displayNames,
+      logger: fakes.logger,
       receipts,
     })
     registerEscalationResolutionNotificationConsumer(consumerRegistry, {
@@ -73,11 +76,14 @@ describe('registered durable notification matrix', () => {
       },
       responsibleManagers: fakes.responsibleManagers,
       userLookup: fakes.userLookup,
+      displayNames: fakes.displayNames,
+      logger: fakes.logger,
       receipts,
     })
     registerPortalNotificationConsumers(consumerRegistry, {
       queue: fakes.queue,
       userLookup: fakes.userLookup,
+      displayNames: fakes.displayNames,
       logger: fakes.logger,
       receipts,
     })
@@ -85,12 +91,14 @@ describe('registered durable notification matrix', () => {
       queue: fakes.queue,
       responsibleManagers: fakes.responsibleManagers,
       userLookup: fakes.userLookup,
+      displayNames: fakes.displayNames,
       logger: fakes.logger,
       receipts,
     })
     registerPropertyNotificationConsumers(consumerRegistry, {
       queue: fakes.queue,
       userLookup: fakes.userLookup,
+      displayNames: fakes.displayNames,
       logger: fakes.logger,
       receipts,
     })
