@@ -16,7 +16,7 @@
 # named (package, CVE, grype's own identity line).
 
 ignore:
-  # ── Debian trixie base packages, perl-base 5.40.1-6 (12 CVEs) ─────────
+  # ── Debian trixie base packages, perl-base 5.40.1-6 (13 CVEs) ─────────
   # owner: platform — reason: Debian marks these won't-fix/not-fixed for
   # trixie (tracker read 2026-09-07 from the CI scan of the trixie image);
   # perl-base is dpkg infrastructure only — the CMD is node and nothing in the
@@ -33,6 +33,15 @@ ignore:
   - vulnerability: CVE-2026-7017 # not-fixed
   - vulnerability: CVE-2026-8376 # wont-fix
   - vulnerability: CVE-2026-9538 # wont-fix
+  # CVE-2026-82560 (added 2026-09-22, first reported by the grype DB built
+  # that morning): `perl-base` 5.40.1-6 deb CVE-2026-82560 High, no fixed
+  # version. Pod::Text loops without consuming input on deeply nested `=over`
+  # blocks, exhausting CPU and memory while formatting POD. The Debian tracker
+  # (read 2026-09-22) lists bookworm, trixie and forky/sid all vulnerable; the
+  # fix exists only upstream (podlators 6.1.1). Nothing in the image formats
+  # POD or runs perl: the CMD is node. Drop this entry at the first trixie
+  # perl update that carries the podlators fix. expiresAt: 2026-12-07
+  - vulnerability: CVE-2026-82560 # not-fixed (all Debian releases)
 
   # ── Debian trixie base packages, glibc 2.41-12+deb13u3 (4 CVEs) ────────
   # owner: platform — reason: won't-fix by Debian triage (assessed not
