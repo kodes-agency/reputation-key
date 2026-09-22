@@ -21,6 +21,7 @@ import {
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { mandatoryRepeatEmailKey } from '../../application/use-cases/insert-notification'
+import type { NotificationAudience } from '../../application/notification-audience'
 import type { InsertNotificationJobData } from '../jobs/insert-notification.job'
 import {
   parseOutboxNotificationDelivery,
@@ -441,6 +442,10 @@ const NOTE_ROUTE = {
   eventType: 'inbox.inbox_note.added',
   consumerName: 'notification.on-inbox-inbox_note-added',
 } as const
+const NOTE_AUDIENCE: NotificationAudience = {
+  kind: 'responsible_scope',
+  scope: { kind: 'property', propertyId: EMAIL_ONLY_PROPERTY },
+}
 
 describe.sequential('email-only notification delivery (real PostgreSQL)', () => {
   let lease: TestLease
@@ -506,7 +511,11 @@ describe.sequential('email-only notification delivery (real PostgreSQL)', () => 
       { insertReceipt: vi.fn(async () => {}) },
       NOTE_ROUTE,
     ).add('insert-notification', input)
-    return settlement.settleAuthorized(input, parseOutboxNotificationDelivery(queued)!)
+    return settlement.settleAuthorized(
+      input,
+      parseOutboxNotificationDelivery(queued)!,
+      NOTE_AUDIENCE,
+    )
   }
 
   const settlementWith = (enqueueImmediateEmail: () => Promise<void>) => {
@@ -582,6 +591,12 @@ describe.sequential('email-only notification delivery (real PostgreSQL)', () => 
     expect(emails).toHaveLength(2)
     expect(new Set(emails.map((email) => email.notificationId)).size).toBe(2)
     expect(emails.every((email) => email.status === 'pending')).toBe(true)
+    // Each email-only anchor's email keeps the audience its standing is
+    // rechecked against at send time.
+    expect(emails.map((email) => email.recipientAudience)).toEqual([
+      NOTE_AUDIENCE,
+      NOTE_AUDIENCE,
+    ])
     expect(enqueueImmediateEmail).toHaveBeenCalledTimes(2)
     // Turning in-app back on must not resurface the email-only history as a
     // pile of unread rows the user was already emailed about.
@@ -637,6 +652,11 @@ const ROLE_ROUTE = {
   eventType: 'identity.member.role_changed',
   consumerName: 'notification.on-identity-member-role-changed',
 } as const
+const roleChangeAudience = (eventId: string): NotificationAudience => ({
+  kind: 'affected_organization_user',
+  eventId,
+  eventType: ROLE_ROUTE.eventType,
+})
 
 describe.sequential('mandatory repeat delivery (real PostgreSQL)', () => {
   let lease: TestLease
@@ -713,7 +733,11 @@ describe.sequential('mandatory repeat delivery (real PostgreSQL)', () => {
         { insertReceipt: vi.fn(async () => {}) },
         ROLE_ROUTE,
       ).add('insert-notification', input)
-      return settlement.settleAuthorized(input, parseOutboxNotificationDelivery(queued)!)
+      return settlement.settleAuthorized(
+        input,
+        parseOutboxNotificationDelivery(queued)!,
+        roleChangeAudience(eventId),
+      )
     }
 
     await expect(settleRoleChange(ROLE_EVENTS[0])).resolves.toBe('applied')
@@ -752,6 +776,16 @@ describe.sequential('mandatory repeat delivery (real PostgreSQL)', () => {
           email.propertyId === null,
       ),
     ).toBe(true)
+    // The repeat's email keeps the audience of its own event, like the first.
+    const audienceByKey = new Map(
+      emails.map((email) => [email.idempotencyKey, email.recipientAudience]),
+    )
+    expect(audienceByKey.get(`${rows[0]!.id}:email`)).toEqual(
+      roleChangeAudience(ROLE_EVENTS[0]),
+    )
+    expect(
+      audienceByKey.get(mandatoryRepeatEmailKey(ROLE_EVENTS[1], MANDATORY_USER)),
+    ).toEqual(roleChangeAudience(ROLE_EVENTS[1]))
     expect(enqueueImmediateEmail).toHaveBeenCalledTimes(2)
     for (const email of emails) {
       expect(enqueueImmediateEmail).toHaveBeenCalledWith({

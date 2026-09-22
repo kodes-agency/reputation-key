@@ -73,6 +73,7 @@ function feedPublicApi() {
       portalHealthLookup: {} as never,
       isEmailDeliveryAllowed: () => true,
       propertyAccess: async () => null,
+      emailAddressKey: 'feed-test-email-address-key',
     },
   }).publicApi
 }

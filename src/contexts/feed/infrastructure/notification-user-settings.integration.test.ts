@@ -39,6 +39,7 @@ const buildFeed = (db: Database) => {
       logger,
       isEmailDeliveryAllowed: () => true,
       propertyAccess: async () => null,
+      emailAddressKey: 'feed-test-email-address-key',
       responsibleManagers: {} as never,
       feedbackPortalLookup: {} as never,
       googleConnectionProperties: {} as never,

@@ -58,6 +58,7 @@ import { createMockLogger } from '#/shared/testing/mock-logger'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { operationalActionHistoryRecordId } from '../../domain/operational-action-history'
 import { buildFeedContext } from '../../build'
+import { createNotificationOrganizationEmailStopReader } from '../repositories/notification-organization-email-stop.repository'
 import {
   createInsertNotificationHandler,
   type InsertNotificationJobData,
@@ -170,6 +171,7 @@ describe.sequential('missing-notification repair through the Feed build', () => 
         logger,
         isEmailDeliveryAllowed: () => true,
         propertyAccess: async () => null,
+        emailAddressKey: 'notification-repair-integration-email-address-key',
         responsibleManagers: {
           findForProperty: async () => [MANAGER],
           findForPortal: async () => [MANAGER],
@@ -200,6 +202,7 @@ describe.sequential('missing-notification repair through the Feed build', () => 
       logger: createMockLogger(),
       authorizeAudience: delivery.authorizeAudience,
       deliverySettlement: delivery.deliverySettlement,
+      organizationEmailStop: createNotificationOrganizationEmailStopReader(db),
     })
   }
 

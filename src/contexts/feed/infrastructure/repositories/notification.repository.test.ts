@@ -21,6 +21,7 @@ import type { NotificationPayload } from '../../domain/notification-payload'
 import { createNotificationRepository } from './notification.repository'
 import { createNotificationEmailRepository } from './notification-email.repository'
 import { createNotificationPreferenceRepository } from './notification-preference.repository'
+import { createNotificationOrganizationEmailStopReader } from './notification-organization-email-stop.repository'
 
 const ORG = organizationId('notification-repository-race-org')
 const PROPERTY = propertyId('85000000-0000-4000-8000-000000000001')
@@ -190,6 +191,7 @@ describe.sequential('notification repository (real PostgreSQL)', () => {
         emailIdGen: () =>
           notificationEmailId(`85000000-0000-4000-9000-0000000000${String(nextId++)}`),
         logger,
+        organizationEmailStop: createNotificationOrganizationEmailStopReader(db),
       })({
         userId: USER,
         organizationId: ORG,
