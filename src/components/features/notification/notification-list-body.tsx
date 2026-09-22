@@ -104,13 +104,18 @@ export function NotificationListBody(props: NotificationListBodyProps) {
   const rowIds = props.groups.flatMap((group) => group.notifications.map((row) => row.id))
   const focusRecovery = useNotificationFocusRecovery(listRef, rowIds)
 
+  // Focus lands here when the bell opens, after "Mark all read", and when the
+  // row holding focus goes with no row left to move to, so a keyboard user
+  // must see it. The ring is inset: the popover's list scrolls, and an outer
+  // ring would be clipped by it.
   return (
     <div
       ref={listRef}
       role="group"
       aria-label="Notification list"
       tabIndex={-1}
-      className="outline-none"
+      data-notification-list=""
+      className="rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
       {...focusRecovery}
     >
       <NotificationListState {...props} />

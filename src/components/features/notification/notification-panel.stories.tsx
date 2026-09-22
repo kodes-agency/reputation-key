@@ -222,6 +222,45 @@ export const MarkAllReadIsOptimistic: Story = {
 }
 
 /**
+ * Opening the bell arms nothing. Radix used to focus the first tabbable
+ * control, "Mark all read", with no ring after a pointer open, so one stray
+ * Space or Enter marked every notification read. Focus starts on the list.
+ * The bell is opened once first so its lazy body is already loaded, as a
+ * hover over the bell has done by the time a real click lands.
+ */
+const armedMarkAllRead = fn(async () => undefined)
+export const OpeningTheBellArmsNothing: Story = {
+  args: {
+    notificationFns: makeNotificationFns({
+      getFeedHead: (async () =>
+        notificationFeedHeadFixture(
+          notificationFixtures,
+          unreadCount,
+        )) as unknown as NotificationServerFns['getFeedHead'],
+      markAllRead: armedMarkAllRead as unknown as NotificationServerFns['markAllRead'],
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await openBell(canvasElement)
+    await userEvent.keyboard('{Escape}')
+    armedMarkAllRead.mockClear()
+
+    await userEvent.click(canvas.getByRole('button', { name: /^Notifications/ }))
+    const popover = await findOpenBellPopover()
+    const list = await popover.findByRole('group', { name: 'Notification list' })
+    await waitFor(() => expect(list).toHaveFocus())
+    await userEvent.keyboard(' ')
+    await userEvent.keyboard('{Enter}')
+
+    expect(armedMarkAllRead).not.toHaveBeenCalled()
+    expect(
+      canvas.getByRole('button', { name: `Notifications, ${unreadCount} unread` }),
+    ).toBeInTheDocument()
+  },
+}
+
+/**
  * The unread count is the Organization's, whatever the filter, so choosing a
  * tab must not blank the badge or tell a screen reader there is nothing
  * unread while that tab's first read is in flight. Tabs activate on Enter, not

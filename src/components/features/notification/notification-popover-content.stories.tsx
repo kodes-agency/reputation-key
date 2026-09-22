@@ -1,8 +1,9 @@
 // Bell popover content: header actions, filter tabs, list body, and the
 // "View all notifications" foot link. Pure presentational; stories vary the
 // header affordances, the active filter and the body state.
+import { useEffect, useRef, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { notificationFixtures } from './notification.stories.fixtures'
 import { groupByReadState, matchesNotificationFilter } from './notification-filters'
 import { NotificationPopoverContent } from './notification-popover-content'
@@ -137,5 +138,35 @@ export const MarkingAllRead: Story = {
     expect(
       within(canvasElement).getByRole('button', { name: /mark all read/i }),
     ).toBeDisabled()
+  },
+}
+
+/**
+ * The popover opens at once, and its body's chunk can arrive after it: the
+ * popover holds focus meanwhile. When the body mounts, the list takes that
+ * focus over, so the first key press lands on the list, not on a button.
+ */
+function LateBody(props: Parameters<typeof NotificationPopoverContent>[0]) {
+  const popover = useRef<HTMLDivElement>(null)
+  const [arrived, setArrived] = useState(false)
+  useEffect(() => {
+    popover.current?.focus()
+    // The chunk lands a moment after the popover opened.
+    const arrival = setTimeout(() => setArrived(true), 0)
+    return () => clearTimeout(arrival)
+  }, [])
+  return (
+    <div ref={popover} role="dialog" aria-label="Notifications" tabIndex={-1}>
+      {arrived && <NotificationPopoverContent {...props} />}
+    </div>
+  )
+}
+
+export const TakesOverFocusTheLoadingPopoverHeld: Story = {
+  render: (args) => <LateBody {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const list = await canvas.findByRole('group', { name: 'Notification list' })
+    await waitFor(() => expect(list).toHaveFocus())
   },
 }

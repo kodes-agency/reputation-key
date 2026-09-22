@@ -1,7 +1,13 @@
 // Bell popover content: header actions, filter tabs, list, and the escape
 // hatch to the full page. The popover used to BE the entire notification
 // surface (max-h-80, w-80, no filters, no history); it is now the quick view.
+//
+// Keyboard focus starts on the list, never on "Mark all read": the panel
+// points Radix's open focus at it, and when this body arrives after the
+// popover opened (its chunk is lazy), the body takes over the focus the
+// popover itself held meanwhile.
 
+import { useLayoutEffect, useRef, type RefObject } from 'react'
 import { CheckCheck } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
@@ -32,8 +38,18 @@ type Props = Readonly<{
   onViewAll?: () => void
 }>
 
+/** Takes over the focus the popover held while this body was loading. */
+function useFocusListOnLateArrival(list: RefObject<HTMLDivElement | null>) {
+  useLayoutEffect(() => {
+    const popover = list.current?.closest('[role="dialog"]')
+    if (popover && document.activeElement === popover) list.current?.focus()
+  }, [list])
+}
+
 export function NotificationPopoverContent(props: Props) {
   const hasAnything = props.groups.length > 0
+  const listRef = useRef<HTMLDivElement>(null)
+  useFocusListOnLateArrival(listRef)
 
   return (
     <>
@@ -81,6 +97,7 @@ export function NotificationPopoverContent(props: Props) {
             actions={props.actions}
             format={props.format}
             emptyTitle="Nothing here right now"
+            listRef={listRef}
           />
         </div>
       </NotificationFilterTabs>

@@ -45,6 +45,23 @@ function PopoverContentFallback() {
 const PAGE_SIZE = 20
 /** Half the 1rem the width cap leaves, so the popover never touches an edge. */
 const POPOVER_VIEWPORT_MARGIN_PX = 8
+/** The list group in the popover body (notification-list-body.tsx). */
+const NOTIFICATION_LIST_SELECTOR = '[data-notification-list]'
+
+/**
+ * Radix focuses the first tabbable control on open: "Mark all read", with no
+ * ring after a pointer open, so one stray Space or Enter (or a fast double
+ * Enter on the bell) marked every notification read. Focus starts on the list
+ * instead, where a key press changes nothing and Tab reaches the rows. While
+ * the body's chunk is still loading, the popover itself holds focus and the
+ * body takes it over when it arrives.
+ */
+function focusListOnOpen(event: Event): void {
+  event.preventDefault()
+  const popover = event.currentTarget
+  if (!(popover instanceof HTMLElement)) return
+  ;(popover.querySelector<HTMLElement>(NOTIFICATION_LIST_SELECTOR) ?? popover).focus()
+}
 
 // Screen-reader live region announcing the unread count.
 function NotificationAriaLive({ count }: Readonly<{ count: number }>) {
@@ -134,6 +151,7 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
       <PopoverContent
         align="end"
         aria-label="Notifications"
+        onOpenAutoFocus={focusListOnOpen}
         collisionPadding={POPOVER_VIEWPORT_MARGIN_PX}
         className="flex max-h-(--radix-popover-content-available-height) w-[min(24rem,calc(100vw-1rem))] flex-col p-0"
       >
