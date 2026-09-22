@@ -30,6 +30,7 @@ import {
   type AlertAuxReads,
 } from './alert-definitions'
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
+import { SNAPSHOT_SECTIONS } from '#/shared/observability/metrics-schema'
 
 const RUNBOOKS_PATH = 'docs/operations/runbooks.md'
 
@@ -436,6 +437,38 @@ describe('observability.snapshot-degraded', () => {
     const s = healthy()
     s.degraded = ['queues', 'workers.heartbeat', 'jobs', 'guest.observationLoss']
     expect(evaluateOne('observability.snapshot-degraded', s)).toBeNull()
+  })
+})
+
+// Holding depends on each definition declaring the health signals it reads:
+// a new alert over a health field that forgets `blindedBy` would clear on the
+// zero fallback and re-page on recovery, silently. Every implemented alert
+// must either be held when every health signal is degraded, or be named here
+// with the input it reads instead.
+const READS_NO_HEALTH_SIGNAL: Readonly<Record<string, string>> = {
+  'worker.heartbeat.stale': 'workers.heartbeat — fires on its own stale fallback',
+  'worker.job-runtime-unready': 'jobs — fires when the report is unavailable',
+  'guest.observation-loss':
+    'guestObservationLoss — fires when the monitor is unavailable',
+  'observability.snapshot-degraded': 'degraded — the page for the blindness itself',
+  'ai.review-analysis-stalled': 'aux reads — fires when the monitor is unavailable',
+  'ai.review-analysis-empty-enrollment': 'aux reads',
+  'retention.failure': 'aux reads',
+  'beta-feedback.triage-backlog': 'aux reads — fires when the monitor is unavailable',
+  'db.pool-exhaustion': 'runtime — the in-process pool gauge',
+}
+
+describe('blindedBy registry contract', () => {
+  it('holds every alert over a health signal when every health signal is degraded', () => {
+    const s = healthy()
+    s.degraded = SNAPSHOT_SECTIONS.filter((section) => section.startsWith('health.'))
+
+    const { held } = evaluateAlerts(s, AUX, new Set(), new Set())
+
+    const unheld = ALERT_DEFINITIONS.filter(
+      (def) => def.implemented && !held.includes(def.name),
+    ).map((def) => def.name)
+    expect(unheld.sort()).toEqual(Object.keys(READS_NO_HEALTH_SIGNAL).sort())
   })
 })
 
