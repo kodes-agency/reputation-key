@@ -417,6 +417,63 @@ async function resolveMetricVersion(deps: GoalProgramDependencies, metric: GoalM
 }
 
 /**
+ * Validate a Program definition's target and subjects, and resolve what it is
+ * measured under: the Property's timezone and the governed metric version.
+ * The first subject is the one its metric's readiness is checked against.
+ */
+async function resolveGoalDefinition(
+  deps: GoalProgramDependencies,
+  organizationId: string,
+  input: Readonly<{
+    propertyId: string
+    metric: GoalMetric
+    targetValue: number
+    subjects: readonly GoalSubject[]
+  }>,
+) {
+  const target = validateGoalTarget(input.metric, input.targetValue)
+  if (!target.ok) throw new GoalProgramError('invalid_target')
+  const [timezone, governed] = await Promise.all([
+    deps.subjects.getTimezone(organizationId, input.propertyId),
+    resolveMetricVersion(deps, input.metric),
+    validateSubjects(deps, organizationId, input.propertyId, input.subjects),
+  ])
+  if (!timezone) throw new GoalProgramError('not_found')
+  const readinessSubject = input.subjects[0]
+  if (!readinessSubject) throw new GoalProgramError('invalid_subject')
+  return { target, timezone, governed, readinessSubject }
+}
+
+/**
+ * True when the metric's source is not active yet for the version's first
+ * month. A source that is active but unavailable or quarantined refuses it.
+ */
+async function isMetricSourceInactive(
+  deps: GoalProgramDependencies,
+  query: Readonly<{
+    organizationId: string
+    propertyId: string
+    governed: GovernedMetricVersion
+    subject: GoalSubject
+    period: Readonly<{ start: Date; end: Date }>
+  }>,
+): Promise<boolean> {
+  const readiness = await deps.metrics.queryGoalMetric({
+    organizationId: toOrganizationId(query.organizationId),
+    propertyId: toPropertyId(query.propertyId),
+    definitionVersionId: query.governed.version.id,
+    subject: metricSubject(query.subject),
+    periodStart: query.period.start,
+    periodEnd: query.period.end,
+  })
+  const sourceInactive = readiness.reason === 'metric_source_not_active'
+  if (!sourceInactive && ['unavailable', 'quarantined'].includes(readiness.state)) {
+    throw new GoalProgramError('metric_unavailable')
+  }
+  return sourceInactive
+}
+
+/**
  * False when policy refuses this system maintenance pass for the bundle. Any
  * other authorization failure is not a per-program outcome and propagates.
  */
@@ -603,31 +660,18 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       })
       const name = input.name.trim()
       if (!name) throw new GoalProgramError('invalid_name')
-      const target = validateGoalTarget(input.metric, input.targetValue)
-      if (!target.ok) throw new GoalProgramError('invalid_target')
-      const [timezone, governed] = await Promise.all([
-        deps.subjects.getTimezone(actor.organizationId, input.propertyId),
-        resolveMetricVersion(deps, input.metric),
-        validateSubjects(deps, actor.organizationId, input.propertyId, input.subjects),
-      ])
-      if (!timezone) throw new GoalProgramError('not_found')
-      const readinessSubject = input.subjects[0]
-      if (!readinessSubject) throw new GoalProgramError('invalid_subject')
+      const { target, timezone, governed, readinessSubject } =
+        await resolveGoalDefinition(deps, actor.organizationId, input)
 
       const now = deps.now()
       const period = firstFullMonthlyPeriodAtOrAfter(now, timezone)
-      const readiness = await deps.metrics.queryGoalMetric({
-        organizationId: toOrganizationId(actor.organizationId),
-        propertyId: toPropertyId(input.propertyId),
-        definitionVersionId: governed.version.id,
-        subject: metricSubject(readinessSubject),
-        periodStart: period.start,
-        periodEnd: period.end,
+      const sourceInactive = await isMetricSourceInactive(deps, {
+        organizationId: actor.organizationId,
+        propertyId: input.propertyId,
+        governed,
+        subject: readinessSubject,
+        period,
       })
-      const sourceInactive = readiness.reason === 'metric_source_not_active'
-      if (!sourceInactive && ['unavailable', 'quarantined'].includes(readiness.state)) {
-        throw new GoalProgramError('metric_unavailable')
-      }
       const programId = deps.id()
       const versionId = deps.id()
       const status: GoalProgramStatus =
@@ -764,16 +808,8 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       if (current.version.effectiveFrom > now) {
         throw new GoalProgramError('revision_conflict')
       }
-      const target = validateGoalTarget(input.metric, input.targetValue)
-      if (!target.ok) throw new GoalProgramError('invalid_target')
-      const [timezone, governed] = await Promise.all([
-        deps.subjects.getTimezone(actor.organizationId, input.propertyId),
-        resolveMetricVersion(deps, input.metric),
-        validateSubjects(deps, actor.organizationId, input.propertyId, input.subjects),
-      ])
-      if (!timezone) throw new GoalProgramError('not_found')
-      const readinessSubject = input.subjects[0]
-      if (!readinessSubject) throw new GoalProgramError('invalid_subject')
+      const { target, timezone, governed, readinessSubject } =
+        await resolveGoalDefinition(deps, actor.organizationId, input)
       // When the Property's timezone moved east, the next local month begins
       // before the open month ends, so the revision starts one local month
       // later and the skipped local month is not evaluated under either
@@ -782,18 +818,13 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         earliestRevisionStart(current.results, now),
         timezone,
       )
-      const readiness = await deps.metrics.queryGoalMetric({
-        organizationId: toOrganizationId(actor.organizationId),
-        propertyId: toPropertyId(input.propertyId),
-        definitionVersionId: governed.version.id,
-        subject: metricSubject(readinessSubject),
-        periodStart: period.start,
-        periodEnd: period.end,
+      const sourceInactive = await isMetricSourceInactive(deps, {
+        organizationId: actor.organizationId,
+        propertyId: input.propertyId,
+        governed,
+        subject: readinessSubject,
+        period,
       })
-      const sourceInactive = readiness.reason === 'metric_source_not_active'
-      if (!sourceInactive && ['unavailable', 'quarantined'].includes(readiness.state)) {
-        throw new GoalProgramError('metric_unavailable')
-      }
       if (sourceInactive && current.program.status !== 'scheduled') {
         throw new GoalProgramError('metric_unavailable')
       }
