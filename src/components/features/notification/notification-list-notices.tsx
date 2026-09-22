@@ -12,7 +12,7 @@ import { Button } from '#/components/ui/button'
 import { httpStatus } from '#/shared/security/expected-refusal'
 
 /** The session ended under the open tab: signing in again is the only fix. */
-export const isSessionEnded = (error: unknown): boolean => httpStatus(error) === 401
+const isSessionEnded = (error: unknown): boolean => httpStatus(error) === 401
 
 function SignInAgain() {
   const href = useRouterState({ select: (state) => state.location.href })
