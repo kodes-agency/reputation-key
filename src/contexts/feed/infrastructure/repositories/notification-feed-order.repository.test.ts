@@ -277,9 +277,15 @@ describe.sequential('notification feed order (real PostgreSQL)', () => {
         node['Relation Name'] === 'notifications' ||
         node['Index Name']?.startsWith('notifications_'),
     )
-    expect(notificationAccess.map((node) => node['Index Name'])).toEqual([
-      'notifications_inbox_item_resource_idx',
-    ])
+    // The gauge's count may reach it through a bitmap heap scan, whose own node
+    // names no index; what matters is that only this index is used and the
+    // table is never scanned whole.
+    expect(
+      notificationAccess.flatMap((node) =>
+        node['Index Name'] ? [node['Index Name']] : [],
+      ),
+    ).toEqual(['notifications_inbox_item_resource_idx'])
+    expect(notificationAccess.map((node) => node['Node Type'])).not.toContain('Seq Scan')
   })
 
   it('selects retention candidates oldest-first from an index', async () => {
