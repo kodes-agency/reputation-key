@@ -3,13 +3,16 @@
 //
 // A durable notification delivery is settled when its materialization receipt
 // is claimed: a notification row was written, or preferences asked for none,
-// or the recipient no longer qualifies. The one failure the rest of the
-// pipeline cannot heal is a delivery Redis accepted that then never settled —
-// its insert job exhausted its attempts, or Redis lost it — because the source
+// or the recipient no longer qualifies. This job heals the one failure outbox
+// redelivery cannot: a delivery Redis accepted that then never settled — its
+// insert job exhausted its attempts, or Redis lost it — because the source
 // fact's consumer has already recorded its receipt, so outbox redelivery skips
-// it. After a grace period this job finds those deliveries, for every beta
-// notification route, and replays their source fact through the route's own
-// consumer:
+// it. A fact whose consumer never ran is not its business: dispatcher retries
+// and published-event redelivery own it, and one that exhausts their bounded
+// rounds has no enqueue receipt for this job to find, so it is replayed by
+// hand, report first (runbook §15). After a grace period this job finds the
+// unsettled deliveries, for every beta notification route, and replays their
+// source fact through the route's own consumer:
 //   - the fact keeps its real event id, so the delivery bridge stamps the same
 //     delivery marker and settlement verifies the same durable source;
 //   - the consumer re-derives its recipients, and the repair queue beneath the
