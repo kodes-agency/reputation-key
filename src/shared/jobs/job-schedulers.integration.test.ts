@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Queue } from 'bullmq'
 import { Redis } from 'ioredis'
 import {
@@ -108,12 +108,20 @@ describe.sequential('job scheduler reconciliation (real Redis)', () => {
 
     // One scheduler's keys vanish; the other survives with its next run.
     await queue.removeJobScheduler('health-check-recurring')
+    // Re-upserting an unchanged cron scheduler recomputes the same next run,
+    // so only the upserts themselves tell a restore from a blanket reconcile —
+    // the one that drops an overdue pending iteration in BullMQ 6.
+    const upsert = vi.spyOn(queue, 'upsertJobScheduler')
     const partial = await restoreMissingJobSchedulers({ queue, desired })
 
     expect(partial.restoredSchedulerIds).toEqual(['health-check-recurring'])
+    expect(upsert.mock.calls.map(([schedulerId]) => schedulerId)).toEqual([
+      'health-check-recurring',
+    ])
     expect((await queue.getJobScheduler('digest-notification-recurring'))?.next).toBe(
       digestBefore?.next,
     )
+    upsert.mockRestore()
 
     // Everything this queue held in Redis is gone.
     await queue.obliterate({ force: true })
