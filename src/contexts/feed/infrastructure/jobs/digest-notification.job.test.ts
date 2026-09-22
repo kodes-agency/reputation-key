@@ -1268,3 +1268,56 @@ describe('an Organization that has asked to close', () => {
     )
   })
 })
+
+describe('due rows whose notification is gone', () => {
+  const readableOnly = (deps: ReturnType<typeof baseDeps>, readable: readonly string[]) =>
+    deps.notifRepo.findByIdsForProperty.mockImplementation(
+      async (ids: readonly NotificationId[], _org: unknown, property: PropertyId) =>
+        new Map(
+          ids
+            .filter(() => readable.includes(property as string))
+            .map((id) => [id as string, notificationFor(entryFor(property as string))]),
+        ),
+    )
+
+  it('settles rows that can never be sent, so the recipient stops being due', async () => {
+    // Skipping them left the recipient due on every hourly run, and 500 of
+    // them starved every newer row.
+    const deps = baseDeps()
+    readableOnly(deps, [])
+
+    await runHandler(deps)
+
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    for (const property of [PROP_A, PROP_B]) {
+      expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+        entryFor(property).id,
+        organizationId(ORG),
+        property,
+        'notification_unavailable',
+        NOW,
+      )
+    }
+  })
+
+  it('freezes only the rows it could read, and settles the rest', async () => {
+    // A frozen member with no notification was marked accepted although it
+    // was never sent.
+    const deps = baseDeps()
+    readableOnly(deps, [PROP_A])
+
+    await runHandler(deps)
+
+    expect(deps.emailRepo.prepareDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ memberIds: [entryFor(PROP_A).id] }),
+    )
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entryFor(PROP_B).id,
+      organizationId(ORG),
+      PROP_B,
+      'notification_unavailable',
+      NOW,
+    )
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+  })
+})

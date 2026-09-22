@@ -5,9 +5,10 @@
 // due rows, or an open batch's frozen members, and passes them through these
 // filters before it renders anything: Property authorization, the recipient's
 // standing, preference and quiet hours, freshness, and whether the in-app
-// notification behind each row can still be read. Every row a filter drops is
-// settled here, with a visible reason, so a dropped row is never mistaken for
-// a lost one.
+// notification behind each row can still be read. Every row a filter drops
+// for good is settled here, with a visible reason, so a dropped row is never
+// mistaken for a lost one; a row dropped only for now (its Property inactive
+// or unauthorized, quiet hours) is held or deferred.
 
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { ScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
@@ -32,6 +33,9 @@ import { isStaleQueuedEmail, STALE_EMAIL_REASON } from '../../domain/email-fresh
 import { emailCorrelationId } from '../delivery-correlation'
 import type { DigestItem } from './digest-assembly'
 import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
+
+/** A row whose in-app notification can no longer be read, so never sent. */
+const NOTIFICATION_UNAVAILABLE_REASON = 'notification_unavailable'
 
 /** What the entry filters need; a subset of the digest job's dependencies. */
 export type DigestEntryDeps = Readonly<{
@@ -240,6 +244,11 @@ export async function retireStaleEntries(
 /**
  * Pair each queue row with its in-app notification. Reads are per property
  * because the repository enforces property scope on the notification table.
+ *
+ * A row whose notification can no longer be read (retention removed it, or it
+ * moved scope) can never be sent. It is suppressed as
+ * `notification_unavailable` here: skipped instead, it kept its recipient due
+ * on every run, and enough of them starved every newer row.
  */
 export async function loadItems(
   deps: DigestEntryDeps,
@@ -265,6 +274,23 @@ export async function loadItems(
       const notification = notifications.get(entry.notificationId as string)
       if (notification) items.push({ entry, notification })
     }
+  }
+  const loaded = new Set(items.map((item) => item.entry.id))
+  const unreadable = entries.filter((entry) => !loaded.has(entry.id))
+  for (const entry of unreadable) {
+    await deps.emailRepo.markSuppressed(
+      notificationEmailId(entry.id as string),
+      ctx.orgId,
+      propertyId(entry.propertyId as string),
+      NOTIFICATION_UNAVAILABLE_REASON,
+      ctx.now,
+    )
+  }
+  if (unreadable.length > 0) {
+    deps.logger.warn(
+      { entries: unreadable.length, reason: NOTIFICATION_UNAVAILABLE_REASON },
+      'Digest entries suppressed because their notification is gone',
+    )
   }
   return items
 }

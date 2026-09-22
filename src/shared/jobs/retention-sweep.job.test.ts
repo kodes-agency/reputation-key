@@ -498,12 +498,31 @@ describe('retention rule registry (BQC-3.7)', () => {
     // ADR 0046 r.6: `cancelled` is terminal too. Organization closure and the
     // restore fence write it, and a row nothing will ever send must not be
     // kept forever.
+    // A row whose notification retention removed goes too, whatever its
+    // status: nothing can send it (retention-sweep-notifications.integration).
     expect(
       RETENTION_RULES.find((rule) => rule.subject === 'notification_email_queue'),
     ).toMatchObject({
       extraWhere:
-        "status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed', 'cancelled')",
+        "(status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed', 'cancelled') OR NOT EXISTS (SELECT 1 FROM notifications n WHERE n.id = notification_email_queue.notification_id))",
     })
+  })
+
+  it('keeps a notification 90 days from its latest arrival, not its creation', () => {
+    const rules = RETENTION_RULES.filter((rule) => rule.table === 'notifications')
+
+    expect(rules).toEqual([
+      expect.objectContaining({
+        tsColumn: 'created_at',
+        extraWhere: 'coalesced_latest_at IS NULL',
+        olderThanMs: 90 * 24 * 60 * 60 * 1000,
+      }),
+      expect.objectContaining({
+        tsColumn: 'coalesced_latest_at',
+        extraWhere: 'coalesced_latest_at IS NOT NULL',
+        olderThanMs: 90 * 24 * 60 * 60 * 1000,
+      }),
+    ])
   })
 
   it('keeps one-click unsubscribe scopes for a year, beyond the 90-day queue', () => {

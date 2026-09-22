@@ -188,6 +188,7 @@ describe('retention registry report-only mode', () => {
       'guest.private_feedback_text',
       'guest.deidentified_facts',
       'notification.delivery_records',
+      'notification.coalesced_delivery_records',
       'notification.terminal_digest_batches',
       'notification.terminal_email_queue',
       'notification.unsubscribe_scopes',

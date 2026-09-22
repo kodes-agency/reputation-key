@@ -528,16 +528,10 @@ async function sendUserDigest(
     return
   }
 
+  // Rows whose notification is gone are settled inside loadItems.
   const items = await loadItems(deps, ctx, deliverable)
   if (items.length === 0) {
-    if (openBatch) {
-      await retireUnreadableBatch(deps, ctx, openBatch)
-      return
-    }
-    deps.logger.warn(
-      { entries: deliverable.length },
-      'Digest skipped — no readable notification for any due entry',
-    )
+    if (openBatch) await retireUnreadableBatch(deps, ctx, openBatch)
     return
   }
   if (
@@ -548,8 +542,9 @@ async function sendUserDigest(
     await invalidateBatch(deps, ctx, openBatch, 'notification_source_unavailable')
     return
   }
-  // A refused batch goes on with the members whose notification still reads.
-  const members = openBatch ? items.map((item) => item.entry) : deliverable
+  // Only rows that will actually be rendered are frozen, or re-frozen: a
+  // member with no notification would be settled as accepted, never sent.
+  const members = items.map((item) => item.entry)
 
   const batchId = openBatch?.id ?? notificationDigestBatchId(deps.batchIdGen())
   const unsubscribeKeyVersion =
@@ -573,7 +568,7 @@ async function sendUserDigest(
     deps,
     ctx,
     batchId,
-    deliverable,
+    members,
     request,
     items,
     contentDigest,

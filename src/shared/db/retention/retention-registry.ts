@@ -514,13 +514,32 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     eligibility: {
       anchorColumn: 'created_at',
       horizon: { kind: 'days', days: 90 },
-      predicate: null,
+      predicate: 'coalesced_latest_at IS NULL',
       query:
-        "SELECT id FROM notifications WHERE created_at < now() - interval '90 days' — keyed on creation, so marking a notification read or seen does not extend it.",
+        "SELECT id FROM notifications WHERE coalesced_latest_at IS NULL AND created_at < now() - interval '90 days' — a notice that arrived once. Keyed on arrival, so marking a notification read or seen does not extend it.",
       implementedBoundary:
-        'Live at ninety days, together with the terminal digest-batch and email-queue subjects, which retain open retry work by predicate.',
+        'Live at ninety days, together with the re-raised-notice subject and the email-queue subject, which also removes queue rows whose notification is gone.',
     },
     evidenceSubject: 'notifications',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+  }),
+  rule({
+    id: 'notification.coalesced_delivery_records',
+    dataClass: 'notifications',
+    ownerContext: 'notification',
+    ownerRole: 'Notification context owner',
+    sourceKind: 'table',
+    source: 'notifications',
+    eligibility: {
+      anchorColumn: 'coalesced_latest_at',
+      horizon: { kind: 'days', days: 90 },
+      predicate: 'coalesced_latest_at IS NOT NULL',
+      query:
+        "SELECT id FROM notifications WHERE coalesced_latest_at < now() - interval '90 days' — a notice re-raised into its unread row lives ninety days from its latest arrival, so a live alert re-raised for months is not deleted by its creation date. Reading it does not extend it.",
+      implementedBoundary:
+        'Live as the scheduled notifications.coalesced subject at ninety days.',
+    },
+    evidenceSubject: 'notifications.coalesced',
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({
@@ -553,11 +572,11 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
       anchorColumn: 'created_at',
       horizon: { kind: 'days', days: 90 },
       predicate:
-        "status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed', 'cancelled')",
+        "status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed', 'cancelled') OR the row's notification no longer exists",
       query:
-        'Delete terminal notification_email_queue rows older than 90 days; retain open retry work.',
+        'Delete notification_email_queue rows older than 90 days that are terminal, or whose notification retention removed (nothing can send them); retain open retry work.',
       implementedBoundary:
-        'Live as the scheduled notification_email_queue subject with the terminal-status predicate.',
+        'Live as the scheduled notification_email_queue subject; digest batch members cascade with the row.',
     },
     evidenceSubject: 'notification_email_queue',
     restoreImplication: RESTORE_REPLAYS_DELETION,
