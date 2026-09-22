@@ -1016,7 +1016,8 @@ describe('notification email outcomes', () => {
         providerOutcomeCount: 12,
       }),
     )
-    expect(partial!.detail).toContain('12 provider outcome')
+    expect(partial!.detail).toContain('12 provider event(s) did arrive')
+    expect(partial!.detail).toContain('delivery_delayed')
 
     const captured = evaluateOne(
       'notification.email-provider-feedback-missing',
