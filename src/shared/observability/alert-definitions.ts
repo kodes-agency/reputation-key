@@ -929,8 +929,8 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
         outcomes.capturedUnresolvedCount > 0
           ? `${outcomes.capturedUnresolvedCount} captured by the non-sending local transport — the mail never reached a provider`
           : outcomes.providerOutcomeCount === 0
-            ? 'no delivered/bounced/complained event recorded in 24h — the provider webhook looks silent (RESEND_WEBHOOK_SECRET on web, the Resend endpoint, signature failures)'
-            : `${outcomes.providerOutcomeCount} provider outcome(s) did arrive in 24h — delayed delivery or an event type the webhook does not send`
+            ? 'no provider event recorded in 24h — the provider webhook looks silent (RESEND_WEBHOOK_SECRET on web, the Resend endpoint, signature failures)'
+            : `${outcomes.providerOutcomeCount} provider event(s) did arrive in 24h — delayed delivery (provider_state delivery_delayed on the unresolved rows) or an event type the webhook does not send`
       return {
         value: unresolved,
         detail: `${unresolved} accepted notification email(s) have no provider outcome 6h after acceptance (oldest accepted ${outcomes.oldestAcceptedUnresolvedAgeMs ?? -1}ms ago); ${cause}`,

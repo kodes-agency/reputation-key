@@ -508,7 +508,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.pendingOverdueCount'],
     emitted: true,
     description:
-      'Queued notification emails still sendable — pending, held for quiet hours (delayed), or a transient failure under the retry budget — past their due time (the later of next_attempt_at and not_before, else created_at).',
+      'Queued notification emails still sendable — pending, held for quiet hours (delayed), or a transient failure under the retry budget — past their due time (the later of next_attempt_at and not_before, else created_at). Rows for a Property that is no longer active are held, not overdue.',
   }),
   def({
     name: 'notification.email.oldest_pending_overdue_age_ms',
@@ -555,7 +555,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     ],
     emitted: true,
     description:
-      'What became of attempted notification email in the trailing 24h, counted per provider message (a daily digest is one): provider acceptances (the rate denominator), permanent refusals (never retried), transient failures that spent the retry budget (given up), bounces, complaints, and delivered/bounced/complained events recorded (provider-webhook liveness).',
+      'What became of attempted notification email in the trailing 24h, counted per provider message (a daily digest is one): provider acceptances (the rate denominator), permanent refusals (never retried), transient failures that spent the retry budget (given up), bounces, complaints, and every provider event recorded — delivered, bounced, complained, failed after acceptance, suppressed by the provider, delivery delayed (provider-webhook liveness).',
   }),
   def({
     name: 'notification.email.accepted_unresolved',

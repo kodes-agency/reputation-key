@@ -165,7 +165,10 @@ export type NotificationEmailOutcomes = Readonly<{
   bouncedCount: number
   /** Provider complaint (spam) events recorded. */
   complainedCount: number
-  /** Delivered, bounced, or complained events recorded: webhook liveness. */
+  /**
+   * Provider events recorded — delivered, bounced, complained, failed after
+   * acceptance, suppressed by the provider, delivery delayed: webhook liveness.
+   */
   providerOutcomeCount: number
   /**
    * Accepted messages (7-day lookback) still without any provider outcome
@@ -552,6 +555,14 @@ export type NotificationEmailMetrics = Omit<
 const EMAIL_RETRY_BUDGET = 5
 
 /**
+ * The suppression reason on a row the PROVIDER suppressed
+ * (notification-email.repository). Local suppressions (a disabled preference,
+ * a changed digest) also write `provider_state = 'suppressed'`, so only this
+ * reason marks a provider event. Mirrored — shared cannot import Feed.
+ */
+const PROVIDER_SUPPRESSION_REASON = 'provider_suppressed'
+
+/**
  * Terminal and provider outcomes of attempted email (NotificationEmailOutcomes).
  * The 6h grace is how long a healthy provider webhook takes, at most, to report
  * delivered/bounced/complained for accepted mail; the 7-day lookback bounds the
@@ -585,9 +596,17 @@ function emailOutcomeAggregates() {
     complained_24h: messages(
       sql`${q.providerState} = 'complained' AND ${inWindow(sql`${q.bouncedAt}`)}`,
     ),
-    provider_outcomes_24h: messages(
-      sql`${inWindow(sql`${q.deliveredAt}`)} OR ${inWindow(sql`${q.bouncedAt}`)}`,
-    ),
+    // Every provider event the webhook records. Delivered, bounced and
+    // complained stamp their own column; a failure after acceptance stamps
+    // failed_at; the provider's own suppression and a delayed delivery only
+    // move provider_state, at updated_at.
+    provider_outcomes_24h: messages(sql`${inWindow(sql`${q.deliveredAt}`)}
+      OR ${inWindow(sql`${q.bouncedAt}`)}
+      OR (${q.providerState} = 'failed' AND ${inWindow(sql`${q.failedAt}`)})
+      OR (${q.providerState} = 'delivery_delayed' AND ${inWindow(sql`${q.updatedAt}`)})
+      OR (${q.providerState} = 'suppressed'
+        AND ${q.suppressionReason} = ${PROVIDER_SUPPRESSION_REASON}
+        AND ${inWindow(sql`${q.updatedAt}`)})`),
     accepted_unresolved: messages(unresolved),
     oldest_accepted_unresolved_age_ms: sql<number | null>`
       EXTRACT(EPOCH FROM (NOW() - MIN(${q.acceptedAt}) FILTER (WHERE ${unresolved}))) * 1000
@@ -675,7 +694,18 @@ function emailDueClauses() {
     OR (${q.status} = 'failed' AND ${q.lastErrorClass} = 'transient'
       AND ${q.retryCount} < ${EMAIL_RETRY_BUDGET})
   )`
-  const overdue = sql`${sendable} AND ${dueAt} < NOW()`
+  // Every send path — the digest, the urgent job, the orphan sweep — holds a
+  // row whose Property is no longer active until the Property is restored, and
+  // then retires it as stale or sends it. Held, it is not overdue. Mirrors
+  // Feed's active-Property definition (shared cannot import the context).
+  const onSendableProperty = sql`(${q.propertyId} IS NULL OR EXISTS (
+    SELECT 1 FROM properties p
+     WHERE p.organization_id = ${q.organizationId}
+       AND p.id = ${q.propertyId}
+       AND p.deleted_at IS NULL
+       AND p.lifecycle_state = 'active'
+  ))`
+  const overdue = sql`${sendable} AND ${dueAt} < NOW() AND ${onSendableProperty}`
   const touched = sql`${overdue} AND (${q.attemptedAt} IS NOT NULL OR ${q.status} = 'delayed')`
   return { dueAt, overdue, touched }
 }

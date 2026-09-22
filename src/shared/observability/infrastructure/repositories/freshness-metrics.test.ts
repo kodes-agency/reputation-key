@@ -178,6 +178,22 @@ describe('notification email delivery aggregate (real reads)', () => {
     expect(after.attemptedStuckCount).toBe(baseline.attemptedStuckCount)
     expect(after.oldestPendingOverdueAgeMs!).toBeGreaterThanOrEqual(239 * MINUTE_MS)
   })
+
+  it('never counts a row held for a Property that is no longer active as overdue', async () => {
+    const baseline = (await checker.check()).notifications
+    await seedProperty()
+    await seedScopedProperty(ARCHIVED_PROP_UUID, 'obs-freshness-archived', 'archived')
+
+    // Both holds ended three hours ago. The digest, the urgent job and the
+    // orphan sweep all hold the archived Property's row until it is restored,
+    // so only the active Property's row is late mail.
+    await seedHeldEmail('obs-freshness-active-held', MARKER_PROP_UUID)
+    await seedHeldEmail('obs-freshness-archived-held', ARCHIVED_PROP_UUID)
+
+    const after = (await checker.check()).notifications
+
+    expect(after.pendingOverdueCount).toBe(baseline.pendingOverdueCount + 1)
+  })
 })
 
 type OutcomeSeed = Readonly<{
@@ -187,6 +203,7 @@ type OutcomeSeed = Readonly<{
   lastErrorClass?: string
   retryCount?: number
   providerMessageId?: string
+  suppressionReason?: string
   /** SQL fragments for the outcome clocks (NULL columns when omitted). */
   acceptedAt?: SQL
   failedAt?: SQL
@@ -200,12 +217,14 @@ async function seedOutcome(seed: OutcomeSeed) {
       notification_id, user_id, organization_id, property_id,
       category, cadence, status, priority, idempotency_key,
       provider_message_id, provider_state, last_error_class, retry_count,
+      suppression_reason,
       accepted_at, failed_at, delivered_at, bounced_at, created_at, updated_at
     ) VALUES (
       gen_random_uuid(), 'user-obs-freshness', ${MARKER_ORG}, ${MARKER_PROP_UUID},
       'urgent_operational', 'immediate', ${seed.status}, 'urgent', ${seed.key},
       ${seed.providerMessageId ?? null}, ${seed.providerState ?? null},
       ${seed.lastErrorClass ?? null}, ${seed.retryCount ?? 0},
+      ${seed.suppressionReason ?? null},
       ${seed.acceptedAt ?? sql`NULL`}, ${seed.failedAt ?? sql`NULL`},
       ${seed.deliveredAt ?? sql`NULL`}, ${seed.bouncedAt ?? sql`NULL`},
       NOW() - INTERVAL '2 days', NOW()
@@ -328,6 +347,52 @@ describe('notification email outcome aggregate (real reads)', () => {
     expect(after.oldestAcceptedUnresolvedAgeMs!).toBeGreaterThanOrEqual(
       30 * 60 * MINUTE_MS - MINUTE_MS,
     )
+  })
+
+  it('counts every provider event the webhook records as feedback, and no local one', async () => {
+    const baseline = (await checker.check()).notifications.emailOutcomes
+    await seedProperty()
+
+    // The provider failed a message after accepting it: a permanent loss.
+    await seedOutcome({
+      key: 'obs-outcome-provider-failed',
+      status: 'failed',
+      providerState: 'failed',
+      lastErrorClass: 'permanent',
+      providerMessageId: 'provider-failed',
+      acceptedAt: hoursAgo(3),
+      failedAt: hoursAgo(2),
+    })
+    // The provider refused an address on its own suppression list.
+    await seedOutcome({
+      key: 'obs-outcome-provider-suppressed',
+      status: 'suppressed',
+      providerState: 'suppressed',
+      suppressionReason: 'provider_suppressed',
+      providerMessageId: 'provider-suppressed',
+      acceptedAt: hoursAgo(3),
+    })
+    // Still in flight at the provider, reported delayed inside the grace.
+    await seedOutcome({
+      key: 'obs-outcome-provider-delayed',
+      status: 'accepted',
+      providerState: 'delivery_delayed',
+      providerMessageId: 'provider-delayed',
+      acceptedAt: hoursAgo(1),
+    })
+    // A local suppression writes the same provider_state; it is no event.
+    await seedOutcome({
+      key: 'obs-outcome-local-suppressed',
+      status: 'suppressed',
+      providerState: 'suppressed',
+      suppressionReason: 'digest_content_changed',
+    })
+
+    const after = (await checker.check()).notifications.emailOutcomes
+
+    expect(after.providerOutcomeCount).toBe(baseline.providerOutcomeCount + 3)
+    expect(after.permanentFailureCount).toBe(baseline.permanentFailureCount + 1)
+    expect(after.acceptedUnresolvedCount).toBe(baseline.acceptedUnresolvedCount)
   })
 })
 
