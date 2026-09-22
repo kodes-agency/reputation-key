@@ -5,11 +5,8 @@ import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
-import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
-import {
-  buildPropertyPayload,
-  type PropertyPayloadDeps,
-} from './notification-payload-facts'
+import type { PropertyPayloadDeps } from './notification-payload-facts'
+import { enqueueResponsibilityGapNotification } from './responsibility-gap-notification'
 
 export const ON_PROPERTY_RESPONSIBILITY_NEEDED_CONSUMER =
   'notification.on-property-responsibility-needed' as const
@@ -44,59 +41,22 @@ function parse(event: ConsumerEvent): Payload {
   return payload
 }
 
-async function enqueuePropertyResponsibilityNotification(
-  deps: PropertyNotificationConsumerDeps,
-  event: PropertyResponsibilityNeeded,
-): Promise<void> {
-  const recipients = await deps.userLookup.findByRole(
-    event.organizationId,
-    'AccountAdmin',
-  )
-  if (recipients.length === 0) {
-    deps.logger.warn(
-      { correlationId: event.correlationId ?? undefined },
-      'Property responsibility notification has no AccountAdmin recipients',
-    )
-    return
-  }
-  const where = await buildPropertyPayload(deps, event.organizationId, event.propertyId)
-  await Promise.all(
-    recipients.map((recipientId) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: recipientId,
-          organizationId: event.organizationId,
-          propertyId: event.propertyId,
-          type: 'property.responsibility_needed',
-          resourceType: 'property',
-          resourceId: event.propertyId,
-          eventId: event.eventId,
-          payload: where,
-          // Rechecked on delivery: a manager chosen meanwhile retires it.
-          audience: {
-            kind: 'responsibility_gap',
-            scope: { kind: 'property', propertyId: event.propertyId },
-          },
-        },
-        { jobId: `${event.eventId}-${recipientId}` },
-      ),
-    ),
-  )
-}
-
 export async function handleNotificationPropertyResponsibilityNeeded(
   deps: PropertyNotificationConsumerDeps,
   event: ConsumerEvent,
 ): Promise<Readonly<{ status: 'applied' }>> {
   const payload = parse(event)
-  await enqueuePropertyResponsibilityNotification(deps, {
+  const needed: PropertyResponsibilityNeeded = {
     _tag: 'property.responsibility_became_needed',
     eventId: event.eventId,
     correlationId: event.correlationId ?? null,
     organizationId: organizationId(payload.organizationId),
     propertyId: propertyId(payload.propertyId),
     occurredAt: new Date(payload.occurredAt),
+  }
+  await enqueueResponsibilityGapNotification(deps, needed, {
+    kind: 'property',
+    propertyId: needed.propertyId,
   })
   await deps.receipts.insertReceipt(
     event.eventId,

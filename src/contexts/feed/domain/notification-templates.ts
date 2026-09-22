@@ -307,15 +307,30 @@ const renderInboxReopened = (p: NotificationPayload): RenderedNotification => ({
 /** "an item" / "7 items" for the grouped Inbox notices. */
 const someItems = (count: number): string => (count === 1 ? 'an item' : `${count} items`)
 
-const renderInboxBulkReopened = (p: NotificationPayload): RenderedNotification => {
+/**
+ * The grouped Inbox notices: "7 items reopened". `body` receives "an item" or
+ * "7 items" to finish the sentence with.
+ */
+const renderInboxBulk = (
+  p: NotificationPayload,
+  outcome: string,
+  body: (items: string) => string,
+): RenderedNotification => {
   const count = p.itemCount ?? 1
   return {
-    title: `${count} ${count === 1 ? 'item' : 'items'} reopened${atProperty(p)}`,
-    body: `${byRole(p)} reopened ${someItems(count)}. Open the Inbox to take a look.`,
+    title: `${count} ${count === 1 ? 'item' : 'items'} ${outcome}${atProperty(p)}`,
+    body: body(someItems(count)),
     actionLabel: 'Open Inbox',
-    summary: factsAt(p, `${count} reopened`),
+    summary: factsAt(p, `${count} ${outcome}`),
   }
 }
+
+const renderInboxBulkReopened = (p: NotificationPayload): RenderedNotification =>
+  renderInboxBulk(
+    p,
+    'reopened',
+    (items) => `${byRole(p)} reopened ${items}. Open the Inbox to take a look.`,
+  )
 
 const renderResponseTargetHalfway = (p: NotificationPayload): RenderedNotification => ({
   title: `Halfway to the response target${atProperty(p)}`,
@@ -338,15 +353,12 @@ const renderInboxAssigned = (p: NotificationPayload): RenderedNotification => ({
   summary: factsAt(p, ratedNoun(p), 'assigned to you'),
 })
 
-const renderInboxBulkAssigned = (p: NotificationPayload): RenderedNotification => {
-  const count = p.itemCount ?? 1
-  return {
-    title: `${count} ${count === 1 ? 'item' : 'items'} assigned to you${atProperty(p)}`,
-    body: `${byRole(p)} assigned ${someItems(count)} to you. Open the Inbox to see your work.`,
-    actionLabel: 'Open Inbox',
-    summary: factsAt(p, `${count} assigned to you`),
-  }
-}
+const renderInboxBulkAssigned = (p: NotificationPayload): RenderedNotification =>
+  renderInboxBulk(
+    p,
+    'assigned to you',
+    (items) => `${byRole(p)} assigned ${items} to you. Open the Inbox to see your work.`,
+  )
 
 const renderNoteAdded = (p: NotificationPayload): RenderedNotification => ({
   title: `New internal note on ${p.platform === 'portal' ? 'feedback' : 'a review'}${atProperty(p)}`,
