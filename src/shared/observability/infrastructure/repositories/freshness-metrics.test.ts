@@ -37,6 +37,9 @@ afterEach(async () => {
   await db.execute(
     sql`DELETE FROM notification_email_queue WHERE organization_id = ${MARKER_ORG}`,
   )
+  await db.execute(
+    sql`DELETE FROM notification_digest_batches WHERE organization_id = ${MARKER_ORG}`,
+  )
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${MARKER_ORG}`)
 })
 
@@ -377,5 +380,117 @@ describe('notification email stall aggregate (real reads)', () => {
     expect(after.pendingOverdueCount).toBe(baseline.pendingOverdueCount + 2)
     expect(after.attemptedStuckCount).toBe(baseline.attemptedStuckCount + 2)
     expect(after.oldestAttemptedStuckAgeMs!).toBeGreaterThanOrEqual(179 * MINUTE_MS)
+  })
+})
+
+type DigestSeed = Omit<OutcomeSeed, 'key'> &
+  Readonly<{
+    key: string
+    /** How many queued notifications the one digest message carried. */
+    items: number
+    batchState: 'accepted' | 'terminal'
+  }>
+
+let digestSequence = 0
+
+/**
+ * One daily digest: an immutable batch and its member queue rows, which share
+ * the batch's outcome (settleDigestBatch writes every member; a provider event
+ * updates every row carrying the message id).
+ */
+async function seedDigest(seed: DigestSeed) {
+  digestSequence += 1
+  const batch = await db.execute<{ id: string }>(sql`
+    INSERT INTO notification_digest_batches (
+      organization_id, user_id, local_date, sequence, member_digest,
+      content_digest, provider_idempotency_key, state, provider_message_id,
+      created_at, updated_at
+    ) VALUES (
+      ${MARKER_ORG}, 'user-obs-freshness', CURRENT_DATE, ${digestSequence},
+      ${'a'.repeat(64)}, ${'b'.repeat(64)}, ${`obs-digest-${seed.key}`},
+      ${seed.batchState}, ${seed.providerMessageId ?? null}, NOW(), NOW()
+    ) RETURNING id
+  `)
+  const batchId = batch.rows[0]!.id
+  for (let index = 0; index < seed.items; index += 1) {
+    const email = await db.execute<{ id: string }>(sql`
+      INSERT INTO notification_email_queue (
+        notification_id, user_id, organization_id, property_id,
+        category, cadence, status, priority, idempotency_key,
+        provider_message_id, provider_state, last_error_class, retry_count,
+        accepted_at, failed_at, delivered_at, bounced_at, created_at, updated_at
+      ) VALUES (
+        gen_random_uuid(), 'user-obs-freshness', ${MARKER_ORG}, ${MARKER_PROP_UUID},
+        'review', 'daily', ${seed.status}, 'normal', ${`${seed.key}-${index}`},
+        ${seed.providerMessageId ?? null}, ${seed.providerState ?? null},
+        ${seed.lastErrorClass ?? null}, ${seed.retryCount ?? 0},
+        ${seed.acceptedAt ?? sql`NULL`}, ${seed.failedAt ?? sql`NULL`},
+        ${seed.deliveredAt ?? sql`NULL`}, ${seed.bouncedAt ?? sql`NULL`},
+        NOW() - INTERVAL '2 days', NOW()
+      ) RETURNING id
+    `)
+    await db.execute(sql`
+      INSERT INTO notification_digest_batch_members (
+        batch_id, organization_id, user_id, notification_email_id, sort_index
+      ) VALUES (${batchId}, ${MARKER_ORG}, 'user-obs-freshness', ${email.rows[0]!.id}, ${index})
+    `)
+  }
+}
+
+describe('notification email outcomes per provider message (real reads)', () => {
+  it('counts a multi-item daily digest once, whatever became of it', async () => {
+    const baseline = (await checker.check()).notifications.emailOutcomes
+    await seedProperty()
+
+    // One digest of five items hard-bounced: one bounced message, not five.
+    await seedDigest({
+      key: 'obs-digest-bounced',
+      items: 5,
+      batchState: 'accepted',
+      status: 'bounced',
+      providerState: 'bounced',
+      providerMessageId: 'provider-digest-bounced',
+      acceptedAt: hoursAgo(10),
+      bouncedAt: hoursAgo(9),
+    })
+    // One digest of four items refused for one address.
+    await seedDigest({
+      key: 'obs-digest-refused',
+      items: 4,
+      batchState: 'terminal',
+      status: 'failed',
+      lastErrorClass: 'permanent',
+      retryCount: 1,
+      failedAt: hoursAgo(2),
+    })
+    // One digest of three items that spent its retry budget.
+    await seedDigest({
+      key: 'obs-digest-exhausted',
+      items: 3,
+      batchState: 'terminal',
+      status: 'failed',
+      lastErrorClass: 'transient',
+      retryCount: 5,
+      failedAt: hoursAgo(3),
+    })
+    // One digest of three items accepted 8h ago with no provider outcome yet.
+    await seedDigest({
+      key: 'obs-digest-unresolved',
+      items: 3,
+      batchState: 'accepted',
+      status: 'accepted',
+      providerState: 'accepted',
+      providerMessageId: 'provider-digest-unresolved',
+      acceptedAt: hoursAgo(8),
+    })
+
+    const after = (await checker.check()).notifications.emailOutcomes
+
+    expect(after.bouncedCount).toBe(baseline.bouncedCount + 1)
+    expect(after.acceptedCount).toBe(baseline.acceptedCount + 2)
+    expect(after.permanentFailureCount).toBe(baseline.permanentFailureCount + 1)
+    expect(after.retryExhaustedCount).toBe(baseline.retryExhaustedCount + 1)
+    expect(after.providerOutcomeCount).toBe(baseline.providerOutcomeCount + 1)
+    expect(after.acceptedUnresolvedCount).toBe(baseline.acceptedUnresolvedCount + 1)
   })
 })

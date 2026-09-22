@@ -555,7 +555,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     ],
     emitted: true,
     description:
-      'What became of attempted notification email in the trailing 24h: provider acceptances (the rate denominator), permanent refusals (never retried), transient failures that spent the retry budget (given up), bounces, complaints, and delivered/bounced/complained events recorded (provider-webhook liveness).',
+      'What became of attempted notification email in the trailing 24h, counted per provider message (a daily digest is one): provider acceptances (the rate denominator), permanent refusals (never retried), transient failures that spent the retry budget (given up), bounces, complaints, and delivered/bounced/complained events recorded (provider-webhook liveness).',
   }),
   def({
     name: 'notification.email.accepted_unresolved',
@@ -568,7 +568,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     ],
     emitted: true,
     description:
-      'Accepted notification email (7-day lookback) with no delivered, bounced, or complained event 6h after acceptance — the provider webhook never reported it — and the subset a non-sending capture transport accepted (never reached a provider).',
+      'Accepted notification email messages (7-day lookback) with no delivered, bounced, or complained event 6h after acceptance — the provider webhook never reported it — and the subset a non-sending capture transport accepted (never reached a provider).',
   }),
   def({
     name: 'notification.email.oldest_accepted_unresolved_age_ms',

@@ -16,11 +16,14 @@
 
 import { DEFAULT_LEASE_DURATION_MS, type OutboxRepository } from '#/shared/outbox'
 import type { Database } from '#/shared/db'
-import { sql, type SQL } from 'drizzle-orm'
+import { eq, sql, type SQL } from 'drizzle-orm'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { reviews, replies } from '#/shared/db/schema/review.schema'
 import { reviewSyncState } from '#/shared/db/schema/review-sync.schema'
-import { notificationEmailQueue } from '#/shared/db/schema/notification.schema'
+import {
+  notificationDigestBatchMembers,
+  notificationEmailQueue,
+} from '#/shared/db/schema/notification.schema'
 import { trace } from '#/shared/observability/trace'
 
 /**
@@ -130,12 +133,13 @@ export type QuarantineMetrics = Readonly<{
  * What became of notification email the delivery path already attempted. The
  * overdue gauges measure mail that has not gone out; without these, mail the
  * provider refused, bounced or complained about — or accepted and never
- * resolved — left no signal at all. Counts only, trailing 24h unless noted.
+ * resolved — left no signal at all. Counts of provider MESSAGES (a daily
+ * digest is one, whatever it carried), trailing 24h unless noted.
  */
 export type NotificationEmailOutcomes = Readonly<{
-  /** Rows the provider accepted (the rate denominator). */
+  /** Messages the provider accepted (the rate denominator). */
   acceptedCount: number
-  /** Rows the provider refused permanently; nothing retries them. */
+  /** Messages the provider refused permanently; nothing retries them. */
   permanentFailureCount: number
   /** Transient failures that spent the retry budget: the path gave up. */
   retryExhaustedCount: number
@@ -146,14 +150,14 @@ export type NotificationEmailOutcomes = Readonly<{
   /** Delivered, bounced, or complained events recorded: webhook liveness. */
   providerOutcomeCount: number
   /**
-   * Accepted rows (7-day lookback) still without any provider outcome once
-   * the 6h feedback grace has passed — the provider webhook never reported
-   * them.
+   * Accepted messages (7-day lookback) still without any provider outcome
+   * once the 6h feedback grace has passed — the provider webhook never
+   * reported them.
    */
   acceptedUnresolvedCount: number
-  /** Age of the oldest such row (null when none). */
+  /** Age of the oldest such message (null when none). */
   oldestAcceptedUnresolvedAgeMs: number | null
-  /** Unresolved rows the non-sending capture transport accepted: never sent. */
+  /** Unresolved messages the non-sending capture transport accepted: never sent. */
   capturedUnresolvedCount: number
 }>
 
@@ -530,39 +534,45 @@ const EMAIL_RETRY_BUDGET = 5
  * The 6h grace is how long a healthy provider webhook takes, at most, to report
  * delivered/bounced/complained for accepted mail; the 7-day lookback bounds the
  * read to recent mail.
+ *
+ * Each outcome counts provider MESSAGES, not queue rows: a daily digest's
+ * member rows share its one message and its outcome, so one bounced or refused
+ * digest of five items is one bounce or refusal — the alerts' minimum counts
+ * and shares are judged per message. A row outside any digest batch is its own
+ * message (the members LEFT JOIN is on a unique key, so rows never multiply).
  */
 function emailOutcomeAggregates() {
   const q = notificationEmailQueue
+  const message = sql`COALESCE(${notificationDigestBatchMembers.batchId}, ${q.id})`
+  const messages = (where: SQL) =>
+    sql<number>`count(DISTINCT ${message}) FILTER (WHERE ${where})::int`
   const inWindow = (at: SQL) => sql`${at} >= NOW() - INTERVAL '24 hours'`
   const unresolved = sql`${q.status} = 'accepted'
     AND ${q.acceptedAt} < NOW() - INTERVAL '6 hours'
     AND ${q.acceptedAt} >= NOW() - INTERVAL '7 days'`
   return {
-    accepted_24h: sql<number>`count(*) FILTER (WHERE ${inWindow(sql`${q.acceptedAt}`)})::int`,
-    permanent_failures_24h: sql<number>`count(*) FILTER (
-      WHERE ${q.status} = 'failed' AND ${q.lastErrorClass} = 'permanent'
-        AND ${inWindow(sql`${q.failedAt}`)}
-    )::int`,
-    retry_exhausted_24h: sql<number>`count(*) FILTER (
-      WHERE ${q.status} IN ('failed', 'suppressed') AND ${q.lastErrorClass} = 'transient'
-        AND ${q.retryCount} >= ${EMAIL_RETRY_BUDGET} AND ${inWindow(sql`${q.failedAt}`)}
-    )::int`,
-    bounced_24h: sql<number>`count(*) FILTER (
-      WHERE ${q.providerState} = 'bounced' AND ${inWindow(sql`${q.bouncedAt}`)}
-    )::int`,
-    complained_24h: sql<number>`count(*) FILTER (
-      WHERE ${q.providerState} = 'complained' AND ${inWindow(sql`${q.bouncedAt}`)}
-    )::int`,
-    provider_outcomes_24h: sql<number>`count(*) FILTER (
-      WHERE ${inWindow(sql`${q.deliveredAt}`)} OR ${inWindow(sql`${q.bouncedAt}`)}
-    )::int`,
-    accepted_unresolved: sql<number>`count(*) FILTER (WHERE ${unresolved})::int`,
+    accepted_24h: messages(inWindow(sql`${q.acceptedAt}`)),
+    permanent_failures_24h: messages(sql`${q.status} = 'failed'
+      AND ${q.lastErrorClass} = 'permanent' AND ${inWindow(sql`${q.failedAt}`)}`),
+    retry_exhausted_24h: messages(sql`${q.status} IN ('failed', 'suppressed')
+      AND ${q.lastErrorClass} = 'transient' AND ${q.retryCount} >= ${EMAIL_RETRY_BUDGET}
+      AND ${inWindow(sql`${q.failedAt}`)}`),
+    bounced_24h: messages(
+      sql`${q.providerState} = 'bounced' AND ${inWindow(sql`${q.bouncedAt}`)}`,
+    ),
+    complained_24h: messages(
+      sql`${q.providerState} = 'complained' AND ${inWindow(sql`${q.bouncedAt}`)}`,
+    ),
+    provider_outcomes_24h: messages(
+      sql`${inWindow(sql`${q.deliveredAt}`)} OR ${inWindow(sql`${q.bouncedAt}`)}`,
+    ),
+    accepted_unresolved: messages(unresolved),
     oldest_accepted_unresolved_age_ms: sql<number | null>`
       EXTRACT(EPOCH FROM (NOW() - MIN(${q.acceptedAt}) FILTER (WHERE ${unresolved}))) * 1000
     `,
-    captured_unresolved: sql<number>`count(*) FILTER (
-      WHERE ${unresolved} AND ${q.providerMessageId} LIKE 'captured-%'
-    )::int`,
+    captured_unresolved: messages(
+      sql`${unresolved} AND ${q.providerMessageId} LIKE 'captured-%'`,
+    ),
   }
 }
 
@@ -626,6 +636,10 @@ async function readNotificationEmailMetrics(
       ...emailOutcomeAggregates(),
     })
     .from(q)
+    .leftJoin(
+      notificationDigestBatchMembers,
+      eq(notificationDigestBatchMembers.notificationEmailId, q.id),
+    )
 
   const row = result[0]
   return {

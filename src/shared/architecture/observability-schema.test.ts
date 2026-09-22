@@ -316,6 +316,7 @@ function fakeDb(results: unknown[][]): Database {
     const chain: Record<string, unknown> = {}
     chain.from = () => chain
     chain.where = () => chain
+    chain.leftJoin = () => chain
     chain.then = (resolve: (v: unknown[]) => unknown, reject: (e: unknown) => unknown) =>
       Promise.resolve(rows).then(resolve, reject)
     return chain
