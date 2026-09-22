@@ -30,11 +30,7 @@ import type { ScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-g
 import {
   notificationEmailId,
   notificationDigestBatchId,
-  notificationId,
   organizationId,
-  propertyId,
-  type OrganizationId,
-  type UserId,
 } from '#/shared/domain/ids'
 import { absoluteUrl } from '#/shared/email/urls'
 import { maskEmail } from '#/shared/observability/pii'
@@ -50,14 +46,8 @@ import type { EmailSenderPort } from '../../application/ports/email-sender.port'
 import type { NotificationRecipientStanding } from '../../application/notification-recipient-standing'
 import type { NotificationOrganizationScopeResolver } from '../repositories/notification-organization-scope.repository'
 import type { NotificationEmail } from '../../domain/notification-types'
-import {
-  deliveryTiming,
-  isDailyDigestWindow,
-} from '../../domain/notification-delivery-policy'
-import { getDefaultEnabled } from '../../domain/notification-policy'
-import { isStaleQueuedEmail, STALE_EMAIL_REASON } from '../../domain/email-freshness'
+import { isDailyDigestWindow } from '../../domain/notification-delivery-policy'
 import { renderDigestEmail } from '../email/render'
-import { emailCorrelationId } from '../delivery-correlation'
 import {
   digestBatchIdempotencyKey,
   digestMemberSet,
@@ -80,6 +70,14 @@ import {
   sweepImmediateOrphans,
   type ImmediateEmailEnqueue,
 } from './immediate-orphan-sweep'
+import {
+  authorizedEntries,
+  loadItems,
+  partitionDeliverable,
+  retireStaleEntries,
+  suppressAll,
+  type RecipientContext,
+} from './digest-entry-selection'
 
 export const DIGEST_JOB_NAME = 'digest-notification' as const
 
@@ -109,226 +107,6 @@ export type DigestDeps = Readonly<{
 
 const retryAt = (now: Date, retryCount: number): Date =>
   new Date(now.getTime() + Math.min(60 * 60_000, 30_000 * 2 ** retryCount))
-
-// ── Per-recipient pipeline ──────────────────────────────────────────
-
-type RecipientContext = Readonly<{
-  orgId: OrganizationId
-  userId: UserId
-  rawOrgId: string
-  now: Date
-  timezone: string
-  timezoneSource: string
-}>
-
-/**
- * Drop rows whose property is no longer authorized for scheduled delivery. The
- * digest is recipient-scoped but authorization is still per property, so this
- * keeps the pre-existing gate exactly where it was — one check per distinct
- * property, not one per row.
- */
-async function authorizedEntries(
-  deps: DigestDeps,
-  rawOrgId: string,
-  entries: readonly NotificationEmail[],
-): Promise<readonly NotificationEmail[]> {
-  const verdicts = new Map<string, boolean>()
-  const kept: NotificationEmail[] = []
-  for (const entry of entries) {
-    const key = entry.propertyId as string
-    if (!verdicts.has(key)) verdicts.set(key, await deps.authorizeScope(rawOrgId, key))
-    if (verdicts.get(key)) kept.push(entry)
-  }
-  return kept
-}
-
-/**
- * CONTEXT.md invariant 4, per row: a digest gathers a day of rows, and the
- * recipient may since have left the Organization, lost a Property or been
- * relieved of the responsibility that selected them. Only those rows go; the
- * recipient's other Properties still arrive. Answers are shared within one
- * recipient's pass.
- */
-function recipientStandingFor(
-  deps: DigestDeps,
-  ctx: RecipientContext,
-): (entry: NotificationEmail) => Promise<boolean> {
-  const verdicts = new Map<string, Promise<boolean>>()
-  return (entry) => {
-    const key = `${entry.propertyId as string}\0${JSON.stringify(entry.recipientAudience)}`
-    const cached = verdicts.get(key)
-    if (cached) return cached
-    const verdict = deps.isRecipientEligible({
-      organizationId: ctx.orgId,
-      propertyId: propertyId(entry.propertyId as string),
-      userId: ctx.userId,
-      audience: entry.recipientAudience,
-    })
-    verdicts.set(key, verdict)
-    return verdict
-  }
-}
-
-/**
- * Standing + preference + quiet-hours filter. Every terminal branch persists
- * AND logs: a suppression nobody can see is indistinguishable from a lost
- * email.
- */
-async function partitionDeliverable(
-  deps: DigestDeps,
-  ctx: RecipientContext,
-  entries: readonly NotificationEmail[],
-): Promise<readonly NotificationEmail[]> {
-  const deliverable: NotificationEmail[] = []
-  const hasStanding = recipientStandingFor(deps, ctx)
-  for (const entry of entries) {
-    const propId = propertyId(entry.propertyId as string)
-    const emailId = notificationEmailId(entry.id as string)
-    if (!(await hasStanding(entry))) {
-      await deps.emailRepo.markSuppressed(
-        emailId,
-        ctx.orgId,
-        propId,
-        'recipient_ineligible',
-        ctx.now,
-      )
-      deps.logger.warn(
-        { correlationId: emailCorrelationId(entry.id), reason: 'recipient_ineligible' },
-        'Digest entry suppressed',
-      )
-      continue
-    }
-    const preference = await deps.preferenceRepo.findForDelivery(
-      ctx.userId,
-      ctx.orgId,
-      propId,
-      entry.category,
-      'email',
-    )
-    if (!(preference?.enabled ?? getDefaultEnabled(entry.category, 'email'))) {
-      await deps.emailRepo.markSuppressed(
-        emailId,
-        ctx.orgId,
-        propId,
-        'preference_disabled',
-        ctx.now,
-      )
-      deps.logger.info(
-        { correlationId: emailCorrelationId(entry.id), reason: 'preference_disabled' },
-        'Digest entry suppressed',
-      )
-      continue
-    }
-    // ADR 0046 r.3: quiet hours on the RECIPIENT's clock, not the property's.
-    const timing = deliveryTiming({
-      now: ctx.now,
-      timezone: ctx.timezone,
-      quietHoursStart: preference?.quietHoursStart ?? null,
-      quietHoursEnd: preference?.quietHoursEnd ?? null,
-      urgent: false,
-      urgentBypassEnabled: false,
-    })
-    if (timing.kind === 'defer') {
-      await deps.emailRepo.markDelayed(emailId, ctx.orgId, propId, timing.until, ctx.now)
-      deps.logger.info(
-        {
-          correlationId: emailCorrelationId(entry.id),
-          timezone: ctx.timezone,
-          timezoneSource: ctx.timezoneSource,
-          until: timing.until.toISOString(),
-          reason: 'quiet_hours',
-        },
-        'Digest entry deferred',
-      )
-      continue
-    }
-    deliverable.push(entry)
-  }
-  return deliverable
-}
-
-/** Suppress a whole batch with one reason, logging once per row. */
-async function suppressAll(
-  deps: DigestDeps,
-  ctx: RecipientContext,
-  entries: readonly NotificationEmail[],
-  reason: string,
-): Promise<void> {
-  for (const entry of entries) {
-    await deps.emailRepo.markSuppressed(
-      notificationEmailId(entry.id as string),
-      ctx.orgId,
-      propertyId(entry.propertyId as string),
-      reason,
-      ctx.now,
-    )
-    deps.logger.warn(
-      { correlationId: emailCorrelationId(entry.id), reason },
-      'Digest entry suppressed',
-    )
-  }
-}
-
-/**
- * Retire rows past their freshness bound — typically queued while email was
- * dark for their scope — so a newly admitted scope never mails its backlog.
- * One log line for the lot: a backlog can be hundreds of rows.
- */
-async function retireStaleEntries(
-  deps: DigestDeps,
-  ctx: RecipientContext,
-  entries: readonly NotificationEmail[],
-): Promise<readonly NotificationEmail[]> {
-  const stale = entries.filter((entry) => isStaleQueuedEmail(entry, ctx.now))
-  for (const entry of stale) {
-    await deps.emailRepo.markSuppressed(
-      notificationEmailId(entry.id as string),
-      ctx.orgId,
-      propertyId(entry.propertyId as string),
-      STALE_EMAIL_REASON,
-      ctx.now,
-    )
-  }
-  if (stale.length > 0) {
-    deps.logger.warn(
-      { stale: stale.length, reason: STALE_EMAIL_REASON },
-      'Digest entries suppressed as too old to send',
-    )
-  }
-  return entries.filter((entry) => !stale.includes(entry))
-}
-
-/**
- * Pair each queue row with its in-app notification. Reads are per property
- * because the repository enforces property scope on the notification table.
- */
-async function loadItems(
-  deps: DigestDeps,
-  ctx: RecipientContext,
-  entries: readonly NotificationEmail[],
-): Promise<readonly DigestItem[]> {
-  const byProperty = new Map<string, NotificationEmail[]>()
-  for (const entry of entries) {
-    const key = entry.propertyId as string
-    const bucket = byProperty.get(key)
-    if (bucket) bucket.push(entry)
-    else byProperty.set(key, [entry])
-  }
-
-  const items: DigestItem[] = []
-  for (const [rawPropertyId, group] of byProperty) {
-    const notifications = await deps.notifRepo.findByIdsForProperty(
-      group.map((entry) => notificationId(entry.notificationId as string)),
-      ctx.orgId,
-      propertyId(rawPropertyId),
-    )
-    for (const entry of group) {
-      const notification = notifications.get(entry.notificationId as string)
-      if (notification) items.push({ entry, notification })
-    }
-  }
-  return items
-}
 
 async function recordOutcomes(
   deps: DigestDeps,
