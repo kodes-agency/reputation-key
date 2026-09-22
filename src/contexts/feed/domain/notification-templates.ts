@@ -475,13 +475,25 @@ const RENDERERS: Record<
 }
 
 /**
+ * How a coalesced row says it repeated, with the verb for what repeated; `#`
+ * is the count, the first event included. Types without one say only that it
+ * happened again, which is true of all of them.
+ */
+const REPEATED: Partial<Record<NotificationType, string>> = {
+  'inbox_note.added': '# notes added.',
+  'inbox.escalated': 'Escalated # times.',
+  'review.updated': 'Updated # times.',
+  'reply.pending_approval': 'Submitted # times.',
+}
+
+/**
  * Render the copy for a notification. Pure — same inputs, same output — so the
  * in-app list, the email worker, and the digest all agree.
  *
- * `occurrences > 1` appends a repeat marker, because a row that coalesced three
- * escalations should not read identically to one that fired once (ADR 0046 r.2).
- * `now`, which email passes, adds the live waiting age to the facts line; the
- * in-app row shows it in its own strip.
+ * `occurrences > 1` ends the body with one repeat sentence, because a row that
+ * coalesced three escalations should not read like one that fired once (ADR
+ * 0046 r.2). `now`, which email passes, adds the live waiting age to the facts
+ * line; the in-app row shows it in its own strip.
  */
 export const renderNotification = (
   type: NotificationType,
@@ -494,12 +506,13 @@ export const renderNotification = (
   return {
     ...rendered,
     body:
-      repeats > 1 ? sentence(rendered.body, `Updated ${repeats} times.`) : rendered.body,
-    summary: facts(
-      rendered.summary,
-      age === '' ? '' : `waiting ${age}`,
-      repeats > 1 ? `${repeats}x` : '',
-    ),
+      repeats > 1
+        ? sentence(
+            rendered.body,
+            (REPEATED[type] ?? 'This happened # times.').replace('#', `${repeats}`),
+          )
+        : rendered.body,
+    summary: facts(rendered.summary, age === '' ? '' : `waiting ${age}`),
   }
 }
 

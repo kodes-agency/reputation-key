@@ -18,9 +18,9 @@
 //      (user_id, type, resource_id) WHERE status='unread' plus the repository's
 //      `onConflictDoUpdate` mean a raced replay UPDATES the unread row rather
 //      than inserting a second one. It is not free, though — the conflict
-//      branch bumps `coalesced_count`, which is user-visible ("Updated 2
-//      times"). That is exactly why fences 1 and 2 exist rather than leaning on
-//      the database alone.
+//      branch bumps `coalesced_count`, which is user-visible (the copy says how
+//      often a row repeated). That is exactly why fences 1 and 2 exist rather
+//      than leaning on the database alone.
 //
 // Content-free: identifiers, an enum and counts only (ADR 0030 / BQC-7.3).
 

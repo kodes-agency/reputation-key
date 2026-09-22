@@ -120,6 +120,10 @@ so a reader with several Properties can tell rows and urgent emails apart. The
 Google connection's notice is the exception: the connection belongs to the
 Organization, and the Property it is filed under is only a delivery anchor.
 
+A row that absorbed repeat events keeps their count in `coalesced_count` only.
+Every read projects that column into the payload the copy renders from, and
+the copy says it once, in the words for what repeated ("3 notes added").
+
 A waiting age is never frozen into a row. A notice about something still
 waiting on its reader (an approval, an escalation, a Response Target reminder)
 stores when the current wait began, the start of the current cycle's measured

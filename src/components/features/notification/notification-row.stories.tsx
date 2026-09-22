@@ -84,12 +84,26 @@ export const UrgentUnread: Story = {
   },
 }
 
-/** ADR 0046 r.2 coalescing: one unread row absorbing repeat events. */
+/**
+ * ADR 0046 r.2 coalescing: one unread row absorbing repeat events. A stored
+ * row reads its count from the coalescing column into `occurrences`, and the
+ * copy says it once, with the verb for what repeated.
+ */
 export const Coalesced: Story = {
-  args: { notification: pendingApproval },
+  args: {
+    notification: {
+      ...pendingApproval,
+      payload: {
+        ...pendingApproval.payload,
+        occurrences: pendingApproval.coalescedCount,
+      },
+    },
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('Updated 3 times')).toBeInTheDocument()
+    expect(canvas.getByText(/Submitted 3 times\.$/)).toBeInTheDocument()
+    expect(canvasElement.textContent?.match(/3 times/g)).toHaveLength(1)
+    expect(canvas.queryByText(/Updated/)).not.toBeInTheDocument()
   },
 }
 

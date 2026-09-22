@@ -333,14 +333,27 @@ describe('renderNotification — the copy that was broken', () => {
   })
 })
 
+// One row that absorbed repeat events says how many, once, with the verb for
+// what repeated. The count covers every event, the first one included.
 describe('renderNotification — coalescing (ADR 0046 r.2)', () => {
-  it('marks a row that absorbed repeat events', () => {
-    const once = renderNotification('inbox.escalated', { occurrences: 1 })
-    const thrice = renderNotification('inbox.escalated', { occurrences: 3 })
+  it.each([
+    ['inbox_note.added', '3 notes added.'],
+    ['inbox.escalated', 'Escalated 3 times.'],
+    ['review.updated', 'Updated 3 times.'],
+    ['reply.pending_approval', 'Submitted 3 times.'],
+    ['reply.publish_failed', 'This happened 3 times.'],
+  ] as const)('ends a repeated %s with "%s"', (type, marker) => {
+    const r = renderNotification(type, { occurrences: 3 })
 
-    expect(once.body).not.toContain('Updated')
-    expect(thrice.body).toContain('Updated 3 times.')
-    expect(thrice.summary).toContain('3x')
+    expect(r.body.endsWith(` ${marker}`)).toBe(true)
+    // Said once: the facts line beside the copy does not repeat it.
+    expect(r.summary).not.toMatch(/3/)
+  })
+
+  it('marks nothing on a row that fired once', () => {
+    const r = renderNotification('inbox_note.added', { occurrences: 1 })
+
+    expect(r.body).not.toMatch(/added\.$|times/)
   })
 })
 

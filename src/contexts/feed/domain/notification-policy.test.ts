@@ -75,7 +75,7 @@ describe('notification policy', () => {
     )
 
     expect(bumped.payload.occurrences).toBe(2)
-    expect(bumped.body).toContain('Updated 2 times')
+    expect(bumped.body).toMatch(/ Escalated 2 times\.$/)
   })
 
   it('re-renders the title from the merged facts', () => {

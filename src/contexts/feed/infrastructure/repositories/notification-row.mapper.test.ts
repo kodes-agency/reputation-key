@@ -59,6 +59,23 @@ describe('notification row mapper', () => {
     })
   })
 
+  // The coalescing count column is the one record of how often a row repeated.
+  // Its copy reads the count from the payload, so the read projects the column
+  // there: a row coalesced by the insert race, whose payload never got the
+  // count, still says it, and a stale payload count never outvotes the column.
+  it.each([
+    [3, {}, 3],
+    [2, { occurrences: 7 }, 2],
+    [1, { occurrences: 4 }, undefined],
+  ])(
+    'reads a coalesced count of %i with payload %j as occurrences %s',
+    (coalescedCount, payload, occurrences) => {
+      expect(
+        notificationFromRow(row({ coalescedCount, payload })).payload.occurrences,
+      ).toBe(occurrences)
+    },
+  )
+
   it('still refuses a resource type nobody declared', () => {
     expect(() => notificationFromRow(row({ resourceType: 'spaceship' }))).toThrow(
       /Invalid notification\.resourceType: spaceship/u,

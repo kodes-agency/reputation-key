@@ -86,13 +86,26 @@ const withoutOccurrenceCauses = (payload: NotificationPayload): NotificationPayl
   ) as NotificationPayload
 
 /**
+ * The row's coalescing count, projected into the payload the copy reads. The
+ * `coalesced_count` column is the one record of how often a row repeated; the
+ * read projects it here so every surface says the same number, including a
+ * row the insert race coalesced without touching its payload.
+ */
+export function withRepeatCount(
+  payload: NotificationPayload,
+  coalescedCount: number,
+): NotificationPayload {
+  const { occurrences: _stale, ...rest } = payload
+  return coalescedCount > 1 ? { ...rest, occurrences: coalescedCount } : rest
+}
+
+/**
  * ADR 0046 r.2 — absorb a repeat event into the single unread row instead of
  * stacking another one.
  *
- * The count is authoritative for the copy: `occurrences` is written into the
- * merged payload so `renderNotification` can say "Updated 3 times", and
- * title/body are re-rendered from the merged facts (a re-escalation that has
- * now waited 9 hours must not keep advertising 3).
+ * The count is authoritative for the copy: it is written into the merged
+ * payload so `renderNotification` can say "3 notes added", and title/body are
+ * re-rendered from the merged facts.
  *
  * Payload merge is newest-wins per key: a fresh payload missing a key keeps the
  * value the row already had, because a later event that could not resolve the
@@ -107,11 +120,10 @@ export function applyCoalescence(
   now: Date,
 ): Notification {
   const coalescedCount = existing.coalescedCount + 1
-  const payload: NotificationPayload = {
-    ...withoutOccurrenceCauses(existing.payload),
-    ...freshPayload,
-    occurrences: coalescedCount,
-  }
+  const payload = withRepeatCount(
+    { ...withoutOccurrenceCauses(existing.payload), ...freshPayload },
+    coalescedCount,
+  )
   const rendered = renderNotification(existing.type, payload)
   return {
     ...existing,

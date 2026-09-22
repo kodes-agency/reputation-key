@@ -273,7 +273,7 @@ describe('insertNotification', () => {
 
     const result = await insertNotification(deps)(input)
 
-    expect(result?.body).toContain('Updated 2 times')
+    expect(result?.body).toMatch(/ This happened 2 times\.$/)
   })
 
   it('keeps a payload key the repeat event could not resolve', async () => {

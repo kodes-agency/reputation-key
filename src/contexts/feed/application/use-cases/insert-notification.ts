@@ -259,13 +259,12 @@ export const insertNotification =
     // 2b. ADR 0046 r.2: at most one UNREAD row per (user, type, resource). A
     // repeat event ABSORBS into that row — count bumped, latest arrival
     // stamped, payload merged newest-wins, copy re-rendered from the merged
-    // facts (so the row can now read "…Updated 3 times", and a re-escalation
-    // that has waited longer says so). No second email: the original queue
-    // entry still stands for the same resource — except for a mandatory
-    // notice, which is mailed once per event (`isMandatoryRepeat`). In-app
-    // only — an email-only recipient has no unread row to absorb into, and
-    // their anchor is stored read (step 3) so the database cannot absorb into
-    // it either.
+    // facts (so a row of three notes now reads "…3 notes added"). No second
+    // email: the original queue entry still stands for the same resource —
+    // except for a mandatory notice, which is mailed once per event
+    // (`isMandatoryRepeat`). In-app only — an email-only recipient has no
+    // unread row to absorb into, and their anchor is stored read (step 3) so
+    // the database cannot absorb into it either.
     if (inAppEnabled) {
       const existing = await deps.notificationRepo.findUnreadByUserTypeResource(
         input.userId,
