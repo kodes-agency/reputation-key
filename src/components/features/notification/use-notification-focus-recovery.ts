@@ -11,8 +11,21 @@
 //
 // A row's menu renders in a portal outside the list. Focus moving into it keeps
 // the record, because the menu's trigger is what its actions remove.
+//
+// Focus the reader moved away stays away. Tabbing out of the list forgets the
+// record, and so does a pointer press anywhere outside the list and its row
+// menus: a click on blank page space blurs the control without naming a new
+// target, exactly like its removal does, so blur alone cannot tell the two
+// apart. Without this, a row that later went on its own (a poll, another tab)
+// pulled focus, and the scroll position, back into the list.
 
-import { useLayoutEffect, useRef, type FocusEvent, type RefObject } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type FocusEvent,
+  type RefObject,
+} from 'react'
 
 const ROW_SELECTOR = 'li[data-notification-id]'
 
@@ -51,6 +64,9 @@ function neighbourOf(
 const isFocusLost = () =>
   document.activeElement === null || document.activeElement === document.body
 
+const isInRowMenu = (target: EventTarget | null) =>
+  target instanceof Element && target.closest('[role="menu"]') !== null
+
 /**
  * `list` is the focusable list container; `rowIds` the rows in rendered order.
  * Spread the returned handlers onto the container.
@@ -79,6 +95,17 @@ export function useNotificationFocusRecovery(
     previousIds.current = rowIds
   })
 
+  useEffect(() => {
+    const forgetOnPressElsewhere = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Node && list.current?.contains(target)) return
+      if (isInRowMenu(target)) return
+      focused.current = null
+    }
+    document.addEventListener('pointerdown', forgetOnPressElsewhere, true)
+    return () => document.removeEventListener('pointerdown', forgetOnPressElsewhere, true)
+  }, [list])
+
   return {
     onFocus: (event: FocusEvent<HTMLElement>) => {
       // A target outside the container is a row's menu, rendered in a portal.
@@ -89,7 +116,7 @@ export function useNotificationFocusRecovery(
     onBlur: (event: FocusEvent<HTMLElement>) => {
       const next = event.relatedTarget
       if (!(next instanceof Element) || list.current?.contains(next)) return
-      if (next.closest('[role="menu"]')) return
+      if (isInRowMenu(next)) return
       focused.current = null
     },
   }

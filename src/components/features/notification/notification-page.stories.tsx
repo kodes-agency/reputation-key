@@ -311,3 +311,39 @@ export const MarkAllReadFollowsTheTab: Story = {
     await waitFor(() => expect(canvas.queryAllByText('Unread.')).toHaveLength(0))
   },
 }
+
+const leftAloneFeed = [0, 1, 2].map((n) =>
+  makeNotification({
+    id: `62000000-0000-4000-8000-00000000000${n}`,
+    type: 'inbox_note.added',
+    payload: { propertyName: 'Riverside Hotel' },
+    createdAt: new Date(Date.now() - (n + 1) * 60_000),
+  }),
+)
+const leftAloneServer = makeStatefulNotificationFns(leftAloneFeed)
+
+/**
+ * Focus the user moved away stays away. Having once focused a row's control,
+ * the reader clicks elsewhere on the page; later that row goes on its own (a
+ * poll sees it dismissed in another tab). Focus must not be pulled back into
+ * the list, and the page must not jump to it.
+ */
+export const FocusLeftElsewhereStaysThere: Story = {
+  args: { notificationFns: leftAloneServer },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(3))
+    canvas.getAllByRole('button', { name: /^Dismiss:/ })[1]!.focus()
+    await userEvent.click(
+      canvas.getByRole('heading', { level: 1, name: 'Notifications' }),
+    )
+    expect(document.activeElement).toBe(document.body)
+
+    // Dismissed in another tab; this tab reads the feed again when it regains focus.
+    await leftAloneServer.dismiss({ data: { notificationId: leftAloneFeed[1]!.id } })
+    window.dispatchEvent(new Event('visibilitychange'))
+    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(2))
+
+    expect(document.activeElement).toBe(document.body)
+  },
+}
