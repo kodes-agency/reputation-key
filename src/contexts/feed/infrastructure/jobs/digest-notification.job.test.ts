@@ -846,6 +846,27 @@ describe('digest suppression and failure visibility (ADR 0046 r.6)', () => {
       'Digest entry suppressed',
     )
   })
+
+  // Goal email is daily only (ADR 0046, amended 2026-09-22), and a goal
+  // preference saved as immediate before that is queued for the digest. Only
+  // `enabled` decides at send time, so those rows still go out here.
+  it('sends goal rows whose stored preference still says immediate', async () => {
+    const deps = baseDeps()
+    deps.preferenceRepo.findForDelivery.mockResolvedValue({
+      enabled: true,
+      cadence: 'immediate',
+      quietHoursStart: null,
+      quietHoursEnd: null,
+    } as never)
+
+    await runHandler(deps)
+
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+    const payload = deps.emailSender.send.mock.calls[0]![0]
+    expect(payload.html).toContain('Riverside')
+    expect(payload.html).toContain('Hillcrest')
+    expect(deps.emailRepo.markSuppressed).not.toHaveBeenCalled()
+  })
 })
 
 describe('immediate orphan sweep', () => {
