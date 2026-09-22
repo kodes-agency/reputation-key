@@ -143,6 +143,16 @@ export type ReplyRepository = Readonly<{
     reviewIds: ReadonlyArray<ReviewId>,
     organizationId: OrganizationId,
   ): Promise<ReadonlyArray<Reply>>
+  /**
+   * Up to `limit` replies in an active publication state for one Property's
+   * reviews, ordered by id — the rows the archive cancellation must cancel.
+   * A cancelled row leaves the set, so repeated calls drain it.
+   */
+  findPublicationActiveByPropertyId(
+    propertyId: PropertyId,
+    organizationId: OrganizationId,
+    limit: number,
+  ): Promise<ReadonlyArray<Reply>>
   upsert(reply: Omit<Reply, 'createdAt' | 'updatedAt'>, now?: Date): Promise<Reply>
   /**
    * Atomic conditional update — only succeeds if the reply's current status

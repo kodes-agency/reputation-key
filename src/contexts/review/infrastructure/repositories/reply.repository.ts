@@ -345,6 +345,36 @@ export const createReplyRepository = (
     })
   },
 
+  findPublicationActiveByPropertyId: async (propertyId, organizationId, limit) => {
+    return trace('reply.findPublicationActiveByPropertyId', async () => {
+      const rows = await db
+        .select({ reply: replies })
+        .from(replies)
+        .innerJoin(
+          reviews,
+          and(
+            eq(reviews.id, replies.reviewId),
+            eq(reviews.organizationId, replies.organizationId),
+          ),
+        )
+        .where(
+          and(
+            eq(replies.organizationId, organizationId),
+            eq(reviews.propertyId, propertyId),
+            inArray(replies.publicationState, [
+              'requested',
+              'authorized',
+              'sending',
+              'pending_observation',
+            ]),
+          ),
+        )
+        .orderBy(asc(replies.id))
+        .limit(limit)
+      return rows.map((row) => replyFromRow(row.reply))
+    })
+  },
+
   upsert: async (reply: Omit<Reply, 'createdAt' | 'updatedAt'>, now?: Date) => {
     return trace('reply.upsert', async () => {
       const row = replyToRow(reply)

@@ -14,6 +14,9 @@
 // deleted are skipped by the store's guarded update — no fact, no error.
 // Re-running is idempotent: cancelled rows no longer match the active-state
 // query.
+//
+// property.archived cancels the same way for one Property's reviews
+// (cancelPublicationsForProperty below, cause 'policy').
 
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
@@ -111,4 +114,78 @@ export const cancelPublicationsForConnection =
 
 export type CancelPublicationsForConnection = ReturnType<
   typeof cancelPublicationsForConnection
+>
+
+// ── Property archive ──────────────────────────────────────────────────
+
+export type CancelPublicationsForPropertyDeps = Readonly<{
+  replyRepo: Pick<ReplyRepository, 'findPublicationActiveByPropertyId'>
+  commandStore: Pick<ReplyCommandStore, 'cancelPublications'>
+  clock: () => Date
+  batchSize?: number
+  maxBatches?: number
+}>
+
+export type CancelPublicationsForPropertyInput = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  cause: 'policy'
+}>
+
+export type CancelPublicationsForPropertyResult = Readonly<{
+  cancelled: number
+  batches: number
+}>
+
+/**
+ * Cancel every active publication of an archived Property's reviews. The
+ * provider authorizer refuses a write for a non-active Property, and the
+ * worker would report that refusal as "Google rejected the reply"; a
+ * cancelled cycle is instead claimed by nobody and reported as a policy
+ * cancellation. Cancelled rows leave the active set, so each batch reads the
+ * next one; a batch that cancels nothing (every row moved on concurrently)
+ * ends the run rather than re-reading the same rows.
+ */
+export const cancelPublicationsForProperty =
+  (deps: CancelPublicationsForPropertyDeps) =>
+  async (
+    input: CancelPublicationsForPropertyInput,
+  ): Promise<CancelPublicationsForPropertyResult> => {
+    const batchSize = deps.batchSize ?? DEFAULT_BATCH_SIZE
+    const maxBatches = deps.maxBatches ?? DEFAULT_MAX_BATCHES
+
+    let cancelled = 0
+    let batches = 0
+    while (batches < maxBatches) {
+      const active = await deps.replyRepo.findPublicationActiveByPropertyId(
+        input.propertyId,
+        input.organizationId,
+        batchSize,
+      )
+      if (active.length === 0) break
+      batches++
+      const now = deps.clock()
+      const count = await deps.commandStore.cancelPublications(
+        active.map((reply) => ({
+          reply,
+          event: reviewReplyPublicationCancelled({
+            replyId: reply.id,
+            reviewId: reply.reviewId,
+            propertyId: input.propertyId,
+            organizationId: input.organizationId,
+            cause: input.cause,
+            occurredAt: now,
+          }),
+          now,
+        })),
+      )
+      cancelled += count
+      if (count === 0 || active.length < batchSize) break
+    }
+
+    return { cancelled, batches }
+  }
+
+export type CancelPublicationsForProperty = ReturnType<
+  typeof cancelPublicationsForProperty
 >

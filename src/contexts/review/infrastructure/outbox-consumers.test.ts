@@ -16,8 +16,10 @@ import {
 import type { Reply } from '../domain/types'
 import {
   handleGoogleAccountDisconnected,
+  handlePropertyArchived,
   handleReplyPublicationRequested,
   ON_GOOGLE_ACCOUNT_DISCONNECTED_CONSUMER,
+  ON_PROPERTY_ARCHIVED_CONSUMER,
   ON_REPLY_PUBLICATION_REQUESTED_CONSUMER,
   registerReplyPublicationConsumers,
   type ReviewOutboxLogger,
@@ -102,6 +104,10 @@ function deps(current: Reply | null = reply()) {
       cancelled: 2,
       batches: 1,
     })),
+    cancelPublicationsForProperty: vi.fn(async () => ({ cancelled: 1, batches: 1 })),
+    propertyPublicationScope: {
+      getPublicationScope: vi.fn(async () => ({ active: false, sourceEpoch: 4 })),
+    },
   }
 }
 
@@ -129,8 +135,12 @@ describe('reply publication requested durable consumer', () => {
       eventType: 'integration.google_account.disconnected',
       consumerName: ON_GOOGLE_ACCOUNT_DISCONNECTED_CONSUMER,
     })
+    expect(consumerRegistry.list()).toContainEqual({
+      eventType: 'property.archived',
+      consumerName: ON_PROPERTY_ARCHIVED_CONSUMER,
+    })
     expect(subject.logger.info).toHaveBeenCalledWith(
-      'Review consumers registered (2 consumers)',
+      'Review consumers registered (3 consumers)',
     )
   })
 
@@ -266,6 +276,84 @@ describe('google account disconnected durable consumer', () => {
     await expect(
       handleGoogleAccountDisconnected(subject as never, disconnected()),
     ).rejects.toThrow('db down')
+    expect(subject.receipts.insertReceipt).not.toHaveBeenCalled()
+  })
+})
+
+// An archived Property's in-flight publications would each be refused by the
+// provider authorizer and reported to the author as a Google rejection.
+describe('property archived durable consumer', () => {
+  const PROPERTY = '97000000-0000-4000-8000-000000000004'
+  const archived = (): ConsumerEvent =>
+    event({
+      eventType: 'property.archived',
+      eventVersion: 1,
+      payload: {
+        propertyId: PROPERTY,
+        organizationId: 'org-publication-recovery',
+        userId: 'admin-publication-recovery',
+        previousState: 'active',
+        sourceEpoch: 4,
+        recoveryDeadline: new Date(NOW.getTime() + 30 * 86_400_000).toISOString(),
+        occurredAt: NOW.toISOString(),
+      },
+      propertyId: PROPERTY,
+      sourceContext: 'property',
+      sourceAggregateId: PROPERTY,
+    })
+
+  it('cancels the Property publications as a policy cancellation while it is archived', async () => {
+    const subject = deps()
+
+    await expect(handlePropertyArchived(subject as never, archived())).resolves.toEqual({
+      status: 'applied',
+    })
+
+    expect(subject.propertyPublicationScope.getPublicationScope).toHaveBeenCalledWith(
+      'org-publication-recovery',
+      PROPERTY,
+    )
+    expect(subject.cancelPublicationsForProperty).toHaveBeenCalledWith({
+      organizationId: 'org-publication-recovery',
+      propertyId: PROPERTY,
+      cause: 'policy',
+    })
+    expect(subject.receipts.insertReceipt).toHaveBeenCalledWith(
+      EVENT_ID,
+      ON_PROPERTY_ARCHIVED_CONSUMER,
+      'applied',
+    )
+  })
+
+  it('leaves publications alone when the Property was restored before delivery', async () => {
+    const subject = deps()
+    subject.propertyPublicationScope.getPublicationScope.mockResolvedValueOnce({
+      active: true,
+      sourceEpoch: 5,
+    })
+
+    await expect(handlePropertyArchived(subject as never, archived())).resolves.toEqual({
+      status: 'obsolete',
+    })
+
+    expect(subject.cancelPublicationsForProperty).not.toHaveBeenCalled()
+    expect(subject.receipts.insertReceipt).toHaveBeenCalledWith(
+      EVENT_ID,
+      ON_PROPERTY_ARCHIVED_CONSUMER,
+      'obsolete',
+    )
+  })
+
+  it('refuses an envelope whose Property differs from its payload', async () => {
+    const subject = deps()
+
+    await expect(
+      handlePropertyArchived(subject as never, {
+        ...archived(),
+        propertyId: '97000000-0000-4000-8000-000000000099',
+      }),
+    ).rejects.toThrow('attribution mismatch')
+    expect(subject.cancelPublicationsForProperty).not.toHaveBeenCalled()
     expect(subject.receipts.insertReceipt).not.toHaveBeenCalled()
   })
 })

@@ -113,7 +113,10 @@ import {
   checkReplyPublication,
   type CheckReplyPublication,
 } from './application/use-cases/check-reply-publication'
-import { cancelPublicationsForConnection } from './application/use-cases/cancel-publications'
+import {
+  cancelPublicationsForConnection,
+  cancelPublicationsForProperty,
+} from './application/use-cases/cancel-publications'
 import { getStaffRecentActivity } from './application/use-cases/get-staff-recent-activity'
 import {
   createEligibleGoogleReplyReads,
@@ -578,6 +581,12 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       receipts: input.outboxRepo,
       logger: input.logger,
       cancelPublicationsForConnection: cancelPublications,
+      cancelPublicationsForProperty: cancelPublicationsForProperty({
+        replyRepo,
+        commandStore: replyCommandStore,
+        clock: input.clock,
+      }),
+      propertyPublicationScope,
     })
   // BQC-5.5: governed aggregate serving reads — eligibility in SQL,
   // clock-injected. Wired into the dashboard build by composition. ONE

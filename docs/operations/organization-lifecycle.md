@@ -80,7 +80,10 @@ Owners of scheduled work react to the fact themselves: Inbox cancels the
 Property's unreleased Response Target reminder slots, and Notification treats a
 reminder released for a non-active Property as obsolete. Restore re-arms none of
 those slots; a cancelled slot is terminal
-(`docs/operations/inbox-response-targets.md`).
+(`docs/operations/inbox-response-targets.md`). Review cancels the Property's
+in-flight reply publications as policy cancellations (the Reply returns to
+draft), and refuses new approvals until the Property is active again and the
+Review has been observed at its current source epoch.
 
 Restore is permitted only before the recovery deadline. It rechecks current
 Property access and an eligible Responsible Manager,
