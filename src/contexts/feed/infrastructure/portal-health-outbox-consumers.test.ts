@@ -155,7 +155,7 @@ describe('Portal Health notification durable consumer', () => {
       previousStatus: 'healthy',
       previousReason: 'operational',
       status: 'unavailable',
-      reason: 'property_unavailable',
+      reason: 'publication_snapshot_unavailable',
       sourceVersion: SOURCE_VERSION,
       occurredAt: new Date(HEALTH_SINCE),
     })

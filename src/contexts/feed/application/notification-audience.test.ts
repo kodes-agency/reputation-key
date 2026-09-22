@@ -760,13 +760,13 @@ describe('notification audience authorization', () => {
       kind: 'portal_health' as const,
       portalId: PORTAL,
       status: 'unavailable' as const,
-      reason: 'property_unavailable' as const,
+      reason: 'publication_snapshot_unavailable' as const,
       effectiveFrom: HEALTH_SINCE,
     }
     const current = (effectiveFrom: string) => ({
       propertyId: PROPERTY,
       status: 'unavailable' as const,
-      reason: 'property_unavailable' as const,
+      reason: 'publication_snapshot_unavailable' as const,
       effectiveFrom: new Date(effectiveFrom),
     })
 
