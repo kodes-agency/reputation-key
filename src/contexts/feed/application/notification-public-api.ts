@@ -20,9 +20,11 @@ export type {
 } from '../domain/notification-types'
 
 export {
+  effectiveEmailCadence,
   getDefaultCadence,
   getDefaultEnabled,
   isPreferenceDisableable,
+  offeredEmailCadences,
 } from '../domain/notification-policy'
 
 // ── Render layer (ADR 0046 r.8) ───────────────────────────────────────

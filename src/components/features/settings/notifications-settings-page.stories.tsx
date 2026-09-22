@@ -147,6 +147,50 @@ export const GoalsAreConfigurable: Story = {
   },
 }
 
+/**
+ * One Goal Program over up to 250 Portals closes its results in the same hour,
+ * so goal email is a daily digest only (ADR 0046, amended 2026-09-22). A row
+ * saved before that may still say immediate; saving must not send it back.
+ */
+export const GoalEmailIsDailyOnly: Story = {
+  args: {
+    preferences: [
+      ...preferences.filter((item) => item.category !== 'recognition'),
+      preference({
+        category: 'recognition',
+        channel: 'email',
+        enabled: false,
+        cadence: 'immediate',
+      }),
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+    const canvas = within(canvasElement)
+    const goalCadence = canvas.getByLabelText('Cadence', {
+      selector: '#recognition-cadence',
+    })
+    expect(goalCadence).toHaveTextContent('Daily at 08:00')
+    expect(goalCadence).toBeDisabled()
+    expect(
+      canvas.getByLabelText('Cadence', { selector: '#workflow_collaboration-cadence' }),
+    ).toBeEnabled()
+
+    await userEvent.click(
+      canvas.getByLabelText('Email', { selector: '#recognition-email' }),
+    )
+    await waitFor(() => expect(updatePreferenceMock).toHaveBeenCalledOnce())
+    expect(updatePreferenceMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        category: 'recognition',
+        channel: 'email',
+        enabled: true,
+        cadence: 'daily',
+      }),
+    })
+  },
+}
+
 export const TitleColumnKeepsItsWidth: Story = {
   play: async ({ canvasElement }) => {
     const fieldset = canvasElement.querySelector('fieldset')

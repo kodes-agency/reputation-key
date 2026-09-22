@@ -470,6 +470,33 @@ describe('insertNotification', () => {
     })
   })
 
+  // Goal email is daily only (ADR 0046, amended 2026-09-22), but a row saved
+  // before that may still say immediate. Delivery must not honour it.
+  it('queues goal email for the daily digest even when a stored row says immediate', async () => {
+    ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_userId, _orgId, _propertyId, _category, channel) =>
+        channel === 'email'
+          ? { ...preference('email', true, 'immediate'), category: 'recognition' }
+          : null,
+    )
+
+    await insertNotification(deps)({
+      userId: USER_ID,
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      type: 'goal.completed',
+      resourceType: 'goal',
+      resourceId: 'goal-1',
+      eventId: 'event-goal-1',
+      payload: { goalName: 'Weekend response time' },
+    })
+
+    expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'recognition', cadence: 'daily' }),
+    )
+    expect(deps.enqueueImmediateEmail).not.toHaveBeenCalled()
+  })
+
   it('defaults Action Required email to immediate while respecting quiet hours', async () => {
     const result = await insertNotification(deps)({
       userId: USER_ID,

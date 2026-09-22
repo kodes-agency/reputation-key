@@ -4,6 +4,7 @@
 // either way the second silently undoes the first.
 
 import {
+  effectiveEmailCadence,
   getDefaultCadence,
   getDefaultEnabled,
   type ConfigurableNotificationCategory,
@@ -41,7 +42,13 @@ export function applyPreferencePatch(
 ): PreferenceValues {
   return {
     enabled: patch.enabled ?? current?.enabled ?? getDefaultEnabled(category, channel),
-    cadence: patch.cadence ?? current?.cadence ?? getDefaultCadence(category),
+    // A stored email cadence the category no longer offers (goal email saved
+    // as immediate) is sent back as the one it is delivered at, or the server
+    // refuses every later change to the row.
+    cadence:
+      channel === 'email'
+        ? effectiveEmailCadence(category, patch.cadence ?? current?.cadence)
+        : (patch.cadence ?? current?.cadence ?? getDefaultCadence(category)),
     urgentBypassEnabled:
       patch.urgentBypassEnabled ?? current?.urgentBypassEnabled ?? false,
     quietHoursStart:

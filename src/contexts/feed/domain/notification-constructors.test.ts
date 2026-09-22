@@ -444,6 +444,12 @@ describe('notification constructors', () => {
       message: 'Urgent bypass applies only to email',
       code: 'invalid_input',
     },
+    {
+      caseName: 'immediate goal email',
+      input: { category: 'recognition' as const },
+      message: 'Goal email is sent once a day',
+      code: 'invalid_input',
+    },
   ])('rejects $caseName preferences', ({ input, message, code }) => {
     const result = createNotificationPreference(
       { ...preferenceBase, ...input },
@@ -452,6 +458,15 @@ describe('notification constructors', () => {
 
     expect(result.isErr()).toBe(true)
     if (result.isErr()) expect(result.error).toMatchObject({ code, message })
+  })
+
+  it('accepts goal email as a daily digest', () => {
+    const result = createNotificationPreference(
+      { ...preferenceBase, category: 'recognition', cadence: 'daily' },
+      () => NOW,
+    )
+
+    expect(result.isOk()).toBe(true)
   })
 
   it('does not create an enabled in-app preference for a mandatory notice', () => {

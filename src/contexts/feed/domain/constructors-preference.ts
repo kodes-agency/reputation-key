@@ -14,7 +14,7 @@ import type {
   PropertyId,
 } from '#/shared/domain/ids'
 import { notificationError, type NotificationError } from './notification-errors'
-import { isPreferenceDisableable } from './notification-policy'
+import { isPreferenceDisableable, offeredEmailCadences } from './notification-policy'
 
 const CATEGORIES: Readonly<Record<NotificationCategory, true>> = {
   mandatory: true,
@@ -55,6 +55,12 @@ export const createNotificationPreference = (
   }
   if (input.cadence !== 'immediate' && input.cadence !== 'daily') {
     return err(notificationError('invalid_input', 'Invalid notification cadence'))
+  }
+  if (
+    input.channel === 'email' &&
+    !offeredEmailCadences(input.category).includes(input.cadence)
+  ) {
+    return err(notificationError('invalid_input', 'Goal email is sent once a day'))
   }
   const hasStart = input.quietHoursStart !== null
   const hasEnd = input.quietHoursEnd !== null

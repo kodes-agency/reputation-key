@@ -111,6 +111,12 @@ assignments and notes. Every category a live notification type uses must now be
 configurable, mandatory, or Organization-informational (ADR 0059), and must
 have a filter. A test enforces this in both directions.
 
+Goal email is a daily digest only; there is no immediate cadence for it. The
+same 250 results closing in one hour would otherwise be up to 250 emails to one
+person at once. Settings shows the one cadence without a choice, the preference
+constructor refuses an immediate goal email row, and delivery sends a goal row
+saved as immediate before this amendment in the daily digest anyway.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.
@@ -119,7 +125,7 @@ have a filter. A test enforces this in both directions.
   each event is its own email, and deliveries of one resource under different
   event ids are not merged. Mandatory mail is never merged: a second role
   change or purge-pending notice is a second email.
-- Recognition email requires explicit opt-in.
+- Recognition email requires explicit opt-in and arrives in the daily digest.
 - Provider/capability admission remains the outbound activation authority.
 
 ## Rejected alternatives

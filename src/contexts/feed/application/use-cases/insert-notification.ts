@@ -25,6 +25,7 @@ import {
 } from '../../domain/notification-delivery-policy'
 import {
   applyCoalescence,
+  effectiveEmailCadence,
   getDefaultCadence,
   getDefaultEnabled,
 } from '../../domain/notification-policy'
@@ -108,7 +109,7 @@ const resolveChannelPreferences = async (
   return {
     inAppEnabled: inApp?.enabled ?? getDefaultEnabled(category, 'in_app'),
     emailEnabled: email?.enabled ?? getDefaultEnabled(category, 'email'),
-    emailCadence: email?.cadence ?? getDefaultCadence(category),
+    emailCadence: effectiveEmailCadence(category, email?.cadence),
   }
 }
 

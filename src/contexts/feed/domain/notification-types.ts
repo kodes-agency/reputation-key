@@ -68,10 +68,11 @@ export type NotificationPriority = 'urgent' | 'normal'
  * ADR 0046 categories, minus `digest_summary`.
  *
  * A digest is a CADENCE, not a category: the digest job selects on
- * `cadence = 'daily'` and the preferences UI already offers immediate|daily per
- * category, so a `digest_summary` category was a second expression of the same
- * axis — and, defaulting to {in_app:false, email:false}, it silently swallowed
- * every `goal.completed`. Migration 0070 remaps stored rows to `recognition`.
+ * `cadence = 'daily'` and the preferences UI already offers a cadence per
+ * category (daily only for goals), so a `digest_summary` category was a second
+ * expression of the same axis — and, defaulting to {in_app:false, email:false},
+ * it silently swallowed every `goal.completed`. Migration 0070 remaps stored
+ * rows to `recognition`.
  */
 export type NotificationCategory =
   'mandatory' | 'urgent_operational' | 'workflow_collaboration' | 'recognition'

@@ -10,15 +10,21 @@ import {
 } from '#/components/ui/select'
 import { Switch } from '#/components/ui/switch'
 import {
-  getDefaultCadence,
+  effectiveEmailCadence,
   getDefaultEnabled,
   isPreferenceDisableable,
+  offeredEmailCadences,
   type ConfigurableNotificationCategory,
   type NotificationCadence,
 } from '#/contexts/feed/application/public-api'
 import { QuietHoursEditor } from './quiet-hours-editor'
 import type { NotificationPreferencePatch } from './notifications-settings-view'
 import type { PreferenceValues } from './notification-preference-saves'
+
+const CADENCE_LABELS: Readonly<Record<NotificationCadence, string>> = {
+  immediate: 'Immediate',
+  daily: 'Daily at 08:00',
+}
 
 export function NotificationsCategoryRow({
   category,
@@ -57,6 +63,9 @@ export function NotificationsCategoryRow({
   // control's name carries the category: a screen-reader user tabbing through
   // otherwise cannot tell which category a control changes.
   const named = (control: string) => `${label}: ${control}`
+  // Goals are emailed daily only (ADR 0046, amended 2026-09-22): the one
+  // offered cadence is shown, but there is nothing to choose.
+  const cadences = offeredEmailCadences(category)
   // The title track carries an explicit floor and the controls row spans the
   // whole grid. With `1fr auto auto` and the controls row spanning only columns
   // 2-3, that 670px row sized both `auto` tracks to the full width of the
@@ -115,8 +124,8 @@ export function NotificationsCategoryRow({
         <Field className="w-auto">
           <FieldLabel htmlFor={`${category}-cadence`}>Cadence</FieldLabel>
           <Select
-            value={email?.cadence ?? getDefaultCadence(category)}
-            disabled={emailTimingDisabled}
+            value={effectiveEmailCadence(category, email?.cadence)}
+            disabled={emailTimingDisabled || cadences.length < 2}
             onValueChange={(value) =>
               void savePreference(category, 'email', {
                 cadence: value as NotificationCadence,
@@ -132,8 +141,11 @@ export function NotificationsCategoryRow({
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                <SelectItem value="immediate">Immediate</SelectItem>
-                <SelectItem value="daily">Daily at 08:00</SelectItem>
+                {cadences.map((cadence) => (
+                  <SelectItem key={cadence} value={cadence}>
+                    {CADENCE_LABELS[cadence]}
+                  </SelectItem>
+                ))}
               </SelectGroup>
             </SelectContent>
           </Select>
