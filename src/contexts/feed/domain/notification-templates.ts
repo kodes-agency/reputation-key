@@ -226,8 +226,10 @@ const renderReplyPublished = (p: NotificationPayload): RenderedNotification => (
   summary: factsAt(p, 'review'),
 })
 
+// `not_sent` includes an answered 429, so it says nothing was posted, as the
+// Inbox's "Not published" copy does, not that nothing reached Google.
 const PUBLISH_FAILURE_BODIES = {
-  not_sent: 'Nothing reached Google, so it is safe to try again.',
+  not_sent: 'Nothing was posted to Google, so it is safe to try again.',
   refused: 'Nothing was posted to Google. Check the Google connection, then try again.',
   unconfirmed: "RepKey won't send it twice. Open it to check.",
 } as const

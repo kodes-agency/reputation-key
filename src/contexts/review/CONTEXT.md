@@ -48,8 +48,8 @@ and observations are append-only evidence with tenant, source, material, Reply,
 and cycle fences.
 Terminal/ambiguous outcomes may enter `publish_failed`; rejected replies can be re-drafted.
 The `review.reply.publish_failed` fact says how the publication ended, in a closed
-`outcome`: `not_sent` (nothing reached Google: never dispatched, or retries ran
-out), `refused` (a terminal rejection by Google or by RepKey before sending), or
+`outcome`: `not_sent` (nothing was posted: never dispatched, or retryable
+failures, an answered 429 included, ran out), `refused` (a terminal rejection by Google or by RepKey before sending), or
 `unconfirmed` (ambiguous; the reply may be live and is never sent twice). The
 notice words each one; none of them says Google rejected the reply.
 

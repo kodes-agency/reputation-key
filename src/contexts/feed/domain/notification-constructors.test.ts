@@ -82,7 +82,9 @@ describe('notification constructors', () => {
       coalescedCount: 1,
       coalescedLatestAt: null,
     })
-    expect(result.value.body).toBe('Nothing reached Google, so it is safe to try again.')
+    expect(result.value.body).toBe(
+      'Nothing was posted to Google, so it is safe to try again.',
+    )
   })
 
   it('renders a usable title with no payload at all', () => {

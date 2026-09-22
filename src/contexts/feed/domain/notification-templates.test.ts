@@ -314,7 +314,7 @@ describe('renderNotification — the copy that was broken', () => {
     [
       'not_sent',
       'Reply not published at Riverside Hotel',
-      'Nothing reached Google, so it is safe to try again.',
+      'Nothing was posted to Google, so it is safe to try again.',
       'Retry publish',
     ],
     [
@@ -341,6 +341,15 @@ describe('renderNotification — the copy that was broken', () => {
       expect([r.title, r.body].join(' ')).not.toMatch(/rejected|your/i)
     },
   )
+
+  // `not_sent` covers an answered 429 as well as requests that never left
+  // RepKey, so, like the Inbox's "Not published" copy, it says only that
+  // nothing was posted, never that nothing reached Google.
+  it('reply.publish_failed never says a retryable failure missed Google', () => {
+    const r = renderNotification('reply.publish_failed', { publishOutcome: 'not_sent' })
+
+    expect(r.body).not.toMatch(/reached/i)
+  })
 
   it('reply.publish_failed claims no cause and offers no retry when the outcome is unknown', () => {
     // Rows recorded before the fact carried an outcome, including replies

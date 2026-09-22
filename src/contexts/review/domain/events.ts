@@ -373,8 +373,9 @@ export const reviewReplyRejected = (
 /**
  * How a publication ended without a confirmed live reply, which is what the
  * people told about it need:
- * - `not_sent`: nothing reached Google (never dispatched, or a retryable
- *   failure ran out of attempts), so it is safe to try again.
+ * - `not_sent`: nothing was posted to Google (never dispatched, or retryable
+ *   failures, an answered 429 included, ran out of attempts), so it is safe
+ *   to try again.
  * - `refused`: Google or RepKey refused the request; nothing was posted.
  * - `unconfirmed`: Google may have the reply; RepKey could not confirm it and
  *   will not send it twice.
