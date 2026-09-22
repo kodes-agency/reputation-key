@@ -39,6 +39,7 @@ import {
   notifications,
 } from '#/shared/db/schema/notification.schema'
 import type { Tx } from '#/shared/outbox/commit'
+import { ORGANIZATION_CLOSING_REASON } from '../../domain/organization-email-stop'
 // Cross-context adapter contract: src/contexts/CONTEXT.md "Dependency rules"
 // lets a foreign infrastructure/adapters/** module import the Identity port it
 // implements, and nothing else from Identity.
@@ -64,7 +65,7 @@ const OPEN_DIGEST_BATCH_STATES = ['prepared', 'retryable'] as const
  * reverse this fence, and what an operator greps for to distinguish a closure
  * fence from a preference suppression or a provider rejection.
  */
-export const NOTIFICATION_CLOSING_FENCE_REASON = 'organization_closing'
+export const NOTIFICATION_CLOSING_FENCE_REASON = ORGANIZATION_CLOSING_REASON
 
 export type NotificationLifecycleClosingCounts = Readonly<{
   cancelledEmails: number
@@ -218,13 +219,13 @@ export const assertNotificationPurgeReady = (
  * Nothing is deleted and no preference is rewritten: closure is cancellable,
  * and a cancelled closure must find the tenant's own settings untouched.
  *
- * This fence is the SECOND of two independent stops, not the only one. Both
- * provider-effecting jobs — `urgent-email` and `digest-notification` — are
- * catalogued with the `notification.send_email` capability, which the
- * Organization suspension committed by the closure request already denies with
- * `org_suspended`. `insert-notification` carries capability `none`, so a queue
- * row can still be WRITTEN behind the fence; it can no longer be SENT, and
- * purge readiness deliberately fails closed if one appears.
+ * This fence is not the only stop. A closure request sets no Organization
+ * suspension, so the email paths read the lifecycle authority themselves
+ * (`domain/organization-email-stop.ts`): from `closure_requested` on,
+ * `urgent-email` and `digest-notification` suppress optional mail before the
+ * provider call, and `insert-notification` — which carries capability `none`
+ * and so still runs behind this fence — queues none. Purge readiness still
+ * fails closed if a sendable row appears anyway.
  */
 const prepareClosing = async (
   tx: Tx,
@@ -277,10 +278,11 @@ const prepareClosing = async (
  * It re-asks the exact question Closing answered — can anything still leave
  * this system for this tenant? — and refuses when the answer is yes. It
  * deliberately measures the same two blocker classes Closing fenced, so a
- * failure here means the fence was reverted, or `insert-notification` (which
- * carries capability `none`) queued new product mail behind it. Either way the
- * irreversible boundary must not be crossed until an operator resolves it;
- * blocking forever is the safe direction, silently purging is not.
+ * failure here means the fence was reverted, or product mail was queued
+ * behind it despite the queue-time refusal (a worker older than it). Either
+ * way the irreversible boundary must not be crossed until an operator
+ * resolves it; blocking forever is the safe direction, silently purging is
+ * not.
  *
  * Mandatory account/security notices are excluded from the blocker count for
  * the same reason Closing left them alone — they are Identity's channel while

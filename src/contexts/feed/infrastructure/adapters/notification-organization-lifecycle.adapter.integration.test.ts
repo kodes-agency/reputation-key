@@ -22,6 +22,19 @@ import type { Database } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createNotificationOrganizationLifecycleContributor } from './notification-organization-lifecycle.adapter'
+import { createNotificationOrganizationEmailStopReader } from '../repositories/notification-organization-email-stop.repository'
+import { createNotificationRepository } from '../repositories/notification.repository'
+import { createNotificationEmailRepository } from '../repositories/notification-email.repository'
+import { createNotificationPreferenceRepository } from '../repositories/notification-preference.repository'
+import { insertNotification } from '../../application/use-cases/insert-notification'
+import { createFakeJobLogger } from '../jobs/test-fixtures'
+import {
+  notificationEmailId,
+  notificationId,
+  organizationId,
+  propertyId,
+  userId,
+} from '#/shared/domain/ids'
 
 let lease: TestLease
 let db: Database
@@ -590,6 +603,68 @@ describe.sequential('Notification Organization lifecycle contributor', () => {
     )
     // Not just counts: every column of every queue row is unchanged.
     expect(afterDigest.rows[0]).toEqual(digest.rows[0])
+  })
+
+  describe('email queued behind the Closing fence', () => {
+    it('reads how far the lifecycle stops email, stage by stage', async () => {
+      const readStop = createNotificationOrganizationEmailStopReader(db)
+      const active = await seedEmptyOrganization()
+      const requested = await seedEmptyOrganization()
+      const closing = await seedEmptyOrganization()
+      const purging = await seedEmptyOrganization()
+      await advanceAuthority(requested, 'closure_requested')
+      await advanceAuthority(closing, 'closing')
+      await advanceAuthority(purging, 'purging')
+
+      await expect(readStop(active.organizationId)).resolves.toBe('none')
+      await expect(readStop(requested.organizationId)).resolves.toBe('optional')
+      await expect(readStop(closing.organizationId)).resolves.toBe('optional')
+      await expect(readStop(purging.organizationId)).resolves.toBe('all')
+      await expect(readStop('notification-lifecycle-unknown-org')).resolves.toBe('none')
+    })
+
+    it('queues no product email during Closing, so purge readiness settles', async () => {
+      // insert-notification carries capability `none`, so it still runs
+      // behind the fence. A daily row it queued there stayed sendable and
+      // failed readiness on every pass, with no ops command to settle it.
+      const fixture = await seedFixture('queued-behind-fence')
+      await advanceAuthority(fixture, 'closure_requested')
+      const contributor = createNotificationOrganizationLifecycleContributor(db)
+      await contributor.prepareClosing(requestFor(fixture, 1))
+      await lease.pool.query(
+        `UPDATE organization_lifecycle_authority
+            SET state = 'closing', revision = 2, last_transition_at = $2,
+                last_reason_code = 'closing_prepared',
+                last_support_evidence_ref = 'test:closing'
+          WHERE organization_id = $1`,
+        [fixture.organizationId, REQUESTED_AT],
+      )
+
+      await insertNotification({
+        notificationRepo: createNotificationRepository(db),
+        emailRepo: createNotificationEmailRepository(db),
+        preferenceRepo: createNotificationPreferenceRepository(db),
+        organizationEmailStop: createNotificationOrganizationEmailStopReader(db),
+        clock: () => OCCURRED_AT,
+        idGen: () => notificationId(randomUUID()),
+        emailIdGen: () => notificationEmailId(randomUUID()),
+        logger: createFakeJobLogger(),
+      })({
+        userId: userId(fixture.userId),
+        organizationId: organizationId(fixture.organizationId),
+        propertyId: propertyId(fixture.propertyId),
+        type: 'review.created',
+        resourceType: 'inbox_item',
+        resourceId: `inbox-behind-fence-${randomUUID()}`,
+        eventId: `event-behind-fence-${randomUUID()}`,
+        payload: { propertyName: 'Notification Lifecycle Property', platform: 'google' },
+      })
+
+      expect(await dueEmailCount(fixture.organizationId, 'product')).toBe(0)
+      await expect(
+        contributor.verifyPurgeReadiness(requestFor(fixture, 2)),
+      ).resolves.toMatchObject({ outcome: 'complete' })
+    })
   })
 
   it('fails purge readiness closed when the Closing fence was reverted', async () => {

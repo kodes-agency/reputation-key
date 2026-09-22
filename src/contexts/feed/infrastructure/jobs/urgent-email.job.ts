@@ -46,6 +46,11 @@ import type { NotificationPropertyScopeResolver } from '../repositories/notifica
 import type { NotificationOrganizationScopeResolver } from '../repositories/notification-organization-scope.repository'
 import { deliveryTiming } from '../../domain/notification-delivery-policy'
 import { isStaleQueuedEmail, STALE_EMAIL_REASON } from '../../domain/email-freshness'
+import {
+  isEmailStopped,
+  ORGANIZATION_CLOSING_REASON,
+} from '../../domain/organization-email-stop'
+import type { NotificationOrganizationEmailStopPort } from '../../application/ports/notification-organization-email-stop.port'
 import { getDefaultEnabled } from '../../domain/notification-policy'
 import { notificationLink, renderNotification } from '../../domain/notification-templates'
 import { renderNotificationEmail, type RenderedEmail } from '../email/render'
@@ -73,6 +78,8 @@ export type UrgentEmailDeps = Readonly<{
   resolvePropertyScope: NotificationPropertyScopeResolver
   resolveOrganizationScope: NotificationOrganizationScopeResolver
   authorizeScope: ScheduledScopeAuthorizer
+  /** How far the Organization's lifecycle stops its email. */
+  organizationEmailStop: NotificationOrganizationEmailStopPort
   /** The recipient's current membership, access and responsibility. */
   isRecipientEligible: NotificationRecipientStanding
   logger: LoggerPort
@@ -415,6 +422,12 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     const mandatory = propId === null
     if (!hasValidDeliveryScope(entry, mandatory)) {
       await suppress(ids, 'invalid_delivery_scope')
+      return
+    }
+    // A closure request stops optional mail at once; mandatory notices go
+    // out until the irreversible boundary.
+    if (isEmailStopped(await deps.organizationEmailStop(ids.orgId), entry.category)) {
+      await suppress(ids, ORGANIZATION_CLOSING_REASON)
       return
     }
     // A backlog queued while email was dark is retired, never flushed.

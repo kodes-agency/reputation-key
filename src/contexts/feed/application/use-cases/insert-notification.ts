@@ -30,6 +30,11 @@ import {
 } from '../../domain/notification-policy'
 import { effectiveEmailCadence } from '../../domain/notification-cadence'
 import type { NotificationAudience } from '../notification-audience'
+import type { NotificationOrganizationEmailStopPort } from '../ports/notification-organization-email-stop.port'
+import {
+  isEmailStopped,
+  ORGANIZATION_CLOSING_REASON,
+} from '../../domain/organization-email-stop'
 
 // ── Input ───────────────────────────────────────────────────────────
 
@@ -50,6 +55,12 @@ export type InsertNotificationDeps = Readonly<{
   idGen: () => NotificationId
   emailIdGen: () => NotificationEmailId
   logger: LoggerPort
+  /**
+   * How far the Organization's lifecycle stops email. insert-notification
+   * runs with capability `none`, so it still runs behind the Closing fence;
+   * refusing to queue there keeps purge readiness settleable.
+   */
+  organizationEmailStop: NotificationOrganizationEmailStopPort
   enqueueImmediateEmail?: (data: {
     notificationEmailId: string
     organizationId: string
@@ -190,6 +201,14 @@ const enqueueEmailEntry = async (
   idempotencyKey: string,
   audience: NotificationAudience | null,
 ): Promise<void> => {
+  const stop = await deps.organizationEmailStop(unbrand(notification.organizationId))
+  if (isEmailStopped(stop, notification.category)) {
+    deps.logger.info(
+      { cadence, reason: ORGANIZATION_CLOSING_REASON },
+      'Notification email not queued — the Organization is closing',
+    )
+    return
+  }
   const emailResult = createNotificationEmail(
     {
       id: deps.emailIdGen(),

@@ -52,6 +52,7 @@ import type { ResponsibleManagerLookupPort } from './application/ports/responsib
 import type { FeedbackPortalLookupPort } from './application/ports/feedback-portal-lookup.port'
 import { createNotificationAudienceAuthorizer } from './application/notification-audience'
 import { createNotificationRecipientStanding } from './application/notification-recipient-standing'
+import { createNotificationOrganizationEmailStopReader } from './infrastructure/repositories/notification-organization-email-stop.repository'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { createDisplayNameLookupAdapter } from './infrastructure/adapters/display-name-lookup.adapter'
 import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
@@ -349,6 +350,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     monthlyResultFacts: input.monthlyResultFacts,
     organizationAccountAuthority,
   })
+  // Asked when an email is queued, and again before it is sent.
+  const organizationEmailStop = createNotificationOrganizationEmailStopReader(input.db)
   // Asked again immediately before every Property-scoped email is sent.
   const recipientStanding = createNotificationRecipientStanding({
     userLookup,
@@ -453,6 +456,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       idGen: () => notificationId(input.idGen()),
       emailIdGen: () => notificationEmailId(input.idGen()),
       logger: input.logger,
+      organizationEmailStop,
       enqueueImmediateEmail,
     }),
   } as const

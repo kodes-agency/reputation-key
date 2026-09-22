@@ -48,6 +48,8 @@ import type { NotificationOrganizationScopeResolver } from '../repositories/noti
 import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
 import type { NotificationEmail } from '../../domain/notification-types'
 import { isDailyDigestWindow } from '../../domain/notification-delivery-policy'
+import { ORGANIZATION_CLOSING_REASON } from '../../domain/organization-email-stop'
+import type { NotificationOrganizationEmailStopPort } from '../../application/ports/notification-organization-email-stop.port'
 import { renderDigestEmail } from '../email/render'
 import {
   digestBatchIdempotencyKey,
@@ -98,6 +100,8 @@ export type DigestDeps = Readonly<{
   resolveOrganizationScope: NotificationOrganizationScopeResolver
   /** Resolves only an active Property; `null` for any other lifecycle state. */
   resolvePropertyScope: NotificationPropertyScopeResolver
+  /** How far the Organization's lifecycle stops its email. */
+  organizationEmailStop: NotificationOrganizationEmailStopPort
   logger: LoggerPort
   clock: () => Date
   batchIdGen: () => string
@@ -481,12 +485,34 @@ async function prepareAndDispatchBatch(
   await dispatch(deps, ctx, prepared.batch, request, items, contentDigest)
 }
 
+/**
+ * A closure request stops every digest at once: a digest is never mandatory
+ * mail. The open batch is closed as a unit and due rows are suppressed, so
+ * purge readiness finds nothing left to send.
+ */
+async function stopForClosingOrganization(
+  deps: DigestDeps,
+  ctx: RecipientContext,
+  openBatch: NotificationDigestBatch | null,
+): Promise<void> {
+  if (openBatch) {
+    await invalidateBatch(deps, ctx, openBatch, ORGANIZATION_CLOSING_REASON)
+    return
+  }
+  const due = await deps.emailRepo.findDueByUser(ctx.orgId, ctx.userId, 'daily', ctx.now)
+  await suppressAll(deps, ctx, due, ORGANIZATION_CLOSING_REASON)
+}
+
 async function sendUserDigest(
   deps: DigestDeps,
   recipientScope: NotificationEmailRecipient,
 ): Promise<void> {
   const ctx = await resolveRecipientContext(deps, recipientScope)
   const openBatch = await deps.emailRepo.findOpenDigestBatch(ctx.orgId, ctx.userId)
+  if ((await deps.organizationEmailStop(ctx.rawOrgId)) !== 'none') {
+    await stopForClosingOrganization(deps, ctx, openBatch)
+    return
+  }
   const deliverable = await selectDeliverableEntries(deps, ctx, openBatch)
   if (deliverable === null) return
 

@@ -48,6 +48,13 @@ retired whole instead, because re-sending the rest could deliver it twice.
 Organization-scoped mandatory mail is exempt: an access-removed notice goes to
 someone who is no longer a member.
 
+The Organization's lifecycle authority is read when an email is queued and
+again before it is sent. From a closure request, and until a cancelled
+closure is explicitly reactivated, no optional email is queued or sent and
+queued rows are suppressed as `organization_closing`; mandatory notices stop
+only at the irreversible boundary. Rows for a Property that is not active are
+held, by the digest and the urgent path alike.
+
 The browser receives a `NotificationView`, never the stored row: the event
 correlation id, the frozen title/body snapshot, `updatedAt` and the recipient
 and Organization ids stay on the server.

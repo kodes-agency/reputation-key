@@ -94,6 +94,9 @@ function fakeDeps() {
       propertyNames: new Map([[PROPERTY as string, 'Riverside Hotel']]),
     })),
     authorizeScope: vi.fn(async () => true),
+    organizationEmailStop: vi.fn(
+      async (_organizationId: string): Promise<'none' | 'optional' | 'all'> => 'none',
+    ),
     isRecipientEligible: vi.fn(async () => true),
     logger: createFakeJobLogger(),
     clock: () => NOW,
@@ -135,6 +138,24 @@ describe('immediate notification email job', () => {
 
     expect(deps.emailRepo.findById).not.toHaveBeenCalled()
     expect(deps.emailRepo.markSuppressed).not.toHaveBeenCalled()
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  it('stops optional mail once the Organization has asked to close', async () => {
+    // Nothing sets an Organization suspension on a closure request: the send
+    // path reads the lifecycle authority itself.
+    deps.organizationEmailStop.mockResolvedValue('optional')
+
+    await run()
+
+    expect(deps.organizationEmailStop).toHaveBeenCalledWith(ORG)
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      PROPERTY,
+      'organization_closing',
+      NOW,
+    )
     expect(deps.emailSender.send).not.toHaveBeenCalled()
   })
 
@@ -453,6 +474,52 @@ describe('immediate notification email job', () => {
     expect(sentPayload().headers).toEqual({})
     expect(sentPayload().html).not.toContain('/settings/notifications')
     expect(sentPayload().text).not.toContain('/settings/notifications')
+  })
+
+  it('lets a mandatory notice through a closing Organization until it is purged', async () => {
+    const mandatoryEntry = buildNotificationEmail({
+      id: 'email-1',
+      propertyId: null,
+      category: 'mandatory',
+      cadence: 'immediate',
+      priority: 'normal',
+    })
+    deps.emailRepo.findById.mockResolvedValue(mandatoryEntry)
+    deps.notifRepo.findById.mockResolvedValue(
+      buildNotification({
+        propertyId: null,
+        type: 'account.organization_access_removed',
+        category: 'mandatory',
+        priority: 'normal',
+        resourceType: 'organization',
+        resourceId: ORG,
+      }),
+    )
+    const handler = createUrgentEmailJobHandler(
+      deps as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+    )
+    const organizationJob = {
+      data: {
+        ...job.data,
+        propertyId: undefined,
+        notificationEmailId: mandatoryEntry.id as string,
+      } as unknown as UrgentEmailJobData,
+    }
+
+    deps.organizationEmailStop.mockResolvedValue('optional')
+    await handler(organizationJob)
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+
+    deps.organizationEmailStop.mockResolvedValue('all')
+    await handler(organizationJob)
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      mandatoryEntry.id,
+      ORG,
+      null,
+      'organization_closing',
+      NOW,
+    )
   })
 
   // ── ADR 0046 r.3: recipient timezone ──────────────────────────────

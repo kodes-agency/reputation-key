@@ -651,6 +651,13 @@ async function registerNotificationJobs(
   const resolveNotificationProperty = createNotificationPropertyScopeResolver(
     container.pool,
   )
+  // A closure request stops optional email: nothing sets an Organization
+  // suspension any more, so the email paths read the lifecycle authority.
+  const { createNotificationOrganizationEmailStopReader } =
+    await import('#/contexts/feed/infrastructure/repositories/notification-organization-email-stop.repository')
+  const notificationOrganizationEmailStop = createNotificationOrganizationEmailStopReader(
+    container.db,
+  )
   // ADR 0046 r.3: the organization fallback timezone plus property display
   // names for digest grouping.
   const resolveNotificationOrgScope = createNotificationOrganizationScopeResolver(
@@ -679,6 +686,7 @@ async function registerNotificationJobs(
     logger: container.logger,
     authorizeAudience: container.notificationAudienceAuthorizer,
     deliverySettlement: container.notificationDeliverySettlement,
+    organizationEmailStop: notificationOrganizationEmailStop,
     enqueueImmediateEmail: container.jobQueue
       ? async (data) => {
           await container.jobQueue!.add(
@@ -754,6 +762,7 @@ async function registerNotificationJobs(
     resolvePropertyScope: resolveNotificationProperty,
     resolveOrganizationScope: resolveNotificationOrgScope,
     authorizeScope: authorizeUrgentNotification,
+    organizationEmailStop: notificationOrganizationEmailStop,
     isRecipientEligible: container.notificationWorkerRuntime.recipientStanding,
     baseUrl: notifBaseUrl,
     oneClickUnsubscribeUrl: notificationUnsubscribeUrl,
@@ -784,6 +793,7 @@ async function registerNotificationJobs(
     preferenceRepo: container.notificationWorkerRuntime.preferenceRepo,
     resolveOrganizationScope: resolveNotificationOrgScope,
     resolvePropertyScope: resolveNotificationProperty,
+    organizationEmailStop: notificationOrganizationEmailStop,
     authorizeScope: createScheduledScopeAuthorizer('system:notification.email_digest'),
     isRecipientEligible: container.notificationWorkerRuntime.recipientStanding,
     baseUrl: notifBaseUrl,

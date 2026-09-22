@@ -189,9 +189,10 @@ export const assertNoActiveOperationalHistoryLegalHold = (
  * is a projection of a durable fact another context already committed.
  *
  *   * The manager-facing reads (`getActivityTimelineFn`,
- *     `listRecentActivityFn`) carry the `inbox.use` capability, so the
- *     Organization suspension the closure request committed already denies
- *     them — the surface is unavailable before this phase runs.
+ *     `listRecentActivityFn`) carry the `inbox.use` capability. A closure
+ *     request sets no Organization suspension any more, so they stay
+ *     available through the recoverable window; they show only this
+ *     Organization's own projection, and Purge removes it.
  *   * The writers are outbox consumers and the `project-recent-activity` job.
  *     That job is catalogued with capability `none`, so — stated plainly rather
  *     than assumed away — the delayed execution gate's suspension check does

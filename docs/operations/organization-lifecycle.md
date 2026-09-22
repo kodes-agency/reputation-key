@@ -119,7 +119,7 @@ tenant content.
 | State               | Meaning                                                                            | Recovery posture                                                                                         |
 | ------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `active`            | No closure is running. A prior recovery may still require deliberate reactivation. | A new request is denied while `reactivation_required=true`.                                              |
-| `closure_requested` | AccountAdmin request and global suspension are committed.                          | Current AccountAdmin may cancel strictly before the deadline.                                            |
+| `closure_requested` | AccountAdmin request is committed. No Organization-wide suspension is set.         | Current AccountAdmin may cancel strictly before the deadline.                                            |
 | `closing`           | Every context has acknowledged its Closing preparation.                            | Current AccountAdmin may cancel before the deadline; support may waive the remaining window.             |
 | `purge_pending`     | Grace elapsed/was waived and every context supplied readiness evidence.            | Support may cancel only before `irreversible_at`, with independent authorization and typed confirmation. |
 | `purging`           | The irreversible boundary has been crossed.                                        | No recovery edge exists. Every context must return purge evidence.                                       |
@@ -139,6 +139,15 @@ Database triggers enforce:
 
 ## Request and ordinary cancellation
 
+A closure request no longer commits an Organization suspension: the call that
+set one was removed in #460, and the capability gate's `org_suspended` now
+comes only from `BETA_SUSPENDED_ORGS`. A context that must stop an external
+effect from the request onward reads this authority itself. Notification
+email does: from `closure_requested`, and while a cancelled closure awaits
+reactivation, it queues and sends no optional mail (mandatory account notices
+continue until `purging`), and it suppresses what was already queued with
+reason `organization_closing`.
+
 A closure request locks and rechecks the concrete Better Auth `owner`
 membership in the same transaction as the command. It requires a
 caller-provided UUID operation ID, closed request reason, bounded content-free
@@ -156,14 +165,13 @@ tenant, actor, operation, reason, or evidence is rejected.
 
 Ordinary cancellation is allowed from Closure Requested or Closing strictly
 before `recoverable_until`, by a still-current AccountAdmin. It returns the
-state to `active` but retains the closure lineage, Organization suspension, and
+state to `active` but retains the closure lineage and
 `reactivation_required=true`. It does not reactivate Google, Portals, AI,
 imports, sync, replies, notifications, or schedules.
 
 ## Explicit reactivation (LIF-01-T18)
 
-Clearing `reactivation_required` and lifting the Organization suspension is a
-separate command with its own authority, readiness evidence and receipt. It
+Clearing `reactivation_required` is a separate command with its own authority, readiness evidence and receipt. It
 answers four closed checks, all of which must pass:
 
 | Check                         | Question                                                                  |
@@ -186,9 +194,8 @@ author a deliberate human decision.
 Reactivation is compare-and-set on the revision its readiness evidence
 describes, so a concurrent closure request or operator transition invalidates
 it. On success `reactivation_required` becomes false, the whole closure lineage
-clears (the `organization_lifecycle_state_shape` check requires it), the
-suspension is lifted with a new policy generation, and only THEN can a new
-closure be requested.
+clears (the `organization_lifecycle_state_shape` check requires it), and only
+THEN can a new closure be requested.
 
 **Currently fenced by the database.** Migration `0159` predates this command:
 `guard_organization_lifecycle_revision_v1` allows no `active -> active` edge,
@@ -219,11 +226,11 @@ expected revision, operator, external support reference, independent
 authorization reference, and any phase digest into one content-free evidence
 digest:
 
-| Action                   | Required typed confirmation                  | Result                                                          |
-| ------------------------ | -------------------------------------------- | --------------------------------------------------------------- |
-| Waive recovery           | `WAIVE RECOVERY <organization-id>`           | Closing → Purge Pending, after fresh readiness receipts         |
-| Cancel pending purge     | `CANCEL PENDING PURGE <organization-id>`     | Purge Pending → active, retaining suspension/reactivation fence |
-| Begin irreversible purge | `BEGIN IRREVERSIBLE PURGE <organization-id>` | Purge Pending → Purging and sets `irreversible_at`              |
+| Action                   | Required typed confirmation                  | Result                                                   |
+| ------------------------ | -------------------------------------------- | -------------------------------------------------------- |
+| Waive recovery           | `WAIVE RECOVERY <organization-id>`           | Closing → Purge Pending, after fresh readiness receipts  |
+| Cancel pending purge     | `CANCEL PENDING PURGE <organization-id>`     | Purge Pending → active, retaining the reactivation fence |
+| Begin irreversible purge | `BEGIN IRREVERSIBLE PURGE <organization-id>` | Purge Pending → Purging and sets `irreversible_at`       |
 
 These methods are local application seams, not an authorization UI or operator
 tool. Do not invoke equivalent ad-hoc SQL.
@@ -364,8 +371,8 @@ no "release to nobody": choosing a successor is an accountability decision.
 - The responsibility facts are composed (`memberOffboarding`). ABSENT IS
   FAIL-CLOSED: with no adapter bound, leave refuses. A leave that cannot see
   the worklist would silently strand everything on it.
-- `identity.leave_org` is capability-gated as usual, so a suspended
-  Organization does not lose members while its closure is pending.
+- `identity.leave_org` is capability-gated as usual. A closure request sets
+  no Organization suspension, so it does not by itself stop a leave.
 
 `property_access_grant` revocation now commits INSIDE the Identity transaction
 alongside session deletion, binding release, membership deletion and the

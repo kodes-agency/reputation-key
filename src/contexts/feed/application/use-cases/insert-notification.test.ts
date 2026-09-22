@@ -549,4 +549,52 @@ describe('insertNotification', () => {
     await expect(insertNotification(deps)(input)).resolves.not.toBeNull()
     expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
   })
+
+  describe('while the Organization is closing', () => {
+    const portalHealth = {
+      userId: USER_ID,
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      type: 'portal.health_attention' as const,
+      resourceType: 'portal' as const,
+      resourceId: 'portal-1',
+      eventId: 'event-portal-health-closing',
+      payload: {},
+    }
+
+    it('queues no product email, so nothing is left for purge readiness to find', async () => {
+      // insert-notification runs with capability `none`: without this, a row
+      // queued behind the Closing fence stays sendable and readiness fails
+      // on every pass.
+      ;(deps.organizationEmailStop as ReturnType<typeof vi.fn>).mockResolvedValue(
+        'optional',
+      )
+
+      const result = await insertNotification(deps)(portalHealth)
+
+      expect(deps.organizationEmailStop).toHaveBeenCalledWith(ORG_ID)
+      expect(result).not.toBeNull()
+      expect(deps.notificationRepo.insert).toHaveBeenCalledOnce()
+      expect(deps.emailRepo.insert).not.toHaveBeenCalled()
+      expect(deps.enqueueImmediateEmail).not.toHaveBeenCalled()
+    })
+
+    it('still queues a mandatory notice through the recoverable window', async () => {
+      ;(deps.organizationEmailStop as ReturnType<typeof vi.fn>).mockResolvedValue(
+        'optional',
+      )
+
+      await insertNotification(deps)({
+        userId: USER_ID,
+        organizationId: ORG_ID,
+        propertyId: null,
+        type: 'account.organization_role_changed',
+        resourceType: 'organization',
+        resourceId: ORG_ID,
+        eventId: 'identity-role-event-closing',
+      })
+
+      expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
+    })
+  })
 })
