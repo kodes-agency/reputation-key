@@ -48,7 +48,16 @@ ADR 0046 r.2's one-unread-row coalescing is an in-app rule. A recipient with
 in-app off and email on gets an email-only anchor row stored already read, so
 it never holds the unread `(user, type, resource)` key: every event on a
 resource is emailed, and none of those rows resurfaces as unread if in-app is
-turned back on.
+turned back on. Consequences of that choice, pending product confirmation:
+
+- Nothing coalesces for such a recipient. Ten notes on one Inbox item are ten
+  immediate emails, or ten digest lines.
+- Only durable receipts fence repeat deliveries for them. The unread key no
+  longer does, so two deliveries of one resource under different event ids,
+  such as a repair sweep overlapping the original, each send an email.
+- The anchor's `read` status and its `read_at` (its creation time) are not a
+  read by the user. The Organization export reports them as stored, and once
+  in-app is back on they show in the feed as read history, one row per event.
 
 The settings page and in-app timestamps read the same effective timezone the
 delivery jobs resolve (ADR 0046 r.3): the user's own, else the Organization's
@@ -56,6 +65,12 @@ representative zone, else UTC, together with where it came from. A settings
 save writes only what the user changed; because the column cannot hold "follow
 the Organization", a first save that changes only the language stores the zone
 delivery was already using.
+
+Known gaps that need a nullable column or a product decision: that stored zone
+is the Organization's, or UTC while the Organization has no active Property,
+and from then on it no longer follows the Organization; the page calls it the
+user's own. Rows the old page saved with its UTC pre-fill look exactly like a
+chosen UTC and were not repaired.
 
 Quiet hours that start and end at the same time are refused on save. Rows
 stored that way earlier read back as no quiet hours, which is how delivery has
