@@ -94,14 +94,16 @@ const factsAt = (p: NotificationPayload, ...parts: ReadonlyArray<string>): strin
 const inboxNoun = (p: NotificationPayload): string =>
   p.platform === 'portal' ? 'feedback' : 'review'
 
+/** Guest feedback in the facts line, with its locally collected rating. */
+const ratedFeedback = (p: NotificationPayload): string =>
+  p.guestRating === undefined ? 'feedback' : `${p.guestRating}-star feedback`
+
 /**
  * The facts-line noun. Portal feedback may carry its locally collected
  * rating; a provider review never carries one.
  */
 const ratedNoun = (p: NotificationPayload): string =>
-  p.platform === 'portal' && p.guestRating !== undefined
-    ? `${p.guestRating}-star feedback`
-    : inboxNoun(p)
+  p.platform === 'portal' ? ratedFeedback(p) : 'review'
 
 // ── Per-type renderers ──────────────────────────────────────────────
 // Each returns copy that reads correctly with an EMPTY payload and gets
@@ -168,11 +170,12 @@ const renderReviewUpdated = (p: NotificationPayload): RenderedNotification => ({
   summary: factsAt(p, 'updated review'),
 })
 
+// Always feedback, even when the item lookup failed and left no platform.
 const renderFeedbackCreated = (p: NotificationPayload): RenderedNotification => ({
   title: `New guest feedback${atProperty(p)}`,
   body: 'Open it to read the feedback.',
   actionLabel: 'Read feedback',
-  summary: factsAt(p, ratedNoun(p)),
+  summary: factsAt(p, ratedFeedback(p)),
 })
 
 const renderReplyPendingApproval = (p: NotificationPayload): RenderedNotification => ({

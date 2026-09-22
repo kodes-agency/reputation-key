@@ -119,6 +119,14 @@ describe('renderNotification — facts beside the copy, not inside it', () => {
     expect(r.body).toBe('Open it to read the feedback.')
     expect(r.summary).toBe('Riverside Hotel · 2-star feedback')
   })
+
+  // The item lookup can fail and leave no platform; guest feedback is still
+  // feedback, never a review.
+  it('calls guest feedback feedback when its source is unknown', () => {
+    const r = renderNotification('feedback.created', { propertyName: 'Riverside Hotel' })
+
+    expect(r.summary).toBe('Riverside Hotel · feedback')
+  })
 })
 
 describe('renderNotification — the copy that was broken', () => {
