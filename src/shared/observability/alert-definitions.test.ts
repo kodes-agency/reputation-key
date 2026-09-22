@@ -128,6 +128,7 @@ function healthy(): MutableSnapshot {
       invalidObservations: 0,
       handlerMissing: 0,
       schedulerMissing: 0,
+      scheduleDenied: 0,
       forbiddenDarkWork: 0,
       quarantinedSchedulers: 0,
       missedObjectives: 0,
@@ -135,6 +136,7 @@ function healthy(): MutableSnapshot {
       stalled: 0,
       repairRequired: 0,
       deadLetters: 0,
+      gateDenials: 0,
       rows: [],
     },
     guestObservationLoss: {
@@ -279,6 +281,7 @@ describe('worker.job-runtime-unready', () => {
       invalidObservations: 0,
       handlerMissing: 0,
       schedulerMissing: 1,
+      scheduleDenied: 1,
       forbiddenDarkWork: 0,
       quarantinedSchedulers: 0,
       missedObjectives: 1,
@@ -286,6 +289,7 @@ describe('worker.job-runtime-unready', () => {
       stalled: 0,
       repairRequired: 0,
       deadLetters: 0,
+      gateDenials: 3,
       rows: [],
     }
 
@@ -301,6 +305,7 @@ describe('worker.job-runtime-unready', () => {
     // Every unready reason has a counter; none can hide behind a detail of zeros.
     expect(event!.detail).toContain('invalidObservations=0')
     expect(event!.detail).toContain('missedObjectives=1')
+    expect(event!.detail).toContain('scheduleDenied=1')
   })
 
   it('stays silent when ready and fails visible when the authority is unavailable', () => {
@@ -316,6 +321,7 @@ describe('worker.job-runtime-unready', () => {
       invalidObservations: 0,
       handlerMissing: 0,
       schedulerMissing: 0,
+      scheduleDenied: 0,
       forbiddenDarkWork: 0,
       quarantinedSchedulers: 0,
       missedObjectives: 0,
@@ -323,6 +329,7 @@ describe('worker.job-runtime-unready', () => {
       stalled: 0,
       repairRequired: 0,
       deadLetters: 0,
+      gateDenials: 0,
       rows: [],
     }
     expect(evaluateOne('worker.job-runtime-unready', ready)).toBeNull()

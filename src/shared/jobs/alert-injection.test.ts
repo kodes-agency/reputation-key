@@ -173,6 +173,7 @@ function healthySnapshot(): MutableSnapshot {
       invalidObservations: 0,
       handlerMissing: 0,
       schedulerMissing: 0,
+      scheduleDenied: 0,
       forbiddenDarkWork: 0,
       quarantinedSchedulers: 0,
       missedObjectives: 0,
@@ -180,6 +181,7 @@ function healthySnapshot(): MutableSnapshot {
       stalled: 0,
       repairRequired: 0,
       deadLetters: 0,
+      gateDenials: 0,
       rows: [],
     },
     guestObservationLoss: {

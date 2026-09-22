@@ -491,12 +491,18 @@ family is alive but does not satisfy its executable runtime contract.
 job report joins the governed catalogue to the current handler set, live BullMQ
 schedulers and retained jobs, Queue Redis boot/success/failure heads, and the
 quarantine. A firing alert therefore means the report is unavailable, at least
-one active family has a missing handler or scheduler, missed its last-success or
-queue-age objective, stalled, needs repair, or has a dead letter; or a
-dark/quarantined family has forbidden executable work. The report retains the observed cell, owner,
-processor, action, capability, queue policy, cadence, timeout, concurrency,
-freshness objectives, runbook, and repair command for each family. It contains
-no tenant or payload content.
+one active family has a missing handler or scheduler, had a schedule firing
+denied by the delayed-execution gate, missed its last-success or queue-age
+objective, stalled, needs repair, or has a dead letter; or a dark/quarantined
+family has forbidden executable work. A gate-denied job completes in BullMQ
+without retrying, but nothing ran: it is recorded as a denial (`lastDeniedAt`),
+never as a success, so it cannot keep a dead family fresh. `jobs.gateDenials`
+and each row's `deniedCount` count gate-denied jobs among the retained completed
+jobs; they never page, because a denied on-demand job (a suspended
+organization, a disabled capability) is routine. The report retains the
+observed cell, owner, processor, action, capability, queue policy, cadence,
+timeout, concurrency, freshness objectives, runbook, and repair command for
+each family. It contains no tenant or payload content.
 
 **First three things to check:**
 
@@ -510,6 +516,10 @@ no tenant or payload content.
    entry, then dry-run `pnpm ops quarantine discard <id> --operator
 <registered-operator>` before applying it with `--reason <incident-reason>
 --apply`.
+   For `schedule_denied`, the worker's `delayed execution denied — terminal`
+   error for that job names the policy `reason`. Every schedule row is
+   tenant-cross or unscoped, so the denial is a catalogue or policy defect, not
+   a kill switch.
 3. For missed objectives, stalled work, repair-required state, or dead letters,
    inspect the original queue and run `pnpm ops quarantine list --operator
 <registered-operator>` before applying the row's exact repair command.
@@ -524,10 +534,10 @@ reconciliation or rebuild remains authoritative when its runbook says replaying
 one queue item cannot reconstruct the projection.
 
 **Verification:** `jobs.ready` is true; `jobs.failing`, missing handler/scheduler,
-forbidden-dark-work, missed-objective, queue-age, stalled, repair-required, and
-dead-letter counts are all zero; every active scheduled row has a recent
-`lastSucceededAt`; and a second health-check cadence remains green after a
-worker restart.
+schedule-denied, forbidden-dark-work, missed-objective, queue-age, stalled,
+repair-required, and dead-letter counts are all zero; every active scheduled row
+has a recent `lastSucceededAt`; and a second health-check cadence remains green
+after a worker restart.
 
 **Escalation:** Bozhidar Denev. A dark family that executed, or an active family
 that cannot be deterministically repaired, is a release blocker.

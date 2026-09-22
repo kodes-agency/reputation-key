@@ -380,6 +380,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
       'jobs.invalidObservations',
       'jobs.handlerMissing',
       'jobs.schedulerMissing',
+      'jobs.scheduleDenied',
       'jobs.forbiddenDarkWork',
       'jobs.quarantinedSchedulers',
       'jobs.missedObjectives',
@@ -391,6 +392,16 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     emitted: true,
     description:
       'Job runtime contract failures, including missed work and repair ownership.',
+  }),
+  def({
+    name: 'worker.job_runtime.gate_denials',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['jobs.gateDenials'],
+    emitted: true,
+    description:
+      'Retained completed jobs the delayed-execution gate denied. Counted, never paged: a denied on-demand job is routine; a denied schedule firing fails readiness.',
   }),
   def({
     name: 'worker.runtime.version',

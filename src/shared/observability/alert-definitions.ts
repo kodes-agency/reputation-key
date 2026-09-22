@@ -306,6 +306,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
           `invalidObservations=${jobs.invalidObservations}, ` +
           `handlerMissing=${jobs.handlerMissing}, ` +
           `schedulerMissing=${jobs.schedulerMissing}, ` +
+          `scheduleDenied=${jobs.scheduleDenied}, ` +
           `forbiddenDarkWork=${jobs.forbiddenDarkWork}, ` +
           `quarantinedSchedulers=${jobs.quarantinedSchedulers}, ` +
           `missedObjectives=${jobs.missedObjectives}, ` +

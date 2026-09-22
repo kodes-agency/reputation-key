@@ -284,6 +284,7 @@ async function main() {
         invalidObservations: runtimeReport.invalidObservations,
         handlerMissing: runtimeReport.handlerMissing,
         schedulerMissing: runtimeReport.schedulerMissing,
+        scheduleDenied: runtimeReport.scheduleDenied,
         forbiddenDarkWork: runtimeReport.forbiddenDarkWork,
         quarantinedSchedulers: runtimeReport.quarantinedSchedulers,
         missedObjectives: runtimeReport.missedObjectives,
@@ -291,6 +292,7 @@ async function main() {
         stalled: runtimeReport.stalled,
         repairRequired: runtimeReport.repairRequired,
         deadLetters: runtimeReport.deadLetters,
+        gateDenials: runtimeReport.gateDenials,
         failedJobs: runtimeReport.rows
           .filter((row) => !row.ready)
           .map((row) => ({

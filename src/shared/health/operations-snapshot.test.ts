@@ -70,6 +70,7 @@ const JOB_RUNTIME = {
   invalidObservations: 0,
   handlerMissing: 0,
   schedulerMissing: 1,
+  scheduleDenied: 0,
   forbiddenDarkWork: 0,
   quarantinedSchedulers: 0,
   missedObjectives: 0,
@@ -77,6 +78,7 @@ const JOB_RUNTIME = {
   stalled: 0,
   repairRequired: 0,
   deadLetters: 0,
+  gateDenials: 0,
   rows: [
     {
       jobName: 'health-check',
@@ -99,6 +101,8 @@ const JOB_RUNTIME = {
       ready: false,
       reasons: ['scheduler_missing' as const],
       lastSucceededAt: null,
+      lastDeniedAt: null,
+      deniedCount: 0,
       oldestWaitingAt: null,
       deadLetterCount: 0,
       repairCommand:

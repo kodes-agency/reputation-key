@@ -47,6 +47,8 @@ function observation(
     lastTerminalFailureAt: null,
     lastRepairAt: null,
     lastStalledAt: null,
+    lastDeniedAt: null,
+    lastScheduleDeniedAt: null,
     oldestWaitingAt: null,
     deadLetterCount: 0,
     ...overrides,
@@ -283,6 +285,59 @@ describe('job runtime authority', () => {
         now: NOW,
       }),
     ).toEqual({ ready: true, reasons: [] })
+  })
+
+  it('fails a scheduled family whose firing the gate denied until a later success', () => {
+    // A schedule is enumeration-only (tenant-cross or unscoped), so a terminal
+    // denial there is a catalogue or configuration defect: the cadence is dead.
+    const deniedAt = new Date('2026-08-27T02:58:00.000Z')
+    const denied = observation({ lastDeniedAt: deniedAt, lastScheduleDeniedAt: deniedAt })
+
+    expect(
+      assessJobRuntime({
+        contract: scheduledContract(),
+        observation: denied,
+        runtimeStartedAt: STARTED,
+        now: NOW,
+      }),
+    ).toEqual({ ready: false, reasons: ['schedule_denied'] })
+
+    expect(
+      assessJobRuntime({
+        contract: scheduledContract(),
+        observation: {
+          ...denied,
+          lastSucceededAt: new Date('2026-08-27T02:59:00.000Z'),
+        },
+        runtimeStartedAt: STARTED,
+        now: NOW,
+      }),
+    ).toEqual({ ready: true, reasons: [] })
+  })
+
+  it('counts, but does not fail on, a terminal denial of on-demand work', () => {
+    expect(
+      assessJobRuntime({
+        contract: scheduledContract({ schedule: 'none', lastSuccessObjectiveMs: null }),
+        observation: observation({
+          schedulerRegistered: false,
+          lastDeniedAt: new Date('2026-08-27T02:58:00.000Z'),
+        }),
+        runtimeStartedAt: STARTED,
+        now: NOW,
+      }),
+    ).toEqual({ ready: true, reasons: [] })
+  })
+
+  it('treats a denial head from the future as an invalid observation', () => {
+    expect(
+      assessJobRuntime({
+        contract: scheduledContract(),
+        observation: observation({ lastDeniedAt: new Date(NOW.getTime() + 60_000) }),
+        runtimeStartedAt: STARTED,
+        now: NOW,
+      }),
+    ).toEqual({ ready: false, reasons: ['invalid_observation'] })
   })
 
   it('requires an observation to prove that dark work is absent', () => {

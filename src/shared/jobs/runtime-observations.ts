@@ -9,6 +9,7 @@
  */
 
 import { createHash } from 'node:crypto'
+import { isGateDeniedResult, type GateDeniedExecutionKind } from './gate-denial'
 import {
   assessJobRuntime,
   type JobOperationalContract,
@@ -41,9 +42,17 @@ type JobRuntimeSuccessEvent = JobRuntimeEvent &
     repair: boolean
   }>
 
+type JobRuntimeDenialEvent = JobRuntimeEvent &
+  Readonly<{
+    /** A denied schedule firing is a dead cadence; a denied job is routine. */
+    executionKind: GateDeniedExecutionKind
+  }>
+
 export type JobRuntimeObservationSink = Readonly<{
   recordStarted(event: JobRuntimeEvent): Promise<void>
   recordSucceeded(event: JobRuntimeSuccessEvent): Promise<void>
+  /** A terminal gate denial: BullMQ completed the job, but nothing ran. */
+  recordDenied(event: JobRuntimeDenialEvent): Promise<void>
   recordTerminalFailure(event: JobRuntimeEvent): Promise<void>
   recordStalled(
     event: Readonly<{ queue: string; jobId: string; at: Date }>,
@@ -160,6 +169,17 @@ export function createJobRuntimeObservationStore(
       await redis.del(activeJobKey(event.queue, event.jobId))
     },
 
+    async recordDenied(event) {
+      const at = asIso(event.at)
+      await redis.hset(
+        observationKey(event.jobName),
+        'lastDeniedAt',
+        at,
+        ...(event.executionKind === 'schedule' ? ['lastScheduleDeniedAt', at] : []),
+      )
+      await redis.del(activeJobKey(event.queue, event.jobId))
+    },
+
     async recordTerminalFailure(event) {
       await writeEvent(event, 'lastTerminalFailureAt')
       await redis.del(activeJobKey(event.queue, event.jobId))
@@ -193,6 +213,8 @@ export function createJobRuntimeObservationStore(
           lastTerminalFailureAt: parseDate(row.lastTerminalFailureAt),
           lastRepairAt: parseDate(row.lastRepairAt),
           lastStalledAt: parseDate(row.lastStalledAt),
+          lastDeniedAt: parseDate(row.lastDeniedAt),
+          lastScheduleDeniedAt: parseDate(row.lastScheduleDeniedAt),
           oldestWaitingAt: null,
           deadLetterCount: 0,
         },
@@ -219,6 +241,8 @@ export type JobRuntimeQueueJob = Readonly<{
   opts?: Readonly<{ delay?: number }>
   processedOn?: number
   finishedOn?: number
+  /** A completed job's result; a gate denial marks a completion that did not run. */
+  returnvalue?: unknown
 }>
 
 export type JobRuntimeQueuePort = Readonly<{
@@ -240,6 +264,10 @@ type QueueEvidence = {
   lastStartedAt: Map<string, Date>
   lastSucceededAt: Map<string, Date>
   lastTerminalFailureAt: Map<string, Date>
+  lastDeniedAt: Map<string, Date>
+  lastScheduleDeniedAt: Map<string, Date>
+  /** Retained completed jobs the gate denied, per family. */
+  deniedCount: Map<string, number>
   oldestWaitingAt: Map<string, Date>
 }
 
@@ -294,6 +322,20 @@ async function scanState(
   }
 }
 
+/** A completed job is a success unless the gate denied it before it ran. */
+function recordCompletion(evidence: QueueEvidence, job: JobRuntimeQueueJob): void {
+  const finishedAt = dateFromEpoch(job.finishedOn)
+  if (!isGateDeniedResult(job.returnvalue)) {
+    keepLatest(evidence.lastSucceededAt, job.name, finishedAt)
+    return
+  }
+  evidence.deniedCount.set(job.name, (evidence.deniedCount.get(job.name) ?? 0) + 1)
+  keepLatest(evidence.lastDeniedAt, job.name, finishedAt)
+  if (job.returnvalue.executionKind === 'schedule') {
+    keepLatest(evidence.lastScheduleDeniedAt, job.name, finishedAt)
+  }
+}
+
 async function readQueueEvidence(
   queues: ReadonlyArray<JobRuntimeQueuePort>,
   now: Date,
@@ -303,6 +345,9 @@ async function readQueueEvidence(
     lastStartedAt: new Map(),
     lastSucceededAt: new Map(),
     lastTerminalFailureAt: new Map(),
+    lastDeniedAt: new Map(),
+    lastScheduleDeniedAt: new Map(),
+    deniedCount: new Map(),
     oldestWaitingAt: new Map(),
   }
   await Promise.all(
@@ -327,13 +372,7 @@ async function readQueueEvidence(
         ...(['active', 'completed', 'failed'] as const).map((state) =>
           scanState(queue, state, (job) => {
             keepLatest(evidence.lastStartedAt, job.name, dateFromEpoch(job.processedOn))
-            if (state === 'completed') {
-              keepLatest(
-                evidence.lastSucceededAt,
-                job.name,
-                dateFromEpoch(job.finishedOn),
-              )
-            }
+            if (state === 'completed') recordCompletion(evidence, job)
             if (state === 'failed') {
               keepLatest(
                 evidence.lastTerminalFailureAt,
@@ -388,6 +427,9 @@ export type JobRuntimeReportRow = Readonly<{
   ready: boolean
   reasons: readonly JobRuntimeReadinessReason[]
   lastSucceededAt: string | null
+  lastDeniedAt: string | null
+  /** Retained completed jobs the gate denied; counted, never paged on. */
+  deniedCount: number
   oldestWaitingAt: string | null
   deadLetterCount: number
   repairCommand: string
@@ -406,6 +448,8 @@ export type JobRuntimeReport = Readonly<{
   invalidObservations: number
   handlerMissing: number
   schedulerMissing: number
+  /** Scheduled families whose latest firing the gate denied. */
+  scheduleDenied: number
   forbiddenDarkWork: number
   quarantinedSchedulers: number
   missedObjectives: number
@@ -413,6 +457,12 @@ export type JobRuntimeReport = Readonly<{
   stalled: number
   repairRequired: number
   deadLetters: number
+  /**
+   * Retained completed jobs the gate denied, across families. Informational:
+   * a denied on-demand job is routine (a suspended organization, a disabled
+   * capability), so only `scheduleDenied` affects readiness.
+   */
+  gateDenials: number
   rows: readonly JobRuntimeReportRow[]
 }>
 
@@ -477,6 +527,14 @@ export function createJobRuntimeReportReader(
                 record.observation.lastTerminalFailureAt,
                 evidence.lastTerminalFailureAt.get(contract.jobName),
               ),
+              lastDeniedAt: latest(
+                record.observation.lastDeniedAt,
+                evidence.lastDeniedAt.get(contract.jobName),
+              ),
+              lastScheduleDeniedAt: latest(
+                record.observation.lastScheduleDeniedAt,
+                evidence.lastScheduleDeniedAt.get(contract.jobName),
+              ),
               oldestWaitingAt: evidence.oldestWaitingAt.get(contract.jobName) ?? null,
               deadLetterCount: deadLetters.get(contract.jobName) ?? 0,
             }
@@ -507,6 +565,8 @@ export function createJobRuntimeReportReader(
           ready: readiness.ready,
           reasons: readiness.reasons,
           lastSucceededAt: observation?.lastSucceededAt?.toISOString() ?? null,
+          lastDeniedAt: observation?.lastDeniedAt?.toISOString() ?? null,
+          deniedCount: evidence.deniedCount.get(contract.jobName) ?? 0,
           oldestWaitingAt: observation?.oldestWaitingAt?.toISOString() ?? null,
           deadLetterCount: observation?.deadLetterCount ?? 0,
           repairCommand: contract.repairCommand,
@@ -527,6 +587,7 @@ export function createJobRuntimeReportReader(
         invalidObservations: countReason(rows, 'invalid_observation'),
         handlerMissing: countReason(rows, 'handler_missing'),
         schedulerMissing: countReason(rows, 'scheduler_missing'),
+        scheduleDenied: countReason(rows, 'schedule_denied'),
         forbiddenDarkWork: rows.filter((row) =>
           row.reasons.some((reason) => DARK_EXECUTION_REASONS.includes(reason)),
         ).length,
@@ -538,6 +599,7 @@ export function createJobRuntimeReportReader(
         stalled: countReason(rows, 'stalled_work_observed'),
         repairRequired: countReason(rows, 'repair_required'),
         deadLetters: rows.reduce((sum, row) => sum + row.deadLetterCount, 0),
+        gateDenials: rows.reduce((sum, row) => sum + row.deniedCount, 0),
         rows,
       }
     },
