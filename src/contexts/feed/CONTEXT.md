@@ -145,11 +145,14 @@ self-assignment, an AccountAdmin's own escalation or submission, an author
 approving or rejecting their own reply — and keeps everyone else. Google's
 publication outcomes have no actor and always reach the author.
 
-A request to choose a responsible manager reaches AccountAdmins only while the
-Property or Portal still has no eligible manager; one chosen before delivery
-retires it. A failed publication goes to its author while they can still act
-on the Property, otherwise to the Property's responsible managers (AccountAdmins
-when none is eligible), so it always reaches someone who can retry it.
+A request to choose a responsible manager is raised for AccountAdmins only
+while the Property or Portal still has no eligible manager, checked when the
+notice is inserted: a manager chosen before then retires it. Nothing rechecks
+the gap afterwards, so the in-app row stays and an email already queued for it
+(one held for quiet hours or a digest) is still sent. A failed publication goes
+to its author while they can still act on the Property, otherwise to the
+Property's responsible managers (AccountAdmins when none is eligible), so it
+always reaches someone who can retry it.
 
 ## Runtime
 
