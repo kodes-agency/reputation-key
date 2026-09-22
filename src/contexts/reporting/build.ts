@@ -310,7 +310,7 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
       programMaintenance: Object.freeze({
         jobName: GOAL_PROGRAM_MAINTENANCE_JOB_NAME,
         createHandler: (policy: GoalExecutionPolicy) =>
-          createGoalProgramMaintenanceHandler(buildGoalPrograms(policy)),
+          createGoalProgramMaintenanceHandler(buildGoalPrograms(policy), input.logger),
       }),
     }),
     organizationExport: createGoalOrganizationExportAdapter(input.db),
