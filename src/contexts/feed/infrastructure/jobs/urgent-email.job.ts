@@ -166,6 +166,9 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     const orgId = organizationId(ids.orgId)
     const propId = ids.propId === null ? null : propertyId(ids.propId)
     const attemptedAt = deps.clock()
+    // Before the call: a worker that dies mid-call must still leave the start
+    // of the provider's idempotency window behind (`isStaleQueuedEmail`).
+    await deps.emailRepo.markAttemptStarted(emailId, orgId, propId, attemptedAt)
     try {
       const outcome = await deps.emailSender.send({
         to: recipient,

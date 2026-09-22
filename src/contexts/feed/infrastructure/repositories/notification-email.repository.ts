@@ -180,6 +180,13 @@ const PROVIDER_STATE_PREDECESSORS: Readonly<
  */
 const PROVIDER_SUPPRESSION_REASON = 'provider_suppressed'
 
+/**
+ * `attempted_at` holds a row's FIRST provider attempt: the provider's 24-hour
+ * idempotency window opens there, so later attempts never move it.
+ */
+const firstAttemptAt = (at: Date) =>
+  sql`COALESCE(${notificationEmailQueue.attemptedAt}, ${at})`
+
 /** What a provider event needs to know about each row it concerns. */
 const TRANSITION_COLUMNS = {
   id: notificationEmailQueue.id,
@@ -424,6 +431,23 @@ export const createNotificationEmailRepository = (db: Database) => ({
     return rows.map(emailFromRow)
   },
 
+  markAttemptStarted: async (
+    id: string,
+    orgId: string,
+    propertyId: string | null,
+    startedAt: Date,
+  ): Promise<void> => {
+    await db
+      .update(notificationEmailQueue)
+      .set({ attemptedAt: firstAttemptAt(startedAt), updatedAt: startedAt })
+      .where(
+        and(
+          scope(id, orgId, propertyId),
+          inArray(notificationEmailQueue.status, [...SENDABLE]),
+        ),
+      )
+  },
+
   markAccepted: async (
     id: string,
     orgId: string,
@@ -439,7 +463,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
         providerState: 'accepted',
         acceptedAt,
         sentAt: acceptedAt,
-        attemptedAt: acceptedAt,
+        attemptedAt: firstAttemptAt(acceptedAt),
         lastErrorClass: null,
         nextAttemptAt: null,
         updatedAt: acceptedAt,
@@ -484,7 +508,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
         status: classification === 'suppressed' ? 'suppressed' : 'failed',
         lastErrorClass: classification,
         failedAt,
-        attemptedAt: failedAt,
+        attemptedAt: firstAttemptAt(failedAt),
         nextAttemptAt,
         retryCount: sql`${notificationEmailQueue.retryCount} + 1`,
         updatedAt: failedAt,
@@ -871,7 +895,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
             providerState: 'accepted',
             acceptedAt: input.settlement.acceptedAt,
             sentAt: input.settlement.acceptedAt,
-            attemptedAt: input.settlement.acceptedAt,
+            attemptedAt: firstAttemptAt(input.settlement.acceptedAt),
             lastErrorClass: null,
             nextAttemptAt: null,
             updatedAt: input.settlement.acceptedAt,
@@ -995,7 +1019,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
             input.settlement.classification === 'suppressed' ? 'suppressed' : 'failed',
           lastErrorClass: input.settlement.classification,
           failedAt: input.settlement.failedAt,
-          attemptedAt: input.settlement.failedAt,
+          attemptedAt: firstAttemptAt(input.settlement.failedAt),
           nextAttemptAt: input.settlement.nextAttemptAt,
           retryCount: sql`${notificationEmailQueue.retryCount} + 1`,
           updatedAt: input.settlement.failedAt,

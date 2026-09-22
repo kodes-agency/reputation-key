@@ -59,6 +59,7 @@ function fakeDeps() {
     emailRepo: {
       findById: vi.fn(async (): Promise<NotificationEmail | null> => entry),
       markAccepted: vi.fn(async () => {}),
+      markAttemptStarted: vi.fn(async () => {}),
       markDelayed: vi.fn(async () => {}),
       markFailed: vi.fn(async () => {}),
       markSuppressed: vi.fn(async () => {}),
@@ -190,6 +191,44 @@ describe('immediate notification email job', () => {
       ORG,
       PROPERTY,
       'preference_disabled',
+      NOW,
+    )
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  it('records that an attempt started before it calls the provider', async () => {
+    // The first attempt starts the provider's 24-hour idempotency window; a
+    // worker that dies mid-call must not leave that start unrecorded.
+    await run()
+
+    expect(deps.emailRepo.markAttemptStarted).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      PROPERTY,
+      NOW,
+    )
+    expect(deps.emailRepo.markAttemptStarted.mock.invocationCallOrder[0]!).toBeLessThan(
+      deps.emailSender.send.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('suppresses, and never retries, a row first attempted 23 hours ago', async () => {
+    deps.emailRepo.findById.mockResolvedValue({
+      ...entry,
+      status: 'failed',
+      lastErrorClass: 'transient',
+      retryCount: 2,
+      createdAt: new Date(NOW.getTime() - 23.5 * 60 * 60_000),
+      attemptedAt: new Date(NOW.getTime() - 23 * 60 * 60_000),
+    })
+
+    await run()
+
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      PROPERTY,
+      'stale',
       NOW,
     )
     expect(deps.emailSender.send).not.toHaveBeenCalled()

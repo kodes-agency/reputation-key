@@ -150,6 +150,8 @@ export const notificationEmailQueue = pgTable(
     suppressionReason: varchar('suppression_reason', { length: 255 }),
     notBefore: timestamp('not_before', { withTimezone: true }),
     nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    // The FIRST provider attempt, recorded before the call: the provider's
+    // 24-hour idempotency window opens there, so later attempts never move it.
     attemptedAt: timestamp('attempted_at', { withTimezone: true }),
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),
     deliveredAt: timestamp('delivered_at', { withTimezone: true }),

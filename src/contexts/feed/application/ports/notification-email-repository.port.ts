@@ -134,6 +134,17 @@ export type NotificationEmailRepositoryPort = Readonly<{
     orgId: OrganizationId,
     now: Date,
   ): Promise<readonly NotificationEmail[]>
+  /**
+   * Record that a provider attempt is starting, BEFORE the call. Only the
+   * first attempt is kept: the provider's 24-hour idempotency window opens
+   * there, and a retry past it could send a second email.
+   */
+  markAttemptStarted(
+    id: NotificationEmailId,
+    orgId: OrganizationId,
+    propertyId: PropertyId | null,
+    startedAt: Date,
+  ): Promise<void>
   markAccepted(
     id: NotificationEmailId,
     orgId: OrganizationId,

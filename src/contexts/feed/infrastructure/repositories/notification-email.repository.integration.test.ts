@@ -405,6 +405,23 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
     })
   })
 
+  it('keeps the time of the first provider attempt through every later one', async () => {
+    // The provider's 24-hour idempotency window opens at the first attempt.
+    const repo = createNotificationEmailRepository(db)
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000)
+
+    await repo.markAttemptStarted(EMAIL_LATE, ORG, PROPERTY, at(0))
+    await repo.markFailed(EMAIL_LATE, ORG, PROPERTY, 'transient', at(2), at(1))
+    await repo.markAttemptStarted(EMAIL_LATE, ORG, PROPERTY, at(2))
+    await repo.markAccepted(EMAIL_LATE, ORG, PROPERTY, 'resend-first-attempt', at(3))
+
+    await expect(repo.findById(EMAIL_LATE, ORG, PROPERTY)).resolves.toMatchObject({
+      status: 'accepted',
+      attemptedAt: at(0),
+      acceptedAt: at(3),
+    })
+  })
+
   describe('re-keying a batch the provider refused', () => {
     /**
      * How one provider attempt ends: refused before anything was accepted, a

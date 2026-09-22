@@ -12,6 +12,7 @@ const queued = (
   cadence: 'immediate',
   createdAt: ago(1),
   notBefore: null,
+  attemptedAt: null,
   ...overrides,
 })
 
@@ -50,6 +51,44 @@ describe('queued email freshness', () => {
 
     expect(isStaleQueuedEmail(mandatory(6 * 24), NOW)).toBe(false)
     expect(isStaleQueuedEmail(mandatory(8 * 24), NOW)).toBe(true)
+  })
+
+  describe('after a provider attempt', () => {
+    // The provider remembers an idempotency key for 24 hours. Past that, a
+    // retry of an attempt it may have accepted is a second, separate email.
+    it('stops retrying a mandatory notice before the provider forgets its key', () => {
+      const mandatory = (attemptedHoursAgo: number) =>
+        queued({
+          category: 'mandatory',
+          createdAt: ago(3 * 24),
+          attemptedAt: ago(attemptedHoursAgo),
+        })
+
+      expect(isStaleQueuedEmail(mandatory(22), NOW)).toBe(false)
+      expect(isStaleQueuedEmail(mandatory(23), NOW)).toBe(true)
+    })
+
+    it('counts from the first attempt, not from when the row became due', () => {
+      // Released after a long quiet-hours wait: due recently, attempted long ago.
+      const released = queued({
+        createdAt: ago(40),
+        notBefore: ago(1),
+        attemptedAt: ago(30),
+      })
+
+      expect(isStaleQueuedEmail(released, NOW)).toBe(true)
+    })
+
+    it('leaves digest rows to their batch, whose retries are bounded apart', () => {
+      const daily = queued({
+        category: 'workflow_collaboration',
+        cadence: 'daily',
+        createdAt: ago(30),
+        attemptedAt: ago(29),
+      })
+
+      expect(isStaleQueuedEmail(daily, NOW)).toBe(false)
+    })
   })
 
   it('never calls a row stale before it was queued', () => {

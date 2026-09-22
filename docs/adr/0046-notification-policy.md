@@ -80,8 +80,12 @@ send, not the insert. A row past its bound is suppressed as `stale` rather
 than sent, so admitting a scope, or lifting a stop, never flushes a backlog:
 immediate mail keeps a day, daily-digest rows two days, and mandatory
 Organization notices a week. The bound counts from when the row became due,
-so a quiet-hours deferral never counts against it. An open digest batch was
-fresh when it was frozen and is left to its bounded retries. `cancelled` rows
+so a quiet-hours deferral never counts against it. Once attempted, an
+immediate row, a mandatory notice included, is also retired 23 hours after its
+first attempt, which is recorded before the provider call: the provider keeps
+an idempotency key for 24 hours, and a retry after that of an attempt it may
+have accepted would be a second email. An open digest batch was fresh when it
+was frozen and is left to its bounded retries. `cancelled` rows
 are terminal and age out with the other terminal states after 90 days.
 
 The unsubscribe guard takes `MailClass = 'mandatory' | 'optional'`; a digest is
