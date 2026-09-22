@@ -742,6 +742,8 @@ const DARK_PENDING_NOTIFICATION = '84000000-0000-4000-8000-000000000022'
 const ALLOWED_ACCEPTED_SOURCE_RECORDED = new Date('2026-08-28T07:48:00.000Z')
 const ALLOWED_REAUTH_SOURCE_RECORDED = new Date('2026-08-28T07:40:00.000Z')
 const DARK_PENDING_SOURCE_RECORDED = new Date('2026-08-28T07:10:00.000Z')
+const ARCHIVED_PROPERTY = propertyId('84000000-0000-4000-8000-000000000050')
+const ARCHIVED_PENDING_NOTIFICATION = '84000000-0000-4000-8000-000000000051'
 
 describe.sequential(
   'notification email acceptance by delivery scope (real PostgreSQL)',
@@ -1044,6 +1046,78 @@ describe.sequential(
         acceptedSampleCount: 0,
         sourceUnlinked: 0,
         saturated: false,
+      })
+    })
+
+    it('holds, and never judges, the rows of a Property that is no longer active', async () => {
+      // An allowed Organization archives a Property with an urgent email still
+      // queued. Every send path holds that row until the Property is restored,
+      // so it is not late mail, and it is newer than every allowed row, so it
+      // must not crowd them out of a bounded scan either.
+      const heldAt = new Date('2026-08-28T07:53:00.000Z')
+      await db.insert(properties).values({
+        id: ARCHIVED_PROPERTY,
+        organizationId: ALLOWED_ORG,
+        name: 'Email Archived Property',
+        slug: 'notification-delivery-lag-archived',
+        timezone: 'UTC',
+        lifecycleState: 'archived',
+      })
+      await db.insert(notifications).values({
+        id: ARCHIVED_PENDING_NOTIFICATION,
+        userId: 'lag-scope-user',
+        organizationId: ALLOWED_ORG,
+        propertyId: ARCHIVED_PROPERTY,
+        type: 'reply.publish_failed',
+        category: 'urgent_operational',
+        priority: 'urgent',
+        status: 'unread',
+        resourceType: 'inbox_item',
+        resourceId: ARCHIVED_PENDING_NOTIFICATION,
+        eventId: ALLOWED_ACCEPTED_SOURCE,
+        title: 'Pending for an archived Property',
+        payload: {},
+        createdAt: heldAt,
+        updatedAt: heldAt,
+      })
+      await db.insert(notificationEmailQueue).values({
+        notificationId: ARCHIVED_PENDING_NOTIFICATION,
+        userId: 'lag-scope-user',
+        organizationId: ALLOWED_ORG,
+        propertyId: ARCHIVED_PROPERTY,
+        category: 'urgent_operational',
+        cadence: 'immediate',
+        status: 'pending',
+        priority: 'urgent',
+        idempotencyKey: 'lag-scope-archived-pending',
+        createdAt: heldAt,
+        updatedAt: heldAt,
+      })
+      const asked: Array<{ organizationId: string; propertyId: string | null }> = []
+      const repo = createNotificationDeliveryLagRepository(db, (scope) => {
+        asked.push(scope)
+        return scope.organizationId === ALLOWED_ORG
+      })
+
+      const report = await repo.read({
+        recordedAtOrAfter: SCOPE_WINDOW_START,
+        recordedBefore: SCOPE_WINDOW_END,
+        scanLimit: 2,
+        statementTimeoutMs: STATEMENT_TIMEOUT_MS,
+      })
+
+      expect(report.immediateEmailAcceptance).toEqual({
+        awaitingProviderAcceptance: 1,
+        attemptedAwaitingProviderAcceptance: 0,
+        oldestAwaitingSourceRecordedAt: ALLOWED_REAUTH_SOURCE_RECORDED,
+        acceptedLatencyP99Ms: 60_000,
+        acceptedSampleCount: 1,
+        sourceUnlinked: 0,
+        saturated: false,
+      })
+      expect(asked).not.toContainEqual({
+        organizationId: ALLOWED_ORG,
+        propertyId: ARCHIVED_PROPERTY,
       })
     })
   },

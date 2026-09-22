@@ -13,6 +13,7 @@ import { BETA_NOTIFICATION_TRIGGER_MATRIX } from '../../application/beta-notific
 import { notificationDeliveryReceiptPrefixes } from '../outbox-notification-delivery'
 import { notificationRouteValues as routeValues } from './notification-route-values'
 import { assertStatementTimeoutMs, withHealthReadTimeout } from './health-read-timeout'
+import { activePropertyCondition } from './active-property'
 
 type PendingRow = Readonly<{
   pending: number
@@ -106,11 +107,13 @@ END`
 
 /**
  * Only scopes where email may be sent now: a capability-dark scope's pending
- * rows are never attempted, so they are not late mail. The decision is
- * process policy, so the window's scopes (bounded by the Property count) are
- * judged in-process first and the sample is then read from the allowed ones
- * alone — the scan bound, and so saturation, counts only sendable rows, and a
- * dark backlog can neither fill the bound nor push allowed rows out of it.
+ * rows are never attempted, so they are not late mail, and neither are the
+ * rows of a Property that is no longer active, which every send path holds
+ * (active-property.ts). The capability decision is process policy, so the
+ * window's scopes (bounded by the Property count) are judged in-process first
+ * and the sample is then read from the allowed ones alone — the scan bound,
+ * and so saturation, counts only sendable rows, and a dark or held backlog can
+ * neither fill the bound nor push allowed rows out of it.
  */
 const readSendableImmediateEmailRows = async (
   db: Database,
@@ -123,6 +126,15 @@ const readSendableImmediateEmailRows = async (
       email.property_id::text AS "propertyId"
     FROM ${notificationEmailQueue} AS email
     WHERE ${immediateEmailCandidates(window)}
+      AND (
+        email.property_id IS NULL
+        OR EXISTS (
+          SELECT 1 FROM properties AS property
+           WHERE property.organization_id = email.organization_id
+             AND property.id = email.property_id
+             AND ${sql.raw(activePropertyCondition('property'))}
+        )
+      )
   `)
   const allowed = scopes.rows.filter((scope) => isEmailDeliveryAllowed(scope))
   if (allowed.length === 0) return []
