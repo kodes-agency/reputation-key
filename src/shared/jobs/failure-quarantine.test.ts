@@ -15,6 +15,7 @@ import {
   quarantineExhaustedJob,
   quarantineFinalAttemptJob,
   createRedriveJob,
+  findQuarantinedJob,
   listQuarantinedJobs,
   QUARANTINE_QUEUE_NAME,
   type QuarantineEnvelope,
@@ -390,6 +391,46 @@ describe('createRedriveJob (BQC-3.6)', () => {
 })
 
 // ── listQuarantinedJobs ─────────────────────────────────────────────
+
+// Redrive and discard name one entry. Looking it up in the bounded listing
+// left whichever end the page did not cover unreachable: once the listing read
+// oldest-first, a fresh dead letter behind 100 older ones could not be acted on.
+describe('findQuarantinedJob', () => {
+  it('finds the newest entry however many older ones precede it', async () => {
+    const quarantine = fakeQueue()
+    const ids: string[] = []
+    for (let i = 0; i < 150; i++) {
+      const result = await quarantineExhaustedJob(
+        quarantine,
+        fakeJob({ id: `orig-${i}` }),
+        new Error('x'),
+      )
+      if (result.quarantined) ids.push(result.quarantineJobId)
+    }
+
+    const entry = await findQuarantinedJob(quarantine, ids[149]!)
+
+    expect(entry).toMatchObject({
+      quarantineJobId: ids[149],
+      envelope: { originalJobId: 'orig-149' },
+      publicationState: 'confirmed_failed',
+    })
+  })
+
+  it('finds nothing for an unknown id or an unreadable envelope', async () => {
+    const quarantine = fakeQueue()
+    await quarantine.add(
+      'insert-notification',
+      { not: 'an envelope' },
+      {
+        jobId: 'malformed',
+      },
+    )
+
+    expect(await findQuarantinedJob(quarantine, 'missing')).toBeNull()
+    expect(await findQuarantinedJob(quarantine, 'malformed')).toBeNull()
+  })
+})
 
 describe('listQuarantinedJobs (BQC-3.6)', () => {
   it('lists quarantined envelopes with their quarantine job ids', async () => {

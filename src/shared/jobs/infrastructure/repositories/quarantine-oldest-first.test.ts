@@ -5,7 +5,8 @@
 // each of them blind to an aged dead letter sitting behind a full page of
 // fresh ones: the age alerts measured the newest page, the operator listing
 // could not show (or redrive) the aged entry, and the TTL sweep stopped on an
-// all-fresh newest page. The unit suites fake the ordering; this suite proves
+// all-fresh newest page. Redrive and discard now look their target up by id,
+// so the newest entry stays reachable off the oldest-first page. The unit suites fake the ordering; this suite proves
 // it against the real Lua scripts with more entries than any one page holds.
 //
 // Redis discipline per the lease contract: a suite-unique queue name, and
@@ -20,7 +21,7 @@ import {
   type RedisTestLease,
 } from '#/shared/testing/redis-test-lease'
 import { createHealthChecker } from '#/shared/observability/health-metrics'
-import { listQuarantinedJobs } from '#/shared/jobs/failure-quarantine'
+import { findQuarantinedJob, listQuarantinedJobs } from '#/shared/jobs/failure-quarantine'
 import { createQuarantineTtlSweepHandler } from '#/shared/jobs/quarantine-ttl-sweep.job'
 
 const QUEUE = `quarantine-oldest-first-${randomUUID()}`
@@ -30,6 +31,7 @@ const FRESH_COUNT = 150
 
 let redisLease: RedisTestLease | undefined
 let queue: Queue | undefined
+let newestId: string | undefined
 
 /** A parseable, content-free quarantine envelope quarantined `ageMs` ago. */
 function envelope(originalJobId: string, ageMs: number) {
@@ -68,12 +70,13 @@ beforeAll(async () => {
       String(Date.now() - 40 * DAY_MS),
     )
   }
-  await queue.addBulk(
+  const fresh = await queue.addBulk(
     Array.from({ length: FRESH_COUNT }, (_, i) => ({
       name: 'insert-notification',
       data: envelope(`fresh-${i}`, 60_000),
     })),
   )
+  newestId = fresh.at(-1)?.id
 })
 
 afterAll(async () => {
@@ -106,6 +109,19 @@ describe.sequential('dead-letter quarantine reads oldest-first (real BullMQ)', (
     expect(
       listed.slice(0, AGED_COUNT).map((entry) => entry.envelope.originalJobId),
     ).toEqual(Array.from({ length: AGED_COUNT }, (_, i) => `aged-${i}`))
+  })
+
+  it('still reaches the newest entry for redrive or discard, off the oldest-first page', async () => {
+    if (!queue || !newestId) return
+
+    const listed = await listQuarantinedJobs(queue)
+    const found = await findQuarantinedJob(queue, newestId)
+
+    expect(listed.map((entry) => entry.quarantineJobId)).not.toContain(newestId)
+    expect(found).toMatchObject({
+      quarantineJobId: newestId,
+      envelope: { originalJobId: `fresh-${FRESH_COUNT - 1}` },
+    })
   })
 
   it('removes the expired entries instead of stopping at an all-fresh newest page', async () => {

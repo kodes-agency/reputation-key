@@ -405,6 +405,19 @@ export type QuarantinedEntry = Readonly<{
   publicationState: 'pending_failure' | 'confirmed_failed'
 }>
 
+/** A quarantine job as an operator-facing entry (null for an unreadable envelope). */
+function toQuarantinedEntry(job: QuarantinedJobHandle): QuarantinedEntry | null {
+  const envelope = parseQuarantineEnvelope(job.data)
+  if (!envelope) return null
+  return {
+    quarantineJobId: job.id ?? 'unknown',
+    envelope,
+    publicationState: publicationIsConfirmed(envelope, job.progress)
+      ? 'confirmed_failed'
+      : 'pending_failure',
+  }
+}
+
 /**
  * List quarantined jobs (waiting/delayed — the quarantine queue has no
  * worker), OLDEST first: the entry an age alert pages about must be the one
@@ -421,18 +434,18 @@ export async function listQuarantinedJobs(
     limit - 1,
     true,
   )
-  const out: QuarantinedEntry[] = []
-  for (const job of jobs) {
-    const envelope = parseQuarantineEnvelope(job.data)
-    if (envelope) {
-      out.push({
-        quarantineJobId: job.id ?? 'unknown',
-        envelope,
-        publicationState: publicationIsConfirmed(envelope, job.progress)
-          ? 'confirmed_failed'
-          : 'pending_failure',
-      })
-    }
-  }
-  return out
+  return jobs.flatMap((job) => toQuarantinedEntry(job) ?? [])
+}
+
+/**
+ * One quarantined entry by id — the redrive/discard target. A direct lookup,
+ * not a scan of the bounded listing, so no entry is unreachable because more
+ * than a page of others sits ahead of it in either order.
+ */
+export async function findQuarantinedJob(
+  quarantineQueue: QuarantineReadPort,
+  quarantineJobId: string,
+): Promise<QuarantinedEntry | null> {
+  const job = await quarantineQueue.getJob(quarantineJobId)
+  return job ? toQuarantinedEntry(job) : null
 }
