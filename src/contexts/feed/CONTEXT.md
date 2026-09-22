@@ -104,7 +104,10 @@ dependencies are provided by composition; modules do not read ambient roots.
 Delivery-lag evidence judges immediate email only in scopes where the injected
 `notification.send_email` decision allows sending: a capability-dark scope's
 rows are never attempted, so they are not late mail. Its bounded scan reads
-only those scopes' rows, so a dark backlog cannot saturate it.
+only those scopes' rows, so a dark backlog cannot saturate it. Each email's
+source is one outbox primary-key lookup (a uuid event id, never `id::text`),
+and the gap and delivery-lag health reads run under a PostgreSQL statement
+timeout, so a stalled statement is cancelled rather than left running.
 
 ## Invariants
 

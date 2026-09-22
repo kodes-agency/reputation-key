@@ -12,6 +12,7 @@ import { MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT } from '../../application/port
 import { BETA_NOTIFICATION_TRIGGER_MATRIX } from '../../application/beta-notification-trigger-matrix'
 import { notificationDeliveryReceiptPrefixes } from '../outbox-notification-delivery'
 import { notificationRouteValues as routeValues } from './notification-route-values'
+import { assertStatementTimeoutMs, withHealthReadTimeout } from './health-read-timeout'
 
 type PendingRow = Readonly<{
   pending: number
@@ -81,6 +82,29 @@ const immediateEmailCandidates = (window: NotificationDeliveryLagWindow) => sql`
 `
 
 /**
+ * The notice's source event id as the outbox key. `notifications.event_id` is
+ * varchar and `outbox_events.id` is uuid; comparing `source_event.id::text`
+ * made the primary key unusable, so the planner walked the Organization's
+ * whole outbox for every email — seconds at a few hundred emails, past the
+ * health section's budget. The id is cast to uuid instead, but only when it is
+ * one: the strict canonical pattern keeps anything else (36 dashes, a non-hex
+ * digit) from reaching the cast, which would throw and fail the whole read. An
+ * id that is not a uuid links to nothing, as it did before. A mandatory
+ * repeat's email names its own event in its idempotency key
+ * (mandatoryRepeatEmailKey), so that id is read from the key instead.
+ */
+const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+const sourceEventKey = sql`CASE
+  WHEN email.idempotency_key LIKE 'event:%'
+    THEN CASE
+      WHEN split_part(email.idempotency_key, ':', 2) ~* ${UUID_PATTERN}
+      THEN split_part(email.idempotency_key, ':', 2)::uuid
+    END
+  WHEN notification.event_id ~* ${UUID_PATTERN}
+  THEN notification.event_id::uuid
+END`
+
+/**
  * Only scopes where email may be sent now: a capability-dark scope's pending
  * rows are never attempted, so they are not late mail. The decision is
  * process policy, so the window's scopes (bounded by the Property count) are
@@ -138,11 +162,7 @@ const readSendableImmediateEmailRows = async (
     -- invariant: an Organization-level fact (a Google account needing
     -- reauthorization) raises a notice anchored to a Property.
     LEFT JOIN ${outboxEvents} AS source_event
-     ON source_event.id::text = CASE
-          WHEN email.idempotency_key LIKE 'event:%'
-            THEN split_part(email.idempotency_key, ':', 2)
-          ELSE notification.event_id
-        END
+     ON source_event.id = ${sourceEventKey}
      AND source_event.organization_id = email.organization_id
     LEFT JOIN routes AS source_route
       ON source_route.event_type = source_event.event_type
@@ -158,6 +178,76 @@ const readSendableImmediateEmailRows = async (
     LIMIT ${window.scanLimit + 1}
   `)
   return rows.rows
+}
+
+/** Durable source facts whose base consumer receipt is still absent (bounded). */
+const readSourceReceiptPending = async (
+  db: Database,
+  window: NotificationDeliveryLagWindow,
+): Promise<PendingRow | undefined> => {
+  const result = await db.execute<PendingRow>(sql`
+    WITH routes(event_type, consumer_name) AS (VALUES ${routeValues})
+    SELECT count(*)::int AS pending, min(candidate.created_at) AS oldest
+    FROM (
+      SELECT event.created_at
+      FROM ${outboxEvents} AS event
+      JOIN routes ON routes.event_type = event.event_type
+      WHERE event.created_at >= ${window.recordedAtOrAfter}::timestamptz
+        AND event.created_at < ${window.recordedBefore}::timestamptz
+        AND event.recovery_fenced_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM ${eventConsumerReceipts} AS receipt
+          WHERE receipt.event_id = event.id
+            AND receipt.consumer_name = routes.consumer_name
+        )
+      ORDER BY event.created_at, event.id
+      LIMIT ${window.scanLimit}
+    ) AS candidate
+  `)
+  return result.rows[0]
+}
+
+/** Redis-accepted deliveries still without their materialization receipt (bounded). */
+const readMaterializationPending = async (
+  db: Database,
+  window: NotificationDeliveryLagWindow,
+): Promise<MaterializationPendingRow | undefined> => {
+  const result = await db.execute<MaterializationPendingRow>(sql`
+    WITH routes(event_type, consumer_name) AS (VALUES ${routeValues})
+    SELECT
+      count(*)::int AS pending,
+      min(candidate.source_created_at) AS "oldestSource",
+      min(candidate.enqueued_at) AS "oldestEnqueued"
+    FROM (
+      SELECT
+        event.created_at AS source_created_at,
+        enqueued.created_at AS enqueued_at
+      FROM ${eventConsumerReceipts} AS enqueued
+      JOIN ${outboxEvents} AS event ON event.id = enqueued.event_id
+      JOIN routes
+        ON routes.event_type = event.event_type
+       AND split_part(enqueued.consumer_name, ':', 2) = routes.consumer_name
+      WHERE event.created_at >= ${window.recordedAtOrAfter}::timestamptz
+        AND event.created_at < ${window.recordedBefore}::timestamptz
+        AND event.recovery_fenced_at IS NULL
+        AND enqueued.consumer_name LIKE ${`${notificationDeliveryReceiptPrefixes.enqueue}%`}
+        AND enqueued.status = 'applied'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM ${eventConsumerReceipts} AS materialized
+          WHERE materialized.event_id = enqueued.event_id
+            AND materialized.consumer_name = replace(
+              enqueued.consumer_name,
+              ${notificationDeliveryReceiptPrefixes.enqueue},
+              ${notificationDeliveryReceiptPrefixes.materialized}
+            )
+        )
+      ORDER BY event.created_at, enqueued.event_id, enqueued.consumer_name
+      LIMIT ${window.scanLimit}
+    ) AS candidate
+  `)
+  return result.rows[0]
 }
 
 /**
@@ -192,71 +282,26 @@ export const createNotificationDeliveryLagRepository = (
           'notification delivery lag recordedAtOrAfter must precede recordedBefore',
         )
       }
+      assertStatementTimeoutMs(window.statementTimeoutMs)
 
-      const source = await db.execute<PendingRow>(sql`
-        WITH routes(event_type, consumer_name) AS (VALUES ${routeValues})
-        SELECT count(*)::int AS pending, min(candidate.created_at) AS oldest
-        FROM (
-          SELECT event.created_at
-          FROM ${outboxEvents} AS event
-          JOIN routes ON routes.event_type = event.event_type
-          WHERE event.created_at >= ${window.recordedAtOrAfter}::timestamptz
-            AND event.created_at < ${window.recordedBefore}::timestamptz
-            AND event.recovery_fenced_at IS NULL
-            AND NOT EXISTS (
-              SELECT 1
-              FROM ${eventConsumerReceipts} AS receipt
-              WHERE receipt.event_id = event.id
-                AND receipt.consumer_name = routes.consumer_name
-            )
-          ORDER BY event.created_at, event.id
-          LIMIT ${window.scanLimit}
-        ) AS candidate
-      `)
+      // One read-only transaction under a PostgreSQL statement timeout: a
+      // stalled statement is cancelled and ends the read, so nothing keeps
+      // running once the health snapshot has stopped waiting for it.
+      const { sourceRow, materializationRow, immediateEmailRows } =
+        await withHealthReadTimeout(
+          db,
+          window.statementTimeoutMs,
+          async (transaction) => ({
+            sourceRow: await readSourceReceiptPending(transaction, window),
+            materializationRow: await readMaterializationPending(transaction, window),
+            immediateEmailRows: await readSendableImmediateEmailRows(
+              transaction,
+              isEmailDeliveryAllowed,
+              window,
+            ),
+          }),
+        )
 
-      const materialization = await db.execute<MaterializationPendingRow>(sql`
-        WITH routes(event_type, consumer_name) AS (VALUES ${routeValues})
-        SELECT
-          count(*)::int AS pending,
-          min(candidate.source_created_at) AS "oldestSource",
-          min(candidate.enqueued_at) AS "oldestEnqueued"
-        FROM (
-          SELECT
-            event.created_at AS source_created_at,
-            enqueued.created_at AS enqueued_at
-          FROM ${eventConsumerReceipts} AS enqueued
-          JOIN ${outboxEvents} AS event ON event.id = enqueued.event_id
-          JOIN routes
-            ON routes.event_type = event.event_type
-           AND split_part(enqueued.consumer_name, ':', 2) = routes.consumer_name
-          WHERE event.created_at >= ${window.recordedAtOrAfter}::timestamptz
-            AND event.created_at < ${window.recordedBefore}::timestamptz
-            AND event.recovery_fenced_at IS NULL
-            AND enqueued.consumer_name LIKE ${`${notificationDeliveryReceiptPrefixes.enqueue}%`}
-            AND enqueued.status = 'applied'
-            AND NOT EXISTS (
-              SELECT 1
-              FROM ${eventConsumerReceipts} AS materialized
-              WHERE materialized.event_id = enqueued.event_id
-                AND materialized.consumer_name = replace(
-                  enqueued.consumer_name,
-                  ${notificationDeliveryReceiptPrefixes.enqueue},
-                  ${notificationDeliveryReceiptPrefixes.materialized}
-                )
-            )
-          ORDER BY event.created_at, enqueued.event_id, enqueued.consumer_name
-          LIMIT ${window.scanLimit}
-        ) AS candidate
-      `)
-
-      const immediateEmailRows = await readSendableImmediateEmailRows(
-        db,
-        isEmailDeliveryAllowed,
-        window,
-      )
-
-      const sourceRow = source.rows[0]
-      const materializationRow = materialization.rows[0]
       const sourceReceiptPending = sourceRow?.pending ?? 0
       const materializationPending = materializationRow?.pending ?? 0
       const immediateEmailSaturated = immediateEmailRows.length > window.scanLimit

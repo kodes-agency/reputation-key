@@ -16,22 +16,41 @@ import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { createNotificationGapRepository } from './repositories/notification-gap.repository'
 
+const STATEMENT_TIMEOUT_MS = 2_000
+
 const WINDOW = {
   createdAtOrAfter: new Date('2026-06-01T00:00:00.000Z'),
   createdBefore: new Date('2026-06-01T11:55:00.000Z'),
+  statementTimeoutMs: STATEMENT_TIMEOUT_MS,
 }
 
-type Captured = { executed: SQL | null }
+type Captured = {
+  executed: SQL | null
+  /** Every executed statement, in order. */
+  statements: SQL[]
+  /** The config of each transaction opened. */
+  transactions: unknown[]
+}
 
-const fakeDb = (captured: Captured, executeRows: readonly unknown[]): Database =>
-  ({
+const fakeDb = (captured: Captured, executeRows: readonly unknown[]): Database => {
+  const db = {
     execute: async (query: SQL) => {
       captured.executed = query
+      captured.statements.push(query)
       return { rows: executeRows }
     },
-  }) as unknown as Database
+    transaction: async (
+      run: (transaction: unknown) => Promise<unknown>,
+      config: unknown,
+    ) => {
+      captured.transactions.push(config)
+      return run(db)
+    },
+  }
+  return db as unknown as Database
+}
 
-const blank = (): Captured => ({ executed: null })
+const blank = (): Captured => ({ executed: null, statements: [], transactions: [] })
 
 const render = (query: SQL | null): string => {
   if (query === null) throw new Error('no SQL was captured from the fake database')
@@ -89,6 +108,37 @@ describe('notification gap repository — gauge count', () => {
     const sql = render(captured.executed)
     expect(sql).toContain('LIMIT')
     expect(sql).toContain('count(*)::int')
+  })
+
+  it('counts in a read-only transaction whose statements PostgreSQL cancels at the timeout', async () => {
+    const captured = blank()
+    const repo = createNotificationGapRepository(fakeDb(captured, [{ missing: 0 }]))
+
+    await repo.countItemsMissingNotifications({ ...WINDOW, scanLimit: 1000 })
+
+    expect(captured.transactions).toEqual([{ accessMode: 'read only' }])
+    const [timeout, count] = captured.statements.map((query) =>
+      new PgDialect().sqlToQuery(query),
+    )
+    expect(timeout).toMatchObject({
+      sql: "SELECT set_config('statement_timeout', $1, true)",
+      params: [String(STATEMENT_TIMEOUT_MS)],
+    })
+    expect(count?.sql).toContain('count(*)::int')
+  })
+
+  it('refuses a statement timeout that is not a positive whole number', async () => {
+    const captured = blank()
+    const repo = createNotificationGapRepository(fakeDb(captured, []))
+
+    await expect(
+      repo.countItemsMissingNotifications({
+        ...WINDOW,
+        scanLimit: 1000,
+        statementTimeoutMs: 0,
+      }),
+    ).rejects.toThrow('statementTimeoutMs must be a positive integer')
+    expect(captured.statements).toEqual([])
   })
 
   it('reads zero rather than NaN when the aggregate returns nothing', async () => {

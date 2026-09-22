@@ -26,6 +26,7 @@ import type { NotificationGapRepositoryPort } from '../../application/ports/noti
 import { historicalOnboardingItem } from '../historical-onboarding-item'
 import { ON_INBOX_ITEM_CREATED_CONSUMER } from '../notification-outbox-consumers'
 import { notificationDeliveryReceiptPrefixes } from '../outbox-notification-delivery'
+import { withHealthReadTimeout } from './health-read-timeout'
 
 /** No notification row anywhere points at this inbox item. */
 const noNotificationExists = sql`NOT EXISTS (
@@ -81,24 +82,29 @@ export const createNotificationGapRepository = (
     createdAtOrAfter,
     createdBefore,
     scanLimit,
+    statementTimeoutMs,
   }): Promise<number> => {
     // LIMIT caps the rows counted, so the gauge saturates instead of paying
     // for an unbounded aggregate on the health-snapshot path (same shape as
     // EXPIRED_LEASE_SCAN_LIMIT). It does not bound the correlated lookups;
-    // their indexes do.
-    const result = await db.execute<{ missing: number }>(sql`
-      SELECT count(*)::int AS missing
-      FROM (
-        SELECT 1
-        FROM ${inboxItems}
-        WHERE ${inboxItems.createdAt} >= ${createdAtOrAfter}::timestamptz
-          AND ${inboxItems.createdAt} < ${createdBefore}::timestamptz
-          AND ${noNotificationExists}
-          AND NOT ${historicalOnboardingItem}
-          AND NOT ${deliveryDecided}
-        LIMIT ${scanLimit}
-      ) AS gap
-    `)
+    // their indexes do. A statement timeout bounds its time too: PostgreSQL
+    // cancels a stalled count instead of running on after the health snapshot
+    // stopped waiting.
+    const result = await withHealthReadTimeout(db, statementTimeoutMs, (transaction) =>
+      transaction.execute<{ missing: number }>(sql`
+        SELECT count(*)::int AS missing
+        FROM (
+          SELECT 1
+          FROM ${inboxItems}
+          WHERE ${inboxItems.createdAt} >= ${createdAtOrAfter}::timestamptz
+            AND ${inboxItems.createdAt} < ${createdBefore}::timestamptz
+            AND ${noNotificationExists}
+            AND NOT ${historicalOnboardingItem}
+            AND NOT ${deliveryDecided}
+          LIMIT ${scanLimit}
+        ) AS gap
+      `),
+    )
 
     return result.rows[0]?.missing ?? 0
   },

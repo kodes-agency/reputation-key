@@ -108,6 +108,7 @@ import {
 import type { NotificationJobEnqueuePort } from './infrastructure/inbox-notification-fanout'
 import { createNotificationDeliverySettlement } from './infrastructure/repositories/notification-delivery-settlement.repository'
 import { createNotificationDeliveryLagRepository } from './infrastructure/repositories/notification-delivery-lag.repository'
+import { NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS } from './infrastructure/repositories/health-read-timeout'
 import {
   MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT,
   type IsEmailDeliveryAllowed,
@@ -449,19 +450,26 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     /**
      * Feeds the `notification.missing_for_inbox_item` gauge. Exposed here
      * because `src/shared/observability/health-metrics.ts` cannot import a
-     * context — the composition root injects this reader instead.
+     * context — the composition root injects this reader instead. PostgreSQL
+     * cancels a count that outlasts its statement timeout.
      */
     readMissingNotificationCount: (): Promise<number> =>
       gapRepo.countItemsMissingNotifications({
         ...gapWindow(),
         scanLimit: NOTIFICATION_GAP_SCAN_LIMIT,
+        statementTimeoutMs: NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS,
       }),
 
     /**
-     * Payload-free, bounded evidence for durable-source→Redis and
-     * Redis→Postgres materialization lag. The one-minute grace is the accepted
-     * healthy in-app target; the 24-hour lower bound prevents an operational
-     * read from becoming a historical table scan.
+     * Payload-free evidence for durable-source→Redis and Redis→Postgres
+     * materialization lag and immediate-email acceptance. The one-minute
+     * grace is the accepted healthy in-app target. What bounds the read: the
+     * 24-hour lower bound keeps it off historical rows, each stage's sample
+     * stops at the scan limit, each email's source is one outbox primary-key
+     * lookup, and PostgreSQL cancels any statement that outlasts the statement
+     * timeout. The row bounds alone did not bound its time: the source join
+     * once compared `id::text` and walked each Organization's whole outbox
+     * per email.
      */
     readNotificationDeliveryLag: () => {
       const now = input.clock().getTime()
@@ -469,6 +477,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
         recordedAtOrAfter: new Date(now - NOTIFICATION_DELIVERY_LAG_LOOKBACK_MS),
         recordedBefore: new Date(now - NOTIFICATION_DELIVERY_LAG_GRACE_MS),
         scanLimit: NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT,
+        statementTimeoutMs: NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS,
       })
     },
 

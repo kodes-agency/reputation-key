@@ -33,6 +33,11 @@ export type NotificationGapRepositoryPort = Readonly<{
    * buy nothing and cost an unbounded aggregate on the health path.
    */
   countItemsMissingNotifications(
-    input: NotificationGapWindow & Readonly<{ scanLimit: number }>,
+    input: NotificationGapWindow &
+      Readonly<{
+        scanLimit: number
+        /** PostgreSQL statement timeout (ms): a stalled count is cancelled. */
+        statementTimeoutMs: number
+      }>,
   ): Promise<number>
 }>

@@ -7,6 +7,12 @@ export type NotificationDeliveryLagWindow = Readonly<{
   recordedBefore: Date
   /** Per-stage saturation bound. */
   scanLimit: number
+  /**
+   * PostgreSQL statement timeout for each of the read's statements (ms): the
+   * database cancels a stalled or runaway statement, and the read fails, so a
+   * caller that stopped waiting leaves no query running behind it.
+   */
+  statementTimeoutMs: number
 }>
 
 /** The scope a queued notification email would be delivered under. */
