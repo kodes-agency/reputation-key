@@ -29,6 +29,7 @@ import {
   type HealthSignalReads,
   type HealthSignalValues,
   type HealthSnapshot,
+  type IsEmailDeliveryAllowed,
   type NotificationDeliveryLagRead,
   type QuarantineMetricsPort,
 } from '#/shared/observability/health-metrics'
@@ -89,6 +90,13 @@ export type OperationsSnapshotDeps = Readonly<{
   readMissingNotificationCount?: () => Promise<number>
   /** Notification-owned bounded source→Redis→PostgreSQL delivery evidence. */
   readNotificationDeliveryLag?: () => Promise<NotificationDeliveryLagRead>
+  /**
+   * The composition root's scoped `notification.send_email` decision (the one
+   * Feed's delivery-lag evidence reads), forwarded to the health checker: the
+   * touched-email stall gauge counts only scopes that may send now. Absent =
+   * every scope counts.
+   */
+  isEmailDeliveryAllowed?: IsEmailDeliveryAllowed
   /** ARC-02: durable worker/runtime authority assembled from Queue Redis. */
   jobRuntime?: Readonly<{ read: () => Promise<JobRuntimeReport> }>
   /**
@@ -440,8 +448,10 @@ export function createOperationsSnapshot(
     // pending backlog is expected — the alert must not cry wolf about it.
     // A per-ORG allowlist grant is not globally enumerable, so this flag
     // cannot see it; notifications.attemptedStuckCount is what covers that
-    // case (a row the delivery path actually touched and left pending).
+    // case (a row the delivery path actually touched and left unsent), judged
+    // per scope with the scoped decision.
     emailDeliveryEnabled: checkGlobalCapability('notification.send_email').allowed,
+    isEmailDeliveryAllowed: deps.isEmailDeliveryAllowed,
     // Forwarded, not computed here: the notification-gap query is owned by the
     // notification context.
     readMissingNotificationCount: deps.readMissingNotificationCount,

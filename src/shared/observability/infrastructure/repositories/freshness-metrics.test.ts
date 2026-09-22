@@ -24,6 +24,8 @@ import { createHealthChecker } from '#/shared/observability/health-metrics'
 const MARKER_ORG = 'org-obs-freshness'
 const MARKER_SYNC_PROP = 'prop-obs-freshness'
 const MARKER_PROP_UUID = '3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5e60'
+const DENIED_PROP_UUID = '3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5e61'
+const ARCHIVED_PROP_UUID = '3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5e62'
 
 const db = getDb()
 const checker = createHealthChecker(db)
@@ -513,5 +515,71 @@ describe('notification email outcomes per provider message (real reads)', () => 
     expect(after.retryExhaustedCount).toBe(baseline.retryExhaustedCount + 1)
     expect(after.providerOutcomeCount).toBe(baseline.providerOutcomeCount + 1)
     expect(after.acceptedUnresolvedCount).toBe(baseline.acceptedUnresolvedCount + 1)
+  })
+})
+
+async function seedScopedProperty(id: string, slug: string, lifecycleState: string) {
+  await db.execute(sql`
+    INSERT INTO properties (
+      id, organization_id, name, slug, timezone, lifecycle_state, created_at, updated_at
+    ) VALUES (
+      ${id}, ${MARKER_ORG}, 'Freshness Scope Property', ${slug}, 'UTC',
+      ${lifecycleState}, NOW(), NOW()
+    )
+    ON CONFLICT (id) DO NOTHING
+  `)
+}
+
+/** A quiet-hours hold that ended three hours ago and was never released. */
+async function seedHeldEmail(key: string, propertyId: string) {
+  await db.execute(sql`
+    INSERT INTO notification_email_queue (
+      notification_id, user_id, organization_id, property_id,
+      category, cadence, status, priority, idempotency_key,
+      not_before, created_at, updated_at
+    ) VALUES (
+      gen_random_uuid(), 'user-obs-freshness', ${MARKER_ORG}, ${propertyId},
+      'urgent_operational', 'immediate', 'delayed', 'urgent', ${key},
+      NOW() - INTERVAL '3 hours', NOW() - INTERVAL '10 hours', NOW()
+    )
+  `)
+}
+
+describe('notification email stall scope (real reads)', () => {
+  it('counts touched rows only where email may send, on an active Property', async () => {
+    await seedProperty()
+    await seedScopedProperty(DENIED_PROP_UUID, 'obs-freshness-denied', 'active')
+    await seedScopedProperty(ARCHIVED_PROP_UUID, 'obs-freshness-archived', 'archived')
+    const scoped = createHealthChecker(db, undefined, {
+      // Only this suite's Organization may send, and not on the denied Property
+      // (suspended, or outside a Property allowlist).
+      isEmailDeliveryAllowed: (scope) =>
+        scope.organizationId === MARKER_ORG && scope.propertyId !== DENIED_PROP_UUID,
+    })
+
+    await seedHeldEmail('obs-scope-allowed-held', MARKER_PROP_UUID)
+    await seedHeldEmail('obs-scope-denied-held', DENIED_PROP_UUID)
+    // An archived Property is never visited by the orphan sweep again.
+    await seedHeldEmail('obs-scope-archived-held', ARCHIVED_PROP_UUID)
+    // An Organization-scoped mandatory notice whose transient retry is 4h late.
+    await db.execute(sql`
+      INSERT INTO notification_email_queue (
+        notification_id, user_id, organization_id, property_id,
+        category, cadence, status, priority, idempotency_key,
+        last_error_class, retry_count, next_attempt_at, attempted_at,
+        created_at, updated_at
+      ) VALUES (
+        gen_random_uuid(), 'user-obs-freshness', ${MARKER_ORG}, NULL,
+        'mandatory', 'immediate', 'failed', 'urgent', 'obs-scope-org-retry',
+        'transient', 2, NOW() - INTERVAL '4 hours', NOW() - INTERVAL '5 hours',
+        NOW() - INTERVAL '6 hours', NOW()
+      )
+    `)
+
+    const after = (await scoped.check()).notifications
+
+    expect(after.attemptedStuckCount).toBe(2)
+    expect(after.oldestAttemptedStuckAgeMs!).toBeGreaterThanOrEqual(239 * MINUTE_MS)
+    expect(after.oldestAttemptedStuckAgeMs!).toBeLessThan(241 * MINUTE_MS)
   })
 })

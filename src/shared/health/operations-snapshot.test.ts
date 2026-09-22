@@ -23,6 +23,7 @@ function fakeDb(results: unknown[][]): Database {
     chain.from = () => chain
     chain.where = () => chain
     chain.leftJoin = () => chain
+    chain.groupBy = () => chain
     chain.then = (resolve: (v: unknown[]) => unknown, reject: (e: unknown) => unknown) =>
       Promise.resolve(rows).then(resolve, reject)
     return chain
@@ -356,6 +357,45 @@ describe('createOperationsSnapshot', () => {
     expect(snapshot.replyPublication.counts.ambiguous).toBe(1)
     expect(snapshot.notifications.missingForInboxItemCount).toBe(4)
     expect(snapshot.notifications.deliveryLag.sourceReceiptPending).toBe(0)
+  })
+
+  it('judges the touched email stall only in scopes the composition root says may send', async () => {
+    const reader = createOperationsSnapshot({
+      db: fakeDb([
+        UNPUBLISHED_ROW,
+        CLAIMED_ROW,
+        REVIEW_ROW,
+        SYNC_ROW,
+        PUBLICATION_ROW,
+        [{ overdue: 3, oldest_overdue_age_ms: 36_000_000 }],
+        [
+          {
+            organizationId: 'org-pilot',
+            propertyId: 'property-1',
+            attempted: 1,
+            oldest_attempted_age_ms: 9_000_000,
+          },
+          {
+            organizationId: 'org-suspended',
+            propertyId: 'property-2',
+            attempted: 2,
+            oldest_attempted_age_ms: 36_000_000,
+          },
+        ],
+      ]),
+      outboxRepo: fakeOutboxRepo(),
+      queues: { default: null, background: null, domainEvents: null, quarantine: null },
+      redis: null,
+      clock,
+      versions: VERSIONS,
+      runtime: RUNTIME,
+      isEmailDeliveryAllowed: (scope) => scope.organizationId === 'org-pilot',
+    })
+
+    const snapshot = await reader.read()
+
+    expect(snapshot.notifications.attemptedStuckCount).toBe(1)
+    expect(snapshot.notifications.oldestAttemptedStuckAgeMs).toBe(9_000_000)
   })
 
   it('does not let a hanging Queue Redis read blank the database signals', async () => {

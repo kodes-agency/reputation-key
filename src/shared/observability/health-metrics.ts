@@ -16,10 +16,11 @@
 
 import { DEFAULT_LEASE_DURATION_MS, type OutboxRepository } from '#/shared/outbox'
 import type { Database } from '#/shared/db'
-import { eq, sql, type SQL } from 'drizzle-orm'
+import { and, eq, sql, type SQL } from 'drizzle-orm'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { reviews, replies } from '#/shared/db/schema/review.schema'
 import { reviewSyncState } from '#/shared/db/schema/review-sync.schema'
+import { properties } from '#/shared/db/schema/property.schema'
 import {
   notificationDigestBatchMembers,
   notificationEmailQueue,
@@ -66,6 +67,13 @@ export type HealthMetricsDeps = Readonly<{
    */
   emailDeliveryEnabled?: boolean
   /**
+   * The current scoped `notification.send_email` decision — the same one
+   * Feed's delivery-lag evidence reads. The touched-row stall gauge counts
+   * only scopes that may send now: a dark scope's held and retrying rows are
+   * never processed. Absent = every scope counts.
+   */
+  isEmailDeliveryAllowed?: IsEmailDeliveryAllowed
+  /**
    * How many recent inbox items have NO notification row (the
    * `notification.missing_for_inbox_item` gauge). The query belongs to the
    * notification context, and `src/shared/**` must never import
@@ -81,6 +89,16 @@ export type HealthMetricsDeps = Readonly<{
    */
   readNotificationDeliveryLag?: () => Promise<NotificationDeliveryLagRead>
 }>
+
+/** The scope a queued notification email would be delivered under. */
+export type EmailDeliveryScope = Readonly<{
+  organizationId: string
+  /** Null only for Organization-scoped mandatory notices. */
+  propertyId: string | null
+}>
+
+/** Whether email may be delivered in a scope right now. */
+export type IsEmailDeliveryAllowed = (scope: EmailDeliveryScope) => boolean
 
 export type NotificationDeliveryLagRead = Readonly<{
   sourceReceiptPending: number
@@ -229,7 +247,10 @@ export type HealthSnapshot = Readonly<{
      * reached the row and left it unsent. It is the honest break signal for a
      * per-org-allowlisted tenant, whose grant the global emailDeliveryEnabled
      * flag cannot see. (Every attempt moves a row out of `pending`, so
-     * counting pending rows alone left this permanently zero.)
+     * counting pending rows alone left this permanently zero.) Counted only
+     * where the path would still send: a scope the `notification.send_email`
+     * decision allows now, on an active Property or Organization-scoped — a
+     * scope that went dark leaves its touched rows unsent by design.
      */
     attemptedStuckCount: number
     /** Age of the oldest touched overdue row (null when none). */
@@ -613,7 +634,38 @@ function toEmailOutcomes(row: EmailOutcomeRow | undefined): NotificationEmailOut
 async function readNotificationEmailMetrics(
   db: Database,
   emailDeliveryEnabled: boolean,
+  isEmailDeliveryAllowed: IsEmailDeliveryAllowed,
 ): Promise<NotificationEmailMetrics> {
+  const q = notificationEmailQueue
+  const { dueAt, overdue } = emailDueClauses()
+
+  const result = await db
+    .select({
+      overdue: sql<number>`count(*) FILTER (WHERE ${overdue})::int`,
+      oldest_overdue_age_ms: sql<number | null>`
+        EXTRACT(EPOCH FROM (NOW() - MIN(${dueAt}) FILTER (WHERE ${overdue}))) * 1000
+      `,
+      ...emailOutcomeAggregates(),
+    })
+    .from(q)
+    .leftJoin(
+      notificationDigestBatchMembers,
+      eq(notificationDigestBatchMembers.notificationEmailId, q.id),
+    )
+  const stuck = await readTouchedEmailStall(db, isEmailDeliveryAllowed)
+
+  const row = result[0]
+  return {
+    emailDeliveryEnabled,
+    pendingOverdueCount: row?.overdue ?? 0,
+    oldestPendingOverdueAgeMs: roundedAge(row?.oldest_overdue_age_ms),
+    ...stuck,
+    emailOutcomes: toEmailOutcomes(row),
+  }
+}
+
+/** The due-time, overdue and touched predicates over `notification_email_queue`. */
+function emailDueClauses() {
   const q = notificationEmailQueue
   const dueAt = sql`COALESCE(GREATEST(${q.nextAttemptAt}, ${q.notBefore}), ${q.createdAt})`
   // The delivery path's own "still sendable" set (dueForCadence, minus its
@@ -625,33 +677,61 @@ async function readNotificationEmailMetrics(
   )`
   const overdue = sql`${sendable} AND ${dueAt} < NOW()`
   const touched = sql`${overdue} AND (${q.attemptedAt} IS NOT NULL OR ${q.status} = 'delayed')`
+  return { dueAt, overdue, touched }
+}
 
-  const result = await db
+/**
+ * The touched overdue rows (attemptedStuckCount), judged only where the
+ * delivery path would still send them: a scope whose `notification.send_email`
+ * decision allows it now, on an active Property (the orphan sweep's own set)
+ * or Organization-scoped. Nothing ever processes a held or retrying row in a
+ * scope that went dark — de-allowlisted, suspended, killed, archived — so
+ * there it is not a stall. Read per scope (bounded by the scope count) and
+ * judged in-process: the decision is process policy, not a table.
+ */
+async function readTouchedEmailStall(
+  db: Database,
+  isEmailDeliveryAllowed: IsEmailDeliveryAllowed,
+): Promise<
+  Pick<NotificationEmailMetrics, 'attemptedStuckCount' | 'oldestAttemptedStuckAgeMs'>
+> {
+  const q = notificationEmailQueue
+  const { dueAt, touched } = emailDueClauses()
+  const scopes = await db
     .select({
-      overdue: sql<number>`count(*) FILTER (WHERE ${overdue})::int`,
-      oldest_overdue_age_ms: sql<number | null>`
-        EXTRACT(EPOCH FROM (NOW() - MIN(${dueAt}) FILTER (WHERE ${overdue}))) * 1000
-      `,
-      attempted: sql<number>`count(*) FILTER (WHERE ${touched})::int`,
+      organizationId: q.organizationId,
+      propertyId: q.propertyId,
+      attempted: sql<number>`count(*)::int`,
       oldest_attempted_age_ms: sql<number | null>`
-        EXTRACT(EPOCH FROM (NOW() - MIN(${dueAt}) FILTER (WHERE ${touched}))) * 1000
+        EXTRACT(EPOCH FROM (NOW() - MIN(${dueAt}))) * 1000
       `,
-      ...emailOutcomeAggregates(),
     })
     .from(q)
     .leftJoin(
-      notificationDigestBatchMembers,
-      eq(notificationDigestBatchMembers.notificationEmailId, q.id),
+      properties,
+      and(
+        eq(properties.id, q.propertyId),
+        eq(properties.organizationId, q.organizationId),
+      ),
     )
+    .where(
+      sql`${touched} AND (${q.propertyId} IS NULL
+        OR (${properties.deletedAt} IS NULL AND ${properties.lifecycleState} = 'active'))`,
+    )
+    .groupBy(q.organizationId, q.propertyId)
 
-  const row = result[0]
+  const sendable = scopes.filter((scope) =>
+    isEmailDeliveryAllowed({
+      organizationId: scope.organizationId,
+      propertyId: scope.propertyId,
+    }),
+  )
+  const ages = sendable
+    .map((scope) => roundedAge(scope.oldest_attempted_age_ms))
+    .filter((age): age is number => age !== null)
   return {
-    emailDeliveryEnabled,
-    pendingOverdueCount: row?.overdue ?? 0,
-    oldestPendingOverdueAgeMs: roundedAge(row?.oldest_overdue_age_ms),
-    attemptedStuckCount: row?.attempted ?? 0,
-    oldestAttemptedStuckAgeMs: roundedAge(row?.oldest_attempted_age_ms),
-    emailOutcomes: toEmailOutcomes(row),
+    attemptedStuckCount: sendable.reduce((sum, scope) => sum + scope.attempted, 0),
+    oldestAttemptedStuckAgeMs: ages.length === 0 ? null : Math.max(...ages),
   }
 }
 
@@ -888,7 +968,11 @@ function createHealthSignalReads(
     // Notification delivery health: is the queued email actually going out?
     notificationEmail: () =>
       trace('health.check.notificationEmail', () =>
-        readNotificationEmailMetrics(db, deps?.emailDeliveryEnabled === true),
+        readNotificationEmailMetrics(
+          db,
+          deps?.emailDeliveryEnabled === true,
+          deps?.isEmailDeliveryAllowed ?? (() => true),
+        ),
       ),
     // Notification EXISTENCE health: did the in-app notification get written
     // at all? Injected because the query lives in the notification context

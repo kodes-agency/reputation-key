@@ -528,7 +528,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.attemptedStuckCount'],
     emitted: true,
     description:
-      'Overdue sendable emails the delivery path ALREADY touched: a scheduled retry past due (attempted_at set) or a quiet-hours hold past its end (delayed). Non-zero cannot be explained by a dark capability — the path reached the row and left it unsent.',
+      'Overdue sendable emails the delivery path ALREADY touched: a scheduled retry past due (attempted_at set) or a quiet-hours hold past its end (delayed) — counted only in scopes whose notification.send_email decision allows sending now, on an active Property or Organization-scoped. Non-zero cannot be explained by a dark capability — the path reached the row and left it unsent.',
   }),
   def({
     name: 'notification.email.oldest_attempted_stuck_age_ms',
