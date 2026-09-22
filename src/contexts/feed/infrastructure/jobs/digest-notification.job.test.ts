@@ -172,7 +172,7 @@ function baseDeps(options: Options = {}) {
     batchIdGen: vi.fn(() => '86000000-0000-4000-8000-000000000099'),
     authorizeScope: vi.fn(async (_org: string, _property?: string) => true),
     isRecipientEligible: vi.fn(
-      async (_input: { propertyId: string; audience: unknown }) => true,
+      async (_input: { propertyId: string; audience: unknown }, _memo?: unknown) => true,
     ),
     baseUrl: BASE_URL,
     activeOneClickUnsubscribeKeyVersion: vi.fn(
@@ -764,12 +764,15 @@ describe('digest suppression and failure visibility (ADR 0046 r.6)', () => {
 
     await runHandler(deps)
 
-    expect(deps.isRecipientEligible).toHaveBeenCalledWith({
-      organizationId: organizationId(ORG),
-      propertyId: PROP_A,
-      userId: userId(USER),
-      audience: entryFor(PROP_A).recipientAudience,
-    })
+    expect(deps.isRecipientEligible).toHaveBeenCalledWith(
+      {
+        organizationId: organizationId(ORG),
+        propertyId: PROP_A,
+        userId: userId(USER),
+        audience: entryFor(PROP_A).recipientAudience,
+      },
+      expect.anything(),
+    )
     expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
       entryFor(PROP_A).id,
       organizationId(ORG),
@@ -781,6 +784,17 @@ describe('digest suppression and failure visibility (ADR 0046 r.6)', () => {
     const payload = deps.emailSender.send.mock.calls[0]![0]
     expect(payload.html).toContain('Hillcrest')
     expect(payload.html).not.toContain('Riverside')
+  })
+
+  it("shares one standing memo across a recipient's rows", async () => {
+    const deps = baseDeps()
+
+    await runHandler(deps)
+
+    const memos = deps.isRecipientEligible.mock.calls.map((call) => call[1])
+    expect(memos).toHaveLength(2)
+    expect(memos[0]).toBeDefined()
+    expect(memos[1]).toBe(memos[0])
   })
 
   it('suppresses a preference-disabled row with a visible reason', async () => {

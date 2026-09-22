@@ -21,7 +21,10 @@ import {
 import type { NotificationEmailRepositoryPort } from '../../application/ports/notification-email-repository.port'
 import type { NotificationPreferenceRepositoryPort } from '../../application/ports/notification-preference-repository.port'
 import type { NotificationRepositoryPort } from '../../application/ports/notification-repository.port'
-import type { NotificationRecipientStanding } from '../../application/notification-recipient-standing'
+import {
+  createRecipientStandingMemo,
+  type NotificationRecipientStanding,
+} from '../../application/notification-recipient-standing'
 import type { NotificationEmail } from '../../domain/notification-types'
 import { deliveryTiming } from '../../domain/notification-delivery-policy'
 import { getDefaultEnabled } from '../../domain/notification-policy'
@@ -74,27 +77,25 @@ export async function authorizedEntries(
  * CONTEXT.md invariant 4, per row: a digest gathers a day of rows, and the
  * recipient may since have left the Organization, lost a Property or been
  * relieved of the responsibility that selected them. Only those rows go; the
- * recipient's other Properties still arrive. Answers are shared within one
- * recipient's pass.
+ * recipient's other Properties still arrive. One memo serves the recipient's
+ * pass, so Property eligibility is asked once per Property and each audience
+ * once, however many rows share them.
  */
 function recipientStandingFor(
   deps: DigestEntryDeps,
   ctx: RecipientContext,
 ): (entry: NotificationEmail) => Promise<boolean> {
-  const verdicts = new Map<string, Promise<boolean>>()
-  return (entry) => {
-    const key = `${entry.propertyId as string}\0${JSON.stringify(entry.recipientAudience)}`
-    const cached = verdicts.get(key)
-    if (cached) return cached
-    const verdict = deps.isRecipientEligible({
-      organizationId: ctx.orgId,
-      propertyId: propertyId(entry.propertyId as string),
-      userId: ctx.userId,
-      audience: entry.recipientAudience,
-    })
-    verdicts.set(key, verdict)
-    return verdict
-  }
+  const memo = createRecipientStandingMemo()
+  return (entry) =>
+    deps.isRecipientEligible(
+      {
+        organizationId: ctx.orgId,
+        propertyId: propertyId(entry.propertyId as string),
+        userId: ctx.userId,
+        audience: entry.recipientAudience,
+      },
+      memo,
+    )
 }
 
 /**

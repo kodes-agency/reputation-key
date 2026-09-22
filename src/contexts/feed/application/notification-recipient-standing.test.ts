@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { createNotificationRecipientStanding } from './notification-recipient-standing'
+import {
+  createNotificationRecipientStanding,
+  createRecipientStandingMemo,
+} from './notification-recipient-standing'
 
 const ORG = organizationId('org-1')
 const PROPERTY = propertyId('11111111-1111-4111-8111-111111111111')
@@ -100,5 +103,61 @@ describe('notification recipient standing at send time', () => {
     await expect(
       standingOf(makeDeps(), { kind: 'responsible_scope', scope: {} }),
     ).resolves.toBe(false)
+  })
+
+  describe('within one delivery pass', () => {
+    const OTHER_PROPERTY = propertyId('22222222-2222-4222-8222-222222222222')
+    const responsible = {
+      kind: 'responsible_scope',
+      scope: { kind: 'portal', portalId: 'portal-1' },
+    }
+
+    it('asks Property eligibility once per Property and each audience once', async () => {
+      // A digest carries many rows per Property, each with its own work-item
+      // audience; eligibility does not depend on the audience at all.
+      const deps = makeDeps()
+      const standing = createNotificationRecipientStanding(deps)
+      const memo = createRecipientStandingMemo()
+      const rows = [
+        [PROPERTY, { kind: 'inbox_assignee', inboxItemId: 'item-1' }],
+        [PROPERTY, { kind: 'inbox_assignee', inboxItemId: 'item-2' }],
+        [PROPERTY, responsible],
+        [OTHER_PROPERTY, responsible],
+      ] as const
+
+      for (const [property, audience] of rows) {
+        await expect(
+          standing(
+            { organizationId: ORG, propertyId: property, userId: MANAGER, audience },
+            memo,
+          ),
+        ).resolves.toBe(true)
+      }
+
+      expect(deps.responsibleManagers.isEligibleForProperty).toHaveBeenCalledTimes(2)
+      expect(deps.responsibleManagers.findForPortal).toHaveBeenCalledTimes(1)
+    })
+
+    it('still refuses every row on a Property the recipient lost', async () => {
+      const deps = makeDeps()
+      deps.responsibleManagers.isEligibleForProperty.mockImplementation(
+        async (_org, property) => property !== OTHER_PROPERTY,
+      )
+      const standing = createNotificationRecipientStanding(deps)
+      const memo = createRecipientStandingMemo()
+      const ask = (property: typeof PROPERTY) =>
+        standing(
+          {
+            organizationId: ORG,
+            propertyId: property,
+            userId: MANAGER,
+            audience: responsible,
+          },
+          memo,
+        )
+
+      await expect(ask(PROPERTY)).resolves.toBe(true)
+      await expect(ask(OTHER_PROPERTY)).resolves.toBe(false)
+    })
   })
 })
