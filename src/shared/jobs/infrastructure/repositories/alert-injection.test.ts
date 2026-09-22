@@ -88,6 +88,7 @@ const freshHeartbeat: RedisHeartbeatPort = {
 
 function inMemoryStateStore(): AlertStateStore {
   const firing = new Set<string>()
+  const pending = new Set<string>()
   return {
     currentlyFiring: async (names) =>
       new Set([...firing].filter((n) => names.includes(n))),
@@ -96,6 +97,14 @@ function inMemoryStateStore(): AlertStateStore {
     },
     clearFiring: async (name) => {
       firing.delete(name)
+    },
+    currentlyPending: async (names) =>
+      new Set([...pending].filter((n) => names.includes(n))),
+    markPending: async (name) => {
+      pending.add(name)
+    },
+    clearPending: async (name) => {
+      pending.delete(name)
     },
   }
 }

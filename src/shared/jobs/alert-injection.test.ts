@@ -49,6 +49,8 @@ import {
 } from '#/shared/observability/alert-dispatcher'
 import {
   createRedisAlertStateStore,
+  ALERT_PENDING_KEY_PREFIX,
+  ALERT_PENDING_TTL_SECONDS,
   ALERT_STATE_KEY_PREFIX,
   ALERT_STATE_TTL_SECONDS,
   type AlertStateStore,
@@ -401,7 +403,7 @@ const BREACHES: readonly Breach[] = [
     severity: 'P1',
     runbook: 'runbooks.md §23',
     threshold: 0,
-    windowMs: 5 * 60 * 1000,
+    windowMs: 10 * 60 * 1000, // two consecutive 5-minute evaluations
     value: 2, // health.outbox blinds queue.oldest-age and queue.stalled
     apply: (s) => {
       s.degraded = ['health.outbox']
@@ -686,7 +688,13 @@ describe('per-alert synthetic injection (fire / no-fire)', () => {
       const aux = healthyAux()
       breach.apply(snapshot, aux)
 
-      const { toDispatch, firing } = evaluateAlerts(snapshot, aux, new Set())
+      // Previously pending: a sustained alert's breach is its second in a row.
+      const { toDispatch, firing } = evaluateAlerts(
+        snapshot,
+        aux,
+        new Set(),
+        new Set([breach.name]),
+      )
       const event = toDispatch.find((e) => e.name === breach.name)
 
       expect(event, `${breach.name} must dispatch`).toBeDefined()
@@ -709,6 +717,7 @@ describe('per-alert synthetic injection (fire / no-fire)', () => {
         healthySnapshot(),
         healthyAux(),
         new Set(),
+        new Set([breach.name]),
       )
       expect(toDispatch.map((e) => e.name)).not.toContain(breach.name)
       expect(firing).not.toContain(breach.name)
@@ -719,6 +728,7 @@ describe('per-alert synthetic injection (fire / no-fire)', () => {
     const { toDispatch, firing } = evaluateAlerts(
       healthySnapshot(),
       healthyAux(),
+      new Set(),
       new Set(),
     )
     expect(toDispatch).toEqual([])
@@ -799,12 +809,17 @@ describe('evaluateAlerts hysteresis', () => {
   }
 
   it('fires on the ok→firing edge only while the state says firing', () => {
-    const first = evaluateAlerts(stalledSnapshot(), healthyAux(), new Set())
+    const first = evaluateAlerts(stalledSnapshot(), healthyAux(), new Set(), new Set())
     expect(first.toDispatch.map((e) => e.name)).toEqual(['queue.stalled'])
     expect(first.firing).toEqual(['queue.stalled'])
 
     // Still breaching, state remembers firing — no re-dispatch.
-    const second = evaluateAlerts(stalledSnapshot(), healthyAux(), new Set(first.firing))
+    const second = evaluateAlerts(
+      stalledSnapshot(),
+      healthyAux(),
+      new Set(first.firing),
+      new Set(),
+    )
     expect(second.toDispatch).toEqual([])
     expect(second.firing).toEqual(['queue.stalled'])
   })
@@ -812,7 +827,7 @@ describe('evaluateAlerts hysteresis', () => {
   it('re-fires once the firing state has expired (24h re-notify)', () => {
     // The state store key expires after ALERT_STATE_TTL_SECONDS; the next
     // evaluation sees an empty previous state — a new edge.
-    const again = evaluateAlerts(stalledSnapshot(), healthyAux(), new Set())
+    const again = evaluateAlerts(stalledSnapshot(), healthyAux(), new Set(), new Set())
     expect(again.toDispatch.map((e) => e.name)).toEqual(['queue.stalled'])
   })
 
@@ -821,6 +836,7 @@ describe('evaluateAlerts hysteresis', () => {
       healthySnapshot(),
       healthyAux(),
       new Set(['queue.stalled']),
+      new Set(),
     )
     expect(recovered.toDispatch).toEqual([])
     expect(recovered.firing).toEqual([])
@@ -894,6 +910,33 @@ describe('alert firing-state store', () => {
     await store.markFiring('queue.stalled')
     await store.clearFiring('queue.stalled')
     expect(await store.currentlyFiring(['queue.stalled'])).toEqual(new Set())
+  })
+
+  it('holds a pending breach only until the next evaluation is due', async () => {
+    const redis = createFakeRedis()
+    const store = createRedisAlertStateStore(redis)
+    await store.markPending('observability.snapshot-degraded')
+
+    expect(redis.sets).toEqual([
+      {
+        key: `${ALERT_PENDING_KEY_PREFIX}observability.snapshot-degraded`,
+        exSeconds: ALERT_PENDING_TTL_SECONDS,
+      },
+    ])
+    // Two 5-minute cadences: one missed evaluation breaks the streak.
+    expect(ALERT_PENDING_TTL_SECONDS).toBe(10 * 60)
+    expect(
+      await store.currentlyPending(['observability.snapshot-degraded', 'queue.stalled']),
+    ).toEqual(new Set(['observability.snapshot-degraded']))
+    // A pending breach is not a firing one.
+    expect(await store.currentlyFiring(['observability.snapshot-degraded'])).toEqual(
+      new Set(),
+    )
+
+    await store.clearPending('observability.snapshot-degraded')
+    expect(await store.currentlyPending(['observability.snapshot-degraded'])).toEqual(
+      new Set(),
+    )
   })
 })
 
@@ -1014,6 +1057,7 @@ describe('alert dispatcher', () => {
 describe('health-check job alert wiring', () => {
   function fakeStateStore() {
     const firing = new Set<string>()
+    const pending = new Set<string>()
     const store: AlertStateStore = {
       currentlyFiring: async (names) =>
         new Set([...firing].filter((n) => names.includes(n))),
@@ -1023,11 +1067,20 @@ describe('health-check job alert wiring', () => {
       clearFiring: async (name) => {
         firing.delete(name)
       },
+      currentlyPending: async (names) =>
+        new Set([...pending].filter((n) => names.includes(n))),
+      markPending: async (name) => {
+        pending.add(name)
+      },
+      clearPending: async (name) => {
+        pending.delete(name)
+      },
     }
     return {
       store,
       expire: (name: string) => firing.delete(name),
       all: () => [...firing],
+      pending: () => [...pending],
     }
   }
 
@@ -1114,6 +1167,7 @@ describe('health-check job alert wiring', () => {
       firing: ['queue.stalled'],
       dispatched: ['queue.stalled'],
       held: [],
+      pending: [],
     })
   })
 
@@ -1135,10 +1189,18 @@ describe('health-check job alert wiring', () => {
       'queue.quarantine-growth',
       'queue.quarantine-nonempty',
     ])
+    // One degraded evaluation is pending, not yet a page.
+    expect(heldRun.alerts?.pending).toEqual(['observability.snapshot-degraded'])
+    expect(state.pending()).toEqual(['observability.snapshot-degraded'])
+    expect(dispatched.map((e) => e.name)).toEqual(['queue.quarantine-nonempty'])
+
+    // Still blind on the next evaluation: now it pages.
+    await handler({ id: '3', data: {} } as never)
     expect(state.all().sort()).toEqual([
       'observability.snapshot-degraded',
       'queue.quarantine-nonempty',
     ])
+    expect(state.pending()).toEqual([])
     expect(dispatched.map((e) => e.name)).toEqual([
       'queue.quarantine-nonempty',
       'observability.snapshot-degraded',
@@ -1147,9 +1209,26 @@ describe('health-check job alert wiring', () => {
     // The signal recovers and the dead letter is still there: same incident,
     // no second page; the degradation alert clears.
     readOperationsSnapshot.mockResolvedValue(quarantined)
-    await handler({ id: '3', data: {} } as never)
+    await handler({ id: '4', data: {} } as never)
     expect(dispatched).toHaveLength(2)
     expect(state.all()).toEqual(['queue.quarantine-nonempty'])
+  })
+
+  it('pages a degraded snapshot at once when its pending state cannot persist', async () => {
+    const blind = healthySnapshot()
+    blind.degraded = ['health.outbox']
+    const { deps } = wiredDeps(blind)
+    const dispatch = vi.fn<AlertDispatcher['dispatch']>(async () => {})
+    const handler = createHealthCheckHandler({
+      ...deps,
+      alertState: undefined,
+      alertDispatcher: { dispatch },
+    })
+
+    const result = await handler({ id: 'no-hysteresis', data: {} } as never)
+
+    // Without a store no evaluation can confirm the next: fail visible.
+    expect(result.alerts?.dispatched).toEqual(['observability.snapshot-degraded'])
   })
 
   it('a snapshot read failure warns and never breaks the health check', async () => {
@@ -1182,16 +1261,16 @@ describe('health-check job alert wiring', () => {
     }
     const { deps } = wiredDeps(snapshot)
     const dispatch = vi.fn<AlertDispatcher['dispatch']>(async () => {})
+    const unavailable = async (): Promise<never> => {
+      throw new Error('cache redis unavailable with connection details')
+    }
     const unavailableState: AlertStateStore = {
-      currentlyFiring: async () => {
-        throw new Error('cache redis unavailable with connection details')
-      },
-      markFiring: async () => {
-        throw new Error('cache redis unavailable with connection details')
-      },
-      clearFiring: async () => {
-        throw new Error('cache redis unavailable with connection details')
-      },
+      currentlyFiring: unavailable,
+      markFiring: unavailable,
+      clearFiring: unavailable,
+      currentlyPending: unavailable,
+      markPending: unavailable,
+      clearPending: unavailable,
     }
     const handler = createHealthCheckHandler({
       ...deps,
@@ -1210,6 +1289,7 @@ describe('health-check job alert wiring', () => {
       firing: ['guest.observation-loss'],
       dispatched: ['guest.observation-loss'],
       held: [],
+      pending: [],
     })
   })
 

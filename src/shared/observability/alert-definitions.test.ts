@@ -384,6 +384,50 @@ describe('observability.snapshot-degraded', () => {
     expect(event!.detail).toContain('queue.stalled')
   })
 
+  it('pages only once the blindness holds for a second consecutive evaluation', () => {
+    const s = healthy()
+    s.degraded = ['health.outbox']
+
+    const first = evaluateAlerts(s, AUX, new Set(), new Set())
+    expect(first.pending).toEqual(['observability.snapshot-degraded'])
+    expect(first.firing).toEqual([])
+    expect(first.toDispatch).toEqual([])
+
+    const second = evaluateAlerts(s, AUX, new Set(), new Set(first.pending))
+    expect(second.toDispatch.map((event) => event.name)).toEqual([
+      'observability.snapshot-degraded',
+    ])
+    expect(second.firing).toEqual(['observability.snapshot-degraded'])
+    expect(second.pending).toEqual([])
+  })
+
+  it('never pages a signal that degrades only on alternate evaluations', () => {
+    const blind = healthy()
+    blind.degraded = ['health.notificationDeliveryLag']
+
+    const degradedRun = evaluateAlerts(blind, AUX, new Set(), new Set())
+    const readableRun = evaluateAlerts(
+      healthy(),
+      AUX,
+      new Set(),
+      new Set(degradedRun.pending),
+    )
+    const degradedAgain = evaluateAlerts(
+      blind,
+      AUX,
+      new Set(),
+      new Set(readableRun.pending),
+    )
+
+    expect(readableRun.pending).toEqual([])
+    expect(degradedAgain.pending).toEqual(['observability.snapshot-degraded'])
+    expect([
+      ...degradedRun.toDispatch,
+      ...readableRun.toDispatch,
+      ...degradedAgain.toDispatch,
+    ]).toEqual([])
+  })
+
   it('stays quiet when nothing is degraded or only fail-visible sections are', () => {
     expect(evaluateOne('observability.snapshot-degraded', healthy())).toBeNull()
 
@@ -401,7 +445,12 @@ describe('evaluateAlerts on a degraded snapshot', () => {
     s.degraded = ['health.quarantine']
     s.quarantine = null
 
-    const result = evaluateAlerts(s, AUX, new Set(['queue.quarantine-nonempty']))
+    const result = evaluateAlerts(
+      s,
+      AUX,
+      new Set(['queue.quarantine-nonempty']),
+      new Set(['observability.snapshot-degraded']),
+    )
 
     expect(result.firing).toContain('queue.quarantine-nonempty')
     expect(result.held).toEqual(['queue.quarantine-growth', 'queue.quarantine-nonempty'])
@@ -415,7 +464,7 @@ describe('evaluateAlerts on a degraded snapshot', () => {
     s.degraded = ['health.quarantine']
     s.quarantine = { count: 1, oldestAgeMs: QUARANTINE_NONEMPTY_ALERT_MS + 1 }
 
-    const result = evaluateAlerts(s, AUX, new Set())
+    const result = evaluateAlerts(s, AUX, new Set(), new Set())
 
     expect(result.firing).not.toContain('queue.quarantine-nonempty')
     expect(result.toDispatch.map((event) => event.name)).not.toContain(

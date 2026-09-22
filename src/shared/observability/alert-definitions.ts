@@ -106,6 +106,13 @@ export type AlertDefinition = Readonly<{
    * on their own section's fallback (fail-visible) declare none.
    */
   blindedBy: readonly SnapshotSection[]
+  /**
+   * true = a breach pages only when it holds on two consecutive evaluations:
+   * the first is `pending` (evaluateAlerts), the second dispatches. For a
+   * signal that can blink — one slow read — rather than one whose single
+   * reading is already the impact.
+   */
+  sustained: boolean
   /** Pure evaluation; null exactly when implemented is false. */
   evaluate:
     ((snapshot: OperationsSnapshot, aux: AlertAuxReads) => AlertEvent | null) | null
@@ -284,15 +291,17 @@ function define(
     windowMs: number
     threshold: number
     blindedBy?: readonly SnapshotSection[]
+    sustained?: boolean
     read: (snapshot: OperationsSnapshot, aux: AlertAuxReads) => AlertReading | null
   }>,
 ): AlertDefinition {
-  const { read, blindedBy = [], ...statics } = def
+  const { read, blindedBy = [], sustained = false, ...statics } = def
   return {
     ...statics,
     owner: OWNER,
     implemented: true,
     blindedBy,
+    sustained,
     evaluate: (snapshot, aux) => {
       const reading = read(snapshot, aux)
       if (reading === null) return null
@@ -311,7 +320,14 @@ function registered(
     threshold: number
   }>,
 ): AlertDefinition {
-  return { ...def, owner: OWNER, implemented: false, blindedBy: [], evaluate: null }
+  return {
+    ...def,
+    owner: OWNER,
+    implemented: false,
+    blindedBy: [],
+    sustained: false,
+    evaluate: null,
+  }
 }
 
 /** Implemented alerts whose input section is degraded in this snapshot. */
@@ -434,12 +450,15 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
   // quiet: every alert reading it would otherwise clear and stay dark exactly
   // while the database or Queue Redis is struggling. Those alerts hold their
   // state (evaluateAlerts); this is the page that says they cannot see.
+  // Sustained: one slow read on one evaluation is a blink, not blindness, and
+  // a signal that times out every other run must not page P1 every other run.
   define({
     name: 'observability.snapshot-degraded',
     severity: 'P1',
     runbook: 'runbooks.md §23',
-    windowMs: EVAL_CADENCE_MS,
+    windowMs: 2 * EVAL_CADENCE_MS,
     threshold: 0,
+    sustained: true,
     read: (snapshot) => {
       const blinded = blindedAlerts(snapshot.degraded)
       if (blinded.length === 0) return null
@@ -1058,6 +1077,12 @@ export type AlertEvaluation = Readonly<{
   /** All currently-firing alert names (state-store reconciliation input). */
   firing: readonly string[]
   /**
+   * Sustained alerts breaching for the first time: not firing, not
+   * dispatched. The caller persists them; a breach on the next evaluation
+   * with the name in `previouslyPending` fires.
+   */
+  pending: readonly string[]
+  /**
    * Alerts not evaluated because an input section is degraded. A held alert
    * that was firing stays in `firing`, so its state is neither cleared nor
    * re-paged; one that was quiet cannot open an edge on a fallback reading.
@@ -1073,26 +1098,34 @@ export type AlertEvaluation = Readonly<{
  * continuously-firing alert re-notifies only after its state key expires,
  * and the caller clears state on recovery (name absent from `firing`). An
  * alert whose input section is degraded is held, not evaluated: unknown is
- * not recovery.
+ * not recovery. A sustained alert's first breach is only `pending`; it fires
+ * when it breaches again with its name in `previouslyPending`.
  */
 export function evaluateAlerts(
   snapshot: OperationsSnapshot,
   aux: AlertAuxReads,
   previouslyFiring: ReadonlySet<string>,
+  previouslyPending: ReadonlySet<string>,
 ): AlertEvaluation {
   const toDispatch: AlertEvent[] = []
   const firing: string[] = []
+  const pending: string[] = []
   const held = new Set(blindedAlerts(snapshot.degraded).map((def) => def.name))
   for (const def of ALERT_DEFINITIONS) {
     if (!def.implemented || def.evaluate === null) continue
+    const wasFiring = previouslyFiring.has(def.name)
     if (held.has(def.name)) {
-      if (previouslyFiring.has(def.name)) firing.push(def.name)
+      if (wasFiring) firing.push(def.name)
       continue
     }
     const event = def.evaluate(snapshot, aux)
     if (event === null) continue
+    if (def.sustained && !wasFiring && !previouslyPending.has(def.name)) {
+      pending.push(def.name)
+      continue
+    }
     firing.push(def.name)
-    if (!previouslyFiring.has(def.name)) toDispatch.push(event)
+    if (!wasFiring) toDispatch.push(event)
   }
-  return { toDispatch, firing, held: [...held] }
+  return { toDispatch, firing, pending, held: [...held] }
 }
