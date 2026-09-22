@@ -240,8 +240,11 @@ export const insertNotification =
       )
       if (existing) {
         const coalesced = applyCoalescence(existing, result.value.payload, deps.clock())
-        await deps.notificationRepo.refreshUnread(coalesced)
-        return coalesced
+        // The bump only lands on a row that is still unread. When a read or
+        // dismiss committed after the lookup, the event is not the user's old
+        // news: it falls through to a fresh unread row (step 3), whose upsert
+        // re-coalesces atomically if yet another unread row appeared meanwhile.
+        if (await deps.notificationRepo.refreshUnread(coalesced)) return coalesced
       }
     }
 

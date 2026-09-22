@@ -59,6 +59,10 @@ turned back on. Consequences of that choice, pending product confirmation:
   read by the user. The Organization export reports them as stored, and once
   in-app is back on they show in the feed as read history, one row per event.
 
+A read or dismiss that lands between the unread lookup and the bump is kept:
+the bump only touches a row that is still unread, and the event opens a fresh
+unread row (with its own email) instead.
+
 The settings page and in-app timestamps read the same effective timezone the
 delivery jobs resolve (ADR 0046 r.3): the user's own, else the Organization's
 representative zone, else UTC, together with where it came from. A settings

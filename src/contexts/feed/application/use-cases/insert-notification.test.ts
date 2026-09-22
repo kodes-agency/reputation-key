@@ -312,6 +312,31 @@ describe('insertNotification', () => {
     expect(deps.emailRepo.insert).not.toHaveBeenCalled()
   })
 
+  it('opens a fresh unread row when the row it would bump was read in the meantime', async () => {
+    const existing = (await insertNotification(buildFakeInsertNotificationDeps())(
+      input,
+    )) as Notification
+    ;(
+      deps.notificationRepo.findUnreadByUserTypeResource as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(existing)
+    // The bump's status guard found the row read or dismissed.
+    ;(deps.notificationRepo.refreshUnread as ReturnType<typeof vi.fn>).mockResolvedValue(
+      false,
+    )
+
+    const result = await insertNotification(deps)({ ...input, eventId: 'event-2' })
+
+    expect(deps.notificationRepo.insert).toHaveBeenCalledOnce()
+    expect(deps.notificationRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'unread',
+        eventId: 'event-2',
+        coalescedCount: 1,
+      }),
+    )
+    expect(result).toMatchObject({ status: 'unread', eventId: 'event-2' })
+  })
+
   it('stores an email-only anchor already read, so it never holds the unread key', async () => {
     // With in-app off the row is only the email's anchor. Stored unread (and
     // hidden), it held ADR 0046 r.2's unread (user, type, resource) key, the

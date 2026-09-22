@@ -215,9 +215,11 @@ export const createNotificationRepository = (db: Database) => ({
   // ADR 0046 r.2 bump: persist the already-coalesced entity produced by
   // `applyCoalescence` — the re-rendered copy, the merged payload, the count
   // and the latest-arrival stamp. `updatedAt` is the entity's, not `now()`, so
-  // the row matches exactly what the use case returned to the caller.
-  refreshUnread: async (notification: Notification): Promise<void> => {
-    await db
+  // the row matches exactly what the use case returned to the caller. The
+  // lookup took no lock, so the row may have been read or dismissed since:
+  // the status guard leaves such a row alone and reports the miss.
+  refreshUnread: async (notification: Notification): Promise<boolean> => {
+    const bumped = await db
       .update(notifications)
       .set({
         title: notification.title,
@@ -232,8 +234,11 @@ export const createNotificationRepository = (db: Database) => ({
           eq(notifications.id, unbrand(notification.id)),
           eq(notifications.userId, unbrand(notification.userId)),
           eq(notifications.organizationId, unbrand(notification.organizationId)),
+          eq(notifications.status, 'unread'),
         ),
       )
+      .returning({ id: notifications.id })
+    return bumped.length > 0
   },
 
   // Read -> unread for the row menu. The partial unread-uniqueness index means

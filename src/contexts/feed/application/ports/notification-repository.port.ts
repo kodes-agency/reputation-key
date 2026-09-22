@@ -93,9 +93,11 @@ export type NotificationRepositoryPort = Readonly<{
    * Persist an ADR 0046 r.2 coalescing bump: the already-coalesced entity
    * (title/body/payload/count/latest/updatedAt) produced by
    * `applyCoalescence`. Scoped to the owning user + org so a bump can never
-   * cross a tenant.
+   * cross a tenant, and to a row that is still unread. Returns false — and
+   * writes nothing — when the row was read or dismissed after it was looked
+   * up; the caller then owes the event a fresh unread row.
    */
-  refreshUnread(notification: Notification): Promise<void>
+  refreshUnread(notification: Notification): Promise<boolean>
 
   /**
    * Flip a read row back to unread. Returns null — never throws — when the
