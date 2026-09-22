@@ -83,6 +83,48 @@ export const UrgentUnread: Story = {
 }
 
 /**
+ * A grouped notice stands for several items, so its row opens that queue at
+ * its Property, as its email does, never the one item that keys the row.
+ */
+const groupedNotices = {
+  'inbox.bulk_assigned': 'mine',
+  'inbox.bulk_reopened': 'open',
+} as const
+
+const groupedNotice = (type: keyof typeof groupedNotices) =>
+  makeNotification({
+    id:
+      type === 'inbox.bulk_assigned'
+        ? '20000000-0000-4000-8000-0000000000c1'
+        : '20000000-0000-4000-8000-0000000000c2',
+    type,
+    status: 'unread',
+    payload: {
+      propertyName: 'Riverside Hotel',
+      itemCount: 3,
+      actorRole: 'account_admin',
+    },
+  })
+
+const opensItsQueue = (type: keyof typeof groupedNotices): Story => {
+  const notification = groupedNotice(type)
+  return {
+    args: { notification },
+    play: async ({ canvasElement }) => {
+      const cta = within(canvasElement).getByRole('link')
+      const href = new URL(cta.getAttribute('href') ?? '', 'https://repkey.test')
+      expect(href.pathname).toBe('/inbox')
+      expect(href.searchParams.get('queue')).toBe(groupedNotices[type])
+      expect(href.searchParams.get('propertyId')).toBe(notification.propertyId)
+      expect(href.searchParams.has('itemId')).toBe(false)
+    },
+  }
+}
+
+export const BulkAssignedOpensItsQueue: Story = opensItsQueue('inbox.bulk_assigned')
+export const BulkReopenedOpensItsQueue: Story = opensItsQueue('inbox.bulk_reopened')
+
+/**
  * ADR 0046 r.2 coalescing: one unread row absorbing repeat events. A stored
  * row reads its count from the coalescing column into `occurrences`, and the
  * copy says it once, with the verb for what repeated.

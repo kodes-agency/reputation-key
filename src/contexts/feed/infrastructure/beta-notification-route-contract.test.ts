@@ -56,6 +56,7 @@ import {
 } from '#/contexts/identity/domain/events'
 import {
   inboxBulkAssignmentCompleted,
+  inboxBulkReopenCompleted,
   inboxHandlingCycleOpened,
   inboxHandlingCycleReopened,
   inboxItemAssigned,
@@ -237,6 +238,24 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       userId: ACTOR,
       reopenReason: 'new_information',
       source: 'web',
+    }),
+  'inbox.inbox_items.bulk_reopen_completed': () =>
+    inboxBulkReopenCompleted({
+      organizationId: ORG,
+      userId: ACTOR,
+      bulkId: BULK,
+      reopened: [
+        {
+          inboxItemId: ITEM,
+          propertyId: PROPERTY,
+          sourceType: handlingCycleScope.sourceType,
+          sourceId: REVIEW,
+          cycleNumber: handlingCycleScope.cycleNumber,
+          sourceRevision: handlingCycleScope.sourceRevision,
+          stateRevision: handlingCycleScope.stateRevision,
+        },
+      ],
+      occurredAt: OCCURRED_AT,
     }),
   'inbox.response_target.reminder_due': () =>
     inboxResponseTargetReminderDue({
@@ -699,6 +718,19 @@ const NO_NOTICE: Readonly<
         actorType: 'provider',
         userId: null,
         openReason: 'review_observed',
+      }),
+    status: 'applied',
+  },
+  // A reopen stamped by a bulk reopen: its completion fact notifies instead.
+  'inbox.handling_cycle.reopened': {
+    fact: () =>
+      inboxHandlingCycleReopened({
+        ...handlingCycleScope,
+        actorType: 'user',
+        userId: ACTOR,
+        reopenReason: 'new_information',
+        bulkId: BULK,
+        source: 'web',
       }),
     status: 'applied',
   },

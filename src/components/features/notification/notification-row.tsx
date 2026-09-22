@@ -50,6 +50,7 @@ export function NotificationRow({
     notification.resourceType,
     notification.resourceId,
     notification.propertyId,
+    notification.type,
   )
   const isUnread = notification.status === 'unread'
   const isUrgent = notification.priority === 'urgent'

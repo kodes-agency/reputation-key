@@ -302,7 +302,7 @@ async function groupByRecipientAndProperty(
   current.forEach(({ cycle, facts }, index) => {
     for (const recipient of recipientsPerItem[index] ?? []) {
       if (recipient === actorUserId) continue
-      const key = `${recipient} ${cycle.propertyId}`
+      const key = `${recipient}\u0000${cycle.propertyId}`
       const group = groups.get(key)
       groups.set(key, {
         recipient,
