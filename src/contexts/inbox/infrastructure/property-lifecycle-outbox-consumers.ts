@@ -42,7 +42,7 @@ function parsePropertyArchived(event: ConsumerEvent): PropertyArchivedPayload {
 }
 
 /** Cancel an archived Property's pending reminder slots, once per delivery. */
-export async function handleInboxPropertyArchived(
+async function handleInboxPropertyArchived(
   deps: InboxPropertyLifecycleConsumerDeps,
   event: ConsumerEvent,
 ): Promise<ConsumerResult> {

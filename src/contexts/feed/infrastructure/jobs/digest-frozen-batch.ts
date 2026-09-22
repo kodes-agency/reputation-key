@@ -46,7 +46,7 @@ const mustWait = (entry: NotificationEmail, now: Date): boolean =>
   (entry.notBefore !== null && entry.notBefore > now) ||
   (entry.nextAttemptAt !== null && entry.nextAttemptAt > now)
 
-export const sameIds = (
+const sameIds = (
   entries: readonly NotificationEmail[],
   expected: readonly NotificationEmail[],
 ): boolean =>

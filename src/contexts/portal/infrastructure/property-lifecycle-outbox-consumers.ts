@@ -14,7 +14,7 @@ export type PortalPropertyLifecycleConsumerDeps = Readonly<{
   clock: () => Date
 }>
 
-export const PORTAL_ON_PROPERTY_RESTORED_CONSUMER = 'portal.on-property-restored' as const
+const PORTAL_ON_PROPERTY_RESTORED_CONSUMER = 'portal.on-property-restored' as const
 
 type PropertyRestoredPayload = Readonly<{
   organizationId: string
@@ -38,7 +38,7 @@ function parsePropertyRestored(event: ConsumerEvent): PropertyRestoredPayload {
 }
 
 /** Announce the restored Property's unstaffed live Portals, once per delivery. */
-export async function handlePortalPropertyRestored(
+async function handlePortalPropertyRestored(
   deps: PortalPropertyLifecycleConsumerDeps,
   event: ConsumerEvent,
 ): Promise<ConsumerResult> {
