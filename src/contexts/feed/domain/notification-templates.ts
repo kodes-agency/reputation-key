@@ -530,11 +530,19 @@ const propertyLink = (
     : { path: `/properties/${propertyId}${page}`, search }
 
 /**
+ * The queue a grouped Inbox notice opens at its Property instead of one of its
+ * items: an assignment the recipient's own work, a reopen every open item.
+ */
+const GROUPED_INBOX_QUEUES: Partial<Record<NotificationType, string>> = {
+  'inbox.bulk_assigned': 'mine',
+  'inbox.bulk_reopened': 'open',
+}
+
+/**
  * Deep link for a notification. Every action-oriented type is inbox-item keyed
  * (CONTEXT.md decision log), so the honest target is the inbox detail pane.
- * A grouped assignment is the exception: it opens the recipient's own queue at
- * that Property, which is what its copy promises, when the caller passes the
- * notification `type`.
+ * A grouped notice is the exception: it opens a queue at that Property, which
+ * is what its copy promises, when the caller passes the notification `type`.
  *
  * Returned as `{ path, search }` rather than a string because TanStack Router
  * requires the typed form — passing `'/inbox?itemId=x'` as `to` silently fails
@@ -554,14 +562,15 @@ export const notificationLink = (
   switch (resourceType) {
     case 'organization':
       return { path: '/settings/profile', search: {} }
-    case 'inbox_item':
-      return type === 'inbox.bulk_assigned'
-        ? {
+    case 'inbox_item': {
+      const queue = type && GROUPED_INBOX_QUEUES[type]
+      return queue === undefined
+        ? { path: '/inbox', search: { itemId: resourceId } }
+        : {
             path: '/inbox',
-            search:
-              propertyId === null ? { queue: 'mine' } : { queue: 'mine', propertyId },
+            search: propertyId === null ? { queue } : { queue, propertyId },
           }
-        : { path: '/inbox', search: { itemId: resourceId } }
+    }
     case 'reply':
       // Legacy rows only: pre-2026-07 reply notifications stamped a replyId,
       // which no longer resolves. Land on the inbox list rather than 404.

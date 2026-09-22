@@ -549,6 +549,22 @@ describe('notificationLink', () => {
     })
   })
 
+  // A bulk reopen is many items too, reopened for whoever is responsible, not
+  // assigned to the reader: it opens that Property's Open queue.
+  it("opens a grouped reopen on that Property's open items", () => {
+    expect(notificationLink('inbox_item', UUID, 'prop-1', 'inbox.bulk_reopened')).toEqual(
+      { path: '/inbox', search: { queue: 'open', propertyId: 'prop-1' } },
+    )
+    expect(notificationLink('inbox_item', UUID, null, 'inbox.bulk_reopened')).toEqual({
+      path: '/inbox',
+      search: { queue: 'open' },
+    })
+    expect(notificationLink('inbox_item', UUID, 'prop-1', 'inbox.reopened')).toEqual({
+      path: '/inbox',
+      search: { itemId: UUID },
+    })
+  })
+
   it('lands legacy reply rows on the inbox list rather than a stale reply', () => {
     expect(notificationLink('reply', 'reply-1', 'prop-1')).toEqual({
       path: '/inbox',

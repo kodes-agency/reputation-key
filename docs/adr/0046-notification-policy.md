@@ -61,8 +61,9 @@ Every action notification resolves to its Inbox item at creation and stores
 subscribes to `inbox.inbox_item.created`, after the item exists. Reply routing
 resolves `reviewId → inboxItemId` through `InboxItemLookupPort`. The only action
 URL is `/inbox?itemId=<id>`; a hard-deleted unresolved item is skipped. A grouped
-assignment is many items, so it opens the recipient's own queue at that Property
-(`/inbox?queue=mine&propertyId=<id>`) instead of one of them.
+notice is many items, so it opens a queue at that Property instead of one of
+them: an assignment the recipient's own (`/inbox?queue=mine&propertyId=<id>`),
+a reopen every open item (`/inbox?queue=open&propertyId=<id>`).
 
 ## Amended 2026-09-21 — imported Google history does not notify
 

@@ -354,8 +354,8 @@ export async function handleNotificationBulkReopenCompleted(
           propertyId: propertyId(group.propertyId),
           type: 'inbox.bulk_reopened' as const,
           resourceType: 'inbox_item' as const,
-          // Opens the first item in canonical order; the count in the copy
-          // says the row stands for the whole group.
+          // The first item in canonical order keys the row; its link opens
+          // the Property's open queue, since the row stands for the group.
           resourceId: inboxItemId(group.cycles[0]!.inboxItemId),
           eventId: event.eventId,
           payload: {
