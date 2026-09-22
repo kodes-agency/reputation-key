@@ -29,6 +29,7 @@ import { createNotificationUnsubscribeScopeStore } from './notification-unsubscr
 import { createNotificationDigestBatchStore } from './notification-digest-batch.repository'
 import { emailFromRow, firstAttemptAt, SENDABLE } from './notification-email-queue-rows'
 import { notificationError } from '../../domain/notification-errors'
+import { activePropertyCondition } from './active-property'
 
 const scope = (id: string, orgId: string, propertyId: string | null) =>
   and(
@@ -78,8 +79,7 @@ const onActiveProperty = sql`EXISTS (
   SELECT 1 FROM properties p
    WHERE p.organization_id = ${notificationEmailQueue.organizationId}
      AND p.id = ${notificationEmailQueue.propertyId}
-     AND p.deleted_at IS NULL
-     AND p.lifecycle_state = 'active'
+     AND ${sql.raw(activePropertyCondition('p'))}
 )`
 
 /**

@@ -23,6 +23,7 @@ import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { NotificationEmailRepositoryPort } from '../../application/ports/notification-email-repository.port'
 import type { NotificationEmail } from '../../domain/notification-types'
 import { isStaleQueuedEmail, STALE_EMAIL_REASON } from '../../domain/email-freshness'
+import { activePropertyCondition } from '../repositories/active-property'
 
 type PropertyScope = Readonly<{ organization_id: string; property_id: string }>
 
@@ -96,8 +97,7 @@ async function sweepPropertyScoped(
   const scopes = await deps.pool.query<PropertyScope>(
     `SELECT organization_id, id::text AS property_id
        FROM properties
-      WHERE deleted_at IS NULL
-        AND lifecycle_state = 'active'`,
+      WHERE ${activePropertyCondition()}`,
   )
   for (const scope of scopes.rows) {
     if (!(await deps.authorizeScope(scope.organization_id, scope.property_id))) continue

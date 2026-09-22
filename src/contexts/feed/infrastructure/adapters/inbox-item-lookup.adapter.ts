@@ -6,7 +6,7 @@
 // already reads `properties` from this context. Whether an item arrived as
 // Google history is the predicate the missing-notification gauge also reads.
 import type { Database } from '#/shared/db'
-import { and, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import {
   inboxHandlingCycleHeads,
   inboxHandlingCycleResponseTargets,
@@ -31,6 +31,7 @@ import type {
 } from '../../application/ports/notification-inbox-item-lookup.port'
 import type { FeedbackPortalLookupPort } from '../../application/ports/feedback-portal-lookup.port'
 import { historicalOnboardingItem } from '../historical-onboarding-item'
+import { activePropertyCondition } from '../repositories/active-property'
 
 const findInboxItemFacts = async (
   db: Database,
@@ -276,8 +277,7 @@ export const createInboxItemLookupAdapter = (
         and(
           eq(properties.id, inboxResponseTargetReminders.propertyId),
           eq(properties.organizationId, inboxResponseTargetReminders.organizationId),
-          isNull(properties.deletedAt),
-          eq(properties.lifecycleState, 'active'),
+          sql.raw(activePropertyCondition('properties')),
         ),
       )
       .where(
