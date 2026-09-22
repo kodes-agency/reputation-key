@@ -189,8 +189,8 @@ export const Empty: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/you're all caught up/i)).toBeInTheDocument()
-    // Nothing to act on → both bulk actions are inert rather than misleading.
-    expect(canvas.getByRole('button', { name: /mark all read/i })).toBeDisabled()
+    // Nothing to act on: nothing to mark is not offered, and Dismiss all is inert.
+    expect(canvas.queryByRole('button', { name: /mark all read/i })).toBeNull()
     expect(canvas.getByRole('button', { name: /dismiss all/i })).toBeDisabled()
   },
 }
@@ -255,5 +255,59 @@ export const BellHistoryFollowsThePage: Story = {
     await reopened.findByRole('heading', { name: 'Earlier' })
     expect(reopened.queryByRole('heading', { name: 'New' })).toBeNull()
     expect(reopened.queryByText('Unread.')).toBeNull()
+  },
+}
+
+/** Two Workflow rows under the Workflow tab, and an urgent alert outside it. */
+const workflowTabFeed = [
+  makeNotification({
+    id: '61000000-0000-4000-8000-000000000001',
+    type: 'inbox.escalated',
+    priority: 'urgent',
+    payload: { propertyName: 'Riverside Hotel' },
+    createdAt: new Date(Date.now() - 2 * 60_000),
+  }),
+  makeNotification({
+    id: '61000000-0000-4000-8000-000000000002',
+    type: 'inbox_note.added',
+    payload: { propertyName: 'Riverside Hotel' },
+    createdAt: new Date(Date.now() - 3 * 60_000),
+  }),
+  makeNotification({
+    id: '61000000-0000-4000-8000-000000000003',
+    type: 'inbox_note.added',
+    payload: { propertyName: 'Harbour View Suites' },
+    createdAt: new Date(Date.now() - 4 * 60_000),
+  }),
+]
+const workflowTabServer = makeStatefulNotificationFns(workflowTabFeed)
+const markWorkflowRead = fn(workflowTabServer.markAllRead)
+
+/**
+ * "Mark all read" on the Workflow tab sends that tab and marks its rows only,
+ * then gives focus to the list, since the button leaves with nothing to mark.
+ */
+export const MarkAllReadFollowsTheTab: Story = {
+  args: {
+    filter: 'workflow_collaboration',
+    notificationFns: {
+      ...workflowTabServer,
+      markAllRead: markWorkflowRead as unknown as NotificationServerFns['markAllRead'],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(2))
+    canvas.getByRole('button', { name: /mark all read/i }).focus()
+    await userEvent.keyboard('{Enter}')
+
+    expect(markWorkflowRead).toHaveBeenCalledWith({
+      data: { filter: 'workflow_collaboration' },
+    })
+    expect(canvas.getByRole('group', { name: 'Notification list' })).toHaveFocus()
+    await waitFor(() =>
+      expect(canvas.queryByRole('button', { name: /mark all read/i })).toBeNull(),
+    )
+    await waitFor(() => expect(canvas.queryAllByText('Unread.')).toHaveLength(0))
   },
 }

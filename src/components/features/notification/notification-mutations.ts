@@ -26,8 +26,15 @@ import {
 } from '#/components/hooks/use-action-mutation'
 import { CATEGORY_COPY } from '#/components/features/settings/notifications-type-rows'
 import { notificationKeys } from '#/shared/queries/query-keys'
-import type { NotificationView } from '#/contexts/feed/application/public-api'
+import type {
+  NotificationListFilter,
+  NotificationView,
+} from '#/contexts/feed/application/public-api'
 import { patchNotificationFeedCache } from './notification-feed-cache'
+import {
+  matchesNotificationFilter,
+  notificationFilterScope,
+} from './notification-filters'
 import type { NotificationServerFns } from './types'
 
 const readNow = (row: NotificationView): NotificationView => ({
@@ -59,7 +66,8 @@ export type NotificationFeedMutations = Readonly<{
   onMarkUnread: (notificationId: string) => void
   onDismiss: (notificationId: string) => void
   onMuteCategory: (notification: NotificationView) => void
-  markAllRead: () => void
+  /** Marks read the unread rows `filter` holds: the tab the reader is on, not every tab. */
+  markAllRead: (filter: NotificationListFilter) => void
   dismissAll: () => void
   isMarkingAllRead: boolean
   isDismissingAll: boolean
@@ -102,11 +110,17 @@ export function useNotificationMutations(
   })
   const markAllRead = useActionMutation(fns.markAllRead, {
     invalidateKeys,
-    errorMessage: failed("Couldn't mark all notifications as read."),
-    optimistic: () =>
-      patchFeed((row) => (row.status === 'unread' ? readNow(row) : row), {
-        unreadCount: 0,
-      }),
+    errorMessage: failed("Couldn't mark those notifications as read."),
+    optimistic: (input) => {
+      const filter = input?.data?.filter ?? 'all'
+      return patchFeed(
+        (row) =>
+          row.status === 'unread' && matchesNotificationFilter(row, filter)
+            ? readNow(row)
+            : row,
+        { clearsUnreadOf: filter },
+      )
+    },
   })
   const dismissAll = useActionMutation(fns.dismissAll, {
     invalidateKeys,
@@ -114,7 +128,7 @@ export function useNotificationMutations(
     optimistic: () =>
       patchFeed(() => null, {
         clearContinuation: true,
-        unreadCount: 0,
+        clearsUnreadOf: 'all',
       }),
   })
   // The server hides every row of the muted category for that Property, read
@@ -175,9 +189,9 @@ export function useNotificationMutations(
         }),
       )
     },
-    markAllRead: () => {
-      void run(markAllRead({ data: undefined }), () =>
-        announce('All notifications marked as read.'),
+    markAllRead: (filter) => {
+      void run(markAllRead({ data: { filter } }), () =>
+        announce(`${notificationFilterScope(filter)} marked as read.`),
       )
     },
     dismissAll: () => {

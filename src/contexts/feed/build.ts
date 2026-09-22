@@ -98,6 +98,7 @@ import type { Result } from '#/shared/domain'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { PropertyAccessLookup } from '#/shared/domain/property-access'
 import { createNotificationFeedReads } from './application/notification-feed-reads'
+import type { NotificationListFilter } from './application/notification-list-filter'
 import { toNotificationView } from './application/notification-view'
 import type { OneClickUnsubscribeTarget } from './application/one-click-unsubscribe-token'
 import { assertBetaNotificationTriggerMatrix } from './application/beta-notification-trigger-matrix'
@@ -513,9 +514,9 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       const flipped = await notificationRepo.markUnread(id, userId, orgId, now)
       return flipped === null ? null : toNotificationView(flipped)
     },
-    markAllRead: (userId: string, orgId: string) => {
+    markAllRead: (userId: string, orgId: string, filter: NotificationListFilter) => {
       const now = input.clock()
-      return notificationRepo.markAllRead(userId, orgId, now)
+      return notificationRepo.markAllRead(userId, orgId, filter, now)
     },
     dismissAll: (userId: string, orgId: string) => {
       const now = input.clock()

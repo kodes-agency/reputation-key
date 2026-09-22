@@ -124,9 +124,12 @@ export function createLiveFeed(size: number) {
     },
     head: async () => {
       requests.push('head')
+      const unreadCount = rows.filter((current) => current.status === 'unread').length
+      // The All tab's head: its filter's share is every unread row.
       const answer = {
         page: pageOf(rows),
-        unreadCount: rows.filter((current) => current.status === 'unread').length,
+        unreadCount,
+        filterUnreadCount: unreadCount,
         watermark: 'live-feed',
       }
       const waiting = heldHeads

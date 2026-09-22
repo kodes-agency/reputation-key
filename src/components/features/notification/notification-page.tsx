@@ -63,7 +63,6 @@ export function NotificationPage({
     filter,
     true,
   )
-  const count = list.unreadCount
   const format = useNotificationFormat(notificationFns.getUserSettings, organizationId)
   const mutations = useNotificationMutations(notificationFns, organizationId, announce)
 
@@ -75,6 +74,15 @@ export function NotificationPage({
     () => groupByProperty(list.notifications, propertyNames),
     [list.notifications, propertyNames],
   )
+
+  // Offered while the active tab holds unread rows, and it marks only those:
+  // tidying Workflow must not clear urgent Action-needed or account notices.
+  // It goes once they are read, so focus moves to the list it changed.
+  const offersMarkAllRead = list.filterUnreadCount > 0 && !mutations.isMarkingAllRead
+  const markAllRead = () => {
+    mutations.markAllRead(filter)
+    listRef.current?.focus()
+  }
 
   // Following a row's CTA marks it read, exactly as it does in the popover —
   // there is just no surface to close here.
@@ -92,15 +100,12 @@ export function NotificationPage({
         description="Everything still addressed to you, newest first. Dismissed items and muted categories are not listed."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={mutations.markAllRead}
-              disabled={mutations.isMarkingAllRead || count === 0}
-            >
-              <CheckCheck aria-hidden="true" />
-              Mark all read
-            </Button>
+            {offersMarkAllRead && (
+              <Button variant="outline" size="sm" onClick={markAllRead}>
+                <CheckCheck aria-hidden="true" />
+                Mark all read
+              </Button>
+            )}
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button

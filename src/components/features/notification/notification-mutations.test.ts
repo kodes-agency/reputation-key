@@ -34,6 +34,7 @@ describe('notification optimistic cache updates', () => {
     client.setQueryData(headKey, {
       page: notificationPageFixture([target], true),
       unreadCount: 1,
+      filterUnreadCount: 1,
       watermark: 'snapshot-before',
     })
     client.setQueryData(listKey, {
@@ -81,6 +82,7 @@ describe('notification optimistic cache updates', () => {
       page: notificationPageFixture([cached], true),
       // The page is intentionally smaller than the exact count.
       unreadCount: 9,
+      filterUnreadCount: 9,
       watermark: 'snapshot-nine',
     }
     client.setQueryData(headKey, snapshot)
@@ -89,7 +91,7 @@ describe('notification optimistic cache updates', () => {
       client,
       'org-1',
       (row) => ({ ...row, status: 'read' as const, readAt: new Date(0) }),
-      { unreadCount: 0 },
+      { clearsUnreadOf: 'all' },
     )
 
     expect(client.getQueryData<{ unreadCount: number }>(headKey)?.unreadCount).toBe(0)
@@ -172,5 +174,74 @@ describe('notification optimistic cache updates', () => {
     // The unread count is the Organization's, so every head drops by one.
     expect(client.getQueryData<NotificationFeedHead>(bellHead)?.unreadCount).toBe(1)
     expect(client.getQueryData<NotificationFeedHead>(pageHead)?.unreadCount).toBe(1)
+  })
+
+  it("marks read only the acting tab's rows, and moves every count by that tab's exact share", () => {
+    const urgent = makeNotification({
+      id: '10000000-0000-4000-8000-000000000060',
+      type: 'inbox.escalated',
+      priority: 'urgent',
+    })
+    const workflow = makeNotification({
+      id: '10000000-0000-4000-8000-000000000061',
+      type: 'inbox_note.added',
+    })
+    const bellHead = notificationKeys.head('org-1', 20, 'all')
+    const pageHead = notificationKeys.head('org-1', 50, 'workflow_collaboration')
+    // Five unread in all; the Workflow tab holds two, only one of them loaded.
+    client.setQueryData(bellHead, {
+      ...notificationFeedHeadFixture([urgent, workflow], 5, true),
+      filterUnreadCount: 5,
+    })
+    client.setQueryData(pageHead, {
+      ...notificationFeedHeadFixture([workflow], 5, true),
+      filterUnreadCount: 2,
+    })
+
+    // "Mark all read" on the page's Workflow tab.
+    patchNotificationFeedCache(
+      client,
+      'org-1',
+      (row) =>
+        row.status === 'unread' && row.category === 'workflow_collaboration'
+          ? { ...row, status: 'read' as const, readAt: new Date(0) }
+          : row,
+      { clearsUnreadOf: 'workflow_collaboration' },
+    )
+
+    const bell = client.getQueryData<NotificationFeedHead>(bellHead)
+    const page = client.getQueryData<NotificationFeedHead>(pageHead)
+    expect(bell?.page.notifications.map((row) => row.status)).toEqual(['unread', 'read'])
+    expect([bell?.unreadCount, bell?.filterUnreadCount]).toEqual([3, 3])
+    expect([page?.unreadCount, page?.filterUnreadCount]).toEqual([3, 0])
+  })
+
+  it("moves another tab's share by the loaded rows a row action changes", () => {
+    const urgentWorkflow = makeNotification({
+      id: '10000000-0000-4000-8000-000000000070',
+      type: 'inbox_note.added',
+      priority: 'urgent',
+    })
+    const urgentHead = notificationKeys.head('org-1', 20, 'urgent')
+    const workflowHead = notificationKeys.head('org-1', 50, 'workflow_collaboration')
+    client.setQueryData(urgentHead, {
+      ...notificationFeedHeadFixture([urgentWorkflow], 4, true),
+      filterUnreadCount: 2,
+    })
+    client.setQueryData(workflowHead, {
+      ...notificationFeedHeadFixture([urgentWorkflow], 4, true),
+      filterUnreadCount: 3,
+    })
+
+    patchNotificationFeedCache(client, 'org-1', (row) =>
+      row.id === urgentWorkflow.id ? { ...row, status: 'read' as const } : row,
+    )
+
+    expect(client.getQueryData<NotificationFeedHead>(urgentHead)?.filterUnreadCount).toBe(
+      1,
+    )
+    expect(
+      client.getQueryData<NotificationFeedHead>(workflowHead)?.filterUnreadCount,
+    ).toBe(2)
   })
 })

@@ -31,6 +31,7 @@ export function buildFakeInsertNotificationDeps(): FakeInsertNotificationDeps {
       readFeedHead: vi.fn(async () => ({
         page: { notifications: [], hasMore: false, nextCursor: null },
         unreadCount: 0,
+        filterUnreadCount: 0,
         watermark: '2026-06-10T10:00:00.000Z',
       })),
       readFeedPage: vi.fn(async () => ({

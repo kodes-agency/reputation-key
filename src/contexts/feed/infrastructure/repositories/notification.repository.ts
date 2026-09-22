@@ -65,6 +65,17 @@ const withinVisibleProperties = (
   )
 }
 
+// What a feed filter adds to "the reader's notices": the unread status, the
+// urgent priority flag (any category), or one category. `all` adds nothing.
+// Shared by the feed read, its filter's unread count and the filter-scoped
+// "Mark all read", so the three can never disagree about a tab's rows.
+const feedFilterCondition = (filter: NotificationListFilter): SQL | undefined => {
+  if (filter === 'all') return undefined
+  if (filter === 'unread') return eq(notifications.status, 'unread')
+  if (filter === 'urgent') return eq(notifications.priority, 'urgent')
+  return eq(notifications.category, filter)
+}
+
 type NotificationFeedPageQuery = NotificationFeedQuery &
   Readonly<{
     /** Continue strictly after this position; null reads from the top. */
@@ -87,13 +98,9 @@ const selectFeedRows = (
     eq(notifications.organizationId, query.organizationId),
     notOptedOutInApp,
     withinVisibleProperties(query.visiblePropertyIds),
+    ne(notifications.status, 'dismissed'),
+    feedFilterCondition(query.filter),
   ]
-  conditions.push(ne(notifications.status, 'dismissed'))
-  if (query.filter === 'unread') conditions.push(eq(notifications.status, 'unread'))
-  else if (query.filter === 'urgent')
-    conditions.push(eq(notifications.priority, 'urgent'))
-  else if (query.filter !== 'all')
-    conditions.push(eq(notifications.category, query.filter))
   if (query.before) {
     conditions.push(
       sql`(${lastActivityAt}, ${notifications.id}) < (${query.before.at}::timestamptz, ${query.before.id}::uuid)`,
@@ -113,12 +120,20 @@ const selectFeedRows = (
     )
 }
 
+/**
+ * The reader's visible unread rows, and how many of them the head's filter
+ * holds (the rows that filter's "Mark all read" would change). One scan.
+ */
 const countVisibleUnread = async (
   db: Database,
   query: NotificationFeedQuery,
-): Promise<number> => {
+): Promise<Readonly<{ unreadCount: number; filterUnreadCount: number }>> => {
+  const inFilter = feedFilterCondition(query.filter) ?? sql`true`
   const rows = await db
-    .select({ count: sql<number>`count(*)::int` })
+    .select({
+      unreadCount: sql<number>`count(*)::int`,
+      filterUnreadCount: sql<number>`(count(*) FILTER (WHERE ${inFilter}))::int`,
+    })
     .from(notifications)
     .where(
       and(
@@ -130,7 +145,7 @@ const countVisibleUnread = async (
       ),
     )
 
-  return rows[0]!.count
+  return rows[0]!
 }
 
 export const createNotificationRepository = (db: Database) => ({
@@ -210,7 +225,14 @@ export const createNotificationRepository = (db: Database) => ({
       )
   },
 
-  markAllRead: async (userId: string, orgId: string, updatedAt: Date): Promise<void> => {
+  // "Mark all read" on the tab the reader is on: the unread rows its filter
+  // holds, not the Organization's every unread row.
+  markAllRead: async (
+    userId: string,
+    orgId: string,
+    filter: NotificationListFilter,
+    updatedAt: Date,
+  ): Promise<void> => {
     await db
       .update(notifications)
       .set({ status: 'read', readAt: updatedAt, updatedAt })
@@ -219,6 +241,7 @@ export const createNotificationRepository = (db: Database) => ({
           eq(notifications.userId, userId),
           eq(notifications.organizationId, orgId),
           eq(notifications.status, 'unread'),
+          feedFilterCondition(filter),
         ),
       )
   },
@@ -424,7 +447,7 @@ export const createNotificationRepository = (db: Database) => ({
         // the cast at this adapter boundary rather than weakening the port.
         const snapshot = tx as unknown as Database
         const rows = await selectFeedRows(snapshot, { ...query, before: null })
-        const unreadCount = await countVisibleUnread(snapshot, query)
+        const counts = await countVisibleUnread(snapshot, query)
         const watermarkResult = await snapshot.execute(
           sql<{ watermark: Date | string }>`SELECT transaction_timestamp() AS watermark`,
         )
@@ -444,7 +467,7 @@ export const createNotificationRepository = (db: Database) => ({
         }
         return {
           page: createNotificationPage(rows, query.limit),
-          unreadCount,
+          ...counts,
           watermark: watermark.toISOString(),
         }
       },

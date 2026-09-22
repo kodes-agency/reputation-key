@@ -30,13 +30,16 @@ export type NotificationFeedRow = Readonly<{
 /**
  * The only refreshable notification-feed authority.
  *
- * `page`, `unreadCount`, and `watermark` are read from one database snapshot.
+ * `page`, both counts, and `watermark` are read from one database snapshot.
  * The watermark is opaque to clients; it exists so observers and diagnostics
  * can prove that the badge and the visible head came from the same read.
  */
 export type NotificationFeedHead = Readonly<{
   page: NotificationPage
+  /** The reader's unread notifications, whatever the filter: the badge. */
   unreadCount: number
+  /** How many of those the head's filter holds: what its "Mark all read" would change. */
+  filterUnreadCount: number
   watermark: string
 }>
 

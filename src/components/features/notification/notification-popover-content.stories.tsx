@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { notificationFixtures } from './notification.stories.fixtures'
+import { makeNotification, notificationFixtures } from './notification.stories.fixtures'
 import { groupByReadState, matchesNotificationFilter } from './notification-filters'
 import { NotificationPopoverContent } from './notification-popover-content'
 import type { NotificationRowActions } from './types'
@@ -19,6 +19,7 @@ const actions: NotificationRowActions = {
 
 const noop = () => {}
 const onFilterChange = fn()
+const onMarkAllRead = fn()
 
 const meta: Meta<typeof NotificationPopoverContent> = {
   title: 'Notification/NotificationPopoverContent',
@@ -31,13 +32,13 @@ const meta: Meta<typeof NotificationPopoverContent> = {
     isLoadingMore: false,
     error: null,
     hasMore: false,
-    unreadCount: 3,
+    filterUnreadCount: 3,
     filter: 'all',
     onFilterChange,
     isMarkingAllRead: false,
     onRetry: noop,
     onLoadMore: noop,
-    onMarkAllRead: noop,
+    onMarkAllRead,
     actions,
   },
   decorators: [
@@ -122,7 +123,7 @@ export const ErrorState: Story = {
 }
 
 export const Empty: Story = {
-  args: { groups: [], unreadCount: 0 },
+  args: { groups: [], filterUnreadCount: 0 },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/nothing here right now/i)).toBeInTheDocument()
@@ -131,13 +132,51 @@ export const Empty: Story = {
   },
 }
 
-/** Mark-all-read holds its disabled pending state while the mutation is in flight. */
+/** Nothing is left to mark while the mutation is in flight, so the action is gone. */
 export const MarkingAllRead: Story = {
   args: { isMarkingAllRead: true },
   play: async ({ canvasElement }) => {
     expect(
-      within(canvasElement).getByRole('button', { name: /mark all read/i }),
-    ).toBeDisabled()
+      within(canvasElement).queryByRole('button', { name: /mark all read/i }),
+    ).toBeNull()
+  },
+}
+
+/**
+ * The tab lists rows, but none of them is unread: "Mark all read" would
+ * change nothing here, so it is not offered, whatever other tabs hold.
+ */
+export const NothingUnreadOnThisTab: Story = {
+  args: {
+    filter: 'workflow_collaboration',
+    filterUnreadCount: 0,
+    groups: groupByReadState([
+      makeNotification({
+        id: '10000000-0000-4000-8000-000000000080',
+        type: 'inbox_note.added',
+        status: 'read',
+      }),
+    ]),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getAllByRole('listitem')).toHaveLength(1)
+    expect(canvas.queryByRole('button', { name: /mark all read/i })).toBeNull()
+  },
+}
+
+/**
+ * "Mark all read" leaves once its rows are read, so it hands focus to the
+ * list it changed rather than to <body> outside the non-modal popover.
+ */
+export const MarkAllReadHandsFocusToTheList: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    onMarkAllRead.mockClear()
+    canvas.getByRole('button', { name: /mark all read/i }).focus()
+    await userEvent.keyboard('{Enter}')
+    expect(onMarkAllRead).toHaveBeenCalledTimes(1)
+    expect(canvas.getByRole('group', { name: 'Notification list' })).toHaveFocus()
   },
 }
 

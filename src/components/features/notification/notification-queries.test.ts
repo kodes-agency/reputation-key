@@ -22,8 +22,10 @@ import {
 } from '@tanstack/react-query'
 import { notificationKeys } from '#/shared/queries/query-keys'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import type { NotificationFeedHead } from '#/contexts/feed/application/public-api'
 import {
   makeNotification,
+  notificationFeedHeadFixture,
   notificationPageFixture,
 } from './notification.stories.fixtures'
 import {
@@ -128,6 +130,7 @@ describe('notification polling posture', () => {
     const fetchHead = vi.fn(async () => ({
       page: notificationPageFixture([row]),
       unreadCount: 7,
+      filterUnreadCount: 7,
       watermark: '2026-08-27T12:00:00.000Z',
     }))
     const observer = new QueryObserver(
@@ -146,6 +149,7 @@ describe('notification polling posture', () => {
     expect(observer.getCurrentResult().data).toEqual({
       page: notificationPageFixture([row]),
       unreadCount: 7,
+      filterUnreadCount: 7,
       watermark: '2026-08-27T12:00:00.000Z',
     })
     unsubscribe()
@@ -191,6 +195,47 @@ describe('notification polling posture', () => {
     await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL * 2)
 
     expect(fetchHead).toHaveBeenCalledTimes(3)
+    unsubscribe()
+  })
+
+  it("carries the badge count into another filter's first read, but nothing to mark", async () => {
+    const answers = new Map<string, PromiseWithResolvers<NotificationFeedHead>>()
+    const fetchHeadFor = (filter: string) => () => {
+      const answer = Promise.withResolvers<NotificationFeedHead>()
+      answers.set(filter, answer)
+      return answer.promise
+    }
+    const observer = new QueryObserver(
+      client,
+      notificationHeadQueryOptions(
+        notificationKeys.head('org-1', 20, 'all'),
+        fetchHeadFor('all'),
+        false,
+      ),
+    )
+    const unsubscribe = observer.subscribe(() => {})
+    await vi.advanceTimersByTimeAsync(0)
+    answers.get('all')?.resolve({
+      ...notificationFeedHeadFixture([], 5),
+      filterUnreadCount: 5,
+    })
+    await vi.advanceTimersByTimeAsync(0)
+
+    observer.setOptions(
+      notificationHeadQueryOptions(
+        notificationKeys.head('org-1', 20, 'urgent'),
+        fetchHeadFor('urgent'),
+        false,
+      ),
+    )
+    await vi.advanceTimersByTimeAsync(0)
+
+    // Urgent's share is unknown until its read answers: the tab must not offer
+    // "Mark all read" on the strength of All's.
+    const placeholder = observer.getCurrentResult()
+    expect(placeholder.isPlaceholderData).toBe(true)
+    expect(placeholder.data?.unreadCount).toBe(5)
+    expect(placeholder.data?.filterUnreadCount).toBe(0)
     unsubscribe()
   })
 })

@@ -28,6 +28,7 @@ function makeNotificationFns(count: number): NotificationServerFns {
     getFeedHead: inert<'getFeedHead'>({
       page: { notifications: [], hasMore: false, nextCursor: null },
       unreadCount: count,
+      filterUnreadCount: count,
       watermark: 'app-top-bar-story',
     }),
     getList: inert<'getList'>({ notifications: [], hasMore: false, nextCursor: null }),

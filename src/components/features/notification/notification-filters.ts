@@ -46,6 +46,16 @@ export function parseNotificationFilter(value: unknown): NotificationFilter {
     : 'all'
 }
 
+/**
+ * What a filter tab holds, as a sentence subject: "Mark all read" on that tab
+ * changes exactly these, and its announcement says which.
+ */
+export function notificationFilterScope(filter: NotificationFilter): string {
+  if (filter === 'all' || filter === 'unread') return 'All notifications'
+  if (filter === 'urgent') return 'Urgent notifications'
+  return `${CATEGORY_COPY[filter].label} notifications`
+}
+
 export function matchesNotificationFilter(
   notification: NotificationView,
   filter: NotificationFilter,

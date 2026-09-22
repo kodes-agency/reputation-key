@@ -25,7 +25,8 @@ type Props = Readonly<{
   error: Error | null
   loadMoreError?: Error | null
   hasMore: boolean
-  unreadCount: number
+  /** Unread rows the active filter holds: "Mark all read" changes exactly these. */
+  filterUnreadCount: number
   filter: NotificationFilter
   onFilterChange: (filter: NotificationFilter) => void
   isMarkingAllRead: boolean
@@ -47,21 +48,27 @@ function useFocusListOnLateArrival(list: RefObject<HTMLDivElement | null>) {
 }
 
 export function NotificationPopoverContent(props: Props) {
-  const hasAnything = props.groups.length > 0
   const listRef = useRef<HTMLDivElement>(null)
   useFocusListOnLateArrival(listRef)
+  // Offered only while the active tab holds unread rows, and gone once they
+  // are marked; focus then moves to the list it changed, not to <body>
+  // outside the non-modal popover.
+  const offersMarkAllRead = props.filterUnreadCount > 0 && !props.isMarkingAllRead
+  const markAllRead = () => {
+    props.onMarkAllRead()
+    listRef.current?.focus()
+  }
 
   return (
     <>
       <div className="flex shrink-0 items-center justify-between gap-2 px-4 py-3">
         <h2 className="text-sm font-semibold">Notifications</h2>
-        {hasAnything && (
+        {offersMarkAllRead && (
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="xs"
-              onClick={props.onMarkAllRead}
-              disabled={props.isMarkingAllRead || props.unreadCount === 0}
+              onClick={markAllRead}
               className="text-xs text-muted-foreground"
             >
               <CheckCheck aria-hidden="true" className="size-3" />

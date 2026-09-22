@@ -5,7 +5,6 @@ import {
   type QueryKey,
 } from '@tanstack/react-query'
 import type {
-  NotificationView,
   NotificationFeedHead,
   NotificationListFilter,
   NotificationPage,
@@ -13,12 +12,16 @@ import type {
 import { notificationKeys } from '#/shared/queries/query-keys'
 import { matchesNotificationFilter } from './notification-filters'
 import type { NotificationHistoryPages } from './notification-feed-pagination'
+import {
+  patchedCounts,
+  uniqueRows,
+  unreadDeltaWithin,
+  type ClearedUnread,
+  type RowPatch,
+} from './notification-feed-counts'
 
 type FeedPages = NotificationHistoryPages
 type CachedFeed = NotificationFeedHead | FeedPages
-
-/** `null` removes the row. Returning the row unchanged is a no-op. */
-type RowPatch = (row: NotificationView) => NotificationView | null
 
 function patchPage(page: NotificationPage, patch: RowPatch): NotificationPage {
   const notifications = page.notifications.flatMap((row) => {
@@ -36,35 +39,6 @@ function patchCachedPage(
 ): NotificationPage {
   const patched = patchPage(page, patch)
   return clearContinuation ? { ...patched, hasMore: false } : patched
-}
-
-/** How one row moves the unread tally: `-1` read/removed, `+1` unread, else `0`. */
-function rowUnreadDelta(row: NotificationView, patched: NotificationView | null): number {
-  const wasUnread = row.status === 'unread'
-  if (patched === null) return wasUnread ? -1 : 0
-  if (wasUnread === (patched.status === 'unread')) return 0
-  return wasUnread ? -1 : 1
-}
-
-/**
- * Sum the unread movement across the de-duplicated union of the supplied pages,
- * so a row held by several caches (a head/history boundary, or the bell and
- * the page) is counted exactly once.
- */
-function unreadDeltaAcross(
-  pages: ReadonlyArray<NotificationPage>,
-  patch: RowPatch,
-): number {
-  const seen = new Set<string>()
-  let delta = 0
-  for (const page of pages) {
-    for (const row of page.notifications) {
-      if (seen.has(row.id)) continue
-      seen.add(row.id)
-      delta += rowUnreadDelta(row, patch(row))
-    }
-  }
-  return delta
 }
 
 const isHistory = (data: CachedFeed): data is FeedPages => 'pages' in data
@@ -104,14 +78,35 @@ function resumeLoadMore(query: Query): void {
   void list?.fetchNextPage()
 }
 
+type CachedEntry = Readonly<{ key: QueryKey; data: CachedFeed }>
+
+/**
+ * What a filter-wide write cleared: the unread rows its filter held, read from
+ * that filter's own cached head, else from the loaded rows alone.
+ */
+function clearedUnreadOf(
+  filter: NotificationListFilter,
+  heads: ReadonlyArray<CachedEntry>,
+  delta: (filter: NotificationListFilter) => number,
+): ClearedUnread {
+  const held = heads.flatMap(({ key, data }) =>
+    !isHistory(data) && filterOf(key) === filter ? [data.filterUnreadCount] : [],
+  )
+  return { filter, held: held.length > 0 ? Math.max(...held) : -delta(filter) }
+}
+
 /**
  * Optimistically patch every cached feed of the Organization: the bell's and
  * the page's heads and loaded history pages, for every filter. Patching only
  * the surface that acted left the other one's history (disabled, so never
- * refetched) showing rows the server had already changed. The unread count is
- * the Organization's, not the filter's, so one delta, taken over the
- * de-duplicated union of every cached row, moves every head. The returned
- * thunk restores every touched cache on failure.
+ * refetched) showing rows the server had already changed. The counts move by
+ * the de-duplicated union of every cached row, so a row held by several
+ * caches (a head/history boundary, or the bell and the page) counts once. The
+ * returned thunk restores every touched cache on failure.
+ *
+ * `clearsUnreadOf` names the filter whose every unread row the write clears
+ * ("Mark all read" on that tab; `all` for "Dismiss all"): rows no one loaded
+ * change too, so the counts move by that filter's own count instead.
  */
 export function patchNotificationFeedCache(
   qc: QueryClient,
@@ -119,7 +114,7 @@ export function patchNotificationFeedCache(
   patch: RowPatch,
   options: Readonly<{
     clearContinuation?: boolean
-    unreadCount?: number
+    clearsUnreadOf?: NotificationListFilter
   }> = {},
 ): (() => void) | undefined {
   // A read already in flight (opening the bell starts one, and so does every
@@ -132,12 +127,10 @@ export function patchNotificationFeedCache(
   // History is disabled, so the invalidation never reads it again: a "Load
   // more" cancelled here would be silently dropped. It is asked for again once
   // the patch is in, and continues from the patched pages.
-  const loadingMore = qc
-    .getQueryCache()
-    .findAll({
-      queryKey: notificationKeys.lists(organizationId),
-      predicate: isLoadingMore,
-    })
+  const loadingMore = qc.getQueryCache().findAll({
+    queryKey: notificationKeys.lists(organizationId),
+    predicate: isLoadingMore,
+  })
   void qc.cancelQueries({
     queryKey: notificationKeys.feed(organizationId),
     predicate: (query) => query.state.data !== undefined,
@@ -150,10 +143,15 @@ export function patchNotificationFeedCache(
   // Heads first: the freshest copy of a row decides its delta.
   const heads = previous.filter((entry) => !isHistory(entry.data))
   const histories = previous.filter((entry) => isHistory(entry.data))
-  const unreadDelta = unreadDeltaAcross(
-    [...heads, ...histories].flatMap((entry) => pagesOf(entry.data)),
-    patch,
+  const loaded = uniqueRows(
+    [...heads, ...histories].flatMap((entry) =>
+      pagesOf(entry.data).flatMap((page) => page.notifications),
+    ),
   )
+  const delta = (filter: NotificationListFilter) =>
+    unreadDeltaWithin(loaded, patch, filter)
+  const cleared =
+    options.clearsUnreadOf && clearedUnreadOf(options.clearsUnreadOf, heads, delta)
 
   for (const { key, data } of previous) {
     const within = patchWithin(filterOf(key), patch)
@@ -166,7 +164,7 @@ export function patchNotificationFeedCache(
     qc.setQueryData<NotificationFeedHead>(key, {
       ...data,
       page: patchOne(data.page),
-      unreadCount: options.unreadCount ?? Math.max(0, data.unreadCount + unreadDelta),
+      ...patchedCounts(data, filterOf(key), delta, cleared),
     })
   }
   for (const query of loadingMore) resumeLoadMore(query)

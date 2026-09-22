@@ -37,15 +37,16 @@ const NO_ROWS_YET: NotificationPage = {
 
 /**
  * While another filter's head is read for the first time, carry the previous
- * head's unread count, but none of its rows. The count is the Organization's
- * whatever the filter, so a new query key must not blank the badge or make
- * the live region say there is nothing unread; the rows belong to the old
- * filter and would be listed under the wrong tab.
+ * head's unread count, but none of its rows and none of its filter's share.
+ * The count is the Organization's whatever the filter, so a new query key
+ * must not blank the badge or make the live region say there is nothing
+ * unread; the rows and the share belong to the old filter, and would list
+ * under the wrong tab and offer "Mark all read" for rows it has not read.
  */
 function carryUnreadCount(
   previous: NotificationFeedHead | undefined,
 ): NotificationFeedHead | undefined {
-  return previous && { ...previous, page: NO_ROWS_YET }
+  return previous && { ...previous, page: NO_ROWS_YET, filterUnreadCount: 0 }
 }
 
 /**

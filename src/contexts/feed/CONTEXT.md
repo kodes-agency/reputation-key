@@ -109,6 +109,12 @@ unread count. An optimistic write patches every cached feed of the
 Organization (the bell's and the page's, every filter), not only the surface
 that acted, and a "Load more" it interrupts is asked for again.
 
+"Mark all read" marks the unread rows of the filter tab the reader is on, not
+every unread row: tidying Workflow leaves urgent Action-needed and account
+notices unread. The feed head therefore carries, from the same snapshot as the
+unread count, the filter's share of it (`filterUnreadCount`); a tab offers the
+action exactly while that share is above zero.
+
 ## Runtime
 
 Durable outbox consumers project activity and enqueue deterministic notification

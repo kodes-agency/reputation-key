@@ -22,6 +22,7 @@ import {
   notificationPreferenceCategory,
   updateNotificationPreferenceDto,
 } from '../application/dto/notification-preference.dto'
+import { markAllNotificationsReadDto } from '../application/dto/notification-mark-all-read.dto'
 import { requiredCapabilityForPreferenceChannel } from '../domain/notification-delivery-policy'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -86,6 +87,7 @@ export const getNotificationFeedHeadFn = createServerFn({ method: 'GET' })
           return {
             page: createNotificationPage([], data.limit),
             unreadCount: 0,
+            filterUnreadCount: 0,
             watermark: 'no-active-organization',
           }
         }
@@ -208,16 +210,22 @@ export const markNotificationUnreadFn = createServerFn({ method: 'POST' })
 
 // ── markAllNotificationsReadFn ────────────────────────────────────
 
-export const markAllNotificationsReadFn = createServerFn({ method: 'POST' }).handler(
-  tracedHandler(
-    async () =>
-      runBulkNotificationMutation((feedPublicApi, ctx) =>
-        feedPublicApi.markAllRead(ctx.userId, ctx.organizationId),
-      ),
-    'POST',
-    'notification.markAllRead',
-  ),
-)
+export const markAllNotificationsReadFn = createServerFn({ method: 'POST' })
+  .validator(markAllNotificationsReadDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        runBulkNotificationMutation((feedPublicApi, ctx) =>
+          feedPublicApi.markAllRead(
+            ctx.userId,
+            ctx.organizationId,
+            data?.filter ?? 'all',
+          ),
+        ),
+      'POST',
+      'notification.markAllRead',
+    ),
+  )
 
 // ── dismissAllNotificationsFn ─────────────────────────────────────
 

@@ -62,10 +62,10 @@ export type NotificationRepositoryPort = Readonly<{
   ): Promise<Map<string, Notification>>
 
   /**
-   * Read the first page and exact unread count from one repeatable-read
-   * PostgreSQL snapshot. The returned watermark identifies that shared read.
-   * Both honour `visiblePropertyIds`, so the badge never counts a row the
-   * reader cannot see.
+   * Read the first page, the exact unread count and the filter's share of it
+   * from one repeatable-read PostgreSQL snapshot. The returned watermark
+   * identifies that shared read. All honour `visiblePropertyIds`, so the badge
+   * never counts a row the reader cannot see.
    */
   readFeedHead(query: NotificationFeedQuery): Promise<NotificationFeedHead>
 
@@ -85,7 +85,13 @@ export type NotificationRepositoryPort = Readonly<{
     updatedAt: Date,
   ): Promise<void>
 
-  markAllRead(userId: UserId, orgId: OrganizationId, updatedAt: Date): Promise<void>
+  /** Mark read every unread row the filter holds (the reader's tab), no more. */
+  markAllRead(
+    userId: UserId,
+    orgId: OrganizationId,
+    filter: NotificationListFilter,
+    updatedAt: Date,
+  ): Promise<void>
 
   /** Find a user's existing unread notification for a type+resource (dedup). */
   findUnreadByUserTypeResource(

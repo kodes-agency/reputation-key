@@ -36,6 +36,7 @@ const loadedFns = makeNotificationFns({
   getFeedHead: (async () => ({
     page: notificationPageFixture(notificationFixtures),
     unreadCount,
+    filterUnreadCount: unreadCount,
     watermark: 'story-loaded',
   })) as unknown as NotificationServerFns['getFeedHead'],
 })
@@ -76,6 +77,7 @@ export const AtomicFeedHeadAuthority: Story = {
       const getFeedHead = fn(async () => ({
         page: notificationPageFixture(notificationFixtures),
         unreadCount,
+        filterUnreadCount: unreadCount,
         watermark: 'story-atomic-head',
       }))
       const getList = fn(async () => notificationPageFixture())
@@ -257,6 +259,65 @@ export const OpeningTheBellArmsNothing: Story = {
     expect(
       canvas.getByRole('button', { name: `Notifications, ${unreadCount} unread` }),
     ).toBeInTheDocument()
+  },
+}
+
+/** Rows of two categories: tidying Workflow must leave the urgent alert unread. */
+const tabbedFeed = [
+  makeNotification({
+    id: '60000000-0000-4000-8000-000000000001',
+    type: 'inbox.escalated',
+    priority: 'urgent',
+    payload: { propertyName: 'Riverside Hotel' },
+    createdAt: new Date(Date.now() - 2 * 60_000),
+  }),
+  makeNotification({
+    id: '60000000-0000-4000-8000-000000000002',
+    type: 'inbox_note.added',
+    payload: { propertyName: 'Riverside Hotel' },
+    createdAt: new Date(Date.now() - 3 * 60_000),
+  }),
+  makeNotification({
+    id: '60000000-0000-4000-8000-000000000003',
+    type: 'inbox_note.added',
+    payload: { propertyName: 'Harbour View Suites' },
+    createdAt: new Date(Date.now() - 4 * 60_000),
+  }),
+]
+const tabbedServer = makeStatefulNotificationFns(tabbedFeed)
+const markTabRead = fn(tabbedServer.markAllRead)
+
+/**
+ * "Mark all read" marks what the tab shows. On Workflow it used to clear the
+ * urgent escalation and account notices too; now it sends the tab, and the
+ * badge keeps counting what is still unread elsewhere.
+ */
+export const MarkAllReadFollowsTheTab: Story = {
+  args: {
+    notificationFns: {
+      ...tabbedServer,
+      markAllRead: markTabRead as unknown as NotificationServerFns['markAllRead'],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const popover = await openBell(canvasElement)
+    await userEvent.click(await popover.findByRole('tab', { name: 'Workflow' }))
+    await waitFor(() => expect(popover.getAllByRole('listitem')).toHaveLength(2))
+    await userEvent.click(popover.getByRole('button', { name: /mark all read/i }))
+
+    expect(markTabRead).toHaveBeenCalledWith({
+      data: { filter: 'workflow_collaboration' },
+    })
+    await canvas.findByRole('button', { name: 'Notifications, 1 unread' })
+    expect(popover.queryByRole('button', { name: /mark all read/i })).toBeNull()
+
+    await userEvent.click(popover.getByRole('tab', { name: 'All' }))
+    const unread = await popover.findByRole('region', { name: 'New' })
+    const stillUnread = within(unread).getAllByRole('listitem')
+    expect(stillUnread.map((row) => row.dataset.notificationId)).toEqual([
+      tabbedFeed[0]!.id,
+    ])
   },
 }
 

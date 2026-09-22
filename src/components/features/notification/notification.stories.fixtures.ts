@@ -14,6 +14,8 @@
 import {
   classifyNotification,
   type NotificationFeedCursor,
+  type NotificationFeedHead,
+  type NotificationListFilter,
   type NotificationPage,
   type NotificationPayload,
   type NotificationPriority,
@@ -25,6 +27,7 @@ import {
 import { notificationId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { NotificationUserSettings } from '#/contexts/feed/application/public-api'
 import type { NotificationServerFns } from './types'
+import { matchesNotificationFilter } from './notification-filters'
 
 export type NotificationFixtureOverrides = Readonly<{
   id: string
@@ -180,15 +183,20 @@ export function notificationPageFixture(
   }
 }
 
+/**
+ * A head as the server answers it. The fixture is the All tab's, so its
+ * filter's share of the unread count is the whole count.
+ */
 export function notificationFeedHeadFixture(
   notifications: ReadonlyArray<NotificationView> = [],
   unreadCount = notifications.filter((notification) => notification.status === 'unread')
     .length,
   hasMore = false,
-) {
+): NotificationFeedHead {
   return {
     page: notificationPageFixture(notifications, hasMore),
     unreadCount,
+    filterUnreadCount: unreadCount,
     watermark: 'fixture-feed-head',
   }
 }
@@ -230,8 +238,13 @@ export function makeNotificationFns(
 }
 
 type FeedRead = Readonly<{
-  data: Readonly<{ limit: number; before?: NotificationFeedCursor }>
+  data: Readonly<{
+    limit: number
+    filter?: NotificationListFilter
+    before?: NotificationFeedCursor
+  }>
 }>
+type BulkRead = Readonly<{ data?: Readonly<{ filter?: NotificationListFilter }> }>
 type RowCommand = Readonly<{ data: Readonly<{ notificationId: string }> }>
 type MuteCommand = Readonly<{ data: Readonly<{ propertyId: string; category: string }> }>
 
@@ -249,9 +262,10 @@ function rowsAfter(
 
 /**
  * A `NotificationServerFns` bundle over rows the commands really change: the
- * head and "Load more" page the CURRENT rows by limit and cursor, and mark
- * read, dismiss, mute and the bulk commands rewrite them. A story can act on one
- * surface and watch another read the result. Filters are not applied.
+ * head and "Load more" page the CURRENT rows by filter, limit and cursor, and
+ * mark read, dismiss, mute and the bulk commands rewrite them ("Mark all
+ * read" only the filter's rows). A story can act on one surface and watch
+ * another read the result.
  */
 export function makeStatefulNotificationFns(
   initial: ReadonlyArray<NotificationView>,
@@ -263,22 +277,34 @@ export function makeStatefulNotificationFns(
   const pageOf = (candidates: ReadonlyArray<NotificationView>, limit: number) =>
     notificationPageFixture(candidates.slice(0, limit), candidates.length > limit)
 
+  const inFilter = (filter: NotificationListFilter = 'all') =>
+    rows.filter((row) => matchesNotificationFilter(row, filter))
+  const unread = (candidates: ReadonlyArray<NotificationView>) =>
+    candidates.filter((row) => row.status === 'unread').length
+
   const server = {
-    getFeedHead: async ({ data }: FeedRead) => ({
-      page: pageOf(rows, data.limit),
-      unreadCount: rows.filter((row) => row.status === 'unread').length,
+    getFeedHead: async ({ data }: FeedRead): Promise<NotificationFeedHead> => ({
+      page: pageOf(inFilter(data.filter), data.limit),
+      unreadCount: unread(rows),
+      filterUnreadCount: unread(inFilter(data.filter)),
       watermark: 'stateful-feed-head',
     }),
-    getList: async ({ data }: FeedRead) =>
-      pageOf(data.before ? rowsAfter(rows, data.before) : rows, data.limit),
+    getList: async ({ data }: FeedRead) => {
+      const candidates = inFilter(data.filter)
+      return pageOf(
+        data.before ? rowsAfter(candidates, data.before) : candidates,
+        data.limit,
+      )
+    },
     markRead: async ({ data }: RowCommand) => {
       rows = rows.map((row) => (row.id === data.notificationId ? read(row) : row))
     },
     dismiss: async ({ data }: RowCommand) => {
       rows = rows.filter((row) => row.id !== data.notificationId)
     },
-    markAllRead: async () => {
-      rows = rows.map(read)
+    markAllRead: async ({ data }: BulkRead) => {
+      const filter = data?.filter ?? 'all'
+      rows = rows.map((row) => (matchesNotificationFilter(row, filter) ? read(row) : row))
     },
     dismissAll: async () => {
       rows = []

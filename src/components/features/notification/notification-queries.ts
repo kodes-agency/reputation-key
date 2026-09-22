@@ -90,6 +90,8 @@ export function useNotifications(
   return {
     notifications: mergeNotificationHeadWithHistory(head.data?.page, historyPages),
     unreadCount: head.data?.unreadCount ?? 0,
+    /** The unread rows this filter holds: what its "Mark all read" would change. */
+    filterUnreadCount: head.data?.filterUnreadCount ?? 0,
     watermark: head.data?.watermark ?? null,
     // Placeholder data carries only the count; the rows are still loading.
     isLoading: head.isPending || head.isPlaceholderData,

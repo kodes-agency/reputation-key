@@ -22,6 +22,7 @@ function readsFor(accessible: ReadonlyArray<PropertyId> | null) {
         return {
           page: { notifications: [], hasMore: false, nextCursor: null },
           unreadCount: 0,
+          filterUnreadCount: 0,
           watermark: '2026-09-22T09:00:00.000Z',
         }
       },

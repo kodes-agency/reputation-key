@@ -163,13 +163,13 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
             error={list.error}
             loadMoreError={list.loadMoreError}
             hasMore={list.hasMore}
-            unreadCount={count}
+            filterUnreadCount={list.filterUnreadCount}
             filter={filter}
             onFilterChange={setFilter}
             isMarkingAllRead={mutations.isMarkingAllRead}
             onRetry={list.refetch}
             onLoadMore={list.loadMore}
-            onMarkAllRead={mutations.markAllRead}
+            onMarkAllRead={() => mutations.markAllRead(filter)}
             actions={actions}
             format={format}
             onViewAll={() => setOpen(false)}
