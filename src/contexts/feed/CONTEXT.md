@@ -57,6 +57,10 @@ save writes only what the user changed; because the column cannot hold "follow
 the Organization", a first save that changes only the language stores the zone
 delivery was already using.
 
+Quiet hours that start and end at the same time are refused on save. Rows
+stored that way earlier read back as no quiet hours, which is how delivery has
+always treated them, so they never block a later save of their row.
+
 ## Runtime
 
 Durable outbox consumers project activity and enqueue deterministic notification
