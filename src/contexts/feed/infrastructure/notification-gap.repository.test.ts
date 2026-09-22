@@ -62,6 +62,9 @@ describe('notification gap repository — gauge count', () => {
     expect(sql).toContain("source.event_type = 'inbox.inbox_item.created'")
     expect(sql).toContain('source.source_aggregate_id = "inbox_items"."id"::text')
     expect(sql).toContain('materialized.consumer_name = replace(')
+    // Only the consumer writes 'applied'; the dispatcher's terminal gate
+    // denial writes 'obsolete' under the same name without running it.
+    expect(sql).toContain("base.status = 'applied'")
   })
 
   it('bounds the scan on both edges of the window', async () => {

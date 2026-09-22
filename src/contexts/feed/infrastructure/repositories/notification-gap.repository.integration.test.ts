@@ -6,7 +6,9 @@
 // missing-notification alert would page after every import. And an item whose
 // delivery settled without a notification — every recipient muted it, or no
 // longer qualified — is not a gap either; were it one, the alert would page
-// for a correct outcome and stay firing for a day.
+// for a correct outcome and stay firing for a day. But an item whose arrival
+// fact the dispatcher's gate refused is still a gap: the consumer never ran,
+// and this gauge is the only signal that a route stopped announcing.
 //
 // The gap read deliberately spans every tenant, so the fixtures live in a
 // created_at window no other suite writes into.
@@ -188,12 +190,14 @@ async function seedImportedAndLiveItems(): Promise<void> {
 
 const ARRIVAL_CONSUMER = 'notification.on-inbox-item-created'
 
-type Delivery = 'consumer_pending' | 'unsettled' | 'applied' | 'obsolete'
+type Delivery = 'consumer_pending' | 'gate_denied' | 'unsettled' | 'applied' | 'obsolete'
 
 /**
  * Inbox's arrival fact for an item and the receipts its Feed delivery left:
- * none yet, a delivery Redis accepted that never settled, or one that settled
- * applied or obsolete without writing a notification.
+ * none yet, the dispatcher's terminal gate denial (an obsolete receipt under
+ * the consumer's name, written without running it), a delivery Redis accepted
+ * that never settled, or one that settled applied or obsolete without writing
+ * a notification.
  */
 async function seedArrivalDelivery(item: string, delivery: Delivery): Promise<void> {
   const pool = getPool()
@@ -206,6 +210,14 @@ async function seedArrivalDelivery(item: string, delivery: Delivery): Promise<vo
     [event, ORG, PROPERTY, item, WINDOW.createdAtOrAfter],
   )
   if (delivery === 'consumer_pending') return
+  if (delivery === 'gate_denied') {
+    await pool.query(
+      `INSERT INTO event_consumer_receipts (event_id, consumer_name, status)
+       VALUES ($1, $2, 'obsolete')`,
+      [event, ARRIVAL_CONSUMER],
+    )
+    return
+  }
   await pool.query(
     `INSERT INTO event_consumer_receipts (event_id, consumer_name, status)
      VALUES ($1, $2, 'applied'), ($1, $3, 'applied')`,
@@ -235,6 +247,15 @@ describe('notification gap repository against PostgreSQL', () => {
     await seedImportedAndLiveItems()
     await seedArrivalDelivery(LIVE_ITEM, 'consumer_pending')
     await seedArrivalDelivery(LEGACY_ITEM, 'unsettled')
+
+    await expect(
+      gapRepository().countItemsMissingNotifications({ ...WINDOW, scanLimit: 1000 }),
+    ).resolves.toBe(3)
+  })
+
+  it('keeps counting an item whose arrival fact the dispatcher gate refused', async () => {
+    await seedImportedAndLiveItems()
+    await seedArrivalDelivery(LIVE_ITEM, 'gate_denied')
 
     await expect(
       gapRepository().countItemsMissingNotifications({ ...WINDOW, scanLimit: 1000 }),

@@ -39,6 +39,12 @@ const noNotificationExists = sql`NOT EXISTS (
  * The Feed consumer took the item's arrival fact, and every delivery it made
  * has settled — a row, preferences that asked for none, or a recipient who no
  * longer qualifies. Nobody is still owed an announcement.
+ *
+ * Only an `applied` receipt proves the consumer ran: the dispatcher records a
+ * terminal gate denial as `obsolete` under the consumer's own name without
+ * running it, and an item whose route the gate refuses must keep paging. The
+ * consumer's own `obsolete` outcomes never reach this read — a vanished item
+ * has no row here, and an unknown source is never a review or feedback.
  */
 const deliveryDecided = sql`EXISTS (
   SELECT 1
@@ -46,6 +52,7 @@ const deliveryDecided = sql`EXISTS (
   JOIN ${eventConsumerReceipts} AS base
     ON base.event_id = source.id
    AND base.consumer_name = ${ON_INBOX_ITEM_CREATED_CONSUMER}
+   AND base.status = 'applied'
   WHERE source.event_type = 'inbox.inbox_item.created'
     AND source.source_aggregate_id = ${inboxItems.id}::text
     AND NOT EXISTS (
