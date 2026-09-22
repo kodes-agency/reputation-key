@@ -4,6 +4,7 @@
 
 import { and, asc, eq, inArray, max, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { Tx } from '#/shared/outbox/commit'
 import {
   notificationDigestBatchMembers,
   notificationDigestBatches,
@@ -65,6 +66,223 @@ const digestBatchFromRow = (row: DigestBatchRow): NotificationDigestBatch => ({
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 })
+
+type SettleDigestBatchInput = Readonly<{
+  batchId: string
+  organizationId: string
+  userId: string
+  expectedContentDigest: string
+  settlement: DigestBatchSettlement
+}>
+
+type BatchScope = Readonly<{ batchId: string; organizationId: string; userId: string }>
+
+/** A batch's frozen members, as a settlement moves them. */
+type FrozenMembers = BatchScope & Readonly<{ memberIds: string[] }>
+
+type Settling<K extends DigestBatchSettlement['kind']> = Extract<
+  DigestBatchSettlement,
+  Readonly<{ kind: K }>
+>
+
+/** Serializes every change to one recipient's digest batches. */
+const digestLock = (organizationId: string, userId: string) =>
+  sql`SELECT pg_advisory_xact_lock(hashtextextended(${`notification-digest:${organizationId}:${userId}`}, 0))`
+
+/** The batch's frozen member rows. */
+const batchMembersWhere = (scope: BatchScope) =>
+  and(
+    eq(notificationDigestBatchMembers.batchId, scope.batchId),
+    eq(notificationDigestBatchMembers.organizationId, scope.organizationId),
+    eq(notificationDigestBatchMembers.userId, scope.userId),
+  )
+
+/** The frozen members a settlement still moves: those not settled elsewhere. */
+const sendableMembersWhere = (frozen: FrozenMembers) =>
+  and(
+    eq(notificationEmailQueue.organizationId, frozen.organizationId),
+    eq(notificationEmailQueue.userId, frozen.userId),
+    inArray(notificationEmailQueue.id, frozen.memberIds),
+    inArray(notificationEmailQueue.status, [...SENDABLE]),
+  )
+
+/** Whether this settlement may close this batch at all. */
+function settlementFitsBatch(
+  batch: DigestBatchRow,
+  input: SettleDigestBatchInput,
+): boolean {
+  const mismatch = batch.contentDigest !== input.expectedContentDigest
+  const { kind } = input.settlement
+  // A provider outcome belongs to the exact content that was frozen; a
+  // content mismatch must really be one.
+  if ((kind === 'accepted' || kind === 'rejected') && mismatch) return false
+  if (kind === 'content_mismatch' && !mismatch) return false
+  // Re-keying a batch the provider may have accepted could mail it twice.
+  // A refused batch may be retired whatever changed: its content, or the
+  // members that are still deliverable.
+  return kind !== 'superseded' || digestBatchFromRow(batch).everyAttemptRefused
+}
+
+async function settleAccepted(
+  tx: Tx,
+  frozen: FrozenMembers,
+  settlement: Settling<'accepted'>,
+): Promise<void> {
+  await tx
+    .update(notificationEmailQueue)
+    .set({
+      status: 'accepted',
+      providerMessageId: settlement.providerMessageId,
+      providerState: 'accepted',
+      acceptedAt: settlement.acceptedAt,
+      sentAt: settlement.acceptedAt,
+      attemptedAt: firstAttemptAt(settlement.acceptedAt),
+      lastErrorClass: null,
+      nextAttemptAt: null,
+      updatedAt: settlement.acceptedAt,
+    })
+    .where(sendableMembersWhere(frozen))
+  await tx
+    .update(notificationDigestBatches)
+    .set({
+      state: 'accepted',
+      providerMessageId: settlement.providerMessageId,
+      outcomeClass: null,
+      terminalReason: null,
+      attemptedAt: settlement.acceptedAt,
+      acceptedAt: settlement.acceptedAt,
+      updatedAt: settlement.acceptedAt,
+    })
+    .where(eq(notificationDigestBatches.id, frozen.batchId))
+}
+
+async function settleSuperseded(
+  tx: Tx,
+  frozen: FrozenMembers,
+  settlement: Settling<'superseded'>,
+): Promise<void> {
+  // The members stay sendable and leave the frozen set, so a fresh
+  // batch can take them; a queue row belongs to one batch at a time.
+  await tx.delete(notificationDigestBatchMembers).where(batchMembersWhere(frozen))
+  await tx
+    .update(notificationDigestBatches)
+    .set({
+      state: 'terminal',
+      outcomeClass: 'superseded',
+      terminalReason: 'provider_request_changed',
+      updatedAt: settlement.detectedAt,
+    })
+    .where(eq(notificationDigestBatches.id, frozen.batchId))
+}
+
+/**
+ * Suppress the members still sendable and close the batch for good. An
+ * invalidated batch may have lost its membership: then nothing is suppressed.
+ */
+async function suppressAndClose(
+  tx: Tx,
+  frozen: FrozenMembers,
+  closure: Readonly<{
+    outcomeClass: 'content_mismatch' | 'invalidated'
+    suppressionReason: string
+    terminalReason: string
+    at: Date
+  }>,
+): Promise<void> {
+  if (frozen.memberIds.length > 0) {
+    await tx
+      .update(notificationEmailQueue)
+      .set({
+        status: 'suppressed',
+        providerState: 'suppressed',
+        suppressionReason: closure.suppressionReason,
+        nextAttemptAt: null,
+        updatedAt: closure.at,
+      })
+      .where(sendableMembersWhere(frozen))
+  }
+  await tx
+    .update(notificationDigestBatches)
+    .set({
+      state: 'terminal',
+      outcomeClass: closure.outcomeClass,
+      terminalReason: closure.terminalReason,
+      failedAt: closure.at,
+      updatedAt: closure.at,
+    })
+    .where(eq(notificationDigestBatches.id, frozen.batchId))
+}
+
+async function settleRejected(
+  tx: Tx,
+  frozen: FrozenMembers,
+  settlement: Settling<'rejected'>,
+  previousOutcomeClass: string | null,
+): Promise<void> {
+  const retryable = settlement.classification === 'transient'
+  await tx
+    .update(notificationEmailQueue)
+    .set({
+      status: settlement.classification === 'suppressed' ? 'suppressed' : 'failed',
+      lastErrorClass: settlement.classification,
+      failedAt: settlement.failedAt,
+      attemptedAt: firstAttemptAt(settlement.failedAt),
+      nextAttemptAt: settlement.nextAttemptAt,
+      retryCount: sql`${notificationEmailQueue.retryCount} + 1`,
+      updatedAt: settlement.failedAt,
+    })
+    .where(sendableMembersWhere(frozen))
+  await tx
+    .update(notificationDigestBatches)
+    .set({
+      state: retryable ? 'retryable' : 'terminal',
+      // Refused only when this attempt was refused AND every earlier
+      // one was: the start of this attempt left `in_flight` only then.
+      outcomeClass:
+        retryable &&
+        settlement.refusedBeforeAcceptance &&
+        previousOutcomeClass === IN_FLIGHT_OUTCOME_CLASS
+          ? REFUSED_OUTCOME_CLASS
+          : settlement.classification,
+      terminalReason: retryable ? null : 'provider_rejected',
+      retryCount: sql`${notificationDigestBatches.retryCount} + 1`,
+      attemptedAt: settlement.failedAt,
+      failedAt: settlement.failedAt,
+      updatedAt: settlement.failedAt,
+    })
+    .where(eq(notificationDigestBatches.id, frozen.batchId))
+}
+
+/** Write a settlement the batch and its membership were checked against. */
+function applySettlement(
+  tx: Tx,
+  frozen: FrozenMembers & Readonly<{ settlement: DigestBatchSettlement }>,
+  batch: DigestBatchRow,
+): Promise<void> {
+  const { settlement } = frozen
+  switch (settlement.kind) {
+    case 'accepted':
+      return settleAccepted(tx, frozen, settlement)
+    case 'superseded':
+      return settleSuperseded(tx, frozen, settlement)
+    case 'content_mismatch':
+      return suppressAndClose(tx, frozen, {
+        outcomeClass: 'content_mismatch',
+        suppressionReason: 'digest_content_changed',
+        terminalReason: 'provider_request_changed',
+        at: settlement.detectedAt,
+      })
+    case 'invalidated':
+      return suppressAndClose(tx, frozen, {
+        outcomeClass: 'invalidated',
+        suppressionReason: settlement.reason,
+        terminalReason: settlement.reason,
+        at: settlement.invalidatedAt,
+      })
+    case 'rejected':
+      return settleRejected(tx, frozen, settlement, batch.outcomeClass)
+  }
+}
 
 export const createNotificationDigestBatchStore = (db: Database) => ({
   findOpenDigestBatch: async (
@@ -161,9 +379,7 @@ export const createNotificationDigestBatchStore = (db: Database) => ({
     }
 
     return db.transaction(async (tx) => {
-      await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`notification-digest:${input.organizationId}:${input.userId}`}, 0))`,
-      )
+      await tx.execute(digestLock(input.organizationId, input.userId))
 
       const existing = await tx
         .select()
@@ -285,17 +501,9 @@ export const createNotificationDigestBatchStore = (db: Database) => ({
     return rows.length > 0
   },
 
-  settleDigestBatch: async (input: {
-    batchId: string
-    organizationId: string
-    userId: string
-    expectedContentDigest: string
-    settlement: DigestBatchSettlement
-  }): Promise<boolean> =>
+  settleDigestBatch: async (input: SettleDigestBatchInput): Promise<boolean> =>
     db.transaction(async (tx) => {
-      await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`notification-digest:${input.organizationId}:${input.userId}`}, 0))`,
-      )
+      await tx.execute(digestLock(input.organizationId, input.userId))
       const rows = await tx
         .select()
         .from(notificationDigestBatches)
@@ -310,30 +518,12 @@ export const createNotificationDigestBatchStore = (db: Database) => ({
         .limit(1)
         .for('update')
       const batch = rows[0]
-      if (!batch) return false
-      const mismatch = batch.contentDigest !== input.expectedContentDigest
-      const { kind } = input.settlement
-      // A provider outcome belongs to the exact content that was frozen; a
-      // content mismatch must really be one.
-      if ((kind === 'accepted' || kind === 'rejected') && mismatch) return false
-      if (kind === 'content_mismatch' && !mismatch) return false
-      // Re-keying a batch the provider may have accepted could mail it twice.
-      // A refused batch may be retired whatever changed: its content, or the
-      // members that are still deliverable.
-      if (kind === 'superseded' && !digestBatchFromRow(batch).everyAttemptRefused) {
-        return false
-      }
+      if (!batch || !settlementFitsBatch(batch, input)) return false
 
       const members = await tx
         .select({ id: notificationDigestBatchMembers.notificationEmailId })
         .from(notificationDigestBatchMembers)
-        .where(
-          and(
-            eq(notificationDigestBatchMembers.batchId, input.batchId),
-            eq(notificationDigestBatchMembers.organizationId, input.organizationId),
-            eq(notificationDigestBatchMembers.userId, input.userId),
-          ),
-        )
+        .where(batchMembersWhere(input))
       const memberIds = members.map((member) => member.id)
       const immutableMembershipIntact =
         members.length > 0 && digestMemberSet(memberIds) === batch.memberDigest
@@ -344,171 +534,7 @@ export const createNotificationDigestBatchStore = (db: Database) => ({
         return false
       }
 
-      if (input.settlement.kind === 'accepted') {
-        await tx
-          .update(notificationEmailQueue)
-          .set({
-            status: 'accepted',
-            providerMessageId: input.settlement.providerMessageId,
-            providerState: 'accepted',
-            acceptedAt: input.settlement.acceptedAt,
-            sentAt: input.settlement.acceptedAt,
-            attemptedAt: firstAttemptAt(input.settlement.acceptedAt),
-            lastErrorClass: null,
-            nextAttemptAt: null,
-            updatedAt: input.settlement.acceptedAt,
-          })
-          .where(
-            and(
-              eq(notificationEmailQueue.organizationId, input.organizationId),
-              eq(notificationEmailQueue.userId, input.userId),
-              inArray(notificationEmailQueue.id, memberIds),
-              inArray(notificationEmailQueue.status, [...SENDABLE]),
-            ),
-          )
-        await tx
-          .update(notificationDigestBatches)
-          .set({
-            state: 'accepted',
-            providerMessageId: input.settlement.providerMessageId,
-            outcomeClass: null,
-            terminalReason: null,
-            attemptedAt: input.settlement.acceptedAt,
-            acceptedAt: input.settlement.acceptedAt,
-            updatedAt: input.settlement.acceptedAt,
-          })
-          .where(eq(notificationDigestBatches.id, input.batchId))
-        return true
-      }
-
-      if (input.settlement.kind === 'superseded') {
-        // The members stay sendable and leave the frozen set, so a fresh
-        // batch can take them; a queue row belongs to one batch at a time.
-        await tx
-          .delete(notificationDigestBatchMembers)
-          .where(
-            and(
-              eq(notificationDigestBatchMembers.batchId, input.batchId),
-              eq(notificationDigestBatchMembers.organizationId, input.organizationId),
-              eq(notificationDigestBatchMembers.userId, input.userId),
-            ),
-          )
-        await tx
-          .update(notificationDigestBatches)
-          .set({
-            state: 'terminal',
-            outcomeClass: 'superseded',
-            terminalReason: 'provider_request_changed',
-            updatedAt: input.settlement.detectedAt,
-          })
-          .where(eq(notificationDigestBatches.id, input.batchId))
-        return true
-      }
-
-      if (input.settlement.kind === 'content_mismatch') {
-        await tx
-          .update(notificationEmailQueue)
-          .set({
-            status: 'suppressed',
-            providerState: 'suppressed',
-            suppressionReason: 'digest_content_changed',
-            nextAttemptAt: null,
-            updatedAt: input.settlement.detectedAt,
-          })
-          .where(
-            and(
-              eq(notificationEmailQueue.organizationId, input.organizationId),
-              eq(notificationEmailQueue.userId, input.userId),
-              inArray(notificationEmailQueue.id, memberIds),
-              inArray(notificationEmailQueue.status, [...SENDABLE]),
-            ),
-          )
-        await tx
-          .update(notificationDigestBatches)
-          .set({
-            state: 'terminal',
-            outcomeClass: 'content_mismatch',
-            terminalReason: 'provider_request_changed',
-            failedAt: input.settlement.detectedAt,
-            updatedAt: input.settlement.detectedAt,
-          })
-          .where(eq(notificationDigestBatches.id, input.batchId))
-        return true
-      }
-
-      if (input.settlement.kind === 'invalidated') {
-        if (memberIds.length > 0) {
-          await tx
-            .update(notificationEmailQueue)
-            .set({
-              status: 'suppressed',
-              providerState: 'suppressed',
-              suppressionReason: input.settlement.reason,
-              nextAttemptAt: null,
-              updatedAt: input.settlement.invalidatedAt,
-            })
-            .where(
-              and(
-                eq(notificationEmailQueue.organizationId, input.organizationId),
-                eq(notificationEmailQueue.userId, input.userId),
-                inArray(notificationEmailQueue.id, memberIds),
-                inArray(notificationEmailQueue.status, [...SENDABLE]),
-              ),
-            )
-        }
-        await tx
-          .update(notificationDigestBatches)
-          .set({
-            state: 'terminal',
-            outcomeClass: 'invalidated',
-            terminalReason: input.settlement.reason,
-            failedAt: input.settlement.invalidatedAt,
-            updatedAt: input.settlement.invalidatedAt,
-          })
-          .where(eq(notificationDigestBatches.id, input.batchId))
-        return true
-      }
-
-      const retryable = input.settlement.classification === 'transient'
-      await tx
-        .update(notificationEmailQueue)
-        .set({
-          status:
-            input.settlement.classification === 'suppressed' ? 'suppressed' : 'failed',
-          lastErrorClass: input.settlement.classification,
-          failedAt: input.settlement.failedAt,
-          attemptedAt: firstAttemptAt(input.settlement.failedAt),
-          nextAttemptAt: input.settlement.nextAttemptAt,
-          retryCount: sql`${notificationEmailQueue.retryCount} + 1`,
-          updatedAt: input.settlement.failedAt,
-        })
-        .where(
-          and(
-            eq(notificationEmailQueue.organizationId, input.organizationId),
-            eq(notificationEmailQueue.userId, input.userId),
-            inArray(notificationEmailQueue.id, memberIds),
-            inArray(notificationEmailQueue.status, [...SENDABLE]),
-          ),
-        )
-      await tx
-        .update(notificationDigestBatches)
-        .set({
-          state: retryable ? 'retryable' : 'terminal',
-          // Refused only when this attempt was refused AND every earlier
-          // one was: the start of this attempt left `in_flight` only then.
-          outcomeClass:
-            retryable &&
-            input.settlement.refusedBeforeAcceptance &&
-            batch.outcomeClass === IN_FLIGHT_OUTCOME_CLASS
-              ? REFUSED_OUTCOME_CLASS
-              : input.settlement.classification,
-          terminalReason: retryable ? null : 'provider_rejected',
-          retryCount: sql`${notificationDigestBatches.retryCount} + 1`,
-          attemptedAt: input.settlement.failedAt,
-          failedAt: input.settlement.failedAt,
-          updatedAt: input.settlement.failedAt,
-        })
-        .where(eq(notificationDigestBatches.id, input.batchId))
+      await applySettlement(tx, { ...input, memberIds }, batch)
       return true
     }),
 })
