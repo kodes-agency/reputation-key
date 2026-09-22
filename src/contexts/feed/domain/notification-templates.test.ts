@@ -537,12 +537,13 @@ describe('notificationLink', () => {
   })
 
   // Regression: the previous builder used the goal's resourceId as a
-  // propertyId, producing a dead /properties/<goalId> route. The goal's
-  // results live on the Property's Goals page, not its overview.
-  it("links a goal to its Property's goals, not to its own id", () => {
-    expect(notificationLink('goal', 'goal-9', 'prop-1')).toEqual({
+  // propertyId, producing a dead /properties/<goalId> route. A goal notice's
+  // resource is the monthly result it reports; the Property's Goals page
+  // opens the goal that result belongs to.
+  it('links a goal notice to the goal of the monthly result it reports', () => {
+    expect(notificationLink('goal', 'result-9', 'prop-1')).toEqual({
       path: '/properties/prop-1/goals',
-      search: {},
+      search: { result: 'result-9' },
     })
   })
 
@@ -621,7 +622,7 @@ describe('notificationLink', () => {
       }),
     ).toEqual({
       title: 'Goal result updated: Monthly guest engagement',
-      body: 'A monthly result changed. Open Goals to see the current metrics.',
+      body: 'A monthly result changed. Open the goal to see the current metrics.',
       actionLabel: 'View result',
       summary: 'Monthly guest engagement',
     })
@@ -688,6 +689,12 @@ describe('notificationLink', () => {
       actionLabel: 'Open reply',
       summary: 'Riverside Hotel · review · reconnect Google',
     })
+  })
+
+  it('goal.completed sends the reader to the goal', () => {
+    expect(renderNotification('goal.completed', {}).body).toBe(
+      'It hit its target. Open the goal to see the numbers.',
+    )
   })
 
   it.each(['goal.completed', 'goal.result_revised'] as const)(

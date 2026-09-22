@@ -242,7 +242,7 @@ const renderReplyPublishNeedsReconnect = (
   title: `Reply not published${atProperty(p)}`,
   body: 'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry — the draft is saved.',
   actionLabel: 'Open reply',
-  summary: facts(p.propertyName ?? '', reviewNoun(), 'reconnect Google'),
+  summary: factsAt(p, 'review', 'reconnect Google'),
 })
 
 /**
@@ -412,14 +412,14 @@ const goalTitle = (lead: string, p: NotificationPayload): string =>
 
 const renderGoalCompleted = (p: NotificationPayload): RenderedNotification => ({
   title: goalTitle('Goal completed', p),
-  body: 'It hit its target. Open Goals to see the numbers.',
+  body: 'It hit its target. Open the goal to see the numbers.',
   actionLabel: 'View progress',
   summary: factsAt(p, p.goalName ?? 'goal completed'),
 })
 
 const renderGoalResultRevised = (p: NotificationPayload): RenderedNotification => ({
   title: goalTitle('Goal result updated', p),
-  body: 'A monthly result changed. Open Goals to see the current metrics.',
+  body: 'A monthly result changed. Open the goal to see the current metrics.',
   actionLabel: 'View result',
   summary: factsAt(p, p.goalName ?? 'goal result updated'),
 })
@@ -546,9 +546,9 @@ const propertyLink = (
  * to apply the query.
  *
  * `propertyId` comes from the notification ROW, not from `resourceId`: a
- * `goal` notification stamps the goalId as its resource, and the previous
- * builder used that goalId as a propertyId, producing a dead
- * `/properties/<goalId>` link.
+ * `goal` notification stamps its monthly result as its resource, and the
+ * previous builder used that id as a propertyId, producing a dead
+ * `/properties/<id>` link.
  */
 export const notificationLink = (
   resourceType: NotificationResourceType,
@@ -572,8 +572,9 @@ export const notificationLink = (
       // which no longer resolves. Land on the inbox list rather than 404.
       return { path: '/inbox', search: {} }
     case 'goal':
-      // A monthly result's numbers live on the Property's Goals page.
-      return propertyLink(propertyId, '/goals')
+      // The resource is the monthly result the notice reports; the Goals page
+      // opens the goal it belongs to.
+      return propertyLink(propertyId, '/goals', { result: resourceId })
     case 'badge':
       return propertyLink(propertyId, '')
     case 'portal':

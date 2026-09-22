@@ -117,11 +117,12 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
   it('builds an absolute deep link per line, keyed on the row property', () => {
     const groups = groupItemsByProperty(items, new Map(), url, NOW)
 
-    // Inbox items link to the item; a goal links to its PROPERTY's goals, where
-    // the previous builder used the goalId and produced a dead link.
+    // Inbox items link to the item; a goal links to its PROPERTY's goals with
+    // the result it reports, where the previous builder used the goalId and
+    // produced a dead link.
     expect(groups[0]!.items[0]!.actionUrl).toBe('https://app.test/inbox?itemId=inbox-1')
     expect(groups[1]!.items[0]!.actionUrl).toBe(
-      'https://app.test/properties/prop-b/goals',
+      'https://app.test/properties/prop-b/goals?result=goal-1',
     )
   })
 
