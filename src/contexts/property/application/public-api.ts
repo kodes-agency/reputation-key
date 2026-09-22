@@ -4,6 +4,8 @@
 
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { PropertyGoogleBindingStore } from './ports/property-google-binding.port'
+import type { PropertyLifecycleState } from '../domain/property-lifecycle'
+export type { PropertyLifecycleState } from '../domain/property-lifecycle'
 export { buildGoogleImportedProperty } from './build-google-imported-property'
 export type {
   PropertyArchived,
@@ -53,6 +55,22 @@ export type PropertyGoogleReviewDestinationPublicApi = Readonly<{
   ) => Promise<
     import('../domain/google-review-destination').PropertyGoogleReviewDestination | null
   >
+}>
+
+/**
+ * Lifecycle state and source epoch from one Property snapshot. Reply
+ * publication refuses a Property that is not active, in words matching its
+ * state, and a Review not observed at the current epoch. Null when the
+ * Property does not exist in the Organization.
+ */
+export type PropertyPublicationScopePublicApi = Readonly<{
+  getPublicationScope: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<Readonly<{
+    lifecycleState: PropertyLifecycleState
+    sourceEpoch: number
+  }> | null>
 }>
 
 /** Fail-closed current lifecycle authority for public and external-effect gates. */

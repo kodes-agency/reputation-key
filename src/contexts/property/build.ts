@@ -185,6 +185,12 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       const property = await deps.repo.findById(orgId, pid)
       return property ? { sourceEpoch: property.sourceEpoch } : null
     },
+    getPublicationScope: async (orgId: OrganizationId, pid: PropertyId) => {
+      const property = await deps.repo.findById(orgId, pid)
+      return property
+        ? { lifecycleState: property.lifecycleState, sourceEpoch: property.sourceEpoch }
+        : null
+    },
     findIdsByGoogleConnection: async (
       connectionId: GoogleConnectionId,
       orgId: OrganizationId,

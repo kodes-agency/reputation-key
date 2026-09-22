@@ -219,8 +219,6 @@ const propertyApi = {
     const row = await readProperty(orgId, pid)
     return row ? { sourceEpoch: row.source_epoch } : null
   },
-  isPropertyActive: async (orgId: OrganizationId, pid: PropertyId) =>
-    (await readProperty(orgId, pid))?.lifecycle_state === 'active',
   getPublicationScope: async (orgId: OrganizationId, pid: PropertyId) => {
     const row = await readProperty(orgId, pid)
     return row

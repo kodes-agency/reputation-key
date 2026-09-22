@@ -12,7 +12,10 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { JobRegistry } from '#/shared/jobs/registry'
 import type { GoogleReviewApiPort } from './application/ports/google-review-api.port'
 import type { PropertySourceEpochPort } from './application/ports/property-source-epoch.port'
-import type { PropertyPublicationScopePort } from './application/ports/property-publication-scope.port'
+import type {
+  PropertyPublicationScopePort,
+  ReviewPropertyPublicationLifecycle,
+} from './application/ports/property-publication-scope.port'
 import type { ReviewRepository } from './application/ports/review.repository'
 import type { ReviewObservationRepository } from './application/ports/review-observation.repository'
 import type { ReplyRepository } from './application/ports/reply.repository'
@@ -27,7 +30,8 @@ import type { TargetedGoogleReviewReferenceResolver } from './application/ports/
 import type { ReplyQueuePort } from './application/ports/reply-queue.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type {
-  PropertyLifecyclePublicApi,
+  PropertyLifecycleState,
+  PropertyPublicationScopePublicApi,
   PropertySourceEpochPublicApi,
 } from '#/contexts/property/application/public-api'
 import type { AiReplyProvenancePublicKeyring } from './application/ports/ai-suggested-draft-store.port'
@@ -148,7 +152,7 @@ export type ReviewContextBuildInput = Readonly<{
   /** Identity-owned current actor/member/permission/Property decision. */
   publicationActorAuthority: ReplyPublicationActorAuthority
   /** Property-owned source epoch and lifecycle used to reject stale provider work. */
-  propertyApi: PropertySourceEpochPublicApi & PropertyLifecyclePublicApi
+  propertyApi: PropertySourceEpochPublicApi & PropertyPublicationScopePublicApi
   /** Worker-only Review provider-subject key material; absent on web. */
   providerSubjectKeyring?: ReviewProviderSubjectSecretKeyring
   /** Web-side verification keys for browser-held AI reply suggestions. */
@@ -303,6 +307,23 @@ export type ReviewContextApi = Readonly<{
   }>
 }>
 
+/** Review's publication vocabulary for a Property lifecycle state. */
+function reviewPublicationLifecycle(
+  state: PropertyLifecycleState,
+): ReviewPropertyPublicationLifecycle {
+  switch (state) {
+    case 'active':
+    case 'suspended':
+    case 'archived':
+      return state
+    case 'disconnecting':
+    case 'purge_pending':
+    case 'purging':
+    case 'purged':
+      return 'removing'
+  }
+}
+
 export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContextApi => {
   const reviewRepo = createReviewRepository(input.db, input.clock)
   const observationRepo = createReviewObservationRepository(input.db)
@@ -418,14 +439,17 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   const propertySourceEpochLookup: PropertySourceEpochPort = {
     getSourceEpoch: (orgId, pid) => input.propertyApi.getSourceEpoch(orgId, pid),
   }
-  // Reply commands refuse up front what the provider authorizer would refuse.
+  // Reply commands refuse up front what the provider authorizer would refuse,
+  // in Review's words for the Property's lifecycle.
   const propertyPublicationScope: PropertyPublicationScopePort = {
     getPublicationScope: async (orgId, pid) => {
-      const [scope, active] = await Promise.all([
-        input.propertyApi.getSourceEpoch(orgId, pid),
-        input.propertyApi.isPropertyActive(orgId, pid),
-      ])
-      return scope ? { active, sourceEpoch: scope.sourceEpoch } : null
+      const scope = await input.propertyApi.getPublicationScope(orgId, pid)
+      return scope
+        ? {
+            lifecycle: reviewPublicationLifecycle(scope.lifecycleState),
+            sourceEpoch: scope.sourceEpoch,
+          }
+        : null
     },
   }
 

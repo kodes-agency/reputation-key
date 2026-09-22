@@ -309,7 +309,10 @@ function makeDeps(overrides: Partial<ReplyDeps> = {}): TestReplyDeps {
       ),
     },
     propertyPublicationScope: {
-      getPublicationScope: vi.fn(async () => ({ active: true, sourceEpoch: 0 })),
+      getPublicationScope: vi.fn(async () => ({
+        lifecycle: 'active' as const,
+        sourceEpoch: 0,
+      })),
     },
     clock: () => NOW,
     idGen: () => REPLY_ID,
@@ -1730,11 +1733,22 @@ describe('Property publication scope', () => {
   const NOT_RECHECKED =
     "RepKey hasn't checked this review on Google since its property was restored or reconnected. Try again after the next sync."
 
+  const CLOSING =
+    "Your organization is being closed, so RepKey won't send replies to Google."
+  const DELETING =
+    "This property is being deleted, so RepKey won't send its replies to Google."
+
   const archived = {
-    getPublicationScope: vi.fn(async () => ({ active: false, sourceEpoch: 1 })),
+    getPublicationScope: vi.fn(async () => ({
+      lifecycle: 'archived' as const,
+      sourceEpoch: 1,
+    })),
   }
   const restored = {
-    getPublicationScope: vi.fn(async () => ({ active: true, sourceEpoch: 2 })),
+    getPublicationScope: vi.fn(async () => ({
+      lifecycle: 'active' as const,
+      sourceEpoch: 2,
+    })),
   }
 
   const expectNoPublicationCycle = (deps: TestReplyDeps) => {
@@ -1755,6 +1769,31 @@ describe('Property publication scope', () => {
     expect(archived.getPublicationScope).toHaveBeenCalledWith(ORG_ID, PROP_ID)
     expectNoPublicationCycle(deps)
   })
+
+  // Only an archived Property is on the Removed list; the other states say
+  // what is actually happening to it, with no remedy the manager lacks.
+  it.each([
+    ['suspended while its Organization closes', { lifecycle: 'suspended' }, CLOSING],
+    ['on its way to deletion', { lifecycle: 'removing' }, DELETING],
+    ['no longer present', null, DELETING],
+  ] as const)(
+    'refuses to approve for a Property %s, in its own words',
+    async (_label, state, message) => {
+      const deps = makeDeps({
+        replyRepo: replyRepoWith(makeReply({ status: 'pending_approval' })),
+        propertyPublicationScope: {
+          getPublicationScope: vi.fn(async () =>
+            state === null ? null : { ...state, sourceEpoch: 0 },
+          ),
+        },
+      })
+
+      await expect(
+        approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+      ).rejects.toMatchObject({ code: 'invalid_transition', message })
+      expectNoPublicationCycle(deps)
+    },
+  )
 
   it('refuses to approve until the Review is observed at the restored Property epoch', async () => {
     const deps = makeDeps({

@@ -205,6 +205,37 @@ describe('PropertyPublicApi', () => {
     ).resolves.toBe(false)
   })
 
+  // Reply publication refuses in words that match the Property's state, and
+  // compares the epoch read from the same snapshot.
+  it('reads a Property lifecycle and source epoch together for reply publication', async () => {
+    const repo = createInMemoryPropertyRepo()
+    const archived = buildTestProperty({
+      id: '82000000-0000-4000-8000-000000000010',
+      slug: 'publication-scope-archived',
+      lifecycleState: 'archived',
+      sourceEpoch: 3,
+    })
+    repo.seed([archived])
+    const { publicApi } = buildPropertyContext({
+      db: {} as never,
+      repo,
+      clock: () => new Date('2025-01-01'),
+      ...runtimeDeps,
+      staffPublicApi: createStubStaffApi(),
+      identityManagerFacts,
+    })
+
+    await expect(
+      publicApi.getPublicationScope(archived.organizationId, archived.id),
+    ).resolves.toEqual({ lifecycleState: 'archived', sourceEpoch: 3 })
+    await expect(
+      publicApi.getPublicationScope(
+        archived.organizationId,
+        propertyId('82000000-0000-4000-8000-000000000099'),
+      ),
+    ).resolves.toBeNull()
+  })
+
   it('chooses a stable Google notice scope, preferring a linked Property', async () => {
     const repo = createInMemoryPropertyRepo()
     const connection = googleConnectionId('81000000-0000-4000-8000-000000000001')
