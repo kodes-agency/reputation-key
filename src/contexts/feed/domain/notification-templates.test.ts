@@ -100,6 +100,27 @@ describe('renderNotification — invariants across every type', () => {
   })
 })
 
+// A fact is said once per surface. The in-app strip shows the Property (in
+// the title), the rating (as stars) and the wait beside the copy, and email
+// shows them in its facts line, so the sentences never restate the rating.
+describe('renderNotification — facts beside the copy, not inside it', () => {
+  it.each(NOTIFICATION_TYPES)(
+    '%s never states the rating in its title or body',
+    (type) => {
+      const r = renderNotification(type, FULL)
+
+      expect([r.title, r.body].join(' ')).not.toMatch(/\d-star|out of 5|rated/i)
+    },
+  )
+
+  it('keeps the rating in the facts line email shows', () => {
+    const r = renderNotification('feedback.created', FULL)
+
+    expect(r.body).toBe('Open it to read the feedback.')
+    expect(r.summary).toBe('Riverside Hotel · 2-star feedback')
+  })
+})
+
 describe('renderNotification — the copy that was broken', () => {
   it('inbox.escalated names the property instead of the item id', () => {
     const r = renderNotification('inbox.escalated', {
@@ -108,7 +129,7 @@ describe('renderNotification — the copy that was broken', () => {
       platform: 'portal',
     })
 
-    expect(r.title).toBe('Escalated: 2-star feedback at Riverside Hotel')
+    expect(r.title).toBe('Escalated: feedback at Riverside Hotel')
     expect(r.title).not.toContain('Inbox item')
   })
 
@@ -172,7 +193,7 @@ describe('renderNotification — the copy that was broken', () => {
       }),
     ).toEqual({
       title: 'Follow-up reopened at Riverside Hotel',
-      body: 'This 2-star feedback needs another look. Open it to review the latest status.',
+      body: 'This feedback needs another look. Open it to review the latest status.',
       actionLabel: 'View item',
       summary: 'Riverside Hotel · 2-star feedback · follow-up reopened',
     })

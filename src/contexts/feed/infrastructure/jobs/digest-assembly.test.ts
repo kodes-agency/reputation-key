@@ -156,6 +156,18 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
     expect(groups[0]!.items[0]!.rendered.summary).toContain('waiting 2d')
   })
 
+  // The group heading already names the Property, and each title says it
+  // again ("New review at Riverside Hotel"); the facts line need not.
+  it("leaves the group's Property out of each line's facts", () => {
+    const groups = groupItemsByProperty(items, new Map(), url, NOW)
+    const riverside = groups.find((group) => group.propertyName === 'Riverside Hotel')!
+
+    expect(riverside.items.map((item) => item.rendered.summary)).toEqual([
+      'review',
+      'review · new note',
+    ])
+  })
+
   it('never renders a bare property UUID as a heading', () => {
     const nameless = [
       buildDigestItem({

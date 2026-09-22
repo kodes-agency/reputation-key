@@ -8,6 +8,7 @@
 import type { Notification, NotificationEmail } from '../../domain/notification-types'
 import type { RenderedNotification } from '../../domain/notification-templates'
 import { notificationLink, renderNotification } from '../../domain/notification-templates'
+import { splitFacts } from '../email/notification-facts'
 import {
   digestBatchIdempotencyKey,
   digestMemberSet,
@@ -48,26 +49,50 @@ export function groupItemsByProperty(
   now: Date,
 ): ReadonlyArray<DigestGroup> {
   const order: string[] = []
-  const byProperty = new Map<string, DigestGroup['items'][number][]>()
+  const byProperty = new Map<string, DigestItem[]>()
 
-  for (const { entry, notification } of items) {
-    const key = entry.propertyId as string
+  for (const item of items) {
+    const key = item.entry.propertyId as string
     if (!byProperty.has(key)) {
       byProperty.set(key, [])
       order.push(key)
     }
-    const link = notificationLink(notification.resourceType, notification.resourceId, key)
-    byProperty.get(key)!.push({
-      rendered: renderNotification(notification.type, notification.payload, now),
-      actionUrl: buildActionUrl(link.path, link.search),
-    })
+    byProperty.get(key)!.push(item)
   }
 
-  return order.map((key) => ({
-    propertyName: resolvePropertyHeading(key, items, propertyNames),
-    items: byProperty.get(key)!,
-  }))
+  return order.map((key) => {
+    const propertyName = resolvePropertyHeading(key, items, propertyNames)
+    return {
+      propertyName,
+      items: byProperty.get(key)!.map(({ notification }) => {
+        const link = notificationLink(
+          notification.resourceType,
+          notification.resourceId,
+          key,
+        )
+        const rendered = renderNotification(notification.type, notification.payload, now)
+        return {
+          rendered: withoutFact(rendered, propertyName),
+          actionUrl: buildActionUrl(link.path, link.search),
+        }
+      }),
+    }
+  })
 }
+
+/**
+ * The group heading already names the Property, and each title says it again,
+ * so the line's facts drop it rather than name it a third time.
+ */
+const withoutFact = (
+  rendered: RenderedNotification,
+  fact: string,
+): RenderedNotification => ({
+  ...rendered,
+  summary: splitFacts(rendered.summary)
+    .filter((candidate) => candidate !== fact)
+    .join(' · '),
+})
 
 function resolvePropertyHeading(
   propertyId: string,

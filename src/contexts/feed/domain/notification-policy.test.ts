@@ -82,7 +82,7 @@ describe('notification policy', () => {
     const bumped = applyCoalescence(
       unread({ propertyName: 'Riverside', guestRating: 3, platform: 'portal' }),
       {
-        propertyName: 'Riverside',
+        propertyName: 'Riverside Hotel',
         guestRating: 1,
         platform: 'portal',
         actorRole: 'account_admin',
@@ -90,8 +90,9 @@ describe('notification policy', () => {
       LATER,
     )
 
-    // The newer local guest rating and the latest escalator's role win.
-    expect(bumped.title).toBe('Escalated: 1-star feedback at Riverside')
+    // The newer Property name, rating and escalator's role win.
+    expect(bumped.title).toBe('Escalated: feedback at Riverside Hotel')
+    expect(bumped.payload.guestRating).toBe(1)
     expect(bumped.body).toMatch(/^An account admin escalated this/)
   })
 

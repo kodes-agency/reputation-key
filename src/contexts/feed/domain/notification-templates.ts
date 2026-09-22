@@ -89,17 +89,25 @@ const sentence = (...parts: ReadonlyArray<string>): string =>
 const facts = (...parts: ReadonlyArray<string>): string =>
   parts.filter((part) => part !== '').join(' · ')
 
-/** Provider review copy is intentionally rating-free. */
-const reviewNoun = (): string => 'review'
+/** The facts line, led by the Property. */
+const factsAt = (p: NotificationPayload, ...parts: ReadonlyArray<string>): string =>
+  facts(p.propertyName ?? '', ...parts)
 
-/** Portal feedback may carry the locally collected private rating. */
-const inboxNoun = (payload: NotificationPayload): string =>
-  payload.platform === 'portal'
-    ? sentence(
-        payload.guestRating === undefined ? '' : `${payload.guestRating}-star`,
-        'feedback',
-      )
-    : reviewNoun()
+/**
+ * The sentence noun. A rating is a fact: the in-app strip shows it as stars
+ * and email in its facts line (`ratedNoun`), so a sentence never restates it.
+ */
+const inboxNoun = (p: NotificationPayload): string =>
+  p.platform === 'portal' ? 'feedback' : 'review'
+
+/**
+ * The facts-line noun. Portal feedback may carry its locally collected
+ * rating; a provider review never carries one.
+ */
+const ratedNoun = (p: NotificationPayload): string =>
+  p.platform === 'portal' && p.guestRating !== undefined
+    ? `${p.guestRating}-star feedback`
+    : inboxNoun(p)
 
 // ── Per-type renderers ──────────────────────────────────────────────
 // Each returns copy that reads correctly with an EMPTY payload and gets
@@ -143,44 +151,38 @@ const renderOrganizationPurgePending = (
 })
 
 const renderReviewCreated = (p: NotificationPayload): RenderedNotification => ({
-  title: `New ${reviewNoun()}${atProperty(p)}`,
+  title: `New ${'review'}${atProperty(p)}`,
   body: 'Open it to read the review and reply.',
   actionLabel: 'Read review',
-  summary: facts(p.propertyName ?? '', reviewNoun()),
+  summary: factsAt(p, 'review'),
 })
 
 const renderReviewUpdated = (p: NotificationPayload): RenderedNotification => ({
   title: `Review updated${atProperty(p)}`,
   body: 'The guest changed their review. Open it to check the latest details.',
   actionLabel: 'Review update',
-  summary: facts(p.propertyName ?? '', 'updated review'),
+  summary: factsAt(p, 'updated review'),
 })
 
 const renderFeedbackCreated = (p: NotificationPayload): RenderedNotification => ({
   title: `New guest feedback${atProperty(p)}`,
-  body: sentence(
-    p.guestRating === undefined ? '' : `Rated ${p.guestRating} out of 5.`,
-    'Open it to read the feedback.',
-  ),
+  body: 'Open it to read the feedback.',
   actionLabel: 'Read feedback',
-  summary: facts(
-    p.propertyName ?? '',
-    p.guestRating === undefined ? '' : `${p.guestRating}-star feedback`,
-  ),
+  summary: factsAt(p, ratedNoun(p)),
 })
 
 const renderReplyPendingApproval = (p: NotificationPayload): RenderedNotification => ({
   title: `Approve a reply${atProperty(p)}`,
-  body: `${byRole(p)} drafted a reply to a ${reviewNoun()}. It stays unpublished until you approve it.`,
+  body: `${byRole(p)} drafted a reply to a ${'review'}. It stays unpublished until you approve it.`,
   actionLabel: 'Review reply',
-  summary: facts(p.propertyName ?? '', reviewNoun()),
+  summary: factsAt(p, 'review'),
 })
 
 const renderReplyApproved = (p: NotificationPayload): RenderedNotification => ({
   title: `Your reply was approved${atProperty(p)}`,
   body: 'It is queued to publish to Google.',
   actionLabel: 'View reply',
-  summary: facts(p.propertyName ?? '', reviewNoun()),
+  summary: factsAt(p, 'review'),
 })
 
 /**
@@ -206,14 +208,14 @@ const renderReplyRejected = (p: NotificationPayload): RenderedNotification => ({
   title: `Your reply needs changes${atProperty(p)}`,
   body: rejectionReasonBody(p),
   actionLabel: 'Edit reply',
-  summary: facts(p.propertyName ?? '', reviewNoun()),
+  summary: factsAt(p, 'review'),
 })
 
 const renderReplyPublished = (p: NotificationPayload): RenderedNotification => ({
   title: `Your reply is live on Google${atProperty(p)}`,
   body: 'Guests can see it now. No further action needed.',
   actionLabel: 'View on review',
-  summary: facts(p.propertyName ?? '', reviewNoun()),
+  summary: factsAt(p, 'review'),
 })
 
 const PUBLISH_FAILURE_BODIES = {
@@ -256,7 +258,7 @@ const renderReplyPublishFailed = (p: NotificationPayload): RenderedNotification 
         : PUBLISH_FAILURE_BODIES[outcome],
     actionLabel:
       outcome === 'not_sent' || outcome === 'refused' ? 'Retry publish' : 'View reply',
-    summary: facts(p.propertyName ?? '', reviewNoun(), state),
+    summary: factsAt(p, 'review', state),
   }
 }
 
@@ -269,14 +271,14 @@ const renderInboxEscalated = (p: NotificationPayload): RenderedNotification => (
   title: `Escalated: ${inboxNoun(p)}${atProperty(p)}`,
   body: `${byRole(p)} escalated this for your attention. Open it to see where it stands.`,
   actionLabel: 'Open item',
-  summary: facts(p.propertyName ?? '', inboxNoun(p), 'escalated'),
+  summary: factsAt(p, ratedNoun(p), 'escalated'),
 })
 
 const renderInboxEscalationResolved = (p: NotificationPayload): RenderedNotification => ({
   title: `Follow-up updated${atProperty(p)}`,
   body: 'This item is no longer marked for extra attention. You can open it to review the latest status.',
   actionLabel: 'View item',
-  summary: facts(p.propertyName ?? '', 'follow-up updated'),
+  summary: factsAt(p, 'follow-up updated'),
 })
 
 const renderInboxReopened = (p: NotificationPayload): RenderedNotification => ({
@@ -286,7 +288,7 @@ const renderInboxReopened = (p: NotificationPayload): RenderedNotification => ({
     'Open it to review the latest status.',
   ),
   actionLabel: 'View item',
-  summary: facts(p.propertyName ?? '', inboxNoun(p), 'follow-up reopened'),
+  summary: factsAt(p, ratedNoun(p), 'follow-up reopened'),
 })
 
 const renderInboxBulkReopened = (p: NotificationPayload): RenderedNotification => {
@@ -301,7 +303,7 @@ const renderInboxBulkReopened = (p: NotificationPayload): RenderedNotification =
       'Open the Inbox to review the latest status.',
     ),
     actionLabel: 'Open Inbox',
-    summary: facts(p.propertyName ?? '', `${count} reopened`),
+    summary: factsAt(p, `${count} reopened`),
   }
 }
 
@@ -309,21 +311,21 @@ const renderResponseTargetHalfway = (p: NotificationPayload): RenderedNotificati
   title: `Response target is halfway${atProperty(p)}`,
   body: 'This item remains open. Open it when you are ready to continue the follow-up.',
   actionLabel: 'View item',
-  summary: facts(p.propertyName ?? '', inboxNoun(p), 'target halfway'),
+  summary: factsAt(p, ratedNoun(p), 'target halfway'),
 })
 
 const renderResponseTargetPassed = (p: NotificationPayload): RenderedNotification => ({
   title: `Response target time has passed${atProperty(p)}`,
   body: 'This item remains open. Review it and choose the next step when practical.',
   actionLabel: 'View item',
-  summary: facts(p.propertyName ?? '', inboxNoun(p), 'target time passed'),
+  summary: factsAt(p, ratedNoun(p), 'target time passed'),
 })
 
 const renderInboxAssigned = (p: NotificationPayload): RenderedNotification => ({
   title: `Assigned to you: ${inboxNoun(p)}${atProperty(p)}`,
   body: sentence(`${byRole(p)} assigned this to you.`, 'You own the reply.'),
   actionLabel: 'Open item',
-  summary: facts(p.propertyName ?? '', inboxNoun(p), 'assigned to you'),
+  summary: factsAt(p, ratedNoun(p), 'assigned to you'),
 })
 
 const renderInboxBulkAssigned = (p: NotificationPayload): RenderedNotification => {
@@ -336,7 +338,7 @@ const renderInboxBulkAssigned = (p: NotificationPayload): RenderedNotification =
       'Open the Inbox to review your work.',
     ),
     actionLabel: 'Open Inbox',
-    summary: facts(p.propertyName ?? '', `${count} ${noun.toLowerCase()}`, 'assigned'),
+    summary: factsAt(p, `${count} ${noun.toLowerCase()}`, 'assigned'),
   }
 }
 
@@ -344,7 +346,7 @@ const renderNoteAdded = (p: NotificationPayload): RenderedNotification => ({
   title: `New note on ${inboxNoun(p)}${atProperty(p)}`,
   body: sentence(`${byRole(p)} left a note on this item.`, 'Open it to read the thread.'),
   actionLabel: 'Read note',
-  summary: facts(p.propertyName ?? '', inboxNoun(p), 'new note'),
+  summary: factsAt(p, ratedNoun(p), 'new note'),
 })
 
 const renderPortalResponsibilityNeeded = (
@@ -353,14 +355,14 @@ const renderPortalResponsibilityNeeded = (
   title: `A portal${atProperty(p)} needs a responsible manager`,
   body: 'Choose an eligible manager so portal updates reach the right people.',
   actionLabel: 'Choose manager',
-  summary: facts(p.propertyName ?? '', 'responsible manager needed'),
+  summary: factsAt(p, 'responsible manager needed'),
 })
 
 const renderPortalHealthAttention = (p: NotificationPayload): RenderedNotification => ({
   title: `A guest portal${atProperty(p)} may need attention`,
   body: 'Open its settings to review what changed and the available next steps.',
   actionLabel: 'Review portal',
-  summary: facts(p.propertyName ?? '', 'Portal may need attention'),
+  summary: factsAt(p, 'Portal may need attention'),
 })
 
 const renderPropertyResponsibilityNeeded = (
@@ -369,7 +371,7 @@ const renderPropertyResponsibilityNeeded = (
   title: `${p.propertyName ?? 'A property'} needs a responsible manager`,
   body: 'Choose an eligible manager so property-wide updates reach the right people.',
   actionLabel: 'Choose manager',
-  summary: facts(p.propertyName ?? '', 'responsible manager needed'),
+  summary: factsAt(p, 'responsible manager needed'),
 })
 
 /**
@@ -405,14 +407,14 @@ const renderGoalCompleted = (p: NotificationPayload): RenderedNotification => ({
   title: goalTitle('Goal completed', p),
   body: 'It hit its target. Open the property to see the numbers.',
   actionLabel: 'View progress',
-  summary: facts(p.propertyName ?? '', p.goalName ?? 'goal completed'),
+  summary: factsAt(p, p.goalName ?? 'goal completed'),
 })
 
 const renderGoalResultRevised = (p: NotificationPayload): RenderedNotification => ({
   title: goalTitle('Goal result updated', p),
   body: 'A monthly result changed. Open the property to see the current metrics.',
   actionLabel: 'View result',
-  summary: facts(p.propertyName ?? '', p.goalName ?? 'goal result updated'),
+  summary: factsAt(p, p.goalName ?? 'goal result updated'),
 })
 
 /**

@@ -71,11 +71,13 @@ export const UrgentUnread: Story = {
     expect(canvasElement.textContent).not.toContain(escalated.resourceId)
     expect(canvasElement.textContent).not.toContain(escalated.id)
     expect(canvas.getByText('Urgent')).toBeInTheDocument()
-    // The property name appears twice by design — in the rendered sentence and
-    // in the metadata chip — so this asserts presence, not uniqueness.
-    expect(canvas.getAllByText(/Riverside Hotel/).length).toBeGreaterThan(0)
-    // Rating is never glyph-or-colour alone.
+    // Each fact once: the title names the Property, and the strip beside it
+    // does not name it again.
+    expect(canvas.getAllByText(/Riverside Hotel/)).toHaveLength(1)
+    // Rating is never glyph-or-colour alone, and the sentences leave it to
+    // the stars.
     expect(canvas.getByText('Rated 2 out of 5 stars')).toBeInTheDocument()
+    expect(canvasElement.textContent).not.toMatch(/2-star/)
     // 26 hours into the wait renders as the compact "1d", measured now.
     expect(canvas.getAllByText(/Waiting 1d/).length).toBeGreaterThan(0)
     // The deep link carries the resource id as a typed search param.
@@ -149,18 +151,17 @@ export const NoMetadata: Story = {
 export const LongPropertyName: Story = {
   args: { notification: longPropertyNameNotification },
   play: async ({ canvasElement }) => {
-    // The invariant that matters: the chip truncates within the row rather than
-    // widening it. An inline `.truncate` span reports clientWidth 0, so the
-    // chip's own box is measured against its list container.
+    // The invariant that matters: a long Property name wraps inside the title
+    // rather than widening the row.
+    const canvas = within(canvasElement)
     const list = canvasElement.querySelector('ul')
-    const chip = canvasElement.querySelector('[data-slot="badge"]')
+    const title = canvas.getByText(/^New review at The Grand Riverside/)
     expect(list).not.toBeNull()
-    expect(chip).not.toBeNull()
-    if (list === null || chip === null) return
-    expect(chip.getBoundingClientRect().width).toBeGreaterThan(0)
-    expect(chip.getBoundingClientRect().width).toBeLessThanOrEqual(
-      list.getBoundingClientRect().width,
+    if (list === null) return
+    expect(title.getBoundingClientRect().right).toBeLessThanOrEqual(
+      list.getBoundingClientRect().right,
     )
+    expect(list.scrollWidth).toBeLessThanOrEqual(list.clientWidth)
   },
 }
 

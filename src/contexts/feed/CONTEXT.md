@@ -120,6 +120,11 @@ so a reader with several Properties can tell rows and urgent emails apart. The
 Google connection's notice is the exception: the connection belongs to the
 Organization, and the Property it is filed under is only a delivery anchor.
 
+Each surface states a fact once. Titles name the Property; a locally
+collected rating and a waiting age sit beside the copy (the in-app strip,
+email's facts line) and never inside a sentence; a property-grouped digest
+leaves the group's Property out of each line's facts.
+
 A row that absorbed repeat events keeps their count in `coalesced_count` only.
 Every read projects that column into the payload the copy renders from, and
 the copy says it once, in the words for what repeated ("3 notes added").
