@@ -81,9 +81,14 @@ Property's unreleased Response Target reminder slots, and Notification treats a
 reminder released for a non-active Property as obsolete. Restore re-arms none of
 those slots; a cancelled slot is terminal
 (`docs/operations/inbox-response-targets.md`). Review cancels the Property's
-in-flight reply publications as policy cancellations (the Reply returns to
-draft), and refuses new approvals until the Property is active again and the
-Review has been observed at its current source epoch.
+reply publications that were approved but not yet sent as policy
+cancellations (the Reply returns to draft); a write already dispatched stays
+with the publish worker and reconciliation. The publish worker itself refuses
+to send, and cancels as policy, a cycle whose Property is not active at the
+cycle's source epoch, so a Restore before either runs cannot turn the stale
+cycle into a "Google rejected" notice. New approvals are refused until the
+Property is active again and the Review has been observed at its current
+source epoch.
 
 Restore is permitted only before the recovery deadline. It rechecks current
 Property access and an eligible Responsible Manager,

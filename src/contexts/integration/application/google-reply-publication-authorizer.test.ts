@@ -10,6 +10,7 @@ import type { GoogleConnection } from '../domain/types'
 import {
   GOOGLE_REPLY_PUBLICATION_SYSTEM_PRINCIPAL,
   createGoogleReplyPublicationAuthorizer,
+  createReplyPublicationProviderCall,
   type GoogleReplyPublicationContentAuthorizationResult,
 } from './google-reply-publication-authorizer'
 
@@ -223,5 +224,31 @@ describe('Google reply-publication system authorization', () => {
       code: 'authorization_denied',
     })
     expect(getAccessToken).toHaveBeenCalledOnce()
+  })
+})
+
+// The Review provider adapter receives this call and turns a throw into a
+// review API error. It can only tell the publish job WHY nothing was sent when
+// the refusal keeps the authorizer's closed code: `stale_source` is RepKey's
+// own lifecycle/epoch policy, not Google's answer.
+describe('reply publication provider call', () => {
+  it.each(['stale_source', 'authorization_denied', 'runtime_unavailable'] as const)(
+    'throws a %s refusal with its closed code',
+    async (code) => {
+      const call = createReplyPublicationProviderCall(async () => ({ ok: false, code }))
+
+      await expect(call(request)).rejects.toMatchObject({
+        code,
+        message: `Google reply publication authorization is unavailable: ${code}`,
+      })
+    },
+  )
+
+  it('returns the admitted authorization unchanged', async () => {
+    const { authorize } = setup()
+    const admitted = await authorize(request)
+    const call = createReplyPublicationProviderCall(async () => admitted)
+
+    await expect(call(request)).resolves.toBe(admitted)
   })
 })

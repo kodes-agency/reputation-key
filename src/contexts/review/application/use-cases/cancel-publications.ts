@@ -16,7 +16,8 @@
 // query.
 //
 // property.archived cancels the same way for one Property's reviews
-// (cancelPublicationsForProperty below, cause 'policy').
+// (cancelPublicationsForProperty below, cause 'policy'), but only cycles not
+// yet dispatched whose source epoch the Property has moved past.
 
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
@@ -119,7 +120,7 @@ export type CancelPublicationsForConnection = ReturnType<
 // ── Property archive ──────────────────────────────────────────────────
 
 export type CancelPublicationsForPropertyDeps = Readonly<{
-  replyRepo: Pick<ReplyRepository, 'findPublicationActiveByPropertyId'>
+  replyRepo: Pick<ReplyRepository, 'findUnsendablePublicationsByPropertyId'>
   commandStore: Pick<ReplyCommandStore, 'cancelPublications'>
   clock: () => Date
   batchSize?: number
@@ -138,13 +139,19 @@ export type CancelPublicationsForPropertyResult = Readonly<{
 }>
 
 /**
- * Cancel every active publication of an archived Property's reviews. The
- * provider authorizer refuses a write for a non-active Property, and the
- * worker would report that refusal as "Google rejected the reply"; a
- * cancelled cycle is instead claimed by nobody and reported as a policy
- * cancellation. Cancelled rows leave the active set, so each batch reads the
- * next one; a batch that cancels nothing (every row moved on concurrently)
- * ends the run rather than re-reading the same rows.
+ * Cancel every publication cycle of one Property's reviews that can no longer
+ * be sent: not yet dispatched, and authorized at a source epoch the Property
+ * has moved past (Archive and Restore both advance it) or for a Property that
+ * is not active. The provider authorizer would refuse each write, and the
+ * worker must never report that refusal as "Google rejected the reply"; a
+ * cancelled cycle is claimed by nobody and reported as a policy cancellation.
+ * Keying on the epoch rather than on the Property being archived also clears
+ * the pre-archive cycles when a Restore landed before this ran, while a cycle
+ * approved at the restored epoch is left alone. A dispatched cycle may already
+ * be on Google and stays with the worker and the reconciliation sweep.
+ * Cancelled rows leave the set, so each batch reads the next one; a batch
+ * that cancels nothing (every row moved on concurrently) ends the run rather
+ * than re-reading the same rows.
  */
 export const cancelPublicationsForProperty =
   (deps: CancelPublicationsForPropertyDeps) =>
@@ -157,16 +164,16 @@ export const cancelPublicationsForProperty =
     let cancelled = 0
     let batches = 0
     while (batches < maxBatches) {
-      const active = await deps.replyRepo.findPublicationActiveByPropertyId(
+      const unsendable = await deps.replyRepo.findUnsendablePublicationsByPropertyId(
         input.propertyId,
         input.organizationId,
         batchSize,
       )
-      if (active.length === 0) break
+      if (unsendable.length === 0) break
       batches++
       const now = deps.clock()
       const count = await deps.commandStore.cancelPublications(
-        active.map((reply) => ({
+        unsendable.map((reply) => ({
           reply,
           event: reviewReplyPublicationCancelled({
             replyId: reply.id,
@@ -180,7 +187,7 @@ export const cancelPublicationsForProperty =
         })),
       )
       cancelled += count
-      if (count === 0 || active.length < batchSize) break
+      if (count === 0 || unsendable.length < batchSize) break
     }
 
     return { cancelled, batches }

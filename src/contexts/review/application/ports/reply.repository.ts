@@ -144,11 +144,16 @@ export type ReplyRepository = Readonly<{
     organizationId: OrganizationId,
   ): Promise<ReadonlyArray<Reply>>
   /**
-   * Up to `limit` replies in an active publication state for one Property's
-   * reviews, ordered by id — the rows the archive cancellation must cancel.
-   * A cancelled row leaves the set, so repeated calls drain it.
+   * Up to `limit` replies of one Property's reviews, ordered by id, whose
+   * publication cycle can no longer be sent: not yet dispatched
+   * (`requested`/`authorized`), and either the Property is not active or the
+   * cycle was authorized at a source epoch behind the Property's current one
+   * (an Archive or Restore since approval). The provider authorizer would
+   * refuse every such write. Dispatched cycles (`sending`,
+   * `pending_observation`) may already be on Google and are left to the
+   * worker. A cancelled row leaves the set, so repeated calls drain it.
    */
-  findPublicationActiveByPropertyId(
+  findUnsendablePublicationsByPropertyId(
     propertyId: PropertyId,
     organizationId: OrganizationId,
     limit: number,

@@ -25,7 +25,6 @@ import type {
   CancelPublicationsForConnection,
   CancelPublicationsForProperty,
 } from '../application/use-cases/cancel-publications'
-import type { PropertyPublicationScopePort } from '../application/ports/property-publication-scope.port'
 import { buildIdempotencyKey } from '../domain/reply-publication-workflow'
 
 const EVENT_TYPE = 'review.reply.publication_requested' as const
@@ -48,9 +47,8 @@ export type ReplyPublicationConsumerDeps = ReplyPublicationDeliveryDeps &
     logger: ReviewOutboxLogger
     /** BQC-3.8: disconnect cancellation of in-flight reply publications. */
     cancelPublicationsForConnection: CancelPublicationsForConnection
-    /** Archive cancellation of one Property's in-flight reply publications. */
+    /** Archive cancellation of one Property's unsendable reply publications. */
     cancelPublicationsForProperty: CancelPublicationsForProperty
-    propertyPublicationScope: PropertyPublicationScopePort
   }>
 
 type PublicationRequestedPayload = Readonly<{
@@ -183,17 +181,19 @@ type PropertyArchivedPayload = Readonly<{
 }>
 
 /**
- * An archived Property must not leave a reply publication in flight either:
- * the provider authorizer refuses its writes, and the worker would report
- * each refusal to the author as "Google rejected the reply". Every active
- * publication of its reviews is cancelled as a policy cancellation, like a
- * disconnect. A fact delivered after a Restore finds the Property active and
- * cancels nothing, so a reply approved since then is left alone.
+ * An archived Property must not leave a reply publication waiting either: the
+ * provider authorizer refuses its writes, and the worker would report each
+ * refusal to the author as "Google rejected the reply". Every cycle not yet
+ * dispatched whose source epoch the Property has moved past is cancelled as a
+ * policy cancellation, like a disconnect. The rule keys on the epoch, not on
+ * the Property still being archived: a fact delivered after a quick Restore
+ * still clears the pre-archive cycles (the Restore advanced the epoch again),
+ * and leaves a reply approved at the restored epoch alone.
  */
 export async function handlePropertyArchived(
   deps: ReplyPublicationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
+): Promise<Readonly<{ status: 'applied' }>> {
   const payload = validateEventPayload(
     'property.archived',
     event.eventVersion,
@@ -206,23 +206,21 @@ export async function handlePropertyArchived(
   ) {
     throw new Error('property archived envelope attribution mismatch')
   }
-  const orgId = organizationId(payload.organizationId)
-  const pid = propertyId(payload.propertyId)
-  const scope = await deps.propertyPublicationScope.getPublicationScope(orgId, pid)
-  const status = scope?.active === true ? 'obsolete' : 'applied'
-  if (status === 'applied') {
-    const result = await deps.cancelPublicationsForProperty({
-      organizationId: orgId,
-      propertyId: pid,
-      cause: 'policy',
-    })
-    deps.logger.info(
-      { ...result },
-      'property.archived: reply publication cancellation complete',
-    )
-  }
-  await deps.receipts.insertReceipt(event.eventId, ON_PROPERTY_ARCHIVED_CONSUMER, status)
-  return { status }
+  const result = await deps.cancelPublicationsForProperty({
+    organizationId: organizationId(payload.organizationId),
+    propertyId: propertyId(payload.propertyId),
+    cause: 'policy',
+  })
+  deps.logger.info(
+    { ...result },
+    'property.archived: reply publication cancellation complete',
+  )
+  await deps.receipts.insertReceipt(
+    event.eventId,
+    ON_PROPERTY_ARCHIVED_CONSUMER,
+    'applied',
+  )
+  return { status: 'applied' }
 }
 
 /** Worker-start registration; no consumer runtime is pulled into web builds. */

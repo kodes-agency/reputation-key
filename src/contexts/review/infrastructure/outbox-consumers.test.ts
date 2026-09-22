@@ -105,9 +105,6 @@ function deps(current: Reply | null = reply()) {
       batches: 1,
     })),
     cancelPublicationsForProperty: vi.fn(async () => ({ cancelled: 1, batches: 1 })),
-    propertyPublicationScope: {
-      getPublicationScope: vi.fn(async () => ({ active: false, sourceEpoch: 4 })),
-    },
   }
 }
 
@@ -280,7 +277,7 @@ describe('google account disconnected durable consumer', () => {
   })
 })
 
-// An archived Property's in-flight publications would each be refused by the
+// An archived Property's waiting publications would each be refused by the
 // provider authorizer and reported to the author as a Google rejection.
 describe('property archived durable consumer', () => {
   const PROPERTY = '97000000-0000-4000-8000-000000000004'
@@ -302,17 +299,16 @@ describe('property archived durable consumer', () => {
       sourceAggregateId: PROPERTY,
     })
 
-  it('cancels the Property publications as a policy cancellation while it is archived', async () => {
+  // Which cycles are cancelled (undispatched, behind the Property's epoch) is
+  // decided in SQL against the Property's current row; see
+  // property-archive-publication.integration.test.ts.
+  it('cancels the Property unsendable publications as a policy cancellation', async () => {
     const subject = deps()
 
     await expect(handlePropertyArchived(subject as never, archived())).resolves.toEqual({
       status: 'applied',
     })
 
-    expect(subject.propertyPublicationScope.getPublicationScope).toHaveBeenCalledWith(
-      'org-publication-recovery',
-      PROPERTY,
-    )
     expect(subject.cancelPublicationsForProperty).toHaveBeenCalledWith({
       organizationId: 'org-publication-recovery',
       propertyId: PROPERTY,
@@ -325,23 +321,14 @@ describe('property archived durable consumer', () => {
     )
   })
 
-  it('leaves publications alone when the Property was restored before delivery', async () => {
+  it('records no receipt when the cancellation fails, so redelivery runs it again', async () => {
     const subject = deps()
-    subject.propertyPublicationScope.getPublicationScope.mockResolvedValueOnce({
-      active: true,
-      sourceEpoch: 5,
-    })
+    subject.cancelPublicationsForProperty.mockRejectedValueOnce(new Error('db down'))
 
-    await expect(handlePropertyArchived(subject as never, archived())).resolves.toEqual({
-      status: 'obsolete',
-    })
-
-    expect(subject.cancelPublicationsForProperty).not.toHaveBeenCalled()
-    expect(subject.receipts.insertReceipt).toHaveBeenCalledWith(
-      EVENT_ID,
-      ON_PROPERTY_ARCHIVED_CONSUMER,
-      'obsolete',
+    await expect(handlePropertyArchived(subject as never, archived())).rejects.toThrow(
+      'db down',
     )
+    expect(subject.receipts.insertReceipt).not.toHaveBeenCalled()
   })
 
   it('refuses an envelope whose Property differs from its payload', async () => {

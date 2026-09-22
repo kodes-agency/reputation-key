@@ -1,14 +1,16 @@
 // Review context — Drizzle reply repository implementation
 // Per architecture: factory function returning Readonly<{ method }>.
 
-import { and, asc, eq, gt, inArray, isNotNull, lte, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNotNull, lte, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   googleReplyObservations,
   replies,
   replyPublicationAttempts,
+  replyPublicationAuthorizations,
   reviews,
 } from '#/shared/db/schema/review.schema'
+import { properties } from '#/shared/db/schema/property.schema'
 import type {
   ReplyRepository,
   ReplyStageRow,
@@ -345,8 +347,12 @@ export const createReplyRepository = (
     })
   },
 
-  findPublicationActiveByPropertyId: async (propertyId, organizationId, limit) => {
-    return trace('reply.findPublicationActiveByPropertyId', async () => {
+  findUnsendablePublicationsByPropertyId: async (propertyId, organizationId, limit) => {
+    return trace('reply.findUnsendablePublicationsByPropertyId', async () => {
+      // The cycle's own authorized epoch is what the worker and the provider
+      // authorizer check; a pre-RPL cycle without an authorization row falls
+      // back to its Review's epoch.
+      const cycleEpoch = sql`COALESCE(${replyPublicationAuthorizations.sourceEpoch}, ${reviews.sourceEpoch})`
       const rows = await db
         .select({ reply: replies })
         .from(replies)
@@ -357,16 +363,30 @@ export const createReplyRepository = (
             eq(reviews.organizationId, replies.organizationId),
           ),
         )
+        .innerJoin(
+          properties,
+          and(
+            eq(properties.id, reviews.propertyId),
+            eq(properties.organizationId, reviews.organizationId),
+          ),
+        )
+        .leftJoin(
+          replyPublicationAuthorizations,
+          and(
+            eq(replyPublicationAuthorizations.replyId, replies.id),
+            eq(replyPublicationAuthorizations.publicationCycle, replies.publicationCycle),
+          ),
+        )
         .where(
           and(
             eq(replies.organizationId, organizationId),
             eq(reviews.propertyId, propertyId),
-            inArray(replies.publicationState, [
-              'requested',
-              'authorized',
-              'sending',
-              'pending_observation',
-            ]),
+            inArray(replies.publicationState, ['requested', 'authorized']),
+            or(
+              ne(properties.lifecycleState, 'active'),
+              isNotNull(properties.deletedAt),
+              sql`${cycleEpoch} < ${properties.sourceEpoch}`,
+            ),
           ),
         )
         .orderBy(asc(replies.id))

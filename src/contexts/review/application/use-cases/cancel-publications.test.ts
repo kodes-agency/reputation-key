@@ -266,7 +266,7 @@ describe('cancelPublicationsForProperty', () => {
     const results = [...cancelResults]
     return {
       replyRepo: {
-        findPublicationActiveByPropertyId: vi.fn(async () => pages.shift() ?? []),
+        findUnsendablePublicationsByPropertyId: vi.fn(async () => pages.shift() ?? []),
       },
       commandStore: {
         cancelPublications: vi.fn(async () => results.shift() ?? 0),
@@ -282,7 +282,7 @@ describe('cancelPublicationsForProperty', () => {
       makeReply(REPLY_2, REVIEW_2, 'requested'),
     ]
     const second = [
-      makeReply('42000000-0000-4000-8000-000000000022', REVIEW_3, 'sending'),
+      makeReply('42000000-0000-4000-8000-000000000022', REVIEW_3, 'authorized'),
     ]
     const deps = propertyDeps([first, second], [2, 1])
 
@@ -293,7 +293,7 @@ describe('cancelPublicationsForProperty', () => {
     })
 
     expect(result).toEqual({ cancelled: 3, batches: 2 })
-    expect(deps.replyRepo.findPublicationActiveByPropertyId).toHaveBeenCalledWith(
+    expect(deps.replyRepo.findUnsendablePublicationsByPropertyId).toHaveBeenCalledWith(
       PROP_ID,
       ORG_ID,
       2,
@@ -330,6 +330,6 @@ describe('cancelPublicationsForProperty', () => {
         cause: 'policy',
       }),
     ).resolves.toEqual({ cancelled: 0, batches: 1 })
-    expect(deps.replyRepo.findPublicationActiveByPropertyId).toHaveBeenCalledTimes(1)
+    expect(deps.replyRepo.findUnsendablePublicationsByPropertyId).toHaveBeenCalledTimes(1)
   })
 })

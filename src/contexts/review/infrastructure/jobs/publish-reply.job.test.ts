@@ -30,6 +30,10 @@ import { createGoogleAuthorizedProviderExecutor } from '#/contexts/integration/i
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
 import { createSingle401RefreshExecutor } from '#/contexts/integration/infrastructure/adapters/google-single-401-refresh-executor'
 import { integrationError } from '#/contexts/integration/domain/errors'
+import {
+  createReplyPublicationProviderCall,
+  type GoogleReplyPublicationAuthorizationResult,
+} from '#/contexts/integration/application/google-reply-publication-authorizer'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import { createPublishReplyHandler } from './publish-reply.job'
 
@@ -1192,7 +1196,10 @@ describe('publish-reply job over the real provider adapters (incident b129e390)'
   // reply's body was refused before line feeds were allowed in the comment.
   const UNCOMPILABLE_TOKEN = `ya29.access${String.fromCharCode(1)}token`
 
-  function incidentDeps(accessToken = 'ya29.access-token') {
+  function incidentDeps(
+    accessToken = 'ya29.access-token',
+    refusal: GoogleReplyPublicationAuthorizationResult | null = null,
+  ) {
     const deps = makeDeps()
     let current = {
       ...approvedReply,
@@ -1243,32 +1250,36 @@ describe('publish-reply job over the real provider adapters (incident b129e390)'
       logger: { warn: vi.fn() } as never,
       cursorStore: {} as never,
       executor,
-      authorizeReplyPublicationProviderCall: vi.fn(async (input) => ({
-        accessToken,
-        authorization: {
-          capability: 'property.publish_reply' as const,
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          connectionId: input.connectionId,
-          initiatorUserId: null,
-          expectedCredentialGeneration: 1,
-          authorizationVector: {
-            generation: 1,
-            propertySourceEpoch: input.sourceEpoch,
-            publicationCycle: input.publicationCycle,
-            publicationAttemptNumber: input.attemptNumber,
-            expectedReplyDigest: googleReplyTextDigest(INCIDENT_TEXT),
-          },
-          publication: {
-            reviewId: input.reviewId,
-            replyId: input.replyId,
-            publicationCycle: input.publicationCycle,
-            attemptNumber: input.attemptNumber,
-            sourceEpoch: input.sourceEpoch,
-            materialReviewRevision: input.materialReviewRevision,
-          },
-        },
-      })),
+      authorizeReplyPublicationProviderCall: vi.fn(async (input) =>
+        refusal
+          ? createReplyPublicationProviderCall(async () => refusal)(input)
+          : {
+              accessToken,
+              authorization: {
+                capability: 'property.publish_reply' as const,
+                organizationId: input.organizationId,
+                propertyId: input.propertyId,
+                connectionId: input.connectionId,
+                initiatorUserId: null,
+                expectedCredentialGeneration: 1,
+                authorizationVector: {
+                  generation: 1,
+                  propertySourceEpoch: input.sourceEpoch,
+                  publicationCycle: input.publicationCycle,
+                  publicationAttemptNumber: input.attemptNumber,
+                  expectedReplyDigest: googleReplyTextDigest(INCIDENT_TEXT),
+                },
+                publication: {
+                  reviewId: input.reviewId,
+                  replyId: input.replyId,
+                  publicationCycle: input.publicationCycle,
+                  attemptNumber: input.attemptNumber,
+                  sourceEpoch: input.sourceEpoch,
+                  materialReviewRevision: input.materialReviewRevision,
+                },
+              },
+            },
+      ),
       nowMs: () => NOW.getTime(),
     })
     const getReview = vi.fn(googleReviewApi.getReview)
@@ -1336,6 +1347,64 @@ describe('publish-reply job over the real provider adapters (incident b129e390)'
     )
     expect(JSON.stringify(deps.logger.error.mock.calls)).not.toContain('quiet')
   })
+
+  // An Archive or Restore committed after the claim: RepKey's own authorizer
+  // refuses the write because the Property is no longer active at the cycle's
+  // source epoch. Nothing reached Google, so the author must not hear "Google
+  // rejected the reply": the cycle is cancelled as a policy cancellation.
+  it('cancels a cycle the authorizer refused for a moved Property source as policy', async () => {
+    const { deps, handler, gateway, admit, getReview, job } = incidentDeps(
+      'ya29.access-token',
+      { ok: false, code: 'stale_source' },
+    )
+    deps.replyCommandStore.cancelPublications.mockResolvedValue(1)
+
+    await expect(handler(job)).resolves.toBeUndefined()
+
+    expect(admit).not.toHaveBeenCalled()
+    expect(gateway.execute).not.toHaveBeenCalled()
+    expect(getReview).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.cancelPublications).toHaveBeenCalledWith([
+      {
+        reply: expect.objectContaining({
+          id: IDS.reply,
+          publicationState: 'sending',
+          publicationAttempts: 1,
+        }),
+        event: expect.objectContaining({
+          _tag: 'review.reply.publication_cancelled',
+          replyId: IDS.reply,
+          reviewId: IDS.review,
+          propertyId: IDS.property,
+          organizationId: ORG,
+          cause: 'policy',
+          occurredAt: NOW,
+        }),
+        now: NOW,
+      },
+    ])
+    expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationRetryQueued).not.toHaveBeenCalled()
+  })
+
+  it.each(['authorization_denied', 'runtime_unavailable'] as const)(
+    'keeps a %s refusal a terminal rejection',
+    async (code) => {
+      const { deps, handler, job } = incidentDeps('ya29.access-token', {
+        ok: false,
+        code,
+      })
+
+      await expect(handler(job)).resolves.toBeUndefined()
+
+      expect(deps.replyCommandStore.cancelPublications).not.toHaveBeenCalled()
+      expect(deps.replyCommandStore.markPublicationTerminal).toHaveBeenCalledOnce()
+      expect(deps.replyCommandStore.markPublicationTerminal.mock.calls[0]![1]).toBe(
+        'terminal_rejection',
+      )
+    },
+  )
 })
 
 // Google revoked the grant: the reply PUT is answered 401 and the forced

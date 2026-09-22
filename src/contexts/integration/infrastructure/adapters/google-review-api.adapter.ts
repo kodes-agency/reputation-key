@@ -317,6 +317,21 @@ function executorErrorToReviewApiError(error: unknown): GoogleReviewApiError {
 }
 
 /**
+ * The reply authorizer refused, or could not decide, before any credential or
+ * provider access, so nothing was sent. The refusal stays terminal, but its
+ * closed code rides along as not-sent evidence: `stale_source` (the Property
+ * is no longer active at the cycle's source epoch) is RepKey's own policy,
+ * which the publish job cancels instead of reporting it as Google's answer.
+ */
+function replyAuthorizationRefusal(refusal: unknown): GoogleReviewApiError {
+  const executionCode = contentFreeCode(errorField(refusal, 'code'))
+  return reviewApiError('authorization_changed', false, {
+    failure: { ...NOT_SENT, executionCode },
+    ...(executionCode === null ? {} : { failureLabel: executionCode }),
+  })
+}
+
+/**
  * `executeGoogleProviderRaw` refuses a 200 whose content type is not JSON, but
  * for a write that refusal is about the body, not the outcome: Google answered
  * 200, so the reply was accepted. That branch is the only `parse_error` with an
@@ -1058,11 +1073,8 @@ export const createGoogleReviewApiAdapter = (
         publicationCycle: input.publicationCycle,
         attemptNumber: input.attemptNumber,
       })
-    } catch {
-      throw await withReauthorizationCause(
-        input,
-        reviewApiError('authorization_changed', false),
-      )
+    } catch (refusal) {
+      throw await withReauthorizationCause(input, replyAuthorizationRefusal(refusal))
     }
     assertReplyAuthorizationBinds(authorized.authorization, input)
     try {

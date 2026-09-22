@@ -125,7 +125,10 @@ export type ReplyCommandStore = Readonly<{
    * accept a reply without echoing it in a later read, which is
    * indistinguishable from a write it never received; absence is therefore not
    * evidence for another write, and the code must refuse to guess. Returns null
-   * when the guard misses.
+   * when the guard misses. A cycle whose named manager lost current authority,
+   * or whose Property is not active at the cycle's source epoch, is instead
+   * cancelled in the same transaction (publication_cancelled, cause 'policy')
+   * and null is returned: the provider authorizer would refuse its write.
    */
   markPublicationSending(
     reply: Reply,

@@ -586,7 +586,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         commandStore: replyCommandStore,
         clock: input.clock,
       }),
-      propertyPublicationScope,
     })
   // BQC-5.5: governed aggregate serving reads — eligibility in SQL,
   // clock-injected. Wired into the dashboard build by composition. ONE

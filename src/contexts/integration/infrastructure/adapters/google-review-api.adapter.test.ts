@@ -1135,6 +1135,52 @@ describe('GoogleReviewApiAdapter reply failure evidence (D2)', () => {
     })
   })
 
+  // The authorizer refuses before any credential or provider access. Its closed
+  // code is the only thing that separates RepKey's own lifecycle/epoch refusal
+  // (`stale_source`) from a changed approval, so it rides along as not_sent.
+  it.each(['stale_source', 'authorization_denied', 'runtime_unavailable'])(
+    'carries a %s authorizer refusal as not_sent evidence',
+    async (code) => {
+      const execute = vi.fn()
+      const { api } = createAdapter({
+        execute,
+        authorizeReplyPublicationProviderCall: vi
+          .fn()
+          .mockRejectedValue(
+            Object.assign(new Error(`authorization is unavailable: ${code}`), { code }),
+          ),
+      })
+
+      const error = await rejection(api.replyToReview(publicationInput()))
+
+      expect(error).toMatchObject({
+        _tag: 'GoogleReviewApiError',
+        code: 'authorization_changed',
+        recoverable: false,
+        failure: { executionCode: code, dispatch: 'not_sent', providerStatus: null },
+      })
+      expect(error.message).toBe(`Google review API request failed (${code}; not_sent)`)
+      expect(execute).not.toHaveBeenCalled()
+    },
+  )
+
+  it('drops an authorizer refusal code that is not a closed-union word', async () => {
+    const { api } = createAdapter({
+      execute: vi.fn(),
+      authorizeReplyPublicationProviderCall: vi
+        .fn()
+        .mockRejectedValue(Object.assign(new Error('boom'), { code: 'Reply text: hi' })),
+    })
+
+    const error = await rejection(api.replyToReview(publicationInput()))
+
+    expect(error).toMatchObject({
+      code: 'authorization_changed',
+      failure: { executionCode: null, dispatch: 'not_sent', providerStatus: null },
+    })
+    expect(error.message).not.toContain('Reply text')
+  })
+
   it('reports an executor that threw as an unknown dispatch', async () => {
     const execute = vi.fn().mockRejectedValue(new Error('socket reset'))
 

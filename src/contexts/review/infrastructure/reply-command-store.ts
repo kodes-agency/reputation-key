@@ -10,8 +10,9 @@
 // comes from nextPublicationState (the domain authority), never from a
 // caller-supplied literal.
 
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { properties } from '#/shared/db/schema/property.schema'
 import {
   googleReplyObservationHeads,
   googleReplyObservations,
@@ -506,10 +507,57 @@ async function readCurrentPublicationAuthorization(
   return authorization
 }
 
-/** The named manager has lost current authority: move the cycle to
- * cancelled and commit the durable cancellation fact when the row is still
- * claimable. */
-async function cancelPublicationForLostAuthority(
+/**
+ * The Property this claim is admitted under, locked FOR SHARE ahead of Reply
+ * truth (the canonical order in review-source-mutation-serialization.ts). An
+ * Archive or Restore therefore commits wholly before this claim decides, or
+ * after the claimed attempt is recorded; the provider authorizer's own
+ * refusal covers the second case.
+ */
+async function lockPublicationProperty(
+  tx: Tx,
+  organizationId: Reply['organizationId'],
+  propertyId: string,
+): Promise<Readonly<{ lifecycleState: string; sourceEpoch: number }> | null> {
+  const rows = await tx
+    .select({
+      lifecycleState: properties.lifecycleState,
+      sourceEpoch: properties.sourceEpoch,
+    })
+    .from(properties)
+    .where(
+      and(
+        eq(properties.organizationId, organizationId),
+        eq(properties.id, propertyId),
+        isNull(properties.deletedAt),
+      ),
+    )
+    .for('share')
+    .limit(1)
+  return rows[0] ?? null
+}
+
+/**
+ * The provider authorizer admits a write only for an active Property at the
+ * source epoch the cycle was authorized at. Anything else (an Archive, or a
+ * Restore since approval) would be refused and reported as a Google rejection.
+ */
+function propertyAdmitsCycle(
+  property: Readonly<{ lifecycleState: string; sourceEpoch: number }> | null,
+  authorization: PublicationAuthorizationRow,
+): boolean {
+  return (
+    property !== null &&
+    property.lifecycleState === 'active' &&
+    property.sourceEpoch === authorization.sourceEpoch
+  )
+}
+
+/** The cycle can no longer be claimed — its named manager lost current
+ * authority, or its Property is no longer active at its source epoch: move it
+ * to cancelled and commit the durable policy cancellation fact when the row is
+ * still claimable. */
+async function cancelUnclaimablePublication(
   tx: Tx,
   reply: Reply,
   attempt: PublicationAttemptStart,
@@ -747,9 +795,11 @@ export const createAtomicReplyCommandStore = (
     },
 
     // BQC-3.8/RPL-01: claim. The normal claim records no fact. If the named
-    // manager has lost current authority, the same transaction instead moves
-    // the cycle to draft/cancelled and records publication_cancelled(policy),
-    // so a consumed job never strands an authorized Reply.
+    // manager has lost current authority, or the Property is no longer active
+    // at the cycle's source epoch (an Archive or Restore since approval), the
+    // same transaction instead moves the cycle to draft/cancelled and records
+    // publication_cancelled(policy), so a consumed job never strands an
+    // authorized Reply and nothing reaches the provider authorizer to refuse.
     markPublicationSending: async (reply, attempt, now) => {
       return trace('reply.commandStore.markPublicationSending', async () => {
         const target = nextStateOrNull(reply, 'claim')
@@ -768,6 +818,11 @@ export const createAtomicReplyCommandStore = (
         }
         const at = now ?? clock()
         const claimed = await db.transaction(async (tx) => {
+          const property = await lockPublicationProperty(
+            tx,
+            reply.organizationId,
+            attempt.propertyId,
+          )
           const scope = await lockCurrentReplyTruthScope(tx, {
             organizationId: reply.organizationId,
             reviewId: reply.reviewId,
@@ -782,6 +837,10 @@ export const createAtomicReplyCommandStore = (
             scope,
           )
           if (!authorization) return null
+          if (!propertyAdmitsCycle(property, authorization)) {
+            await cancelUnclaimablePublication(tx, reply, attempt, at)
+            return null
+          }
           const actorAllowed = await publicationActorAuthority(tx, {
             organizationId: authorization.organizationId,
             propertyId: authorization.propertyId,
@@ -789,7 +848,7 @@ export const createAtomicReplyCommandStore = (
             at,
           })
           if (!actorAllowed) {
-            await cancelPublicationForLostAuthority(tx, reply, attempt, at)
+            await cancelUnclaimablePublication(tx, reply, attempt, at)
             return null
           }
           const duplicate = await tx

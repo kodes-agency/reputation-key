@@ -98,6 +98,7 @@ import {
 } from './application/google-review-sync-authorizer'
 import {
   createGoogleReplyPublicationAuthorizer,
+  createReplyPublicationProviderCall,
   type GoogleReplyPublicationContentAuthorizer,
 } from './application/google-reply-publication-authorizer'
 import { createGooglePerformanceAdapter } from './infrastructure/adapters/google-performance.adapter'
@@ -1266,15 +1267,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         typeof createGoogleReviewApiAdapter
       >[0]['authorizeReplyPublicationProviderCall']
     | undefined = googleReplyPublicationAuthorizer
-    ? async (input) => {
-        const authorized = await googleReplyPublicationAuthorizer(input)
-        if (!authorized.ok) {
-          throw new Error(
-            `Google reply publication authorization is unavailable: ${authorized.code}`,
-          )
-        }
-        return authorized
-      }
+    ? createReplyPublicationProviderCall(googleReplyPublicationAuthorizer)
     : undefined
   const googleReviewProviderExecutor = deps.googleAuthorizedProviderExecutor
     ? createSingle401RefreshExecutor({
