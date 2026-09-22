@@ -39,6 +39,7 @@ import { createGatedJobHandler } from '#/shared/jobs/delayed-execution-gate'
 import { assertJobReadiness } from '#/shared/jobs/readiness'
 import {
   JOB_SCHEDULER_WATCHDOG_INTERVAL_MS,
+  createRedisSchedulerPlanRecord,
   reconcileJobSchedulers,
   startJobSchedulerWatchdog,
 } from '#/shared/jobs/job-schedulers'
@@ -185,6 +186,11 @@ async function main() {
   const runtimeObservationStore = runtimeObservationRedis
     ? createJobRuntimeObservationStore({ redis: runtimeObservationRedis })
     : null
+  // Which scheduler plan owns the background queue — the latest boot's — so
+  // an outgoing worker's watchdog cannot restore what its successor removed.
+  const schedulerPlanRecord = runtimeObservationRedis
+    ? createRedisSchedulerPlanRecord(runtimeObservationRedis)
+    : null
 
   // ── Default queue — user-facing jobs (import, review sync, reply publish, etc.)
   // Concurrency is budgeted against the connection pool, NOT maximized:
@@ -244,6 +250,7 @@ async function main() {
       queue: container.backgroundQueue,
       managedJobNames: schedulerPlan.managedJobNames,
       desired: schedulerPlan.desired,
+      planRecord: schedulerPlanRecord,
     })
     for (const { schedulerId, jobName } of schedulerPlan.desired) {
       logger.info({ schedulerId, jobName }, 'Job scheduler reconciled')
@@ -319,6 +326,7 @@ async function main() {
     ? startJobSchedulerWatchdog({
         queue: container.backgroundQueue,
         desired: schedulerPlan.desired,
+        planRecord: schedulerPlanRecord,
         intervalMs: JOB_SCHEDULER_WATCHDOG_INTERVAL_MS,
         logger,
         onRestored: async () => {

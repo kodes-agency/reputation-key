@@ -16,7 +16,16 @@ const worker = readFileSync(resolve('src/worker/index.ts'), 'utf8')
 describe('worker scheduler watchdog wiring', () => {
   it('watches the same scheduler plan boot reconciliation installed', () => {
     expect(worker).toMatch(
-      /startJobSchedulerWatchdog\(\{\s*queue: container\.backgroundQueue,\s*desired: schedulerPlan\.desired,\s*intervalMs: JOB_SCHEDULER_WATCHDOG_INTERVAL_MS,/,
+      /startJobSchedulerWatchdog\(\{\s*queue: container\.backgroundQueue,\s*desired: schedulerPlan\.desired,\s*planRecord: schedulerPlanRecord,\s*intervalMs: JOB_SCHEDULER_WATCHDOG_INTERVAL_MS,/,
+    )
+  })
+
+  it('records the reconciled plan where the watchdog checks it owns the schedulers', () => {
+    expect(worker).toMatch(
+      /reconcileJobSchedulers\(\{\s*queue: container\.backgroundQueue,\s*managedJobNames: schedulerPlan\.managedJobNames,\s*desired: schedulerPlan\.desired,\s*planRecord: schedulerPlanRecord,/,
+    )
+    expect(worker).toMatch(
+      /schedulerPlanRecord = runtimeObservationRedis\s*\?\s*createRedisSchedulerPlanRecord\(runtimeObservationRedis\)/,
     )
   })
 

@@ -3,26 +3,33 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Queue } from 'bullmq'
 import { Redis } from 'ioredis'
 import {
+  JOB_SCHEDULER_PLAN_KEY_PREFIX,
+  createRedisSchedulerPlanRecord,
+  jobSchedulerPlanFingerprint,
   reconcileJobSchedulers,
   restoreMissingJobSchedulers,
   type JobSchedulerRegistration,
+  type SchedulerPlanRecord,
 } from './job-schedulers'
 
 describe.sequential('job scheduler reconciliation (real Redis)', () => {
   let connection: Redis
   let queue: Queue
+  let planRecord: SchedulerPlanRecord
 
   beforeEach(() => {
     connection = new Redis(process.env.REDIS_URL!, { maxRetriesPerRequest: null })
     queue = new Queue(`scheduler-reconcile-${randomUUID()}`, {
       connection: connection as unknown as import('bullmq').ConnectionOptions,
     })
+    planRecord = createRedisSchedulerPlanRecord(connection)
   })
 
   afterEach(async () => {
     for (const scheduler of await queue.getJobSchedulers(0, -1, true)) {
       await queue.removeJobScheduler(scheduler.key)
     }
+    await connection.del(`${JOB_SCHEDULER_PLAN_KEY_PREFIX}${queue.name}`)
     await queue.obliterate({ force: true })
     await queue.close()
     await connection.quit()
@@ -63,6 +70,7 @@ describe.sequential('job scheduler reconciliation (real Redis)', () => {
           jobOptions: { attempts: 3 },
         },
       ],
+      planRecord,
     })
 
     const current = await queue.getJobSchedulers(0, -1, true)
@@ -103,6 +111,7 @@ describe.sequential('job scheduler reconciliation (real Redis)', () => {
       queue,
       managedJobNames: ['health-check', 'digest-notification'],
       desired,
+      planRecord,
     })
     const digestBefore = await queue.getJobScheduler('digest-notification-recurring')
 
@@ -112,7 +121,7 @@ describe.sequential('job scheduler reconciliation (real Redis)', () => {
     // so only the upserts themselves tell a restore from a blanket reconcile —
     // the one that drops an overdue pending iteration in BullMQ 6.
     const upsert = vi.spyOn(queue, 'upsertJobScheduler')
-    const partial = await restoreMissingJobSchedulers({ queue, desired })
+    const partial = await restoreMissingJobSchedulers({ queue, desired, planRecord })
 
     expect(partial.restoredSchedulerIds).toEqual(['health-check-recurring'])
     expect(upsert.mock.calls.map(([schedulerId]) => schedulerId)).toEqual([
@@ -123,14 +132,17 @@ describe.sequential('job scheduler reconciliation (real Redis)', () => {
     )
     upsert.mockRestore()
 
-    // Everything this queue held in Redis is gone.
+    // Everything this queue held in Redis is gone, the plan record with it.
     await queue.obliterate({ force: true })
-    const total = await restoreMissingJobSchedulers({ queue, desired })
+    await connection.del(`${JOB_SCHEDULER_PLAN_KEY_PREFIX}${queue.name}`)
+    const total = await restoreMissingJobSchedulers({ queue, desired, planRecord })
 
     expect(total.restoredSchedulerIds).toEqual([
       'health-check-recurring',
       'digest-notification-recurring',
     ])
+    // The restore claimed the lost plan record back for its plan.
+    expect(await planRecord.read(queue.name)).toBe(jobSchedulerPlanFingerprint(desired))
     expect(
       (await queue.getJobSchedulers(0, -1, true))
         .map(({ key, name }) => ({ key, name }))
@@ -139,5 +151,47 @@ describe.sequential('job scheduler reconciliation (real Redis)', () => {
       { key: 'digest-notification-recurring', name: 'digest-notification' },
       { key: 'health-check-recurring', name: 'health-check' },
     ])
+  })
+
+  it('does not let an outgoing worker restore a scheduler its successor removed', async () => {
+    const healthCheck: JobSchedulerRegistration = {
+      schedulerId: 'health-check-recurring',
+      jobName: 'health-check',
+      repeat: { every: 300_000 },
+      jobOptions: { attempts: 3 },
+    }
+    const digest = (schedulerId: string): JobSchedulerRegistration => ({
+      schedulerId,
+      jobName: 'digest-notification',
+      repeat: { pattern: '0 * * * *' },
+      jobOptions: { attempts: 3 },
+    })
+    const outgoing = [healthCheck, digest('digest-notification-recurring')]
+    const incoming = [healthCheck, digest('digest-notification-hourly')]
+    const managedJobNames = ['health-check', 'digest-notification']
+    await reconcileJobSchedulers({
+      queue,
+      managedJobNames,
+      desired: outgoing,
+      planRecord,
+    })
+
+    // The new release boots during the overlap and renames the digest's id.
+    await reconcileJobSchedulers({
+      queue,
+      managedJobNames,
+      desired: incoming,
+      planRecord,
+    })
+    const restore = await restoreMissingJobSchedulers({
+      queue,
+      desired: outgoing,
+      planRecord,
+    })
+
+    expect(restore).toEqual({ restoredSchedulerIds: [], superseded: true })
+    expect(
+      (await queue.getJobSchedulers(0, -1, true)).map(({ key }) => key).sort(),
+    ).toEqual(['digest-notification-hourly', 'health-check-recurring'])
   })
 })
