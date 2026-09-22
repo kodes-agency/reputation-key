@@ -5,7 +5,7 @@
 // `category`, `propertyId` and coalescing fields — the previous fixtures cast an
 // incomplete object to `Notification` and omitted all four.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, within } from 'storybook/test'
+import { expect, fn, userEvent, within } from 'storybook/test'
 import {
   notificationFixtures,
   notificationPropertyFixtures,
@@ -169,9 +169,13 @@ export const WithPagination: Story = {
   },
 }
 
+/** Busy, not disabled: a disabled button would drop the focus it holds. */
 export const LoadingMore: Story = {
-  args: { hasMore: true, isLoadingMore: true },
-  play: async ({ canvasElement }) => {
-    expect(within(canvasElement).getByRole('button', { name: /loading/i })).toBeDisabled()
+  args: { hasMore: true, isLoadingMore: true, onLoadMore: fn() },
+  play: async ({ args, canvasElement }) => {
+    const loading = within(canvasElement).getByRole('button', { name: /loading/i })
+    expect(loading).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.click(loading)
+    expect(args.onLoadMore).not.toHaveBeenCalled()
   },
 }

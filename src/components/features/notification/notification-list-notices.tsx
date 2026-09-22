@@ -84,7 +84,14 @@ function LoadMoreLabel({ isLoadingMore, error }: Omit<LoadMoreProps, 'onLoadMore
   )
 }
 
-/** "Load more", and what went wrong with the last attempt, beside it. */
+/**
+ * "Load more", and what went wrong with the last attempt, beside it.
+ *
+ * While a page loads the button is busy, not disabled: a focused button that
+ * becomes disabled drops focus to <body> in Chromium, outside the non-modal
+ * popover. When the last page arrives and the button goes, the list's focus
+ * recovery (`data-list-control`) moves focus to the list.
+ */
 export function NotificationLoadMore({
   isLoadingMore,
   error,
@@ -104,9 +111,12 @@ export function NotificationLoadMore({
         <Button
           variant="ghost"
           size="sm"
-          onClick={onLoadMore}
-          disabled={isLoadingMore}
-          className="w-full text-xs text-muted-foreground"
+          onClick={() => {
+            if (!isLoadingMore) onLoadMore()
+          }}
+          aria-disabled={isLoadingMore || undefined}
+          data-list-control="load-more"
+          className="w-full text-xs text-muted-foreground aria-disabled:cursor-default aria-disabled:opacity-50"
         >
           <LoadMoreLabel isLoadingMore={isLoadingMore} error={error} />
         </Button>

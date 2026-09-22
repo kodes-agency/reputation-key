@@ -418,6 +418,54 @@ export const PhoneTopBarLight: Story = {
   parameters: { ...PhoneTopBar.parameters, theme: 'light' },
 }
 
+/** More rows than the bell's page of 20, so it offers "Load more". */
+const pagedFeed = Array.from({ length: 25 }, (_, n) =>
+  makeNotification({
+    id: `63000000-0000-4000-8000-${n.toString().padStart(12, '0')}`,
+    type: 'review.created',
+    status: 'read',
+    payload: { propertyName: 'Harbour View Suites', platform: 'google' },
+    createdAt: new Date(Date.now() - (n + 1) * 60_000),
+  }),
+)
+const olderPage = Promise.withResolvers<ReturnType<typeof notificationPageFixture>>()
+
+/**
+ * "Load more" keeps keyboard focus while it loads. It used to disable itself,
+ * and a focused button that becomes disabled drops focus to <body> in
+ * Chromium, outside the non-modal popover. When the last page arrives and the
+ * button goes, focus moves to the list.
+ */
+export const LoadMoreKeepsFocus: Story = {
+  args: {
+    notificationFns: makeNotificationFns({
+      getFeedHead: (async () =>
+        notificationFeedHeadFixture(
+          pagedFeed.slice(0, 20),
+          0,
+          true,
+        )) as unknown as NotificationServerFns['getFeedHead'],
+      getList: (() => olderPage.promise) as unknown as NotificationServerFns['getList'],
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const popover = await openBell(canvasElement)
+    ;(await popover.findByRole('button', { name: 'Load more' })).focus()
+    await userEvent.keyboard('{Enter}')
+
+    const loading = await popover.findByRole('button', { name: /loading/i })
+    expect(loading).toHaveFocus()
+    expect(loading).toHaveAttribute('aria-disabled', 'true')
+
+    olderPage.resolve(notificationPageFixture(pagedFeed.slice(20)))
+    await waitFor(() => expect(popover.getAllByRole('listitem')).toHaveLength(25))
+    expect(popover.queryByRole('button', { name: /load more|loading/i })).toBeNull()
+    await waitFor(() =>
+      expect(popover.getByRole('group', { name: 'Notification list' })).toHaveFocus(),
+    )
+  },
+}
+
 /** Reads that never settle → the list holds its skeleton, the badge stays absent. */
 export const Loading: Story = {
   args: {

@@ -7,7 +7,9 @@
 // (WCAG 2.4.3). This hook remembers the last row control focused inside the
 // list. When a render leaves that control detached with focus lost, it moves
 // focus to the same control on the neighbouring row (the next one, else the
-// previous one), or to the list itself when no row is left.
+// previous one), or to the list itself when no row is left. A control of the
+// list itself (`data-list-control`: "Load more", gone with the last page)
+// hands focus to the list.
 //
 // A row's menu renders in a portal outside the list. Focus moving into it keeps
 // the record, because the menu's trigger is what its actions remove.
@@ -29,15 +31,18 @@ import {
 
 const ROW_SELECTOR = 'li[data-notification-id]'
 
-type FocusedRowControl = Readonly<{
+type FocusedControl = Readonly<{
   element: HTMLElement
-  rowId: string
-  /** `data-row-control` of the focused control: `open`, `menu` or `dismiss`. */
+  /** The row the control belongs to; null for a control of the list itself. */
+  rowId: string | null
+  /** `data-row-control` of a row control: `open`, `menu` or `dismiss`. */
   control: string
 }>
 
-function rowControlOf(target: EventTarget | null): FocusedRowControl | null {
+function focusedControlOf(target: EventTarget | null): FocusedControl | null {
   if (!(target instanceof HTMLElement)) return null
+  const listControl = target.closest<HTMLElement>('[data-list-control]')
+  if (listControl) return { element: listControl, rowId: null, control: '' }
   const row = target.closest<HTMLElement>(ROW_SELECTOR)
   const control = target.closest<HTMLElement>('[data-row-control]')
   const rowId = row?.dataset.notificationId
@@ -75,14 +80,14 @@ export function useNotificationFocusRecovery(
   list: RefObject<HTMLElement | null>,
   rowIds: ReadonlyArray<string>,
 ) {
-  const focused = useRef<FocusedRowControl | null>(null)
+  const focused = useRef<FocusedControl | null>(null)
   const previousIds = useRef(rowIds)
 
   useLayoutEffect(() => {
     const last = focused.current
     const container = list.current
     if (last && container && !last.element.isConnected && isFocusLost()) {
-      const id = neighbourOf(last.rowId, previousIds.current, rowIds)
+      const id = last.rowId && neighbourOf(last.rowId, previousIds.current, rowIds)
       const row = id
         ? container.querySelector(`${ROW_SELECTOR}[data-notification-id="${id}"]`)
         : null
@@ -110,7 +115,7 @@ export function useNotificationFocusRecovery(
     onFocus: (event: FocusEvent<HTMLElement>) => {
       // A target outside the container is a row's menu, rendered in a portal.
       if (list.current?.contains(event.target)) {
-        focused.current = rowControlOf(event.target)
+        focused.current = focusedControlOf(event.target)
       }
     },
     onBlur: (event: FocusEvent<HTMLElement>) => {
