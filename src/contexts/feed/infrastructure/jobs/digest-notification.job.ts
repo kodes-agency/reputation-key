@@ -45,6 +45,7 @@ import type { UserLookupPort } from '../../application/ports/notification-user-l
 import type { EmailSenderPort } from '../../application/ports/email-sender.port'
 import type { NotificationRecipientStanding } from '../../application/notification-recipient-standing'
 import type { NotificationOrganizationScopeResolver } from '../repositories/notification-organization-scope.repository'
+import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
 import type { NotificationEmail } from '../../domain/notification-types'
 import { isDailyDigestWindow } from '../../domain/notification-delivery-policy'
 import { renderDigestEmail } from '../email/render'
@@ -95,6 +96,8 @@ export type DigestDeps = Readonly<{
   userLookup: UserLookupPort
   emailSender: EmailSenderPort
   resolveOrganizationScope: NotificationOrganizationScopeResolver
+  /** Resolves only an active Property; `null` for any other lifecycle state. */
+  resolvePropertyScope: NotificationPropertyScopeResolver
   logger: LoggerPort
   clock: () => Date
   batchIdGen: () => string

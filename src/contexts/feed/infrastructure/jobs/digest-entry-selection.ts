@@ -31,6 +31,7 @@ import { getDefaultEnabled } from '../../domain/notification-policy'
 import { isStaleQueuedEmail, STALE_EMAIL_REASON } from '../../domain/email-freshness'
 import { emailCorrelationId } from '../delivery-correlation'
 import type { DigestItem } from './digest-assembly'
+import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
 
 /** What the entry filters need; a subset of the digest job's dependencies. */
 export type DigestEntryDeps = Readonly<{
@@ -38,6 +39,8 @@ export type DigestEntryDeps = Readonly<{
   preferenceRepo: Pick<NotificationPreferenceRepositoryPort, 'findForDelivery'>
   notifRepo: Pick<NotificationRepositoryPort, 'findByIdsForProperty'>
   logger: LoggerPort
+  /** Resolves only an active Property; `null` for any other lifecycle state. */
+  resolvePropertyScope: NotificationPropertyScopeResolver
   authorizeScope: ScheduledScopeAuthorizer
   /** The recipient's current membership, access and responsibility. */
   isRecipientEligible: NotificationRecipientStanding
@@ -53,10 +56,14 @@ export type RecipientContext = Readonly<{
 }>
 
 /**
- * Drop rows whose property is no longer authorized for scheduled delivery. The
- * digest is recipient-scoped but authorization is still per property, so this
- * keeps the pre-existing gate exactly where it was — one check per distinct
- * property, not one per row.
+ * Drop rows whose Property is no longer active, or no longer authorized for
+ * scheduled delivery. The digest is recipient-scoped but both questions are
+ * per Property, so each is asked once per distinct Property, not per row. The
+ * rows dropped here are held, not settled — exactly as the urgent path holds
+ * a row whose Property it cannot resolve.
+ *
+ * The due-row query already leaves out rows for inactive Properties; this
+ * check is what stops an open batch frozen before its Property was archived.
  */
 export async function authorizedEntries(
   deps: DigestEntryDeps,
@@ -67,7 +74,10 @@ export async function authorizedEntries(
   const kept: NotificationEmail[] = []
   for (const entry of entries) {
     const key = entry.propertyId as string
-    if (!verdicts.has(key)) verdicts.set(key, await deps.authorizeScope(rawOrgId, key))
+    if (!verdicts.has(key)) {
+      const active = (await deps.resolvePropertyScope(rawOrgId, key)) !== null
+      verdicts.set(key, active && (await deps.authorizeScope(rawOrgId, key)))
+    }
     if (verdicts.get(key)) kept.push(entry)
   }
   return kept

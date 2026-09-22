@@ -69,6 +69,20 @@ const dueForCadence = (cadence: string, now: Date) =>
   )
 
 /**
+ * The row's Property is still active. Rows for an archived, suspended or
+ * deleted Property are held, not settled: the urgent path holds them the same
+ * way (it resolves only active Properties), a restored Property's backlog is
+ * retired as stale rather than flushed, and Organization closure cancels them.
+ */
+const onActiveProperty = sql`EXISTS (
+  SELECT 1 FROM properties p
+   WHERE p.organization_id = ${notificationEmailQueue.organizationId}
+     AND p.id = ${notificationEmailQueue.propertyId}
+     AND p.deleted_at IS NULL
+     AND p.lifecycle_state = 'active'
+)`
+
+/**
  * ADR 0046 r.6 is a state MACHINE, not a last-writer-wins field. Provider
  * webhooks arrive out of order often enough that a late `delivered` would
  * otherwise erase a `bounced` and we would keep mailing a dead address.
@@ -297,7 +311,7 @@ export const createNotificationEmailRepository = (
           userId: notificationEmailQueue.userId,
         })
         .from(notificationEmailQueue)
-        .where(dueForCadence(cadence, now))
+        .where(and(dueForCadence(cadence, now), onActiveProperty))
         .orderBy(
           asc(notificationEmailQueue.organizationId),
           asc(notificationEmailQueue.userId),
@@ -344,6 +358,7 @@ export const createNotificationEmailRepository = (
           eq(notificationEmailQueue.organizationId, orgId),
           eq(notificationEmailQueue.userId, userId),
           dueForCadence(cadence, now),
+          onActiveProperty,
         ),
       )
       .orderBy(asc(notificationEmailQueue.createdAt))

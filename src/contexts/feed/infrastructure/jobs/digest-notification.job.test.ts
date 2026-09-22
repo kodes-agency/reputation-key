@@ -57,6 +57,18 @@ const notificationFor = (entry: NotificationEmail): Notification =>
     },
   })
 
+type PropertyScope = Readonly<{
+  organizationId: string
+  propertyId: string
+  timezone: string
+}>
+
+const activeScope = (property: string): PropertyScope | null => ({
+  organizationId: ORG,
+  propertyId: property,
+  timezone: 'UTC',
+})
+
 type Options = Readonly<{
   now?: Date
   recipients?: ReadonlyArray<Readonly<{ organizationId: string; userId: string }>>
@@ -170,6 +182,9 @@ function baseDeps(options: Options = {}) {
     logger: createFakeJobLogger(),
     clock: () => now,
     batchIdGen: vi.fn(() => '86000000-0000-4000-8000-000000000099'),
+    resolvePropertyScope: vi.fn(async (_org: string, property: string) =>
+      activeScope(property),
+    ),
     authorizeScope: vi.fn(async (_org: string, _property?: string) => true),
     isRecipientEligible: vi.fn(
       async (_input: { propertyId: string; audience: unknown }, _memo?: unknown) => true,
@@ -240,6 +255,25 @@ describe('digest notification job — one email per user (ADR 0046 r.4)', () => 
     const payload = deps.emailSender.send.mock.calls[0]![0]
     expect(payload.html).toContain('Riverside')
     expect(payload.html).not.toContain('Hillcrest')
+  })
+
+  it('holds, and never mails, rows for a Property that is no longer active', async () => {
+    // Archived after the rows were queued. Urgent mail for it is held; the
+    // digest must agree rather than email notices about a removed Property.
+    const deps = baseDeps()
+    deps.resolvePropertyScope.mockImplementation(async (_org, property) =>
+      property === PROP_B ? null : activeScope(property),
+    )
+
+    await runHandler(deps)
+
+    const payload = deps.emailSender.send.mock.calls[0]![0]
+    expect(payload.html).toContain('Riverside')
+    expect(payload.html).not.toContain('Hillcrest')
+    expect(deps.emailRepo.markSuppressed).not.toHaveBeenCalled()
+    expect(deps.emailRepo.prepareDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ memberIds: [entryFor(PROP_A).id] }),
+    )
   })
 
   it('sends nothing when no property is authorized', async () => {

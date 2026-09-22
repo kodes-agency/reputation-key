@@ -78,11 +78,17 @@ function fakeDeps() {
       getEmail: vi.fn(async (): Promise<string | null> => 'manager@example.com'),
     },
     emailSender: { send },
-    resolvePropertyScope: vi.fn(async () => ({
-      organizationId: ORG as string,
-      propertyId: PROPERTY as string,
-      timezone: 'America/New_York',
-    })),
+    resolvePropertyScope: vi.fn(
+      async (): Promise<{
+        organizationId: string
+        propertyId: string
+        timezone: string
+      } | null> => ({
+        organizationId: ORG as string,
+        propertyId: PROPERTY as string,
+        timezone: 'America/New_York',
+      }),
+    ),
     resolveOrganizationScope: vi.fn(async () => ({
       timezone: 'Europe/London',
       propertyNames: new Map([[PROPERTY as string, 'Riverside Hotel']]),
@@ -118,6 +124,17 @@ describe('immediate notification email job', () => {
     await run()
     expect(deps.resolvePropertyScope).toHaveBeenCalledWith(ORG, PROPERTY)
     expect(deps.emailRepo.findById).not.toHaveBeenCalled()
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  it('holds, without reading or settling it, a row for a Property that is not active', async () => {
+    // The digest holds these rows the same way (digest-notification.job.test).
+    deps.resolvePropertyScope.mockResolvedValue(null)
+
+    await run()
+
+    expect(deps.emailRepo.findById).not.toHaveBeenCalled()
+    expect(deps.emailRepo.markSuppressed).not.toHaveBeenCalled()
     expect(deps.emailSender.send).not.toHaveBeenCalled()
   })
 

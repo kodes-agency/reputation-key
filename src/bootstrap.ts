@@ -783,6 +783,7 @@ async function registerNotificationJobs(
     batchIdGen: () => crypto.randomUUID(),
     preferenceRepo: container.notificationWorkerRuntime.preferenceRepo,
     resolveOrganizationScope: resolveNotificationOrgScope,
+    resolvePropertyScope: resolveNotificationProperty,
     authorizeScope: createScheduledScopeAuthorizer('system:notification.email_digest'),
     isRecipientEligible: container.notificationWorkerRuntime.recipientStanding,
     baseUrl: notifBaseUrl,

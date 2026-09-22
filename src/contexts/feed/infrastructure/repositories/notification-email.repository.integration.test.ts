@@ -405,6 +405,32 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
     })
   })
 
+  it('holds, and never returns as due, digest rows for a Property that is not active', async () => {
+    // The urgent path holds these rows too: an archived Property's notices
+    // must not reach anyone by either channel.
+    const repo = createNotificationEmailRepository(db)
+    const tomorrow = new Date('2026-08-26T08:00:00.000Z')
+    await expect(repo.findDueByUser(ORG, USER, 'daily', tomorrow)).resolves.toHaveLength(
+      3,
+    )
+
+    await db
+      .update(properties)
+      .set({ lifecycleState: 'archived' })
+      .where(eq(properties.id, PROPERTY))
+
+    await expect(repo.findDueByUser(ORG, USER, 'daily', tomorrow)).resolves.toEqual([])
+    await expect(repo.findDueRecipients('daily', tomorrow)).resolves.not.toContainEqual({
+      organizationId: ORG,
+      userId: USER,
+    })
+    const held = await db
+      .select({ status: notificationEmailQueue.status })
+      .from(notificationEmailQueue)
+      .where(eq(notificationEmailQueue.organizationId, ORG))
+    expect(held.map((row) => row.status)).toEqual(['pending', 'pending', 'pending'])
+  })
+
   it('keeps the time of the first provider attempt through every later one', async () => {
     // The provider's 24-hour idempotency window opens at the first attempt.
     const repo = createNotificationEmailRepository(db)
