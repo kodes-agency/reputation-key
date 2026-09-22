@@ -548,6 +548,22 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
       })
     })
 
+    it('retires a refused batch whose rows all dropped, with nothing re-rendered', async () => {
+      const repo = createNotificationEmailRepository(db)
+      const input = await refuse(repo, true)
+
+      await expect(
+        repo.settleDigestBatch({
+          batchId: BATCH,
+          organizationId: ORG,
+          userId: USER,
+          expectedContentDigest: input.contentDigest,
+          settlement: { kind: 'superseded', detectedAt: NOW },
+        }),
+      ).resolves.toBe(true)
+      await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toBeNull()
+    })
+
     it('never retires a batch the provider may have accepted', async () => {
       const repo = createNotificationEmailRepository(db)
       await repo.prepareDigestBatch(digestBatchInput())

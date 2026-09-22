@@ -1040,3 +1040,133 @@ describe('digest retries after the content changed', () => {
     )
   })
 })
+
+describe('a frozen digest that loses a row', () => {
+  const frozen = async (everyAttemptRefused: boolean) => {
+    const first = baseDeps()
+    await runHandler(first)
+    const batch = (await first.emailRepo.prepareDigestBatch.mock.results[0]!.value).batch
+    return { ...batch, state: 'retryable' as const, retryCount: 1, everyAttemptRefused }
+  }
+
+  const retrying = (
+    openBatch: NotificationDigestBatch,
+    batchEntries = [entryFor(PROP_A), entryFor(PROP_B)],
+  ) => {
+    const deps = baseDeps({ openBatch, batchEntries })
+    deps.batchIdGen.mockReturnValue('86000000-0000-4000-8000-000000000101')
+    return deps
+  }
+
+  const expectRebuiltWithOnly = (
+    deps: ReturnType<typeof baseDeps>,
+    openBatch: NotificationDigestBatch,
+    kept: NotificationEmail,
+  ) => {
+    expect(deps.emailRepo.settleDigestBatch).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        batchId: openBatch.id,
+        settlement: expect.objectContaining({ kind: 'superseded' }),
+      }),
+    )
+    expect(deps.emailRepo.prepareDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: '86000000-0000-4000-8000-000000000101',
+        memberIds: [kept.id],
+        localDate: openBatch.localDate,
+      }),
+    )
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+    expect(deps.emailSender.send.mock.calls[0]![0].idempotencyKey).not.toBe(
+      openBatch.providerIdempotencyKey,
+    )
+    expect(deps.emailRepo.settleDigestBatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        settlement: expect.objectContaining({ kind: 'invalidated' }),
+      }),
+    )
+  }
+
+  it('sends the rest of a refused digest when one recipient row becomes ineligible', async () => {
+    // CONTEXT.md: a digest drops only the rows that fail.
+    const openBatch = await frozen(true)
+    const deps = retrying(openBatch)
+    deps.isRecipientEligible.mockImplementation(
+      async (input) => input.propertyId === PROP_A,
+    )
+
+    await runHandler(deps)
+
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entryFor(PROP_B).id,
+      organizationId(ORG),
+      PROP_B,
+      'recipient_ineligible',
+      NOW,
+    )
+    expectRebuiltWithOnly(deps, openBatch, entryFor(PROP_A))
+  })
+
+  it('sends the rest of a refused digest when one Property loses authorization', async () => {
+    const openBatch = await frozen(true)
+    const deps = retrying(openBatch)
+    deps.authorizeScope.mockImplementation(async (_org, property) => property === PROP_A)
+
+    await runHandler(deps)
+
+    expectRebuiltWithOnly(deps, openBatch, entryFor(PROP_A))
+  })
+
+  it('sends the rest of a refused digest when a member was settled elsewhere', async () => {
+    const openBatch = await frozen(true)
+    const deps = retrying(openBatch, [
+      entryFor(PROP_A),
+      { ...entryFor(PROP_B), status: 'suppressed' },
+    ])
+
+    await runHandler(deps)
+
+    expectRebuiltWithOnly(deps, openBatch, entryFor(PROP_A))
+  })
+
+  it('retires a refused digest without sending when every row drops', async () => {
+    const openBatch = await frozen(true)
+    const deps = retrying(openBatch)
+    deps.isRecipientEligible.mockResolvedValue(false)
+
+    await runHandler(deps)
+
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expect(deps.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        batchId: openBatch.id,
+        settlement: expect.objectContaining({ kind: 'superseded' }),
+      }),
+    )
+    expect(deps.emailRepo.prepareDigestBatch).not.toHaveBeenCalled()
+  })
+
+  it('still retires the whole digest when the provider may have accepted it', async () => {
+    // Re-sending the rest under a new key could deliver the digest twice.
+    const openBatch = await frozen(false)
+    const deps = retrying(openBatch)
+    deps.isRecipientEligible.mockImplementation(
+      async (input) => input.propertyId === PROP_A,
+    )
+
+    await runHandler(deps)
+
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expect(deps.emailRepo.prepareDigestBatch).not.toHaveBeenCalled()
+    expect(deps.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        batchId: openBatch.id,
+        settlement: expect.objectContaining({
+          kind: 'invalidated',
+          reason: 'digest_membership_invalidated',
+        }),
+      }),
+    )
+  })
+})

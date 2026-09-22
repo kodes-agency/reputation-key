@@ -830,17 +830,15 @@ export const createNotificationEmailRepository = (db: Database) => ({
       const batch = rows[0]
       if (!batch) return false
       const mismatch = batch.contentDigest !== input.expectedContentDigest
-      const settlesDrift =
-        input.settlement.kind === 'content_mismatch' ||
-        input.settlement.kind === 'superseded'
-      if (input.settlement.kind !== 'invalidated' && settlesDrift !== mismatch) {
-        return false
-      }
+      const { kind } = input.settlement
+      // A provider outcome belongs to the exact content that was frozen; a
+      // content mismatch must really be one.
+      if ((kind === 'accepted' || kind === 'rejected') && mismatch) return false
+      if (kind === 'content_mismatch' && !mismatch) return false
       // Re-keying a batch the provider may have accepted could mail it twice.
-      if (
-        input.settlement.kind === 'superseded' &&
-        !digestBatchFromRow(batch).everyAttemptRefused
-      ) {
+      // A refused batch may be retired whatever changed: its content, or the
+      // members that are still deliverable.
+      if (kind === 'superseded' && !digestBatchFromRow(batch).everyAttemptRefused) {
         return false
       }
 

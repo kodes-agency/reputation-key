@@ -78,6 +78,12 @@ import {
   suppressAll,
   type RecipientContext,
 } from './digest-entry-selection'
+import {
+  invalidateBatch,
+  retireUnreadableBatch,
+  selectFrozenEntries,
+  supersedeBatch,
+} from './digest-frozen-batch'
 
 export const DIGEST_JOB_NAME = 'digest-notification' as const
 
@@ -263,46 +269,6 @@ async function dispatch(
   }
 }
 
-const sameIds = (
-  entries: readonly NotificationEmail[],
-  expected: readonly NotificationEmail[],
-): boolean =>
-  entries.length === expected.length &&
-  entries.every((entry, index) => entry.id === expected[index]?.id)
-
-const batchReadiness = (
-  entries: readonly NotificationEmail[],
-  now: Date,
-): 'ready' | 'wait' | 'invalid' => {
-  if (entries.length === 0) return 'invalid'
-  for (const entry of entries) {
-    if (!['pending', 'failed', 'delayed'].includes(entry.status)) return 'invalid'
-    if (entry.status === 'failed' && entry.lastErrorClass !== 'transient') {
-      return 'invalid'
-    }
-    if (entry.retryCount >= 5) return 'invalid'
-    if (entry.notBefore && entry.notBefore > now) return 'wait'
-    if (entry.nextAttemptAt && entry.nextAttemptAt > now) return 'wait'
-  }
-  return 'ready'
-}
-
-async function invalidateBatch(
-  deps: DigestDeps,
-  ctx: RecipientContext,
-  batch: NotificationDigestBatch,
-  reason: string,
-): Promise<void> {
-  await deps.emailRepo.settleDigestBatch({
-    batchId: batch.id,
-    organizationId: ctx.orgId,
-    userId: ctx.userId,
-    expectedContentDigest: batch.contentDigest,
-    settlement: { kind: 'invalidated', reason, invalidatedAt: ctx.now },
-  })
-  deps.logger.warn({ batchId: batch.id, reason }, 'Digest batch invalidated')
-}
-
 /** ADR 0046 r.4: one digest, one recipient, the recipient's timezone. */
 async function resolveRecipientContext(
   deps: DigestDeps,
@@ -332,45 +298,25 @@ async function resolveRecipientContext(
 /**
  * The queue rows this sweep may actually send, or `null` when there is nothing
  * left to do — either because no row is eligible or because an open batch was
- * invalidated here. An open batch narrows the set to its frozen membership; a
- * fresh sweep outside the recipient's 08:00 window may only release rows that
- * quiet hours already parked.
+ * closed here. An open batch narrows the set to its frozen membership; a fresh
+ * sweep outside the recipient's 08:00 window may only release rows that quiet
+ * hours already parked.
  */
 async function selectDeliverableEntries(
   deps: DigestDeps,
   ctx: RecipientContext,
   openBatch: NotificationDigestBatch | null,
 ): Promise<readonly NotificationEmail[] | null> {
-  const due = openBatch
-    ? await deps.emailRepo.findDigestBatchEntries(openBatch.id, ctx.orgId, ctx.userId)
-    : await deps.emailRepo.findDueByUser(ctx.orgId, ctx.userId, 'daily', ctx.now)
-  if (openBatch) {
-    const readiness = batchReadiness(due, ctx.now)
-    if (readiness === 'wait') return null
-    if (readiness === 'invalid') {
-      await invalidateBatch(deps, ctx, openBatch, 'digest_membership_unavailable')
-      return null
-    }
-  }
+  if (openBatch) return selectFrozenEntries(deps, ctx, openBatch)
+  const due = await deps.emailRepo.findDueByUser(ctx.orgId, ctx.userId, 'daily', ctx.now)
   const authorized = await authorizedEntries(deps, ctx.rawOrgId, due)
-  if (openBatch && !sameIds(authorized, due)) {
-    await invalidateBatch(deps, ctx, openBatch, 'digest_authorization_changed')
-    return null
-  }
-  // A frozen batch was fresh when prepared and retries on a bounded budget.
-  const fresh = openBatch ? authorized : await retireStaleEntries(deps, ctx, authorized)
-  const candidates = openBatch
+  const fresh = await retireStaleEntries(deps, ctx, authorized)
+  const candidates = isDailyDigestWindow(ctx.now, ctx.timezone)
     ? fresh
-    : isDailyDigestWindow(ctx.now, ctx.timezone)
-      ? fresh
-      : fresh.filter((entry) => entry.status === 'delayed')
+    : fresh.filter((entry) => entry.status === 'delayed')
   if (candidates.length === 0) return null
 
   const deliverable = await partitionDeliverable(deps, ctx, candidates)
-  if (openBatch && !sameIds(deliverable, due)) {
-    await invalidateBatch(deps, ctx, openBatch, 'digest_membership_invalidated')
-    return null
-  }
   return deliverable.length === 0 ? null : deliverable
 }
 
@@ -394,34 +340,22 @@ async function abandonDelivery(
 
 /**
  * A batch the provider refused outright on every attempt (a rate or quota
- * limit) was never accepted, so its idempotency key protects no delivered mail. When its content
- * has changed since — a repeat event coalesced into a member, the recipient was
- * renamed — the batch is retired and the same members go out in a fresh batch
- * under a new key, rather than the day's digest being suppressed.
+ * limit) was never accepted, so its idempotency key protects no delivered
+ * mail. When it changed since — a repeat event coalesced into a member, the
+ * recipient was renamed, a member dropped — the batch is retired and its
+ * remaining members go out in a fresh batch under a new key, rather than the
+ * day's digest being suppressed.
  */
 async function reprepareRefusedBatch(
   deps: DigestDeps,
   ctx: RecipientContext,
   openBatch: NotificationDigestBatch,
-  deliverable: readonly NotificationEmail[],
+  members: readonly NotificationEmail[],
   request: Awaited<ReturnType<typeof buildProviderRequest>>,
   items: readonly DigestItem[],
   contentDigest: string,
 ): Promise<void> {
-  const superseded = await deps.emailRepo.settleDigestBatch({
-    batchId: openBatch.id,
-    organizationId: ctx.orgId,
-    userId: ctx.userId,
-    expectedContentDigest: contentDigest,
-    settlement: { kind: 'superseded', detectedAt: ctx.now },
-  })
-  if (!superseded) {
-    deps.logger.warn(
-      { batchId: openBatch.id },
-      'Refused digest batch changed before it could be re-prepared',
-    )
-    return
-  }
+  if (!(await supersedeBatch(deps, ctx, openBatch, contentDigest))) return
   const batchId = notificationDigestBatchId(deps.batchIdGen())
   const unsubscribeKeyVersion = deps.activeOneClickUnsubscribeKeyVersion()
   const fresh = await buildProviderRequest(
@@ -435,13 +369,13 @@ async function reprepareRefusedBatch(
   )
   deps.logger.info(
     { batchId: openBatch.id, replacementBatchId: batchId },
-    'Refused digest batch re-prepared under a new key because its content changed',
+    'Refused digest batch re-prepared under a new key because it changed',
   )
   await prepareAndDispatchBatch(
     deps,
     ctx,
     batchId,
-    deliverable,
+    members,
     fresh,
     items,
     digestProviderRequest(fresh),
@@ -453,53 +387,53 @@ async function reprepareRefusedBatch(
 /**
  * Retry path for a batch already frozen by an earlier sweep. Membership and
  * provider-visible content must both still match what was recorded, otherwise
- * the retry would send different mail under the same idempotency key. Changed
- * content re-prepares a batch the provider refused; any other batch may have
- * been accepted, so its members are suppressed rather than mailed twice.
+ * the retry would send different mail under the same idempotency key. A
+ * change re-prepares a batch the provider refused on every attempt; any other
+ * batch may have been accepted, so it is closed rather than mailed twice.
  */
 async function retryOpenBatch(
   deps: DigestDeps,
   ctx: RecipientContext,
   openBatch: NotificationDigestBatch,
-  deliverable: readonly NotificationEmail[],
+  members: readonly NotificationEmail[],
   request: Awaited<ReturnType<typeof buildProviderRequest>>,
   items: readonly DigestItem[],
   contentDigest: string,
 ): Promise<void> {
-  if (
-    digestMemberSet(deliverable.map((entry) => entry.id as string)) !==
-    openBatch.memberDigest
-  ) {
-    await invalidateBatch(deps, ctx, openBatch, 'digest_membership_changed')
+  const membershipChanged =
+    digestMemberSet(members.map((entry) => entry.id as string)) !== openBatch.memberDigest
+  const contentChanged = contentDigest !== openBatch.contentDigest
+  if (!membershipChanged && !contentChanged) {
+    await dispatch(deps, ctx, openBatch, request, items, contentDigest)
     return
   }
-  if (contentDigest !== openBatch.contentDigest) {
-    if (openBatch.everyAttemptRefused) {
-      await reprepareRefusedBatch(
-        deps,
-        ctx,
-        openBatch,
-        deliverable,
-        request,
-        items,
-        contentDigest,
-      )
-      return
-    }
-    await deps.emailRepo.settleDigestBatch({
-      batchId: openBatch.id,
-      organizationId: ctx.orgId,
-      userId: ctx.userId,
-      expectedContentDigest: contentDigest,
-      settlement: { kind: 'content_mismatch', detectedAt: ctx.now },
-    })
-    deps.logger.error(
-      { batchId: openBatch.id },
-      'Digest retry blocked because provider-visible content changed',
+  if (openBatch.everyAttemptRefused) {
+    await reprepareRefusedBatch(
+      deps,
+      ctx,
+      openBatch,
+      members,
+      request,
+      items,
+      contentDigest,
     )
     return
   }
-  await dispatch(deps, ctx, openBatch, request, items, contentDigest)
+  if (membershipChanged) {
+    await invalidateBatch(deps, ctx, openBatch, 'digest_membership_changed')
+    return
+  }
+  await deps.emailRepo.settleDigestBatch({
+    batchId: openBatch.id,
+    organizationId: ctx.orgId,
+    userId: ctx.userId,
+    expectedContentDigest: contentDigest,
+    settlement: { kind: 'content_mismatch', detectedAt: ctx.now },
+  })
+  deps.logger.error(
+    { batchId: openBatch.id },
+    'Digest retry blocked because provider-visible content changed',
+  )
 }
 
 /** Freeze a new batch and send it, unless another worker won the race. */
@@ -568,7 +502,7 @@ async function sendUserDigest(
   const items = await loadItems(deps, ctx, deliverable)
   if (items.length === 0) {
     if (openBatch) {
-      await invalidateBatch(deps, ctx, openBatch, 'notification_source_unavailable')
+      await retireUnreadableBatch(deps, ctx, openBatch)
       return
     }
     deps.logger.warn(
@@ -577,10 +511,16 @@ async function sendUserDigest(
     )
     return
   }
-  if (openBatch && items.length !== deliverable.length) {
+  if (
+    openBatch &&
+    !openBatch.everyAttemptRefused &&
+    items.length !== deliverable.length
+  ) {
     await invalidateBatch(deps, ctx, openBatch, 'notification_source_unavailable')
     return
   }
+  // A refused batch goes on with the members whose notification still reads.
+  const members = openBatch ? items.map((item) => item.entry) : deliverable
 
   const batchId = openBatch?.id ?? notificationDigestBatchId(deps.batchIdGen())
   const unsubscribeKeyVersion =
@@ -597,7 +537,7 @@ async function sendUserDigest(
   )
   const contentDigest = digestProviderRequest(request)
   if (openBatch) {
-    await retryOpenBatch(deps, ctx, openBatch, deliverable, request, items, contentDigest)
+    await retryOpenBatch(deps, ctx, openBatch, members, request, items, contentDigest)
     return
   }
   await prepareAndDispatchBatch(

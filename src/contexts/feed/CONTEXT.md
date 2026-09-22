@@ -41,8 +41,12 @@ admitted its recipient, and immediately before a Property-scoped send the
 recipient must still be an eligible manager for the Property (membership,
 access, participation) and, for a responsible-scope, Portal-health or
 AccountAdmin audience, still hold that responsibility or role. A digest drops
-only the rows that fail. Organization-scoped mandatory mail is exempt: an
-access-removed notice goes to someone who is no longer a member.
+only the rows that fail. A digest already frozen for retry does too when the
+provider refused every attempt at it: it is retired and the remaining rows go
+out under a new key. A frozen digest the provider may already have accepted is
+retired whole instead, because re-sending the rest could deliver it twice.
+Organization-scoped mandatory mail is exempt: an access-removed notice goes to
+someone who is no longer a member.
 
 The browser receives a `NotificationView`, never the stored row: the event
 correlation id, the frozen title/body snapshot, `updatedAt` and the recipient
