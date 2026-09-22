@@ -14,8 +14,10 @@
 //   reports its degraded marker and a safe fallback — a partial read is never
 //   a 500 (operator runbooks curl this during incidents, when a dependency is
 //   most likely to be down). The health section degrades per signal
-//   (`health.<signal>`): one failing or stalled read keeps its own marker and
-//   fallback while every other signal keeps its real reading.
+//   (`health.<signal>`): a signal that fails or outlasts its own cap keeps its
+//   own marker and fallback, and the signals after it still read inside the
+//   section budget; any the budget no longer reaches are marked too, never
+//   started (a warn line tells the two apart).
 // - Payload stays identifier-only (ADR 0030): no review text, PII, or tokens.
 
 import type { Database } from '#/shared/db'
@@ -48,6 +50,7 @@ import {
 import { checkGlobalCapability } from '#/shared/auth/beta-capabilities'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
 import type { JobRuntimeReport } from '#/shared/jobs/runtime-observations'
+import { getLogger } from '#/shared/observability/logger'
 
 /** Hard per-section read budget. A section slower than this degrades. */
 export const OPS_SECTION_BUDGET_MS = 5000
@@ -290,61 +293,117 @@ function zeroHealthSignals(): HealthSignalValues {
 
 type HealthSection = Readonly<{
   health: HealthSnapshot
-  /** Signals that failed or outlasted the section deadline (fallback values). */
+  /** Signals that failed, timed out, or never started (fallback values). */
   degraded: readonly HealthSignal[]
 }>
 
 /**
- * Read the health section one signal at a time under one shared deadline. The
- * PostgreSQL signals run in order — one pool connection at a time, as before —
- * while the Queue Redis quarantine read runs beside them, so a stall in either
- * store cannot blank the other's signals. A signal that fails or outlasts the
- * deadline keeps its zero fallback and its own marker; no signal starts once
- * the deadline has passed, so a slow database is not handed more work.
+ * One database signal's own cap: however long a stalled read hangs, the
+ * signals after it keep at least half the section budget.
+ */
+export const OPS_HEALTH_SIGNAL_BUDGET_MS = OPS_SECTION_BUDGET_MS / 2
+
+/** Why a health signal reports its fallback. */
+type SignalDegradation = Readonly<{
+  signal: HealthSignal
+  /** Rejected; timed out on its own cap; or the section budget was spent first. */
+  outcome: 'failed' | 'timed_out' | 'not_started'
+  /** Section time elapsed when it gave up. */
+  elapsedMs: number
+}>
+
+type SignalRead = <K extends HealthSignal>(
+  signal: K,
+  capMs: number,
+) => Promise<HealthSignalValues[K]>
+
+/**
+ * Read signals under one shared section budget, each also capped on its own.
+ * A signal that fails or outlasts its cap resolves to its zero fallback; one
+ * asked for after the budget is spent is never started. Each degradation is
+ * recorded once, with why and when.
+ */
+function budgetedSignalReader(signals: HealthSignalReads): Readonly<{
+  read: SignalRead
+  degradations: ReadonlyMap<HealthSignal, SignalDegradation>
+}> {
+  const startedAt = Date.now()
+  const deadline = startedAt + OPS_SECTION_BUDGET_MS
+  const zero = zeroHealthSignals()
+  const degradations = new Map<HealthSignal, SignalDegradation>()
+  const read: SignalRead = (signal, capMs) => {
+    const degrade = (outcome: SignalDegradation['outcome']) => () => {
+      if (!degradations.has(signal)) {
+        degradations.set(signal, { signal, outcome, elapsedMs: Date.now() - startedAt })
+      }
+      return zero[signal]
+    }
+    const remainingMs = deadline - Date.now()
+    if (remainingMs <= 0) return Promise.resolve(degrade('not_started')())
+    return withBudget(
+      signals[signal]().catch(degrade('failed')),
+      Math.min(capMs, remainingMs),
+      degrade('timed_out'),
+    )
+  }
+  return { read, degradations }
+}
+
+/**
+ * The PostgreSQL signals, in order — one pool connection at a time — each
+ * capped at OPS_HEALTH_SIGNAL_BUDGET_MS, so one stalled scan degrades alone
+ * instead of spending the budget of every signal after it.
+ */
+async function readDatabaseSignals(read: SignalRead) {
+  const cap = OPS_HEALTH_SIGNAL_BUDGET_MS
+  const outbox = await read('outbox', cap)
+  const reviews = await read('reviews', cap)
+  const sync = await read('sync', cap)
+  const replyPublication = await read('replyPublication', cap)
+  const notificationEmail = await read('notificationEmail', cap)
+  const [notificationGap, notificationDeliveryLag] = await Promise.all([
+    read('notificationGap', cap),
+    read('notificationDeliveryLag', cap),
+  ])
+  return {
+    outbox,
+    reviews,
+    sync,
+    replyPublication,
+    notificationEmail,
+    notificationGap,
+    notificationDeliveryLag,
+  }
+}
+
+/**
+ * Read the health section one signal at a time under a shared section budget:
+ * the database signals in order (readDatabaseSignals) while the Queue Redis
+ * quarantine read runs beside them on the section budget, so a stall in either
+ * store cannot blank the other's signals. A signal that fails or outlasts its
+ * cap keeps its zero fallback and its own marker; no signal starts once the
+ * section budget is spent, so a slow database is not handed more work — those
+ * are marked too, and the warn line says which is which.
  */
 async function readHealthSection(
   signals: HealthSignalReads,
   now: Date,
 ): Promise<HealthSection> {
-  const deadline = Date.now() + OPS_SECTION_BUDGET_MS
-  const zero = zeroHealthSignals()
-  const failed = new Set<HealthSignal>()
-  const read = <K extends HealthSignal>(signal: K): Promise<HealthSignalValues[K]> => {
-    const fallback = () => {
-      failed.add(signal)
-      return zero[signal]
-    }
-    const remainingMs = deadline - Date.now()
-    if (remainingMs <= 0) return Promise.resolve(fallback())
-    return withBudget(signals[signal](), remainingMs, fallback)
-  }
-  const readDatabaseSignals = async () => {
-    const outbox = await read('outbox')
-    const reviews = await read('reviews')
-    const sync = await read('sync')
-    const replyPublication = await read('replyPublication')
-    const notificationEmail = await read('notificationEmail')
-    const [notificationGap, notificationDeliveryLag] = await Promise.all([
-      read('notificationGap'),
-      read('notificationDeliveryLag'),
-    ])
-    return {
-      outbox,
-      reviews,
-      sync,
-      replyPublication,
-      notificationEmail,
-      notificationGap,
-      notificationDeliveryLag,
-    }
-  }
+  const { read, degradations } = budgetedSignalReader(signals)
   const [quarantine, database] = await Promise.all([
-    read('quarantine'),
-    readDatabaseSignals(),
+    read('quarantine', OPS_SECTION_BUDGET_MS),
+    readDatabaseSignals(read),
   ])
+  const degraded = HEALTH_SIGNALS.filter((signal) => degradations.has(signal))
+  if (degraded.length > 0) {
+    getLogger().warn(
+      { healthSignals: degraded.map((signal) => degradations.get(signal)) },
+      '[operations-snapshot] health signals degraded',
+    )
+  }
   return {
     health: assembleHealthSnapshot(now, { ...database, quarantine }),
-    degraded: HEALTH_SIGNALS.filter((signal) => failed.has(signal)),
+    degraded,
   }
 }
 

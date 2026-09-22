@@ -11,6 +11,7 @@ import {
 import type { Database } from '#/shared/db'
 import type { OutboxRepository } from '#/shared/outbox'
 import { SNAPSHOT_SECTIONS } from '#/shared/observability/metrics-schema'
+import { getLogger } from '#/shared/observability/logger'
 
 const FIXED_NOW = new Date('2026-01-15T12:00:00.000Z')
 const clock = () => FIXED_NOW
@@ -26,6 +27,25 @@ function fakeDb(results: unknown[][]): Database {
     chain.groupBy = () => chain
     chain.then = (resolve: (v: unknown[]) => unknown, reject: (e: unknown) => unknown) =>
       Promise.resolve(rows).then(resolve, reject)
+    return chain
+  }
+  return { select: vi.fn(() => makeChain(results[call++] ?? [])) } as unknown as Database
+}
+
+/** A query that never answers (a stalled scan or a saturated pool). */
+const HANG = Symbol('hang')
+
+/** fakeDb, except a HANG entry is a query that never resolves. */
+function stallingDb(results: Array<unknown[] | typeof HANG>): Database {
+  let call = 0
+  const makeChain = (rows: unknown[] | typeof HANG) => {
+    const chain: Record<string, unknown> = {}
+    chain.from = () => chain
+    chain.where = () => chain
+    chain.leftJoin = () => chain
+    chain.groupBy = () => chain
+    chain.then = (resolve: (v: unknown[]) => unknown, reject: (e: unknown) => unknown) =>
+      rows === HANG ? new Promise(() => {}) : Promise.resolve(rows).then(resolve, reject)
     return chain
   }
   return { select: vi.fn(() => makeChain(results[call++] ?? [])) } as unknown as Database
@@ -347,10 +367,25 @@ describe('createOperationsSnapshot', () => {
         throw new Error('anti-join scan failed')
       },
     })
+    const warn = vi.spyOn(getLogger(), 'warn').mockImplementation(() => undefined)
 
     const snapshot = await reader.read()
+    const warned = [...warn.mock.calls]
+    warn.mockRestore()
 
     expect(snapshot.degraded).toEqual(['health.notificationDeliveryLag'])
+    expect(warned).toContainEqual([
+      {
+        healthSignals: [
+          {
+            signal: 'notificationDeliveryLag',
+            outcome: 'failed',
+            elapsedMs: expect.any(Number),
+          },
+        ],
+      },
+      '[operations-snapshot] health signals degraded',
+    ])
     expect(snapshot.outbox.unpublishedCount).toBe(3)
     expect(snapshot.quarantine?.count).toBe(2)
     expect(snapshot.reviews.refreshDueCount).toBe(1)
@@ -396,6 +431,102 @@ describe('createOperationsSnapshot', () => {
 
     expect(snapshot.notifications.attemptedStuckCount).toBe(1)
     expect(snapshot.notifications.oldestAttemptedStuckAgeMs).toBe(9_000_000)
+  })
+
+  it('reads every later database signal when an early one stalls', async () => {
+    vi.useFakeTimers()
+    try {
+      const reader = createOperationsSnapshot({
+        // The outbox scan never answers; everything after it does.
+        db: stallingDb([HANG, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+        outboxRepo: fakeOutboxRepo(),
+        queues: { default: null, background: null, domainEvents: null, quarantine: null },
+        redis: null,
+        clock,
+        versions: VERSIONS,
+        runtime: RUNTIME,
+        readMissingNotificationCount: async () => 4,
+      })
+
+      const pending = reader.read()
+      await vi.advanceTimersByTimeAsync(OPS_SECTION_BUDGET_MS)
+      const snapshot = await pending
+
+      expect(snapshot.degraded).toEqual(['health.outbox'])
+      expect(snapshot.reviews.refreshDueCount).toBe(1)
+      expect(snapshot.replyPublication.counts.ambiguous).toBe(1)
+      expect(snapshot.notifications.missingForInboxItemCount).toBe(4)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('says which health signal timed out and which never started', async () => {
+    vi.useFakeTimers()
+    const warn = vi.spyOn(getLogger(), 'warn').mockImplementation(() => undefined)
+    try {
+      const reader = createOperationsSnapshot({
+        // Two stalled scans spend the whole section budget between them.
+        db: stallingDb([HANG, HANG]),
+        outboxRepo: fakeOutboxRepo(),
+        queues: { default: null, background: null, domainEvents: null, quarantine: null },
+        redis: null,
+        clock,
+        versions: VERSIONS,
+        runtime: RUNTIME,
+      })
+
+      const pending = reader.read()
+      await vi.advanceTimersByTimeAsync(OPS_SECTION_BUDGET_MS)
+      const snapshot = await pending
+
+      expect(snapshot.degraded).toEqual([
+        'health.outbox',
+        'health.reviews',
+        'health.sync',
+        'health.replyPublication',
+        'health.notificationEmail',
+        'health.notificationGap',
+        'health.notificationDeliveryLag',
+      ])
+      expect(warn).toHaveBeenCalledWith(
+        {
+          healthSignals: [
+            {
+              signal: 'outbox',
+              outcome: 'timed_out',
+              elapsedMs: OPS_SECTION_BUDGET_MS / 2,
+            },
+            { signal: 'reviews', outcome: 'timed_out', elapsedMs: OPS_SECTION_BUDGET_MS },
+            { signal: 'sync', outcome: 'not_started', elapsedMs: OPS_SECTION_BUDGET_MS },
+            {
+              signal: 'replyPublication',
+              outcome: 'not_started',
+              elapsedMs: OPS_SECTION_BUDGET_MS,
+            },
+            {
+              signal: 'notificationEmail',
+              outcome: 'not_started',
+              elapsedMs: OPS_SECTION_BUDGET_MS,
+            },
+            {
+              signal: 'notificationGap',
+              outcome: 'not_started',
+              elapsedMs: OPS_SECTION_BUDGET_MS,
+            },
+            {
+              signal: 'notificationDeliveryLag',
+              outcome: 'not_started',
+              elapsedMs: OPS_SECTION_BUDGET_MS,
+            },
+          ],
+        },
+        '[operations-snapshot] health signals degraded',
+      )
+    } finally {
+      warn.mockRestore()
+      vi.useRealTimers()
+    }
   })
 
   it('does not let a hanging Queue Redis read blank the database signals', async () => {
