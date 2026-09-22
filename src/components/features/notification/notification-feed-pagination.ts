@@ -109,7 +109,7 @@ export function notificationHistoryQueryOptions(
 function isHistoryDetached(
   head: NotificationPage,
   historyStart: NotificationFeedCursor | null | undefined,
-): boolean {
+): historyStart is NotificationFeedCursor {
   if (!historyStart || !head.hasMore || !head.nextCursor) return false
   return isNewerFeedPosition(head.nextCursor, historyStart)
 }
@@ -137,38 +137,87 @@ function isHistoryStale(
   return unread.length > head.unreadCount
 }
 
+const isSameFeedPosition = (
+  a: NotificationFeedCursor | null | undefined,
+  b: NotificationFeedCursor,
+) => a?.at === b.at && a.id === b.id
+
+/**
+ * Loaded history with the rows between a refreshed head and it put back, or
+ * undefined when one page cannot bridge that gap. `gap` is the page read
+ * strictly after the head's last row. It bridges when it reaches the row that
+ * history started after (`historyStart`), or the end of the feed; in the
+ * latter case every older row is in the gap page or gone, so it is all the
+ * history there is. Overlap with history is harmless: the merge keeps each id
+ * once.
+ */
+function bridgeHistory(
+  history: NotificationHistoryPages,
+  historyStart: NotificationFeedCursor,
+  headCursor: NotificationFeedCursor,
+  gap: NotificationPage,
+): NotificationHistoryPages | undefined {
+  if (!gap.hasMore || !gap.nextCursor) return { pages: [gap], pageParams: [headCursor] }
+  if (isNewerFeedPosition(gap.nextCursor, historyStart)) return undefined
+  return {
+    pages: [gap, ...history.pages],
+    pageParams: [headCursor, ...history.pageParams],
+  }
+}
+
 /**
  * The head fetch, keeping loaded history contiguous with it and true to it.
- * When a refreshed head no longer reaches loaded history, or proves it stale,
- * that history is reset, so the list shows the head alone and "Load more"
- * continues from the head's own cursor rather than leaving a silent gap in
- * the middle of the list or rows the server has since changed.
+ *
+ * When rows arriving above the head (or a coalesced row re-sorting to the
+ * top) push rows out of it, the rows between the new head and loaded history
+ * are read as one more page, and history keeps every page the user loaded:
+ * the list must not throw away what they scrolled to on every arrival. Only
+ * when one page cannot bridge that gap, or the head proves history stale, is
+ * history reset, so the list shows the head alone and "Load more" continues
+ * from the head's own cursor rather than leaving a silent gap in the middle
+ * of the list or rows the server has since changed.
  *
  * A read the head was written to during (an optimistic write, which also
  * cancels it) describes the feed from before that write, so it changes
- * nothing: not the head, and not loaded history. The write count is compared
- * rather than the query's abort signal, because reading that signal makes the
- * query cancel itself whenever its last observer unmounts mid-read.
+ * nothing: not the head, and not loaded history. The next head read, which
+ * the write's invalidation starts, bridges instead. The write count is
+ * compared rather than the query's abort signal, because reading that signal
+ * makes the query cancel itself whenever its last observer unmounts mid-read.
  */
 export function fetchHeadKeepingHistoryContiguous(
   qc: QueryClient,
   headKey: QueryKey,
   historyKey: QueryKey,
   fetchHead: FetchNotificationFeedHead,
+  fetchPage: FetchNotificationPage,
 ): FetchNotificationFeedHead {
   const headWrites = () => qc.getQueryState(headKey)?.dataUpdateCount ?? 0
+  const loadedHistory = () => qc.getQueryData<NotificationHistoryPages>(historyKey)
+  const resetHistory = () => qc.resetQueries({ queryKey: historyKey, exact: true })
+
   return async () => {
     const writesBefore = headWrites()
     const head = await fetchHead()
-    if (headWrites() !== writesBefore) return head
-    const history = qc.getQueryData<NotificationHistoryPages>(historyKey)
-    if (
-      history &&
-      (isHistoryDetached(head.page, history.pageParams[0]) ||
-        isHistoryStale(head, history.pages))
-    ) {
-      await qc.resetQueries({ queryKey: historyKey, exact: true })
+    const history = loadedHistory()
+    if (headWrites() !== writesBefore || !history) return head
+    if (isHistoryStale(head, history.pages)) {
+      await resetHistory()
+      return head
     }
+    const historyStart = history.pageParams[0]
+    const headCursor = head.page.nextCursor
+    if (!headCursor || !isHistoryDetached(head.page, historyStart)) return head
+
+    // The head read succeeded; a failed gap read must not fail it. Without
+    // the rows between, history goes rather than leave the gap on screen.
+    const gap = await fetchPage(headCursor).catch(() => undefined)
+    const current = loadedHistory()
+    // Written to meanwhile, or re-anchored: the next head read decides again.
+    if (headWrites() !== writesBefore || !current) return head
+    if (!isSameFeedPosition(current.pageParams[0], historyStart)) return head
+    const bridged = gap && bridgeHistory(current, historyStart, headCursor, gap)
+    if (bridged) qc.setQueryData<NotificationHistoryPages>(historyKey, bridged)
+    else await resetHistory()
     return head
   }
 }

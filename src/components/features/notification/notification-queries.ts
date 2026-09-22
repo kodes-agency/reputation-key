@@ -7,9 +7,11 @@
 // notification page progressively more expensive. Page zero now has its own
 // ordinary query; loaded history is a disabled infinite query advanced only by
 // the user's "Load more" action. The two caches are merged by stable row id.
-// History pages are keyset pages that start where the head ends; a head poll
-// that no longer reaches them, or proves them stale, resets them rather than
-// leave a gap between or rows the server has since changed.
+// History pages are keyset pages that start where the head ends. A head poll
+// that no longer reaches them reads the rows between as one more page, so
+// loaded history survives arrivals; one that proves them stale, or a gap one
+// page cannot bridge, resets them rather than leave a gap between or rows the
+// server has since changed.
 //
 // Polling is VISIBILITY-AWARE, using the query library's own primitives rather
 // than a hand-rolled `visibilitychange` listener (@tanstack/react-query 5.101):
@@ -64,8 +66,12 @@ export function useNotifications(
   const headKey = notificationKeys.head(organizationId, limit, filter)
   const fetchPage = (before: NotificationFeedCursor | null) =>
     getList({ data: { limit, filter, ...(before ? { before } : {}) } })
-  const fetchHead = fetchHeadKeepingHistoryContiguous(qc, headKey, historyKey, () =>
-    getFeedHead({ data: { limit, filter } }),
+  const fetchHead = fetchHeadKeepingHistoryContiguous(
+    qc,
+    headKey,
+    historyKey,
+    () => getFeedHead({ data: { limit, filter } }),
+    fetchPage,
   )
   const head = useQuery(notificationHeadQueryOptions(headKey, fetchHead, poll))
   const history = useInfiniteQuery(

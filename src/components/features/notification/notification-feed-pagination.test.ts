@@ -6,29 +6,22 @@
 // missing between the head and the pages below it, a row skipped by the next
 // "Load more", or rows the server has since changed staying on screen.
 //
-// No React here: the unit project is node-only, so the observers are driven
-// directly, exactly as useNotifications configures them.
+// The feed and its observers are notification.stories.live-feed.ts.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  InfiniteQueryObserver,
-  QueryClient,
-  QueryObserver,
-  environmentManager,
-  focusManager,
-} from '@tanstack/react-query'
-import { notificationKeys } from '#/shared/queries/query-keys'
+import { QueryClient, environmentManager, focusManager } from '@tanstack/react-query'
 import {
   makeNotification,
   notificationPageFixture,
 } from './notification.stories.fixtures'
-import type { NotificationFeedCursor } from '#/contexts/feed/application/public-api'
+import {
+  createLiveFeed,
+  LIVE_FEED_LIMIT,
+  observeLiveFeed as observeLiveFeedWith,
+} from './notification.stories.live-feed'
 import { patchNotificationFeedCache } from './notification-feed-cache'
 import {
-  fetchHeadKeepingHistoryContiguous,
   mergeNotificationHeadWithHistory,
-  notificationHeadQueryOptions,
-  notificationHistoryQueryOptions,
   NOTIFICATION_POLL_INTERVAL,
 } from './notification-feed-pagination'
 
@@ -92,140 +85,9 @@ describe('notification head/history merge', () => {
 // Rows arrive, get dismissed, or re-sort under the user. Whatever happens, the
 // visible list must be exactly the server's current feed from the top down.
 
-const FEED_LIMIT = 20
-const FEED_START = Date.parse('2026-09-01T12:00:00.000Z')
-
-const feedRowId = (series: 1 | 2, n: number) =>
-  `${series}0000000-0000-4000-8000-${n.toString().padStart(12, '0')}`
-
-/** An in-memory feed, newest first, that the scenario can change between requests. */
-function createLiveFeed(size: number) {
-  const labels = new Map<string, string>()
-  const requests: string[] = []
-  const row = (series: 1 | 2, n: number, label: string, at: number) => {
-    const id = feedRowId(series, n)
-    labels.set(id, label)
-    return makeNotification({ id, createdAt: new Date(at) })
-  }
-  let rows = Array.from({ length: size }, (_, n) =>
-    row(1, n, `R${n}`, FEED_START - n * 60_000),
-  )
-  let arrivals = 0
-  // While held, a head request is answered with the feed as it was when the
-  // request was made, and only once released: a read in flight.
-  let heldHeads: Array<() => void> | null = null
-
-  const label = (id: string) => labels.get(id) ?? id
-  const pageOf = (candidates: typeof rows) =>
-    notificationPageFixture(
-      candidates.slice(0, FEED_LIMIT),
-      candidates.length > FEED_LIMIT,
-    )
-  // Served like the endpoint: rows strictly after the cursor in feed order.
-  const after = (cursor: NotificationFeedCursor) => {
-    const at = Date.parse(cursor.at.replace(/(\.\d{3})\d{3}Z$/, '$1Z'))
-    return rows.filter(
-      (current) =>
-        current.createdAt.getTime() < at ||
-        (current.createdAt.getTime() === at && current.id < cursor.id),
-    )
-  }
-
-  return {
-    requests,
-    label,
-    labels: () => rows.map((current) => label(current.id)),
-    arrive: (count: number) => {
-      for (let k = 0; k < count; k += 1) {
-        arrivals += 1
-        const arrival = row(2, arrivals, `N${arrivals}`, FEED_START + arrivals * 60_000)
-        rows = [arrival, ...rows]
-      }
-    },
-    remove: (removed: string) => {
-      rows = rows.filter((current) => label(current.id) !== removed)
-    },
-    // What another tab, or the other surface in this one, does to the feed.
-    markAllRead: () => {
-      rows = rows.map((current) => ({ ...current, status: 'read' as const }))
-    },
-    dismissAll: () => {
-      rows = []
-    },
-    holdHeads: () => {
-      heldHeads = []
-    },
-    releaseHeads: () => {
-      const waiting = heldHeads ?? []
-      heldHeads = null
-      for (const answer of waiting) answer()
-    },
-    head: async () => {
-      requests.push('head')
-      const answer = {
-        page: pageOf(rows),
-        unreadCount: rows.filter((current) => current.status === 'unread').length,
-        watermark: 'live-feed',
-      }
-      const waiting = heldHeads
-      if (waiting) await new Promise<void>((resolve) => waiting.push(resolve))
-      return answer
-    },
-    pageAfter: async (before: NotificationFeedCursor | null) => {
-      requests.push(before ? `after ${label(before.id)}` : 'top')
-      return pageOf(before ? after(before) : rows)
-    },
-  }
-}
-
-/** The observers useNotifications builds, without React. */
-function observeLiveFeed(feed: ReturnType<typeof createLiveFeed>) {
-  const historyKey = notificationKeys.list('org-1', FEED_LIMIT, 'all')
-  const headKey = notificationKeys.head('org-1', FEED_LIMIT, 'all')
-  const headObserver = new QueryObserver(
-    client,
-    notificationHeadQueryOptions(
-      headKey,
-      fetchHeadKeepingHistoryContiguous(client, headKey, historyKey, feed.head),
-      true,
-    ),
-  )
-  const historyOptions = () =>
-    notificationHistoryQueryOptions(
-      historyKey,
-      feed.pageAfter,
-      headObserver.getCurrentResult().data?.page.nextCursor ?? null,
-    )
-  const historyObserver = new InfiniteQueryObserver(client, historyOptions())
-  const unsubscribeHead = headObserver.subscribe(() => {})
-  const unsubscribeHistory = historyObserver.subscribe(() => {})
-
-  return {
-    // A render always precedes the click, so the options carry the current
-    // head's cursor exactly as the hook's would.
-    loadMore: () => {
-      historyObserver.setOptions(historyOptions())
-      return historyObserver.fetchNextPage()
-    },
-    visible: () =>
-      mergeNotificationHeadWithHistory(
-        headObserver.getCurrentResult().data?.page,
-        historyObserver.getCurrentResult().data?.pages,
-      ).map((row) => feed.label(row.id)),
-    unreadVisible: () =>
-      mergeNotificationHeadWithHistory(
-        headObserver.getCurrentResult().data?.page,
-        historyObserver.getCurrentResult().data?.pages,
-      )
-        .filter((row) => row.status === 'unread')
-        .map((row) => feed.label(row.id)),
-    historyPageCount: () => historyObserver.getCurrentResult().data?.pages.length ?? 0,
-    stop: () => {
-      unsubscribeHead()
-      unsubscribeHistory()
-    },
-  }
-}
+const FEED_LIMIT = LIVE_FEED_LIMIT
+const observeLiveFeed = (feed: ReturnType<typeof createLiveFeed>) =>
+  observeLiveFeedWith(client, feed)
 
 describe('notification history paging on a live feed', () => {
   it('polls only the head after older history has been loaded', async () => {
@@ -253,10 +115,74 @@ describe('notification history paging on a live feed', () => {
 
     feed.arrive(5)
     await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL)
-    expect(view.visible()).toEqual(feed.labels().slice(0, view.visible().length))
+    expect(view.visible()).toEqual(feed.labels().slice(0, 45))
 
     await view.loadMore()
-    expect(view.visible()).toEqual(feed.labels().slice(0, view.visible().length))
+    expect(view.visible()).toEqual(feed.labels())
+    view.stop()
+  })
+
+  it('keeps loaded history on screen when a notification arrives above it', async () => {
+    const feed = createLiveFeed(60)
+    const view = observeLiveFeed(feed)
+    await vi.advanceTimersByTimeAsync(0)
+    await view.loadMore()
+    await view.loadMore()
+
+    feed.arrive(1)
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL)
+
+    // Every row the user had loaded is still listed, under the new one.
+    expect(view.visible()).toEqual(feed.labels().slice(0, 61))
+    await view.loadMore()
+    expect(view.visible()).toEqual(feed.labels())
+    view.stop()
+  })
+
+  it("keeps loaded history when the head's last row re-sorts to the top", async () => {
+    const feed = createLiveFeed(60)
+    const view = observeLiveFeed(feed)
+    await vi.advanceTimersByTimeAsync(0)
+    await view.loadMore()
+
+    feed.coalesce('R19')
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL)
+
+    expect(view.visible()).toEqual(feed.labels().slice(0, 40))
+    await view.loadMore()
+    expect(view.visible()).toEqual(feed.labels())
+    view.stop()
+  })
+
+  it('still shows the refreshed head when reading the rows above history fails', async () => {
+    const feed = createLiveFeed(60)
+    const view = observeLiveFeed(feed)
+    await vi.advanceTimersByTimeAsync(0)
+    await view.loadMore()
+
+    feed.arrive(1)
+    feed.failPages()
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL)
+
+    // No silent gap either: without the rows between, history goes.
+    expect(view.visible()).toEqual(feed.labels().slice(0, FEED_LIMIT))
+    expect(view.headError()).toBeNull()
+    view.stop()
+  })
+
+  it('falls back to the head alone when more rows arrive than one page can bridge', async () => {
+    const feed = createLiveFeed(60)
+    const view = observeLiveFeed(feed)
+    await vi.advanceTimersByTimeAsync(0)
+    await view.loadMore()
+
+    feed.arrive(FEED_LIMIT + 5)
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL)
+
+    expect(view.historyPageCount()).toBe(0)
+    expect(view.visible()).toEqual(feed.labels().slice(0, FEED_LIMIT))
+    await view.loadMore()
+    expect(view.visible()).toEqual(feed.labels().slice(0, FEED_LIMIT * 2))
     view.stop()
   })
 
