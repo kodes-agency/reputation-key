@@ -16,7 +16,9 @@ const makeDeps = () => ({
     findForProperty: vi.fn(async () => [MANAGER]),
     findForPortal: vi.fn(async () => [MANAGER]),
     findForPortalGroup: vi.fn(async () => [MANAGER]),
-    isEligibleForProperty: vi.fn(async () => true),
+    isEligibleForProperty: vi.fn(
+      async (_org: unknown, _property: unknown, _user: unknown) => true,
+    ),
   },
   userLookup: {
     findByRole: vi.fn(async () => [ADMIN]),
