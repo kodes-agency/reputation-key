@@ -326,7 +326,7 @@ describe('renderNotification — the copy that was broken', () => {
     [
       'unconfirmed',
       'Reply not confirmed on Google at Riverside Hotel',
-      "RepKey couldn't confirm it on Google and won't send it twice. Open it to check.",
+      "RepKey won't send it twice. Open it to check.",
       'View reply',
     ],
   ] as const)(
@@ -382,13 +382,11 @@ describe('renderNotification — the copy that was broken', () => {
 
     expect(rendered.title).toBe('60 items reopened at Riverside Hotel')
     expect(rendered.body).toBe(
-      'An account admin reopened 60 items. Open the Inbox to see where they stand.',
+      'An account admin reopened 60 items. Open the Inbox to take a look.',
     )
     expect(rendered.actionLabel).toBe('Open Inbox')
     expect(single.title).toBe('1 item reopened')
-    expect(single.body).toBe(
-      'Someone reopened an item. Open the Inbox to see where it stands.',
-    )
+    expect(single.body).toBe('Someone reopened an item. Open the Inbox to take a look.')
   })
 
   it('omits the property clause entirely when no name is known', () => {
@@ -404,7 +402,7 @@ describe('renderNotification — coalescing (ADR 0046 r.2)', () => {
     ['inbox_note.added', '3 notes added.'],
     ['inbox.escalated', 'Escalated 3 times.'],
     ['review.updated', 'Updated 3 times.'],
-    ['reply.pending_approval', 'Submitted 3 times.'],
+    ['reply.pending_approval', 'This happened 3 times.'],
     ['reply.publish_failed', 'This happened 3 times.'],
   ] as const)('ends a repeated %s with "%s"', (type, marker) => {
     const r = renderNotification(type, { occurrences: 3 })
@@ -513,7 +511,7 @@ describe('notificationLink', () => {
       }),
     ).toEqual({
       title: 'Final notice: permanent deletion of Riverside Group',
-      body: 'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only RepKey support can stop it, and only before it starts. Contact support now.',
+      body: 'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only RepKey support can stop it, before it starts. Contact support now.',
       actionLabel: 'Open profile',
       summary: 'Riverside Group · permanent deletion pending',
     })

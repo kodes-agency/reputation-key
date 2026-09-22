@@ -103,7 +103,7 @@ export const Coalesced: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText(/Submitted 3 times\.$/)).toBeInTheDocument()
+    expect(canvas.getByText(/This happened 3 times\.$/)).toBeInTheDocument()
     expect(canvasElement.textContent?.match(/3 times/g)).toHaveLength(1)
     expect(canvas.queryByText(/Updated/)).not.toBeInTheDocument()
   },

@@ -50,14 +50,12 @@ export type NotificationLink = Readonly<{
 /** Opens the Feedback dialog on "Your reports" from anywhere in the app. */
 export const BETA_FEEDBACK_REPORTS_ANCHOR = 'beta-feedback-reports'
 
+/** Who acted, as the subject that opens a sentence. */
 const ROLE_LABELS: Record<NotificationActorRole, string> = {
-  account_admin: 'an account admin',
-  property_manager: 'a property manager',
-  staff: 'a team member',
+  account_admin: 'An account admin',
+  property_manager: 'A property manager',
+  staff: 'A team member',
 }
-
-const capitalise = (value: string): string =>
-  value.charAt(0).toUpperCase() + value.slice(1)
 
 /** " · Riverside Hotel" style suffix, or "" when the name is unknown. */
 const atProperty = (payload: NotificationPayload): string =>
@@ -79,7 +77,7 @@ export const waitingAge = (payload: NotificationPayload, now: Date): string => {
 }
 
 const byRole = (payload: NotificationPayload): string =>
-  payload.actorRole === undefined ? 'Someone' : capitalise(ROLE_LABELS[payload.actorRole])
+  payload.actorRole === undefined ? 'Someone' : ROLE_LABELS[payload.actorRole]
 
 /** Joins non-empty clauses with a single space. Keeps sentences clean when metadata is missing. */
 const sentence = (...parts: ReadonlyArray<string>): string =>
@@ -113,26 +111,36 @@ const ratedNoun = (p: NotificationPayload): string =>
 // Each returns copy that reads correctly with an EMPTY payload and gets
 // sharper as metadata arrives.
 
-const renderOrganizationAccessGranted = (): RenderedNotification => ({
-  title: 'Organization access added',
-  body: 'Your account can now access this organization.',
+/**
+ * An account notice: its summary is its title, in the facts line's case.
+ * Renderers call it rather than being built by it at module load, which would
+ * make this module side-effectful and pull it into every chunk that imports
+ * the Feed public API.
+ */
+const accountNotice = (title: string, body: string): RenderedNotification => ({
+  title,
+  body,
   actionLabel: 'Review account',
-  summary: 'organization access added',
+  summary: title.toLowerCase(),
 })
 
-const renderOrganizationRoleChanged = (): RenderedNotification => ({
-  title: 'Organization role updated',
-  body: 'Your account permissions for this organization were updated.',
-  actionLabel: 'Review account',
-  summary: 'organization role updated',
-})
+const renderOrganizationAccessGranted = (): RenderedNotification =>
+  accountNotice(
+    'Organization access added',
+    'Your account can now access this organization.',
+  )
 
-const renderOrganizationAccessRemoved = (): RenderedNotification => ({
-  title: 'Organization access removed',
-  body: 'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
-  actionLabel: 'Review account',
-  summary: 'organization access removed',
-})
+const renderOrganizationRoleChanged = (): RenderedNotification =>
+  accountNotice(
+    'Organization role updated',
+    'Your account permissions for this organization were updated.',
+  )
+
+const renderOrganizationAccessRemoved = (): RenderedNotification =>
+  accountNotice(
+    'Organization access removed',
+    'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
+  )
 
 /**
  * LIF-01 program bullet 5. Purge Pending has no timer: support begins the
@@ -145,7 +153,7 @@ const renderOrganizationPurgePending = (
   p: NotificationPayload,
 ): RenderedNotification => ({
   title: `Final notice: permanent deletion of ${p.organizationName ?? 'this organization'}`,
-  body: 'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only RepKey support can stop it, and only before it starts. Contact support now.',
+  body: 'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only RepKey support can stop it, before it starts. Contact support now.',
   actionLabel: 'Open profile',
   summary: facts(p.organizationName ?? '', 'permanent deletion pending'),
 })
@@ -221,8 +229,7 @@ const renderReplyPublished = (p: NotificationPayload): RenderedNotification => (
 const PUBLISH_FAILURE_BODIES = {
   not_sent: 'Nothing reached Google, so it is safe to try again.',
   refused: 'Nothing was posted to Google. Check the Google connection, then try again.',
-  unconfirmed:
-    "RepKey couldn't confirm it on Google and won't send it twice. Open it to check.",
+  unconfirmed: "RepKey won't send it twice. Open it to check.",
 } as const
 
 // A connection waiting for a fresh consent refuses every retry, and the
@@ -303,7 +310,7 @@ const renderInboxBulkReopened = (p: NotificationPayload): RenderedNotification =
   const count = p.itemCount ?? 1
   return {
     title: `${count} ${count === 1 ? 'item' : 'items'} reopened${atProperty(p)}`,
-    body: `${byRole(p)} reopened ${someItems(count)}. Open the Inbox to see where ${count === 1 ? 'it stands' : 'they stand'}.`,
+    body: `${byRole(p)} reopened ${someItems(count)}. Open the Inbox to take a look.`,
     actionLabel: 'Open Inbox',
     summary: factsAt(p, `${count} reopened`),
   }
@@ -311,7 +318,7 @@ const renderInboxBulkReopened = (p: NotificationPayload): RenderedNotification =
 
 const renderResponseTargetHalfway = (p: NotificationPayload): RenderedNotification => ({
   title: `Halfway to the response target${atProperty(p)}`,
-  body: 'This item is still open. Open it when you are ready to continue.',
+  body: 'This item is still open.',
   actionLabel: 'View item',
   summary: factsAt(p, ratedNoun(p), 'target halfway'),
 })
@@ -358,7 +365,7 @@ const renderPortalResponsibilityNeeded = (
 
 const renderPortalHealthAttention = (p: NotificationPayload): RenderedNotification => ({
   title: `A guest portal${atProperty(p)} may need attention`,
-  body: 'Open its settings to review what changed and the available next steps.',
+  body: 'Open its settings to see what changed and what to do next.',
   actionLabel: 'Review portal',
   summary: factsAt(p, 'Portal may need attention'),
 })
@@ -483,7 +490,6 @@ const REPEATED: Partial<Record<NotificationType, string>> = {
   'inbox_note.added': '# notes added.',
   'inbox.escalated': 'Escalated # times.',
   'review.updated': 'Updated # times.',
-  'reply.pending_approval': 'Submitted # times.',
 }
 
 /**
