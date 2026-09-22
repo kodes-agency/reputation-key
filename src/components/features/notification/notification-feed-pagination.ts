@@ -1,4 +1,4 @@
-import type { QueryClient, QueryKey } from '@tanstack/react-query'
+import { queryOptions, type QueryClient, type QueryKey } from '@tanstack/react-query'
 import { httpStatus } from '#/shared/security/expected-refusal'
 import {
   isNewerFeedPosition,
@@ -61,14 +61,14 @@ export function notificationHeadQueryOptions(
   fetchHead: FetchNotificationFeedHead,
   poll: boolean,
 ) {
-  return {
+  return queryOptions<NotificationFeedHead, Error, NotificationFeedHead, QueryKey>({
     queryKey,
     queryFn: fetchHead,
     ...NOTIFICATION_POLL_OPTIONS,
-    refetchInterval: (query: Readonly<{ state: Readonly<{ error: unknown }> }>) =>
+    refetchInterval: (query) =>
       poll && httpStatus(query.state.error) !== 401 ? NOTIFICATION_POLL_INTERVAL : false,
     placeholderData: carryUnreadCount,
-  } as const
+  })
 }
 
 /**

@@ -129,17 +129,15 @@ export function patchNotificationFeedCache(
     const within = patchWithin(filterOf(key), patch)
     const patchOne = (page: NotificationPage) =>
       patchCachedPage(page, within, options.clearContinuation)
-    qc.setQueryData<CachedFeed>(
-      key,
-      isHistory(data)
-        ? { ...data, pages: data.pages.map(patchOne) }
-        : {
-            ...data,
-            page: patchOne(data.page),
-            unreadCount:
-              options.unreadCount ?? Math.max(0, data.unreadCount + unreadDelta),
-          },
-    )
+    if (isHistory(data)) {
+      qc.setQueryData<FeedPages>(key, { ...data, pages: data.pages.map(patchOne) })
+      continue
+    }
+    qc.setQueryData<NotificationFeedHead>(key, {
+      ...data,
+      page: patchOne(data.page),
+      unreadCount: options.unreadCount ?? Math.max(0, data.unreadCount + unreadDelta),
+    })
   }
   return () => {
     for (const { key, data } of previous) qc.setQueryData(key, data)
