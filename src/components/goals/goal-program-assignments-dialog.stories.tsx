@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor } from 'storybook/test'
 import type { changeGoalProgramAssignments } from '#/contexts/reporting/server/goal-programs'
 import { GoalProgramAssignmentsDialog } from './goal-program-assignments-dialog'
+import { openGoalProgramDialog } from './goal-program.stories.dialog'
 
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000001'
 const PROGRAM_ID = '20000000-0000-4000-8000-000000000001'
@@ -79,18 +80,10 @@ type Story = StoryObj<typeof meta>
 export const PointInTimeBulkChange: Story = {
   play: async ({ canvasElement }) => {
     changeAssignmentsMock.mockClear()
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'Manage assignments' }))
-    const dialog = within(await within(document.body).findByRole('dialog'))
-
-    // Retried, not asserted once. The dialog has only just been found, and
-    // Radix animates its content in from opacity: 0 — so a getByText resolved
-    // on the very next tick finds the node while it is still invisible, and a
-    // bare toBeVisible() fails intermittently on exactly that span.
-    await waitFor(() =>
-      expect(
-        dialog.getByText(/takes a one-time snapshot when you submit/i),
-      ).toBeVisible(),
+    const dialog = await openGoalProgramDialog(
+      canvasElement,
+      'Manage assignments',
+      /takes a one-time snapshot when you submit/i,
     )
     await userEvent.click(dialog.getByRole('checkbox', { name: /Lobby QR/i }))
     await userEvent.click(

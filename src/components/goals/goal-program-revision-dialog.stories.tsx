@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor } from 'storybook/test'
 import type { reviseGoalProgram } from '#/contexts/reporting/server/goal-programs'
 import { GoalProgramRevisionDialog } from './goal-program-revision-dialog'
+import { openGoalProgramDialog } from './goal-program.stories.dialog'
 
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000001'
 const PROGRAM_ID = '20000000-0000-4000-8000-000000000001'
@@ -94,15 +95,10 @@ type Story = StoryObj<typeof meta>
 export const StatesTheStartDate: Story = {
   play: async ({ canvasElement }) => {
     reviseMock.mockClear()
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'Revise' }))
-    const dialog = within(await within(document.body).findByRole('dialog'))
-
-    // Retried: Radix animates the content in from opacity 0.
-    await waitFor(() =>
-      expect(
-        dialog.getByText(/first full month in the Property's timezone/i),
-      ).toBeVisible(),
+    const dialog = await openGoalProgramDialog(
+      canvasElement,
+      'Revise',
+      /first full month in the Property's timezone/i,
     )
     expect(dialog.queryByText(/next complete month/i)).toBeNull()
 
