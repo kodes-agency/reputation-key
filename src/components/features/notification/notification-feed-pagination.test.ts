@@ -235,6 +235,27 @@ describe('notification history paging on a live feed', () => {
     view.stop()
   })
 
+  it('finishes a "Load more" that an optimistic write lands during', async () => {
+    const feed = createLiveFeed(60)
+    const view = observeLiveFeed(feed)
+    await vi.advanceTimersByTimeAsync(0)
+    await view.loadMore()
+
+    feed.holdPages()
+    const loading = view.loadMore()
+    patchNotificationFeedCache(client, 'org-1', (row) =>
+      feed.label(row.id) === 'R25' ? { ...row, status: 'read' as const } : row,
+    )
+    feed.releasePages()
+    await loading
+    await vi.advanceTimersByTimeAsync(0)
+
+    // The page the user asked for arrives, and the write still holds.
+    expect(view.visible()).toEqual(feed.labels())
+    expect(view.unreadVisible()).not.toContain('R25')
+    view.stop()
+  })
+
   it('drops loaded history once the badge proves its unread rows were read elsewhere', async () => {
     const feed = createLiveFeed(60)
     const view = observeLiveFeed(feed)

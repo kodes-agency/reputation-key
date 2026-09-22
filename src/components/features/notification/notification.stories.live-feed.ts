@@ -43,9 +43,10 @@ export function createLiveFeed(size: number) {
     row(1, n, `R${n}`, FEED_START - n * 60_000),
   )
   let arrivals = 0
-  // While held, a head request is answered with the feed as it was when the
+  // While held, a request is answered with the feed as it was when the
   // request was made, and only once released: a read in flight.
   let heldHeads: Array<() => void> | null = null
+  let heldPages: Array<() => void> | null = null
   let pagesFail = false
 
   const label = (id: string) => labels.get(id) ?? id
@@ -113,6 +114,14 @@ export function createLiveFeed(size: number) {
       heldHeads = null
       for (const answer of waiting) answer()
     },
+    holdPages: () => {
+      heldPages = []
+    },
+    releasePages: () => {
+      const waiting = heldPages ?? []
+      heldPages = null
+      for (const answer of waiting) answer()
+    },
     head: async () => {
       requests.push('head')
       const answer = {
@@ -127,7 +136,10 @@ export function createLiveFeed(size: number) {
     pageAfter: async (before: NotificationFeedCursor | null) => {
       requests.push(before ? `after ${label(before.id)}` : 'top')
       if (pagesFail) throw new Error('page read failed')
-      return pageOf(before ? after(before) : rows)
+      const answer = pageOf(before ? after(before) : rows)
+      const waiting = heldPages
+      if (waiting) await new Promise<void>((resolve) => waiting.push(resolve))
+      return answer
     },
   }
 }

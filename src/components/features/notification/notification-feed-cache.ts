@@ -1,4 +1,9 @@
-import type { QueryClient, QueryKey } from '@tanstack/react-query'
+import {
+  InfiniteQueryObserver,
+  type Query,
+  type QueryClient,
+  type QueryKey,
+} from '@tanstack/react-query'
 import type {
   NotificationView,
   NotificationFeedHead,
@@ -84,6 +89,21 @@ function patchWithin(filter: NotificationListFilter, patch: RowPatch): RowPatch 
   }
 }
 
+/** A "Load more" in flight: the only fetch a disabled history query makes once it has pages. */
+const isLoadingMore = (query: Query) =>
+  query.state.data !== undefined &&
+  query.state.fetchStatus === 'fetching' &&
+  query.state.fetchMeta?.fetchMore?.direction === 'forward'
+
+/** Asks for the next page again through the list that asked for it, if it is still shown. */
+function resumeLoadMore(query: Query): void {
+  const list = query.observers.find(
+    (observer): observer is InfiniteQueryObserver =>
+      observer instanceof InfiniteQueryObserver,
+  )
+  void list?.fetchNextPage()
+}
+
 /**
  * Optimistically patch every cached feed of the Organization: the bell's and
  * the page's heads and loaded history pages, for every filter. Patching only
@@ -108,6 +128,16 @@ export function patchNotificationFeedCache(
   // its last settled data synchronously, so the patch below applies to it, and
   // the success invalidation reads the server again afterwards. A query with
   // no data yet has nothing to protect and keeps its first read.
+  //
+  // History is disabled, so the invalidation never reads it again: a "Load
+  // more" cancelled here would be silently dropped. It is asked for again once
+  // the patch is in, and continues from the patched pages.
+  const loadingMore = qc
+    .getQueryCache()
+    .findAll({
+      queryKey: notificationKeys.lists(organizationId),
+      predicate: isLoadingMore,
+    })
   void qc.cancelQueries({
     queryKey: notificationKeys.feed(organizationId),
     predicate: (query) => query.state.data !== undefined,
@@ -139,6 +169,7 @@ export function patchNotificationFeedCache(
       unreadCount: options.unreadCount ?? Math.max(0, data.unreadCount + unreadDelta),
     })
   }
+  for (const query of loadingMore) resumeLoadMore(query)
   return () => {
     for (const { key, data } of previous) qc.setQueryData(key, data)
   }
