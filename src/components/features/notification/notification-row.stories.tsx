@@ -55,6 +55,35 @@ const muteableReview = makeNotification({
   payload: { propertyName: 'Harbour View Suites', platform: 'google' },
 })
 
+/** Opens the row's overflow menu. Radix portals the menu outside the story canvas. */
+async function openRowMenu(canvasElement: HTMLElement) {
+  await userEvent.click(
+    within(canvasElement).getByRole('button', { name: /^More actions for:/ }),
+  )
+  return within(canvasElement.ownerDocument.body)
+}
+
+/** A menu item once Radix has animated the menu in from opacity 0. */
+async function findVisibleMenuItem(menu: ReturnType<typeof within>, name: string) {
+  const item = await menu.findByRole('menuitem', { name })
+  await waitFor(() => expect(item).toBeVisible())
+  return item
+}
+
+/**
+ * Waits until the menu is closed AND Radix has lifted its modal fence from the
+ * canvas. OverflowMenu explains why a story must not end before then.
+ */
+async function expectMenuSettled(canvasElement: HTMLElement) {
+  const ownerDocument = canvasElement.ownerDocument
+  await waitFor(() => {
+    expect(ownerDocument.querySelector('[role="menu"]')).toBeNull()
+    expect(canvasElement).not.toHaveAttribute('aria-hidden')
+    expect(canvasElement).not.toHaveAttribute('data-aria-hidden')
+    expect(ownerDocument.body.style.pointerEvents).toBe('')
+  })
+}
+
 /** Urgent + unread: pill, unread dot, rating glyphs, waiting age, accent CTA. */
 export const UrgentUnread: Story = {
   args: { notification: escalatedWaiting },
@@ -245,11 +274,7 @@ export const OverflowMenu: Story = {
   // by ActionNeededCannotBeMuted below.
   args: { notification: muteableReview },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const ownerDocument = canvasElement.ownerDocument
-    await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
-    // Radix portals the menu outside the story canvas.
-    const menu = within(ownerDocument.body)
+    const menu = await openRowMenu(canvasElement)
     expect(
       await menu.findByRole('menuitem', { name: 'Mark as read' }),
     ).toBeInTheDocument()
@@ -262,12 +287,7 @@ export const OverflowMenu: Story = {
     await userEvent.click(menu.getByRole('menuitem', { name: 'Mark as read' }))
     expect(actions.onMarkRead).toHaveBeenCalledWith(muteableReview.id)
 
-    await waitFor(() => {
-      expect(ownerDocument.querySelector('[role="menu"]')).toBeNull()
-      expect(canvasElement).not.toHaveAttribute('aria-hidden')
-      expect(canvasElement).not.toHaveAttribute('data-aria-hidden')
-      expect(ownerDocument.body.style.pointerEvents).toBe('')
-    })
+    await expectMenuSettled(canvasElement)
   },
 }
 
@@ -275,15 +295,13 @@ export const OverflowMenu: Story = {
 export const ActionNeededCannotBeMuted: Story = {
   args: { notification: escalated },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const ownerDocument = canvasElement.ownerDocument
-    await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
-    const menu = within(ownerDocument.body)
-    const markAsRead = await menu.findByRole('menuitem', { name: 'Mark as read' })
-    await waitFor(() => expect(markAsRead).toBeVisible())
+    const menu = await openRowMenu(canvasElement)
+    await findVisibleMenuItem(menu, 'Mark as read')
     expect(menu.queryByRole('menuitem', { name: /^Mute/ })).toBeNull()
     await userEvent.click(menu.getByRole('menuitem', { name: 'Mark as read' }))
-    await waitFor(() => expect(ownerDocument.querySelector('[role="menu"]')).toBeNull())
+    await waitFor(() =>
+      expect(canvasElement.ownerDocument.querySelector('[role="menu"]')).toBeNull(),
+    )
   },
 }
 
@@ -302,21 +320,10 @@ export const GoalResultCanBeMuted: Story = {
     }),
   },
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    const ownerDocument = canvasElement.ownerDocument
-    await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
-    const menu = within(ownerDocument.body)
-    const mute = await menu.findByRole('menuitem', {
-      name: 'Mute goals for this property',
-    })
-    await waitFor(() => expect(mute).toBeVisible())
-    await userEvent.click(mute)
+    const menu = await openRowMenu(canvasElement)
+    await userEvent.click(await findVisibleMenuItem(menu, 'Mute goals for this property'))
     expect(actions.onMuteCategory).toHaveBeenCalledWith(args.notification)
-    await waitFor(() => {
-      expect(ownerDocument.querySelector('[role="menu"]')).toBeNull()
-      expect(canvasElement).not.toHaveAttribute('aria-hidden')
-      expect(ownerDocument.body.style.pointerEvents).toBe('')
-    })
+    await expectMenuSettled(canvasElement)
   },
 }
 
@@ -357,19 +364,11 @@ export const ReportOutcome: Story = {
 export const ReportOutcomeCannotBeMuted: Story = {
   args: { notification: reportResolved },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const ownerDocument = canvasElement.ownerDocument
-    await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
-    const menu = within(ownerDocument.body)
-    const dismiss = await menu.findByRole('menuitem', { name: 'Dismiss' })
-    await waitFor(() => expect(dismiss).toBeVisible())
+    const menu = await openRowMenu(canvasElement)
+    await findVisibleMenuItem(menu, 'Dismiss')
     expect(menu.queryByRole('menuitem', { name: /^Mute/ })).toBeNull()
     await userEvent.keyboard('{Escape}')
-    await waitFor(() => {
-      expect(ownerDocument.querySelector('[role="menu"]')).toBeNull()
-      expect(canvasElement).not.toHaveAttribute('aria-hidden')
-      expect(ownerDocument.body.style.pointerEvents).toBe('')
-    })
+    await expectMenuSettled(canvasElement)
   },
 }
 

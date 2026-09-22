@@ -60,6 +60,18 @@ export const ErrorState: Story = {
   },
 }
 
+/** A failure notice beside the list: every loaded row stays, with a way to retry. */
+const expectRowsKeptWithNotice = (
+  canvasElement: HTMLElement,
+  notice: RegExp,
+  retry: RegExp | string,
+) => {
+  const canvas = within(canvasElement)
+  expect(canvas.getAllByRole('listitem')).toHaveLength(notificationFixtures.length)
+  expect(canvas.getByText(notice)).toBeInTheDocument()
+  expect(canvas.getByRole('button', { name: retry })).toBeInTheDocument()
+}
+
 /**
  * One failed refresh (a deploy, a dropped connection) keeps the rows the user
  * was reading; it used to swap the whole list for the error state.
@@ -67,10 +79,7 @@ export const ErrorState: Story = {
 export const RefreshFailureKeepsTheRows: Story = {
   args: { error: new Error('Notifications service unavailable') },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(canvas.getAllByRole('listitem')).toHaveLength(notificationFixtures.length)
-    expect(canvas.getByText(/couldn't refresh notifications/i)).toBeInTheDocument()
-    expect(canvas.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+    expectRowsKeptWithNotice(canvasElement, /couldn't refresh notifications/i, /retry/i)
   },
 }
 
@@ -99,10 +108,11 @@ export const SessionEnded: Story = {
 export const LoadMoreFailure: Story = {
   args: { hasMore: true, loadMoreError: new Error('Notifications service unavailable') },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(canvas.getAllByRole('listitem')).toHaveLength(notificationFixtures.length)
-    expect(canvas.getByText(/couldn't load older notifications/i)).toBeInTheDocument()
-    expect(canvas.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    expectRowsKeptWithNotice(
+      canvasElement,
+      /couldn't load older notifications/i,
+      'Try again',
+    )
   },
 }
 

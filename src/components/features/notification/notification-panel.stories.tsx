@@ -41,6 +41,20 @@ const loadedFns = makeNotificationFns({
   })) as unknown as NotificationServerFns['getFeedHead'],
 })
 
+/** The head for every fixture row, with its unread count. */
+const loadedFeedHead = (async () =>
+  notificationFeedHeadFixture(
+    notificationFixtures,
+    unreadCount,
+  )) as unknown as NotificationServerFns['getFeedHead']
+
+/** Dismisses the first row; answers how many rows the list held before. */
+async function dismissFirstRow(popover: ReturnType<typeof within>): Promise<number> {
+  const before = (await popover.findAllByRole('listitem')).length
+  await userEvent.click(popover.getAllByRole('button', { name: /^Dismiss:/ })[0]!)
+  return before
+}
+
 const meta: Meta<typeof NotificationPanel> = {
   title: 'Notification/NotificationPanel',
   component: NotificationPanel,
@@ -116,11 +130,7 @@ export const OpensOnClick: Story = {
 export const DismissRemovesRowOptimistically: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getFeedHead: (async () =>
-        notificationFeedHeadFixture(
-          notificationFixtures,
-          unreadCount,
-        )) as unknown as NotificationServerFns['getFeedHead'],
+      getFeedHead: loadedFeedHead,
       // Never settles: anything the user sees change is purely optimistic.
       dismiss: (() =>
         Promise.withResolvers<void>()
@@ -129,8 +139,7 @@ export const DismissRemovesRowOptimistically: Story = {
   },
   play: async ({ canvasElement }) => {
     const portal = await openBell(canvasElement)
-    const before = (await portal.findAllByRole('listitem')).length
-    await userEvent.click(portal.getAllByRole('button', { name: /^Dismiss:/ })[0])
+    const before = await dismissFirstRow(portal)
     await waitFor(() => {
       expect(portal.getAllByRole('listitem')).toHaveLength(before - 1)
     })
@@ -203,11 +212,7 @@ export const DismissingTheLastRowFocusesTheList: Story = {
 export const MarkAllReadIsOptimistic: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getFeedHead: (async () =>
-        notificationFeedHeadFixture(
-          notificationFixtures,
-          unreadCount,
-        )) as unknown as NotificationServerFns['getFeedHead'],
+      getFeedHead: loadedFeedHead,
       markAllRead: (() =>
         Promise.withResolvers<void>()
           .promise) as unknown as NotificationServerFns['markAllRead'],
@@ -234,11 +239,7 @@ const armedMarkAllRead = fn(async () => undefined)
 export const OpeningTheBellArmsNothing: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getFeedHead: (async () =>
-        notificationFeedHeadFixture(
-          notificationFixtures,
-          unreadCount,
-        )) as unknown as NotificationServerFns['getFeedHead'],
+      getFeedHead: loadedFeedHead,
       markAllRead: armedMarkAllRead as unknown as NotificationServerFns['markAllRead'],
     }),
   },
@@ -596,11 +597,7 @@ export const MuteCategory: Story = {
 export const FailedDismissSaysSo: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getFeedHead: (async () =>
-        notificationFeedHeadFixture(
-          notificationFixtures,
-          unreadCount,
-        )) as unknown as NotificationServerFns['getFeedHead'],
+      getFeedHead: loadedFeedHead,
       dismiss: (async () => {
         throw new Error('network down')
       }) as unknown as NotificationServerFns['dismiss'],
@@ -608,8 +605,7 @@ export const FailedDismissSaysSo: Story = {
   },
   play: async ({ canvasElement }) => {
     const portal = await openBell(canvasElement)
-    const before = (await portal.findAllByRole('listitem')).length
-    await userEvent.click(portal.getAllByRole('button', { name: /^Dismiss:/ })[0]!)
+    const before = await dismissFirstRow(portal)
     await expectToast("Couldn't dismiss that notification. Try again.")
     await waitFor(() => expect(portal.getAllByRole('listitem')).toHaveLength(before))
   },
@@ -623,11 +619,7 @@ export const FailedDismissSaysSo: Story = {
 export const HonoursPersistedLocale: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getFeedHead: (async () =>
-        notificationFeedHeadFixture(
-          notificationFixtures,
-          unreadCount,
-        )) as unknown as NotificationServerFns['getFeedHead'],
+      getFeedHead: loadedFeedHead,
       getUserSettings: (async () => ({
         ...notificationUserSettingsFixture,
         locale: 'de-DE',

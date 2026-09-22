@@ -135,6 +135,14 @@ export const FilterIsAppliedBeforePagination: Story = {
   },
 }
 
+/** Presses "Dismiss all" once the rows are in, and returns its confirmation. */
+async function openDismissAllConfirmation(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  await canvas.findAllByRole('listitem')
+  await userEvent.click(canvas.getByRole('button', { name: /dismiss all/i }))
+  return within(await within(document.body).findByRole('alertdialog'))
+}
+
 /** Full-page dismissal requires confirmation, then updates optimistically. */
 export const DismissAllRequiresConfirmation: Story = {
   args: {
@@ -150,16 +158,13 @@ export const DismissAllRequiresConfirmation: Story = {
     }),
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await canvas.findAllByRole('listitem')
-    await userEvent.click(canvas.getByRole('button', { name: /dismiss all/i }))
-    const dialog = await within(document.body).findByRole('alertdialog')
+    const dialog = await openDismissAllConfirmation(canvasElement)
     await waitFor(() =>
-      expect(within(dialog).getByText(/does not change the underlying/i)).toBeVisible(),
+      expect(dialog.getByText(/does not change the underlying/i)).toBeVisible(),
     )
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Dismiss all' }))
+    await userEvent.click(dialog.getByRole('button', { name: 'Dismiss all' }))
     await waitFor(() => {
-      expect(canvas.getByText(/you're all caught up/i)).toBeInTheDocument()
+      expect(within(canvasElement).getByText(/you're all caught up/i)).toBeInTheDocument()
     })
   },
 }
@@ -172,14 +177,11 @@ export const DismissAllRequiresConfirmation: Story = {
 export const DismissAllFocusesTheList: Story = {
   args: DismissAllRequiresConfirmation.args,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await canvas.findAllByRole('listitem')
-    await userEvent.click(canvas.getByRole('button', { name: /dismiss all/i }))
-    const dialog = await within(document.body).findByRole('alertdialog')
-    await userEvent.click(
-      await within(dialog).findByRole('button', { name: 'Dismiss all' }),
-    )
-    const list = await canvas.findByRole('group', { name: 'Notification list' })
+    const dialog = await openDismissAllConfirmation(canvasElement)
+    await userEvent.click(await dialog.findByRole('button', { name: 'Dismiss all' }))
+    const list = await within(canvasElement).findByRole('group', {
+      name: 'Notification list',
+    })
     await waitFor(() => expect(list).toHaveFocus())
   },
 }

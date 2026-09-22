@@ -52,6 +52,12 @@ const meta: Meta<typeof NotificationPopoverContent> = {
 export default meta
 type Story = StoryObj<typeof NotificationPopoverContent>
 
+/** "Mark all read" is offered only while the tab holds an unread row to mark. */
+const expectNoMarkAllRead = (canvasElement: HTMLElement) =>
+  expect(
+    within(canvasElement).queryByRole('button', { name: /mark all read/i }),
+  ).toBeNull()
+
 export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -125,10 +131,9 @@ export const ErrorState: Story = {
 export const Empty: Story = {
   args: { groups: [], filterUnreadCount: 0 },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(canvas.getByText(/nothing here right now/i)).toBeInTheDocument()
+    expect(within(canvasElement).getByText(/nothing here right now/i)).toBeInTheDocument()
     // Bulk actions are hidden when there is nothing to act on.
-    expect(canvas.queryByRole('button', { name: /mark all read/i })).toBeNull()
+    expectNoMarkAllRead(canvasElement)
   },
 }
 
@@ -136,9 +141,7 @@ export const Empty: Story = {
 export const MarkingAllRead: Story = {
   args: { isMarkingAllRead: true },
   play: async ({ canvasElement }) => {
-    expect(
-      within(canvasElement).queryByRole('button', { name: /mark all read/i }),
-    ).toBeNull()
+    expectNoMarkAllRead(canvasElement)
   },
 }
 
@@ -159,9 +162,8 @@ export const NothingUnreadOnThisTab: Story = {
     ]),
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(canvas.getAllByRole('listitem')).toHaveLength(1)
-    expect(canvas.queryByRole('button', { name: /mark all read/i })).toBeNull()
+    expect(within(canvasElement).getAllByRole('listitem')).toHaveLength(1)
+    expectNoMarkAllRead(canvasElement)
   },
 }
 

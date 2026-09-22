@@ -287,6 +287,26 @@ export const EveryControlNamesItsCategory: Story = {
   },
 }
 
+type Canvas = ReturnType<typeof within>
+
+/** Picks a "Date and time format" option; the list opens outside the canvas. */
+async function pickFormat(canvas: Canvas, option: string) {
+  await userEvent.click(canvas.getByRole('combobox', { name: 'Date and time format' }))
+  await userEvent.click(
+    await within(document.body).findByRole('option', { name: option }),
+  )
+}
+
+/** Saves the formatting form and expects exactly `data` to have been sent, once. */
+async function expectFormattingSaved(
+  canvas: Canvas,
+  data: Readonly<{ locale?: string; timezone?: string }>,
+) {
+  await userEvent.click(canvas.getByRole('button', { name: 'Save formatting' }))
+  await waitFor(() => expect(updateUserSettingsMock).toHaveBeenCalledOnce())
+  expect(updateUserSettingsMock).toHaveBeenCalledWith({ data })
+}
+
 export const FormattingSavesAPickedTimezone: Story = {
   play: async ({ canvasElement }) => {
     updateUserSettingsMock.mockClear()
@@ -300,12 +320,8 @@ export const FormattingSavesAPickedTimezone: Story = {
       'Berlin',
     )
     await userEvent.click(await portal.findByRole('option', { name: /Berlin/ }))
-    await userEvent.click(canvas.getByRole('button', { name: 'Save formatting' }))
-    await waitFor(() => expect(updateUserSettingsMock).toHaveBeenCalledOnce())
     // Only the changed setting travels: the untouched format is not re-sent.
-    expect(updateUserSettingsMock).toHaveBeenCalledWith({
-      data: { timezone: 'Europe/Berlin' },
-    })
+    await expectFormattingSaved(canvas, { timezone: 'Europe/Berlin' })
   },
 }
 
@@ -347,17 +363,11 @@ export const SavingTheLocaleKeepsTheOrganizationTimezone: Story = {
   play: async ({ canvasElement }) => {
     updateUserSettingsMock.mockClear()
     const canvas = within(canvasElement)
-    const save = canvas.getByRole('button', { name: 'Save formatting' })
     // Nothing differs from what is in effect yet.
-    expect(save).toBeDisabled()
-    await userEvent.click(canvas.getByRole('combobox', { name: 'Date and time format' }))
-    await userEvent.click(
-      await within(document.body).findByRole('option', { name: 'English (UK)' }),
-    )
-    await userEvent.click(save)
-    await waitFor(() => expect(updateUserSettingsMock).toHaveBeenCalledOnce())
+    expect(canvas.getByRole('button', { name: 'Save formatting' })).toBeDisabled()
+    await pickFormat(canvas, 'English (UK)')
     // The timezone is not sent, so the save cannot pin anything over it.
-    expect(updateUserSettingsMock).toHaveBeenCalledWith({ data: { locale: 'en-GB' } })
+    await expectFormattingSaved(canvas, { locale: 'en-GB' })
   },
 }
 
@@ -374,13 +384,8 @@ export const KeepsALegacyTimezoneTheListNoLongerOffers: Story = {
     expect(
       canvas.getByRole('combobox', { name: 'Date and time format' }),
     ).toHaveTextContent('de-DE')
-    await userEvent.click(canvas.getByRole('combobox', { name: 'Date and time format' }))
-    await userEvent.click(
-      await within(document.body).findByRole('option', { name: 'English (US)' }),
-    )
-    await userEvent.click(canvas.getByRole('button', { name: 'Save formatting' }))
-    await waitFor(() => expect(updateUserSettingsMock).toHaveBeenCalledOnce())
-    expect(updateUserSettingsMock).toHaveBeenCalledWith({ data: { locale: 'en' } })
+    await pickFormat(canvas, 'English (US)')
+    await expectFormattingSaved(canvas, { locale: 'en' })
   },
 }
 
