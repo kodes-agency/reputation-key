@@ -318,6 +318,49 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
   }
 
   /**
+   * The recipient checks made immediately before the provider effect. Returns
+   * the address to mail, or `null` once the row is suppressed with its reason.
+   */
+  const recheckRecipient = async (
+    scope: Readonly<{
+      orgId: ReturnType<typeof organizationId>
+      propId: PropertyId | null
+      ids: EmailDeliveryIds
+    }>,
+    entry: StoredEmail,
+  ): Promise<string | null> => {
+    // CONTEXT.md invariant 4. Quiet hours and retries can hold a row for
+    // hours; a recipient removed or moved off the Property since must not get
+    // it. Organization mandatory mail is exempt: an access-removed notice is
+    // addressed to someone who is no longer a member.
+    if (
+      scope.propId !== null &&
+      !(await deps.isRecipientEligible({
+        organizationId: scope.orgId,
+        propertyId: scope.propId,
+        userId: entry.userId,
+        audience: entry.recipientAudience,
+      }))
+    ) {
+      await suppress(scope.ids, 'recipient_ineligible')
+      return null
+    }
+    const recipient = await deps.userLookup.getEmail(entry.userId)
+    if (!recipient) {
+      await suppress(scope.ids, 'recipient_unavailable')
+      return null
+    }
+    // ADR 0046 r.6: never attempt an address the provider refused for good,
+    // from any Organization. Attempting again earns another bounce or
+    // complaint against our domain.
+    if (await deps.emailRepo.isAddressSuppressed(recipient)) {
+      await suppress(scope.ids, 'recipient_bounced')
+      return null
+    }
+    return recipient
+  }
+
+  /**
    * ADR 0046 r.7 guard: `assertPreferencesLink` throws before the provider
    * call for an optional email with no usable preferences link.
    */
@@ -404,34 +447,8 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       await suppress(ids, 'notification_unavailable')
       return
     }
-    // CONTEXT.md invariant 4. Quiet hours and retries can hold a row for
-    // hours; a recipient removed or moved off the Property since must not get
-    // it. Organization mandatory mail is exempt: an access-removed notice is
-    // addressed to someone who is no longer a member.
-    if (
-      propId !== null &&
-      !(await deps.isRecipientEligible({
-        organizationId: orgId,
-        propertyId: propId,
-        userId: entry.userId,
-        audience: entry.recipientAudience,
-      }))
-    ) {
-      await suppress(ids, 'recipient_ineligible')
-      return
-    }
-    const recipient = await deps.userLookup.getEmail(entry.userId)
-    if (!recipient) {
-      await suppress(ids, 'recipient_unavailable')
-      return
-    }
-    // ADR 0046 r.6: never attempt an address the provider refused for good,
-    // from any Organization. Attempting again earns another bounce or
-    // complaint against our domain.
-    if (await deps.emailRepo.isAddressSuppressed(recipient)) {
-      await suppress(ids, 'recipient_bounced')
-      return
-    }
+    const recipient = await recheckRecipient(scope, entry)
+    if (recipient === null) return
 
     const { email, headers } = composeEmail(notification, entry, ids, mandatory)
     // The one-click link names only this row, which retention deletes after
