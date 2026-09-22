@@ -17,6 +17,7 @@ import {
   NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
   NOTIFICATION_EMAIL_STALLED_ALERT_MS,
   NOTIFICATION_EMAIL_BOUNCE_MIN_COUNT,
+  NOTIFICATION_EMAIL_PERMANENT_FAILURE_MIN_COUNT,
   NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT,
   NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
   NOTIFICATION_EMAIL_PERMANENT_FAILURE_SHARE_ALERT_PERCENT,
@@ -826,11 +827,13 @@ describe('notification email outcomes', () => {
       runbook: 'runbooks.md §15',
     })
     expect(event!.detail).toContain('3 permanently refused')
-    // The first refusal with nothing accepted is already every attempt.
+    // Refusals with nothing accepted are every attempt.
     expect(
       evaluateOne(
         'notification.email-permanent-failures',
-        withOutcomes({ permanentFailureCount: 1 }),
+        withOutcomes({
+          permanentFailureCount: NOTIFICATION_EMAIL_PERMANENT_FAILURE_MIN_COUNT,
+        }),
       ),
     ).toMatchObject({ value: 100 })
   })
@@ -843,6 +846,17 @@ describe('notification email outcomes', () => {
       ),
     ).toBeNull()
     expect(evaluateOne('notification.email-permanent-failures', healthy())).toBeNull()
+  })
+
+  it('stays quiet on a lone refusal with nothing accepted — one bad address in a quiet Organization', () => {
+    expect(
+      evaluateOne(
+        'notification.email-permanent-failures',
+        withOutcomes({
+          permanentFailureCount: NOTIFICATION_EMAIL_PERMANENT_FAILURE_MIN_COUNT - 1,
+        }),
+      ),
+    ).toBeNull()
   })
 
   it('pages on a bounce rate above the provider threshold once bounces are not isolated', () => {

@@ -175,10 +175,16 @@ export const NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS = 24 * 60 * 60 * 1000
  * A permanent refusal is never retried: that email is lost. Isolated refusals
  * (one bad address among accepted mail) stay a gauge; MORE than half of the
  * window's attempts refused is provider-level breakage — a revoked API key, a
- * lapsed domain verification, a transport failure classified permanent — and
- * the very first refusal with nothing accepted already is.
+ * lapsed domain verification, a transport failure classified permanent.
  */
 export const NOTIFICATION_EMAIL_PERMANENT_FAILURE_SHARE_ALERT_PERCENT = 50
+
+/**
+ * Every non-429 4xx is classified permanent, a recipient-level 400/422 too,
+ * so at beta volume one malformed address with nothing else sent is a 100%
+ * share. A share is only a provider fault once refusals are not isolated.
+ */
+export const NOTIFICATION_EMAIL_PERMANENT_FAILURE_MIN_COUNT = 3
 
 /**
  * Resend's published bounce ceiling. Above it the provider may throttle or
@@ -825,7 +831,9 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     read: (snapshot) => {
       const { permanentFailureCount, acceptedCount } =
         snapshot.notifications.emailOutcomes
-      if (permanentFailureCount <= 0) return null
+      if (permanentFailureCount < NOTIFICATION_EMAIL_PERMANENT_FAILURE_MIN_COUNT) {
+        return null
+      }
       const share = percentOf(
         permanentFailureCount,
         permanentFailureCount + acceptedCount,
