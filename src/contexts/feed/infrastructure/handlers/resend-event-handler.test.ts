@@ -29,6 +29,7 @@ function fakeDeps(
     findProviderMessageRecipients: vi.fn(async () => overrides.owned ?? []),
     suppressRecipient: vi.fn(async () => overrides.suppressed ?? 3),
     suppressAddress: vi.fn(async () => {}),
+    forgetAddress: vi.fn(async () => {}),
   }
   return {
     emailRepo,
@@ -289,6 +290,59 @@ describe('resend delivery event handler (ADR 0046 r.6)', () => {
 
       expect(deps.emailRepo.suppressAddress).not.toHaveBeenCalled()
       expect(result.reason).toBe('unknown_message')
+    })
+  })
+
+  describe("the provider's own suppression list", () => {
+    const listEvent = (
+      deps: ReturnType<typeof fakeDeps>,
+      type: 'suppression.added' | 'suppression.removed',
+      origin?: string,
+    ) =>
+      applyResendEvent(deps as unknown as ResendEventDeps, {
+        type,
+        address: 'manager@example.com',
+        ...(origin === undefined ? {} : { origin }),
+        occurredAt: OCCURRED_AT,
+        eventId: 'msg_list',
+      })
+
+    it('lifts our suppression when the provider removes the address', async () => {
+      const deps = fakeDeps()
+
+      const result = await listEvent(deps, 'suppression.removed', 'bounce')
+
+      expect(deps.emailRepo.forgetAddress).toHaveBeenCalledWith('manager@example.com')
+      expect(deps.emailRepo.suppressAddress).not.toHaveBeenCalled()
+      expect(result).toEqual({ applied: true, rows: 0, suppressed: 0 })
+    })
+
+    it('records an address the provider added, with the reason it gives', async () => {
+      const deps = fakeDeps()
+
+      await listEvent(deps, 'suppression.added', 'complaint')
+      await listEvent(deps, 'suppression.added', 'bounce')
+      await listEvent(deps, 'suppression.added', 'manual')
+
+      expect(deps.emailRepo.suppressAddress.mock.calls).toEqual([
+        ['manager@example.com', 'complained', OCCURRED_AT],
+        ['manager@example.com', 'bounced', OCCURRED_AT],
+        ['manager@example.com', 'suppressed', OCCURRED_AT],
+      ])
+      expect(deps.emailRepo.recordProviderState).not.toHaveBeenCalled()
+    })
+
+    it('never writes the address to a log', async () => {
+      const deps = fakeDeps()
+
+      await listEvent(deps, 'suppression.removed')
+
+      const logged = JSON.stringify([
+        deps.logger.info.mock.calls,
+        deps.logger.warn.mock.calls,
+        deps.logger.error.mock.calls,
+      ])
+      expect(logged).not.toContain('manager@example.com')
     })
   })
 })

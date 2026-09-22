@@ -59,9 +59,11 @@ sendable. A delivery delay the provider reports after acceptance is recorded
 only as `provider_state = 'delivery_delayed'`; the row stays `accepted`, so it
 is never sent twice. A provider `failed` after acceptance is terminal. A
 permanent bounce, a complaint, or a provider `suppressed` stops mail to that
-ADDRESS: it is recorded in a durable suppression list keyed by a digest of
-the normalized address, outside queue retention and across Organizations, and
-checked before every send. A transient or undetermined bounce ends only its
+ADDRESS: it is recorded in a durable suppression list keyed by an HMAC of
+the normalized address under a server secret, outside queue retention and
+across Organizations, and checked before every send. The provider's own list
+is mirrored: `suppression.added` records an address, and `suppression.removed`
+is the only way one leaves. A transient or undetermined bounce ends only its
 message. Suppressions made locally (a disabled preference) never count as the
 provider refusing the recipient.
 

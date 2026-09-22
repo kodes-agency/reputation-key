@@ -69,7 +69,8 @@ const suppressionReasonFor = (
     ? undefined
     : SUPPRESSING_STATES[state]
 
-export type ResendEventInput = Readonly<{
+/** An event about one message we sent. */
+export type ResendMessageEventInput = Readonly<{
   /** Resend event type, e.g. `email.bounced`. */
   type: string
   /** `data.email_id` — the id `markAccepted` stored as `providerMessageId`. */
@@ -81,6 +82,23 @@ export type ResendEventInput = Readonly<{
   /** `data.bounce.type` of a bounce: `Permanent`, `Transient` or `Undetermined`. */
   bounceType?: string
 }>
+
+/**
+ * A change to the provider's own suppression list. It names an address, not
+ * a message: an operator who takes an address off Resend's list must see it
+ * lifted here too, or it stays refused by us forever.
+ */
+export type ResendSuppressionListEventInput = Readonly<{
+  type: 'suppression.added' | 'suppression.removed'
+  /** `data.email`. Keyed at once and never logged or stored as given. */
+  address: string
+  /** `data.origin`: `bounce`, `complaint` or `manual`. */
+  origin?: string
+  occurredAt: Date
+  eventId: string
+}>
+
+export type ResendEventInput = ResendMessageEventInput | ResendSuppressionListEventInput
 
 export type ResendEventResult = Readonly<{
   /**
@@ -133,10 +151,39 @@ async function suppressRecipients(
   return suppressed
 }
 
+/** Why Resend put an address on its list, in our terms. */
+const LIST_ORIGIN_REASONS: Readonly<Record<string, EmailSuppressionReason | undefined>> =
+  {
+    bounce: 'bounced',
+    complaint: 'complained',
+  }
+
+async function applySuppressionListEvent(
+  deps: ResendEventDeps,
+  input: ResendSuppressionListEventInput,
+): Promise<ResendEventResult> {
+  const fields = {
+    eventType: input.type,
+    ...(input.origin === undefined ? {} : { origin: input.origin }),
+    correlationId: providerEventCorrelationId(input.eventId),
+  }
+  if (input.type === 'suppression.removed') {
+    await deps.emailRepo.forgetAddress(input.address)
+    deps.logger.info(fields, 'Provider lifted an address suppression; lifted here too')
+    return { applied: true, rows: 0, suppressed: 0 }
+  }
+  // A manual addition, or an origin we do not know, is the provider's own call.
+  const reason = LIST_ORIGIN_REASONS[input.origin ?? ''] ?? 'suppressed'
+  await deps.emailRepo.suppressAddress(input.address, reason, input.occurredAt)
+  deps.logger.info(fields, 'Provider suppressed an address; recorded here too')
+  return { applied: true, rows: 0, suppressed: 0 }
+}
+
 export async function applyResendEvent(
   deps: ResendEventDeps,
   input: ResendEventInput,
 ): Promise<ResendEventResult> {
+  if ('address' in input) return applySuppressionListEvent(deps, input)
   const correlationId = providerEventCorrelationId(input.eventId)
   const state = STATE_BY_EVENT[input.type]
   if (!state) {

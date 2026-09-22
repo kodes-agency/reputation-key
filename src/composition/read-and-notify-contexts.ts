@@ -41,6 +41,12 @@ export type ReadAndNotifyContextsInput = Readonly<{
   inbox: InboxContextApi
   /** Review-owned governed serving reads, forwarded to Reporting's dashboard. */
   reviewServingStats: ReturnType<typeof buildReviewContext>['lookups']['servingStats']
+  /**
+   * Keys refused email addresses so the suppression list holds no digest a
+   * dictionary of addresses could reverse. Separated from its other uses by a
+   * domain label inside Feed.
+   */
+  notificationEmailAddressKey: string
 }>
 
 /**
@@ -162,6 +168,7 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
       },
       isEmailDeliveryAllowed,
       propertyAccess: input.identity.publicApi.people.getAccessiblePropertyIds,
+      emailAddressKey: input.notificationEmailAddressKey,
     },
   })
 

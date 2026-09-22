@@ -627,6 +627,9 @@ function buildContainer(
     identity,
     inbox,
     reviewServingStats: review.lookups.servingStats,
+    // Parsed key material, like identityRequestSecurity's pseudonym secrets:
+    // the same required, stable server secret, domain-separated in Feed.
+    notificationEmailAddressKey: env.BETTER_AUTH_SECRET,
   })
   const { activity, notification } = feed
 

@@ -351,9 +351,14 @@ const verifyPurgeReadiness = async (
  *
  * Every Organization-scoped table this context owns in
  * `data-fate-authority.ts` is scrubbed by organization scope. The one table
- * that is not, `notification_email_suppressions`, holds address digests that
- * belong to no Organization, and is kept: a dead address stays dead. Deletion order runs children before parents so a
- * cascade can never silently absorb a row this receipt claims to have counted:
+ * that is not, `notification_email_suppressions`, is kept on purpose. Its rows
+ * are server-keyed address digests that belong to no Organization: the same
+ * address may be a member elsewhere, and purging the provider's refusal of it
+ * would let a complainer be mailed again. An entry leaves only when the
+ * provider lifts its own suppression.
+ *
+ * Deletion order runs children before parents so a cascade can never
+ * silently absorb a row this receipt claims to have counted:
  *
  *   * `notification_digest_batch_members` — batch composition; cascades from
  *     both batches and queue rows, so it is removed first and counted honestly.

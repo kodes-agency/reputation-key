@@ -150,8 +150,19 @@ const providerStateColumns = (state: ProviderDeliveryState, occurredAt: Date) =>
   }
 }
 
-export const createNotificationEmailRepository = (db: Database) => ({
-  ...createNotificationEmailSuppressionStore(db),
+export type NotificationEmailRepositoryOptions = Readonly<{
+  /**
+   * The server secret refused addresses are keyed with. Without it the
+   * suppression methods throw rather than guess.
+   */
+  emailAddressKey?: string
+}>
+
+export const createNotificationEmailRepository = (
+  db: Database,
+  options: NotificationEmailRepositoryOptions = {},
+) => ({
+  ...createNotificationEmailSuppressionStore(db, options.emailAddressKey),
   ...createNotificationUnsubscribeScopeStore(db),
   ...createNotificationDigestBatchStore(db),
 

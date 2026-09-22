@@ -231,6 +231,8 @@ export type NotificationEmailRepositoryPort = Readonly<{
     reason: EmailSuppressionReason,
     at: Date,
   ): Promise<void>
+  /** The provider took this address off its suppression list: mail it again. */
+  forgetAddress(address: string): Promise<void>
   /**
    * Keep the optional scope an urgent email's one-click unsubscribe link
    * stands for, before the email is sent, so the link outlives queue

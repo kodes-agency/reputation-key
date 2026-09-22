@@ -37,6 +37,7 @@ function buildWith(db: Database) {
       portalHealthLookup: {} as never,
       isEmailDeliveryAllowed: () => false,
       propertyAccess: async () => null,
+      emailAddressKey: 'feed-build-test-email-address-key',
     },
   })
 }

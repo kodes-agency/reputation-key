@@ -2,6 +2,7 @@
 // complaint must outlive the queue rows that proved it, follow the address
 // rather than the user, and never be inferred from a transient bounce.
 
+import { createHash } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -22,17 +23,17 @@ const EMAIL = notificationEmailId('84000000-0000-4000-8000-000000000003')
 const ADDRESS = 'suppression-test@example.com'
 const NOW = new Date('2026-08-25T08:00:00.000Z')
 const LATER = new Date('2026-08-25T08:05:00.000Z')
+// Stands in for the server secret the composition passes.
+const ADDRESS_KEY = 'notification-email-suppression-test-key-0001'
+
+const repository = (db: Database, emailAddressKey = ADDRESS_KEY) =>
+  createNotificationEmailRepository(db, { emailAddressKey })
 
 describe.sequential('durable email suppression (real PostgreSQL)', () => {
   let lease: TestLease
   let db: Database
 
-  const forgetAddress = () =>
-    lease.pool.query(
-      `DELETE FROM notification_email_suppressions
-        WHERE address_hash = encode(sha256(convert_to($1, 'UTF8')), 'hex')`,
-      [ADDRESS],
-    )
+  const forgetAddress = () => repository(db).forgetAddress(ADDRESS)
 
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL)
@@ -88,7 +89,7 @@ describe.sequential('durable email suppression (real PostgreSQL)', () => {
 
   /** A provider event for the message the queue row was accepted as. */
   const deliverEvent = async (type: string, bounceType?: string) => {
-    const repo = createNotificationEmailRepository(db)
+    const repo = repository(db)
     await repo.markAccepted(EMAIL, ORG, PROPERTY, 'resend-suppression-1', NOW)
     await applyResendEvent(
       {
@@ -120,7 +121,7 @@ describe.sequential('durable email suppression (real PostgreSQL)', () => {
   })
 
   it('writes a complaint the first delivery lost once the provider retries it', async () => {
-    const repo = createNotificationEmailRepository(db)
+    const repo = repository(db)
     await repo.markAccepted(EMAIL, ORG, PROPERTY, 'resend-suppression-1', NOW)
     const event = {
       type: 'email.complained',
@@ -175,11 +176,54 @@ describe.sequential('durable email suppression (real PostgreSQL)', () => {
   })
 
   it('never counts a local suppression as the provider refusing the address', async () => {
-    const repo = createNotificationEmailRepository(db)
+    const repo = repository(db)
 
     await repo.markSuppressed(EMAIL, ORG, PROPERTY, 'preference_disabled', NOW)
 
     await expect(repo.isAddressSuppressed(ADDRESS)).resolves.toBe(false)
+  })
+
+  it('lifts the suppression when the provider takes the address off its list', async () => {
+    const repo = await deliverEvent('email.bounced', 'Permanent')
+
+    await applyResendEvent(
+      {
+        emailRepo: repo,
+        userLookup: { getEmail: async () => null },
+        logger: createFakeJobLogger(),
+      },
+      {
+        type: 'suppression.removed',
+        // As the provider spells it, which need not be how we stored it.
+        address: ` ${ADDRESS.toUpperCase()} `,
+        occurredAt: LATER,
+        eventId: 'msg_suppression_removed',
+      },
+    )
+
+    await expect(repo.isAddressSuppressed(ADDRESS)).resolves.toBe(false)
+  })
+
+  it('keys the address with the server secret, so a dictionary of digests finds nothing', async () => {
+    await deliverEvent('email.bounced', 'Permanent')
+    const bareDigest = createHash('sha256').update(ADDRESS, 'utf8').digest('hex')
+
+    const rows = await db.execute(
+      sql`SELECT count(*)::int AS n FROM notification_email_suppressions
+           WHERE address_hash = ${bareDigest}`,
+    )
+
+    expect(rows.rows[0]).toEqual({ n: 0 })
+    await expect(repository(db).isAddressSuppressed(ADDRESS)).resolves.toBe(true)
+    await expect(
+      repository(db, 'a-different-server-secret-0000000000').isAddressSuppressed(ADDRESS),
+    ).resolves.toBe(false)
+  })
+
+  it('refuses to answer without its key rather than guess', async () => {
+    await expect(
+      createNotificationEmailRepository(db).isAddressSuppressed(ADDRESS),
+    ).rejects.toThrow('Email address suppression requires its key')
   })
 
   it('stores a digest of the address, never the address itself', async () => {

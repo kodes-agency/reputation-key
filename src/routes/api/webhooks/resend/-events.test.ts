@@ -123,6 +123,57 @@ describe('resend webhook route', () => {
     )
   })
 
+  describe("the provider's own suppression list", () => {
+    const listEvent = (type: string) =>
+      JSON.stringify({
+        type,
+        created_at: '2026-08-21T09:05:00.000Z',
+        data: {
+          id: 'sup_1',
+          email: 'Former.Manager@example.com',
+          origin: 'complaint',
+          source_id: null,
+          created_at: '2026-08-21T09:04:00.000Z',
+        },
+      })
+
+    it('forwards a removal with the address it lifts', async () => {
+      // An operator takes the address off Resend's list; ours must follow, or
+      // the address stays refused here forever.
+      mocks.handleResendEvent.mockResolvedValue({ applied: true, rows: 0, suppressed: 0 })
+
+      const response = await handleResendWebhookPost(
+        mkRequest(listEvent('suppression.removed')),
+      )
+
+      expect(response.status).toBe(200)
+      expect(mocks.handleResendEvent).toHaveBeenCalledWith({
+        type: 'suppression.removed',
+        address: 'Former.Manager@example.com',
+        origin: 'complaint',
+        occurredAt: new Date('2026-08-21T09:05:00.000Z'),
+        eventId: 'msg_2abc',
+      })
+    })
+
+    it('forwards an addition with its origin', async () => {
+      await handleResendWebhookPost(mkRequest(listEvent('suppression.added')))
+
+      expect(mocks.handleResendEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'suppression.added', origin: 'complaint' }),
+      )
+    })
+
+    it('returns 400 for a list event with no address', async () => {
+      const response = await handleResendWebhookPost(
+        mkRequest(JSON.stringify({ type: 'suppression.removed', data: { id: 'sup_1' } })),
+      )
+
+      expect(response.status).toBe(400)
+      expect(mocks.handleResendEvent).not.toHaveBeenCalled()
+    })
+  })
+
   it('rejects a forged signature with 401 and never reaches the handler', async () => {
     const response = await handleResendWebhookPost(
       mkRequest(body, { signature: 'v1,ZGVhZGJlZWY=' }),

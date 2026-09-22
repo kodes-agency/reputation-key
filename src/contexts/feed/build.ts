@@ -295,6 +295,8 @@ type NotificationBuildInput = Readonly<{
   isEmailDeliveryAllowed: IsEmailDeliveryAllowed
   /** Identity-owned current Property access; the in-app feed follows it. */
   propertyAccess: PropertyAccessLookup
+  /** Server secret refused email addresses are keyed with (never stored). */
+  emailAddressKey: string
 }>
 
 const buildNotificationFeed = (input: NotificationBuildInput) => {
@@ -309,7 +311,9 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     input.db,
     input.isEmailDeliveryAllowed,
   )
-  const emailRepo = createNotificationEmailRepository(input.db)
+  const emailRepo = createNotificationEmailRepository(input.db, {
+    emailAddressKey: input.emailAddressKey,
+  })
   const prefRepo = createNotificationPreferenceRepository(input.db)
   const oneClickUnsubscribeRepo = createOneClickUnsubscribeRepository(input.db)
   // ADR 0046 r.3: the settings page and every timestamp read the same
