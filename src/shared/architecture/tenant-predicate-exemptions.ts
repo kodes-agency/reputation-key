@@ -173,6 +173,20 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
+    file: 'src/contexts/feed/infrastructure/repositories/notification-email.repository.ts',
+    symbol: 'recordProviderState',
+    reason:
+      'A signed provider webhook names a message only by the id the provider assigned at acceptance, before tenant scope is known; the id is unique per send and the update returns each moved row with its tenant identifiers.',
+    category: 'PUBLIC-TOKEN',
+  },
+  {
+    file: 'src/contexts/feed/infrastructure/repositories/notification-email.repository.ts',
+    symbol: 'findProviderMessageRecipients',
+    reason:
+      'A retried provider webhook re-applies a suppression for the message the provider id names, before tenant scope is known; the read returns each row with its tenant identifiers.',
+    category: 'PUBLIC-TOKEN',
+  },
+  {
     file: 'src/contexts/feed/infrastructure/repositories/notification-gap.repository.ts',
     symbol: 'countItemsMissingNotifications',
     reason:
