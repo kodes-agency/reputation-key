@@ -580,4 +580,78 @@ describe.sequential('Goal Program repository (integration)', () => {
       }),
     ).resolves.toBe(1)
   })
+
+  // The revision boundary comes from a snapshot read before the transaction.
+  // Maintenance can open the next month for the current version in between;
+  // closing the version at that month's start would leave the month outside
+  // its version window, where the guard refuses every later update to it.
+  it('refuses a revision whose start falls inside a month opened after the snapshot', async () => {
+    const repository = createGoalProgramRepository(getDb())
+    const targetPropertyId = await createPropertyFixture('Racing Goal Property')
+    const february = {
+      start: new Date('2026-02-01T00:00:00.000Z'),
+      end: new Date('2026-03-01T00:00:00.000Z'),
+    }
+    const march = { start: february.end, end: new Date('2026-04-01T00:00:00.000Z') }
+    const original = programBundle({
+      propertyId: targetPropertyId,
+      status: 'active',
+      effectiveFrom: february.start,
+      at: february.start,
+      withOpenResult: { end: february.end },
+    })
+    const subjectAssignment = original.assignments[0]!
+    await repository.create({ bundle: original, auditAction: 'goal.program.created' })
+    // The revision below was computed before this month existed.
+    await expect(
+      repository.appendResults({
+        program: original.program,
+        version: original.version,
+        results: [result(subjectAssignment, march.start, march.end, march.start)],
+        at: march.start,
+      }),
+    ).resolves.toBe(1)
+
+    const revisionAt = new Date('2026-02-28T23:59:59.000Z')
+    const revisedFrom = (effectiveFrom: Date): GoalProgramVersion => ({
+      ...original.version,
+      id: randomUUID(),
+      version: 2,
+      targetValue: 40,
+      effectiveFrom,
+      changeReason: 'raise target',
+      createdAt: revisionAt,
+    })
+    const revise = (version: GoalProgramVersion) =>
+      repository.revise({
+        expectedVersion: original.version,
+        version,
+        assignments: [
+          assignment(
+            original.program.id,
+            version.id,
+            version.effectiveFrom,
+            revisionAt,
+            targetPropertyId,
+          ),
+        ],
+        actorId: 'manager-1',
+        at: revisionAt,
+      })
+
+    await expect(revise(revisedFrom(march.start))).resolves.toBe(false)
+    const unchanged = await repository.get(
+      organizationId,
+      targetPropertyId,
+      original.program.id,
+    )
+    expect(unchanged).toMatchObject({
+      program: { currentVersion: 1 },
+      version: { id: original.version.id, effectiveTo: null },
+    })
+    expect(unchanged?.versions).toHaveLength(1)
+
+    // Retried from a fresh read, the revision starts after the open month.
+    await expect(revise(revisedFrom(march.end))).resolves.toBe(true)
+  })
 })

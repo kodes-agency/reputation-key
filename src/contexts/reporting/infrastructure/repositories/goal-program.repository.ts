@@ -507,6 +507,27 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
             .returning({ id: goalPrograms.id })
           if (!program) return false
 
+          // The start was computed from a read taken before this transaction,
+          // and maintenance may have opened a month for this version since.
+          // appendResults locks the Program row first, as the update above
+          // does, so this read sees any such month. Closing the version inside
+          // it would leave the month outside its window for good.
+          const [monthPastStart] = await tx
+            .select({ id: goalMonthlyResults.id })
+            .from(goalMonthlyResults)
+            .where(
+              and(
+                eq(goalMonthlyResults.organizationId, input.version.organizationId),
+                eq(goalMonthlyResults.propertyId, input.version.propertyId),
+                eq(goalMonthlyResults.programId, input.version.programId),
+                eq(goalMonthlyResults.programVersionId, input.expectedVersion.id),
+                inArray(goalMonthlyResults.status, ['open', 'reconciling']),
+                gt(goalMonthlyResults.periodEnd, input.version.effectiveFrom),
+              ),
+            )
+            .limit(1)
+          if (monthPastStart) throw new GoalProgramRevisionConflict()
+
           const [closedVersion] = await tx
             .update(goalProgramVersions)
             .set({ effectiveTo: input.version.effectiveFrom })
