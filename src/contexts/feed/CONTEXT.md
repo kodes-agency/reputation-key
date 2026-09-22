@@ -103,7 +103,8 @@ All queue, clock, logger, identifier, capability-policy, and upstream lookup
 dependencies are provided by composition; modules do not read ambient roots.
 Delivery-lag evidence judges immediate email only in scopes where the injected
 `notification.send_email` decision allows sending: a capability-dark scope's
-rows are never attempted, so they are not late mail.
+rows are never attempted, so they are not late mail. Its bounded scan reads
+only those scopes' rows, so a dark backlog cannot saturate it.
 
 ## Invariants
 

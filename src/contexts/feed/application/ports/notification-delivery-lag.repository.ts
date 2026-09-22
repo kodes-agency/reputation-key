@@ -40,7 +40,11 @@ export type ImmediateEmailAcceptanceReport = Readonly<{
   acceptedSampleCount: number
   /** Active immediate rows whose event id does not resolve to an active source fact. */
   sourceUnlinked: number
-  /** True when more rows existed than this bounded read could evaluate. */
+  /**
+   * True when more sendable rows existed than this bounded read could
+   * evaluate. The bound counts sendable rows only: a dark backlog neither
+   * saturates it nor crowds sendable rows out of it.
+   */
   saturated: boolean
 }>
 

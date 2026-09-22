@@ -6,6 +6,7 @@ import type {
   IsEmailDeliveryAllowed,
   NotificationDeliveryLagReport,
   NotificationDeliveryLagRepository,
+  NotificationDeliveryLagWindow,
 } from '../../application/ports/notification-delivery-lag.repository'
 import { MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT } from '../../application/ports/notification-delivery-lag.repository'
 import { BETA_NOTIFICATION_TRIGGER_MATRIX } from '../../application/beta-notification-trigger-matrix'
@@ -24,8 +25,6 @@ type MaterializationPendingRow = Readonly<{
 }>
 
 type ImmediateEmailAcceptanceRow = Readonly<{
-  organizationId: string
-  propertyId: string | null
   status: string
   lastErrorClass: string | null
   retryCount: number
@@ -64,10 +63,107 @@ const nearestRankP99 = (values: ReadonlyArray<number>): number | null => {
   return ordered[Math.ceil(ordered.length * 0.99) - 1] ?? null
 }
 
+type ImmediateEmailScopeRow = Readonly<{
+  organizationId: string
+  propertyId: string | null
+}>
+
+/** Immediate rows the provider-acceptance target applies to, in a window. */
+const immediateEmailCandidates = (window: NotificationDeliveryLagWindow) => sql`
+  email.cadence = 'immediate'
+  -- A non-null hold is an intentional quiet-hours/policy deferral,
+  -- not a five-minute provider-acceptance candidate. The column is
+  -- retained after acceptance, so deferred rows stay excluded from
+  -- both the awaiting signal and the completed p99 sample.
+  AND email.not_before IS NULL
+  AND email.created_at >= ${window.recordedAtOrAfter}::timestamptz
+  AND email.created_at < ${window.recordedBefore}::timestamptz
+`
+
+/**
+ * Only scopes where email may be sent now: a capability-dark scope's pending
+ * rows are never attempted, so they are not late mail. The decision is
+ * process policy, so the window's scopes (bounded by the Property count) are
+ * judged in-process first and the sample is then read from the allowed ones
+ * alone — the scan bound, and so saturation, counts only sendable rows, and a
+ * dark backlog can neither fill the bound nor push allowed rows out of it.
+ */
+const readSendableImmediateEmailRows = async (
+  db: Database,
+  isEmailDeliveryAllowed: IsEmailDeliveryAllowed,
+  window: NotificationDeliveryLagWindow,
+): Promise<ReadonlyArray<ImmediateEmailAcceptanceRow>> => {
+  const scopes = await db.execute<ImmediateEmailScopeRow>(sql`
+    SELECT DISTINCT
+      email.organization_id AS "organizationId",
+      email.property_id::text AS "propertyId"
+    FROM ${notificationEmailQueue} AS email
+    WHERE ${immediateEmailCandidates(window)}
+  `)
+  const allowed = scopes.rows.filter((scope) => isEmailDeliveryAllowed(scope))
+  if (allowed.length === 0) return []
+  const allowedPropertyIds = allowed.flatMap((scope) =>
+    scope.propertyId === null ? [] : [scope.propertyId],
+  )
+  const allowedOrganizationIds = allowed.flatMap((scope) =>
+    scope.propertyId === null ? [scope.organizationId] : [],
+  )
+  const rows = await db.execute<ImmediateEmailAcceptanceRow>(sql`
+    WITH
+      routes(event_type, consumer_name) AS (VALUES ${routeValues}),
+      active_types(notification_type) AS (VALUES ${activeNotificationTypeValues})
+    SELECT
+      email.status,
+      email.last_error_class AS "lastErrorClass",
+      email.retry_count AS "retryCount",
+      email.attempted_at AS "attemptedAt",
+      email.accepted_at AS "acceptedAt",
+      CASE
+        WHEN source_route.event_type IS NULL THEN NULL
+        ELSE source_event.created_at
+      END AS "sourceRecordedAt"
+    FROM ${notificationEmailQueue} AS email
+    JOIN ${notifications} AS notification
+     ON notification.id = email.notification_id
+     AND notification.organization_id = email.organization_id
+     AND notification.user_id = email.user_id
+     AND notification.property_id IS NOT DISTINCT FROM email.property_id
+    JOIN active_types ON active_types.notification_type = notification.type
+    -- A mandatory repeat's email is anchored on the unread row an earlier
+    -- event created, but it exists because of its own event, which its
+    -- idempotency key names (mandatoryRepeatEmailKey:
+    -- event:<eventId>:<userId>:email). Every other email is timed from the
+    -- event that created its notification.
+    -- Event id + Organization identify the source. Its Property is not an
+    -- invariant: an Organization-level fact (a Google account needing
+    -- reauthorization) raises a notice anchored to a Property.
+    LEFT JOIN ${outboxEvents} AS source_event
+     ON source_event.id::text = CASE
+          WHEN email.idempotency_key LIKE 'event:%'
+            THEN split_part(email.idempotency_key, ':', 2)
+          ELSE notification.event_id
+        END
+     AND source_event.organization_id = email.organization_id
+    LEFT JOIN routes AS source_route
+      ON source_route.event_type = source_event.event_type
+    WHERE ${immediateEmailCandidates(window)}
+      AND (
+        email.property_id = ANY(${sql.param(allowedPropertyIds)}::uuid[])
+        OR (
+          email.property_id IS NULL
+          AND email.organization_id = ANY(${sql.param(allowedOrganizationIds)}::text[])
+        )
+      )
+    ORDER BY email.created_at DESC, email.id
+    LIMIT ${window.scanLimit + 1}
+  `)
+  return rows.rows
+}
+
 /**
  * Reads only identifiers, receipt names, and timestamps. Event payload is
  * intentionally absent from both SELECT lists, so content cannot leak into a
- * health response or log through this repository. The email rows' scope
+ * health response or log through this repository. The email scopes'
  * identifiers are read only to ask `isEmailDeliveryAllowed`; the report
  * carries counts and clocks.
  */
@@ -153,73 +249,18 @@ export const createNotificationDeliveryLagRepository = (
         ) AS candidate
       `)
 
-      const immediateEmailRows = await db.execute<ImmediateEmailAcceptanceRow>(sql`
-        WITH
-          routes(event_type, consumer_name) AS (VALUES ${routeValues}),
-          active_types(notification_type) AS (VALUES ${activeNotificationTypeValues})
-        SELECT
-          email.organization_id AS "organizationId",
-          email.property_id::text AS "propertyId",
-          email.status,
-          email.last_error_class AS "lastErrorClass",
-          email.retry_count AS "retryCount",
-          email.attempted_at AS "attemptedAt",
-          email.accepted_at AS "acceptedAt",
-          CASE
-            WHEN source_route.event_type IS NULL THEN NULL
-            ELSE source_event.created_at
-          END AS "sourceRecordedAt"
-        FROM ${notificationEmailQueue} AS email
-        JOIN ${notifications} AS notification
-         ON notification.id = email.notification_id
-         AND notification.organization_id = email.organization_id
-         AND notification.user_id = email.user_id
-         AND notification.property_id IS NOT DISTINCT FROM email.property_id
-        JOIN active_types ON active_types.notification_type = notification.type
-        -- A mandatory repeat's email is anchored on the unread row an earlier
-        -- event created, but it exists because of its own event, which its
-        -- idempotency key names (mandatoryRepeatEmailKey:
-        -- event:<eventId>:<userId>:email). Every other email is timed from the
-        -- event that created its notification.
-        -- Event id + Organization identify the source. Its Property is not an
-        -- invariant: an Organization-level fact (a Google account needing
-        -- reauthorization) raises a notice anchored to a Property.
-        LEFT JOIN ${outboxEvents} AS source_event
-         ON source_event.id::text = CASE
-              WHEN email.idempotency_key LIKE 'event:%'
-                THEN split_part(email.idempotency_key, ':', 2)
-              ELSE notification.event_id
-            END
-         AND source_event.organization_id = email.organization_id
-        LEFT JOIN routes AS source_route
-          ON source_route.event_type = source_event.event_type
-        WHERE email.cadence = 'immediate'
-          -- A non-null hold is an intentional quiet-hours/policy deferral,
-          -- not a five-minute provider-acceptance candidate. The column is
-          -- retained after acceptance, so deferred rows stay excluded from
-          -- both the awaiting signal and the completed p99 sample.
-          AND email.not_before IS NULL
-          AND email.created_at >= ${window.recordedAtOrAfter}::timestamptz
-          AND email.created_at < ${window.recordedBefore}::timestamptz
-        ORDER BY email.created_at DESC, email.id
-        LIMIT ${window.scanLimit + 1}
-      `)
+      const immediateEmailRows = await readSendableImmediateEmailRows(
+        db,
+        isEmailDeliveryAllowed,
+        window,
+      )
 
       const sourceRow = source.rows[0]
       const materializationRow = materialization.rows[0]
       const sourceReceiptPending = sourceRow?.pending ?? 0
       const materializationPending = materializationRow?.pending ?? 0
-      const immediateEmailSaturated = immediateEmailRows.rows.length > window.scanLimit
-      // Only scopes where email may be sent now: a capability-dark scope's
-      // pending rows are never attempted, so they are not late mail.
-      const immediateEmailSample = immediateEmailRows.rows
-        .slice(0, window.scanLimit)
-        .filter((row) =>
-          isEmailDeliveryAllowed({
-            organizationId: row.organizationId,
-            propertyId: row.propertyId,
-          }),
-        )
+      const immediateEmailSaturated = immediateEmailRows.length > window.scanLimit
+      const immediateEmailSample = immediateEmailRows.slice(0, window.scanLimit)
       const awaitingImmediateEmail = immediateEmailSample.filter(
         isAwaitingProviderAcceptance,
       )

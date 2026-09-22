@@ -935,5 +935,86 @@ describe.sequential(
         propertyId: ALLOWED_PROPERTY,
       })
     })
+
+    it('bounds its scan by sendable rows, so a dark backlog can neither saturate nor crowd it', async () => {
+      // Newer than every allowed row: a newest-first scan meets them first.
+      const darkBacklog = [
+        {
+          notificationId: '84000000-0000-4000-8000-000000000040',
+          createdAt: new Date('2026-08-28T07:52:00.000Z'),
+        },
+        {
+          notificationId: '84000000-0000-4000-8000-000000000041',
+          createdAt: new Date('2026-08-28T07:50:00.000Z'),
+        },
+      ]
+      await db.insert(notifications).values(
+        darkBacklog.map(({ notificationId, createdAt }) => ({
+          id: notificationId,
+          userId: 'lag-scope-user',
+          organizationId: DARK_ORG,
+          propertyId: DARK_PROPERTY,
+          type: 'reply.publish_failed',
+          category: 'urgent_operational',
+          priority: 'urgent',
+          status: 'unread',
+          resourceType: 'inbox_item',
+          resourceId: notificationId,
+          eventId: DARK_PENDING_SOURCE,
+          title: 'Pending in a capability-dark scope',
+          payload: {},
+          createdAt,
+          updatedAt: createdAt,
+        })),
+      )
+      await db.insert(notificationEmailQueue).values(
+        darkBacklog.map(({ notificationId, createdAt }) => ({
+          notificationId,
+          userId: 'lag-scope-user',
+          organizationId: DARK_ORG,
+          propertyId: DARK_PROPERTY,
+          category: 'urgent_operational',
+          cadence: 'immediate',
+          status: 'pending',
+          priority: 'urgent',
+          idempotencyKey: `lag-scope-dark-backlog-${notificationId}`,
+          createdAt,
+          updatedAt: createdAt,
+        })),
+      )
+      const window = {
+        recordedAtOrAfter: SCOPE_WINDOW_START,
+        recordedBefore: SCOPE_WINDOW_END,
+      }
+
+      // Two sendable rows fit a two-row bound whatever the dark scope holds.
+      const allowed = createNotificationDeliveryLagRepository(
+        db,
+        (scope) => scope.organizationId === ALLOWED_ORG,
+      )
+      const bounded = await allowed.read({ ...window, scanLimit: 2 })
+      expect(bounded.immediateEmailAcceptance).toEqual({
+        awaitingProviderAcceptance: 1,
+        attemptedAwaitingProviderAcceptance: 0,
+        oldestAwaitingSourceRecordedAt: ALLOWED_REAUTH_SOURCE_RECORDED,
+        acceptedLatencyP99Ms: 60_000,
+        acceptedSampleCount: 1,
+        sourceUnlinked: 0,
+        saturated: false,
+      })
+
+      // Email dark everywhere: nothing to judge, and nothing saturated.
+      const dark = createNotificationDeliveryLagRepository(db, () => false)
+      const quiet = await dark.read({ ...window, scanLimit: 1 })
+      expect(quiet.immediateEmailAcceptance).toEqual({
+        awaitingProviderAcceptance: 0,
+        attemptedAwaitingProviderAcceptance: 0,
+        oldestAwaitingSourceRecordedAt: null,
+        acceptedLatencyP99Ms: null,
+        acceptedSampleCount: 0,
+        sourceUnlinked: 0,
+        saturated: false,
+      })
+    })
   },
 )
