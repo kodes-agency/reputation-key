@@ -14,6 +14,22 @@ hides behind an unowned exception. Every gate below fails the job (non-zero
 exit / failed action) and therefore blocks the PR. There is no
 `continue-on-error` anywhere in `.github/workflows/`.
 
+## The AI review workflow is not a gate
+
+`.github/workflows/review.yml` (`security`, `control-vs-ceremony`) reports
+findings and is deliberately **not** in `main`'s required checks — a bot
+approving a bot's work protects nothing, so it exits non-zero and stays
+informational.
+
+Since 2026-09-22 both jobs fail on every branch, Dependabot's included, with
+`401 OAuth access token is invalid`: the repository's `CLAUDE_CODE_OAUTH_TOKEN`
+secret has expired. The workflow accepts either that token or
+`ANTHROPIC_API_KEY`, and the `credentials` job passes because the secret is
+present, not because it still works. To restore the review: re-run
+`/install-github-app`, or mint a token with `claude setup-token` and update the
+secret. Until then, treat those two red checks as a known, non-blocking failure
+and do not read them as a review verdict.
+
 ## Gate inventory
 
 | Gate                                     | Where (step / job)                                                 | Script / action                                                          | Threshold (fails on)                                                                                            | Artifact / output                                |
