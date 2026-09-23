@@ -65,6 +65,15 @@ The browser receives a `NotificationView`, never the stored row: the event
 correlation id, the frozen title/body snapshot, `updatedAt` and the recipient
 and Organization ids stay on the server.
 
+A guest revision is categorised by the work it lands on. One that supersedes
+an OPEN cycle is `review.updated` and is `workflow_collaboration`, like the
+`review.created` it amends: the item was already unhandled and already
+announced, so an edited comma must not outrank the review itself with an
+immediate email. One that reopens a CLOSED cycle is `inbox.reopened` and stays
+`urgent_operational`. Urgency for an unanswered review comes from its Inbox
+Response Target, not from Feed, which never sees a rating class (ADR 0046,
+amended 2026-09-24).
+
 Every new Inbox Item is announced to its responsible recipients except Google
 history: an item whose first Handling Cycle was observed as
 `historical_onboarding`, a past review an import brought in, is never

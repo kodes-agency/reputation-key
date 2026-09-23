@@ -33,7 +33,16 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'account.organization_access_removed': 'mandatory',
   'account.organization_purge_pending': 'mandatory',
   'review.created': 'workflow_collaboration',
-  'review.updated': 'urgent_operational',
+  // A guest revision that SUPERSEDES AN OPEN CYCLE — work nobody has handled
+  // yet. It was `urgent_operational`, so a guest fixing a comma sent an
+  // immediate email by default while the 1-star review it edits had only
+  // reached the bell (`review.created` is workflow). The edit adds no demand
+  // the open item did not already carry, so it now sits in the same category
+  // as the arrival it amends. A revision that reopens CLOSED work is
+  // `inbox.reopened` and stays urgent: somebody had considered that finished.
+  // Urgency for an unanswered review comes from its Response Target, which
+  // Inbox measures, not from Feed (ADR 0046, amended 2026-09-24).
+  'review.updated': 'workflow_collaboration',
   // Private feedback asks a manager to review and handle a guest concern. It
   // is Action Required even when it is not marked urgent enough to bypass
   // quiet hours.

@@ -311,8 +311,32 @@ describe('notification delivery policy', () => {
     expect(classifyNotification('reply.publish_failed')).toBe('urgent_operational')
     expect(classifyNotification('feedback.created')).toBe('urgent_operational')
     expect(classifyNotification('review.created')).toBe('workflow_collaboration')
-    expect(classifyNotification('review.updated')).toBe('urgent_operational')
+    expect(classifyNotification('review.updated')).toBe('workflow_collaboration')
     expect(classifyNotification('inbox.reopened')).toBe('urgent_operational')
+  })
+
+  it('emails a guest edit of handled work by default, and an edit of unhandled work not at all', () => {
+    // A guest revision that supersedes an OPEN cycle is `review.updated`: the
+    // work is still unhandled, so the edit adds no new demand and must not
+    // outrank the unread `review.created` row with an immediate email.
+    const editOfOpenWork = classifyNotification('review.updated')
+    // A revision that REOPENS closed work is `inbox.reopened`: someone
+    // considered the item finished, so it needs to be told.
+    const editOfClosedWork = classifyNotification('inbox.reopened')
+
+    expect(getDefaultEnabled(editOfOpenWork, 'email')).toBe(false)
+    expect(getDefaultEnabled(editOfOpenWork, 'in_app')).toBe(true)
+    expect(getDefaultEnabled(editOfClosedWork, 'email')).toBe(true)
+  })
+
+  it('never emails a fresh review louder than the edit that follows it', () => {
+    // The inversion this guards: an edit used to default to immediate email
+    // while the review itself only reached the bell.
+    for (const channel of ['in_app', 'email'] as const) {
+      expect(getDefaultEnabled(classifyNotification('review.updated'), channel)).toBe(
+        getDefaultEnabled(classifyNotification('review.created'), channel),
+      )
+    }
   })
 
   // ── Category surfaces ─────────────────────────────────────────────

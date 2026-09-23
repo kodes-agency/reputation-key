@@ -335,6 +335,31 @@ English (UK), and the settings card is called "Timezone and date format"
 rather than "Language and timezone". A row storing a locale no longer offered
 is still honoured when a timestamp is formatted; it just cannot be saved again.
 
+## Amended 2026-09-24 — a guest edit of unhandled work is workflow, not urgent
+
+`review.updated` is now `workflow_collaboration`. It was `urgent_operational`,
+the only immediate-email-by-default route a guest could trigger, while
+`review.created` — a fresh one-star review — was workflow and waited for
+somebody to open the bell. A guest correcting a typo therefore outranked the
+review it corrected.
+
+The two guest-revision cases are deliberately kept apart, and only the first
+moves:
+
+- **An edit that supersedes an OPEN cycle** (`inbox.handling_cycle.opened`
+  with `openReason = material_revision_changed`) is `review.updated`. The work
+  was already unhandled and already announced; the edit adds no demand the
+  open item did not carry, so it now sits in the same category as the arrival
+  it amends.
+- **An edit that reopens a CLOSED cycle** (`inbox.handling_cycle.reopened`) is
+  `inbox.reopened` and stays `urgent_operational`. Somebody had considered
+  that item finished, so being told is the point.
+
+`review.created` is NOT raised to urgent in exchange. Urgency for an
+unanswered review comes from its Inbox Response Target — the reminders at the
+halfway point and at the target time — which is where a rating may shorten it
+(next amendment). Feed neither stores nor reads a rating class (r.8).
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.
