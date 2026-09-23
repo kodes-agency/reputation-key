@@ -38,6 +38,58 @@ type OrganizationPolicy =
   ResponseTargetPolicySettings['organization']['googleReviewResponse']
 
 /**
+ * Just the surface a number control touches on a TanStack Form field. Named
+ * structurally rather than through the form's generic field type, which would
+ * make this component's props depend on the whole form shape.
+ */
+type NumberFieldApi = Readonly<{
+  state: Readonly<{
+    value: number
+    meta: Readonly<{ errors: Array<{ message?: string } | undefined> }>
+  }>
+  handleBlur: () => void
+  handleChange: (value: number) => void
+}>
+
+/**
+ * A whole-number control bound to one form field. All three target inputs are
+ * the same control with a different label and range; a cleared or non-numeric
+ * control reads as NaN, which the schema names and the input must not show.
+ */
+function NumberField({
+  id,
+  label,
+  min,
+  max,
+  field,
+}: Readonly<{
+  id: string
+  label: string
+  min: number
+  max: number
+  field: NumberFieldApi
+}>) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type="number"
+        min={min}
+        max={max}
+        value={Number.isNaN(field.state.value) ? '' : field.state.value}
+        onBlur={field.handleBlur}
+        onChange={(event) => field.handleChange(event.target.valueAsNumber)}
+        aria-invalid={field.state.meta.errors.length > 0}
+      />
+      {field.state.meta.errors.length > 0 ? (
+        <FieldError errors={field.state.meta.errors} />
+      ) : null}
+    </div>
+  )
+}
+
+/**
  * Google reviews only. A low-rated review is the work that goes wrong fastest,
  * so an Organization may give it a shorter target and therefore an earlier
  * halfway and target-time reminder. Off leaves one clock for every review,
@@ -67,42 +119,24 @@ function LowRatingTargetFields({
             <div className="mt-3 grid gap-3 sm:grid-cols-[9rem_9rem] sm:items-end">
               <form.Field name="lowRatingThreshold">
                 {(field) => (
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="low-rating-threshold">At or below (stars)</Label>
-                    <Input
-                      id="low-rating-threshold"
-                      type="number"
-                      min={1}
-                      max={5}
-                      value={Number.isNaN(field.state.value) ? '' : field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(event) => field.handleChange(event.target.valueAsNumber)}
-                      aria-invalid={field.state.meta.errors.length > 0}
-                    />
-                    {field.state.meta.errors.length > 0 ? (
-                      <FieldError errors={field.state.meta.errors} />
-                    ) : null}
-                  </div>
+                  <NumberField
+                    id="low-rating-threshold"
+                    label="At or below (stars)"
+                    min={1}
+                    max={5}
+                    field={field}
+                  />
                 )}
               </form.Field>
               <form.Field name="lowRatingHours">
                 {(field) => (
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="low-rating-hours">Within (hours)</Label>
-                    <Input
-                      id="low-rating-hours"
-                      type="number"
-                      min={1}
-                      max={720}
-                      value={Number.isNaN(field.state.value) ? '' : field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(event) => field.handleChange(event.target.valueAsNumber)}
-                      aria-invalid={field.state.meta.errors.length > 0}
-                    />
-                    {field.state.meta.errors.length > 0 ? (
-                      <FieldError errors={field.state.meta.errors} />
-                    ) : null}
-                  </div>
+                  <NumberField
+                    id="low-rating-hours"
+                    label="Within (hours)"
+                    min={1}
+                    max={720}
+                    field={field}
+                  />
                 )}
               </form.Field>
             </div>
@@ -186,24 +220,13 @@ function TargetPolicyForm({
       </div>
       <form.Field name="durationHours">
         {(field) => (
-          <div className="grid gap-1.5">
-            <Label htmlFor={`${policy.targetKind}-hours`}>Hours</Label>
-            <Input
-              id={`${policy.targetKind}-hours`}
-              type="number"
-              min={1}
-              max={720}
-              // A cleared or non-numeric control reads as NaN; the schema
-              // names it, the input must not.
-              value={Number.isNaN(field.state.value) ? '' : field.state.value}
-              onBlur={field.handleBlur}
-              onChange={(event) => field.handleChange(event.target.valueAsNumber)}
-              aria-invalid={field.state.meta.errors.length > 0}
-            />
-            {field.state.meta.errors.length > 0 ? (
-              <FieldError errors={field.state.meta.errors} />
-            ) : null}
-          </div>
+          <NumberField
+            id={`${policy.targetKind}-hours`}
+            label="Hours"
+            min={1}
+            max={720}
+            field={field}
+          />
         )}
       </form.Field>
       <SubmitButton mutation={updatePolicy} form={form}>
