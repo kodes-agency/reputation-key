@@ -132,19 +132,22 @@ describe.sequential(
     const runDigestSweep = async (now: Date) => {
       const enqueueImmediate = vi.fn(async () => {})
       const authorizeScope = vi.fn(async (org: string) => org === ORG)
+      // Mandatory mail is authorized under its own action (ADR 0046).
+      const authorizeMandatoryScope = vi.fn(async (org: string) => org === ORG)
       const emailRepo = createNotificationEmailRepository(db)
       await createDigestNotificationJobHandler({
         pool: lease.pool,
         // The daily leg belongs to other suites; only the sweep is under test.
         emailRepo: { ...emailRepo, findDueRecipients: async () => [] },
         authorizeScope,
+        authorizeMandatoryScope,
         enqueueImmediate,
         logger: createFakeJobLogger(),
         clock: () => now,
       } as unknown as Parameters<typeof createDigestNotificationJobHandler>[0])(
         {} as Job<void>,
       )
-      return { enqueueImmediate, authorizeScope }
+      return { enqueueImmediate, authorizeScope, authorizeMandatoryScope }
     }
 
     it('names the stranded row when the enqueue fails, and the next sweep re-enqueues it', async () => {
@@ -154,9 +157,9 @@ describe.sequential(
         expect.objectContaining({ correlationId: `notification-email:${EMAIL}` }),
         'Immediate notification email enqueue failed after delivery settlement',
       )
-      const { enqueueImmediate, authorizeScope } = await runDigestSweep(LATER)
+      const { enqueueImmediate, authorizeMandatoryScope } = await runDigestSweep(LATER)
 
-      expect(authorizeScope).toHaveBeenCalledWith(ORG)
+      expect(authorizeMandatoryScope).toHaveBeenCalledWith(ORG)
       expect(enqueueImmediate).toHaveBeenCalledWith({
         notificationEmailId: EMAIL,
         organizationId: ORG,
