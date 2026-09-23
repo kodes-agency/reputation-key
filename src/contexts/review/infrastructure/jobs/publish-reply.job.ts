@@ -375,6 +375,7 @@ async function cancelRefusedPublication(
         reviewId: claimed.reviewId,
         propertyId: review.propertyId,
         organizationId: claimed.organizationId,
+        authorId: claimed.createdBy,
         cause: 'policy',
         occurredAt: now,
       }),

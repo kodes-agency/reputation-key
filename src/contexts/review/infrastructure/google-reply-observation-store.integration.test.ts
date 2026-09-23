@@ -1167,6 +1167,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
             reviewId: reply.reviewId,
             propertyId: review.propertyId,
             organizationId: reply.organizationId,
+            authorId: reply.createdBy,
             cause: 'disconnect',
             occurredAt: NOW,
           }),

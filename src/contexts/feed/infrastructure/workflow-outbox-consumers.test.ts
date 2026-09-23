@@ -498,6 +498,147 @@ describe('durable workflow notification consumers', () => {
     )
   })
 
+  describe('a publication that was cancelled after approval', () => {
+    // BQC-3.8 kept this fact's identifiers strictly UUID, unlike the older
+    // reply families, so its envelope cannot reuse the short test ids.
+    const CANCELLED_IDS = {
+      replyId: '30000000-0000-4000-8000-0000000000c1',
+      reviewId: '30000000-0000-4000-8000-0000000000c2',
+      propertyId: '30000000-0000-4000-8000-0000000000c3',
+    } as const
+
+    const cancelled = (
+      cause: 'disconnect' | 'policy' | 'source_changed' | 'provider_truth',
+      authorId: string | null = unbrand(NOTIF_TEST_IDS.authorId),
+    ) =>
+      event(
+        'review.reply.publication_cancelled',
+        { ...CANCELLED_IDS, authorId, cause },
+        { propertyId: CANCELLED_IDS.propertyId },
+      )
+
+    it('tells the author and the admins who can re-approve it', async () => {
+      const deps = makeDeps()
+      deps.fakes.userLookup.findByRole.mockResolvedValue([
+        NOTIF_TEST_IDS.admin1,
+        NOTIF_TEST_IDS.admin2,
+      ])
+
+      await handleWorkflowNotificationEvent(deps, cancelled('disconnect'))
+
+      expect(deps.fakes.jobs.map((job) => job.data)).toEqual([
+        expect.objectContaining({
+          userId: NOTIF_TEST_IDS.authorId,
+          type: 'reply.publication_cancelled',
+          audience: { kind: 'property_operator' },
+        }),
+        expect.objectContaining({
+          userId: NOTIF_TEST_IDS.admin1,
+          type: 'reply.publication_cancelled',
+          audience: { kind: 'account_admin' },
+        }),
+        expect.objectContaining({
+          userId: NOTIF_TEST_IDS.admin2,
+          type: 'reply.publication_cancelled',
+          audience: { kind: 'account_admin' },
+        }),
+      ])
+    })
+
+    it('tells the admins alone when the fact names no author', async () => {
+      const deps = makeDeps()
+
+      await handleWorkflowNotificationEvent(deps, cancelled('source_changed', null))
+
+      expect(deps.fakes.jobs.map((job) => job.data)).toEqual([
+        expect.objectContaining({
+          userId: NOTIF_TEST_IDS.admin1,
+          type: 'reply.publication_cancelled',
+        }),
+      ])
+    })
+
+    it('names an author who is also an admin once', async () => {
+      const deps = makeDeps()
+      deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.authorId])
+
+      await handleWorkflowNotificationEvent(deps, cancelled('provider_truth'))
+
+      expect(deps.fakes.jobs.map((job) => job.data)).toEqual([
+        expect.objectContaining({
+          userId: NOTIF_TEST_IDS.authorId,
+          audience: { kind: 'property_operator' },
+        }),
+      ])
+    })
+
+    // A policy cancellation is what an Archive or a lost authority looks like:
+    // the approver it took the authority from cannot re-approve anything.
+    it('leaves out an approver who just lost authority over the Property', async () => {
+      const deps = makeDeps()
+      deps.fakes.userLookup.findByRole.mockResolvedValue([
+        NOTIF_TEST_IDS.admin1,
+        NOTIF_TEST_IDS.admin2,
+      ])
+      deps.fakes.responsibleManagers.isEligibleForProperty.mockImplementation(
+        async (_org: unknown, _property: unknown, user: unknown) =>
+          user !== NOTIF_TEST_IDS.admin2,
+      )
+
+      await handleWorkflowNotificationEvent(deps, cancelled('policy'))
+
+      expect(
+        deps.fakes.jobs.map((job) => (job.data as InsertNotificationJobData).userId),
+      ).toEqual([NOTIF_TEST_IDS.authorId, NOTIF_TEST_IDS.admin1])
+    })
+
+    it('keeps every approver for a cancellation that took nobody’s authority', async () => {
+      const deps = makeDeps()
+      deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
+      deps.fakes.responsibleManagers.isEligibleForProperty.mockResolvedValue(false)
+
+      await handleWorkflowNotificationEvent(deps, cancelled('disconnect'))
+
+      expect(
+        deps.fakes.jobs.map((job) => (job.data as InsertNotificationJobData).userId),
+      ).toEqual([NOTIF_TEST_IDS.authorId, NOTIF_TEST_IDS.admin1])
+    })
+
+    it.each([
+      [
+        'disconnect',
+        'The Google connection was disconnected before it went out. The draft is saved: reconnect Google, then approve it again.',
+      ],
+      [
+        'policy',
+        'This property can no longer publish to Google, so it was never sent. The draft is saved.',
+      ],
+      [
+        'source_changed',
+        'The guest changed their review, so the approved text was never sent. Open it to write a reply to the new review.',
+      ],
+      [
+        'provider_truth',
+        'A different reply is already live on Google, so this one was never sent. Open it to check.',
+      ],
+    ] as const)('says why it was cancelled for cause %s', async (cause, body) => {
+      const deps = makeDeps()
+
+      await handleWorkflowNotificationEvent(deps, cancelled(cause))
+
+      const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+      expect(
+        renderNotification(
+          'reply.publication_cancelled',
+          parseNotificationPayload(data.payload),
+        ),
+      ).toMatchObject({
+        title: 'Reply returned to draft at Riverside Hotel',
+        body,
+      })
+    })
+  })
+
   it('carries what happened to an unpublished reply from its recorded fact', async () => {
     const fact = reviewReplyPublishFailed({
       replyId: NOTIF_TEST_IDS.replyId,

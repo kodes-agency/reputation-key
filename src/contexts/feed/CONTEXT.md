@@ -184,6 +184,13 @@ to its author while they can still act on the Property, otherwise to the
 Property's responsible managers (AccountAdmins when none is eligible), so it
 always reaches someone who can retry it.
 
+A publication cancelled after approval reaches the reply's author and the
+AccountAdmins who can approve it again, with the copy its closed cause asks
+for. Under the `policy` cause — a Property Archive, a lost publishing
+authority — an approver who is no longer eligible for the Property is left out:
+that cause is what taking their authority away looks like. Every other cause
+keeps them.
+
 The signed List-Unsubscribe URL accepts an RFC 8058 one-click POST in either
 form encoding and answers 204. Its token names only the queue row or digest
 batch, which retention deletes after 90 days, so the optional scopes a message

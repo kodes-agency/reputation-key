@@ -102,7 +102,16 @@ export type NotificationPayload = Readonly<{
   reauthorizationCause?: NotificationReauthorizationCause
   /** Why a reply could not be published when a retry alone cannot fix it. */
   publishFailureCause?: NotificationPublishFailureCause
+  /**
+   * Why an approved reply was returned to draft before it reached Google
+   * (`reply.publication_cancelled`). The event's own closed cause; it decides
+   * the whole sentence, because each cause asks for a different next step.
+   */
+  publicationCancellationCause?: NotificationPublicationCancellationCause
 }>
+
+export type NotificationPublicationCancellationCause =
+  'disconnect' | 'policy' | 'source_changed' | 'provider_truth'
 
 export type NotificationReportOutcome = 'accepted' | 'declined' | 'resolved'
 
@@ -135,6 +144,13 @@ const REAUTHORIZATION_CAUSES: Record<string, true> = {
 
 const PUBLISH_FAILURE_CAUSES: Record<string, true> = {
   google_reauthorization_required: true,
+}
+
+const PUBLICATION_CANCELLATION_CAUSES: Record<string, true> = {
+  disconnect: true,
+  policy: true,
+  source_changed: true,
+  provider_truth: true,
 }
 
 const PUBLISH_OUTCOMES: Record<string, true> = {
@@ -236,6 +252,13 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
     takeMember<NotificationPublishFailureCause>(
       raw.publishFailureCause,
       PUBLISH_FAILURE_CAUSES,
+    ),
+  )
+  set(
+    'publicationCancellationCause',
+    takeMember<NotificationPublicationCancellationCause>(
+      raw.publicationCancellationCause,
+      PUBLICATION_CANCELLATION_CAUSES,
     ),
   )
 

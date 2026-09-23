@@ -186,6 +186,15 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     // The author while eligible; otherwise the Property's responsible managers.
     ['property_operator', 'responsible_scope'],
   ),
+  // The author was told the reply was queued to publish; the approvers are the
+  // ones who can send it again. A `policy` cancellation drops the approvers it
+  // took the Property authority from.
+  route(
+    'review.reply.publication_cancelled',
+    'notification.on-review-reply-publication_cancelled',
+    ['reply.publication_cancelled'],
+    ['property_operator', 'account_admin'],
+  ),
   route(
     'portal.responsibility_became_needed',
     'notification.on-portal-responsibility-needed',

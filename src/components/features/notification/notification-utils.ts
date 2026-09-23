@@ -130,6 +130,7 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
   'reply.rejected': XCircle,
   'reply.published': Send,
   'reply.publish_failed': AlertTriangle,
+  'reply.publication_cancelled': AlertTriangle,
   'inbox.escalated': AlertTriangle,
   'inbox.escalation_resolved': CheckCircle,
   'inbox.reopened': MessageSquare,

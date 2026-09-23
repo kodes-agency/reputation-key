@@ -587,6 +587,7 @@ async function cancelUnclaimablePublication(
     reviewId: cancelled.reviewId,
     propertyId: attempt.propertyId,
     organizationId: cancelled.organizationId,
+    authorId: cancelled.createdBy,
     cause: 'policy',
     occurredAt: at,
   })

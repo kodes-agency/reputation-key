@@ -201,6 +201,7 @@ describe('review domain events', () => {
       replyId: OBSERVED_REPLY_ID,
       reviewId: OBSERVED_REVIEW_ID,
       propertyId: OBSERVED_PROPERTY_ID,
+      authorId: null,
       cause: 'disconnect',
     })
     const observed = reviewReplyObserved(baseObserved)

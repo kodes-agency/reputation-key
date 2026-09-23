@@ -294,6 +294,38 @@ const renderReplyPublishFailed = (p: NotificationPayload): RenderedNotification 
   }
 }
 
+/**
+ * An approved reply that was cancelled before Google saw it. Each cause takes
+ * a different next step, so the cause decides the whole sentence: reconnect,
+ * nothing to do here, write a new reply, or just look. The title never says
+ * "your" — the same notice goes to the approvers who have to act on it.
+ */
+const PUBLICATION_CANCELLATION_BODIES = {
+  disconnect:
+    'The Google connection was disconnected before it went out. The draft is saved: reconnect Google, then approve it again.',
+  policy:
+    'This property can no longer publish to Google, so it was never sent. The draft is saved.',
+  source_changed:
+    'The guest changed their review, so the approved text was never sent. Open it to write a reply to the new review.',
+  provider_truth:
+    'A different reply is already live on Google, so this one was never sent. Open it to check.',
+} as const
+
+const renderReplyPublicationCancelled = (
+  p: NotificationPayload,
+): RenderedNotification => {
+  const cause = p.publicationCancellationCause
+  return {
+    title: `Reply returned to draft${atProperty(p)}`,
+    body:
+      cause === undefined
+        ? 'It was never sent to Google. Open it to see where it stands.'
+        : PUBLICATION_CANCELLATION_BODIES[cause],
+    actionLabel: cause === 'source_changed' ? 'Open review' : 'Open reply',
+    summary: factsAt(p, 'review', 'returned to draft'),
+  }
+}
+
 /** The shared close of a notice that asks the reader to look, not to act. */
 const SEE_WHERE = 'Open it to see where it stands.'
 
@@ -500,6 +532,7 @@ const RENDERERS: Record<
   'reply.rejected': renderReplyRejected,
   'reply.published': renderReplyPublished,
   'reply.publish_failed': renderReplyPublishFailed,
+  'reply.publication_cancelled': renderReplyPublicationCancelled,
   'inbox.escalated': renderInboxEscalated,
   'inbox.escalation_resolved': renderInboxEscalationResolved,
   'inbox.reopened': renderInboxReopened,

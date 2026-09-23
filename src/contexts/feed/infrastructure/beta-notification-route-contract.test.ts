@@ -68,6 +68,7 @@ import {
 } from '#/contexts/inbox/domain/events'
 import {
   reviewReplyApproved,
+  reviewReplyPublicationCancelled,
   reviewReplyPublished,
   reviewReplyPublishFailed,
   reviewReplyRejected,
@@ -331,6 +332,12 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
     reviewReplyPublished({ ...replyFact, userId: ACTOR, authorId: RECIPIENT }),
   'review.reply.publish_failed': () =>
     reviewReplyPublishFailed({ ...replyFact, authorId: RECIPIENT, outcome: 'not_sent' }),
+  'review.reply.publication_cancelled': () =>
+    reviewReplyPublicationCancelled({
+      ...replyFact,
+      authorId: RECIPIENT,
+      cause: 'disconnect',
+    }),
   'portal.responsibility_became_needed': () =>
     portalResponsibilityNeeded({
       portalId: PORTAL,

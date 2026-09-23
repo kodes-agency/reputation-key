@@ -194,6 +194,35 @@ The cost is accepted deliberately: an Organization outside the beta cohort can
 now receive account/security mail. A final deletion warning nobody receives is
 worse than an extra email.
 
+## Amended 2026-09-24 — a cancelled publication tells the author and the approvers
+
+`review.reply.publication_cancelled` had no notification consumer. A reply that
+was approved, whose author was told "It is queued to publish to Google"
+(`reply.approved`), silently returned to draft on a Google disconnect, a
+Property Archive or a lost publishing authority (`policy`), a guest revising
+their review (`source_changed`), or a different reply already live on Google
+(`provider_truth`). No badge, no email, no row: the team went on believing the
+reply was on its way.
+
+`reply.publication_cancelled` is now a live type, category `urgent_operational`
+and deliberately NOT in `URGENT_TYPES` — nothing reached Google, so no
+cancellation is worth breaking quiet hours for. Its copy is chosen by the
+event's own closed cause, because each cause asks for a different next step:
+reconnect Google, nothing to do at this Property, write a reply to the new
+review, or look at what is already live. The notice never says "your": it goes
+to the reply's author AND to the AccountAdmins, who are the people who can
+approve it again — the same audience `reply.pending_approval` asks.
+
+For the `policy` cause only, an approver who is no longer eligible for the
+Property is left out at fan-out: a policy cancellation is exactly what taking
+that authority away looks like, and asking someone to re-approve what they can
+no longer touch is noise. The other three causes take nobody's authority, so
+every approver is kept. The author's own notice carries the `property_operator`
+audience, whose delivery check re-tests Property eligibility anyway.
+
+The fact carries `authorId` (identifier only, nullable) from this date. Facts
+recorded before it reach the approvers alone.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

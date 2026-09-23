@@ -24,6 +24,7 @@ import type { UserLookupPort } from '../application/ports/notification-user-look
 import type {
   NotificationPayload,
   NotificationPlatform,
+  NotificationPublicationCancellationCause,
   NotificationPublishFailureCause,
   NotificationPublishOutcome,
 } from '../domain/notification-payload'
@@ -68,6 +69,11 @@ export type InboxPayloadInput = Readonly<{
   publishOutcome?: NotificationPublishOutcome | null
   /** Closed cause of a failed publication (reply.publish_failed only). */
   publishFailureCause?: NotificationPublishFailureCause | null
+  /**
+   * Closed cause of a cancelled publication (reply.publication_cancelled
+   * only). It decides the whole sentence, so it is never dropped silently.
+   */
+  publicationCancellationCause?: NotificationPublicationCancellationCause | null
   /**
    * Stamp when the current wait began, for a notice about something still
    * waiting on the reader (approval, escalation, a Response Target reminder).
@@ -124,6 +130,9 @@ export const buildInboxItemPayload = async (
   }
   if (input.publishOutcome) payload.publishOutcome = input.publishOutcome
   if (input.publishFailureCause) payload.publishFailureCause = input.publishFailureCause
+  if (input.publicationCancellationCause) {
+    payload.publicationCancellationCause = input.publicationCancellationCause
+  }
   return payload as NotificationPayload
 }
 

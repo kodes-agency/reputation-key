@@ -38,6 +38,8 @@ export const NOTIFICATION_TYPES = [
   'reply.rejected',
   'reply.published',
   'reply.publish_failed',
+  // An approved reply was returned to draft before Google ever saw it.
+  'reply.publication_cancelled',
   // Inbox triage
   'inbox.escalated',
   'inbox.escalation_resolved',

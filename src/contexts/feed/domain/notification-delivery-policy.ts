@@ -43,6 +43,11 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'reply.rejected': 'workflow_collaboration',
   'reply.published': 'workflow_collaboration',
   'reply.publish_failed': 'urgent_operational',
+  // The author was told the reply was queued to publish and it silently went
+  // back to draft, so someone has to approve it again: operational attention.
+  // Deliberately absent from URGENT_TYPES — nothing is on Google, and no
+  // cancellation is worth breaking quiet hours for.
+  'reply.publication_cancelled': 'urgent_operational',
   'inbox.escalated': 'urgent_operational',
   'inbox.escalation_resolved': 'workflow_collaboration',
   'inbox.reopened': 'urgent_operational',

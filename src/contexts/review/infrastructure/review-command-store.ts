@@ -23,7 +23,13 @@ import {
   reviewUpdated,
 } from '../domain/events'
 import { eraseReviewSourceContent } from './review-source-content-store'
-import { organizationId, propertyId, replyId, reviewId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  propertyId,
+  replyId,
+  reviewId,
+  userId,
+} from '#/shared/domain/ids'
 import {
   persistReviewObservation,
   type PersistedReviewObservation,
@@ -57,6 +63,7 @@ async function supersedeStaleReviewPublications(
       stateRevision: replies.stateRevision,
       publicationCycle: replies.publicationCycle,
       publicationAttempts: replies.publicationAttempts,
+      createdBy: replies.createdBy,
     })
     .from(replies)
     .leftJoin(
@@ -132,6 +139,7 @@ async function supersedeStaleReviewPublications(
         reviewId: review.id,
         propertyId: review.propertyId,
         organizationId: review.organizationId,
+        authorId: stale.createdBy === null ? null : userId(stale.createdBy),
         cause: 'source_changed',
         occurredAt,
       }),
