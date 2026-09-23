@@ -26,6 +26,8 @@
 import { SUPPORT_EMAIL } from '#/shared/domain/support-contact'
 import type {
   NotificationActorRole,
+  NotificationGoalOutcome,
+  NotificationGoalSubjectKind,
   NotificationPayload,
   NotificationPortalHealthReason,
   NotificationPortalHealthStatus,
@@ -613,23 +615,94 @@ const renderIntegrationGoogleDisconnected = (): RenderedNotification => ({
   summary: 'Google disconnected',
 })
 
-/** "Goal completed: Reply within 24h at Riverside Hotel". */
+/** "October goal met: Lobby QR scans at Riverside Hotel". */
 const goalTitle = (lead: string, p: NotificationPayload): string =>
   `${lead}${p.goalName === undefined ? '' : `: ${p.goalName}`}${atProperty(p)}`
 
+/** One formatter for the month name; the key is already Property-local. */
+let monthFormat: Intl.DateTimeFormat | undefined
+
+/**
+ * "October" from the `YYYY-MM` key the Property's own calendar closed the
+ * month on. Formatted in UTC because the key is a calendar month, not an
+ * instant: reading it on any other clock could name the month before it.
+ */
+const goalMonth = (p: NotificationPayload): string => {
+  if (p.goalMonth === undefined) return ''
+  const [year, month] = p.goalMonth.split('-').map(Number)
+  monthFormat ??= new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' })
+  return monthFormat.format(Date.UTC(year!, month! - 1, 1))
+}
+
+/** The glossary's words, so a reader can tell ten sibling results apart. */
+const GOAL_SUBJECTS: Record<NotificationGoalSubjectKind, string> = {
+  property: 'Property',
+  portal_group: 'Portal Group',
+  portal: 'Portal',
+}
+
+/** "This Portal goal" / "This goal" when the subject did not resolve. */
+const thisGoal = (p: NotificationPayload): string =>
+  p.goalSubjectKind === undefined
+    ? 'This goal'
+    : `This ${GOAL_SUBJECTS[p.goalSubjectKind]} goal`
+
+/** "October goal met", or "Goal met" when the month did not resolve. */
+const goalOutcomeTitle = (p: NotificationPayload, outcome: string): string => {
+  const month = goalMonth(p)
+  return month === '' ? `Goal ${outcome}` : `${month} goal ${outcome}`
+}
+
 const renderGoalCompleted = (p: NotificationPayload): RenderedNotification => ({
-  title: goalTitle('Goal completed', p),
-  body: 'It hit its target. Open the goal to see the numbers.',
+  title: goalTitle(goalOutcomeTitle(p, 'met'), p),
+  body: sentence(`${thisGoal(p)} hit its target.`, 'Open the goal to see the numbers.'),
   actionLabel: 'View progress',
-  summary: factsAt(p, p.goalName ?? 'goal completed'),
+  summary: factsAt(
+    p,
+    p.goalName ?? 'goal met',
+    p.goalSubjectKind === undefined ? '' : GOAL_SUBJECTS[p.goalSubjectKind],
+  ),
 })
 
-const renderGoalResultRevised = (p: NotificationPayload): RenderedNotification => ({
-  title: goalTitle('Goal result updated', p),
-  body: 'A monthly result changed. Open the goal to see the current metrics.',
-  actionLabel: 'View result',
-  summary: factsAt(p, p.goalName ?? 'goal result updated'),
-})
+/**
+ * Which way the month went. A correction that leaves the result unusable is
+ * not a miss, so it says the result is gone rather than that the goal failed.
+ */
+const GOAL_OUTCOME_TITLES: Record<NotificationGoalOutcome, string> = {
+  met: 'met',
+  not_met: 'no longer met',
+  unavailable: 'result unavailable',
+}
+
+const GOAL_OUTCOME_CLAUSES: Record<NotificationGoalOutcome, string> = {
+  met: 'now meets its target',
+  not_met: 'no longer meets its target',
+  unavailable: 'has no usable result for the month',
+}
+
+const renderGoalResultRevised = (p: NotificationPayload): RenderedNotification => {
+  const outcome = p.goalOutcome
+  return {
+    title: goalTitle(
+      outcome === undefined
+        ? 'Goal result updated'
+        : goalOutcomeTitle(p, GOAL_OUTCOME_TITLES[outcome]),
+      p,
+    ),
+    body: sentence(
+      outcome === undefined
+        ? 'A monthly result changed.'
+        : `${thisGoal(p)} ${GOAL_OUTCOME_CLAUSES[outcome]}.`,
+      'Open the goal to see the current metrics.',
+    ),
+    actionLabel: 'View result',
+    summary: factsAt(
+      p,
+      p.goalName ?? 'goal result updated',
+      p.goalSubjectKind === undefined ? '' : GOAL_SUBJECTS[p.goalSubjectKind],
+    ),
+  }
+}
 
 /**
  * The recipient's own beta report reached an outcome. The copy never quotes

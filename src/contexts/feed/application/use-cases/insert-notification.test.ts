@@ -495,7 +495,7 @@ describe('insertNotification', () => {
     expect(deps.notificationRepo.insert).toHaveBeenCalledOnce()
     expect(result).toMatchObject({
       category: 'recognition',
-      title: 'Goal completed: Weekend response time',
+      title: 'Goal met: Weekend response time',
     })
   })
 

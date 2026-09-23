@@ -128,10 +128,30 @@ export type NotificationPayload = Readonly<{
    * the READER's timezone, and two people on one item may not share one.
    */
   targetDueAt?: string
+  /**
+   * Which month's result a Goal notice reports, as `YYYY-MM` in the
+   * PROPERTY's own timezone, which is the calendar the month was closed on. A
+   * key, not a label: the template writes the month name, as it writes every
+   * other word.
+   */
+  goalMonth?: string
+  /** Whether the Goal is assigned to the Property, a Portal Group or a Portal. */
+  goalSubjectKind?: NotificationGoalSubjectKind
+  /** Which way the month's result stands now. */
+  goalOutcome?: NotificationGoalOutcome
 }>
 
 export type NotificationPublicationCancellationCause =
   'disconnect' | 'policy' | 'source_changed' | 'provider_truth'
+
+export type NotificationGoalSubjectKind = 'property' | 'portal_group' | 'portal'
+
+/**
+ * The direction of a monthly result: it meets its target, it does not, or the
+ * month has no usable result at all (insufficient data, unavailable,
+ * quarantined). Never the numbers.
+ */
+export type NotificationGoalOutcome = 'met' | 'not_met' | 'unavailable'
 
 /** A Portal health state that asks for attention; `healthy` never notifies. */
 export type NotificationPortalHealthStatus = 'degraded' | 'unavailable'
@@ -210,6 +230,18 @@ const PORTAL_HEALTH_REASONS: Record<string, true> = {
   google_destination_unavailable: true,
 }
 
+const GOAL_SUBJECT_KINDS: Record<string, true> = {
+  property: true,
+  portal_group: true,
+  portal: true,
+}
+
+const GOAL_OUTCOMES: Record<string, true> = {
+  met: true,
+  not_met: true,
+  unavailable: true,
+}
+
 const REOPEN_REASONS: Record<string, true> = {
   guest_follow_up_still_needed: true,
   internal_follow_up_still_needed: true,
@@ -262,6 +294,10 @@ const takeInstant = (value: unknown): string | undefined => {
   const time = Date.parse(value)
   return Number.isFinite(time) ? new Date(time).toISOString() : undefined
 }
+
+/** `YYYY-MM`, a real calendar month. Anything else is dropped. */
+const takeMonthKey = (value: unknown): string | undefined =>
+  typeof value === 'string' && /^\d{4}-(?:0[1-9]|1[0-2])$/.test(value) ? value : undefined
 
 /** A real boolean only; "true", 1 and null are not flags. */
 const takeFlag = (value: unknown): boolean | undefined =>
@@ -347,6 +383,12 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
     ),
   )
   set('targetDueAt', takeInstant(raw.targetDueAt))
+  set('goalMonth', takeMonthKey(raw.goalMonth))
+  set(
+    'goalSubjectKind',
+    takeMember<NotificationGoalSubjectKind>(raw.goalSubjectKind, GOAL_SUBJECT_KINDS),
+  )
+  set('goalOutcome', takeMember<NotificationGoalOutcome>(raw.goalOutcome, GOAL_OUTCOMES))
 
   return parsed as NotificationPayload
 }

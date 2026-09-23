@@ -97,6 +97,9 @@ describe('parseNotificationPayload', () => {
       portalHealthStatus: 'unavailable',
       portalHealthReason: 'public_address_unavailable',
       targetDueAt: '2026-09-29T12:00:00.000Z',
+      goalMonth: '2026-10',
+      goalSubjectKind: 'portal',
+      goalOutcome: 'met',
     }
 
     const parsed = parseNotificationPayload(everyField)

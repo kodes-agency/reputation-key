@@ -95,6 +95,7 @@ const makeDeps = () => {
         monthlyResultId: IDS.result,
         assignmentId: IDS.assignment,
         programName: 'Monthly guest engagement',
+        periodMonth: '2026-10',
         subject: { kind: 'property' as const, propertyId: IDS.property },
       })),
       findMonthlyResultRevisionNotificationFacts: vi.fn(
@@ -109,6 +110,7 @@ const makeDeps = () => {
             evaluationState: 'eligible' as const,
             achieved: true,
             programName: 'Monthly guest engagement',
+            periodMonth: '2026-10',
             subject: { kind: 'property' as const, propertyId: IDS.property },
           }) as MonthlyResultRevisionNotificationFacts | null,
       ),
@@ -199,6 +201,9 @@ describe('canonical Goal monthly-result notification consumer', () => {
           payload: {
             goalName: 'Monthly guest engagement',
             propertyName: 'Riverside Hotel',
+            goalMonth: '2026-10',
+            goalSubjectKind: 'property',
+            goalOutcome: 'met',
           },
           // Delivery rechecks the result itself, not only responsibility: a
           // correction may un-achieve the month before the job runs.
@@ -252,6 +257,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
       monthlyResultId: IDS.result,
       assignmentId: IDS.assignment,
       programName: 'Monthly guest engagement',
+      periodMonth: '2026-10',
       subject: { kind: 'property', propertyId: IDS.property },
       [key]: value,
     })
@@ -331,6 +337,9 @@ describe('canonical Goal monthly-result notification consumer', () => {
           payload: {
             goalName: 'Monthly guest engagement',
             propertyName: 'Riverside Hotel',
+            goalMonth: '2026-10',
+            goalSubjectKind: 'property',
+            goalOutcome: 'met',
           },
           audience: {
             kind: 'goal_result_revision',
@@ -387,6 +396,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
       evaluationState: 'unavailable',
       achieved: null,
       programName: 'Monthly guest engagement',
+      periodMonth: '2026-10',
       subject: { kind: 'property', propertyId: IDS.property },
     })
 
@@ -429,6 +439,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
       evaluationState: 'eligible',
       achieved: false,
       programName: 'Monthly guest engagement',
+      periodMonth: '2026-10',
       subject: { kind: 'property', propertyId: IDS.property },
     })
 
@@ -466,6 +477,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
       evaluationState: 'eligible',
       achieved: false,
       programName: 'Monthly guest engagement',
+      periodMonth: '2026-10',
       subject: { kind: 'property', propertyId: IDS.property },
     })
 
@@ -504,6 +516,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
       evaluationState: 'eligible',
       achieved: true,
       programName: 'Monthly guest engagement',
+      periodMonth: '2026-10',
       subject: { kind: 'property', propertyId: IDS.property },
     })
 

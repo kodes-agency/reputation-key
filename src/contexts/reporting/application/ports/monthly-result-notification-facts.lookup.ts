@@ -13,6 +13,12 @@ export type MonthlyResultNotificationFacts = Readonly<{
   monthlyResultId: string
   assignmentId: string
   programName: string
+  /**
+   * The month the result covers, `YYYY-MM` on the PROPERTY's own calendar —
+   * the timezone the period was closed on, stored with the result. A key, not
+   * a label: the reader's surface writes the month name.
+   */
+  periodMonth: string
   subject: GoalSubject
 }>
 

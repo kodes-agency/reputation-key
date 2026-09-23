@@ -840,9 +840,51 @@ describe('notificationLink', () => {
     })
   })
 
+  it('names the month, the subject and the direction of a goal result', () => {
+    expect(
+      renderNotification('goal.completed', {
+        goalName: 'Lobby QR scans',
+        propertyName: 'Riverside Hotel',
+        goalMonth: '2026-10',
+        goalSubjectKind: 'portal',
+      }),
+    ).toEqual({
+      title: 'October goal met: Lobby QR scans at Riverside Hotel',
+      body: 'This Portal goal hit its target. Open the goal to see the numbers.',
+      actionLabel: 'View progress',
+      summary: 'Riverside Hotel · Lobby QR scans · Portal',
+    })
+  })
+
+  it.each([
+    ['not_met', 'October goal no longer met: Lobby QR scans'],
+    ['met', 'October goal met: Lobby QR scans'],
+    ['unavailable', 'October goal result unavailable: Lobby QR scans'],
+  ] as const)('says which way a corrected result went (%s)', (goalOutcome, title) => {
+    expect(
+      renderNotification('goal.result_revised', {
+        goalName: 'Lobby QR scans',
+        goalMonth: '2026-10',
+        goalOutcome,
+      }).title,
+    ).toBe(title)
+  })
+
+  it('tells a Portal Group goal apart from a Portal one', () => {
+    expect(
+      renderNotification('goal.result_revised', {
+        goalName: 'Lobby QR scans',
+        goalSubjectKind: 'portal_group',
+        goalOutcome: 'not_met',
+      }).body,
+    ).toBe(
+      'This Portal Group goal no longer meets its target. Open the goal to see the current metrics.',
+    )
+  })
+
   it('goal.completed sends the reader to the goal', () => {
     expect(renderNotification('goal.completed', {}).body).toBe(
-      'It hit its target. Open the goal to see the numbers.',
+      'This goal hit its target. Open the goal to see the numbers.',
     )
   })
 

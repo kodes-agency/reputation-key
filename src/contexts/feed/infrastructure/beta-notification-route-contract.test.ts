@@ -677,6 +677,7 @@ function currentRouteDeps(): RouteDeps {
     assignmentId: GOAL.assignmentId,
     monthlyResultId: GOAL.monthlyResultId,
     programName: 'Monthly rating goal',
+    periodMonth: '2026-10',
     subject: { kind: 'property', propertyId: PROPERTY },
   } as const
   deps.userLookup.findByRole.mockResolvedValue([ADMIN])

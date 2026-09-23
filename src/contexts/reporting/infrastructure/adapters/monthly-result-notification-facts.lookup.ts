@@ -29,6 +29,10 @@ export const createMonthlyResultNotificationFactsLookup = (
           propertySubjectId: goalSubjectAssignments.propertySubjectId,
           portalGroupId: goalSubjectAssignments.portalGroupId,
           portalId: goalSubjectAssignments.portalId,
+          periodMonth:
+            sql<string>`to_char(${goalMonthlyResults.periodStart} AT TIME ZONE ${goalMonthlyResults.propertyTimezone}, 'YYYY-MM')`.as(
+              'period_month',
+            ),
           closedAchieved: goalMonthlyResults.achieved,
           headRevisionId: goalResultRevisions.id,
           headAchieved: goalResultRevisions.achieved,
@@ -98,6 +102,7 @@ export const createMonthlyResultNotificationFactsLookup = (
         monthlyResultId: row.monthlyResultId,
         assignmentId: row.assignmentId,
         programName: row.programName,
+        periodMonth: row.periodMonth,
         subject,
       }
     },
@@ -118,6 +123,10 @@ export const createMonthlyResultNotificationFactsLookup = (
           revision: goalResultRevisions.revision,
           evaluationState: goalResultRevisions.evaluationState,
           achieved: goalResultRevisions.achieved,
+          periodMonth:
+            sql<string>`to_char(${goalMonthlyResults.periodStart} AT TIME ZONE ${goalMonthlyResults.propertyTimezone}, 'YYYY-MM')`.as(
+              'period_month',
+            ),
         })
         .from(goalMonthlyResults)
         .innerJoin(
@@ -202,6 +211,7 @@ export const createMonthlyResultNotificationFactsLookup = (
         monthlyResultId: row.monthlyResultId,
         assignmentId: row.assignmentId,
         programName: row.programName,
+        periodMonth: row.periodMonth,
         subject,
         revisionId: row.revisionId,
         revision: row.revision,
