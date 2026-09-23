@@ -840,6 +840,21 @@ describe('notificationLink', () => {
     })
   })
 
+  it.each([
+    ['a month key that never went through the allowlist', { goalMonth: 'last month' }],
+    ['a target time that is not an instant', { targetDueAt: 'tomorrow' }],
+  ] as const)('renders rather than throwing on %s', (_case, payload) => {
+    // Both facts are formatted, and both render in the bell's own paint: a
+    // payload that reached a template unparsed must shorten the copy, never
+    // take the feed down with a RangeError.
+    for (const type of NOTIFICATION_TYPES) {
+      const rendered = renderNotification(type, payload, { timeZone: 'UTC' })
+      expect(rendered.title).not.toBe('')
+      expect(rendered.title).not.toMatch(/undefined|NaN|Invalid/)
+      expect(rendered.body).not.toMatch(/undefined|NaN|Invalid/)
+    }
+  })
+
   it('names the month, the subject and the direction of a goal result', () => {
     expect(
       renderNotification('goal.completed', {

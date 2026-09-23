@@ -630,6 +630,10 @@ let monthFormat: Intl.DateTimeFormat | undefined
 const goalMonth = (p: NotificationPayload): string => {
   if (p.goalMonth === undefined) return ''
   const [year, month] = p.goalMonth.split('-').map(Number)
+  // The allowlist admits only `YYYY-MM`, but a template must never throw on a
+  // payload that reached it unparsed: `Intl.format(NaN)` is a RangeError, and
+  // this renders in the bell's own paint.
+  if (!Number.isInteger(year) || !Number.isInteger(month)) return ''
   monthFormat ??= new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' })
   return monthFormat.format(Date.UTC(year!, month! - 1, 1))
 }
