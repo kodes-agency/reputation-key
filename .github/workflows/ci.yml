@@ -393,19 +393,31 @@ jobs:
             name=$(jq -r '.name' <<<"$image")
             dockerfile=$(jq -r '.dockerfile' <<<"$image")
             tag=$(jq -r '.tag' <<<"$image")
-            build_args=(--build-arg "SOURCE_REVISION=$GITHUB_SHA")
+            build_flags=(--build-arg "SOURCE_REVISION=$GITHUB_SHA")
             if [[ "$name" == "web" ]]; then
-              build_args+=(
-                --build-arg "SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN"
+              # Org and project NAME the release and are repository variables,
+              # not secrets, so they stay build arguments. The upload TOKEN is a
+              # BuildKit secret: a build argument is recorded in image history,
+              # build provenance and the exported GHA layer cache, which would
+              # publish it to anyone who can pull or inspect the image.
+              # `check:container-images` fails the build if a secret-shaped
+              # value is passed as a build argument again.
+              build_flags+=(
                 --build-arg "SENTRY_ORG=$SENTRY_ORG"
                 --build-arg "SENTRY_PROJECT=$SENTRY_PROJECT"
               )
+              # Absent on forks and on any run without the repository secret;
+              # the Dockerfile then skips the source-map upload instead of
+              # failing, so the image still builds.
+              if [[ -n "${SENTRY_AUTH_TOKEN:-}" ]]; then
+                build_flags+=(--secret "id=sentry_auth_token,env=SENTRY_AUTH_TOKEN")
+              fi
             fi
             docker buildx build \
               --load \
               --cache-from "type=gha,scope=ci-image-${name}" \
               --cache-to "type=gha,mode=max,scope=ci-image-${name}" \
-              "${build_args[@]}" \
+              "${build_flags[@]}" \
               -f "$dockerfile" \
               -t "$tag" \
               .

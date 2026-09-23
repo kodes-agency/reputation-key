@@ -21,8 +21,9 @@ ARG SOURCE_REVISION=${RAILWAY_GIT_COMMIT_SHA:-unknown}
 #   - the app writes NOTHING to disk at runtime — run with a read-only root
 #     filesystem and a writable scratch tmpfs where the platform allows it:
 #       docker run --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m ...
-#   - no secrets in the runtime image: the Sentry upload token is scoped to the
-#     build stage and is never copied or exported into the web stage; runtime
+#   - no secrets in the image at all: the Sentry upload token enters as a
+#     BuildKit secret mounted for one RUN in the build stage, so it lands in no
+#     layer, no image history, no provenance and no exported cache; runtime
 #     config arrives via Railway service variables
 #
 # Deploy contract (.railway/railway.ts):
@@ -93,14 +94,31 @@ RUN pnpm install --frozen-lockfile
 # ── Build web, worker and migration bundles ─────────────────────────────────
 FROM deps AS build
 ARG SOURCE_REVISION
-ARG SENTRY_AUTH_TOKEN
 ARG SENTRY_ORG
 ARG SENTRY_PROJECT
 COPY . .
-# The Sentry build arguments name and authenticate the source-map release; the
-# build deletes uploaded maps before this stage is copied into the web image.
-# Inline schema placeholders remain build-only and never persist as ENV values.
-RUN NODE_ENV=production \
+# SENTRY_ORG/SENTRY_PROJECT NAME the source-map release and are not secret.
+# The token that AUTHENTICATES the upload is deliberately NOT a build argument
+# (it was one until 2026-09-24). A build argument's VALUE is retained — in the
+# history of the stage that declares it, in provenance attestations, and in
+# build-cache metadata. Keeping it in a discarded builder stage is not a
+# control: one `ARG` moved down a stage, or one export switched to `--push`,
+# publishes it. It arrives as a BuildKit secret instead — the mount exists only
+# for this RUN and is never written into a layer, history or cache export.
+# (BuildKit is already required by the `# syntax` directive at the top of this
+# file; the legacy builder cannot build it.)
+#
+# The secret is OPTIONAL by design: local builds and fork PRs have no token.
+# When the mount is absent or empty the variable is never exported, vite.config
+# logs `skipping source-map upload`, and the build succeeds without an upload.
+# The value is only ever read into the environment of `pnpm build`; nothing
+# echoes it (no `set -x` here, and the RUN text carries the path, not the value).
+#
+# The build deletes uploaded maps before this stage is copied into the web
+# image. Inline schema placeholders remain build-only and never persist as ENV
+# values.
+RUN --mount=type=secret,id=sentry_auth_token \
+    NODE_ENV=production \
     SOURCE_REVISION=$SOURCE_REVISION \
     DATABASE_URL=postgresql://build:build@localhost:5432/build \
     BETTER_AUTH_SECRET=build-placeholder-secret-32-characters-xx \
@@ -109,7 +127,7 @@ RUN NODE_ENV=production \
     GOOGLE_CLIENT_SECRET=build-placeholder-client-secret \
     ENCRYPTION_KEY=aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd \
     OAUTH_STATE_SECRET=aabbccddaabbccddaabbccddaabbccdd \
-    pnpm build \
+    sh -eu -c 'if [ -s /run/secrets/sentry_auth_token ]; then SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token)"; export SENTRY_AUTH_TOKEN; fi; exec pnpm build' \
  && find .output dist-worker -type f -name '*.map' -delete \
  && node scripts/check-production-artifacts.mjs .output dist-worker
 
