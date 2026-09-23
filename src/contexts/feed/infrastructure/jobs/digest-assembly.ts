@@ -6,7 +6,10 @@
 // queue, or a clock.
 
 import type { Notification, NotificationEmail } from '../../domain/notification-types'
-import type { RenderedNotification } from '../../domain/notification-templates'
+import type {
+  NotificationRenderContext,
+  RenderedNotification,
+} from '../../domain/notification-templates'
 import { notificationLink, renderNotification } from '../../domain/notification-templates'
 import { splitFacts } from '../email/notification-facts'
 import {
@@ -45,6 +48,8 @@ export function groupItemsByProperty(
   items: ReadonlyArray<DigestItem>,
   propertyNames: ReadonlyMap<string, string>,
   buildActionUrl: (path: string, search: Readonly<Record<string, string>>) => string,
+  /** The recipient's clock — ADR 0046 r.4 already frames the digest on it. */
+  context?: NotificationRenderContext,
 ): ReadonlyArray<DigestGroup> {
   const order: string[] = []
   const byProperty = new Map<string, DigestItem[]>()
@@ -69,7 +74,11 @@ export function groupItemsByProperty(
           key,
           notification.type,
         )
-        const rendered = renderNotification(notification.type, notification.payload)
+        const rendered = renderNotification(
+          notification.type,
+          notification.payload,
+          context,
+        )
         return {
           rendered: withoutFact(rendered, propertyName),
           actionUrl: buildActionUrl(link.path, link.search),

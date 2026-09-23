@@ -96,6 +96,7 @@ describe('parseNotificationPayload', () => {
       publicationCancellationCause: 'source_changed',
       portalHealthStatus: 'unavailable',
       portalHealthReason: 'public_address_unavailable',
+      targetDueAt: '2026-09-29T12:00:00.000Z',
     }
 
     const parsed = parseNotificationPayload(everyField)

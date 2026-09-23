@@ -54,6 +54,12 @@ export type ResponseTargetReminderNotificationFacts = HandlingCycleNotificationF
     targetKind: 'google_review_response' | 'private_feedback_handling'
     reminderKind: 'halfway' | 'target_passed'
     scheduledFor: Date
+    /**
+     * The target time itself — what the reminder is about. Read from the same
+     * immutable snapshot the slot belongs to, so it is the target the reader
+     * is being reminded of and not a later policy's.
+     */
+    dueAt: Date
   }>
 
 export type ResponseTargetReminderNotificationLookup = Readonly<{

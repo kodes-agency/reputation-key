@@ -234,6 +234,7 @@ export const createInboxItemLookupAdapter = (
         targetKind: inboxHandlingCycleResponseTargets.targetKind,
         reminderKind: inboxResponseTargetReminders.reminderKind,
         scheduledFor: inboxResponseTargetReminders.scheduledFor,
+        dueAt: inboxHandlingCycleResponseTargets.dueAt,
       })
       .from(inboxResponseTargetReminders)
       .innerJoin(
@@ -301,12 +302,16 @@ export const createInboxItemLookupAdapter = (
       input.inboxItemId,
       input.organizationId,
     )
+    // A measured target always has a due instant; the column is nullable only
+    // because an excluded cycle records eligibility without one, and this
+    // query admits measured, uncompleted targets only.
     if (
       !item ||
       item.propertyId !== row.propertyId ||
       item.sourceType !== row.sourceType ||
       row.targetKind !== input.targetKind ||
-      row.reminderKind !== input.reminderKind
+      row.reminderKind !== input.reminderKind ||
+      row.dueAt === null
     ) {
       return null
     }
@@ -321,6 +326,7 @@ export const createInboxItemLookupAdapter = (
       targetKind: input.targetKind,
       reminderKind: input.reminderKind,
       scheduledFor: row.scheduledFor,
+      dueAt: row.dueAt,
     }
   },
 })

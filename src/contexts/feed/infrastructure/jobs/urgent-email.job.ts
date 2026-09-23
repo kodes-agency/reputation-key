@@ -315,7 +315,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       ids: EmailDeliveryIds
     }>,
     entry: StoredEmail,
-  ): Promise<boolean> => {
+  ): Promise<Readonly<{ deferred: boolean; timezone: string }>> => {
     const [settings, orgScope, window] = await Promise.all([
       deps.preferenceRepo.getUserSettings(entry.userId, scope.orgId),
       deps.resolveOrganizationScope(scope.ids.orgId),
@@ -335,7 +335,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       urgent: entry.priority === 'urgent',
       urgentBypassEnabled: window.urgentBypassEnabled,
     })
-    if (timing.kind !== 'defer') return false
+    if (timing.kind !== 'defer') return { deferred: false, timezone }
     await deps.emailRepo.markDelayed(
       scope.emailId,
       scope.orgId,
@@ -353,7 +353,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       },
       'Urgent notification email deferred',
     )
-    return true
+    return { deferred: true, timezone }
   }
 
   /**
@@ -408,6 +408,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     entry: StoredEmail,
     ids: EmailDeliveryIds,
     mandatory: boolean,
+    timezone: string | undefined,
   ) => {
     const link = notificationLink(
       notification.resourceType,
@@ -430,7 +431,14 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
           ),
         )
     const email = renderNotificationEmail({
-      rendered: renderNotification(notification.type, notification.payload),
+      // The recipient's own zone, already resolved for quiet hours, so a
+      // Response Target reminder can say the target time on their clock.
+      // Mandatory account mail never carries one and never resolves a zone.
+      rendered: renderNotification(
+        notification.type,
+        notification.payload,
+        timezone === undefined ? undefined : { timeZone: timezone },
+      ),
       actionUrl: absoluteUrl(deps.baseUrl, link.path, link.search),
       preferencesUrl,
       priority: entry.priority,
@@ -483,7 +491,13 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
         await suppress(ids, 'preference_disabled')
         return
       }
-      if (await deferForQuietHours(scope, entry)) return
+    }
+
+    let timezone: string | undefined
+    if (!mandatory) {
+      const quietHours = await deferForQuietHours(scope, entry)
+      if (quietHours.deferred) return
+      timezone = quietHours.timezone
     }
 
     const notification = mandatory
@@ -500,7 +514,13 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     const recipient = await recheckRecipient(scope, entry)
     if (recipient === null) return
 
-    const { email, headers, replyTo } = composeEmail(notification, entry, ids, mandatory)
+    const { email, headers, replyTo } = composeEmail(
+      notification,
+      entry,
+      ids,
+      mandatory,
+      timezone,
+    )
     // The one-click link names only this row, which retention deletes after
     // 90 days; what it stands for is kept before the mail leaves.
     if (requiresPreferencesLink(mailClassForCategory(entry.category))) {

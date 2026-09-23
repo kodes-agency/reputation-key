@@ -692,6 +692,7 @@ function currentRouteDeps(): RouteDeps {
     targetKind: 'google_review_response',
     reminderKind: 'target_passed',
     scheduledFor: SCHEDULED_FOR,
+    dueAt: SCHEDULED_FOR,
   })
   return {
     ...deps,

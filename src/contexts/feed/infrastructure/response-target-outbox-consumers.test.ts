@@ -33,6 +33,7 @@ const ASSIGNEE = userId('assignee-response-target-notification')
 const SCHEDULED_FOR = '2026-08-28T10:00:00.000Z'
 /** The current cycle's target start; the item itself is older (see createdAt). */
 const TARGET_STARTED = new Date('2026-08-28T09:00:00.000Z')
+const TARGET_DUE_AT = '2026-08-28T11:00:00.000Z'
 const OCCURRED_AT = '2026-08-28T10:00:01.000Z'
 
 const event = (
@@ -80,6 +81,7 @@ const currentFacts = (): ResponseTargetReminderNotificationFacts => ({
   targetKind: 'private_feedback_handling',
   reminderKind: 'halfway',
   scheduledFor: new Date(SCHEDULED_FOR),
+  dueAt: new Date(TARGET_DUE_AT),
 })
 
 const makeDeps = () => {
@@ -127,6 +129,19 @@ const makeDeps = () => {
 }
 
 describe('Response Target reminder durable consumer', () => {
+  it('carries the target time so the reminder can say by when', async () => {
+    const deps = makeDeps()
+
+    await handleNotificationResponseTargetReminder(deps, event())
+
+    expect(deps.jobs.length).toBeGreaterThan(0)
+    for (const job of deps.jobs) {
+      expect((job.data as { payload: unknown }).payload).toMatchObject({
+        targetDueAt: TARGET_DUE_AT,
+      })
+    }
+  })
+
   beforeEach(() => {
     consumerRegistry = createConsumerRegistry()
     clearEventSchemas()

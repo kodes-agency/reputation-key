@@ -100,11 +100,17 @@ export async function handleNotificationResponseTargetReminder(
   }
 
   const recipients = await resolveResponseTargetReminderRecipients(deps, orgId, facts)
-  const notificationPayload = await buildInboxItemPayload(deps, {
-    inboxItemId: itemId,
-    orgId,
-    measureWait: true,
-  })
+  const notificationPayload = {
+    ...(await buildInboxItemPayload(deps, {
+      inboxItemId: itemId,
+      orgId,
+      measureWait: true,
+    })),
+    // What the reminder is actually about. Stored as the instant, because the
+    // copy renders it on each READER's clock and two people responsible for
+    // one item need not share a timezone.
+    targetDueAt: facts.dueAt.toISOString(),
+  }
   const audience: NotificationAudience = {
     kind: 'response_target_reminder',
     inboxItemId: itemId,

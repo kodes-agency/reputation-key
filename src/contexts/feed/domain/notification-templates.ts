@@ -33,6 +33,15 @@ import type {
 } from './notification-payload'
 import type { NotificationResourceType, NotificationType } from './notification-types'
 
+/**
+ * What the reader's own clock is, for the one fact that only means anything
+ * on it: a Response Target's target time. Copy stays English — this module is
+ * the only place copy exists — so only the zone crosses. Absent on a surface
+ * that cannot know it (the frozen snapshot written at insert time), and the
+ * clause is then left out rather than guessed in UTC.
+ */
+export type NotificationRenderContext = Readonly<{ timeZone: string }>
+
 /** What a rendered notification exposes to every channel. */
 export type RenderedNotification = Readonly<{
   /** Short, imperative where an action is required. Never empty. */
@@ -413,19 +422,66 @@ const renderInboxBulkReopened = (p: NotificationPayload): RenderedNotification =
     (items) => `${byRole(p)} reopened ${items}. Open the Inbox to take a look.`,
   )
 
-const renderResponseTargetHalfway = (p: NotificationPayload): RenderedNotification => ({
-  title: `Halfway to the response target${atProperty(p)}`,
-  body: 'This item is still open.',
-  actionLabel: 'View item',
-  summary: factsAt(p, ratedNoun(p), 'target halfway'),
-})
+/** One formatter per timezone; the bell renders a page of rows at a time. */
+const targetTimeFormatters = new Map<string, Intl.DateTimeFormat>()
 
-const renderResponseTargetPassed = (p: NotificationPayload): RenderedNotification => ({
-  title: `Response target passed${atProperty(p)}`,
-  body: 'This item is still open. Review it and choose the next step when practical.',
-  actionLabel: 'View item',
-  summary: factsAt(p, ratedNoun(p), 'target passed'),
-})
+/**
+ * "Tue, Sep 29, 14:00" on the reader's clock. The weekday alone would be
+ * ambiguous: an Organization policy may set a target up to 30 days out. Copy
+ * is English everywhere in this module, so the label is formatted in en-GB
+ * rather than the reader's language, and only the ZONE follows them.
+ */
+const targetTime = (
+  p: NotificationPayload,
+  context: NotificationRenderContext | undefined,
+): string => {
+  if (p.targetDueAt === undefined || context === undefined) return ''
+  const at = Date.parse(p.targetDueAt)
+  if (!Number.isFinite(at)) return ''
+  let format = targetTimeFormatters.get(context.timeZone)
+  if (format === undefined) {
+    format = new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+      timeZone: context.timeZone,
+    })
+    targetTimeFormatters.set(context.timeZone, format)
+  }
+  return format.format(at)
+}
+
+const renderResponseTargetHalfway = (
+  p: NotificationPayload,
+  context?: NotificationRenderContext,
+): RenderedNotification => {
+  const at = targetTime(p, context)
+  return {
+    title: `Halfway to the response target${atProperty(p)}`,
+    body: sentence('This item is still open.', at === '' ? '' : `Target time ${at}.`),
+    actionLabel: 'View item',
+    summary: factsAt(p, ratedNoun(p), 'target halfway'),
+  }
+}
+
+const renderResponseTargetPassed = (
+  p: NotificationPayload,
+  context?: NotificationRenderContext,
+): RenderedNotification => {
+  const at = targetTime(p, context)
+  return {
+    title: `Response target passed${atProperty(p)}`,
+    body: sentence(
+      'This item is still open. Review it and choose the next step when practical.',
+      at === '' ? '' : `The target time was ${at}.`,
+    ),
+    actionLabel: 'View item',
+    summary: factsAt(p, ratedNoun(p), 'target passed'),
+  }
+}
 
 const renderInboxAssigned = (p: NotificationPayload): RenderedNotification => ({
   title: `Assigned to you: ${inboxNoun(p)}${atProperty(p)}`,
@@ -602,7 +658,10 @@ const renderBetaFeedbackOutcome = (p: NotificationPayload): RenderedNotification
 
 const RENDERERS: Record<
   NotificationType,
-  (payload: NotificationPayload) => RenderedNotification
+  (
+    payload: NotificationPayload,
+    context?: NotificationRenderContext,
+  ) => RenderedNotification
 > = {
   'account.organization_access_granted': renderOrganizationAccessGranted,
   'account.organization_role_changed': renderOrganizationRoleChanged,
@@ -660,8 +719,9 @@ const REPEATED: Partial<Record<NotificationType, string>> = {
 export const renderNotification = (
   type: NotificationType,
   payload: NotificationPayload,
+  context?: NotificationRenderContext,
 ): RenderedNotification => {
-  const rendered = RENDERERS[type](payload)
+  const rendered = RENDERERS[type](payload, context)
   const age = waitingAge(payload)
   const repeats = payload.occurrences ?? 1
   return {

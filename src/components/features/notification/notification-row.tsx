@@ -45,7 +45,11 @@ export function NotificationRow({
   actions,
   format = DEFAULT_NOTIFICATION_FORMAT,
 }: Props) {
-  const rendered = renderNotification(notification.type, notification.payload)
+  // The reader's own zone, so a Response Target's target time reads on their
+  // clock; two people responsible for one item need not share one.
+  const rendered = renderNotification(notification.type, notification.payload, {
+    timeZone: format.timeZone,
+  })
   const link = notificationLink(
     notification.resourceType,
     notification.resourceId,

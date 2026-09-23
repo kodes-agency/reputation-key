@@ -268,6 +268,43 @@ describe('renderNotification — the copy that was broken', () => {
     },
   )
 
+  it('states the target time of a reminder in the reader\u2019s own timezone', () => {
+    const payload = {
+      propertyName: 'Riverside Hotel',
+      targetDueAt: '2026-09-29T12:00:00.000Z',
+    }
+
+    const inNewYork = renderNotification('inbox.response_target_halfway', payload, {
+      timeZone: 'America/New_York',
+    })
+    const inSofia = renderNotification('inbox.response_target_halfway', payload, {
+      timeZone: 'Europe/Sofia',
+    })
+
+    expect(inNewYork.body).toContain('Target time Tue, Sep 29, 08:00')
+    expect(inSofia.body).toContain('Target time Tue, Sep 29, 15:00')
+    // The product term is "target time"; "due" is not a word this product uses.
+    expect(`${inNewYork.title} ${inNewYork.body}`).not.toMatch(/\bdue\b/i)
+  })
+
+  it('says a passed target time in the past tense', () => {
+    expect(
+      renderNotification(
+        'inbox.response_target_passed',
+        { targetDueAt: '2026-09-29T12:00:00.000Z' },
+        { timeZone: 'UTC' },
+      ).body,
+    ).toContain('The target time was Tue, Sep 29, 12:00.')
+  })
+
+  it('omits the target time when the reader\u2019s timezone is unknown', () => {
+    const rendered = renderNotification('inbox.response_target_halfway', {
+      targetDueAt: '2026-09-29T12:00:00.000Z',
+    })
+
+    expect(rendered.body).toBe('This item is still open.')
+  })
+
   it('falls back to the vague portal notice only when the health fact is missing', () => {
     expect(renderNotification('portal.health_attention', {}).title).toBe(
       'A guest portal may need attention',

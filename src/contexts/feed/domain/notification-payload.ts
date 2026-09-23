@@ -122,6 +122,12 @@ export type NotificationPayload = Readonly<{
    */
   portalHealthStatus?: NotificationPortalHealthStatus
   portalHealthReason?: NotificationPortalHealthReason
+  /**
+   * The Response Target's target time (ISO instant), on the two reminder
+   * notices only. An instant, never a rendered label: the copy formats it in
+   * the READER's timezone, and two people on one item may not share one.
+   */
+  targetDueAt?: string
 }>
 
 export type NotificationPublicationCancellationCause =
@@ -340,6 +346,7 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
       PORTAL_HEALTH_REASONS,
     ),
   )
+  set('targetDueAt', takeInstant(raw.targetDueAt))
 
   return parsed as NotificationPayload
 }

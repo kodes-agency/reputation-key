@@ -42,6 +42,7 @@ export {
 // so copy cannot drift between channels and fixing a sentence fixes it
 // everywhere, including rows already in the database.
 export type { NotificationPayload } from '../domain/notification-payload'
+export type { NotificationRenderContext } from '../domain/notification-templates'
 export {
   BETA_FEEDBACK_REPORTS_ANCHOR,
   notificationLink,
