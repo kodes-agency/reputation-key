@@ -81,6 +81,7 @@ export function InboxPropertySelect({
   const [open, setOpen] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const counts = useInboxPropertyCounts(queue, open, getInboxPropertyCounts)
+  const heading = `${queueLabel(queue)} by property`
   const choose = (value: string) => {
     setOpen(false)
     scope.onSelect(value === ALL_PROPERTIES ? null : value)
@@ -118,6 +119,9 @@ export function InboxPropertySelect({
       </PopoverTrigger>
       <PopoverContent
         align="start"
+        // The popover is a dialog, so it needs a name of its own; the list's
+        // heading is that name (axe aria-dialog-name).
+        aria-label={heading}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           focusPropertyPicker(contentRef.current)
@@ -131,7 +135,7 @@ export function InboxPropertySelect({
           <PropertyPickerList
             groups={groups}
             activeValue={scope.activePropertyId ?? ALL_PROPERTIES}
-            heading={`${queueLabel(queue)} by property`}
+            heading={heading}
             onSelect={choose}
           />
         </div>

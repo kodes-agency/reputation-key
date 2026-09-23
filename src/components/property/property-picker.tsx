@@ -194,6 +194,9 @@ export function PropertyPicker({
       </PopoverTrigger>
       <PopoverContent
         align="start"
+        // The popover is a dialog, so it needs a name of its own (axe
+        // aria-dialog-name); the list's heading is that name.
+        aria-label={list.heading}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           focusPropertyPicker(commandRef.current)

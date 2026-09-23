@@ -501,15 +501,15 @@ export const AppliesACategoryToEveryProperty: Story = {
   play: async ({ canvasElement }) => {
     updatePreferenceMock.mockClear()
     const canvas = within(canvasElement)
-    expect(
-      canvas.getByText('A new property gets in-app on, email off.', { exact: false }),
-    ).toBeVisible()
-
-    await userEvent.click(
-      canvas.getByRole('button', {
-        name: 'Workflow and collaboration: Apply to all my properties',
-      }),
+    const button = canvas.getByRole('button', {
+      name: 'Workflow and collaboration: Apply to all my properties',
+    })
+    // The button says what every other property will get, so it is not a leap.
+    expect(button).toHaveAccessibleDescription(
+      'A new property gets in-app on, email off.',
     )
+
+    await userEvent.click(button)
 
     await waitFor(() => expect(updatePreferenceMock).toHaveBeenCalledTimes(2))
     expect(updatePreferenceMock).toHaveBeenCalledWith({
@@ -541,8 +541,10 @@ export const InheritedDefaultIsWhatANewPropertyGets: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(
-      canvas.getByText('A new property gets in-app on, email daily at 08:00.'),
-    ).toBeVisible()
+      canvas.getByRole('button', {
+        name: 'Workflow and collaboration: Apply to all my properties',
+      }),
+    ).toHaveAccessibleDescription('A new property gets in-app on, email daily at 08:00.')
   },
 }
 
@@ -554,19 +556,19 @@ export const InheritedDefaultIsWhatANewPropertyGets: Story = {
 export const TimezoneCardIsNamedForWhatItDoes: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(
-      canvas.getByRole('heading', { name: 'Timezone and date format' }),
-    ).toBeVisible()
-    expect(canvas.queryByRole('heading', { name: /Language/ })).toBeNull()
+    expect(canvas.getByText('Timezone and date format')).toBeVisible()
+    expect(canvas.queryByText(/Language and timezone/)).toBeNull()
 
     await userEvent.click(canvas.getByRole('combobox', { name: 'Date and time format' }))
     const portal = within(document.body)
     const options = await portal.findAllByRole('option')
     // English conventions only — a language nobody is offered is not a choice.
     expect(options.map((option) => option.textContent)).toEqual([
-      'English (US) — 9/23/2026, 3:00 PM',
-      'English (UK) — 23/09/2026, 15:00',
+      'English (US)',
+      'English (UK)',
     ])
+    // And the control says what it changes, which its names do not.
+    expect(canvas.getByTestId('format-sample')).toHaveTextContent('23/09/2026')
   },
 }
 

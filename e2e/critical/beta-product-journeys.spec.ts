@@ -406,9 +406,6 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         channel: 'email',
         enabled: true,
         cadence: 'daily',
-        urgentBypassEnabled: false,
-        quietHoursStart: null,
-        quietHoursEnd: null,
       },
     })
     expect(emailDenial.message ?? emailDenial.code ?? '').toMatch(
@@ -468,9 +465,6 @@ test.describe('Critical: beta-local-1 product journeys', () => {
           channel: 'email',
           enabled: false,
           cadence: 'daily',
-          urgentBypassEnabled: false,
-          quietHoursStart: null,
-          quietHoursEnd: null,
         },
       })
       expect(emailPreferenceDenial.message ?? emailPreferenceDenial.code ?? '').toMatch(

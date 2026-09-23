@@ -44,8 +44,32 @@ const TIMEZONE_SOURCE_HINT: Readonly<Record<NotificationTimezoneSource, string>>
 }
 
 const LOCALE_LABELS: Readonly<Record<NotificationLocale, string>> = {
-  en: 'English (US) — 9/23/2026, 3:00 PM',
-  'en-GB': 'English (UK) — 23/09/2026, 15:00',
+  en: 'English (US)',
+  'en-GB': 'English (UK)',
+}
+
+/**
+ * A fixed afternoon in a month whose number is above 12, so the sample shows
+ * which of the day and the month comes first and whether the clock is 24-hour.
+ * The preview is the whole point of the control: the names alone ("English
+ * (UK)") do not say what changes.
+ */
+const SAMPLE_INSTANT = new Date('2026-09-23T15:04:00.000Z')
+
+function formatSample(locale: string, timeZone: string): string {
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      dateStyle: 'short',
+      timeStyle: 'short',
+      timeZone,
+    }).format(SAMPLE_INSTANT)
+  } catch {
+    // A legacy locale or a fixed-offset zone the pickers no longer offer.
+    return new Intl.DateTimeFormat('en', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(SAMPLE_INSTANT)
+  }
 }
 
 /** The offered formats, plus a stored legacy one so the select never hides it. */
@@ -133,6 +157,9 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
                 </SelectGroup>
               </SelectContent>
             </Select>
+            <p data-testid="format-sample" className="text-sm text-muted-foreground">
+              Times are written like {formatSample(field.state.value, settings.timezone)}.
+            </p>
             <FieldError errors={field.state.meta.errors} />
           </Field>
         )}
