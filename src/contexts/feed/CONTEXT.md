@@ -107,8 +107,26 @@ The settings page and in-app timestamps read the same effective timezone the
 delivery jobs resolve (ADR 0046 r.3): the user's own, else the Organization's
 representative zone, else UTC, together with where it came from. A settings
 save writes only what the user changed; because the column cannot hold "follow
-the Organization", a first save that changes only the language stores the zone
-delivery was already using.
+the Organization", a first save that changes only the date format stores the
+zone delivery was already using. The format is an English convention, not a
+language: every word in the product is English (docs/BETA.md).
+
+Quiet hours and the urgent bypass sit in that same row, one window for every
+Property the person has (ADR 0046, amended 2026-09-23), with an optional
+per-Property override whose existence IS the override: a row with no times
+means "hold nothing back here", and it replaces the personal window whole,
+bypass included. Immediate mail is scoped to one Property and reads that
+Property's override where there is one; the daily digest covers every Property,
+so it reads the person's window only, once per recipient per sweep, and a quiet
+window defers the whole digest to one minute rather than half of it (r.4).
+
+Whether a category is delivered, and at which cadence, is still per Property,
+but a Property with no row of its own now inherits the person's default for
+that (category, channel) before falling through to the versioned defaults. A
+Property added or reassigned after everything else was configured used to fall
+straight through, which is how a brand-new Property mailed urgent notices at
+03:00. "Apply to all my properties" writes that default and clears the
+per-Property rows that would have overridden it.
 
 Known gaps that need a nullable column or a product decision: that stored zone
 is the Organization's, or UTC while the Organization has no active Property,
@@ -116,9 +134,10 @@ and from then on it no longer follows the Organization; the page calls it the
 user's own. Rows the old page saved with its UTC pre-fill look exactly like a
 chosen UTC and were not repaired.
 
-Quiet hours that start and end at the same time are refused on save. Rows
-stored that way earlier read back as no quiet hours, which is how delivery has
-always treated them, so they never block a later save of their row.
+Quiet hours that start and end at the same time are refused on save, by the
+constructor and by a CHECK on both tables that can hold a window. Rows stored
+that way earlier read back as no quiet hours, which is how delivery has always
+treated them, so they never block a later save of their row.
 
 The in-app feed is ordered by latest activity, newest first:
 `COALESCE(coalesced_latest_at, created_at)`, with id as the tiebreak. A

@@ -35,8 +35,11 @@ Rules:
    confirmation; see the Feed CONTEXT.md). A mandatory notice coalesces in-app
    too, but is still emailed once per event: the repeat's email is anchored
    on the unread row and keyed on its own event (amended 2026-09-22).
-3. Use the user IANA timezone with Organization fallback and test DST.
-4. A multi-Property user receives one digest in their chosen timezone.
+3. Use the user IANA timezone with Organization fallback and test DST. Quiet
+   hours and the urgent bypass are the user's too, with an optional
+   per-Property override (amended 2026-09-23).
+4. A multi-Property user receives one digest in their chosen timezone, judged
+   against their one quiet-hours window (amended 2026-09-23).
 5. Application idempotency outlives the provider's 24-hour dedupe window.
 6. Delivery moves through `pending → accepted →
 delivered|delayed|bounced|complained|failed|suppressed|cancelled`.
@@ -282,6 +285,55 @@ item would put an unbounded array on the bus for nothing.
 The fact's closed reason is named `releaseReason`, not `reason`: the outbox
 adapter denylists `reason` as content, with one carve-out, and widening that
 denylist for an enum is the wrong trade.
+
+## Amended 2026-09-23 — quiet hours are the person's, not the Property's
+
+Quiet hours and the urgent bypass were stored per (Property, category,
+channel). A manager with 30 Properties needed about 60 saves to stop 03:00
+email, and a window set on only some Properties broke r.4: the quiet
+Properties' digest rows were deferred while the rest went out, so one person
+got two digests of one day.
+
+They are now one setting per person, stored in `notification_user_settings`
+beside the timezone that decides what they mean, with an OPTIONAL per-Property
+override in `notification_property_delivery_windows`. The override's row is
+the override: a row with no times means "hold nothing back at this Property",
+and it replaces the personal window WHOLE, bypass included, because it is one
+deliberate answer rather than a patch of three fields.
+
+Delivery reads them like this:
+
+- Immediate mail is scoped to one Property, so it reads that Property's
+  override if there is one, else the person's window.
+- The daily digest covers every Property at once, so it reads the person's
+  window only — asked ONCE per recipient per sweep, before any row is
+  considered. Quiet means the whole digest waits to the same minute, so the
+  next sweep still finds one digest (r.4).
+
+Whether a category is delivered at all, and at which cadence, stays per
+Property: that is what a Property is for. What was missing is inheritance. A
+Property added or reassigned after the person configured everything else had
+no row and fell through to r.1's versioned defaults — urgent email,
+immediately, at 03:00, whatever they had chosen for every other Property.
+`notification_category_defaults` holds the person's answer per (category,
+channel), and resolution is now: the Property's own row, else that default,
+else r.1's versioned defaults. "Apply to all my properties" writes the default
+and clears the per-Property rows that would have overridden it.
+
+Mandatory notices stay unconfigurable on every one of these tables, by CHECK.
+Migration 0030 lifts a person's per-Property quiet hours into their personal
+window only where every row of theirs agrees, and drops the rest rather than
+inventing a merged window nobody chose; it seeds the category defaults the same
+way.
+
+## Amended 2026-09-23 — the notification locale is an English convention
+
+`notification_user_settings.locale` offered Bulgarian, which translated
+nothing: every word in the product is English (docs/BETA.md), and the setting
+only moves the day in front of the month. It now offers English (US) and
+English (UK), and the settings card is called "Timezone and date format"
+rather than "Language and timezone". A row storing a locale no longer offered
+is still honoured when a timestamp is formatted; it just cannot be saved again.
 
 ## Consequences
 
