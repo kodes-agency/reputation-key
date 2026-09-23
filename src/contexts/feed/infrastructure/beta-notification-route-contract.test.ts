@@ -305,7 +305,7 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       userId: ACTOR,
       releasedFrom: DEPARTING,
       releaseReason: 'member_offboarded',
-      releases: [{ inboxItemId: ITEM, propertyId: PROPERTY }],
+      releases: [{ propertyId: PROPERTY, anchorInboxItemId: ITEM, count: 1 }],
       occurredAt: OCCURRED_AT,
     }),
   'inbox.inbox_item.escalated': () =>

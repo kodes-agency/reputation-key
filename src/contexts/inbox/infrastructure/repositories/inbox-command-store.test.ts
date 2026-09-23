@@ -383,7 +383,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       userId: USER_B,
       releaseReason: 'member_offboarded',
       count: 1,
-      releases: [{ inboxItemId: first.id, propertyId: PROP_A }],
+      releases: [{ propertyId: PROP_A, anchorInboxItemId: first.id, count: 1 }],
     })
     const history = await pool.query(
       `SELECT reason, handling_cycle_number

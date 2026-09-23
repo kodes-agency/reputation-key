@@ -22,7 +22,6 @@ const ORG = organizationId('org-assignment-release')
 const PROPERTY_A = '91000000-0000-4000-8000-0000000000a1'
 const PROPERTY_B = '91000000-0000-4000-8000-0000000000b1'
 const ITEM_1 = '91000000-0000-4000-8000-000000000011'
-const ITEM_2 = '91000000-0000-4000-8000-000000000012'
 const ITEM_3 = '91000000-0000-4000-8000-000000000013'
 const DEPARTING = userId('user-departing')
 const ACTOR = userId('user-actor')
@@ -41,9 +40,8 @@ const event = (
     releasedFrom: DEPARTING,
     releaseReason: 'member_offboarded',
     releases: [
-      { inboxItemId: ITEM_1, propertyId: PROPERTY_A },
-      { inboxItemId: ITEM_2, propertyId: PROPERTY_A },
-      { inboxItemId: ITEM_3, propertyId: PROPERTY_B },
+      { propertyId: PROPERTY_A, anchorInboxItemId: ITEM_1, count: 2 },
+      { propertyId: PROPERTY_B, anchorInboxItemId: ITEM_3, count: 1 },
     ],
     count: 3,
     occurredAt: '2026-09-24T09:00:00.000Z',

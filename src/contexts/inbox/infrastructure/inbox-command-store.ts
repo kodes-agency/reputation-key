@@ -89,6 +89,7 @@ import type {
   ReviewInboxProjectionRevisionPermit,
 } from '../application/ports/review-response-target-authority.port'
 import type {
+  InboxAssignmentRelease,
   InboxAssignmentReleaseReason,
   InboxItemBulkStatusChanged,
   InboxItemCreated,
@@ -1862,6 +1863,9 @@ export const createAtomicInboxCommandStore = (
    * before Inbox items to match Handling Cycle commands; Inbox rows are then
    * locked and updated by item ID. A racing release is an idempotent no-op.
    */
+  /** Accumulator shape for the release groups below. */
+  type Mutable<T> = { -readonly [K in keyof T]: T[K] }
+
   const releaseAssignmentRows = async (
     tx: Tx,
     input: ReleaseInput,
@@ -1915,7 +1919,7 @@ export const createAtomicInboxCommandStore = (
       .for('update')
 
     let released = 0
-    const releases: Array<{ inboxItemId: InboxItemId; propertyId: PropertyId }> = []
+    const releasedByProperty = new Map<string, Mutable<InboxAssignmentRelease>>()
     for (const current of lockedRows) {
       const [row] = await tx
         .update(inboxItems)
@@ -1957,16 +1961,26 @@ export const createAtomicInboxCommandStore = (
         occurredAt: input.at,
       })
       await insertOutboxRow(tx, fact)
-      releases.push({
-        inboxItemId: inboxItemId(row.id),
-        propertyId: propertyId(row.propertyId),
-      })
+      // Grouped here, not in the fact's reader: a departing fleet manager can
+      // hold thousands of assignments, and one entry per item would put an
+      // unbounded array on the bus for a notice that is one per Property.
+      // `lockedRows` is ordered by item id, so the first row of a Property is
+      // its canonical anchor.
+      const group = releasedByProperty.get(row.propertyId)
+      if (group) group.count += 1
+      else {
+        releasedByProperty.set(row.propertyId, {
+          propertyId: propertyId(row.propertyId),
+          anchorInboxItemId: inboxItemId(row.id),
+          count: 1,
+        })
+      }
       released += 1
     }
     // The grouped close fact: the per-item facts above stay history, and this
     // one is what a notification is delivered from, once per Property, to the
     // people who now own the gap. Same transaction as the rows it describes.
-    if (releases.length > 0) {
+    if (releasedByProperty.size > 0) {
       await insertOutboxRow(
         tx,
         inboxAssignmentsReleased({
@@ -1974,7 +1988,7 @@ export const createAtomicInboxCommandStore = (
           userId: input.actorId,
           releasedFrom: input.userId,
           releaseReason: input.releaseReason,
-          releases,
+          releases: [...releasedByProperty.values()],
           occurredAt: input.at,
         }),
       )

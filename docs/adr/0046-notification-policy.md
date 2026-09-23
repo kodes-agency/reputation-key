@@ -274,6 +274,11 @@ grouped Inbox notices open theirs.
 Category `urgent_operational`, and not in `URGENT_TYPES`: the items are where
 they always were and nothing is on a clock.
 
+The fact groups by Property in the producer — an anchor item and a count, not
+one entry per released item. A departing fleet manager's assignments are
+unbounded, and the notice is one per Property either way, so listing every
+item would put an unbounded array on the bus for nothing.
+
 The fact's closed reason is named `releaseReason`, not `reason`: the outbox
 adapter denylists `reason` as content, with one carve-out, and widening that
 denylist for an enum is the wrong trade.

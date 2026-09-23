@@ -350,7 +350,15 @@ const inboxAssignmentsReleasedSchema = z.object({
   userId: z.string().nullable(),
   releasedFrom: z.string(),
   releaseReason: z.enum(['member_offboarded', 'member_became_ineligible']),
-  releases: z.array(z.object({ inboxItemId: z.string(), propertyId: z.string() })).min(1),
+  releases: z
+    .array(
+      z.object({
+        propertyId: z.string(),
+        anchorInboxItemId: z.string(),
+        count: z.number().int().min(1),
+      }),
+    )
+    .min(1),
   count: z.number().int().min(1),
   occurredAt: z.string().optional(),
 })

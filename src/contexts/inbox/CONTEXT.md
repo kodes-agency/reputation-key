@@ -66,7 +66,8 @@ state.
 5. An offboarding or eligibility release clears a member's assignments, records
    one identifier-only `inbox.inbox_item.unassigned` fact per item, and commits
    one grouped `inbox.inbox_items.assignments_released` close fact in the same
-   transaction. Notification follows the one release, not each item, as for
+   transaction. That fact groups by Property — an anchor item, a count — never
+   one entry per item: a departing fleet manager's assignments are unbounded. Notification follows the one release, not each item, as for
    bulk assignment and bulk reopen. Its closed cause is `releaseReason`,
    because the outbox adapter denylists `reason` as content.
 6. Generic status commands never close work. Review closure is provider/source-authoritative; a manager closes an open private-feedback cycle only through `markFeedbackHandled` with exactly one controlled outcome.

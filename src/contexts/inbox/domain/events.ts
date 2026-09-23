@@ -388,9 +388,18 @@ export const inboxBulkAssignmentCompleted = (args: {
   }
 }
 
+/**
+ * One Property's share of a release. The fact groups by Property rather than
+ * listing every item: an offboarded manager's assignments are unbounded — a
+ * busy fleet manager can hold thousands — and the notice is one per Property
+ * anyway. `anchorInboxItemId` is the canonically first released item, which
+ * gives the row a stable resource identity; the row's link opens the
+ * Property's queue, not that item.
+ */
 export type InboxAssignmentRelease = Readonly<{
-  inboxItemId: InboxItemId
   propertyId: PropertyId
+  anchorInboxItemId: InboxItemId
+  count: number
 }>
 
 /**
@@ -422,6 +431,7 @@ export type InboxAssignmentsReleased = Readonly<{
    */
   releaseReason: InboxAssignmentReleaseReason
   releases: ReadonlyArray<InboxAssignmentRelease>
+  /** Items released across every group. */
   count: number
   occurredAt: Date
   correlationId: string | null
@@ -439,12 +449,16 @@ export const inboxAssignmentsReleased = (args: {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(args.releases.length > 0, 'assignment releases required')
   assert(
-    new Set(args.releases.map((release) => release.inboxItemId)).size ===
+    new Set(args.releases.map((release) => release.propertyId)).size ===
       args.releases.length,
-    'assignment releases must be unique',
+    'assignment releases must name each Property once',
+  )
+  assert(
+    args.releases.every((release) => release.count > 0),
+    'an assignment release group must release something',
   )
   const releases = [...args.releases].sort((left, right) =>
-    left.inboxItemId.localeCompare(right.inboxItemId),
+    left.propertyId.localeCompare(right.propertyId),
   )
   return {
     _tag: 'inbox.inbox_items.assignments_released',
@@ -454,7 +468,7 @@ export const inboxAssignmentsReleased = (args: {
     releasedFrom: args.releasedFrom,
     releaseReason: args.releaseReason,
     releases,
-    count: releases.length,
+    count: releases.reduce((total, release) => total + release.count, 0),
     occurredAt: args.occurredAt,
     correlationId: args.correlationId ?? null,
   }

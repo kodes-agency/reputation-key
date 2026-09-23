@@ -127,13 +127,11 @@ type DisconnectedPayload = Readonly<{
 }>
 
 /**
- * The durable disconnect fact. `userId` is the admin who disconnected; it is
- * absent on facts the recovery reconciler could not attribute and on facts
- * recorded before the field existed.
+ * `userId` is the admin who disconnected; it is absent on facts the recovery
+ * reconciler could not attribute and on facts recorded before the field
+ * existed, and absent means nobody is excluded.
  */
-type DurableGoogleAccountDisconnected = IntegrationGoogleAccountDisconnected
-
-function parseDisconnected(event: ConsumerEvent): DurableGoogleAccountDisconnected {
+function parseDisconnected(event: ConsumerEvent): IntegrationGoogleAccountDisconnected {
   const payload = validateEventPayload(
     'integration.google_account.disconnected',
     event.eventVersion,

@@ -40,7 +40,11 @@ export type AssignmentReleaseNotificationConsumerDeps = PropertyPayloadDeps &
     receipts: Pick<OutboxRepository, 'insertReceipt'>
   }>
 
-type Release = Readonly<{ inboxItemId: string; propertyId: string }>
+type Release = Readonly<{
+  propertyId: string
+  anchorInboxItemId: string
+  count: number
+}>
 
 type Payload = Readonly<{
   organizationId: string
@@ -60,25 +64,15 @@ function parse(event: ConsumerEvent): Payload {
   if (!payload || payload.organizationId !== event.organizationId) {
     throw new Error('Inbox assignment-release envelope attribution mismatch')
   }
-  if (payload.count !== payload.releases.length) {
+  const total = payload.releases.reduce((sum, release) => sum + release.count, 0)
+  if (
+    payload.count !== total ||
+    new Set(payload.releases.map((release) => release.propertyId)).size !==
+      payload.releases.length
+  ) {
     throw new Error('Inbox assignment-release completion contract is invalid')
   }
   return payload
-}
-
-/** Canonical order, so the resource identity of each Property's row is stable. */
-const groupByProperty = (
-  releases: ReadonlyArray<Release>,
-): ReadonlyMap<string, ReadonlyArray<string>> => {
-  const byProperty = new Map<string, string[]>()
-  for (const release of [...releases].sort((left, right) =>
-    left.inboxItemId.localeCompare(right.inboxItemId),
-  )) {
-    const group = byProperty.get(release.propertyId) ?? []
-    group.push(release.inboxItemId)
-    byProperty.set(release.propertyId, group)
-  }
-  return byProperty
 }
 
 export async function handleNotificationAssignmentsReleased(
@@ -91,7 +85,8 @@ export async function handleNotificationAssignmentsReleased(
   const actor = payload.userId === null ? null : userId(payload.userId)
 
   await Promise.all(
-    [...groupByProperty(payload.releases).entries()].map(async ([property, itemIds]) => {
+    payload.releases.map(async (release) => {
+      const property = release.propertyId
       const scope = { kind: 'property', propertyId: property } as const
       const recipients = (await resolveResponsibleRecipients(deps, org, scope)).filter(
         // The departing member no longer owns this work, and the person who
@@ -118,9 +113,9 @@ export async function handleNotificationAssignmentsReleased(
               resourceType: 'inbox_item' as const,
               // The row stands for the whole group; its link opens the
               // Property's open queue rather than this one item.
-              resourceId: inboxItemId(itemIds[0]!),
+              resourceId: inboxItemId(release.anchorInboxItemId),
               eventId: event.eventId,
-              payload: { ...where, itemCount: itemIds.length },
+              payload: { ...where, itemCount: release.count },
               audience: { kind: 'responsible_scope' as const, scope },
             },
             { jobId: `${event.eventId}-${unbrand(recipientId)}-${property}` },
