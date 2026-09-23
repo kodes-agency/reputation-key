@@ -44,9 +44,8 @@ const TIMEZONE_SOURCE_HINT: Readonly<Record<NotificationTimezoneSource, string>>
 }
 
 const LOCALE_LABELS: Readonly<Record<NotificationLocale, string>> = {
-  en: 'English (US)',
-  'en-GB': 'English (UK)',
-  bg: 'Bulgarian',
+  en: 'English (US) — 9/23/2026, 3:00 PM',
+  'en-GB': 'English (UK) — 23/09/2026, 15:00',
 }
 
 /** The offered formats, plus a stored legacy one so the select never hides it. */

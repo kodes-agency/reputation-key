@@ -61,34 +61,23 @@ describe('createSerialRunner', () => {
 })
 
 describe('applyPreferencePatch', () => {
-  const saved: PreferenceValues = {
-    enabled: true,
-    cadence: 'daily',
-    urgentBypassEnabled: false,
-    quietHoursStart: '22:00',
-    quietHoursEnd: '07:00',
-  }
+  const saved: PreferenceValues = { enabled: true, cadence: 'daily' }
 
   it('fills a row that was never saved from the category defaults', () => {
     expect(
       applyPreferencePatch('workflow_collaboration', 'email', undefined, {
         cadence: 'immediate',
       }),
-    ).toEqual({
-      enabled: false,
-      cadence: 'immediate',
-      urgentBypassEnabled: false,
-      quietHoursStart: null,
-      quietHoursEnd: null,
-    })
+    ).toEqual({ enabled: false, cadence: 'immediate' })
   })
 
-  it('keeps every value the patch does not name, and lets it clear quiet hours', () => {
+  it('keeps every value the patch does not name', () => {
+    expect(applyPreferencePatch('urgent_operational', 'email', saved, {})).toEqual(saved)
+  })
+
+  it('clamps a cadence the category no longer offers', () => {
     expect(
-      applyPreferencePatch('urgent_operational', 'email', saved, {
-        quietHoursStart: null,
-        quietHoursEnd: null,
-      }),
-    ).toEqual({ ...saved, quietHoursStart: null, quietHoursEnd: null })
+      applyPreferencePatch('recognition', 'email', saved, { cadence: 'immediate' }),
+    ).toEqual({ enabled: true, cadence: 'daily' })
   })
 })

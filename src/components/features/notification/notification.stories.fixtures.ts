@@ -157,6 +157,9 @@ export const notificationUserSettingsFixture = {
   organizationId: organizationId('22222222-2222-4222-8222-222222222222'),
   locale: 'en-GB',
   timezone: 'Europe/London',
+  quietHoursStart: null,
+  quietHoursEnd: null,
+  urgentBypassEnabled: false,
   createdAt: new Date('2026-08-01T00:00:00.000Z'),
   updatedAt: new Date('2026-08-01T00:00:00.000Z'),
 } satisfies NotificationUserSettings

@@ -216,10 +216,28 @@
   ],
   "stateMirrorCandidates": [
     {
-      "id": "src/components/features/guest/public-portal/use-guest-response-controller.ts:useState(response)",
-      "classification": "server_snapshot",
-      "owner": "Guest response journey",
-      "policy": "Seed from the loader response, then replace only with confirmed response-mutation results; route-token remount remains the reset boundary."
+      "id": "src/components/features/beta-feedback/beta-feedback-dialog-body.tsx:useState(panel)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Beta feedback reporting",
+      "policy": "Seeded once from initialPanel \u2014 'reports' only when a report-outcome notification opened the dialog \u2014 and never synchronized afterwards, so the reporter's own tab choice is not overridden. The dialog body mounts per open, which is the reset boundary."
+    },
+    {
+      "id": "src/components/features/beta-feedback/beta-feedback-form.tsx:useState(maskedLayout)",
+      "classification": "local_runtime",
+      "owner": "Beta feedback reporting",
+      "policy": "One capture of the page geometry, taken when the form mounts over the page being described; re-capturing later would picture the form rather than the bug. It is not server state, and Remove clears it outright so a later re-consent cannot resurrect a picture the reporter dropped."
+    },
+    {
+      "id": "src/components/features/beta-feedback/beta-feedback-form.tsx:useState(recordedError)",
+      "classification": "local_runtime",
+      "owner": "Beta feedback reporting",
+      "policy": "One read of the browser-local recorded-error buffer, taken when the form mounts so the offer cannot change while the reporter is typing. It is not server state and is never written back; closing the dialog discards it."
+    },
+    {
+      "id": "src/components/features/beta-feedback/beta-feedback-reports.tsx:useState(seenBeforeOpening)",
+      "classification": "client_persistence",
+      "owner": "Beta feedback reporting",
+      "policy": "Read once from this browser's seen-outcome map when the reports panel opens, so an outcome keeps its New marker for the whole visit. Per-viewer convenience only: nothing server-side reads it, and losing it can only make a marker reappear, never hide an outcome."
     },
     {
       "id": "src/components/features/guest/public-portal/use-guest-response-controller.ts:useState(activeCsrfNonce)",
@@ -228,154 +246,16 @@
       "policy": "Seed from the issued nonce and rotate only from confirmed start-new-response results; route-token remount remains the reset boundary."
     },
     {
+      "id": "src/components/features/guest/public-portal/use-guest-response-controller.ts:useState(response)",
+      "classification": "server_snapshot",
+      "owner": "Guest response journey",
+      "policy": "Seed from the loader response, then replace only with confirmed response-mutation results; route-token remount remains the reset boundary."
+    },
+    {
       "id": "src/components/features/identity/profile-settings-form.tsx:useState(avatarUrl)",
       "classification": "server_snapshot",
       "owner": "Profile avatar editor",
       "policy": "Seed from the user image and update from the finalized upload or removal interaction; the Profile route keys the page by user id and image, so a refreshed session image remounts the local snapshot."
-    },
-    {
-      "id": "src/components/features/notification/notification-announcer.tsx:useState(announcement)",
-      "classification": "local_runtime",
-      "owner": "Notification accessibility announcer",
-      "policy": "The imported EMPTY object is only the initial client live-region value; mutation announcements own subsequent values."
-    },
-    {
-      "id": "src/components/features/organization/organization-settings-page.tsx:useState(logoUrl)",
-      "classification": "server_snapshot",
-      "owner": "Organization logo editor",
-      "policy": "OrganizationLogoEditor is keyed by the persisted logo, seeds its local upload/removal snapshot from that value, and restores it after failed removal; a changed server logo remounts only this editor, not the organization form."
-    },
-    {
-      "id": "src/components/features/portal/portal-analytics/portal-analytics-tab.tsx:useState(timeRange)",
-      "classification": "client_persistence",
-      "owner": "Portal analytics viewing preference",
-      "policy": "Initialize from schema-validated localStorage and persist changes; this preference is intentionally global across portals."
-    },
-    {
-      "id": "src/components/features/portal/portal-settings/portal-locale-configuration.tsx:useState(primary)",
-      "classification": "server_draft",
-      "owner": "Portal guest-language settings",
-      "policy": "Seed the fallback locale from persisted Portal settings and keep edits local until Save; PortalExperienceSettingsCard keys the editor by the effective persisted primary and Bulgarian-enabled values, so a changed server configuration remounts the draft."
-    },
-    {
-      "id": "src/components/features/portal/portal-settings/portal-locale-configuration.tsx:useState(bulgarianEnabled)",
-      "classification": "server_draft",
-      "owner": "Portal guest-language settings",
-      "policy": "Seed the Bulgarian toggle from persisted Portal settings and keep edits local until Save; PortalExperienceSettingsCard keys the editor by the effective persisted primary and Bulgarian-enabled values, so a changed server configuration remounts the draft."
-    },
-    {
-      "id": "src/components/features/portal/portal-settings/portal-publication-history-card.tsx:useState(continuation)",
-      "classification": "synchronized_prop_copy",
-      "owner": "Portal publication-history pagination",
-      "policy": "The local continuation stores client-loaded pages tagged with the server history source key. Rendering ignores pages when that key no longer matches, and the next load rebases onto the current source key, so stale pagination cannot cross a changed history snapshot."
-    },
-    {
-      "id": "src/components/features/responsible-managers/use-responsible-manager-selection.ts:useState(selected)",
-      "classification": "synchronized_prop_copy",
-      "owner": "Responsible-manager selection hook",
-      "policy": "An effect reconciles new normalized server assignments against the prior server selection while preserving independent local edits."
-    },
-    {
-      "id": "src/components/features/settings/merchant-ai-property-authorization.tsx:useState(snapshot)",
-      "classification": "server_snapshot",
-      "owner": "Merchant AI authorization settings",
-      "policy": "Seed from the property's snapshot and replace with confirmed command results; every caller keys MerchantAiPropertyAuthorization by propertyId (and the property AI section also by state version), so changing property or a confirmed command from elsewhere creates a fresh snapshot owner."
-    },
-    {
-      "id": "src/components/features/settings/merchant-ai-property-authorization.tsx:useState(selectedCapabilities)",
-      "classification": "server_draft",
-      "owner": "Merchant AI authorization settings",
-      "policy": "Seed from the current authorization or notice defaults and retain local capability edits until a command result replaces them; the propertyId-keyed remount prevents drafts crossing properties."
-    },
-    {
-      "id": "src/components/features/settings/quiet-hours-editor.tsx:useState(nextStart)",
-      "classification": "server_draft",
-      "owner": "Notification quiet-hours editor",
-      "policy": "Seed from persisted start time and keep input local until Save; NotificationsCategoryRow keys the editor by category and persisted start/end, so a changed server window remounts the draft."
-    },
-    {
-      "id": "src/components/features/settings/quiet-hours-editor.tsx:useState(nextEnd)",
-      "classification": "server_draft",
-      "owner": "Notification quiet-hours editor",
-      "policy": "Seed from persisted end time and keep input local until Save; NotificationsCategoryRow keys the editor by category and persisted start/end, so a changed server window remounts the draft."
-    },
-    {
-      "id": "src/components/features/settings/use-notification-preference-saves.ts:useState(runner)",
-      "classification": "local_runtime",
-      "owner": "Notification preference save ordering",
-      "policy": "The lazy initializer constructs one page-lifetime serial runner that orders each preference row's saves; it holds only in-flight save promises, never a server-owned record, and the preferences query stays the authority."
-    },
-    {
-      "id": "src/components/features/settings/use-notification-preference-saves.ts:useState(requested)",
-      "classification": "local_runtime",
-      "owner": "Notification preference save ordering",
-      "policy": "Starts empty and holds only the values requested for a row while that row's saves are in flight, so the next edit builds on them and the control reflects the click; the entry is removed when the row's last save settles, after the mutation's refetch, leaving the preferences query as the only render source."
-    },
-    {
-      "id": "src/components/features/staff/portal-responsibilities-modal.tsx:useState(primaryPortalId)",
-      "classification": "server_draft",
-      "owner": "Staff portal-responsibility editor",
-      "policy": "Seed from current responsibility and preserve edits for this modal instance; closing the modal unmounts the draft."
-    },
-    {
-      "id": "src/components/inbox/inbox-detail-sheet.tsx:useState(lastItem)",
-      "classification": "synchronized_prop_copy",
-      "owner": "Inbox mobile detail sheet exit animation",
-      "policy": "A one-frame copy of the `item` prop, advanced during render whenever a non-null item differs from the copy, and read only when `item` is null. It is not a server authority and never outlives the prop: dismissal drops `itemId` from the search, so `item` goes null in the same commit `open` goes false, and returning null on `item` alone tore the Radix dialog out of the tree while it was still open \u2014 the closing sheet had nothing left to animate. This holds the last item just long enough for the exit, and a reopen overwrites it before anything renders. A ref cannot do the job (`react-hooks/refs` forbids both the write and the read, and the exit frame is a render that has to see the old item); an effect is too late, because the null render has already committed."
-    },
-    {
-      "id": "src/components/inbox/inbox-case-toolbar.tsx:useState(now)",
-      "classification": "local_runtime",
-      "owner": "Inbox case toolbar reply-due countdown",
-      "policy": "A minute-granularity wall clock: the lazy initializer reads the mounting instant and a 60 s interval advances it only while the target is active and the caller supplied no clock. It holds no server-owned record \u2014 the deadline itself comes from the response-target payload and is only formatted against this value."
-    },
-    {
-      "id": "src/components/inbox/use-retry-countdown.ts:useState(now)",
-      "classification": "local_runtime",
-      "owner": "Reply composer busy-lane retry countdown",
-      "policy": "The lazy Date.now initializer reads the mounting instant and a one-second interval advances it until the retry time the server returned. The consumer is keyed by that retry time, so a new busy answer is a new countdown; the value only formats 'Try again in Ns' and holds no server-owned record."
-    },
-    {
-      "id": "src/components/inbox/reply-editor-views.tsx:useState(text)",
-      "classification": "server_draft",
-      "owner": "Published reply editor",
-      "policy": "Seed from the durable reply and keep edits local until save or cancel unmounts the editor."
-    },
-    {
-      "id": "src/components/inbox/use-inbox-detail.ts:useState(statusObserver)",
-      "classification": "local_runtime",
-      "owner": "Inbox item status transition observer",
-      "policy": "The lazy initializer constructs one component-lifetime transition observer used to reconcile polled and locally confirmed status changes; it contains no server-owned record or durable product state."
-    },
-    {
-      "id": "src/components/inbox/use-inbox-state.ts:useState(latch)",
-      "classification": "server_snapshot",
-      "owner": "Inbox new-item watermark",
-      "policy": "Latch the first successful list page's viewedUpTo value for the active organization and ignore later visit-stamp refetches, so rows that were new when the workspace opened keep their marker for that visit. An organization change clears the rendered value immediately and the reconciliation effect seeds the new organization's first page; the query result remains the server authority for every other list field."
-    },
-    {
-      "id": "src/components/inbox/use-debounced-value.ts:useState(debounced)",
-      "classification": "synchronized_prop_copy",
-      "owner": "Inbox debounce helper",
-      "policy": "An effect intentionally copies the latest input after delayMs; this is a timed client projection, not server authority."
-    },
-    {
-      "id": "src/components/inbox/use-reply-composer.ts:useState(selectedLanguage)",
-      "classification": "server_draft",
-      "owner": "Inbox reply composer",
-      "policy": "Seed from saved/property/review language inputs and preserve the writer's selection throughout the mounted composer."
-    },
-    {
-      "id": "src/components/inbox/use-reply-composer.ts:useState(hasAiDraft)",
-      "classification": "server_draft",
-      "owner": "Inbox reply composer",
-      "policy": "Seed provenance from the saved draft and update it only through composer adoption/edit transitions."
-    },
-    {
-      "id": "src/components/ui/sidebar.tsx:useState(_open)",
-      "classification": "local_runtime",
-      "owner": "Sidebar provider",
-      "policy": "defaultOpen seeds uncontrolled client UI state; controlled openProp remains the render authority when supplied."
     },
     {
       "id": "src/components/features/integration/google-import-manager/google-import-manager.tsx:useState(startError)",
@@ -390,6 +270,30 @@
       "policy": "The lazy initializer constructs one client coordinator per hook lifetime; it owns cache teardown callbacks and is not server state."
     },
     {
+      "id": "src/components/features/notification/notification-announcer.tsx:useState(announcement)",
+      "classification": "local_runtime",
+      "owner": "Notification accessibility announcer",
+      "policy": "The imported EMPTY object is only the initial client live-region value; mutation announcements own subsequent values."
+    },
+    {
+      "id": "src/components/features/organization/organization-settings-page.tsx:useState(logoUrl)",
+      "classification": "server_snapshot",
+      "owner": "Organization logo editor",
+      "policy": "OrganizationLogoEditor is keyed by the persisted logo, seeds its local upload/removal snapshot from that value, and restores it after failed removal; a changed server logo remounts only this editor, not the organization form."
+    },
+    {
+      "id": "src/components/features/people/leave-organization-dialog.tsx:useState(assignments)",
+      "classification": "local_runtime",
+      "owner": "Identity membership lifecycle",
+      "policy": "The transfer choices the departing member is composing, keyed by responsibility. Seeded empty rather than from `outstanding`, which stays the server-owned prop the unassigned list is derived from, so a refreshed worklist can never be overwritten by a stale local copy. Submitted once and then discarded with the dialog."
+    },
+    {
+      "id": "src/components/features/portal/portal-analytics/portal-analytics-tab.tsx:useState(timeRange)",
+      "classification": "client_persistence",
+      "owner": "Portal analytics viewing preference",
+      "policy": "Initialize from schema-validated localStorage and persist changes; this preference is intentionally global across portals."
+    },
+    {
       "id": "src/components/features/portal/portal-form/portal-creation-with-preview.tsx:useState(preview)",
       "classification": "local_runtime",
       "owner": "Portal creation preview",
@@ -402,82 +306,22 @@
       "policy": "The lazy initializer reads guarded localStorage for this portal scope and the setter persists later changes."
     },
     {
-      "id": "src/components/features/property/use-google-performance-lifecycle.ts:useState(clock)",
-      "classification": "local_runtime",
-      "owner": "Google performance retry countdown",
-      "policy": "The lazy Date.now value is a client clock tick used only to render a retry countdown."
-    },
-    {
-      "id": "src/components/features/property/google-performance-report.tsx:useState(now)",
-      "classification": "local_runtime",
-      "owner": "Google performance freshness clock",
-      "policy": "The lazy Date initializer is a client clock tick used only to keep the visible retrieval age current; report data remains owned by the query result."
-    },
-    {
-      "id": "src/components/features/staff/portal-responsibilities-modal.tsx:useState(supportingPortalIds)",
+      "id": "src/components/features/portal/portal-settings/portal-locale-configuration.tsx:useState(bulgarianEnabled)",
       "classification": "server_draft",
-      "owner": "Staff portal-responsibility editor",
-      "policy": "Seed from current supporting responsibilities and preserve edits for this modal instance; closing the modal unmounts the draft."
+      "owner": "Portal guest-language settings",
+      "policy": "Seed the Bulgarian toggle from persisted Portal settings and keep edits local until Save; PortalExperienceSettingsCard keys the editor by the effective persisted primary and Bulgarian-enabled values, so a changed server configuration remounts the draft."
     },
     {
-      "id": "src/components/inbox/use-reply-autosave.ts:useState(state)",
-      "classification": "local_runtime",
-      "owner": "Inbox reply autosave",
-      "policy": "The composite is a client-only coordinator status initialized to idle and advanced by autosave callbacks."
-    },
-    {
-      "id": "src/components/inbox/use-reply-autosave.ts:useState(coordinator)",
-      "classification": "local_runtime",
-      "owner": "Inbox reply autosave",
-      "policy": "The lazy initializer constructs one client autosave coordinator per mounted composer and updates its save callback through an effect."
-    },
-    {
-      "id": "src/components/inbox/use-reply-composer.ts:useState(effectiveReviewLanguage)",
+      "id": "src/components/features/portal/portal-settings/portal-locale-configuration.tsx:useState(primary)",
       "classification": "server_draft",
-      "owner": "Inbox reply composer",
-      "policy": "The lazy initializer derives a starting language from saved review/reply inputs; composer detection and adoption transitions own later values."
+      "owner": "Portal guest-language settings",
+      "policy": "Seed the fallback locale from persisted Portal settings and keep edits local until Save; PortalExperienceSettingsCard keys the editor by the effective persisted primary and Bulgarian-enabled values, so a changed server configuration remounts the draft."
     },
     {
-      "id": "src/components/inbox/use-reply-composer.ts:useState(draft)",
-      "classification": "server_draft",
-      "owner": "Inbox reply composer",
-      "policy": "Seed from the durable reply draft and derived language, then keep writer edits local while autosave persists snapshots."
-    },
-    {
-      "id": "src/components/inbox/use-scoped-inbox-selection.ts:useState(selection)",
+      "id": "src/components/features/portal/portal-settings/portal-publication-history-card.tsx:useState(continuation)",
       "classification": "synchronized_prop_copy",
-      "owner": "Inbox scoped selection",
-      "policy": "The selection stores its originating filter scope; a changed scope renders an empty selection and the setter rebases future ids onto the current scope."
-    },
-    {
-      "id": "src/components/features/people/leave-organization-dialog.tsx:useState(assignments)",
-      "classification": "local_runtime",
-      "owner": "Identity membership lifecycle",
-      "policy": "The transfer choices the departing member is composing, keyed by responsibility. Seeded empty rather than from `outstanding`, which stays the server-owned prop the unassigned list is derived from, so a refreshed worklist can never be overwritten by a stale local copy. Submitted once and then discarded with the dialog."
-    },
-    {
-      "id": "src/components/inbox/use-inbox-composer-controller.ts:useState(replyEdit)",
-      "classification": "local_runtime",
-      "owner": "Inbox detail pane reply edit target",
-      "policy": "Which reply editor the pane has opened ('published', else null) plus the status of the rejected-to-draft reopen round trip. 'published' is now the only target: a 'rejected' one was unreachable, because `useActionMutation` awaits the write-through patch that lands `status: 'draft'` before `mutateAsync` resolves, so the reply has already re-resolved to `compose` by the time the pane could raise it. It holds no reply field: the reply itself stays server-owned in the detail query, and the editors seed their text from that payload, never from here. `itemId` records the selection this target was raised on, so a different item rebases to a closed editor rather than carrying one over. The rendered target is `liveEditTarget(replyView.kind, target)`, which is derived from the server's current reply status on every render, so a republish or a reopen closes the editor without this state being written back."
-    },
-    {
-      "id": "src/components/inbox/use-inbox-composer-controller.ts:useState(caret)",
-      "classification": "local_runtime",
-      "owner": "Inbox detail pane composer caret request",
-      "policy": "A request counter \u2014 `{ itemId, mode, seq }` \u2014 meaning \"put the caret in this composer surface of this item\", raised by the `r` / `n` shortcuts and by the thread's Edit actions. It holds no server-owned record of any kind: `seq` is a monotonic tally of asks, `mode` names a client surface and `itemId` names the selection that asked. A counter rather than a flag because a latched boolean fires its effect only on the rising edge, which would let each shortcut work exactly once per mounted pane; `seq: 0` is the initial \"nobody has asked\". `itemId` is what keeps a change of selection from stealing the caret, and it is load-bearing rather than descriptive: the two consuming effects (`reply-status-view.tsx`, `inbox-notes-thread.tsx`) are keyed by item and fire on MOUNT whenever the counter they are handed is non-zero, so a `seq === 0` early-return alone does not bound them \u2014 the pane outlives the selection change, and without the fence one `r` followed by a `j` down the list handed the caret to the next item's reply box and autosaved the following keystrokes onto a review nobody had opened. The reader (`caretFor`) therefore hands a surface `seq` only while `itemId` matches the current item, and `0` otherwise."
-    },
-    {
-      "id": "src/components/inbox/inbox-detail-content.tsx:useState(noteDraft)",
-      "classification": "local_runtime",
-      "owner": "Inbox detail pane internal-note draft",
-      "policy": "The half-typed internal note, with the id of the item it belongs to. Client-only and never server-seeded: an internal note does not exist server-side until `addInboxNote` files it, so there is no server record this could go stale against, and no server read owns it. It lives above the composer's Reply / Note segment. That was originally because the segment is a Radix tab set whose inactive panel Radix unmounts, which destroyed the words on a glance at the reply box (the PR 3 defect); both panels are force-mounted now (`reply-composer.tsx`), so the mode switch no longer tears the form down and that is no longer the reason. What this still carries is a change of SELECTION, which rebuilds the item-keyed form. `InboxNotesThread` reads it once as `defaultValues` and mirrors every keystroke back through `onDraftChange`; the form owns the live value while mounted. `itemId` fences it to the selection it was typed about, so a change of selection seeds the next form empty rather than filing one item's words against another's revision, and a filed note clears both copies."
-    },
-    {
-      "id": "src/components/features/property-setup/setup-properties-step.tsx:useState(answers)",
-      "classification": "server_draft",
-      "owner": "Import wizard property setup",
-      "policy": "Seeded once from the setup facts the step opened with (country-suggested reply languages, the importing admin as manager); later refreshes never overwrite in-progress answers, and leaving the import route is the reset boundary."
+      "owner": "Portal publication-history pagination",
+      "policy": "The local continuation stores client-loaded pages tagged with the server history source key. Rendering ignores pages when that key no longer matches, and the next load rebases onto the current source key, so stale pagination cannot cross a changed history snapshot."
     },
     {
       "id": "src/components/features/property-setup/setup-properties-step.tsx:useState(aiIdempotencyKey)",
@@ -486,34 +330,196 @@
       "policy": "One idempotency key per setup session for the batch consent command; a retry reuses it so a ceremony that committed replays instead of repeating, and a remount mints a new one."
     },
     {
+      "id": "src/components/features/property-setup/setup-properties-step.tsx:useState(answers)",
+      "classification": "server_draft",
+      "owner": "Import wizard property setup",
+      "policy": "Seeded once from the setup facts the step opened with (country-suggested reply languages, the importing admin as manager); later refreshes never overwrite in-progress answers, and leaving the import route is the reset boundary."
+    },
+    {
       "id": "src/components/features/property-setup/setup-properties-step.tsx:useState(snapshot)",
       "classification": "synchronized_prop_copy",
       "owner": "Import wizard property setup",
       "policy": "Freezes the first ready setup facts for the session and never synchronizes: saving invalidates the property, manager and AI caches, and the refreshed facts would otherwise withdraw the answered questions and results from under the merchant. Leaving the import route is the reset boundary."
     },
     {
-      "id": "src/components/features/beta-feedback/beta-feedback-form.tsx:useState(recordedError)",
+      "id": "src/components/features/property/google-performance-report.tsx:useState(now)",
       "classification": "local_runtime",
-      "owner": "Beta feedback reporting",
-      "policy": "One read of the browser-local recorded-error buffer, taken when the form mounts so the offer cannot change while the reporter is typing. It is not server state and is never written back; closing the dialog discards it."
+      "owner": "Google performance freshness clock",
+      "policy": "The lazy Date initializer is a client clock tick used only to keep the visible retrieval age current; report data remains owned by the query result."
     },
     {
-      "id": "src/components/features/beta-feedback/beta-feedback-form.tsx:useState(maskedLayout)",
+      "id": "src/components/features/property/use-google-performance-lifecycle.ts:useState(clock)",
       "classification": "local_runtime",
-      "owner": "Beta feedback reporting",
-      "policy": "One capture of the page geometry, taken when the form mounts over the page being described; re-capturing later would picture the form rather than the bug. It is not server state, and Remove clears it outright so a later re-consent cannot resurrect a picture the reporter dropped."
+      "owner": "Google performance retry countdown",
+      "policy": "The lazy Date.now value is a client clock tick used only to render a retry countdown."
     },
     {
-      "id": "src/components/features/beta-feedback/beta-feedback-reports.tsx:useState(seenBeforeOpening)",
-      "classification": "client_persistence",
-      "owner": "Beta feedback reporting",
-      "policy": "Read once from this browser's seen-outcome map when the reports panel opens, so an outcome keeps its New marker for the whole visit. Per-viewer convenience only: nothing server-side reads it, and losing it can only make a marker reappear, never hide an outcome."
-    },
-    {
-      "id": "src/components/features/beta-feedback/beta-feedback-dialog-body.tsx:useState(panel)",
+      "id": "src/components/features/responsible-managers/use-responsible-manager-selection.ts:useState(selected)",
       "classification": "synchronized_prop_copy",
-      "owner": "Beta feedback reporting",
-      "policy": "Seeded once from initialPanel \u2014 'reports' only when a report-outcome notification opened the dialog \u2014 and never synchronized afterwards, so the reporter's own tab choice is not overridden. The dialog body mounts per open, which is the reset boundary."
+      "owner": "Responsible-manager selection hook",
+      "policy": "An effect reconciles new normalized server assignments against the prior server selection while preserving independent local edits."
+    },
+    {
+      "id": "src/components/features/settings/merchant-ai-property-authorization.tsx:useState(selectedCapabilities)",
+      "classification": "server_draft",
+      "owner": "Merchant AI authorization settings",
+      "policy": "Seed from the current authorization or notice defaults and retain local capability edits until a command result replaces them; the propertyId-keyed remount prevents drafts crossing properties."
+    },
+    {
+      "id": "src/components/features/settings/merchant-ai-property-authorization.tsx:useState(snapshot)",
+      "classification": "server_snapshot",
+      "owner": "Merchant AI authorization settings",
+      "policy": "Seed from the property's snapshot and replace with confirmed command results; every caller keys MerchantAiPropertyAuthorization by propertyId (and the property AI section also by state version), so changing property or a confirmed command from elsewhere creates a fresh snapshot owner."
+    },
+    {
+      "id": "src/components/features/settings/notification-quiet-hours-card.tsx:useState(overriding)",
+      "classification": "local_runtime",
+      "owner": "Notification quiet hours card",
+      "policy": "Whether the property section shows its own editor. Seeded from whether the property has a stored override and moved only by the reader's own two buttons; the stored override itself is read from the query result on every render, and clearing it goes through the mutation, so this holds no server value."
+    },
+    {
+      "id": "src/components/features/settings/quiet-hours-editor.tsx:useState(nextEnd)",
+      "classification": "server_draft",
+      "owner": "Notification quiet-hours editor",
+      "policy": "Seed from persisted end time and keep input local until Save; NotificationsCategoryRow keys the editor by category and persisted start/end, so a changed server window remounts the draft."
+    },
+    {
+      "id": "src/components/features/settings/quiet-hours-editor.tsx:useState(nextStart)",
+      "classification": "server_draft",
+      "owner": "Notification quiet-hours editor",
+      "policy": "Seed from persisted start time and keep input local until Save; NotificationsCategoryRow keys the editor by category and persisted start/end, so a changed server window remounts the draft."
+    },
+    {
+      "id": "src/components/features/settings/use-notification-preference-saves.ts:useState(requested)",
+      "classification": "local_runtime",
+      "owner": "Notification preference save ordering",
+      "policy": "Starts empty and holds only the values requested for a row while that row's saves are in flight, so the next edit builds on them and the control reflects the click; the entry is removed when the row's last save settles, after the mutation's refetch, leaving the preferences query as the only render source."
+    },
+    {
+      "id": "src/components/features/settings/use-notification-preference-saves.ts:useState(runner)",
+      "classification": "local_runtime",
+      "owner": "Notification preference save ordering",
+      "policy": "The lazy initializer constructs one page-lifetime serial runner that orders each preference row's saves; it holds only in-flight save promises, never a server-owned record, and the preferences query stays the authority."
+    },
+    {
+      "id": "src/components/features/staff/portal-responsibilities-modal.tsx:useState(primaryPortalId)",
+      "classification": "server_draft",
+      "owner": "Staff portal-responsibility editor",
+      "policy": "Seed from current responsibility and preserve edits for this modal instance; closing the modal unmounts the draft."
+    },
+    {
+      "id": "src/components/features/staff/portal-responsibilities-modal.tsx:useState(supportingPortalIds)",
+      "classification": "server_draft",
+      "owner": "Staff portal-responsibility editor",
+      "policy": "Seed from current supporting responsibilities and preserve edits for this modal instance; closing the modal unmounts the draft."
+    },
+    {
+      "id": "src/components/inbox/inbox-case-toolbar.tsx:useState(now)",
+      "classification": "local_runtime",
+      "owner": "Inbox case toolbar reply-due countdown",
+      "policy": "A minute-granularity wall clock: the lazy initializer reads the mounting instant and a 60 s interval advances it only while the target is active and the caller supplied no clock. It holds no server-owned record \u2014 the deadline itself comes from the response-target payload and is only formatted against this value."
+    },
+    {
+      "id": "src/components/inbox/inbox-detail-content.tsx:useState(noteDraft)",
+      "classification": "local_runtime",
+      "owner": "Inbox detail pane internal-note draft",
+      "policy": "The half-typed internal note, with the id of the item it belongs to. Client-only and never server-seeded: an internal note does not exist server-side until `addInboxNote` files it, so there is no server record this could go stale against, and no server read owns it. It lives above the composer's Reply / Note segment. That was originally because the segment is a Radix tab set whose inactive panel Radix unmounts, which destroyed the words on a glance at the reply box (the PR 3 defect); both panels are force-mounted now (`reply-composer.tsx`), so the mode switch no longer tears the form down and that is no longer the reason. What this still carries is a change of SELECTION, which rebuilds the item-keyed form. `InboxNotesThread` reads it once as `defaultValues` and mirrors every keystroke back through `onDraftChange`; the form owns the live value while mounted. `itemId` fences it to the selection it was typed about, so a change of selection seeds the next form empty rather than filing one item's words against another's revision, and a filed note clears both copies."
+    },
+    {
+      "id": "src/components/inbox/inbox-detail-sheet.tsx:useState(lastItem)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Inbox mobile detail sheet exit animation",
+      "policy": "A one-frame copy of the `item` prop, advanced during render whenever a non-null item differs from the copy, and read only when `item` is null. It is not a server authority and never outlives the prop: dismissal drops `itemId` from the search, so `item` goes null in the same commit `open` goes false, and returning null on `item` alone tore the Radix dialog out of the tree while it was still open \u2014 the closing sheet had nothing left to animate. This holds the last item just long enough for the exit, and a reopen overwrites it before anything renders. A ref cannot do the job (`react-hooks/refs` forbids both the write and the read, and the exit frame is a render that has to see the old item); an effect is too late, because the null render has already committed."
+    },
+    {
+      "id": "src/components/inbox/reply-editor-views.tsx:useState(text)",
+      "classification": "server_draft",
+      "owner": "Published reply editor",
+      "policy": "Seed from the durable reply and keep edits local until save or cancel unmounts the editor."
+    },
+    {
+      "id": "src/components/inbox/use-debounced-value.ts:useState(debounced)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Inbox debounce helper",
+      "policy": "An effect intentionally copies the latest input after delayMs; this is a timed client projection, not server authority."
+    },
+    {
+      "id": "src/components/inbox/use-inbox-composer-controller.ts:useState(caret)",
+      "classification": "local_runtime",
+      "owner": "Inbox detail pane composer caret request",
+      "policy": "A request counter \u2014 `{ itemId, mode, seq }` \u2014 meaning \"put the caret in this composer surface of this item\", raised by the `r` / `n` shortcuts and by the thread's Edit actions. It holds no server-owned record of any kind: `seq` is a monotonic tally of asks, `mode` names a client surface and `itemId` names the selection that asked. A counter rather than a flag because a latched boolean fires its effect only on the rising edge, which would let each shortcut work exactly once per mounted pane; `seq: 0` is the initial \"nobody has asked\". `itemId` is what keeps a change of selection from stealing the caret, and it is load-bearing rather than descriptive: the two consuming effects (`reply-status-view.tsx`, `inbox-notes-thread.tsx`) are keyed by item and fire on MOUNT whenever the counter they are handed is non-zero, so a `seq === 0` early-return alone does not bound them \u2014 the pane outlives the selection change, and without the fence one `r` followed by a `j` down the list handed the caret to the next item's reply box and autosaved the following keystrokes onto a review nobody had opened. The reader (`caretFor`) therefore hands a surface `seq` only while `itemId` matches the current item, and `0` otherwise."
+    },
+    {
+      "id": "src/components/inbox/use-inbox-composer-controller.ts:useState(replyEdit)",
+      "classification": "local_runtime",
+      "owner": "Inbox detail pane reply edit target",
+      "policy": "Which reply editor the pane has opened ('published', else null) plus the status of the rejected-to-draft reopen round trip. 'published' is now the only target: a 'rejected' one was unreachable, because `useActionMutation` awaits the write-through patch that lands `status: 'draft'` before `mutateAsync` resolves, so the reply has already re-resolved to `compose` by the time the pane could raise it. It holds no reply field: the reply itself stays server-owned in the detail query, and the editors seed their text from that payload, never from here. `itemId` records the selection this target was raised on, so a different item rebases to a closed editor rather than carrying one over. The rendered target is `liveEditTarget(replyView.kind, target)`, which is derived from the server's current reply status on every render, so a republish or a reopen closes the editor without this state being written back."
+    },
+    {
+      "id": "src/components/inbox/use-inbox-detail.ts:useState(statusObserver)",
+      "classification": "local_runtime",
+      "owner": "Inbox item status transition observer",
+      "policy": "The lazy initializer constructs one component-lifetime transition observer used to reconcile polled and locally confirmed status changes; it contains no server-owned record or durable product state."
+    },
+    {
+      "id": "src/components/inbox/use-inbox-state.ts:useState(latch)",
+      "classification": "server_snapshot",
+      "owner": "Inbox new-item watermark",
+      "policy": "Latch the first successful list page's viewedUpTo value for the active organization and ignore later visit-stamp refetches, so rows that were new when the workspace opened keep their marker for that visit. An organization change clears the rendered value immediately and the reconciliation effect seeds the new organization's first page; the query result remains the server authority for every other list field."
+    },
+    {
+      "id": "src/components/inbox/use-reply-autosave.ts:useState(coordinator)",
+      "classification": "local_runtime",
+      "owner": "Inbox reply autosave",
+      "policy": "The lazy initializer constructs one client autosave coordinator per mounted composer and updates its save callback through an effect."
+    },
+    {
+      "id": "src/components/inbox/use-reply-autosave.ts:useState(state)",
+      "classification": "local_runtime",
+      "owner": "Inbox reply autosave",
+      "policy": "The composite is a client-only coordinator status initialized to idle and advanced by autosave callbacks."
+    },
+    {
+      "id": "src/components/inbox/use-reply-composer.ts:useState(draft)",
+      "classification": "server_draft",
+      "owner": "Inbox reply composer",
+      "policy": "Seed from the durable reply draft and derived language, then keep writer edits local while autosave persists snapshots."
+    },
+    {
+      "id": "src/components/inbox/use-reply-composer.ts:useState(effectiveReviewLanguage)",
+      "classification": "server_draft",
+      "owner": "Inbox reply composer",
+      "policy": "The lazy initializer derives a starting language from saved review/reply inputs; composer detection and adoption transitions own later values."
+    },
+    {
+      "id": "src/components/inbox/use-reply-composer.ts:useState(hasAiDraft)",
+      "classification": "server_draft",
+      "owner": "Inbox reply composer",
+      "policy": "Seed provenance from the saved draft and update it only through composer adoption/edit transitions."
+    },
+    {
+      "id": "src/components/inbox/use-reply-composer.ts:useState(selectedLanguage)",
+      "classification": "server_draft",
+      "owner": "Inbox reply composer",
+      "policy": "Seed from saved/property/review language inputs and preserve the writer's selection throughout the mounted composer."
+    },
+    {
+      "id": "src/components/inbox/use-retry-countdown.ts:useState(now)",
+      "classification": "local_runtime",
+      "owner": "Reply composer busy-lane retry countdown",
+      "policy": "The lazy Date.now initializer reads the mounting instant and a one-second interval advances it until the retry time the server returned. The consumer is keyed by that retry time, so a new busy answer is a new countdown; the value only formats 'Try again in Ns' and holds no server-owned record."
+    },
+    {
+      "id": "src/components/inbox/use-scoped-inbox-selection.ts:useState(selection)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Inbox scoped selection",
+      "policy": "The selection stores its originating filter scope; a changed scope renders an empty selection and the setter rebases future ids onto the current scope."
+    },
+    {
+      "id": "src/components/ui/sidebar.tsx:useState(_open)",
+      "classification": "local_runtime",
+      "owner": "Sidebar provider",
+      "policy": "defaultOpen seeds uncontrolled client UI state; controlled openProp remains the render authority when supplied."
     }
   ],
   "classificationDefinitions": {

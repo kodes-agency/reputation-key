@@ -1,3 +1,4 @@
+import { Button } from '#/components/ui/button'
 import { Field, FieldLabel } from '#/components/ui/field'
 import { Label } from '#/components/ui/label'
 import {
@@ -17,7 +18,6 @@ import {
   type ConfigurableNotificationCategory,
   type NotificationCadence,
 } from '#/contexts/feed/application/public-api'
-import { QuietHoursEditor } from './quiet-hours-editor'
 import type { NotificationPreferencePatch } from './notifications-settings-view'
 import type { PreferenceValues } from './notification-preference-saves'
 
@@ -120,38 +120,16 @@ function CadenceSelect({
   )
 }
 
-function UrgentBypassSwitch({
-  category,
-  categoryLabel,
-  savePreference,
-  checked,
-  disabled,
-}: CategoryControlProps & Readonly<{ checked: boolean; disabled: boolean }>) {
-  return (
-    <Label className="flex items-center gap-2">
-      <Switch
-        id={`${category}-urgent-bypass`}
-        checked={checked}
-        disabled={disabled}
-        aria-label={named(categoryLabel, 'Allow urgent email to bypass quiet hours')}
-        onCheckedChange={(urgentBypassEnabled) =>
-          void savePreference(category, 'email', { urgentBypassEnabled })
-        }
-      />
-      Allow urgent email to bypass quiet hours
-    </Label>
-  )
-}
-
 /**
- * Cadence, quiet hours and the urgent bypass only shape email, so while email
- * is off they cannot take effect. They wait, values kept, until it is on.
+ * Cadence only shapes email, so while email is off it cannot take effect. It
+ * waits, its value kept, until email is on. Quiet hours and the urgent bypass
+ * used to live here too; they are the person's now, in their own card (ADR
+ * 0046, amended 2026-09-23).
  */
 function EmailTiming({
   email,
   disabled,
   emailSwitchedOff,
-  clockLabel,
   ...control
 }: CategoryControlProps &
   Readonly<{
@@ -159,36 +137,54 @@ function EmailTiming({
     disabled: boolean
     /** Off by the reader's choice, not locked or unavailable. */
     emailSwitchedOff: boolean
-    clockLabel: string
   }>) {
-  const { category, categoryLabel, savePreference } = control
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-4 md:col-span-3 md:col-start-1">
       <CadenceSelect {...control} cadence={email?.cadence} disabled={disabled} />
-      <QuietHoursEditor
-        key={`${category}:${email?.quietHoursStart}:${email?.quietHoursEnd}`}
-        start={email?.quietHoursStart ?? null}
-        end={email?.quietHoursEnd ?? null}
-        categoryLabel={categoryLabel}
-        disabled={disabled}
-        onSave={(quietHoursStart, quietHoursEnd) =>
-          void savePreference(category, 'email', { quietHoursStart, quietHoursEnd })
-        }
-      />
-      {category === 'urgent_operational' ? (
-        <UrgentBypassSwitch
-          {...control}
-          checked={email?.urgentBypassEnabled ?? false}
-          disabled={disabled}
-        />
-      ) : null}
       {emailSwitchedOff ? (
         <p className="basis-full text-sm text-muted-foreground">
           Turn on email to choose when it arrives.
         </p>
       ) : null}
-      <p className="basis-full text-sm text-muted-foreground">
-        The daily digest and quiet hours use your timezone, {clockLabel}.
+    </div>
+  )
+}
+
+/**
+ * The same answer for every property the person has, and for every property
+ * they are given next — which used to fall through to the versioned defaults,
+ * so a newly added property mailed urgent notices at 03:00 whatever the person
+ * had chosen everywhere else.
+ */
+function ApplyToAllProperties({
+  category,
+  categoryLabel,
+  inherited,
+  propertyCount,
+  applyToAll,
+}: Readonly<{
+  category: ConfigurableNotificationCategory
+  categoryLabel: string
+  inherited: string
+  propertyCount: number
+  applyToAll: (category: ConfigurableNotificationCategory) => Promise<void>
+}>) {
+  const noteId = `${category}-inherited`
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-3 md:col-span-3 md:col-start-1">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        aria-label={named(categoryLabel, 'Apply to all my properties')}
+        aria-describedby={noteId}
+        disabled={propertyCount < 2}
+        onClick={() => void applyToAll(category)}
+      >
+        Apply to all my properties
+      </Button>
+      <p id={noteId} className="text-sm text-muted-foreground">
+        {inherited}
       </p>
     </div>
   )
@@ -201,8 +197,10 @@ export function NotificationsCategoryRow({
   inApp,
   email,
   emailAllowed,
-  clockLabel,
+  inherited,
+  propertyCount,
   savePreference,
+  applyToAll,
 }: Readonly<{
   category: ConfigurableNotificationCategory
   label: string
@@ -210,9 +208,12 @@ export function NotificationsCategoryRow({
   inApp: PreferenceValues | undefined
   email: PreferenceValues | undefined
   emailAllowed: boolean
-  /** The recipient's delivery clock, e.g. "Sofia (UTC+3)" (ADR 0046 r.3). */
-  clockLabel: string
+  /** What a property with no row of its own gets, in words. */
+  inherited: string
+  /** Applying to all is not an offer when there is only one property. */
+  propertyCount: number
   savePreference: SavePreference
+  applyToAll: (category: ConfigurableNotificationCategory) => Promise<void>
 }>) {
   const control = { category, categoryLabel: label, savePreference }
   const emailControlsDisabled =
@@ -259,7 +260,13 @@ export function NotificationsCategoryRow({
         email={email}
         disabled={emailControlsDisabled || !emailOn}
         emailSwitchedOff={!emailControlsDisabled && !emailOn}
-        clockLabel={clockLabel}
+      />
+      <ApplyToAllProperties
+        category={category}
+        categoryLabel={label}
+        inherited={inherited}
+        propertyCount={propertyCount}
+        applyToAll={applyToAll}
       />
     </fieldset>
   )
