@@ -474,6 +474,46 @@ describe('immediate notification email job', () => {
     expect(sentPayload().headers).toEqual({})
     expect(sentPayload().html).not.toContain('/settings/notifications')
     expect(sentPayload().text).not.toContain('/settings/notifications')
+    // Nothing about an access-removed notice is answerable by mail.
+    expect(sentPayload().replyTo).toBeUndefined()
+  })
+
+  it('makes the final deletion notice answerable by replying to it', async () => {
+    const mandatoryEntry = buildNotificationEmail({
+      id: 'email-1',
+      propertyId: null,
+      category: 'mandatory',
+      cadence: 'immediate',
+      priority: 'urgent',
+    })
+    deps.emailRepo.findById.mockResolvedValue(mandatoryEntry)
+    deps.notifRepo.findById.mockResolvedValue(
+      buildNotification({
+        propertyId: null,
+        type: 'account.organization_purge_pending',
+        category: 'mandatory',
+        priority: 'urgent',
+        resourceType: 'organization',
+        resourceId: ORG,
+      }),
+    )
+
+    await createUrgentEmailJobHandler(
+      deps as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+    )({
+      data: {
+        notificationEmailId: mandatoryEntry.id as string,
+        organizationId: ORG as string,
+        capability: 'notification.send_email',
+        policyVersionAtEnqueue: 'test',
+        initiator: { kind: 'system', id: 'test' },
+      } as unknown as UrgentEmailJobData,
+    })
+
+    // The copy tells the reader to answer this email; the header has to make
+    // that land somewhere a person reads.
+    expect(sentPayload().replyTo).toBe('denev@kodes.agency')
+    expect(sentPayload().text).toContain('denev@kodes.agency')
   })
 
   it('lets a mandatory notice through a closing Organization until it is purged', async () => {

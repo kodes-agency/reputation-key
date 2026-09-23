@@ -52,7 +52,11 @@ import {
 } from '../../domain/organization-email-stop'
 import type { NotificationOrganizationEmailStopPort } from '../../application/ports/notification-organization-email-stop.port'
 import { getDefaultEnabled } from '../../domain/notification-policy'
-import { notificationLink, renderNotification } from '../../domain/notification-templates'
+import {
+  notificationLink,
+  notificationReplyTo,
+  renderNotification,
+} from '../../domain/notification-templates'
 import { renderNotificationEmail, type RenderedEmail } from '../email/render'
 import { emailCorrelationId } from '../delivery-correlation'
 import {
@@ -168,6 +172,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     recipient: string,
     email: RenderedEmail,
     headers: Readonly<Record<string, string>>,
+    replyTo: string | null,
   ): Promise<void> => {
     const emailId = notificationEmailId(ids.emailId)
     const orgId = organizationId(ids.orgId)
@@ -184,6 +189,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
         text: email.text,
         idempotencyKey: entry.idempotencyKey,
         headers,
+        ...(replyTo === null ? {} : { replyTo }),
       })
       if (outcome.kind === 'accepted') {
         await deps.emailRepo.markAccepted(
@@ -409,7 +415,13 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     const oneClickUrl = requiresPreferencesLink(mailClass)
       ? deps.oneClickUnsubscribeUrl({ kind: 'email', id: entry.id as string })
       : ''
-    return { email, headers: unsubscribeHeaders(mailClass, oneClickUrl) } as const
+    return {
+      email,
+      headers: unsubscribeHeaders(mailClass, oneClickUrl),
+      // A notice whose copy asks the reader to answer says where, and the
+      // header has to agree with it.
+      replyTo: notificationReplyTo(notification.type),
+    } as const
   }
 
   return async (job: Pick<Job<UrgentEmailJobData>, 'data'>): Promise<void> => {
@@ -466,12 +478,12 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     const recipient = await recheckRecipient(scope, entry)
     if (recipient === null) return
 
-    const { email, headers } = composeEmail(notification, entry, ids, mandatory)
+    const { email, headers, replyTo } = composeEmail(notification, entry, ids, mandatory)
     // The one-click link names only this row, which retention deletes after
     // 90 days; what it stands for is kept before the mail leaves.
     if (requiresPreferencesLink(mailClassForCategory(entry.category))) {
       await deps.emailRepo.recordEmailUnsubscribeScope(emailId, orgId, deps.clock())
     }
-    await sendAndRecord(ids, entry, recipient, email, headers)
+    await sendAndRecord(ids, entry, recipient, email, headers, replyTo)
   }
 }

@@ -86,6 +86,11 @@ turned back on. Consequences of that choice, pending product confirmation:
   read by the user. The Organization export reports them as stored, and once
   in-app is back on they show in the feed as read history, one row per event.
 
+One notice is answerable by mail: the Purge Pending final warning names the
+monitored support address in its copy and sets it as the message's reply-to.
+The From address is unchanged — it stays the sending identity SPF/DKIM are
+aligned for. Every other notice is answered in the product and sets none.
+
 Mandatory notices coalesce in-app like any other: every account notice keys
 on the Organization, so a second role change while the first is unread bumps
 that row. Mandatory mail is not coalesced. The repeat's email is anchored on
