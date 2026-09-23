@@ -1,61 +1,46 @@
-// The row's metadata strip: where, how bad, how long, how many.
+// The row's metadata strip: the facts beside the copy, never the ones in it.
+//
+// The title already names the Property and the copy says how often a row
+// repeated, so the strip shows only what the sentences deliberately leave
+// out: a locally collected rating, as stars, and how long the item had waited
+// when the notice was raised. That age is fixed, like the row's own time: the
+// item may have been answered since, so it never keeps counting.
 //
 // Every field is optional (ADR 0046 r.8 payloads carry only what was captured),
 // so this renders nothing at all rather than a row of empty separators. No
 // identifier ever appears here — `resourceId` lives in the deep link only.
 
-import { Clock, Layers } from 'lucide-react'
-import { Badge } from '#/components/ui/badge'
+import { Clock } from 'lucide-react'
 import { StarRating } from '#/components/ui/star-rating'
 import {
-  formatWaitingAge,
+  waitingAge,
   type NotificationPayload,
 } from '#/contexts/feed/application/public-api'
 
 type Props = Readonly<{
   payload: NotificationPayload
-  /** ADR 0046 r.2 coalescing count. 1 means "not coalesced" and is not shown. */
+  /**
+   * ADR 0046 r.2 coalescing count. Not shown here: the copy says how often a
+   * row repeated, once, in the words for what repeated.
+   */
   coalescedCount: number
 }>
 
-export function NotificationRowMeta({ payload, coalescedCount }: Props) {
-  const waiting = formatWaitingAge(payload.waitingHours)
-  const hasProperty = payload.propertyName !== undefined
-  const hasRating = payload.guestRating !== undefined
-  const hasRepeats = coalescedCount > 1
+export function NotificationRowMeta({ payload }: Props) {
+  const waiting = waitingAge(payload)
+  const rating = payload.guestRating
 
-  if (!hasProperty && !hasRating && waiting === '' && !hasRepeats) return null
+  if (rating === undefined && waiting === '') return null
 
   return (
     <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-      {hasProperty && (
-        // `min-w-0 shrink` (overriding the badge's own `shrink-0`) lets the chip
-        // give up width inside the wrapping flex row, so a very long property
-        // name truncates at whatever the container allows instead of pushing the
-        // row wider. No magic pixel cap.
-        <Badge
-          variant="outline"
-          className="min-w-0 shrink justify-start font-normal text-muted-foreground"
-        >
-          <span className="truncate">{payload.propertyName}</span>
-        </Badge>
-      )}
-      {hasRating && payload.guestRating !== undefined && (
-        <StarRating
-          value={payload.guestRating}
-          label={`Rated ${payload.guestRating} out of 5 stars`}
-        />
+      {rating !== undefined && (
+        <StarRating value={rating} label={`Rated ${rating} out of 5 stars`} />
       )}
       {waiting !== '' && (
         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
           <Clock aria-hidden="true" className="size-3" />
-          Waiting {waiting}
-        </span>
-      )}
-      {hasRepeats && (
-        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-          <Layers aria-hidden="true" className="size-3" />
-          Updated {coalescedCount} times
+          Waited {waiting}
         </span>
       )}
     </div>

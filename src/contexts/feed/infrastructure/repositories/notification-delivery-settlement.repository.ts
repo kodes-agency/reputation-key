@@ -9,8 +9,10 @@ import type { InsertNotificationInput } from '../../application/use-cases/insert
 import { insertNotification } from '../../application/use-cases/insert-notification'
 import type { NotificationEmailRepositoryPort } from '../../application/ports/notification-email-repository.port'
 import type { NotificationDeliverySettlement } from '../jobs/insert-notification.job'
+import type { NotificationAudience } from '../../application/notification-audience'
 import type { OutboxNotificationDelivery } from '../outbox-notification-delivery'
 import { createNotificationRepository } from './notification.repository'
+import { createNotificationOrganizationEmailStopReader } from './notification-organization-email-stop.repository'
 import { createNotificationEmailRepository } from './notification-email.repository'
 import { createNotificationPreferenceRepository } from './notification-preference.repository'
 
@@ -66,10 +68,16 @@ async function enqueueImmediateAfterCommit(
     })
   } catch (err) {
     // The queue row committed with the notification and remains pending. The
-    // existing digest orphan sweep is the repair authority for this secondary
-    // Redis edge; no tenant/entity identifiers are logged.
+    // digest run's orphan sweep re-enqueues it, Property- and
+    // Organization-scoped alike. `correlationId` is the opaque string the
+    // urgent-email envelope carries, so an operator can find the stranded row;
+    // no tenant/entity identifiers are logged.
     deps.logger.error(
-      { err, cadence: 'immediate' },
+      {
+        err,
+        correlationId: `notification-email:${unbrand(email.id)}`,
+        cadence: 'immediate',
+      },
       'Immediate notification email enqueue failed after delivery settlement',
     )
   }
@@ -90,6 +98,7 @@ export const createNotificationDeliverySettlement = (
     settleAuthorized: async (
       input: InsertNotificationInput,
       delivery: OutboxNotificationDelivery,
+      audience: NotificationAudience,
     ) => {
       const outcome = await deps.db.transaction(
         async (tx): Promise<TransactionOutcome> => {
@@ -129,9 +138,12 @@ export const createNotificationDeliverySettlement = (
             idGen: deps.idGen,
             emailIdGen: deps.emailIdGen,
             logger: deps.logger,
+            // Read inside the transaction, with the rows it decides about.
+            organizationEmailStop:
+              createNotificationOrganizationEmailStopReader(transactionDb),
             // Redis is deliberately outside the database transaction. The
             // captured immediate row is enqueued only after commit below.
-          })(input)
+          })(input, audience)
 
           return { kind: 'applied', immediateEmail: insertedEmail }
         },

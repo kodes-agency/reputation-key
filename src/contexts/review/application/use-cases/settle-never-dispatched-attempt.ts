@@ -97,6 +97,7 @@ export async function settleIfNeverDispatched(
     propertyId: input.propertyId,
     organizationId: reply.organizationId,
     authorId: reply.createdBy,
+    outcome: 'not_sent',
     occurredAt: now,
   })
   const settled = await deps.commandStore.settleNeverDispatchedAttempt(reply, event, now)

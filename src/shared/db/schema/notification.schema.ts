@@ -75,6 +75,25 @@ export const notifications = pgTable(
     index('notifications_user_status_idx').on(t.userId, t.status, t.createdAt),
     // Query: list by org (admin views)
     index('notifications_org_idx').on(t.organizationId, t.createdAt),
+    // Query: the in-app feed head and its keyset pages, newest activity first
+    // with id as the tiebreak. A coalesced row sorts by its newest absorbed
+    // event. Partial on the rows a feed can show; every feed query carries the
+    // predicate, the unread filter included.
+    index('notifications_feed_activity_idx')
+      .on(
+        t.userId,
+        t.organizationId,
+        sql`(COALESCE(${t.coalescedLatestAt}, ${t.createdAt})) DESC`,
+        t.id.desc(),
+      )
+      .where(sql`status <> 'dismissed'`),
+    // Query: does any notification point at this Inbox item — the
+    // missing-notification gauge's anti-join, every health snapshot.
+    index('notifications_inbox_item_resource_idx')
+      .on(t.resourceId)
+      .where(sql`${t.resourceType} = 'inbox_item'`),
+    // Query: the 90-day retention sweep selects expired rows oldest first.
+    index('notifications_created_at_idx').on(t.createdAt),
     foreignKey({
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
@@ -131,6 +150,8 @@ export const notificationEmailQueue = pgTable(
     suppressionReason: varchar('suppression_reason', { length: 255 }),
     notBefore: timestamp('not_before', { withTimezone: true }),
     nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    // The FIRST provider attempt, recorded before the call: the provider's
+    // 24-hour idempotency window opens there, so later attempts never move it.
     attemptedAt: timestamp('attempted_at', { withTimezone: true }),
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),
     deliveredAt: timestamp('delivered_at', { withTimezone: true }),
@@ -138,6 +159,10 @@ export const notificationEmailQueue = pgTable(
     sentAt: timestamp('sent_at', { withTimezone: true }),
     failedAt: timestamp('failed_at', { withTimezone: true }),
     retryCount: integer('retry_count').notNull().default(0),
+    // The identifier-only audience descriptor that admitted the recipient, so
+    // send time can recheck their standing (Feed CONTEXT.md invariant 4).
+    // Null on rows queued before it was stored.
+    recipientAudience: jsonb('recipient_audience'),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
@@ -158,7 +183,12 @@ export const notificationEmailQueue = pgTable(
     uniqueIndex('email_queue_organization_idempotency_unique')
       .on(t.organizationId, t.idempotencyKey)
       .where(sql`${t.propertyId} IS NULL`),
-    uniqueIndex('email_queue_notification_unique').on(t.notificationId),
+    // One email per notification, except mandatory: a mandatory notice is
+    // mailed once per event, and a repeat that ADR 0046 r.2 coalesced in-app
+    // anchors its email on the unread row the first event created.
+    uniqueIndex('email_queue_non_mandatory_notification_unique')
+      .on(t.notificationId)
+      .where(sql`${t.category} <> 'mandatory'`),
     uniqueIndex('email_queue_id_tenant_recipient_unique').on(
       t.id,
       t.organizationId,
@@ -179,6 +209,81 @@ export const notificationEmailQueue = pgTable(
         ${t.category} <> 'mandatory'
         AND ${t.propertyId} IS NOT NULL
       )`,
+    ),
+  ],
+)
+
+// ── One-click unsubscribe scopes ───────────────────────────────────
+
+/**
+ * What a delivered message's one-click unsubscribe link stands for: the
+ * optional (Property, category) scopes it named. The signed token carries only
+ * the queue row or digest batch id, and retention deletes those after 90 days
+ * while the mail stays in an inbox. Kept when the message is sent, so the link
+ * keeps working for a year.
+ */
+export const notificationUnsubscribeScopes = pgTable(
+  'notification_unsubscribe_scopes',
+  {
+    targetKind: varchar('target_kind', { length: 16 }).notNull(),
+    targetId: uuid('target_id').notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    userId: varchar('user_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    category: varchar('category', { length: 40 }).notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.targetKind, t.targetId, t.propertyId, t.category],
+      name: 'notification_unsubscribe_scopes_pk',
+    }),
+    index('notification_unsubscribe_scopes_organization_idx').on(t.organizationId),
+    index('notification_unsubscribe_scopes_retention_idx').on(t.createdAt),
+    foreignKey({
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+      name: 'notification_unsubscribe_scopes_property_tenant_fk',
+    }).onDelete('cascade'),
+    check(
+      'notification_unsubscribe_scopes_target_kind_valid',
+      sql`${t.targetKind} IN ('email', 'digest')`,
+    ),
+    check(
+      'notification_unsubscribe_scopes_optional_only',
+      sql`${t.category} <> 'mandatory'`,
+    ),
+  ],
+)
+
+// ── Durable recipient suppression ──────────────────────────────────
+
+/**
+ * Addresses the provider refused for good: a permanent bounce, a spam
+ * complaint, or its own suppression list. Keyed by an HMAC-SHA-256 of the
+ * normalized address under a server secret, never the address itself, and by
+ * nothing else — a dead address is dead for every Organization and every user
+ * who might carry it. Outside queue retention on purpose: the queue rows that
+ * proved it are deleted after 90 days, and a complainer must not be mailed
+ * again then. An entry leaves only when the provider lifts its own suppression
+ * (`suppression.removed`).
+ */
+export const notificationEmailSuppressions = pgTable(
+  'notification_email_suppressions',
+  {
+    addressHash: varchar('address_hash', { length: 64 }).primaryKey(),
+    reason: varchar('reason', { length: 24 }).notNull(),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    check(
+      'notification_email_suppressions_address_hash_valid',
+      sql`${t.addressHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      'notification_email_suppressions_reason_valid',
+      sql`${t.reason} IN ('bounced', 'complained', 'suppressed')`,
     ),
   ],
 )

@@ -21,7 +21,8 @@
 //   1. CLAIMS the row — markPublicationSending (approved + authorized|sending
 //      → sending, attempts+1). A null claim means the publication was
 //      cancelled (disconnect/policy) or the row is no longer claimable:
-//      the side effect must NOT run.
+//      the side effect must NOT run. The claim itself cancels (policy) a
+//      cycle whose Property is not active at its source epoch.
 //   2. a persisted `sending` state is uncertain, and nothing on this path
 //      permits another provider write:
 //        a. D4: no `reviews.reply` permit for this exact attempt once the
@@ -42,7 +43,10 @@
 //   4. successful write response → persist provider outcome as
 //      pending_observation. It is never publication proof; only a later exact,
 //      current provider read may publish the local Reply.
-//   5. failure → classified:
+//   5. failure → RepKey's authorizer refused before sending because the
+//      Property moved on after the claim (`stale_source`, not_sent) →
+//      cancelPublications (policy), resolve: never a Google rejection.
+//      Every other failure is classified:
 //        terminal_rejection  → markPublicationTerminal, resolve (no retry burn);
 //                              includes a request RepKey refused before
 //                              sending (invalid input, compile refusal)
@@ -73,10 +77,16 @@ import {
   canDeferUncertainSend,
   classifyPublicationFailure,
   nextAmbiguousReconcileDueAt,
+  publicationFailureCause,
   publicationFailureEvidence,
   UNCERTAIN_SEND_RECHECK_DELAY_MS,
+  type PublicationFailureCause,
 } from '../../domain/reply-publication-workflow'
-import { reviewReplyPublishFailed } from '../../domain/events'
+import {
+  reviewReplyPublicationCancelled,
+  reviewReplyPublishFailed,
+  type ReplyPublishFailureOutcome,
+} from '../../domain/events'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
 
@@ -101,13 +111,21 @@ type PublishHandlerDeps = Readonly<{
 }>
 
 /** The publish_failed fact — identifier-only, propertyId from the parent review. */
-function buildPublishFailedEvent(review: Review, reply: Reply, occurredAt: Date) {
+function buildPublishFailedEvent(
+  review: Review,
+  reply: Reply,
+  occurredAt: Date,
+  outcome: ReplyPublishFailureOutcome,
+  cause: PublicationFailureCause | null = null,
+) {
   return reviewReplyPublishFailed({
     replyId: reply.id,
     reviewId: reply.reviewId,
     propertyId: review.propertyId,
     organizationId: reply.organizationId,
     authorId: reply.createdBy,
+    outcome,
+    ...(cause === null ? {} : { cause }),
     occurredAt,
   })
 }
@@ -274,7 +292,7 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
         await deps.replyCommandStore.markPublicationTerminal(
           claimed,
           'terminal_rejection',
-          buildPublishFailedEvent(review, claimed, deps.clock()),
+          buildPublishFailedEvent(review, claimed, deps.clock(), 'refused'),
         )
         return
       }
@@ -318,10 +336,55 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
         }
         logger.info('Google write accepted; awaiting provider observation')
       } catch (err) {
+        if (refusedForPropertySource(err)) {
+          await cancelRefusedPublication(deps, claimed, review)
+          return
+        }
         await handlePublishFailure(deps, job, claimed, review, err)
       }
     })
   }
+}
+
+/**
+ * RepKey's own authorizer refused the write before anything was sent because
+ * the Property is no longer active at the cycle's source epoch: an Archive,
+ * Restore or relink committed after this cycle was claimed. That is policy,
+ * not Google's answer, and must never reach the author as "Google rejected
+ * the reply".
+ */
+function refusedForPropertySource(err: unknown): boolean {
+  const evidence = publicationFailureEvidence(err)
+  return evidence.dispatch === 'not_sent' && evidence.executionCode === 'stale_source'
+}
+
+/** Cancel the claimed cycle as a policy cancellation, exactly as the archive
+ * consumer and a failed claim do: the Reply returns to draft and one
+ * `publication_cancelled` (cause 'policy') fact is recorded. */
+async function cancelRefusedPublication(
+  deps: PublishHandlerDeps,
+  claimed: Reply,
+  review: Review,
+): Promise<void> {
+  const now = deps.clock()
+  const cancelled = await deps.replyCommandStore.cancelPublications([
+    {
+      reply: claimed,
+      event: reviewReplyPublicationCancelled({
+        replyId: claimed.id,
+        reviewId: claimed.reviewId,
+        propertyId: review.propertyId,
+        organizationId: claimed.organizationId,
+        cause: 'policy',
+        occurredAt: now,
+      }),
+      now,
+    },
+  ])
+  deps.logger.warn(
+    { cancelled: cancelled > 0 },
+    'Reply publication refused before sending: its Property is no longer active at the cycle source epoch; cancelled as policy',
+  )
 }
 
 type AttemptStart = Date | null
@@ -351,7 +414,7 @@ async function markUncertainAttemptAmbiguous(
     : undefined
   await deps.replyCommandStore.markPublicationAmbiguous(
     reply,
-    buildPublishFailedEvent(review, reply, now),
+    buildPublishFailedEvent(review, reply, now, 'unconfirmed'),
     now,
     dueAt,
   )
@@ -413,7 +476,7 @@ async function reconcileUncertainAttempt(
     const now = deps.clock()
     const settled = await deps.replyCommandStore.settleNeverDispatchedAttempt(
       reply,
-      buildPublishFailedEvent(review, reply, now),
+      buildPublishFailedEvent(review, reply, now, 'not_sent'),
       now,
     )
     deps.logger.info(
@@ -583,7 +646,13 @@ async function handlePublishFailure(
     await deps.replyCommandStore.markPublicationTerminal(
       claimed,
       'terminal_rejection',
-      buildPublishFailedEvent(review, claimed, deps.clock()),
+      buildPublishFailedEvent(
+        review,
+        claimed,
+        deps.clock(),
+        'refused',
+        publicationFailureCause(err),
+      ),
     )
     return
   }
@@ -597,7 +666,7 @@ async function handlePublishFailure(
       await deps.replyCommandStore.markPublicationTerminal(
         claimed,
         'retryable',
-        buildPublishFailedEvent(review, claimed, deps.clock()),
+        buildPublishFailedEvent(review, claimed, deps.clock(), 'not_sent'),
       )
     } else {
       await deps.replyCommandStore.markPublicationRetryQueued(claimed)
@@ -616,7 +685,7 @@ async function handlePublishFailure(
     )
     await deps.replyCommandStore.markPublicationAmbiguous(
       claimed,
-      buildPublishFailedEvent(review, claimed, deps.clock()),
+      buildPublishFailedEvent(review, claimed, deps.clock(), 'unconfirmed'),
     )
     throw err
   }

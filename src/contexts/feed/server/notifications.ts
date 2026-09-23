@@ -1,6 +1,10 @@
 // Feed notification surface — server functions
 // Per architecture: "Server functions are the HTTP entry points into a context."
 // Resolves tenant context from authenticated session, NOT from client payload.
+//
+// Every `return` inside a `try` is `return await`. The public API is async, so
+// an un-awaited rejection settles after the `try` has exited: the local catch
+// never maps it, and a stale id or a refused mute surfaces as an untagged 500.
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
@@ -14,6 +18,11 @@ import { isNotificationError } from '../domain/notification-errors'
 import { NOTIFICATION_LIST_FILTERS } from '../application/notification-list-filter'
 import { createNotificationPage } from '../application/notification-page'
 import { notificationUserSettingsDto } from '../application/dto/notification-user-settings.dto'
+import {
+  notificationPreferenceCategory,
+  updateNotificationPreferenceDto,
+} from '../application/dto/notification-preference.dto'
+import { markAllNotificationsReadDto } from '../application/dto/notification-mark-all-read.dto'
 import { requiredCapabilityForPreferenceChannel } from '../domain/notification-delivery-policy'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -40,7 +49,7 @@ async function runBulkNotificationMutation<T>(
   await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
   try {
     const { feedPublicApi } = getContainer()
-    return mutation(feedPublicApi, ctx)
+    return await mutation(feedPublicApi, ctx)
   } catch (e) {
     throw catchUntagged(e)
   }
@@ -48,14 +57,25 @@ async function runBulkNotificationMutation<T>(
 
 // ── getNotificationsFn ────────────────────────────────────────────
 
-const getNotificationsDto = z.object({
-  limit: z.coerce.number().min(1).max(100).optional().default(20),
-  offset: z.coerce.number().min(0).optional().default(0),
-  filter: z.enum(NOTIFICATION_LIST_FILTERS).optional().default('all'),
+/**
+ * A page position the server minted as a previous page's `nextCursor`. There
+ * is no offset: an offset shifts under the reader whenever a row arrives or
+ * leaves above it, so "Load more" skipped or repeated rows.
+ */
+const notificationFeedCursor = z.object({
+  at: z.iso.datetime(),
+  id: z.uuid(),
 })
 
-/** Offset-zero feed authority. History continues to use getNotificationsFn. */
-export const getNotificationFeedHeadDto = getNotificationsDto.omit({ offset: true })
+export const getNotificationsDto = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  filter: z.enum(NOTIFICATION_LIST_FILTERS).optional().default('all'),
+  /** Continue strictly after this position; absent reads from the top. */
+  before: notificationFeedCursor.optional(),
+})
+
+/** First-page feed authority. History continues with getNotificationsFn. */
+export const getNotificationFeedHeadDto = getNotificationsDto.omit({ before: true })
 
 export const getNotificationFeedHeadFn = createServerFn({ method: 'GET' })
   .validator(getNotificationFeedHeadDto)
@@ -67,6 +87,7 @@ export const getNotificationFeedHeadFn = createServerFn({ method: 'GET' })
           return {
             page: createNotificationPage([], data.limit),
             unreadCount: 0,
+            filterUnreadCount: 0,
             watermark: 'no-active-organization',
           }
         }
@@ -76,12 +97,10 @@ export const getNotificationFeedHeadFn = createServerFn({ method: 'GET' })
           // One public/repository call owns all three values. Separate list
           // and count reads would reintroduce a race between the bell badge
           // and its visible rows.
-          return feedPublicApi.getFeedHead(
-            ctx.userId,
-            ctx.organizationId,
-            data.limit,
-            data.filter,
-          )
+          return await feedPublicApi.getFeedHead(ctx, {
+            limit: data.limit,
+            filter: data.filter,
+          })
         } catch (e) {
           throw catchUntagged(e)
         }
@@ -101,14 +120,11 @@ export const getNotificationsFn = createServerFn({ method: 'GET' })
         await requireExecutionAllowed({ actor: ctx, action: 'notification.read' })
         try {
           const { feedPublicApi } = getContainer()
-          const rows = await feedPublicApi.getNotifications(
-            ctx.userId,
-            ctx.organizationId,
-            data.limit + 1,
-            data.offset,
-            data.filter,
-          )
-          return createNotificationPage(rows, data.limit)
+          return await feedPublicApi.getNotifications(ctx, {
+            limit: data.limit,
+            filter: data.filter,
+            before: data.before ?? null,
+          })
         } catch (e) {
           throw catchUntagged(e)
         }
@@ -134,7 +150,7 @@ export const markNotificationReadFn = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
         try {
           const { feedPublicApi } = getContainer()
-          return feedPublicApi.markRead(
+          return await feedPublicApi.markRead(
             data.notificationId,
             ctx.organizationId,
             ctx.userId,
@@ -175,7 +191,7 @@ export const markNotificationUnreadFn = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
         try {
           const { feedPublicApi } = getContainer()
-          return feedPublicApi.markUnread(
+          return await feedPublicApi.markUnread(
             data.notificationId,
             ctx.organizationId,
             ctx.userId,
@@ -194,16 +210,22 @@ export const markNotificationUnreadFn = createServerFn({ method: 'POST' })
 
 // ── markAllNotificationsReadFn ────────────────────────────────────
 
-export const markAllNotificationsReadFn = createServerFn({ method: 'POST' }).handler(
-  tracedHandler(
-    async () =>
-      runBulkNotificationMutation((feedPublicApi, ctx) =>
-        feedPublicApi.markAllRead(ctx.userId, ctx.organizationId),
-      ),
-    'POST',
-    'notification.markAllRead',
-  ),
-)
+export const markAllNotificationsReadFn = createServerFn({ method: 'POST' })
+  .validator(markAllNotificationsReadDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        runBulkNotificationMutation((feedPublicApi, ctx) =>
+          feedPublicApi.markAllRead(
+            ctx.userId,
+            ctx.organizationId,
+            data?.filter ?? 'all',
+          ),
+        ),
+      'POST',
+      'notification.markAllRead',
+    ),
+  )
 
 // ── dismissAllNotificationsFn ─────────────────────────────────────
 
@@ -234,7 +256,7 @@ export const dismissNotificationFn = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
         try {
           const { feedPublicApi } = getContainer()
-          return feedPublicApi.dismiss(
+          return await feedPublicApi.dismiss(
             data.notificationId,
             ctx.organizationId,
             ctx.userId,
@@ -262,7 +284,7 @@ export const getNotificationPreferencesFn = createServerFn({ method: 'GET' }).ha
       await requireExecutionAllowed({ actor: ctx, action: 'notification.read' })
       try {
         const { feedPublicApi } = getContainer()
-        return feedPublicApi.getPreferences(ctx.userId, ctx.organizationId)
+        return await feedPublicApi.getPreferences(ctx.userId, ctx.organizationId)
       } catch (e) {
         throw catchUntagged(e)
       }
@@ -273,27 +295,6 @@ export const getNotificationPreferencesFn = createServerFn({ method: 'GET' }).ha
 )
 
 // ── updateNotificationPreferenceFn ────────────────────────────────
-
-const quietTime = z
-  .string()
-  .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
-  .nullable()
-export const notificationPreferenceCategory = z.enum([
-  'urgent_operational',
-  'workflow_collaboration',
-  'recognition',
-])
-const notificationChannel = z.enum(['in_app', 'email'])
-const updateNotificationPreferenceDto = z.object({
-  propertyId: z.uuid(),
-  category: notificationPreferenceCategory,
-  channel: notificationChannel,
-  enabled: z.boolean(),
-  cadence: z.enum(['immediate', 'daily']),
-  urgentBypassEnabled: z.boolean(),
-  quietHoursStart: quietTime,
-  quietHoursEnd: quietTime,
-})
 
 /** @public Consumed by the notification preferences settings route. */
 export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
@@ -312,7 +313,7 @@ export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
         })
         try {
           const { feedPublicApi } = getContainer()
-          return feedPublicApi.updatePreference(
+          return await feedPublicApi.updatePreference(
             ctx.userId,
             ctx.organizationId,
             data.propertyId,
@@ -356,7 +357,7 @@ export const muteNotificationCategoryFn = createServerFn({ method: 'POST' })
         })
         try {
           const { feedPublicApi } = getContainer()
-          return feedPublicApi.mutePreferenceCategory(
+          return await feedPublicApi.mutePreferenceCategory(
             ctx.userId,
             ctx.organizationId,
             data.propertyId,
@@ -382,7 +383,7 @@ export const getNotificationUserSettingsFn = createServerFn({ method: 'GET' }).h
       if (!ctx) return null
       await requireExecutionAllowed({ actor: ctx, action: 'notification.read' })
       try {
-        return getContainer().feedPublicApi.getUserSettings(
+        return await getContainer().feedPublicApi.getUserSettings(
           ctx.userId,
           ctx.organizationId,
         )
@@ -403,11 +404,10 @@ export const updateNotificationUserSettingsFn = createServerFn({ method: 'POST' 
         const ctx = await resolveTenantContext(await headersFromContext())
         await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
         try {
-          return getContainer().feedPublicApi.updateUserSettings(
+          return await getContainer().feedPublicApi.updateUserSettings(
             ctx.userId,
             ctx.organizationId,
-            data.locale,
-            data.timezone,
+            data,
           )
         } catch (error) {
           throw catchUntagged(error)

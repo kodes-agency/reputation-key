@@ -4,6 +4,8 @@ import {
   buildNotification,
   buildNotificationEmail,
   createFakeJobLogger,
+  createResendSenderAnswering,
+  RESEND_NETWORK_FAILURE,
 } from './test-fixtures'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { NotificationDeliveryOutcome } from '../../domain/notification-delivery-policy'
@@ -57,10 +59,12 @@ function fakeDeps() {
     emailRepo: {
       findById: vi.fn(async (): Promise<NotificationEmail | null> => entry),
       markAccepted: vi.fn(async () => {}),
+      markAttemptStarted: vi.fn(async () => {}),
       markDelayed: vi.fn(async () => {}),
       markFailed: vi.fn(async () => {}),
       markSuppressed: vi.fn(async () => {}),
-      isRecipientSuppressed: vi.fn(async () => false),
+      recordEmailUnsubscribeScope: vi.fn(async () => {}),
+      isAddressSuppressed: vi.fn(async (_address: string) => false),
     },
     preferenceRepo: {
       findForDelivery: vi.fn(async () => null),
@@ -74,16 +78,26 @@ function fakeDeps() {
       getEmail: vi.fn(async (): Promise<string | null> => 'manager@example.com'),
     },
     emailSender: { send },
-    resolvePropertyScope: vi.fn(async () => ({
-      organizationId: ORG as string,
-      propertyId: PROPERTY as string,
-      timezone: 'America/New_York',
-    })),
+    resolvePropertyScope: vi.fn(
+      async (): Promise<{
+        organizationId: string
+        propertyId: string
+        timezone: string
+      } | null> => ({
+        organizationId: ORG as string,
+        propertyId: PROPERTY as string,
+        timezone: 'America/New_York',
+      }),
+    ),
     resolveOrganizationScope: vi.fn(async () => ({
       timezone: 'Europe/London',
       propertyNames: new Map([[PROPERTY as string, 'Riverside Hotel']]),
     })),
     authorizeScope: vi.fn(async () => true),
+    organizationEmailStop: vi.fn(
+      async (_organizationId: string): Promise<'none' | 'optional' | 'all'> => 'none',
+    ),
+    isRecipientEligible: vi.fn(async () => true),
     logger: createFakeJobLogger(),
     clock: () => NOW,
     baseUrl: BASE_URL,
@@ -116,6 +130,97 @@ describe('immediate notification email job', () => {
     expect(deps.emailSender.send).not.toHaveBeenCalled()
   })
 
+  it('holds, without reading or settling it, a row for a Property that is not active', async () => {
+    // The digest holds these rows the same way (digest-notification.job.test).
+    deps.resolvePropertyScope.mockResolvedValue(null)
+
+    await run()
+
+    expect(deps.emailRepo.findById).not.toHaveBeenCalled()
+    expect(deps.emailRepo.markSuppressed).not.toHaveBeenCalled()
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  it('stops optional mail once the Organization has asked to close', async () => {
+    // Nothing sets an Organization suspension on a closure request: the send
+    // path reads the lifecycle authority itself.
+    deps.organizationEmailStop.mockResolvedValue('optional')
+
+    await run()
+
+    expect(deps.organizationEmailStop).toHaveBeenCalledWith(ORG)
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      PROPERTY,
+      'organization_closing',
+      NOW,
+    )
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  it('suppresses, and never sends, a row queued weeks before email was admitted', async () => {
+    // The Organization ran in-app only for two months, then was allowlisted:
+    // the backlog must not arrive as a burst of "act now" mail.
+    deps.emailRepo.findById.mockResolvedValue({
+      ...entry,
+      createdAt: new Date(NOW.getTime() - 60 * 24 * 60 * 60_000),
+    })
+
+    await run()
+
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      PROPERTY,
+      'stale',
+      NOW,
+    )
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  it('still sends a day-old row whose quiet-hours deferral has just ended', async () => {
+    deps.emailRepo.findById.mockResolvedValue({
+      ...entry,
+      status: 'delayed',
+      createdAt: new Date(NOW.getTime() - 30 * 60 * 60_000),
+      notBefore: new Date(NOW.getTime() - 5 * 60_000),
+    })
+
+    await run()
+
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+  })
+
+  it('suppresses mail to a recipient removed after the email was queued', async () => {
+    // Deferred by quiet hours at 21:00, removed from the Organization at 22:00:
+    // at 07:00 the Property's name must not reach a former employee.
+    const audience = {
+      kind: 'responsible_scope',
+      scope: { kind: 'property', propertyId: PROPERTY as string },
+    }
+    deps.emailRepo.findById.mockResolvedValue({ ...entry, recipientAudience: audience })
+    deps.isRecipientEligible.mockResolvedValue(false)
+
+    await run()
+
+    expect(deps.isRecipientEligible).toHaveBeenCalledWith({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      userId: entry.userId,
+      audience,
+    })
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      PROPERTY,
+      'recipient_ineligible',
+      NOW,
+    )
+    expect(deps.userLookup.getEmail).not.toHaveBeenCalled()
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
   it('suppresses delivery when the current property preference is disabled', async () => {
     deps.preferenceRepo.findForDelivery.mockResolvedValue({ enabled: false } as never)
     await run()
@@ -124,6 +229,44 @@ describe('immediate notification email job', () => {
       ORG,
       PROPERTY,
       'preference_disabled',
+      NOW,
+    )
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  it('records that an attempt started before it calls the provider', async () => {
+    // The first attempt starts the provider's 24-hour idempotency window; a
+    // worker that dies mid-call must not leave that start unrecorded.
+    await run()
+
+    expect(deps.emailRepo.markAttemptStarted).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      PROPERTY,
+      NOW,
+    )
+    expect(deps.emailRepo.markAttemptStarted.mock.invocationCallOrder[0]!).toBeLessThan(
+      deps.emailSender.send.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('suppresses, and never retries, a row first attempted 23 hours ago', async () => {
+    deps.emailRepo.findById.mockResolvedValue({
+      ...entry,
+      status: 'failed',
+      lastErrorClass: 'transient',
+      retryCount: 2,
+      createdAt: new Date(NOW.getTime() - 23.5 * 60 * 60_000),
+      attemptedAt: new Date(NOW.getTime() - 23 * 60 * 60_000),
+    })
+
+    await run()
+
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      PROPERTY,
+      'stale',
       NOW,
     )
     expect(deps.emailSender.send).not.toHaveBeenCalled()
@@ -156,6 +299,30 @@ describe('immediate notification email job', () => {
       NOW,
     )
     expect(deps.emailRepo.markAccepted).not.toHaveBeenCalled()
+  })
+
+  it('hands a network failure back to the queue instead of dropping the email', async () => {
+    // Real adapter, real classification: the SDK answers a connectivity blip
+    // with statusCode null, and that used to end here as failed/permanent with
+    // no BullMQ retry and no sweep ever picking the row up again.
+    const wired = {
+      ...deps,
+      emailSender: createResendSenderAnswering(RESEND_NETWORK_FAILURE, () => NOW),
+    }
+
+    await expect(
+      createUrgentEmailJobHandler(
+        wired as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+      )(job),
+    ).rejects.toThrow('Transient email provider rejection')
+    expect(deps.emailRepo.markFailed).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      PROPERTY,
+      'transient',
+      new Date('2026-01-15T15:00:30.000Z'),
+      NOW,
+    )
   })
 
   it('persists provider suppression without retrying', async () => {
@@ -204,6 +371,20 @@ describe('immediate notification email job', () => {
 
   // ── ADR 0046 r.7: preferences link + one-click unsubscribe ─────────
 
+  it('keeps what the unsubscribe link stands for before the mail leaves', async () => {
+    // Retention deletes the queue row after 90 days; the link must still work.
+    await run()
+
+    expect(deps.emailRepo.recordEmailUnsubscribeScope).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      NOW,
+    )
+    expect(
+      deps.emailRepo.recordEmailUnsubscribeScope.mock.invocationCallOrder[0],
+    ).toBeLessThan(deps.emailSender.send.mock.invocationCallOrder[0]!)
+  })
+
   it('sets List-Unsubscribe and the one-click directive for optional mail', async () => {
     await run()
 
@@ -218,6 +399,16 @@ describe('immediate notification email job', () => {
 
     expect(sentPayload().html).toContain(`${BASE_URL}/settings/notifications`)
     expect(sentPayload().text).toContain(`${BASE_URL}/settings/notifications`)
+  })
+
+  it('opens the preferences of the Property the email is about', async () => {
+    // Without the Property the settings page opens on the organization's
+    // first Property, and a manager of many has to hunt for the right one.
+    await run()
+
+    const preferencesUrl = `${BASE_URL}/settings/notifications?propertyId=${PROPERTY as string}`
+    expect(sentPayload().html).toContain(preferencesUrl)
+    expect(sentPayload().text).toContain(preferencesUrl)
   })
 
   it('refuses to dispatch optional mail when the base URL cannot form a preferences link', async () => {
@@ -268,6 +459,9 @@ describe('immediate notification email job', () => {
 
     expect(deps.resolvePropertyScope).not.toHaveBeenCalled()
     expect(deps.authorizeScope).not.toHaveBeenCalled()
+    // `organization_access_removed` is addressed to someone no longer a member.
+    expect(deps.isRecipientEligible).not.toHaveBeenCalled()
+    expect(deps.emailRepo.recordEmailUnsubscribeScope).not.toHaveBeenCalled()
     expect(deps.preferenceRepo.findForDelivery).not.toHaveBeenCalled()
     expect(deps.preferenceRepo.getUserSettings).not.toHaveBeenCalled()
     expect(deps.emailRepo.markAccepted).toHaveBeenCalledWith(
@@ -280,6 +474,52 @@ describe('immediate notification email job', () => {
     expect(sentPayload().headers).toEqual({})
     expect(sentPayload().html).not.toContain('/settings/notifications')
     expect(sentPayload().text).not.toContain('/settings/notifications')
+  })
+
+  it('lets a mandatory notice through a closing Organization until it is purged', async () => {
+    const mandatoryEntry = buildNotificationEmail({
+      id: 'email-1',
+      propertyId: null,
+      category: 'mandatory',
+      cadence: 'immediate',
+      priority: 'normal',
+    })
+    deps.emailRepo.findById.mockResolvedValue(mandatoryEntry)
+    deps.notifRepo.findById.mockResolvedValue(
+      buildNotification({
+        propertyId: null,
+        type: 'account.organization_access_removed',
+        category: 'mandatory',
+        priority: 'normal',
+        resourceType: 'organization',
+        resourceId: ORG,
+      }),
+    )
+    const handler = createUrgentEmailJobHandler(
+      deps as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+    )
+    const organizationJob = {
+      data: {
+        ...job.data,
+        propertyId: undefined,
+        notificationEmailId: mandatoryEntry.id as string,
+      } as unknown as UrgentEmailJobData,
+    }
+
+    deps.organizationEmailStop.mockResolvedValue('optional')
+    await handler(organizationJob)
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+
+    deps.organizationEmailStop.mockResolvedValue('all')
+    await handler(organizationJob)
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      mandatoryEntry.id,
+      ORG,
+      null,
+      'organization_closing',
+      NOW,
+    )
   })
 
   // ── ADR 0046 r.3: recipient timezone ──────────────────────────────
@@ -331,11 +571,13 @@ describe('immediate notification email job', () => {
 
   // ── ADR 0046 r.6: bounced recipients ──────────────────────────────
 
-  it('suppresses instead of sending when the provider already reported a bounce', async () => {
-    deps.emailRepo.isRecipientSuppressed.mockResolvedValue(true)
+  it('suppresses instead of sending when the provider already refused the address', async () => {
+    deps.emailRepo.isAddressSuppressed.mockResolvedValue(true)
 
     await run()
 
+    // Keyed by the address mail would go to, not by the user or the org.
+    expect(deps.emailRepo.isAddressSuppressed).toHaveBeenCalledWith('manager@example.com')
     expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
       entry.id,
       ORG,

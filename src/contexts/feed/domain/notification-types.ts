@@ -42,6 +42,7 @@ export const NOTIFICATION_TYPES = [
   'inbox.escalated',
   'inbox.escalation_resolved',
   'inbox.reopened',
+  'inbox.bulk_reopened',
   'inbox.response_target_halfway',
   'inbox.response_target_passed',
   'inbox.assigned',
@@ -68,10 +69,11 @@ export type NotificationPriority = 'urgent' | 'normal'
  * ADR 0046 categories, minus `digest_summary`.
  *
  * A digest is a CADENCE, not a category: the digest job selects on
- * `cadence = 'daily'` and the preferences UI already offers immediate|daily per
- * category, so a `digest_summary` category was a second expression of the same
- * axis — and, defaulting to {in_app:false, email:false}, it silently swallowed
- * every `goal.completed`. Migration 0070 remaps stored rows to `recognition`.
+ * `cadence = 'daily'` and the preferences UI already offers a cadence per
+ * category (daily only for goals), so a `digest_summary` category was a second
+ * expression of the same axis — and, defaulting to {in_app:false, email:false},
+ * it silently swallowed every `goal.completed`. Migration 0070 remaps stored
+ * rows to `recognition`.
  */
 export type NotificationCategory =
   'mandatory' | 'urgent_operational' | 'workflow_collaboration' | 'recognition'
@@ -171,6 +173,12 @@ export type NotificationEmail = Readonly<{
   sentAt: Date | null
   failedAt: Date | null
   retryCount: number
+  /**
+   * The identifier-only audience descriptor that admitted the recipient, kept
+   * so send time can recheck their standing. Opaque here; the application
+   * layer parses it. `null` on rows queued before it was stored.
+   */
+  recipientAudience: unknown
   createdAt: Date
   updatedAt: Date
 }>
@@ -200,6 +208,24 @@ export type NotificationUserSettings = Readonly<{
   timezone: string
   createdAt: Date
   updatedAt: Date
+}>
+
+/**
+ * Where the notification clock's timezone comes from (ADR 0046 r.3): the
+ * user's own choice, else their Organization's representative zone, else UTC.
+ */
+export type NotificationTimezoneSource = 'user' | 'organization' | 'default'
+
+/**
+ * The language and IANA timezone notifications actually use for one
+ * (user, Organization): quiet hours, the 08:00 digest, and every timestamp.
+ * A user who never saved a timezone gets their Organization's, never a silent
+ * UTC.
+ */
+export type EffectiveNotificationSettings = Readonly<{
+  locale: string
+  timezone: string
+  timezoneSource: NotificationTimezoneSource
 }>
 
 // ── Urgent types (Q9 decision) ──────────────────────────────────────

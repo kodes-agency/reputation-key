@@ -20,7 +20,10 @@
 //                                  without a decision, and an unavailable
 //                                  policy is transient, not a revocation
 //   every other deny             → deny_terminal — typed terminal state, no
-//                                  side effect, no retry
+//                                  side effect, no retry. The worker dispatch
+//                                  resolves a GateDeniedResult so the runtime
+//                                  observations record a denial, never a
+//                                  success (gate-denial.ts)
 
 import type { Job } from 'bullmq'
 import {
@@ -42,6 +45,7 @@ import {
 import type { ConsumerEvent } from '#/shared/outbox/envelope'
 import { getLogger } from '#/shared/observability/logger'
 import { GateDenyRetryError, JobTimeoutError, UnknownJobError } from './errors'
+import type { GateDeniedExecutionKind, GateDeniedResult } from './gate-denial'
 import { jobTimeoutMs } from './job-policy'
 import type { JobRegistry } from './registry'
 
@@ -286,6 +290,7 @@ export async function gateJob(
     principal: { kind: 'system', id: principalId },
     // Unknown rows pass the job name through — decide() denies unknown_action.
     action: row?.action ?? jobName,
+    resourceScope: row?.resourceScope,
     organizationId: resolveOrganizationId(payload, row),
     propertyId: await resolvePropertyId(jobName, payload, resolveScope),
     capabilityAtEnqueue: envelopeCapability(payload),
@@ -342,6 +347,7 @@ export async function gateDispatcherConsumer(
   const decision = await getDelayedExecutionPolicy().decide({
     principal: { kind: 'system', id: `consumer:${consumerName}` },
     action: row?.action ?? module,
+    resourceScope: row?.resourceScope,
     organizationId: envelope.organizationId,
     propertyId: envelope.propertyId ?? undefined,
     executionKind: 'consumer',
@@ -392,6 +398,33 @@ async function withJobTimeout<TResult>(
 }
 
 /**
+ * Log a terminal denial and build the result BullMQ keeps for the completed
+ * job. Every schedule row is enumeration-only (tenant-cross or unscoped), so a
+ * denied firing is a catalogue or configuration defect, not a kill switch: the
+ * cadence is dead. A denied on-demand job is routine.
+ */
+function terminalDenial(
+  logger: ReturnType<typeof getLogger>,
+  jobName: string,
+  decision: DelayedDecision,
+  executionKind: GateDeniedExecutionKind,
+): GateDeniedResult {
+  const { reason, policyVersion } = decision
+  if (executionKind === 'schedule') {
+    logger.error(
+      { jobName, reason, policyVersion, executionKind },
+      'delayed execution denied — terminal',
+    )
+  } else {
+    logger.warn(
+      { jobName, reason, policyVersion, executionKind },
+      'delayed execution denied — terminal',
+    )
+  }
+  return { gate: 'denied', reason, executionKind }
+}
+
+/**
  * The dispatch closure shared by the default/background BullMQ workers.
  * Replaces the duplicated inline closures in src/worker/index.ts.
  *
@@ -417,27 +450,21 @@ export function createGatedJobHandler(
       )
       throw new UnknownJobError(job.name, job.id)
     }
-    const schedule = isScheduleFiring(job)
+    const executionKind: GateDeniedExecutionKind = isScheduleFiring(job)
+      ? 'schedule'
+      : 'worker'
     const outcome = await gateJob(
       job.name,
       job.data,
-      schedule ? `schedule:${job.name}` : `worker:${queueLabel}`,
-      schedule ? 'schedule' : 'worker',
+      executionKind === 'schedule' ? `schedule:${job.name}` : `worker:${queueLabel}`,
+      executionKind,
       resolveScope,
     )
     if (outcome.kind === 'allow') {
       return withJobTimeout(job.name, timeoutForJob(job.name), handler(job))
     }
     if (outcome.kind === 'deny_terminal') {
-      logger.warn(
-        {
-          jobName: job.name,
-          reason: outcome.decision.reason,
-          policyVersion: outcome.decision.policyVersion,
-        },
-        'delayed execution denied — terminal',
-      )
-      return
+      return terminalDenial(logger, job.name, outcome.decision, executionKind)
     }
     // deny_retry: an unavailable policy is transient — throw so BullMQ
     // retries with backoff instead of running protected work undecided.

@@ -52,6 +52,10 @@ export type JobRuntimeObservation = Readonly<{
   lastTerminalFailureAt: Date | null
   lastRepairAt: Date | null
   lastStalledAt: Date | null
+  /** Latest terminal gate denial of any execution; counted, never paged. */
+  lastDeniedAt: Date | null
+  /** Latest terminal gate denial of a schedule firing: a dead cadence. */
+  lastScheduleDeniedAt: Date | null
   oldestWaitingAt: Date | null
   deadLetterCount: number
 }>
@@ -60,6 +64,7 @@ export type JobRuntimeReadinessReason =
   | 'observation_missing'
   | 'handler_missing'
   | 'scheduler_missing'
+  | 'schedule_denied'
   | 'dark_handler_registered'
   | 'dark_scheduler_registered'
   | 'quarantined_scheduler_registered'
@@ -196,6 +201,8 @@ function invalidObservation(observation: JobRuntimeObservation, now: Date): bool
     observation.lastTerminalFailureAt,
     observation.lastRepairAt,
     observation.lastStalledAt,
+    observation.lastDeniedAt,
+    observation.lastScheduleDeniedAt,
     observation.oldestWaitingAt,
   ]
   return (
@@ -309,6 +316,12 @@ export function assessJobRuntime(
   if (!observation.handlerRegistered) reasons.push('handler_missing')
   if (isScheduled(contract.schedule) && !observation.schedulerRegistered) {
     reasons.push('scheduler_missing')
+  }
+  // Every schedule is enumeration-only, so the gate denying a firing is a
+  // catalogue or configuration defect, never a kill switch. Until a later run
+  // succeeds, the cadence is dead however recently its firings completed.
+  if (after(observation.lastScheduleDeniedAt, observation.lastSucceededAt)) {
+    reasons.push('schedule_denied')
   }
   appendSuccessObjectiveReasons(contract, observation, runtimeStartedAt, now, reasons)
   appendWorkHealthReasons(contract, observation, now, reasons)

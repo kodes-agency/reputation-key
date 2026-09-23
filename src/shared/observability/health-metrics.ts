@@ -16,11 +16,15 @@
 
 import { DEFAULT_LEASE_DURATION_MS, type OutboxRepository } from '#/shared/outbox'
 import type { Database } from '#/shared/db'
-import { sql } from 'drizzle-orm'
+import { and, eq, sql, type SQL } from 'drizzle-orm'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { reviews, replies } from '#/shared/db/schema/review.schema'
 import { reviewSyncState } from '#/shared/db/schema/review-sync.schema'
-import { notificationEmailQueue } from '#/shared/db/schema/notification.schema'
+import { properties } from '#/shared/db/schema/property.schema'
+import {
+  notificationDigestBatchMembers,
+  notificationEmailQueue,
+} from '#/shared/db/schema/notification.schema'
 import { trace } from '#/shared/observability/trace'
 
 /**
@@ -36,6 +40,7 @@ export type QuarantineMetricsPort = Readonly<{
     types?: import('bullmq').JobType | import('bullmq').JobType[],
     start?: number,
     end?: number,
+    asc?: boolean,
   ) => Promise<ReadonlyArray<{ data: unknown; timestamp?: number }>>
 }>
 
@@ -62,6 +67,13 @@ export type HealthMetricsDeps = Readonly<{
    */
   emailDeliveryEnabled?: boolean
   /**
+   * The current scoped `notification.send_email` decision — the same one
+   * Feed's delivery-lag evidence reads. The touched-row stall gauge counts
+   * only scopes that may send now: a dark scope's held and retrying rows are
+   * never processed. Absent = every scope counts.
+   */
+  isEmailDeliveryAllowed?: IsEmailDeliveryAllowed
+  /**
    * How many recent inbox items have NO notification row (the
    * `notification.missing_for_inbox_item` gauge). The query belongs to the
    * notification context, and `src/shared/**` must never import
@@ -77,6 +89,16 @@ export type HealthMetricsDeps = Readonly<{
    */
   readNotificationDeliveryLag?: () => Promise<NotificationDeliveryLagRead>
 }>
+
+/** The scope a queued notification email would be delivered under. */
+export type EmailDeliveryScope = Readonly<{
+  organizationId: string
+  /** Null only for Organization-scoped mandatory notices. */
+  propertyId: string | null
+}>
+
+/** Whether email may be delivered in a scope right now. */
+export type IsEmailDeliveryAllowed = (scope: EmailDeliveryScope) => boolean
 
 export type NotificationDeliveryLagRead = Readonly<{
   sourceReceiptPending: number
@@ -123,6 +145,41 @@ export type NotificationDeliveryLagMetrics = Readonly<{
 export type QuarantineMetrics = Readonly<{
   count: number
   oldestAgeMs: number | null
+}>
+
+/**
+ * What became of notification email the delivery path already attempted. The
+ * overdue gauges measure mail that has not gone out; without these, mail the
+ * provider refused, bounced or complained about — or accepted and never
+ * resolved — left no signal at all. Counts of provider MESSAGES (a daily
+ * digest is one, whatever it carried), trailing 24h unless noted.
+ */
+export type NotificationEmailOutcomes = Readonly<{
+  /** Messages the provider accepted (the rate denominator). */
+  acceptedCount: number
+  /** Messages the provider refused permanently; nothing retries them. */
+  permanentFailureCount: number
+  /** Transient failures that spent the retry budget: the path gave up. */
+  retryExhaustedCount: number
+  /** Provider bounce events recorded. */
+  bouncedCount: number
+  /** Provider complaint (spam) events recorded. */
+  complainedCount: number
+  /**
+   * Provider events recorded — delivered, bounced, complained, failed after
+   * acceptance, suppressed by the provider, delivery delayed: webhook liveness.
+   */
+  providerOutcomeCount: number
+  /**
+   * Accepted messages (7-day lookback) still without any provider outcome
+   * once the 6h feedback grace has passed — the provider webhook never
+   * reported them.
+   */
+  acceptedUnresolvedCount: number
+  /** Age of the oldest such message (null when none). */
+  oldestAcceptedUnresolvedAgeMs: number | null
+  /** Unresolved messages the non-sending capture transport accepted: never sent. */
+  capturedUnresolvedCount: number
 }>
 
 export type HealthSnapshot = Readonly<{
@@ -177,26 +234,41 @@ export type HealthSnapshot = Readonly<{
      * attemptedStuckCount for the case that is a fault regardless).
      */
     emailDeliveryEnabled: boolean
-    /** `pending` email rows whose due time (next_attempt_at → not_before →
-     *  created_at) has already passed. */
+    /**
+     * Still-sendable email rows — pending, held for quiet hours (`delayed`),
+     * or a transient failure under the retry budget — whose due time
+     * (the later of next_attempt_at and not_before, else created_at) has
+     * already passed.
+     */
     pendingOverdueCount: number
-    /** Age of the oldest overdue pending row (null when none is overdue). */
+    /** Age of the oldest overdue sendable row (null when none is overdue). */
     oldestPendingOverdueAgeMs: number | null
     /**
-     * Overdue pending rows the delivery path ALREADY TOUCHED (attempted_at
-     * set). Unlike the count above this cannot be explained by a dark
-     * capability — the sweep reached the row, tried, and left it pending. It
-     * is the honest break signal for a per-org-allowlisted tenant, whose
-     * grant the global emailDeliveryEnabled flag cannot see.
+     * Overdue sendable rows the delivery path ALREADY TOUCHED: a scheduled
+     * retry (attempted_at set) or a quiet-hours hold (`delayed`). Unlike the
+     * count above this cannot be explained by a dark capability — the path
+     * reached the row and left it unsent. It is the honest break signal for a
+     * per-org-allowlisted tenant, whose grant the global emailDeliveryEnabled
+     * flag cannot see. (Every attempt moves a row out of `pending`, so
+     * counting pending rows alone left this permanently zero.) Counted only
+     * where the path would still send: a scope the `notification.send_email`
+     * decision allows now, on an active Property or Organization-scoped — a
+     * scope that went dark leaves its touched rows unsent by design.
      */
     attemptedStuckCount: number
+    /** Age of the oldest touched overdue row (null when none). */
+    oldestAttemptedStuckAgeMs: number | null
+    /** Terminal and provider outcomes of attempted email. */
+    emailOutcomes: NotificationEmailOutcomes
     /**
-     * Inbox items created inside the reconciliation window (past the grace
-     * edge) with NO notification row for anybody — "a review arrived and
-     * nobody was told". Above zero means either the in-process fan-out
-     * dropped it and the reconcile-missing-notifications sweep has not caught
-     * up, or the sweep itself is not running. Saturates at the sweep's scan
-     * cap; the alert on it fires on "above zero", so the cap costs nothing.
+     * Inbox items created inside the gap window (past the grace edge) with NO
+     * notification row for anybody and a delivery not yet decided — "a
+     * review arrived and nobody was told". An item whose recipients all muted
+     * it is decided, so it never counts. Above zero means delivery is late:
+     * the Feed consumer has not taken the item's fact, or a delivery Redis
+     * accepted has not settled and the reconcile-missing-notifications repair
+     * has not caught up. Saturates at its scan cap; the alert pages on any
+     * count above zero, so the cap costs nothing.
      */
     missingForInboxItemCount: number
     /** Bounded end-to-end delivery evidence for every active beta family. */
@@ -222,9 +294,75 @@ export type HealthSnapshot = Readonly<{
   }>
 }>
 
-export type HealthChecker = Readonly<{
-  check: () => Promise<HealthSnapshot>
+/**
+ * The independent reads the health snapshot is assembled from. Each one can
+ * fail or stall on its own (a slow anti-join, an unreachable Queue Redis), so
+ * a caller that budgets them can degrade exactly the signal that broke.
+ */
+export const HEALTH_SIGNALS = [
+  'outbox',
+  'quarantine',
+  'reviews',
+  'sync',
+  'replyPublication',
+  'notificationEmail',
+  'notificationGap',
+  'notificationDeliveryLag',
+] as const
+
+export type HealthSignal = (typeof HEALTH_SIGNALS)[number]
+
+/** What each health signal read resolves to. */
+export type HealthSignalValues = Readonly<{
+  outbox: HealthSnapshot['outbox']
+  quarantine: HealthSnapshot['quarantine']
+  reviews: HealthSnapshot['reviews']
+  sync: HealthSnapshot['sync']
+  replyPublication: HealthSnapshot['replyPublication']
+  notificationEmail: NotificationEmailMetrics
+  notificationGap: number
+  notificationDeliveryLag: NotificationDeliveryLagMetrics
 }>
+
+export type HealthSignalReads = Readonly<{
+  [K in HealthSignal]: () => Promise<HealthSignalValues[K]>
+}>
+
+export type HealthChecker = Readonly<{
+  /** Every signal, read in order; the first failure rejects the whole read. */
+  check: () => Promise<HealthSnapshot>
+  /**
+   * The same reads one signal at a time, for a caller that budgets each and
+   * degrades only the one that fails (the operations snapshot): one broken
+   * read must not blank every other signal, and every alert that reads it.
+   */
+  signals: HealthSignalReads
+}>
+
+/** One health snapshot from its signal values. */
+export function assembleHealthSnapshot(
+  now: Date,
+  values: HealthSignalValues,
+): HealthSnapshot {
+  return {
+    timestamp: now.toISOString(),
+    outbox: values.outbox,
+    quarantine: values.quarantine,
+    reviews: values.reviews,
+    sync: values.sync,
+    notifications: {
+      ...values.notificationEmail,
+      missingForInboxItemCount: values.notificationGap,
+      deliveryLag: values.notificationDeliveryLag,
+    },
+    replyPublication: values.replyPublication,
+    workers: {
+      defaultQueueName: 'default',
+      backgroundQueueName: 'background',
+      domainEventsQueueName: 'domain-events',
+    },
+  }
+}
 
 /**
  * Bounded scan for the expired-lease signal — an exact count is unnecessary
@@ -233,7 +371,12 @@ export type HealthChecker = Readonly<{
  */
 const EXPIRED_LEASE_SCAN_LIMIT = 1000
 
-/** Bounded scan for quarantine age — the quarantine is operator-drained. */
+/**
+ * Bounded scan for quarantine age — the quarantine is operator-drained. The
+ * scan reads the OLDEST entries: BullMQ LPUSHes the wait list, so its default
+ * page is the newest, and a steady trickle of fresh dead letters would hide
+ * the aged ones the age alerts exist to catch.
+ */
 const QUARANTINE_AGE_SCAN_LIMIT = 100
 
 type OutboxMetrics = HealthSnapshot['outbox']
@@ -315,6 +458,7 @@ async function readQuarantineMetrics(
     ['waiting', 'delayed', 'prioritized'],
     0,
     QUARANTINE_AGE_SCAN_LIMIT - 1,
+    true,
   )
   let oldestAgeMs: number | null = null
   for (const job of jobs) {
@@ -397,30 +541,122 @@ async function readReplyPublicationMetrics(
  * injected reader, not from this file's `notification_email_queue` query, and
  * the caller composes the two.
  */
-type NotificationEmailMetrics = Omit<
+export type NotificationEmailMetrics = Omit<
   HealthSnapshot['notifications'],
   'missingForInboxItemCount' | 'deliveryLag'
 >
 
 /**
- * Notification email queue health: how many queued emails are past their due
- * time, how far past, and how many of those the delivery path already tried.
+ * The delivery path's transient retry budget: a transient failure at this
+ * retry count is never selected again (notification-email.repository's
+ * dueForCadence, the digest batch readiness). Mirrored — shared cannot import
+ * the Feed context.
+ */
+const EMAIL_RETRY_BUDGET = 5
+
+/**
+ * The suppression reason on a row the PROVIDER suppressed
+ * (notification-email.repository). Local suppressions (a disabled preference,
+ * a changed digest) also write `provider_state = 'suppressed'`, so only this
+ * reason marks a provider event. Mirrored — shared cannot import Feed.
+ */
+const PROVIDER_SUPPRESSION_REASON = 'provider_suppressed'
+
+/**
+ * Terminal and provider outcomes of attempted email (NotificationEmailOutcomes).
+ * The 6h grace is how long a healthy provider webhook takes, at most, to report
+ * delivered/bounced/complained for accepted mail; the 7-day lookback bounds the
+ * read to recent mail.
  *
- * Due time is `next_attempt_at` (a scheduled retry) → `not_before` (a cadence
- * hold) → `created_at` (send as soon as the sweep gets to it). The threshold
+ * Each outcome counts provider MESSAGES, not queue rows: a daily digest's
+ * member rows share its one message and its outcome, so one bounced or refused
+ * digest of five items is one bounce or refusal — the alerts' minimum counts
+ * and shares are judged per message. A row outside any digest batch is its own
+ * message (the members LEFT JOIN is on a unique key, so rows never multiply).
+ */
+function emailOutcomeAggregates() {
+  const q = notificationEmailQueue
+  const message = sql`COALESCE(${notificationDigestBatchMembers.batchId}, ${q.id})`
+  const messages = (where: SQL) =>
+    sql<number>`count(DISTINCT ${message}) FILTER (WHERE ${where})::int`
+  const inWindow = (at: SQL) => sql`${at} >= NOW() - INTERVAL '24 hours'`
+  const unresolved = sql`${q.status} = 'accepted'
+    AND ${q.acceptedAt} < NOW() - INTERVAL '6 hours'
+    AND ${q.acceptedAt} >= NOW() - INTERVAL '7 days'`
+  return {
+    accepted_24h: messages(inWindow(sql`${q.acceptedAt}`)),
+    permanent_failures_24h: messages(sql`${q.status} = 'failed'
+      AND ${q.lastErrorClass} = 'permanent' AND ${inWindow(sql`${q.failedAt}`)}`),
+    retry_exhausted_24h: messages(sql`${q.status} IN ('failed', 'suppressed')
+      AND ${q.lastErrorClass} = 'transient' AND ${q.retryCount} >= ${EMAIL_RETRY_BUDGET}
+      AND ${inWindow(sql`${q.failedAt}`)}`),
+    bounced_24h: messages(
+      sql`${q.providerState} = 'bounced' AND ${inWindow(sql`${q.bouncedAt}`)}`,
+    ),
+    complained_24h: messages(
+      sql`${q.providerState} = 'complained' AND ${inWindow(sql`${q.bouncedAt}`)}`,
+    ),
+    // Every provider event the webhook records. Delivered, bounced and
+    // complained stamp their own column; a failure after acceptance stamps
+    // failed_at; the provider's own suppression and a delayed delivery only
+    // move provider_state, at updated_at.
+    provider_outcomes_24h: messages(sql`${inWindow(sql`${q.deliveredAt}`)}
+      OR ${inWindow(sql`${q.bouncedAt}`)}
+      OR (${q.providerState} = 'failed' AND ${inWindow(sql`${q.failedAt}`)})
+      OR (${q.providerState} = 'delivery_delayed' AND ${inWindow(sql`${q.updatedAt}`)})
+      OR (${q.providerState} = 'suppressed'
+        AND ${q.suppressionReason} = ${PROVIDER_SUPPRESSION_REASON}
+        AND ${inWindow(sql`${q.updatedAt}`)})`),
+    accepted_unresolved: messages(unresolved),
+    oldest_accepted_unresolved_age_ms: sql<number | null>`
+      EXTRACT(EPOCH FROM (NOW() - MIN(${q.acceptedAt}) FILTER (WHERE ${unresolved}))) * 1000
+    `,
+    captured_unresolved: messages(
+      sql`${unresolved} AND ${q.providerMessageId} LIKE 'captured-%'`,
+    ),
+  }
+}
+
+type EmailOutcomeRow = Partial<{
+  [K in keyof ReturnType<typeof emailOutcomeAggregates>]: number | null
+}>
+
+function toEmailOutcomes(row: EmailOutcomeRow | undefined): NotificationEmailOutcomes {
+  return {
+    acceptedCount: row?.accepted_24h ?? 0,
+    permanentFailureCount: row?.permanent_failures_24h ?? 0,
+    retryExhaustedCount: row?.retry_exhausted_24h ?? 0,
+    bouncedCount: row?.bounced_24h ?? 0,
+    complainedCount: row?.complained_24h ?? 0,
+    providerOutcomeCount: row?.provider_outcomes_24h ?? 0,
+    acceptedUnresolvedCount: row?.accepted_unresolved ?? 0,
+    oldestAcceptedUnresolvedAgeMs:
+      row?.oldest_accepted_unresolved_age_ms != null
+        ? Math.round(Number(row.oldest_accepted_unresolved_age_ms))
+        : null,
+    capturedUnresolvedCount: row?.captured_unresolved ?? 0,
+  }
+}
+
+/**
+ * Notification email queue health: how many queued emails are past their due
+ * time, how far past, and how many of those the delivery path already tried;
+ * and what became of the mail it did attempt (emailOutcomeAggregates).
+ *
+ * Due time is the LATER of `next_attempt_at` (a scheduled retry) and
+ * `not_before` (a cadence or quiet-hours hold) — the sender needs both gates
+ * open, and a hold leaves an earlier retry's `next_attempt_at` behind — else
+ * `created_at` (send as soon as the sweep gets to it). The threshold
  * lives in the alert definition, not here: this read reports the age, the
  * policy decides what age is too old.
  */
 async function readNotificationEmailMetrics(
   db: Database,
   emailDeliveryEnabled: boolean,
+  isEmailDeliveryAllowed: IsEmailDeliveryAllowed,
 ): Promise<NotificationEmailMetrics> {
-  const dueAt = sql`COALESCE(
-    ${notificationEmailQueue.nextAttemptAt},
-    ${notificationEmailQueue.notBefore},
-    ${notificationEmailQueue.createdAt}
-  )`
-  const overdue = sql`${notificationEmailQueue.status} = 'pending' AND ${dueAt} < NOW()`
+  const q = notificationEmailQueue
+  const { dueAt, overdue } = emailDueClauses()
 
   const result = await db
     .select({
@@ -428,24 +664,110 @@ async function readNotificationEmailMetrics(
       oldest_overdue_age_ms: sql<number | null>`
         EXTRACT(EPOCH FROM (NOW() - MIN(${dueAt}) FILTER (WHERE ${overdue}))) * 1000
       `,
-      attempted: sql<number>`
-        count(*) FILTER (
-          WHERE ${overdue} AND ${notificationEmailQueue.attemptedAt} IS NOT NULL
-        )::int
-      `,
+      ...emailOutcomeAggregates(),
     })
-    .from(notificationEmailQueue)
+    .from(q)
+    .leftJoin(
+      notificationDigestBatchMembers,
+      eq(notificationDigestBatchMembers.notificationEmailId, q.id),
+    )
+  const stuck = await readTouchedEmailStall(db, isEmailDeliveryAllowed)
 
   const row = result[0]
   return {
     emailDeliveryEnabled,
     pendingOverdueCount: row?.overdue ?? 0,
-    oldestPendingOverdueAgeMs:
-      row?.oldest_overdue_age_ms != null
-        ? Math.round(Number(row.oldest_overdue_age_ms))
-        : null,
-    attemptedStuckCount: row?.attempted ?? 0,
+    oldestPendingOverdueAgeMs: roundedAge(row?.oldest_overdue_age_ms),
+    ...stuck,
+    emailOutcomes: toEmailOutcomes(row),
   }
+}
+
+/** The due-time, overdue and touched predicates over `notification_email_queue`. */
+function emailDueClauses() {
+  const q = notificationEmailQueue
+  const dueAt = sql`COALESCE(GREATEST(${q.nextAttemptAt}, ${q.notBefore}), ${q.createdAt})`
+  // The delivery path's own "still sendable" set (dueForCadence, minus its
+  // time gates): a transient failure under the budget is a scheduled retry.
+  const sendable = sql`(
+    ${q.status} IN ('pending', 'delayed')
+    OR (${q.status} = 'failed' AND ${q.lastErrorClass} = 'transient'
+      AND ${q.retryCount} < ${EMAIL_RETRY_BUDGET})
+  )`
+  // Every send path — the digest, the urgent job, the orphan sweep — holds a
+  // row whose Property is no longer active until the Property is restored, and
+  // then retires it as stale or sends it. Held, it is not overdue. Mirrors
+  // Feed's active-Property definition (shared cannot import the context).
+  const onSendableProperty = sql`(${q.propertyId} IS NULL OR EXISTS (
+    SELECT 1 FROM properties p
+     WHERE p.organization_id = ${q.organizationId}
+       AND p.id = ${q.propertyId}
+       AND p.deleted_at IS NULL
+       AND p.lifecycle_state = 'active'
+  ))`
+  const overdue = sql`${sendable} AND ${dueAt} < NOW() AND ${onSendableProperty}`
+  const touched = sql`${overdue} AND (${q.attemptedAt} IS NOT NULL OR ${q.status} = 'delayed')`
+  return { dueAt, overdue, touched }
+}
+
+/**
+ * The touched overdue rows (attemptedStuckCount), judged only where the
+ * delivery path would still send them: a scope whose `notification.send_email`
+ * decision allows it now, on an active Property (the orphan sweep's own set)
+ * or Organization-scoped. Nothing ever processes a held or retrying row in a
+ * scope that went dark — de-allowlisted, suspended, killed, archived — so
+ * there it is not a stall. Read per scope (bounded by the scope count) and
+ * judged in-process: the decision is process policy, not a table.
+ */
+async function readTouchedEmailStall(
+  db: Database,
+  isEmailDeliveryAllowed: IsEmailDeliveryAllowed,
+): Promise<
+  Pick<NotificationEmailMetrics, 'attemptedStuckCount' | 'oldestAttemptedStuckAgeMs'>
+> {
+  const q = notificationEmailQueue
+  const { dueAt, touched } = emailDueClauses()
+  const scopes = await db
+    .select({
+      organizationId: q.organizationId,
+      propertyId: q.propertyId,
+      attempted: sql<number>`count(*)::int`,
+      oldest_attempted_age_ms: sql<number | null>`
+        EXTRACT(EPOCH FROM (NOW() - MIN(${dueAt}))) * 1000
+      `,
+    })
+    .from(q)
+    .leftJoin(
+      properties,
+      and(
+        eq(properties.id, q.propertyId),
+        eq(properties.organizationId, q.organizationId),
+      ),
+    )
+    .where(
+      sql`${touched} AND (${q.propertyId} IS NULL
+        OR (${properties.deletedAt} IS NULL AND ${properties.lifecycleState} = 'active'))`,
+    )
+    .groupBy(q.organizationId, q.propertyId)
+
+  const sendable = scopes.filter((scope) =>
+    isEmailDeliveryAllowed({
+      organizationId: scope.organizationId,
+      propertyId: scope.propertyId,
+    }),
+  )
+  const ages = sendable
+    .map((scope) => roundedAge(scope.oldest_attempted_age_ms))
+    .filter((age): age is number => age !== null)
+  return {
+    attemptedStuckCount: sendable.reduce((sum, scope) => sum + scope.attempted, 0),
+    oldestAttemptedStuckAgeMs: ages.length === 0 ? null : Math.max(...ages),
+  }
+}
+
+/** An aggregate epoch-arithmetic age, rounded (null when the FILTER matched nothing). */
+function roundedAge(value: number | null | undefined): number | null {
+  return value != null ? Math.round(Number(value)) : null
 }
 
 const EMPTY_NOTIFICATION_DELIVERY_LAG: NotificationDeliveryLagRead = {
@@ -630,6 +952,72 @@ async function readSyncStateMetrics(
   }
 }
 
+const EMPTY_OUTBOX_METRICS: OutboxMetrics = {
+  unpublishedCount: 0,
+  oldestUnpublishedAgeMs: null,
+  expiredLeaseCount: 0,
+  claimedCount: 0,
+  oldestClaimedAgeMs: null,
+  stalledLeaseCount: 0,
+}
+
+/** Each signal's read, traced under its own span so a failure names it. */
+function createHealthSignalReads(
+  db: Database,
+  outboxRepo: OutboxRepository | undefined,
+  deps: HealthMetricsDeps | undefined,
+): HealthSignalReads {
+  return {
+    // Outbox metrics (only if outbox repo is available)
+    outbox: () =>
+      trace('health.check.outbox', async () =>
+        outboxRepo
+          ? readOutboxMetrics(
+              db,
+              outboxRepo,
+              deps?.leaseDurationMs ?? DEFAULT_LEASE_DURATION_MS,
+            )
+          : EMPTY_OUTBOX_METRICS,
+      ),
+    quarantine: () =>
+      trace('health.check.quarantine', async () =>
+        deps?.quarantineQueue
+          ? readQuarantineMetrics(deps.quarantineQueue, new Date())
+          : null,
+      ),
+    // Review content lifecycle metrics (columns from migration 0006 / Drizzle)
+    reviews: () => trace('health.check.reviews', () => readReviewContentMetrics(db)),
+    // Sync state metrics (migration 0007 / Drizzle)
+    sync: () =>
+      trace('health.check.sync', () =>
+        readSyncStateMetrics(db, deps?.gbpPushEnabled === true),
+      ),
+    // BQC-7.3: reply publication-state counts + ambiguity age (0015).
+    replyPublication: () =>
+      trace('health.check.replyPublication', () => readReplyPublicationMetrics(db)),
+    // Notification delivery health: is the queued email actually going out?
+    notificationEmail: () =>
+      trace('health.check.notificationEmail', () =>
+        readNotificationEmailMetrics(
+          db,
+          deps?.emailDeliveryEnabled === true,
+          deps?.isEmailDeliveryAllowed ?? (() => true),
+        ),
+      ),
+    // Notification EXISTENCE health: did the in-app notification get written
+    // at all? Injected because the query lives in the notification context
+    // (see readMissingNotificationCount).
+    notificationGap: () =>
+      trace('health.check.notificationGap', async () =>
+        deps?.readMissingNotificationCount ? deps.readMissingNotificationCount() : 0,
+      ),
+    notificationDeliveryLag: () =>
+      trace('health.check.notificationDeliveryLag', () =>
+        readNotificationDeliveryLagMetrics(deps?.readNotificationDeliveryLag, new Date()),
+      ),
+  }
+}
+
 /**
  * Create a health checker that queries operational metrics from the database.
  */
@@ -638,74 +1026,32 @@ export function createHealthChecker(
   outboxRepo?: OutboxRepository,
   deps?: HealthMetricsDeps,
 ): HealthChecker {
+  const signals = createHealthSignalReads(db, outboxRepo, deps)
   return {
+    signals,
     check: async () => {
       return trace('health.check', async () => {
         const now = new Date()
-
-        // Outbox metrics (only if outbox repo is available)
-        const outboxMetrics: OutboxMetrics = outboxRepo
-          ? await readOutboxMetrics(
-              db,
-              outboxRepo,
-              deps?.leaseDurationMs ?? DEFAULT_LEASE_DURATION_MS,
-            )
-          : {
-              unpublishedCount: 0,
-              oldestUnpublishedAgeMs: null,
-              expiredLeaseCount: 0,
-              claimedCount: 0,
-              oldestClaimedAgeMs: null,
-              stalledLeaseCount: 0,
-            }
-
-        const quarantineMetrics = deps?.quarantineQueue
-          ? await readQuarantineMetrics(deps.quarantineQueue, now)
-          : null
-
-        // Review content lifecycle metrics (columns from migration 0006 / Drizzle)
-        const reviewMetrics = await readReviewContentMetrics(db)
-
-        // Sync state metrics (migration 0007 / Drizzle)
-        const syncMetrics = await readSyncStateMetrics(db, deps?.gbpPushEnabled === true)
-
-        // BQC-7.3: reply publication-state counts + ambiguity age (0015).
-        const replyPublication = await readReplyPublicationMetrics(db)
-
-        // Notification delivery health: is the queued email actually going out?
-        const notificationEmail = await readNotificationEmailMetrics(
-          db,
-          deps?.emailDeliveryEnabled === true,
-        )
-        // Notification EXISTENCE health: did the in-app notification get
-        // written at all? Injected because the query lives in the
-        // notification context (see readMissingNotificationCount).
-        const [missingForInboxItemCount, deliveryLag] = await Promise.all([
-          deps?.readMissingNotificationCount
-            ? deps.readMissingNotificationCount()
-            : Promise.resolve(0),
-          readNotificationDeliveryLagMetrics(deps?.readNotificationDeliveryLag, now),
+        const outbox = await signals.outbox()
+        const quarantine = await signals.quarantine()
+        const reviews = await signals.reviews()
+        const sync = await signals.sync()
+        const replyPublication = await signals.replyPublication()
+        const notificationEmail = await signals.notificationEmail()
+        const [notificationGap, notificationDeliveryLag] = await Promise.all([
+          signals.notificationGap(),
+          signals.notificationDeliveryLag(),
         ])
-        const notifications = {
-          ...notificationEmail,
-          missingForInboxItemCount,
-          deliveryLag,
-        }
-
-        return {
-          timestamp: now.toISOString(),
-          outbox: outboxMetrics,
-          quarantine: quarantineMetrics,
-          reviews: reviewMetrics,
-          sync: syncMetrics,
-          notifications,
+        return assembleHealthSnapshot(now, {
+          outbox,
+          quarantine,
+          reviews,
+          sync,
           replyPublication,
-          workers: {
-            defaultQueueName: 'default',
-            backgroundQueueName: 'background',
-            domainEventsQueueName: 'domain-events',
-          },
-        }
+          notificationEmail,
+          notificationGap,
+          notificationDeliveryLag,
+        })
       })
     },
   }

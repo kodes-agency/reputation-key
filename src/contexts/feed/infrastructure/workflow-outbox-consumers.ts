@@ -17,6 +17,7 @@ import {
   userId,
   type OrganizationId,
   type PropertyId,
+  type UserId,
 } from '#/shared/domain/ids'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
@@ -28,6 +29,7 @@ import type {
   InboxNoteAdded,
 } from '#/contexts/inbox/application/public-api'
 import type {
+  ReplyPublishFailureOutcome,
   ReviewReplyApproved,
   ReviewReplyPublished,
   ReviewReplyPublishFailed,
@@ -40,6 +42,7 @@ import { buildInboxItemPayload } from './notification-payload-facts'
 import {
   inboxNotificationAudience,
   resolveInboxResponsibleRecipients,
+  resolveResponsibleRecipients,
 } from '../application/responsible-recipients'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 
@@ -79,15 +82,31 @@ export const WORKFLOW_NOTIFICATION_CONSUMERS = [
 ] as const
 
 type WorkflowEventType = (typeof WORKFLOW_NOTIFICATION_CONSUMERS)[number]['eventType']
+
+/**
+ * The durable rejection fact. The reason stays on the reply (ADR 0030); the
+ * fact says only whether there is one, and a fact recorded before it said so
+ * says neither (`null`).
+ */
+type DurableReplyRejected = Omit<ReviewReplyRejected, 'reason' | 'hasReason'> &
+  Readonly<{ hasReason: boolean | null }>
+
+/**
+ * The durable publish-failure fact. One recorded before it said how the
+ * publication ended says nothing (`null`), and the notice claims no cause.
+ */
+type DurableReplyPublishFailed = Omit<ReviewReplyPublishFailed, 'outcome'> &
+  Readonly<{ outcome: ReplyPublishFailureOutcome | null }>
+
 type WorkflowEvent =
   | InboxItemAssigned
   | InboxItemEscalated
   | InboxNoteAdded
   | ReviewReplySubmitted
   | ReviewReplyApproved
-  | ReviewReplyRejected
+  | DurableReplyRejected
   | ReviewReplyPublished
-  | ReviewReplyPublishFailed
+  | DurableReplyPublishFailed
 
 export type WorkflowNotificationConsumerDeps = Readonly<{
   queue: NotificationJobEnqueuePort
@@ -101,6 +120,15 @@ export type WorkflowNotificationConsumerDeps = Readonly<{
 
 type WorkflowNotificationDeliveryDeps = Omit<WorkflowNotificationConsumerDeps, 'receipts'>
 
+/**
+ * Nobody is told about their own action: they already know what they did.
+ * A system actor (`null`) excludes nobody.
+ */
+const excludingActor = (
+  recipients: readonly UserId[],
+  actorId: UserId | null,
+): readonly UserId[] => recipients.filter((recipientId) => recipientId !== actorId)
+
 async function enqueueAssignmentNotification(
   deps: WorkflowNotificationDeliveryDeps,
   event: InboxItemAssigned,
@@ -108,6 +136,8 @@ async function enqueueAssignmentNotification(
   // The atomic bulk-completion fact owns grouped delivery. Per-item facts
   // remain activity/audit facts but must not also produce N notifications.
   if (event.bulkId) return
+  // "Assign to me" is a claim: the only recipient is the person who clicked.
+  if (event.assignedTo === event.userId) return
 
   const payload = await buildInboxItemPayload(deps, {
     inboxItemId: event.inboxItemId,
@@ -138,21 +168,23 @@ async function enqueueEscalationNotifications(
   deps: WorkflowNotificationDeliveryDeps,
   event: InboxItemEscalated,
 ): Promise<void> {
-  const recipients = await deps.userLookup.findByRole(
-    event.organizationId,
-    'AccountAdmin',
-  )
-  if (recipients.length === 0) {
+  const admins = await deps.userLookup.findByRole(event.organizationId, 'AccountAdmin')
+  if (admins.length === 0) {
     deps.logger.warn(
       { correlationId: event.correlationId ?? undefined },
       'notification escalation delivery: no recipients found, skipping',
     )
     return
   }
+  const recipients = excludingActor(admins, event.userId)
+  if (recipients.length === 0) return
 
+  // Escalating is a person's judgement call; the notice names their role.
   const payload = await buildInboxItemPayload(deps, {
     inboxItemId: event.inboxItemId,
     orgId: event.organizationId,
+    actorId: event.userId,
+    measureWait: true,
   })
   await Promise.all(
     recipients.map((recipientId) =>
@@ -200,7 +232,7 @@ async function enqueueNoteNotifications(
     : facts
       ? inboxNotificationAudience(facts)
       : ({ kind: 'account_admin' } as const)
-  const filtered = recipients.filter((recipientId) => recipientId !== event.userId)
+  const filtered = excludingActor(recipients, event.userId)
   if (filtered.length === 0) {
     deps.logger.warn(
       { correlationId: event.correlationId ?? undefined },
@@ -238,17 +270,17 @@ async function enqueueSubmittedNotifications(
   deps: WorkflowNotificationDeliveryDeps,
   event: ReviewReplySubmitted,
 ): Promise<void> {
-  const recipients = await deps.userLookup.findByRole(
-    event.organizationId,
-    'AccountAdmin',
-  )
-  if (recipients.length === 0) {
+  const admins = await deps.userLookup.findByRole(event.organizationId, 'AccountAdmin')
+  if (admins.length === 0) {
     deps.logger.warn(
       { correlationId: event.correlationId ?? undefined },
       'notification reply-submitted delivery: no recipients found, skipping',
     )
     return
   }
+  // An AccountAdmin who submits still has to approve, but needs no prompt.
+  const recipients = excludingActor(admins, event.userId)
+  if (recipients.length === 0) return
 
   const inboxItem = await deps.inboxItemLookup.findInboxItemByReviewId(
     event.reviewId,
@@ -260,6 +292,7 @@ async function enqueueSubmittedNotifications(
     inboxItemId: inboxItem,
     orgId: event.organizationId,
     actorId: event.userId,
+    measureWait: true,
   })
   const jobs: InsertNotificationJobData[] = recipients.map((recipientId) => ({
     userId: recipientId,
@@ -283,9 +316,15 @@ async function enqueueSubmittedNotifications(
 
 type ReplyAuthorEvent =
   | ReviewReplyApproved
-  | ReviewReplyRejected
+  | DurableReplyRejected
   | ReviewReplyPublished
-  | ReviewReplyPublishFailed
+  | DurableReplyPublishFailed
+
+/** Who approved or rejected. Publication outcomes come from Google, not a person. */
+const replyDecider = (event: ReplyAuthorEvent): UserId | null =>
+  event._tag === 'review.reply.approved' || event._tag === 'review.reply.rejected'
+    ? event.userId
+    : null
 
 async function enqueueReplyAuthorNotification(
   deps: WorkflowNotificationDeliveryDeps,
@@ -293,6 +332,8 @@ async function enqueueReplyAuthorNotification(
   type: InsertNotificationJobData['type'],
 ): Promise<void> {
   if (!event.authorId) return
+  // Deciding on your own reply is not news to you; Google's verdict still is.
+  if (replyDecider(event) === event.authorId) return
 
   const inboxItem = await deps.inboxItemLookup.findInboxItemByReviewId(
     event.reviewId,
@@ -303,7 +344,10 @@ async function enqueueReplyAuthorNotification(
   const payload = await buildInboxItemPayload(deps, {
     inboxItemId: inboxItem,
     orgId: event.organizationId,
-    moderationReason: event._tag === 'review.reply.rejected' ? event.reason : null,
+    hasModerationReason: event._tag === 'review.reply.rejected' ? event.hasReason : null,
+    publishOutcome: event._tag === 'review.reply.publish_failed' ? event.outcome : null,
+    publishFailureCause:
+      event._tag === 'review.reply.publish_failed' ? (event.cause ?? null) : null,
   })
   await deps.queue.add(
     INSERT_NOTIFICATION_JOB_NAME,
@@ -319,6 +363,62 @@ async function enqueueReplyAuthorNotification(
       audience: { kind: 'property_operator' },
     },
     { jobId: `${event.eventId}-${event.authorId}` },
+  )
+}
+
+/**
+ * A reply that failed to publish still needs someone to retry it. The author
+ * gets the notice while they can still act on the Property. Otherwise — they
+ * left, lost access, or are unknown — the Property's responsible managers own
+ * this Google work and get it (AccountAdmins when none is eligible). Delivery
+ * rechecks whichever audience was chosen.
+ */
+async function enqueuePublishFailedNotification(
+  deps: WorkflowNotificationDeliveryDeps,
+  event: DurableReplyPublishFailed,
+): Promise<void> {
+  const authorCanRetry =
+    event.authorId !== null &&
+    (await deps.responsibleManagers.isEligibleForProperty(
+      event.organizationId,
+      event.propertyId,
+      event.authorId,
+    ))
+  if (authorCanRetry) {
+    await enqueueReplyAuthorNotification(deps, event, 'reply.publish_failed')
+    return
+  }
+
+  const inboxItem = await deps.inboxItemLookup.findInboxItemByReviewId(
+    event.reviewId,
+    event.organizationId,
+  )
+  if (!inboxItem) return
+  const scope = { kind: 'property', propertyId: event.propertyId } as const
+  const recipients = await resolveResponsibleRecipients(deps, event.organizationId, scope)
+  const payload = await buildInboxItemPayload(deps, {
+    inboxItemId: inboxItem,
+    orgId: event.organizationId,
+    publishOutcome: event.outcome,
+  })
+  await Promise.all(
+    recipients.map((recipientId) =>
+      deps.queue.add(
+        INSERT_NOTIFICATION_JOB_NAME,
+        {
+          userId: recipientId,
+          organizationId: event.organizationId,
+          propertyId: event.propertyId,
+          type: 'reply.publish_failed',
+          resourceType: 'inbox_item',
+          resourceId: inboxItem,
+          eventId: event.eventId,
+          payload,
+          audience: { kind: 'responsible_scope', scope },
+        },
+        { jobId: `${event.eventId}-${recipientId}` },
+      ),
+    ),
   )
 }
 
@@ -409,7 +509,7 @@ const parseReplyDecision = (
   payload: Readonly<Record<string, unknown>>,
   common: WorkflowEventCommon,
   property: PropertyId,
-): ReviewReplyApproved | ReviewReplyRejected | ReviewReplyPublished => {
+): ReviewReplyApproved | DurableReplyRejected | ReviewReplyPublished => {
   const actor = nullableString(payload, 'userId')
   const author = nullableString(payload, 'authorId')
   const base = {
@@ -436,7 +536,7 @@ const parseReplyDecision = (
     ...base,
     _tag: 'review.reply.rejected',
     userId: base.userId,
-    reason: null,
+    hasReason: typeof payload.hasReason === 'boolean' ? payload.hasReason : null,
   }
 }
 
@@ -517,6 +617,15 @@ function parseWorkflowEvent(event: ConsumerEvent): WorkflowEvent {
         reviewId: reviewId(requiredString(parsed, 'reviewId')),
         propertyId: resolvedProperty,
         authorId: author === null ? null : userId(author),
+        // The schema admits only the closed vocabularies, so each is kept as
+        // recorded: how the publication ended, and the reconnect remedy.
+        outcome:
+          typeof parsed.outcome === 'string'
+            ? (parsed.outcome as ReplyPublishFailureOutcome)
+            : null,
+        ...(parsed.cause === 'google_reauthorization_required'
+          ? { cause: parsed.cause }
+          : {}),
       }
     }
   }
@@ -561,7 +670,7 @@ export async function handleWorkflowNotificationEvent(
       await enqueueReplyAuthorNotification(deps, parsed, 'reply.published')
       break
     case 'review.reply.publish_failed':
-      await enqueueReplyAuthorNotification(deps, parsed, 'reply.publish_failed')
+      await enqueuePublishFailedNotification(deps, parsed)
       break
   }
 

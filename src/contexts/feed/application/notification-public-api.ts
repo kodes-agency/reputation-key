@@ -5,6 +5,7 @@
 // ── Domain type re-exports ────────────────────────────────────────────
 export type {
   ConfigurableNotificationCategory,
+  EffectiveNotificationSettings,
   Notification,
   NotificationCadence,
   NotificationCategory,
@@ -13,6 +14,7 @@ export type {
   NotificationPriority,
   NotificationResourceType,
   NotificationStatus,
+  NotificationTimezoneSource,
   NotificationType,
   NotificationUserSettings,
 } from '../domain/notification-types'
@@ -22,6 +24,10 @@ export {
   getDefaultEnabled,
   isPreferenceDisableable,
 } from '../domain/notification-policy'
+export {
+  effectiveEmailCadence,
+  offeredEmailCadences,
+} from '../domain/notification-cadence'
 
 // ── Render layer (ADR 0046 r.8) ───────────────────────────────────────
 // The ONE source of user-facing notification copy. Every surface — the in-app
@@ -31,9 +37,9 @@ export {
 export type { NotificationPayload } from '../domain/notification-payload'
 export {
   BETA_FEEDBACK_REPORTS_ANCHOR,
-  formatWaitingAge,
   notificationLink,
   renderNotification,
+  waitingAge,
 } from '../domain/notification-templates'
 
 // ── Category surfaces ─────────────────────────────────────────────────
@@ -49,4 +55,10 @@ export {
 export type { UserLookupPort } from './ports/notification-user-lookup.port'
 export type { InboxItemLookupPort } from './ports/notification-inbox-item-lookup.port'
 export type { NotificationListFilter } from './notification-list-filter'
-export type { NotificationFeedHead, NotificationPage } from './notification-page'
+export type { NotificationView } from './notification-view'
+export type {
+  NotificationFeedCursor,
+  NotificationFeedHead,
+  NotificationPage,
+} from './notification-page'
+export { isNewerFeedPosition } from './notification-page'

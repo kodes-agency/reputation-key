@@ -15,21 +15,21 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  InfiniteQueryObserver,
   QueryClient,
   QueryObserver,
   environmentManager,
   focusManager,
 } from '@tanstack/react-query'
 import { notificationKeys } from '#/shared/queries/query-keys'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import type { NotificationFeedHead } from '#/contexts/feed/application/public-api'
 import {
   makeNotification,
+  notificationFeedHeadFixture,
   notificationPageFixture,
 } from './notification.stories.fixtures'
 import {
-  mergeNotificationHeadWithHistory,
   notificationHeadQueryOptions,
-  notificationHistoryQueryOptions,
   NOTIFICATION_POLL_INTERVAL,
   NOTIFICATION_POLL_OPTIONS,
 } from './notification-feed-pagination'
@@ -122,54 +122,6 @@ describe('notification polling posture', () => {
     expect(NOTIFICATION_POLL_OPTIONS.staleTime).toBe(0)
   })
 
-  it('polls only the head after older history has been loaded', async () => {
-    const offsets: number[] = []
-    const fetchPage = vi.fn(async (offset: number) => {
-      offsets.push(offset)
-      return notificationPageFixture([], offset < 40)
-    })
-    const fetchHead = vi.fn(async () => {
-      offsets.push(0)
-      return {
-        page: notificationPageFixture([], true),
-        unreadCount: 3,
-        watermark: `snapshot-${fetchHead.mock.calls.length}`,
-      }
-    })
-    const headObserver = new QueryObserver(
-      client,
-      notificationHeadQueryOptions(
-        notificationKeys.head('org-1', 20, 'all'),
-        fetchHead,
-        true,
-      ),
-    )
-    const historyObserver = new InfiniteQueryObserver(
-      client,
-      notificationHistoryQueryOptions(
-        notificationKeys.list('org-1', 20, 'all'),
-        fetchPage,
-        20,
-      ),
-    )
-    const unsubscribeHead = headObserver.subscribe(() => {})
-    const unsubscribeHistory = historyObserver.subscribe(() => {})
-
-    await vi.advanceTimersByTimeAsync(0)
-    expect(offsets).toEqual([0])
-
-    await historyObserver.fetchNextPage()
-    expect(offsets).toEqual([0, 20])
-    await historyObserver.fetchNextPage()
-    expect(offsets).toEqual([0, 20, 40])
-
-    await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL * 2)
-    expect(offsets).toEqual([0, 20, 40, 0, 0])
-
-    unsubscribeHead()
-    unsubscribeHistory()
-  })
-
   it('publishes page, unread count, and watermark through one observer result', async () => {
     const row = makeNotification({
       id: '10000000-0000-4000-8000-000000000099',
@@ -178,6 +130,7 @@ describe('notification polling posture', () => {
     const fetchHead = vi.fn(async () => ({
       page: notificationPageFixture([row]),
       unreadCount: 7,
+      filterUnreadCount: 7,
       watermark: '2026-08-27T12:00:00.000Z',
     }))
     const observer = new QueryObserver(
@@ -196,42 +149,93 @@ describe('notification polling posture', () => {
     expect(observer.getCurrentResult().data).toEqual({
       page: notificationPageFixture([row]),
       unreadCount: 7,
+      filterUnreadCount: 7,
       watermark: '2026-08-27T12:00:00.000Z',
     })
     unsubscribe()
   })
-})
 
-describe('notification head/history merge', () => {
-  it('keeps every loaded history row exactly once when the head changes', () => {
-    const refreshed = makeNotification({
-      id: '10000000-0000-4000-8000-000000000010',
-      coalescedCount: 2,
+  it('stops polling the head once the session has ended', async () => {
+    const fetchHead = vi.fn(async () => {
+      throw new ServerFunctionError('AuthError', 'Unauthorized', 'unauthorized', 401)
     })
-    const overlapFromHistory = makeNotification({
-      id: '10000000-0000-4000-8000-000000000010',
-      coalescedCount: 1,
-    })
-    const firstOlder = makeNotification({
-      id: '10000000-0000-4000-8000-000000000011',
-    })
-    const secondOlder = makeNotification({
-      id: '10000000-0000-4000-8000-000000000012',
-    })
-
-    const merged = mergeNotificationHeadWithHistory(
-      notificationPageFixture([refreshed]),
-      [
-        notificationPageFixture([overlapFromHistory, firstOlder], true),
-        notificationPageFixture([secondOlder]),
-      ],
+    const observer = new QueryObserver(
+      client,
+      notificationHeadQueryOptions(
+        notificationKeys.head('org-1', 20, 'all'),
+        fetchHead,
+        true,
+      ),
     )
+    const unsubscribe = observer.subscribe(() => {})
 
-    expect(merged.map((row) => row.id)).toEqual([
-      refreshed.id,
-      firstOlder.id,
-      secondOlder.id,
-    ])
-    expect(merged[0]?.coalescedCount).toBe(2)
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL * 3)
+
+    // Every tick would be another 401: nothing a retry can fix until sign-in.
+    expect(fetchHead).toHaveBeenCalledTimes(1)
+    unsubscribe()
+  })
+
+  it('keeps polling through a failure a later tick can recover from', async () => {
+    const fetchHead = vi.fn(async () => {
+      throw new ServerFunctionError('InternalError', 'Unavailable', 'internal_error', 503)
+    })
+    const observer = new QueryObserver(
+      client,
+      notificationHeadQueryOptions(
+        notificationKeys.head('org-1', 20, 'all'),
+        fetchHead,
+        true,
+      ),
+    )
+    const unsubscribe = observer.subscribe(() => {})
+
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL * 2)
+
+    expect(fetchHead).toHaveBeenCalledTimes(3)
+    unsubscribe()
+  })
+
+  it("carries the badge count into another filter's first read, but nothing to mark", async () => {
+    const answers = new Map<string, PromiseWithResolvers<NotificationFeedHead>>()
+    const fetchHeadFor = (filter: string) => () => {
+      const answer = Promise.withResolvers<NotificationFeedHead>()
+      answers.set(filter, answer)
+      return answer.promise
+    }
+    const observer = new QueryObserver(
+      client,
+      notificationHeadQueryOptions(
+        notificationKeys.head('org-1', 20, 'all'),
+        fetchHeadFor('all'),
+        false,
+      ),
+    )
+    const unsubscribe = observer.subscribe(() => {})
+    await vi.advanceTimersByTimeAsync(0)
+    answers.get('all')?.resolve({
+      ...notificationFeedHeadFixture([], 5),
+      filterUnreadCount: 5,
+    })
+    await vi.advanceTimersByTimeAsync(0)
+
+    observer.setOptions(
+      notificationHeadQueryOptions(
+        notificationKeys.head('org-1', 20, 'urgent'),
+        fetchHeadFor('urgent'),
+        false,
+      ),
+    )
+    await vi.advanceTimersByTimeAsync(0)
+
+    // Urgent's share is unknown until its read answers: the tab must not offer
+    // "Mark all read" on the strength of All's.
+    const placeholder = observer.getCurrentResult()
+    expect(placeholder.isPlaceholderData).toBe(true)
+    expect(placeholder.data?.unreadCount).toBe(5)
+    expect(placeholder.data?.filterUnreadCount).toBe(0)
+    unsubscribe()
   })
 })

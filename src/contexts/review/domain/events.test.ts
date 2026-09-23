@@ -190,7 +190,11 @@ describe('review domain events', () => {
       userId: userId('user-1'),
       authorId: userId('author-1'),
     })
-    const failed = reviewReplyPublishFailed({ ...baseReply, authorId: null })
+    const failed = reviewReplyPublishFailed({
+      ...baseReply,
+      authorId: null,
+      outcome: 'unconfirmed',
+    })
     const updated = reviewReplyUpdated({ ...baseReply, userId: null })
     const cancelled = reviewReplyPublicationCancelled({
       ...baseReply,
@@ -209,7 +213,10 @@ describe('review domain events', () => {
     })
     expect(rejected).toMatchObject({ _tag: 'review.reply.rejected', source: 'web' })
     expect(published).toMatchObject({ _tag: 'review.reply.published', source: 'web' })
-    expect(failed._tag).toBe('review.reply.publish_failed')
+    expect(failed).toMatchObject({
+      _tag: 'review.reply.publish_failed',
+      outcome: 'unconfirmed',
+    })
     expect(updated._tag).toBe('review.reply.updated')
     expect(cancelled._tag).toBe('review.reply.publication_cancelled')
     expect(observed).toMatchObject({
@@ -232,6 +239,24 @@ describe('review domain events', () => {
       expectEnvelope(event)
     }
   })
+
+  it.each([
+    ['a written reason', 'Too defensive, drop the refund mention', true],
+    ['no reason', null, false],
+    ['a blank reason', '   ', false],
+  ])(
+    'records whether a rejection came with a reason, given %s',
+    (_label, reason, hasReason) => {
+      const rejected = reviewReplyRejected({
+        ...baseReply,
+        userId: userId('approver-1'),
+        authorId: userId('author-1'),
+        reason,
+      })
+
+      expect(rejected.hasReason).toBe(hasReason)
+    },
+  )
 
   it.each([
     ['invalid occurredAt', { occurredAt: new Date(Number.NaN) }, 'valid Date'],

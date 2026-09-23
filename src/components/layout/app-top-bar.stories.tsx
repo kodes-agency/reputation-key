@@ -26,11 +26,12 @@ function makeNotificationFns(count: number): NotificationServerFns {
 
   return {
     getFeedHead: inert<'getFeedHead'>({
-      page: { notifications: [], hasMore: false },
+      page: { notifications: [], hasMore: false, nextCursor: null },
       unreadCount: count,
+      filterUnreadCount: count,
       watermark: 'app-top-bar-story',
     }),
-    getList: inert<'getList'>({ notifications: [], hasMore: false }),
+    getList: inert<'getList'>({ notifications: [], hasMore: false, nextCursor: null }),
     markRead: inert<'markRead'>(undefined),
     markUnread: inert<'markUnread'>(undefined),
     markAllRead: inert<'markAllRead'>(undefined),

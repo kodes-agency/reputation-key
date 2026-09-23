@@ -3,7 +3,8 @@
 // createGatedJobHandler produces the single worker dispatch closure shared by
 // the default/background BullMQ workers. It classifies schedule firings,
 // authorizes through gateJob, and converts the outcome into runtime behavior:
-// allow → invoke, deny_terminal → typed skip (no side effect, no retry),
+// allow → invoke, deny_terminal → typed denial result (no side effect, no
+// retry, never counted as a success),
 // deny_retry → throw so BullMQ backoff applies (policy unavailability is
 // transient, not a revocation).
 
@@ -88,7 +89,7 @@ describe('createGatedJobHandler', () => {
     })
   })
 
-  it('skips the handler and resolves on deny_terminal', async () => {
+  it('skips the handler and resolves a typed denial on deny_terminal', async () => {
     decideMock.mockResolvedValue(decision({ reason: 'org_suspended' }))
     initDelayedExecutionPolicy({ decide: decideMock })
     const registry = createJobRegistry()
@@ -96,7 +97,13 @@ describe('createGatedJobHandler', () => {
     registry.register('health-check', handler)
     const dispatch = createGatedJobHandler('default', registry)
 
-    await expect(dispatch(fakeJob())).resolves.toBeUndefined()
+    // BullMQ completes the job (a terminal denial must not retry); the typed
+    // result is what keeps that completion from being counted as a success.
+    await expect(dispatch(fakeJob())).resolves.toEqual({
+      gate: 'denied',
+      reason: 'org_suspended',
+      executionKind: 'worker',
+    })
 
     expect(handler).not.toHaveBeenCalled()
     expect(loggerMocks.warn).toHaveBeenCalledWith(
@@ -104,6 +111,35 @@ describe('createGatedJobHandler', () => {
         jobName: 'health-check',
         reason: 'org_suspended',
         policyVersion: 'bqc-2.4',
+        executionKind: 'worker',
+      }),
+      'delayed execution denied — terminal',
+    )
+  })
+
+  it('reports a schedule-level terminal denial as an error, never as routine', async () => {
+    decideMock.mockResolvedValue(decision({ reason: 'missing_scope' }))
+    initDelayedExecutionPolicy({ decide: decideMock })
+    const registry = createJobRegistry()
+    const handler = vi.fn(async () => {})
+    registry.register('health-check', handler)
+    const dispatch = createGatedJobHandler('background', registry)
+
+    await expect(
+      dispatch(fakeJob({ repeatJobKey: 'health-check:1700000000000' })),
+    ).resolves.toEqual({
+      gate: 'denied',
+      reason: 'missing_scope',
+      executionKind: 'schedule',
+    })
+
+    expect(handler).not.toHaveBeenCalled()
+    expect(loggerMocks.warn).not.toHaveBeenCalled()
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobName: 'health-check',
+        reason: 'missing_scope',
+        executionKind: 'schedule',
       }),
       'delayed execution denied — terminal',
     )

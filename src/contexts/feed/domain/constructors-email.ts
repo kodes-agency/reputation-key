@@ -27,6 +27,8 @@ export type CreateNotificationEmailInput = Readonly<{
   priority: NotificationPriority
   idempotencyKey: string
   notBefore: Date | null
+  /** See `NotificationEmail.recipientAudience`. */
+  recipientAudience?: unknown
 }>
 
 export const createNotificationEmail = (
@@ -49,6 +51,7 @@ export const createNotificationEmail = (
   const now = clock()
   return ok({
     ...input,
+    recipientAudience: input.recipientAudience ?? null,
     status: 'pending',
     providerMessageId: null,
     providerState: null,

@@ -36,7 +36,10 @@ import type {
   ReconcileReplyPublication,
 } from '../../application/use-cases/reconcile-reply-publication'
 import type { Reply } from '../../domain/types'
-import { reviewReplyPublishFailed } from '../../domain/events'
+import {
+  reviewReplyPublishFailed,
+  type ReplyPublishFailureOutcome,
+} from '../../domain/events'
 import {
   canDeferPendingProviderObservation,
   canDeferUncertainSend,
@@ -103,6 +106,7 @@ async function publishFailedEvent(
   deps: ReconcileSweepDeps,
   reply: Reply,
   occurredAt: Date,
+  outcome: ReplyPublishFailureOutcome,
 ) {
   const review = await deps.reviewRepo.findById(reply.reviewId, reply.organizationId)
   if (!review) return null
@@ -112,6 +116,7 @@ async function publishFailedEvent(
     propertyId: review.propertyId,
     organizationId: reply.organizationId,
     authorId: reply.createdBy,
+    outcome,
     occurredAt,
   })
 }
@@ -157,7 +162,8 @@ async function settlePendingObservation(
     )
     return deferred ? 'deferred' : 'superseded'
   }
-  const event = await publishFailedEvent(deps, reply, now)
+  // Google acknowledged the write; only its echo is missing.
+  const event = await publishFailedEvent(deps, reply, now, 'unconfirmed')
   // D3: ambiguity starts at the ladder rung after the attempt's age.
   const dueAt = progress
     ? (nextAmbiguousReconcileDueAt({
@@ -190,7 +196,8 @@ async function settleNonConfirmingRow(
       reply.publicationState === 'requested' ||
       reply.publicationState === 'authorized'
     ) {
-      const event = await publishFailedEvent(deps, reply, now)
+      // Never claimed for sending, so nothing reached Google.
+      const event = await publishFailedEvent(deps, reply, now, 'not_sent')
       const terminal = await deps.replyCommandStore.markPublicationTerminal(
         reply,
         'retryable',
@@ -244,7 +251,9 @@ async function settleNeverDispatched(
   // An ambiguous row already recorded its publish_failed fact; the store would
   // drop a second one, so do not look the Review up for it.
   const event =
-    reply.status === 'publish_failed' ? null : await publishFailedEvent(deps, reply, now)
+    reply.status === 'publish_failed'
+      ? null
+      : await publishFailedEvent(deps, reply, now, 'not_sent')
   const settled = await deps.replyCommandStore.settleNeverDispatchedAttempt(
     reply,
     event,
@@ -279,7 +288,7 @@ async function waitOrMarkAmbiguous(
     )
     return deferred ? 'deferred' : 'superseded'
   }
-  const event = await publishFailedEvent(deps, reply, now)
+  const event = await publishFailedEvent(deps, reply, now, 'unconfirmed')
   const dueAt = attemptStartedAt
     ? (nextAmbiguousReconcileDueAt({ attemptStartedAt, now }) ?? undefined)
     : undefined
@@ -386,7 +395,7 @@ async function endRestoreFencedAmbiguity(
   try {
     const now = deps.clock()
     // The fence recorded no failure fact, and the row now fails for the manager.
-    const event = await publishFailedEvent(deps, reply, now)
+    const event = await publishFailedEvent(deps, reply, now, 'unconfirmed')
     const terminal = await deps.replyCommandStore.markPublicationTerminal(
       reply,
       'ambiguous',

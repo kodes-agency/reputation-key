@@ -90,5 +90,6 @@ describe('buildInboxContext', () => {
     context.worker.registerOutboxConsumers(registry)
 
     expect(registry.listFor('review.created')).toHaveLength(1)
+    expect(registry.listFor('property.archived')).toHaveLength(1)
   })
 })

@@ -41,6 +41,15 @@ bounded by TTL; HTTP producers cannot wait indefinitely for Redis.
   shared resource.
 - Recovery provisions clean Redis state, restores PostgreSQL when necessary,
   and lets the outbox relay rebuild work.
+- Recurring job schedulers are Redis state as well. A running worker checks
+  every minute that each governed scheduler still exists and re-installs only
+  the missing ones (re-upserting a present cron scheduler would drop its
+  overdue run), so a Redis restart does not silently stop digests, repair
+  sweeps, or the health-check that evaluates every alert. Boot reconciliation
+  records its plan's fingerprint beside the schedulers, and the watchdog
+  restores only for the plan recorded there (claiming the record back when it
+  was lost with them), so during a deploy overlap an outgoing worker cannot
+  re-install a scheduler its successor's boot removed.
 
 ## Rejected alternatives
 

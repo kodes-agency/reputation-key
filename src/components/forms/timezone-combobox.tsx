@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { timezonesForCountry } from '#/shared/domain/country-timezones'
-import { VALID_TIMEZONES } from '#/shared/domain/timezones'
+import { isValidIanaTimezone, VALID_TIMEZONES } from '#/shared/domain/timezones'
 import { describeTimezone, timezoneSearchTerms } from '#/shared/timezone-display'
 import {
   SearchableSelect,
@@ -54,12 +54,24 @@ function countryName(code: string): string {
   }
 }
 
-function timezoneGroups(countryCode: string | null | undefined) {
+/**
+ * A stored value the catalogue does not list — an alias or offset saved before
+ * a field became a picker — is offered as itself, so the trigger shows what is
+ * actually stored instead of an empty placeholder.
+ */
+function storedValueGroup(value: string): SearchableSelectGroup[] {
+  if (value === '' || isValidIanaTimezone(value)) return []
+  return [{ heading: 'Current', options: [timezoneOption(value)] }]
+}
+
+function timezoneGroups(countryCode: string | null | undefined, value: string) {
   const inCountry = countryCode ? timezonesForCountry(countryCode) : []
   const all: SearchableSelectGroup = { options: VALID_TIMEZONES.map(timezoneOption) }
-  if (!countryCode || inCountry.length === 0) return [all]
+  const stored = storedValueGroup(value)
+  if (!countryCode || inCountry.length === 0) return [...stored, all]
   const suggested = new Set(inCountry)
   return [
+    ...stored,
     { heading: `In ${countryName(countryCode)}`, options: inCountry.map(timezoneOption) },
     {
       heading: 'All timezones',
@@ -74,7 +86,10 @@ export function TimezoneCombobox({
   placeholder = 'Choose a timezone',
   ...props
 }: Props) {
-  const groups = useMemo(() => timezoneGroups(countryCode), [countryCode])
+  const groups = useMemo(
+    () => timezoneGroups(countryCode, props.value),
+    [countryCode, props.value],
+  )
   return (
     <SearchableSelect
       {...props}

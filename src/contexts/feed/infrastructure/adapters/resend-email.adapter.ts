@@ -24,7 +24,10 @@ import type {
   EmailSenderPort,
   EmailSendRequest,
 } from '../../application/ports/email-sender.port'
-import { classifyProviderRejection } from '../../domain/notification-delivery-policy'
+import {
+  classifyProviderRejection,
+  rejectionProvesNonAcceptance,
+} from '../../domain/notification-delivery-policy'
 
 /** What this adapter hands Resend — the whole port payload, nothing dropped. */
 export type ResendSendPayload = Readonly<{
@@ -36,10 +39,19 @@ export type ResendSendPayload = Readonly<{
   headers?: Readonly<Record<string, string>>
 }>
 
-/** Resend's `{ data, error }` answer, narrowed to what classification needs. */
+/**
+ * Resend's `{ data, error }` answer, narrowed to what classification needs.
+ * `statusCode` is null when the request never got an answer (DNS, refused or
+ * reset connection, TLS, lost response): the SDK returns that instead of
+ * throwing, so the type must not hide it.
+ */
 export type ResendSendResult = Readonly<{
   data: Readonly<{ id: string }> | null
-  error: Readonly<{ message?: string; name?: string; statusCode?: number }> | null
+  error: Readonly<{
+    message?: string
+    name?: string
+    statusCode?: number | null
+  }> | null
 }>
 
 /** The single Resend SDK surface this adapter touches. */
@@ -66,13 +78,13 @@ export type ResendEmailAdapterDependencies = Readonly<{
   clientFactory?: () => ResendEmailClient
 }>
 
-const buildClient = (config: ResendEmailAdapterConfig): ResendEmailClient => {
+// No cast: the SDK's declared `send` must stay assignable to the narrowed
+// surface, so a change in what it can answer fails compilation here.
+const buildClient = (config: ResendEmailAdapterConfig): ResendEmailClient =>
   // RESEND_BASE_URL absent → SDK default (https://api.resend.com).
-  const client = config.baseUrl
+  config.baseUrl
     ? new Resend(config.apiKey, { baseUrl: config.baseUrl })
     : new Resend(config.apiKey)
-  return client as unknown as ResendEmailClient
-}
 
 export const createResendEmailAdapter = (
   dependencies: ResendEmailAdapterDependencies,
@@ -120,7 +132,14 @@ export const createResendEmailAdapter = (
           { toPrefix: maskEmail(params.to), providerCode, statusCode, classification },
           'Email provider rejected message',
         )
-        return { kind: 'rejected' as const, classification, providerCode }
+        return {
+          kind: 'rejected' as const,
+          classification,
+          providerCode,
+          ...(rejectionProvesNonAcceptance(statusCode)
+            ? { refusedBeforeAcceptance: true as const }
+            : {}),
+        }
       }
 
       dependencies.logger.info(

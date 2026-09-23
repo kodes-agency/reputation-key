@@ -18,9 +18,10 @@
 // Note the dispatch axis: "daily digest" is a CADENCE (`cadence === 'daily'`),
 // never a category. This job has always selected on cadence and continues to.
 //
-// The `immediate`-cadence orphan sweep is unchanged in spirit: it stays
-// property-scoped because an urgent email IS property-scoped, and it is the
-// recovery path for an enqueue that failed at insert time.
+// The `immediate`-cadence orphan sweep runs first on every tick. It lives in
+// `immediate-orphan-sweep.ts`: the recovery path for an immediate email whose
+// enqueue failed or whose job gave up, for Property- and Organization-scoped
+// rows alike.
 
 import type { Job } from 'bullmq'
 import type { Pool } from 'pg'
@@ -29,11 +30,7 @@ import type { ScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-g
 import {
   notificationEmailId,
   notificationDigestBatchId,
-  notificationId,
   organizationId,
-  propertyId,
-  type OrganizationId,
-  type UserId,
 } from '#/shared/domain/ids'
 import { absoluteUrl } from '#/shared/email/urls'
 import { maskEmail } from '#/shared/observability/pii'
@@ -46,15 +43,14 @@ import type { NotificationPreferenceRepositoryPort } from '../../application/por
 import type { NotificationRepositoryPort } from '../../application/ports/notification-repository.port'
 import type { UserLookupPort } from '../../application/ports/notification-user-lookup.port'
 import type { EmailSenderPort } from '../../application/ports/email-sender.port'
+import type { NotificationRecipientStanding } from '../../application/notification-recipient-standing'
 import type { NotificationOrganizationScopeResolver } from '../repositories/notification-organization-scope.repository'
+import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
 import type { NotificationEmail } from '../../domain/notification-types'
-import {
-  deliveryTiming,
-  isDailyDigestWindow,
-} from '../../domain/notification-delivery-policy'
-import { getDefaultEnabled } from '../../domain/notification-policy'
+import { isDailyDigestWindow } from '../../domain/notification-delivery-policy'
+import { ORGANIZATION_CLOSING_REASON } from '../../domain/organization-email-stop'
+import type { NotificationOrganizationEmailStopPort } from '../../application/ports/notification-organization-email-stop.port'
 import { renderDigestEmail } from '../email/render'
-import { emailCorrelationId } from '../delivery-correlation'
 import {
   digestBatchIdempotencyKey,
   digestMemberSet,
@@ -73,10 +69,26 @@ import {
   recipientTimezoneSource,
   resolveRecipientTimezone,
 } from './recipient-timezone'
+import {
+  sweepImmediateOrphans,
+  type ImmediateEmailEnqueue,
+} from './immediate-orphan-sweep'
+import {
+  authorizedEntries,
+  loadItems,
+  partitionDeliverable,
+  retireStaleEntries,
+  suppressAll,
+  type RecipientContext,
+} from './digest-entry-selection'
+import {
+  invalidateBatch,
+  retireUnreadableBatch,
+  selectFrozenEntries,
+  supersedeBatch,
+} from './digest-frozen-batch'
 
 export const DIGEST_JOB_NAME = 'digest-notification' as const
-
-type PropertyScope = Readonly<{ organization_id: string; property_id: string }>
 
 export type DigestDeps = Readonly<{
   pool: Pool
@@ -86,10 +98,16 @@ export type DigestDeps = Readonly<{
   userLookup: UserLookupPort
   emailSender: EmailSenderPort
   resolveOrganizationScope: NotificationOrganizationScopeResolver
+  /** Resolves only an active Property; `null` for any other lifecycle state. */
+  resolvePropertyScope: NotificationPropertyScopeResolver
+  /** How far the Organization's lifecycle stops its email. */
+  organizationEmailStop: NotificationOrganizationEmailStopPort
   logger: LoggerPort
   clock: () => Date
   batchIdGen: () => string
   authorizeScope: ScheduledScopeAuthorizer
+  /** The recipient's current membership, access and responsibility. */
+  isRecipientEligible: NotificationRecipientStanding
   /** `env.BETTER_AUTH_URL`. Injected, never read from env inside the job. */
   baseUrl: string
   activeOneClickUnsubscribeKeyVersion: () => string
@@ -97,163 +115,11 @@ export type DigestDeps = Readonly<{
     target: Readonly<{ kind: 'digest'; id: string }>,
     keyVersion: string,
   ) => string
-  enqueueImmediate: (data: {
-    notificationEmailId: string
-    organizationId: string
-    propertyId: string
-  }) => Promise<void>
+  enqueueImmediate: ImmediateEmailEnqueue
 }>
 
 const retryAt = (now: Date, retryCount: number): Date =>
   new Date(now.getTime() + Math.min(60 * 60_000, 30_000 * 2 ** retryCount))
-
-// ── Per-recipient pipeline ──────────────────────────────────────────
-
-type RecipientContext = Readonly<{
-  orgId: OrganizationId
-  userId: UserId
-  rawOrgId: string
-  now: Date
-  timezone: string
-  timezoneSource: string
-}>
-
-/**
- * Drop rows whose property is no longer authorized for scheduled delivery. The
- * digest is recipient-scoped but authorization is still per property, so this
- * keeps the pre-existing gate exactly where it was — one check per distinct
- * property, not one per row.
- */
-async function authorizedEntries(
-  deps: DigestDeps,
-  rawOrgId: string,
-  entries: readonly NotificationEmail[],
-): Promise<readonly NotificationEmail[]> {
-  const verdicts = new Map<string, boolean>()
-  const kept: NotificationEmail[] = []
-  for (const entry of entries) {
-    const key = entry.propertyId as string
-    if (!verdicts.has(key)) verdicts.set(key, await deps.authorizeScope(rawOrgId, key))
-    if (verdicts.get(key)) kept.push(entry)
-  }
-  return kept
-}
-
-/**
- * Preference + quiet-hours filter. Both terminal branches persist AND log: a
- * suppression nobody can see is indistinguishable from a lost email.
- */
-async function partitionDeliverable(
-  deps: DigestDeps,
-  ctx: RecipientContext,
-  entries: readonly NotificationEmail[],
-): Promise<readonly NotificationEmail[]> {
-  const deliverable: NotificationEmail[] = []
-  for (const entry of entries) {
-    const propId = propertyId(entry.propertyId as string)
-    const emailId = notificationEmailId(entry.id as string)
-    const preference = await deps.preferenceRepo.findForDelivery(
-      ctx.userId,
-      ctx.orgId,
-      propId,
-      entry.category,
-      'email',
-    )
-    if (!(preference?.enabled ?? getDefaultEnabled(entry.category, 'email'))) {
-      await deps.emailRepo.markSuppressed(
-        emailId,
-        ctx.orgId,
-        propId,
-        'preference_disabled',
-        ctx.now,
-      )
-      deps.logger.info(
-        { correlationId: emailCorrelationId(entry.id), reason: 'preference_disabled' },
-        'Digest entry suppressed',
-      )
-      continue
-    }
-    // ADR 0046 r.3: quiet hours on the RECIPIENT's clock, not the property's.
-    const timing = deliveryTiming({
-      now: ctx.now,
-      timezone: ctx.timezone,
-      quietHoursStart: preference?.quietHoursStart ?? null,
-      quietHoursEnd: preference?.quietHoursEnd ?? null,
-      urgent: false,
-      urgentBypassEnabled: false,
-    })
-    if (timing.kind === 'defer') {
-      await deps.emailRepo.markDelayed(emailId, ctx.orgId, propId, timing.until, ctx.now)
-      deps.logger.info(
-        {
-          correlationId: emailCorrelationId(entry.id),
-          timezone: ctx.timezone,
-          timezoneSource: ctx.timezoneSource,
-          until: timing.until.toISOString(),
-          reason: 'quiet_hours',
-        },
-        'Digest entry deferred',
-      )
-      continue
-    }
-    deliverable.push(entry)
-  }
-  return deliverable
-}
-
-/** Suppress a whole batch with one reason, logging once per row. */
-async function suppressAll(
-  deps: DigestDeps,
-  ctx: RecipientContext,
-  entries: readonly NotificationEmail[],
-  reason: string,
-): Promise<void> {
-  for (const entry of entries) {
-    await deps.emailRepo.markSuppressed(
-      notificationEmailId(entry.id as string),
-      ctx.orgId,
-      propertyId(entry.propertyId as string),
-      reason,
-      ctx.now,
-    )
-    deps.logger.warn(
-      { correlationId: emailCorrelationId(entry.id), reason },
-      'Digest entry suppressed',
-    )
-  }
-}
-
-/**
- * Pair each queue row with its in-app notification. Reads are per property
- * because the repository enforces property scope on the notification table.
- */
-async function loadItems(
-  deps: DigestDeps,
-  ctx: RecipientContext,
-  entries: readonly NotificationEmail[],
-): Promise<readonly DigestItem[]> {
-  const byProperty = new Map<string, NotificationEmail[]>()
-  for (const entry of entries) {
-    const key = entry.propertyId as string
-    const bucket = byProperty.get(key)
-    if (bucket) bucket.push(entry)
-    else byProperty.set(key, [entry])
-  }
-
-  const items: DigestItem[] = []
-  for (const [rawPropertyId, group] of byProperty) {
-    const notifications = await deps.notifRepo.findByIdsForProperty(
-      group.map((entry) => notificationId(entry.notificationId as string)),
-      ctx.orgId,
-      propertyId(rawPropertyId),
-    )
-    for (const entry of group) {
-      const notification = notifications.get(entry.notificationId as string)
-      if (notification) items.push({ entry, notification })
-    }
-  }
-  return items
-}
 
 async function recordOutcomes(
   deps: DigestDeps,
@@ -281,6 +147,7 @@ async function recordOutcomes(
             nextAttemptAt:
               outcome.classification === 'transient' ? retryAt(ctx.now, maxRetry) : null,
             failedAt: ctx.now,
+            refusedBeforeAcceptance: outcome.refusedBeforeAcceptance === true,
           },
   })
   if (!settled) {
@@ -298,6 +165,7 @@ async function buildProviderRequest(
   items: readonly DigestItem[],
   batchId: string,
   unsubscribeKeyVersion: string,
+  localDate: string,
 ): Promise<
   Readonly<{
     to: string
@@ -318,7 +186,7 @@ async function buildProviderRequest(
   )
   const email = renderDigestEmail({
     recipientName: await deps.userLookup.getName(ctx.userId),
-    dateLabel: localDateLabel(ctx.now, ctx.timezone),
+    dateLabel: localDateLabel(localDate),
     groups: groupItemsByProperty(items, orgScope.propertyNames, (path, search) =>
       absoluteUrl(deps.baseUrl, path, search),
     ),
@@ -352,6 +220,22 @@ async function dispatch(
   contentDigest: string,
 ): Promise<void> {
   const maxRetry = Math.max(...items.map((item) => item.entry.retryCount))
+  // Before the call, never after: an attempt that never reports back must
+  // count as possibly accepted, or a later refusal would make the batch look
+  // safe to re-key.
+  const started = await deps.emailRepo.startDigestAttempt({
+    batchId: batch.id,
+    organizationId: ctx.orgId,
+    userId: ctx.userId,
+    startedAt: ctx.now,
+  })
+  if (!started) {
+    deps.logger.warn(
+      { batchId: batch.id },
+      'Digest attempt not started because the batch closed first',
+    )
+    return
+  }
 
   try {
     const outcome = await deps.emailSender.send({
@@ -392,46 +276,6 @@ async function dispatch(
   }
 }
 
-const sameIds = (
-  entries: readonly NotificationEmail[],
-  expected: readonly NotificationEmail[],
-): boolean =>
-  entries.length === expected.length &&
-  entries.every((entry, index) => entry.id === expected[index]?.id)
-
-const batchReadiness = (
-  entries: readonly NotificationEmail[],
-  now: Date,
-): 'ready' | 'wait' | 'invalid' => {
-  if (entries.length === 0) return 'invalid'
-  for (const entry of entries) {
-    if (!['pending', 'failed', 'delayed'].includes(entry.status)) return 'invalid'
-    if (entry.status === 'failed' && entry.lastErrorClass !== 'transient') {
-      return 'invalid'
-    }
-    if (entry.retryCount >= 5) return 'invalid'
-    if (entry.notBefore && entry.notBefore > now) return 'wait'
-    if (entry.nextAttemptAt && entry.nextAttemptAt > now) return 'wait'
-  }
-  return 'ready'
-}
-
-async function invalidateBatch(
-  deps: DigestDeps,
-  ctx: RecipientContext,
-  batch: NotificationDigestBatch,
-  reason: string,
-): Promise<void> {
-  await deps.emailRepo.settleDigestBatch({
-    batchId: batch.id,
-    organizationId: ctx.orgId,
-    userId: ctx.userId,
-    expectedContentDigest: batch.contentDigest,
-    settlement: { kind: 'invalidated', reason, invalidatedAt: ctx.now },
-  })
-  deps.logger.warn({ batchId: batch.id, reason }, 'Digest batch invalidated')
-}
-
 /** ADR 0046 r.4: one digest, one recipient, the recipient's timezone. */
 async function resolveRecipientContext(
   deps: DigestDeps,
@@ -461,43 +305,25 @@ async function resolveRecipientContext(
 /**
  * The queue rows this sweep may actually send, or `null` when there is nothing
  * left to do — either because no row is eligible or because an open batch was
- * invalidated here. An open batch narrows the set to its frozen membership; a
- * fresh sweep outside the recipient's 08:00 window may only release rows that
- * quiet hours already parked.
+ * closed here. An open batch narrows the set to its frozen membership; a fresh
+ * sweep outside the recipient's 08:00 window may only release rows that quiet
+ * hours already parked.
  */
 async function selectDeliverableEntries(
   deps: DigestDeps,
   ctx: RecipientContext,
   openBatch: NotificationDigestBatch | null,
 ): Promise<readonly NotificationEmail[] | null> {
-  const due = openBatch
-    ? await deps.emailRepo.findDigestBatchEntries(openBatch.id, ctx.orgId, ctx.userId)
-    : await deps.emailRepo.findDueByUser(ctx.orgId, ctx.userId, 'daily', ctx.now)
-  if (openBatch) {
-    const readiness = batchReadiness(due, ctx.now)
-    if (readiness === 'wait') return null
-    if (readiness === 'invalid') {
-      await invalidateBatch(deps, ctx, openBatch, 'digest_membership_unavailable')
-      return null
-    }
-  }
+  if (openBatch) return selectFrozenEntries(deps, ctx, openBatch)
+  const due = await deps.emailRepo.findDueByUser(ctx.orgId, ctx.userId, 'daily', ctx.now)
   const authorized = await authorizedEntries(deps, ctx.rawOrgId, due)
-  if (openBatch && !sameIds(authorized, due)) {
-    await invalidateBatch(deps, ctx, openBatch, 'digest_authorization_changed')
-    return null
-  }
-  const candidates = openBatch
-    ? authorized
-    : isDailyDigestWindow(ctx.now, ctx.timezone)
-      ? authorized
-      : authorized.filter((entry) => entry.status === 'delayed')
+  const fresh = await retireStaleEntries(deps, ctx, authorized)
+  const candidates = isDailyDigestWindow(ctx.now, ctx.timezone)
+    ? fresh
+    : fresh.filter((entry) => entry.status === 'delayed')
   if (candidates.length === 0) return null
 
   const deliverable = await partitionDeliverable(deps, ctx, candidates)
-  if (openBatch && !sameIds(deliverable, due)) {
-    await invalidateBatch(deps, ctx, openBatch, 'digest_membership_invalidated')
-    return null
-  }
   return deliverable.length === 0 ? null : deliverable
 }
 
@@ -520,41 +346,101 @@ async function abandonDelivery(
 }
 
 /**
+ * A batch the provider refused outright on every attempt (a rate or quota
+ * limit) was never accepted, so its idempotency key protects no delivered
+ * mail. When it changed since — a repeat event coalesced into a member, the
+ * recipient was renamed, a member dropped — the batch is retired and its
+ * remaining members go out in a fresh batch under a new key, rather than the
+ * day's digest being suppressed.
+ */
+async function reprepareRefusedBatch(
+  deps: DigestDeps,
+  ctx: RecipientContext,
+  openBatch: NotificationDigestBatch,
+  members: readonly NotificationEmail[],
+  request: Awaited<ReturnType<typeof buildProviderRequest>>,
+  items: readonly DigestItem[],
+  contentDigest: string,
+): Promise<void> {
+  if (!(await supersedeBatch(deps, ctx, openBatch, contentDigest))) return
+  const batchId = notificationDigestBatchId(deps.batchIdGen())
+  const unsubscribeKeyVersion = deps.activeOneClickUnsubscribeKeyVersion()
+  const fresh = await buildProviderRequest(
+    deps,
+    ctx,
+    request.to,
+    items,
+    batchId as string,
+    unsubscribeKeyVersion,
+    openBatch.localDate,
+  )
+  deps.logger.info(
+    { batchId: openBatch.id, replacementBatchId: batchId },
+    'Refused digest batch re-prepared under a new key because it changed',
+  )
+  await prepareAndDispatchBatch(
+    deps,
+    ctx,
+    batchId,
+    members,
+    fresh,
+    items,
+    digestProviderRequest(fresh),
+    unsubscribeKeyVersion,
+    openBatch.localDate,
+  )
+}
+
+/**
  * Retry path for a batch already frozen by an earlier sweep. Membership and
  * provider-visible content must both still match what was recorded, otherwise
- * the retry would send different mail under the same idempotency key.
+ * the retry would send different mail under the same idempotency key. A
+ * change re-prepares a batch the provider refused on every attempt; any other
+ * batch may have been accepted, so it is closed rather than mailed twice.
  */
 async function retryOpenBatch(
   deps: DigestDeps,
   ctx: RecipientContext,
   openBatch: NotificationDigestBatch,
-  deliverable: readonly NotificationEmail[],
+  members: readonly NotificationEmail[],
   request: Awaited<ReturnType<typeof buildProviderRequest>>,
   items: readonly DigestItem[],
   contentDigest: string,
 ): Promise<void> {
-  if (
-    digestMemberSet(deliverable.map((entry) => entry.id as string)) !==
-    openBatch.memberDigest
-  ) {
-    await invalidateBatch(deps, ctx, openBatch, 'digest_membership_changed')
+  const membershipChanged =
+    digestMemberSet(members.map((entry) => entry.id as string)) !== openBatch.memberDigest
+  const contentChanged = contentDigest !== openBatch.contentDigest
+  if (!membershipChanged && !contentChanged) {
+    await dispatch(deps, ctx, openBatch, request, items, contentDigest)
     return
   }
-  if (contentDigest !== openBatch.contentDigest) {
-    await deps.emailRepo.settleDigestBatch({
-      batchId: openBatch.id,
-      organizationId: ctx.orgId,
-      userId: ctx.userId,
-      expectedContentDigest: contentDigest,
-      settlement: { kind: 'content_mismatch', detectedAt: ctx.now },
-    })
-    deps.logger.error(
-      { batchId: openBatch.id },
-      'Digest retry blocked because provider-visible content changed',
+  if (openBatch.everyAttemptRefused) {
+    await reprepareRefusedBatch(
+      deps,
+      ctx,
+      openBatch,
+      members,
+      request,
+      items,
+      contentDigest,
     )
     return
   }
-  await dispatch(deps, ctx, openBatch, request, items, contentDigest)
+  if (membershipChanged) {
+    await invalidateBatch(deps, ctx, openBatch, 'digest_membership_changed')
+    return
+  }
+  await deps.emailRepo.settleDigestBatch({
+    batchId: openBatch.id,
+    organizationId: ctx.orgId,
+    userId: ctx.userId,
+    expectedContentDigest: contentDigest,
+    settlement: { kind: 'content_mismatch', detectedAt: ctx.now },
+  })
+  deps.logger.error(
+    { batchId: openBatch.id },
+    'Digest retry blocked because provider-visible content changed',
+  )
 }
 
 /** Freeze a new batch and send it, unless another worker won the race. */
@@ -567,10 +453,10 @@ async function prepareAndDispatchBatch(
   items: readonly DigestItem[],
   contentDigest: string,
   unsubscribeKeyVersion: string,
+  localDate: string,
 ): Promise<void> {
   const memberIds = deliverable.map((entry) => notificationEmailId(entry.id as string))
   const memberDigest = digestMemberSet(memberIds)
-  const localDate = localDateKey(ctx.now, ctx.timezone)
   const prepared = await deps.emailRepo.prepareDigestBatch({
     id: batchId,
     organizationId: ctx.orgId,
@@ -599,45 +485,71 @@ async function prepareAndDispatchBatch(
   await dispatch(deps, ctx, prepared.batch, request, items, contentDigest)
 }
 
+/**
+ * A closure request stops every digest at once: a digest is never mandatory
+ * mail. The open batch is closed as a unit and due rows are suppressed, so
+ * purge readiness finds nothing left to send.
+ */
+async function stopForClosingOrganization(
+  deps: DigestDeps,
+  ctx: RecipientContext,
+  openBatch: NotificationDigestBatch | null,
+): Promise<void> {
+  if (openBatch) {
+    await invalidateBatch(deps, ctx, openBatch, ORGANIZATION_CLOSING_REASON)
+    return
+  }
+  const due = await deps.emailRepo.findDueByUser(ctx.orgId, ctx.userId, 'daily', ctx.now)
+  await suppressAll(deps, ctx, due, ORGANIZATION_CLOSING_REASON)
+}
+
 async function sendUserDigest(
   deps: DigestDeps,
   recipientScope: NotificationEmailRecipient,
 ): Promise<void> {
   const ctx = await resolveRecipientContext(deps, recipientScope)
   const openBatch = await deps.emailRepo.findOpenDigestBatch(ctx.orgId, ctx.userId)
+  if ((await deps.organizationEmailStop(ctx.rawOrgId)) !== 'none') {
+    await stopForClosingOrganization(deps, ctx, openBatch)
+    return
+  }
   const deliverable = await selectDeliverableEntries(deps, ctx, openBatch)
   if (deliverable === null) return
 
-  if (await deps.emailRepo.isRecipientSuppressed(ctx.userId, ctx.orgId)) {
-    await abandonDelivery(deps, ctx, openBatch, deliverable, 'recipient_bounced')
-    return
-  }
   const recipient = await deps.userLookup.getEmail(ctx.userId)
   if (!recipient) {
     await abandonDelivery(deps, ctx, openBatch, deliverable, 'recipient_unavailable')
     return
   }
-
-  const items = await loadItems(deps, ctx, deliverable)
-  if (items.length === 0) {
-    if (openBatch) {
-      await invalidateBatch(deps, ctx, openBatch, 'notification_source_unavailable')
-      return
-    }
-    deps.logger.warn(
-      { entries: deliverable.length },
-      'Digest skipped — no readable notification for any due entry',
-    )
+  // ADR 0046 r.6: an address the provider refused for good, from any
+  // Organization, is never attempted again.
+  if (await deps.emailRepo.isAddressSuppressed(recipient)) {
+    await abandonDelivery(deps, ctx, openBatch, deliverable, 'recipient_bounced')
     return
   }
-  if (openBatch && items.length !== deliverable.length) {
+
+  // Rows whose notification is gone are settled inside loadItems.
+  const items = await loadItems(deps, ctx, deliverable)
+  if (items.length === 0) {
+    if (openBatch) await retireUnreadableBatch(deps, ctx, openBatch)
+    return
+  }
+  if (
+    openBatch &&
+    !openBatch.everyAttemptRefused &&
+    items.length !== deliverable.length
+  ) {
     await invalidateBatch(deps, ctx, openBatch, 'notification_source_unavailable')
     return
   }
+  // Only rows that will actually be rendered are frozen, or re-frozen: a
+  // member with no notification would be settled as accepted, never sent.
+  const members = items.map((item) => item.entry)
 
   const batchId = openBatch?.id ?? notificationDigestBatchId(deps.batchIdGen())
   const unsubscribeKeyVersion =
     openBatch?.unsubscribeKeyVersion ?? deps.activeOneClickUnsubscribeKeyVersion()
+  const localDate = openBatch?.localDate ?? localDateKey(ctx.now, ctx.timezone)
   const request = await buildProviderRequest(
     deps,
     ctx,
@@ -645,64 +557,24 @@ async function sendUserDigest(
     items,
     batchId as string,
     unsubscribeKeyVersion,
+    localDate,
   )
   const contentDigest = digestProviderRequest(request)
   if (openBatch) {
-    await retryOpenBatch(deps, ctx, openBatch, deliverable, request, items, contentDigest)
+    await retryOpenBatch(deps, ctx, openBatch, members, request, items, contentDigest)
     return
   }
   await prepareAndDispatchBatch(
     deps,
     ctx,
     batchId,
-    deliverable,
+    members,
     request,
     items,
     contentDigest,
     unsubscribeKeyVersion,
+    localDate,
   )
-}
-
-// ── Immediate orphan sweep ──────────────────────────────────────────
-
-/**
- * Recovery path for an urgent email whose enqueue failed at insert time (the
- * queue row survives, the job does not). Property-scoped on purpose: an urgent
- * email belongs to exactly one property, and the scope gate is per property.
- */
-async function sweepImmediateOrphans(deps: DigestDeps, now: Date): Promise<void> {
-  const scopes = await deps.pool.query<PropertyScope>(
-    `SELECT organization_id, id::text AS property_id
-       FROM properties
-      WHERE deleted_at IS NULL
-        AND lifecycle_state = 'active'`,
-  )
-  for (const scope of scopes.rows) {
-    if (!(await deps.authorizeScope(scope.organization_id, scope.property_id))) continue
-    try {
-      const orphans = await deps.emailRepo.findDueByProperty(
-        organizationId(scope.organization_id),
-        propertyId(scope.property_id),
-        'immediate',
-        now,
-      )
-      for (const entry of orphans) {
-        await deps.enqueueImmediate({
-          notificationEmailId: entry.id as string,
-          organizationId: scope.organization_id,
-          propertyId: scope.property_id,
-        })
-      }
-      if (orphans.length > 0) {
-        deps.logger.info(
-          { orphans: orphans.length },
-          'Re-enqueued immediate notification emails missed by the urgent path',
-        )
-      }
-    } catch (error) {
-      deps.logger.error({ error }, 'Immediate email orphan sweep failed for property')
-    }
-  }
 }
 
 export const createDigestNotificationJobHandler = (deps: DigestDeps) => {

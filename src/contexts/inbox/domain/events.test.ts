@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 
 import {
+  inboxBulkReopenCompleted,
   inboxHandlingCycleClosed,
   inboxHandlingCycleOpened,
   inboxHandlingCycleReopened,
@@ -117,6 +118,104 @@ describe('inbox events', () => {
       reopenReason: 'new_information',
       actorType: 'user',
       userId: USER_ID,
+    })
+  })
+
+  it('marks a cycle opened by the command that created its item, and only that one', () => {
+    const open = (openedWithItem?: boolean) =>
+      inboxHandlingCycleOpened({
+        inboxItemId: ITEM_ID,
+        cycleNumber: 2,
+        stateRevision: 3,
+        organizationId: ORG_ID,
+        propertyId: PROP_ID,
+        sourceType: 'review',
+        sourceId: reviewId('review-cycle-event-1'),
+        sourceRevision: 2,
+        openReason: 'material_revision_changed',
+        actorType: 'provider',
+        userId: null,
+        triggerEventId: null,
+        occurredAt: NOW,
+        ...(openedWithItem === undefined ? {} : { openedWithItem }),
+      })
+
+    expect(open(true).openedWithItem).toBe(true)
+    expect(open().openedWithItem).toBe(false)
+  })
+
+  it('marks a reopen that belongs to a bulk command, and only that one', () => {
+    const reopen = (bulkId?: string | null) =>
+      inboxHandlingCycleReopened({
+        inboxItemId: ITEM_ID,
+        cycleNumber: 3,
+        stateRevision: 4,
+        organizationId: ORG_ID,
+        propertyId: PROP_ID,
+        sourceType: 'review',
+        sourceId: reviewId('review-cycle-event-1'),
+        sourceRevision: 1,
+        reopenReason: 'new_information',
+        actorType: 'user',
+        userId: USER_ID,
+        triggerEventId: null,
+        source: 'web',
+        occurredAt: NOW,
+        ...(bulkId === undefined ? {} : { bulkId }),
+      })
+
+    expect(reopen('bulk-1').bulkId).toBe('bulk-1')
+    expect(reopen().bulkId).toBeNull()
+  })
+
+  describe('inboxBulkReopenCompleted', () => {
+    const cycle = (item: string) => ({
+      inboxItemId: inboxItemId(item),
+      propertyId: PROP_ID,
+      sourceType: 'review' as const,
+      sourceId: reviewId(`review-${item}`),
+      cycleNumber: 2,
+      sourceRevision: 1,
+      stateRevision: 2,
+    })
+
+    it('records every reopened cycle once, in canonical item order', () => {
+      const completed = inboxBulkReopenCompleted({
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        bulkId: 'bulk-1',
+        reopened: [cycle('item-b'), cycle('item-a')],
+        occurredAt: NOW,
+      })
+
+      expect(completed).toMatchObject({
+        _tag: 'inbox.inbox_items.bulk_reopen_completed',
+        userId: USER_ID,
+        bulkId: 'bulk-1',
+        count: 2,
+        source: 'web',
+        reopened: [cycle('item-a'), cycle('item-b')],
+      })
+    })
+
+    it.each([
+      ['no reopened cycle', []],
+      ['the same item twice', [cycle('item-a'), cycle('item-a')]],
+      [
+        'more than the bulk limit',
+        Array.from({ length: 101 }, (_, i) => cycle(`i-${i}`)),
+      ],
+      ['a non-positive cycle number', [{ ...cycle('item-a'), cycleNumber: 0 }]],
+    ])('refuses %s', (_label, reopened) => {
+      expect(() =>
+        inboxBulkReopenCompleted({
+          organizationId: ORG_ID,
+          userId: USER_ID,
+          bulkId: 'bulk-1',
+          reopened,
+          occurredAt: NOW,
+        }),
+      ).toThrow(/bulk reopen/)
     })
   })
 

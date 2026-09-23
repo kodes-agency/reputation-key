@@ -100,6 +100,7 @@ export type QuarantineReadPort = {
     types?: import('bullmq').JobType | import('bullmq').JobType[],
     start?: number,
     end?: number,
+    asc?: boolean,
   ): Promise<QuarantinedJobHandle[]>
 }
 
@@ -404,7 +405,25 @@ export type QuarantinedEntry = Readonly<{
   publicationState: 'pending_failure' | 'confirmed_failed'
 }>
 
-/** List quarantined jobs (waiting/delayed — the quarantine queue has no worker). */
+/** A quarantine job as an operator-facing entry (null for an unreadable envelope). */
+function toQuarantinedEntry(job: QuarantinedJobHandle): QuarantinedEntry | null {
+  const envelope = parseQuarantineEnvelope(job.data)
+  if (!envelope) return null
+  return {
+    quarantineJobId: job.id ?? 'unknown',
+    envelope,
+    publicationState: publicationIsConfirmed(envelope, job.progress)
+      ? 'confirmed_failed'
+      : 'pending_failure',
+  }
+}
+
+/**
+ * List quarantined jobs (waiting/delayed — the quarantine queue has no
+ * worker), OLDEST first: the entry an age alert pages about must be the one
+ * an operator can reach. BullMQ LPUSHes the wait list, so a default page would
+ * show only the newest `limit` entries.
+ */
 export async function listQuarantinedJobs(
   quarantineQueue: QuarantineReadPort,
   limit = 100,
@@ -413,19 +432,20 @@ export async function listQuarantinedJobs(
     ['waiting', 'delayed', 'prioritized'],
     0,
     limit - 1,
+    true,
   )
-  const out: QuarantinedEntry[] = []
-  for (const job of jobs) {
-    const envelope = parseQuarantineEnvelope(job.data)
-    if (envelope) {
-      out.push({
-        quarantineJobId: job.id ?? 'unknown',
-        envelope,
-        publicationState: publicationIsConfirmed(envelope, job.progress)
-          ? 'confirmed_failed'
-          : 'pending_failure',
-      })
-    }
-  }
-  return out
+  return jobs.flatMap((job) => toQuarantinedEntry(job) ?? [])
+}
+
+/**
+ * One quarantined entry by id — the redrive/discard target. A direct lookup,
+ * not a scan of the bounded listing, so no entry is unreachable because more
+ * than a page of others sits ahead of it in either order.
+ */
+export async function findQuarantinedJob(
+  quarantineQueue: QuarantineReadPort,
+  quarantineJobId: string,
+): Promise<QuarantinedEntry | null> {
+  const job = await quarantineQueue.getJob(quarantineJobId)
+  return job ? toQuarantinedEntry(job) : null
 }

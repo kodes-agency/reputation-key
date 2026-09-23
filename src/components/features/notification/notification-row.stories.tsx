@@ -42,6 +42,12 @@ type Story = StoryObj<typeof NotificationRow>
 
 const [escalated, pendingApproval, newFeedback, noMetadata] = notificationFixtures
 
+/** The escalated fixture, raised 26 hours into the current cycle's wait. */
+const escalatedWaiting = {
+  ...escalated,
+  payload: { ...escalated.payload, waitedHours: 26 },
+}
+
 const muteableReview = makeNotification({
   id: '20000000-0000-4000-8000-000000000002',
   type: 'review.created',
@@ -49,9 +55,38 @@ const muteableReview = makeNotification({
   payload: { propertyName: 'Harbour View Suites', platform: 'google' },
 })
 
+/** Opens the row's overflow menu. Radix portals the menu outside the story canvas. */
+async function openRowMenu(canvasElement: HTMLElement) {
+  await userEvent.click(
+    within(canvasElement).getByRole('button', { name: /^More actions for:/ }),
+  )
+  return within(canvasElement.ownerDocument.body)
+}
+
+/** A menu item once Radix has animated the menu in from opacity 0. */
+async function findVisibleMenuItem(menu: ReturnType<typeof within>, name: string) {
+  const item = await menu.findByRole('menuitem', { name })
+  await waitFor(() => expect(item).toBeVisible())
+  return item
+}
+
+/**
+ * Waits until the menu is closed AND Radix has lifted its modal fence from the
+ * canvas. OverflowMenu explains why a story must not end before then.
+ */
+async function expectMenuSettled(canvasElement: HTMLElement) {
+  const ownerDocument = canvasElement.ownerDocument
+  await waitFor(() => {
+    expect(ownerDocument.querySelector('[role="menu"]')).toBeNull()
+    expect(canvasElement).not.toHaveAttribute('aria-hidden')
+    expect(canvasElement).not.toHaveAttribute('data-aria-hidden')
+    expect(ownerDocument.body.style.pointerEvents).toBe('')
+  })
+}
+
 /** Urgent + unread: pill, unread dot, rating glyphs, waiting age, accent CTA. */
 export const UrgentUnread: Story = {
-  args: { notification: escalated },
+  args: { notification: escalatedWaiting },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // Copy comes from renderNotification, never from the stored snapshot.
@@ -60,25 +95,103 @@ export const UrgentUnread: Story = {
     expect(canvasElement.textContent).not.toContain(escalated.resourceId)
     expect(canvasElement.textContent).not.toContain(escalated.id)
     expect(canvas.getByText('Urgent')).toBeInTheDocument()
-    // The property name appears twice by design — in the rendered sentence and
-    // in the metadata chip — so this asserts presence, not uniqueness.
-    expect(canvas.getAllByText(/Riverside Hotel/).length).toBeGreaterThan(0)
-    // Rating is never glyph-or-colour alone.
+    // Each fact once: the title names the Property, and the strip beside it
+    // does not name it again.
+    expect(canvas.getAllByText(/Riverside Hotel/)).toHaveLength(1)
+    // Rating is never glyph-or-colour alone, and the sentences leave it to
+    // the stars.
     expect(canvas.getByText('Rated 2 out of 5 stars')).toBeInTheDocument()
-    // 26 waiting hours renders as the compact "1d" the domain formats.
-    expect(canvas.getAllByText(/Waiting 1d/).length).toBeGreaterThan(0)
+    expect(canvasElement.textContent).not.toMatch(/2-star/)
+    // Raised 26 hours into the wait renders as the compact "1d": the wait the
+    // notice was raised with, which never grows while the row sits unread.
+    expect(canvas.getAllByText(/Waited 1d/).length).toBeGreaterThan(0)
     // The deep link carries the resource id as a typed search param.
     const cta = canvas.getByRole('link')
     expect(cta).toHaveAttribute('href', expect.stringContaining(escalated.resourceId))
   },
 }
 
-/** ADR 0046 r.2 coalescing: one unread row absorbing repeat events. */
+/**
+ * A grouped notice stands for several items, so its row opens that queue at
+ * its Property, as its email does, never the one item that keys the row.
+ */
+const groupedNotices = {
+  'inbox.bulk_assigned': 'mine',
+  'inbox.bulk_reopened': 'open',
+} as const
+
+const groupedNotice = (type: keyof typeof groupedNotices) =>
+  makeNotification({
+    id:
+      type === 'inbox.bulk_assigned'
+        ? '20000000-0000-4000-8000-0000000000c1'
+        : '20000000-0000-4000-8000-0000000000c2',
+    type,
+    status: 'unread',
+    payload: {
+      propertyName: 'Riverside Hotel',
+      itemCount: 3,
+      actorRole: 'account_admin',
+    },
+  })
+
+const opensItsQueue = (type: keyof typeof groupedNotices): Story => {
+  const notification = groupedNotice(type)
+  return {
+    args: { notification },
+    play: async ({ canvasElement }) => {
+      const cta = within(canvasElement).getByRole('link')
+      const href = new URL(cta.getAttribute('href') ?? '', 'https://repkey.test')
+      expect(href.pathname).toBe('/inbox')
+      expect(href.searchParams.get('queue')).toBe(groupedNotices[type])
+      expect(href.searchParams.get('propertyId')).toBe(notification.propertyId)
+      expect(href.searchParams.has('itemId')).toBe(false)
+    },
+  }
+}
+
+export const BulkAssignedOpensItsQueue: Story = opensItsQueue('inbox.bulk_assigned')
+export const BulkReopenedOpensItsQueue: Story = opensItsQueue('inbox.bulk_reopened')
+
+/**
+ * ADR 0046 r.2 coalescing: one unread row absorbing repeat events. A stored
+ * row reads its count from the coalescing column into `occurrences`, and the
+ * copy says it once, with the verb for what repeated.
+ */
 export const Coalesced: Story = {
-  args: { notification: pendingApproval },
+  args: {
+    notification: {
+      ...pendingApproval,
+      payload: {
+        ...pendingApproval.payload,
+        occurrences: pendingApproval.coalescedCount,
+      },
+    },
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('Updated 3 times')).toBeInTheDocument()
+    expect(canvas.getByText(/This happened 3 times\.$/)).toBeInTheDocument()
+    expect(canvasElement.textContent?.match(/3 times/g)).toHaveLength(1)
+    expect(canvas.queryByText(/Updated/)).not.toBeInTheDocument()
+  },
+}
+
+/**
+ * A notice about finished work carries no wait. A row written before waits
+ * were anchored still holds a frozen age; it must not come back as a chip.
+ */
+export const OutcomeShowsNoWait: Story = {
+  args: {
+    notification: makeNotification({
+      id: '20000000-0000-4000-8000-000000000003',
+      type: 'reply.published',
+      payload: { propertyName: 'Riverside Hotel', platform: 'google', waitingHours: 50 },
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText(/Your reply is live on Google/)).toBeInTheDocument()
+    expect(canvas.queryByText(/Wait/)).not.toBeInTheDocument()
   },
 }
 
@@ -96,7 +209,7 @@ export const NoMetadata: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvasElement.textContent).not.toContain('undefined')
-    expect(canvas.queryByText(/Waiting/)).not.toBeInTheDocument()
+    expect(canvas.queryByText(/Wait/)).not.toBeInTheDocument()
     // A CTA is still offered — an unlabelled row would be a dead end.
     expect(canvas.getByRole('link')).toBeInTheDocument()
   },
@@ -105,18 +218,17 @@ export const NoMetadata: Story = {
 export const LongPropertyName: Story = {
   args: { notification: longPropertyNameNotification },
   play: async ({ canvasElement }) => {
-    // The invariant that matters: the chip truncates within the row rather than
-    // widening it. An inline `.truncate` span reports clientWidth 0, so the
-    // chip's own box is measured against its list container.
+    // The invariant that matters: a long Property name wraps inside the title
+    // rather than widening the row.
+    const canvas = within(canvasElement)
     const list = canvasElement.querySelector('ul')
-    const chip = canvasElement.querySelector('[data-slot="badge"]')
+    const title = canvas.getByText(/^New review at The Grand Riverside/)
     expect(list).not.toBeNull()
-    expect(chip).not.toBeNull()
-    if (list === null || chip === null) return
-    expect(chip.getBoundingClientRect().width).toBeGreaterThan(0)
-    expect(chip.getBoundingClientRect().width).toBeLessThanOrEqual(
-      list.getBoundingClientRect().width,
+    if (list === null) return
+    expect(title.getBoundingClientRect().right).toBeLessThanOrEqual(
+      list.getBoundingClientRect().right,
     )
+    expect(list.scrollWidth).toBeLessThanOrEqual(list.clientWidth)
   },
 }
 
@@ -162,11 +274,7 @@ export const OverflowMenu: Story = {
   // by ActionNeededCannotBeMuted below.
   args: { notification: muteableReview },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const ownerDocument = canvasElement.ownerDocument
-    await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
-    // Radix portals the menu outside the story canvas.
-    const menu = within(ownerDocument.body)
+    const menu = await openRowMenu(canvasElement)
     expect(
       await menu.findByRole('menuitem', { name: 'Mark as read' }),
     ).toBeInTheDocument()
@@ -179,12 +287,7 @@ export const OverflowMenu: Story = {
     await userEvent.click(menu.getByRole('menuitem', { name: 'Mark as read' }))
     expect(actions.onMarkRead).toHaveBeenCalledWith(muteableReview.id)
 
-    await waitFor(() => {
-      expect(ownerDocument.querySelector('[role="menu"]')).toBeNull()
-      expect(canvasElement).not.toHaveAttribute('aria-hidden')
-      expect(canvasElement).not.toHaveAttribute('data-aria-hidden')
-      expect(ownerDocument.body.style.pointerEvents).toBe('')
-    })
+    await expectMenuSettled(canvasElement)
   },
 }
 
@@ -192,15 +295,35 @@ export const OverflowMenu: Story = {
 export const ActionNeededCannotBeMuted: Story = {
   args: { notification: escalated },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const ownerDocument = canvasElement.ownerDocument
-    await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
-    const menu = within(ownerDocument.body)
-    const markAsRead = await menu.findByRole('menuitem', { name: 'Mark as read' })
-    await waitFor(() => expect(markAsRead).toBeVisible())
+    const menu = await openRowMenu(canvasElement)
+    await findVisibleMenuItem(menu, 'Mark as read')
     expect(menu.queryByRole('menuitem', { name: /^Mute/ })).toBeNull()
     await userEvent.click(menu.getByRole('menuitem', { name: 'Mark as read' }))
-    await waitFor(() => expect(ownerDocument.querySelector('[role="menu"]')).toBeNull())
+    await waitFor(() =>
+      expect(canvasElement.ownerDocument.querySelector('[role="menu"]')).toBeNull(),
+    )
+  },
+}
+
+/**
+ * Goal results are a configurable category, so their rows offer a mute. One
+ * Program over every Portal can close hundreds of results in the same hour.
+ */
+export const GoalResultCanBeMuted: Story = {
+  args: {
+    notification: makeNotification({
+      id: '20000000-0000-4000-8000-0000000000a1',
+      type: 'goal.completed',
+      status: 'read',
+      resourceType: 'goal',
+      payload: { propertyName: 'Harbour View Suites', goalName: 'Monthly ratings' },
+    }),
+  },
+  play: async ({ canvasElement, args }) => {
+    const menu = await openRowMenu(canvasElement)
+    await userEvent.click(await findVisibleMenuItem(menu, 'Mute goals for this property'))
+    expect(actions.onMuteCategory).toHaveBeenCalledWith(args.notification)
+    await expectMenuSettled(canvasElement)
   },
 }
 
@@ -230,6 +353,22 @@ export const ReportOutcome: Story = {
     expect(cta.getAttribute('href')).toMatch(/#beta-feedback-reports$/u)
     expect(cta.getAttribute('href')).not.toContain(reportResolved.resourceId)
     expect(canvasElement.textContent).not.toContain(reportResolved.resourceId)
+  },
+}
+
+/**
+ * ADR 0059: the report outcome cannot be switched off; dismissing it is the
+ * control. Its category is configurable per Property, but it has no Property,
+ * so a Mute item would promise a switch the server has no row for.
+ */
+export const ReportOutcomeCannotBeMuted: Story = {
+  args: { notification: reportResolved },
+  play: async ({ canvasElement }) => {
+    const menu = await openRowMenu(canvasElement)
+    await findVisibleMenuItem(menu, 'Dismiss')
+    expect(menu.queryByRole('menuitem', { name: /^Mute/ })).toBeNull()
+    await userEvent.keyboard('{Escape}')
+    await expectMenuSettled(canvasElement)
   },
 }
 

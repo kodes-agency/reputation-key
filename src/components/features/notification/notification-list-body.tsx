@@ -1,24 +1,39 @@
 // List-state machine for the notification feed: error → loading → empty → list.
-// Selected by early returns (no chained ternary).
+// Selected by early returns (no chained ternary). A failure only takes over
+// the list when there are no rows to keep; otherwise it is a notice beside
+// them (notification-list-notices.tsx).
 //
 // Real list semantics: each group is a heading + a <ul> of <li> rows, so a
 // screen reader announces "list, 4 items" and supports list navigation. The
 // rows used to be bare <div>s inside a <div>.
+//
+// Every state renders inside one focusable, named group: where keyboard focus
+// goes when the row holding it is removed and no row is left to move to
+// (use-notification-focus-recovery.ts).
 
-import { Inbox, Loader2, RefreshCw } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { useRef, type ReactNode, type RefObject } from 'react'
+import { Inbox } from 'lucide-react'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Skeleton } from '#/components/ui/skeleton'
 import { NotificationRow } from './notification-row'
 import type { NotificationGroup } from './notification-filters'
 import type { NotificationFormat } from './notification-utils'
 import type { NotificationRowActions } from './types'
+import { useNotificationFocusRecovery } from './use-notification-focus-recovery'
+import {
+  NotificationErrorState,
+  NotificationLoadMore,
+  NotificationRefreshNotice,
+} from './notification-list-notices'
 
 export type NotificationListBodyProps = Readonly<{
   groups: ReadonlyArray<NotificationGroup>
   isLoading: boolean
   isLoadingMore: boolean
+  /** The head read failed. Rows already loaded stay listed beneath a notice. */
   error: Error | null
+  /** The last "Load more" failed. */
+  loadMoreError?: Error | null
   hasMore: boolean
   onRetry: () => void
   onLoadMore: () => void
@@ -27,19 +42,9 @@ export type NotificationListBodyProps = Readonly<{
   emptyTitle?: string
   /** Group-label heading level. The popover nests under an h2, the page under an h1. */
   headingLevel?: 2 | 3
+  /** The focusable list group, for a caller that must hand focus to the list. */
+  listRef?: RefObject<HTMLDivElement | null>
 }>
-
-function NotificationErrorState({ onRetry }: Readonly<{ onRetry: () => void }>) {
-  return (
-    <div className="flex flex-col items-center gap-3 px-4 py-6 text-center">
-      <p className="text-sm text-muted-foreground">Couldn't load notifications.</p>
-      <Button variant="outline" size="sm" onClick={onRetry}>
-        <RefreshCw aria-hidden="true" className="size-3" />
-        Retry
-      </Button>
-    </div>
-  )
-}
 
 function NotificationLoadingState() {
   return (
@@ -94,9 +99,37 @@ function NotificationSection({
 }
 
 export function NotificationListBody(props: NotificationListBodyProps) {
-  if (props.error) return <NotificationErrorState onRetry={props.onRetry} />
+  const ownRef = useRef<HTMLDivElement>(null)
+  const listRef = props.listRef ?? ownRef
+  const rowIds = props.groups.flatMap((group) => group.notifications.map((row) => row.id))
+  const focusRecovery = useNotificationFocusRecovery(listRef, rowIds)
+
+  // Focus lands here when the bell opens, after "Mark all read", and when the
+  // row holding focus goes with no row left to move to, so a keyboard user
+  // must see it. The ring is inset: the popover's list scrolls, and an outer
+  // ring would be clipped by it.
+  return (
+    <div
+      ref={listRef}
+      role="group"
+      aria-label="Notification list"
+      tabIndex={-1}
+      data-notification-list=""
+      className="rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
+      {...focusRecovery}
+    >
+      <NotificationListState {...props} />
+    </div>
+  )
+}
+
+function NotificationListState(props: NotificationListBodyProps): ReactNode {
+  const hasRows = props.groups.length > 0
+  if (props.error && !hasRows) {
+    return <NotificationErrorState error={props.error} onRetry={props.onRetry} />
+  }
   if (props.isLoading) return <NotificationLoadingState />
-  if (props.groups.length === 0) {
+  if (!hasRows) {
     return (
       <div className="px-3 py-6">
         <EmptyState icon={Inbox} title={props.emptyTitle ?? "You're all caught up"} />
@@ -106,6 +139,9 @@ export function NotificationListBody(props: NotificationListBodyProps) {
 
   return (
     <div className="flex flex-col gap-2 py-1">
+      {props.error && (
+        <NotificationRefreshNotice error={props.error} onRetry={props.onRetry} />
+      )}
       {props.groups.map((group) => (
         <NotificationSection
           key={group.key}
@@ -116,24 +152,11 @@ export function NotificationListBody(props: NotificationListBodyProps) {
         />
       ))}
       {props.hasMore && (
-        <div className="px-3 py-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={props.onLoadMore}
-            disabled={props.isLoadingMore}
-            className="w-full text-xs text-muted-foreground"
-          >
-            {props.isLoadingMore ? (
-              <>
-                <Loader2 aria-hidden="true" className="size-3 animate-spin" />
-                Loading…
-              </>
-            ) : (
-              'Load more'
-            )}
-          </Button>
-        </div>
+        <NotificationLoadMore
+          isLoadingMore={props.isLoadingMore}
+          error={props.loadMoreError}
+          onLoadMore={props.onLoadMore}
+        />
       )}
     </div>
   )

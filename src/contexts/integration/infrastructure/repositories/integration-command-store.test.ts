@@ -16,6 +16,7 @@ import type { GoogleConnection } from '../../domain/types'
 import {
   integrationGoogleAccountConnected,
   integrationGoogleAccountDisconnected,
+  integrationGoogleAccountReauthorizationRequired,
   integrationGoogleConnectionVisibilityChanged,
 } from '../../domain/events'
 import { isIntegrationError } from '../../domain/errors'
@@ -447,5 +448,133 @@ describe.sequential('integrationCommandStore (integration)', () => {
       [ORG_ID],
     )
     expect(facts.rows).toHaveLength(1)
+  })
+
+  const revokedEvent = () =>
+    integrationGoogleAccountReauthorizationRequired({
+      connectionId: CONN_ID,
+      organizationId: ORG_ID,
+      cause: 'provider_revoked',
+      occurredAt: NOW,
+    })
+
+  it('requireReauthorization commits reauth_required + the reauthorization fact in one transaction', async () => {
+    const store = createAtomicIntegrationCommandStore(db, () => NOW)
+    await store.connectGoogleAccount({
+      connection: makeConnection({
+        lifecycleVersion: 4,
+        accessVersion: 9,
+        credentialGeneration: 6,
+      }),
+      event: connectedEvent(),
+    })
+    const event = revokedEvent()
+
+    await expect(
+      store.requireReauthorization({
+        organizationId: ORG_ID,
+        connectionId: CONN_ID,
+        expected: { lifecycleVersion: 4, credentialGeneration: 6 },
+        event,
+      }),
+    ).resolves.toBe(true)
+
+    const rows = await pool.query(
+      `SELECT status, status_reason, status_changed_at, credential_use_state,
+              lifecycle_version, access_version, credential_generation,
+              encrypted_refresh_token
+         FROM google_connections WHERE id = $1`,
+      [CONN_ID],
+    )
+    expect(rows.rows).toEqual([
+      {
+        status: 'reauth_required',
+        status_reason: 'provider_revoked',
+        status_changed_at: NOW,
+        credential_use_state: 'active',
+        lifecycle_version: 5,
+        access_version: 10,
+        credential_generation: 6,
+        encrypted_refresh_token: 'enc-r',
+      },
+    ])
+    const facts = await pool.query(
+      `SELECT event_version, payload, source_aggregate_id FROM outbox_events
+       WHERE organization_id = $1
+         AND event_type = 'integration.google_account.reauthorization_required'
+         AND id = $2`,
+      [ORG_ID, event.eventId],
+    )
+    expect(facts.rows).toEqual([
+      {
+        event_version: 1,
+        source_aggregate_id: CONN_ID,
+        payload: {
+          connectionId: CONN_ID,
+          organizationId: ORG_ID,
+          cause: 'provider_revoked',
+          occurredAt: NOW.toISOString(),
+          correlationId: null,
+        },
+      },
+    ])
+  })
+
+  it('requireReauthorization leaves a newer grant alone and records nothing', async () => {
+    const store = createAtomicIntegrationCommandStore(db, () => NOW)
+    await store.connectGoogleAccount({
+      connection: makeConnection({ lifecycleVersion: 5, credentialGeneration: 7 }),
+      event: connectedEvent(),
+    })
+
+    // The refresh started from generation 6; a reconnect has committed 7.
+    await expect(
+      store.requireReauthorization({
+        organizationId: ORG_ID,
+        connectionId: CONN_ID,
+        expected: { lifecycleVersion: 4, credentialGeneration: 6 },
+        event: revokedEvent(),
+      }),
+    ).resolves.toBe(false)
+
+    const rows = await pool.query(
+      'SELECT status, lifecycle_version FROM google_connections WHERE id = $1',
+      [CONN_ID],
+    )
+    expect(rows.rows).toEqual([{ status: 'active', lifecycle_version: 5 }])
+    const facts = await pool.query(
+      `SELECT id FROM outbox_events
+       WHERE organization_id = $1
+         AND event_type = 'integration.google_account.reauthorization_required'`,
+      [ORG_ID],
+    )
+    expect(facts.rows).toEqual([])
+  })
+
+  it('requireReauthorization rolls the status back when the fact cannot commit', async () => {
+    const store = createAtomicIntegrationCommandStore(db, () => NOW)
+    await store.connectGoogleAccount({
+      connection: makeConnection(),
+      event: connectedEvent(),
+    })
+    const ghost = {
+      ...revokedEvent(),
+      _tag: 'integration.ghost',
+    } as unknown as Parameters<typeof store.requireReauthorization>[0]['event']
+
+    await expect(
+      store.requireReauthorization({
+        organizationId: ORG_ID,
+        connectionId: CONN_ID,
+        expected: { lifecycleVersion: 1, credentialGeneration: 1 },
+        event: ghost,
+      }),
+    ).rejects.toThrow(/Event type integration\.ghost:v1 is not registered for the outbox/)
+
+    const rows = await pool.query(
+      'SELECT status, lifecycle_version FROM google_connections WHERE id = $1',
+      [CONN_ID],
+    )
+    expect(rows.rows).toEqual([{ status: 'active', lifecycle_version: 1 }])
   })
 })

@@ -19,12 +19,12 @@ import {
 import {
   isPreferenceDisableable,
   NOTIFICATION_SETTINGS_CATEGORIES,
-  type Notification,
+  type NotificationView,
 } from '#/contexts/feed/application/public-api'
 import type { NotificationRowActions } from './types'
 
 type Props = Readonly<{
-  notification: Notification
+  notification: NotificationView
   /** Human name of the notification's category, e.g. "Action needed". */
   categoryLabel: string
   /** Used only for the trigger's accessible name, never rendered. */
@@ -39,7 +39,11 @@ export function NotificationRowMenu({
   actions,
 }: Props) {
   const isUnread = notification.status === 'unread'
+  // A mute is a per-Property in-app switch. An Organization-scoped row
+  // (mandatory, or the ADR 0059 report outcome) has no Property to switch
+  // off, even when its category is configurable elsewhere.
   const canMute =
+    notification.propertyId !== null &&
     notification.category !== 'mandatory' &&
     NOTIFICATION_SETTINGS_CATEGORIES.includes(notification.category) &&
     isPreferenceDisableable(notification.category, 'in_app')
@@ -48,6 +52,7 @@ export function NotificationRowMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
+          data-row-control="menu"
           variant="ghost"
           size="icon-xs"
           className="text-muted-foreground"
@@ -77,7 +82,7 @@ export function NotificationRowMenu({
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => actions.onMuteCategory(notification)}>
               <BellOff aria-hidden="true" />
-              Mute {categoryLabel.toLowerCase()}
+              Mute {categoryLabel.toLowerCase()} for this property
             </DropdownMenuItem>
           </>
         )}

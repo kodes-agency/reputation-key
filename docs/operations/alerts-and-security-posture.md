@@ -104,7 +104,11 @@ secret matches the known test/CI/`.env.example` placeholder family
 (`src/shared/config/production-secrets.ts`): the web process via the
 first-registered nitro plugin (`production-secret-guard.ts`), the worker via
 `assertProductionSecrets` in `src/worker/index.ts`. The error names offending
-FIELDS only, never values.
+FIELDS only, never values. Separately, a production worker with
+`notification.send_email` enabled refuses to boot when its `RESEND_API_KEY`
+would select the capture transport (`src/shared/email/transport-selection.ts`):
+capture reports every send as accepted, so notification mail would be marked
+sent while nothing left the process.
 
 **Health/metrics exposure.** `/api/health/metrics` is token-gated
 (`OPS_METRICS_TOKEN`, BQC-7.2 — absent or wrong credential 404s, keeping the
@@ -122,31 +126,37 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 
 **Dispatch:** every firing alert emits a schema-conformant structured `error` log line (`[alert] <name> firing`, fields: alert/severity/owner/runbook/value/threshold/windowMs/detail/firedAt — content-free) and, when `ALERT_WEBHOOK_URL` is set, POSTs the same payload to that operator webhook (3s timeout, best-effort — the log line is the durable record).
 
-**Hysteresis:** edge-trigger — an alert dispatches on the ok→firing transition, re-notifies at most every 24h while continuously firing (Redis state key TTL), and clears on recovery so the next breach fires immediately.
+**Hysteresis:** edge-trigger — an alert dispatches on the ok→firing transition, re-notifies at most every 24h while continuously firing (Redis state key TTL), and clears on recovery so the next breach fires immediately. An alert whose snapshot section is degraded (`health.<signal>` marker) is held rather than evaluated: unknown is not recovery, so a firing alert keeps its state and a quiet one cannot fire until the signal reads again, while `observability.snapshot-degraded` pages for the blindness. That alert is sustained: its first breach is persisted only as pending (a 10-minute Redis key) and it dispatches when the next evaluation breaches too; without a readable state store it pages on the first breach instead (fail-visible).
 
-| Alert                                         | Sev | Threshold / window                                                                                                              | Runbook |
-| --------------------------------------------- | --- | ------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `worker.heartbeat.stale`                      | P1  | heartbeat missing or age > 10min                                                                                                | §7      |
-| `worker.job-runtime-unready`                  | P1  | any governed family violates handler/scheduler, dark-work, freshness, queue-age, stall, repair, or dead-letter contract         | §17     |
-| `guest.observation-loss`                      | P1  | any suppressed scan/review-link observation in trailing 24h, or the content-free monitor is unavailable                         | §18     |
-| `queue.oldest-age`                            | P2  | oldest unpublished outbox event > 15min                                                                                         | §7      |
-| `queue.stalled`                               | P2  | any lease held > 2× its lease (single eval — stalled work IS the impact)                                                        | §7      |
-| `queue.quarantine-growth`                     | P2  | oldest quarantined job > 24h (redrive SLA)                                                                                      | §4      |
-| `queue.quarantine-nonempty`                   | P1  | any job in the unconsumed quarantine > 15min (dropped work; §4 is the same condition aged past the redrive SLA)                 | §14     |
-| `source.freshness-deadline`                   | P1  | nearest hard expiry among refresh-due reviews < 2d away                                                                         | §3      |
-| `sync.sweep-lag`                              | P1  | oldest past-due incremental sync > 60min overdue (4 missed 15-min sweeps — new reviews are not arriving)                        | §13     |
-| `sync.failed-nonzero`                         | P2  | any coded sync failure whose retry is due                                                                                       | §13     |
-| `ai.review-analysis-stalled`                  | P2  | incomplete enabled coverage with no new settlement for > 15min; monitor failure also fires                                      | §22     |
-| `ai.review-analysis-empty-enrollment`         | P2  | any queued/running zero-snapshot enrollment while eligible reviews exist                                                        | §22     |
-| `retention.failure`                           | P1  | latest retention run failed for any subject                                                                                     | §8      |
-| `reply.ambiguous-aging`                       | P2  | oldest ambiguous publication > 15min past reconcile_due                                                                         | §6      |
-| `routing.region-attempts`                     | P2  | any quarantined wrong/unresolved/denied-region attempt                                                                          | §12     |
-| `db.pool-exhaustion`                          | P1  | any connection request queued behind a saturated pool                                                                           | §8      |
-| `notification.in-app-delivery-lag`            | P1  | oldest incomplete active-family delivery is over 60s from its durable source clock                                              | §15     |
-| `notification.immediate-email-acceptance-lag` | P2  | source-to-provider acceptance exceeds 5min, or source linkage/bounded evidence is unevaluable                                   | §15     |
-| `notification.missing-for-inbox-item`         | P1  | any inbox item still missing a notification past the grace edge (delivery/repair is not keeping up)                             | §15     |
-| `notification.email-stalled`                  | P2  | oldest overdue queued email > 2h AND (email globally enabled OR rows already attempted) — silent while email is capability-dark | §15     |
-| `beta-feedback.triage-backlog`                | P2  | oldest delivered unresolved local feedback receipt > 72h, or aggregate observation unavailable                                  | §16     |
+| Alert                                          | Sev | Threshold / window                                                                                                                | Runbook |
+| ---------------------------------------------- | --- | --------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `worker.heartbeat.stale`                       | P1  | heartbeat missing or age > 10min                                                                                                  | §7      |
+| `worker.job-runtime-unready`                   | P1  | any governed family violates handler/scheduler, dark-work, freshness, queue-age, stall, repair, or dead-letter contract           | §17     |
+| `guest.observation-loss`                       | P1  | any suppressed scan/review-link observation in trailing 24h, or the content-free monitor is unavailable                           | §18     |
+| `observability.snapshot-degraded`              | P1  | a degraded snapshot section blinds at least one alert on two consecutive evaluations (those alerts hold their state meanwhile)    | §23     |
+| `queue.oldest-age`                             | P2  | oldest unpublished outbox event > 15min                                                                                           | §7      |
+| `queue.stalled`                                | P2  | any lease held > 2× its lease (single eval — stalled work IS the impact)                                                          | §7      |
+| `queue.quarantine-growth`                      | P2  | oldest quarantined job > 24h (redrive SLA)                                                                                        | §4      |
+| `queue.quarantine-nonempty`                    | P1  | any job in the unconsumed quarantine > 15min (dropped work; §4 is the same condition aged past the redrive SLA)                   | §14     |
+| `source.freshness-deadline`                    | P1  | nearest hard expiry among refresh-due reviews < 2d away                                                                           | §3      |
+| `sync.sweep-lag`                               | P1  | oldest past-due incremental sync > 60min overdue (4 missed 15-min sweeps — new reviews are not arriving)                          | §13     |
+| `sync.failed-nonzero`                          | P2  | any coded sync failure whose retry is due                                                                                         | §13     |
+| `ai.review-analysis-stalled`                   | P2  | incomplete enabled coverage with no new settlement for > 15min; monitor failure also fires                                        | §22     |
+| `ai.review-analysis-empty-enrollment`          | P2  | any queued/running zero-snapshot enrollment while eligible reviews exist                                                          | §22     |
+| `retention.failure`                            | P1  | latest retention run failed for any subject                                                                                       | §8      |
+| `reply.ambiguous-aging`                        | P2  | oldest ambiguous publication > 15min past reconcile_due                                                                           | §6      |
+| `routing.region-attempts`                      | P2  | any quarantined wrong/unresolved/denied-region attempt                                                                            | §12     |
+| `db.pool-exhaustion`                           | P1  | any connection request queued behind a saturated pool                                                                             | §8      |
+| `notification.in-app-delivery-lag`             | P1  | oldest incomplete active-family delivery is over 60s from its durable source clock                                                | §15     |
+| `notification.immediate-email-acceptance-lag`  | P2  | source-to-provider acceptance exceeds 5min in a scope that may send email, or source linkage/bounded evidence is unevaluable      | §15     |
+| `notification.missing-for-inbox-item`          | P1  | any inbox item still missing a notification past the grace edge (delivery/repair is not keeping up)                               | §15     |
+| `notification.email-stalled`                   | P2  | oldest overdue queued email > 2h AND (email globally enabled OR rows already attempted/held in a scope that may send)             | §15     |
+| `notification.email-permanent-failures`        | P2  | ≥3 refused messages and more than half of the trailing 24h attempts refused permanently (refused mail is never retried)           | §15     |
+| `notification.email-bounce-rate`               | P2  | ≥3 bounces and more than 4% of accepted email in the trailing 24h                                                                 | §15     |
+| `notification.email-complaints`                | P2  | any spam complaint in the trailing 24h                                                                                            | §15     |
+| `notification.email-retry-exhausted`           | P2  | any email whose transient retry budget ran out in the trailing 24h (the delivery path gave up)                                    | §15     |
+| `notification.email-provider-feedback-missing` | P2  | more than two accepted emails (7-day lookback) with no provider outcome 6h after acceptance — silent webhook or capture transport | §15     |
+| `beta-feedback.triage-backlog`                 | P2  | oldest delivered unresolved local feedback receipt > 72h, or aggregate observation unavailable                                    | §16     |
 
 Defined but not yet implemented (registered with owner/severity/runbook; the signal source lands in a later slice — injection happens there, before BQC-8 acceptance):
 

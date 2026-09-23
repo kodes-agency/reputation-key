@@ -11,6 +11,7 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import type { ReviewPlatform } from './types'
+import type { PublicationFailureCause } from './reply-publication-workflow'
 
 const DATABASE_UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
@@ -340,12 +341,20 @@ export type ReviewReplyRejected = Readonly<{
   userId: UserId
   authorId: UserId | null
   reason: string | null
+  /**
+   * Whether the approver wrote a reason. The outbox strips `reason` itself
+   * (ADR 0030), so this flag is all a durable consumer learns about it.
+   */
+  hasReason: boolean
   source: 'web' | 'import'
   occurredAt: Date
   correlationId: string | null
 }>
 export const reviewReplyRejected = (
-  args: Omit<ReviewReplyRejected, '_tag' | 'eventId' | 'correlationId' | 'source'> & {
+  args: Omit<
+    ReviewReplyRejected,
+    '_tag' | 'eventId' | 'correlationId' | 'source' | 'hasReason'
+  > & {
     source?: 'web' | 'import'
     correlationId?: string | null
   },
@@ -355,10 +364,23 @@ export const reviewReplyRejected = (
     ...args,
     _tag: 'review.reply.rejected',
     eventId: newEventId(),
+    hasReason: args.reason !== null && args.reason.trim() !== '',
     correlationId: args.correlationId ?? null,
     source: args.source ?? 'web',
   }
 }
+
+/**
+ * How a publication ended without a confirmed live reply, which is what the
+ * people told about it need:
+ * - `not_sent`: nothing was posted to Google (never dispatched, or retryable
+ *   failures, an answered 429 included, ran out of attempts), so it is safe
+ *   to try again.
+ * - `refused`: Google or RepKey refused the request; nothing was posted.
+ * - `unconfirmed`: Google may have the reply; RepKey could not confirm it and
+ *   will not send it twice.
+ */
+export type ReplyPublishFailureOutcome = 'not_sent' | 'refused' | 'unconfirmed'
 
 export type ReviewReplyPublishFailed = Readonly<{
   _tag: 'review.reply.publish_failed'
@@ -368,6 +390,9 @@ export type ReviewReplyPublishFailed = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   authorId: UserId | null
+  outcome: ReplyPublishFailureOutcome
+  /** Present only when the remedy is not a retry: Google must be reconnected first. */
+  cause?: PublicationFailureCause
   occurredAt: Date
   correlationId: string | null
 }>

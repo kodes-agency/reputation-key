@@ -12,6 +12,11 @@
 //   - recovery: the alert evaluates quiet → clearFiring → the NEXT breach
 //     is a fresh edge and dispatches immediately.
 //
+// A sustained alert (one that pages only on its second consecutive breaching
+// evaluation) first holds a pending key (`ops:alert:pending:<name>`) whose
+// short TTL spans one evaluation gap: the next breach confirms it, a quiet
+// evaluation clears it, a missed evaluation lets it expire.
+//
 // Keys and values are content-free (alert names only — no tenant data).
 
 /** State key prefix (process-global, not tenant-scoped). */
@@ -19,6 +24,16 @@ export const ALERT_STATE_KEY_PREFIX = 'ops:alert:firing:' as const
 
 /** Re-notify interval for a continuously-firing alert. */
 export const ALERT_STATE_TTL_SECONDS = 24 * 60 * 60
+
+/** Pending (first-breach) key prefix for sustained alerts. */
+export const ALERT_PENDING_KEY_PREFIX = 'ops:alert:pending:' as const
+
+/**
+ * How long a first breach waits for its confirmation: two 5-minute evaluation
+ * cadences, so the next evaluation always lands inside it and one missed
+ * evaluation breaks the streak.
+ */
+export const ALERT_PENDING_TTL_SECONDS = 10 * 60
 
 export type AlertStateRedisPort = Readonly<{
   get: (key: string) => Promise<string | null>
@@ -33,25 +48,40 @@ export type AlertStateStore = Readonly<{
   markFiring: (name: string) => Promise<void>
   /** Clear the firing state (recovery). */
   clearFiring: (name: string) => Promise<void>
+  /** The subset of `names` holding an unconfirmed first breach. */
+  currentlyPending: (names: readonly string[]) => Promise<ReadonlySet<string>>
+  /** Record a sustained alert's first breach (short TTL). */
+  markPending: (name: string) => Promise<void>
+  /** Drop a first breach (confirmed into firing, or recovered). */
+  clearPending: (name: string) => Promise<void>
 }>
 
 export function createRedisAlertStateStore(redis: AlertStateRedisPort): AlertStateStore {
   const keyFor = (name: string) => `${ALERT_STATE_KEY_PREFIX}${name}`
+  const pendingKeyFor = (name: string) => `${ALERT_PENDING_KEY_PREFIX}${name}`
+  const holding = async (names: readonly string[], key: (name: string) => string) => {
+    const held = new Set<string>()
+    await Promise.all(
+      names.map(async (name) => {
+        if ((await redis.get(key(name))) !== null) held.add(name)
+      }),
+    )
+    return held
+  }
   return {
-    currentlyFiring: async (names) => {
-      const firing = new Set<string>()
-      await Promise.all(
-        names.map(async (name) => {
-          if ((await redis.get(keyFor(name))) !== null) firing.add(name)
-        }),
-      )
-      return firing
-    },
+    currentlyFiring: (names) => holding(names, keyFor),
     markFiring: async (name) => {
       await redis.set(keyFor(name), 'firing', 'EX', ALERT_STATE_TTL_SECONDS)
     },
     clearFiring: async (name) => {
       await redis.del(keyFor(name))
+    },
+    currentlyPending: (names) => holding(names, pendingKeyFor),
+    markPending: async (name) => {
+      await redis.set(pendingKeyFor(name), 'pending', 'EX', ALERT_PENDING_TTL_SECONDS)
+    },
+    clearPending: async (name) => {
+      await redis.del(pendingKeyFor(name))
     },
   }
 }

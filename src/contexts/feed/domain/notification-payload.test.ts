@@ -55,6 +55,31 @@ describe('parseNotificationPayload', () => {
     expect(parsed).toEqual({ propertyName: 'Riverside Hotel' })
   })
 
+  // The reason a Google connection needs reauthorization is a closed fact from
+  // the integration.google_account.reauthorization_required event, never text.
+  it('keeps a known Google reauthorization cause and drops anything else', () => {
+    expect(
+      parseNotificationPayload({ reauthorizationCause: 'provider_revoked' }),
+    ).toEqual({ reauthorizationCause: 'provider_revoked' })
+    expect(parseNotificationPayload({ reauthorizationCause: 'member_removed' })).toEqual({
+      reauthorizationCause: 'member_removed',
+    })
+    expect(
+      parseNotificationPayload({ reauthorizationCause: 'Token has been revoked.' }),
+    ).toEqual({})
+  })
+
+  it('keeps the reconnect cause of a failed publication and drops anything else', () => {
+    expect(
+      parseNotificationPayload({
+        publishFailureCause: 'google_reauthorization_required',
+      }),
+    ).toEqual({ publishFailureCause: 'google_reauthorization_required' })
+    expect(
+      parseNotificationPayload({ publishFailureCause: 'rejected by Google' }),
+    ).toEqual({})
+  })
+
   it('returns an empty payload for non-object input', () => {
     for (const input of [null, undefined, 'x', 7, true, ['a']]) {
       expect(parseNotificationPayload(input)).toEqual({})
@@ -103,6 +128,54 @@ describe('parseNotificationPayload', () => {
     it('keeps only a non-negative integer grouped item count', () => {
       expect(parseNotificationPayload({ itemCount: 12 }).itemCount).toBe(12)
       expect(parseNotificationPayload({ itemCount: -1 }).itemCount).toBeUndefined()
+    })
+  })
+
+  describe('flags', () => {
+    it.each([true, false])('keeps whether a rejection came with a reason: %s', (flag) => {
+      expect(
+        parseNotificationPayload({ hasModerationReason: flag }).hasModerationReason,
+      ).toBe(flag)
+    })
+
+    it.each(['true', 1, null, 'Too defensive'])('rejects %p', (flag) => {
+      expect(
+        parseNotificationPayload({ hasModerationReason: flag }).hasModerationReason,
+      ).toBeUndefined()
+    })
+  })
+
+  it('keeps the organization display name as a trimmed name', () => {
+    expect(
+      parseNotificationPayload({ organizationName: '  Riverside Group  ' })
+        .organizationName,
+    ).toBe('Riverside Group')
+  })
+
+  describe('when a wait began', () => {
+    it('keeps a valid instant in ISO form', () => {
+      expect(
+        parseNotificationPayload({ waitingSince: '2026-09-20T11:00:00+02:00' })
+          .waitingSince,
+      ).toBe('2026-09-20T09:00:00.000Z')
+    })
+
+    it.each(['yesterday', '', 1_790_000_000_000, null])('drops %p', (waitingSince) => {
+      expect(parseNotificationPayload({ waitingSince }).waitingSince).toBeUndefined()
+    })
+  })
+
+  describe('publication outcome', () => {
+    it.each(['not_sent', 'refused', 'unconfirmed'] as const)('keeps %s', (outcome) => {
+      expect(parseNotificationPayload({ publishOutcome: outcome }).publishOutcome).toBe(
+        outcome,
+      )
+    })
+
+    it.each(['rejected', 'Google said no', 1, null])('drops %p', (outcome) => {
+      expect(
+        parseNotificationPayload({ publishOutcome: outcome }).publishOutcome,
+      ).toBeUndefined()
     })
   })
 

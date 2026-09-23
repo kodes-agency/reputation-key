@@ -24,7 +24,7 @@ export type InboxItemFacts = Readonly<{
   guestRating: number | null
   /** 'review' (Google-sourced) or 'feedback' (portal-sourced). */
   sourceType: string
-  /** When the item entered the inbox — the clock the waiting age is measured from. */
+  /** When the item entered the inbox. */
   createdAt: Date
 }>
 
@@ -100,4 +100,11 @@ export type InboxItemLookupPort = Readonly<{
   findResponseTargetReminderNotificationFacts(
     input: ResponseTargetReminderNotificationLookup,
   ): Promise<ResponseTargetReminderNotificationFacts | null>
+
+  /**
+   * When the current wait began: the start of the current Handling Cycle's
+   * measured Response Target. Null when nothing is waiting — the item is
+   * closed, the target was met, or it is not measured.
+   */
+  findWaitingSince(inboxItemId: InboxItemId, orgId: OrganizationId): Promise<Date | null>
 }>

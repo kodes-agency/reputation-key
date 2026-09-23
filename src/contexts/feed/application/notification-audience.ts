@@ -13,6 +13,7 @@ import type { ResponsibleManagerLookupPort } from './ports/responsible-manager-l
 import type { InboxItemLookupPort } from './ports/notification-inbox-item-lookup.port'
 import type { EscalationResolutionLookupPort } from './ports/escalation-resolution-lookup.port'
 import {
+  goalSubjectScope,
   inboxNotificationAudience,
   resolveResponsibleRecipients,
   type ResponsibleScope,
@@ -31,6 +32,16 @@ import {
   type ActionablePortalHealthStatus,
 } from './portal-health-notification'
 
+/** One exact Handling Cycle, as the Inbox head showed it when the notice was queued. */
+export type HandlingCycleRef = Readonly<{
+  inboxItemId: InboxItemId
+  sourceType: 'review' | 'feedback'
+  sourceId: string
+  cycleNumber: number
+  sourceRevision: number
+  stateRevision: number
+}>
+
 /**
  * Durable description of why a recipient may receive a notification.
  * Identifiers only: no review, guest, staff, or provider content enters the queue.
@@ -43,6 +54,10 @@ export type NotificationAudience =
     }>
   | Readonly<{ kind: 'responsible_scope'; scope: ResponsibleScope }>
   | Readonly<{ kind: 'account_admin' }>
+  | Readonly<{
+      kind: 'responsibility_gap'
+      scope: Exclude<ResponsibleScope, Readonly<{ kind: 'portal_group' }>>
+    }>
   | Readonly<{ kind: 'inbox_assignee'; inboxItemId: InboxItemId }>
   | Readonly<{
       kind: 'bulk_inbox_assignee'
@@ -65,6 +80,11 @@ export type NotificationAudience =
       actorUserId: UserId | null
     }>
   | Readonly<{
+      kind: 'bulk_handling_cycle'
+      cycles: ReadonlyArray<HandlingCycleRef>
+      actorUserId: UserId | null
+    }>
+  | Readonly<{
       kind: 'response_target_reminder'
       inboxItemId: InboxItemId
       sourceType: 'review' | 'feedback'
@@ -81,7 +101,14 @@ export type NotificationAudience =
       portalId: string
       status: ActionablePortalHealthStatus
       reason: ActionablePortalHealthReason
-      sourceVersion: string
+      /** When the Health interval this notice announces opened (ISO). */
+      effectiveFrom: string
+    }>
+  | Readonly<{
+      kind: 'goal_completion'
+      programId: string
+      assignmentId: string
+      monthlyResultId: string
     }>
   | Readonly<{
       kind: 'goal_result_revision'
@@ -103,9 +130,16 @@ export type NotificationAudienceAuthorizationInput = Readonly<{
   audience: NotificationAudience
 }>
 
+/**
+ * Whether the recipient may still receive the notice. A grouped notice
+ * answers with how many of its items still stand for the recipient, so its
+ * count is restated at delivery; `false` suppresses any notice.
+ */
+export type NotificationAudienceDecision = boolean | Readonly<{ itemCount: number }>
+
 export type NotificationAudienceAuthorizer = (
   input: NotificationAudienceAuthorizationInput,
-) => Promise<boolean>
+) => Promise<NotificationAudienceDecision>
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -230,6 +264,33 @@ const parseHandlingCycle: AudienceKindParser = (value) => {
   }
 }
 
+/** One bulk command reopens at most 100 items, each at most once. */
+const parseBulkHandlingCycle: AudienceKindParser = (value) => {
+  if (
+    !Array.isArray(value.cycles) ||
+    value.cycles.length === 0 ||
+    value.cycles.length > 100 ||
+    !(value.actorUserId === null || isIdentifier(value.actorUserId))
+  ) {
+    return null
+  }
+  const cycles = value.cycles.map((cycle: unknown) =>
+    isRecord(cycle) ? parseHandlingCycleCore(cycle) : null,
+  )
+  const parsed = cycles.filter((cycle): cycle is HandlingCycleRef => cycle !== null)
+  if (
+    parsed.length !== cycles.length ||
+    new Set(parsed.map((cycle) => cycle.inboxItemId)).size !== parsed.length
+  ) {
+    return null
+  }
+  return {
+    kind: 'bulk_handling_cycle',
+    cycles: parsed,
+    actorUserId: value.actorUserId === null ? null : brandUserId(value.actorUserId),
+  }
+}
+
 const parseResponseTargetReminder: AudienceKindParser = (value) => {
   const core = parseHandlingCycleCore(value)
   if (!core) return null
@@ -257,9 +318,7 @@ const parsePortalHealth: AudienceKindParser = (value) => {
     !isIdentifier(value.portalId) ||
     !(value.status === 'degraded' || value.status === 'unavailable') ||
     !isActionablePortalHealthReason(value.reason) ||
-    typeof value.sourceVersion !== 'string' ||
-    value.sourceVersion.trim().length === 0 ||
-    value.sourceVersion.length > 160
+    !isIsoDate(value.effectiveFrom)
   ) {
     return null
   }
@@ -268,7 +327,23 @@ const parsePortalHealth: AudienceKindParser = (value) => {
     portalId: value.portalId,
     status: value.status,
     reason: value.reason,
-    sourceVersion: value.sourceVersion,
+    effectiveFrom: value.effectiveFrom,
+  }
+}
+
+const parseGoalCompletion: AudienceKindParser = (value) => {
+  if (
+    !isIdentifier(value.programId) ||
+    !isIdentifier(value.assignmentId) ||
+    !isIdentifier(value.monthlyResultId)
+  ) {
+    return null
+  }
+  return {
+    kind: 'goal_completion',
+    programId: value.programId,
+    assignmentId: value.assignmentId,
+    monthlyResultId: value.monthlyResultId,
   }
 }
 
@@ -321,6 +396,15 @@ const parseResponsibleScope: AudienceKindParser = (value) => {
   return null
 }
 
+/** Only a Property or a Portal carries a responsible-manager gap. */
+const parseResponsibilityGap: AudienceKindParser = (value) => {
+  const parsed = parseResponsibleScope(value)
+  if (parsed?.kind !== 'responsible_scope' || parsed.scope.kind === 'portal_group') {
+    return null
+  }
+  return { kind: 'responsibility_gap', scope: parsed.scope }
+}
+
 /**
  * A `Map` — not an object literal — so an attacker-supplied `kind` such as
  * `"constructor"` cannot reach `Object.prototype` and resolve to a callable.
@@ -331,13 +415,16 @@ const AUDIENCE_KIND_PARSERS: ReadonlyMap<string, AudienceKindParser> = new Map<
 >([
   ['affected_organization_user', parseAffectedOrganizationUser],
   ['account_admin', () => ({ kind: 'account_admin' })],
+  ['responsibility_gap', parseResponsibilityGap],
   ['property_operator', () => ({ kind: 'property_operator' })],
   ['inbox_assignee', parseInboxAssignee],
   ['bulk_inbox_assignee', parseBulkInboxAssignee],
   ['escalation_resolution', parseEscalationResolution],
   ['handling_cycle', parseHandlingCycle],
+  ['bulk_handling_cycle', parseBulkHandlingCycle],
   ['response_target_reminder', parseResponseTargetReminder],
   ['portal_health', parsePortalHealth],
+  ['goal_completion', parseGoalCompletion],
   ['goal_result_revision', parseGoalResultRevision],
   ['responsible_scope', parseResponsibleScope],
 ])
@@ -401,6 +488,26 @@ const isAccountAdminRecipient = async (
     userId,
   )
 
+/**
+ * "Choose a responsible manager" stands only while no eligible manager holds
+ * the scope; once someone is chosen, a queued request is stale. Recipients
+ * are current AccountAdmins, the people who can choose one.
+ */
+const isResponsibilityGapRecipient = async (
+  deps: Deps,
+  { organizationId, propertyId, userId }: PropertyScopedRequest,
+  scope: AudienceOfKind<'responsibility_gap'>['scope'],
+) => {
+  if (scope.kind === 'property' && scope.propertyId !== propertyId) return false
+  const [admins, managers] = await Promise.all([
+    deps.userLookup.findByRole(organizationId, 'AccountAdmin'),
+    scope.kind === 'property'
+      ? deps.responsibleManagers.findForProperty(organizationId, propertyId)
+      : deps.responsibleManagers.findForPortal(organizationId, portalId(scope.portalId)),
+  ])
+  return managers.length === 0 && includesRecipient(admins, userId)
+}
+
 const isStillInboxAssignee = async (
   deps: Deps,
   { organizationId, propertyId, userId }: PropertyScopedRequest,
@@ -453,24 +560,24 @@ const isEscalationResolutionRecipient = async (
   return recipients.includes(userId)
 }
 
-const isHandlingCycleRecipient = async (
+/** The cycle is still the exact open head, and the user is responsible for it now. */
+const isCurrentCycleRecipient = async (
   deps: Deps,
   { organizationId, propertyId, userId }: PropertyScopedRequest,
-  audience: AudienceOfKind<'handling_cycle'>,
+  cycle: HandlingCycleRef,
 ) => {
-  if (userId === audience.actorUserId) return false
   const facts = await deps.inboxItemLookup.findHandlingCycleNotificationFacts(
-    audience.inboxItemId,
+    cycle.inboxItemId,
     organizationId,
   )
   if (
     !facts ||
     facts.propertyId !== propertyId ||
-    facts.sourceType !== audience.sourceType ||
-    facts.sourceId !== audience.sourceId ||
-    facts.currentCycleNumber !== audience.cycleNumber ||
-    facts.currentSourceRevision !== audience.sourceRevision ||
-    facts.stateRevision !== audience.stateRevision ||
+    facts.sourceType !== cycle.sourceType ||
+    facts.sourceId !== cycle.sourceId ||
+    facts.currentCycleNumber !== cycle.cycleNumber ||
+    facts.currentSourceRevision !== cycle.sourceRevision ||
+    facts.stateRevision !== cycle.stateRevision ||
     facts.status !== 'open'
   ) {
     return false
@@ -481,6 +588,33 @@ const isHandlingCycleRecipient = async (
       ? await resolveResponsibleRecipients(deps, organizationId, currentAudience.scope)
       : await deps.userLookup.findByRole(organizationId, 'AccountAdmin')
   return recipients.includes(userId)
+}
+
+const isHandlingCycleRecipient = async (
+  deps: Deps,
+  request: PropertyScopedRequest,
+  audience: AudienceOfKind<'handling_cycle'>,
+) => {
+  if (request.userId === audience.actorUserId) return false
+  return isCurrentCycleRecipient(deps, request, audience)
+}
+
+/**
+ * A grouped notice stands while any of its cycles is still the open head and
+ * the recipient still responsible for it, and counts only those. Per-item
+ * reopen facts notify nobody, so one changed item must not silence the rest.
+ */
+const isBulkHandlingCycleRecipient = async (
+  deps: Deps,
+  request: PropertyScopedRequest,
+  audience: AudienceOfKind<'bulk_handling_cycle'>,
+): Promise<NotificationAudienceDecision> => {
+  if (request.userId === audience.actorUserId) return false
+  const current = await Promise.all(
+    audience.cycles.map((cycle) => isCurrentCycleRecipient(deps, request, cycle)),
+  )
+  const itemCount = current.filter(Boolean).length
+  return itemCount === 0 ? false : { itemCount }
 }
 
 const isResponseTargetReminderRecipient = async (
@@ -519,6 +653,11 @@ const isResponseTargetReminderRecipient = async (
   return recipients.includes(userId)
 }
 
+/**
+ * The notice stands while the Health interval it announced is still open. The
+ * interval's source version is no fence: every same-status reconcile re-stamps
+ * it, although nothing about the Portal's Health changed.
+ */
 const isPortalHealthRecipient = async (
   deps: Deps,
   { organizationId, propertyId, userId }: PropertyScopedRequest,
@@ -534,7 +673,7 @@ const isPortalHealthRecipient = async (
     facts.propertyId !== propertyId ||
     facts.status !== audience.status ||
     facts.reason !== audience.reason ||
-    facts.sourceVersion !== audience.sourceVersion
+    facts.effectiveFrom.toISOString() !== audience.effectiveFrom
   ) {
     return false
   }
@@ -543,6 +682,41 @@ const isPortalHealthRecipient = async (
     portalId: audience.portalId,
   })
   return recipients.includes(userId)
+}
+
+/**
+ * "Goal completed" is checked against the result as it stands at delivery: a
+ * correction that un-achieved the month since the close was handled makes the
+ * lookup answer null, and the notice is dropped.
+ */
+const isGoalCompletionRecipient = async (
+  deps: Deps,
+  { organizationId, propertyId, userId }: PropertyScopedRequest,
+  audience: AudienceOfKind<'goal_completion'>,
+) => {
+  const facts = await deps.monthlyResultFacts.findMonthlyResultNotificationFacts({
+    organizationId,
+    propertyId,
+    assignmentId: audience.assignmentId,
+    monthlyResultId: audience.monthlyResultId,
+  })
+  if (
+    !facts ||
+    facts.programId !== audience.programId ||
+    facts.assignmentId !== audience.assignmentId ||
+    facts.monthlyResultId !== audience.monthlyResultId ||
+    (facts.subject.kind === 'property' && facts.subject.propertyId !== propertyId)
+  ) {
+    return false
+  }
+  return includesRecipient(
+    await resolveResponsibleRecipients(
+      deps,
+      organizationId,
+      goalSubjectScope(facts.subject),
+    ),
+    userId,
+  )
 }
 
 const isGoalResultRevisionRecipient = async (
@@ -562,28 +736,27 @@ const isGoalResultRevisionRecipient = async (
     revisionId: audience.revisionId,
     revision: audience.revision,
   })
+  // Judged against the result's current head, as at handling time: a later
+  // correction without flags must not silence this one while it still holds.
   if (
     !facts ||
     facts.programId !== audience.programId ||
     facts.programVersionId !== audience.programVersionId ||
     facts.assignmentId !== audience.assignmentId ||
     facts.monthlyResultId !== audience.monthlyResultId ||
-    facts.revisionId !== audience.revisionId ||
-    facts.revision !== audience.revision ||
+    facts.revision < audience.revision ||
     facts.evaluationState !== audience.evaluationState ||
     facts.achieved !== audience.achieved ||
     (facts.subject.kind === 'property' && facts.subject.propertyId !== propertyId)
   ) {
     return false
   }
-  const scope: ResponsibleScope =
-    facts.subject.kind === 'property'
-      ? { kind: 'property', propertyId: facts.subject.propertyId }
-      : facts.subject.kind === 'portal_group'
-        ? { kind: 'portal_group', portalGroupId: facts.subject.portalGroupId }
-        : { kind: 'portal', portalId: facts.subject.portalId }
   return includesRecipient(
-    await resolveResponsibleRecipients(deps, organizationId, scope),
+    await resolveResponsibleRecipients(
+      deps,
+      organizationId,
+      goalSubjectScope(facts.subject),
+    ),
     userId,
   )
 }
@@ -614,14 +787,20 @@ export const createNotificationAudienceAuthorizer =
         return isResponsibleScopeRecipient(deps, request, audience.scope)
       case 'account_admin':
         return isAccountAdminRecipient(deps, request)
+      case 'responsibility_gap':
+        return isResponsibilityGapRecipient(deps, request, audience.scope)
       case 'escalation_resolution':
         return isEscalationResolutionRecipient(deps, request, audience)
       case 'handling_cycle':
         return isHandlingCycleRecipient(deps, request, audience)
+      case 'bulk_handling_cycle':
+        return isBulkHandlingCycleRecipient(deps, request, audience)
       case 'response_target_reminder':
         return isResponseTargetReminderRecipient(deps, request, audience)
       case 'portal_health':
         return isPortalHealthRecipient(deps, request, audience)
+      case 'goal_completion':
+        return isGoalCompletionRecipient(deps, request, audience)
       case 'goal_result_revision':
         return isGoalResultRevisionRecipient(deps, request, audience)
       case 'inbox_assignee':

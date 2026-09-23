@@ -15,6 +15,16 @@ const fromRow = (
   row: typeof propertyResponsibleManagers.$inferSelect,
 ): PropertyResponsibleManager => row
 
+/**
+ * Only an active Property asks for a replacement manager. An archived one is
+ * outside the workspace: its gap is still recorded in
+ * `responsibility_needed_since`, and Restore cannot proceed until an eligible
+ * manager is assigned, so an urgent notice would only ask for work the
+ * Restore flow already requires.
+ */
+const announcesResponsibilityGap = (lifecycleState: string): boolean =>
+  lifecycleState === 'active'
+
 export const createPropertyResponsibleManagerRepository = (
   db: Database,
 ): PropertyResponsibleManagerRepository => ({
@@ -62,6 +72,7 @@ export const createPropertyResponsibleManagerRepository = (
           id: properties.id,
           revision: properties.responsibleManagerRevision,
           responsibilityNeededSince: properties.responsibilityNeededSince,
+          lifecycleState: properties.lifecycleState,
         })
         .from(properties)
         .where(
@@ -152,7 +163,9 @@ export const createPropertyResponsibleManagerRepository = (
             'Tenant or resource mismatch on Property recovery event',
           )
         }
-        await insertOutboxRow(tx, event, { recordedAt: input.at })
+        if (announcesResponsibilityGap(property.lifecycleState)) {
+          await insertOutboxRow(tx, event, { recordedAt: input.at })
+        }
       }
       const [revised] = await tx
         .update(properties)
@@ -274,8 +287,15 @@ export const createPropertyResponsibleManagerRepository = (
               isNull(properties.deletedAt),
             ),
           )
-          .returning({ responsibilityNeededSince: properties.responsibilityNeededSince })
-        if (updated && remaining.length === 0) {
+          .returning({
+            responsibilityNeededSince: properties.responsibilityNeededSince,
+            lifecycleState: properties.lifecycleState,
+          })
+        if (
+          updated &&
+          remaining.length === 0 &&
+          announcesResponsibilityGap(updated.lifecycleState)
+        ) {
           const event = propertyResponsibilityNeeded({
             organizationId: organizationId(input.organizationId),
             propertyId: propertyId(rawPropertyId),

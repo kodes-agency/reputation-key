@@ -19,7 +19,7 @@ import { cn } from '#/lib/utils'
 import {
   notificationLink,
   renderNotification,
-  type Notification,
+  type NotificationView,
 } from '#/contexts/feed/application/public-api'
 import { CATEGORY_COPY } from '#/components/features/settings/notifications-type-rows'
 import {
@@ -34,7 +34,7 @@ import { NotificationRowMenu } from './notification-row-menu'
 import type { NotificationRowActions } from './types'
 
 type Props = Readonly<{
-  notification: Notification
+  notification: NotificationView
   actions: NotificationRowActions
   /** Persisted locale + IANA timezone. Defaults until user settings resolve. */
   format?: NotificationFormat
@@ -50,6 +50,7 @@ export function NotificationRow({
     notification.resourceType,
     notification.resourceId,
     notification.propertyId,
+    notification.type,
   )
   const isUnread = notification.status === 'unread'
   const isUrgent = notification.priority === 'urgent'
@@ -57,6 +58,7 @@ export function NotificationRow({
 
   return (
     <li
+      data-notification-id={notification.id}
       className={cn(
         // Elevation by lightness, never by shadow (DESIGN.md, Tonal Stack).
         'rounded-xl px-3 py-3 transition-colors',
@@ -124,6 +126,7 @@ export function NotificationRow({
                 the same way page-header.tsx does for breadcrumbs.
               */}
               <Link
+                data-row-control="open"
                 to={link.path as never}
                 search={link.search as never}
                 hash={link.hash}
@@ -147,6 +150,7 @@ export function NotificationRow({
                 invisible control.
               */}
               <Button
+                data-row-control="dismiss"
                 variant="ghost"
                 size="icon-xs"
                 className="text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:opacity-100"

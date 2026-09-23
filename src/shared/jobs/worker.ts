@@ -18,6 +18,7 @@ import {
   isTerminalFailedEvent,
   quarantineFinalAttemptJob,
 } from './failure-quarantine'
+import { isGateDeniedResult } from './gate-denial'
 import type { JobHandler } from './registry'
 import { Redis } from 'ioredis'
 import { getJobRedisUrl } from './redis-topology'
@@ -203,7 +204,25 @@ export function createJobWorker<T>(
     )
   })
 
-  worker.on('completed', (job: Job<T>) => {
+  worker.on('completed', (job: Job<T>, result: unknown) => {
+    // A terminal gate denial completes the BullMQ job so it never retries, but
+    // nothing ran: record it as a denial so freshness never counts it. The gate
+    // already logged the denial with its reason.
+    if (isGateDeniedResult(result)) {
+      if (runtimeObservations) {
+        recordRuntime(
+          job.name,
+          runtimeObservations.recordDenied({
+            queue: name,
+            jobName: job.name,
+            jobId: job.id ?? 'unknown',
+            at: clock(),
+            executionKind: result.executionKind,
+          }),
+        )
+      }
+      return
+    }
     logger.info({ queue: name, jobName: job.name }, 'job completed')
     if (runtimeObservations) {
       recordRuntime(

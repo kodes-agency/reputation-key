@@ -22,6 +22,7 @@ import type {
   DisconnectGoogleAccountCommand,
   IntegrationCommandStore,
   ReconnectGoogleAccountCommand,
+  RequireGoogleReauthorizationCommand,
   UpdateConnectionVisibilityCommand,
 } from '../application/ports/integration-command-store.port'
 
@@ -239,6 +240,40 @@ export const createAtomicIntegrationCommandStore = (
           return rows[0]
         })
         return googleConnectionFromRow(updated)
+      })
+    },
+
+    requireReauthorization: async (command: RequireGoogleReauthorizationCommand) => {
+      return trace('integration.commandStore.requireReauthorization', async () => {
+        return db.transaction(async (tx) => {
+          const rows = await tx
+            .update(googleConnections)
+            .set({
+              status: 'reauth_required',
+              lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
+              accessVersion: sql`${googleConnections.accessVersion} + 1`,
+              statusReason: command.event.cause,
+              statusChangedAt: command.event.occurredAt,
+              updatedAt: clock(),
+            })
+            .where(
+              and(
+                eq(googleConnections.organizationId, command.organizationId),
+                eq(googleConnections.id, command.connectionId),
+                eq(googleConnections.status, 'active'),
+                eq(googleConnections.credentialUseState, 'active'),
+                eq(googleConnections.lifecycleVersion, command.expected.lifecycleVersion),
+                eq(
+                  googleConnections.credentialGeneration,
+                  command.expected.credentialGeneration,
+                ),
+              ),
+            )
+            .returning({ id: googleConnections.id })
+          if (!rows[0]) return false
+          await insertOutboxRow(tx, command.event)
+          return true
+        })
       })
     },
   }

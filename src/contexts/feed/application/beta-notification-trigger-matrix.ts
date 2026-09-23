@@ -86,7 +86,7 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
       ['responsible_scope', 'account_admin'],
     ),
     // ADR 0046: Google history an import brought in is never announced; the
-    // missing-notification sweep honours the same rule.
+    // missing-notification gauge honours the same rule.
     eventCondition:
       'sourceType === feedback || first Handling Cycle is not historical_onboarding',
   },
@@ -97,13 +97,24 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
       ['review.updated'],
       ['handling_cycle'],
     ),
-    eventCondition: 'openReason === material_revision_changed',
+    // A revision the item was created with is covered by review.created.
+    eventCondition: 'openReason === material_revision_changed && !openedWithItem',
+  },
+  {
+    ...route(
+      'inbox.handling_cycle.reopened',
+      'notification.on-inbox-handling-cycle-reopened',
+      ['inbox.reopened'],
+      ['handling_cycle'],
+    ),
+    // A bulk reopen's completion fact notifies for every item it stamped.
+    eventCondition: 'bulkId is absent',
   },
   route(
-    'inbox.handling_cycle.reopened',
-    'notification.on-inbox-handling-cycle-reopened',
-    ['inbox.reopened'],
-    ['handling_cycle'],
+    'inbox.inbox_items.bulk_reopen_completed',
+    'notification.on-inbox-bulk-reopen-completed',
+    ['inbox.bulk_reopened'],
+    ['bulk_handling_cycle'],
   ),
   {
     ...route(
@@ -172,13 +183,14 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     'review.reply.publish_failed',
     'notification.on-review-reply-publish_failed',
     ['reply.publish_failed'],
-    ['property_operator'],
+    // The author while eligible; otherwise the Property's responsible managers.
+    ['property_operator', 'responsible_scope'],
   ),
   route(
     'portal.responsibility_became_needed',
     'notification.on-portal-responsibility-needed',
     ['portal.responsibility_needed'],
-    ['account_admin'],
+    ['responsibility_gap'],
   ),
   {
     ...route(
@@ -193,7 +205,7 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     'property.responsibility_became_needed',
     'notification.on-property-responsibility-needed',
     ['property.responsibility_needed'],
-    ['account_admin'],
+    ['responsibility_gap'],
   ),
   route(
     'integration.google_account.reauthorization_required',
@@ -206,7 +218,7 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
       'goal.monthly_result.closed',
       'notification.on-goal-monthly-result-closed',
       ['goal.completed'],
-      ['responsible_scope'],
+      ['goal_completion'],
     ),
     eventCondition: 'achieved === true',
   },
@@ -232,13 +244,16 @@ const AUDIENCE_KINDS: ReadonlySet<string> = new Set<AudienceKind>([
   'affected_organization_user',
   'responsible_scope',
   'account_admin',
+  'responsibility_gap',
   'inbox_assignee',
   'bulk_inbox_assignee',
   'escalation_resolution',
   'handling_cycle',
+  'bulk_handling_cycle',
   'response_target_reminder',
   'property_operator',
   'portal_health',
+  'goal_completion',
   'goal_result_revision',
 ])
 

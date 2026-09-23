@@ -35,6 +35,17 @@ export type ProviderStateTransition = Readonly<{
   propertyId: PropertyId | null
 }>
 
+/**
+ * What the provider reports about a message after accepting it (ADR 0046 r.6).
+ * `delivery_delayed` is the provider still trying; it is recorded but leaves
+ * the message in flight, unlike the queue's own pre-send `delayed`.
+ */
+export type ProviderDeliveryState =
+  'delivered' | 'delivery_delayed' | 'bounced' | 'complained' | 'failed' | 'suppressed'
+
+/** Why the provider refused an address for good. */
+export type EmailSuppressionReason = 'bounced' | 'complained' | 'suppressed'
+
 export type NotificationDigestBatchState =
   'prepared' | 'retryable' | 'accepted' | 'terminal'
 
@@ -50,6 +61,13 @@ export type NotificationDigestBatch = Readonly<{
   unsubscribeKeyVersion: string
   state: NotificationDigestBatchState
   retryCount: number
+  /**
+   * A retryable batch the provider refused on every attempt, before accepting
+   * anything: its idempotency key protects no delivered mail, so it may be
+   * re-keyed. False once any attempt may have been accepted, including one
+   * whose worker never reported back.
+   */
+  everyAttemptRefused: boolean
   createdAt: Date
   updatedAt: Date
 }>
@@ -70,9 +88,20 @@ export type DigestBatchSettlement =
       classification: DeliveryErrorClass
       nextAttemptAt: Date | null
       failedAt: Date
+      /** The provider answered before accepting anything (a rate limit, say). */
+      refusedBeforeAcceptance: boolean
     }>
   | Readonly<{
       kind: 'content_mismatch'
+      detectedAt: Date
+    }>
+  | Readonly<{
+      /**
+       * Retire a batch whose content has changed since it was frozen, and free
+       * its members for a fresh batch under a new key. Refused unless the
+       * batch really is `everyAttemptRefused`.
+       */
+      kind: 'superseded'
       detectedAt: Date
     }>
   | Readonly<{
@@ -94,6 +123,28 @@ export type NotificationEmailRepositoryPort = Readonly<{
     cadence: NotificationCadence,
     now: Date,
   ): Promise<readonly NotificationEmail[]>
+  /**
+   * Organizations with a due immediate row that has no Property: the
+   * Organization-scoped mandatory notices. The sweep authorizes each one
+   * before it reads that Organization's rows.
+   */
+  findDueOrganizationScopes(now: Date): Promise<readonly OrganizationId[]>
+  /** Due Organization-scoped (Property-less) rows for one Organization. */
+  findDueByOrganization(
+    orgId: OrganizationId,
+    now: Date,
+  ): Promise<readonly NotificationEmail[]>
+  /**
+   * Record that a provider attempt is starting, BEFORE the call. Only the
+   * first attempt is kept: the provider's 24-hour idempotency window opens
+   * there, and a retry past it could send a second email.
+   */
+  markAttemptStarted(
+    id: NotificationEmailId,
+    orgId: OrganizationId,
+    propertyId: PropertyId | null,
+    startedAt: Date,
+  ): Promise<void>
   markAccepted(
     id: NotificationEmailId,
     orgId: OrganizationId,
@@ -145,8 +196,17 @@ export type NotificationEmailRepositoryPort = Readonly<{
    */
   recordProviderState(
     providerMessageId: string,
-    state: 'delivered' | 'bounced' | 'complained',
+    state: ProviderDeliveryState,
     occurredAt: Date,
+  ): Promise<readonly ProviderStateTransition[]>
+  /**
+   * Every queue row the provider knows by this message id, whatever its
+   * state: a digest's members share one. Lets a retried event re-apply a
+   * suppression its first delivery committed the state change for but failed
+   * to write.
+   */
+  findProviderMessageRecipients(
+    providerMessageId: string,
   ): Promise<readonly ProviderStateTransition[]>
   /**
    * Stop mailing a dead address: suppress every still-sendable row the
@@ -158,8 +218,31 @@ export type NotificationEmailRepositoryPort = Readonly<{
     reason: string,
     updatedAt: Date,
   ): Promise<number>
-  /** True once the recipient has any bounced/complained row in this org. */
-  isRecipientSuppressed(userId: UserId, orgId: OrganizationId): Promise<boolean>
+  /**
+   * True once the provider has refused this address for good: a permanent
+   * bounce, a complaint, or its own suppression list, from any Organization.
+   * Durable: it outlives the queue rows that proved it. A suppression we made
+   * ourselves (a disabled preference, say) never counts.
+   */
+  isAddressSuppressed(address: string): Promise<boolean>
+  /** Record that the provider refused this address for good. */
+  suppressAddress(
+    address: string,
+    reason: EmailSuppressionReason,
+    at: Date,
+  ): Promise<void>
+  /** The provider took this address off its suppression list: mail it again. */
+  forgetAddress(address: string): Promise<void>
+  /**
+   * Keep the optional scope an urgent email's one-click unsubscribe link
+   * stands for, before the email is sent, so the link outlives queue
+   * retention. A digest batch keeps its scopes when it is prepared.
+   */
+  recordEmailUnsubscribeScope(
+    id: NotificationEmailId,
+    orgId: OrganizationId,
+    recordedAt: Date,
+  ): Promise<void>
   /** Return the sole prepared/retryable recipient batch, if one exists. */
   findOpenDigestBatch(
     orgId: OrganizationId,
@@ -172,8 +255,9 @@ export type NotificationEmailRepositoryPort = Readonly<{
     userId: UserId,
   ): Promise<readonly NotificationEmail[]>
   /**
-   * Atomically create a batch and exact memberships, or return the open batch
-   * won by another worker. Candidate rows are revalidated under the lock.
+   * Atomically create a batch, its exact memberships and the unsubscribe
+   * scopes it stands for, or return the open batch won by another worker.
+   * Candidate rows are revalidated under the lock.
    */
   prepareDigestBatch(input: {
     id: NotificationDigestBatchId
@@ -187,6 +271,17 @@ export type NotificationEmailRepositoryPort = Readonly<{
     unsubscribeKeyVersion: string
     preparedAt: Date
   }): Promise<PreparedNotificationDigestBatch>
+  /**
+   * Record that a provider attempt is starting, BEFORE the call: an attempt
+   * that never reports back must count as possibly accepted. False when the
+   * batch is no longer open, and nothing may be sent for it.
+   */
+  startDigestAttempt(input: {
+    batchId: NotificationDigestBatchId
+    organizationId: OrganizationId
+    userId: UserId
+    startedAt: Date
+  }): Promise<boolean>
   /** Update the batch and every exact member in one transaction. */
   settleDigestBatch(input: {
     batchId: NotificationDigestBatchId

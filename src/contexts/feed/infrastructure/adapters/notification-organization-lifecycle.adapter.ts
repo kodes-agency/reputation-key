@@ -34,10 +34,12 @@ import {
   notificationDigestBatches,
   notificationEmailQueue,
   notificationPreferences,
+  notificationUnsubscribeScopes,
   notificationUserSettings,
   notifications,
 } from '#/shared/db/schema/notification.schema'
 import type { Tx } from '#/shared/outbox/commit'
+import { ORGANIZATION_CLOSING_REASON } from '../../domain/organization-email-stop'
 // Cross-context adapter contract: src/contexts/CONTEXT.md "Dependency rules"
 // lets a foreign infrastructure/adapters/** module import the Identity port it
 // implements, and nothing else from Identity.
@@ -63,7 +65,7 @@ const OPEN_DIGEST_BATCH_STATES = ['prepared', 'retryable'] as const
  * reverse this fence, and what an operator greps for to distinguish a closure
  * fence from a preference suppression or a provider rejection.
  */
-export const NOTIFICATION_CLOSING_FENCE_REASON = 'organization_closing'
+export const NOTIFICATION_CLOSING_FENCE_REASON = ORGANIZATION_CLOSING_REASON
 
 export type NotificationLifecycleClosingCounts = Readonly<{
   cancelledEmails: number
@@ -83,6 +85,7 @@ export type NotificationLifecyclePurgeCounts = Readonly<{
   digestBatchMembers: number
   preferences: number
   userSettings: number
+  unsubscribeScopes: number
 }>
 
 const total = (values: readonly number[]): number =>
@@ -136,6 +139,7 @@ export const notificationPurgeEvidenceRef = (
       `member-${counts.digestBatchMembers}`,
       `pref-${counts.preferences}`,
       `setting-${counts.userSettings}`,
+      `unsub-${counts.unsubscribeScopes}`,
     ].join(':'),
   )
 
@@ -170,6 +174,7 @@ export const notificationPurgeOutcome = (
       counts.digestBatchMembers,
       counts.preferences,
       counts.userSettings,
+      counts.unsubscribeScopes,
     ]) === 0
       ? 'no_data'
       : 'complete',
@@ -214,13 +219,13 @@ export const assertNotificationPurgeReady = (
  * Nothing is deleted and no preference is rewritten: closure is cancellable,
  * and a cancelled closure must find the tenant's own settings untouched.
  *
- * This fence is the SECOND of two independent stops, not the only one. Both
- * provider-effecting jobs — `urgent-email` and `digest-notification` — are
- * catalogued with the `notification.send_email` capability, which the
- * Organization suspension committed by the closure request already denies with
- * `org_suspended`. `insert-notification` carries capability `none`, so a queue
- * row can still be WRITTEN behind the fence; it can no longer be SENT, and
- * purge readiness deliberately fails closed if one appears.
+ * This fence is not the only stop. A closure request sets no Organization
+ * suspension, so the email paths read the lifecycle authority themselves
+ * (`domain/organization-email-stop.ts`): from `closure_requested` on,
+ * `urgent-email` and `digest-notification` suppress optional mail before the
+ * provider call, and `insert-notification` — which carries capability `none`
+ * and so still runs behind this fence — queues none. Purge readiness still
+ * fails closed if a sendable row appears anyway.
  */
 const prepareClosing = async (
   tx: Tx,
@@ -273,10 +278,11 @@ const prepareClosing = async (
  * It re-asks the exact question Closing answered — can anything still leave
  * this system for this tenant? — and refuses when the answer is yes. It
  * deliberately measures the same two blocker classes Closing fenced, so a
- * failure here means the fence was reverted, or `insert-notification` (which
- * carries capability `none`) queued new product mail behind it. Either way the
- * irreversible boundary must not be crossed until an operator resolves it;
- * blocking forever is the safe direction, silently purging is not.
+ * failure here means the fence was reverted, or product mail was queued
+ * behind it despite the queue-time refusal (a worker older than it). Either
+ * way the irreversible boundary must not be crossed until an operator
+ * resolves it; blocking forever is the safe direction, silently purging is
+ * not.
  *
  * Mandatory account/security notices are excluded from the blocker count for
  * the same reason Closing left them alone — they are Identity's channel while
@@ -330,6 +336,11 @@ const verifyPurgeReadiness = async (
       notificationUserSettings,
       eq(notificationUserSettings.organizationId, organization),
     ),
+    await countRows(
+      tx,
+      notificationUnsubscribeScopes,
+      eq(notificationUnsubscribeScopes.organizationId, organization),
+    ),
   ])
 
   const counts = { sendableEmails, openDigestBatches, retainedRows }
@@ -340,9 +351,16 @@ const verifyPurgeReadiness = async (
 /**
  * Purge: irreversible, content-free, idempotent.
  *
- * Every table this context owns in `data-fate-authority.ts` is scrubbed by
- * organization scope. Deletion order runs children before parents so a
- * cascade can never silently absorb a row this receipt claims to have counted:
+ * Every Organization-scoped table this context owns in
+ * `data-fate-authority.ts` is scrubbed by organization scope. The one table
+ * that is not, `notification_email_suppressions`, is kept on purpose. Its rows
+ * are server-keyed address digests that belong to no Organization: the same
+ * address may be a member elsewhere, and purging the provider's refusal of it
+ * would let a complainer be mailed again. An entry leaves only when the
+ * provider lifts its own suppression.
+ *
+ * Deletion order runs children before parents so a cascade can never
+ * silently absorb a row this receipt claims to have counted:
  *
  *   * `notification_digest_batch_members` — batch composition; cascades from
  *     both batches and queue rows, so it is removed first and counted honestly.
@@ -354,6 +372,8 @@ const verifyPurgeReadiness = async (
  *     tenant content this phase exists to erase.
  *   * `notification_preferences` / `notification_user_settings` — the tenant's
  *     own delivery policy, locale and timezone.
+ *   * `notification_unsubscribe_scopes` — what each delivered message's
+ *     one-click unsubscribe link stands for.
  *
  * Idempotent by construction: a replay matches zero rows. In practice the
  * shared store never re-runs it, because the committed receipt replays first.
@@ -396,6 +416,11 @@ const purge = async (
     .where(eq(notificationUserSettings.organizationId, organization))
     .returning({ id: notificationUserSettings.id })
 
+  const unsubscribeScopes = await tx
+    .delete(notificationUnsubscribeScopes)
+    .where(eq(notificationUnsubscribeScopes.organizationId, organization))
+    .returning({ targetId: notificationUnsubscribeScopes.targetId })
+
   return notificationPurgeOutcome({
     notifications: notificationRows.length,
     emails: emails.length,
@@ -403,6 +428,7 @@ const purge = async (
     digestBatchMembers: digestBatchMembers.length,
     preferences: preferences.length,
     userSettings: userSettings.length,
+    unsubscribeScopes: unsubscribeScopes.length,
   })
 }
 

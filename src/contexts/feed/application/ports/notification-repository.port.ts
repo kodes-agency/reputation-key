@@ -16,7 +16,24 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import type { NotificationListFilter } from '../notification-list-filter'
-import type { NotificationFeedHead } from '../notification-page'
+import type {
+  NotificationFeedCursor,
+  NotificationFeedHead,
+  NotificationPage,
+} from '../notification-page'
+
+/** Whose feed, which filter, and how many rows a page may hold. */
+export type NotificationFeedQuery = Readonly<{
+  userId: UserId
+  organizationId: OrganizationId
+  /**
+   * The Properties the reader can currently access, or null for every
+   * Property. Organization-scoped notices (no Property) are always visible.
+   */
+  visiblePropertyIds: ReadonlyArray<PropertyId> | null
+  filter: NotificationListFilter
+  limit: number
+}>
 
 export type NotificationRepositoryPort = Readonly<{
   /**
@@ -44,31 +61,21 @@ export type NotificationRepositoryPort = Readonly<{
     propertyId: PropertyId,
   ): Promise<Map<string, Notification>>
 
-  findUnreadByUser(
-    userId: UserId,
-    orgId: OrganizationId,
-    limit: number,
-    offset: number,
-  ): Promise<readonly Notification[]>
+  /**
+   * Read the first page, the exact unread count and the filter's share of it
+   * from one repeatable-read PostgreSQL snapshot. The returned watermark
+   * identifies that shared read. All honour `visiblePropertyIds`, so the badge
+   * never counts a row the reader cannot see.
+   */
+  readFeedHead(query: NotificationFeedQuery): Promise<NotificationFeedHead>
 
   /**
-   * Read the offset-zero page and exact unread count from one repeatable-read
-   * PostgreSQL snapshot. The returned watermark identifies that shared read.
+   * One keyset page in feed order (latest activity DESC, id DESC), strictly
+   * after `before`. Rows arriving or leaving above the cursor cannot shift it.
    */
-  readFeedHead(
-    userId: UserId,
-    orgId: OrganizationId,
-    limit: number,
-    filter: NotificationListFilter,
-  ): Promise<NotificationFeedHead>
-
-  findByUser(
-    userId: UserId,
-    orgId: OrganizationId,
-    limit: number,
-    offset: number,
-    filter: NotificationListFilter,
-  ): Promise<readonly Notification[]>
+  readFeedPage(
+    query: NotificationFeedQuery & Readonly<{ before: NotificationFeedCursor | null }>,
+  ): Promise<NotificationPage>
 
   markRead(
     id: NotificationId,
@@ -78,7 +85,13 @@ export type NotificationRepositoryPort = Readonly<{
     updatedAt: Date,
   ): Promise<void>
 
-  markAllRead(userId: UserId, orgId: OrganizationId, updatedAt: Date): Promise<void>
+  /** Mark read every unread row the filter holds (the reader's tab), no more. */
+  markAllRead(
+    userId: UserId,
+    orgId: OrganizationId,
+    filter: NotificationListFilter,
+    updatedAt: Date,
+  ): Promise<void>
 
   /** Find a user's existing unread notification for a type+resource (dedup). */
   findUnreadByUserTypeResource(
@@ -93,9 +106,11 @@ export type NotificationRepositoryPort = Readonly<{
    * Persist an ADR 0046 r.2 coalescing bump: the already-coalesced entity
    * (title/body/payload/count/latest/updatedAt) produced by
    * `applyCoalescence`. Scoped to the owning user + org so a bump can never
-   * cross a tenant.
+   * cross a tenant, and to a row that is still unread. Returns false — and
+   * writes nothing — when the row was read or dismissed after it was looked
+   * up; the caller then owes the event a fresh unread row.
    */
-  refreshUnread(notification: Notification): Promise<void>
+  refreshUnread(notification: Notification): Promise<boolean>
 
   /**
    * Flip a read row back to unread. Returns null — never throws — when the

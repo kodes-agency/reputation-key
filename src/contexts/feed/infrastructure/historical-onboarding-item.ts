@@ -4,9 +4,9 @@
 // History does not fan out (ADR 0046): an item whose first Handling Cycle holds
 // a Google Review observed as `historical_onboarding`, a past review an import
 // brought in, is never announced as new. The fan-out's lookup and the
-// missing-notification sweep both read this predicate, so the item the fan-out
-// skips is exactly the item the sweep never counts as a gap. Two copies could
-// drift, and the sweep would re-create what the fan-out suppressed.
+// missing-notification gauge both read this predicate, so the item the fan-out
+// skips is exactly the item the gauge never counts as a gap. Two copies could
+// drift, and the gauge would page after every import.
 //
 // Keyed on the first cycle's Response Target because its eligibility is
 // immutable at the database boundary and commits in the same transaction as

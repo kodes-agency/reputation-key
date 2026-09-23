@@ -10,6 +10,8 @@ import {
 } from './operations-snapshot'
 import type { Database } from '#/shared/db'
 import type { OutboxRepository } from '#/shared/outbox'
+import { SNAPSHOT_SECTIONS } from '#/shared/observability/metrics-schema'
+import { getLogger } from '#/shared/observability/logger'
 
 const FIXED_NOW = new Date('2026-01-15T12:00:00.000Z')
 const clock = () => FIXED_NOW
@@ -21,8 +23,29 @@ function fakeDb(results: unknown[][]): Database {
     const chain: Record<string, unknown> = {}
     chain.from = () => chain
     chain.where = () => chain
+    chain.leftJoin = () => chain
+    chain.groupBy = () => chain
     chain.then = (resolve: (v: unknown[]) => unknown, reject: (e: unknown) => unknown) =>
       Promise.resolve(rows).then(resolve, reject)
+    return chain
+  }
+  return { select: vi.fn(() => makeChain(results[call++] ?? [])) } as unknown as Database
+}
+
+/** A query that never answers (a stalled scan or a saturated pool). */
+const HANG = Symbol('hang')
+
+/** fakeDb, except a HANG entry is a query that never resolves. */
+function stallingDb(results: Array<unknown[] | typeof HANG>): Database {
+  let call = 0
+  const makeChain = (rows: unknown[] | typeof HANG) => {
+    const chain: Record<string, unknown> = {}
+    chain.from = () => chain
+    chain.where = () => chain
+    chain.leftJoin = () => chain
+    chain.groupBy = () => chain
+    chain.then = (resolve: (v: unknown[]) => unknown, reject: (e: unknown) => unknown) =>
+      rows === HANG ? new Promise(() => {}) : Promise.resolve(rows).then(resolve, reject)
     return chain
   }
   return { select: vi.fn(() => makeChain(results[call++] ?? [])) } as unknown as Database
@@ -70,6 +93,7 @@ const JOB_RUNTIME = {
   invalidObservations: 0,
   handlerMissing: 0,
   schedulerMissing: 1,
+  scheduleDenied: 0,
   forbiddenDarkWork: 0,
   quarantinedSchedulers: 0,
   missedObjectives: 0,
@@ -77,6 +101,7 @@ const JOB_RUNTIME = {
   stalled: 0,
   repairRequired: 0,
   deadLetters: 0,
+  gateDenials: 0,
   rows: [
     {
       jobName: 'health-check',
@@ -99,6 +124,8 @@ const JOB_RUNTIME = {
       ready: false,
       reasons: ['scheduler_missing' as const],
       lastSucceededAt: null,
+      lastDeniedAt: null,
+      deniedCount: 0,
       oldestWaitingAt: null,
       deadLetterCount: 0,
       repairCommand:
@@ -299,7 +326,19 @@ describe('createOperationsSnapshot', () => {
 
     const snapshot = await reader.read()
 
-    expect(snapshot.degraded).toEqual(['health'])
+    // Every database-backed signal degrades on its own marker; the absent
+    // quarantine handle and unwired notification readers are not failures.
+    expect(snapshot.degraded).toEqual([
+      'health.outbox',
+      'health.reviews',
+      'health.sync',
+      'health.replyPublication',
+      'health.notificationEmail',
+    ])
+    // Degraded markers are a closed label set (BQC-7.3 schema).
+    for (const marker of snapshot.degraded) {
+      expect(SNAPSHOT_SECTIONS).toContain(marker)
+    }
     expect(snapshot.outbox.unpublishedCount).toBe(0)
     expect(snapshot.timestamp).toBe(FIXED_NOW.toISOString())
     // Null handles are absent, not degraded: queues [] and stale heartbeat.
@@ -307,6 +346,224 @@ describe('createOperationsSnapshot', () => {
     expect(snapshot.workers.heartbeat).toEqual({ at: null, ageMs: null, stale: true })
     // The runtime section is unaffected by a degraded health read.
     expect(snapshot.versions.policyStore).toBe(11)
+  })
+
+  it('degrades only the failing health signal and keeps every signal read alongside it', async () => {
+    const reader = createOperationsSnapshot({
+      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+      outboxRepo: fakeOutboxRepo(),
+      queues: {
+        default: null,
+        background: null,
+        domainEvents: null,
+        quarantine: fakeQueue(2),
+      },
+      redis: null,
+      clock,
+      versions: VERSIONS,
+      runtime: RUNTIME,
+      readMissingNotificationCount: async () => 4,
+      readNotificationDeliveryLag: async () => {
+        throw new Error('anti-join scan failed')
+      },
+    })
+    const warn = vi.spyOn(getLogger(), 'warn').mockImplementation(() => undefined)
+
+    const snapshot = await reader.read()
+    const warned = [...warn.mock.calls]
+    warn.mockRestore()
+
+    expect(snapshot.degraded).toEqual(['health.notificationDeliveryLag'])
+    expect(warned).toContainEqual([
+      {
+        healthSignals: [
+          {
+            signal: 'notificationDeliveryLag',
+            outcome: 'failed',
+            elapsedMs: expect.any(Number),
+          },
+        ],
+      },
+      '[operations-snapshot] health signals degraded',
+    ])
+    expect(snapshot.outbox.unpublishedCount).toBe(3)
+    expect(snapshot.quarantine?.count).toBe(2)
+    expect(snapshot.reviews.refreshDueCount).toBe(1)
+    expect(snapshot.replyPublication.counts.ambiguous).toBe(1)
+    expect(snapshot.notifications.missingForInboxItemCount).toBe(4)
+    expect(snapshot.notifications.deliveryLag.sourceReceiptPending).toBe(0)
+  })
+
+  it('judges the touched email stall only in scopes the composition root says may send', async () => {
+    const reader = createOperationsSnapshot({
+      db: fakeDb([
+        UNPUBLISHED_ROW,
+        CLAIMED_ROW,
+        REVIEW_ROW,
+        SYNC_ROW,
+        PUBLICATION_ROW,
+        [{ overdue: 3, oldest_overdue_age_ms: 36_000_000 }],
+        [
+          {
+            organizationId: 'org-pilot',
+            propertyId: 'property-1',
+            attempted: 1,
+            oldest_attempted_age_ms: 9_000_000,
+          },
+          {
+            organizationId: 'org-suspended',
+            propertyId: 'property-2',
+            attempted: 2,
+            oldest_attempted_age_ms: 36_000_000,
+          },
+        ],
+      ]),
+      outboxRepo: fakeOutboxRepo(),
+      queues: { default: null, background: null, domainEvents: null, quarantine: null },
+      redis: null,
+      clock,
+      versions: VERSIONS,
+      runtime: RUNTIME,
+      isEmailDeliveryAllowed: (scope) => scope.organizationId === 'org-pilot',
+    })
+
+    const snapshot = await reader.read()
+
+    expect(snapshot.notifications.attemptedStuckCount).toBe(1)
+    expect(snapshot.notifications.oldestAttemptedStuckAgeMs).toBe(9_000_000)
+  })
+
+  it('reads every later database signal when an early one stalls', async () => {
+    vi.useFakeTimers()
+    try {
+      const reader = createOperationsSnapshot({
+        // The outbox scan never answers; everything after it does.
+        db: stallingDb([HANG, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+        outboxRepo: fakeOutboxRepo(),
+        queues: { default: null, background: null, domainEvents: null, quarantine: null },
+        redis: null,
+        clock,
+        versions: VERSIONS,
+        runtime: RUNTIME,
+        readMissingNotificationCount: async () => 4,
+      })
+
+      const pending = reader.read()
+      await vi.advanceTimersByTimeAsync(OPS_SECTION_BUDGET_MS)
+      const snapshot = await pending
+
+      expect(snapshot.degraded).toEqual(['health.outbox'])
+      expect(snapshot.reviews.refreshDueCount).toBe(1)
+      expect(snapshot.replyPublication.counts.ambiguous).toBe(1)
+      expect(snapshot.notifications.missingForInboxItemCount).toBe(4)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('says which health signal timed out and which never started', async () => {
+    vi.useFakeTimers()
+    const warn = vi.spyOn(getLogger(), 'warn').mockImplementation(() => undefined)
+    try {
+      const reader = createOperationsSnapshot({
+        // Two stalled scans spend the whole section budget between them.
+        db: stallingDb([HANG, HANG]),
+        outboxRepo: fakeOutboxRepo(),
+        queues: { default: null, background: null, domainEvents: null, quarantine: null },
+        redis: null,
+        clock,
+        versions: VERSIONS,
+        runtime: RUNTIME,
+      })
+
+      const pending = reader.read()
+      await vi.advanceTimersByTimeAsync(OPS_SECTION_BUDGET_MS)
+      const snapshot = await pending
+
+      expect(snapshot.degraded).toEqual([
+        'health.outbox',
+        'health.reviews',
+        'health.sync',
+        'health.replyPublication',
+        'health.notificationEmail',
+        'health.notificationGap',
+        'health.notificationDeliveryLag',
+      ])
+      expect(warn).toHaveBeenCalledWith(
+        {
+          healthSignals: [
+            {
+              signal: 'outbox',
+              outcome: 'timed_out',
+              elapsedMs: OPS_SECTION_BUDGET_MS / 2,
+            },
+            { signal: 'reviews', outcome: 'timed_out', elapsedMs: OPS_SECTION_BUDGET_MS },
+            { signal: 'sync', outcome: 'not_started', elapsedMs: OPS_SECTION_BUDGET_MS },
+            {
+              signal: 'replyPublication',
+              outcome: 'not_started',
+              elapsedMs: OPS_SECTION_BUDGET_MS,
+            },
+            {
+              signal: 'notificationEmail',
+              outcome: 'not_started',
+              elapsedMs: OPS_SECTION_BUDGET_MS,
+            },
+            {
+              signal: 'notificationGap',
+              outcome: 'not_started',
+              elapsedMs: OPS_SECTION_BUDGET_MS,
+            },
+            {
+              signal: 'notificationDeliveryLag',
+              outcome: 'not_started',
+              elapsedMs: OPS_SECTION_BUDGET_MS,
+            },
+          ],
+        },
+        '[operations-snapshot] health signals degraded',
+      )
+    } finally {
+      warn.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not let a hanging Queue Redis read blank the database signals', async () => {
+    vi.useFakeTimers()
+    try {
+      const hanging = {
+        getJobCounts: vi.fn(() => new Promise<Record<string, number>>(() => {})),
+        getJobs: vi.fn(async () => []),
+      }
+      const reader = createOperationsSnapshot({
+        db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+        outboxRepo: fakeOutboxRepo(),
+        queues: {
+          default: null,
+          background: null,
+          domainEvents: null,
+          quarantine: hanging,
+        },
+        redis: null,
+        clock,
+        versions: VERSIONS,
+        runtime: RUNTIME,
+      })
+
+      const pending = reader.read()
+      await vi.advanceTimersByTimeAsync(OPS_SECTION_BUDGET_MS)
+      const snapshot = await pending
+
+      // The queue-depth section reads the same hanging handle, so it degrades
+      // too; the database-backed health signals do not.
+      expect(snapshot.degraded).toEqual(['health.quarantine', 'queues'])
+      expect(snapshot.quarantine).toBeNull()
+      expect(snapshot.outbox.unpublishedCount).toBe(3)
+      expect(snapshot.reviews.refreshDueCount).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('degrades the queues and heartbeat sections when their reads throw', async () => {
@@ -366,17 +623,76 @@ describe('createOperationsSnapshot', () => {
     const snapshot = await reader.read()
 
     expect(snapshot.degraded).toEqual(['runtime'])
-    expect(snapshot.db).toEqual({ pool: null, migrationVersion: null })
-    expect(snapshot.release).toEqual({ sha: 'unknown' })
-    // Static version identity survives (policy store read nulled).
+    // Only the database read is lost. The in-process pool gauge survives — a
+    // saturated pool is exactly when the migration read stalls, and
+    // db.pool-exhaustion reads this gauge.
+    expect(snapshot.db).toEqual({
+      pool: { max: 10, totalCount: 3, idleCount: 2, waitingCount: 0 },
+      migrationVersion: null,
+    })
+    expect(snapshot.cache.tenant).toEqual({ hits: 5, misses: 2, evictions: 1, size: 3 })
+    expect(snapshot.release).toEqual({ sha: 'abc1234' })
     expect(snapshot.versions).toEqual({
       capabilityPolicy: 'test-cap',
       executionPolicy: 'test-exec',
-      policyStore: null,
+      policyStore: 11,
       sourceContentPolicy: 1,
       runtime: process.version,
     })
     expect(snapshot.outbox.unpublishedCount).toBe(3)
+  })
+
+  it('keeps a saturated pool gauge when the migration read outlasts the budget', async () => {
+    vi.useFakeTimers()
+    try {
+      const reader = createOperationsSnapshot({
+        db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+        outboxRepo: fakeOutboxRepo(),
+        queues: { default: null, background: null, domainEvents: null, quarantine: null },
+        redis: null,
+        clock,
+        versions: VERSIONS,
+        runtime: {
+          ...RUNTIME,
+          poolStats: () => ({ max: 10, totalCount: 10, idleCount: 0, waitingCount: 4 }),
+          migrationVersion: () => new Promise<number | null>(() => {}),
+        },
+      })
+
+      const pending = reader.read()
+      await vi.advanceTimersByTimeAsync(OPS_SECTION_BUDGET_MS)
+      const snapshot = await pending
+
+      expect(snapshot.degraded).toEqual(['runtime'])
+      expect(snapshot.db.pool?.waitingCount).toBe(4)
+      expect(snapshot.db.migrationVersion).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('falls back to the empty runtime section when an in-process runtime read throws', async () => {
+    const reader = createOperationsSnapshot({
+      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+      outboxRepo: fakeOutboxRepo(),
+      queues: { default: null, background: null, domainEvents: null, quarantine: null },
+      redis: null,
+      clock,
+      versions: VERSIONS,
+      runtime: {
+        ...RUNTIME,
+        tenantCache: () => {
+          throw new Error('stats unavailable')
+        },
+      },
+    })
+
+    const snapshot = await reader.read()
+
+    expect(snapshot.degraded).toEqual(['runtime'])
+    expect(snapshot.db).toEqual({ pool: null, migrationVersion: 17 })
+    expect(snapshot.release).toEqual({ sha: 'unknown' })
+    expect(snapshot.versions.policyStore).toBeNull()
   })
 
   it('degrades only the jobs section when the durable runtime report fails', async () => {

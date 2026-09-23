@@ -1,9 +1,10 @@
 // Bell popover content: header actions, filter tabs, list body, and the
 // "View all notifications" foot link. Pure presentational; stories vary the
 // header affordances, the active filter and the body state.
+import { useEffect, useRef, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, within } from 'storybook/test'
-import { notificationFixtures } from './notification.stories.fixtures'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { makeNotification, notificationFixtures } from './notification.stories.fixtures'
 import { groupByReadState, matchesNotificationFilter } from './notification-filters'
 import { NotificationPopoverContent } from './notification-popover-content'
 import type { NotificationRowActions } from './types'
@@ -18,6 +19,7 @@ const actions: NotificationRowActions = {
 
 const noop = () => {}
 const onFilterChange = fn()
+const onMarkAllRead = fn()
 
 const meta: Meta<typeof NotificationPopoverContent> = {
   title: 'Notification/NotificationPopoverContent',
@@ -30,13 +32,13 @@ const meta: Meta<typeof NotificationPopoverContent> = {
     isLoadingMore: false,
     error: null,
     hasMore: false,
-    unreadCount: 3,
+    filterUnreadCount: 3,
     filter: 'all',
     onFilterChange,
     isMarkingAllRead: false,
     onRetry: noop,
     onLoadMore: noop,
-    onMarkAllRead: noop,
+    onMarkAllRead,
     actions,
   },
   decorators: [
@@ -49,6 +51,12 @@ const meta: Meta<typeof NotificationPopoverContent> = {
 }
 export default meta
 type Story = StoryObj<typeof NotificationPopoverContent>
+
+/** "Mark all read" is offered only while the tab holds an unread row to mark. */
+const expectNoMarkAllRead = (canvasElement: HTMLElement) =>
+  expect(
+    within(canvasElement).queryByRole('button', { name: /mark all read/i }),
+  ).toBeNull()
 
 export const Default: Story = {
   play: async ({ canvasElement }) => {
@@ -66,8 +74,8 @@ export const Default: Story = {
 }
 
 /**
- * Tabs are derived from GOVERNING_NOTIFICATION_CATEGORIES, so `mandatory` — which
- * governs zero notification types — must never appear as a filter.
+ * Tabs are derived from GOVERNING_NOTIFICATION_CATEGORIES: a category earns a
+ * filter exactly when it governs a live notification type.
  */
 export const FilterTabs: Story = {
   play: async ({ canvasElement }) => {
@@ -76,10 +84,16 @@ export const FilterTabs: Story = {
     // Derived from the domain, never hand-listed. `Account` appeared when the
     // Organization access/role/purge-pending notices made `mandatory` govern
     // real types: a category the reader cannot switch off is still one they
-    // may filter TO. `Recognition` stays absent — it is retained for history
-    // and post-core, so it must not advertise a beta control.
-    expect(tabs).toEqual(['All', 'Unread', 'Urgent', 'Account', 'Action', 'Workflow'])
-    expect(tabs).not.toContain('Recognition')
+    // may filter TO. `Goals` is the live goal-result category (`recognition`).
+    expect(tabs).toEqual([
+      'All',
+      'Unread',
+      'Urgent',
+      'Account',
+      'Action',
+      'Workflow',
+      'Goals',
+    ])
     onFilterChange.mockClear()
     await userEvent.click(canvas.getByRole('tab', { name: 'Urgent' }))
     expect(onFilterChange).toHaveBeenCalledWith('urgent')
@@ -115,21 +129,85 @@ export const ErrorState: Story = {
 }
 
 export const Empty: Story = {
-  args: { groups: [], unreadCount: 0 },
+  args: { groups: [], filterUnreadCount: 0 },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(canvas.getByText(/nothing here right now/i)).toBeInTheDocument()
+    expect(within(canvasElement).getByText(/nothing here right now/i)).toBeInTheDocument()
     // Bulk actions are hidden when there is nothing to act on.
-    expect(canvas.queryByRole('button', { name: /mark all read/i })).toBeNull()
+    expectNoMarkAllRead(canvasElement)
   },
 }
 
-/** Mark-all-read holds its disabled pending state while the mutation is in flight. */
+/** Nothing is left to mark while the mutation is in flight, so the action is gone. */
 export const MarkingAllRead: Story = {
   args: { isMarkingAllRead: true },
   play: async ({ canvasElement }) => {
-    expect(
-      within(canvasElement).getByRole('button', { name: /mark all read/i }),
-    ).toBeDisabled()
+    expectNoMarkAllRead(canvasElement)
+  },
+}
+
+/**
+ * The tab lists rows, but none of them is unread: "Mark all read" would
+ * change nothing here, so it is not offered, whatever other tabs hold.
+ */
+export const NothingUnreadOnThisTab: Story = {
+  args: {
+    filter: 'workflow_collaboration',
+    filterUnreadCount: 0,
+    groups: groupByReadState([
+      makeNotification({
+        id: '10000000-0000-4000-8000-000000000080',
+        type: 'inbox_note.added',
+        status: 'read',
+      }),
+    ]),
+  },
+  play: async ({ canvasElement }) => {
+    expect(within(canvasElement).getAllByRole('listitem')).toHaveLength(1)
+    expectNoMarkAllRead(canvasElement)
+  },
+}
+
+/**
+ * "Mark all read" leaves once its rows are read, so it hands focus to the
+ * list it changed rather than to <body> outside the non-modal popover.
+ */
+export const MarkAllReadHandsFocusToTheList: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    onMarkAllRead.mockClear()
+    canvas.getByRole('button', { name: /mark all read/i }).focus()
+    await userEvent.keyboard('{Enter}')
+    expect(onMarkAllRead).toHaveBeenCalledTimes(1)
+    expect(canvas.getByRole('group', { name: 'Notification list' })).toHaveFocus()
+  },
+}
+
+/**
+ * The popover opens at once, and its body's chunk can arrive after it: the
+ * popover holds focus meanwhile. When the body mounts, the list takes that
+ * focus over, so the first key press lands on the list, not on a button.
+ */
+function LateBody(props: Parameters<typeof NotificationPopoverContent>[0]) {
+  const popover = useRef<HTMLDivElement>(null)
+  const [arrived, setArrived] = useState(false)
+  useEffect(() => {
+    popover.current?.focus()
+    // The chunk lands a moment after the popover opened.
+    const arrival = setTimeout(() => setArrived(true), 0)
+    return () => clearTimeout(arrival)
+  }, [])
+  return (
+    <div ref={popover} role="dialog" aria-label="Notifications" tabIndex={-1}>
+      {arrived && <NotificationPopoverContent {...props} />}
+    </div>
+  )
+}
+
+export const TakesOverFocusTheLoadingPopoverHeld: Story = {
+  render: (args) => <LateBody {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const list = await canvas.findByRole('group', { name: 'Notification list' })
+    await waitFor(() => expect(list).toHaveFocus())
   },
 }

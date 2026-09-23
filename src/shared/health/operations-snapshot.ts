@@ -13,15 +13,25 @@
 //   (OPS_SECTION_BUDGET_MS) via withBudget. A section that times out OR fails
 //   reports its degraded marker and a safe fallback — a partial read is never
 //   a 500 (operator runbooks curl this during incidents, when a dependency is
-//   most likely to be down).
+//   most likely to be down). The health section degrades per signal
+//   (`health.<signal>`): a signal that fails or outlasts its own cap keeps its
+//   own marker and fallback, and the signals after it still read inside the
+//   section budget; any the budget no longer reaches are marked too, never
+//   started (a warn line tells the two apart).
 // - Payload stays identifier-only (ADR 0030): no review text, PII, or tokens.
 
 import type { Database } from '#/shared/db'
 import type { OutboxRepository } from '#/shared/outbox'
 import type { Clock } from '#/shared/domain/clock'
 import {
+  assembleHealthSnapshot,
   createHealthChecker,
+  HEALTH_SIGNALS,
+  type HealthSignal,
+  type HealthSignalReads,
+  type HealthSignalValues,
   type HealthSnapshot,
+  type IsEmailDeliveryAllowed,
   type NotificationDeliveryLagRead,
   type QuarantineMetricsPort,
 } from '#/shared/observability/health-metrics'
@@ -40,6 +50,7 @@ import {
 import { checkGlobalCapability } from '#/shared/auth/beta-capabilities'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
 import type { JobRuntimeReport } from '#/shared/jobs/runtime-observations'
+import { getLogger } from '#/shared/observability/logger'
 
 /** Hard per-section read budget. A section slower than this degrades. */
 export const OPS_SECTION_BUDGET_MS = 5000
@@ -82,6 +93,13 @@ export type OperationsSnapshotDeps = Readonly<{
   readMissingNotificationCount?: () => Promise<number>
   /** Notification-owned bounded source→Redis→PostgreSQL delivery evidence. */
   readNotificationDeliveryLag?: () => Promise<NotificationDeliveryLagRead>
+  /**
+   * The composition root's scoped `notification.send_email` decision (the one
+   * Feed's delivery-lag evidence reads), forwarded to the health checker: the
+   * touched-email stall gauge counts only scopes that may send now. Absent =
+   * every scope counts.
+   */
+  isEmailDeliveryAllowed?: IsEmailDeliveryAllowed
   /** ARC-02: durable worker/runtime authority assembled from Queue Redis. */
   jobRuntime?: Readonly<{ read: () => Promise<JobRuntimeReport> }>
   /**
@@ -188,10 +206,9 @@ export async function withBudget<T>(
   }
 }
 
-/** Fallback health payload when the health section degrades (shape intact). */
-function zeroHealthSnapshot(now: Date): HealthSnapshot {
+/** Fallback value per health signal when that signal degrades (shape intact). */
+function zeroHealthSignals(): HealthSignalValues {
   return {
-    timestamp: now.toISOString(),
     outbox: {
       unpublishedCount: 0,
       oldestUnpublishedAgeMs: null,
@@ -216,35 +233,47 @@ function zeroHealthSnapshot(now: Date): HealthSnapshot {
     // A degraded read must not invent a delivery problem: zero overdue rows
     // and email reported dark keeps every notification alert quiet (the
     // `degraded` marker is the signal that this section is unreadable).
-    notifications: {
+    notificationEmail: {
       emailDeliveryEnabled: false,
       pendingOverdueCount: 0,
       oldestPendingOverdueAgeMs: null,
       attemptedStuckCount: 0,
-      // 0, not a guess: an unreadable section must not fabricate a
-      // notification gap either. `degraded` is what says "unknown".
-      missingForInboxItemCount: 0,
-      deliveryLag: {
-        sourceReceiptPending: 0,
-        materializationPending: 0,
-        oldestSourceRecordedAt: null,
-        oldestSourceAgeMs: null,
-        oldestMaterializationSourceRecordedAt: null,
-        oldestMaterializationSourceAgeMs: null,
-        oldestMaterializationEnqueuedAt: null,
-        oldestMaterializationEnqueuedAgeMs: null,
-        sourceSaturated: false,
-        materializationSaturated: false,
-        immediateEmailAcceptance: {
-          awaitingProviderAcceptance: 0,
-          attemptedAwaitingProviderAcceptance: 0,
-          oldestAwaitingSourceRecordedAt: null,
-          oldestAwaitingSourceAgeMs: null,
-          acceptedLatencyP99Ms: null,
-          acceptedSampleCount: 0,
-          sourceUnlinked: 0,
-          saturated: false,
-        },
+      oldestAttemptedStuckAgeMs: null,
+      emailOutcomes: {
+        acceptedCount: 0,
+        permanentFailureCount: 0,
+        retryExhaustedCount: 0,
+        bouncedCount: 0,
+        complainedCount: 0,
+        providerOutcomeCount: 0,
+        acceptedUnresolvedCount: 0,
+        oldestAcceptedUnresolvedAgeMs: null,
+        capturedUnresolvedCount: 0,
+      },
+    },
+    // 0, not a guess: an unreadable section must not fabricate a
+    // notification gap either. `degraded` is what says "unknown".
+    notificationGap: 0,
+    notificationDeliveryLag: {
+      sourceReceiptPending: 0,
+      materializationPending: 0,
+      oldestSourceRecordedAt: null,
+      oldestSourceAgeMs: null,
+      oldestMaterializationSourceRecordedAt: null,
+      oldestMaterializationSourceAgeMs: null,
+      oldestMaterializationEnqueuedAt: null,
+      oldestMaterializationEnqueuedAgeMs: null,
+      sourceSaturated: false,
+      materializationSaturated: false,
+      immediateEmailAcceptance: {
+        awaitingProviderAcceptance: 0,
+        attemptedAwaitingProviderAcceptance: 0,
+        oldestAwaitingSourceRecordedAt: null,
+        oldestAwaitingSourceAgeMs: null,
+        acceptedLatencyP99Ms: null,
+        acceptedSampleCount: 0,
+        sourceUnlinked: 0,
+        saturated: false,
       },
     },
     replyPublication: {
@@ -259,11 +288,122 @@ function zeroHealthSnapshot(now: Date): HealthSnapshot {
       },
       oldestAmbiguousAgeMs: null,
     },
-    workers: {
-      defaultQueueName: 'default',
-      backgroundQueueName: 'background',
-      domainEventsQueueName: 'domain-events',
-    },
+  }
+}
+
+type HealthSection = Readonly<{
+  health: HealthSnapshot
+  /** Signals that failed, timed out, or never started (fallback values). */
+  degraded: readonly HealthSignal[]
+}>
+
+/**
+ * One database signal's own cap: however long a stalled read hangs, the
+ * signals after it keep at least half the section budget.
+ */
+export const OPS_HEALTH_SIGNAL_BUDGET_MS = OPS_SECTION_BUDGET_MS / 2
+
+/** Why a health signal reports its fallback. */
+type SignalDegradation = Readonly<{
+  signal: HealthSignal
+  /** Rejected; timed out on its own cap; or the section budget was spent first. */
+  outcome: 'failed' | 'timed_out' | 'not_started'
+  /** Section time elapsed when it gave up. */
+  elapsedMs: number
+}>
+
+type SignalRead = <K extends HealthSignal>(
+  signal: K,
+  capMs: number,
+) => Promise<HealthSignalValues[K]>
+
+/**
+ * Read signals under one shared section budget, each also capped on its own.
+ * A signal that fails or outlasts its cap resolves to its zero fallback; one
+ * asked for after the budget is spent is never started. Each degradation is
+ * recorded once, with why and when.
+ */
+function budgetedSignalReader(signals: HealthSignalReads): Readonly<{
+  read: SignalRead
+  degradations: ReadonlyMap<HealthSignal, SignalDegradation>
+}> {
+  const startedAt = Date.now()
+  const deadline = startedAt + OPS_SECTION_BUDGET_MS
+  const zero = zeroHealthSignals()
+  const degradations = new Map<HealthSignal, SignalDegradation>()
+  const read: SignalRead = (signal, capMs) => {
+    const degrade = (outcome: SignalDegradation['outcome']) => () => {
+      if (!degradations.has(signal)) {
+        degradations.set(signal, { signal, outcome, elapsedMs: Date.now() - startedAt })
+      }
+      return zero[signal]
+    }
+    const remainingMs = deadline - Date.now()
+    if (remainingMs <= 0) return Promise.resolve(degrade('not_started')())
+    return withBudget(
+      signals[signal]().catch(degrade('failed')),
+      Math.min(capMs, remainingMs),
+      degrade('timed_out'),
+    )
+  }
+  return { read, degradations }
+}
+
+/**
+ * The PostgreSQL signals, in order — one pool connection at a time — each
+ * capped at OPS_HEALTH_SIGNAL_BUDGET_MS, so one stalled scan degrades alone
+ * instead of spending the budget of every signal after it.
+ */
+async function readDatabaseSignals(read: SignalRead) {
+  const cap = OPS_HEALTH_SIGNAL_BUDGET_MS
+  const outbox = await read('outbox', cap)
+  const reviews = await read('reviews', cap)
+  const sync = await read('sync', cap)
+  const replyPublication = await read('replyPublication', cap)
+  const notificationEmail = await read('notificationEmail', cap)
+  const [notificationGap, notificationDeliveryLag] = await Promise.all([
+    read('notificationGap', cap),
+    read('notificationDeliveryLag', cap),
+  ])
+  return {
+    outbox,
+    reviews,
+    sync,
+    replyPublication,
+    notificationEmail,
+    notificationGap,
+    notificationDeliveryLag,
+  }
+}
+
+/**
+ * Read the health section one signal at a time under a shared section budget:
+ * the database signals in order (readDatabaseSignals) while the Queue Redis
+ * quarantine read runs beside them on the section budget, so a stall in either
+ * store cannot blank the other's signals. A signal that fails or outlasts its
+ * cap keeps its zero fallback and its own marker; no signal starts once the
+ * section budget is spent, so a slow database is not handed more work — those
+ * are marked too, and the warn line says which is which.
+ */
+async function readHealthSection(
+  signals: HealthSignalReads,
+  now: Date,
+): Promise<HealthSection> {
+  const { read, degradations } = budgetedSignalReader(signals)
+  const [quarantine, database] = await Promise.all([
+    read('quarantine', OPS_SECTION_BUDGET_MS),
+    readDatabaseSignals(read),
+  ])
+  const degraded = HEALTH_SIGNALS.filter((signal) => degradations.has(signal))
+  if (degraded.length > 0) {
+    getLogger().warn(
+      { healthSignals: degraded.map((signal) => degradations.get(signal)) },
+      '[operations-snapshot] health signals degraded',
+    )
+  }
+  return {
+    health: assembleHealthSnapshot(now, { ...database, quarantine }),
+    degraded,
   }
 }
 
@@ -274,13 +414,13 @@ type RuntimeSection = Readonly<{
   versions: OperationsVersions
 }>
 
-/** BQC-7.3 runtime section: pool/migration gauges, cache counters, identity. */
-async function readRuntimeSection(deps: OperationsSnapshotDeps): Promise<RuntimeSection> {
+/** The runtime section's in-process readings: everything but the migration read. */
+type RuntimeFacts = Omit<RuntimeSection, 'db'> &
+  Readonly<{ pool: OperationsDbSection['pool'] }>
+
+function readRuntimeFacts(deps: OperationsSnapshotDeps): RuntimeFacts {
   return {
-    db: {
-      pool: (deps.runtime?.poolStats ?? getPoolStats)(),
-      migrationVersion: await (deps.runtime?.migrationVersion ?? appliedMigrationCount)(),
-    },
+    pool: (deps.runtime?.poolStats ?? getPoolStats)(),
     cache: { tenant: (deps.runtime?.tenantCache ?? getTenantCacheStats)() },
     release: { sha: (deps.runtime?.releaseSha ?? getReleaseSha)() },
     versions: {
@@ -293,12 +433,10 @@ async function readRuntimeSection(deps: OperationsSnapshotDeps): Promise<Runtime
   }
 }
 
-/** Fallback runtime payload when the section degrades (shape intact). */
-function zeroRuntimeSection(
-  versions: OperationsSnapshotDeps['versions'],
-): RuntimeSection {
+/** Fallback in-process readings when one of them throws (shape intact). */
+function zeroRuntimeFacts(versions: OperationsSnapshotDeps['versions']): RuntimeFacts {
   return {
-    db: { pool: null, migrationVersion: null },
+    pool: null,
     cache: { tenant: { hits: 0, misses: 0, evictions: 0, size: 0 } },
     release: { sha: 'unknown' },
     versions: {
@@ -309,6 +447,37 @@ function zeroRuntimeSection(
       runtime: process.version,
     },
   }
+}
+
+/**
+ * BQC-7.3 runtime section: pool/migration gauges, cache counters, identity.
+ * Only the migration count touches the database, so only it is budgeted: a
+ * saturated pool is exactly when that read stalls, and the in-process pool
+ * gauge db.pool-exhaustion reads must survive it. Either half degrading marks
+ * the section degraded.
+ */
+async function readRuntimeSection(
+  deps: OperationsSnapshotDeps,
+  markDegraded: () => void,
+): Promise<RuntimeSection> {
+  let facts: RuntimeFacts
+  try {
+    facts = readRuntimeFacts(deps)
+  } catch {
+    markDegraded()
+    facts = zeroRuntimeFacts(deps.versions)
+  }
+  const readMigrationVersion = deps.runtime?.migrationVersion ?? appliedMigrationCount
+  const migrationVersion = await withBudget(
+    Promise.resolve().then(readMigrationVersion),
+    OPS_SECTION_BUDGET_MS,
+    () => {
+      markDegraded()
+      return null
+    },
+  )
+  const { pool, ...identity } = facts
+  return { ...identity, db: { pool, migrationVersion } }
 }
 
 const STALE_HEARTBEAT: WorkerHeartbeat = { at: null, ageMs: null, stale: true }
@@ -338,8 +507,10 @@ export function createOperationsSnapshot(
     // pending backlog is expected — the alert must not cry wolf about it.
     // A per-ORG allowlist grant is not globally enumerable, so this flag
     // cannot see it; notifications.attemptedStuckCount is what covers that
-    // case (a row the delivery path actually touched and left pending).
+    // case (a row the delivery path actually touched and left unsent), judged
+    // per scope with the scoped decision.
     emailDeliveryEnabled: checkGlobalCapability('notification.send_email').allowed,
+    isEmailDeliveryAllowed: deps.isEmailDeliveryAllowed,
     // Forwarded, not computed here: the notification-gap query is owned by the
     // notification context.
     readMissingNotificationCount: deps.readMissingNotificationCount,
@@ -351,19 +522,15 @@ export function createOperationsSnapshot(
       // Flags (not push order) so `degraded` is deterministic regardless of
       // which section settles first.
       const flags = {
-        health: false,
         queues: false,
         heartbeat: false,
         runtime: false,
         jobs: false,
         guestObservationLoss: false,
       }
-      const [health, queues, heartbeat, runtime, jobs, guestObservationLoss] =
+      const [healthSection, queues, heartbeat, runtime, jobs, guestObservationLoss] =
         await Promise.all([
-          withBudget(checker.check(), OPS_SECTION_BUDGET_MS, () => {
-            flags.health = true
-            return zeroHealthSnapshot(deps.clock())
-          }),
+          readHealthSection(checker.signals, deps.clock()),
           withBudget(
             readAllQueueDepths([
               { name: 'default', queue: deps.queues.default },
@@ -385,9 +552,8 @@ export function createOperationsSnapshot(
               return STALE_HEARTBEAT
             },
           ),
-          withBudget(readRuntimeSection(deps), OPS_SECTION_BUDGET_MS, () => {
+          readRuntimeSection(deps, () => {
             flags.runtime = true
-            return zeroRuntimeSection(deps.versions)
           }),
           deps.jobRuntime
             ? withBudget<JobRuntimeReport | undefined>(
@@ -415,8 +581,10 @@ export function createOperationsSnapshot(
         flags.guestObservationLoss = true
       }
 
-      const degraded: string[] = []
-      if (flags.health) degraded.push('health')
+      const { health } = healthSection
+      const degraded: string[] = healthSection.degraded.map(
+        (signal) => `health.${signal}`,
+      )
       if (flags.queues) degraded.push('queues')
       if (flags.heartbeat) degraded.push('workers.heartbeat')
       if (flags.runtime) degraded.push('runtime')

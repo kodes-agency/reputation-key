@@ -1,6 +1,9 @@
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, notExists, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { portalResponsibleManagers, portals } from '#/shared/db/schema/portal.schema'
+import { properties } from '#/shared/db/schema/property.schema'
+import type { Tx } from '#/shared/outbox/commit'
 import { portalError } from '../../domain/errors'
 import type { PortalResponsibleManager } from '../../domain/portal-responsible-manager'
 import type { PortalResponsibleManagerRepository } from '../../application/ports/portal-responsible-manager.repository'
@@ -15,6 +18,43 @@ import { nextLockedPortalRevision } from '../portal-command-revision'
 const fromRow = (
   row: typeof portalResponsibleManagers.$inferSelect,
 ): PortalResponsibleManager => row
+
+/** A deleted or archived Portal is outside the workspace. */
+const isLivePortal = (
+  portal: Readonly<{ publicationState: string; deletedAt: Date | null }>,
+): boolean => portal.deletedAt === null && portal.publicationState !== 'archived'
+
+/**
+ * Only a live Portal of an active Property asks for a replacement manager. A
+ * deleted or archived Portal, or any Portal of a Property that is not active
+ * (archived, or suspended while its Organization closes), is outside the
+ * workspace: its gap is still recorded in `responsibility_needed_since`, but an
+ * urgent notice would only ask admins to staff something they removed. A
+ * Restore announces the gaps still open then (PortalResponsibilityRecoveryStore).
+ */
+async function announcesResponsibilityGap(
+  tx: Tx,
+  portal: Readonly<{
+    organizationId: string
+    propertyId: string
+    publicationState: string
+    deletedAt: Date | null
+  }>,
+): Promise<boolean> {
+  if (!isLivePortal(portal)) return false
+  const [property] = await tx
+    .select({ lifecycleState: properties.lifecycleState })
+    .from(properties)
+    .where(
+      and(
+        eq(properties.organizationId, portal.organizationId),
+        eq(properties.id, portal.propertyId),
+        isNull(properties.deletedAt),
+      ),
+    )
+    .limit(1)
+  return property?.lifecycleState === 'active'
+}
 
 export const createPortalResponsibleManagerRepository = (
   db: Database,
@@ -64,6 +104,7 @@ export const createPortalResponsibleManagerRepository = (
           id: portals.id,
           revision: portals.responsibleManagerRevision,
           responsibilityNeededSince: portals.responsibilityNeededSince,
+          publicationState: portals.publicationState,
         })
         .from(portals)
         .where(
@@ -187,7 +228,15 @@ export const createPortalResponsibleManagerRepository = (
           'responsible managers changed; reload them',
         )
       }
-      const responsibilityNeededEvent = becameResponsibilityNeeded
+      const announcesGap =
+        becameResponsibilityNeeded &&
+        (await announcesResponsibilityGap(tx, {
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          publicationState: portal.publicationState,
+          deletedAt: null,
+        }))
+      const responsibilityNeededEvent = announcesGap
         ? portalResponsibilityNeeded({
             organizationId: organizationId(input.organizationId),
             propertyId: propertyId(input.propertyId),
@@ -345,7 +394,12 @@ export const createPortalResponsibleManagerRepository = (
               eq(portals.id, rawPortalId),
             ),
           )
-          .returning({ id: portals.id, updatedAt: portals.updatedAt })
+          .returning({
+            id: portals.id,
+            updatedAt: portals.updatedAt,
+            publicationState: portals.publicationState,
+            deletedAt: portals.deletedAt,
+          })
         if (!updated || !row) {
           throw portalError(
             'revision_conflict',
@@ -361,7 +415,15 @@ export const createPortalResponsibleManagerRepository = (
           occurredAt: input.at,
         })
         await insertOutboxRow(tx, updatedEvent, { recordedAt: input.at })
-        if (remaining.length === 0) {
+        if (
+          remaining.length === 0 &&
+          (await announcesResponsibilityGap(tx, {
+            organizationId: input.organizationId,
+            propertyId: row.propertyId,
+            publicationState: updated.publicationState,
+            deletedAt: updated.deletedAt,
+          }))
+        ) {
           const event = portalResponsibilityNeeded({
             organizationId: organizationId(input.organizationId),
             propertyId: propertyId(row.propertyId),
@@ -373,5 +435,102 @@ export const createPortalResponsibleManagerRepository = (
         }
       }
       return { released: releasedRows.length }
+    }),
+})
+
+export type PortalResponsibilityRecoveryStore = Readonly<{
+  /**
+   * Apply one `property.restored` delivery. While the Property is active,
+   * every live Portal of it that still has no responsible manager raises
+   * `portal.responsibility_became_needed` again: its gap was recorded
+   * silently while the Property was archived, and Restore only requires a
+   * manager for the Property itself. The receipt co-commits with the facts;
+   * a Property archived again by delivery time makes the fact `obsolete`.
+   */
+  announceGapsAfterRestoreOnce: (
+    input: Readonly<{
+      eventId: string
+      consumerName: string
+      organizationId: string
+      propertyId: string
+      at: Date
+    }>,
+  ) => Promise<'applied' | 'duplicate' | 'obsolete'>
+}>
+
+export const createPortalResponsibilityRecoveryStore = (
+  db: Database,
+): PortalResponsibilityRecoveryStore => ({
+  announceGapsAfterRestoreOnce: (input) =>
+    db.transaction(async (tx) => {
+      // FOR SHARE: an Archive in flight either commits first (obsolete) or
+      // waits until these facts commit.
+      const [property] = await tx
+        .select({ lifecycleState: properties.lifecycleState })
+        .from(properties)
+        .where(
+          and(
+            eq(properties.organizationId, input.organizationId),
+            eq(properties.id, input.propertyId),
+            isNull(properties.deletedAt),
+          ),
+        )
+        .for('share')
+        .limit(1)
+      const status = property?.lifecycleState === 'active' ? 'applied' : 'obsolete'
+      const reserved = await tx
+        .insert(eventConsumerReceipts)
+        .values({ eventId: input.eventId, consumerName: input.consumerName, status })
+        .onConflictDoNothing()
+        .returning({ eventId: eventConsumerReceipts.eventId })
+      if (reserved.length === 0) return 'duplicate'
+      if (status === 'obsolete') return status
+
+      // Locked like a manager replacement, so a concurrent assignment either
+      // lands first (no gap left) or after this announcement.
+      const unstaffed = await tx
+        .select({
+          id: portals.id,
+          publicationState: portals.publicationState,
+          deletedAt: portals.deletedAt,
+          updatedAt: portals.updatedAt,
+        })
+        .from(portals)
+        .where(
+          and(
+            eq(portals.organizationId, input.organizationId),
+            eq(portals.propertyId, input.propertyId),
+            isNull(portals.deletedAt),
+            isNotNull(portals.responsibilityNeededSince),
+            notExists(
+              tx
+                .select({ portalId: portalResponsibleManagers.portalId })
+                .from(portalResponsibleManagers)
+                .where(
+                  and(
+                    eq(portalResponsibleManagers.organizationId, portals.organizationId),
+                    eq(portalResponsibleManagers.portalId, portals.id),
+                    isNull(portalResponsibleManagers.effectiveTo),
+                  ),
+                ),
+            ),
+          ),
+        )
+        .orderBy(asc(portals.id))
+        .for('update', { of: portals })
+      for (const portal of unstaffed.filter(isLivePortal)) {
+        await insertOutboxRow(
+          tx,
+          portalResponsibilityNeeded({
+            organizationId: organizationId(input.organizationId),
+            propertyId: propertyId(input.propertyId),
+            portalId: portalId(portal.id),
+            sourceAggregateVersion: portal.updatedAt.toISOString(),
+            occurredAt: input.at,
+          }),
+          { recordedAt: input.at },
+        )
+      }
+      return status
     }),
 })

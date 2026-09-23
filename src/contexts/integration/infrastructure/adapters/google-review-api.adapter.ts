@@ -317,6 +317,21 @@ function executorErrorToReviewApiError(error: unknown): GoogleReviewApiError {
 }
 
 /**
+ * The reply authorizer refused, or could not decide, before any credential or
+ * provider access, so nothing was sent. The refusal stays terminal, but its
+ * closed code rides along as not-sent evidence: `stale_source` (the Property
+ * is no longer active at the cycle's source epoch) is RepKey's own policy,
+ * which the publish job cancels instead of reporting it as Google's answer.
+ */
+function replyAuthorizationRefusal(refusal: unknown): GoogleReviewApiError {
+  const executionCode = contentFreeCode(errorField(refusal, 'code'))
+  return reviewApiError('authorization_changed', false, {
+    failure: { ...NOT_SENT, executionCode },
+    ...(executionCode === null ? {} : { failureLabel: executionCode }),
+  })
+}
+
+/**
  * `executeGoogleProviderRaw` refuses a 200 whose content type is not JSON, but
  * for a write that refusal is about the body, not the outcome: Google answered
  * 200, so the reply was accepted. That branch is the only `parse_error` with an
@@ -1004,6 +1019,39 @@ export const createGoogleReviewApiAdapter = (
     }
   }
 
+  /**
+   * A reply refused while its connection waits for an AccountAdmin to
+   * reconnect Google is the reconnect case, not a changed approval, so the
+   * publish job can tell its author so. An unreadable connection keeps the
+   * refusal as it was; both codes are terminal.
+   */
+  const withReauthorizationCause = async (
+    input: GoogleReplyPublicationInput,
+    refusal: GoogleReviewApiError,
+  ): Promise<GoogleReviewApiError> => {
+    if (refusal.code !== 'authorization_changed') return refusal
+    let status: string | null
+    try {
+      const connection = await deps.connectionRepo.findById(
+        input.organizationId,
+        input.connectionId,
+      )
+      status = connection?.status ?? null
+    } catch {
+      deps.logger.warn(
+        { event: 'google_reply_refusal_connection_unreadable' },
+        'Google reply refusal kept its code; the connection could not be read',
+      )
+      return refusal
+    }
+    if (status !== 'reauth_required') return refusal
+    return reviewApiError(
+      'reauthorization_required',
+      false,
+      refusal.failure === undefined ? {} : { failure: refusal.failure },
+    )
+  }
+
   const replyViaExecutor = async (
     input: GoogleReplyPublicationInput,
   ): Promise<GoogleReplyPublicationOutcome> => {
@@ -1025,8 +1073,8 @@ export const createGoogleReviewApiAdapter = (
         publicationCycle: input.publicationCycle,
         attemptNumber: input.attemptNumber,
       })
-    } catch {
-      throw reviewApiError('authorization_changed', false)
+    } catch (refusal) {
+      throw await withReauthorizationCause(input, replyAuthorizationRefusal(refusal))
     }
     assertReplyAuthorizationBinds(authorized.authorization, input)
     try {
@@ -1049,7 +1097,7 @@ export const createGoogleReviewApiAdapter = (
       // The raw helper has already zeroed the body and dropped the headers,
       // so the correlation id is honestly unknown here.
       if (isAcceptedNonJsonWrite(error)) return { providerCorrelationId: null }
-      throw executorErrorToReviewApiError(error)
+      throw await withReauthorizationCause(input, executorErrorToReviewApiError(error))
     }
   }
 

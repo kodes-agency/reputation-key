@@ -31,12 +31,25 @@ export type NotificationDeliverySettlement = Readonly<{
   settleAuthorized: (
     input: InsertNotificationInput,
     delivery: OutboxNotificationDelivery,
+    audience: NotificationAudience,
   ) => Promise<'applied' | 'duplicate'>
   settleObsolete: (
     source: Pick<InsertNotificationInput, 'organizationId'>,
     delivery: OutboxNotificationDelivery,
   ) => Promise<void>
 }>
+
+/** A grouped notice says how many of its items still stood when it was delivered. */
+const withItemCount = (
+  input: InsertNotificationInput,
+  itemCount: number,
+): InsertNotificationInput => ({
+  ...input,
+  payload: {
+    ...(typeof input.payload === 'object' && input.payload !== null ? input.payload : {}),
+    itemCount,
+  },
+})
 
 type InsertNotificationJobDeps = InsertNotificationDeps &
   Readonly<{
@@ -81,13 +94,13 @@ export const createInsertNotificationHandler = (deps: InsertNotificationJobDeps)
           throw new Error('outbox notification delivery settlement is unavailable')
         }
 
-        const authorized = await deps.authorizeAudience({
+        const decision = await deps.authorizeAudience({
           userId: job.data.userId,
           organizationId: job.data.organizationId,
           propertyId: job.data.propertyId,
           audience,
         })
-        if (!authorized) {
+        if (decision === false) {
           if (delivery) {
             await deps.deliverySettlement!.settleObsolete(
               { organizationId: job.data.organizationId },
@@ -101,12 +114,18 @@ export const createInsertNotificationHandler = (deps: InsertNotificationJobDeps)
           return
         }
 
-        const { audience: _audience, delivery: _delivery, ...input } = job.data
+        const { audience: _audience, delivery: _delivery, ...queued } = job.data
+        const input =
+          decision === true ? queued : withItemCount(queued, decision.itemCount)
         if (delivery) {
-          const outcome = await deps.deliverySettlement!.settleAuthorized(input, delivery)
+          const outcome = await deps.deliverySettlement!.settleAuthorized(
+            input,
+            delivery,
+            audience,
+          )
           logger.info({ settlement: outcome }, 'Durable notification delivery settled')
         } else {
-          await useCase(input)
+          await useCase(input, audience)
           logger.info('Notification inserted')
         }
       } catch (err) {

@@ -340,3 +340,28 @@ export function createGoogleReplyPublicationAuthorizer(
     }
   }
 }
+
+/**
+ * The provider-call form the Review adapter consumes: an admitted attempt
+ * returns its authorization, and a refusal throws carrying the authorizer's
+ * closed code. The adapter records that code as not-sent evidence, which is
+ * the only way the publish job can tell RepKey's own refusal (`stale_source`:
+ * the Property is no longer active at the cycle's source epoch) from a changed
+ * approval, and so never report it to the author as Google's answer.
+ */
+export function createReplyPublicationProviderCall(
+  authorize: GoogleReplyPublicationAuthorizer,
+) {
+  return async (input: GoogleReplyPublicationIdentity) => {
+    const authorized = await authorize(input)
+    if (!authorized.ok) {
+      throw Object.assign(
+        new Error(
+          `Google reply publication authorization is unavailable: ${authorized.code}`,
+        ),
+        { code: authorized.code },
+      )
+    }
+    return authorized
+  }
+}

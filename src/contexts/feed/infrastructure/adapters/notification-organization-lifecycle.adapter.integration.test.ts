@@ -22,6 +22,19 @@ import type { Database } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createNotificationOrganizationLifecycleContributor } from './notification-organization-lifecycle.adapter'
+import { createNotificationOrganizationEmailStopReader } from '../repositories/notification-organization-email-stop.repository'
+import { createNotificationRepository } from '../repositories/notification.repository'
+import { createNotificationEmailRepository } from '../repositories/notification-email.repository'
+import { createNotificationPreferenceRepository } from '../repositories/notification-preference.repository'
+import { insertNotification } from '../../application/use-cases/insert-notification'
+import { createFakeJobLogger } from '../jobs/test-fixtures'
+import {
+  notificationEmailId,
+  notificationId,
+  organizationId,
+  propertyId,
+  userId,
+} from '#/shared/domain/ids'
 
 let lease: TestLease
 let db: Database
@@ -32,12 +45,16 @@ const REQUESTED_AT = new Date('2026-07-28T00:00:00.000Z')
 const RECOVERABLE_UNTIL = new Date('2026-08-27T00:00:00.000Z')
 const OCCURRED_AT = new Date('2026-08-28T00:00:00.000Z')
 
-/** Every table Notification owns in `data-fate-authority.ts`. */
+/**
+ * Every Organization-scoped table Notification owns in `data-fate-authority.ts`
+ * (`notification_email_suppressions` belongs to no Organization).
+ */
 const OWNED_TABLES = [
   'notification_digest_batch_members',
   'notification_digest_batches',
   'notification_email_queue',
   'notification_preferences',
+  'notification_unsubscribe_scopes',
   'notification_user_settings',
   'notifications',
 ] as const
@@ -280,6 +297,19 @@ async function seedFixture(label: string): Promise<Fixture> {
     ],
   )
 
+  // What the delivered email's one-click unsubscribe link stands for.
+  await lease.pool.query(
+    `INSERT INTO notification_unsubscribe_scopes (
+       target_kind, target_id, organization_id, user_id, property_id, category, created_at
+     ) VALUES ('email', $1, $2, $3, $4, 'workflow_collaboration', $5)`,
+    [
+      fixture.acceptedEmailId,
+      fixture.organizationId,
+      fixture.userId,
+      fixture.propertyId,
+      REQUESTED_AT,
+    ],
+  )
   await lease.pool.query(
     `INSERT INTO notification_preferences (
        id, user_id, organization_id, property_id, category, channel, enabled, cadence,
@@ -575,6 +605,68 @@ describe.sequential('Notification Organization lifecycle contributor', () => {
     expect(afterDigest.rows[0]).toEqual(digest.rows[0])
   })
 
+  describe('email queued behind the Closing fence', () => {
+    it('reads how far the lifecycle stops email, stage by stage', async () => {
+      const readStop = createNotificationOrganizationEmailStopReader(db)
+      const active = await seedEmptyOrganization()
+      const requested = await seedEmptyOrganization()
+      const closing = await seedEmptyOrganization()
+      const purging = await seedEmptyOrganization()
+      await advanceAuthority(requested, 'closure_requested')
+      await advanceAuthority(closing, 'closing')
+      await advanceAuthority(purging, 'purging')
+
+      await expect(readStop(active.organizationId)).resolves.toBe('none')
+      await expect(readStop(requested.organizationId)).resolves.toBe('optional')
+      await expect(readStop(closing.organizationId)).resolves.toBe('optional')
+      await expect(readStop(purging.organizationId)).resolves.toBe('all')
+      await expect(readStop('notification-lifecycle-unknown-org')).resolves.toBe('none')
+    })
+
+    it('queues no product email during Closing, so purge readiness settles', async () => {
+      // insert-notification carries capability `none`, so it still runs
+      // behind the fence. A daily row it queued there stayed sendable and
+      // failed readiness on every pass, with no ops command to settle it.
+      const fixture = await seedFixture('queued-behind-fence')
+      await advanceAuthority(fixture, 'closure_requested')
+      const contributor = createNotificationOrganizationLifecycleContributor(db)
+      await contributor.prepareClosing(requestFor(fixture, 1))
+      await lease.pool.query(
+        `UPDATE organization_lifecycle_authority
+            SET state = 'closing', revision = 2, last_transition_at = $2,
+                last_reason_code = 'closing_prepared',
+                last_support_evidence_ref = 'test:closing'
+          WHERE organization_id = $1`,
+        [fixture.organizationId, REQUESTED_AT],
+      )
+
+      await insertNotification({
+        notificationRepo: createNotificationRepository(db),
+        emailRepo: createNotificationEmailRepository(db),
+        preferenceRepo: createNotificationPreferenceRepository(db),
+        organizationEmailStop: createNotificationOrganizationEmailStopReader(db),
+        clock: () => OCCURRED_AT,
+        idGen: () => notificationId(randomUUID()),
+        emailIdGen: () => notificationEmailId(randomUUID()),
+        logger: createFakeJobLogger(),
+      })({
+        userId: userId(fixture.userId),
+        organizationId: organizationId(fixture.organizationId),
+        propertyId: propertyId(fixture.propertyId),
+        type: 'review.created',
+        resourceType: 'inbox_item',
+        resourceId: `inbox-behind-fence-${randomUUID()}`,
+        eventId: `event-behind-fence-${randomUUID()}`,
+        payload: { propertyName: 'Notification Lifecycle Property', platform: 'google' },
+      })
+
+      expect(await dueEmailCount(fixture.organizationId, 'product')).toBe(0)
+      await expect(
+        contributor.verifyPurgeReadiness(requestFor(fixture, 2)),
+      ).resolves.toMatchObject({ outcome: 'complete' })
+    })
+  })
+
   it('fails purge readiness closed when the Closing fence was reverted', async () => {
     const fixture = await seedFixture('blocked')
     await advanceAuthority(fixture, 'closing')
@@ -600,7 +692,8 @@ describe.sequential('Notification Organization lifecycle contributor', () => {
 
     expect(result).toEqual({
       outcome: 'complete',
-      evidenceRef: 'notification:purge:notif-5:mail-5:batch-1:member-1:pref-1:setting-1',
+      evidenceRef:
+        'notification:purge:notif-5:mail-5:batch-1:member-1:pref-1:setting-1:unsub-1',
     })
     expect(replay).toEqual(result)
     expect(await receiptRows(fixture.organizationId)).toHaveLength(1)
@@ -622,7 +715,8 @@ describe.sequential('Notification Organization lifecycle contributor', () => {
 
     expect(result).toEqual({
       outcome: 'no_data',
-      evidenceRef: 'notification:purge:notif-0:mail-0:batch-0:member-0:pref-0:setting-0',
+      evidenceRef:
+        'notification:purge:notif-0:mail-0:batch-0:member-0:pref-0:setting-0:unsub-0',
     })
   })
 })

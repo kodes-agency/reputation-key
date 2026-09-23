@@ -10,28 +10,14 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { submitForm } from '#/components/forms/form-submit'
 import { goalKeys } from '#/shared/queries/query-keys'
-import { Button } from '#/components/ui/button'
-import { Input } from '#/components/ui/input'
-import { Field, FieldError, FieldLabel } from '#/components/ui/field'
 import { SubmitButton } from '#/components/forms/submit-button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '#/components/ui/dialog'
-import {
-  GoalSubjectPicker,
-  goalSubjectKey,
-  goalSubjectsFromKeys,
-  type GoalSubjectKey,
-} from './goal-subject-picker'
+import { DialogFooter } from '#/components/ui/dialog'
+import { goalSubjectKey, goalSubjectsFromKeys } from './goal-subject-picker'
 import { GoalAssignmentOutcomes } from './goal-assignment-outcomes'
 import { goalAssignmentSubjectLabel } from './goal-assignment-subject-label'
 import { GoalSelectAllPortalsField } from './goal-select-all-portals-field'
+import { GoalProgramFormDialog } from './goal-program-form-dialog'
+import { GoalChangeReasonField, GoalSubjectsField } from './goal-program-fields'
 
 type Props = Readonly<{
   changeAssignmentsFn: typeof changeGoalProgramAssignments
@@ -99,90 +85,55 @@ export function GoalProgramAssignmentsDialog(props: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline">Manage assignments</Button>
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        <form
-          className="space-y-5"
-          onSubmit={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
-            void submitForm(form)
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>Manage goal assignments</DialogTitle>
-            <DialogDescription>
-              Changes start next full month. Current-month targets and results stay
-              unchanged.
-            </DialogDescription>
-          </DialogHeader>
-          <form.Field name="subjects">
-            {(field) => (
-              <Field data-invalid={!field.state.meta.isValid}>
-                <GoalSubjectPicker
-                  property={props.property}
-                  groups={props.groups}
-                  portals={props.portals}
-                  selected={field.state.value.map(goalSubjectKey)}
-                  onChange={(keys: GoalSubjectKey[]) =>
-                    field.handleChange(goalSubjectsFromKeys(keys))
-                  }
-                />
-                <FieldError errors={field.state.meta.errors} />
-              </Field>
-            )}
-          </form.Field>
-          <form.Field name="selectAllCurrentPortals">
-            {(field) => (
-              <GoalSelectAllPortalsField
-                checked={field.state.value}
-                onChange={field.handleChange}
-              />
-            )}
-          </form.Field>
-          <form.Field name="reason">
-            {(field) => (
-              <Field data-invalid={!field.state.meta.isValid}>
-                <FieldLabel htmlFor="assignment-change-reason">
-                  Reason for the change
-                </FieldLabel>
-                <Input
-                  id="assignment-change-reason"
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  aria-invalid={!field.state.meta.isValid}
-                  maxLength={500}
-                />
-                <FieldError errors={field.state.meta.errors} />
-              </Field>
-            )}
-          </form.Field>
-          <FormErrorBanner error={mutation.error} />
-          {mutation.data ? (
-            <GoalAssignmentOutcomes
-              outcomes={mutation.data.outcomes}
-              effectiveFrom={mutation.data.effectiveFrom}
-              subjectLabel={(subject) =>
-                goalAssignmentSubjectLabel(
-                  subject,
-                  props.property.name,
-                  props.groups,
-                  props.portals,
-                )
-              }
-            />
-          ) : null}
-          <DialogFooter>
-            <SubmitButton mutation={mutation} form={form} disabled={!hasRequestedChange}>
-              Review and schedule
-            </SubmitButton>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <GoalProgramFormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      trigger="Manage assignments"
+      title="Manage goal assignments"
+      description="Changes start next full month. Current-month targets and results stay unchanged."
+      onSubmit={() => void submitForm(form)}
+    >
+      <form.Field name="subjects">
+        {(field) => (
+          <GoalSubjectsField
+            field={field}
+            property={props.property}
+            groups={props.groups}
+            portals={props.portals}
+          />
+        )}
+      </form.Field>
+      <form.Field name="selectAllCurrentPortals">
+        {(field) => (
+          <GoalSelectAllPortalsField
+            checked={field.state.value}
+            onChange={field.handleChange}
+          />
+        )}
+      </form.Field>
+      <form.Field name="reason">
+        {(field) => <GoalChangeReasonField field={field} id="assignment-change-reason" />}
+      </form.Field>
+      <FormErrorBanner error={mutation.error} />
+      {mutation.data ? (
+        <GoalAssignmentOutcomes
+          outcomes={mutation.data.outcomes}
+          effectiveFrom={mutation.data.effectiveFrom}
+          subjectLabel={(subject) =>
+            goalAssignmentSubjectLabel(
+              subject,
+              props.property.name,
+              props.groups,
+              props.portals,
+            )
+          }
+        />
+      ) : null}
+      <DialogFooter>
+        <SubmitButton mutation={mutation} form={form} disabled={!hasRequestedChange}>
+          Review and schedule
+        </SubmitButton>
+      </DialogFooter>
+    </GoalProgramFormDialog>
   )
 }

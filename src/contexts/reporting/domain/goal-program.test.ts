@@ -143,6 +143,19 @@ describe('canonical Goal Program contract', () => {
       expect(period.end.toISOString()).toBe('2026-12-01T05:00:00.000Z')
     })
 
+    // 04:30Z on 1 November 2026 is 00:30 CDT in Havana: local November, but
+    // before the month's first instant (05:00Z, the repeated midnight's
+    // standard-time occurrence). November still starts at or after it.
+    it('starts the local month that begins after an instant in its repeated midnight hour', () => {
+      const period = firstFullMonthlyPeriodAtOrAfter(
+        new Date('2026-11-01T04:30:00.000Z'),
+        'America/Havana',
+      )
+      expect(period.start.toISOString()).toBe('2026-11-01T05:00:00.000Z')
+      expect(period.end.toISOString()).toBe('2026-12-01T05:00:00.000Z')
+      expect(isCompleteMonthlyPeriod(period, 'America/Havana')).toBe(true)
+    })
+
     it('keeps a full leap-year month across the European spring DST change', () => {
       const period = firstFullMonthlyPeriodAtOrAfter(
         new Date('2028-02-29T12:00:00.000Z'),

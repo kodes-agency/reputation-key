@@ -8,6 +8,7 @@ import {
   requiresManualReview,
   buildIdempotencyKey,
   classifyPublicationFailure,
+  publicationFailureCause,
   publicationFailureEvidence,
   nextPublicationCycle,
   nextPublicationState,
@@ -582,6 +583,55 @@ describe('reply-publication-workflow (B1.10)', () => {
         },
       )
       expect(classifyPublicationFailure(err)).toBe('terminal_rejection')
+    })
+  })
+
+  // The Google connection waits for an AccountAdmin to reconnect it. Nothing
+  // reached Google as a reply and no retry can publish it until then, whether
+  // the authorization was refused before sending or Google answered 401.
+  describe('a reply refused until Google is reconnected', () => {
+    const waitingForConsent = (failure?: Record<string, unknown>) =>
+      Object.assign(new Error('Google review API request failed'), {
+        _tag: 'GoogleReviewApiError',
+        code: 'reauthorization_required',
+        recoverable: false,
+        ...(failure === undefined ? {} : { failure }),
+      })
+
+    it.each([
+      ['refused before sending', waitingForConsent()],
+      [
+        'answered 401',
+        waitingForConsent({
+          executionCode: null,
+          dispatch: 'answered',
+          providerStatus: 401,
+        }),
+      ],
+      [
+        'the Integration refusal itself',
+        Object.assign(new Error('Google connection requires reauthorization'), {
+          _tag: 'IntegrationError',
+          code: 'reauthorization_required',
+        }),
+      ],
+    ])('is a terminal rejection when %s', (_case, err) => {
+      expect(classifyPublicationFailure(err)).toBe('terminal_rejection')
+      expect(publicationFailureCause(err)).toBe('google_reauthorization_required')
+    })
+
+    it.each([
+      [
+        'a changed approval',
+        Object.assign(new Error('Google authorization changed'), {
+          _tag: 'GoogleReviewApiError',
+          code: 'authorization_changed',
+        }),
+      ],
+      ['a transport failure', new TypeError('fetch failed')],
+      ['nothing at all', null],
+    ])('names no cause for %s', (_case, err) => {
+      expect(publicationFailureCause(err)).toBeNull()
     })
   })
 

@@ -143,7 +143,7 @@ describe('dispatcher gate (BQC-3.2)', () => {
     expect(decideMock).toHaveBeenCalledTimes(1)
     expect(decideMock.mock.calls[0][0]).toMatchObject({
       principal: { kind: 'system', id: 'consumer:c-allow' },
-      action: 'system:inbox.update',
+      action: 'system:inbox.project_review',
       executionKind: 'consumer',
       correlationId: 'evt-gate-1',
     })
@@ -324,7 +324,7 @@ describe('dispatcher gate (BQC-3.2)', () => {
     )
     // Distinct modules ⇒ distinct catalogue actions.
     expect(actionByPrincipal).toEqual({
-      'consumer:c-inbox': 'system:inbox.update',
+      'consumer:c-inbox': 'system:inbox.project_review',
       'consumer:c-notification': 'system:notification.insert',
     })
   })

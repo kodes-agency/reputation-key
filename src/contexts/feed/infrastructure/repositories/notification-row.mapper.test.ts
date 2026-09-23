@@ -59,6 +59,48 @@ describe('notification row mapper', () => {
     })
   })
 
+  // The coalescing count column is the one record of how often a row repeated.
+  // Its copy reads the count from the payload, so the read projects the column
+  // there: a row coalesced by the insert race, whose payload never got the
+  // count, still says it, and a stale payload count never outvotes the column.
+  it.each([
+    [3, {}, 3],
+    [2, { occurrences: 7 }, 2],
+    [1, { occurrences: 4 }, undefined],
+  ])(
+    'reads a coalesced count of %i with payload %j as occurrences %s',
+    (coalescedCount, payload, occurrences) => {
+      expect(
+        notificationFromRow(row({ coalescedCount, payload })).payload.occurrences,
+      ).toBe(occurrences)
+    },
+  )
+
+  // A wait is read as it stood when the row's latest event was raised, the
+  // instant the row shows, so an item answered since never reads as still
+  // waiting and an unread row's age never grows.
+  it.each([
+    ['a row that fired once, to its creation', null, 72],
+    ['a coalesced row, to its latest event', new Date('2026-09-19T10:00:00.000Z'), 96],
+  ])('measures the wait of %s', (_case, coalescedLatestAt, waitedHours) => {
+    const read = notificationFromRow(
+      row({
+        type: 'inbox.escalated',
+        payload: { waitingSince: '2026-09-15T10:00:00.000Z' },
+        coalescedCount: coalescedLatestAt === null ? 1 : 2,
+        coalescedLatestAt,
+      }),
+    )
+
+    expect(read.payload.waitedHours).toBe(waitedHours)
+  })
+
+  it('never reads a stored wait back as the wait a notice was raised with', () => {
+    const read = notificationFromRow(row({ payload: { waitedHours: 500 } }))
+
+    expect(read.payload.waitedHours).toBeUndefined()
+  })
+
   it('still refuses a resource type nobody declared', () => {
     expect(() => notificationFromRow(row({ resourceType: 'spaceship' }))).toThrow(
       /Invalid notification\.resourceType: spaceship/u,

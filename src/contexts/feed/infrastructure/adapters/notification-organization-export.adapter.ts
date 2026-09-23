@@ -59,6 +59,10 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  *   immutable provider-idempotency batches behind one email attempt — outbox
  *   and receipt material by construction (content digests, provider keys,
  *   unsubscribe key versions).
+ * - `notification_unsubscribe_scopes` is what a delivered message's one-click
+ *   link stands for: delivery-queue material, exported as its preference
+ *   effect when the link is used. `notification_email_suppressions` belongs to
+ *   no Organization.
  *
  * `notifications.event_id` is withheld for the same reason: it is the durable
  * outbox/consumer correlation key that makes delivery idempotent, not a fact

@@ -9,10 +9,14 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { renderNotification } from '../../domain/notification-templates'
 import type { NotificationPayload } from '../../domain/notification-payload'
 import type { NotificationType } from '../../domain/notification-types'
+import { splitFacts } from './notification-facts'
 import { renderDigestEmail, renderNotificationEmail } from './render'
 
 const ACTION_URL = 'https://app.reputationkey.app/inbox?itemId=itm-2f9c'
 const PREFERENCES_URL = 'https://app.reputationkey.app/settings/notifications'
+
+// Payloads below are as the email jobs read them: a wait is `waitedHours`, how
+// long the item had waited when its notice was raised, projected by the read.
 
 // The preview shell below — subject card, `srcDoc` iframe, plain-text
 // disclosure — is duplicated in src/shared/email/transactional-email.stories.tsx.
@@ -66,14 +70,22 @@ const single = (
     priority,
   })
 
-const digestItem = (
-  type: NotificationType,
-  payload: NotificationPayload,
-  id: string,
-) => ({
-  rendered: renderNotification(type, payload),
-  actionUrl: `https://app.reputationkey.app/inbox?itemId=${id}`,
-})
+/**
+ * A line under its Property's heading. Like the digest job, it leaves the
+ * group's Property out of the line's facts: the heading and title name it.
+ */
+const digestItem = (type: NotificationType, payload: NotificationPayload, id: string) => {
+  const rendered = renderNotification(type, payload)
+  return {
+    rendered: {
+      ...rendered,
+      summary: splitFacts(rendered.summary)
+        .filter((fact) => fact !== payload.propertyName)
+        .join(' · '),
+    },
+    actionUrl: `https://app.reputationkey.app/inbox?itemId=${id}`,
+  }
+}
 
 const meta: Meta<typeof EmailPreview> = {
   title: 'Email/Notification',
@@ -89,18 +101,22 @@ type Story = StoryObj<typeof EmailPreview>
 export const UrgentReplyApproval: Story = {
   args: single('reply.pending_approval', {
     propertyName: 'Riverside Hotel',
-    waitingHours: 3,
+    waitedHours: 3,
     actorRole: 'staff',
   }),
 }
 
-/** An SLA breach — the waiting age is the whole point of the email. */
+/**
+ * A manual escalation: who asked for attention and how long the guest has
+ * waited, never a reason the escalation does not record.
+ */
 export const UrgentEscalation: Story = {
   args: single('inbox.escalated', {
     propertyName: 'Harbour Lodge',
     guestRating: 1,
     platform: 'portal',
-    waitingHours: 52,
+    waitedHours: 52,
+    actorRole: 'property_manager',
   }),
 }
 
@@ -120,7 +136,7 @@ export const CoalescedOccurrences: Story = {
     propertyName: 'Riverside Hotel',
     guestRating: 2,
     platform: 'portal',
-    waitingHours: 26,
+    waitedHours: 26,
     occurrences: 4,
   }),
 }
@@ -139,7 +155,7 @@ export const Digest: Story = {
             'reply.pending_approval',
             {
               propertyName: 'Riverside Hotel',
-              waitingHours: 9,
+              waitedHours: 9,
               actorRole: 'staff',
             },
             'a2',
@@ -155,7 +171,7 @@ export const Digest: Story = {
               propertyName: 'Harbour Lodge',
               guestRating: 1,
               platform: 'portal',
-              waitingHours: 30,
+              waitedHours: 30,
             },
             'b1',
           ),

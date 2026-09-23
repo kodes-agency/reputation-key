@@ -14,6 +14,7 @@ import type {
 import type {
   IntegrationGoogleAccountConnected,
   IntegrationGoogleAccountDisconnected,
+  IntegrationGoogleAccountReauthorizationRequired,
   IntegrationGoogleConnectionVisibilityChanged,
 } from '../../domain/events'
 
@@ -71,6 +72,24 @@ export type UpdateConnectionVisibilityCommand = Readonly<{
   event: IntegrationGoogleConnectionVisibilityChanged
 }>
 
+/**
+ * Google refused the connection's refresh grant for good: status →
+ * reauth_required + google_account.reauthorization_required fact in one
+ * transaction. Applies only while the connection is still active on the
+ * lifecycle and credential generations the refresh was admitted with, so a
+ * reconnect, disconnect or departure fence that committed first is never
+ * overwritten. Returns false, recording NO fact, when the fence does not match.
+ */
+export type RequireGoogleReauthorizationCommand = Readonly<{
+  organizationId: OrganizationId
+  connectionId: GoogleConnectionId
+  expected: Readonly<{
+    lifecycleVersion: number
+    credentialGeneration: number
+  }>
+  event: IntegrationGoogleAccountReauthorizationRequired
+}>
+
 export type IntegrationCommandStore = Readonly<{
   connectGoogleAccount(command: ConnectGoogleAccountCommand): Promise<void>
   reconnectGoogleAccount(
@@ -82,4 +101,5 @@ export type IntegrationCommandStore = Readonly<{
   updateConnectionVisibility(
     command: UpdateConnectionVisibilityCommand,
   ): Promise<GoogleConnection>
+  requireReauthorization(command: RequireGoogleReauthorizationCommand): Promise<boolean>
 }>

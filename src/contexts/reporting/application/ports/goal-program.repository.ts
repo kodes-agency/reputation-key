@@ -157,6 +157,11 @@ export type GoalProgramRepository = Readonly<{
       at: Date
     }>,
   ): Promise<GoalProgram | null>
+  /**
+   * False when the head moved, or when an open or reconciling month of the
+   * expected version ends after the new version starts (a month opened since
+   * the caller read the Program). Re-read and recompute the start to retry.
+   */
   revise(
     input: Readonly<{
       expectedVersion: GoalProgramVersion

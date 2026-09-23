@@ -25,6 +25,22 @@ import { isPreferenceDisableable } from '../../domain/notification-policy'
 
 type PreferenceRow = typeof notificationPreferences.$inferSelect
 
+type QuietHours = Pick<NotificationPreference, 'quietHoursStart' | 'quietHoursEnd'>
+
+/**
+ * Equal start and end times are refused on save now, but rows stored before
+ * that remain. Delivery always read them as no quiet hours; read back as
+ * stored, they rode along in every whole-row save of their row and got it
+ * refused — turning Email on or off included.
+ */
+const quietHoursFromRow = (row: PreferenceRow): QuietHours => {
+  const start = row.quietHoursStart?.slice(0, 5) ?? null
+  const end = row.quietHoursEnd?.slice(0, 5) ?? null
+  return start !== null && start === end
+    ? { quietHoursStart: null, quietHoursEnd: null }
+    : { quietHoursStart: start, quietHoursEnd: end }
+}
+
 const preferenceFromRow = (row: PreferenceRow): NotificationPreference => {
   const category = row.category as NotificationCategory
   const channel = row.channel as NotificationChannel
@@ -40,8 +56,7 @@ const preferenceFromRow = (row: PreferenceRow): NotificationPreference => {
     enabled: isPreferenceDisableable(category, channel) ? row.enabled : true,
     cadence: row.cadence as NotificationCadence,
     urgentBypassEnabled: row.urgentBypassEnabled,
-    quietHoursStart: row.quietHoursStart?.slice(0, 5) ?? null,
-    quietHoursEnd: row.quietHoursEnd?.slice(0, 5) ?? null,
+    ...quietHoursFromRow(row),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }

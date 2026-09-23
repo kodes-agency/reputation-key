@@ -93,6 +93,7 @@ export type {
   InboxNoteAdded,
   InboxItemBulkStatusChanged,
   InboxBulkAssignmentCompleted,
+  InboxBulkReopenCompleted,
   InboxHandlingCycleOpened,
   InboxHandlingCycleClosed,
   InboxHandlingCycleReopened,

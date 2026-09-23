@@ -136,6 +136,12 @@ function sameWallClock(left: WallClock, right: WallClock): boolean {
   )
 }
 
+/**
+ * A repeated local time (a DST fall-back) resolves to its LATER, standard-time
+ * occurrence, as PostgreSQL's `AT TIME ZONE` does. The database derives the
+ * Goal months it accepts that way, so the app must agree with it. A skipped
+ * local time still throws rather than guess.
+ */
 function wallClockToInstant(target: WallClock, timezone: string): Date {
   const localEpoch = Date.UTC(
     target.year,
@@ -163,7 +169,7 @@ function wallClockToInstant(target: WallClock, timezone: string): Date {
   const exact = [...offsets]
     .map((offset) => new Date(localEpoch - offset))
     .filter((candidate) => sameWallClock(wallClockAt(candidate, timezone), target))
-    .sort((left, right) => left.getTime() - right.getTime())
+    .sort((left, right) => right.getTime() - left.getTime())
   if (exact[0]) return exact[0]
   throw new RangeError(`Unresolvable calendar boundary in timezone ${timezone}`)
 }

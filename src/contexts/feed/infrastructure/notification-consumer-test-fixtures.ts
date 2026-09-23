@@ -6,6 +6,7 @@ import type { UserLookupPort } from '../application/ports/notification-user-look
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
+import type { DisplayNameLookupPort } from '../application/ports/notification-display-name-lookup.port'
 import {
   organizationId,
   propertyId,
@@ -27,6 +28,7 @@ export type FakeNotificationConsumerDeps = Readonly<{
   userLookup: MockedPort<UserLookupPort>
   responsibleManagers: MockedPort<ResponsibleManagerLookupPort>
   inboxItemLookup: MockedPort<InboxItemLookupPort>
+  displayNames: MockedPort<DisplayNameLookupPort>
   clock: () => Date
   logger: MockedPort<LoggerPort>
 }>
@@ -89,7 +91,13 @@ export const createNotificationConsumerDeps = (): FakeNotificationConsumerDeps =
       status: 'open',
     })),
     findResponseTargetReminderNotificationFacts: vi.fn(async () => null),
+    findWaitingSince: vi.fn(async () => null),
   } as unknown as MockedPort<InboxItemLookupPort>
+
+  const displayNames = {
+    findPropertyName: vi.fn(async () => 'Riverside Hotel'),
+    findOrganizationName: vi.fn(async () => null),
+  } as unknown as MockedPort<DisplayNameLookupPort>
 
   return {
     ...createFakeQueue(),
@@ -97,6 +105,7 @@ export const createNotificationConsumerDeps = (): FakeNotificationConsumerDeps =
     responsibleManagers,
     logger,
     inboxItemLookup,
+    displayNames,
     clock: () => new Date('2026-06-01T12:00:00.000Z'),
   }
 }

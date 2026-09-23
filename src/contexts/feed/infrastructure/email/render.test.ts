@@ -21,9 +21,10 @@ const urgent = (rendered: RenderedNotification) =>
     priority: 'urgent',
   })
 
+// Raised three hours into the wait, as the read measured it.
 const pendingApproval = renderNotification('reply.pending_approval', {
   propertyName: 'Riverside Hotel',
-  waitingHours: 3,
+  waitedHours: 3,
   actorRole: 'staff',
 })
 
@@ -76,7 +77,7 @@ describe('renderNotificationEmail — parts', () => {
 
   it('emits the summary as the preheader', () => {
     expect(email.html).toContain('data-skip-in-text="true"')
-    expect(email.html).toContain('Riverside Hotel · review · waiting 3h')
+    expect(email.html).toContain('Riverside Hotel · review · waited 3h')
   })
 
   it('marks urgency with a pill rather than a red banner', () => {
@@ -97,6 +98,29 @@ describe('renderNotificationEmail — parts', () => {
   it('never emits the literal two-character sequence \\n', () => {
     expect(email.html).not.toContain('\\n')
     expect(email.text).not.toContain('\\n')
+  })
+})
+
+describe('renderNotificationEmail — the final deletion notice', () => {
+  const email = renderNotificationEmail({
+    rendered: renderNotification('account.organization_purge_pending', {
+      organizationName: 'The Grand Riverside Metropolitan Hospitality Group',
+    }),
+    actionUrl: 'https://app.test/settings/profile',
+    preferencesUrl: null,
+    priority: 'normal',
+  })
+
+  it('keeps the decision in a subject clipped to 60 characters', () => {
+    expect(email.subject.length).toBeLessThanOrEqual(60)
+    expect(email.subject).toMatch(/^Final notice: permanent deletion of /)
+  })
+
+  it('is mandatory mail that says so accurately and offers no way out', () => {
+    expect(email.html).toContain('You received this required notice')
+    expect(email.html).not.toContain('account access notice')
+    expect(email.html).not.toContain(PREFERENCES_URL)
+    expect(email.text).not.toContain(PREFERENCES_URL)
   })
 })
 
@@ -249,8 +273,8 @@ describe('renderDigestEmail', () => {
 
 describe('toPlainFacts', () => {
   it('rewrites the rating token and leaves everything else alone', () => {
-    expect(toPlainFacts('Riverside Hotel · 2-star review · waiting 3h')).toBe(
-      'Riverside Hotel · 2/5 review · waiting 3h',
+    expect(toPlainFacts('Riverside Hotel · 2-star review · waited 3h')).toBe(
+      'Riverside Hotel · 2/5 review · waited 3h',
     )
     expect(toPlainFacts('Harbour Lodge · Q3 rating lift')).toBe(
       'Harbour Lodge · Q3 rating lift',

@@ -2,13 +2,17 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
+  makeNotification,
   makeNotificationFns,
+  makeStatefulNotificationFns,
   notificationFeedHeadFixture,
   notificationFixtures,
   notificationPageFixture,
   notificationPropertyFixtures,
 } from './notification.stories.fixtures'
 import { NotificationPage } from './notification-page'
+import { NotificationPanel } from './notification-panel'
+import { findOpenBellPopover } from './notification.stories.bell'
 import {
   matchesNotificationFilter,
   parseNotificationFilter,
@@ -131,6 +135,14 @@ export const FilterIsAppliedBeforePagination: Story = {
   },
 }
 
+/** Presses "Dismiss all" once the rows are in, and returns its confirmation. */
+async function openDismissAllConfirmation(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  await canvas.findAllByRole('listitem')
+  await userEvent.click(canvas.getByRole('button', { name: /dismiss all/i }))
+  return within(await within(document.body).findByRole('alertdialog'))
+}
+
 /** Full-page dismissal requires confirmation, then updates optimistically. */
 export const DismissAllRequiresConfirmation: Story = {
   args: {
@@ -146,17 +158,31 @@ export const DismissAllRequiresConfirmation: Story = {
     }),
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await canvas.findAllByRole('listitem')
-    await userEvent.click(canvas.getByRole('button', { name: /dismiss all/i }))
-    const dialog = await within(document.body).findByRole('alertdialog')
+    const dialog = await openDismissAllConfirmation(canvasElement)
     await waitFor(() =>
-      expect(within(dialog).getByText(/does not change the underlying/i)).toBeVisible(),
+      expect(dialog.getByText(/does not change the underlying/i)).toBeVisible(),
     )
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Dismiss all' }))
+    await userEvent.click(dialog.getByRole('button', { name: 'Dismiss all' }))
     await waitFor(() => {
-      expect(canvas.getByText(/you're all caught up/i)).toBeInTheDocument()
+      expect(within(canvasElement).getByText(/you're all caught up/i)).toBeInTheDocument()
     })
+  },
+}
+
+/**
+ * The confirmed dialog cannot hand focus back to "Dismiss all": that button is
+ * disabled once nothing is left. Focus goes to the emptied list instead of
+ * falling to <body>.
+ */
+export const DismissAllFocusesTheList: Story = {
+  args: DismissAllRequiresConfirmation.args,
+  play: async ({ canvasElement }) => {
+    const dialog = await openDismissAllConfirmation(canvasElement)
+    await userEvent.click(await dialog.findByRole('button', { name: 'Dismiss all' }))
+    const list = await within(canvasElement).findByRole('group', {
+      name: 'Notification list',
+    })
+    await waitFor(() => expect(list).toHaveFocus())
   },
 }
 
@@ -165,8 +191,8 @@ export const Empty: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/you're all caught up/i)).toBeInTheDocument()
-    // Nothing to act on → both bulk actions are inert rather than misleading.
-    expect(canvas.getByRole('button', { name: /mark all read/i })).toBeDisabled()
+    // Nothing to act on: nothing to mark is not offered, and Dismiss all is inert.
+    expect(canvas.queryByRole('button', { name: /mark all read/i })).toBeNull()
     expect(canvas.getByRole('button', { name: /dismiss all/i })).toBeDisabled()
   },
 }
@@ -183,5 +209,143 @@ export const ErrorState: Story = {
     expect(
       await within(canvasElement).findByRole('button', { name: /retry/i }),
     ).toBeInTheDocument()
+  },
+}
+
+/** More rows than the bell's page of 20, so its "Load more" has history to load. */
+const longFeed = Array.from({ length: 25 }, (_, n) =>
+  makeNotification({
+    id: `30000000-0000-4000-8000-${n.toString().padStart(12, '0')}`,
+    type: 'review.created',
+    status: 'unread',
+    payload: { propertyName: 'Riverside Hotel', platform: 'google' },
+    createdAt: new Date(Date.now() - (n + 1) * 60_000),
+  }),
+)
+
+/**
+ * The bell and the page are two surfaces over one feed. History the bell
+ * loaded through "Load more" is never re-read on its own, so it has to follow
+ * what the page does: after "Mark all read" here, reopening the bell must not
+ * list those rows under "New" while its badge says there is nothing unread.
+ */
+export const BellHistoryFollowsThePage: Story = {
+  args: { notificationFns: makeStatefulNotificationFns(longFeed) },
+  render: (args) => (
+    <>
+      <NotificationPanel
+        notificationFns={args.notificationFns}
+        organizationId={args.organizationId}
+      />
+      <NotificationPage {...args} />
+    </>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const bell = await canvas.findByRole('button', { name: 'Notifications, 25 unread' })
+    await userEvent.click(bell)
+    const popover = await findOpenBellPopover()
+    await userEvent.click(await popover.findByRole('button', { name: 'Load more' }))
+    await waitFor(() => expect(popover.getAllByRole('listitem')).toHaveLength(25))
+    await userEvent.keyboard('{Escape}')
+
+    await userEvent.click(canvas.getByRole('button', { name: /mark all read/i }))
+    await canvas.findByRole('button', { name: 'Notifications' })
+    await userEvent.click(canvas.getByRole('button', { name: 'Notifications' }))
+
+    const reopened = await findOpenBellPopover()
+    await reopened.findByRole('heading', { name: 'Earlier' })
+    expect(reopened.queryByRole('heading', { name: 'New' })).toBeNull()
+    expect(reopened.queryByText('Unread.')).toBeNull()
+  },
+}
+
+/** Two Workflow rows under the Workflow tab, and an urgent alert outside it. */
+const workflowTabFeed = [
+  makeNotification({
+    id: '61000000-0000-4000-8000-000000000001',
+    type: 'inbox.escalated',
+    priority: 'urgent',
+    payload: { propertyName: 'Riverside Hotel' },
+    createdAt: new Date(Date.now() - 2 * 60_000),
+  }),
+  makeNotification({
+    id: '61000000-0000-4000-8000-000000000002',
+    type: 'inbox_note.added',
+    payload: { propertyName: 'Riverside Hotel' },
+    createdAt: new Date(Date.now() - 3 * 60_000),
+  }),
+  makeNotification({
+    id: '61000000-0000-4000-8000-000000000003',
+    type: 'inbox_note.added',
+    payload: { propertyName: 'Harbour View Suites' },
+    createdAt: new Date(Date.now() - 4 * 60_000),
+  }),
+]
+const workflowTabServer = makeStatefulNotificationFns(workflowTabFeed)
+const markWorkflowRead = fn(workflowTabServer.markAllRead)
+
+/**
+ * "Mark all read" on the Workflow tab sends that tab and marks its rows only,
+ * then gives focus to the list, since the button leaves with nothing to mark.
+ */
+export const MarkAllReadFollowsTheTab: Story = {
+  args: {
+    filter: 'workflow_collaboration',
+    notificationFns: {
+      ...workflowTabServer,
+      markAllRead: markWorkflowRead as unknown as NotificationServerFns['markAllRead'],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(2))
+    canvas.getByRole('button', { name: /mark all read/i }).focus()
+    await userEvent.keyboard('{Enter}')
+
+    expect(markWorkflowRead).toHaveBeenCalledWith({
+      data: { filter: 'workflow_collaboration' },
+    })
+    expect(canvas.getByRole('group', { name: 'Notification list' })).toHaveFocus()
+    await waitFor(() =>
+      expect(canvas.queryByRole('button', { name: /mark all read/i })).toBeNull(),
+    )
+    await waitFor(() => expect(canvas.queryAllByText('Unread.')).toHaveLength(0))
+  },
+}
+
+const leftAloneFeed = [0, 1, 2].map((n) =>
+  makeNotification({
+    id: `62000000-0000-4000-8000-00000000000${n}`,
+    type: 'inbox_note.added',
+    payload: { propertyName: 'Riverside Hotel' },
+    createdAt: new Date(Date.now() - (n + 1) * 60_000),
+  }),
+)
+const leftAloneServer = makeStatefulNotificationFns(leftAloneFeed)
+
+/**
+ * Focus the user moved away stays away. Having once focused a row's control,
+ * the reader clicks elsewhere on the page; later that row goes on its own (a
+ * poll sees it dismissed in another tab). Focus must not be pulled back into
+ * the list, and the page must not jump to it.
+ */
+export const FocusLeftElsewhereStaysThere: Story = {
+  args: { notificationFns: leftAloneServer },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(3))
+    canvas.getAllByRole('button', { name: /^Dismiss:/ })[1]!.focus()
+    await userEvent.click(
+      canvas.getByRole('heading', { level: 1, name: 'Notifications' }),
+    )
+    expect(document.activeElement).toBe(document.body)
+
+    // Dismissed in another tab; this tab reads the feed again when it regains focus.
+    await leftAloneServer.dismiss({ data: { notificationId: leftAloneFeed[1]!.id } })
+    window.dispatchEvent(new Event('visibilitychange'))
+    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(2))
+
+    expect(document.activeElement).toBe(document.body)
   },
 }

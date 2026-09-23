@@ -4,7 +4,7 @@
 // READ time (see `notification-templates.ts`), not frozen into a string at
 // enqueue time. That is what lets a notification say
 //
-//   "New guest feedback · Riverside Hotel · waiting 3h"
+//   "New guest feedback · Riverside Hotel · waited 3h"
 //
 // instead of "New review received", while still obeying the source-content
 // boundary.
@@ -12,9 +12,11 @@
 // THE BOUNDARY (ADR 0046 r.8, ADR 0031, BQC-1.2). Payload carries
 // "property/resource/status metadata" ONLY:
 //
-//   ALLOWED   tenant-authored property and goal names, the locally collected
-//             1-5 guest rating, actor ROLE, counts, ages in hours, platform
-//             enum, and an internal moderation reason (staff-authored).
+//   ALLOWED   tenant-authored organization, property and goal names, the locally collected
+//             1-5 guest rating, actor ROLE, counts, when a wait began, platform
+//             enum, whether an approver gave a reason, how a publication
+//             ended (closed enum), and an internal moderation reason
+//             (staff-authored; historical rows only).
 //   FORBIDDEN Google/provider review ratings and content, reply text,
 //             guest/reviewer name, media URLs, sentiment or any derived score,
 //             and any other employee's NAME or email.
@@ -36,18 +38,52 @@ export type NotificationActorRole = 'account_admin' | 'property_manager' | 'staf
 export type NotificationPlatform = 'google' | 'portal'
 
 export type NotificationPayload = Readonly<{
-  /** Tenant-authored property name. Present on every payload we mint. */
+  /**
+   * Tenant-authored property name, minted on every Property-scoped notice
+   * except the Google connection's, whose Property is only a delivery anchor.
+   */
   propertyName?: string
+  /** Tenant-authored organization name (Organization-scoped notices). */
+  organizationName?: string
   /** Locally collected 1-5 guest rating; valid only with platform=portal. */
   guestRating?: NotificationGuestRating
   /** Review source platform. */
   platform?: NotificationPlatform
-  /** Hours the resource has been waiting for action, floored. Drives urgency copy. */
+  /**
+   * Historical rows only: an age frozen when the row was written and measured
+   * from the item's first arrival. Copy never renders it; see `waitingSince`.
+   */
   waitingHours?: number
+  /**
+   * When the current wait began (ISO instant): the start of the current
+   * cycle's Response Target, stamped only on notices about something still
+   * waiting. A repeat event that measured no wait drops it.
+   */
+  waitingSince?: string
+  /**
+   * How long that wait had lasted, in whole hours, when the row's latest
+   * event was raised. The read projects it from `waitingSince` and the row's
+   * time; it is never stored and never parsed, so an age cannot grow after
+   * the fact or outlive the wait.
+   */
+  waitedHours?: number
   /** Role of the person whose action produced this notification. */
   actorRole?: NotificationActorRole
-  /** Staff-authored moderation reason (reply.rejected only). */
+  /**
+   * Staff-authored moderation reason (reply.rejected only). Only rows written
+   * before the reason left the durable fact carry it (ADR 0030).
+   */
   moderationReason?: string
+  /**
+   * Whether the approver gave a reason (reply.rejected only). The reason
+   * itself stays on the reply. Absent when the fact did not say.
+   */
+  hasModerationReason?: boolean
+  /**
+   * How a publication ended without a confirmed live reply
+   * (reply.publish_failed only). Absent on rows recorded before facts said.
+   */
+  publishOutcome?: NotificationPublishOutcome
   /** Tenant-authored goal name (goal.completed). */
   goalName?: string
   /** Repeat-event count when a row has coalesced. */
@@ -59,9 +95,23 @@ export type NotificationPayload = Readonly<{
    * A closed enum, never the report's text — that stays in monitoring.
    */
   reportOutcome?: NotificationReportOutcome
+  /**
+   * Why a Google connection needs a fresh consent
+   * (`integration.reauthorization_required`). The event's closed cause.
+   */
+  reauthorizationCause?: NotificationReauthorizationCause
+  /** Why a reply could not be published when a retry alone cannot fix it. */
+  publishFailureCause?: NotificationPublishFailureCause
 }>
 
 export type NotificationReportOutcome = 'accepted' | 'declined' | 'resolved'
+
+export type NotificationReauthorizationCause =
+  'provider_revoked' | 'member_removed' | 'account_admin_role_lost'
+
+export type NotificationPublishFailureCause = 'google_reauthorization_required'
+
+export type NotificationPublishOutcome = 'not_sent' | 'refused' | 'unconfirmed'
 
 const ACTOR_ROLES: Record<string, true> = {
   account_admin: true,
@@ -75,6 +125,22 @@ const REPORT_OUTCOMES: Record<string, true> = {
   accepted: true,
   declined: true,
   resolved: true,
+}
+
+const REAUTHORIZATION_CAUSES: Record<string, true> = {
+  provider_revoked: true,
+  member_removed: true,
+  account_admin_role_lost: true,
+}
+
+const PUBLISH_FAILURE_CAUSES: Record<string, true> = {
+  google_reauthorization_required: true,
+}
+
+const PUBLISH_OUTCOMES: Record<string, true> = {
+  not_sent: true,
+  refused: true,
+  unconfirmed: true,
 }
 
 /** Longest free-ish text we accept. Names, not prose. */
@@ -107,6 +173,17 @@ const takeMember = <T extends string>(
 ): T | undefined =>
   typeof value === 'string' && allowed[value] === true ? (value as T) : undefined
 
+/** A valid instant, normalised to ISO-8601 UTC. Never throws. */
+const takeInstant = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined
+  const time = Date.parse(value)
+  return Number.isFinite(time) ? new Date(time).toISOString() : undefined
+}
+
+/** A real boolean only; "true", 1 and null are not flags. */
+const takeFlag = (value: unknown): boolean | undefined =>
+  typeof value === 'boolean' ? value : undefined
+
 /** Shape of the untrusted input: the payload keys, each still `unknown`. */
 type RawPayload = Partial<Record<keyof NotificationPayload, unknown>>
 
@@ -125,20 +202,41 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   }
 
   set('propertyName', takeText(raw.propertyName, MAX_NAME_LENGTH))
+  set('organizationName', takeText(raw.organizationName, MAX_NAME_LENGTH))
   const platform = takeMember<NotificationPlatform>(raw.platform, PLATFORMS)
   set('platform', platform)
   if (platform === 'portal') {
     set('guestRating', takeGuestRating(raw.guestRating))
   }
   set('waitingHours', takeCount(raw.waitingHours))
+  set('waitingSince', takeInstant(raw.waitingSince))
   set('actorRole', takeMember(raw.actorRole, ACTOR_ROLES))
   set('moderationReason', takeText(raw.moderationReason, MAX_REASON_LENGTH))
+  set('hasModerationReason', takeFlag(raw.hasModerationReason))
+  set(
+    'publishOutcome',
+    takeMember<NotificationPublishOutcome>(raw.publishOutcome, PUBLISH_OUTCOMES),
+  )
   set('goalName', takeText(raw.goalName, MAX_NAME_LENGTH))
   set('occurrences', takeCount(raw.occurrences))
   set('itemCount', takeCount(raw.itemCount))
   set(
     'reportOutcome',
     takeMember<NotificationReportOutcome>(raw.reportOutcome, REPORT_OUTCOMES),
+  )
+  set(
+    'reauthorizationCause',
+    takeMember<NotificationReauthorizationCause>(
+      raw.reauthorizationCause,
+      REAUTHORIZATION_CAUSES,
+    ),
+  )
+  set(
+    'publishFailureCause',
+    takeMember<NotificationPublishFailureCause>(
+      raw.publishFailureCause,
+      PUBLISH_FAILURE_CAUSES,
+    ),
   )
 
   return parsed as NotificationPayload

@@ -1,9 +1,10 @@
 // Identity-owned Organization lifecycle command store (LIF-01).
 //
-// Request commits lifecycle revision + Organization suspension/policy version
-// + content-minimal outbox fact + retry receipt in one transaction. Cancel is
-// deliberately narrower: it cancels only the recoverable lifecycle request,
-// retains the Organization suspension, and marks explicit reactivation work.
+// Request commits lifecycle revision + content-minimal outbox fact + retry
+// receipt in one transaction. It sets no Organization suspension: a context
+// that must stop effects from the request onward reads this authority (Feed's
+// email paths do). Cancel is deliberately narrower: it cancels only the
+// recoverable lifecycle request and marks explicit reactivation work.
 
 import { and, asc, eq, inArray, lte, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -298,8 +299,7 @@ export const createOrganizationLifecycleCommandStore = (
    * LIF-01-T18 — clear the post-closure fence.
    *
    * This is the mirror image of `requestClosure`: one transaction commits the
-   * cleared lifecycle evidence, the LIFTED Organization suspension and its new
-   * policy generation, the durable fact and the replay receipt. Readiness is
+   * cleared lifecycle evidence, the durable fact and the replay receipt. Readiness is
    * the caller's obligation (see `reactivateOrganization`); the only decisions
    * here are authority, the state precondition and the compare-and-set.
    *

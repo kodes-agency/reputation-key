@@ -14,6 +14,10 @@
 // deleted are skipped by the store's guarded update — no fact, no error.
 // Re-running is idempotent: cancelled rows no longer match the active-state
 // query.
+//
+// property.archived cancels the same way for one Property's reviews
+// (cancelPublicationsForProperty below, cause 'policy'), but only cycles not
+// yet dispatched whose source epoch the Property has moved past.
 
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
@@ -111,4 +115,84 @@ export const cancelPublicationsForConnection =
 
 export type CancelPublicationsForConnection = ReturnType<
   typeof cancelPublicationsForConnection
+>
+
+// ── Property archive ──────────────────────────────────────────────────
+
+export type CancelPublicationsForPropertyDeps = Readonly<{
+  replyRepo: Pick<ReplyRepository, 'findUnsendablePublicationsByPropertyId'>
+  commandStore: Pick<ReplyCommandStore, 'cancelPublications'>
+  clock: () => Date
+  batchSize?: number
+  maxBatches?: number
+}>
+
+export type CancelPublicationsForPropertyInput = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  cause: 'policy'
+}>
+
+export type CancelPublicationsForPropertyResult = Readonly<{
+  cancelled: number
+  batches: number
+}>
+
+/**
+ * Cancel every publication cycle of one Property's reviews that can no longer
+ * be sent: not yet dispatched, and authorized at a source epoch the Property
+ * has moved past (Archive and Restore both advance it) or for a Property that
+ * is not active. The provider authorizer would refuse each write, and the
+ * worker must never report that refusal as "Google rejected the reply"; a
+ * cancelled cycle is claimed by nobody and reported as a policy cancellation.
+ * Keying on the epoch rather than on the Property being archived also clears
+ * the pre-archive cycles when a Restore landed before this ran, while a cycle
+ * approved at the restored epoch is left alone. A dispatched cycle may already
+ * be on Google and stays with the worker and the reconciliation sweep.
+ * Cancelled rows leave the set, so each batch reads the next one; a batch
+ * that cancels nothing (every row moved on concurrently) ends the run rather
+ * than re-reading the same rows.
+ */
+export const cancelPublicationsForProperty =
+  (deps: CancelPublicationsForPropertyDeps) =>
+  async (
+    input: CancelPublicationsForPropertyInput,
+  ): Promise<CancelPublicationsForPropertyResult> => {
+    const batchSize = deps.batchSize ?? DEFAULT_BATCH_SIZE
+    const maxBatches = deps.maxBatches ?? DEFAULT_MAX_BATCHES
+
+    let cancelled = 0
+    let batches = 0
+    while (batches < maxBatches) {
+      const unsendable = await deps.replyRepo.findUnsendablePublicationsByPropertyId(
+        input.propertyId,
+        input.organizationId,
+        batchSize,
+      )
+      if (unsendable.length === 0) break
+      batches++
+      const now = deps.clock()
+      const count = await deps.commandStore.cancelPublications(
+        unsendable.map((reply) => ({
+          reply,
+          event: reviewReplyPublicationCancelled({
+            replyId: reply.id,
+            reviewId: reply.reviewId,
+            propertyId: input.propertyId,
+            organizationId: input.organizationId,
+            cause: input.cause,
+            occurredAt: now,
+          }),
+          now,
+        })),
+      )
+      cancelled += count
+      if (count === 0 || unsendable.length < batchSize) break
+    }
+
+    return { cancelled, batches }
+  }
+
+export type CancelPublicationsForProperty = ReturnType<
+  typeof cancelPublicationsForProperty
 >

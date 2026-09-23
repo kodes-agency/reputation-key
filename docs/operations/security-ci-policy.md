@@ -115,7 +115,7 @@ drizzle-kit` — build tooling, reported). Full tree: 11 high, 0 critical —
   source-map uploader), and `@img/sharp-libvips-*` (LGPL-3.0-or-later,
   dev-only sharp binaries). Each carries owner/reason/expiry in
   `security/license-policy.json`.
-- Grype: 27 won't-fix/not-fixed Debian trixie CVE entries + 2 Go-stdlib
+- Grype: 29 won't-fix/not-fixed Debian trixie CVE entries + 2 Go-stdlib
   package entries in `.grype.yaml` (each with owner/reason/expiry). The base
   moved to `node:22.23.2-trixie-slim` (Debian 13) on 2026-09-07; the one
   fixable class it shipped with — OpenSSL 3.5.6 (nine CVEs, two Critical) —

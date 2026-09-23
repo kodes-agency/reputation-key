@@ -1,8 +1,6 @@
 // Human copy for the notification categories, keyed by category so every
-// active surface shares one source. Retained categories still need fallback
-// copy so historical rows remain readable, even when they are absent from
-// settings and filters. Category ordering and exposure live in the domain;
-// only wording lives here.
+// active surface shares one source. Category ordering and exposure live in the
+// domain; only wording lives here.
 import type { NotificationCategory } from '#/contexts/feed/application/public-api'
 
 export type NotificationCategoryCopy = Readonly<{
@@ -31,9 +29,10 @@ export const CATEGORY_COPY: Readonly<
     shortLabel: 'Workflow',
     description: 'Reviews, assignments, notes, and reply updates.',
   },
+  // `recognition` carries goal results only (ADR 0046, amended 2026-09-22).
   recognition: {
-    label: 'Past awards',
-    shortLabel: 'Past awards',
-    description: 'Earlier award updates retained in notification history.',
+    label: 'Goals',
+    shortLabel: 'Goals',
+    description: 'Goal results for your properties.',
   },
 }

@@ -14,9 +14,15 @@ import type { NotificationDeliveryOutcome } from '../../domain/notification-deli
 export type CapturedEmail = EmailSendRequest &
   Readonly<{ providerMessageId: string; capturedAt: Date }>
 
+/**
+ * A local worker captures for as long as it runs and nothing drains the log,
+ * so it keeps only the most recent messages rather than every rendered email.
+ */
+const CAPTURE_LIMIT = 100
+
 export type CapturingEmailSender = EmailSenderPort &
   Readonly<{
-    /** Everything "sent" since the last `clear()`, oldest first. */
+    /** The most recent "sent" messages since `clear()`, oldest first. */
     readonly captured: ReadonlyArray<CapturedEmail>
     /** The most recent capture, or undefined when nothing was sent. */
     readonly last: CapturedEmail | undefined
@@ -45,6 +51,7 @@ export const createCapturingEmailSender = (
       const providerMessageId =
         forced?.kind === 'accepted' ? forced.providerMessageId : `captured-${sequence}`
       captured.push({ ...params, providerMessageId, capturedAt })
+      if (captured.length > CAPTURE_LIMIT) captured.shift()
       return forced ?? { kind: 'accepted', providerMessageId, acceptedAt: capturedAt }
     },
   }

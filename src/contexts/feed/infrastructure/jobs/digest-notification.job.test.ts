@@ -5,6 +5,8 @@ import {
   buildNotification,
   buildNotificationEmail,
   createFakeJobLogger,
+  createResendSenderAnswering,
+  RESEND_NETWORK_FAILURE,
 } from './test-fixtures'
 import {
   organizationId,
@@ -25,6 +27,8 @@ const PROP_B = '22222222-2222-4222-8222-222222222222'
 const BASE_URL = 'https://app.example.com'
 // 08:00 UTC — inside the digest window for a UTC recipient.
 const NOW = new Date('2026-07-11T08:00:00.000Z')
+const HOUR = 60 * 60_000
+const DAY = 24 * HOUR
 
 const entryFor = (property: string, user = USER): NotificationEmail =>
   buildNotificationEmail({
@@ -53,6 +57,18 @@ const notificationFor = (entry: NotificationEmail): Notification =>
     },
   })
 
+type PropertyScope = Readonly<{
+  organizationId: string
+  propertyId: string
+  timezone: string
+}>
+
+const activeScope = (property: string): PropertyScope | null => ({
+  organizationId: ORG,
+  propertyId: property,
+  timezone: 'UTC',
+})
+
 type Options = Readonly<{
   now?: Date
   recipients?: ReadonlyArray<Readonly<{ organizationId: string; userId: string }>>
@@ -60,6 +76,7 @@ type Options = Readonly<{
   userTimezone?: string | null
   orgTimezone?: string | null
   immediateOrphans?: readonly NotificationEmail[]
+  organizationOrphans?: readonly NotificationEmail[]
   openBatch?: NotificationDigestBatch | null
   batchEntries?: readonly NotificationEmail[]
   activeUnsubscribeKeyVersion?: string
@@ -90,11 +107,17 @@ function baseDeps(options: Options = {}) {
       ),
       findDueByUser: vi.fn(async () => due),
       findDueByProperty: vi.fn(async () => options.immediateOrphans ?? []),
+      findDueOrganizationScopes: vi.fn(async () => [
+        ...new Set(
+          (options.organizationOrphans ?? []).map((entry) => entry.organizationId),
+        ),
+      ]),
+      findDueByOrganization: vi.fn(async () => options.organizationOrphans ?? []),
       markSuppressed: vi.fn(async () => {}),
       markDelayed: vi.fn(async () => {}),
       markAccepted: vi.fn(async (_id: string) => {}),
       markFailed: vi.fn(async () => {}),
-      isRecipientSuppressed: vi.fn(async () => false),
+      isAddressSuppressed: vi.fn(async (_address: string) => false),
       findOpenDigestBatch: vi.fn(async () => options.openBatch ?? null),
       findDigestBatchEntries: vi.fn(async () => options.batchEntries ?? due),
       prepareDigestBatch: vi.fn(async (input) => ({
@@ -110,11 +133,13 @@ function baseDeps(options: Options = {}) {
           unsubscribeKeyVersion: input.unsubscribeKeyVersion,
           state: 'prepared' as const,
           retryCount: 0,
+          everyAttemptRefused: false,
           createdAt: input.preparedAt,
           updatedAt: input.preparedAt,
         },
         created: true,
       })),
+      startDigestAttempt: vi.fn(async () => true),
       settleDigestBatch: vi.fn(async () => true),
     },
     preferenceRepo: {
@@ -157,7 +182,16 @@ function baseDeps(options: Options = {}) {
     logger: createFakeJobLogger(),
     clock: () => now,
     batchIdGen: vi.fn(() => '86000000-0000-4000-8000-000000000099'),
-    authorizeScope: vi.fn(async (_org: string, _property: string) => true),
+    resolvePropertyScope: vi.fn(async (_org: string, property: string) =>
+      activeScope(property),
+    ),
+    organizationEmailStop: vi.fn(
+      async (_organizationId: string): Promise<'none' | 'optional' | 'all'> => 'none',
+    ),
+    authorizeScope: vi.fn(async (_org: string, _property?: string) => true),
+    isRecipientEligible: vi.fn(
+      async (_input: { propertyId: string; audience: unknown }, _memo?: unknown) => true,
+    ),
     baseUrl: BASE_URL,
     activeOneClickUnsubscribeKeyVersion: vi.fn(
       () => options.activeUnsubscribeKeyVersion ?? 'v1',
@@ -224,6 +258,25 @@ describe('digest notification job — one email per user (ADR 0046 r.4)', () => 
     const payload = deps.emailSender.send.mock.calls[0]![0]
     expect(payload.html).toContain('Riverside')
     expect(payload.html).not.toContain('Hillcrest')
+  })
+
+  it('holds, and never mails, rows for a Property that is no longer active', async () => {
+    // Archived after the rows were queued. Urgent mail for it is held; the
+    // digest must agree rather than email notices about a removed Property.
+    const deps = baseDeps()
+    deps.resolvePropertyScope.mockImplementation(async (_org, property) =>
+      property === PROP_B ? null : activeScope(property),
+    )
+
+    await runHandler(deps)
+
+    const payload = deps.emailSender.send.mock.calls[0]![0]
+    expect(payload.html).toContain('Riverside')
+    expect(payload.html).not.toContain('Hillcrest')
+    expect(deps.emailRepo.markSuppressed).not.toHaveBeenCalled()
+    expect(deps.emailRepo.prepareDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ memberIds: [entryFor(PROP_A).id] }),
+    )
   })
 
   it('sends nothing when no property is authorized', async () => {
@@ -389,6 +442,33 @@ describe('digest idempotency (ADR 0046 r.5)', () => {
     )
   })
 
+  it('records that an attempt started before it calls the provider', async () => {
+    const deps = baseDeps()
+
+    await runHandler(deps)
+
+    const batchId = deps.emailRepo.prepareDigestBatch.mock.calls[0]![0].id
+    expect(deps.emailRepo.startDigestAttempt).toHaveBeenCalledWith({
+      batchId,
+      organizationId: organizationId(ORG),
+      userId: userId(USER),
+      startedAt: NOW,
+    })
+    expect(deps.emailRepo.startDigestAttempt.mock.invocationCallOrder[0]!).toBeLessThan(
+      deps.emailSender.send.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('calls no provider for a batch that closed before its attempt could start', async () => {
+    const deps = baseDeps()
+    deps.emailRepo.startDigestAttempt.mockResolvedValue(false)
+
+    await runHandler(deps)
+
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expect(deps.emailRepo.settleDigestBatch).not.toHaveBeenCalled()
+  })
+
   it('settles the batch and every exact member in one repository transaction', async () => {
     const deps = baseDeps()
 
@@ -427,6 +507,35 @@ describe('digest idempotency (ADR 0046 r.5)', () => {
     expect(retry.logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ batchId: openBatch.id }),
       'Digest retry blocked because provider-visible content changed',
+    )
+  })
+
+  it('keeps failing closed when the provider may have accepted the last attempt', async () => {
+    // A 5xx, a timeout or a lost response may follow an accepted message, so
+    // a new key could mail the digest twice. The frozen key stays binding.
+    const first = baseDeps()
+    await runHandler(first)
+    const prepared = (await first.emailRepo.prepareDigestBatch.mock.results[0]!.value)
+      .batch
+    const retry = baseDeps({
+      openBatch: {
+        ...prepared,
+        state: 'retryable',
+        retryCount: 1,
+        everyAttemptRefused: false,
+      },
+      batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
+    })
+    retry.userLookup.getName.mockResolvedValue('A different recipient name')
+
+    await runHandler(retry)
+
+    expect(retry.emailSender.send).not.toHaveBeenCalled()
+    expect(retry.emailRepo.prepareDigestBatch).not.toHaveBeenCalled()
+    expect(retry.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settlement: expect.objectContaining({ kind: 'content_mismatch' }),
+      }),
     )
   })
 
@@ -578,12 +687,13 @@ describe('digest preferences link (ADR 0046 r.7)', () => {
 })
 
 describe('digest suppression and failure visibility (ADR 0046 r.6)', () => {
-  it('suppresses without sending when the recipient already bounced', async () => {
+  it('suppresses without sending when the provider already refused the address', async () => {
     const deps = baseDeps()
-    deps.emailRepo.isRecipientSuppressed.mockResolvedValue(true)
+    deps.emailRepo.isAddressSuppressed.mockResolvedValue(true)
 
     await runHandler(deps)
 
+    expect(deps.emailRepo.isAddressSuppressed).toHaveBeenCalledWith('manager@example.com')
     expect(deps.emailSender.send).not.toHaveBeenCalled()
     expect(deps.emailRepo.markSuppressed).toHaveBeenCalledTimes(2)
     expect(deps.logger.warn).toHaveBeenCalledWith(
@@ -625,6 +735,27 @@ describe('digest suppression and failure visibility (ADR 0046 r.6)', () => {
     expect(deps.emailRepo.markFailed).not.toHaveBeenCalled()
   })
 
+  it('keeps the batch retryable when the real adapter reports a network failure', async () => {
+    // The SDK returns statusCode null for a connectivity blip. Classified
+    // permanent, that made the batch terminal and lost the day's digest.
+    const deps = baseDeps()
+
+    await runHandler({
+      ...deps,
+      emailSender: createResendSenderAnswering(RESEND_NETWORK_FAILURE, () => NOW),
+    } as typeof deps)
+
+    expect(deps.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settlement: expect.objectContaining({
+          kind: 'rejected',
+          classification: 'transient',
+          nextAttemptAt: new Date('2026-07-11T08:00:30.000Z'),
+        }),
+      }),
+    )
+  })
+
   it('logs a provider rejection instead of treating it as a send', async () => {
     const deps = baseDeps()
     deps.emailSender.send.mockResolvedValue({
@@ -642,6 +773,67 @@ describe('digest suppression and failure visibility (ADR 0046 r.6)', () => {
     expect(deps.emailRepo.markAccepted).not.toHaveBeenCalled()
   })
 
+  it('suppresses rows queued long before email was admitted and sends only the fresh ones', async () => {
+    const stale = { ...entryFor(PROP_A), createdAt: new Date(NOW.getTime() - 30 * DAY) }
+    const fresh = { ...entryFor(PROP_B), createdAt: new Date(NOW.getTime() - 20 * HOUR) }
+    const deps = baseDeps({ dueByUser: [stale, fresh] })
+
+    await runHandler(deps)
+
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      stale.id,
+      organizationId(ORG),
+      PROP_A,
+      'stale',
+      NOW,
+    )
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+    const payload = deps.emailSender.send.mock.calls[0]![0]
+    expect(payload.html).toContain('Hillcrest')
+    expect(payload.html).not.toContain('Riverside')
+  })
+
+  it('drops a Property the recipient lost access to, and still sends the rest', async () => {
+    const deps = baseDeps()
+    deps.isRecipientEligible.mockImplementation(
+      async ({ propertyId }) => propertyId !== PROP_A,
+    )
+
+    await runHandler(deps)
+
+    expect(deps.isRecipientEligible).toHaveBeenCalledWith(
+      {
+        organizationId: organizationId(ORG),
+        propertyId: PROP_A,
+        userId: userId(USER),
+        audience: entryFor(PROP_A).recipientAudience,
+      },
+      expect.anything(),
+    )
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entryFor(PROP_A).id,
+      organizationId(ORG),
+      PROP_A,
+      'recipient_ineligible',
+      NOW,
+    )
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+    const payload = deps.emailSender.send.mock.calls[0]![0]
+    expect(payload.html).toContain('Hillcrest')
+    expect(payload.html).not.toContain('Riverside')
+  })
+
+  it("shares one standing memo across a recipient's rows", async () => {
+    const deps = baseDeps()
+
+    await runHandler(deps)
+
+    const memos = deps.isRecipientEligible.mock.calls.map((call) => call[1])
+    expect(memos).toHaveLength(2)
+    expect(memos[0]).toBeDefined()
+    expect(memos[1]).toBe(memos[0])
+  })
+
   it('suppresses a preference-disabled row with a visible reason', async () => {
     const deps = baseDeps()
     deps.preferenceRepo.findForDelivery.mockResolvedValue({ enabled: false } as never)
@@ -653,6 +845,27 @@ describe('digest suppression and failure visibility (ADR 0046 r.6)', () => {
       expect.objectContaining({ reason: 'preference_disabled' }),
       'Digest entry suppressed',
     )
+  })
+
+  // Goal email is daily only (ADR 0046, amended 2026-09-22), and a goal
+  // preference saved as immediate before that is queued for the digest. Only
+  // `enabled` decides at send time, so those rows still go out here.
+  it('sends goal rows whose stored preference still says immediate', async () => {
+    const deps = baseDeps()
+    deps.preferenceRepo.findForDelivery.mockResolvedValue({
+      enabled: true,
+      cadence: 'immediate',
+      quietHoursStart: null,
+      quietHoursEnd: null,
+    } as never)
+
+    await runHandler(deps)
+
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+    const payload = deps.emailSender.send.mock.calls[0]![0]
+    expect(payload.html).toContain('Riverside')
+    expect(payload.html).toContain('Hillcrest')
+    expect(deps.emailRepo.markSuppressed).not.toHaveBeenCalled()
   })
 })
 
@@ -693,5 +906,439 @@ describe('immediate orphan sweep', () => {
     await runHandler(deps)
 
     expect(deps.enqueueImmediate).not.toHaveBeenCalled()
+  })
+
+  it('suppresses a stale orphan instead of re-enqueueing it once its scope is admitted', async () => {
+    const fresh = buildNotificationEmail({
+      id: 'orphan-fresh',
+      propertyId: PROP_A,
+      cadence: 'immediate',
+    })
+    const stale = {
+      ...buildNotificationEmail({
+        id: 'orphan-stale',
+        propertyId: PROP_A,
+        cadence: 'immediate',
+      }),
+      createdAt: new Date(NOW.getTime() - 60 * DAY),
+    }
+    const deps = baseDeps({ immediateOrphans: [stale, { ...fresh, createdAt: NOW }] })
+
+    await runHandler(deps)
+
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      'orphan-stale',
+      organizationId(ORG),
+      PROP_A,
+      'stale',
+      NOW,
+    )
+    expect(deps.enqueueImmediate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ notificationEmailId: 'orphan-stale' }),
+    )
+    expect(deps.enqueueImmediate).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationEmailId: 'orphan-fresh' }),
+    )
+  })
+
+  it('re-enqueues Organization-scoped mandatory rows, authorized per Organization', async () => {
+    // An access-removed or purge-pending notice has no Property, so walking
+    // Properties never found it: a failed enqueue stranded it for good.
+    const mandatory = buildNotificationEmail({
+      id: 'mandatory-1',
+      propertyId: null,
+      category: 'mandatory',
+      cadence: 'immediate',
+      status: 'failed',
+      retryCount: 3,
+    })
+    const deps = baseDeps({ organizationOrphans: [mandatory] })
+
+    await runHandler(deps)
+
+    expect(deps.authorizeScope).toHaveBeenCalledWith(ORG)
+    expect(deps.emailRepo.findDueByOrganization).toHaveBeenCalledWith(
+      organizationId(ORG),
+      NOW,
+    )
+    expect(deps.enqueueImmediate).toHaveBeenCalledWith({
+      notificationEmailId: 'mandatory-1',
+      organizationId: ORG,
+    })
+  })
+
+  it('leaves an Organization that fails the scope gate for a later sweep', async () => {
+    const deps = baseDeps({
+      organizationOrphans: [
+        buildNotificationEmail({
+          id: 'mandatory-1',
+          propertyId: null,
+          category: 'mandatory',
+          cadence: 'immediate',
+        }),
+      ],
+    })
+    deps.authorizeScope.mockImplementation(
+      async (_org: string, property?: string) => property !== undefined,
+    )
+
+    await runHandler(deps)
+
+    expect(deps.emailRepo.findDueByOrganization).not.toHaveBeenCalled()
+    expect(deps.enqueueImmediate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ notificationEmailId: 'mandatory-1' }),
+    )
+  })
+})
+
+describe('digest retries after the content changed', () => {
+  const freeze = async () => {
+    const first = baseDeps()
+    await runHandler(first)
+    const batch = (await first.emailRepo.prepareDigestBatch.mock.results[0]!.value).batch
+    return { first, batch }
+  }
+
+  it('renders a retry with the day the batch was frozen for, even after midnight', async () => {
+    const { first, batch } = await freeze()
+    const retry = baseDeps({
+      now: new Date('2026-07-12T00:30:00.000Z'),
+      openBatch: batch,
+      batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
+    })
+
+    await runHandler(retry)
+
+    expect(retry.emailSender.send).toHaveBeenCalledTimes(1)
+    expect(retry.emailSender.send.mock.calls[0]![0].subject).toBe(
+      first.emailSender.send.mock.calls[0]![0].subject,
+    )
+    expect(retry.emailRepo.settleDigestBatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        settlement: expect.objectContaining({ kind: 'content_mismatch' }),
+      }),
+    )
+  })
+
+  it('re-prepares under a new key, instead of suppressing, a batch the provider refused', async () => {
+    // Refused (a rate limit) means never accepted, so the old key protects
+    // nothing. Suppressing the members lost the whole day's digest.
+    const { batch } = await freeze()
+    const refused = { ...batch, state: 'retryable' as const, everyAttemptRefused: true }
+    const retry = baseDeps({
+      openBatch: refused,
+      batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
+      activeUnsubscribeKeyVersion: 'v2',
+    })
+    retry.userLookup.getName.mockResolvedValue('Alexandra')
+    retry.batchIdGen.mockReturnValue('86000000-0000-4000-8000-000000000100')
+
+    await runHandler(retry)
+
+    expect(retry.emailRepo.settleDigestBatch).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        batchId: refused.id,
+        settlement: expect.objectContaining({ kind: 'superseded' }),
+      }),
+    )
+    expect(retry.emailRepo.prepareDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: '86000000-0000-4000-8000-000000000100',
+        localDate: refused.localDate,
+        memberIds: [entryFor(PROP_A).id, entryFor(PROP_B).id],
+        unsubscribeKeyVersion: 'v2',
+      }),
+    )
+    const sent = retry.emailSender.send.mock.calls[0]![0]
+    expect(sent.idempotencyKey).not.toBe(refused.providerIdempotencyKey)
+    expect(sent.text).toContain('Hi Alexandra,')
+    expect(sent.headers?.['List-Unsubscribe']).toContain(
+      'v2-digest-86000000-0000-4000-8000-000000000100',
+    )
+    expect(retry.emailRepo.settleDigestBatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        settlement: expect.objectContaining({ kind: 'content_mismatch' }),
+      }),
+    )
+  })
+
+  it('does not re-prepare when another worker changed the refused batch first', async () => {
+    const { batch } = await freeze()
+    const retry = baseDeps({
+      openBatch: { ...batch, state: 'retryable', everyAttemptRefused: true },
+      batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
+    })
+    retry.userLookup.getName.mockResolvedValue('Alexandra')
+    retry.emailRepo.settleDigestBatch.mockResolvedValueOnce(false)
+
+    await runHandler(retry)
+
+    expect(retry.emailRepo.prepareDigestBatch).not.toHaveBeenCalled()
+    expect(retry.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  it('records whether the provider refused an attempt or may have accepted it', async () => {
+    const rateLimited = baseDeps()
+    const unavailable = baseDeps()
+    const answering = (statusCode: number, name: string) =>
+      createResendSenderAnswering(
+        { data: null, error: { name, statusCode, message: 'rejected' } },
+        () => NOW,
+      )
+
+    await runHandler({
+      ...rateLimited,
+      emailSender: answering(429, 'rate_limit_exceeded'),
+    } as typeof rateLimited)
+    await runHandler({
+      ...unavailable,
+      emailSender: answering(503, 'application_error'),
+    } as typeof unavailable)
+
+    const settledWith = (refusedBeforeAcceptance: boolean) =>
+      expect.objectContaining({
+        settlement: expect.objectContaining({
+          kind: 'rejected',
+          classification: 'transient',
+          refusedBeforeAcceptance,
+        }),
+      })
+    expect(rateLimited.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      settledWith(true),
+    )
+    expect(unavailable.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      settledWith(false),
+    )
+  })
+})
+
+describe('a frozen digest that loses a row', () => {
+  const frozen = async (everyAttemptRefused: boolean) => {
+    const first = baseDeps()
+    await runHandler(first)
+    const batch = (await first.emailRepo.prepareDigestBatch.mock.results[0]!.value).batch
+    return { ...batch, state: 'retryable' as const, retryCount: 1, everyAttemptRefused }
+  }
+
+  const retrying = (
+    openBatch: NotificationDigestBatch,
+    batchEntries = [entryFor(PROP_A), entryFor(PROP_B)],
+  ) => {
+    const deps = baseDeps({ openBatch, batchEntries })
+    deps.batchIdGen.mockReturnValue('86000000-0000-4000-8000-000000000101')
+    return deps
+  }
+
+  const expectRebuiltWithOnly = (
+    deps: ReturnType<typeof baseDeps>,
+    openBatch: NotificationDigestBatch,
+    kept: NotificationEmail,
+  ) => {
+    expect(deps.emailRepo.settleDigestBatch).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        batchId: openBatch.id,
+        settlement: expect.objectContaining({ kind: 'superseded' }),
+      }),
+    )
+    expect(deps.emailRepo.prepareDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: '86000000-0000-4000-8000-000000000101',
+        memberIds: [kept.id],
+        localDate: openBatch.localDate,
+      }),
+    )
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+    expect(deps.emailSender.send.mock.calls[0]![0].idempotencyKey).not.toBe(
+      openBatch.providerIdempotencyKey,
+    )
+    expect(deps.emailRepo.settleDigestBatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        settlement: expect.objectContaining({ kind: 'invalidated' }),
+      }),
+    )
+  }
+
+  it('sends the rest of a refused digest when one recipient row becomes ineligible', async () => {
+    // CONTEXT.md: a digest drops only the rows that fail.
+    const openBatch = await frozen(true)
+    const deps = retrying(openBatch)
+    deps.isRecipientEligible.mockImplementation(
+      async (input) => input.propertyId === PROP_A,
+    )
+
+    await runHandler(deps)
+
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entryFor(PROP_B).id,
+      organizationId(ORG),
+      PROP_B,
+      'recipient_ineligible',
+      NOW,
+    )
+    expectRebuiltWithOnly(deps, openBatch, entryFor(PROP_A))
+  })
+
+  it('sends the rest of a refused digest when one Property loses authorization', async () => {
+    const openBatch = await frozen(true)
+    const deps = retrying(openBatch)
+    deps.authorizeScope.mockImplementation(async (_org, property) => property === PROP_A)
+
+    await runHandler(deps)
+
+    expectRebuiltWithOnly(deps, openBatch, entryFor(PROP_A))
+  })
+
+  it('sends the rest of a refused digest when a member was settled elsewhere', async () => {
+    const openBatch = await frozen(true)
+    const deps = retrying(openBatch, [
+      entryFor(PROP_A),
+      { ...entryFor(PROP_B), status: 'suppressed' },
+    ])
+
+    await runHandler(deps)
+
+    expectRebuiltWithOnly(deps, openBatch, entryFor(PROP_A))
+  })
+
+  it('retires a refused digest without sending when every row drops', async () => {
+    const openBatch = await frozen(true)
+    const deps = retrying(openBatch)
+    deps.isRecipientEligible.mockResolvedValue(false)
+
+    await runHandler(deps)
+
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expect(deps.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        batchId: openBatch.id,
+        settlement: expect.objectContaining({ kind: 'superseded' }),
+      }),
+    )
+    expect(deps.emailRepo.prepareDigestBatch).not.toHaveBeenCalled()
+  })
+
+  it('still retires the whole digest when the provider may have accepted it', async () => {
+    // Re-sending the rest under a new key could deliver the digest twice.
+    const openBatch = await frozen(false)
+    const deps = retrying(openBatch)
+    deps.isRecipientEligible.mockImplementation(
+      async (input) => input.propertyId === PROP_A,
+    )
+
+    await runHandler(deps)
+
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expect(deps.emailRepo.prepareDigestBatch).not.toHaveBeenCalled()
+    expect(deps.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        batchId: openBatch.id,
+        settlement: expect.objectContaining({
+          kind: 'invalidated',
+          reason: 'digest_membership_invalidated',
+        }),
+      }),
+    )
+  })
+})
+
+describe('an Organization that has asked to close', () => {
+  it('suppresses its due digest rows instead of mailing them', async () => {
+    const deps = baseDeps()
+    deps.organizationEmailStop.mockResolvedValue('optional')
+
+    await runHandler(deps)
+
+    expect(deps.organizationEmailStop).toHaveBeenCalledWith(ORG)
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expect(deps.emailRepo.prepareDigestBatch).not.toHaveBeenCalled()
+    for (const property of [PROP_A, PROP_B]) {
+      expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+        entryFor(property).id,
+        organizationId(ORG),
+        property,
+        'organization_closing',
+        NOW,
+      )
+    }
+  })
+
+  it('closes an open batch instead of retrying it', async () => {
+    const first = baseDeps()
+    await runHandler(first)
+    const openBatch = (await first.emailRepo.prepareDigestBatch.mock.results[0]!.value)
+      .batch
+    const deps = baseDeps({
+      openBatch,
+      batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
+    })
+    deps.organizationEmailStop.mockResolvedValue('optional')
+
+    await runHandler(deps)
+
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expect(deps.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        batchId: openBatch.id,
+        settlement: expect.objectContaining({
+          kind: 'invalidated',
+          reason: 'organization_closing',
+        }),
+      }),
+    )
+  })
+})
+
+describe('due rows whose notification is gone', () => {
+  const readableOnly = (deps: ReturnType<typeof baseDeps>, readable: readonly string[]) =>
+    deps.notifRepo.findByIdsForProperty.mockImplementation(
+      async (ids: readonly NotificationId[], _org: unknown, property: PropertyId) =>
+        new Map(
+          ids
+            .filter(() => readable.includes(property as string))
+            .map((id) => [id as string, notificationFor(entryFor(property as string))]),
+        ),
+    )
+
+  it('settles rows that can never be sent, so the recipient stops being due', async () => {
+    // Skipping them left the recipient due on every hourly run, and 500 of
+    // them starved every newer row.
+    const deps = baseDeps()
+    readableOnly(deps, [])
+
+    await runHandler(deps)
+
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    for (const property of [PROP_A, PROP_B]) {
+      expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+        entryFor(property).id,
+        organizationId(ORG),
+        property,
+        'notification_unavailable',
+        NOW,
+      )
+    }
+  })
+
+  it('freezes only the rows it could read, and settles the rest', async () => {
+    // A frozen member with no notification was marked accepted although it
+    // was never sent.
+    const deps = baseDeps()
+    readableOnly(deps, [PROP_A])
+
+    await runHandler(deps)
+
+    expect(deps.emailRepo.prepareDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ memberIds: [entryFor(PROP_A).id] }),
+    )
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entryFor(PROP_B).id,
+      organizationId(ORG),
+      PROP_B,
+      'notification_unavailable',
+      NOW,
+    )
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
   })
 })

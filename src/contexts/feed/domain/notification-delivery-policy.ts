@@ -11,6 +11,12 @@ export type NotificationDeliveryOutcome =
       kind: 'rejected'
       classification: DeliveryErrorClass
       providerCode: string | null
+      /**
+       * Present when the provider answered before accepting anything (see
+       * `rejectionProvesNonAcceptance`), so a send under a NEW idempotency key
+       * cannot mail twice. Absent when the message may still have been accepted.
+       */
+      refusedBeforeAcceptance?: true
     }>
 
 export type QuietHours = Readonly<{
@@ -40,6 +46,9 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'inbox.escalated': 'urgent_operational',
   'inbox.escalation_resolved': 'workflow_collaboration',
   'inbox.reopened': 'urgent_operational',
+  // One grouped notice for a bulk reopen: the same attention as a single
+  // reopen, but one row and at most one email per recipient per Property.
+  'inbox.bulk_reopened': 'urgent_operational',
   'inbox.response_target_halfway': 'workflow_collaboration',
   // A passed target belongs in the operational-attention category, but it is
   // deliberately absent from URGENT_TYPES: it respects quiet hours and never
@@ -57,7 +66,10 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   // was DROPPED entirely for any tenant without preference rows — nothing was
   // persisted and nothing was mailed. A completed goal is recognition under
   // ADR 0046 ("On privately"). The digest category itself is retired; a daily
-  // digest is a cadence (see domain/notification-types.ts).
+  // digest is a cadence (see domain/notification-types.ts). Goal results are
+  // the category's only live types, so people see it as "Goals" (ADR 0046,
+  // amended 2026-09-22). Not workflow: muting a goal row must not also mute
+  // assignments and notes.
   'goal.completed': 'recognition',
   'goal.result_revised': 'recognition',
   // The reporter's own report was accepted, not planned, or resolved. It is
@@ -110,23 +122,21 @@ export const NOTIFICATION_CATEGORIES: ReadonlyArray<NotificationCategory> = [
 
 /**
  * Categories offered as Property preference controls. `mandatory` is
- * Organization policy and therefore has no Property preference row;
- * `recognition` stays in the persisted model for history but is post-core.
+ * Organization policy and therefore has no Property preference row.
+ * `recognition` carries the live goal results, so it is a control like the
+ * others: in-app on by default, email opt-in (ADR 0046).
  */
 export const NOTIFICATION_SETTINGS_CATEGORIES: ReadonlyArray<ConfigurableNotificationCategory> =
-  ['urgent_operational', 'workflow_collaboration']
+  ['urgent_operational', 'workflow_collaboration', 'recognition']
 
 /**
- * Active settings categories that govern at least one notification type —
- * derived from `CATEGORY_BY_TYPE`, never hand-listed, so it cannot drift.
- *
- * This is the list a FILTER may offer. Retained `recognition` is excluded
- * because that post-core category is not an active beta control.
+ * Categories that govern at least one notification type — derived from
+ * `CATEGORY_BY_TYPE`, never hand-listed, so it cannot drift. This is the list
+ * a FILTER may offer.
  */
 export const GOVERNING_NOTIFICATION_CATEGORIES: ReadonlyArray<NotificationCategory> =
-  NOTIFICATION_CATEGORIES.filter(
-    (category) =>
-      category !== 'recognition' && Object.values(CATEGORY_BY_TYPE).includes(category),
+  NOTIFICATION_CATEGORIES.filter((category) =>
+    Object.values(CATEGORY_BY_TYPE).includes(category),
   )
 
 function minuteOfDay(value: string): number {
@@ -136,19 +146,45 @@ function minuteOfDay(value: string): number {
   return hour * 60 + minute
 }
 
-function localMinute(date: Date, timezone: string): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
+const MINUTE_MS = 60_000
+
+/**
+ * The largest daylight-saving shift in the tz database: Antarctica/Troll moves
+ * two hours. A jump across quiet time stops this far short of the window's
+ * wall-clock end, so a spring-forward inside the jump cannot carry it past the
+ * end and into the next quiet window.
+ */
+const MAX_DST_SHIFT_MINUTES = 120
+
+/**
+ * How far ahead a sendable minute is looked for. A quiet window is shorter
+ * than a day, but a transition day can erase a sendable window no longer than
+ * its shift (02:00–03:00 does not exist in New York on a spring-forward night),
+ * which moves the answer into the following day.
+ */
+const SEARCH_HORIZON_MINUTES = 50 * 60
+
+/** One formatter per timezone lookup, reused for every minute probed. */
+function localMinuteReader(timezone: string): (instant: number) => number {
+  const format = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
-  }).formatToParts(date)
-  const hour = Number(parts.find((part) => part.type === 'hour')?.value)
-  const minute = Number(parts.find((part) => part.type === 'minute')?.value)
-  if (!Number.isInteger(hour) || !Number.isInteger(minute)) {
-    throw new RangeError(`Unable to resolve timezone: ${timezone}`)
+  })
+  return (instant) => {
+    const parts = format.formatToParts(instant)
+    const hour = Number(parts.find((part) => part.type === 'hour')?.value)
+    const minute = Number(parts.find((part) => part.type === 'minute')?.value)
+    if (!Number.isInteger(hour) || !Number.isInteger(minute)) {
+      throw new RangeError(`Unable to resolve timezone: ${timezone}`)
+    }
+    return hour * 60 + minute
   }
-  return hour * 60 + minute
+}
+
+function localMinute(date: Date, timezone: string): number {
+  return localMinuteReader(timezone)(date.getTime())
 }
 
 function isQuietMinute(minute: number, start: number, end: number): boolean {
@@ -156,34 +192,47 @@ function isQuietMinute(minute: number, start: number, end: number): boolean {
   return start < end ? minute >= start && minute < end : minute >= start || minute < end
 }
 
+/** Wall-clock minutes from a quiet `minute` until its quiet window ends. */
+function quietMinutesRemaining(minute: number, start: number, end: number): number {
+  return start < end ? end - minute : minute < end ? end - minute : 1_440 - minute + end
+}
+
+/**
+ * The first whole minute after `now` that falls outside quiet hours, walked in
+ * real time. The remaining quiet time is a WALL-CLOCK distance, which a
+ * daylight-saving change stretches or shrinks: jumping all of it as real time
+ * overshot a short sendable window on a spring-forward day and threw.
+ *
+ * When the clock advances by exactly that distance, no change fell in between
+ * and the window's end is the answer. Otherwise each jump stops
+ * MAX_DST_SHIFT_MINUTES short and the rest is walked minute by minute, so the
+ * answer is never inside quiet hours. A fall-back hour replayed just before
+ * the window starts can be skipped: late, never early.
+ */
 function firstNonQuietMinute(
   now: Date,
   timezone: string,
   start: number,
   end: number,
 ): Date {
-  let low = Math.floor(now.getTime() / 60_000) * 60_000
-  let high = low + 60_000
-  const maximum = low + 27 * 60 * 60_000
+  const minuteAt = localMinuteReader(timezone)
+  const first = Math.floor(now.getTime() / MINUTE_MS) * MINUTE_MS
+  const horizon = first + SEARCH_HORIZON_MINUTES * MINUTE_MS
+  let candidate = first + MINUTE_MS
 
-  while (
-    high <= maximum &&
-    isQuietMinute(localMinute(new Date(high), timezone), start, end)
-  ) {
-    const local = localMinute(new Date(high), timezone)
-    const remaining =
-      start < end ? end - local : local < end ? end - local : 1_440 - local + end
-    high += Math.max(remaining, 1) * 60_000
+  while (candidate < horizon) {
+    const minute = minuteAt(candidate)
+    if (!isQuietMinute(minute, start, end)) return new Date(candidate)
+    const remaining = quietMinutesRemaining(minute, start, end)
+    const windowEnd = candidate + remaining * MINUTE_MS
+    if ((minuteAt(windowEnd) - minute + 1_440) % 1_440 === remaining) {
+      return new Date(windowEnd)
+    }
+    candidate += Math.max(remaining - MAX_DST_SHIFT_MINUTES, 1) * MINUTE_MS
   }
-  if (high > maximum)
-    throw new RangeError(`Unable to resolve quiet-hours end in ${timezone}`)
-
-  while (high - low > 60_000) {
-    const middle = low + Math.floor((high - low) / 120_000) * 60_000
-    if (isQuietMinute(localMinute(new Date(middle), timezone), start, end)) low = middle
-    else high = middle
-  }
-  return new Date(high)
+  // Nothing sendable within two days. Deferring to the horizon lets the send
+  // path evaluate quiet hours again then, instead of failing the delivery now.
+  return new Date(horizon)
 }
 
 export function deliveryTiming(
@@ -216,6 +265,22 @@ export function isDailyDigestWindow(now: Date, timezone: string): boolean {
   return minute >= 8 * 60 && minute < 9 * 60
 }
 
+/** A timeout and a rate or quota limit: the provider asks to be tried again. */
+const RETRYABLE_STATUS_CODES: ReadonlySet<number> = new Set([408, 429])
+
+/**
+ * Transient means "try again under the same idempotency key", which the
+ * provider dedupes, so a retry can never mail twice. That makes transient the
+ * safe answer whenever the provider did not say no for good:
+ *
+ *  - `statusCode: null` is how the Resend SDK reports a request that never got
+ *    an answer — DNS, a refused or reset connection, TLS, a response lost
+ *    mid-body. It returns that rather than throwing, so treating it as
+ *    permanent dropped urgent mail and whole digests on any connectivity blip.
+ *  - 409 `concurrent_idempotent_requests` means the first request with this
+ *    key is still in flight. A 409 `invalid_idempotent_request` (same key,
+ *    different body) stays permanent: retrying it cannot succeed.
+ */
 export function classifyProviderRejection(
   input: Readonly<{
     statusCode: number | null
@@ -231,10 +296,31 @@ export function classifyProviderRejection(
   ) {
     return 'suppressed'
   }
-  return input.statusCode === 429 ||
-    (input.statusCode !== null && input.statusCode >= 500)
+  if (input.statusCode === null) return 'transient'
+  if (input.statusCode === 409) {
+    return input.providerCode === 'concurrent_idempotent_requests'
+      ? 'transient'
+      : 'permanent'
+  }
+  return RETRYABLE_STATUS_CODES.has(input.statusCode) || input.statusCode >= 500
     ? 'transient'
     : 'permanent'
+}
+
+/**
+ * Whether a rejection proves the provider never accepted the message. Only an
+ * answer it gives before taking the message does: a rate or quota limit, a
+ * validation failure. No answer, a timeout, a 5xx, or a 409 on the idempotency
+ * key can each follow a message it accepted, so none of them proves anything.
+ */
+export function rejectionProvesNonAcceptance(statusCode: number | null): boolean {
+  return (
+    statusCode !== null &&
+    statusCode >= 400 &&
+    statusCode < 500 &&
+    statusCode !== 408 &&
+    statusCode !== 409
+  )
 }
 
 export function requiredCapabilityForPreferenceChannel(

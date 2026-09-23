@@ -72,6 +72,19 @@ describe('resend webhook route', () => {
     expect(mocks.handleResendEvent).not.toHaveBeenCalled()
   })
 
+  it('tells an unauthenticated caller nothing about the missing configuration', async () => {
+    // The 503 goes out before any signature check, so anyone on the internet
+    // can read it. The variable name belongs in the operator log only.
+    mocks.secret.value = undefined
+
+    const response = await handleResendWebhookPost(mkRequest())
+
+    await expect(response.json()).resolves.toEqual({
+      error: 'Service Unavailable',
+      code: 'webhook_disabled',
+    })
+  })
+
   it('accepts a correctly signed event and forwards it to the handler', async () => {
     const response = await handleResendWebhookPost(mkRequest())
 
@@ -86,6 +99,78 @@ describe('resend webhook route', () => {
       providerMessageId: 'prov-1',
       occurredAt: new Date('2026-08-21T09:05:00.000Z'),
       eventId: 'msg_2abc',
+    })
+  })
+
+  it('forwards the bounce type, so only a permanent bounce suppresses the address', async () => {
+    const bounced = JSON.stringify({
+      type: 'email.bounced',
+      created_at: '2026-08-21T09:05:00.000Z',
+      data: {
+        email_id: 'prov-1',
+        bounce: { type: 'Transient', subType: 'MailboxFull', message: 'Mailbox full' },
+      },
+    })
+
+    await handleResendWebhookPost(mkRequest(bounced))
+
+    expect(mocks.handleResendEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'email.bounced', bounceType: 'Transient' }),
+    )
+    // The provider's diagnostic text is recipient-side content; it stays out.
+    expect(JSON.stringify(mocks.handleResendEvent.mock.calls[0])).not.toContain(
+      'Mailbox full',
+    )
+  })
+
+  describe("the provider's own suppression list", () => {
+    const listEvent = (type: string) =>
+      JSON.stringify({
+        type,
+        created_at: '2026-08-21T09:05:00.000Z',
+        data: {
+          id: 'sup_1',
+          email: 'Former.Manager@example.com',
+          origin: 'complaint',
+          source_id: null,
+          created_at: '2026-08-21T09:04:00.000Z',
+        },
+      })
+
+    it('forwards a removal with the address it lifts', async () => {
+      // An operator takes the address off Resend's list; ours must follow, or
+      // the address stays refused here forever.
+      mocks.handleResendEvent.mockResolvedValue({ applied: true, rows: 0, suppressed: 0 })
+
+      const response = await handleResendWebhookPost(
+        mkRequest(listEvent('suppression.removed')),
+      )
+
+      expect(response.status).toBe(200)
+      expect(mocks.handleResendEvent).toHaveBeenCalledWith({
+        type: 'suppression.removed',
+        address: 'Former.Manager@example.com',
+        origin: 'complaint',
+        occurredAt: new Date('2026-08-21T09:05:00.000Z'),
+        eventId: 'msg_2abc',
+      })
+    })
+
+    it('forwards an addition with its origin', async () => {
+      await handleResendWebhookPost(mkRequest(listEvent('suppression.added')))
+
+      expect(mocks.handleResendEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'suppression.added', origin: 'complaint' }),
+      )
+    })
+
+    it('returns 400 for a list event with no address', async () => {
+      const response = await handleResendWebhookPost(
+        mkRequest(JSON.stringify({ type: 'suppression.removed', data: { id: 'sup_1' } })),
+      )
+
+      expect(response.status).toBe(400)
+      expect(mocks.handleResendEvent).not.toHaveBeenCalled()
     })
   })
 

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  classifyNotification,
+  GOVERNING_NOTIFICATION_CATEGORIES,
+  NOTIFICATION_SETTINGS_CATEGORIES,
+  ORGANIZATION_INFORMATIONAL_TYPES,
+} from '../domain/notification-delivery-policy'
+import type { NotificationType } from '../domain/notification-types'
+import {
   BETA_DARK_NOTIFICATION_TYPES,
   BETA_NOTIFICATION_TRIGGER_MATRIX,
   betaNotificationTriggerMatrixViolations,
@@ -77,5 +84,31 @@ describe('executable beta notification trigger matrix', () => {
     ).toContain(
       'durable notification consumer notification.on-unmapped for inbox.unmapped is absent from the beta matrix',
     )
+  })
+
+  // The reverse of the policy's "every advertised category governs a type".
+  // A live notice in a category with no control can be neither muted, nor
+  // filtered to, nor opted in to email: that is how goal results sat under a
+  // hidden `recognition` category while a monthly burst of them went out.
+  it('gives every live notification type a setting or a fixed policy, and a filter', () => {
+    const liveTypes = BETA_NOTIFICATION_TRIGGER_MATRIX.flatMap((row) =>
+      row.notifications.map((policy) => policy.type as NotificationType),
+    )
+
+    for (const type of liveTypes) {
+      const category = classifyNotification(type)
+      const controlled =
+        category === 'mandatory' ||
+        ORGANIZATION_INFORMATIONAL_TYPES.has(type) ||
+        (NOTIFICATION_SETTINGS_CATEGORIES as readonly string[]).includes(category)
+      expect(
+        controlled,
+        `${type} is live in ${category}, which is neither configurable, mandatory, nor Organization-informational`,
+      ).toBe(true)
+      expect(
+        GOVERNING_NOTIFICATION_CATEGORIES.includes(category),
+        `${type} is live in ${category}, which has no filter`,
+      ).toBe(true)
+    }
   })
 })

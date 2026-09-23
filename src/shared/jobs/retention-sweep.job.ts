@@ -161,12 +161,25 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     tsColumn: 'expires_at',
     olderThanMs: 0,
   },
+  // A notification lives 90 days from its latest ARRIVAL. A repeat event
+  // coalesces into the unread row and stamps coalesced_latest_at, so an alert
+  // re-raised yesterday is live whatever its created_at; a row never re-raised
+  // arrived once, at created_at. Reading a notice extends neither.
   {
     subject: 'notifications',
     table: 'notifications',
     keyColumns: ['id'],
     tsColumn: 'created_at',
     olderThanMs: 90 * DAY_MS,
+    extraWhere: 'coalesced_latest_at IS NULL',
+  },
+  {
+    subject: 'notifications.coalesced',
+    table: 'notifications',
+    keyColumns: ['id'],
+    tsColumn: 'coalesced_latest_at',
+    olderThanMs: 90 * DAY_MS,
+    extraWhere: 'coalesced_latest_at IS NOT NULL',
   },
   {
     subject: 'notification_digest_batches',
@@ -177,13 +190,25 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     extraWhere: "state IN ('accepted', 'terminal')",
   },
   {
+    // Terminal rows, and any row whose notification the rules above removed:
+    // nothing can send it, and a queue or digest row must never point at
+    // nothing. Batch members cascade with the row.
     subject: 'notification_email_queue',
     table: 'notification_email_queue',
     keyColumns: ['id'],
     tsColumn: 'created_at',
     olderThanMs: 90 * DAY_MS,
     extraWhere:
-      "status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed')",
+      "(status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed', 'cancelled') OR NOT EXISTS (SELECT 1 FROM notifications n WHERE n.id = notification_email_queue.notification_id))",
+  },
+  {
+    // What a delivered message's one-click unsubscribe link stands for. It
+    // outlives the 90-day queue so the link keeps working in an inbox.
+    subject: 'notification_unsubscribe_scopes',
+    table: 'notification_unsubscribe_scopes',
+    keyColumns: ['target_kind', 'target_id', 'property_id', 'category'],
+    tsColumn: 'created_at',
+    olderThanMs: 365 * DAY_MS,
   },
   {
     subject: 'recent_activity_replay_facts',

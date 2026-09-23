@@ -15,6 +15,7 @@ import type {
 } from '#/shared/domain/ids'
 import { notificationError, type NotificationError } from './notification-errors'
 import { isPreferenceDisableable } from './notification-policy'
+import { offeredEmailCadences } from './notification-cadence'
 
 const CATEGORIES: Readonly<Record<NotificationCategory, true>> = {
   mandatory: true,
@@ -56,6 +57,12 @@ export const createNotificationPreference = (
   if (input.cadence !== 'immediate' && input.cadence !== 'daily') {
     return err(notificationError('invalid_input', 'Invalid notification cadence'))
   }
+  if (
+    input.channel === 'email' &&
+    !offeredEmailCadences(input.category).includes(input.cadence)
+  ) {
+    return err(notificationError('invalid_input', 'Goal email is sent once a day'))
+  }
   const hasStart = input.quietHoursStart !== null
   const hasEnd = input.quietHoursEnd !== null
   if (
@@ -65,6 +72,16 @@ export const createNotificationPreference = (
   ) {
     return err(
       notificationError('invalid_input', 'Quiet hours require a valid start and end'),
+    )
+  }
+  // Delivery reads equal times as "no quiet hours" (`isQuietMinute`), so a
+  // saved 22:00-22:00 looked like quiet hours and silenced nothing.
+  if (input.quietHoursStart !== null && input.quietHoursStart === input.quietHoursEnd) {
+    return err(
+      notificationError(
+        'invalid_input',
+        'Quiet hours must start and end at different times',
+      ),
     )
   }
   if (!isPreferenceDisableable(input.category, input.channel) && !input.enabled) {

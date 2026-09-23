@@ -11,6 +11,9 @@
 //   resourceScope  — organization | property | tenant_cross | none
 //   externalEffect — whether the action requires a fresh policy read
 //   name           — job, consumer module, or recurring schedule name
+//
+// Every row of one action declares the same resourceScope: a tenant-cross
+// sweep and the per-item work it discovers are different actions.
 
 import type { Capability } from '#/shared/auth/beta-capabilities'
 
@@ -66,6 +69,7 @@ export type SystemAction =
   | 'system:health.check'
   | 'system:outbox.redeliver'
   | 'system:portal.health_reconcile'
+  | 'system:portal.responsibility_reannounce'
   | 'system:portal.destination_revalidate'
   | 'system:property.import'
   | 'system:property.import_v2'
@@ -102,7 +106,9 @@ export type SystemAction =
   | 'system:notification.delivery_event'
   | 'system:notification.reconcile'
   | 'system:inbox.update'
+  | 'system:inbox.project_review'
   | 'system:inbox.project_guest_feedback'
+  | 'system:inbox.cancel_property_reminders'
   | 'system:ai.trend'
   | 'system:ai.trend_schedule'
   // operator commands
@@ -290,12 +296,16 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   job('project-recent-activity', 'system:activity.record', 'none', 'organization'),
   job('insert-activity-log', 'system:activity.record', 'none', 'organization'),
-  job('insert-notification', 'system:notification.insert', 'none', 'property'),
+  // Mandatory notices and the ADR 0059 report outcome have no Property. Feed
+  // enforces each type's scope (notificationScopeForType) in the notification
+  // and email constructors and their CHECKs; a job that carries a Property is
+  // still decided at that Property.
+  job('insert-notification', 'system:notification.insert', 'none', 'organization'),
   job(
     'urgent-email',
     'system:notification.email_urgent',
     'notification.send_email',
-    'property',
+    'organization',
     true,
   ),
   job(
@@ -320,12 +330,34 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'portal.write',
     'property',
   ),
-  consumer('inbox.outbox-consumers', 'system:inbox.update', 'none', 'organization'),
+  consumer(
+    'portal.property-lifecycle',
+    'system:portal.responsibility_reannounce',
+    'portal.write',
+    'property',
+  ),
+  // Its own action: 'system:inbox.update' is the tenant-cross reminder sweep.
+  // 'inbox.use' is the gate the shared action has always applied here.
+  consumer(
+    'inbox.outbox-consumers',
+    'system:inbox.project_review',
+    'inbox.use',
+    'organization',
+  ),
   consumer(
     'inbox.guest-feedback',
     'system:inbox.project_guest_feedback',
     'portal.read',
     'organization',
+  ),
+  // Cancelling an archived Property's Response Target reminders is cleanup:
+  // ungated, because a denied consumer is never retried, and scoped to the
+  // one Property the lifecycle fact names.
+  consumer(
+    'inbox.property-lifecycle',
+    'system:inbox.cancel_property_reminders',
+    'none',
+    'property',
   ),
   consumer(
     'notification.outbox-consumers',
@@ -420,9 +452,10 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer('ai.outbox-consumers', 'system:ai.trend', 'ai.detect_trends', 'property'),
   consumer('activity.outbox-consumers', 'system:activity.record', 'none', 'organization'),
+  // Its own action: 'system:goal.maintain' is the tenant-cross hourly sweep.
   consumer(
     'goal.metric-correction-reconciliation',
-    'system:goal.maintain',
+    'system:goal.reconcile',
     'goal.use',
     'property',
   ),

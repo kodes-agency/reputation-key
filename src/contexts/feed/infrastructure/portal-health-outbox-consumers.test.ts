@@ -6,7 +6,10 @@ import {
 } from '#/shared/outbox/consumer-registry'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { userId } from '#/shared/domain/ids'
+import { toOutboxEvent } from '#/shared/outbox/event-adapter'
+import { buildConsumerEvent } from '#/shared/outbox/envelope'
+import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
+import { portalHealthChanged } from '#/contexts/portal/domain/events'
 import {
   handleNotificationPortalHealthChanged,
   ON_PORTAL_HEALTH_CHANGED_CONSUMER,
@@ -25,6 +28,7 @@ const ORG = 'portal-health-notification-org'
 const MANAGER = userId('portal-health-notification-manager')
 const ADMIN = userId('portal-health-notification-admin')
 const SOURCE_VERSION = 'health-source-v3'
+const HEALTH_SINCE = '2026-08-27T08:00:00.000Z'
 
 const event = (
   payloadOverrides: Readonly<Record<string, unknown>> = {},
@@ -42,13 +46,15 @@ const event = (
     status: 'degraded',
     reason: 'google_destination_unavailable',
     sourceVersion: SOURCE_VERSION,
-    occurredAt: '2026-08-27T08:00:00.000Z',
+    occurredAt: HEALTH_SINCE,
     ...payloadOverrides,
   },
   organizationId: ORG,
   propertyId: IDS.property,
   sourceContext: 'portal',
-  sourceAggregateId: IDS.portal,
+  // The outbox names the Property as the aggregate: the fact carries both ids
+  // and the aggregate candidates rank propertyId first.
+  sourceAggregateId: IDS.property,
   recordedAt: '2026-08-27T08:00:00.000Z',
   ...envelopeOverrides,
 })
@@ -69,6 +75,7 @@ const makeDeps = () => {
       isEligibleForProperty: vi.fn(async () => true),
     },
     userLookup: { findByRole: vi.fn(async () => [ADMIN]) },
+    displayNames: { findPropertyName: vi.fn(async () => 'Riverside Hotel') },
     receipts: { insertReceipt: vi.fn(async () => undefined) },
     logger: {
       debug: vi.fn(),
@@ -121,13 +128,13 @@ describe('Portal Health notification durable consumer', () => {
           resourceType: 'portal',
           resourceId: IDS.portal,
           eventId: IDS.event,
-          payload: {},
+          payload: { propertyName: 'Riverside Hotel' },
           audience: {
             kind: 'portal_health',
             portalId: IDS.portal,
             status: 'degraded',
             reason: 'google_destination_unavailable',
-            sourceVersion: SOURCE_VERSION,
+            effectiveFrom: HEALTH_SINCE,
           },
         },
         opts: { jobId: `${IDS.event}-${MANAGER}` },
@@ -138,6 +145,43 @@ describe('Portal Health notification durable consumer', () => {
       ON_PORTAL_HEALTH_CHANGED_CONSUMER,
       'applied',
     )
+  })
+
+  it('accepts the envelope the real Portal Health producer writes', async () => {
+    const deps = makeDeps()
+    const fact = portalHealthChanged({
+      portalId: portalId(IDS.portal),
+      organizationId: organizationId(ORG),
+      propertyId: propertyId(IDS.property),
+      previousStatus: 'healthy',
+      previousReason: 'operational',
+      status: 'unavailable',
+      reason: 'publication_snapshot_unavailable',
+      sourceVersion: SOURCE_VERSION,
+      occurredAt: new Date(HEALTH_SINCE),
+    })
+    const row = toOutboxEvent(fact)
+    const delivered = buildConsumerEvent({
+      id: fact.eventId,
+      eventType: row.eventType,
+      eventVersion: row.eventVersion ?? 1,
+      payload: JSON.parse(JSON.stringify(row.payload)),
+      organizationId: row.organizationId,
+      propertyId: row.propertyId ?? null,
+      sourceContext: row.sourceContext,
+      sourceAggregateId: row.sourceAggregateId,
+      recordedAt: new Date(HEALTH_SINCE),
+    })
+
+    await expect(handleNotificationPortalHealthChanged(deps, delivered)).resolves.toEqual(
+      {
+        status: 'applied',
+      },
+    )
+    expect(deps.jobs[0]?.data).toMatchObject({
+      type: 'portal.health_attention',
+      audience: { kind: 'portal_health', effectiveFrom: HEALTH_SINCE },
+    })
   })
 
   it('uses AccountAdmin recovery only when no eligible Portal manager remains', async () => {
@@ -155,6 +199,7 @@ describe('Portal Health notification durable consumer', () => {
     ['publication_draft', 'unavailable'],
     ['publication_disabled', 'unavailable'],
     ['publication_archived', 'unavailable'],
+    ['property_unavailable', 'unavailable'],
     ['responsibility_needed', 'degraded'],
     ['google_destination_awaiting_refresh', 'degraded'],
   ] as const)('records %s as receipt-only', async (reason, status) => {

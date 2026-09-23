@@ -28,3 +28,8 @@ action and scope; an unavailable or unknown policy input fails closed.
 - Permission-to-capability mapping lives in
   `src/shared/auth/capability-for-permission.ts`.
 - New entry points must name one execution-policy action and resource scope.
+- Every delayed entry point that shares an action declares the same resource
+  scope, and the delayed gate decides with the scope of the row it resolved. A
+  tenant-cross sweep and the per-item work it discovers are separate actions:
+  one Property-scoped job once made every Organization-scoped notification
+  consumer that shared its action deny `missing_scope`.

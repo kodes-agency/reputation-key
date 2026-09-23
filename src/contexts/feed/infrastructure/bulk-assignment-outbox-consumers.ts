@@ -15,16 +15,21 @@ import {
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import {
+  buildPropertyPayload,
+  type PropertyPayloadDeps,
+} from './notification-payload-facts'
 import { isSafeOpaqueIdentifier } from '#/shared/domain/safe-identifier'
 
 export const ON_INBOX_BULK_ASSIGNMENT_COMPLETED_CONSUMER =
   'notification.on-inbox-bulk-assignment-completed' as const
 
-export type BulkAssignmentNotificationConsumerDeps = Readonly<{
-  queue: NotificationJobEnqueuePort
-  userLookup: Pick<UserLookupPort, 'findActorRole'>
-  receipts: Pick<OutboxRepository, 'insertReceipt'>
-}>
+export type BulkAssignmentNotificationConsumerDeps = PropertyPayloadDeps &
+  Readonly<{
+    queue: NotificationJobEnqueuePort
+    userLookup: Pick<UserLookupPort, 'findActorRole'>
+    receipts: Pick<OutboxRepository, 'insertReceipt'>
+  }>
 
 type Transition = Readonly<{
   inboxItemId: string
@@ -96,9 +101,10 @@ export async function handleNotificationBulkAssignmentCompleted(
   const payload = parse(event)
   const nextAssignee = payload.transitions[0]!.nextAssignee
 
-  // A release has no next assignee. The actor already knows what they did and
-  // AccountAdmins are not a substitute recipient, so it has no notification.
-  if (nextAssignee !== null) {
+  // A release has no next assignee, and assigning items to yourself makes the
+  // actor the assignee. The actor already knows what they did and
+  // AccountAdmins are not a substitute recipient, so neither has a notification.
+  if (nextAssignee !== null && nextAssignee !== payload.userId) {
     const org = organizationId(payload.organizationId)
     const actorRole = await deps.userLookup.findActorRole(userId(payload.userId), org)
     const byProperty = new Map<string, Transition[]>()
@@ -109,11 +115,12 @@ export async function handleNotificationBulkAssignmentCompleted(
     }
 
     await Promise.all(
-      [...byProperty.entries()].map(([property, transitions]) => {
+      [...byProperty.entries()].map(async ([property, transitions]) => {
         const inboxItemIds = transitions.map((transition) =>
           inboxItemId(transition.inboxItemId),
         )
         const recipient = userId(nextAssignee)
+        const where = await buildPropertyPayload(deps, org, propertyId(property))
         return deps.queue.add(
           INSERT_NOTIFICATION_JOB_NAME,
           {
@@ -122,11 +129,13 @@ export async function handleNotificationBulkAssignmentCompleted(
             propertyId: propertyId(property),
             type: 'inbox.bulk_assigned' as const,
             resourceType: 'inbox_item' as const,
-            // Opens the first canonically sorted item; the copy and count make
-            // clear that the row represents the whole Property-scoped group.
+            // The first canonically sorted item is the row's resource identity;
+            // its link opens the recipient's queue at this Property instead
+            // (notificationLink), since the row stands for the whole group.
             resourceId: inboxItemIds[0]!,
             eventId: event.eventId,
             payload: {
+              ...where,
               itemCount: transitions.length,
               ...(actorRole ? { actorRole } : {}),
             },

@@ -1,7 +1,7 @@
 // Feed notification surface — Drizzle repository adapter for notifications
 // Per architecture: factory pattern `createXxxRepository(db)` returning port interface.
 
-import { and, eq, desc, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, eq, desc, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notifications } from '#/shared/db/schema/notification.schema'
 import { unbrand } from '#/shared/domain/ids'
@@ -9,7 +9,11 @@ import type { Notification, NotificationStatus } from '../../domain/notification
 import { notificationFromRow } from './notification-row.mapper'
 import { notificationError } from '../../domain/notification-errors'
 import type { NotificationListFilter } from '../../application/notification-list-filter'
-import { createNotificationPage } from '../../application/notification-page'
+import {
+  createNotificationPage,
+  type NotificationFeedCursor,
+  type NotificationFeedRow,
+} from '../../application/notification-page'
 
 // ── Repository ──────────────────────────────────────────────────────
 
@@ -26,54 +30,122 @@ const notOptedOutInApp = sql`NOT EXISTS (
     AND notifications.category NOT IN ('mandatory', 'urgent_operational')
 )`
 
-// Paginated, newest-first read of a user's visible notifications.
-// The filter is applied BEFORE limit/offset so every returned page belongs to
-// the requested feed. Dismissed rows are always hidden, not deleted.
-const selectUserNotifications = (
-  db: Database,
-  userId: string,
-  orgId: string,
-  limit: number,
-  offset: number,
-  filter: NotificationListFilter,
-): Promise<Notification[]> => {
-  const conditions = [
-    eq(notifications.userId, userId),
-    eq(notifications.organizationId, orgId),
-    notOptedOutInApp,
-  ]
-  conditions.push(ne(notifications.status, 'dismissed'))
-  if (filter === 'unread') conditions.push(eq(notifications.status, 'unread'))
-  else if (filter === 'urgent') conditions.push(eq(notifications.priority, 'urgent'))
-  else if (filter !== 'all') conditions.push(eq(notifications.category, filter))
-  return db
-    .select()
-    .from(notifications)
-    .where(and(...conditions))
-    .orderBy(desc(notifications.createdAt))
-    .limit(limit)
-    .offset(offset)
-    .then((rows) => rows.map(notificationFromRow))
+// Latest activity: a coalesced row sorts by its newest absorbed event, so a
+// re-fired alert rises to the top instead of keeping its original slot while
+// its timestamp says "just now". Must stay textually identical to the
+// expression in notifications_feed_activity_idx, or every poll sorts again.
+const lastActivityAt = sql`COALESCE(${notifications.coalescedLatestAt}, ${notifications.createdAt})`
+
+// The cursor half of the keyset: the latest-activity instant as fixed-width
+// UTC text with microseconds. A JS Date keeps only milliseconds, so a cursor
+// built from one could split two rows that share a millisecond.
+const lastActivityCursorAt = sql<string>`to_char(${lastActivityAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
+
+type NotificationFeedQuery = Readonly<{
+  userId: string
+  organizationId: string
+  /** Current Property access; null reads every Property. */
+  visiblePropertyIds: ReadonlyArray<string> | null
+  filter: NotificationListFilter
+  limit: number
+}>
+
+// A Property notice is shown only while the reader can still access that
+// Property: access can end after delivery (a revoked or expired grant), and
+// the rows must not outlive it in the feed or the badge. Organization-scoped
+// notices have no Property and are never gated. Undefined: no restriction.
+const withinVisibleProperties = (
+  visiblePropertyIds: ReadonlyArray<string> | null,
+): SQL | undefined => {
+  if (visiblePropertyIds === null) return undefined
+  if (visiblePropertyIds.length === 0) return isNull(notifications.propertyId)
+  return or(
+    isNull(notifications.propertyId),
+    inArray(notifications.propertyId, [...visiblePropertyIds]),
+  )
 }
 
+// What a feed filter adds to "the reader's notices": the unread status, the
+// urgent priority flag (any category), or one category. `all` adds nothing.
+// Shared by the feed read, its filter's unread count and the filter-scoped
+// "Mark all read", so the three can never disagree about a tab's rows.
+const feedFilterCondition = (filter: NotificationListFilter): SQL | undefined => {
+  if (filter === 'all') return undefined
+  if (filter === 'unread') return eq(notifications.status, 'unread')
+  if (filter === 'urgent') return eq(notifications.priority, 'urgent')
+  return eq(notifications.category, filter)
+}
+
+type NotificationFeedPageQuery = NotificationFeedQuery &
+  Readonly<{
+    /** Continue strictly after this position; null reads from the top. */
+    before: NotificationFeedCursor | null
+  }>
+
+// Keyset read of a user's visible notifications, newest activity first with id
+// as the tiebreak so rows sharing an instant keep one order. A page continues
+// strictly after the previous page's last row, so rows arriving above it or
+// leaving above it can neither shift it nor make it skip a row.
+// The filter is applied BEFORE the limit so every returned page belongs to
+// the requested feed. Dismissed rows are always hidden, not deleted.
+// Reads `limit + 1` rows: the extra one is has-more evidence for the page.
+const selectFeedRows = (
+  db: Database,
+  query: NotificationFeedPageQuery,
+): Promise<NotificationFeedRow[]> => {
+  const conditions = [
+    eq(notifications.userId, query.userId),
+    eq(notifications.organizationId, query.organizationId),
+    notOptedOutInApp,
+    withinVisibleProperties(query.visiblePropertyIds),
+    ne(notifications.status, 'dismissed'),
+    feedFilterCondition(query.filter),
+  ]
+  if (query.before) {
+    conditions.push(
+      sql`(${lastActivityAt}, ${notifications.id}) < (${query.before.at}::timestamptz, ${query.before.id}::uuid)`,
+    )
+  }
+  return db
+    .select({ row: notifications, cursorAt: lastActivityCursorAt })
+    .from(notifications)
+    .where(and(...conditions))
+    .orderBy(desc(lastActivityAt), desc(notifications.id))
+    .limit(query.limit + 1)
+    .then((rows) =>
+      rows.map(({ row, cursorAt }) => ({
+        notification: notificationFromRow(row),
+        cursor: { at: cursorAt, id: row.id },
+      })),
+    )
+}
+
+/**
+ * The reader's visible unread rows, and how many of them the head's filter
+ * holds (the rows that filter's "Mark all read" would change). One scan.
+ */
 const countVisibleUnread = async (
   db: Database,
-  userId: string,
-  orgId: string,
-): Promise<number> => {
+  query: NotificationFeedQuery,
+): Promise<Readonly<{ unreadCount: number; filterUnreadCount: number }>> => {
+  const inFilter = feedFilterCondition(query.filter) ?? sql`true`
   const rows = await db
-    .select({ count: sql<number>`count(*)::int` })
+    .select({
+      unreadCount: sql<number>`count(*)::int`,
+      filterUnreadCount: sql<number>`(count(*) FILTER (WHERE ${inFilter}))::int`,
+    })
     .from(notifications)
     .where(
       and(
-        eq(notifications.userId, userId),
-        eq(notifications.organizationId, orgId),
+        eq(notifications.userId, query.userId),
+        eq(notifications.organizationId, query.organizationId),
         eq(notifications.status, 'unread'),
         notOptedOutInApp,
+        withinVisibleProperties(query.visiblePropertyIds),
       ),
     )
 
-  return rows[0]!.count
+  return rows[0]!
 }
 
 export const createNotificationRepository = (db: Database) => ({
@@ -108,15 +180,17 @@ export const createNotificationRepository = (db: Database) => ({
       // drizzle needs its predicate (`targetWhere`) alongside the columns —
       // without the predicate PostgreSQL cannot infer which index arbitrates.
       // Reaching this branch means two events raced past the use case's unread
-      // lookup, so it coalesces exactly like the checked path: bump the count,
-      // stamp the latest arrival, re-store the freshly rendered copy.
+      // lookup, so it coalesces like the checked path (`applyCoalescence`):
+      // bump the count, stamp the latest arrival, merge the payload newest-wins
+      // with the count written in as `occurrences`. Live surfaces render from
+      // that payload; the title/body snapshot is the fresh event's fallback.
       .onConflictDoUpdate({
         target: [notifications.userId, notifications.type, notifications.resourceId],
         targetWhere: sql`status = 'unread'`,
         set: {
           title: notification.title,
           body: notification.body,
-          payload: notification.payload,
+          payload: sql`COALESCE(${notifications.payload}, '{}'::jsonb) || excluded.payload || jsonb_build_object('occurrences', ${notifications.coalescedCount} + 1)`,
           priority: notification.priority,
           coalescedCount: sql`${notifications.coalescedCount} + 1`,
           coalescedLatestAt: notification.updatedAt,
@@ -151,7 +225,14 @@ export const createNotificationRepository = (db: Database) => ({
       )
   },
 
-  markAllRead: async (userId: string, orgId: string, updatedAt: Date): Promise<void> => {
+  // "Mark all read" on the tab the reader is on: the unread rows its filter
+  // holds, not the Organization's every unread row.
+  markAllRead: async (
+    userId: string,
+    orgId: string,
+    filter: NotificationListFilter,
+    updatedAt: Date,
+  ): Promise<void> => {
     await db
       .update(notifications)
       .set({ status: 'read', readAt: updatedAt, updatedAt })
@@ -160,6 +241,7 @@ export const createNotificationRepository = (db: Database) => ({
           eq(notifications.userId, userId),
           eq(notifications.organizationId, orgId),
           eq(notifications.status, 'unread'),
+          feedFilterCondition(filter),
         ),
       )
   },
@@ -213,9 +295,11 @@ export const createNotificationRepository = (db: Database) => ({
   // ADR 0046 r.2 bump: persist the already-coalesced entity produced by
   // `applyCoalescence` — the re-rendered copy, the merged payload, the count
   // and the latest-arrival stamp. `updatedAt` is the entity's, not `now()`, so
-  // the row matches exactly what the use case returned to the caller.
-  refreshUnread: async (notification: Notification): Promise<void> => {
-    await db
+  // the row matches exactly what the use case returned to the caller. The
+  // lookup took no lock, so the row may have been read or dismissed since:
+  // the status guard leaves such a row alone and reports the miss.
+  refreshUnread: async (notification: Notification): Promise<boolean> => {
+    const bumped = await db
       .update(notifications)
       .set({
         title: notification.title,
@@ -230,8 +314,11 @@ export const createNotificationRepository = (db: Database) => ({
           eq(notifications.id, unbrand(notification.id)),
           eq(notifications.userId, unbrand(notification.userId)),
           eq(notifications.organizationId, unbrand(notification.organizationId)),
+          eq(notifications.status, 'unread'),
         ),
       )
+      .returning({ id: notifications.id })
+    return bumped.length > 0
   },
 
   // Read -> unread for the row menu. The partial unread-uniqueness index means
@@ -353,34 +440,14 @@ export const createNotificationRepository = (db: Database) => ({
     return map
   },
 
-  findUnreadByUser: async (
-    userId: string,
-    orgId: string,
-    limit: number,
-    offset: number,
-  ): Promise<Notification[]> =>
-    selectUserNotifications(db, userId, orgId, limit, offset, 'unread'),
-
-  readFeedHead: async (
-    userId: string,
-    orgId: string,
-    limit: number,
-    filter: NotificationListFilter,
-  ) =>
+  readFeedHead: async (query: NotificationFeedQuery) =>
     db.transaction(
       async (tx) => {
         // The transaction handle has the same query surface as Database. Keep
         // the cast at this adapter boundary rather than weakening the port.
         const snapshot = tx as unknown as Database
-        const rows = await selectUserNotifications(
-          snapshot,
-          userId,
-          orgId,
-          limit + 1,
-          0,
-          filter,
-        )
-        const unreadCount = await countVisibleUnread(snapshot, userId, orgId)
+        const rows = await selectFeedRows(snapshot, { ...query, before: null })
+        const counts = await countVisibleUnread(snapshot, query)
         const watermarkResult = await snapshot.execute(
           sql<{ watermark: Date | string }>`SELECT transaction_timestamp() AS watermark`,
         )
@@ -399,20 +466,15 @@ export const createNotificationRepository = (db: Database) => ({
           )
         }
         return {
-          page: createNotificationPage(rows, limit),
-          unreadCount,
+          page: createNotificationPage(rows, query.limit),
+          ...counts,
           watermark: watermark.toISOString(),
         }
       },
       { isolationLevel: 'repeatable read', accessMode: 'read only' },
     ),
 
-  findByUser: async (
-    userId: string,
-    orgId: string,
-    limit: number,
-    offset: number,
-    filter: NotificationListFilter,
-  ): Promise<Notification[]> =>
-    selectUserNotifications(db, userId, orgId, limit, offset, filter),
+  /** One keyset page below the head: rows strictly after `before`. */
+  readFeedPage: async (query: NotificationFeedPageQuery) =>
+    createNotificationPage(await selectFeedRows(db, query), query.limit),
 })

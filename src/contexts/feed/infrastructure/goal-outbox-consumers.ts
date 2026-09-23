@@ -4,28 +4,34 @@ import type {
   GoalSubject,
   MonthlyResultNotificationFactsLookup,
 } from '#/contexts/reporting/application/public-api'
-import { organizationId, propertyId, unbrand } from '#/shared/domain/ids'
+import { organizationId, propertyId, unbrand, type UserId } from '#/shared/domain/ids'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
+import type { NotificationAudience } from '../application/notification-audience'
 import {
+  goalSubjectScope,
   resolveResponsibleRecipients,
-  type ResponsibleScope,
 } from '../application/responsible-recipients'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import {
+  buildPropertyPayload,
+  type PropertyPayloadDeps,
+} from './notification-payload-facts'
 
 export const ON_GOAL_MONTHLY_RESULT_CLOSED_CONSUMER =
   'notification.on-goal-monthly-result-closed' as const
 export const ON_GOAL_MONTHLY_RESULT_REVISED_CONSUMER =
   'notification.on-goal-monthly-result-revised' as const
 
-export type GoalNotificationConsumerDeps = Readonly<{
-  queue: NotificationJobEnqueuePort
-  monthlyResultFacts: MonthlyResultNotificationFactsLookup
-  responsibleManagers: ResponsibleManagerLookupPort
-  userLookup: Pick<UserLookupPort, 'findByRole'>
-  receipts: Pick<OutboxRepository, 'insertReceipt'>
-}>
+export type GoalNotificationConsumerDeps = PropertyPayloadDeps &
+  Readonly<{
+    queue: NotificationJobEnqueuePort
+    monthlyResultFacts: MonthlyResultNotificationFactsLookup
+    responsibleManagers: ResponsibleManagerLookupPort
+    userLookup: Pick<UserLookupPort, 'findByRole'>
+    receipts: Pick<OutboxRepository, 'insertReceipt'>
+  }>
 
 type Payload = Readonly<{
   organizationId?: string
@@ -141,27 +147,74 @@ function parseRevision(event: ConsumerEvent): ParsedRevision {
   }
 }
 
-const scopeFromFacts = (subject: GoalSubject): ResponsibleScope =>
-  subject.kind === 'property'
-    ? { kind: 'property', propertyId: subject.propertyId }
-    : subject.kind === 'portal_group'
-      ? { kind: 'portal_group', portalGroupId: subject.portalGroupId }
-      : { kind: 'portal', portalId: subject.portalId }
+type GoalConsumerStatus = Readonly<{ status: 'applied' | 'obsolete' }>
+
+/** Record this consumer's receipt for the delivery, and answer with it. */
+async function settle(
+  deps: GoalNotificationConsumerDeps,
+  event: ConsumerEvent,
+  consumerName:
+    | typeof ON_GOAL_MONTHLY_RESULT_CLOSED_CONSUMER
+    | typeof ON_GOAL_MONTHLY_RESULT_REVISED_CONSUMER,
+  status: GoalConsumerStatus['status'],
+): Promise<GoalConsumerStatus> {
+  await deps.receipts.insertReceipt(event.eventId, consumerName, status)
+  return { status }
+}
+
+/**
+ * Queue a Goal notice for each current responsible recipient of the Goal's
+ * subject. Monthly-result facts are system evaluations and carry no
+ * synchronous human actor, so current responsibility is the audience
+ * authority.
+ */
+async function enqueueGoalNotices(
+  deps: GoalNotificationConsumerDeps,
+  event: ConsumerEvent,
+  result: Pick<Parsed, 'organizationId' | 'propertyId' | 'monthlyResultId'>,
+  facts: Readonly<{ subject: GoalSubject; programName: string }>,
+  notice: Readonly<{
+    type: 'goal.completed' | 'goal.result_revised'
+    audience: NotificationAudience
+    jobId: (recipient: UserId) => string
+  }>,
+): Promise<void> {
+  const organization = organizationId(result.organizationId)
+  const property = propertyId(result.propertyId)
+  const scope = goalSubjectScope(facts.subject)
+  const recipients = await resolveResponsibleRecipients(deps, organization, scope)
+  // A Goal subject sits inside one Property, the one this fact is filed under.
+  const where = await buildPropertyPayload(deps, organization, property)
+
+  await Promise.all(
+    recipients.map((recipient) =>
+      deps.queue.add(
+        INSERT_NOTIFICATION_JOB_NAME,
+        {
+          userId: recipient,
+          organizationId: organization,
+          propertyId: property,
+          type: notice.type,
+          resourceType: 'goal' as const,
+          resourceId: result.monthlyResultId,
+          eventId: event.eventId,
+          payload: { goalName: facts.programName, ...where },
+          audience: notice.audience,
+        },
+        { jobId: notice.jobId(recipient) },
+      ),
+    ),
+  )
+}
 
 export async function handleNotificationGoalMonthlyResultClosed(
   deps: GoalNotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
+): Promise<GoalConsumerStatus> {
   const payload = parse(event)
+  const consumer = ON_GOAL_MONTHLY_RESULT_CLOSED_CONSUMER
 
-  if (payload.achieved !== true) {
-    await deps.receipts.insertReceipt(
-      event.eventId,
-      ON_GOAL_MONTHLY_RESULT_CLOSED_CONSUMER,
-      'obsolete',
-    )
-    return { status: 'obsolete' }
-  }
+  if (payload.achieved !== true) return settle(deps, event, consumer, 'obsolete')
 
   const facts = await deps.monthlyResultFacts.findMonthlyResultNotificationFacts({
     organizationId: payload.organizationId,
@@ -176,61 +229,32 @@ export async function handleNotificationGoalMonthlyResultClosed(
     facts.monthlyResultId !== payload.monthlyResultId ||
     (facts.subject.kind === 'property' && facts.subject.propertyId !== payload.propertyId)
   ) {
-    await deps.receipts.insertReceipt(
-      event.eventId,
-      ON_GOAL_MONTHLY_RESULT_CLOSED_CONSUMER,
-      'obsolete',
-    )
-    return { status: 'obsolete' }
+    return settle(deps, event, consumer, 'obsolete')
   }
 
-  const organization = organizationId(payload.organizationId)
-  const property = propertyId(payload.propertyId)
-  const scope = scopeFromFacts(facts.subject)
-  // Monthly-result closure is a system evaluation and carries no synchronous
-  // human actor; current responsible recipients are the audience authority.
-  const recipients = await resolveResponsibleRecipients(deps, organization, scope)
-
-  await Promise.all(
-    recipients.map((recipient) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: recipient,
-          organizationId: organization,
-          propertyId: property,
-          type: 'goal.completed' as const,
-          resourceType: 'goal' as const,
-          resourceId: payload.monthlyResultId,
-          eventId: event.eventId,
-          payload: { goalName: facts.programName },
-          audience: { kind: 'responsible_scope' as const, scope },
-        },
-        { jobId: `${event.eventId}-${unbrand(recipient)}` },
-      ),
-    ),
-  )
-
-  await deps.receipts.insertReceipt(
-    event.eventId,
-    ON_GOAL_MONTHLY_RESULT_CLOSED_CONSUMER,
-    'applied',
-  )
-  return { status: 'applied' }
+  await enqueueGoalNotices(deps, event, payload, facts, {
+    type: 'goal.completed',
+    // Delivery rechecks that the month is STILL achieved: a correction
+    // may un-achieve it before this job runs.
+    audience: {
+      kind: 'goal_completion',
+      programId: payload.programId,
+      assignmentId: payload.assignmentId,
+      monthlyResultId: payload.monthlyResultId,
+    },
+    jobId: (recipient) => `${event.eventId}-${unbrand(recipient)}`,
+  })
+  return settle(deps, event, consumer, 'applied')
 }
 
 export async function handleNotificationGoalMonthlyResultRevised(
   deps: GoalNotificationConsumerDeps,
   event: ConsumerEvent,
-): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
+): Promise<GoalConsumerStatus> {
   const payload = parseRevision(event)
+  const consumer = ON_GOAL_MONTHLY_RESULT_REVISED_CONSUMER
   if (!payload.outcomeChanged && !payload.availabilityChanged) {
-    await deps.receipts.insertReceipt(
-      event.eventId,
-      ON_GOAL_MONTHLY_RESULT_REVISED_CONSUMER,
-      'obsolete',
-    )
-    return { status: 'obsolete' }
+    return settle(deps, event, consumer, 'obsolete')
   }
 
   const findRevision = deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts
@@ -247,67 +271,43 @@ export async function handleNotificationGoalMonthlyResultRevised(
     revisionId: payload.revisionId,
     revision: payload.revision,
   })
+  // The facts describe the result's CURRENT head, which may be a later,
+  // smaller correction without flags of its own. The notice stands while that
+  // head still says what this correction said.
   if (
     !facts ||
     facts.programId !== payload.programId ||
     facts.programVersionId !== payload.programVersionId ||
     facts.assignmentId !== payload.assignmentId ||
     facts.monthlyResultId !== payload.monthlyResultId ||
-    facts.revisionId !== payload.revisionId ||
-    facts.revision !== payload.revision ||
+    facts.revision < payload.revision ||
     facts.evaluationState !== payload.evaluationState ||
     facts.achieved !== payload.achieved ||
     (facts.subject.kind === 'property' && facts.subject.propertyId !== payload.propertyId)
   ) {
-    await deps.receipts.insertReceipt(
-      event.eventId,
-      ON_GOAL_MONTHLY_RESULT_REVISED_CONSUMER,
-      'obsolete',
-    )
-    return { status: 'obsolete' }
+    return settle(deps, event, consumer, 'obsolete')
   }
 
-  const organization = organizationId(payload.organizationId)
-  const property = propertyId(payload.propertyId)
-  const scope = scopeFromFacts(facts.subject)
-  const recipients = await resolveResponsibleRecipients(deps, organization, scope)
-
-  await Promise.all(
-    recipients.map((recipient) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: recipient,
-          organizationId: organization,
-          propertyId: property,
-          type: 'goal.result_revised' as const,
-          resourceType: 'goal' as const,
-          resourceId: payload.monthlyResultId,
-          eventId: event.eventId,
-          payload: { goalName: facts.programName },
-          audience: {
-            kind: 'goal_result_revision' as const,
-            programId: payload.programId,
-            programVersionId: payload.programVersionId,
-            assignmentId: payload.assignmentId,
-            monthlyResultId: payload.monthlyResultId,
-            revisionId: payload.revisionId,
-            revision: payload.revision,
-            evaluationState: payload.evaluationState,
-            achieved: payload.achieved,
-          },
-        },
-        { jobId: `${event.eventId}-${unbrand(recipient)}` },
-      ),
-    ),
-  )
-
-  await deps.receipts.insertReceipt(
-    event.eventId,
-    ON_GOAL_MONTHLY_RESULT_REVISED_CONSUMER,
-    'applied',
-  )
-  return { status: 'applied' }
+  await enqueueGoalNotices(deps, event, payload, facts, {
+    type: 'goal.result_revised',
+    audience: {
+      kind: 'goal_result_revision',
+      programId: payload.programId,
+      programVersionId: payload.programVersionId,
+      assignmentId: payload.assignmentId,
+      monthlyResultId: payload.monthlyResultId,
+      revisionId: payload.revisionId,
+      revision: payload.revision,
+      evaluationState: payload.evaluationState,
+      achieved: payload.achieved,
+    },
+    // Keyed by the head this notice was judged against, not the event:
+    // corrections handled late, after a later one committed, all describe
+    // that head, so they converge on one notice per recipient.
+    jobId: (recipient) =>
+      `goal-result-revised-${payload.monthlyResultId}-r${facts.revision}-${unbrand(recipient)}`,
+  })
+  return settle(deps, event, consumer, 'applied')
 }
 
 export function registerGoalNotificationConsumer(

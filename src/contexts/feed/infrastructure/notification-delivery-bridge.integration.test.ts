@@ -136,12 +136,22 @@ describe.sequential('notification Redis to PostgreSQL settlement', () => {
       throw new Error('postgres base receipt interrupted')
     })
     const userLookup = { findActorRole: vi.fn(async () => null) }
+    const logger: LoggerPort = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      child: () => logger,
+    }
+    const displayNames = { findPropertyName: vi.fn(async () => null) }
 
     await expect(
       handleNotificationBulkAssignmentCompleted(
         {
           queue: deliveryQueue,
           userLookup,
+          displayNames,
+          logger,
           receipts: { insertReceipt: firstBaseReceipt },
         },
         event,
@@ -151,13 +161,6 @@ describe.sequential('notification Redis to PostgreSQL settlement', () => {
     const jobId = `${EVENT}-${RECIPIENT}-${PROPERTY}`
     const firstJob = await queue.getJob(jobId)
     expect(firstJob).toBeDefined()
-    const logger: LoggerPort = {
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      child: () => logger,
-    }
     let id = 100
     const settlement = createNotificationDeliverySettlement({
       db,
@@ -180,7 +183,7 @@ describe.sequential('notification Redis to PostgreSQL settlement', () => {
     // The outbox retries after its base receipt failure. Redis no longer has
     // the old job, so this really does enqueue a second physical job.
     await handleNotificationBulkAssignmentCompleted(
-      { queue: deliveryQueue, userLookup, receipts: outboxRepo },
+      { queue: deliveryQueue, userLookup, displayNames, logger, receipts: outboxRepo },
       event,
     )
     const replayedJob = await queue.getJob(jobId)

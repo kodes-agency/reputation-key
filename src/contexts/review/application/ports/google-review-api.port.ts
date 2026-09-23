@@ -35,6 +35,9 @@ export type GoogleReviewApiErrorCode =
   | 'cursor_exhausted'
   | 'cursor_capacity_exceeded'
   | 'authorization_changed'
+  // Refused because the Google connection waits for an AccountAdmin to
+  // reconnect it; nothing reached Google as a reply, and no retry can until then.
+  | 'reauthorization_required'
   | 'malformed_response'
   | 'provider_rate_limited'
   | 'provider_unavailable'

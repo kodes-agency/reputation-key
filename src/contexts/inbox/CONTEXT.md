@@ -35,13 +35,18 @@ Each measured cycle snapshots its duration, policy version, start/due time, and
 halfway/target-passed reminder slots. A halfway slot already due when the target
 is recorded is never created, and one still pending once its target has passed is
 cancelled rather than released, so a target overdue on arrival, or a late
-release, prompts once, with target passed.
+release, prompts once, with target passed. Archiving a Property cancels its
+unreleased slots (`inbox.on-property-archived`), as Organization closing does,
+and Restore re-arms none of them: a cancelled slot is terminal.
 
 ## Runtime
 
 Source lifecycle facts arrive through durable, apply-once consumers. Inbox-owned
 command stores atomically commit item/cycle state, receipts, history, and
-identifier-only facts. `review.reply.observed` is a wake-up hint; the exact-current
+identifier-only facts. When a Review is first projected after it has already
+changed, the replayed Material Revision cycles are real history but nobody saw
+the earlier revision; their `inbox.handling_cycle.opened` facts carry
+`openedWithItem: true` so Notification announces the item once, as new. `review.reply.observed` is a wake-up hint; the exact-current
 permit is checked under Review's observation fence before Inbox commits closure or
 reopen work. The reminder job runs every five minutes and Notification revalidates
 recipients immediately before delivery.
@@ -57,7 +62,7 @@ state.
 2. Every human command authorizes its complete unique `(principal, Property)` requirement set once inside the write transaction. Multi-item commands cannot lock the permission generation after one item and then acquire a later item's membership or grant row.
 3. Human mutations compare-and-swap the observed item revision; adding a note
    advances the same fence atomically with its identifier-only fact.
-4. Bulk Close is unavailable. Bulk Reopen accepts at most 100 distinct item/revision pairs, preauthorizes the complete candidate set once, applies compare-and-swap writes in stable Inbox-item-ID order, and reconstructs privacy-safe results in caller order.
+4. Bulk Close is unavailable. Bulk Reopen accepts at most 100 distinct item/revision pairs, preauthorizes the complete candidate set once, applies compare-and-swap writes in stable Inbox-item-ID order, and reconstructs privacy-safe results in caller order. It commits one identifier-only `inbox.inbox_items.bulk_reopen_completed` fact naming each cycle it opened and stamps its per-item `inbox.handling_cycle.reopened` facts with the bulkId, so notification follows the one command rather than each item, as for bulk assignment.
 5. Generic status commands never close work. Review closure is provider/source-authoritative; a manager closes an open private-feedback cycle only through `markFeedbackHandled` with exactly one controlled outcome.
 6. Outcome corrections append a directly superseding fact under exact item/cycle/source/state/outcome revision fences. They preserve the first completion instant and deadline result, leave the cycle closed, and never alter the source rating.
 7. A source-epoch carry of unchanged Review material advances the head fence in

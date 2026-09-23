@@ -3,7 +3,7 @@
 // single module exposes one merged context surface.
 
 import type { Database } from '#/shared/db'
-import type { ConsumerRegistry } from '#/shared/outbox'
+import { createConsumerRegistry, type ConsumerRegistry } from '#/shared/outbox'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -51,7 +51,10 @@ import { createNotificationDbUserLookupAdapter } from './infrastructure/adapters
 import type { ResponsibleManagerLookupPort } from './application/ports/responsible-manager-lookup.port'
 import type { FeedbackPortalLookupPort } from './application/ports/feedback-portal-lookup.port'
 import { createNotificationAudienceAuthorizer } from './application/notification-audience'
+import { createNotificationRecipientStanding } from './application/notification-recipient-standing'
+import { createNotificationOrganizationEmailStopReader } from './infrastructure/repositories/notification-organization-email-stop.repository'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
+import { createDisplayNameLookupAdapter } from './infrastructure/adapters/display-name-lookup.adapter'
 import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
 import { registerNotificationConsumers } from './infrastructure/notification-outbox-consumers'
 import { registerWorkflowNotificationConsumers } from './infrastructure/workflow-outbox-consumers'
@@ -67,6 +70,7 @@ import { registerGoalNotificationConsumer } from './infrastructure/goal-outbox-c
 import { registerHandlingCycleNotificationConsumers } from './infrastructure/handling-cycle-outbox-consumers'
 import { registerResponseTargetNotificationConsumer } from './infrastructure/response-target-outbox-consumers'
 import { createNotificationGapRepository } from './infrastructure/repositories/notification-gap.repository'
+import { createNotificationDeliveryRepairRepository } from './infrastructure/repositories/notification-delivery-repair.repository'
 import { createResendEventHandler } from './infrastructure/handlers/resend-event-handler'
 import {
   createReconcileMissingNotificationsHandler,
@@ -95,15 +99,26 @@ import type {
 import type { NotificationError } from './domain/notification-errors'
 import type { Result } from '#/shared/domain'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
+import type { PropertyAccessLookup } from '#/shared/domain/property-access'
+import { createNotificationFeedReads } from './application/notification-feed-reads'
 import type { NotificationListFilter } from './application/notification-list-filter'
+import { toNotificationView } from './application/notification-view'
 import type { OneClickUnsubscribeTarget } from './application/one-click-unsubscribe-token'
 import { assertBetaNotificationTriggerMatrix } from './application/beta-notification-trigger-matrix'
 import { createNotificationDeliveryRuntime } from './application/notification-delivery-runtime'
 import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
-import { withBetaOutboxNotificationDelivery } from './infrastructure/outbox-notification-delivery'
+import {
+  withBetaOutboxNotificationDelivery,
+  withDeliveryRepairJobs,
+} from './infrastructure/outbox-notification-delivery'
+import type { NotificationJobEnqueuePort } from './infrastructure/inbox-notification-fanout'
 import { createNotificationDeliverySettlement } from './infrastructure/repositories/notification-delivery-settlement.repository'
 import { createNotificationDeliveryLagRepository } from './infrastructure/repositories/notification-delivery-lag.repository'
-import { MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT } from './application/ports/notification-delivery-lag.repository'
+import { NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS } from './infrastructure/repositories/health-read-timeout'
+import {
+  MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT,
+  type IsEmailDeliveryAllowed,
+} from './application/ports/notification-delivery-lag.repository'
 import { registerPortalHealthNotificationConsumer } from './infrastructure/portal-health-outbox-consumers'
 import { createOrganizationAccountNotificationAuthority } from './infrastructure/adapters/organization-account-notification-authority.adapter'
 import {
@@ -112,6 +127,9 @@ import {
 } from './infrastructure/identity-account-outbox-consumers'
 import { createNotificationOrganizationExportContributor } from './infrastructure/adapters/notification-organization-export.adapter'
 import { createNotificationOrganizationLifecycleContributor } from './infrastructure/adapters/notification-organization-lifecycle.adapter'
+import { createNotificationOrganizationScopeResolver } from './infrastructure/repositories/notification-organization-scope.repository'
+import { createNotificationUserSettings } from './infrastructure/notification-user-settings'
+import type { NotificationUserSettingsInput } from './application/dto/notification-user-settings.dto'
 
 import type { OutboxRepository } from '#/shared/outbox'
 
@@ -271,21 +289,54 @@ type NotificationBuildInput = Readonly<{
   monthlyResultFacts: MonthlyResultNotificationFactsLookup
   /** Portal-owned exact current Health state fence for delayed delivery. */
   portalHealthLookup: Pick<PortalPublicApi, 'findPortalHealthNotificationFacts'>
+  /**
+   * Current `notification.send_email` decision per scope, so delivery-lag
+   * evidence judges only mail that may be sent (composition-owned policy).
+   */
+  isEmailDeliveryAllowed: IsEmailDeliveryAllowed
+  /** Identity-owned current Property access; the in-app feed follows it. */
+  propertyAccess: PropertyAccessLookup
+  /** Server secret refused email addresses are keyed with (never stored). */
+  emailAddressKey: string
 }>
 
 const buildNotificationFeed = (input: NotificationBuildInput) => {
   const notificationRepo = createNotificationRepository(input.db)
+  const feedReads = createNotificationFeedReads({
+    repo: notificationRepo,
+    propertyAccess: input.propertyAccess,
+  })
   const gapRepo = createNotificationGapRepository(input.db)
-  const deliveryLagRepo = createNotificationDeliveryLagRepository(input.db)
-  const emailRepo = createNotificationEmailRepository(input.db)
+  const deliveryRepairRepo = createNotificationDeliveryRepairRepository(input.db)
+  const deliveryLagRepo = createNotificationDeliveryLagRepository(
+    input.db,
+    input.isEmailDeliveryAllowed,
+  )
+  const emailRepo = createNotificationEmailRepository(input.db, {
+    emailAddressKey: input.emailAddressKey,
+  })
   const prefRepo = createNotificationPreferenceRepository(input.db)
   const oneClickUnsubscribeRepo = createOneClickUnsubscribeRepository(input.db)
-  const handleResendEvent = createResendEventHandler({ emailRepo, logger: input.logger })
+  // ADR 0046 r.3: the settings page and every timestamp read the same
+  // user-then-Organization zone the delivery jobs resolve. The pool is read at
+  // call time: composition must not touch the database while it is built.
+  const userSettings = createNotificationUserSettings({
+    preferenceRepo: prefRepo,
+    resolveOrganizationScope: (organizationId) =>
+      createNotificationOrganizationScopeResolver(input.db.$client)(organizationId),
+    clock: input.clock,
+  })
   const userLookup = createNotificationDbUserLookupAdapter(input.db)
+  const handleResendEvent = createResendEventHandler({
+    emailRepo,
+    userLookup,
+    logger: input.logger,
+  })
   const inboxItemLookup = createInboxItemLookupAdapter(
     input.db,
     input.feedbackPortalLookup,
   )
+  const displayNames = createDisplayNameLookupAdapter(input.db)
   const escalationResolutions = createEscalationResolutionLookupAdapter(input.db)
   const organizationAccountAuthority = createOrganizationAccountNotificationAuthority(
     input.db,
@@ -298,6 +349,13 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     portalHealthLookup: input.portalHealthLookup,
     monthlyResultFacts: input.monthlyResultFacts,
     organizationAccountAuthority,
+  })
+  // Asked when an email is queued, and again before it is sent.
+  const organizationEmailStop = createNotificationOrganizationEmailStopReader(input.db)
+  // Asked again immediately before every Property-scoped email is sent.
+  const recipientStanding = createNotificationRecipientStanding({
+    userLookup,
+    responsibleManagers: input.responsibleManagers,
   })
 
   /**
@@ -334,24 +392,27 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   const notificationDeliveryQueue = policyQueue
     ? withBetaOutboxNotificationDelivery(policyQueue, input.outboxRepo)
     : undefined
-  // Outbox consumers are registered below once their shared dependencies exist.
-
-  // The inbox-item durable consumer and reconciliation sweep share one fan-out
-  // definition (infrastructure/inbox-notification-fanout).
-  const fanoutDeps = notificationDeliveryQueue
-    ? {
-        queue: notificationDeliveryQueue,
-        userLookup,
-        responsibleManagers: input.responsibleManagers,
-        inboxItemLookup,
-        clock: input.clock,
-        logger: input.logger,
-      }
+  // A repair replays a source fact through the same bridge, but queues only
+  // the deliveries that never settled, each under an id of its own.
+  const deliveryRepairQueue = policyQueue
+    ? withBetaOutboxNotificationDelivery(
+        withDeliveryRepairJobs(policyQueue, input.outboxRepo),
+        input.outboxRepo,
+      )
     : undefined
 
+  // The reads every route's fan-out shares; the queue decides how a job travels.
+  const fanoutReads = {
+    userLookup,
+    responsibleManagers: input.responsibleManagers,
+    inboxItemLookup,
+    clock: input.clock,
+    logger: input.logger,
+  }
+
   /**
-   * The window the gauge and the sweep agree on: items old enough to judge
-   * (past the grace edge) and recent enough to be worth healing.
+   * The window of Inbox items the missing-notification gauge judges: old
+   * enough to judge (past the grace edge) and recent enough to be news.
    */
   const gapWindow = () => {
     const now = input.clock().getTime()
@@ -395,6 +456,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       idGen: () => notificationId(input.idGen()),
       emailIdGen: () => notificationEmailId(input.idGen()),
       logger: input.logger,
+      organizationEmailStop,
       enqueueImmediateEmail,
     }),
   } as const
@@ -417,19 +479,26 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     /**
      * Feeds the `notification.missing_for_inbox_item` gauge. Exposed here
      * because `src/shared/observability/health-metrics.ts` cannot import a
-     * context — the composition root injects this reader instead.
+     * context — the composition root injects this reader instead. PostgreSQL
+     * cancels a count that outlasts its statement timeout.
      */
     readMissingNotificationCount: (): Promise<number> =>
       gapRepo.countItemsMissingNotifications({
         ...gapWindow(),
         scanLimit: NOTIFICATION_GAP_SCAN_LIMIT,
+        statementTimeoutMs: NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS,
       }),
 
     /**
-     * Payload-free, bounded evidence for durable-source→Redis and
-     * Redis→Postgres materialization lag. The one-minute grace is the accepted
-     * healthy in-app target; the 24-hour lower bound prevents an operational
-     * read from becoming a historical table scan.
+     * Payload-free evidence for durable-source→Redis and Redis→Postgres
+     * materialization lag and immediate-email acceptance. The one-minute
+     * grace is the accepted healthy in-app target. What bounds the read: the
+     * 24-hour lower bound keeps it off historical rows, each stage's sample
+     * stops at the scan limit, each email's source is one outbox primary-key
+     * lookup, and PostgreSQL cancels any statement that outlasts the statement
+     * timeout. The row bounds alone did not bound its time: the source join
+     * once compared `id::text` and walked each Organization's whole outbox
+     * per email.
      */
     readNotificationDeliveryLag: () => {
       const now = input.clock().getTime()
@@ -437,31 +506,22 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
         recordedAtOrAfter: new Date(now - NOTIFICATION_DELIVERY_LAG_LOOKBACK_MS),
         recordedBefore: new Date(now - NOTIFICATION_DELIVERY_LAG_GRACE_MS),
         scanLimit: NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT,
+        statementTimeoutMs: NOTIFICATION_HEALTH_READ_STATEMENT_TIMEOUT_MS,
       })
     },
 
     // Query methods exposed for server functions
     findById: (id: string, orgId: string) => notificationRepo.findById(id, orgId),
-    getFeedHead: (
-      userId: string,
-      orgId: string,
-      limit: number,
-      filter: NotificationListFilter,
-    ) => notificationRepo.readFeedHead(userId, orgId, limit, filter),
-    getNotifications: (
-      userId: string,
-      orgId: string,
-      limit: number,
-      offset: number,
-      filter: NotificationListFilter,
-    ) => notificationRepo.findByUser(userId, orgId, limit, offset, filter),
+    // Feed reads resolve the reader's current Property access themselves.
+    getFeedHead: feedReads.getFeedHead,
+    getNotifications: feedReads.getNotifications,
     markRead: async (id: string, orgId: string, userId: UserId) => {
       const now = await applyOwnedTransition(id, orgId, userId, markNotificationRead)
       if (now === null) return // invalid transition, skip
       await notificationRepo.markRead(id, userId, orgId, now, now)
     },
     /**
-     * Read -> unread for the row menu. Resolves to the flipped notification, or
+     * Read -> unread for the row menu. Resolves to the flipped row's browser view, or
      * null when the flip is a no-op: either the transition is invalid (the row
      * is already unread or was dismissed) or ADR 0046 r.2's unread-uniqueness
      * key is already held by another row for the same (user, type, resource) —
@@ -471,11 +531,12 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     markUnread: async (id: string, orgId: string, userId: UserId) => {
       const now = await applyOwnedTransition(id, orgId, userId, markNotificationUnread)
       if (now === null) return null // invalid transition, skip
-      return notificationRepo.markUnread(id, userId, orgId, now)
+      const flipped = await notificationRepo.markUnread(id, userId, orgId, now)
+      return flipped === null ? null : toNotificationView(flipped)
     },
-    markAllRead: (userId: string, orgId: string) => {
+    markAllRead: (userId: string, orgId: string, filter: NotificationListFilter) => {
       const now = input.clock()
-      return notificationRepo.markAllRead(userId, orgId, now)
+      return notificationRepo.markAllRead(userId, orgId, filter, now)
     },
     dismissAll: (userId: string, orgId: string) => {
       const now = input.clock()
@@ -487,8 +548,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       await notificationRepo.updateStatus(id, userId, orgId, 'dismissed', now)
     },
     getPreferences: (userId: string, orgId: string) => prefRepo.findByUser(userId, orgId),
-    getUserSettings: (userId: string, orgId: string) =>
-      prefRepo.getUserSettings(userId, orgId),
+    getUserSettings: (userId: UserId, orgId: OrganizationId) =>
+      userSettings.read(userId, orgId),
     updatePreference: (
       userId: string,
       orgId: string,
@@ -545,22 +606,103 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     oneClickUnsubscribe: (target: OneClickUnsubscribeTarget) =>
       oneClickUnsubscribeRepo.apply(target, input.clock()),
     updateUserSettings: (
-      userId: string,
-      orgId: string,
-      locale: string,
-      timezone: string,
-    ) => {
-      const now = input.clock()
-      return prefRepo.upsertUserSettings({
-        userId: userId as UserId,
-        organizationId: orgId as OrganizationId,
-        locale,
-        timezone,
-        createdAt: now,
-        updatedAt: now,
-      })
-    },
+      userId: UserId,
+      orgId: OrganizationId,
+      change: NotificationUserSettingsInput,
+    ) => userSettings.save(userId, orgId, change),
   } as const
+
+  /** Every durable notification route, enqueueing through `queue`. */
+  const registerNotificationRoutes = (
+    consumerRegistry: ConsumerRegistry,
+    queue: NotificationJobEnqueuePort,
+  ) => {
+    registerIdentityAccountNotificationConsumers(consumerRegistry, {
+      queue,
+      receipts: input.outboxRepo,
+    })
+    // LIF-01 program bullet 5 — the mandatory final notice at Purge Pending.
+    // Registering it does NOT arm the lifecycle: the transition that produces
+    // the fact is still driven by a quarantined schedule.
+    registerOrganizationPurgePendingNoticeConsumer(consumerRegistry, {
+      queue,
+      userLookup,
+      displayNames,
+      logger: input.logger,
+      receipts: input.outboxRepo,
+    })
+    registerNotificationConsumers(consumerRegistry, {
+      ...fanoutReads,
+      queue,
+      receipts: input.outboxRepo,
+    })
+    registerWorkflowNotificationConsumers(consumerRegistry, {
+      ...fanoutReads,
+      queue,
+      receipts: input.outboxRepo,
+    })
+    registerBulkAssignmentNotificationConsumer(consumerRegistry, {
+      queue,
+      userLookup,
+      displayNames,
+      logger: input.logger,
+      receipts: input.outboxRepo,
+    })
+    registerEscalationResolutionNotificationConsumer(consumerRegistry, {
+      queue,
+      escalationResolutions,
+      responsibleManagers: input.responsibleManagers,
+      receipts: input.outboxRepo,
+    })
+    registerHandlingCycleNotificationConsumers(consumerRegistry, {
+      ...fanoutReads,
+      queue,
+      receipts: input.outboxRepo,
+    })
+    registerResponseTargetNotificationConsumer(consumerRegistry, {
+      ...fanoutReads,
+      queue,
+      receipts: input.outboxRepo,
+    })
+    registerGoalNotificationConsumer(consumerRegistry, {
+      queue,
+      monthlyResultFacts: input.monthlyResultFacts,
+      responsibleManagers: input.responsibleManagers,
+      userLookup,
+      displayNames,
+      logger: input.logger,
+      receipts: input.outboxRepo,
+    })
+    registerPortalNotificationConsumers(consumerRegistry, {
+      queue,
+      userLookup,
+      displayNames,
+      logger: input.logger,
+      receipts: input.outboxRepo,
+    })
+    registerPortalHealthNotificationConsumer(consumerRegistry, {
+      queue,
+      responsibleManagers: input.responsibleManagers,
+      userLookup,
+      displayNames,
+      logger: input.logger,
+      receipts: input.outboxRepo,
+    })
+    registerPropertyNotificationConsumers(consumerRegistry, {
+      queue,
+      userLookup,
+      displayNames,
+      logger: input.logger,
+      receipts: input.outboxRepo,
+    })
+    registerIntegrationNotificationConsumers(consumerRegistry, {
+      queue,
+      userLookup,
+      googleConnectionProperties: input.googleConnectionProperties,
+      logger: input.logger,
+      receipts: input.outboxRepo,
+    })
+  }
 
   /**
    * Context-owned durable consumer registration. It is inert without the
@@ -568,86 +710,31 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
    * exposing Notification repositories or use cases.
    */
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
-    if (!fanoutDeps) return
-    registerIdentityAccountNotificationConsumers(consumerRegistry, {
-      queue: fanoutDeps.queue,
-      receipts: input.outboxRepo,
-    })
-    // LIF-01 program bullet 5 — the mandatory final notice at Purge Pending.
-    // Registering it does NOT arm the lifecycle: the transition that produces
-    // the fact is still driven by a quarantined schedule.
-    registerOrganizationPurgePendingNoticeConsumer(consumerRegistry, {
-      queue: fanoutDeps.queue,
-      userLookup,
-      logger: input.logger,
-      receipts: input.outboxRepo,
-    })
-    registerNotificationConsumers(consumerRegistry, {
-      ...fanoutDeps,
-      receipts: input.outboxRepo,
-    })
-    registerWorkflowNotificationConsumers(consumerRegistry, {
-      ...fanoutDeps,
-      receipts: input.outboxRepo,
-    })
-    registerBulkAssignmentNotificationConsumer(consumerRegistry, {
-      queue: fanoutDeps.queue,
-      userLookup,
-      receipts: input.outboxRepo,
-    })
-    registerEscalationResolutionNotificationConsumer(consumerRegistry, {
-      queue: fanoutDeps.queue,
-      escalationResolutions,
-      responsibleManagers: input.responsibleManagers,
-      receipts: input.outboxRepo,
-    })
-    registerHandlingCycleNotificationConsumers(consumerRegistry, {
-      ...fanoutDeps,
-      receipts: input.outboxRepo,
-    })
-    registerResponseTargetNotificationConsumer(consumerRegistry, {
-      ...fanoutDeps,
-      receipts: input.outboxRepo,
-    })
-    registerGoalNotificationConsumer(consumerRegistry, {
-      queue: fanoutDeps.queue,
-      monthlyResultFacts: input.monthlyResultFacts,
-      responsibleManagers: input.responsibleManagers,
-      userLookup,
-      receipts: input.outboxRepo,
-    })
-    registerPortalNotificationConsumers(consumerRegistry, {
-      queue: fanoutDeps.queue,
-      userLookup,
-      logger: input.logger,
-      receipts: input.outboxRepo,
-    })
-    registerPortalHealthNotificationConsumer(consumerRegistry, {
-      queue: fanoutDeps.queue,
-      responsibleManagers: input.responsibleManagers,
-      userLookup,
-      logger: input.logger,
-      receipts: input.outboxRepo,
-    })
-    registerPropertyNotificationConsumers(consumerRegistry, {
-      queue: fanoutDeps.queue,
-      userLookup,
-      logger: input.logger,
-      receipts: input.outboxRepo,
-    })
-    registerIntegrationNotificationConsumers(consumerRegistry, {
-      queue: fanoutDeps.queue,
-      userLookup,
-      googleConnectionProperties: input.googleConnectionProperties,
-      logger: input.logger,
-      receipts: input.outboxRepo,
-    })
+    if (!notificationDeliveryQueue) return
+    registerNotificationRoutes(consumerRegistry, notificationDeliveryQueue)
     // Executable readiness contract: compare the beta trigger/recipient
     // matrix with the consumers that are actually present in this worker.
     // ARC-03-T7: read the registry this container just registered into — a
     // process-global read would let one container's matrix pass on another
     // container's consumers.
     assertBetaNotificationTriggerMatrix(consumerRegistry.list())
+  }
+
+  /**
+   * The repair replays a source fact through the route's own consumer, bound
+   * here to the delivery-repair queue. This registry is private: the outbox
+   * dispatcher never reads it.
+   */
+  const reconcileMissingNotificationsHandler = () => {
+    if (!deliveryRepairQueue) return undefined
+    const routes = createConsumerRegistry()
+    registerNotificationRoutes(routes, deliveryRepairQueue)
+    return createReconcileMissingNotificationsHandler({
+      deliveries: deliveryRepairRepo,
+      routes,
+      clock: input.clock,
+      logger: input.logger,
+    })
   }
 
   return {
@@ -677,10 +764,9 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       handlers: {
         handleResendEvent,
         authorizeAudience,
+        recipientStanding,
         deliverySettlement,
-        reconcileMissingNotificationsHandler: fanoutDeps
-          ? createReconcileMissingNotificationsHandler({ ...fanoutDeps, gapRepo })
-          : undefined,
+        reconcileMissingNotificationsHandler: reconcileMissingNotificationsHandler(),
       },
     }),
   } as const

@@ -1,68 +1,83 @@
-import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
-import {
-  getDefaultEnabled,
-  getDefaultCadence,
-  type ConfigurableNotificationCategory,
-  type NotificationChannel,
-  type NotificationPreference,
-  type NotificationUserSettings,
+import type {
+  EffectiveNotificationSettings,
+  NotificationPreference,
 } from '#/contexts/feed/application/public-api'
 import {
   NotificationsSettingsView,
-  type NotificationPreferencePatch,
   type NotificationSettingsUpdate,
 } from './notifications-settings-view'
-
-type PreferenceUpdate = Readonly<{
-  data: Readonly<{
-    propertyId: string
-    category: ConfigurableNotificationCategory
-    channel: NotificationChannel
-    enabled: boolean
-    cadence: NotificationPreference['cadence']
-    urgentBypassEnabled: boolean
-    quietHoursStart: string | null
-    quietHoursEnd: string | null
-  }>
-}>
+import type { EmailAvailability } from './email-availability-notice'
+import {
+  useNotificationPreferenceSaves,
+  type PreferenceUpdate,
+} from './use-notification-preference-saves'
 
 type Props = Readonly<{
   properties: readonly Readonly<{ id: string; name: string }>[]
   preferences: readonly NotificationPreference[]
-  userSettings: NotificationUserSettings | null
+  /** Null only without an active Organization, where nothing is configurable. */
+  userSettings: EffectiveNotificationSettings | null
   propertyId: string
-  emailAllowed: boolean
+  emailAvailability: EmailAvailability
+  retryEmailAvailability: () => void
   setPropertyId: (value: string) => void
   updatePreference: Action<PreferenceUpdate, NotificationPreference>
-  updateUserSettings: Action<NotificationSettingsUpdate, NotificationUserSettings>
+  updateUserSettings: Action<NotificationSettingsUpdate, EffectiveNotificationSettings>
 }>
+
+type BoundaryProps = Omit<Props, 'userSettings' | 'preferences' | 'updatePreference'> &
+  Readonly<{ settings: EffectiveNotificationSettings }> &
+  ReturnType<typeof useNotificationPreferenceSaves>
+
+/** What delivery falls back to when there is no Organization to ask. */
+const NO_ORGANIZATION_SETTINGS: EffectiveNotificationSettings = {
+  locale: 'en',
+  timezone: 'UTC',
+  timezoneSource: 'default',
+}
 
 export function NotificationsSettingsPage({
   properties,
   preferences,
   userSettings,
   propertyId,
-  emailAllowed,
+  emailAvailability,
+  retryEmailAvailability,
   setPropertyId,
   updatePreference,
   updateUserSettings,
 }: Props) {
+  // The values delivery uses, never a UTC placeholder: a user who never saved
+  // a timezone is on their Organization's (ADR 0046 r.3).
+  const settings = userSettings ?? NO_ORGANIZATION_SETTINGS
+  // Read straight from the query result, with each row's in-flight request on
+  // top. There used to be a `localPreferences` mirror seeded once from this
+  // prop and patched by hand after each save, which made it the only render
+  // source: nothing re-seeded it after a refetch, so persisted state never
+  // reached the screen. The overlay lasts only until a row's saves settle, and
+  // it lives above the boundary so a formatting save cannot reset a queue.
+  const { preferenceFor, savePreference } = useNotificationPreferenceSaves({
+    propertyId,
+    preferences,
+    updatePreference,
+  })
   return (
     <NotificationFormattingBoundary
       // Remounting on the server values is the re-sync. The locale and timezone
       // inputs need local edit state, but seeding it once meant a refetch — or
-      // another session — never reached the fields. Keying on the persisted
+      // another session — never reached the fields. Keying on the effective
       // values reseeds them exactly when the server truth changes and never
       // while the user is mid-edit.
-      key={`${userSettings?.locale ?? 'en'}:${userSettings?.timezone ?? 'UTC'}`}
+      key={`${settings.locale}:${settings.timezone}:${settings.timezoneSource}`}
       properties={properties}
-      preferences={preferences}
-      userSettings={userSettings}
+      settings={settings}
       propertyId={propertyId}
-      emailAllowed={emailAllowed}
+      emailAvailability={emailAvailability}
+      retryEmailAvailability={retryEmailAvailability}
       setPropertyId={setPropertyId}
-      updatePreference={updatePreference}
+      preferenceFor={preferenceFor}
+      savePreference={savePreference}
       updateUserSettings={updateUserSettings}
     />
   )
@@ -70,68 +85,22 @@ export function NotificationsSettingsPage({
 
 function NotificationFormattingBoundary({
   properties,
-  preferences,
-  userSettings,
+  settings,
   propertyId,
-  emailAllowed,
+  emailAvailability,
+  retryEmailAvailability,
   setPropertyId,
-  updatePreference,
+  preferenceFor,
+  savePreference,
   updateUserSettings,
-}: Props) {
-  // Read straight from the query result. There used to be a `localPreferences`
-  // mirror seeded once from this prop and patched by hand after each save,
-  // which made it the only render source: the mutation invalidates and the
-  // query refetches, but nothing re-seeded the mirror, so persisted state never
-  // reached the screen and any server-side normalisation was invisible.
-  const preferenceFor = (
-    category: ConfigurableNotificationCategory,
-    channel: NotificationChannel,
-  ) =>
-    preferences.find(
-      (preference) =>
-        preference.propertyId === propertyId &&
-        preference.category === category &&
-        preference.channel === channel,
-    )
-
-  const savePreference = async (
-    category: ConfigurableNotificationCategory,
-    channel: NotificationChannel,
-    patch: NotificationPreferencePatch,
-  ) => {
-    const current = preferenceFor(category, channel)
-    const input = {
-      propertyId,
-      category,
-      channel,
-      enabled: patch.enabled ?? current?.enabled ?? getDefaultEnabled(category, channel),
-      cadence: patch.cadence ?? current?.cadence ?? getDefaultCadence(category),
-      urgentBypassEnabled:
-        patch.urgentBypassEnabled ?? current?.urgentBypassEnabled ?? false,
-      quietHoursStart:
-        patch.quietHoursStart !== undefined
-          ? patch.quietHoursStart
-          : (current?.quietHoursStart ?? null),
-      quietHoursEnd:
-        patch.quietHoursEnd !== undefined
-          ? patch.quietHoursEnd
-          : (current?.quietHoursEnd ?? null),
-    } as const
-    try {
-      await updatePreference({ data: input })
-      toast.success('Notification preference updated')
-    } catch {
-      toast.error('Could not update notification preference')
-    }
-  }
-
+}: BoundaryProps) {
   return (
     <NotificationsSettingsView
       properties={properties}
       propertyId={propertyId}
-      initialLocale={userSettings?.locale ?? 'en'}
-      initialTimezone={userSettings?.timezone ?? 'UTC'}
-      emailAllowed={emailAllowed}
+      settings={settings}
+      emailAvailability={emailAvailability}
+      retryEmailAvailability={retryEmailAvailability}
       setPropertyId={setPropertyId}
       preferenceFor={preferenceFor}
       savePreference={savePreference}

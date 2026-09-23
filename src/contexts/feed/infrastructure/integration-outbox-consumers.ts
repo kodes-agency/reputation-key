@@ -34,7 +34,7 @@ export type IntegrationNotificationConsumerDeps = Readonly<{
 type Payload = Readonly<{
   connectionId: string
   organizationId: string
-  cause: 'member_removed' | 'account_admin_role_lost'
+  cause: IntegrationGoogleAccountReauthorizationRequired['cause']
   occurredAt: string
 }>
 
@@ -96,7 +96,7 @@ export async function handleNotificationGoogleReauthorizationRequired(
               resourceType: 'integration',
               resourceId: fact.connectionId,
               eventId: fact.eventId,
-              payload: {},
+              payload: { reauthorizationCause: fact.cause },
               audience: { kind: 'account_admin' },
             },
             { jobId: `${fact.eventId}-${recipientId}` },

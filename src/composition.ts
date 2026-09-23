@@ -627,6 +627,9 @@ function buildContainer(
     identity,
     inbox,
     reviewServingStats: review.lookups.servingStats,
+    // Parsed key material, like identityRequestSecurity's pseudonym secrets:
+    // the same required, stable server secret, domain-separated in Feed.
+    notificationEmailAddressKey: env.BETTER_AUTH_SECRET,
   })
   const { activity, notification } = feed
 
@@ -768,12 +771,15 @@ function buildContainer(
       notificationRepo: notification.delivery.repos.notificationRepo,
       emailRepo: notification.delivery.repos.emailRepo,
       preferenceRepo: notification.delivery.repos.preferenceRepo,
+      // Rechecked immediately before every Property-scoped email is sent.
+      recipientStanding: notification.delivery.recipientStanding,
     }),
     handleResendEvent: notification.delivery.handleResendEvent,
     notificationAudienceAuthorizer: notification.delivery.authorizeAudience,
     notificationDeliverySettlement: notification.delivery.deliverySettlement,
-    // The notification-gap healing sweep (registered by bootstrap on the
-    // worker path). Undefined when no job queue exists.
+    // The repair sweep for notification deliveries that never settled
+    // (registered by bootstrap on the worker path). Undefined when no job
+    // queue exists.
     reconcileMissingNotificationsHandler:
       notification.delivery.reconcileMissingNotificationsHandler,
     // BQC-2.2: version-gated strong read of persisted policy state.

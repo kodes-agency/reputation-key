@@ -1,4 +1,5 @@
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import type { Database } from '#/shared/db'
 import {
   goalMonthlyResults,
@@ -9,6 +10,9 @@ import {
 } from '#/shared/db/schema/goal.schema'
 import type { MonthlyResultNotificationFactsLookup } from '../../application/ports/monthly-result-notification-facts.lookup'
 import { parseGoalSubject } from '../../domain/goal-program'
+
+/** The correction a notice was raised for; the head is joined separately. */
+const requestedRevision = alias(goalResultRevisions, 'requested_revision')
 
 export const createMonthlyResultNotificationFactsLookup = (
   db: Database,
@@ -25,8 +29,19 @@ export const createMonthlyResultNotificationFactsLookup = (
           propertySubjectId: goalSubjectAssignments.propertySubjectId,
           portalGroupId: goalSubjectAssignments.portalGroupId,
           portalId: goalSubjectAssignments.portalId,
+          closedAchieved: goalMonthlyResults.achieved,
+          headRevisionId: goalResultRevisions.id,
+          headAchieved: goalResultRevisions.achieved,
         })
         .from(goalMonthlyResults)
+        .leftJoin(
+          goalResultRevisions,
+          and(
+            eq(goalResultRevisions.organizationId, goalMonthlyResults.organizationId),
+            eq(goalResultRevisions.propertyId, goalMonthlyResults.propertyId),
+            eq(goalResultRevisions.monthlyResultId, goalMonthlyResults.id),
+          ),
+        )
         .innerJoin(
           goalSubjectAssignments,
           and(
@@ -66,12 +81,15 @@ export const createMonthlyResultNotificationFactsLookup = (
             eq(goalMonthlyResults.assignmentId, input.assignmentId),
             eq(goalMonthlyResults.id, input.monthlyResultId),
             eq(goalMonthlyResults.status, 'closed'),
-            eq(goalMonthlyResults.achieved, true),
           ),
         )
+        .orderBy(sql`${goalResultRevisions.revision} DESC NULLS LAST`)
         .limit(1)
 
-      if (!row) return null
+      // A completion stands on the result as it is NOW: the latest correction
+      // when there is one, the closed row otherwise.
+      const achieved = row?.headRevisionId ? row.headAchieved : row?.closedAchieved
+      if (!row || achieved !== true) return null
       const subjectId = row.propertySubjectId ?? row.portalGroupId ?? row.portalId ?? ''
       const subject = parseGoalSubject(row.subjectKind, subjectId, input.propertyId)
       if (!subject) return null
@@ -102,6 +120,16 @@ export const createMonthlyResultNotificationFactsLookup = (
           achieved: goalResultRevisions.achieved,
         })
         .from(goalMonthlyResults)
+        .innerJoin(
+          requestedRevision,
+          and(
+            eq(requestedRevision.organizationId, goalMonthlyResults.organizationId),
+            eq(requestedRevision.propertyId, goalMonthlyResults.propertyId),
+            eq(requestedRevision.monthlyResultId, goalMonthlyResults.id),
+            eq(requestedRevision.id, input.revisionId),
+            eq(requestedRevision.revision, input.revision),
+          ),
+        )
         .innerJoin(
           goalResultRevisions,
           and(
@@ -156,13 +184,7 @@ export const createMonthlyResultNotificationFactsLookup = (
         .orderBy(desc(goalResultRevisions.revision))
         .limit(1)
 
-      if (
-        !row ||
-        row.revisionId !== input.revisionId ||
-        row.revision !== input.revision
-      ) {
-        return null
-      }
+      if (!row) return null
       const subjectId = row.propertySubjectId ?? row.portalGroupId ?? row.portalId ?? ''
       const subject = parseGoalSubject(row.subjectKind, subjectId, input.propertyId)
       if (!subject) return null

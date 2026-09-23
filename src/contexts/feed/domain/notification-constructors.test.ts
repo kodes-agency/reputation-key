@@ -68,18 +68,23 @@ describe('notification constructors', () => {
 
   it('renders title and body from the type and payload, not from the caller', () => {
     const result = createNotification(
-      { ...base, payload: { propertyName: 'Riverside Hotel' } },
+      {
+        ...base,
+        payload: { propertyName: 'Riverside Hotel', publishOutcome: 'not_sent' },
+      },
       () => NOW,
     )
 
     if (result.isErr()) throw result.error
     expect(result.value).toMatchObject({
-      title: 'Reply failed to publish at Riverside Hotel',
-      payload: { propertyName: 'Riverside Hotel' },
+      title: 'Reply not published at Riverside Hotel',
+      payload: { propertyName: 'Riverside Hotel', publishOutcome: 'not_sent' },
       coalescedCount: 1,
       coalescedLatestAt: null,
     })
-    expect(result.value.body).toContain('Google rejected the reply to a review')
+    expect(result.value.body).toBe(
+      'Nothing was posted to Google, so it is safe to try again.',
+    )
   })
 
   it('renders a usable title with no payload at all', () => {
@@ -89,7 +94,7 @@ describe('notification constructors', () => {
     const result = createNotification(base, () => NOW)
 
     if (result.isErr()) throw result.error
-    expect(result.value.title).toBe('Reply failed to publish')
+    expect(result.value.title).toBe('Reply not published')
     expect(result.value.payload).toEqual({})
   })
 
@@ -431,9 +436,23 @@ describe('notification constructors', () => {
       code: 'invalid_input',
     },
     {
+      // `deliveryTiming` treats equal times as no quiet hours at all, so a user
+      // who saved 22:00-22:00 believing quiet hours were on got every email.
+      caseName: 'quiet hours that start and end at the same time',
+      input: { quietHoursStart: '22:00', quietHoursEnd: '22:00' },
+      message: 'Quiet hours must start and end at different times',
+      code: 'invalid_input',
+    },
+    {
       caseName: 'in-app urgent bypass',
       input: { channel: 'in_app' as const, urgentBypassEnabled: true },
       message: 'Urgent bypass applies only to email',
+      code: 'invalid_input',
+    },
+    {
+      caseName: 'immediate goal email',
+      input: { category: 'recognition' as const },
+      message: 'Goal email is sent once a day',
       code: 'invalid_input',
     },
   ])('rejects $caseName preferences', ({ input, message, code }) => {
@@ -444,6 +463,15 @@ describe('notification constructors', () => {
 
     expect(result.isErr()).toBe(true)
     if (result.isErr()) expect(result.error).toMatchObject({ code, message })
+  })
+
+  it('accepts goal email as a daily digest', () => {
+    const result = createNotificationPreference(
+      { ...preferenceBase, category: 'recognition', cadence: 'daily' },
+      () => NOW,
+    )
+
+    expect(result.isOk()).toBe(true)
   })
 
   it('does not create an enabled in-app preference for a mandatory notice', () => {

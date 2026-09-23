@@ -4,6 +4,8 @@
 
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { PropertyGoogleBindingStore } from './ports/property-google-binding.port'
+import type { PropertyLifecycleState } from '../domain/property-lifecycle'
+export type { PropertyLifecycleState } from '../domain/property-lifecycle'
 export { buildGoogleImportedProperty } from './build-google-imported-property'
 export type {
   PropertyArchived,
@@ -55,6 +57,22 @@ export type PropertyGoogleReviewDestinationPublicApi = Readonly<{
   >
 }>
 
+/**
+ * Lifecycle state and source epoch from one Property snapshot. Reply
+ * publication refuses a Property that is not active, in words matching its
+ * state, and a Review not observed at the current epoch. Null when the
+ * Property does not exist in the Organization.
+ */
+export type PropertyPublicationScopePublicApi = Readonly<{
+  getPublicationScope: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<Readonly<{
+    lifecycleState: PropertyLifecycleState
+    sourceEpoch: number
+  }> | null>
+}>
+
 /** Fail-closed current lifecycle authority for public and external-effect gates. */
 export type PropertyLifecyclePublicApi = Readonly<{
   isPropertyActive: (orgId: OrganizationId, propertyId: PropertyId) => Promise<boolean>
@@ -102,9 +120,11 @@ export type PropertyPublicApi = Readonly<{
 
   /**
    * Stable Property scope used only to persist/deliver an Organization-level
-   * Google connection notice. Prefers an affected linked Property, then the
-   * first active Property in the Organization. Null only when the Organization
-   * has no Property rows at all.
+   * Google connection notice. Only an active Property qualifies, because
+   * urgent email resolves no delivery scope for any other state: a linked
+   * Property with an active Google binding first, then any linked Property,
+   * then the first active Property in the Organization. Null when the
+   * Organization has no active Property.
    */
   findGoogleNotificationAnchor: (
     connectionId: GoogleConnectionId,

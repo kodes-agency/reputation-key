@@ -586,8 +586,8 @@ export async function bootstrap(
 
 /**
  * The notification job family: outbound transport selection, one-click
- * unsubscribe signing, the insert handler, the notification-gap healing sweep,
- * and the two capability-gated outbound-email handlers.
+ * unsubscribe signing, the insert handler, the unsettled-delivery repair
+ * sweep, and the two capability-gated outbound-email handlers.
  *
  * It is a separate unit because every declaration below is used only by this
  * family — nothing in the rest of the worker's registration reads them.
@@ -602,51 +602,22 @@ async function registerNotificationJobs(
     await import('#/contexts/feed/infrastructure/jobs/insert-notification.job')
   const { createNotificationDbUserLookupAdapter: createNotifUserLookup } =
     await import('#/contexts/feed/infrastructure/adapters/notification-db-user-lookup.adapter')
-  const { createResendEmailAdapter } =
-    await import('#/contexts/feed/infrastructure/adapters/resend-email.adapter')
   const { notificationId, notificationEmailId } = await import('#/shared/domain/ids')
   const notifUserLookup = createNotifUserLookup(container.db)
   // Outbound email transport is chosen ONCE, here, and logged loudly. Before
   // this the real Resend adapter was constructed unconditionally, so a local
   // boot with a real key in .env mailed real inboxes, and a boot with the
   // .env.example placeholder failed deep inside a BullMQ job instead of at
-  // wiring time. Rules live in shared/email/transport-selection.ts.
-  const { decideEmailTransport } = await import('#/shared/email/transport-selection')
-  const { createCapturingEmailSender } =
-    await import('#/contexts/feed/infrastructure/adapters/capturing-email-sender.adapter')
-  const emailTransport = decideEmailTransport({
-    NODE_ENV: runtime.notification.nodeEnv,
-    RESEND_API_KEY: runtime.notification.resendApiKey,
-    ...(runtime.notification.resendBaseUrl
-      ? { RESEND_BASE_URL: runtime.notification.resendBaseUrl }
-      : {}),
+  // wiring time. A production worker that would capture admitted mail refuses
+  // to boot. Rules live in shared/email/transport-selection.ts.
+  const { createNotificationEmailSender } =
+    await import('#/contexts/feed/infrastructure/adapters/notification-email-sender')
+  const notifEmailSender = createNotificationEmailSender({
+    transport: runtime.notification,
+    outboundEmailEnabled: isCapabilityJobEnabled('notification.send_email'),
+    logger,
+    clock: container.clock,
   })
-  const notifEmailSender =
-    emailTransport.mode === 'capture'
-      ? createCapturingEmailSender({ clock: container.clock })
-      : createResendEmailAdapter({
-          config: {
-            apiKey: runtime.notification.resendApiKey,
-            ...(runtime.notification.resendBaseUrl
-              ? { baseUrl: runtime.notification.resendBaseUrl }
-              : {}),
-            from: runtime.notification.emailFrom,
-            appBaseUrl: runtime.notification.appBaseUrl,
-          },
-          logger,
-          clock: container.clock,
-        })
-  if (emailTransport.mode === 'capture') {
-    logger.warn(
-      { transport: 'capture', reason: emailTransport.reason },
-      'NOTIFICATION EMAIL IS BEING CAPTURED, NOT SENT — no message will reach a recipient',
-    )
-  } else {
-    logger.info(
-      { transport: 'send', reason: emailTransport.reason },
-      'notification email will be delivered through Resend',
-    )
-  }
   // Deep links in email are absolute; the base URL is injected, never read
   // from env inside a job.
   const notifBaseUrl = runtime.notification.appBaseUrl
@@ -680,6 +651,13 @@ async function registerNotificationJobs(
   const resolveNotificationProperty = createNotificationPropertyScopeResolver(
     container.pool,
   )
+  // A closure request stops optional email: nothing sets an Organization
+  // suspension any more, so the email paths read the lifecycle authority.
+  const { createNotificationOrganizationEmailStopReader } =
+    await import('#/contexts/feed/infrastructure/repositories/notification-organization-email-stop.repository')
+  const notificationOrganizationEmailStop = createNotificationOrganizationEmailStopReader(
+    container.db,
+  )
   // ADR 0046 r.3: the organization fallback timezone plus property display
   // names for digest grouping.
   const resolveNotificationOrgScope = createNotificationOrganizationScopeResolver(
@@ -708,6 +686,7 @@ async function registerNotificationJobs(
     logger: container.logger,
     authorizeAudience: container.notificationAudienceAuthorizer,
     deliverySettlement: container.notificationDeliverySettlement,
+    organizationEmailStop: notificationOrganizationEmailStop,
     enqueueImmediateEmail: container.jobQueue
       ? async (data) => {
           await container.jobQueue!.add(
@@ -739,10 +718,11 @@ async function registerNotificationJobs(
     'registered insert-notification job handler',
   )
 
-  // ── Notification-gap healing sweep ───────────────────────────────
-  // The notification durable consumer is the delivery path; this sweep is the
-  // at-least-once repair for a committed review whose consumer delivery was
-  // exhausted (quarantined) before a notification row existed.
+  // ── Unsettled notification delivery repair ───────────────────────
+  // The durable consumers are the delivery path; this sweep is the repair for
+  // a delivery Redis accepted that never settled (its insert job exhausted,
+  // or Redis lost it), which outbox redelivery cannot see once the consumer
+  // has recorded its receipt.
   const { JOB_NAME: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME } =
     await import('#/contexts/feed/infrastructure/jobs/reconcile-missing-notifications.job')
   const reconcileMissingNotifications = container.reconcileMissingNotificationsHandler
@@ -760,7 +740,7 @@ async function registerNotificationJobs(
   } else {
     logger.warn(
       { job: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME },
-      'reconcile-missing-notifications not registered — no job queue, so notification gaps will not self-heal',
+      'reconcile-missing-notifications not registered — no job queue, so unsettled notification deliveries will not self-heal',
     )
   }
 
@@ -782,6 +762,8 @@ async function registerNotificationJobs(
     resolvePropertyScope: resolveNotificationProperty,
     resolveOrganizationScope: resolveNotificationOrgScope,
     authorizeScope: authorizeUrgentNotification,
+    organizationEmailStop: notificationOrganizationEmailStop,
+    isRecipientEligible: container.notificationWorkerRuntime.recipientStanding,
     baseUrl: notifBaseUrl,
     oneClickUnsubscribeUrl: notificationUnsubscribeUrl,
   })
@@ -810,7 +792,10 @@ async function registerNotificationJobs(
     batchIdGen: () => crypto.randomUUID(),
     preferenceRepo: container.notificationWorkerRuntime.preferenceRepo,
     resolveOrganizationScope: resolveNotificationOrgScope,
+    resolvePropertyScope: resolveNotificationProperty,
+    organizationEmailStop: notificationOrganizationEmailStop,
     authorizeScope: createScheduledScopeAuthorizer('system:notification.email_digest'),
+    isRecipientEligible: container.notificationWorkerRuntime.recipientStanding,
     baseUrl: notifBaseUrl,
     activeOneClickUnsubscribeKeyVersion: notificationUnsubscribeKeyVersion,
     oneClickUnsubscribeUrl: notificationUnsubscribeUrl,

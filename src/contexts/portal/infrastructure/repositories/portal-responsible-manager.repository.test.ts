@@ -58,7 +58,20 @@ beforeEach(async () => {
     ORG,
   ])
   await pool.query('DELETE FROM portals WHERE organization_id = $1', [ORG])
+  await pool.query(`UPDATE properties SET lifecycle_state = 'active' WHERE id = $1`, [
+    PROPERTY,
+  ])
 })
+
+const recoveryFacts = async () =>
+  (
+    await pool.query(
+      `SELECT event_type FROM outbox_events
+       WHERE organization_id = $1
+         AND event_type = 'portal.responsibility_became_needed'`,
+      [ORG],
+    )
+  ).rows
 
 const portal = () =>
   buildTestPortal({
@@ -398,5 +411,76 @@ describe('portal responsible manager repository', () => {
         }),
       }),
     ])
+  })
+
+  it('records the gap but raises no recovery fact while the Property is archived', async () => {
+    const db = getDb()
+    await createPostgresPortalFixtureStore(db).insert(
+      organizationId(ORG),
+      portal(),
+      userId('admin-1'),
+    )
+    const repo = createPortalResponsibleManagerRepository(db)
+    await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      managerUserIds: ['admin-1', 'manager-1'],
+      expectedRevision: 1,
+      actorId: 'admin-1',
+      at: CHANGE,
+    })
+    await pool.query(`UPDATE properties SET lifecycle_state = 'archived' WHERE id = $1`, [
+      PROPERTY,
+    ])
+
+    await repo.releaseForUser({
+      organizationId: ORG,
+      userId: 'manager-1',
+      at: UNASSIGNED,
+      endReason: 'manager_offboarded',
+    })
+    await expect(
+      repo.replace({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        portalId: PORTAL,
+        managerUserIds: [],
+        expectedRevision: 3,
+        actorId: 'admin-1',
+        at: FUTURE_REVISION,
+      }),
+    ).resolves.toMatchObject({ assignments: [], becameResponsibilityNeeded: true })
+
+    const portalRow = await pool.query(
+      'SELECT responsibility_needed_since FROM portals WHERE id = $1',
+      [PORTAL],
+    )
+    expect(new Date(portalRow.rows[0].responsibility_needed_since)).toEqual(
+      FUTURE_REVISION,
+    )
+    expect(await recoveryFacts()).toEqual([])
+  })
+
+  it('raises no recovery fact when the last manager leaves an archived Portal', async () => {
+    const db = getDb()
+    await createPostgresPortalFixtureStore(db).insert(
+      organizationId(ORG),
+      { ...portal(), publicationState: 'archived' },
+      userId('admin-1'),
+    )
+    const repo = createPortalResponsibleManagerRepository(db)
+
+    await expect(
+      repo.releaseForUser({
+        organizationId: ORG,
+        userId: 'admin-1',
+        at: UNASSIGNED,
+        endReason: 'manager_offboarded',
+      }),
+    ).resolves.toEqual({ released: 1 })
+
+    expect(await repo.listActive(ORG, PORTAL)).toEqual([])
+    expect(await recoveryFacts()).toEqual([])
   })
 })

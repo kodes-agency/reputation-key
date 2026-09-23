@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import type {
-  NotificationPreference,
-  NotificationUserSettings,
+import {
+  NOTIFICATION_SETTINGS_CATEGORIES,
+  type EffectiveNotificationSettings,
+  type NotificationPreference,
 } from '#/contexts/feed/application/public-api'
 import type { Action } from '#/components/hooks/use-action'
 import { NotificationsSettingsPage } from './notifications-settings-page'
@@ -40,10 +41,18 @@ const preferences: readonly NotificationPreference[] = [
   preference({ category: 'recognition', channel: 'email', cadence: 'daily' }),
 ]
 
-const userSettings = {
+const userSettings: EffectiveNotificationSettings = {
   locale: 'bg',
   timezone: 'Europe/Sofia',
-} as NotificationUserSettings
+  timezoneSource: 'user',
+}
+
+/** A user who never saved anything: delivery runs on the Organization's zone. */
+const organizationSettings: EffectiveNotificationSettings = {
+  locale: 'en',
+  timezone: 'Europe/Sofia',
+  timezoneSource: 'organization',
+}
 
 type PreferenceInput = Readonly<{
   data: Readonly<{
@@ -77,6 +86,7 @@ const updatePreference = asAction(updatePreferenceMock)
 const updateUserSettings = asAction(updateUserSettingsMock)
 
 const setPropertyId = fn()
+const retryEmailAvailability = fn()
 
 const meta = {
   title: 'Settings/NotificationsSettingsPage',
@@ -94,7 +104,8 @@ const meta = {
     preferences,
     userSettings,
     propertyId: PROPERTY_ID,
-    emailAllowed: true,
+    emailAvailability: 'allowed',
+    retryEmailAvailability,
     setPropertyId,
     updatePreference,
     updateUserSettings,
@@ -109,11 +120,77 @@ export const EmailAllowed: Story = {
     const canvas = within(canvasElement)
     // No "unavailable" notice, and the email controls are operable.
     expect(canvas.queryByTestId('email-unavailable-notice')).toBeNull()
-    const emailSwitch = canvas.getByLabelText('Email', {
-      selector: '#workflow_collaboration-email',
+    const emailSwitch = canvas.getByRole('switch', {
+      name: 'Workflow and collaboration: Email',
     })
     expect(emailSwitch).toBeEnabled()
-    expect(canvas.queryByRole('heading', { name: 'Recognition' })).toBeNull()
+  },
+}
+
+/**
+ * Goal results are live notices, so they get a row like any other optional
+ * category: in-app on by default, email opt-in (ADR 0046). They used to sit in
+ * a hidden `recognition` category nobody could mute or email.
+ */
+export const GoalsAreConfigurable: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const heading = canvas.getByRole('heading', { name: 'Goals' })
+    const fieldset = heading.closest('fieldset')
+    if (!fieldset) throw new Error('goal notification fieldset is missing')
+    const row = within(fieldset)
+    expect(row.getByText('Goal results for your properties.')).toBeInTheDocument()
+    expect(
+      row.getByLabelText('In-app', { selector: '#recognition-in_app' }),
+    ).toBeEnabled()
+    expect(row.getByLabelText('Email', { selector: '#recognition-email' })).toBeEnabled()
+    expect(canvas.queryByText(/past awards/i)).toBeNull()
+  },
+}
+
+/**
+ * One Goal Program over up to 250 Portals closes its results in the same hour,
+ * so goal email is a daily digest only (ADR 0046, amended 2026-09-22). A row
+ * saved before that may still say immediate; saving must not send it back.
+ */
+export const GoalEmailIsDailyOnly: Story = {
+  args: {
+    preferences: [
+      ...preferences.filter((item) => item.category !== 'recognition'),
+      preference({
+        category: 'recognition',
+        channel: 'email',
+        enabled: false,
+        cadence: 'immediate',
+      }),
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+    const canvas = within(canvasElement)
+    const goalCadence = canvas.getByLabelText('Cadence', {
+      selector: '#recognition-cadence',
+    })
+    expect(goalCadence).toHaveTextContent('Daily at 08:00')
+    expect(goalCadence).toBeDisabled()
+    // A category whose email is on still offers the choice. (Workflow's email
+    // is off in these fixtures, and cadence waits until email is on.)
+    expect(
+      canvas.getByLabelText('Cadence', { selector: '#urgent_operational-cadence' }),
+    ).toBeEnabled()
+
+    await userEvent.click(
+      canvas.getByLabelText('Email', { selector: '#recognition-email' }),
+    )
+    await waitFor(() => expect(updatePreferenceMock).toHaveBeenCalledOnce())
+    expect(updatePreferenceMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        category: 'recognition',
+        channel: 'email',
+        enabled: true,
+        cadence: 'daily',
+      }),
+    })
   },
 }
 
@@ -139,7 +216,7 @@ export const TitleColumnKeepsItsWidth: Story = {
 }
 
 export const EmailUnavailableForProperty: Story = {
-  args: { emailAllowed: false },
+  args: { emailAvailability: 'unavailable' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // The defect this story exists for: the whole Email column used to render
@@ -147,14 +224,12 @@ export const EmailUnavailableForProperty: Story = {
     // write failed with a generic toast. It must now say so and be inert.
     expect(canvas.getByTestId('email-unavailable-notice')).toBeInTheDocument()
     expect(
-      canvas.getByLabelText('Email', { selector: '#workflow_collaboration-email' }),
+      canvas.getByRole('switch', { name: 'Workflow and collaboration: Email' }),
     ).toBeDisabled()
-    expect(
-      canvas.queryByLabelText('Email', { selector: '#recognition-email' }),
-    ).toBeNull()
+    expect(canvas.getByRole('switch', { name: 'Goals: Email' })).toBeDisabled()
     // In-app is a separate capability and stays operable.
     expect(
-      canvas.getByLabelText('In-app', { selector: '#workflow_collaboration-in_app' }),
+      canvas.getByRole('switch', { name: 'Workflow and collaboration: In-app' }),
     ).toBeEnabled()
   },
 }
@@ -165,38 +240,88 @@ export const MandatoryCategoryIsOrganizationPolicy: Story = {
     // Mandatory account notices are Organization policy, not a Property
     // preference with disabled controls that imply it could later be changed.
     expect(canvas.queryByRole('heading', { name: 'Account and safety' })).toBeNull()
-    expect(
-      canvas.queryByLabelText('In-app', { selector: '#mandatory-in_app' }),
-    ).toBeNull()
-    expect(canvas.queryByLabelText('Email', { selector: '#mandatory-email' })).toBeNull()
+    expect(canvas.queryByRole('switch', { name: /^Account and safety/ })).toBeNull()
   },
 }
 
 export const ActionNeededKeepsInAppOn: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(
-      canvas.getByLabelText('In-app', { selector: '#urgent_operational-in_app' }),
-    ).toBeDisabled()
-    expect(
-      canvas.getByLabelText('Email', { selector: '#urgent_operational-email' }),
-    ).toBeEnabled()
+    const locked = canvas.getByRole('switch', { name: 'Action needed: In-app' })
+    expect(locked).toBeDisabled()
+    // A dimmed switch alone does not say why it cannot be turned off.
+    expect(canvas.getByText('Always on')).toBeVisible()
+    expect(locked).toHaveAccessibleDescription(/Always on/)
+    expect(canvas.getByRole('switch', { name: 'Action needed: Email' })).toBeEnabled()
   },
 }
 
-export const FormattingSubmitsOnEnter: Story = {
+export const EveryControlNamesItsCategory: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // Both rows used to announce the same "In-app", "Email", "Cadence",
+    // "Quiet from" and "until", so a screen-reader user tabbing through could
+    // not tell which category they were changing.
+    for (const category of ['Action needed', 'Workflow and collaboration']) {
+      expect(canvas.getByRole('group', { name: category })).toBeInTheDocument()
+      expect(
+        canvas.getByRole('switch', { name: `${category}: In-app` }),
+      ).toBeInTheDocument()
+      expect(
+        canvas.getByRole('switch', { name: `${category}: Email` }),
+      ).toBeInTheDocument()
+      expect(
+        canvas.getByRole('combobox', { name: `${category}: Cadence` }),
+      ).toBeInTheDocument()
+      expect(canvas.getByLabelText(`${category}: Quiet from`)).toBeInTheDocument()
+      expect(canvas.getByLabelText(`${category}: quiet hours until`)).toBeInTheDocument()
+      expect(
+        canvas.getByRole('button', { name: `Save quiet hours for ${category}` }),
+      ).toBeInTheDocument()
+    }
+    expect(
+      canvas.getByRole('switch', {
+        name: 'Action needed: Allow urgent email to bypass quiet hours',
+      }),
+    ).toBeInTheDocument()
+  },
+}
+
+type Canvas = ReturnType<typeof within>
+
+/** Picks a "Date and time format" option; the list opens outside the canvas. */
+async function pickFormat(canvas: Canvas, option: string) {
+  await userEvent.click(canvas.getByRole('combobox', { name: 'Date and time format' }))
+  await userEvent.click(
+    await within(document.body).findByRole('option', { name: option }),
+  )
+}
+
+/** Saves the formatting form and expects exactly `data` to have been sent, once. */
+async function expectFormattingSaved(
+  canvas: Canvas,
+  data: Readonly<{ locale?: string; timezone?: string }>,
+) {
+  await userEvent.click(canvas.getByRole('button', { name: 'Save formatting' }))
+  await waitFor(() => expect(updateUserSettingsMock).toHaveBeenCalledOnce())
+  expect(updateUserSettingsMock).toHaveBeenCalledWith({ data })
+}
+
+export const FormattingSavesAPickedTimezone: Story = {
   play: async ({ canvasElement }) => {
     updateUserSettingsMock.mockClear()
     const canvas = within(canvasElement)
-    const timezone = canvas.getByLabelText('IANA timezone')
-    // Locale and timezone were bare inputs with no enclosing form, so Enter did
-    // nothing at all and the only way to save was finding the button.
-    await userEvent.clear(timezone)
-    await userEvent.type(timezone, 'Europe/Berlin{Enter}')
-    await waitFor(() => expect(updateUserSettingsMock).toHaveBeenCalledOnce())
-    expect(updateUserSettingsMock).toHaveBeenCalledWith({
-      data: { locale: 'bg', timezone: 'Europe/Berlin' },
-    })
+    const portal = within(document.body)
+    // A picker, not free text: a hotel manager should not need to know IANA
+    // names, and a typed fixed offset ignored daylight saving.
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Timezone' }))
+    await userEvent.type(
+      portal.getByPlaceholderText('Search a city, region or UTC offset'),
+      'Berlin',
+    )
+    await userEvent.click(await portal.findByRole('option', { name: /Berlin/ }))
+    // Only the changed setting travels: the untouched format is not re-sent.
+    await expectFormattingSaved(canvas, { timezone: 'Europe/Berlin' })
   },
 }
 
@@ -204,20 +329,63 @@ export const SeedsFormattingFromTheServer: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // Render source is the query result, not a stale local mirror.
-    expect(canvas.getByLabelText('Locale')).toHaveValue('bg')
-    expect(canvas.getByLabelText('IANA timezone')).toHaveValue('Europe/Sofia')
+    expect(
+      canvas.getByRole('combobox', { name: 'Date and time format' }),
+    ).toHaveTextContent('Bulgarian')
+    expect(canvas.getByRole('combobox', { name: 'Timezone' })).toHaveTextContent(
+      /Sofia \(UTC\+[23]\)/,
+    )
   },
 }
 
-export const FormattingRejectsAnUnknownTimezone: Story = {
+export const NewUserSeesTheOrganizationTimezone: Story = {
+  args: { userSettings: organizationSettings },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // Quiet hours and the digest already run on the Organization's zone, so
+    // that is what the page shows — never a UTC placeholder.
+    expect(canvas.getByRole('combobox', { name: 'Timezone' })).toHaveTextContent(
+      /Sofia \(UTC\+[23]\)/,
+    )
+    expect(canvas.getByTestId('timezone-source')).toHaveTextContent(
+      "Your organization's timezone",
+    )
+    // Every category row says it, Goals included.
+    expect(
+      canvas.getAllByText(/daily digest and quiet hours use your timezone, Sofia/),
+    ).toHaveLength(NOTIFICATION_SETTINGS_CATEGORIES.length)
+    expect(canvas.queryByText(/property-local/)).toBeNull()
+  },
+}
+
+export const SavingTheLocaleKeepsTheOrganizationTimezone: Story = {
+  args: { userSettings: organizationSettings },
   play: async ({ canvasElement }) => {
     updateUserSettingsMock.mockClear()
     const canvas = within(canvasElement)
-    const timezone = canvas.getByLabelText('IANA timezone')
-    await userEvent.clear(timezone)
-    await userEvent.type(timezone, 'Sofia{Enter}')
-    await expect(canvas.findByText('Enter a valid IANA timezone')).resolves.toBeVisible()
-    expect(updateUserSettingsMock).not.toHaveBeenCalled()
+    // Nothing differs from what is in effect yet.
+    expect(canvas.getByRole('button', { name: 'Save formatting' })).toBeDisabled()
+    await pickFormat(canvas, 'English (UK)')
+    // The timezone is not sent, so the save cannot pin anything over it.
+    await expectFormattingSaved(canvas, { locale: 'en-GB' })
+  },
+}
+
+export const KeepsALegacyTimezoneTheListNoLongerOffers: Story = {
+  args: {
+    userSettings: { locale: 'de-DE', timezone: '+03:00', timezoneSource: 'user' },
+  },
+  play: async ({ canvasElement }) => {
+    updateUserSettingsMock.mockClear()
+    const canvas = within(canvasElement)
+    // A free-text value saved before the pickers still shows as itself, not
+    // as an empty "Choose a timezone" that hides what delivery is using.
+    expect(canvas.getByRole('combobox', { name: 'Timezone' })).toHaveTextContent('+03:00')
+    expect(
+      canvas.getByRole('combobox', { name: 'Date and time format' }),
+    ).toHaveTextContent('de-DE')
+    await pickFormat(canvas, 'English (US)')
+    await expectFormattingSaved(canvas, { locale: 'en' })
   },
 }
 
@@ -247,7 +415,7 @@ export const QuietHoursCanBeCleared: Story = {
     if (!fieldset) throw new Error('workflow notification fieldset is missing')
     const row = within(fieldset)
     await userEvent.clear(row.getByLabelText(/quiet from/i))
-    await userEvent.clear(row.getByLabelText(/^until/i))
+    await userEvent.clear(row.getByLabelText(/quiet hours until/i))
     await userEvent.click(row.getByRole('button', { name: /save quiet hours/i }))
 
     await waitFor(() =>
@@ -260,5 +428,131 @@ export const QuietHoursCanBeCleared: Story = {
         }),
       }),
     )
+  },
+}
+
+/** Each save waits until the play function releases it, like a slow network. */
+const releaseSaves: Array<() => void> = []
+const slowUpdatePreferenceMock = fn(
+  (input: PreferenceInput) =>
+    new Promise<NotificationPreference>((resolve) => {
+      releaseSaves.push(() =>
+        resolve(
+          preference({ category: input.data.category, channel: input.data.channel }),
+        ),
+      )
+    }),
+)
+
+export const RapidChangesBuildOnEachOther: Story = {
+  args: { updatePreference: asAction(slowUpdatePreferenceMock) },
+  play: async ({ canvasElement }) => {
+    slowUpdatePreferenceMock.mockClear()
+    releaseSaves.length = 0
+    const canvas = within(canvasElement)
+    const email = canvas.getByRole('switch', {
+      name: 'Workflow and collaboration: Email',
+    })
+    await userEvent.click(email)
+    // The switch answers at once instead of after the round trip.
+    expect(email).toBeChecked()
+    await userEvent.click(
+      canvas.getByRole('combobox', { name: 'Workflow and collaboration: Cadence' }),
+    )
+    await userEvent.click(
+      await within(document.body).findByRole('option', { name: 'Immediate' }),
+    )
+    // One request per row at a time, so the second cannot land first.
+    expect(slowUpdatePreferenceMock).toHaveBeenCalledOnce()
+    releaseSaves[0]!()
+    await waitFor(() => expect(slowUpdatePreferenceMock).toHaveBeenCalledTimes(2))
+    // Built on the first request, not on the stale snapshot: turning Email on
+    // survives choosing Immediate.
+    expect(slowUpdatePreferenceMock).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({
+        category: 'workflow_collaboration',
+        channel: 'email',
+        enabled: true,
+        cadence: 'immediate',
+      }),
+    })
+    releaseSaves[1]!()
+  },
+}
+
+export const QuietHoursNeedTwoDifferentTimes: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText('Action needed: Quiet from'), '22:00')
+    await userEvent.type(
+      canvas.getByLabelText('Action needed: quiet hours until'),
+      '22:00',
+    )
+    // Delivery reads equal times as no quiet hours at all.
+    expect(
+      canvas.getByRole('button', { name: 'Save quiet hours for Action needed' }),
+    ).toBeDisabled()
+    expect(canvas.getByText('Choose different start and end times.')).toBeVisible()
+  },
+}
+
+export const EmailTimingWaitsForEmail: Story = {
+  // Held open so the row keeps showing the requested state, as it does in the
+  // app until the refetch lands; the static fixture never reflects a save.
+  args: { updatePreference: asAction(slowUpdatePreferenceMock) },
+  play: async ({ canvasElement }) => {
+    slowUpdatePreferenceMock.mockClear()
+    releaseSaves.length = 0
+    const canvas = within(canvasElement)
+    // Workflow email is off: its cadence and quiet hours cannot take effect,
+    // so they are not offered as if they could.
+    const cadence = canvas.getByRole('combobox', {
+      name: 'Workflow and collaboration: Cadence',
+    })
+    expect(cadence).toBeDisabled()
+    expect(canvas.getByLabelText('Workflow and collaboration: Quiet from')).toBeDisabled()
+    expect(
+      within(canvas.getByRole('group', { name: 'Workflow and collaboration' })).getByText(
+        'Turn on email to choose when it arrives.',
+      ),
+    ).toBeVisible()
+    // Action needed email is on by default, so its timing stays editable.
+    expect(canvas.getByRole('combobox', { name: 'Action needed: Cadence' })).toBeEnabled()
+    await userEvent.click(
+      canvas.getByRole('switch', { name: 'Workflow and collaboration: Email' }),
+    )
+    expect(cadence).toBeEnabled()
+    releaseSaves[0]!()
+  },
+}
+
+export const ChecksEmailAvailabilityFirst: Story = {
+  args: { emailAvailability: 'checking' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // An in-flight check is not a "no": saying email is not enabled here was
+    // wrong for every property that does allow it.
+    expect(
+      canvas.getByText('Checking whether email is available for this property…'),
+    ).toBeVisible()
+    expect(canvas.queryByTestId('email-unavailable-notice')).toBeNull()
+    expect(canvas.getByRole('switch', { name: 'Action needed: Email' })).toBeDisabled()
+  },
+}
+
+export const EmailAvailabilityCheckFailed: Story = {
+  args: { emailAvailability: 'unknown' },
+  play: async ({ canvasElement }) => {
+    retryEmailAvailability.mockClear()
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByText("Couldn't check whether email is available for this property.", {
+        exact: false,
+      }),
+    ).toBeVisible()
+    expect(canvas.queryByTestId('email-unavailable-notice')).toBeNull()
+    expect(canvas.getByRole('switch', { name: 'Action needed: Email' })).toBeDisabled()
+    await userEvent.click(canvas.getByRole('button', { name: 'Check again' }))
+    expect(retryEmailAvailability).toHaveBeenCalledOnce()
   },
 }

@@ -72,6 +72,15 @@
 // 489 B were rules for class names written in plan documents and e2e selectors.
 // The budget itself is unchanged.
 //
+// Re-measured 2026-09-22 after the bell's popover body became a lazy chunk
+// (notification-panel.tsx), on a fresh build of the same tree with and without
+// the split: 327,948 B (77 js + 1 css) → 317,727 B (70 js + 1 css), 10,221 B
+// less. The bell is imported by the public Header as well as the app shell, so
+// every page, /login included, had shipped the rows, row menu, templates,
+// filter tabs and star rating. The entry chunk grew 35,590 → 40,641 B as the
+// chunk graph regrouped (still far under its budget). The budget is unchanged:
+// the difference is headroom, not a new floor.
+//
 // Two mechanisms had pinned lazy feature code into first paint: route config and
 // loader value-imports from component barrels, and one broad `app-shared` group
 // that welded `src/contexts/*/server/*` stubs to `src/components/*`. Routes now

@@ -12,7 +12,10 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { propertyId } from '#/shared/domain/ids'
 import { z } from 'zod/v4'
-import { ACTIVITY_RESOURCE_TYPES } from '../domain/activity-types'
+import {
+  activityTimelineReadDto,
+  recentActivityListDto,
+} from '../application/dto/recent-activity-read.dto'
 import {
   isOperationalAction,
   isOperationalActionResourceType,
@@ -22,21 +25,8 @@ import {
 
 // ── getActivityTimelineFn ───────────────────────────────────────────
 
-// Derive accepted resourceType values from the domain ResourceType union so the
-// DTO cannot drift from the domain (ctx-small §6): team / staff_assignment /
-// integration activity was previously rejected with a 400 because the enum
-// lagged the ResourceTypes that handlers write ('organization' added in
-// BQC-3.9 for the identity.organization.created Recent Activity consumer).
-const RESOURCE_TYPES = ACTIVITY_RESOURCE_TYPES
-
-const getActivityTimelineDto = z.object({
-  resourceType: z.enum(RESOURCE_TYPES),
-  resourceId: z.string(),
-  limit: z.coerce.number().min(1).max(100).optional().default(50),
-})
-
 export const getActivityTimelineFn = createServerFn({ method: 'GET' })
-  .validator(getActivityTimelineDto)
+  .validator(activityTimelineReadDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -64,14 +54,8 @@ export const getActivityTimelineFn = createServerFn({ method: 'GET' })
 
 // ── listRecentActivityFn ───────────────────────────────────────────────
 
-const listRecentActivityDto = z.object({
-  propertyId: z.string().optional(),
-  limit: z.coerce.number().min(1).max(200).optional().default(50),
-  offset: z.coerce.number().min(0).optional().default(0),
-})
-
 export const listRecentActivityFn = createServerFn({ method: 'GET' })
-  .validator(listRecentActivityDto)
+  .validator(recentActivityListDto)
   .handler(
     tracedHandler(
       async ({ data }) => {

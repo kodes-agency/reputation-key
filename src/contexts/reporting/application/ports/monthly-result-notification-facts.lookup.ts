@@ -28,8 +28,13 @@ export type FindMonthlyResultRevisionNotificationFactsInput = Readonly<{
 }>
 
 /**
- * Identifier-only delivery facts for one currently authoritative correction.
- * The revision fence deliberately makes a superseded event resolve to null.
+ * Identifier-only delivery facts for the CURRENT head of a corrected result,
+ * found through one correction in its chain. A superseded correction resolves
+ * to the head that replaced it (`revisionId`/`revision` then name the head):
+ * revision flags compare each correction with the one before it, so a smaller
+ * follow-up carries none, and requiring the exact head would silently drop
+ * the notice of the correction that actually changed the outcome. Callers
+ * compare the head's `evaluationState`/`achieved` with what their notice says.
  */
 export type MonthlyResultRevisionNotificationFacts = MonthlyResultNotificationFacts &
   Readonly<{
@@ -45,6 +50,12 @@ export type MonthlyResultRevisionNotificationFacts = MonthlyResultNotificationFa
  * this port never broadens a miss to a looser Program or subject lookup.
  */
 export type MonthlyResultNotificationFactsLookup = Readonly<{
+  /**
+   * Facts for a closed result that is achieved as it stands NOW: its latest
+   * correction when it has one, the closed row otherwise. Null once a
+   * correction has un-achieved it, so "Goal completed" is never confirmed for
+   * a month that was missed.
+   */
   findMonthlyResultNotificationFacts(
     input: FindMonthlyResultNotificationFactsInput,
   ): Promise<MonthlyResultNotificationFacts | null>

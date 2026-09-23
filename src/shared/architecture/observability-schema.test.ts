@@ -316,6 +316,8 @@ function fakeDb(results: unknown[][]): Database {
     const chain: Record<string, unknown> = {}
     chain.from = () => chain
     chain.where = () => chain
+    chain.leftJoin = () => chain
+    chain.groupBy = () => chain
     chain.then = (resolve: (v: unknown[]) => unknown, reject: (e: unknown) => unknown) =>
       Promise.resolve(rows).then(resolve, reject)
     return chain
@@ -361,6 +363,8 @@ const NON_METRIC_PATHS = new Set([
   'jobs.rows.*.ready',
   'jobs.rows.*.reasons.*',
   'jobs.rows.*.lastSucceededAt',
+  'jobs.rows.*.lastDeniedAt',
+  'jobs.rows.*.deniedCount',
   'jobs.rows.*.oldestWaitingAt',
   'jobs.rows.*.deadLetterCount',
   'jobs.rows.*.repairCommand',
@@ -451,6 +455,7 @@ async function assembleSnapshot() {
         invalidObservations: 0,
         handlerMissing: 0,
         schedulerMissing: 1,
+        scheduleDenied: 0,
         forbiddenDarkWork: 0,
         quarantinedSchedulers: 0,
         missedObjectives: 0,
@@ -458,6 +463,7 @@ async function assembleSnapshot() {
         stalled: 0,
         repairRequired: 0,
         deadLetters: 0,
+        gateDenials: 0,
         rows: [
           {
             jobName: 'health-check',
@@ -479,6 +485,8 @@ async function assembleSnapshot() {
             ready: false,
             reasons: ['scheduler_missing'],
             lastSucceededAt: null,
+            lastDeniedAt: null,
+            deniedCount: 0,
             oldestWaitingAt: null,
             deadLetterCount: 0,
             repairCommand:

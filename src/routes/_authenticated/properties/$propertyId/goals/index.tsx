@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link, Navigate, redirect } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { Plus, Target } from 'lucide-react'
@@ -18,9 +18,12 @@ import { Badge } from '#/components/ui/badge'
 import { EmptyState } from '#/components/ui/empty-state'
 import { GoalResultsMatrix } from '#/components/goals/goal-results-matrix'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { goalForResult } from './-goal-for-result'
 
 const goalsSearchSchema = z.object({
   view: z.enum(['active', 'history']).default('active'),
+  // A goal notice's monthly result (notificationLink): open its goal.
+  result: z.string().optional(),
 })
 const goalsQuery = (propertyId: string) =>
   queryOptions({
@@ -77,11 +80,21 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
 
 function GoalsRoute() {
   const { propertyId } = Route.useParams()
-  const { view } = Route.useSearch()
+  const { view, result } = Route.useSearch()
   const { can: canDo } = usePermissions()
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data } = useSuspenseQuery(goalsQuery(propertyId))
   const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
+  const goalId = result === undefined ? null : goalForResult(data.programs, result)
+  if (goalId !== null) {
+    return (
+      <Navigate
+        to="/properties/$propertyId/goals/$goalId"
+        params={{ propertyId, goalId }}
+        replace
+      />
+    )
+  }
   const goals = data.programs.filter(({ program }) =>
     view === 'active' ? program.status !== 'ended' : program.status === 'ended',
   )

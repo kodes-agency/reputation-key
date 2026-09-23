@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { insertNotification, type InsertNotificationDeps } from './insert-notification'
+import {
+  insertNotification,
+  mandatoryRepeatEmailKey,
+  type InsertNotificationDeps,
+} from './insert-notification'
 import { buildFakeInsertNotificationDeps } from './test-fixtures'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type {
@@ -185,6 +189,24 @@ describe('insertNotification', () => {
     })
   })
 
+  it('queues the email with the audience that admitted its recipient', async () => {
+    // Send time rechecks that the recipient still holds this standing.
+    const audience = {
+      kind: 'responsible_scope' as const,
+      scope: { kind: 'property' as const, propertyId: PROPERTY_ID },
+    }
+    ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_userId, _orgId, _propertyId, _category, channel) =>
+        channel === 'email' ? preference('email', true, 'immediate') : null,
+    )
+
+    await insertNotification(deps)(input, audience)
+
+    expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientAudience: audience }),
+    )
+  })
+
   it('skips every channel when concrete property preferences disable both', async () => {
     ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
       async (_userId, _orgId, _propertyId, _category, channel) =>
@@ -269,7 +291,7 @@ describe('insertNotification', () => {
 
     const result = await insertNotification(deps)(input)
 
-    expect(result?.body).toContain('Updated 2 times')
+    expect(result?.body).toMatch(/ This happened 2 times\.$/)
   })
 
   it('keeps a payload key the repeat event could not resolve', async () => {
@@ -312,6 +334,135 @@ describe('insertNotification', () => {
     expect(deps.emailRepo.insert).not.toHaveBeenCalled()
   })
 
+  it('opens a fresh unread row when the row it would bump was read in the meantime', async () => {
+    const existing = (await insertNotification(buildFakeInsertNotificationDeps())(
+      input,
+    )) as Notification
+    ;(
+      deps.notificationRepo.findUnreadByUserTypeResource as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(existing)
+    // The bump's status guard found the row read or dismissed.
+    ;(deps.notificationRepo.refreshUnread as ReturnType<typeof vi.fn>).mockResolvedValue(
+      false,
+    )
+
+    const result = await insertNotification(deps)({ ...input, eventId: 'event-2' })
+
+    expect(deps.notificationRepo.insert).toHaveBeenCalledOnce()
+    expect(deps.notificationRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'unread',
+        eventId: 'event-2',
+        coalescedCount: 1,
+      }),
+    )
+    expect(result).toMatchObject({ status: 'unread', eventId: 'event-2' })
+  })
+
+  // ── Mandatory repeats (ADR 0046: mandatory notices always go by email) ──
+  //
+  // Every account notice keys on (organization, orgId), so a second role change
+  // coalesces into the first one's unread row. The in-app row still coalesces;
+  // the email must not: each mandatory event is mailed, anchored on that row
+  // and keyed on the event, because the row's own `${id}:email` key would hand
+  // back the first, already-sent email.
+
+  const roleChange = (eventId: string) => ({
+    userId: USER_ID,
+    organizationId: ORG_ID,
+    propertyId: null,
+    type: 'account.organization_role_changed' as const,
+    resourceType: 'organization' as const,
+    resourceId: ORG_ID,
+    eventId,
+  })
+
+  it('emails a repeat mandatory notice that coalesced into the unread row', async () => {
+    const first = (await insertNotification(buildFakeInsertNotificationDeps())(
+      roleChange('identity-role-event-1'),
+    )) as Notification
+    ;(
+      deps.notificationRepo.findUnreadByUserTypeResource as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(first)
+
+    const result = await insertNotification(deps)(roleChange('identity-role-event-2'))
+
+    expect(result).toMatchObject({ id: first.id, coalescedCount: 2 })
+    expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
+    expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
+    expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notificationId: first.id,
+        propertyId: null,
+        category: 'mandatory',
+        cadence: 'immediate',
+        idempotencyKey: mandatoryRepeatEmailKey('identity-role-event-2', USER_ID),
+      }),
+    )
+    expect(deps.enqueueImmediateEmail).toHaveBeenCalledOnce()
+    expect(deps.enqueueImmediateEmail).toHaveBeenCalledWith({
+      notificationEmailId: 'email-1',
+      organizationId: 'org-1',
+    })
+  })
+
+  it('emails a mandatory repeat the database folded into a raced unread row', async () => {
+    // Both events passed the unread lookup; the insert's upsert folded this one
+    // into the row the other event created.
+    const raced = (await insertNotification(buildFakeInsertNotificationDeps())(
+      roleChange('identity-role-event-1'),
+    )) as Notification
+    ;(deps.notificationRepo.insert as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...raced,
+      id: 'notif-raced',
+      coalescedCount: 2,
+    })
+
+    await insertNotification(deps)(roleChange('identity-role-event-2'))
+
+    expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
+    expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notificationId: 'notif-raced',
+        idempotencyKey: mandatoryRepeatEmailKey('identity-role-event-2', USER_ID),
+      }),
+    )
+  })
+
+  it('sends no second email when a mandatory event is replayed into its own row', async () => {
+    const first = (await insertNotification(buildFakeInsertNotificationDeps())(
+      roleChange('identity-role-event-1'),
+    )) as Notification
+    ;(
+      deps.notificationRepo.findUnreadByUserTypeResource as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(first)
+
+    await insertNotification(deps)(roleChange('identity-role-event-1'))
+
+    expect(deps.emailRepo.insert).not.toHaveBeenCalled()
+    expect(deps.enqueueImmediateEmail).not.toHaveBeenCalled()
+  })
+
+  it('stores an email-only anchor already read, so it never holds the unread key', async () => {
+    // With in-app off the row is only the email's anchor. Stored unread (and
+    // hidden), it held ADR 0046 r.2's unread (user, type, resource) key, the
+    // database folded every later event into it, and no later email went out.
+    ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_userId, _orgId, _propertyId, _category, channel) =>
+        channel === 'email'
+          ? preference('email', true, 'immediate')
+          : preference('in_app', false),
+    )
+
+    await expect(insertNotification(deps)(input)).resolves.toBeNull()
+
+    expect(deps.notificationRepo.findUnreadByUserTypeResource).not.toHaveBeenCalled()
+    expect(deps.notificationRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'read', readAt: NOW }),
+    )
+    expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
+  })
+
   // ── goal.completed regression ───────────────────────────────────────
 
   it('persists goal.completed for a tenant with no preference rows', async () => {
@@ -335,6 +486,33 @@ describe('insertNotification', () => {
       category: 'recognition',
       title: 'Goal completed: Weekend response time',
     })
+  })
+
+  // Goal email is daily only (ADR 0046, amended 2026-09-22), but a row saved
+  // before that may still say immediate. Delivery must not honour it.
+  it('queues goal email for the daily digest even when a stored row says immediate', async () => {
+    ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_userId, _orgId, _propertyId, _category, channel) =>
+        channel === 'email'
+          ? { ...preference('email', true, 'immediate'), category: 'recognition' }
+          : null,
+    )
+
+    await insertNotification(deps)({
+      userId: USER_ID,
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      type: 'goal.completed',
+      resourceType: 'goal',
+      resourceId: 'goal-1',
+      eventId: 'event-goal-1',
+      payload: { goalName: 'Weekend response time' },
+    })
+
+    expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'recognition', cadence: 'daily' }),
+    )
+    expect(deps.enqueueImmediateEmail).not.toHaveBeenCalled()
   })
 
   it('defaults Action Required email to immediate while respecting quiet hours', async () => {
@@ -370,5 +548,53 @@ describe('insertNotification', () => {
 
     await expect(insertNotification(deps)(input)).resolves.not.toBeNull()
     expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
+  })
+
+  describe('while the Organization is closing', () => {
+    const portalHealth = {
+      userId: USER_ID,
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      type: 'portal.health_attention' as const,
+      resourceType: 'portal' as const,
+      resourceId: 'portal-1',
+      eventId: 'event-portal-health-closing',
+      payload: {},
+    }
+
+    it('queues no product email, so nothing is left for purge readiness to find', async () => {
+      // insert-notification runs with capability `none`: without this, a row
+      // queued behind the Closing fence stays sendable and readiness fails
+      // on every pass.
+      ;(deps.organizationEmailStop as ReturnType<typeof vi.fn>).mockResolvedValue(
+        'optional',
+      )
+
+      const result = await insertNotification(deps)(portalHealth)
+
+      expect(deps.organizationEmailStop).toHaveBeenCalledWith(ORG_ID)
+      expect(result).not.toBeNull()
+      expect(deps.notificationRepo.insert).toHaveBeenCalledOnce()
+      expect(deps.emailRepo.insert).not.toHaveBeenCalled()
+      expect(deps.enqueueImmediateEmail).not.toHaveBeenCalled()
+    })
+
+    it('still queues a mandatory notice through the recoverable window', async () => {
+      ;(deps.organizationEmailStop as ReturnType<typeof vi.fn>).mockResolvedValue(
+        'optional',
+      )
+
+      await insertNotification(deps)({
+        userId: USER_ID,
+        organizationId: ORG_ID,
+        propertyId: null,
+        type: 'account.organization_role_changed',
+        resourceType: 'organization',
+        resourceId: ORG_ID,
+        eventId: 'identity-role-event-closing',
+      })
+
+      expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
+    })
   })
 })

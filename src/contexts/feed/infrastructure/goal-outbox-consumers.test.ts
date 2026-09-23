@@ -120,6 +120,14 @@ const makeDeps = () => {
       isEligibleForProperty: vi.fn(async () => true),
     },
     userLookup: { findByRole: vi.fn(async () => [ADMIN]) },
+    displayNames: { findPropertyName: vi.fn(async () => 'Riverside Hotel') },
+    logger: {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      child: vi.fn(),
+    },
     receipts: { insertReceipt: vi.fn(async () => undefined) },
     jobs,
   }
@@ -188,10 +196,17 @@ describe('canonical Goal monthly-result notification consumer', () => {
           resourceType: 'goal',
           resourceId: IDS.result,
           eventId: IDS.event,
-          payload: { goalName: 'Monthly guest engagement' },
+          payload: {
+            goalName: 'Monthly guest engagement',
+            propertyName: 'Riverside Hotel',
+          },
+          // Delivery rechecks the result itself, not only responsibility: a
+          // correction may un-achieve the month before the job runs.
           audience: {
-            kind: 'responsible_scope',
-            scope: { kind: 'property', propertyId: IDS.property },
+            kind: 'goal_completion',
+            programId: IDS.program,
+            assignmentId: IDS.assignment,
+            monthlyResultId: IDS.result,
           },
         },
         opts: { jobId: `${IDS.event}-${MANAGER}` },
@@ -313,7 +328,10 @@ describe('canonical Goal monthly-result notification consumer', () => {
           resourceType: 'goal',
           resourceId: IDS.result,
           eventId: IDS.event,
-          payload: { goalName: 'Monthly guest engagement' },
+          payload: {
+            goalName: 'Monthly guest engagement',
+            propertyName: 'Riverside Hotel',
+          },
           audience: {
             kind: 'goal_result_revision',
             programId: IDS.program,
@@ -326,7 +344,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
             achieved: true,
           },
         },
-        opts: { jobId: `${IDS.event}-${MANAGER}` },
+        opts: { jobId: `goal-result-revised-${IDS.result}-r1-${MANAGER}` },
       },
     ])
     expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
@@ -392,6 +410,107 @@ describe('canonical Goal monthly-result notification consumer', () => {
         achieved: null,
       },
     })
+  })
+
+  // Revision flags compare each correction with the one before it, so a
+  // smaller follow-up correction carries none. When one lands before this
+  // correction's notice is handled, the notice must still go out as long as
+  // the current head says the same thing; otherwise "Goal completed" stands.
+  it('notifies a superseded correction whose outcome the current head still holds', async () => {
+    const deps = makeDeps()
+    const laterRevision = '91000000-0000-4000-8000-000000000008'
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue({
+      programId: IDS.program,
+      programVersionId: IDS.version,
+      monthlyResultId: IDS.result,
+      assignmentId: IDS.assignment,
+      revisionId: laterRevision,
+      revision: 2,
+      evaluationState: 'eligible',
+      achieved: false,
+      programName: 'Monthly guest engagement',
+      subject: { kind: 'property', propertyId: IDS.property },
+    })
+
+    await expect(
+      handleNotificationGoalMonthlyResultRevised(deps, revisedEvent({ achieved: false })),
+    ).resolves.toEqual({ status: 'applied' })
+
+    expect(deps.jobs).toHaveLength(1)
+    expect(deps.jobs[0]?.data).toMatchObject({
+      type: 'goal.result_revised',
+      audience: {
+        kind: 'goal_result_revision',
+        revisionId: IDS.revision,
+        revision: 1,
+        evaluationState: 'eligible',
+        achieved: false,
+      },
+    })
+  })
+
+  // Under consumer lag an earlier correction and a later one can both be
+  // handled after the later one committed, and both still agree with the head.
+  // Keyed by the event, they were two notices about one state of the result.
+  it('converges lagging corrections the head still agrees with on one job per recipient', async () => {
+    const deps = makeDeps()
+    const laterEvent = '91000000-0000-4000-8000-000000000009'
+    const laterRevision = '91000000-0000-4000-8000-000000000008'
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue({
+      programId: IDS.program,
+      programVersionId: IDS.version,
+      monthlyResultId: IDS.result,
+      assignmentId: IDS.assignment,
+      revisionId: laterRevision,
+      revision: 3,
+      evaluationState: 'eligible',
+      achieved: false,
+      programName: 'Monthly guest engagement',
+      subject: { kind: 'property', propertyId: IDS.property },
+    })
+
+    await handleNotificationGoalMonthlyResultRevised(
+      deps,
+      revisedEvent({ achieved: false, revision: 1 }),
+    )
+    await handleNotificationGoalMonthlyResultRevised(
+      deps,
+      revisedEvent(
+        {
+          achieved: false,
+          revision: 3,
+          revisionId: laterRevision,
+          supersedesRevisionId: '91000000-0000-4000-8000-00000000000a',
+        },
+        { eventId: laterEvent },
+      ),
+    )
+
+    expect(deps.jobs.map((job) => job.opts)).toEqual([
+      { jobId: `goal-result-revised-${IDS.result}-r3-${MANAGER}` },
+      { jobId: `goal-result-revised-${IDS.result}-r3-${MANAGER}` },
+    ])
+  })
+
+  it('drops a correction whose outcome a later correction reversed', async () => {
+    const deps = makeDeps()
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue({
+      programId: IDS.program,
+      programVersionId: IDS.version,
+      monthlyResultId: IDS.result,
+      assignmentId: IDS.assignment,
+      revisionId: '91000000-0000-4000-8000-000000000008',
+      revision: 2,
+      evaluationState: 'eligible',
+      achieved: true,
+      programName: 'Monthly guest engagement',
+      subject: { kind: 'property', propertyId: IDS.property },
+    })
+
+    await expect(
+      handleNotificationGoalMonthlyResultRevised(deps, revisedEvent({ achieved: false })),
+    ).resolves.toEqual({ status: 'obsolete' })
+    expect(deps.jobs).toEqual([])
   })
 
   it('suppresses a superseded or mismatched revision at durable handling time', async () => {

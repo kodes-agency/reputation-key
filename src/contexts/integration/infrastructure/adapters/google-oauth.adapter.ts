@@ -55,6 +55,45 @@ const ambiguousExchangeError = () =>
     'Google OAuth code exchange outcome is ambiguous; the one-use code must not be exchanged again',
   )
 
+/**
+ * The RFC 6749 §5.2 code with which Google refuses one refresh credential for
+ * good: `invalid_grant` (revoked, expired or otherwise dead grant). Only a
+ * fresh consent recovers it. `invalid_client` and `unauthorized_client` (a
+ * grant presented by a client other than the one it was issued to) mean
+ * RepKey's own client configuration is wrong. Reading either as a revocation
+ * would end every connection at once, beyond what fixing the configuration can
+ * undo, so both stay a retryable failure like a 5xx answer, a timeout or a
+ * gateway refusal.
+ */
+const REVOKED_REFRESH_GRANT_ERRORS: ReadonlySet<string> = new Set(['invalid_grant'])
+/** Statuses a token endpoint error answer uses (400, or 401 for a client). */
+const OAUTH_ERROR_STATUSES: ReadonlySet<number> = new Set([400, 401])
+
+const revokedRefreshGrantError = () =>
+  integrationError(
+    'reauthorization_required',
+    'Google no longer accepts the refresh credential; the connection must be reauthorized',
+  )
+
+/**
+ * Only the closed OAuth `error` code of a refusal is read. The description and
+ * every other field stay unread, and nothing from the body is logged.
+ */
+function isRevokedRefreshGrant(status: number, body: unknown): boolean {
+  if (!OAUTH_ERROR_STATUSES.has(status)) return false
+  if (typeof body !== 'object' || body === null || !('error' in body)) return false
+  const code = body.error
+  return typeof code === 'string' && REVOKED_REFRESH_GRANT_ERRORS.has(code)
+}
+
+function parseRefusalBody(bytes: Uint8Array): unknown {
+  try {
+    return JSON.parse(new TextDecoder().decode(bytes))
+  } catch {
+    return null
+  }
+}
+
 function isJsonMediaType(value: string): boolean {
   const mediaType = value.split(';', 1)[0]?.trim().toLowerCase()
   if (mediaType === 'application/json') return true
@@ -115,6 +154,19 @@ async function readBoundedJson(response: Response, maxBytes: number): Promise<un
   } finally {
     bytes.fill(0)
     for (const chunk of chunks) chunk.fill(0)
+  }
+}
+
+/** A bounded read of a direct refusal; an unreadable body is not a revocation. */
+async function readRefusal(response: Response): Promise<unknown> {
+  if (!OAUTH_ERROR_STATUSES.has(response.status)) {
+    await response.body?.cancel()
+    return null
+  }
+  try {
+    return await readBoundedJson(response, TOKEN_RESPONSE_MAX_BYTES)
+  } catch {
+    return null
   }
 }
 
@@ -286,7 +338,12 @@ export const createGoogleOAuthAdapter = (config: {
       throw integrationError(errorCode, 'Google credential provider is unavailable')
     }
     if (result.status < 200 || result.status >= 300) {
+      // The refusal code must be read before the body is zeroed.
+      const revoked =
+        descriptor.routeKey === 'oauth.token.refresh' &&
+        isRevokedRefreshGrant(result.status, parseRefusalBody(result.body))
       result.body.fill(0)
+      if (revoked) throw revokedRefreshGrantError()
       if (descriptor.routeKey === 'oauth.token.exchange' && result.status >= 500) {
         throw ambiguousExchangeError()
       }
@@ -514,7 +571,9 @@ export const createGoogleOAuthAdapter = (config: {
       }),
     )
     if (!response.ok) {
-      await response.body?.cancel()
+      if (isRevokedRefreshGrant(response.status, await readRefusal(response))) {
+        throw revokedRefreshGrantError()
+      }
       throw integrationError(
         'token_refresh_failed',
         `Google OAuth token refresh failed with status ${response.status}`,

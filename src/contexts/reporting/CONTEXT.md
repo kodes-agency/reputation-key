@@ -33,6 +33,11 @@ metric authority.
 
 1. A metric read is eligible only under its immutable definition version and source policy.
 2. Goal evaluation uses half-open property-local monthly periods and approved Goal metrics.
+   A revision starts at the first local month that begins at or after the end of every
+   month still open or reconciling, so that month stays inside its version's window. After
+   the Property's timezone moves east, the next local month begins before the open month
+   ends, so the revision starts one local month later and the skipped local month is not
+   evaluated under either version. The start date is shown when the revision is scheduled.
 3. Goal assignment changes preserve at least one subject and never rewrite history.
 4. Corrections append; they never mutate the original reading or closed Goal result.
 5. Dashboard values preserve unavailable/updating/insufficient states instead of showing zero.

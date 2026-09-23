@@ -7,6 +7,10 @@ import type { NotificationType } from '../domain/notification-types'
 import type { OrganizationAccountNotificationEventType } from '../application/ports/organization-account-notification-authority.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
+import {
+  buildOrganizationPayload,
+  type OrganizationPayloadDeps,
+} from './notification-payload-facts'
 import { affectedUserFromIdentityFact } from './adapters/organization-account-notification-authority.adapter'
 
 export const IDENTITY_ACCOUNT_NOTIFICATION_CONSUMERS = [
@@ -39,11 +43,12 @@ export const IDENTITY_ACCOUNT_NOTIFICATION_CONSUMERS = [
 export const ORGANIZATION_PURGE_PENDING_CONSUMER =
   'notification.on-identity-organization-purge-pending' as const
 
-export type OrganizationPurgePendingNotificationDeps = Readonly<{
-  queue: NotificationJobEnqueuePort
-  userLookup: UserLookupPort
-  logger: LoggerPort
-}>
+export type OrganizationPurgePendingNotificationDeps = OrganizationPayloadDeps &
+  Readonly<{
+    queue: NotificationJobEnqueuePort
+    userLookup: UserLookupPort
+    logger: LoggerPort
+  }>
 
 export type OrganizationPurgePendingFact = Readonly<{
   eventId: string
@@ -68,6 +73,9 @@ async function enqueueOrganizationPurgePendingNotifications(
     )
     return
   }
+  // The last notice before an irreversible erasure is often read out of
+  // context, in a mail inbox, so it names the Organization.
+  const payload = await buildOrganizationPayload(deps, fact.organizationId)
   await Promise.all(
     recipients.map((recipientId) =>
       deps.queue.add(
@@ -80,7 +88,7 @@ async function enqueueOrganizationPurgePendingNotifications(
           resourceType: 'organization',
           resourceId: fact.organizationId as string,
           eventId: fact.eventId,
-          payload: {},
+          payload,
           audience: { kind: 'account_admin' },
         },
         { jobId: `${fact.eventId}-${recipientId}` },

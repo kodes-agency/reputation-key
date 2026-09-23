@@ -1,410 +1,599 @@
-// Feed notification surface — the notification-gap healing sweep.
+// Feed notification surface — the durable-delivery repair sweep.
 //
-// The fake gap repository below is not a stub: it applies the same rule the
-// SQL does (return items in the window with NO notification row) against a
-// `notified` set the fake queue fills in. That is what makes the idempotency
-// and grace-period assertions mean something — a sweep that healed an item
-// must not see it again, and an item the happy path has not had a chance at
-// yet must never be seen at all.
+// Everything beneath the candidate read is production wiring: the route
+// consumers the worker registers, enqueueing through the durable delivery
+// bridge over the delivery-repair queue, each replay authorized by the delayed
+// execution gate against the real policy. The old sweep's tests handed it a
+// bare fake queue, which is how it shipped writing an event id no outbox row
+// carries. The fake repository applies the same rule the SQL does against an
+// in-memory receipt store, so a delivery the sweep repaired and the worker
+// settled drops out of the next firing.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { Job } from 'bullmq'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Job, JobsOptions } from 'bullmq'
+import type { DomainEvent } from '#/shared/events/events'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { toOutboxEvent } from '#/shared/outbox/event-adapter'
+import { buildConsumerEvent } from '#/shared/outbox/envelope'
+import {
+  createConsumerRegistry,
+  type ConsumerRegistry,
+} from '#/shared/outbox/consumer-registry'
+import type { UnpublishedEvent } from '#/shared/outbox'
+import {
+  createDelayedExecutionPolicy,
+  initDelayedExecutionPolicy,
+  resetDelayedExecutionPolicy,
+} from '#/shared/auth/system-execution-policy'
+import {
+  createEnvCapabilityPolicyStore,
+  initCapabilityPolicyStore,
+  resetCapabilityPolicyStore,
+} from '#/shared/auth/beta-capabilities'
+import {
+  feedbackId,
+  googleConnectionId,
+  inboxItemId,
+  organizationId,
+  propertyId,
+  userId,
+} from '#/shared/domain/ids'
+import { inboxItemCreated } from '#/contexts/inbox/domain/events'
+import { identityMemberRemoved } from '#/contexts/identity/domain/events'
+import { goalMonthlyResultClosed } from '#/contexts/reporting/domain/goal-events'
+import { integrationGoogleAccountReauthorizationRequired } from '#/contexts/integration/domain/events'
+import type {
+  NotificationDeliveryRepairRepositoryPort,
+  UnsettledDeliveryCursor,
+  UnsettledNotificationDelivery,
+} from '../../application/ports/notification-delivery-repair.repository'
+import { BETA_NOTIFICATION_TRIGGER_MATRIX } from '../../application/beta-notification-trigger-matrix'
+import { createNotificationConsumerDeps } from '../notification-consumer-test-fixtures'
+import { registerNotificationConsumers } from '../notification-outbox-consumers'
+import { registerIdentityAccountNotificationConsumers } from '../identity-account-outbox-consumers'
+import { registerGoalNotificationConsumer } from '../goal-outbox-consumers'
+import { registerIntegrationNotificationConsumers } from '../integration-outbox-consumers'
+import {
+  parseOutboxNotificationDelivery,
+  withBetaOutboxNotificationDelivery,
+  withDeliveryRepairJobs,
+} from '../outbox-notification-delivery'
+import type { NotificationJobEnqueuePort } from '../inbox-notification-fanout'
 import {
   createReconcileMissingNotificationsHandler,
   DEFAULT_RECONCILE_GRACE_MS,
   DEFAULT_RECONCILE_LOOKBACK_MS,
   JOB_NAME,
-  NOTIFICATION_GAP_SCAN_LIMIT,
   type ReconcileMissingNotificationsDeps,
 } from './reconcile-missing-notifications.job'
-import type {
-  MissingNotificationCandidate,
-  NotificationGapRepositoryPort,
-} from '../../application/ports/notification-gap.repository'
-import { insertNotification } from '../../application/use-cases/insert-notification'
-import type { InsertNotificationInput } from '../../application/use-cases/insert-notification'
-import { buildFakeInsertNotificationDeps } from '../../application/use-cases/test-fixtures'
-import {
-  createNotificationConsumerDeps,
-  type FakeNotificationConsumerDeps,
-  NOTIF_TEST_IDS,
-} from '../notification-consumer-test-fixtures'
-import { unbrand, type UserId } from '#/shared/domain/ids'
-import type { NotificationPreference } from '../../domain/notification-types'
 
-vi.mock('#/shared/observability/logger', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>()
-  return {
-    ...actual,
-    getLogger: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-      child: vi.fn(),
-    }),
-  }
-})
-
-const NOW = new Date('2026-06-01T12:00:00.000Z')
+const ORG = organizationId('org-repair-sweep')
+const PROPERTY = propertyId('88000000-0000-4000-8000-000000000001')
+const OTHER_PROPERTY = propertyId('88000000-0000-4000-8000-000000000003')
+const CONNECTION = googleConnectionId('88000000-0000-4000-8000-000000000004')
+const MANAGER = userId('manager-repair-1')
+const SECOND_MANAGER = userId('manager-repair-2')
+const REMOVED = userId('member-repair-removed')
+const NOW = new Date('2026-09-02T12:00:00.000Z')
 const MINUTE = 60_000
 
-/** One candidate, `ageMs` old relative to the fixed NOW. */
-const item = (n: number, ageMs: number): MissingNotificationCandidate => ({
-  inboxItemId: `item-${n}`,
-  organizationId: unbrand(NOTIF_TEST_IDS.orgId),
-  propertyId: unbrand(NOTIF_TEST_IDS.propId),
-  sourceType: 'review',
-  createdAt: new Date(NOW.getTime() - ageMs),
-})
-
-/** Every window argument the sweep asked the repository for, in order. */
-type RecordedQuery = Readonly<{
-  createdAtOrAfter: Date
-  createdBefore: Date
-  cursor: Readonly<{ createdAt: Date; inboxItemId: string }> | null
-  limit: number
+type Queued = Readonly<{
+  name: string
+  data: Record<string, unknown>
+  opts?: JobsOptions
 }>
 
-type FakeGapRepo = NotificationGapRepositoryPort &
-  Readonly<{ queries: readonly RecordedQuery[] }>
-
 /**
- * Gap repository over an in-memory item list. `notified` is the set of item ids
- * that already have a notification row — exactly the NOT EXISTS the real query
- * applies, so a healed item drops out of subsequent batches.
+ * The receipts table as the sweep and the bridge see it: a primary key on
+ * (event, consumer), insert-or-ignore, and each receipt's creation time.
  */
-const fakeGapRepo = (
-  items: readonly MissingNotificationCandidate[],
-  notified: Set<string>,
-): FakeGapRepo => {
-  const queries: RecordedQuery[] = []
-
-  // The gap definition, in one place: inside the window, past the grace edge,
-  // and no notification row yet.
-  const isGap = (
-    candidate: MissingNotificationCandidate,
-    createdAtOrAfter: Date,
-    createdBefore: Date,
-  ) =>
-    candidate.createdAt >= createdAtOrAfter &&
-    candidate.createdAt < createdBefore &&
-    !notified.has(candidate.inboxItemId)
-
+function receiptStore(clock: () => Date) {
+  const receipts = new Map<string, Readonly<{ status: string; createdAt: Date }>>()
+  const key = (eventId: string, consumerName: string) => `${eventId} ${consumerName}`
   return {
-    queries,
-    findItemsMissingNotifications: async ({
-      createdAtOrAfter,
-      createdBefore,
-      cursor,
-      limit,
-    }) => {
-      queries.push({ createdAtOrAfter, createdBefore, cursor, limit })
-      return [...items]
-        .sort(
-          (a, b) =>
-            a.createdAt.getTime() - b.createdAt.getTime() ||
-            a.inboxItemId.localeCompare(b.inboxItemId),
-        )
-        .filter(
-          (candidate) =>
-            isGap(candidate, createdAtOrAfter, createdBefore) &&
-            (cursor === null ||
-              candidate.createdAt > cursor.createdAt ||
-              (candidate.createdAt.getTime() === cursor.createdAt.getTime() &&
-                candidate.inboxItemId > cursor.inboxItemId)),
-        )
-        .slice(0, limit)
+    receipts,
+    hasReceipt: async (eventId: string, consumerName: string) =>
+      receipts.has(key(eventId, consumerName)),
+    insertReceipt: async (
+      eventId: string,
+      consumerName: string,
+      status: 'applied' | 'duplicate' | 'obsolete',
+    ) => {
+      if (!receipts.has(key(eventId, consumerName))) {
+        receipts.set(key(eventId, consumerName), { status, createdAt: clock() })
+      }
     },
-    countItemsMissingNotifications: async ({
-      createdAtOrAfter,
-      createdBefore,
-      scanLimit,
-    }) =>
-      Math.min(
-        items.filter((candidate) => isGap(candidate, createdAtOrAfter, createdBefore))
-          .length,
-        scanLimit,
+    status: (eventId: string, consumerName: string) =>
+      receipts.get(key(eventId, consumerName))?.status,
+    enqueuedBefore: (eventId: string, route: string, edge: Date) =>
+      [...receipts.entries()].filter(
+        ([name, receipt]) =>
+          name.startsWith(`${eventId} notification.enqueue:${route}:`) &&
+          receipt.createdAt < edge,
       ),
   }
 }
+type ReceiptStore = ReturnType<typeof receiptStore>
 
-type Harness = Readonly<{
-  handler: (job: Job) => Promise<void>
-  fakes: FakeNotificationConsumerDeps
-  gapRepo: FakeGapRepo
-  notified: Set<string>
-}>
-
-const makeHarness = (
-  items: readonly MissingNotificationCandidate[],
-  overrides: Partial<ReconcileMissingNotificationsDeps> = {},
-  recipients: readonly UserId[] = [NOTIF_TEST_IDS.manager1],
-): Harness => {
-  const fakes = createNotificationConsumerDeps()
-  fakes.responsibleManagers.findForProperty.mockResolvedValue(recipients)
-  const notified = new Set<string>()
-  const gapRepo = fakeGapRepo(items, notified)
-
-  // The fake queue stands in for the insert-notification worker: whatever it
-  // accepts is a notification row that now exists.
-  fakes.addMock.mockImplementation(
-    async (name: string, data: unknown, opts?: unknown) => {
-      fakes.jobs.push(opts === undefined ? { name, data } : { name, data, opts })
-      if (data !== null && typeof data === 'object' && 'resourceId' in data) {
-        const { resourceId } = data
-        if (typeof resourceId === 'string') notified.add(resourceId)
-      }
-    },
-  )
-
-  const handler = createReconcileMissingNotificationsHandler({
-    queue: fakes.queue,
-    userLookup: fakes.userLookup,
-    responsibleManagers: fakes.responsibleManagers,
-    inboxItemLookup: fakes.inboxItemLookup,
-    clock: () => NOW,
-    logger: fakes.logger,
-    gapRepo,
-    ...overrides,
+/**
+ * BullMQ as the sweep observes it: an add under a job id it still holds, in
+ * any state, is a no-op; a held job reports its state and can be removed; and
+ * a job that spent its attempts stays held in the failed set. `jobs` is every
+ * job the queue accepted, in order.
+ */
+function recordingQueue() {
+  const jobs: Queued[] = []
+  const held = new Map<string, 'waiting' | 'failed'>()
+  const add = vi.fn(async (name: string, data: unknown, opts?: JobsOptions) => {
+    if (opts?.jobId && held.has(opts.jobId)) return
+    if (opts?.jobId) held.set(opts.jobId, 'waiting')
+    jobs.push({ name, data: data as Record<string, unknown>, ...(opts ? { opts } : {}) })
   })
-  return { handler, fakes, gapRepo, notified }
+  const getJob = vi.fn(async (id: string) =>
+    held.has(id)
+      ? {
+          getState: async () => held.get(id)!,
+          remove: async () => {
+            held.delete(id)
+          },
+        }
+      : undefined,
+  )
+  return {
+    jobs,
+    add,
+    queue: { add, getJob },
+    exhaust: (id: string) => held.set(id, 'failed'),
+    stateOf: (id: string) => held.get(id),
+  }
 }
 
-const preference = (enabled: boolean): NotificationPreference => ({
-  id: 'pref-1' as NotificationPreference['id'],
-  userId: NOTIF_TEST_IDS.manager1,
-  organizationId: NOTIF_TEST_IDS.orgId,
-  propertyId: NOTIF_TEST_IDS.propId,
-  category: 'workflow_collaboration',
-  channel: 'email',
-  enabled,
-  cadence: 'daily',
-  urgentBypassEnabled: false,
-  quietHoursStart: null,
-  quietHoursEnd: null,
-  createdAt: NOW,
-  updatedAt: NOW,
-})
+/** The fact as its producer commits it, stored for the relay. */
+function stored(fact: DomainEvent, recordedAt: Date): UnpublishedEvent {
+  const row = toOutboxEvent(fact)
+  return {
+    id: fact.eventId,
+    eventType: row.eventType,
+    eventVersion: row.eventVersion ?? 1,
+    payload: JSON.parse(JSON.stringify(row.payload)),
+    organizationId: row.organizationId,
+    propertyId: row.propertyId ?? null,
+    sourceContext: row.sourceContext,
+    sourceAggregateId: row.sourceAggregateId,
+    recordedAt,
+  }
+}
+
+/**
+ * The repair read over the store, by the rule the SQL applies: a matrix
+ * route's enqueue receipt past the grace edge, with no materialized twin.
+ */
+function deliveryRepairRepository(
+  facts: readonly UnpublishedEvent[],
+  store: ReceiptStore,
+) {
+  const queries: Array<
+    Readonly<{ cursor: UnsettledDeliveryCursor | null; limit: number }>
+  > = []
+  const unsettled = (fact: UnpublishedEvent, route: string, enqueuedBefore: Date) =>
+    store
+      .enqueuedBefore(fact.id, route, enqueuedBefore)
+      .some(
+        ([name]) =>
+          store.status(
+            fact.id,
+            name
+              .slice(fact.id.length + 1)
+              .replace('notification.enqueue:', 'notification.materialized:'),
+          ) === undefined,
+      )
+  const after = (
+    delivery: UnsettledNotificationDelivery,
+    cursor: UnsettledDeliveryCursor,
+  ) =>
+    delivery.event.recordedAt > cursor.recordedAt ||
+    (delivery.event.recordedAt.getTime() === cursor.recordedAt.getTime() &&
+      (delivery.event.id > cursor.eventId ||
+        (delivery.event.id === cursor.eventId &&
+          delivery.consumerName > cursor.consumerName)))
+  const repository: NotificationDeliveryRepairRepositoryPort = {
+    findUnsettledDeliveries: async ({
+      recordedAtOrAfter,
+      enqueuedBefore,
+      cursor,
+      limit,
+    }) => {
+      queries.push({ cursor, limit })
+      return facts
+        .filter((fact) => fact.recordedAt >= recordedAtOrAfter)
+        .flatMap((fact) =>
+          BETA_NOTIFICATION_TRIGGER_MATRIX.filter(
+            (route) =>
+              route.eventType === fact.eventType &&
+              unsettled(fact, route.consumerName, enqueuedBefore),
+          ).map((route) => ({ event: fact, consumerName: route.consumerName })),
+        )
+        .sort(
+          (left, right) =>
+            left.event.recordedAt.getTime() - right.event.recordedAt.getTime() ||
+            left.event.id.localeCompare(right.event.id) ||
+            left.consumerName.localeCompare(right.consumerName),
+        )
+        .filter((delivery) => cursor === null || after(delivery, cursor))
+        .slice(0, limit)
+    },
+  }
+  return { repository, queries }
+}
+
+/**
+ * The routes this suite exercises, registered over `queue`. `recipients` are
+ * the responsible managers and the AccountAdmins alike; `googleAnchor` is the
+ * Property a Google connection's notices are anchored on.
+ */
+function registerRoutes(
+  queue: NotificationJobEnqueuePort,
+  store: ReceiptStore,
+  recipients: readonly string[],
+  googleAnchor: string,
+): ConsumerRegistry {
+  const registry = createConsumerRegistry()
+  const fakes = createNotificationConsumerDeps()
+  fakes.userLookup.findByRole.mockResolvedValue(recipients)
+  fakes.responsibleManagers.findForPortal.mockResolvedValue(recipients)
+  fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
+    propertyId: PROPERTY,
+    portalId: '88000000-0000-4000-8000-000000000002',
+    assignedTo: null,
+    propertyName: 'Repair Hotel',
+    guestRating: 2,
+    sourceType: 'feedback',
+    createdAt: NOW,
+  })
+  fakes.responsibleManagers.findForProperty.mockResolvedValue(recipients)
+  const deps = { ...fakes, queue, receipts: store }
+  registerNotificationConsumers(registry, deps)
+  registerIdentityAccountNotificationConsumers(registry, deps)
+  registerGoalNotificationConsumer(registry, {
+    ...deps,
+    monthlyResultFacts: {
+      findMonthlyResultNotificationFacts: vi.fn(async () => ({
+        programId: '88000000-0000-4000-8000-000000000030',
+        assignmentId: '88000000-0000-4000-8000-000000000031',
+        monthlyResultId: '88000000-0000-4000-8000-000000000032',
+        programName: 'Monthly rating goal',
+        subject: { kind: 'property' as const, propertyId: PROPERTY },
+      })),
+      findMonthlyResultRevisionNotificationFacts: vi.fn(async () => null),
+    },
+  })
+  registerIntegrationNotificationConsumers(registry, {
+    ...deps,
+    googleConnectionProperties: {
+      findGoogleNotificationAnchor: vi.fn(async () => googleAnchor),
+    },
+  })
+  return registry
+}
+
+type Harness = Readonly<{
+  sweep: (job: Job) => Promise<void>
+  original: ReturnType<typeof recordingQueue>
+  repair: ReturnType<typeof recordingQueue>
+  store: ReceiptStore
+  queries: ReturnType<typeof deliveryRepairRepository>['queries']
+  logger: ReturnType<typeof createNotificationConsumerDeps>['logger']
+}>
+
+/**
+ * Deliver each fact the way the worker did before anything went wrong — the
+ * dispatcher's consumer over the durable bridge — then build the sweep over
+ * the same receipts. Jobs Redis accepted then are in `original.jobs`; none of
+ * them has settled.
+ */
+async function deliverThenSweep(
+  facts: readonly UnpublishedEvent[],
+  options: Readonly<{
+    recipients?: readonly string[]
+    /** The Google anchor when the fact was delivered, and when it is repaired. */
+    googleAnchor?: Readonly<{ delivered: string; repaired: string }>
+    sweep?: Partial<ReconcileMissingNotificationsDeps>
+  }> = {},
+): Promise<Harness> {
+  let now = new Date(NOW.getTime() - 30 * MINUTE)
+  const store = receiptStore(() => now)
+  const recipients = options.recipients ?? [MANAGER]
+  const googleAnchor = options.googleAnchor ?? { delivered: PROPERTY, repaired: PROPERTY }
+  const original = recordingQueue()
+  const delivered = registerRoutes(
+    withBetaOutboxNotificationDelivery(original.queue, store),
+    store,
+    recipients,
+    googleAnchor.delivered,
+  )
+  for (const fact of facts) {
+    for (const route of delivered.listFor(fact.eventType)) {
+      await route.handler(buildConsumerEvent(fact))
+    }
+  }
+  now = NOW
+
+  const repair = recordingQueue()
+  const { repository, queries } = deliveryRepairRepository(facts, store)
+  const logger = createNotificationConsumerDeps().logger
+  const sweep = createReconcileMissingNotificationsHandler({
+    deliveries: repository,
+    routes: registerRoutes(
+      withBetaOutboxNotificationDelivery(
+        withDeliveryRepairJobs(repair.queue, store),
+        store,
+      ),
+      store,
+      recipients,
+      googleAnchor.repaired,
+    ),
+    clock: () => NOW,
+    logger,
+    ...options.sweep,
+  })
+  return { sweep, original, repair, store, queries, logger }
+}
+
+/** The insert worker settling a queued job: its materialization claim. */
+async function settle(store: ReceiptStore, job: Queued, status: 'applied' | 'obsolete') {
+  const delivery = parseOutboxNotificationDelivery(job.data)!
+  await store.insertReceipt(delivery.eventId, delivery.materializedReceiptName, status)
+}
+
+let sequence = 0
+const feedbackArrival = (recordedAt = new Date(NOW.getTime() - 30 * MINUTE)) => {
+  sequence += 1
+  const suffix = String(sequence).padStart(12, '0')
+  return stored(
+    inboxItemCreated({
+      inboxItemId: inboxItemId(`88000000-0000-4000-9000-${suffix}`),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      sourceType: 'feedback',
+      sourceId: feedbackId(`88000000-0000-4000-a000-${suffix}`),
+      occurredAt: recordedAt,
+    }),
+    recordedAt,
+  )
+}
 
 const job = {} as Job
 
-describe('reconcile-missing-notifications sweep', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+beforeAll(() => {
+  registerAllEventSchemas()
+})
 
+beforeEach(() => {
+  initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
+  initDelayedExecutionPolicy(
+    createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
+  )
+})
+
+afterEach(() => {
+  resetDelayedExecutionPolicy()
+  resetCapabilityPolicyStore()
+})
+
+describe('reconcile-missing-notifications sweep', () => {
   it('is registered under the job name the worker schedules', () => {
     expect(JOB_NAME).toBe('reconcile-missing-notifications')
   })
 
-  it('enqueues the missing notification for an inbox item that never got one', async () => {
-    const { handler, fakes } = makeHarness([item(1, 30 * MINUTE)])
+  it('replays a delivery that never settled under its source fact’s own id and marker', async () => {
+    const arrival = feedbackArrival()
+    const { sweep, original, repair } = await deliverThenSweep([arrival])
+    const lost = original.jobs[0]!
 
-    await handler(job)
+    await sweep(job)
 
-    expect(fakes.jobs).toHaveLength(1)
-    expect(fakes.jobs[0]!.data).toEqual(
-      expect.objectContaining({
-        userId: NOTIF_TEST_IDS.manager1,
-        type: 'review.created',
-        resourceType: 'inbox_item',
-        resourceId: 'item-1',
-        // A UUID, not `reconcile:item-1`: this identity reaches
-        // event_consumer_receipts.event_id, which is a uuid column. Derived
-        // from the item, so the sweep stays idempotent.
-        eventId: expect.stringMatching(
-          /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
-        ),
-      }),
-    )
-    expect(fakes.logger.info).toHaveBeenCalledWith(
+    expect(repair.jobs).toHaveLength(1)
+    expect(repair.jobs[0]!.data).toEqual(lost.data)
+    expect(parseOutboxNotificationDelivery(repair.jobs[0]!.data)).toMatchObject({
+      eventId: arrival.id,
+      eventType: 'inbox.inbox_item.created',
+      consumerName: 'notification.on-inbox-item-created',
+    })
+    expect(repair.jobs[0]!.opts?.jobId).toMatch(/^notification-repair-[0-9a-f]{32}$/u)
+    expect(repair.jobs[0]!.opts?.jobId).not.toBe(lost.opts?.jobId)
+  })
+
+  it('converges on the same repair job when a later firing finds it still unsettled', async () => {
+    const { sweep, repair } = await deliverThenSweep([feedbackArrival()])
+
+    await sweep(job)
+    await sweep(job)
+
+    expect(repair.add).toHaveBeenCalledTimes(2)
+    expect(repair.jobs).toHaveLength(1)
+  })
+
+  it('queues a repair again once its own job has spent every attempt', async () => {
+    const { sweep, repair } = await deliverThenSweep([feedbackArrival()])
+    await sweep(job)
+    const repairJobId = repair.jobs[0]!.opts!.jobId!
+    // The repair failed too, and BullMQ holds it in the failed set.
+    repair.exhaust(repairJobId)
+
+    await sweep(job)
+
+    expect(repair.jobs.map((queued) => queued.opts?.jobId)).toEqual([
+      repairJobId,
+      repairJobId,
+    ])
+    expect(repair.stateOf(repairJobId)).toBe('waiting')
+  })
+
+  it('queues only the recipients still owed a notification', async () => {
+    const { sweep, original, repair, store } = await deliverThenSweep(
+      [feedbackArrival()],
       {
-        candidatesSeen: 1,
-        itemsHealed: 1,
-        notificationsEnqueued: 1,
-        itemsSkipped: 0,
-        itemsFailed: 0,
-        batchesProcessed: 1,
-        budgetExhausted: false,
-        lookbackMs: DEFAULT_RECONCILE_LOOKBACK_MS,
-        graceMs: DEFAULT_RECONCILE_GRACE_MS,
+        recipients: [MANAGER, SECOND_MANAGER],
       },
+    )
+    // One recipient's job settled — perhaps with no row, because they muted
+    // the type — and the other's was lost.
+    await settle(
+      store,
+      original.jobs.find((queued) => queued.data.userId === MANAGER)!,
+      'applied',
+    )
+
+    await sweep(job)
+
+    expect(repair.jobs.map((queued) => queued.data.userId)).toEqual([SECOND_MANAGER])
+  })
+
+  it('never re-announces a recipient the consumer now derives under another identity', async () => {
+    const reauthorization = stored(
+      integrationGoogleAccountReauthorizationRequired({
+        connectionId: CONNECTION,
+        organizationId: ORG,
+        cause: 'member_removed',
+        occurredAt: new Date(NOW.getTime() - 30 * MINUTE),
+      }),
+      new Date(NOW.getTime() - 30 * MINUTE),
+    )
+    // The connection was unlinked after the fan-out, so the replay anchors both
+    // AccountAdmins' notices on another Property: a new receipt key for each.
+    const { sweep, original, repair, store } = await deliverThenSweep([reauthorization], {
+      recipients: [MANAGER, SECOND_MANAGER],
+      googleAnchor: { delivered: PROPERTY, repaired: OTHER_PROPERTY },
+    })
+    // The first admin was told; the second admin's job was lost.
+    await settle(
+      store,
+      original.jobs.find((queued) => queued.data.userId === MANAGER)!,
+      'applied',
+    )
+    const receiptsBefore = [...store.receipts.keys()]
+
+    await sweep(job)
+
+    expect(repair.jobs).toEqual([])
+    // Nor does the replay leave an enqueue receipt that nothing will settle.
+    expect([...store.receipts.keys()]).toEqual(receiptsBefore)
+  })
+
+  it('stops once the worker settles the repaired delivery', async () => {
+    const { sweep, repair, store } = await deliverThenSweep([feedbackArrival()])
+
+    await sweep(job)
+    await settle(store, repair.jobs[0]!, 'obsolete')
+    await sweep(job)
+
+    expect(repair.add).toHaveBeenCalledTimes(1)
+  })
+
+  it('repairs an Organization-scoped route through the same gate and bridge', async () => {
+    const removal = stored(
+      identityMemberRemoved({
+        organizationId: ORG,
+        userId: REMOVED,
+        removedBy: MANAGER,
+        occurredAt: new Date(NOW.getTime() - 30 * MINUTE),
+      }),
+      new Date(NOW.getTime() - 30 * MINUTE),
+    )
+    const { sweep, repair } = await deliverThenSweep([removal])
+
+    await sweep(job)
+
+    expect(repair.jobs).toHaveLength(1)
+    expect(repair.jobs[0]!.data).toMatchObject({
+      userId: REMOVED,
+      propertyId: null,
+      type: 'account.organization_access_removed',
+      eventId: removal.id,
+    })
+  })
+
+  it('skips a fact whose route the gate now denies, without failing the firing', async () => {
+    const closed = stored(
+      goalMonthlyResultClosed({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        programId: '88000000-0000-4000-8000-000000000030',
+        programVersionId: '88000000-0000-4000-8000-000000000033',
+        assignmentId: '88000000-0000-4000-8000-000000000031',
+        monthlyResultId: '88000000-0000-4000-8000-000000000032',
+        periodStart: new Date('2026-08-01T00:00:00.000Z'),
+        periodEnd: new Date('2026-09-01T00:00:00.000Z'),
+        evaluationState: 'eligible',
+        achieved: true,
+        occurredAt: new Date(NOW.getTime() - 30 * MINUTE),
+      }),
+      new Date(NOW.getTime() - 30 * MINUTE),
+    )
+    const { sweep, original, repair, logger } = await deliverThenSweep([closed])
+    expect(original.jobs).toHaveLength(1)
+    // Goals are no longer allowlisted for the Organization.
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
+
+    await expect(sweep(job)).resolves.toBeUndefined()
+
+    expect(repair.jobs).toEqual([])
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ deliveriesSeen: 1, factsReplayed: 0, factsDenied: 1 }),
       'Reconcile missing notifications sweep finished',
     )
   })
 
-  it('enqueues for every resolved recipient of the item', async () => {
-    const { handler, fakes } = makeHarness([item(1, 30 * MINUTE)], {}, [
-      NOTIF_TEST_IDS.manager1,
-      NOTIF_TEST_IDS.manager2,
+  it('does not let one failing replay starve the rest, and still fails the firing', async () => {
+    const { sweep, repair } = await deliverThenSweep([
+      feedbackArrival(new Date(NOW.getTime() - 40 * MINUTE)),
+      feedbackArrival(new Date(NOW.getTime() - 30 * MINUTE)),
     ])
+    repair.add.mockRejectedValueOnce(new Error('Queue unavailable'))
 
-    await handler(job)
-
-    expect(fakes.jobs.map((enqueued) => enqueued.data)).toEqual([
-      expect.objectContaining({ userId: NOTIF_TEST_IDS.manager1 }),
-      expect.objectContaining({ userId: NOTIF_TEST_IDS.manager2 }),
-    ])
-  })
-
-  it('leaves an item that already has a notification untouched — a re-run duplicates nothing', async () => {
-    const { handler, fakes, notified } = makeHarness([item(1, 30 * MINUTE)])
-
-    await handler(job)
-    expect(fakes.jobs).toHaveLength(1)
-    expect(notified.has('item-1')).toBe(true)
-
-    // Second firing: the item now has a notification, so it is not a candidate.
-    await handler(job)
-    expect(fakes.jobs).toHaveLength(1)
-  })
-
-  it('respects the grace period — an item too fresh to judge is never touched', async () => {
-    const { handler, fakes, gapRepo } = makeHarness([
-      item(1, 1 * MINUTE), // inside the grace edge
-      item(2, 10 * MINUTE), // past it
-    ])
-
-    await handler(job)
-
-    expect(fakes.jobs.map((enqueued) => enqueued.data)).toEqual([
-      expect.objectContaining({ resourceId: 'item-2' }),
-    ])
-    expect(gapRepo.queries[0]).toEqual(
-      expect.objectContaining({
-        createdBefore: new Date(NOW.getTime() - DEFAULT_RECONCILE_GRACE_MS),
-        createdAtOrAfter: new Date(NOW.getTime() - DEFAULT_RECONCILE_LOOKBACK_MS),
-      }),
+    await expect(sweep(job)).rejects.toThrow(
+      'reconcile-missing-notifications: 1 of 2 unsettled deliveries failed to replay',
     )
+    expect(repair.add).toHaveBeenCalledTimes(2)
+    expect(repair.jobs).toHaveLength(1)
   })
 
-  it('ignores a gap older than the lookback window — a day-old review is no longer news', async () => {
-    const { handler, fakes } = makeHarness([item(1, DEFAULT_RECONCILE_LOOKBACK_MS + 1)])
+  it('reads only past the grace edge and within the lookback, and nothing too fresh', async () => {
+    const { sweep, repair, queries } = await deliverThenSweep([
+      feedbackArrival(new Date(NOW.getTime() - DEFAULT_RECONCILE_LOOKBACK_MS - MINUTE)),
+    ])
 
-    await handler(job)
+    await sweep(job)
 
-    expect(fakes.jobs).toHaveLength(0)
+    expect(repair.jobs).toEqual([])
+    expect(queries).toHaveLength(1)
+
+    // An enqueue inside the grace edge may still be settling.
+    const fresh = await deliverThenSweep([feedbackArrival()], {
+      sweep: { graceMs: 31 * MINUTE },
+    })
+    await fresh.sweep(job)
+    expect(fresh.repair.jobs).toEqual([])
+    expect(DEFAULT_RECONCILE_GRACE_MS).toBe(5 * MINUTE)
   })
 
-  it('holds the batch budget: at most batchSize x maxBatches items per firing', async () => {
-    const items = Array.from({ length: 40 }, (_, i) => item(i, (i + 10) * MINUTE))
-    const { handler, fakes, gapRepo } = makeHarness(items, {
-      batchSize: 3,
-      maxBatches: 2,
+  it('holds the batch budget and advances the keyset cursor across batches', async () => {
+    const arrivals = [40, 30, 20].map((ageMinutes) =>
+      feedbackArrival(new Date(NOW.getTime() - ageMinutes * MINUTE)),
+    )
+    const { sweep, repair, queries } = await deliverThenSweep(arrivals, {
+      sweep: { batchSize: 1, maxBatches: 2 },
     })
 
-    await handler(job)
+    await sweep(job)
 
-    expect(fakes.jobs).toHaveLength(6)
-    expect(gapRepo.queries).toHaveLength(2)
-    expect(gapRepo.queries.every((query) => query.limit === 3)).toBe(true)
-  })
-
-  it('advances the keyset cursor across batches instead of re-reading the head', async () => {
-    const items = [item(1, 30 * MINUTE), item(2, 20 * MINUTE), item(3, 10 * MINUTE)]
-    const { handler, fakes, gapRepo } = makeHarness(items, {
-      batchSize: 1,
-      maxBatches: 3,
-    })
-
-    await handler(job)
-
-    expect(fakes.jobs.map((enqueued) => enqueued.data)).toEqual([
-      expect.objectContaining({ resourceId: 'item-1' }),
-      expect.objectContaining({ resourceId: 'item-2' }),
-      expect.objectContaining({ resourceId: 'item-3' }),
+    expect(repair.jobs.map((queued) => queued.data.eventId)).toEqual([
+      arrivals[0]!.id,
+      arrivals[1]!.id,
     ])
-    expect(gapRepo.queries[0]!.cursor).toBeNull()
-    expect(gapRepo.queries[1]!.cursor).toEqual({
-      createdAt: items[0]!.createdAt,
-      inboxItemId: 'item-1',
-    })
-  })
-
-  it('does not let one failing item starve the rest, and still fails the firing', async () => {
-    const { handler, fakes } = makeHarness([
-      item(1, 30 * MINUTE),
-      item(2, 20 * MINUTE),
-      item(3, 10 * MINUTE),
+    expect(queries.map((query) => query.cursor?.eventId ?? null)).toEqual([
+      null,
+      arrivals[0]!.id,
     ])
-    fakes.addMock.mockRejectedValueOnce(new Error('Queue unavailable'))
-
-    await expect(handler(job)).rejects.toThrow(
-      'reconcile-missing-notifications: 1 of 3 candidates failed to enqueue',
-    )
-    // items 2 and 3 were still attempted after item 1 blew up.
-    expect(fakes.addMock).toHaveBeenCalledTimes(3)
-  })
-
-  it('counts the gap it claims to count, and saturates at the scan cap', async () => {
-    const items = Array.from({ length: 3 }, (_, i) => item(i, (i + 10) * MINUTE))
-    const notified = new Set<string>()
-    const repo = fakeGapRepo(items, notified)
-    const window = {
-      createdAtOrAfter: new Date(NOW.getTime() - DEFAULT_RECONCILE_LOOKBACK_MS),
-      createdBefore: new Date(NOW.getTime() - DEFAULT_RECONCILE_GRACE_MS),
-    }
-
-    await expect(
-      repo.countItemsMissingNotifications({
-        ...window,
-        scanLimit: NOTIFICATION_GAP_SCAN_LIMIT,
-      }),
-    ).resolves.toBe(3)
-
-    notified.add('item-0')
-    await expect(
-      repo.countItemsMissingNotifications({
-        ...window,
-        scanLimit: NOTIFICATION_GAP_SCAN_LIMIT,
-      }),
-    ).resolves.toBe(2)
-
-    await expect(
-      repo.countItemsMissingNotifications({ ...window, scanLimit: 1 }),
-    ).resolves.toBe(1)
-  })
-
-  // Both channel-gate tests hand the sweep's own enqueued job data to
-  // insertNotification; they differ in which channels the preference disables and
-  // therefore in what they assert (in-app row still written vs nothing written at
-  // all). Sharing the arrange would need a helper parameterised by which channel
-  // is off plus the expected outcome, which is just both tests restated through
-  // indirection. Revisit if a third delivery channel joins the gate.
-  // fallow-ignore-next-line code-duplication
-  it('does not backfill mail to a user who turned the email channel off', async () => {
-    // The sweep enqueues; the insert-notification use case is what runs next.
-    // Feeding it the sweep's own job data proves the backfill goes through the
-    // preference gate rather than around it.
-    const { handler, fakes } = makeHarness([item(1, 30 * MINUTE)])
-    await handler(job)
-    const enqueued = fakes.jobs[0]!.data as InsertNotificationInput
-
-    const insertDeps = buildFakeInsertNotificationDeps()
-    vi.mocked(insertDeps.preferenceRepo.findForDelivery).mockImplementation(
-      async (_userId, _orgId, _propertyId, _category, channel) =>
-        channel === 'email' ? preference(false) : null,
-    )
-
-    await expect(insertNotification(insertDeps)(enqueued)).resolves.not.toBeNull()
-    expect(insertDeps.notificationRepo.insert).toHaveBeenCalledTimes(1)
-    // No email-queue row: the disabled channel is respected on the backfill.
-    expect(insertDeps.emailRepo.insert).not.toHaveBeenCalled()
-  })
-
-  it('produces nothing at all for a user who disabled both channels', async () => {
-    const { handler, fakes } = makeHarness([item(1, 30 * MINUTE)])
-    await handler(job)
-    const enqueued = fakes.jobs[0]!.data as InsertNotificationInput
-
-    const insertDeps = buildFakeInsertNotificationDeps()
-    vi.mocked(insertDeps.preferenceRepo.findForDelivery).mockResolvedValue(
-      preference(false),
-    )
-
-    await expect(insertNotification(insertDeps)(enqueued)).resolves.toBeNull()
-    expect(insertDeps.notificationRepo.insert).not.toHaveBeenCalled()
-    expect(insertDeps.emailRepo.insert).not.toHaveBeenCalled()
   })
 })

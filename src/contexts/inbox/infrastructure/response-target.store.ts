@@ -7,6 +7,7 @@ import {
   inboxResponseTargetOrganizationPolicies,
   inboxResponseTargetReminders,
 } from '#/shared/db/schema/inbox.schema'
+import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import {
   inboxItemId,
@@ -958,4 +959,54 @@ export const createResponseTargetStore = (db: Database): ResponseTargetStore => 
       })
       return { released }
     }),
+
+  // An archived Property is outside the workspace, so its pending reminders
+  // would only prompt work nobody can do. `cancelled_at` is the slot's own
+  // terminal column, so Restore never re-arms a slot (repair rules in
+  // docs/operations/inbox-response-targets.md). A Property that is active
+  // again by delivery time means the fact arrived late: it cancels nothing.
+  // The row is read FOR SHARE so a Restore in flight commits before this
+  // decides (and the Restore wins) or waits until the cancellation commits.
+  cancelArchivedPropertyRemindersOnce: async ({
+    eventId,
+    consumerName,
+    organizationId: orgId,
+    propertyId: pid,
+    at,
+  }) =>
+    trace('inbox.responseTarget.cancelArchivedPropertyRemindersOnce', () =>
+      db.transaction(async (tx) => {
+        const [property] = await tx
+          .select({ lifecycleState: properties.lifecycleState })
+          .from(properties)
+          .where(and(eq(properties.organizationId, orgId), eq(properties.id, pid)))
+          .for('share')
+          .limit(1)
+        const status =
+          property && property.lifecycleState !== 'active' ? 'applied' : 'obsolete'
+        const reserved = await tx
+          .insert(eventConsumerReceipts)
+          .values({ eventId, consumerName, status })
+          .onConflictDoNothing()
+          .returning({ eventId: eventConsumerReceipts.eventId })
+        if (reserved.length === 0) return 'duplicate'
+        if (status === 'applied') {
+          await tx
+            .update(inboxResponseTargetReminders)
+            .set({
+              cancelledAt: at,
+              updatedAt: sql`GREATEST(${inboxResponseTargetReminders.updatedAt}, ${at}::timestamptz)`,
+            })
+            .where(
+              and(
+                eq(inboxResponseTargetReminders.organizationId, orgId),
+                eq(inboxResponseTargetReminders.propertyId, pid),
+                isNull(inboxResponseTargetReminders.deliveredAt),
+                isNull(inboxResponseTargetReminders.cancelledAt),
+              ),
+            )
+        }
+        return status
+      }),
+    ),
 })

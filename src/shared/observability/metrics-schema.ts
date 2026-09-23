@@ -55,15 +55,27 @@ export const PUBLICATION_STATES = [
   'cancelled',
 ] as const
 
-/** OperationsSnapshot degraded-section markers (operations-snapshot.ts). */
+/**
+ * OperationsSnapshot degraded-section markers (operations-snapshot.ts). The
+ * health section degrades per signal (HEALTH_SIGNALS in health-metrics.ts).
+ */
 export const SNAPSHOT_SECTIONS = [
-  'health',
+  'health.outbox',
+  'health.quarantine',
+  'health.reviews',
+  'health.sync',
+  'health.replyPublication',
+  'health.notificationEmail',
+  'health.notificationGap',
+  'health.notificationDeliveryLag',
   'queues',
   'workers.heartbeat',
   'runtime',
   'jobs',
   'guest.observationLoss',
 ] as const
+
+export type SnapshotSection = (typeof SNAPSHOT_SECTIONS)[number]
 
 /** Route-class label: dotted server-fn / use-case names (e.g. review.syncReviews). */
 // eslint-disable-next-line security/detect-unsafe-regex -- BQC-7.7 (owner: platform): each outer-group iteration must consume a literal dot, so repetitions cannot overlap; safe-regex star-height false positive
@@ -380,6 +392,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
       'jobs.invalidObservations',
       'jobs.handlerMissing',
       'jobs.schedulerMissing',
+      'jobs.scheduleDenied',
       'jobs.forbiddenDarkWork',
       'jobs.quarantinedSchedulers',
       'jobs.missedObjectives',
@@ -391,6 +404,16 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     emitted: true,
     description:
       'Job runtime contract failures, including missed work and repair ownership.',
+  }),
+  def({
+    name: 'worker.job_runtime.gate_denials',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['jobs.gateDenials'],
+    emitted: true,
+    description:
+      'Retained completed jobs the delayed-execution gate denied. Counted, never paged: a denied on-demand job is routine; a denied schedule firing fails readiness.',
   }),
   def({
     name: 'worker.runtime.version',
@@ -485,7 +508,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.pendingOverdueCount'],
     emitted: true,
     description:
-      'Queued notification emails still `pending` past their due time (next_attempt_at → not_before → created_at).',
+      'Queued notification emails still sendable — pending, held for quiet hours (delayed), or a transient failure under the retry budget — past their due time (the later of next_attempt_at and not_before, else created_at). Rows for a Property that is no longer active are held, not overdue.',
   }),
   def({
     name: 'notification.email.oldest_pending_overdue_age_ms',
@@ -505,7 +528,57 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.attemptedStuckCount'],
     emitted: true,
     description:
-      'Overdue pending emails the delivery path ALREADY attempted (attempted_at set). Non-zero cannot be explained by a dark capability — the sweep reached the row, tried, and left it pending.',
+      'Overdue sendable emails the delivery path ALREADY touched: a scheduled retry past due (attempted_at set) or a quiet-hours hold past its end (delayed) — counted only in scopes whose notification.send_email decision allows sending now, on an active Property or Organization-scoped. Non-zero cannot be explained by a dark capability — the path reached the row and left it unsent.',
+  }),
+  def({
+    name: 'notification.email.oldest_attempted_stuck_age_ms',
+    kind: 'gauge',
+    unit: 'ms',
+    labels: {},
+    snapshotPath: ['notifications.oldestAttemptedStuckAgeMs'],
+    emitted: true,
+    description:
+      'How far past its due time the oldest touched overdue email is — what notification.email-stalled judges while email is globally dark. Null/absent when none.',
+  }),
+  def({
+    name: 'notification.email.outcomes_24h',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: [
+      'notifications.emailOutcomes.acceptedCount',
+      'notifications.emailOutcomes.permanentFailureCount',
+      'notifications.emailOutcomes.retryExhaustedCount',
+      'notifications.emailOutcomes.bouncedCount',
+      'notifications.emailOutcomes.complainedCount',
+      'notifications.emailOutcomes.providerOutcomeCount',
+    ],
+    emitted: true,
+    description:
+      'What became of attempted notification email in the trailing 24h, counted per provider message (a daily digest is one): provider acceptances (the rate denominator), permanent refusals (never retried), transient failures that spent the retry budget (given up), bounces, complaints, and every provider event recorded — delivered, bounced, complained, failed after acceptance, suppressed by the provider, delivery delayed (provider-webhook liveness).',
+  }),
+  def({
+    name: 'notification.email.accepted_unresolved',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: [
+      'notifications.emailOutcomes.acceptedUnresolvedCount',
+      'notifications.emailOutcomes.capturedUnresolvedCount',
+    ],
+    emitted: true,
+    description:
+      'Accepted notification email messages (7-day lookback) with no delivered, bounced, or complained event 6h after acceptance — the provider webhook never reported it — and the subset a non-sending capture transport accepted (never reached a provider).',
+  }),
+  def({
+    name: 'notification.email.oldest_accepted_unresolved_age_ms',
+    kind: 'gauge',
+    unit: 'ms',
+    labels: {},
+    snapshotPath: ['notifications.emailOutcomes.oldestAcceptedUnresolvedAgeMs'],
+    emitted: true,
+    description:
+      'Age since provider acceptance of the oldest accepted notification email still without a provider outcome past the 6h grace. Null/absent when none.',
   }),
   def({
     name: 'notification.email.immediate_acceptance_pending',
@@ -517,7 +590,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     ],
     emitted: true,
     description:
-      'Sendable immediate notification emails that have not received provider acceptance inside the bounded source-clock window.',
+      'Immediate notification emails in scopes that may send email now (scoped notification.send_email) that have not received provider acceptance inside the bounded source-clock window. Capability-dark scopes are excluded: their rows are never attempted.',
   }),
   def({
     name: 'notification.email.immediate_acceptance_attempted_pending',
@@ -529,7 +602,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     ],
     emitted: true,
     description:
-      'Immediate notification emails still awaiting acceptance after a provider attempt began; also proves per-Organization delivery activation.',
+      'Immediate notification emails still awaiting acceptance after a provider attempt began (the awaiting subset the delivery path already touched).',
   }),
   def({
     name: 'notification.email.immediate_acceptance_oldest_source_age_ms',
@@ -595,7 +668,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.missingForInboxItemCount'],
     emitted: true,
     description:
-      'Inbox items past the reconciliation grace edge with NO notification row for anybody — "a review arrived and nobody was told". Above zero means the in-process fan-out dropped it AND reconcile-missing-notifications has not healed it yet, or that sweep is not running. Saturates at its scan cap (1000); the alert fires on above-zero, so the cap is immaterial.',
+      'Inbox items past the grace edge with NO notification row for anybody and a delivery not yet decided — "a review arrived and nobody was told". Items whose recipients all muted them, or no longer qualify, are decided and never count. Above zero means the Feed consumer has not taken the item\'s fact, or a delivery Redis accepted has not settled and reconcile-missing-notifications has not repaired it yet. Saturates at its scan cap (1000); the alert fires on above-zero, so the cap is immaterial.',
   }),
   def({
     name: 'notification.delivery.source_receipt_pending',

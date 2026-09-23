@@ -196,7 +196,10 @@ describe('reconcile-ambiguous-publications sweep', () => {
     expect(deps.replyCommandStore.markPublicationTerminal).toHaveBeenCalledWith(
       authorized,
       'retryable',
-      expect.objectContaining({ _tag: 'review.reply.publish_failed' }),
+      expect.objectContaining({
+        _tag: 'review.reply.publish_failed',
+        outcome: 'not_sent',
+      }),
       NOW,
     )
   })
@@ -251,7 +254,10 @@ describe('reconcile-ambiguous-publications sweep', () => {
     expect(deps.replyCommandStore.deferUncertainSend).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledWith(
       sending,
-      expect.objectContaining({ _tag: 'review.reply.publish_failed' }),
+      expect.objectContaining({
+        _tag: 'review.reply.publish_failed',
+        outcome: 'unconfirmed',
+      }),
       NOW,
       new Date(attemptStartedAt.getTime() + 30 * MINUTE),
     )
@@ -268,7 +274,10 @@ describe('reconcile-ambiguous-publications sweep', () => {
     expect(deps.replyCommandStore.deferUncertainSend).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledWith(
       sending,
-      expect.objectContaining({ _tag: 'review.reply.publish_failed' }),
+      expect.objectContaining({
+        _tag: 'review.reply.publish_failed',
+        outcome: 'unconfirmed',
+      }),
       NOW,
       new Date(attemptStartedAt.getTime() + 15 * MINUTE),
     )
@@ -295,7 +304,10 @@ describe('reconcile-ambiguous-publications sweep', () => {
       expect(deps.replyCommandStore.settleNeverDispatchedAttempt).toHaveBeenCalledWith(
         uncertain,
         state === 'sending'
-          ? expect.objectContaining({ _tag: 'review.reply.publish_failed' })
+          ? expect.objectContaining({
+              _tag: 'review.reply.publish_failed',
+              outcome: 'not_sent',
+            })
           : null,
         NOW,
       )
@@ -452,7 +464,10 @@ describe('reconcile-ambiguous-publications sweep', () => {
     ).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledWith(
       pending,
-      expect.objectContaining({ _tag: 'review.reply.publish_failed' }),
+      expect.objectContaining({
+        _tag: 'review.reply.publish_failed',
+        outcome: 'unconfirmed',
+      }),
       NOW,
       new Date(progress.attemptStartedAt.getTime() + rungMs),
     )
@@ -552,7 +567,10 @@ describe('reconcile-ambiguous-publications sweep', () => {
       expect(deps.replyCommandStore.markPublicationTerminal).toHaveBeenCalledWith(
         fenced,
         'ambiguous',
-        expect.objectContaining({ _tag: 'review.reply.publish_failed' }),
+        expect.objectContaining({
+          _tag: 'review.reply.publish_failed',
+          outcome: 'unconfirmed',
+        }),
         NOW,
       )
     },
@@ -586,7 +604,10 @@ describe('reconcile-ambiguous-publications sweep', () => {
     ).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledWith(
       pending,
-      expect.objectContaining({ _tag: 'review.reply.publish_failed' }),
+      expect.objectContaining({
+        _tag: 'review.reply.publish_failed',
+        outcome: 'unconfirmed',
+      }),
       NOW,
       new Date(attemptStartedAt.getTime() + 30 * MINUTE),
     )

@@ -226,4 +226,87 @@ describe('Property responsible manager repository', () => {
       propertyId: PROPERTY,
     })
   })
+
+  it('records the gap on an archived Property but raises no recovery fact for it', async () => {
+    const repo = createPropertyResponsibleManagerRepository(getDb())
+    await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      managerUserIds: ['admin-1', 'manager-1'],
+      expectedRevision: 1,
+      actorId: 'admin-1',
+      at: CHANGE,
+      responsibilityNeededEvent: recoveryEvent(CHANGE),
+    })
+    await pool.query(`UPDATE properties SET lifecycle_state = 'archived' WHERE id = $1`, [
+      PROPERTY,
+    ])
+
+    await repo.releaseForUser({
+      organizationId: ORG,
+      userId: 'manager-1',
+      at: UNASSIGNED,
+      endReason: 'manager_offboarded',
+    })
+    const unassigned = await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      managerUserIds: [],
+      expectedRevision: 3,
+      actorId: 'admin-1',
+      at: new Date(UNASSIGNED.getTime() + 1_000),
+      responsibilityNeededEvent: recoveryEvent(new Date(UNASSIGNED.getTime() + 1_000)),
+    })
+
+    expect(unassigned).toMatchObject({ assignments: [], revision: 4 })
+    const propertyRow = await pool.query(
+      `SELECT responsibility_needed_since FROM properties WHERE id = $1`,
+      [PROPERTY],
+    )
+    expect(new Date(propertyRow.rows[0].responsibility_needed_since)).toEqual(
+      new Date(UNASSIGNED.getTime() + 1_000),
+    )
+    const outbox = await pool.query(
+      `SELECT event_type FROM outbox_events WHERE organization_id = $1`,
+      [ORG],
+    )
+    expect(outbox.rows).toEqual([])
+  })
+
+  it('raises no recovery fact when the last manager of an archived Property leaves', async () => {
+    const repo = createPropertyResponsibleManagerRepository(getDb())
+    await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      managerUserIds: ['manager-1'],
+      expectedRevision: 1,
+      actorId: 'admin-1',
+      at: CHANGE,
+      responsibilityNeededEvent: recoveryEvent(CHANGE),
+    })
+    await pool.query(`UPDATE properties SET lifecycle_state = 'archived' WHERE id = $1`, [
+      PROPERTY,
+    ])
+
+    await expect(
+      repo.releaseForUser({
+        organizationId: ORG,
+        userId: 'manager-1',
+        at: UNASSIGNED,
+        endReason: 'manager_offboarded',
+      }),
+    ).resolves.toEqual({ released: 1 })
+
+    expect(await repo.listActive(ORG, PROPERTY)).toEqual([])
+    const propertyRow = await pool.query(
+      `SELECT responsibility_needed_since FROM properties WHERE id = $1`,
+      [PROPERTY],
+    )
+    expect(new Date(propertyRow.rows[0].responsibility_needed_since)).toEqual(UNASSIGNED)
+    const outbox = await pool.query(
+      `SELECT event_type FROM outbox_events WHERE organization_id = $1`,
+      [ORG],
+    )
+    expect(outbox.rows).toEqual([])
+  })
 })

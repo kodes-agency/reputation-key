@@ -41,9 +41,16 @@ import type { NotificationPreferenceRepositoryPort } from '../../application/por
 import type { NotificationRepositoryPort } from '../../application/ports/notification-repository.port'
 import type { UserLookupPort } from '../../application/ports/notification-user-lookup.port'
 import type { EmailSenderPort } from '../../application/ports/email-sender.port'
+import type { NotificationRecipientStanding } from '../../application/notification-recipient-standing'
 import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
 import type { NotificationOrganizationScopeResolver } from '../repositories/notification-organization-scope.repository'
 import { deliveryTiming } from '../../domain/notification-delivery-policy'
+import { isStaleQueuedEmail, STALE_EMAIL_REASON } from '../../domain/email-freshness'
+import {
+  isEmailStopped,
+  ORGANIZATION_CLOSING_REASON,
+} from '../../domain/organization-email-stop'
+import type { NotificationOrganizationEmailStopPort } from '../../application/ports/notification-organization-email-stop.port'
 import { getDefaultEnabled } from '../../domain/notification-policy'
 import { notificationLink, renderNotification } from '../../domain/notification-templates'
 import { renderNotificationEmail, type RenderedEmail } from '../email/render'
@@ -71,6 +78,10 @@ export type UrgentEmailDeps = Readonly<{
   resolvePropertyScope: NotificationPropertyScopeResolver
   resolveOrganizationScope: NotificationOrganizationScopeResolver
   authorizeScope: ScheduledScopeAuthorizer
+  /** How far the Organization's lifecycle stops its email. */
+  organizationEmailStop: NotificationOrganizationEmailStopPort
+  /** The recipient's current membership, access and responsibility. */
+  isRecipientEligible: NotificationRecipientStanding
   logger: LoggerPort
   clock: () => Date
   /** `env.BETTER_AUTH_URL`. Injected, never read from env inside the job. */
@@ -162,6 +173,9 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     const orgId = organizationId(ids.orgId)
     const propId = ids.propId === null ? null : propertyId(ids.propId)
     const attemptedAt = deps.clock()
+    // Before the call: a worker that dies mid-call must still leave the start
+    // of the provider's idempotency window behind (`isStaleQueuedEmail`).
+    await deps.emailRepo.markAttemptStarted(emailId, orgId, propId, attemptedAt)
     try {
       const outcome = await deps.emailSender.send({
         to: recipient,
@@ -314,6 +328,49 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
   }
 
   /**
+   * The recipient checks made immediately before the provider effect. Returns
+   * the address to mail, or `null` once the row is suppressed with its reason.
+   */
+  const recheckRecipient = async (
+    scope: Readonly<{
+      orgId: ReturnType<typeof organizationId>
+      propId: PropertyId | null
+      ids: EmailDeliveryIds
+    }>,
+    entry: StoredEmail,
+  ): Promise<string | null> => {
+    // CONTEXT.md invariant 4. Quiet hours and retries can hold a row for
+    // hours; a recipient removed or moved off the Property since must not get
+    // it. Organization mandatory mail is exempt: an access-removed notice is
+    // addressed to someone who is no longer a member.
+    if (
+      scope.propId !== null &&
+      !(await deps.isRecipientEligible({
+        organizationId: scope.orgId,
+        propertyId: scope.propId,
+        userId: entry.userId,
+        audience: entry.recipientAudience,
+      }))
+    ) {
+      await suppress(scope.ids, 'recipient_ineligible')
+      return null
+    }
+    const recipient = await deps.userLookup.getEmail(entry.userId)
+    if (!recipient) {
+      await suppress(scope.ids, 'recipient_unavailable')
+      return null
+    }
+    // ADR 0046 r.6: never attempt an address the provider refused for good,
+    // from any Organization. Attempting again earns another bounce or
+    // complaint against our domain.
+    if (await deps.emailRepo.isAddressSuppressed(recipient)) {
+      await suppress(scope.ids, 'recipient_bounced')
+      return null
+    }
+    return recipient
+  }
+
+  /**
    * ADR 0046 r.7 guard: `assertPreferencesLink` throws before the provider
    * call for an optional email with no usable preferences link.
    */
@@ -327,11 +384,22 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       notification.resourceType,
       notification.resourceId,
       ids.propId,
+      notification.type,
     )
     const mailClass = mailClassForCategory(entry.category)
+    // Optional mail is always about one Property, and the settings route opens
+    // the Property `?propertyId=` names while the reader can still see it — so
+    // "Manage preferences" lands on this email's Property, not the first one.
     const preferencesUrl = mandatory
       ? null
-      : assertPreferencesLink(mailClass, absoluteUrl(deps.baseUrl, PREFERENCES_PATH))
+      : assertPreferencesLink(
+          mailClass,
+          absoluteUrl(
+            deps.baseUrl,
+            PREFERENCES_PATH,
+            ids.propId === null ? undefined : { propertyId: ids.propId },
+          ),
+        )
     const email = renderNotificationEmail({
       rendered: renderNotification(notification.type, notification.payload),
       actionUrl: absoluteUrl(deps.baseUrl, link.path, link.search),
@@ -356,6 +424,17 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       await suppress(ids, 'invalid_delivery_scope')
       return
     }
+    // A closure request stops optional mail at once; mandatory notices go
+    // out until the irreversible boundary.
+    if (isEmailStopped(await deps.organizationEmailStop(ids.orgId), entry.category)) {
+      await suppress(ids, ORGANIZATION_CLOSING_REASON)
+      return
+    }
+    // A backlog queued while email was dark is retired, never flushed.
+    if (isStaleQueuedEmail(entry, deps.clock())) {
+      await suppress(ids, STALE_EMAIL_REASON)
+      return
+    }
 
     const preference = mandatory
       ? null
@@ -368,13 +447,6 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
         )
     if (!mandatory && !isPreferenceEnabled(entry, preference)) {
       await suppress(ids, 'preference_disabled')
-      return
-    }
-
-    // ADR 0046 r.6: never attempt a recipient the provider already rejected
-    // terminally. Attempting again earns another bounce against our domain.
-    if (await deps.emailRepo.isRecipientSuppressed(entry.userId, orgId)) {
-      await suppress(ids, 'recipient_bounced')
       return
     }
 
@@ -391,13 +463,15 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       await suppress(ids, 'notification_unavailable')
       return
     }
-    const recipient = await deps.userLookup.getEmail(entry.userId)
-    if (!recipient) {
-      await suppress(ids, 'recipient_unavailable')
-      return
-    }
+    const recipient = await recheckRecipient(scope, entry)
+    if (recipient === null) return
 
     const { email, headers } = composeEmail(notification, entry, ids, mandatory)
+    // The one-click link names only this row, which retention deletes after
+    // 90 days; what it stands for is kept before the mail leaves.
+    if (requiresPreferencesLink(mailClassForCategory(entry.category))) {
+      await deps.emailRepo.recordEmailUnsubscribeScope(emailId, orgId, deps.clock())
+    }
     await sendAndRecord(ids, entry, recipient, email, headers)
   }
 }

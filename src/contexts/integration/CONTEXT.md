@@ -43,7 +43,14 @@ dependencies are unavailable.
 
 The callback preserves one encrypted provider response behind a leased,
 server-generated exchange-attempt identifier. Refresh uses a renewable Redis
-single-flight lease and credential-generation compare-and-swap. Disconnect erases
+single-flight lease and credential-generation compare-and-swap. A refresh Google
+refuses for good (`invalid_grant`) moves the connection to `reauth_required`
+under that lease, fenced on the lifecycle and credential generations the
+refresh started from, and commits
+`integration.google_account.reauthorization_required` (cause `provider_revoked`)
+in the same transaction. `invalid_client` and `unauthorized_client` name
+RepKey's own client configuration, not one grant, so they stay a retryable
+`token_refresh_failed` like 5xx answers, timeouts and coordination denials. Disconnect erases
 the local binding before gateway dispatch and reconciles ambiguous outcomes
 without resending the token.
 
@@ -62,6 +69,7 @@ without resending the token.
 11. Coordination ambiguity denies the refresh before credential decryption or database mutation.
 12. Lifecycle `prepareClosing` stops provider effects and deletes nothing. `verifyPurgeReadiness` is read-only and fails closed while credential, work, attempt, operation, or discovery evidence remains live.
 13. An Organization that never connected Google answers `no_data` — affirmative evidence, never an omitted contributor.
+14. A `reauth_required` connection is never refreshed, and no sync, reply, import or Performance authorization admits it; only a fresh consent (reconnect) returns it to `active`. Credential refusals (the active-connection token provider and the refresh) say `reauthorization_required`, not `connection_disconnected`, and the review API adapter reports a reply refused for it the same way. The sync, import and Performance authorizers keep their own refusal codes (`authorization_denied`, `connection_unavailable`, `reauthentication_required`).
 
 ## Verification
 

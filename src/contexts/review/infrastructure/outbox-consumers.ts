@@ -11,11 +11,20 @@
 
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { googleConnectionId, organizationId, replyId, userId } from '#/shared/domain/ids'
+import {
+  googleConnectionId,
+  organizationId,
+  propertyId,
+  replyId,
+  userId,
+} from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { ReplyRepository } from '../application/ports/reply.repository'
 import type { ReplyQueuePort } from '../application/ports/reply-queue.port'
-import type { CancelPublicationsForConnection } from '../application/use-cases/cancel-publications'
+import type {
+  CancelPublicationsForConnection,
+  CancelPublicationsForProperty,
+} from '../application/use-cases/cancel-publications'
 import { buildIdempotencyKey } from '../domain/reply-publication-workflow'
 
 const EVENT_TYPE = 'review.reply.publication_requested' as const
@@ -23,6 +32,7 @@ export const ON_REPLY_PUBLICATION_REQUESTED_CONSUMER =
   'review.on-reply-publication-requested' as const
 export const ON_GOOGLE_ACCOUNT_DISCONNECTED_CONSUMER =
   'review.on-google-account-disconnected' as const
+export const ON_PROPERTY_ARCHIVED_CONSUMER = 'review.on-property-archived' as const
 
 export type ReviewOutboxLogger = Pick<LoggerPort, 'info'>
 
@@ -37,6 +47,8 @@ export type ReplyPublicationConsumerDeps = ReplyPublicationDeliveryDeps &
     logger: ReviewOutboxLogger
     /** BQC-3.8: disconnect cancellation of in-flight reply publications. */
     cancelPublicationsForConnection: CancelPublicationsForConnection
+    /** Archive cancellation of one Property's unsendable reply publications. */
+    cancelPublicationsForProperty: CancelPublicationsForProperty
   }>
 
 type PublicationRequestedPayload = Readonly<{
@@ -163,6 +175,54 @@ export async function handleGoogleAccountDisconnected(
   return { status: 'applied' }
 }
 
+type PropertyArchivedPayload = Readonly<{
+  organizationId: string
+  propertyId: string
+}>
+
+/**
+ * An archived Property must not leave a reply publication waiting either: the
+ * provider authorizer refuses its writes, and the worker would report each
+ * refusal to the author as "Google rejected the reply". Every cycle not yet
+ * dispatched whose source epoch the Property has moved past is cancelled as a
+ * policy cancellation, like a disconnect. The rule keys on the epoch, not on
+ * the Property still being archived: a fact delivered after a quick Restore
+ * still clears the pre-archive cycles (the Restore advanced the epoch again),
+ * and leaves a reply approved at the restored epoch alone.
+ */
+export async function handlePropertyArchived(
+  deps: ReplyPublicationConsumerDeps,
+  event: ConsumerEvent,
+): Promise<Readonly<{ status: 'applied' }>> {
+  const payload = validateEventPayload(
+    'property.archived',
+    event.eventVersion,
+    event.payload,
+  ) as PropertyArchivedPayload | undefined
+  if (
+    !payload ||
+    payload.organizationId !== event.organizationId ||
+    payload.propertyId !== event.propertyId
+  ) {
+    throw new Error('property archived envelope attribution mismatch')
+  }
+  const result = await deps.cancelPublicationsForProperty({
+    organizationId: organizationId(payload.organizationId),
+    propertyId: propertyId(payload.propertyId),
+    cause: 'policy',
+  })
+  deps.logger.info(
+    { ...result },
+    'property.archived: reply publication cancellation complete',
+  )
+  await deps.receipts.insertReceipt(
+    event.eventId,
+    ON_PROPERTY_ARCHIVED_CONSUMER,
+    'applied',
+  )
+  return { status: 'applied' }
+}
+
 /** Worker-start registration; no consumer runtime is pulled into web builds. */
 export function registerReplyPublicationConsumers(
   registry: ConsumerRegistry,
@@ -182,5 +242,11 @@ export function registerReplyPublicationConsumers(
     module: 'review.outbox-consumers',
     handler: (event) => handleGoogleAccountDisconnected(deps, event),
   })
-  deps.logger.info('Review consumers registered (2 consumers)')
+  registerConsumer({
+    eventType: 'property.archived',
+    consumerName: 'review.on-property-archived',
+    module: 'review.outbox-consumers',
+    handler: (event) => handlePropertyArchived(deps, event),
+  })
+  deps.logger.info('Review consumers registered (3 consumers)')
 }

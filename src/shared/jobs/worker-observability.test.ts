@@ -236,10 +236,51 @@ describe('worker observability', () => {
     })
   })
 
+  it('records a gate-denied completion as a denial, never as a success', async () => {
+    const observationSink = {
+      recordStarted: vi.fn(async () => undefined),
+      recordSucceeded: vi.fn(async () => undefined),
+      recordDenied: vi.fn(async () => undefined),
+      recordTerminalFailure: vi.fn(async () => undefined),
+      recordStalled: vi.fn(async () => undefined),
+    }
+    createJobWorker(
+      'background',
+      vi.fn(async () => undefined),
+      1,
+      undefined,
+      observationSink,
+    )
+    const listeners = fakeWorkers().at(-1)!.listeners
+    const firing = { id: 'repeat:goal-1', name: 'goal-program.maintain', data: {} }
+
+    listeners.get('completed')?.(
+      firing,
+      { gate: 'denied', reason: 'missing_scope', executionKind: 'schedule' },
+      'active',
+    )
+
+    await vi.waitFor(() => {
+      expect(observationSink.recordDenied).toHaveBeenCalledWith({
+        queue: 'background',
+        jobName: 'goal-program.maintain',
+        jobId: 'repeat:goal-1',
+        at: expect.any(Date),
+        executionKind: 'schedule',
+      })
+    })
+    expect(observationSink.recordSucceeded).not.toHaveBeenCalled()
+    expect(logger.info).not.toHaveBeenCalledWith(
+      expect.objectContaining({ jobName: 'goal-program.maintain' }),
+      'job completed',
+    )
+  })
+
   it('persists started, successful, terminal-failure, and stalled runtime heads', async () => {
     const observationSink = {
       recordStarted: vi.fn(async () => undefined),
       recordSucceeded: vi.fn(async () => undefined),
+      recordDenied: vi.fn(async () => undefined),
       recordTerminalFailure: vi.fn(async () => undefined),
       recordStalled: vi.fn(async () => undefined),
     }
@@ -293,6 +334,7 @@ describe('worker observability', () => {
         expect.objectContaining({ jobId: 'redrive-1', repair: true }),
       )
       expect(observationSink.recordTerminalFailure).toHaveBeenCalledTimes(1)
+      expect(observationSink.recordDenied).not.toHaveBeenCalled()
       expect(observationSink.recordStalled).toHaveBeenCalledWith(
         expect.objectContaining({
           queue: 'background',

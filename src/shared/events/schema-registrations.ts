@@ -105,6 +105,21 @@ const replyEventSchema = z.object({
   occurredAt: z.string().optional(),
 })
 
+// The approver's reason stays on the reply; the fact says only whether there
+// is one. Optional because rows recorded before the flag existed lack it.
+const replyRejectedSchema = replyEventSchema.extend({
+  hasReason: z.boolean().optional(),
+})
+
+// Two independent closed facts about an unconfirmed publication, both
+// additive (earlier rows and producers omit them):
+// - `outcome`: how it ended (nothing sent, refused, or not confirmed);
+// - `cause`: present only when the remedy is reconnecting Google, not a retry.
+const replyPublishFailedSchema = replyEventSchema.extend({
+  outcome: z.enum(['not_sent', 'refused', 'unconfirmed']).optional(),
+  cause: z.enum(['google_reauthorization_required']).optional(),
+})
+
 const googleReviewPushAcceptedSchema = z.object({
   organizationId: z.string().trim().min(1).max(255),
   propertyId: databaseUuidSchema,
@@ -345,6 +360,29 @@ const inboxBulkAssignmentCompletedSchema = z.object({
   occurredAt: z.string().optional(),
 })
 
+const inboxBulkReopenCompletedSchema = z.object({
+  organizationId: z.string(),
+  userId: z.string(),
+  bulkId: z.string(),
+  reopened: z
+    .array(
+      z.object({
+        inboxItemId: databaseUuidSchema,
+        propertyId: databaseUuidSchema,
+        sourceType: z.enum(['review', 'feedback']),
+        sourceId: databaseUuidSchema,
+        cycleNumber: z.number().int().positive().safe(),
+        sourceRevision: z.number().int().positive().safe(),
+        stateRevision: z.number().int().positive().safe(),
+      }),
+    )
+    .min(1)
+    .max(100),
+  count: z.number().int().min(1).max(100),
+  source: z.literal('web'),
+  occurredAt: z.string().optional(),
+})
+
 const handlingCycleFactScopeSchema = z.object({
   inboxItemId: databaseUuidSchema,
   cycleNumber: z.number().int().positive().safe(),
@@ -371,6 +409,9 @@ const inboxHandlingCycleOpenedSchema = handlingCycleFactScopeSchema
       'provider_reply_deleted',
       'provider_reply_diverged',
     ]),
+    // True when the command that created the item opened this cycle.
+    // Optional: facts recorded before the mark existed lack it.
+    openedWithItem: z.boolean().optional(),
   })
   .refine((value) => (value.actorType === 'user') === (value.userId !== null), {
     message: 'Handling Cycle actor attribution is invalid',
@@ -402,6 +443,9 @@ const inboxHandlingCycleReopenedSchema = handlingCycleFactScopeSchema
       'provider_reply_deleted',
       'provider_reply_diverged',
     ]),
+    // Set when a bulk reopen owns the notice through its completion fact.
+    // Optional: facts recorded before bulk reopens were marked lack it.
+    bulkId: z.string().trim().min(1).nullable().optional(),
   })
   .refine((value) => (value.actorType === 'user') === (value.userId !== null), {
     message: 'Handling Cycle actor attribution is invalid',
@@ -983,10 +1027,12 @@ const googleAccountDisconnectedSchema = z.object({
   organizationId: z.string(),
 })
 
+// `provider_revoked` is additive: rows written with the two departure causes
+// (including by the fence_google_connector_departure_v1 trigger) stay valid.
 const googleAccountReauthorizationRequiredSchema = z.object({
   connectionId: z.string(),
   organizationId: z.string(),
-  cause: z.enum(['member_removed', 'account_admin_role_lost']),
+  cause: z.enum(['member_removed', 'account_admin_role_lost', 'provider_revoked']),
   occurredAt: z.iso.datetime(),
 })
 
@@ -1303,7 +1349,7 @@ export function registerAllEventSchemas(): void {
   registerEventSchema({
     type: 'review.reply.rejected',
     version: EVENT_VERSION,
-    schema: replyEventSchema,
+    schema: replyRejectedSchema,
   })
   registerEventSchema({
     type: 'review.reply.published',
@@ -1318,7 +1364,7 @@ export function registerAllEventSchemas(): void {
   registerEventSchema({
     type: 'review.reply.publish_failed',
     version: EVENT_VERSION,
-    schema: replyEventSchema,
+    schema: replyPublishFailedSchema,
   })
   registerEventSchema({
     type: 'review.reply.publication_cancelled',
@@ -1376,6 +1422,11 @@ export function registerAllEventSchemas(): void {
     type: 'inbox.inbox_items.bulk_assignment_completed',
     version: EVENT_VERSION,
     schema: inboxBulkAssignmentCompletedSchema,
+  })
+  registerEventSchema({
+    type: 'inbox.inbox_items.bulk_reopen_completed',
+    version: EVENT_VERSION,
+    schema: inboxBulkReopenCompletedSchema,
   })
   registerEventSchema({
     type: 'inbox.handling_cycle.opened',

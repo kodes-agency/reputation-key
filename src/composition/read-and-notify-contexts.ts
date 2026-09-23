@@ -11,6 +11,7 @@
 import { buildReportingContext } from '#/contexts/reporting/build'
 import { buildFeedContext } from '#/contexts/feed/build'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
+import { checkScopedCapability } from '#/shared/auth/beta-capabilities'
 import { recentActivityEntryId } from '#/shared/domain/ids'
 import { operationalActionHistoryRecordId } from '#/contexts/feed/domain/operational-action-history'
 import type { Queue } from 'bullmq'
@@ -40,11 +41,36 @@ export type ReadAndNotifyContextsInput = Readonly<{
   inbox: InboxContextApi
   /** Review-owned governed serving reads, forwarded to Reporting's dashboard. */
   reviewServingStats: ReturnType<typeof buildReviewContext>['lookups']['servingStats']
+  /**
+   * Keys refused email addresses so the suppression list holds no digest a
+   * dictionary of addresses could reverse. Separated from its other uses by a
+   * domain label inside Feed.
+   */
+  notificationEmailAddressKey: string
 }>
 
+/**
+ * Whether email may be delivered in a scope right now: the process policy
+ * store's scoped `notification.send_email` posture — the allowlist, suspension
+ * and kill switch that also gate the email jobs. Feed's delivery-lag evidence
+ * reads it so a capability-dark scope's untouched rows are not late mail.
+ */
+export function isEmailDeliveryAllowed(
+  scope: Readonly<{ organizationId: string; propertyId: string | null }>,
+): boolean {
+  return checkScopedCapability(
+    {
+      organizationId: scope.organizationId,
+      ...(scope.propertyId === null ? {} : { propertyId: scope.propertyId }),
+    },
+    'notification.send_email',
+  ).allowed
+}
+
 export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
-  const authorizeGoalCorrectionScope =
-    createScheduledScopeAuthorizer('system:goal.maintain')
+  const authorizeGoalCorrectionScope = createScheduledScopeAuthorizer(
+    'system:goal.reconcile',
+  )
   const goalCorrectionPolicy = {
     authorize: async (request: {
       actor: unknown
@@ -140,6 +166,9 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
         findPortalHealthNotificationFacts:
           input.portal.publicApi.portal.findPortalHealthNotificationFacts,
       },
+      isEmailDeliveryAllowed,
+      propertyAccess: input.identity.publicApi.people.getAccessiblePropertyIds,
+      emailAddressKey: input.notificationEmailAddressKey,
     },
   })
 

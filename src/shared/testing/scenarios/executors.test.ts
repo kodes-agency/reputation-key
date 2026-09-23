@@ -61,6 +61,18 @@ function snapshotWithWaiting(waiting: number): OperationsSnapshot {
       pendingOverdueCount: 0,
       oldestPendingOverdueAgeMs: null,
       attemptedStuckCount: 0,
+      oldestAttemptedStuckAgeMs: null,
+      emailOutcomes: {
+        acceptedCount: 0,
+        permanentFailureCount: 0,
+        retryExhaustedCount: 0,
+        bouncedCount: 0,
+        complainedCount: 0,
+        providerOutcomeCount: 0,
+        acceptedUnresolvedCount: 0,
+        oldestAcceptedUnresolvedAgeMs: null,
+        capturedUnresolvedCount: 0,
+      },
       missingForInboxItemCount: 0,
       deliveryLag: {
         sourceReceiptPending: 0,

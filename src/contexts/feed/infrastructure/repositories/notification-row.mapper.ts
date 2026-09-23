@@ -19,6 +19,7 @@ import {
   type NotificationType,
 } from '../../domain/notification-types'
 import { parseNotificationPayload } from '../../domain/notification-payload'
+import { withRepeatCount, withWaitAtNotice } from '../../domain/notification-policy'
 import { NOTIFICATION_CATEGORIES } from '../../domain/notification-delivery-policy'
 
 // ── Row type ───────────────────────────────────────────────────────
@@ -61,7 +62,12 @@ export const notificationFromRow = (row: NotificationRow): Notification => ({
   // today, but legacy rows hold NULL and a hand-edited/older row can hold
   // anything. `parseNotificationPayload` drops every unrecognised key and
   // returns `{}` rather than null, so render never sees a surprise shape.
-  payload: parseNotificationPayload(row.payload),
+  // The repeat count comes from the column, never from the stored payload,
+  // and a wait is measured to the row's latest event, the time it shows.
+  payload: withWaitAtNotice(
+    withRepeatCount(parseNotificationPayload(row.payload), row.coalescedCount),
+    row.coalescedLatestAt ?? row.createdAt,
+  ),
   coalescedCount: row.coalescedCount,
   coalescedLatestAt: row.coalescedLatestAt,
   readAt: row.readAt,

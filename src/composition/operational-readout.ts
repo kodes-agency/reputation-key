@@ -35,6 +35,7 @@ import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 import { createGoogleSourceContentPolicy } from '#/shared/domain/source-content-policy'
 import type { OutboxRepository } from '#/shared/outbox'
 import { createContainerShutdown, type ContainerShutdown } from './container-lifecycle'
+import { isEmailDeliveryAllowed } from './read-and-notify-contexts'
 import type { Infrastructure } from './infrastructure'
 
 export type OperationalReadoutInput = Readonly<{
@@ -146,6 +147,8 @@ function buildOperationsSnapshot(
     // only place allowed to join them.
     readMissingNotificationCount: input.notification.readMissingNotificationCount,
     readNotificationDeliveryLag: input.notification.readNotificationDeliveryLag,
+    // The same scoped email decision Feed's delivery-lag evidence reads.
+    isEmailDeliveryAllowed,
     readGuestObservationLoss: () => input.guestObservationLoss.read(clock()),
     ...(jobRuntimeReport ? { jobRuntime: jobRuntimeReport } : {}),
   })

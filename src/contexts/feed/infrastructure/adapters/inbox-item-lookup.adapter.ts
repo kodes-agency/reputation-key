@@ -4,9 +4,9 @@
 // content-free render facts (ADR 0046 r.8) the events do not carry. The
 // property join mirrors notification-property-scope.repository.ts, which
 // already reads `properties` from this context. Whether an item arrived as
-// Google history is the predicate the missing-notification sweep also reads.
+// Google history is the predicate the missing-notification gauge also reads.
 import type { Database } from '#/shared/db'
-import { and, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import {
   inboxHandlingCycleHeads,
   inboxHandlingCycleResponseTargets,
@@ -31,6 +31,7 @@ import type {
 } from '../../application/ports/notification-inbox-item-lookup.port'
 import type { FeedbackPortalLookupPort } from '../../application/ports/feedback-portal-lookup.port'
 import { historicalOnboardingItem } from '../historical-onboarding-item'
+import { activePropertyCondition } from '../repositories/active-property'
 
 const findInboxItemFacts = async (
   db: Database,
@@ -85,6 +86,45 @@ const findInboxItemFacts = async (
     sourceType: row.sourceType,
     createdAt: row.createdAt,
   }
+}
+
+/**
+ * An open item's current cycle waits from the start of its measured Response
+ * Target until the target completes. The target, not the item, is the clock:
+ * a later cycle restarts it (ADR 0055).
+ */
+const findWaitingSince = async (
+  db: Database,
+  id: InboxItemId,
+  orgId: OrganizationId,
+): Promise<Date | null> => {
+  const rows = await db
+    .select({ startAt: inboxHandlingCycleResponseTargets.startAt })
+    .from(inboxHandlingCycleHeads)
+    .innerJoin(
+      inboxHandlingCycleResponseTargets,
+      and(
+        eq(
+          inboxHandlingCycleResponseTargets.inboxItemId,
+          inboxHandlingCycleHeads.inboxItemId,
+        ),
+        eq(
+          inboxHandlingCycleResponseTargets.cycleNumber,
+          inboxHandlingCycleHeads.currentCycleNumber,
+        ),
+        eq(inboxHandlingCycleResponseTargets.performanceEligibility, 'measured'),
+        isNull(inboxHandlingCycleResponseTargets.completionAt),
+      ),
+    )
+    .where(
+      and(
+        eq(inboxHandlingCycleHeads.organizationId, unbrand(orgId)),
+        eq(inboxHandlingCycleHeads.inboxItemId, unbrand(id)),
+        eq(inboxHandlingCycleHeads.status, 'open'),
+      ),
+    )
+    .limit(1)
+  return rows[0]?.startAt ?? null
 }
 
 export const createInboxItemLookupAdapter = (
@@ -175,6 +215,10 @@ export const createInboxItemLookupAdapter = (
     }
   },
 
+  findWaitingSince(id: InboxItemId, orgId: OrganizationId): Promise<Date | null> {
+    return findWaitingSince(db, id, orgId)
+  },
+
   async findResponseTargetReminderNotificationFacts(
     input,
   ): Promise<ResponseTargetReminderNotificationFacts | null> {
@@ -223,6 +267,17 @@ export const createInboxItemLookupAdapter = (
             inboxResponseTargetReminders.cycleNumber,
           ),
           eq(inboxHandlingCycleHeads.status, 'open'),
+        ),
+      )
+      // A Property outside the workspace has no work to prompt: a reminder
+      // released before Inbox cancelled its slots is obsolete, both at fan-out
+      // and when the queued notification is materialized.
+      .innerJoin(
+        properties,
+        and(
+          eq(properties.id, inboxResponseTargetReminders.propertyId),
+          eq(properties.organizationId, inboxResponseTargetReminders.organizationId),
+          sql.raw(activePropertyCondition('properties')),
         ),
       )
       .where(

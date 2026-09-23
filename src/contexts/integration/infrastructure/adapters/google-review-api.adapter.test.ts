@@ -941,6 +941,81 @@ describe('GoogleReviewApiAdapter', () => {
   })
 })
 
+// A reply cannot be published until an AccountAdmin reconnects Google. The
+// publish job has to learn that, not that the approval binding changed, or the
+// author is told Google rejected the reply and to retry it.
+describe('GoogleReviewApiAdapter reply while Google needs reconnecting', () => {
+  const waitingForConsent = { ...connection, status: 'reauth_required' }
+
+  it('reports reauthorization_required when publication authority is refused for that reason', async () => {
+    const execute = vi.fn()
+    const { api } = createAdapter({
+      execute,
+      authorizeReplyPublicationProviderCall: vi
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            'Google reply publication authorization is unavailable: runtime_unavailable',
+          ),
+        ),
+      findById: vi.fn().mockResolvedValue(waitingForConsent),
+    })
+
+    await expect(api.replyToReview(publicationInput())).rejects.toMatchObject({
+      _tag: 'GoogleReviewApiError',
+      code: 'reauthorization_required',
+      recoverable: false,
+    })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('reports the answered 401 of a revoked grant as reauthorization_required', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 401,
+      headers: { contentType: 'application/json', cacheControl: null, retryAfter: null },
+      body: new Uint8Array(),
+    })
+    const { api } = createAdapter({
+      execute,
+      findById: vi.fn().mockResolvedValue(waitingForConsent),
+    })
+
+    await expect(api.replyToReview(publicationInput())).rejects.toMatchObject({
+      code: 'reauthorization_required',
+      recoverable: false,
+      failure: { dispatch: 'answered', providerStatus: 401 },
+    })
+  })
+
+  it('keeps authorization_changed while the connection is still usable', async () => {
+    const { api } = createAdapter({
+      execute: vi.fn(),
+      authorizeReplyPublicationProviderCall: vi
+        .fn()
+        .mockRejectedValue(new Error('authorization vector changed')),
+    })
+
+    await expect(api.replyToReview(publicationInput())).rejects.toMatchObject({
+      code: 'authorization_changed',
+    })
+  })
+
+  it('keeps authorization_changed when the connection cannot be read', async () => {
+    const { api } = createAdapter({
+      execute: vi.fn(),
+      authorizeReplyPublicationProviderCall: vi
+        .fn()
+        .mockRejectedValue(new Error('authorization vector changed')),
+      findById: vi.fn().mockRejectedValue(new Error('database unavailable')),
+    })
+
+    await expect(api.replyToReview(publicationInput())).rejects.toMatchObject({
+      code: 'authorization_changed',
+    })
+  })
+})
+
 // D2: the incident reply was refused by the executor's compile step with no
 // permit and no fetch, but `executorErrorToReviewApiError` dropped the code and
 // the dispatch, so the publish job read it as ambiguous. The review error now
@@ -1058,6 +1133,52 @@ describe('GoogleReviewApiAdapter reply failure evidence (D2)', () => {
       retryAfterMs: expect.any(Number),
       failure: { dispatch: 'answered', providerStatus: 429 },
     })
+  })
+
+  // The authorizer refuses before any credential or provider access. Its closed
+  // code is the only thing that separates RepKey's own lifecycle/epoch refusal
+  // (`stale_source`) from a changed approval, so it rides along as not_sent.
+  it.each(['stale_source', 'authorization_denied', 'runtime_unavailable'])(
+    'carries a %s authorizer refusal as not_sent evidence',
+    async (code) => {
+      const execute = vi.fn()
+      const { api } = createAdapter({
+        execute,
+        authorizeReplyPublicationProviderCall: vi
+          .fn()
+          .mockRejectedValue(
+            Object.assign(new Error(`authorization is unavailable: ${code}`), { code }),
+          ),
+      })
+
+      const error = await rejection(api.replyToReview(publicationInput()))
+
+      expect(error).toMatchObject({
+        _tag: 'GoogleReviewApiError',
+        code: 'authorization_changed',
+        recoverable: false,
+        failure: { executionCode: code, dispatch: 'not_sent', providerStatus: null },
+      })
+      expect(error.message).toBe(`Google review API request failed (${code}; not_sent)`)
+      expect(execute).not.toHaveBeenCalled()
+    },
+  )
+
+  it('drops an authorizer refusal code that is not a closed-union word', async () => {
+    const { api } = createAdapter({
+      execute: vi.fn(),
+      authorizeReplyPublicationProviderCall: vi
+        .fn()
+        .mockRejectedValue(Object.assign(new Error('boom'), { code: 'Reply text: hi' })),
+    })
+
+    const error = await rejection(api.replyToReview(publicationInput()))
+
+    expect(error).toMatchObject({
+      code: 'authorization_changed',
+      failure: { executionCode: null, dispatch: 'not_sent', providerStatus: null },
+    })
+    expect(error.message).not.toContain('Reply text')
   })
 
   it('reports an executor that threw as an unknown dispatch', async () => {

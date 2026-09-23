@@ -1,0 +1,23 @@
+-- The in-app notification feed sorts by latest activity and pages by keyset,
+-- and the retention sweep gets the index it was missing.
+--
+-- Feed order is COALESCE(coalesced_latest_at, created_at) DESC, id DESC. A
+-- coalesced row re-sorts to its newest absorbed event, so a re-fired
+-- escalation rises to the top instead of keeping its original slot, and the id
+-- tiebreak stops two rows that share an instant from swapping across a page
+-- boundary. The feed head is polled every 30 seconds per visible tab; the old
+-- (user_id, status, created_at) index could match only user_id for its
+-- `status <> 'dismissed'` predicate, so every poll sorted the user's rows. The
+-- partial index below returns the head, and each keyset page after it, in
+-- order. Its predicate is implied by every feed query, the unread filter
+-- included.
+--
+-- The retention sweep selects expired rows oldest first and had no index
+-- leading with created_at, so it scanned the whole table. (The
+-- missing-notification anti-join's resource index is 0024's.)
+--
+-- Plain CREATE INDEX: the migrator is transactional, and at beta scale the
+-- table is small enough for the brief write lock.
+CREATE INDEX "notifications_feed_activity_idx" ON "notifications" USING btree ("user_id","organization_id",(COALESCE("coalesced_latest_at", "created_at")) DESC,"id" DESC) WHERE status <> 'dismissed';
+--> statement-breakpoint
+CREATE INDEX "notifications_created_at_idx" ON "notifications" USING btree ("created_at");

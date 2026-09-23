@@ -150,6 +150,12 @@ export type GoalProgramMaintenanceStats = Readonly<{
   closed: number
   denied: number
   unavailable: number
+  /**
+   * Due results whose month runs past their assignment or version window. The
+   * database refuses every update to one, so retrying cannot help; they are
+   * reported here instead of failing every run.
+   */
+  stranded: number
   failed: number
 }>
 
@@ -210,6 +216,50 @@ function sameGoalEvaluation(
 
 function sameInstant(left: Date | null, right: Date | null): boolean {
   return left?.getTime() === right?.getTime()
+}
+
+/**
+ * The earliest instant a revision may start: after the request, and never
+ * before a month that still has to reconcile ends. That month belongs to the
+ * current version's timezone; the next month in a Property timezone further
+ * east starts before it ends, and closing the version there would leave the
+ * month outside its version window, where the database refuses every update.
+ */
+function earliestRevisionStart(results: readonly GoalMonthlyResult[], now: Date): Date {
+  // One millisecond on: a revision never redefines a month already in
+  // progress, even when the request lands exactly on its first instant.
+  const earliest = results
+    .filter((result) => result.status === 'open' || result.status === 'reconciling')
+    .reduce(
+      (latest, result) => Math.max(latest, result.periodEnd.getTime()),
+      now.getTime() + 1,
+    )
+  return new Date(earliest)
+}
+
+/**
+ * Raised when a due result's month runs past its assignment or version window.
+ * The database refuses every update to such a result, so maintenance counts it
+ * rather than failing the whole run on it every hour.
+ */
+class GoalResultOutsideWindowError extends Error {
+  constructor() {
+    super('Goal monthly result falls outside its assignment or version window')
+    this.name = 'GoalResultOutsideWindowError'
+  }
+}
+
+/** Mirrors the monthly-result guard's window check in the database. */
+function isOutsideItsWindow(
+  result: GoalMonthlyResult,
+  assignment: GoalSubjectAssignment,
+  version: GoalProgramVersion,
+): boolean {
+  return [assignment, version].some(
+    (window) =>
+      result.periodStart < window.effectiveFrom ||
+      (window.effectiveTo !== null && result.periodEnd > window.effectiveTo),
+  )
 }
 
 function assignmentFor(
@@ -367,6 +417,63 @@ async function resolveMetricVersion(deps: GoalProgramDependencies, metric: GoalM
 }
 
 /**
+ * Validate a Program definition's target and subjects, and resolve what it is
+ * measured under: the Property's timezone and the governed metric version.
+ * The first subject is the one its metric's readiness is checked against.
+ */
+async function resolveGoalDefinition(
+  deps: GoalProgramDependencies,
+  organizationId: string,
+  input: Readonly<{
+    propertyId: string
+    metric: GoalMetric
+    targetValue: number
+    subjects: readonly GoalSubject[]
+  }>,
+) {
+  const target = validateGoalTarget(input.metric, input.targetValue)
+  if (!target.ok) throw new GoalProgramError('invalid_target')
+  const [timezone, governed] = await Promise.all([
+    deps.subjects.getTimezone(organizationId, input.propertyId),
+    resolveMetricVersion(deps, input.metric),
+    validateSubjects(deps, organizationId, input.propertyId, input.subjects),
+  ])
+  if (!timezone) throw new GoalProgramError('not_found')
+  const readinessSubject = input.subjects[0]
+  if (!readinessSubject) throw new GoalProgramError('invalid_subject')
+  return { target, timezone, governed, readinessSubject }
+}
+
+/**
+ * True when the metric's source is not active yet for the version's first
+ * month. A source that is active but unavailable or quarantined refuses it.
+ */
+async function isMetricSourceInactive(
+  deps: GoalProgramDependencies,
+  query: Readonly<{
+    organizationId: string
+    propertyId: string
+    governed: GovernedMetricVersion
+    subject: GoalSubject
+    period: Readonly<{ start: Date; end: Date }>
+  }>,
+): Promise<boolean> {
+  const readiness = await deps.metrics.queryGoalMetric({
+    organizationId: toOrganizationId(query.organizationId),
+    propertyId: toPropertyId(query.propertyId),
+    definitionVersionId: query.governed.version.id,
+    subject: metricSubject(query.subject),
+    periodStart: query.period.start,
+    periodEnd: query.period.end,
+  })
+  const sourceInactive = readiness.reason === 'metric_source_not_active'
+  if (!sourceInactive && ['unavailable', 'quarantined'].includes(readiness.state)) {
+    throw new GoalProgramError('metric_unavailable')
+  }
+  return sourceInactive
+}
+
+/**
  * False when policy refuses this system maintenance pass for the bundle. Any
  * other authorization failure is not a per-program outcome and propagates.
  */
@@ -520,11 +627,12 @@ async function maintainProgram(
 /** 'closed' also counts as reconciled; the caller tallies both. */
 async function reconcileDueResult(
   reconcile: () => Promise<Readonly<{ status: string }>>,
-): Promise<'reconciled' | 'closed' | 'denied' | 'failed'> {
+): Promise<'reconciled' | 'closed' | 'denied' | 'stranded' | 'failed'> {
   try {
     const updated = await reconcile()
     return updated.status === 'closed' ? 'closed' : 'reconciled'
   } catch (error) {
+    if (error instanceof GoalResultOutsideWindowError) return 'stranded'
     return error instanceof GoalProgramError && error.code === 'forbidden'
       ? 'denied'
       : 'failed'
@@ -552,31 +660,18 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       })
       const name = input.name.trim()
       if (!name) throw new GoalProgramError('invalid_name')
-      const target = validateGoalTarget(input.metric, input.targetValue)
-      if (!target.ok) throw new GoalProgramError('invalid_target')
-      const [timezone, governed] = await Promise.all([
-        deps.subjects.getTimezone(actor.organizationId, input.propertyId),
-        resolveMetricVersion(deps, input.metric),
-        validateSubjects(deps, actor.organizationId, input.propertyId, input.subjects),
-      ])
-      if (!timezone) throw new GoalProgramError('not_found')
-      const readinessSubject = input.subjects[0]
-      if (!readinessSubject) throw new GoalProgramError('invalid_subject')
+      const { target, timezone, governed, readinessSubject } =
+        await resolveGoalDefinition(deps, actor.organizationId, input)
 
       const now = deps.now()
       const period = firstFullMonthlyPeriodAtOrAfter(now, timezone)
-      const readiness = await deps.metrics.queryGoalMetric({
-        organizationId: toOrganizationId(actor.organizationId),
-        propertyId: toPropertyId(input.propertyId),
-        definitionVersionId: governed.version.id,
-        subject: metricSubject(readinessSubject),
-        periodStart: period.start,
-        periodEnd: period.end,
+      const sourceInactive = await isMetricSourceInactive(deps, {
+        organizationId: actor.organizationId,
+        propertyId: input.propertyId,
+        governed,
+        subject: readinessSubject,
+        period,
       })
-      const sourceInactive = readiness.reason === 'metric_source_not_active'
-      if (!sourceInactive && ['unavailable', 'quarantined'].includes(readiness.state)) {
-        throw new GoalProgramError('metric_unavailable')
-      }
       const programId = deps.id()
       const versionId = deps.id()
       const status: GoalProgramStatus =
@@ -713,34 +808,23 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       if (current.version.effectiveFrom > now) {
         throw new GoalProgramError('revision_conflict')
       }
-      const target = validateGoalTarget(input.metric, input.targetValue)
-      if (!target.ok) throw new GoalProgramError('invalid_target')
-      const [timezone, governed] = await Promise.all([
-        deps.subjects.getTimezone(actor.organizationId, input.propertyId),
-        resolveMetricVersion(deps, input.metric),
-        validateSubjects(deps, actor.organizationId, input.propertyId, input.subjects),
-      ])
-      if (!timezone) throw new GoalProgramError('not_found')
-      const readinessSubject = input.subjects[0]
-      if (!readinessSubject) throw new GoalProgramError('invalid_subject')
-      // Revisions never redefine a month already in progress, even when the
-      // request lands exactly on its first instant.
+      const { target, timezone, governed, readinessSubject } =
+        await resolveGoalDefinition(deps, actor.organizationId, input)
+      // When the Property's timezone moved east, the next local month begins
+      // before the open month ends, so the revision starts one local month
+      // later and the skipped local month is not evaluated under either
+      // version. The caller shows the returned start date.
       const period = firstFullMonthlyPeriodAtOrAfter(
-        new Date(now.getTime() + 1),
+        earliestRevisionStart(current.results, now),
         timezone,
       )
-      const readiness = await deps.metrics.queryGoalMetric({
-        organizationId: toOrganizationId(actor.organizationId),
-        propertyId: toPropertyId(input.propertyId),
-        definitionVersionId: governed.version.id,
-        subject: metricSubject(readinessSubject),
-        periodStart: period.start,
-        periodEnd: period.end,
+      const sourceInactive = await isMetricSourceInactive(deps, {
+        organizationId: actor.organizationId,
+        propertyId: input.propertyId,
+        governed,
+        subject: readinessSubject,
+        period,
       })
-      const sourceInactive = readiness.reason === 'metric_source_not_active'
-      if (!sourceInactive && ['unavailable', 'quarantined'].includes(readiness.state)) {
-        throw new GoalProgramError('metric_unavailable')
-      }
       if (sourceInactive && current.program.status !== 'scheduled') {
         throw new GoalProgramError('metric_unavailable')
       }
@@ -1136,6 +1220,9 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         ),
       ])
       if (!program || !assignment || !version) throw new GoalProgramError('not_found')
+      if (isOutsideItsWindow(result, assignment, version)) {
+        throw new GoalResultOutsideWindowError()
+      }
       // Pausing or ending stops future period materialization, but an already
       // opened month remains evidence that must reconcile and close. Otherwise
       // a mid-lifecycle status change would strand an immutable result forever.
@@ -1265,6 +1352,7 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       let closed = 0
       let denied = 0
       let unavailable = 0
+      let stranded = 0
       let failed = 0
 
       for (const original of operational) {
@@ -1289,6 +1377,7 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
           }),
         )
         if (outcome === 'denied') denied++
+        else if (outcome === 'stranded') stranded++
         else if (outcome === 'failed') failed++
         else {
           reconciled++
@@ -1304,6 +1393,7 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         closed,
         denied,
         unavailable,
+        stranded,
         failed,
       }
       if (failed > 0) throw new GoalProgramMaintenanceError(stats)

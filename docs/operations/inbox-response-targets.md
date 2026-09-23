@@ -121,6 +121,10 @@ The local composition is fully wired:
 4. The queued audience repeats the same exact-current authorization immediately
    before materializing a notification. Completion, cancellation, cycle replacement,
    source-scope loss, or recipient changes therefore settle safely as obsolete.
+5. Archiving a Property stops its reminders. Inbox's `inbox.on-property-archived`
+   consumer cancels the Property's unreleased slots while the Property is still
+   not active, and Notification admits a reminder only for an active Property, so
+   a slot released between the archive and that consumer is obsolete as well.
 
 Recipient policy is:
 
@@ -206,7 +210,9 @@ captures those facts for the deployed artifact and environment.
 
 - Never infer or edit a historical start, deadline, completion, or terminal result.
 - Never reopen a released/cancelled reminder slot. A failed release remains retryable
-  only while its slot is pending.
+  only while its slot is pending. Property Restore and cancelled Organization
+  closing re-arm nothing either: a slot cancelled while its Property was archived
+  or its Organization was closing stays cancelled.
 - Policy updates require the caller's expected version. On conflict, reload and
   decide again; do not silently overwrite.
 - A broken immutable target requires a separately reviewed, auditable repair command;

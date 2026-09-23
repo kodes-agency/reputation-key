@@ -9,11 +9,20 @@ import type { UserLookupPort } from './ports/notification-user-lookup.port'
 import type { InboxItemFacts } from './ports/notification-inbox-item-lookup.port'
 import type { ResponsibleManagerLookupPort } from './ports/responsible-manager-lookup.port'
 import type { NotificationAudience } from './notification-audience'
+import type { GoalSubject } from '#/contexts/reporting/application/public-api'
 
 export type ResponsibleScope =
   | Readonly<{ kind: 'property'; propertyId: string }>
   | Readonly<{ kind: 'portal'; portalId: string }>
   | Readonly<{ kind: 'portal_group'; portalGroupId: string }>
+
+/** A Goal's subject is the scope whose responsible managers hear of its results. */
+export const goalSubjectScope = (subject: GoalSubject): ResponsibleScope =>
+  subject.kind === 'property'
+    ? { kind: 'property', propertyId: subject.propertyId }
+    : subject.kind === 'portal_group'
+      ? { kind: 'portal_group', portalGroupId: subject.portalGroupId }
+      : { kind: 'portal', portalId: subject.portalId }
 
 export type ResponsibleRecipientDeps = Readonly<{
   responsibleManagers: ResponsibleManagerLookupPort

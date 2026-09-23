@@ -172,6 +172,11 @@
       "policy": "The helper is intentionally generic over a caller-supplied QueryKey; its only production caller passes notificationKeys.list from notification-queries.ts, which owns Organization, filter, and page-size identity."
     },
     {
+      "id": "src/components/features/notification/notification-feed-pagination.ts:queryKey#3",
+      "owner": "Notification history re-anchoring",
+      "policy": "The head-fetch wrapper resets only the caller-supplied history key when a refreshed head no longer reaches it; its only production caller passes notificationKeys.list from notification-queries.ts for the same Organization, filter, and page size as the head it wraps."
+    },
+    {
       "id": "src/components/features/portal/portal-group-cache-policy.ts:queryKey#1",
       "owner": "Portal Group cache fan-out",
       "policy": "The mapped value comes only from affectedProjectionKeys, whose closed array is built from portalKeys.groups, portalKeys.goalSubjects, and portalKeys.goalSubjectNames for the exact Property."
@@ -293,6 +298,18 @@
       "classification": "server_draft",
       "owner": "Notification quiet-hours editor",
       "policy": "Seed from persisted end time and keep input local until Save; NotificationsCategoryRow keys the editor by category and persisted start/end, so a changed server window remounts the draft."
+    },
+    {
+      "id": "src/components/features/settings/use-notification-preference-saves.ts:useState(runner)",
+      "classification": "local_runtime",
+      "owner": "Notification preference save ordering",
+      "policy": "The lazy initializer constructs one page-lifetime serial runner that orders each preference row's saves; it holds only in-flight save promises, never a server-owned record, and the preferences query stays the authority."
+    },
+    {
+      "id": "src/components/features/settings/use-notification-preference-saves.ts:useState(requested)",
+      "classification": "local_runtime",
+      "owner": "Notification preference save ordering",
+      "policy": "Starts empty and holds only the values requested for a row while that row's saves are in flight, so the next edit builds on them and the control reflects the click; the entry is removed when the row's last save settles, after the mutation's refetch, leaving the preferences query as the only render source."
     },
     {
       "id": "src/components/features/staff/portal-responsibilities-modal.tsx:useState(primaryPortalId)",

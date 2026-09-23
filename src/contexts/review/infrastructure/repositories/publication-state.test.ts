@@ -588,6 +588,7 @@ describe.sequential('publication state machine (integration, migration 0015)', (
         propertyId: PROP_A,
         organizationId: ORG_A,
         authorId: USER_A,
+        outcome: 'unconfirmed',
         occurredAt: ambiguityAt,
       }),
       ambiguityAt,

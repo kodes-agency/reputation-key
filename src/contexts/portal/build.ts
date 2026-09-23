@@ -22,7 +22,11 @@ import { createS3StorageAdapter } from './infrastructure/adapters/s3-storage.ada
 import { createPortalTokenRepository } from './infrastructure/repositories/portal-token.repository'
 import { createPortalPublicationRepository } from './infrastructure/repositories/portal-publication.repository'
 import { createPortalScopeRepository } from './infrastructure/repositories/portal-scope.repository'
-import { createPortalResponsibleManagerRepository } from './infrastructure/repositories/portal-responsible-manager.repository'
+import {
+  createPortalResponsibilityRecoveryStore,
+  createPortalResponsibleManagerRepository,
+} from './infrastructure/repositories/portal-responsible-manager.repository'
+import { registerPortalPropertyLifecycleConsumers } from './infrastructure/property-lifecycle-outbox-consumers'
 import {
   createPortalAccessArtifactRepository,
   type ResolvePublishedAccessArtifactInput,
@@ -567,7 +571,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
             propertyId: portal.propertyId,
             status: health.status,
             reason: health.reason,
-            sourceVersion: health.sourceVersion,
+            effectiveFrom: health.effectiveFrom,
           }
         : null
     },
@@ -601,6 +605,10 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
 
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
     registerPortalHealthConsumers(consumerRegistry, portalHealthReconciliationStore)
+    registerPortalPropertyLifecycleConsumers(consumerRegistry, {
+      recoveryStore: createPortalResponsibilityRecoveryStore(deps.db),
+      clock: deps.clock,
+    })
   }
 
   return {

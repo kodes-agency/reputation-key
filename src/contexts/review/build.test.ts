@@ -45,6 +45,7 @@ function setup() {
     staffPublicApi: stubStaffApi,
     propertyApi: {
       getSourceEpoch: async () => ({ sourceEpoch: 0 }),
+      getPublicationScope: async () => ({ lifecycleState: 'active', sourceEpoch: 0 }),
     },
   })
   return { api, jobQueue }

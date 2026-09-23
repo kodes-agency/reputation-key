@@ -15,7 +15,10 @@
 //      approval" — the title says what the reader must do.
 //   3. Say WHERE. A locally collected guest rating may add context to Portal
 //      feedback, but Google/provider ratings never enter Notification storage.
-//   4. Say HOW LONG. `waitingHours` turns a queue item into an SLA breach.
+//   4. Say HOW LONG something had waited when the notice was raised, where
+//      it was waiting. The read measures it (`waitedHours`); it is a fact
+//      beside the sentence (email facts line, in-app meta strip), never
+//      inside it, and never an age that keeps growing after the fact.
 //   5. One primary action, imperative, ≤ 3 words.
 //   6. Degrade gracefully. Every field is optional; missing metadata must
 //      shorten the sentence, never produce "undefined" or an empty title.
@@ -48,37 +51,29 @@ export type NotificationLink = Readonly<{
 /** Opens the Feedback dialog on "Your reports" from anywhere in the app. */
 export const BETA_FEEDBACK_REPORTS_ANCHOR = 'beta-feedback-reports'
 
+/** Who acted, as the subject that opens a sentence. */
 const ROLE_LABELS: Record<NotificationActorRole, string> = {
-  account_admin: 'an account admin',
-  property_manager: 'a property manager',
-  staff: 'a team member',
+  account_admin: 'An account admin',
+  property_manager: 'A property manager',
+  staff: 'A team member',
 }
-
-const capitalise = (value: string): string =>
-  value.charAt(0).toUpperCase() + value.slice(1)
 
 /** " · Riverside Hotel" style suffix, or "" when the name is unknown. */
 const atProperty = (payload: NotificationPayload): string =>
   payload.propertyName === undefined ? '' : ` at ${payload.propertyName}`
 
 /**
- * "3h" / "2d" — compact age. Returns "" below one hour so fresh items do not
- * get a misleading "0h" badge.
+ * "3h" / "2d": how long the item had waited when the notice was raised.
+ * Returns "" when nothing was waiting, and below one hour so a fresh item gets
+ * no "0h".
  */
-export const formatWaitingAge = (hours: number | undefined): string => {
+export const waitingAge = ({ waitedHours: hours }: NotificationPayload): string => {
   if (hours === undefined || hours < 1) return ''
-  if (hours < 24) return `${hours}h`
-  return `${Math.floor(hours / 24)}d`
-}
-
-/** "waiting 3h" clause, or "" when the item is fresh or unmeasured. */
-const waitedFor = (payload: NotificationPayload): string => {
-  const age = formatWaitingAge(payload.waitingHours)
-  return age === '' ? '' : `Waiting ${age}.`
+  return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`
 }
 
 const byRole = (payload: NotificationPayload): string =>
-  payload.actorRole === undefined ? 'Someone' : capitalise(ROLE_LABELS[payload.actorRole])
+  payload.actorRole === undefined ? 'Someone' : ROLE_LABELS[payload.actorRole]
 
 /** Joins non-empty clauses with a single space. Keeps sentences clean when metadata is missing. */
 const sentence = (...parts: ReadonlyArray<string>): string =>
@@ -88,263 +83,356 @@ const sentence = (...parts: ReadonlyArray<string>): string =>
 const facts = (...parts: ReadonlyArray<string>): string =>
   parts.filter((part) => part !== '').join(' · ')
 
-/** Provider review copy is intentionally rating-free. */
-const reviewNoun = (): string => 'review'
+/** The facts line, led by the Property. */
+const factsAt = (p: NotificationPayload, ...parts: ReadonlyArray<string>): string =>
+  facts(p.propertyName ?? '', ...parts)
 
-/** Portal feedback may carry the locally collected private rating. */
-const inboxNoun = (payload: NotificationPayload): string =>
-  payload.platform === 'portal'
-    ? sentence(
-        payload.guestRating === undefined ? '' : `${payload.guestRating}-star`,
-        'feedback',
-      )
-    : reviewNoun()
+/**
+ * The sentence noun. A rating is a fact: the in-app strip shows it as stars
+ * and email in its facts line (`ratedNoun`), so a sentence never restates it.
+ */
+const inboxNoun = (p: NotificationPayload): string =>
+  p.platform === 'portal' ? 'feedback' : 'review'
+
+/** Guest feedback in the facts line, with its locally collected rating. */
+const ratedFeedback = (p: NotificationPayload): string =>
+  p.guestRating === undefined ? 'feedback' : `${p.guestRating}-star feedback`
+
+/**
+ * The facts-line noun. Portal feedback may carry its locally collected
+ * rating; a provider review never carries one.
+ */
+const ratedNoun = (p: NotificationPayload): string =>
+  p.platform === 'portal' ? ratedFeedback(p) : 'review'
 
 // ── Per-type renderers ──────────────────────────────────────────────
 // Each returns copy that reads correctly with an EMPTY payload and gets
 // sharper as metadata arrives.
 
-const renderOrganizationAccessGranted = (): RenderedNotification => ({
-  title: 'Organization access added',
-  body: 'Your account can now access this organization.',
+/**
+ * An account notice: its summary is its title, in the facts line's case.
+ * Renderers call it rather than being built by it at module load, which would
+ * make this module side-effectful and pull it into every chunk that imports
+ * the Feed public API.
+ */
+const accountNotice = (title: string, body: string): RenderedNotification => ({
+  title,
+  body,
   actionLabel: 'Review account',
-  summary: 'organization access added',
+  summary: title.toLowerCase(),
 })
 
-const renderOrganizationRoleChanged = (): RenderedNotification => ({
-  title: 'Organization role updated',
-  body: 'Your account permissions for this organization were updated.',
-  actionLabel: 'Review account',
-  summary: 'organization role updated',
-})
+const renderOrganizationAccessGranted = (): RenderedNotification =>
+  accountNotice(
+    'Organization access added',
+    'Your account can now access this organization.',
+  )
 
-const renderOrganizationAccessRemoved = (): RenderedNotification => ({
-  title: 'Organization access removed',
-  body: 'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
-  actionLabel: 'Review account',
-  summary: 'organization access removed',
-})
+const renderOrganizationRoleChanged = (): RenderedNotification =>
+  accountNotice(
+    'Organization role updated',
+    'Your account permissions for this organization were updated.',
+  )
+
+const renderOrganizationAccessRemoved = (): RenderedNotification =>
+  accountNotice(
+    'Organization access removed',
+    'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
+  )
 
 /**
- * LIF-01 program bullet 5. Deliberately states the consequence without naming
- * a deadline the template cannot verify. No shipped page exposes pending-purge
- * actions, so the copy directs the AccountAdmin to support; the generic
- * Organization notification link still opens their profile and says so.
+ * LIF-01 program bullet 5. Purge Pending has no timer: support begins the
+ * irreversible purge, so deletion can start at any time and only support can
+ * cancel it first. The subject leads with "deletion" so a 60-character clip
+ * keeps it. No shipped page exposes pending-purge actions; the generic
+ * Organization link still opens the profile, and the label says so.
  */
-const renderOrganizationPurgePending = (): RenderedNotification => ({
-  title: 'Final notice: this organization is scheduled for permanent deletion',
-  body: 'The recovery window has ended. Data will be permanently erased and cannot be restored. No self-service action is available. Contact support immediately while deletion is still pending.',
+const renderOrganizationPurgePending = (
+  p: NotificationPayload,
+): RenderedNotification => ({
+  title: `Final notice: permanent deletion of ${p.organizationName ?? 'this organization'}`,
+  body: 'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only RepKey support can stop it, before it starts. Contact support now.',
   actionLabel: 'Open profile',
-  summary: 'organization purge pending',
+  summary: facts(p.organizationName ?? '', 'permanent deletion pending'),
 })
 
 const renderReviewCreated = (p: NotificationPayload): RenderedNotification => ({
-  title: `New ${reviewNoun()}${atProperty(p)}`,
+  title: `New ${'review'}${atProperty(p)}`,
   body: 'Open it to read the review and reply.',
   actionLabel: 'Read review',
-  summary: facts(p.propertyName ?? '', reviewNoun()),
+  summary: factsAt(p, 'review'),
 })
 
 const renderReviewUpdated = (p: NotificationPayload): RenderedNotification => ({
   title: `Review updated${atProperty(p)}`,
   body: 'The guest changed their review. Open it to check the latest details.',
   actionLabel: 'Review update',
-  summary: facts(p.propertyName ?? '', 'updated review'),
+  summary: factsAt(p, 'updated review'),
 })
 
+// Always feedback, even when the item lookup failed and left no platform.
 const renderFeedbackCreated = (p: NotificationPayload): RenderedNotification => ({
   title: `New guest feedback${atProperty(p)}`,
-  body: sentence(
-    p.guestRating === undefined ? '' : `Rated ${p.guestRating} out of 5.`,
-    'Open it to read the feedback.',
-  ),
+  body: 'Open it to read the feedback.',
   actionLabel: 'Read feedback',
-  summary: facts(
-    p.propertyName ?? '',
-    p.guestRating === undefined ? '' : `${p.guestRating}-star feedback`,
-  ),
+  summary: factsAt(p, ratedFeedback(p)),
 })
 
 const renderReplyPendingApproval = (p: NotificationPayload): RenderedNotification => ({
   title: `Approve a reply${atProperty(p)}`,
-  body: sentence(
-    `${byRole(p)} drafted a reply to a ${reviewNoun()}.`,
-    'It stays unpublished until you approve it.',
-    waitedFor(p),
-  ),
+  body: `${byRole(p)} drafted a reply to a ${'review'}. It stays unpublished until you approve it.`,
   actionLabel: 'Review reply',
-  summary: facts(
-    p.propertyName ?? '',
-    reviewNoun(),
-    formatWaitingAge(p.waitingHours) === ''
-      ? ''
-      : `waiting ${formatWaitingAge(p.waitingHours)}`,
-  ),
+  summary: factsAt(p, 'review'),
 })
 
 const renderReplyApproved = (p: NotificationPayload): RenderedNotification => ({
   title: `Your reply was approved${atProperty(p)}`,
   body: 'It is queued to publish to Google.',
   actionLabel: 'View reply',
-  summary: facts(p.propertyName ?? '', reviewNoun()),
+  summary: factsAt(p, 'review'),
 })
+
+/**
+ * The approver's reason never enters a notification (ADR 0030); only whether
+ * there is one does. The flag outranks a quoted reason, which only historical
+ * rows carry, because a coalesced row's flag describes the latest rejection.
+ * With neither, the copy must not claim the reason is there or missing.
+ */
+const rejectionReasonBody = (p: NotificationPayload): string => {
+  if (p.hasModerationReason === true) {
+    return 'The approver left a reason. Open the reply to read it, then edit and resubmit.'
+  }
+  if (p.hasModerationReason === false) {
+    return 'It was sent back without a reason. Edit it and resubmit.'
+  }
+  if (p.moderationReason !== undefined) {
+    return sentence(`Reason: ${p.moderationReason}`, 'Edit it and resubmit.')
+  }
+  return 'Open it to see any note from the approver, then edit and resubmit.'
+}
 
 const renderReplyRejected = (p: NotificationPayload): RenderedNotification => ({
   title: `Your reply needs changes${atProperty(p)}`,
-  body: sentence(
-    p.moderationReason === undefined
-      ? 'It was sent back without a reason.'
-      : `Reason: ${p.moderationReason}`,
-    'Edit it and resubmit.',
-  ),
+  body: rejectionReasonBody(p),
   actionLabel: 'Edit reply',
-  summary: facts(p.propertyName ?? '', reviewNoun()),
+  summary: factsAt(p, 'review'),
 })
 
 const renderReplyPublished = (p: NotificationPayload): RenderedNotification => ({
   title: `Your reply is live on Google${atProperty(p)}`,
   body: 'Guests can see it now. No further action needed.',
-  actionLabel: 'View on review',
-  summary: facts(p.propertyName ?? '', reviewNoun()),
+  actionLabel: 'View reply',
+  summary: factsAt(p, 'review'),
 })
 
-const renderReplyPublishFailed = (p: NotificationPayload): RenderedNotification => ({
-  title: `Reply failed to publish${atProperty(p)}`,
-  body: sentence(
-    `Google rejected the reply to a ${reviewNoun()}.`,
-    'Open it and retry — the draft is saved.',
-  ),
-  actionLabel: 'Retry publish',
-  summary: facts(p.propertyName ?? '', reviewNoun(), 'publish failed'),
+// `not_sent` includes an answered 429, so it says nothing was posted, as the
+// Inbox's "Not published" copy does, not that nothing reached Google.
+const PUBLISH_FAILURE_BODIES = {
+  not_sent: 'Nothing was posted to Google, so it is safe to try again.',
+  refused: 'Nothing was posted to Google. Check the Google connection, then try again.',
+  unconfirmed: "RepKey won't send it twice. Open it to check.",
+} as const
+
+// A connection waiting for a fresh consent refuses every retry, and the
+// author may not be the one allowed to reconnect it, so the copy says who can.
+const renderReplyPublishNeedsReconnect = (
+  p: NotificationPayload,
+): RenderedNotification => ({
+  title: `Reply not published${atProperty(p)}`,
+  body: 'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry — the draft is saved.',
+  actionLabel: 'Open reply',
+  summary: factsAt(p, 'review', 'reconnect Google'),
 })
 
+/**
+ * One fact covers every way a publication ends without a confirmed live
+ * reply, and Google never saw most of them, so the copy follows the outcome
+ * and never says Google rejected it. A reply that may be live gets no retry;
+ * neither does a row too old to say. When the remedy is reconnecting Google,
+ * that cause decides the copy instead: a retry alone cannot succeed. It can
+ * reach a responsible manager instead of the author, so it never says "your".
+ */
+const renderReplyPublishFailed = (p: NotificationPayload): RenderedNotification => {
+  if (p.publishFailureCause === 'google_reauthorization_required') {
+    return renderReplyPublishNeedsReconnect(p)
+  }
+  const outcome = p.publishOutcome
+  const state = outcome === 'unconfirmed' ? 'not confirmed' : 'not published'
+  return {
+    title: `Reply ${state}${outcome === 'unconfirmed' ? ' on Google' : ''}${atProperty(p)}`,
+    body:
+      outcome === undefined
+        ? 'Open the reply to see where it stands.'
+        : PUBLISH_FAILURE_BODIES[outcome],
+    actionLabel:
+      outcome === 'not_sent' || outcome === 'refused' ? 'Retry publish' : 'View reply',
+    summary: factsAt(p, 'review', state),
+  }
+}
+
+/** The shared close of a notice that asks the reader to look, not to act. */
+const SEE_WHERE = 'Open it to see where it stands.'
+
+/**
+ * Escalation is a manual call with no reason field, and an answered or closed
+ * item can be escalated too. So the copy says who asked for attention and
+ * nothing about why, or about the item being unanswered.
+ */
 const renderInboxEscalated = (p: NotificationPayload): RenderedNotification => ({
   title: `Escalated: ${inboxNoun(p)}${atProperty(p)}`,
-  body: sentence(
-    'This was escalated because it has gone unanswered.',
-    waitedFor(p),
-    'It needs a reply now.',
-  ),
-  actionLabel: 'Respond now',
-  summary: facts(
-    p.propertyName ?? '',
-    inboxNoun(p),
-    formatWaitingAge(p.waitingHours) === ''
-      ? 'escalated'
-      : `unanswered ${formatWaitingAge(p.waitingHours)}`,
-  ),
+  body: `${byRole(p)} escalated this for your attention. ${SEE_WHERE}`,
+  actionLabel: 'Open item',
+  summary: factsAt(p, ratedNoun(p), 'escalated'),
 })
 
+// The words below follow the glossary and the Inbox thread: an escalation is
+// "resolved", an item is "reopened", a note is an Internal Note, and private
+// feedback is handled, never replied to. "Follow-up" is the Inbox's word for a
+// feedback outcome, so no notice uses it for anything else.
+
 const renderInboxEscalationResolved = (p: NotificationPayload): RenderedNotification => ({
-  title: `Follow-up updated${atProperty(p)}`,
-  body: 'This item is no longer marked for extra attention. You can open it to review the latest status.',
+  title: `Escalation resolved${atProperty(p)}`,
+  body: `This item is no longer escalated. ${SEE_WHERE}`,
   actionLabel: 'View item',
-  summary: facts(p.propertyName ?? '', 'follow-up updated'),
+  summary: factsAt(p, 'escalation resolved'),
 })
 
 const renderInboxReopened = (p: NotificationPayload): RenderedNotification => ({
-  title: `Follow-up reopened${atProperty(p)}`,
-  body: sentence(
-    `This ${inboxNoun(p)} needs another look.`,
-    'Open it to review the latest status.',
-  ),
+  title: `Reopened: ${inboxNoun(p)}${atProperty(p)}`,
+  body: `This ${inboxNoun(p)} needs another look. ${SEE_WHERE}`,
   actionLabel: 'View item',
-  summary: facts(p.propertyName ?? '', inboxNoun(p), 'follow-up reopened'),
+  summary: factsAt(p, ratedNoun(p), 'reopened'),
 })
 
+/** "an item" / "7 items" for the grouped Inbox notices. */
+const someItems = (count: number): string => (count === 1 ? 'an item' : `${count} items`)
+
+/**
+ * The grouped Inbox notices: "7 items reopened". `body` receives "an item" or
+ * "7 items" to finish the sentence with.
+ */
+const renderInboxBulk = (
+  p: NotificationPayload,
+  outcome: string,
+  body: (items: string) => string,
+): RenderedNotification => {
+  const count = p.itemCount ?? 1
+  return {
+    title: `${count} ${count === 1 ? 'item' : 'items'} ${outcome}${atProperty(p)}`,
+    body: body(someItems(count)),
+    actionLabel: 'Open Inbox',
+    summary: factsAt(p, `${count} ${outcome}`),
+  }
+}
+
+const renderInboxBulkReopened = (p: NotificationPayload): RenderedNotification =>
+  renderInboxBulk(
+    p,
+    'reopened',
+    (items) => `${byRole(p)} reopened ${items}. Open the Inbox to take a look.`,
+  )
+
 const renderResponseTargetHalfway = (p: NotificationPayload): RenderedNotification => ({
-  title: `Response target is halfway${atProperty(p)}`,
-  body: 'This item remains open. Open it when you are ready to continue the follow-up.',
+  title: `Halfway to the response target${atProperty(p)}`,
+  body: 'This item is still open.',
   actionLabel: 'View item',
-  summary: facts(p.propertyName ?? '', inboxNoun(p), 'target halfway'),
+  summary: factsAt(p, ratedNoun(p), 'target halfway'),
 })
 
 const renderResponseTargetPassed = (p: NotificationPayload): RenderedNotification => ({
-  title: `Response target time has passed${atProperty(p)}`,
-  body: 'This item remains open. Review it and choose the next step when practical.',
+  title: `Response target passed${atProperty(p)}`,
+  body: 'This item is still open. Review it and choose the next step when practical.',
   actionLabel: 'View item',
-  summary: facts(p.propertyName ?? '', inboxNoun(p), 'target time passed'),
+  summary: factsAt(p, ratedNoun(p), 'target passed'),
 })
 
 const renderInboxAssigned = (p: NotificationPayload): RenderedNotification => ({
   title: `Assigned to you: ${inboxNoun(p)}${atProperty(p)}`,
-  body: sentence(`${byRole(p)} assigned this to you.`, 'You own the reply.'),
+  body: `${byRole(p)} assigned this to you. The next step is yours.`,
   actionLabel: 'Open item',
-  summary: facts(p.propertyName ?? '', inboxNoun(p), 'assigned to you'),
+  summary: factsAt(p, ratedNoun(p), 'assigned to you'),
 })
 
-const renderInboxBulkAssigned = (p: NotificationPayload): RenderedNotification => {
-  const count = p.itemCount ?? 1
-  const noun = count === 1 ? 'Inbox item' : 'Inbox items'
-  return {
-    title: `${count} ${noun.toLowerCase()} assigned to you${atProperty(p)}`,
-    body: sentence(
-      `${byRole(p)} assigned ${count === 1 ? 'an item' : `${count} items`} to you.`,
-      'Open the Inbox to review your work.',
-    ),
-    actionLabel: 'Open Inbox',
-    summary: facts(p.propertyName ?? '', `${count} ${noun.toLowerCase()}`, 'assigned'),
-  }
-}
+const renderInboxBulkAssigned = (p: NotificationPayload): RenderedNotification =>
+  renderInboxBulk(
+    p,
+    'assigned to you',
+    (items) => `${byRole(p)} assigned ${items} to you. Open the Inbox to see your work.`,
+  )
 
 const renderNoteAdded = (p: NotificationPayload): RenderedNotification => ({
-  title: `New note on ${inboxNoun(p)}${atProperty(p)}`,
-  body: sentence(`${byRole(p)} left a note on this item.`, 'Open it to read the thread.'),
+  title: `New internal note on ${p.platform === 'portal' ? 'feedback' : 'a review'}${atProperty(p)}`,
+  body: `${byRole(p)} left a note on this item. Open it to read the thread.`,
   actionLabel: 'Read note',
-  summary: facts(p.propertyName ?? '', inboxNoun(p), 'new note'),
+  summary: factsAt(p, ratedNoun(p), 'internal note'),
 })
 
-const renderPortalResponsibilityNeeded = (): RenderedNotification => ({
-  title: 'Portal needs a responsible manager',
+const renderPortalResponsibilityNeeded = (
+  p: NotificationPayload,
+): RenderedNotification => ({
+  title: `A portal${atProperty(p)} needs a responsible manager`,
   body: 'Choose an eligible manager so portal updates reach the right people.',
   actionLabel: 'Choose manager',
-  summary: 'responsible manager needed',
+  summary: factsAt(p, 'responsible manager needed'),
 })
 
 const renderPortalHealthAttention = (p: NotificationPayload): RenderedNotification => ({
   title: `A guest portal${atProperty(p)} may need attention`,
-  body: 'Open its settings to review what changed and the available next steps.',
+  body: 'Open its settings to see what changed and what to do next.',
   actionLabel: 'Review portal',
-  summary: facts(p.propertyName ?? '', 'Portal may need attention'),
+  summary: factsAt(p, 'Portal may need attention'),
 })
 
-const renderPropertyResponsibilityNeeded = (): RenderedNotification => ({
-  title: 'Property needs a responsible manager',
-  body: 'Choose an eligible manager so property-wide updates reach the right people.',
-  actionLabel: 'Choose manager',
-  summary: 'Property responsible manager needed',
-})
-
-const renderIntegrationReauthorizationRequired = (
+const renderPropertyResponsibilityNeeded = (
   p: NotificationPayload,
 ): RenderedNotification => ({
-  title: `Google connection needs attention${atProperty(p)}`,
-  body: 'Reconnect the account to keep Google review updates and replies working.',
-  actionLabel: 'Review connection',
-  summary: facts(p.propertyName ?? '', 'Google connection needs attention'),
+  title: `${p.propertyName ?? 'A property'} needs a responsible manager`,
+  body: 'Choose an eligible manager so property-wide updates reach the right people.',
+  actionLabel: 'Choose manager',
+  summary: factsAt(p, 'responsible manager needed'),
 })
 
+/**
+ * The Google connection belongs to the Organization. The Property its notice
+ * is filed under is only a delivery anchor, so the copy never names it.
+ *
+ * When Google refused the grant itself, updates and replies have already
+ * stopped, so the copy says so and leads with the one action that restores
+ * them.
+ */
+const renderIntegrationReauthorizationRequired = (
+  p: NotificationPayload,
+): RenderedNotification =>
+  p.reauthorizationCause === 'provider_revoked'
+    ? {
+        title: 'Reconnect Google',
+        body: 'Google no longer accepts RepKey\u2019s access, so review updates and replies are paused.',
+        actionLabel: 'Reconnect Google',
+        summary: 'Google access ended',
+      }
+    : {
+        title: 'Google connection needs attention',
+        body: 'Reconnect the account to keep Google review updates and replies working.',
+        actionLabel: 'Review connection',
+        summary: 'Google connection needs attention',
+      }
+
+/** "Goal completed: Reply within 24h at Riverside Hotel". */
+const goalTitle = (lead: string, p: NotificationPayload): string =>
+  `${lead}${p.goalName === undefined ? '' : `: ${p.goalName}`}${atProperty(p)}`
+
 const renderGoalCompleted = (p: NotificationPayload): RenderedNotification => ({
-  title:
-    p.goalName === undefined
-      ? `Goal completed${atProperty(p)}`
-      : `Goal completed: ${p.goalName}`,
-  body: sentence(
-    p.propertyName === undefined ? '' : `${p.propertyName} hit its target.`,
-    'Open the property to see the numbers.',
-  ),
+  title: goalTitle('Goal completed', p),
+  body: 'It hit its target. Open the goal to see the numbers.',
   actionLabel: 'View progress',
-  summary: facts(p.propertyName ?? '', p.goalName ?? 'goal completed'),
+  summary: factsAt(p, p.goalName ?? 'goal completed'),
 })
 
 const renderGoalResultRevised = (p: NotificationPayload): RenderedNotification => ({
-  title:
-    p.goalName === undefined
-      ? `Goal result updated${atProperty(p)}`
-      : `Goal result updated: ${p.goalName}`,
-  body: 'A monthly result changed. Open the property to see the current metrics.',
+  title: goalTitle('Goal result updated', p),
+  body: 'A monthly result changed. Open the goal to see the current metrics.',
   actionLabel: 'View result',
-  summary: facts(p.propertyName ?? '', p.goalName ?? 'goal result updated'),
+  summary: factsAt(p, p.goalName ?? 'goal result updated'),
 })
 
 /**
@@ -391,6 +479,7 @@ const RENDERERS: Record<
   'inbox.escalated': renderInboxEscalated,
   'inbox.escalation_resolved': renderInboxEscalationResolved,
   'inbox.reopened': renderInboxReopened,
+  'inbox.bulk_reopened': renderInboxBulkReopened,
   'inbox.response_target_halfway': renderResponseTargetHalfway,
   'inbox.response_target_passed': renderResponseTargetPassed,
   'inbox.assigned': renderInboxAssigned,
@@ -406,64 +495,112 @@ const RENDERERS: Record<
 }
 
 /**
+ * How a coalesced row says it repeated, with the verb for what repeated; `#`
+ * is the count, the first event included. Types without one say only that it
+ * happened again, which is true of all of them.
+ */
+const REPEATED: Partial<Record<NotificationType, string>> = {
+  'inbox_note.added': '# notes added.',
+  'inbox.escalated': 'Escalated # times.',
+  'review.updated': 'Updated # times.',
+}
+
+/**
  * Render the copy for a notification. Pure — same inputs, same output — so the
  * in-app list, the email worker, and the digest all agree.
  *
- * `occurrences > 1` appends a repeat marker, because a row that coalesced three
- * escalations should not read identically to one that fired once (ADR 0046 r.2).
+ * `occurrences > 1` ends the body with one repeat sentence, because a row that
+ * coalesced three escalations should not read like one that fired once (ADR
+ * 0046 r.2). The wait the notice was raised with ends the facts line email
+ * shows; the in-app row shows it in its own strip.
  */
 export const renderNotification = (
   type: NotificationType,
   payload: NotificationPayload,
 ): RenderedNotification => {
   const rendered = RENDERERS[type](payload)
+  const age = waitingAge(payload)
   const repeats = payload.occurrences ?? 1
-  if (repeats <= 1) return rendered
   return {
     ...rendered,
-    body: sentence(rendered.body, `Updated ${repeats} times.`),
-    summary: facts(rendered.summary, `${repeats}x`),
+    body:
+      repeats > 1
+        ? sentence(
+            rendered.body,
+            (REPEATED[type] ?? 'This happened # times.').replace('#', `${repeats}`),
+          )
+        : rendered.body,
+    summary: facts(rendered.summary, age === '' ? '' : `waited ${age}`),
   }
+}
+
+/** A page of the row's Property, or the Property list for a row without one. */
+const propertyLink = (
+  propertyId: string | null,
+  page: string,
+  search: Readonly<Record<string, string>> = {},
+): NotificationLink =>
+  propertyId === null
+    ? { path: '/properties', search: {} }
+    : { path: `/properties/${propertyId}${page}`, search }
+
+/**
+ * The queue a grouped Inbox notice opens at its Property instead of one of its
+ * items: an assignment the recipient's own work, a reopen every open item.
+ */
+const GROUPED_INBOX_QUEUES: Partial<Record<NotificationType, string>> = {
+  'inbox.bulk_assigned': 'mine',
+  'inbox.bulk_reopened': 'open',
 }
 
 /**
  * Deep link for a notification. Every action-oriented type is inbox-item keyed
  * (CONTEXT.md decision log), so the honest target is the inbox detail pane.
+ * A grouped notice is the exception: it opens a queue at that Property, which
+ * is what its copy promises, when the caller passes the notification `type`.
  *
  * Returned as `{ path, search }` rather than a string because TanStack Router
  * requires the typed form — passing `'/inbox?itemId=x'` as `to` silently fails
  * to apply the query.
  *
  * `propertyId` comes from the notification ROW, not from `resourceId`: a
- * `goal` notification stamps the goalId as its resource, and the previous
- * builder used that goalId as a propertyId, producing a dead
- * `/properties/<goalId>` link.
+ * `goal` notification stamps its monthly result as its resource, and the
+ * previous builder used that id as a propertyId, producing a dead
+ * `/properties/<id>` link.
  */
 export const notificationLink = (
   resourceType: NotificationResourceType,
   resourceId: string,
   propertyId: string | null,
+  type?: NotificationType,
 ): NotificationLink => {
   switch (resourceType) {
     case 'organization':
       return { path: '/settings/profile', search: {} }
-    case 'inbox_item':
-      return { path: '/inbox', search: { itemId: resourceId } }
+    case 'inbox_item': {
+      const queue = type && GROUPED_INBOX_QUEUES[type]
+      return queue === undefined
+        ? { path: '/inbox', search: { itemId: resourceId } }
+        : {
+            path: '/inbox',
+            search: propertyId === null ? { queue } : { queue, propertyId },
+          }
+    }
     case 'reply':
       // Legacy rows only: pre-2026-07 reply notifications stamped a replyId,
       // which no longer resolves. Land on the inbox list rather than 404.
       return { path: '/inbox', search: {} }
     case 'goal':
-      return { path: `/properties/${propertyId}`, search: {} }
+      // The resource is the monthly result the notice reports; the Goals page
+      // opens the goal it belongs to.
+      return propertyLink(propertyId, '/goals', { result: resourceId })
     case 'badge':
-      return { path: `/properties/${propertyId}`, search: {} }
+      return propertyLink(propertyId, '')
     case 'portal':
-      return {
-        path: `/properties/${propertyId}/portals/${resourceId}`,
-        search: { tab: 'settings' },
-      }
+      return propertyLink(propertyId, `/portals/${resourceId}`, { tab: 'settings' })
     case 'property':
-      return { path: `/properties/${propertyId}/settings`, search: {} }
+      // The only Property notice asks for a manager, and the picker is here.
+      return propertyLink(propertyId, '/settings/people')
     case 'integration':
       return { path: '/settings/integrations', search: {} }
     case 'beta_feedback_report':

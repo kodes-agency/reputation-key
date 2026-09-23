@@ -17,7 +17,12 @@ import {
 } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { reviewReplyPublicationRequested } from '#/contexts/review/domain/events'
-import { inboxBulkAssignmentCompleted } from '#/contexts/inbox/domain/events'
+import {
+  inboxBulkAssignmentCompleted,
+  inboxBulkReopenCompleted,
+  inboxHandlingCycleOpened,
+  inboxHandlingCycleReopened,
+} from '#/contexts/inbox/domain/events'
 import { goalMonthlyResultClosed } from '#/contexts/reporting/domain/goal-events'
 import { EVENT_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
 import { z, ZodError } from 'zod/v4'
@@ -813,6 +818,93 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
           nextAssignee: 'manager-1',
         },
       ],
+    })
+  })
+
+  it('keeps the reopened cycles of a bulk reopen as identifiers and revisions', () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+    const reopened = {
+      inboxItemId: inboxItemId('6a000000-0000-4000-8000-000000000010'),
+      propertyId: propertyId('6a000000-0000-4000-8000-000000000020'),
+      sourceType: 'feedback' as const,
+      sourceId: feedbackId('6a000000-0000-4000-8000-000000000030'),
+      cycleNumber: 3,
+      sourceRevision: 1,
+      stateRevision: 4,
+    }
+    const event = inboxBulkReopenCompleted({
+      organizationId: organizationId('org-1'),
+      userId: userId('actor-1'),
+      bulkId: '6a000000-0000-4000-8000-000000000001',
+      reopened: [reopened],
+      occurredAt: NOW,
+    })
+
+    expect(toOutboxEvent(event).payload).toMatchObject({
+      userId: 'actor-1',
+      bulkId: '6a000000-0000-4000-8000-000000000001',
+      count: 1,
+      reopened: [
+        {
+          inboxItemId: '6a000000-0000-4000-8000-000000000010',
+          propertyId: '6a000000-0000-4000-8000-000000000020',
+          sourceType: 'feedback',
+          sourceId: '6a000000-0000-4000-8000-000000000030',
+          cycleNumber: 3,
+          sourceRevision: 1,
+          stateRevision: 4,
+        },
+      ],
+    })
+  })
+
+  it('keeps the mark on a cycle opened by the command that created its item', () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+    const event = inboxHandlingCycleOpened({
+      inboxItemId: inboxItemId('6a000000-0000-4000-8000-000000000010'),
+      cycleNumber: 2,
+      stateRevision: 3,
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('6a000000-0000-4000-8000-000000000020'),
+      sourceType: 'review',
+      sourceId: reviewId('6a000000-0000-4000-8000-000000000030'),
+      sourceRevision: 2,
+      openReason: 'material_revision_changed',
+      actorType: 'provider',
+      userId: null,
+      triggerEventId: null,
+      openedWithItem: true,
+      occurredAt: NOW,
+    })
+
+    expect(toOutboxEvent(event).payload).toMatchObject({ openedWithItem: true })
+  })
+
+  it('keeps the bulk command on a reopen fact that belongs to one', () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+    const event = inboxHandlingCycleReopened({
+      inboxItemId: inboxItemId('6a000000-0000-4000-8000-000000000010'),
+      cycleNumber: 3,
+      stateRevision: 4,
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('6a000000-0000-4000-8000-000000000020'),
+      sourceType: 'review',
+      sourceId: reviewId('6a000000-0000-4000-8000-000000000030'),
+      sourceRevision: 1,
+      reopenReason: 'new_information',
+      actorType: 'user',
+      userId: userId('actor-1'),
+      triggerEventId: null,
+      source: 'web',
+      bulkId: '6a000000-0000-4000-8000-000000000001',
+      occurredAt: NOW,
+    })
+
+    expect(toOutboxEvent(event).payload).toMatchObject({
+      bulkId: '6a000000-0000-4000-8000-000000000001',
     })
   })
 

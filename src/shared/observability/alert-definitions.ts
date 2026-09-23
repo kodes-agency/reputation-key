@@ -26,6 +26,7 @@
 // exact contract.
 
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
+import type { SnapshotSection } from '#/shared/observability/metrics-schema'
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -96,6 +97,22 @@ export type AlertDefinition = Readonly<{
    * lands in a later slice (evaluate: null — nothing may dispatch it).
    */
   implemented: boolean
+  /**
+   * Snapshot sections whose degraded fallback evaluates this alert quiet.
+   * While one of them is degraded the reading is unknown, not healthy:
+   * evaluateAlerts holds the alert's prior state (a firing alert is neither
+   * cleared nor re-paged, a quiet one cannot fire) and
+   * observability.snapshot-degraded pages for the blindness. Alerts that fire
+   * on their own section's fallback (fail-visible) declare none.
+   */
+  blindedBy: readonly SnapshotSection[]
+  /**
+   * true = a breach pages only when it holds on two consecutive evaluations:
+   * the first is `pending` (evaluateAlerts), the second dispatches. For a
+   * signal that can blink — one slow read — rather than one whose single
+   * reading is already the impact.
+   */
+  sustained: boolean
   /** Pure evaluation; null exactly when implemented is false. */
   evaluate:
     ((snapshot: OperationsSnapshot, aux: AlertAuxReads) => AlertEvent | null) | null
@@ -156,6 +173,52 @@ export const SYNC_SWEEP_LAG_ALERT_MS = 4 * DISCOVERY_SWEEP_INTERVAL_MS
 export const NOTIFICATION_EMAIL_STALLED_ALERT_MS = 2 * 60 * 60 * 1000
 
 /**
+ * The trailing window the email-outcome gauges count over (mirrors the
+ * notification email read in health-metrics.ts).
+ */
+export const NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS = 24 * 60 * 60 * 1000
+
+/**
+ * A permanent refusal is never retried: that email is lost. Isolated refusals
+ * (one bad address among accepted mail) stay a gauge; MORE than half of the
+ * window's attempts refused is provider-level breakage — a revoked API key, a
+ * lapsed domain verification, a transport failure classified permanent.
+ */
+export const NOTIFICATION_EMAIL_PERMANENT_FAILURE_SHARE_ALERT_PERCENT = 50
+
+/**
+ * Every non-429 4xx is classified permanent, a recipient-level 400/422 too,
+ * so at beta volume one malformed address with nothing else sent is a 100%
+ * share. A share is only a provider fault once refusals are not isolated.
+ */
+export const NOTIFICATION_EMAIL_PERMANENT_FAILURE_MIN_COUNT = 3
+
+/**
+ * Resend's published bounce ceiling. Above it the provider may throttle or
+ * suspend the sending domain, which stops every email.
+ */
+export const NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT = 4
+
+/**
+ * Beta volume makes one or two bounces a large rate; a rate is only a signal
+ * once bounces are not isolated. (Each bounce already suppresses its
+ * recipient.)
+ */
+export const NOTIFICATION_EMAIL_BOUNCE_MIN_COUNT = 3
+
+/**
+ * Accepted mail with no provider outcome past the 6h grace, over the gauge's
+ * 7-day lookback. One or two can be a legitimately delayed delivery; more
+ * than two means the provider webhook is not reporting (unset
+ * RESEND_WEBHOOK_SECRET on web, a misconfigured endpoint, failing signatures)
+ * or the mail never reached a provider at all.
+ */
+export const NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT = 2
+
+/** The accepted-unresolved gauge's lookback (mirrors health-metrics.ts). */
+export const NOTIFICATION_EMAIL_UNRESOLVED_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
  * Approved in-app target measured from the durable source fact. This alert is
  * an oldest-outstanding breach signal, not a claim that one snapshot proves a
  * latency percentile; deployed p99 evidence remains a separate release gate.
@@ -206,6 +269,11 @@ const OWNER = 'Bozhidar Denev'
 
 // ── Definition helper ──────────────────────────────────────────────
 
+/** `part` as a percentage of `whole`, to one decimal (0 when whole is 0). */
+function percentOf(part: number, whole: number): number {
+  return whole <= 0 ? 0 : Math.round((part / whole) * 1000) / 10
+}
+
 /** The per-evaluation reading a definition produces when it breaches. */
 type AlertReading = Readonly<{ value: number; detail: string }>
 
@@ -222,14 +290,18 @@ function define(
     runbook: string
     windowMs: number
     threshold: number
+    blindedBy?: readonly SnapshotSection[]
+    sustained?: boolean
     read: (snapshot: OperationsSnapshot, aux: AlertAuxReads) => AlertReading | null
   }>,
 ): AlertDefinition {
-  const { read, ...statics } = def
+  const { read, blindedBy = [], sustained = false, ...statics } = def
   return {
     ...statics,
     owner: OWNER,
     implemented: true,
+    blindedBy,
+    sustained,
     evaluate: (snapshot, aux) => {
       const reading = read(snapshot, aux)
       if (reading === null) return null
@@ -248,7 +320,22 @@ function registered(
     threshold: number
   }>,
 ): AlertDefinition {
-  return { ...def, owner: OWNER, implemented: false, evaluate: null }
+  return {
+    ...def,
+    owner: OWNER,
+    implemented: false,
+    blindedBy: [],
+    sustained: false,
+    evaluate: null,
+  }
+}
+
+/** Implemented alerts whose input section is degraded in this snapshot. */
+function blindedAlerts(degraded: readonly string[]): readonly AlertDefinition[] {
+  return ALERT_DEFINITIONS.filter(
+    (def) =>
+      def.implemented && def.blindedBy.some((section) => degraded.includes(section)),
+  )
 }
 
 // ── Definitions ────────────────────────────────────────────────────
@@ -306,6 +393,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
           `invalidObservations=${jobs.invalidObservations}, ` +
           `handlerMissing=${jobs.handlerMissing}, ` +
           `schedulerMissing=${jobs.schedulerMissing}, ` +
+          `scheduleDenied=${jobs.scheduleDenied}, ` +
           `forbiddenDarkWork=${jobs.forbiddenDarkWork}, ` +
           `quarantinedSchedulers=${jobs.quarantinedSchedulers}, ` +
           `missedObjectives=${jobs.missedObjectives}, ` +
@@ -357,6 +445,36 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     },
   }),
 
+  // ── the monitoring's own inputs ──
+  // A degraded snapshot section reports a zero fallback, and zeros evaluate
+  // quiet: every alert reading it would otherwise clear and stay dark exactly
+  // while the database or Queue Redis is struggling. Those alerts hold their
+  // state (evaluateAlerts); this is the page that says they cannot see.
+  // Sustained: one slow read on one evaluation is a blink, not blindness, and
+  // a signal that times out every other run must not page P1 every other run.
+  define({
+    name: 'observability.snapshot-degraded',
+    severity: 'P1',
+    runbook: 'runbooks.md §23',
+    windowMs: 2 * EVAL_CADENCE_MS,
+    threshold: 0,
+    sustained: true,
+    read: (snapshot) => {
+      const blinded = blindedAlerts(snapshot.degraded)
+      if (blinded.length === 0) return null
+      const sections = snapshot.degraded.filter((section) =>
+        blinded.some((def) => def.blindedBy.some((input) => input === section)),
+      )
+      return {
+        value: blinded.length,
+        detail:
+          `operations snapshot section(s) ${sections.join(', ')} unreadable — ` +
+          `${blinded.length} alert(s) cannot evaluate and hold their last state: ` +
+          blinded.map((def) => def.name).join(', '),
+      }
+    },
+  }),
+
   // ── queue oldest age and stalled/quarantine growth ──
   define({
     name: 'queue.oldest-age',
@@ -364,6 +482,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §7',
     windowMs: OUTBOX_OLDEST_UNPUBLISHED_ALERT_MS,
     threshold: OUTBOX_OLDEST_UNPUBLISHED_ALERT_MS,
+    blindedBy: ['health.outbox'],
     read: (snapshot) => {
       const age = snapshot.outbox.oldestUnpublishedAgeMs
       if (age == null || age <= OUTBOX_OLDEST_UNPUBLISHED_ALERT_MS) return null
@@ -382,6 +501,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §7',
     windowMs: EVAL_CADENCE_MS,
     threshold: 0,
+    blindedBy: ['health.outbox'],
     read: (snapshot) => {
       const count = snapshot.outbox.stalledLeaseCount
       if (count <= 0) return null
@@ -397,6 +517,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §4',
     windowMs: QUARANTINE_REDRIVE_SLA_ALERT_MS,
     threshold: QUARANTINE_REDRIVE_SLA_ALERT_MS,
+    blindedBy: ['health.quarantine'],
     read: (snapshot) => {
       const q = snapshot.quarantine
       if (q == null || q.count <= 0) return null
@@ -419,6 +540,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §14',
     windowMs: QUARANTINE_NONEMPTY_ALERT_MS,
     threshold: QUARANTINE_NONEMPTY_ALERT_MS,
+    blindedBy: ['health.quarantine'],
     read: (snapshot) => {
       const q = snapshot.quarantine
       if (q == null || q.count <= 0) return null
@@ -439,6 +561,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §3',
     windowMs: SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS * 1000,
     threshold: SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS,
+    blindedBy: ['health.reviews'],
     read: (snapshot) => {
       const { refreshDueCount, oldestDueAgeSeconds } = snapshot.reviews
       // oldestDueAgeSeconds counts DOWN toward the hard expiry — the breach
@@ -461,6 +584,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §13',
     windowMs: EVAL_CADENCE_MS,
     threshold: 0,
+    blindedBy: ['health.sync'],
     read: (snapshot) => {
       const count = snapshot.sync.failedSyncCount
       if (count <= 0) return null
@@ -483,6 +607,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §13',
     windowMs: SYNC_SWEEP_LAG_ALERT_MS,
     threshold: SYNC_SWEEP_LAG_ALERT_MS,
+    blindedBy: ['health.sync'],
     read: (snapshot) => {
       const { dueForIncrementalCount, oldestDueAgeMs, gbpPushEnabled } = snapshot.sync
       if (dueForIncrementalCount <= 0) return null
@@ -561,21 +686,24 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
   }),
 
   // ── the user was never told ──
-  // A review landed, the inbox has it, and no notification exists after the
-  // grace edge. The bounded reconciliation sweep is the repair authority, so
-  // presence means either delivery is late or that repair is not keeping up.
+  // A review landed, the inbox has it, and past the grace edge it has no
+  // notification while its delivery is still undecided — an item whose
+  // recipients all muted it is decided and never counts. Presence means
+  // delivery is late, or the repair of deliveries that never settled is not
+  // keeping up. A single evaluation pages.
   define({
     name: 'notification.missing-for-inbox-item',
     severity: 'P1',
     runbook: 'runbooks.md §15',
     windowMs: EVAL_CADENCE_MS,
     threshold: 0,
+    blindedBy: ['health.notificationGap'],
     read: (snapshot) => {
       const count = snapshot.notifications.missingForInboxItemCount
       if (count <= 0) return null
       return {
         value: count,
-        detail: `${count} inbox item(s) still have no notification past the grace edge — delivery or bounded reconciliation is not keeping up`,
+        detail: `${count} inbox item(s) still have no notification and no decided delivery past the grace edge — delivery or its repair is not keeping up`,
       }
     },
   }),
@@ -585,6 +713,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §15',
     windowMs: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
     threshold: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
+    blindedBy: ['health.notificationDeliveryLag'],
     read: (snapshot) => {
       const lag = snapshot.notifications.deliveryLag
       const pending = lag.sourceReceiptPending + lag.materializationPending
@@ -618,6 +747,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §15',
     windowMs: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
     threshold: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
+    blindedBy: ['health.notificationDeliveryLag'],
     read: (snapshot) => {
       const email = snapshot.notifications.deliveryLag.immediateEmailAcceptance
       if (email.sourceUnlinked > 0) {
@@ -626,12 +756,10 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
           detail: `${email.sourceUnlinked} immediate notification email row(s) have no active durable source clock; the five-minute acceptance target cannot be evaluated`,
         }
       }
-      const activeEvidence =
-        snapshot.notifications.emailDeliveryEnabled ||
-        email.acceptedSampleCount > 0 ||
-        email.attemptedAwaitingProviderAcceptance > 0
-      if (!activeEvidence) return null
-
+      // The read counts only scopes where email may be sent now, so every
+      // awaiting row here is mail that should already have gone out — no
+      // global-flag or prior-send guard (that hid an allowlisted
+      // Organization whose urgent job was never enqueued or never ran).
       if (email.saturated) {
         return {
           value: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS + 1,
@@ -675,36 +803,137 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
   // outbound email is capability-dark today, so a pending backlog is the
   // EXPECTED state and must stay silent. It fires only when email is
   // globally enabled (so the backlog is a real fault) or when the delivery
-  // path already attempted the row and left it pending — which is a fault
-  // regardless of the global flag, and is how a per-org-allowlisted tenant's
-  // breakage still pages.
+  // path already touched a row and left it unsent — a retry past due or a
+  // quiet-hours hold past its end — which is a fault regardless of the
+  // global flag, and is how a per-org-allowlisted tenant's breakage pages.
   define({
     name: 'notification.email-stalled',
     severity: 'P2',
     runbook: 'runbooks.md §15',
     windowMs: NOTIFICATION_EMAIL_STALLED_ALERT_MS,
     threshold: NOTIFICATION_EMAIL_STALLED_ALERT_MS,
+    blindedBy: ['health.notificationEmail'],
     read: (snapshot) => {
-      const {
-        emailDeliveryEnabled,
-        pendingOverdueCount,
-        oldestPendingOverdueAgeMs,
-        attemptedStuckCount,
-      } = snapshot.notifications
-      if (pendingOverdueCount <= 0) return null
-      if (
-        oldestPendingOverdueAgeMs == null ||
-        oldestPendingOverdueAgeMs <= NOTIFICATION_EMAIL_STALLED_ALERT_MS
-      ) {
+      const n = snapshot.notifications
+      // Globally dark, an untouched row is expected backlog: only the rows
+      // the delivery path touched (a retry past due, a hold past its end)
+      // and how long they have waited are the fault.
+      const [count, ageMs] = n.emailDeliveryEnabled
+        ? [n.pendingOverdueCount, n.oldestPendingOverdueAgeMs]
+        : [n.attemptedStuckCount, n.oldestAttemptedStuckAgeMs]
+      if (count <= 0) return null
+      if (ageMs == null || ageMs <= NOTIFICATION_EMAIL_STALLED_ALERT_MS) return null
+      const cause = n.emailDeliveryEnabled
+        ? 'email delivery is enabled'
+        : `email delivery is globally dark but ${count} row(s) were already attempted or held`
+      return {
+        value: ageMs,
+        detail: `${count} queued notification email(s) overdue, oldest by ${ageMs}ms (> ${NOTIFICATION_EMAIL_STALLED_ALERT_MS}ms) — ${cause}`,
+      }
+    },
+  }),
+
+  // ── what became of attempted email ──
+  // Everything above watches mail that has not gone out. These watch the
+  // mail the delivery path did attempt: a permanent refusal or a spent retry
+  // budget is lost email that nothing retries, bounces and complaints put the
+  // sending domain at risk, and accepted mail that never resolves means the
+  // provider feedback the suppression list depends on is not arriving
+  // (ADR 0046 r.6). Without them email could stop entirely with no page.
+  define({
+    name: 'notification.email-permanent-failures',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    windowMs: NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+    threshold: NOTIFICATION_EMAIL_PERMANENT_FAILURE_SHARE_ALERT_PERCENT,
+    blindedBy: ['health.notificationEmail'],
+    read: (snapshot) => {
+      const { permanentFailureCount, acceptedCount } =
+        snapshot.notifications.emailOutcomes
+      if (permanentFailureCount < NOTIFICATION_EMAIL_PERMANENT_FAILURE_MIN_COUNT) {
         return null
       }
-      if (!emailDeliveryEnabled && attemptedStuckCount <= 0) return null
-      const cause = emailDeliveryEnabled
-        ? 'email delivery is enabled'
-        : `email delivery is globally dark but ${attemptedStuckCount} row(s) were already attempted`
+      const share = percentOf(
+        permanentFailureCount,
+        permanentFailureCount + acceptedCount,
+      )
+      if (share <= NOTIFICATION_EMAIL_PERMANENT_FAILURE_SHARE_ALERT_PERCENT) return null
       return {
-        value: oldestPendingOverdueAgeMs,
-        detail: `${pendingOverdueCount} queued notification email(s) overdue, oldest by ${oldestPendingOverdueAgeMs}ms (> ${NOTIFICATION_EMAIL_STALLED_ALERT_MS}ms) — ${cause}`,
+        value: share,
+        detail: `${permanentFailureCount} permanently refused vs ${acceptedCount} accepted notification email(s) in 24h (${share}% refused) — a provider credential, sending-domain, or transport fault; refused mail is never retried`,
+      }
+    },
+  }),
+  define({
+    name: 'notification.email-bounce-rate',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    windowMs: NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+    threshold: NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT,
+    blindedBy: ['health.notificationEmail'],
+    read: (snapshot) => {
+      const { bouncedCount, acceptedCount } = snapshot.notifications.emailOutcomes
+      if (bouncedCount < NOTIFICATION_EMAIL_BOUNCE_MIN_COUNT) return null
+      const rate = percentOf(bouncedCount, Math.max(acceptedCount, bouncedCount))
+      if (rate <= NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT) return null
+      return {
+        value: rate,
+        detail: `${bouncedCount} bounce(s) against ${acceptedCount} accepted notification email(s) in 24h (${rate}% > ${NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT}%) — the provider may throttle or suspend the sending domain`,
+      }
+    },
+  }),
+  define({
+    name: 'notification.email-complaints',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    windowMs: NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+    threshold: 0,
+    blindedBy: ['health.notificationEmail'],
+    read: (snapshot) => {
+      const { complainedCount } = snapshot.notifications.emailOutcomes
+      if (complainedCount <= 0) return null
+      return {
+        value: complainedCount,
+        detail: `${complainedCount} recipient spam complaint(s) on notification email in 24h — at beta volume one complaint already exceeds the provider's complaint-rate ceiling`,
+      }
+    },
+  }),
+  define({
+    name: 'notification.email-retry-exhausted',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    windowMs: NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+    threshold: 0,
+    blindedBy: ['health.notificationEmail'],
+    read: (snapshot) => {
+      const { retryExhaustedCount } = snapshot.notifications.emailOutcomes
+      if (retryExhaustedCount <= 0) return null
+      return {
+        value: retryExhaustedCount,
+        detail: `${retryExhaustedCount} notification email(s) spent their transient retry budget in 24h — the delivery path gave up and nothing will send them`,
+      }
+    },
+  }),
+  define({
+    name: 'notification.email-provider-feedback-missing',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    windowMs: NOTIFICATION_EMAIL_UNRESOLVED_LOOKBACK_MS,
+    threshold: NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT,
+    blindedBy: ['health.notificationEmail'],
+    read: (snapshot) => {
+      const outcomes = snapshot.notifications.emailOutcomes
+      const unresolved = outcomes.acceptedUnresolvedCount
+      if (unresolved <= NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT) return null
+      const cause =
+        outcomes.capturedUnresolvedCount > 0
+          ? `${outcomes.capturedUnresolvedCount} captured by the non-sending local transport — the mail never reached a provider`
+          : outcomes.providerOutcomeCount === 0
+            ? 'no provider event recorded in 24h — the provider webhook looks silent (RESEND_WEBHOOK_SECRET on web, the Resend endpoint, signature failures)'
+            : `${outcomes.providerOutcomeCount} provider event(s) did arrive in 24h — delayed delivery (provider_state delivery_delayed on the unresolved rows) or an event type the webhook does not send`
+      return {
+        value: unresolved,
+        detail: `${unresolved} accepted notification email(s) have no provider outcome 6h after acceptance (oldest accepted ${outcomes.oldestAcceptedUnresolvedAgeMs ?? -1}ms ago); ${cause}`,
       }
     },
   }),
@@ -768,6 +997,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §6',
     windowMs: REPLY_AMBIGUOUS_ALERT_MS,
     threshold: REPLY_AMBIGUOUS_ALERT_MS,
+    blindedBy: ['health.replyPublication'],
     read: (snapshot) => {
       const { counts, oldestAmbiguousAgeMs } = snapshot.replyPublication
       if ((counts.ambiguous ?? 0) <= 0) return null
@@ -846,6 +1076,18 @@ export type AlertEvaluation = Readonly<{
   toDispatch: readonly AlertEvent[]
   /** All currently-firing alert names (state-store reconciliation input). */
   firing: readonly string[]
+  /**
+   * Sustained alerts breaching for the first time: not firing, not
+   * dispatched. The caller persists them; a breach on the next evaluation
+   * with the name in `previouslyPending` fires.
+   */
+  pending: readonly string[]
+  /**
+   * Alerts not evaluated because an input section is degraded. A held alert
+   * that was firing stays in `firing`, so its state is neither cleared nor
+   * re-paged; one that was quiet cannot open an edge on a fallback reading.
+   */
+  held: readonly string[]
 }>
 
 /**
@@ -854,21 +1096,36 @@ export type AlertEvaluation = Readonly<{
  * `previouslyFiring`: an alert already in the firing state does NOT
  * re-dispatch. The caller persists the state (Redis, 24h TTL) — a
  * continuously-firing alert re-notifies only after its state key expires,
- * and the caller clears state on recovery (name absent from `firing`).
+ * and the caller clears state on recovery (name absent from `firing`). An
+ * alert whose input section is degraded is held, not evaluated: unknown is
+ * not recovery. A sustained alert's first breach is only `pending`; it fires
+ * when it breaches again with its name in `previouslyPending`.
  */
 export function evaluateAlerts(
   snapshot: OperationsSnapshot,
   aux: AlertAuxReads,
   previouslyFiring: ReadonlySet<string>,
+  previouslyPending: ReadonlySet<string>,
 ): AlertEvaluation {
   const toDispatch: AlertEvent[] = []
   const firing: string[] = []
+  const pending: string[] = []
+  const held = new Set(blindedAlerts(snapshot.degraded).map((def) => def.name))
   for (const def of ALERT_DEFINITIONS) {
     if (!def.implemented || def.evaluate === null) continue
+    const wasFiring = previouslyFiring.has(def.name)
+    if (held.has(def.name)) {
+      if (wasFiring) firing.push(def.name)
+      continue
+    }
     const event = def.evaluate(snapshot, aux)
     if (event === null) continue
+    if (def.sustained && !wasFiring && !previouslyPending.has(def.name)) {
+      pending.push(def.name)
+      continue
+    }
     firing.push(def.name)
-    if (!previouslyFiring.has(def.name)) toDispatch.push(event)
+    if (!wasFiring) toDispatch.push(event)
   }
-  return { toDispatch, firing }
+  return { toDispatch, firing, pending, held: [...held] }
 }

@@ -18,6 +18,15 @@ import {
   type FakeNotificationConsumerDeps,
 } from './notification-consumer-test-fixtures'
 import { unbrand } from '#/shared/domain/ids'
+import {
+  reviewReplyPublishFailed,
+  reviewReplyRejected,
+} from '#/contexts/review/domain/events'
+import { toOutboxEvent } from '#/shared/outbox/event-adapter'
+import { buildConsumerEvent } from '#/shared/outbox/envelope'
+import { parseNotificationPayload } from '../domain/notification-payload'
+import { renderNotification } from '../domain/notification-templates'
+import type { InsertNotificationJobData } from './jobs/insert-notification.job'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -30,6 +39,7 @@ const makeDeps = (): Deps => {
   const fakes = createNotificationConsumerDeps()
   fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
   fakes.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+  fakes.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
   return {
     queue: fakes.queue,
     userLookup: fakes.userLookup,
@@ -180,6 +190,39 @@ describe('durable workflow notification consumers', () => {
     },
   )
 
+  // The Google connection must be reconnected before any retry can publish;
+  // the author has to hear that, not that Google rejected the reply.
+  it('carries the reconnect cause of a failed publication to its author', async () => {
+    const deps = makeDeps()
+    const failure = (extra: Readonly<Record<string, unknown>>) =>
+      event('review.reply.publish_failed', {
+        replyId: unbrand(NOTIF_TEST_IDS.replyId),
+        reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
+        authorId: unbrand(NOTIF_TEST_IDS.authorId),
+        ...extra,
+      })
+
+    await handleWorkflowNotificationEvent(
+      deps,
+      failure({ cause: 'google_reauthorization_required' }),
+    )
+    await handleWorkflowNotificationEvent(deps, failure({}))
+
+    expect(deps.fakes.jobs.map(({ data }) => data)).toEqual([
+      expect.objectContaining({
+        userId: unbrand(NOTIF_TEST_IDS.authorId),
+        type: 'reply.publish_failed',
+        payload: expect.objectContaining({
+          publishFailureCause: 'google_reauthorization_required',
+        }),
+      }),
+      expect.objectContaining({
+        type: 'reply.publish_failed',
+        payload: expect.not.objectContaining({ publishFailureCause: expect.anything() }),
+      }),
+    ])
+  })
+
   it('uses the same per-recipient job identity after an ambiguous replay', async () => {
     const deps = makeDeps()
     const approval = event('review.reply.approved', {
@@ -222,6 +265,334 @@ describe('durable workflow notification consumers', () => {
       'notification.on-inbox-inbox_item-assigned',
       'applied',
     )
+  })
+
+  describe('never tells a person about their own action', () => {
+    const recipientsOf = (deps: Deps) =>
+      deps.fakes.jobs.map((job) => (job.data as { userId: string }).userId)
+
+    it('skips the notice when a manager assigns the item to themselves', async () => {
+      const deps = makeDeps()
+
+      await expect(
+        handleWorkflowNotificationEvent(
+          deps,
+          event('inbox.inbox_item.assigned', {
+            inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+            assignedTo: unbrand(NOTIF_TEST_IDS.manager1),
+            userId: unbrand(NOTIF_TEST_IDS.manager1),
+            source: 'web',
+          }),
+        ),
+      ).resolves.toEqual({ status: 'applied' })
+
+      expect(deps.fakes.jobs).toEqual([])
+      expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
+        EVENT_ID,
+        'notification.on-inbox-inbox_item-assigned',
+        'applied',
+      )
+    })
+
+    it.each([
+      {
+        eventType: 'inbox.inbox_item.escalated' as const,
+        payload: { inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId) },
+      },
+      {
+        eventType: 'review.reply.submitted' as const,
+        payload: {
+          replyId: unbrand(NOTIF_TEST_IDS.replyId),
+          reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
+        },
+      },
+    ])(
+      'tells the other AccountAdmins, not the admin who acted, about $eventType',
+      async ({ eventType, payload }) => {
+        const deps = makeDeps()
+        deps.fakes.userLookup.findByRole.mockResolvedValue([
+          NOTIF_TEST_IDS.admin1,
+          NOTIF_TEST_IDS.admin2,
+        ])
+
+        await handleWorkflowNotificationEvent(
+          deps,
+          event(eventType, {
+            ...payload,
+            userId: unbrand(NOTIF_TEST_IDS.admin1),
+            source: 'web',
+          }),
+        )
+
+        expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.admin2])
+      },
+    )
+
+    it.each(['review.reply.approved', 'review.reply.rejected'] as const)(
+      'skips the author notice when the author decided %s on their own reply',
+      async (eventType) => {
+        const deps = makeDeps()
+
+        await expect(
+          handleWorkflowNotificationEvent(
+            deps,
+            event(eventType, {
+              replyId: unbrand(NOTIF_TEST_IDS.replyId),
+              reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
+              userId: unbrand(NOTIF_TEST_IDS.authorId),
+              authorId: unbrand(NOTIF_TEST_IDS.authorId),
+              source: 'web',
+            }),
+          ),
+        ).resolves.toEqual({ status: 'applied' })
+
+        expect(deps.fakes.jobs).toEqual([])
+      },
+    )
+  })
+
+  it('names the role of whoever escalated, since escalation is always a manual call', async () => {
+    const deps = makeDeps()
+
+    await handleWorkflowNotificationEvent(
+      deps,
+      event('inbox.inbox_item.escalated', {
+        inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+        userId: unbrand(NOTIF_TEST_IDS.submitter),
+        source: 'web',
+      }),
+    )
+
+    const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+    expect(deps.fakes.userLookup.findActorRole).toHaveBeenCalledWith(
+      NOTIF_TEST_IDS.submitter,
+      NOTIF_TEST_IDS.orgId,
+    )
+    expect(data.payload).toMatchObject({ actorRole: 'property_manager' })
+    expect(
+      renderNotification('inbox.escalated', parseNotificationPayload(data.payload)).body,
+    ).toMatch(/^A property manager escalated this/)
+  })
+
+  describe('how long something has waited', () => {
+    const WAIT_STARTED = new Date('2026-06-01T07:00:00.000Z')
+
+    it.each([
+      {
+        eventType: 'inbox.inbox_item.escalated' as const,
+        payload: { inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId) },
+      },
+      {
+        eventType: 'review.reply.submitted' as const,
+        payload: {
+          replyId: unbrand(NOTIF_TEST_IDS.replyId),
+          reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
+        },
+      },
+    ])(
+      "stamps $eventType with when the current wait began, not the item's age",
+      async ({ eventType, payload }) => {
+        const deps = makeDeps()
+        deps.fakes.inboxItemLookup.findWaitingSince.mockResolvedValue(WAIT_STARTED)
+
+        await handleWorkflowNotificationEvent(
+          deps,
+          event(eventType, { ...payload, userId: unbrand(NOTIF_TEST_IDS.submitter) }),
+        )
+
+        const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+        expect(deps.fakes.inboxItemLookup.findWaitingSince).toHaveBeenCalledWith(
+          NOTIF_TEST_IDS.inboxItemId,
+          NOTIF_TEST_IDS.orgId,
+        )
+        expect(data.payload).toMatchObject({ waitingSince: WAIT_STARTED.toISOString() })
+        expect(data.payload).not.toHaveProperty('waitingHours')
+      },
+    )
+
+    it('stamps no wait on a notice about work that is already done', async () => {
+      const deps = makeDeps()
+      deps.fakes.inboxItemLookup.findWaitingSince.mockResolvedValue(WAIT_STARTED)
+
+      await handleWorkflowNotificationEvent(
+        deps,
+        event('review.reply.published', {
+          replyId: unbrand(NOTIF_TEST_IDS.replyId),
+          reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
+          userId: null,
+          authorId: unbrand(NOTIF_TEST_IDS.authorId),
+          source: 'web',
+        }),
+      )
+
+      const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+      expect(data.payload).not.toHaveProperty('waitingSince')
+      expect(data.payload).not.toHaveProperty('waitingHours')
+    })
+
+    it('stamps no wait when nothing is waiting any more', async () => {
+      const deps = makeDeps()
+      deps.fakes.inboxItemLookup.findWaitingSince.mockResolvedValue(null)
+
+      await handleWorkflowNotificationEvent(
+        deps,
+        event('inbox.inbox_item.escalated', {
+          inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+          userId: unbrand(NOTIF_TEST_IDS.submitter),
+          source: 'web',
+        }),
+      )
+
+      const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+      expect(data.payload).not.toHaveProperty('waitingSince')
+    })
+  })
+
+  describe('a reply that failed to publish', () => {
+    const publishFailed = (authorId: string | null) =>
+      event('review.reply.publish_failed', {
+        replyId: unbrand(NOTIF_TEST_IDS.replyId),
+        reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
+        authorId,
+      })
+
+    it('goes to the author while they can still act on the Property', async () => {
+      const deps = makeDeps()
+
+      await handleWorkflowNotificationEvent(
+        deps,
+        publishFailed(unbrand(NOTIF_TEST_IDS.authorId)),
+      )
+
+      expect(deps.fakes.jobs.map((job) => job.data)).toEqual([
+        expect.objectContaining({
+          userId: NOTIF_TEST_IDS.authorId,
+          type: 'reply.publish_failed',
+          audience: { kind: 'property_operator' },
+        }),
+      ])
+    })
+
+    it.each([
+      ['has left the Property', unbrand(NOTIF_TEST_IDS.authorId)],
+      ['is unknown', null],
+    ])(
+      'goes to the Property responsible managers when the author %s',
+      async (_label, authorId) => {
+        const deps = makeDeps()
+        deps.fakes.responsibleManagers.isEligibleForProperty.mockResolvedValue(false)
+
+        await handleWorkflowNotificationEvent(deps, publishFailed(authorId))
+
+        expect(deps.fakes.jobs.map((job) => job.data)).toEqual([
+          expect.objectContaining({
+            userId: NOTIF_TEST_IDS.manager1,
+            type: 'reply.publish_failed',
+            audience: {
+              kind: 'responsible_scope',
+              scope: { kind: 'property', propertyId: NOTIF_TEST_IDS.propId },
+            },
+          }),
+        ])
+      },
+    )
+  })
+
+  it('carries what happened to an unpublished reply from its recorded fact', async () => {
+    const fact = reviewReplyPublishFailed({
+      replyId: NOTIF_TEST_IDS.replyId,
+      reviewId: NOTIF_TEST_IDS.reviewId,
+      propertyId: NOTIF_TEST_IDS.propId,
+      organizationId: NOTIF_TEST_IDS.orgId,
+      authorId: NOTIF_TEST_IDS.authorId,
+      outcome: 'unconfirmed',
+      occurredAt: NOTIF_TEST_IDS.now,
+    })
+    const row = toOutboxEvent(fact)
+    const deps = makeDeps()
+
+    await handleWorkflowNotificationEvent(
+      deps,
+      buildConsumerEvent({
+        id: fact.eventId,
+        eventType: row.eventType,
+        eventVersion: row.eventVersion ?? 1,
+        payload: row.payload,
+        organizationId: row.organizationId,
+        propertyId: row.propertyId ?? null,
+        sourceContext: row.sourceContext,
+        sourceAggregateId: row.sourceAggregateId,
+        recordedAt: NOTIF_TEST_IDS.now,
+      }),
+    )
+
+    const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+    expect(data.payload).toMatchObject({ publishOutcome: 'unconfirmed' })
+    expect(
+      renderNotification('reply.publish_failed', parseNotificationPayload(data.payload)),
+    ).toMatchObject({
+      title: 'Reply not confirmed on Google at Riverside Hotel',
+      actionLabel: 'View reply',
+    })
+  })
+
+  describe('a rejected reply recorded through the outbox', () => {
+    const recordRejection = (reason: string | null): ConsumerEvent => {
+      const fact = reviewReplyRejected({
+        replyId: NOTIF_TEST_IDS.replyId,
+        reviewId: NOTIF_TEST_IDS.reviewId,
+        propertyId: NOTIF_TEST_IDS.propId,
+        organizationId: NOTIF_TEST_IDS.orgId,
+        userId: NOTIF_TEST_IDS.admin1,
+        authorId: NOTIF_TEST_IDS.authorId,
+        reason,
+        occurredAt: NOTIF_TEST_IDS.now,
+      })
+      const row = toOutboxEvent(fact)
+      return buildConsumerEvent({
+        id: fact.eventId,
+        eventType: row.eventType,
+        eventVersion: row.eventVersion ?? 1,
+        payload: row.payload,
+        organizationId: row.organizationId,
+        propertyId: row.propertyId ?? null,
+        sourceContext: row.sourceContext,
+        sourceAggregateId: row.sourceAggregateId,
+        recordedAt: NOTIF_TEST_IDS.now,
+      })
+    }
+
+    const deliverRejection = async (reason: string | null) => {
+      const deps = makeDeps()
+      const recorded = recordRejection(reason)
+      await handleWorkflowNotificationEvent(deps, recorded)
+      const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+      const { body } = renderNotification(
+        'reply.rejected',
+        parseNotificationPayload(data.payload),
+      )
+      return { recorded, data, body }
+    }
+
+    it('tells the author a reason is waiting without carrying its words', async () => {
+      const { recorded, data, body } = await deliverRejection(
+        'Too defensive, drop the refund mention',
+      )
+
+      expect(body).toBe(
+        'The approver left a reason. Open the reply to read it, then edit and resubmit.',
+      )
+      expect(JSON.stringify([recorded, data])).not.toContain('refund')
+    })
+
+    it('says there was no reason only when the approver gave none', async () => {
+      const { data, body } = await deliverRejection(null)
+
+      // Explicit, so a later reasonless rejection that coalesces into an
+      // unread row replaces "a reason is waiting" (newest wins per key).
+      expect(data.payload).toMatchObject({ hasModerationReason: false })
+      expect(body).toBe('It was sent back without a reason. Edit it and resubmit.')
+    })
   })
 
   it.each([

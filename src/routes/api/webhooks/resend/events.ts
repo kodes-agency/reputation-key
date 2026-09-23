@@ -8,10 +8,11 @@
 // only on non-2xx, so the happy path acks with 200 — and so does an event we
 // deliberately ignore, because retrying it forever would not change the outcome.
 //
-// Fail-closed-at-the-route, matching /api/health/metrics: `RESEND_WEBHOOK_SECRET`
-// is OPTIONAL in the env schema so a deployment without Resend webhooks still
-// boots, and this endpoint answers 503 `webhook_disabled` rather than accepting
-// unverified state transitions.
+// Fail-closed-at-the-route: `RESEND_WEBHOOK_SECRET` is OPTIONAL in the env
+// schema so a deployment without Resend webhooks still boots, and this endpoint
+// answers 503 `webhook_disabled` rather than accepting unverified state
+// transitions. That answer goes out before any authentication, so it names no
+// configuration; the variable name is in the operator log only.
 //
 // Webhook routes may resolve narrow runtime operations from the composition
 // container, but never import context infrastructure directly.
@@ -25,14 +26,75 @@ import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
 // Only the fields we act on. Resend adds fields freely, so the schema stays
-// permissive about everything else — and deliberately never reads `data.to`,
-// `data.subject` or `data.html`: BQC-1.6 keeps recipient content out of this
-// process entirely, and the queue row already knows who it was for.
+// permissive about everything else — and deliberately never reads a message
+// event's `data.to`, `data.subject` or `data.html`: BQC-1.6 keeps recipient
+// content out of this process, and the queue row already knows who it was
+// for. Of a bounce only its `type` is read, a classification (Permanent,
+// Transient, Undetermined): the provider's message is the recipient server's
+// text.
 const resendEventSchema = z.object({
   type: z.string().min(1),
   created_at: z.string().optional(),
-  data: z.object({ email_id: z.string().min(1) }),
+  data: z.object({
+    email_id: z.string().min(1),
+    bounce: z.object({ type: z.string().min(1).max(32).optional() }).optional(),
+  }),
 })
+
+/** What the composition-owned handler accepts. */
+type ResendEventInput = Parameters<
+  ReturnType<typeof getContainer>['handleResendEvent']
+>[0]
+
+// A change to Resend's own suppression list names an address, not a message.
+// The address is the one recipient field read here: it is keyed at once by the
+// handler and never logged or stored as given. Without it, an operator who
+// lifts a suppression at the provider could never lift ours.
+const SUPPRESSION_LIST_EVENTS = ['suppression.added', 'suppression.removed'] as const
+const suppressionListEventSchema = z.object({
+  type: z.enum(SUPPRESSION_LIST_EVENTS),
+  created_at: z.string().optional(),
+  data: z.object({
+    email: z.string().min(3).max(320),
+    origin: z.string().min(1).max(32).optional(),
+  }),
+})
+
+const isSuppressionListEvent = (payload: unknown): boolean =>
+  typeof payload === 'object' &&
+  payload !== null &&
+  SUPPRESSION_LIST_EVENTS.some((type) => (payload as { type?: unknown }).type === type)
+
+/** A provider timestamp we cannot parse is worse than our own receipt time. */
+const eventTime = (createdAt: string | undefined): Date => {
+  const parsed = createdAt ? new Date(createdAt) : null
+  return parsed && !Number.isNaN(parsed.getTime()) ? parsed : new Date()
+}
+
+/** Parse the verified body into the handler's input. Throws ZodError. */
+function eventInput(rawBody: string, eventId: string): ResendEventInput {
+  const payload: unknown = JSON.parse(rawBody)
+  if (isSuppressionListEvent(payload)) {
+    const event = suppressionListEventSchema.parse(payload)
+    return {
+      type: event.type,
+      address: event.data.email,
+      ...(event.data.origin === undefined ? {} : { origin: event.data.origin }),
+      occurredAt: eventTime(event.created_at),
+      eventId,
+    }
+  }
+  const event = resendEventSchema.parse(payload)
+  const bounceType = event.data.bounce?.type
+  return {
+    type: event.type,
+    providerMessageId: event.data.email_id,
+    occurredAt: eventTime(event.created_at),
+    eventId,
+    // Only a permanent bounce suppresses the address.
+    ...(bounceType === undefined ? {} : { bounceType }),
+  }
+}
 
 /**
  * POST handler for Resend webhooks. Extracted from the Route definition so it
@@ -51,11 +113,7 @@ export async function handleResendWebhookPost(request: Request): Promise<Respons
         'Resend webhook received while RESEND_WEBHOOK_SECRET is unset — endpoint disabled',
       )
       return Response.json(
-        {
-          error: 'Service Unavailable',
-          message: 'Resend webhook is disabled: RESEND_WEBHOOK_SECRET is not configured',
-          code: 'webhook_disabled',
-        },
+        { error: 'Service Unavailable', code: 'webhook_disabled' },
         { status: 503 },
       )
     }
@@ -80,16 +138,9 @@ export async function handleResendWebhookPost(request: Request): Promise<Respons
         )
       }
 
-      const event = resendEventSchema.parse(JSON.parse(rawBody))
-      const parsedAt = event.created_at ? new Date(event.created_at) : null
-      const result = await getContainer().handleResendEvent({
-        type: event.type,
-        providerMessageId: event.data.email_id,
-        // A provider timestamp we cannot parse is worse than our own receipt
-        // time: it would write an invalid date into the delivery record.
-        occurredAt: parsedAt && !Number.isNaN(parsedAt.getTime()) ? parsedAt : new Date(),
-        eventId: verification.id,
-      })
+      const result = await getContainer().handleResendEvent(
+        eventInput(rawBody, verification.id),
+      )
 
       // 200 even for an ignored or unmatched event: a retry cannot change it,
       // and the handler has already logged why.

@@ -10,7 +10,10 @@
 
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, vi } from 'vitest'
-import { cancelPublicationsForConnection } from './cancel-publications'
+import {
+  cancelPublicationsForConnection,
+  cancelPublicationsForProperty,
+} from './cancel-publications'
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReplyCommandStore } from '../ports/reply-command-store.port'
@@ -251,5 +254,82 @@ describe('cancelPublicationsForConnection', () => {
 
     expect(result.batches).toBe(2)
     expect(deps.reviewRepo.findByConnection).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('cancelPublicationsForProperty', () => {
+  const propertyDeps = (
+    batches: ReadonlyArray<ReadonlyArray<Reply>>,
+    cancelResults: ReadonlyArray<number>,
+  ) => {
+    const pages = [...batches]
+    const results = [...cancelResults]
+    return {
+      replyRepo: {
+        findUnsendablePublicationsByPropertyId: vi.fn(async () => pages.shift() ?? []),
+      },
+      commandStore: {
+        cancelPublications: vi.fn(async () => results.shift() ?? 0),
+      },
+      clock: () => NOW,
+      batchSize: 2,
+    }
+  }
+
+  it('drains the Property in batches with one policy fact per reply', async () => {
+    const first = [
+      makeReply(REPLY_1, REVIEW_1, 'authorized'),
+      makeReply(REPLY_2, REVIEW_2, 'requested'),
+    ]
+    const second = [
+      makeReply('42000000-0000-4000-8000-000000000022', REVIEW_3, 'authorized'),
+    ]
+    const deps = propertyDeps([first, second], [2, 1])
+
+    const result = await cancelPublicationsForProperty(deps)({
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      cause: 'policy',
+    })
+
+    expect(result).toEqual({ cancelled: 3, batches: 2 })
+    expect(deps.replyRepo.findUnsendablePublicationsByPropertyId).toHaveBeenCalledWith(
+      PROP_ID,
+      ORG_ID,
+      2,
+    )
+    const commands = deps.commandStore.cancelPublications.mock.calls.flatMap(
+      (call) => (call as unknown as [ReadonlyArray<{ event: unknown }>])[0],
+    )
+    expect(commands.map((command) => command.event)).toEqual(
+      [...first, ...second].map((reply) =>
+        expect.objectContaining({
+          _tag: 'review.reply.publication_cancelled',
+          replyId: reply.id,
+          reviewId: reply.reviewId,
+          propertyId: PROP_ID,
+          organizationId: ORG_ID,
+          cause: 'policy',
+          occurredAt: NOW,
+        }),
+      ),
+    )
+  })
+
+  it('stops when a full batch cancels nothing instead of re-reading the same rows', async () => {
+    const stuck = [
+      makeReply(REPLY_1, REVIEW_1, 'authorized'),
+      makeReply(REPLY_2, REVIEW_2, 'authorized'),
+    ]
+    const deps = propertyDeps([stuck, stuck, stuck], [0])
+
+    await expect(
+      cancelPublicationsForProperty(deps)({
+        organizationId: ORG_ID,
+        propertyId: PROP_ID,
+        cause: 'policy',
+      }),
+    ).resolves.toEqual({ cancelled: 0, batches: 1 })
+    expect(deps.replyRepo.findUnsendablePublicationsByPropertyId).toHaveBeenCalledTimes(1)
   })
 })

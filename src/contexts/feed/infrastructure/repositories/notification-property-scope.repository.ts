@@ -1,4 +1,5 @@
 import type { Pool } from 'pg'
+import { activePropertyCondition } from './active-property'
 
 export type NotificationPropertyScope = Readonly<{
   organizationId: string
@@ -20,8 +21,7 @@ export const createNotificationPropertyScopeResolver = (
          FROM properties
         WHERE organization_id = $1
           AND id = $2::uuid
-          AND deleted_at IS NULL
-          AND lifecycle_state = 'active'
+          AND ${activePropertyCondition()}
         LIMIT 1`,
       [organizationId, propertyId],
     )

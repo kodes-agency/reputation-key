@@ -11,10 +11,18 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import {
   ALERT_DEFINITIONS,
+  evaluateAlerts,
   BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
   NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
   NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
   NOTIFICATION_EMAIL_STALLED_ALERT_MS,
+  NOTIFICATION_EMAIL_BOUNCE_MIN_COUNT,
+  NOTIFICATION_EMAIL_PERMANENT_FAILURE_MIN_COUNT,
+  NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT,
+  NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+  NOTIFICATION_EMAIL_PERMANENT_FAILURE_SHARE_ALERT_PERCENT,
+  NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT,
+  NOTIFICATION_EMAIL_UNRESOLVED_LOOKBACK_MS,
   REVIEW_ANALYSIS_STALLED_ALERT_MS,
   QUARANTINE_NONEMPTY_ALERT_MS,
   QUARANTINE_REDRIVE_SLA_ALERT_MS,
@@ -22,6 +30,7 @@ import {
   type AlertAuxReads,
 } from './alert-definitions'
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
+import { SNAPSHOT_SECTIONS } from '#/shared/observability/metrics-schema'
 
 const RUNBOOKS_PATH = 'docs/operations/runbooks.md'
 
@@ -61,6 +70,18 @@ function healthy(): MutableSnapshot {
       pendingOverdueCount: 0,
       oldestPendingOverdueAgeMs: null,
       attemptedStuckCount: 0,
+      oldestAttemptedStuckAgeMs: null,
+      emailOutcomes: {
+        acceptedCount: 0,
+        permanentFailureCount: 0,
+        retryExhaustedCount: 0,
+        bouncedCount: 0,
+        complainedCount: 0,
+        providerOutcomeCount: 0,
+        acceptedUnresolvedCount: 0,
+        oldestAcceptedUnresolvedAgeMs: null,
+        capturedUnresolvedCount: 0,
+      },
       missingForInboxItemCount: 0,
       deliveryLag: {
         sourceReceiptPending: 0,
@@ -128,6 +149,7 @@ function healthy(): MutableSnapshot {
       invalidObservations: 0,
       handlerMissing: 0,
       schedulerMissing: 0,
+      scheduleDenied: 0,
       forbiddenDarkWork: 0,
       quarantinedSchedulers: 0,
       missedObjectives: 0,
@@ -135,6 +157,7 @@ function healthy(): MutableSnapshot {
       stalled: 0,
       repairRequired: 0,
       deadLetters: 0,
+      gateDenials: 0,
       rows: [],
     },
     guestObservationLoss: {
@@ -279,6 +302,7 @@ describe('worker.job-runtime-unready', () => {
       invalidObservations: 0,
       handlerMissing: 0,
       schedulerMissing: 1,
+      scheduleDenied: 1,
       forbiddenDarkWork: 0,
       quarantinedSchedulers: 0,
       missedObjectives: 1,
@@ -286,6 +310,7 @@ describe('worker.job-runtime-unready', () => {
       stalled: 0,
       repairRequired: 0,
       deadLetters: 0,
+      gateDenials: 3,
       rows: [],
     }
 
@@ -301,6 +326,7 @@ describe('worker.job-runtime-unready', () => {
     // Every unready reason has a counter; none can hide behind a detail of zeros.
     expect(event!.detail).toContain('invalidObservations=0')
     expect(event!.detail).toContain('missedObjectives=1')
+    expect(event!.detail).toContain('scheduleDenied=1')
   })
 
   it('stays silent when ready and fails visible when the authority is unavailable', () => {
@@ -316,6 +342,7 @@ describe('worker.job-runtime-unready', () => {
       invalidObservations: 0,
       handlerMissing: 0,
       schedulerMissing: 0,
+      scheduleDenied: 0,
       forbiddenDarkWork: 0,
       quarantinedSchedulers: 0,
       missedObjectives: 0,
@@ -323,6 +350,7 @@ describe('worker.job-runtime-unready', () => {
       stalled: 0,
       repairRequired: 0,
       deadLetters: 0,
+      gateDenials: 0,
       rows: [],
     }
     expect(evaluateOne('worker.job-runtime-unready', ready)).toBeNull()
@@ -333,6 +361,148 @@ describe('worker.job-runtime-unready', () => {
     const unavailableEvent = evaluateOne('worker.job-runtime-unready', unavailable)
     expect(unavailableEvent).toMatchObject({ value: 1, threshold: 0 })
     expect(unavailableEvent!.detail).toContain('unavailable')
+  })
+})
+
+// ── degraded snapshot sections: the alerts that cannot see ─────────
+
+describe('observability.snapshot-degraded', () => {
+  it('fires when a degraded section blinds alerts, naming the section and each alert', () => {
+    const s = healthy()
+    s.degraded = ['health.outbox']
+
+    const event = evaluateOne('observability.snapshot-degraded', s)
+
+    expect(event).toMatchObject({
+      name: 'observability.snapshot-degraded',
+      severity: 'P1',
+      value: 2,
+      threshold: 0,
+      runbook: 'runbooks.md §23',
+    })
+    expect(event!.detail).toContain('health.outbox')
+    expect(event!.detail).toContain('queue.oldest-age')
+    expect(event!.detail).toContain('queue.stalled')
+  })
+
+  it('pages only once the blindness holds for a second consecutive evaluation', () => {
+    const s = healthy()
+    s.degraded = ['health.outbox']
+
+    const first = evaluateAlerts(s, AUX, new Set(), new Set())
+    expect(first.pending).toEqual(['observability.snapshot-degraded'])
+    expect(first.firing).toEqual([])
+    expect(first.toDispatch).toEqual([])
+
+    const second = evaluateAlerts(s, AUX, new Set(), new Set(first.pending))
+    expect(second.toDispatch.map((event) => event.name)).toEqual([
+      'observability.snapshot-degraded',
+    ])
+    expect(second.firing).toEqual(['observability.snapshot-degraded'])
+    expect(second.pending).toEqual([])
+  })
+
+  it('never pages a signal that degrades only on alternate evaluations', () => {
+    const blind = healthy()
+    blind.degraded = ['health.notificationDeliveryLag']
+
+    const degradedRun = evaluateAlerts(blind, AUX, new Set(), new Set())
+    const readableRun = evaluateAlerts(
+      healthy(),
+      AUX,
+      new Set(),
+      new Set(degradedRun.pending),
+    )
+    const degradedAgain = evaluateAlerts(
+      blind,
+      AUX,
+      new Set(),
+      new Set(readableRun.pending),
+    )
+
+    expect(readableRun.pending).toEqual([])
+    expect(degradedAgain.pending).toEqual(['observability.snapshot-degraded'])
+    expect([
+      ...degradedRun.toDispatch,
+      ...readableRun.toDispatch,
+      ...degradedAgain.toDispatch,
+    ]).toEqual([])
+  })
+
+  it('stays quiet when nothing is degraded or only fail-visible sections are', () => {
+    expect(evaluateOne('observability.snapshot-degraded', healthy())).toBeNull()
+
+    // Each of these either feeds no alert or fires its own alert on the
+    // fallback, so none of them leaves an alert blind.
+    const s = healthy()
+    s.degraded = ['queues', 'workers.heartbeat', 'jobs', 'guest.observationLoss']
+    expect(evaluateOne('observability.snapshot-degraded', s)).toBeNull()
+  })
+})
+
+// Holding depends on each definition declaring the health signals it reads:
+// a new alert over a health field that forgets `blindedBy` would clear on the
+// zero fallback and re-page on recovery, silently. Every implemented alert
+// must either be held when every health signal is degraded, or be named here
+// with the input it reads instead.
+const READS_NO_HEALTH_SIGNAL: Readonly<Record<string, string>> = {
+  'worker.heartbeat.stale': 'workers.heartbeat — fires on its own stale fallback',
+  'worker.job-runtime-unready': 'jobs — fires when the report is unavailable',
+  'guest.observation-loss':
+    'guestObservationLoss — fires when the monitor is unavailable',
+  'observability.snapshot-degraded': 'degraded — the page for the blindness itself',
+  'ai.review-analysis-stalled': 'aux reads — fires when the monitor is unavailable',
+  'ai.review-analysis-empty-enrollment': 'aux reads',
+  'retention.failure': 'aux reads',
+  'beta-feedback.triage-backlog': 'aux reads — fires when the monitor is unavailable',
+  'db.pool-exhaustion': 'runtime — the in-process pool gauge',
+}
+
+describe('blindedBy registry contract', () => {
+  it('holds every alert over a health signal when every health signal is degraded', () => {
+    const s = healthy()
+    s.degraded = SNAPSHOT_SECTIONS.filter((section) => section.startsWith('health.'))
+
+    const { held } = evaluateAlerts(s, AUX, new Set(), new Set())
+
+    const unheld = ALERT_DEFINITIONS.filter(
+      (def) => def.implemented && !held.includes(def.name),
+    ).map((def) => def.name)
+    expect(unheld.sort()).toEqual(Object.keys(READS_NO_HEALTH_SIGNAL).sort())
+  })
+})
+
+describe('evaluateAlerts on a degraded snapshot', () => {
+  it('holds an alert already firing when its section degrades instead of clearing it', () => {
+    const s = healthy()
+    s.degraded = ['health.quarantine']
+    s.quarantine = null
+
+    const result = evaluateAlerts(
+      s,
+      AUX,
+      new Set(['queue.quarantine-nonempty']),
+      new Set(['observability.snapshot-degraded']),
+    )
+
+    expect(result.firing).toContain('queue.quarantine-nonempty')
+    expect(result.held).toEqual(['queue.quarantine-growth', 'queue.quarantine-nonempty'])
+    expect(result.toDispatch.map((event) => event.name)).toEqual([
+      'observability.snapshot-degraded',
+    ])
+  })
+
+  it('opens no new edge on a degraded section, whatever its fallback reads', () => {
+    const s = healthy()
+    s.degraded = ['health.quarantine']
+    s.quarantine = { count: 1, oldestAgeMs: QUARANTINE_NONEMPTY_ALERT_MS + 1 }
+
+    const result = evaluateAlerts(s, AUX, new Set(), new Set())
+
+    expect(result.firing).not.toContain('queue.quarantine-nonempty')
+    expect(result.toDispatch.map((event) => event.name)).not.toContain(
+      'queue.quarantine-nonempty',
+    )
   })
 })
 
@@ -553,7 +723,7 @@ describe('notification.immediate-email-acceptance-lag', () => {
     })
   })
 
-  it('uses attempted work as per-Organization activation evidence and stays quiet at the boundary', () => {
+  it('fires on attempted work while globally dark and stays quiet at the boundary', () => {
     const perOrganization = healthy()
     perOrganization.notifications.deliveryLag.immediateEmailAcceptance = {
       ...perOrganization.notifications.deliveryLag.immediateEmailAcceptance,
@@ -577,17 +747,24 @@ describe('notification.immediate-email-acceptance-lag', () => {
     expect(
       evaluateOne('notification.immediate-email-acceptance-lag', boundary),
     ).toBeNull()
+  })
 
-    const intentionallyDark = healthy()
-    intentionallyDark.notifications.deliveryLag.immediateEmailAcceptance = {
-      ...intentionallyDark.notifications.deliveryLag.immediateEmailAcceptance,
+  // The read already excludes capability-dark scopes (their rows are never
+  // attempted), so an awaiting row here is mail that may be sent. Requiring
+  // accepted or attempted evidence as well hid exactly the allowlisted
+  // Organization whose urgent job was never enqueued or never ran.
+  it("fires on a sendable scope's untouched backlog without other email evidence", () => {
+    const untouched = healthy()
+    untouched.notifications.deliveryLag.immediateEmailAcceptance = {
+      ...untouched.notifications.deliveryLag.immediateEmailAcceptance,
       awaitingProviderAcceptance: 5,
       oldestAwaitingSourceRecordedAt: '2026-08-20T20:00:00.000Z',
       oldestAwaitingSourceAgeMs: 4 * 60 * 60 * 1000,
     }
+
     expect(
-      evaluateOne('notification.immediate-email-acceptance-lag', intentionallyDark),
-    ).toBeNull()
+      evaluateOne('notification.immediate-email-acceptance-lag', untouched),
+    ).toMatchObject({ value: 4 * 60 * 60 * 1000 })
   })
 
   it('fails honestly when active evidence is unlinked or the bounded sample saturates', () => {
@@ -664,12 +841,26 @@ describe('notification.email-stalled', () => {
     const s = overdue(healthy(), {
       emailDeliveryEnabled: false,
       attemptedStuckCount: 3,
+      oldestAttemptedStuckAgeMs: NOTIFICATION_EMAIL_STALLED_ALERT_MS + 1,
     })
 
     const event = evaluateOne('notification.email-stalled', s)
 
     expect(event).not.toBeNull()
     expect(event!.detail).toContain('already attempted')
+  })
+
+  // While globally dark, an old UNTOUCHED row is an expected dark-scope
+  // backlog; only how long the touched rows have waited is the fault.
+  it('judges only the touched rows while globally dark', () => {
+    const s = overdue(healthy(), {
+      emailDeliveryEnabled: false,
+      oldestPendingOverdueAgeMs: 5 * NOTIFICATION_EMAIL_STALLED_ALERT_MS,
+      attemptedStuckCount: 1,
+      oldestAttemptedStuckAgeMs: 10 * 60 * 1000,
+    })
+
+    expect(evaluateOne('notification.email-stalled', s)).toBeNull()
   })
 
   it('stays silent at the age boundary even with delivery enabled', () => {
@@ -689,6 +880,166 @@ describe('notification.email-stalled', () => {
     s.notifications = { ...s.notifications, emailDeliveryEnabled: true }
 
     expect(evaluateOne('notification.email-stalled', s)).toBeNull()
+  })
+})
+
+// ── what became of attempted email ────────────────────────────────
+
+describe('notification email outcomes', () => {
+  function withOutcomes(
+    outcomes: Partial<MutableSnapshot['notifications']['emailOutcomes']>,
+  ): MutableSnapshot {
+    const s = healthy()
+    s.notifications.emailOutcomes = { ...s.notifications.emailOutcomes, ...outcomes }
+    return s
+  }
+
+  it('pages when most attempts are refused permanently — a revoked key or unverified domain', () => {
+    const event = evaluateOne(
+      'notification.email-permanent-failures',
+      withOutcomes({ permanentFailureCount: 3, acceptedCount: 1 }),
+    )
+
+    expect(event).toMatchObject({
+      name: 'notification.email-permanent-failures',
+      severity: 'P2',
+      value: 75,
+      threshold: NOTIFICATION_EMAIL_PERMANENT_FAILURE_SHARE_ALERT_PERCENT,
+      windowMs: NOTIFICATION_EMAIL_OUTCOME_WINDOW_MS,
+      runbook: 'runbooks.md §15',
+    })
+    expect(event!.detail).toContain('3 permanently refused')
+    // Refusals with nothing accepted are every attempt.
+    expect(
+      evaluateOne(
+        'notification.email-permanent-failures',
+        withOutcomes({
+          permanentFailureCount: NOTIFICATION_EMAIL_PERMANENT_FAILURE_MIN_COUNT,
+        }),
+      ),
+    ).toMatchObject({ value: 100 })
+  })
+
+  it('stays quiet on isolated refusals among accepted mail', () => {
+    expect(
+      evaluateOne(
+        'notification.email-permanent-failures',
+        withOutcomes({ permanentFailureCount: 1, acceptedCount: 1 }),
+      ),
+    ).toBeNull()
+    expect(evaluateOne('notification.email-permanent-failures', healthy())).toBeNull()
+  })
+
+  it('stays quiet on a lone refusal with nothing accepted — one bad address in a quiet Organization', () => {
+    expect(
+      evaluateOne(
+        'notification.email-permanent-failures',
+        withOutcomes({
+          permanentFailureCount: NOTIFICATION_EMAIL_PERMANENT_FAILURE_MIN_COUNT - 1,
+        }),
+      ),
+    ).toBeNull()
+  })
+
+  it('pages on a bounce rate above the provider threshold once bounces are not isolated', () => {
+    const event = evaluateOne(
+      'notification.email-bounce-rate',
+      withOutcomes({ bouncedCount: 3, acceptedCount: 40 }),
+    )
+
+    expect(event).toMatchObject({
+      name: 'notification.email-bounce-rate',
+      severity: 'P2',
+      value: 7.5,
+      threshold: NOTIFICATION_EMAIL_BOUNCE_RATE_ALERT_PERCENT,
+    })
+    // Isolated bounces are a large rate at beta volume, but not yet a signal.
+    expect(
+      evaluateOne(
+        'notification.email-bounce-rate',
+        withOutcomes({
+          bouncedCount: NOTIFICATION_EMAIL_BOUNCE_MIN_COUNT - 1,
+          acceptedCount: 10,
+        }),
+      ),
+    ).toBeNull()
+    expect(
+      evaluateOne(
+        'notification.email-bounce-rate',
+        withOutcomes({ bouncedCount: 3, acceptedCount: 100 }),
+      ),
+    ).toBeNull()
+  })
+
+  it('pages on any spam complaint', () => {
+    expect(
+      evaluateOne('notification.email-complaints', withOutcomes({ complainedCount: 1 })),
+    ).toMatchObject({ severity: 'P2', value: 1, threshold: 0 })
+    expect(evaluateOne('notification.email-complaints', healthy())).toBeNull()
+  })
+
+  it('pages when the delivery path gives up on transient failures', () => {
+    const event = evaluateOne(
+      'notification.email-retry-exhausted',
+      withOutcomes({ retryExhaustedCount: 2 }),
+    )
+
+    expect(event).toMatchObject({ severity: 'P2', value: 2, threshold: 0 })
+    expect(event!.detail).toContain('retry budget')
+    expect(evaluateOne('notification.email-retry-exhausted', healthy())).toBeNull()
+  })
+
+  it('pages when accepted mail never resolves, naming a silent webhook', () => {
+    const silent = evaluateOne(
+      'notification.email-provider-feedback-missing',
+      withOutcomes({
+        acceptedCount: 5,
+        acceptedUnresolvedCount: 3,
+        oldestAcceptedUnresolvedAgeMs: 30 * 60 * 60 * 1000,
+      }),
+    )
+
+    expect(silent).toMatchObject({
+      name: 'notification.email-provider-feedback-missing',
+      severity: 'P2',
+      value: 3,
+      threshold: NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT,
+      windowMs: NOTIFICATION_EMAIL_UNRESOLVED_LOOKBACK_MS,
+    })
+    expect(silent!.detail).toContain('webhook')
+
+    const partial = evaluateOne(
+      'notification.email-provider-feedback-missing',
+      withOutcomes({
+        acceptedUnresolvedCount: 4,
+        oldestAcceptedUnresolvedAgeMs: 7 * 60 * 60 * 1000,
+        providerOutcomeCount: 12,
+      }),
+    )
+    expect(partial!.detail).toContain('12 provider event(s) did arrive')
+    expect(partial!.detail).toContain('delivery_delayed')
+
+    const captured = evaluateOne(
+      'notification.email-provider-feedback-missing',
+      withOutcomes({
+        acceptedUnresolvedCount: 3,
+        oldestAcceptedUnresolvedAgeMs: 7 * 60 * 60 * 1000,
+        capturedUnresolvedCount: 3,
+      }),
+    )
+    expect(captured!.detail).toContain('3 captured')
+  })
+
+  it('stays quiet on a couple of delayed deliveries', () => {
+    expect(
+      evaluateOne(
+        'notification.email-provider-feedback-missing',
+        withOutcomes({
+          acceptedUnresolvedCount: NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT,
+          oldestAcceptedUnresolvedAgeMs: 7 * 60 * 60 * 1000,
+        }),
+      ),
+    ).toBeNull()
   })
 })
 

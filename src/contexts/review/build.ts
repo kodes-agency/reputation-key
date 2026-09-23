@@ -12,6 +12,10 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { JobRegistry } from '#/shared/jobs/registry'
 import type { GoogleReviewApiPort } from './application/ports/google-review-api.port'
 import type { PropertySourceEpochPort } from './application/ports/property-source-epoch.port'
+import type {
+  PropertyPublicationScopePort,
+  ReviewPropertyPublicationLifecycle,
+} from './application/ports/property-publication-scope.port'
 import type { ReviewRepository } from './application/ports/review.repository'
 import type { ReviewObservationRepository } from './application/ports/review-observation.repository'
 import type { ReplyRepository } from './application/ports/reply.repository'
@@ -25,7 +29,11 @@ import type {
 import type { TargetedGoogleReviewReferenceResolver } from './application/ports/targeted-google-review-reference.port'
 import type { ReplyQueuePort } from './application/ports/reply-queue.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { PropertySourceEpochPublicApi } from '#/contexts/property/application/public-api'
+import type {
+  PropertyLifecycleState,
+  PropertyPublicationScopePublicApi,
+  PropertySourceEpochPublicApi,
+} from '#/contexts/property/application/public-api'
 import type { AiReplyProvenancePublicKeyring } from './application/ports/ai-suggested-draft-store.port'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
 import { createReviewOrganizationExportContributor } from './infrastructure/adapters/review-organization-export.adapter'
@@ -109,7 +117,10 @@ import {
   checkReplyPublication,
   type CheckReplyPublication,
 } from './application/use-cases/check-reply-publication'
-import { cancelPublicationsForConnection } from './application/use-cases/cancel-publications'
+import {
+  cancelPublicationsForConnection,
+  cancelPublicationsForProperty,
+} from './application/use-cases/cancel-publications'
 import { getStaffRecentActivity } from './application/use-cases/get-staff-recent-activity'
 import {
   createEligibleGoogleReplyReads,
@@ -140,8 +151,8 @@ export type ReviewContextBuildInput = Readonly<{
   staffPublicApi: StaffPublicApi
   /** Identity-owned current actor/member/permission/Property decision. */
   publicationActorAuthority: ReplyPublicationActorAuthority
-  /** Property-owned source epoch used to reject stale provider work. */
-  propertyApi: PropertySourceEpochPublicApi
+  /** Property-owned source epoch and lifecycle used to reject stale provider work. */
+  propertyApi: PropertySourceEpochPublicApi & PropertyPublicationScopePublicApi
   /** Worker-only Review provider-subject key material; absent on web. */
   providerSubjectKeyring?: ReviewProviderSubjectSecretKeyring
   /** Web-side verification keys for browser-held AI reply suggestions. */
@@ -296,6 +307,23 @@ export type ReviewContextApi = Readonly<{
   }>
 }>
 
+/** Review's publication vocabulary for a Property lifecycle state. */
+function reviewPublicationLifecycle(
+  state: PropertyLifecycleState,
+): ReviewPropertyPublicationLifecycle {
+  switch (state) {
+    case 'active':
+    case 'suspended':
+    case 'archived':
+      return state
+    case 'disconnecting':
+    case 'purge_pending':
+    case 'purging':
+    case 'purged':
+      return 'removing'
+  }
+}
+
 export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContextApi => {
   const reviewRepo = createReviewRepository(input.db, input.clock)
   const observationRepo = createReviewObservationRepository(input.db)
@@ -411,6 +439,19 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   const propertySourceEpochLookup: PropertySourceEpochPort = {
     getSourceEpoch: (orgId, pid) => input.propertyApi.getSourceEpoch(orgId, pid),
   }
+  // Reply commands refuse up front what the provider authorizer would refuse,
+  // in Review's words for the Property's lifecycle.
+  const propertyPublicationScope: PropertyPublicationScopePort = {
+    getPublicationScope: async (orgId, pid) => {
+      const scope = await input.propertyApi.getPublicationScope(orgId, pid)
+      return scope
+        ? {
+            lifecycle: reviewPublicationLifecycle(scope.lifecycleState),
+            sourceEpoch: scope.sourceEpoch,
+          }
+        : null
+    },
+  }
 
   // BQC-3.3: atomic reply state and outbox writes for the reply command family.
   const replyCommandStore = createAtomicReplyCommandStore(
@@ -440,6 +481,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       : undefined,
     dispatchEvidence,
     googleReplyObservationStore,
+    propertyPublicationScope,
     clock: input.clock,
     idGen: () => replyId(input.idGen()),
     staffPublicApi: input.staffPublicApi,
@@ -563,6 +605,11 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       receipts: input.outboxRepo,
       logger: input.logger,
       cancelPublicationsForConnection: cancelPublications,
+      cancelPublicationsForProperty: cancelPublicationsForProperty({
+        replyRepo,
+        commandStore: replyCommandStore,
+        clock: input.clock,
+      }),
     })
   // BQC-5.5: governed aggregate serving reads — eligibility in SQL,
   // clock-injected. Wired into the dashboard build by composition. ONE

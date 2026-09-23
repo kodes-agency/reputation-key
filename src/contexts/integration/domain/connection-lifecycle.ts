@@ -11,7 +11,8 @@
 // - pending:           OAuth flow started, account/location not yet verified
 // - active:            Healthy, syncing reviews
 // - degraded:          Token works but rate-limited, partially failing, or slow
-// - reauth_required:   Token revoked or refresh failed; user must re-authenticate
+// - reauth_required:   Google refused the refresh grant for good (revoked or
+//                      expired), or its connector left; user must re-authenticate
 // - disconnecting:     Disconnect workflow in progress (revoking tokens, stopping sync)
 // - disconnected:      Terminal — tokens revoked, sync stopped, connection inert
 // - failed:            Terminal — connection failed permanently (wrong account, scope mismatch)

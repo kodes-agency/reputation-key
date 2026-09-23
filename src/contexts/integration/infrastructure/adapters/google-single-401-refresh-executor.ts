@@ -1,4 +1,5 @@
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
+import { isIntegrationError } from '../../domain/errors'
 
 export const createSingle401RefreshExecutor = (
   deps: Readonly<{
@@ -49,7 +50,16 @@ export const createSingle401RefreshExecutor = (
       // Replica-safe coalescing and backoff belong to refreshGoogleToken's
       // Redis coordination port. Keeping a second process-local Map here made
       // behavior depend on which web/worker replica received the 401.
-      await deps.refreshAccessToken({ authorization: options.authorization })
+      try {
+        await deps.refreshAccessToken({ authorization: options.authorization })
+      } catch (error) {
+        // Google refused the grant for good, so the answered 401 is the whole
+        // outcome. Rethrowing would report it as an unknown dispatch.
+        if (isIntegrationError(error) && error.code === 'reauthorization_required') {
+          return first
+        }
+        throw error
+      }
       options.signal?.throwIfAborted()
       const authorization = await deps.reauthorize({
         authorization: options.authorization,

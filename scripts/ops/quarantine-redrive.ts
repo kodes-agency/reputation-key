@@ -19,6 +19,7 @@
 
 import {
   createRedriveJob,
+  findQuarantinedJob,
   listQuarantinedJobs,
   type QuarantinedEntry,
   type QuarantinedJobHandle,
@@ -91,9 +92,9 @@ async function main(): Promise<void> {
         return
       }
 
-      // Look up the reviewed entry before either disposition.
-      const entries = await listQuarantinedJobs(quarantine)
-      const entry = entries.find((candidate) => candidate.quarantineJobId === id)
+      // Look up the reviewed entry before either disposition — by id, so an
+      // entry behind a full listing page is still reachable.
+      const entry = await findQuarantinedJob(quarantine, id)
       if (!entry) {
         io.err(`no quarantined job with id '${id}'`)
         return 1

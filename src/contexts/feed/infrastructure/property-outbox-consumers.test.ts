@@ -44,6 +44,7 @@ const makeDeps = () => {
   return {
     queue: fakes.queue,
     userLookup: fakes.userLookup,
+    displayNames: fakes.displayNames,
     logger: fakes.logger,
     receipts: { insertReceipt: vi.fn(async () => {}) },
     fakes,
@@ -84,6 +85,39 @@ describe('Property notification durable consumer', () => {
       ON_PROPERTY_RESPONSIBILITY_NEEDED_CONSUMER,
       'applied',
     )
+  })
+
+  it('asks AccountAdmins only for as long as the Property still has no manager', async () => {
+    const deps = makeDeps()
+    deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
+
+    await handleNotificationPropertyResponsibilityNeeded(deps, event())
+
+    expect(deps.fakes.jobs[0]?.data).toMatchObject({
+      type: 'property.responsibility_needed',
+      payload: { propertyName: 'Riverside Hotel' },
+      audience: {
+        kind: 'responsibility_gap',
+        scope: { kind: 'property', propertyId: NOTIF_TEST_IDS.propId },
+      },
+    })
+    expect(deps.fakes.displayNames.findPropertyName).toHaveBeenCalledWith(
+      NOTIF_TEST_IDS.orgId,
+      NOTIF_TEST_IDS.propId,
+    )
+  })
+
+  it('still asks when the Property name cannot be read', async () => {
+    const deps = makeDeps()
+    deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
+    deps.fakes.displayNames.findPropertyName.mockRejectedValue(new Error('db down'))
+
+    await handleNotificationPropertyResponsibilityNeeded(deps, event())
+
+    expect(deps.fakes.jobs[0]?.data).toMatchObject({
+      type: 'property.responsibility_needed',
+      payload: {},
+    })
   })
 
   it('fails closed on Organization or Property attribution mismatch', async () => {

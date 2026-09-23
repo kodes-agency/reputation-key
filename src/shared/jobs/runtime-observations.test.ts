@@ -294,6 +294,158 @@ describe('durable job runtime observations', () => {
     expect(repaired.rows[0]).toMatchObject({ ready: true, reasons: [] })
   })
 
+  describe('terminal gate denials', () => {
+    const scheduled = [{ key: 'health-check-recurring', name: 'health-check' }]
+    const deniedFiring = {
+      gate: 'denied',
+      reason: 'missing_scope',
+      executionKind: 'schedule',
+    } as const
+
+    async function booted(contracts = [contract()]) {
+      const redis = new MemoryRedis()
+      const store = createJobRuntimeObservationStore({ redis })
+      await store.recordBoot({
+        contracts,
+        registeredHandlers: new Set(contracts.map((c) => c.jobName)),
+        registeredSchedulers: new Set(contracts.map((c) => c.jobName)),
+        runtimeStartedAt: new Date('2026-08-27T05:00:00.000Z'),
+      })
+      return { store, contracts }
+    }
+
+    it('records a denied schedule firing as a denial that fails the family until a later success', async () => {
+      const { store, contracts } = await booted()
+      const succeededAt = new Date('2026-08-27T05:50:00.000Z')
+      await store.recordSucceeded({
+        queue: 'background',
+        jobName: 'health-check',
+        jobId: 'run-1',
+        at: succeededAt,
+        repair: false,
+      })
+      await store.recordDenied({
+        queue: 'background',
+        jobName: 'health-check',
+        jobId: 'run-2',
+        at: new Date('2026-08-27T05:55:00.000Z'),
+        executionKind: 'schedule',
+      })
+      const read = () =>
+        createJobRuntimeReportReader({
+          contracts,
+          store,
+          queues: { background: queue({ schedulers: scheduled }), default: null },
+          quarantine: null,
+          clock: () => NOW,
+        }).read()
+
+      const denied = await read()
+      expect(denied).toMatchObject({ ready: false, failing: 1, scheduleDenied: 1 })
+      expect(denied.rows[0]).toMatchObject({
+        ready: false,
+        reasons: ['schedule_denied'],
+        lastSucceededAt: succeededAt.toISOString(),
+        lastDeniedAt: '2026-08-27T05:55:00.000Z',
+      })
+
+      await store.recordSucceeded({
+        queue: 'background',
+        jobName: 'health-check',
+        jobId: 'run-3',
+        at: new Date('2026-08-27T05:58:00.000Z'),
+        repair: false,
+      })
+      expect(await read()).toMatchObject({ ready: true, scheduleDenied: 0 })
+    })
+
+    it('does not take freshness from denied firings in the retained completed set', async () => {
+      const { store, contracts } = await booted()
+
+      const report = await createJobRuntimeReportReader({
+        contracts,
+        store,
+        queues: {
+          default: null,
+          background: queue({
+            schedulers: scheduled,
+            jobs: {
+              completed: [
+                {
+                  name: 'health-check',
+                  timestamp: Date.parse('2026-08-27T05:50:00.000Z'),
+                  processedOn: Date.parse('2026-08-27T05:50:01.000Z'),
+                  finishedOn: Date.parse('2026-08-27T05:50:02.000Z'),
+                  returnvalue: deniedFiring,
+                },
+                {
+                  name: 'health-check',
+                  timestamp: Date.parse('2026-08-27T05:55:00.000Z'),
+                  processedOn: Date.parse('2026-08-27T05:55:01.000Z'),
+                  finishedOn: Date.parse('2026-08-27T05:55:02.000Z'),
+                  returnvalue: deniedFiring,
+                },
+              ],
+            },
+          }),
+        },
+        quarantine: null,
+        clock: () => NOW,
+      }).read()
+
+      expect(report).toMatchObject({ ready: false, scheduleDenied: 1, gateDenials: 2 })
+      expect(report.rows[0]).toMatchObject({
+        reasons: ['schedule_denied', 'success_never_observed'],
+        lastSucceededAt: null,
+        lastDeniedAt: '2026-08-27T05:55:02.000Z',
+        deniedCount: 2,
+      })
+    })
+
+    it('counts a denial of on-demand work without failing the family', async () => {
+      const { store, contracts } = await booted([
+        contract({
+          jobName: 'insert-notification',
+          queue: 'default',
+          schedule: 'none',
+          lastSuccessObjectiveMs: null,
+        }),
+      ])
+
+      const report = await createJobRuntimeReportReader({
+        contracts,
+        store,
+        queues: {
+          background: null,
+          default: queue({
+            jobs: {
+              completed: [
+                {
+                  name: 'insert-notification',
+                  timestamp: Date.parse('2026-08-27T05:55:00.000Z'),
+                  processedOn: Date.parse('2026-08-27T05:55:01.000Z'),
+                  finishedOn: Date.parse('2026-08-27T05:55:02.000Z'),
+                  returnvalue: { ...deniedFiring, executionKind: 'worker' },
+                },
+              ],
+            },
+          }),
+        },
+        quarantine: null,
+        clock: () => NOW,
+      }).read()
+
+      expect(report).toMatchObject({ ready: true, scheduleDenied: 0, gateDenials: 1 })
+      expect(report.rows[0]).toMatchObject({
+        ready: true,
+        reasons: [],
+        lastSucceededAt: null,
+        lastDeniedAt: '2026-08-27T05:55:02.000Z',
+        deniedCount: 1,
+      })
+    })
+  })
+
   it('allows a quarantined safety handler but rejects its scheduler', async () => {
     const redis = new MemoryRedis()
     const store = createJobRuntimeObservationStore({ redis })

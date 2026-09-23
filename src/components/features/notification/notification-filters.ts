@@ -1,15 +1,15 @@
 // Feed filtering + grouping. Pure functions over rows the server already sent.
 //
 // The category tabs are derived from GOVERNING_NOTIFICATION_CATEGORIES, not
-// hardcoded. Retained post-core categories remain visible through All/Unread
-// without advertising a dedicated beta control. `mandatory` DOES govern types
+// hardcoded. `recognition` shows as "Goals", the goal results it governs
+// (ADR 0046, amended 2026-09-22). `mandatory` DOES govern types
 // now (Organization access granted/removed, role changed, purge pending), so
 // it earns a tab: a category the reader cannot switch off is still one they
 // may filter to. One list per question, both from the domain.
 
 import {
   GOVERNING_NOTIFICATION_CATEGORIES,
-  type Notification,
+  type NotificationView,
   type NotificationListFilter,
 } from '#/contexts/feed/application/public-api'
 import { CATEGORY_COPY } from '#/components/features/settings/notifications-type-rows'
@@ -46,8 +46,18 @@ export function parseNotificationFilter(value: unknown): NotificationFilter {
     : 'all'
 }
 
+/**
+ * What a filter tab holds, as a sentence subject: "Mark all read" on that tab
+ * changes exactly these, and its announcement says which.
+ */
+export function notificationFilterScope(filter: NotificationFilter): string {
+  if (filter === 'all' || filter === 'unread') return 'All notifications'
+  if (filter === 'urgent') return 'Urgent notifications'
+  return `${CATEGORY_COPY[filter].label} notifications`
+}
+
 export function matchesNotificationFilter(
-  notification: Notification,
+  notification: NotificationView,
   filter: NotificationFilter,
 ): boolean {
   switch (filter) {
@@ -67,12 +77,12 @@ export function matchesNotificationFilter(
 export type NotificationGroup = Readonly<{
   key: string
   label: string
-  notifications: ReadonlyArray<Notification>
+  notifications: ReadonlyArray<NotificationView>
 }>
 
 /** Popover grouping: what still needs attention, then everything else. */
 export function groupByReadState(
-  notifications: ReadonlyArray<Notification>,
+  notifications: ReadonlyArray<NotificationView>,
 ): ReadonlyArray<NotificationGroup> {
   const unread = notifications.filter((n) => n.status === 'unread')
   const read = notifications.filter((n) => n.status !== 'unread')
@@ -90,11 +100,11 @@ export function groupByReadState(
  * stable group rather than inventing a Property.
  */
 export function groupByProperty(
-  notifications: ReadonlyArray<Notification>,
+  notifications: ReadonlyArray<NotificationView>,
   propertyNames: Readonly<Record<string, string>>,
 ): ReadonlyArray<NotificationGroup> {
   const order: string[] = []
-  const buckets = new Map<string, Notification[]>()
+  const buckets = new Map<string, NotificationView[]>()
   const organizationKey = 'organization-account-security'
 
   for (const notification of notifications) {

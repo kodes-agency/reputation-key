@@ -115,10 +115,30 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
   it('builds an absolute deep link per line, keyed on the row property', () => {
     const groups = groupItemsByProperty(items, new Map(), url)
 
-    // Inbox items link to the item; a goal links to its PROPERTY page, which is
-    // where the previous builder used the goalId and produced a dead link.
+    // Inbox items link to the item; a goal links to its PROPERTY's goals with
+    // the result it reports, where the previous builder used the goalId and
+    // produced a dead link.
     expect(groups[0]!.items[0]!.actionUrl).toBe('https://app.test/inbox?itemId=inbox-1')
-    expect(groups[1]!.items[0]!.actionUrl).toBe('https://app.test/properties/prop-b')
+    expect(groups[1]!.items[0]!.actionUrl).toBe(
+      'https://app.test/properties/prop-b/goals?result=goal-1',
+    )
+  })
+
+  it("opens a grouped assignment line on the recipient's queue", () => {
+    const grouped = [
+      buildDigestItem({
+        propertyId: 'prop-a',
+        type: 'inbox.bulk_assigned',
+        payload: { propertyName: 'Riverside Hotel', itemCount: 4 },
+        resourceId: 'inbox-5',
+      }),
+    ]
+
+    const groups = groupItemsByProperty(grouped, new Map(), url)
+
+    expect(groups[0]!.items[0]!.actionUrl).toBe(
+      'https://app.test/inbox?queue=mine&propertyId=prop-a',
+    )
   })
 
   it('falls back to the resolved property name when the payload has none', () => {
@@ -133,6 +153,39 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
     )
 
     expect(groups[0]!.propertyName).toBe('Seaside Lodge')
+  })
+
+  // However late the digest is assembled, a line shows the wait its notice
+  // was raised with: the item may have been answered since.
+  it('shows the wait a notice was raised with, not one measured at assembly', () => {
+    const waiting = [
+      buildDigestItem({
+        propertyId: 'prop-a',
+        type: 'reply.pending_approval',
+        payload: {
+          propertyName: 'Riverside Hotel',
+          waitingSince: '2026-09-20T07:00:00.000Z',
+          waitedHours: 5,
+        },
+        resourceId: 'inbox-3',
+      }),
+    ]
+
+    const groups = groupItemsByProperty(waiting, new Map(), url)
+
+    expect(groups[0]!.items[0]!.rendered.summary).toBe('review · waited 5h')
+  })
+
+  // The group heading already names the Property, and each title says it
+  // again ("New review at Riverside Hotel"); the facts line need not.
+  it("leaves the group's Property out of each line's facts", () => {
+    const groups = groupItemsByProperty(items, new Map(), url)
+    const riverside = groups.find((group) => group.propertyName === 'Riverside Hotel')!
+
+    expect(riverside.items.map((item) => item.rendered.summary)).toEqual([
+      'review',
+      'review · internal note',
+    ])
   })
 
   it('never renders a bare property UUID as a heading', () => {

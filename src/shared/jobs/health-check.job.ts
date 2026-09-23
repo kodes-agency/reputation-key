@@ -8,7 +8,10 @@
 // pure), and dispatches newly-firing alerts through the container-owned
 // AlertDispatcher (shared/observability/alert-dispatcher.ts). Hysteresis is
 // edge-trigger + 24h re-notify via the Redis firing-state store
-// (shared/health/alert-state.ts); recovery clears the state. This supersedes
+// (shared/health/alert-state.ts); recovery clears the state, but an alert
+// whose snapshot section is degraded is held, not cleared, and a sustained
+// alert's first breach is only persisted as pending — it pages when the next
+// run breaches too. This supersedes
 // the BQC-3.7 warn-only threshold logs (warnOnOpsThresholds), whose four
 // signals are now formal definitions (queue.oldest-age, queue.stalled,
 // queue.quarantine-growth).
@@ -37,6 +40,14 @@ export type HealthCheckResult = Readonly<{
     firing: readonly string[]
     /** Alerts dispatched on THIS run (ok→firing edges). */
     dispatched: readonly string[]
+    /**
+     * Alerts not evaluated because a snapshot section they read is degraded:
+     * their prior state is kept, not cleared (observability.snapshot-degraded
+     * pages for the blindness).
+     */
+    held: readonly string[]
+    /** Sustained alerts on their first breach: they page if the next run breaches too. */
+    pending: readonly string[]
   }>
 }>
 
@@ -90,18 +101,20 @@ async function evaluateAndDispatch(
     '[health-check] content-free auxiliary alert readings',
   )
 
-  let previouslyFiring: ReadonlySet<string>
-  try {
-    previouslyFiring = deps.alertState
-      ? await deps.alertState.currentlyFiring(implementedAlertNames())
-      : new Set()
-  } catch {
-    previouslyFiring = new Set()
+  const { previouslyFiring, previouslyPending, stateReadable } =
+    await readAlertState(deps)
+  const { toDispatch, firing, held, pending } = evaluateAlerts(
+    snapshot,
+    aux,
+    previouslyFiring,
+    previouslyPending,
+  )
+  if (held.length > 0) {
     deps.logger.warn(
-      '[health-check] alert hysteresis state unavailable — evaluating fail-visible',
+      { degraded: snapshot.degraded, held },
+      '[health-check] alerts held — their snapshot section is degraded',
     )
   }
-  const { toDispatch, firing } = evaluateAlerts(snapshot, aux, previouslyFiring)
 
   const dispatched: string[] = []
   for (const event of toDispatch) {
@@ -139,8 +152,72 @@ async function evaluateAndDispatch(
       }
     }
   }
+  if (deps.alertState && stateReadable) {
+    await reconcilePending(deps.alertState, deps.logger, previouslyPending, pending)
+  }
 
-  return { firing, dispatched }
+  return { firing, dispatched, held, pending }
+}
+
+/**
+ * The persisted hysteresis inputs. Without a readable store no evaluation can
+ * confirm the next, so every sustained alert counts as already pending — it
+ * pages on its first breach: duplicate pages are safer than a blindness alert
+ * that can never fire.
+ */
+async function readAlertState(
+  deps: Readonly<{ logger: pino.Logger; alertState?: AlertStateStore }>,
+): Promise<
+  Readonly<{
+    previouslyFiring: ReadonlySet<string>
+    previouslyPending: ReadonlySet<string>
+    stateReadable: boolean
+  }>
+> {
+  const names = implementedAlertNames()
+  const failVisible = {
+    previouslyFiring: new Set<string>(),
+    previouslyPending: new Set(names),
+    stateReadable: false,
+  }
+  if (!deps.alertState) return failVisible
+  try {
+    const [previouslyFiring, previouslyPending] = await Promise.all([
+      deps.alertState.currentlyFiring(names),
+      deps.alertState.currentlyPending(names),
+    ])
+    return { previouslyFiring, previouslyPending, stateReadable: true }
+  } catch {
+    deps.logger.warn(
+      '[health-check] alert hysteresis state unavailable — evaluating fail-visible',
+    )
+    return failVisible
+  }
+}
+
+/**
+ * Persist this run's first breaches and drop the previous run's other pending
+ * markers: a confirmed one now holds firing state, a recovered one is gone —
+ * so only a breach on consecutive evaluations ever pages.
+ */
+async function reconcilePending(
+  alertState: AlertStateStore,
+  logger: pino.Logger,
+  previouslyPending: ReadonlySet<string>,
+  pending: readonly string[],
+): Promise<void> {
+  const write = async (name: string, update: () => Promise<void>) => {
+    try {
+      await update()
+    } catch {
+      logger.warn({ alert: name }, '[health-check] alert pending state unavailable')
+    }
+  }
+  const pendingSet = new Set(pending)
+  for (const name of pending) await write(name, () => alertState.markPending(name))
+  for (const name of previouslyPending) {
+    if (!pendingSet.has(name)) await write(name, () => alertState.clearPending(name))
+  }
 }
 
 export function createHealthCheckHandler(deps: HealthCheckDeps) {

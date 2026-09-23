@@ -14,6 +14,8 @@ function fakeDb(results: unknown[][]): Database {
     const chain: Record<string, unknown> = {}
     chain.from = () => chain
     chain.where = () => chain
+    chain.leftJoin = () => chain
+    chain.groupBy = () => chain
     chain.then = (resolve: (v: unknown[]) => unknown, reject: (e: unknown) => unknown) =>
       Promise.resolve(rows).then(resolve, reject)
     return chain
@@ -25,8 +27,8 @@ const REVIEW_ROW = [
   { total: 0, refresh_due: 0, expired: 0, oldest_due_age_seconds: null },
 ]
 const SYNC_ROW = [{ due: 0, failed: 0, oldest_due_age_ms: null }]
-/** Notification email queue aggregate (overdue count, age, attempted). */
-const NOTIFICATION_ROW = [{ overdue: 0, oldest_overdue_age_ms: null, attempted: 0 }]
+/** Notification email queue aggregate (overdue count and age, outcomes). */
+const NOTIFICATION_ROW = [{ overdue: 0, oldest_overdue_age_ms: null }]
 /** BQC-7.3: reply publication aggregate (one row, all states + age). */
 const PUBLICATION_ROW = [
   {
@@ -152,6 +154,41 @@ describe('health checker quarantine metrics (BQC-3.7)', () => {
     expect(snapshot.quarantine!.oldestAgeMs).toBeLessThanOrEqual(3_700_000)
   })
 
+  // BullMQ LPUSHes the wait list, so its default page (asc=false) is the
+  // NEWEST entries. A fake that ignores `asc` hides exactly that.
+  it('ages the quarantine by its OLDEST entries even behind a full page of newer ones', async () => {
+    const minuteAgo = new Date(Date.now() - 60_000).toISOString()
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 3_600_000).toISOString()
+    const newestFirst = [
+      ...Array.from({ length: 150 }, () => ({ data: { quarantinedAt: minuteAgo } })),
+      ...Array.from({ length: 50 }, () => ({ data: { quarantinedAt: twoDaysAgo } })),
+    ]
+    const quarantine: QuarantineMetricsPort = {
+      getJobCounts: vi.fn(async () => ({ waiting: newestFirst.length })),
+      getJobs: vi.fn(async (_types, start = 0, end = -1, asc = false) =>
+        (asc ? [...newestFirst].reverse() : newestFirst).slice(
+          start,
+          end < 0 ? undefined : end + 1,
+        ),
+      ),
+    }
+    const db = fakeDb([
+      [{ cnt: 0, age_ms: null }],
+      [{ claimed: 0, oldest_claimed_age_ms: null, stalled: 0 }],
+      REVIEW_ROW,
+      SYNC_ROW,
+      PUBLICATION_ROW,
+      NOTIFICATION_ROW,
+    ])
+
+    const snapshot = await createHealthChecker(db, fakeOutboxRepo([]), {
+      quarantineQueue: quarantine,
+    }).check()
+
+    expect(snapshot.quarantine!.count).toBe(200)
+    expect(snapshot.quarantine!.oldestAgeMs).toBeGreaterThanOrEqual(2 * 24 * 3_600_000)
+  })
+
   it('reports null oldestAgeMs for an empty quarantine', async () => {
     const quarantine = fakeQuarantine({ waiting: 0 }, [])
     const db = fakeDb([
@@ -232,9 +269,17 @@ describe('health checker content safety (BQC-4.3)', () => {
         {
           overdue: 4,
           oldest_overdue_age_ms: 3_600_000,
-          attempted: 1,
           subject: 'SECRET_REVIEW_TEXT',
           recipient: 'SECRET_REVIEWER_NAME',
+        },
+      ],
+      [
+        {
+          organizationId: 'org-1',
+          propertyId: 'property-1',
+          attempted: 1,
+          oldest_attempted_age_ms: null,
+          subject: 'SECRET_REVIEW_TEXT',
         },
       ],
     ])
@@ -286,6 +331,18 @@ describe('health checker content safety (BQC-4.3)', () => {
         pendingOverdueCount: 4,
         oldestPendingOverdueAgeMs: 3_600_000,
         attemptedStuckCount: 1,
+        oldestAttemptedStuckAgeMs: null,
+        emailOutcomes: {
+          acceptedCount: 0,
+          permanentFailureCount: 0,
+          retryExhaustedCount: 0,
+          bouncedCount: 0,
+          complainedCount: 0,
+          providerOutcomeCount: 0,
+          acceptedUnresolvedCount: 0,
+          oldestAcceptedUnresolvedAgeMs: null,
+          capturedUnresolvedCount: 0,
+        },
         missingForInboxItemCount: 0,
         deliveryLag: {
           sourceReceiptPending: 0,
@@ -396,7 +453,15 @@ describe('health checker notification delivery metrics', () => {
       REVIEW_ROW,
       SYNC_ROW,
       PUBLICATION_ROW,
-      [{ overdue: 9, oldest_overdue_age_ms: 7_200_001.6, attempted: 2 }],
+      [{ overdue: 9, oldest_overdue_age_ms: 7_200_001.6 }],
+      [
+        {
+          organizationId: 'org-1',
+          propertyId: 'property-1',
+          attempted: 2,
+          oldest_attempted_age_ms: 3_600_000.4,
+        },
+      ],
     ])
 
     const snapshot = await createHealthChecker(db).check()
@@ -404,6 +469,90 @@ describe('health checker notification delivery metrics', () => {
     expect(snapshot.notifications.pendingOverdueCount).toBe(9)
     expect(snapshot.notifications.oldestPendingOverdueAgeMs).toBe(7_200_002)
     expect(snapshot.notifications.attemptedStuckCount).toBe(2)
+    expect(snapshot.notifications.oldestAttemptedStuckAgeMs).toBe(3_600_000)
+  })
+
+  it('counts touched email rows only in scopes where email may be sent now', async () => {
+    const db = fakeDb([
+      REVIEW_ROW,
+      SYNC_ROW,
+      PUBLICATION_ROW,
+      [{ overdue: 7, oldest_overdue_age_ms: 36_000_000 }],
+      // The touched overdue rows, one reading per delivery scope.
+      [
+        {
+          organizationId: 'org-pilot',
+          propertyId: 'property-1',
+          attempted: 2,
+          oldest_attempted_age_ms: 9_000_000.4,
+        },
+        {
+          organizationId: 'org-pilot',
+          propertyId: null,
+          attempted: 1,
+          oldest_attempted_age_ms: 7_300_000,
+        },
+        {
+          organizationId: 'org-dark',
+          propertyId: 'property-2',
+          attempted: 4,
+          oldest_attempted_age_ms: 36_000_000,
+        },
+      ],
+    ])
+    const asked: Array<{ organizationId: string; propertyId: string | null }> = []
+
+    // A scope that can no longer send (de-allowlisted, suspended, killed)
+    // leaves its held and retrying rows unsent by design: not a stall.
+    const snapshot = await createHealthChecker(db, undefined, {
+      isEmailDeliveryAllowed: (scope) => {
+        asked.push(scope)
+        return scope.organizationId === 'org-pilot'
+      },
+    }).check()
+
+    expect(snapshot.notifications.attemptedStuckCount).toBe(3)
+    expect(snapshot.notifications.oldestAttemptedStuckAgeMs).toBe(9_000_000)
+    expect(snapshot.notifications.pendingOverdueCount).toBe(7)
+    expect(asked).toContainEqual({ organizationId: 'org-dark', propertyId: 'property-2' })
+    expect(asked).toContainEqual({ organizationId: 'org-pilot', propertyId: null })
+  })
+
+  it('reports what became of sent email: refusals, give-ups, bounces, complaints, silence', async () => {
+    const db = fakeDb([
+      REVIEW_ROW,
+      SYNC_ROW,
+      PUBLICATION_ROW,
+      [
+        {
+          overdue: 0,
+          oldest_overdue_age_ms: null,
+          accepted_24h: 40,
+          permanent_failures_24h: 3,
+          retry_exhausted_24h: 1,
+          bounced_24h: 2,
+          complained_24h: 1,
+          provider_outcomes_24h: 30,
+          accepted_unresolved: 4,
+          oldest_accepted_unresolved_age_ms: 25_200_000.4,
+          captured_unresolved: 1,
+        },
+      ],
+    ])
+
+    const snapshot = await createHealthChecker(db).check()
+
+    expect(snapshot.notifications.emailOutcomes).toEqual({
+      acceptedCount: 40,
+      permanentFailureCount: 3,
+      retryExhaustedCount: 1,
+      bouncedCount: 2,
+      complainedCount: 1,
+      providerOutcomeCount: 30,
+      acceptedUnresolvedCount: 4,
+      oldestAcceptedUnresolvedAgeMs: 25_200_000,
+      capturedUnresolvedCount: 1,
+    })
   })
 
   it('defaults the email queue metrics to empty when the aggregate returns no row', async () => {
@@ -416,6 +565,18 @@ describe('health checker notification delivery metrics', () => {
       pendingOverdueCount: 0,
       oldestPendingOverdueAgeMs: null,
       attemptedStuckCount: 0,
+      oldestAttemptedStuckAgeMs: null,
+      emailOutcomes: {
+        acceptedCount: 0,
+        permanentFailureCount: 0,
+        retryExhaustedCount: 0,
+        bouncedCount: 0,
+        complainedCount: 0,
+        providerOutcomeCount: 0,
+        acceptedUnresolvedCount: 0,
+        oldestAcceptedUnresolvedAgeMs: null,
+        capturedUnresolvedCount: 0,
+      },
     })
   })
 

@@ -84,12 +84,17 @@ export function localDateKey(now: Date, timezone: string): string {
   }).format(now)
 }
 
-/** `Friday, 21 August` — the human date for the digest subject and heading. */
-export function localDateLabel(now: Date, timezone: string): string {
+/**
+ * `Friday 21 August` for the local-date key `2026-08-21` — the human date for
+ * the digest subject and heading. It is derived from the key a batch is frozen
+ * with, not from the clock, so a retry that crosses midnight (or follows a
+ * timezone change) renders the same mail under the same idempotency key.
+ */
+export function localDateLabel(localDate: string): string {
   return new Intl.DateTimeFormat('en-GB', {
-    timeZone: timezone,
+    timeZone: 'UTC',
     weekday: 'long',
     day: 'numeric',
     month: 'long',
-  }).format(now)
+  }).format(new Date(`${localDate}T12:00:00.000Z`))
 }

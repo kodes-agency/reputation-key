@@ -162,6 +162,48 @@
       "when": 1790300000000,
       "tag": "0023_review_import_history_cutoff",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790400000000,
+      "tag": "0024_notification_gap_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790500000000,
+      "tag": "0025_mandatory_repeat_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790600000000,
+      "tag": "0026_notification_feed_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790700000000,
+      "tag": "0027_notification_email_recipient_audience",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1790800000000,
+      "tag": "0028_notification_email_suppressions",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1790900000000,
+      "tag": "0029_notification_unsubscribe_scopes",
+      "breakpoints": true
     }
   ]
 }

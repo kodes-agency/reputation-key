@@ -8,6 +8,10 @@ import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 import type { GoogleReplyObservationStore } from '../ports/google-reply-observation-store.port'
 import type { ReplyPublicationDispatchEvidencePort } from '../ports/reply-publication-dispatch-evidence.port'
 import type { AiSuggestedDraftStore } from '../ports/ai-suggested-draft-store.port'
+import type {
+  PropertyPublicationScopePort,
+  ReviewPropertyPublicationLifecycle,
+} from '../ports/property-publication-scope.port'
 import type { ReplyId, ReviewId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Reply, Review } from '../../domain/types'
@@ -55,6 +59,8 @@ export type ReplyDeps = Readonly<{
    */
   dispatchEvidence: ReplyPublicationDispatchEvidencePort
   googleReplyObservationStore: GoogleReplyObservationStore
+  /** Property lifecycle and source epoch, read before any publication write. */
+  propertyPublicationScope: PropertyPublicationScopePort
   clock: () => Date
   idGen: () => ReplyId
   staffPublicApi: StaffPublicApi
@@ -117,6 +123,52 @@ async function resolvePublicationAuthorizationFence(
     baseObservationRevision: head?.observationRevision ?? 0,
   }
 }
+
+const PROPERTY_REMOVED =
+  "This property has been removed, so RepKey won't send its replies to Google. Restore it from the Removed list to publish this reply."
+const ORGANIZATION_CLOSING =
+  "Your organization is being closed, so RepKey won't send replies to Google."
+const PROPERTY_DELETING =
+  "This property is being deleted, so RepKey won't send its replies to Google."
+const REVIEW_NOT_RECHECKED =
+  "RepKey hasn't checked this review on Google since its property was restored or reconnected. Try again after the next sync."
+
+/** Why a Property outside the workspace publishes nothing, in its own words. */
+const REFUSAL_BY_LIFECYCLE: Readonly<
+  Record<Exclude<ReviewPropertyPublicationLifecycle, 'active'>, string>
+> = {
+  archived: PROPERTY_REMOVED,
+  suspended: ORGANIZATION_CLOSING,
+  removing: PROPERTY_DELETING,
+}
+
+/**
+ * Refuse, before any write, a publication Google would never be asked to make.
+ * The provider authorizer admits a reply only for an active Property at the
+ * source epoch its Review was observed at, and the worker reports its refusal
+ * as "Google rejected the reply" (urgent, to the author). A Property outside
+ * the workspace, or one restored or relinked since the Review was last
+ * observed, gets the real reason here instead, and no publication cycle is
+ * reserved. Only an archived Property points at the Removed list; suspension
+ * by Organization closing and deletion have no self-service remedy.
+ */
+async function assertPropertyAcceptsPublication(
+  deps: Pick<ReplyDeps, 'propertyPublicationScope'>,
+  review: Review,
+): Promise<void> {
+  const scope = await deps.propertyPublicationScope.getPublicationScope(
+    review.organizationId,
+    review.propertyId,
+  )
+  if (!scope) throw reviewError('invalid_transition', PROPERTY_DELETING)
+  if (scope.lifecycle !== 'active') {
+    throw reviewError('invalid_transition', REFUSAL_BY_LIFECYCLE[scope.lifecycle])
+  }
+  if (scope.sourceEpoch !== review.sourceEpoch) {
+    throw reviewError('invalid_transition', REVIEW_NOT_RECHECKED)
+  }
+}
+
 async function assertCurrentAiDraftBinding(
   deps: ReplyDeps,
   ctx: AuthContext,
@@ -429,6 +481,7 @@ export const approveReply =
   async (input: ApproveReplyInput, ctx: AuthContext): Promise<Reply> => {
     // D6-001: scope reply mutations to the caller's assigned properties.
     const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
+    await assertPropertyAcceptsPublication(deps, review)
     assertReplyTextSendable(reply.text)
     assertReplySlotsFilled(reply.text)
     await assertCurrentAiDraftBinding(deps, ctx, reply)
@@ -516,6 +569,7 @@ export const editPublishedReply =
     if (text === reply.text) {
       return reply
     }
+    await assertPropertyAcceptsPublication(deps, review)
 
     return authorizeAndEnqueuePublication(
       deps,
@@ -636,6 +690,7 @@ export const retryPublish =
     const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
 
     if (isSettledPublishedReply(reply)) return reply
+    await assertPropertyAcceptsPublication(deps, review)
 
     // Any state descended from an unknown provider outcome may be sent again
     // only on positive evidence that the attempt never reached Google (D4).

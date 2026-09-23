@@ -1,10 +1,10 @@
 // Feed notification surface — the ONE fan-out path from "an inbox item exists" to
 // "an insert-notification job is queued for every recipient".
 //
-// The durable outbox consumer and reconciliation sweep share this definition,
-// so recipient resolution, AccountAdmin fallback, source-to-type mapping, the
-// payload allowlist, and the rule that Google history is never announced
-// cannot drift.
+// The durable outbox consumer owns this definition, and the delivery repair
+// replays that consumer, so recipient resolution, AccountAdmin fallback,
+// source-to-type mapping, the payload allowlist, and the rule that Google
+// history is never announced cannot drift.
 //
 // Content-free by construction: the job data carries identifiers plus the
 // ADR 0046 r.8 fact allowlist that buildInboxItemPayload assembles, never
@@ -65,16 +65,17 @@ export type InboxFanoutInput = Readonly<{
   propertyId: string | null | undefined
   sourceType: string
   /**
-   * Stamped onto the notification row's `event_id`. The durable path passes the
-   * originating event id; the sweep passes its own healing origin, so a
-   * backfilled row is distinguishable from ordinary delivery.
+   * The originating `inbox.inbox_item.created` event id, stamped onto the
+   * notification row's `event_id` and the durable delivery marker. A repair
+   * replays the same fact, so it carries the same id.
    */
   eventId: string
   correlationId?: string | null
   /**
    * When set, each enqueue gets the deterministic job id
    * `<jobIdScope>-<userId>`. Durable delivery uses it so an ambiguous relay
-   * redelivery converges; the sweep relies on the notification insert fence.
+   * redelivery converges; the delivery-repair queue replaces it with an id of
+   * its own.
    */
   jobIdScope?: string | null
 }>
@@ -145,8 +146,7 @@ const resolveRecipients = async (
 /**
  * Enqueue one insert-notification job per recipient for a single inbox item.
  * Returns why nothing was enqueued rather than logging-and-returning, so the
- * durable consumer can turn "nothing to do" into an `obsolete` receipt and the
- * sweep can count it.
+ * durable consumer can turn "nothing to do" into an `obsolete` receipt.
  */
 export const fanoutInboxItemNotifications = async (
   deps: InboxFanoutDeps,
