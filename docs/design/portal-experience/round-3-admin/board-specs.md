@@ -1,6 +1,6 @@
 # Board specs
 
-The build spec for each admin board, as written by the design director. Boards are on the [Portal Admin Redesign canvas](https://claude.ai/artifact/L3WgLyLtEC6GP5Sa9uSHhM).
+The build spec for each admin board, as written by the design director. Boards are on the [Portal Admin Redesign canvas](https://claude.ai/artifact/L3WgLyLtEC6GP5Sa9uSHhM), which is private to its owner; open `boards/src/<board>.dc.html` instead, or the rendered `boards/<board>.png`.
 
 ## ADM01-portals-overview — Portals overview (property)
 

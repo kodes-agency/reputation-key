@@ -2,7 +2,7 @@
 
 Date: 2026-09-19. Branch: `ux/portal-redesign`. Design only; no product code.
 
-Canvas: [Portal Admin Redesign](https://claude.ai/artifact/L3WgLyLtEC6GP5Sa9uSHhM), 14 boards (12 desktop at 1440 wide, 2 phone at 390). The guest side of this round is in [../round-3-guest/](../round-3-guest/README.md). Nothing here is an approved product decision. Every board says what exists today and what is new, and the decisions only the owner can make are listed at the end.
+Canvas: [Portal Admin Redesign](https://claude.ai/artifact/L3WgLyLtEC6GP5Sa9uSHhM), 14 boards (12 desktop at 1440 wide, 2 phone at 390). The canvas is private to its owner and will not open for other readers; the same 14 boards are in `boards/`, rendered from the `boards/src/*.dc.html` sources. The guest side of this round is in [../round-3-guest/](../round-3-guest/README.md). Nothing here is an approved product decision. Every board says what exists today and what is new, and the decisions only the owner can make are listed at the end.
 
 Files in this folder:
 

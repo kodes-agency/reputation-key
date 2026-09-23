@@ -2,7 +2,7 @@
 
 Date: 2026-09-19. Branch: `ux/portal-redesign`. Design only; no product code.
 
-Canvas: [Guest Portal Directions](https://claude.ai/artifact/XJc13AbPKbxZZgcL6AuuT9), one row of phone boards per direction. Nothing here is an approved product decision; behaviour changes are marked as proposals. The admin pages (creation, management, analytics and monitoring) come next. Their research notes are under "Admin implications" in [research.md](research.md#admin-implications).
+Canvas: [Guest Portal Directions](https://claude.ai/artifact/XJc13AbPKbxZZgcL6AuuT9), one row of phone boards per direction. The canvas is private to its owner and will not open for other readers; the boards it holds are in this folder, as `overview.jpg`, `boards/` and the `canvas/*.dc.html` sources they were rendered from. Nothing here is an approved product decision; behaviour changes are marked as proposals. The admin pages (creation, management, analytics and monitoring) come next. Their research notes are under "Admin implications" in [research.md](research.md#admin-implications).
 
 Files in this folder:
 
