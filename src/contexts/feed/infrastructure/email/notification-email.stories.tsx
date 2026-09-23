@@ -58,13 +58,19 @@ const EmailPreview = ({ subject, html, text }: PreviewProps) => (
   </div>
 )
 
+/**
+ * The recipient's zone, as the urgent-email job passes it: the one fact the
+ * copy renders on the reader's clock rather than the server's.
+ */
+const RECIPIENT_ZONE = { timeZone: 'America/New_York' } as const
+
 const single = (
   type: NotificationType,
   payload: NotificationPayload,
   priority: 'urgent' | 'normal' = 'urgent',
 ) =>
   renderNotificationEmail({
-    rendered: renderNotification(type, payload),
+    rendered: renderNotification(type, payload, RECIPIENT_ZONE),
     actionUrl: ACTION_URL,
     preferencesUrl: PREFERENCES_URL,
     priority,
@@ -75,7 +81,7 @@ const single = (
  * group's Property out of the line's facts: the heading and title name it.
  */
 const digestItem = (type: NotificationType, payload: NotificationPayload, id: string) => {
-  const rendered = renderNotification(type, payload)
+  const rendered = renderNotification(type, payload, RECIPIENT_ZONE)
   return {
     rendered: {
       ...rendered,
@@ -123,6 +129,32 @@ export const UrgentEscalation: Story = {
 /** Normal priority drops the attention pill; everything else is identical. */
 export const NormalPriority: Story = {
   args: single('reply.published', { propertyName: 'Riverside Hotel' }, 'normal'),
+}
+
+/**
+ * A Response Target reminder says by when, on the RECIPIENT's clock — the zone
+ * the job already resolved for quiet hours. The product's term is "target
+ * time"; no notice says "due".
+ */
+export const ResponseTargetReminder: Story = {
+  args: single(
+    'inbox.response_target_passed',
+    {
+      propertyName: 'Riverside Hotel',
+      waitedHours: 50,
+      targetDueAt: '2026-09-29T12:00:00.000Z',
+    },
+    'normal',
+  ),
+}
+
+/** A portal guests cannot reach at all, and the one thing to check. */
+export const PortalOffline: Story = {
+  args: single('portal.health_attention', {
+    propertyName: 'Harbour Lodge',
+    portalHealthStatus: 'unavailable',
+    portalHealthReason: 'publication_snapshot_unavailable',
+  }),
 }
 
 /** Graceful degradation: an empty payload must still produce a usable email. */
@@ -175,9 +207,16 @@ export const Digest: Story = {
             },
             'b1',
           ),
+          // One of ten sibling results: the month, the subject and the
+          // direction are what tell it from the other nine.
           digestItem(
             'goal.completed',
-            { propertyName: 'Harbour Lodge', goalName: 'Q3 rating lift' },
+            {
+              propertyName: 'Harbour Lodge',
+              goalName: 'Lobby QR scans',
+              goalMonth: '2026-10',
+              goalSubjectKind: 'portal',
+            },
             'b2',
           ),
         ],

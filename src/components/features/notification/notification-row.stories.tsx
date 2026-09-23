@@ -84,6 +84,115 @@ async function expectMenuSettled(canvasElement: HTMLElement) {
   })
 }
 
+/**
+ * Why the item is open again. The reopen fact's closed reason replaces the
+ * generic "needs another look"; the manager's free-text explanation beside it
+ * never leaves Inbox.
+ */
+export const ReopenedSaysWhy: Story = {
+  args: {
+    notification: makeNotification({
+      id: '20000000-0000-4000-8000-000000000031',
+      type: 'inbox.reopened',
+      status: 'unread',
+      payload: {
+        propertyName: 'Riverside Hotel',
+        platform: 'google',
+        reopenReason: 'provider_reply_deleted',
+      },
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByText(/The published reply was removed from Google\./),
+    ).toBeInTheDocument()
+    expect(canvasElement.textContent).not.toMatch(/needs another look/)
+  },
+}
+
+/**
+ * A reminder says by when, on the READER's clock. Two managers responsible for
+ * one item need not share a timezone, so the row formats the stored instant
+ * with the format it already resolves rather than reading a frozen label.
+ */
+export const ResponseTargetSaysByWhen: Story = {
+  args: {
+    notification: makeNotification({
+      id: '20000000-0000-4000-8000-000000000032',
+      type: 'inbox.response_target_halfway',
+      status: 'unread',
+      payload: {
+        propertyName: 'Riverside Hotel',
+        targetDueAt: '2026-09-29T12:00:00.000Z',
+      },
+    }),
+    format: { locale: 'en-US', timeZone: 'America/New_York' },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText(/Target time Tue, Sep 29, 08:00\./)).toBeInTheDocument()
+    // The product's term is "target time"; "due" is not a word it uses.
+    expect(canvasElement.textContent).not.toMatch(/\bdue\b/i)
+  },
+}
+
+/**
+ * A guest portal that guests cannot reach at all, and what to do about it.
+ * The notice used to say only that it "may need attention".
+ */
+export const PortalOffline: Story = {
+  args: {
+    notification: makeNotification({
+      id: '20000000-0000-4000-8000-000000000033',
+      type: 'portal.health_attention',
+      status: 'unread',
+      payload: {
+        propertyName: 'Harbour Lodge',
+        portalHealthStatus: 'unavailable',
+        portalHealthReason: 'public_address_unavailable',
+      },
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByText(/Guest portal is offline at Harbour Lodge/),
+    ).toBeInTheDocument()
+    expect(canvasElement.textContent).not.toMatch(/may need attention/)
+  },
+}
+
+/**
+ * Which month, whose goal, and which way it went — the three facts that tell
+ * one Portal's monthly result from its nine siblings'.
+ */
+export const GoalResultNamesItsMonth: Story = {
+  args: {
+    notification: makeNotification({
+      id: '20000000-0000-4000-8000-000000000034',
+      type: 'goal.result_revised',
+      status: 'unread',
+      payload: {
+        propertyName: 'Harbour Lodge',
+        goalName: 'Lobby QR scans',
+        goalMonth: '2026-10',
+        goalSubjectKind: 'portal',
+        goalOutcome: 'not_met',
+      },
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByText('October goal no longer met: Lobby QR scans at Harbour Lodge'),
+    ).toBeInTheDocument()
+    expect(
+      canvas.getByText(/This Portal goal no longer meets its target\./),
+    ).toBeInTheDocument()
+  },
+}
+
 /** Urgent + unread: pill, unread dot, rating glyphs, waiting age, accent CTA. */
 export const UrgentUnread: Story = {
   args: { notification: escalatedWaiting },
