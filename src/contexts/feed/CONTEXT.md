@@ -148,8 +148,14 @@ action exactly while that share is above zero.
 
 Every Property-scoped notice names its Property, read when it is fanned out,
 so a reader with several Properties can tell rows and urgent emails apart. The
-Google connection's notice is the exception: the connection belongs to the
-Organization, and the Property it is filed under is only a delivery anchor.
+Google connection's notices are the exception: the connection belongs to the
+Organization. `integration.reauthorization_required` is mailed, so it is filed
+under a Property that is only a delivery anchor and never named in its copy;
+`integration.google_disconnected` is in-app only, so it is Organization-scoped
+outright and points at the connection. That disconnect notice reaches every
+current AccountAdmin except the one who disconnected, through the
+`organization_account_admin` audience — `account_admin` is Property-scoped and
+the delivery check refuses a Property-less notice under it.
 
 Each surface states a fact once. Titles name the Property; a locally
 collected rating and a waiting age sit beside the copy (the in-app strip,
@@ -253,10 +259,12 @@ timeout, so a stalled statement is cancelled rather than left running.
 5. User-facing notification copy is produced only by
    `domain/notification-templates.ts`.
 6. Mandatory notices are Organization-scoped; every other notice is
-   Property-scoped, with one named exception. `beta_feedback.outcome` is
-   Organization-scoped `workflow_collaboration`: in-app by ADR 0046 defaults,
-   never mailed, and admitted by name in `notifications_mandatory_scope_check`
-   (ADR 0059). A new exception needs its own ADR and a CHECK change.
+   Property-scoped, with two named exceptions. `beta_feedback.outcome`
+   (ADR 0059) and `integration.google_disconnected` (ADR 0046, amended
+   2026-09-24) are Organization-scoped `workflow_collaboration`: in-app by
+   ADR 0046 defaults, never mailed, and each admitted by name, in a branch of
+   its own, in `notifications_mandatory_scope_check`. A new exception needs its
+   own ADR and a CHECK change.
 7. Operational Action History list/export responses are private and no-store.
 
 ## Verification

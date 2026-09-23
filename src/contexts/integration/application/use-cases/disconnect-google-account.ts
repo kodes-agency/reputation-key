@@ -136,6 +136,7 @@ export const disconnectGoogleAccount = (deps: DisconnectGoogleAccountDeps) => {
     const event = integrationGoogleAccountDisconnected({
       connectionId,
       organizationId: ctx.organizationId,
+      userId: ctx.userId,
       occurredAt: deps.clock(),
     })
     const settled = await deps.disconnectRevokeStore.settle({
@@ -203,6 +204,7 @@ export const disconnectGoogleAccount = (deps: DisconnectGoogleAccountDeps) => {
         event: integrationGoogleAccountDisconnected({
           connectionId,
           organizationId: ctx.organizationId,
+          userId: ctx.userId,
           occurredAt: deps.clock(),
         }),
       }))

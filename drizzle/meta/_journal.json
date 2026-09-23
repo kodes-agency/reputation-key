@@ -204,6 +204,13 @@
       "when": 1790900000000,
       "tag": "0029_notification_unsubscribe_scopes",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791000000000,
+      "tag": "0030_google_disconnect_notification",
+      "breakpoints": true
     }
   ]
 }

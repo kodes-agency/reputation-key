@@ -473,6 +473,20 @@ const renderIntegrationReauthorizationRequired = (
         summary: 'Google connection needs attention',
       }
 
+/**
+ * Somebody disconnected the Organization's Google account on purpose. The
+ * copy never names them — ADR 0046 r.8 keeps other employees out of a payload
+ * — so it says what stopped and where to look, and the reader's own feed is
+ * the record that it happened. No Property: the connection is the
+ * Organization's.
+ */
+const renderIntegrationGoogleDisconnected = (): RenderedNotification => ({
+  title: 'Google was disconnected',
+  body: 'Review updates and replies to Google have stopped for this organization. Reconnect it in Settings if that was not intended.',
+  actionLabel: 'Review connection',
+  summary: 'Google disconnected',
+})
+
 /** "Goal completed: Reply within 24h at Riverside Hotel". */
 const goalTitle = (lead: string, p: NotificationPayload): string =>
   `${lead}${p.goalName === undefined ? '' : `: ${p.goalName}`}${atProperty(p)}`
@@ -546,6 +560,7 @@ const RENDERERS: Record<
   'portal.health_attention': renderPortalHealthAttention,
   'property.responsibility_needed': renderPropertyResponsibilityNeeded,
   'integration.reauthorization_required': renderIntegrationReauthorizationRequired,
+  'integration.google_disconnected': renderIntegrationGoogleDisconnected,
   'goal.completed': renderGoalCompleted,
   'goal.result_revised': renderGoalResultRevised,
   'beta_feedback.outcome': renderBetaFeedbackOutcome,

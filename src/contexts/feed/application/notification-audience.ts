@@ -122,6 +122,13 @@ export type NotificationAudience =
       achieved: boolean | null
     }>
   | Readonly<{ kind: 'property_operator' }>
+  /**
+   * Every current AccountAdmin of the Organization, for a notice that belongs
+   * to no Property. `account_admin` cannot serve here: it is Property-scoped
+   * and the authorizer refuses a Property-less job under it, which is how the
+   * Purge Pending notice still reaches nobody.
+   */
+  | Readonly<{ kind: 'organization_account_admin' }>
 
 export type NotificationAudienceAuthorizationInput = Readonly<{
   userId: UserId
@@ -415,6 +422,7 @@ const AUDIENCE_KIND_PARSERS: ReadonlyMap<string, AudienceKindParser> = new Map<
 >([
   ['affected_organization_user', parseAffectedOrganizationUser],
   ['account_admin', () => ({ kind: 'account_admin' })],
+  ['organization_account_admin', () => ({ kind: 'organization_account_admin' })],
   ['responsibility_gap', parseResponsibilityGap],
   ['property_operator', () => ({ kind: 'property_operator' })],
   ['inbox_assignee', parseInboxAssignee],
@@ -791,6 +799,16 @@ export const createNotificationAudienceAuthorizer =
     // here dropped the last message before an irreversible deletion.
     if (audience.kind === 'account_admin') {
       return isAccountAdminRecipient(deps, organizationId, userId)
+    }
+    // An Organization-scoped notice about the Organization's own Google
+    // connection: no Property to scope to, and the standing that admitted the
+    // recipient is the AccountAdmin role itself.
+    if (audience.kind === 'organization_account_admin') {
+      if (propertyId !== null) return false
+      return includesRecipient(
+        await deps.userLookup.findByRole(organizationId, 'AccountAdmin'),
+        userId,
+      )
     }
     // Every other active audience kind is Property-scoped. A malformed job
     // cannot use an Organization-null scope to bypass its current authority.

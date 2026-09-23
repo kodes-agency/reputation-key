@@ -62,13 +62,14 @@ describe('renderNotification — invariants across every type', () => {
 
     const visibleCopy = [r.title, r.body, r.summary].join(' ')
     // Every Property-scoped notice names its Property: a reader with several
-    // cannot otherwise tell rows or urgent emails apart. Account notices and a
-    // beta report outcome are Organization-scoped (ADR 0059), and the Google
-    // connection belongs to the Organization: the Property its notice is
+    // cannot otherwise tell rows or urgent emails apart. Account notices, a
+    // beta report outcome (ADR 0059) and a Google disconnect (ADR 0046,
+    // amended 2026-09-24) are Organization-scoped, and the Google connection
+    // belongs to the Organization: the Property `reauthorization_required` is
     // filed under is only a delivery anchor, so naming it would mislead.
     if (
       type.startsWith('account.organization_') ||
-      type === 'integration.reauthorization_required' ||
+      type.startsWith('integration.') ||
       type === 'beta_feedback.outcome'
     ) {
       expect(visibleCopy).not.toContain('Riverside Hotel')

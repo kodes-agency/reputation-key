@@ -22,6 +22,7 @@ import {
   UserMinus,
   Trash2,
   Clock,
+  Unplug,
   type LucideIcon,
 } from 'lucide-react'
 import type { NotificationType } from '#/contexts/feed/application/public-api'
@@ -144,6 +145,7 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
   'portal.health_attention': AlertTriangle,
   'property.responsibility_needed': UserPlus,
   'integration.reauthorization_required': AlertTriangle,
+  'integration.google_disconnected': Unplug,
   'goal.completed': Target,
   'goal.result_revised': Target,
   // The reporter's own beta report; the same speech bubble as the Feedback entry.

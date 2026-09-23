@@ -79,7 +79,10 @@ import {
   portalResponsibilityNeeded,
 } from '#/contexts/portal/domain/events'
 import { propertyResponsibilityNeeded } from '#/contexts/property/domain/events'
-import { integrationGoogleAccountReauthorizationRequired } from '#/contexts/integration/domain/events'
+import {
+  integrationGoogleAccountDisconnected,
+  integrationGoogleAccountReauthorizationRequired,
+} from '#/contexts/integration/domain/events'
 import {
   goalMonthlyResultClosed,
   goalMonthlyResultRevised,
@@ -369,6 +372,13 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       connectionId: CONNECTION,
       organizationId: ORG,
       cause: 'member_removed',
+      occurredAt: OCCURRED_AT,
+    }),
+  'integration.google_account.disconnected': () =>
+    integrationGoogleAccountDisconnected({
+      connectionId: CONNECTION,
+      organizationId: ORG,
+      userId: ACTOR,
       occurredAt: OCCURRED_AT,
     }),
   'goal.monthly_result.closed': () =>

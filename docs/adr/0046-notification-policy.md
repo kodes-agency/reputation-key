@@ -223,6 +223,37 @@ audience, whose delivery check re-tests Property eligibility anyway.
 The fact carries `authorId` (identifier only, nullable) from this date. Facts
 recorded before it reach the approvers alone.
 
+## Amended 2026-09-24 — a deliberate Google disconnect tells the other admins
+
+Disconnecting the Organization's Google account stops review updates and every
+reply to Google, for every Property, and it said so nowhere: only somebody
+watching the Integrations page could tell. `integration.google_disconnected` is
+now a live type. It goes to every current AccountAdmin except the one who
+disconnected — nobody is notified about their own action — and a fact the
+recovery reconciler could not attribute excludes nobody rather than everybody.
+The fact carries that actor (`userId`, identifier only, nullable) from this
+date.
+
+The notice is **Organization-scoped and not mandatory**, the third shape this
+policy admits and the second type named in `notifications_mandatory_scope_check`
+(migration 0030): category `workflow_collaboration`, no Property, and the
+connection as its resource. It is in-app only — an Organization-scoped notice
+has no Property preference row that could opt it into email, and the email
+queue's own scope CHECK refuses it — which is exactly why it can be scoped
+honestly. `integration.reauthorization_required` still anchors itself on an
+arbitrary Property because it is urgent_operational and therefore mailed.
+
+That needed a new audience kind. `account_admin` is Property-scoped: the
+delivery authorizer refuses a Property-less job under it, which is why the
+mandatory Purge Pending notice still reaches nobody. `organization_account_admin`
+authorizes a Property-less notice against the AccountAdmin role itself. The
+Purge Pending audience stays an open product decision and is untouched: which
+audience a mandatory final notice should have is a different question from who
+hears about a connection.
+
+The copy never names the admin who disconnected. Rule 8 excludes other
+employees' data, and the payload carries nothing at all.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

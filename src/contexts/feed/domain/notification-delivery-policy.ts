@@ -66,6 +66,10 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'portal.health_attention': 'urgent_operational',
   'property.responsibility_needed': 'urgent_operational',
   'integration.reauthorization_required': 'urgent_operational',
+  // A deliberate disconnect is somebody's decision, not a fault to fix. The
+  // other AccountAdmins need to know their Google review sync and replies
+  // stopped: collaboration, in-app, never mailed.
+  'integration.google_disconnected': 'workflow_collaboration',
   // Recognition, NOT a digest: `digest_summary` defaulted to
   // {in_app:false, email:false}, so a goal completion classified as a digest
   // was DROPPED entirely for any tenant without preference rows — nothing was
@@ -95,6 +99,11 @@ export function classifyNotification(type: NotificationType): NotificationCatego
  */
 export const ORGANIZATION_INFORMATIONAL_TYPES: ReadonlySet<NotificationType> = new Set([
   'beta_feedback.outcome',
+  // The Google connection belongs to the Organization.
+  // `integration.reauthorization_required` still anchors itself on a Property
+  // because it is urgent_operational mail; this one is in-app only, so it can
+  // be scoped to what it is actually about.
+  'integration.google_disconnected',
 ])
 
 /**

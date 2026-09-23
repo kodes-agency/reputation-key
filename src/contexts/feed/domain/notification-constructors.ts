@@ -49,9 +49,17 @@ const ALLOWED_RESOURCE_TYPES: ReadonlySet<NotificationResourceType> = new Set(
  * The one resource each Organization-scoped family may point at. Mandatory
  * account notices point at the Organization; an informational notice points at
  * the record it is about, so its link and its coalescing key are that record.
+ * The database CHECK names the same pairs, one branch each.
  */
+const INFORMATIONAL_RESOURCE_BY_TYPE: Partial<
+  Record<NotificationType, NotificationResourceType>
+> = {
+  'beta_feedback.outcome': 'beta_feedback_report',
+  'integration.google_disconnected': 'integration',
+}
+
 const organizationResourceFor = (type: NotificationType): NotificationResourceType =>
-  ORGANIZATION_INFORMATIONAL_TYPES.has(type) ? 'beta_feedback_report' : 'organization'
+  INFORMATIONAL_RESOURCE_BY_TYPE[type] ?? 'organization'
 
 // ── Create notification ─────────────────────────────────────────────
 
@@ -85,12 +93,12 @@ function scopeViolation(
     const informational = ORGANIZATION_INFORMATIONAL_TYPES.has(input.type)
     if (input.propertyId !== null) {
       return informational
-        ? 'Report-outcome notifications are Organization-scoped and cannot name a Property'
+        ? `${input.type} notifications are Organization-scoped and cannot name a Property`
         : 'Mandatory notifications must use Organization scope'
     }
     if (input.resourceType !== organizationResourceFor(input.type)) {
       return informational
-        ? 'Report-outcome notifications must point at the report'
+        ? `${input.type} notifications must point at ${organizationResourceFor(input.type)}`
         : 'Mandatory notifications must use an Organization resource'
     }
     return null

@@ -464,6 +464,10 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
     durable('review.on-google-account-disconnected', REVIEW_OUTBOX),
+    durable(
+      'notification.on-google-account-disconnected',
+      NOTIFICATION_INTEGRATION_OUTBOX,
+    ),
   ]),
   ev('integration.google_account.reauthorization_required', [
     durable(

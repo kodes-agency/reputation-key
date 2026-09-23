@@ -222,6 +222,14 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['integration.reauthorization_required'],
     ['account_admin'],
   ),
+  // A deliberate disconnect. Organization-scoped: the connection is the
+  // Organization's, and the admin who did it is left out.
+  route(
+    'integration.google_account.disconnected',
+    'notification.on-google-account-disconnected',
+    ['integration.google_disconnected'],
+    ['organization_account_admin'],
+  ),
   {
     ...route(
       'goal.monthly_result.closed',
@@ -253,6 +261,7 @@ const AUDIENCE_KINDS: ReadonlySet<string> = new Set<AudienceKind>([
   'affected_organization_user',
   'responsible_scope',
   'account_admin',
+  'organization_account_admin',
   'responsibility_gap',
   'inbox_assignee',
   'bulk_inbox_assignee',

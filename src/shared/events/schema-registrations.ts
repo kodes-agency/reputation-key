@@ -1025,9 +1025,12 @@ const googleAccountConnectedV3Schema = z.object({
   userId: z.string(),
 })
 
+// `userId` is the admin who disconnected — identifier only, and optional
+// because the recovery reconciler and pre-2026-09-24 rows name no actor.
 const googleAccountDisconnectedSchema = z.object({
   connectionId: z.string(),
   organizationId: z.string(),
+  userId: z.string().nullable().optional(),
 })
 
 // `provider_revoked` is additive: rows written with the two departure causes

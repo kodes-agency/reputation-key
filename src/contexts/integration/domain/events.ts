@@ -55,6 +55,13 @@ export type IntegrationGoogleAccountDisconnected = Readonly<{
   eventId: string
   connectionId: GoogleConnectionId
   organizationId: OrganizationId
+  /**
+   * The AccountAdmin who disconnected, identifier only. Null when the
+   * recovery reconciler completes a disconnect whose initiator it cannot
+   * attribute, and on facts recorded before the field existed. It exists so
+   * the notice can leave out the person who already knows.
+   */
+  userId: UserId | null
   occurredAt: Date
   correlationId: string | null
 }>

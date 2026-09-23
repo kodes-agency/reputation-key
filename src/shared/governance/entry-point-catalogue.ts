@@ -427,6 +427,15 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     'organization',
   ),
+  // The disconnect fact carries no Property — the connection is the
+  // Organization's — so this row must be Organization-scoped or the gate
+  // denies it `missing_scope` before the handler runs.
+  consumer(
+    'notification.on-google-account-disconnected',
+    'system:notification.insert',
+    'none',
+    'organization',
+  ),
   consumer(
     'notification.portal-outbox-consumers',
     'system:notification.insert_portal',

@@ -55,6 +55,8 @@ export const NOTIFICATION_TYPES = [
   'portal.health_attention',
   'property.responsibility_needed',
   'integration.reauthorization_required',
+  // Somebody deliberately disconnected the Organization's Google account.
+  'integration.google_disconnected',
   // Goal events
   'goal.completed',
   'goal.result_revised',
