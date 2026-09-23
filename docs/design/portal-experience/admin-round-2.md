@@ -10,7 +10,7 @@ The comparison in this round keeps the property, portal, guest copy, guest style
 
 ## Review of the preferred starting point
 
-Evidence is the [first-round admin concept](concepts/local-character.png) and [selected guest concept](concepts/signature-stay.png), inspected directly. This is a review of static design images, not a usability test or an audit of running software.
+Evidence is the [first-round admin concept](concepts/local-character.jpg) and [selected guest concept](concepts/signature-stay.jpg), inspected directly. This is a review of static design images, not a usability test or an audit of running software.
 
 | Finding                                                          | Evidence in the concept                                                                                                              | Proposed improvement                                                                                                                                      |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -29,9 +29,9 @@ The useful elements to retain are the recognisable section list, lightweight lin
 
 The images appeared in this order in the conversation:
 
-1. [Refined Sections](concepts/admin-round-2/refined-sections.png)
-2. [Visual Studio](concepts/admin-round-2/visual-studio.png)
-3. [Guest Journey](concepts/admin-round-2/guest-journey.png)
+1. [Refined Sections](concepts/admin-round-2/refined-sections.jpg)
+2. [Visual Studio](concepts/admin-round-2/visual-studio.jpg)
+3. [Guest Journey](concepts/admin-round-2/guest-journey.jpg)
 
 Created with the built-in Imagegen tool. The exact brief and prompts are saved in [admin-round-2-prompts.md](admin-round-2-prompts.md).
 

@@ -70,9 +70,9 @@ Each image is one coherent direction, presented as an admin workspace containing
 
 Displayed order in the design conversation: 1 = Quiet Welcome, 2 = Local Character, 3 = Signature Stay.
 
-- [Quiet Welcome image](concepts/quiet-welcome.png)
-- [Local Character image](concepts/local-character.png)
-- [Signature Stay image](concepts/signature-stay.png)
+- [Quiet Welcome image](concepts/quiet-welcome.jpg)
+- [Local Character image](concepts/local-character.jpg)
+- [Signature Stay image](concepts/signature-stay.jpg)
 
 | Direction       | Guest expression                                                                   | Admin model being explored                                                          |
 | --------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
