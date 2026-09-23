@@ -187,6 +187,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'PUBLIC-TOKEN',
   },
   {
+    file: 'src/contexts/feed/infrastructure/repositories/account-access-removal.repository.ts',
+    symbol: 'findLatestForUser',
+    reason:
+      "A removed member is asked why their workspace is gone while they are outside every tenant: the notice that answers lives in the Organization they can no longer open. The read is scoped to the session's own user id, admits one notification type, and returns an instant only — no Organization identity, name, actor or row id.",
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/feed/infrastructure/repositories/notification-gap.repository.ts',
     symbol: 'countItemsMissingNotifications',
     reason:
