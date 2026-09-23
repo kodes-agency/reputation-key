@@ -856,36 +856,56 @@ describe('every beta notification route queues its notice from its real producer
 })
 
 /**
- * The gate admits Purge Pending and the bridge queues its notice durably, but
- * the delivery-time recipient check still refuses it: the notice goes to every
- * AccountAdmin with no Property, and the check admits a Property-less notice
- * only for an affected Organization user. Which audience the mandatory final
- * notice should have is an open product decision; its producer schedule is
- * quarantined meanwhile. Deciding it makes this test fail — then the route
- * joins the ones above.
+ * The last warning before an irreversible deletion has no Property, and the
+ * delivery-time check used to admit a Property-less notice only for an
+ * affected Organization user — so this route reached nobody. The AccountAdmin
+ * role is held at the Organization, so it is now re-read there.
  */
-describe('a route whose notice the recipient check still refuses', () => {
-  it('identity.organization_lifecycle.changed: Purge Pending reaches no AccountAdmin', async () => {
-    const deps = currentRouteDeps()
-    const { queued } = await dispatch(
-      PRODUCED_FACTS['identity.organization_lifecycle.changed']!(),
-      deps,
-    )
-    const authorize = createNotificationAudienceAuthorizer({
+describe('the Purge Pending final notice reaches its AccountAdmins', () => {
+  const authorizerFor = (deps: RouteDeps) =>
+    createNotificationAudienceAuthorizer({
       ...deps,
       portalHealthLookup: {
         findPortalHealthNotificationFacts: vi.fn(async () => null),
       },
       organizationAccountAuthority: {
-        isAffectedRecipient: vi.fn(async () => true),
+        isAffectedRecipient: vi.fn(async () => false),
       },
     })
+
+  it('identity.organization_lifecycle.changed: every queued admin still passes the check', async () => {
+    const deps = currentRouteDeps()
+    const { queued } = await dispatch(
+      PRODUCED_FACTS['identity.organization_lifecycle.changed']!(),
+      deps,
+    )
+    const authorize = authorizerFor(deps)
 
     // Every queued recipient is a current AccountAdmin.
     expect(queued.map((job) => job.userId)).toEqual([ADMIN])
     for (const job of queued) {
       await expect(
         authorize({
+          userId: job.userId,
+          organizationId: job.organizationId,
+          propertyId: job.propertyId,
+          audience: parseNotificationAudience(job.audience)!,
+        }),
+      ).resolves.toBe(true)
+    }
+  })
+
+  it('refuses the notice for someone who has lost the role since it was queued', async () => {
+    const deps = currentRouteDeps()
+    const { queued } = await dispatch(
+      PRODUCED_FACTS['identity.organization_lifecycle.changed']!(),
+      deps,
+    )
+    deps.userLookup.findByRole.mockResolvedValue([])
+
+    for (const job of queued) {
+      await expect(
+        authorizerFor(deps)({
           userId: job.userId,
           organizationId: job.organizationId,
           propertyId: job.propertyId,

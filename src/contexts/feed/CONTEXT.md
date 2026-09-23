@@ -48,6 +48,12 @@ retired whole instead, because re-sending the rest could deliver it twice.
 Organization-scoped mandatory mail is exempt: an access-removed notice goes to
 someone who is no longer a member.
 
+An AccountAdmin audience is decided at the Organization, with or without a
+Property, because that is where the role is held. The Purge Pending final
+notice depends on it: it carries no Property, and refusing it for that reason
+dropped the last warning before an irreversible deletion. Every other audience
+still fails closed without a Property.
+
 The Organization's lifecycle authority is read when an email is queued and
 again before it is sent. From a closure request, and until a cancelled
 closure is explicitly reactivated, no optional email is queued or sent and

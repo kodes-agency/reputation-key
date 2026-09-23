@@ -479,9 +479,16 @@ const isResponsibleScopeRecipient = async (
     userId,
   )
 
+/**
+ * Current AccountAdmins of the Organization. The role is held at the
+ * Organization, so this answer never needs a Property — which is what lets an
+ * Organization-scoped mandatory notice (the Purge Pending final warning) reach
+ * every admin, including in an Organization whose Properties are already gone.
+ */
 const isAccountAdminRecipient = async (
   deps: Deps,
-  { organizationId, userId }: PropertyScopedRequest,
+  organizationId: OrganizationId,
+  userId: UserId,
 ) =>
   includesRecipient(
     await deps.userLookup.findByRole(organizationId, 'AccountAdmin'),
@@ -778,6 +785,13 @@ export const createNotificationAudienceAuthorizer =
         userId,
       })
     }
+    // The AccountAdmin role is Organization-wide, so this audience is decided
+    // the same way with or without a Property. Mandatory Organization notices
+    // depend on it: the Purge Pending warning has no Property, and refusing it
+    // here dropped the last message before an irreversible deletion.
+    if (audience.kind === 'account_admin') {
+      return isAccountAdminRecipient(deps, organizationId, userId)
+    }
     // Every other active audience kind is Property-scoped. A malformed job
     // cannot use an Organization-null scope to bypass its current authority.
     if (propertyId === null) return false
@@ -785,8 +799,6 @@ export const createNotificationAudienceAuthorizer =
     switch (audience.kind) {
       case 'responsible_scope':
         return isResponsibleScopeRecipient(deps, request, audience.scope)
-      case 'account_admin':
-        return isAccountAdminRecipient(deps, request)
       case 'responsibility_gap':
         return isResponsibilityGapRecipient(deps, request, audience.scope)
       case 'escalation_resolution':

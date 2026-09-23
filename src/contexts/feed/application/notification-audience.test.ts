@@ -102,6 +102,36 @@ describe('notification audience authorization', () => {
     ).resolves.toBe(false)
     await expect(
       createNotificationAudienceAuthorizer(deps)(
+        authorize({
+          propertyId: null,
+          audience: { kind: 'inbox_assignee', inboxItemId: INBOX_ITEM },
+        }),
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('admits every current AccountAdmin to an Organization notice that has no Property', async () => {
+    const deps = buildDeps()
+    deps.userLookup.findByRole.mockResolvedValue([RECIPIENT])
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ propertyId: null, audience: { kind: 'account_admin' } }),
+      ),
+    ).resolves.toBe(true)
+    expect(deps.userLookup.findByRole).toHaveBeenCalledWith(ORG, 'AccountAdmin')
+    // No Property is invented for it: the purge-pending notice belongs to the
+    // Organization, and an Organization with no active Property still has
+    // admins who must hear that it is about to be erased.
+    expect(deps.responsibleManagers.isEligibleForProperty).not.toHaveBeenCalled()
+  })
+
+  it('refuses an Organization notice for someone who is no longer an AccountAdmin', async () => {
+    const deps = buildDeps()
+    deps.userLookup.findByRole.mockResolvedValue([RESPONSIBLE_MANAGER])
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
         authorize({ propertyId: null, audience: { kind: 'account_admin' } }),
       ),
     ).resolves.toBe(false)

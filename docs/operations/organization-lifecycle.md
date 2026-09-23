@@ -424,7 +424,9 @@ the fence that silenced everything else.
   `obsolete` receipt for every other state.
 - Recipients are the CURRENT AccountAdmins, not the original requester, who may
   have left. If none remains the consumer logs a content-free warning rather
-  than proceeding silently.
+  than proceeding silently. The audience is re-read at the Organization when
+  the notice is inserted, without a Property: the role is held at the
+  Organization, and by Purge Pending the Properties may already be gone.
 - The job id is `<eventId>-<recipient>`, so bus/outbox dual delivery and any
   retry converge on one notice per admin.
 
