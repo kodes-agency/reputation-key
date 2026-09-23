@@ -36,6 +36,7 @@ const buildDeps = () => ({
   },
   inboxItemLookup: {
     findInboxItemFacts: vi.fn().mockResolvedValue(null),
+    findNoteAuthors: vi.fn().mockResolvedValue([]),
     findHandlingCycleNotificationFacts: vi.fn().mockResolvedValue(null),
     findResponseTargetReminderNotificationFacts: vi.fn().mockResolvedValue(null),
   },
@@ -628,6 +629,73 @@ describe('notification audience authorization', () => {
       stateRevision: 8,
       status: 'open',
     })
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+  })
+
+  // I15: the eligible assignee is a recipient of a cycle notice, so the send
+  // must still admit them when they are not in the responsible scope.
+  it('admits the eligible assignee of a Handling Cycle who is not responsible', async () => {
+    const deps = buildDeps()
+    deps.inboxItemLookup.findHandlingCycleNotificationFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      portalId: null,
+      assignedTo: RECIPIENT,
+      propertyName: null,
+      guestRating: null,
+      sourceType: 'review',
+      sourceId: 'review-source-1',
+      createdAt: new Date('2026-08-27T08:00:00.000Z'),
+      currentCycleNumber: 2,
+      currentSourceRevision: 2,
+      stateRevision: 3,
+      status: 'open',
+    })
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RESPONSIBLE_MANAGER])
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+    const audience = {
+      kind: 'handling_cycle' as const,
+      inboxItemId: INBOX_ITEM,
+      sourceType: 'review' as const,
+      sourceId: 'review-source-1',
+      cycleNumber: 2,
+      sourceRevision: 2,
+      stateRevision: 3,
+      actorUserId: null,
+    }
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(false)
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+  })
+
+  // I15: a note reaches whoever has written on the item before.
+  it("admits a recipient who is still one of the item's note authors", async () => {
+    const deps = buildDeps()
+    deps.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      portalId: null,
+      assignedTo: null,
+      propertyName: null,
+      guestRating: null,
+      sourceType: 'review',
+      createdAt: new Date('2026-08-27T08:00:00.000Z'),
+    })
+    deps.inboxItemLookup.findNoteAuthors.mockResolvedValue([RECIPIENT])
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+    const audience = { kind: 'inbox_note_author' as const, inboxItemId: INBOX_ITEM }
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+
+    deps.inboxItemLookup.findNoteAuthors.mockResolvedValue([RESPONSIBLE_MANAGER])
     await expect(
       createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
     ).resolves.toBe(false)

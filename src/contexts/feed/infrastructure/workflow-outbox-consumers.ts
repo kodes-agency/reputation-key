@@ -48,6 +48,7 @@ import {
 import { resolveReplyApprovalRecipients } from '../application/reply-approval-recipients'
 import type { ReplyApprovalAuthorityPort } from '../application/ports/reply-approval-authority.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
+import type { NotificationAudience } from '../application/notification-audience'
 
 export const WORKFLOW_NOTIFICATION_CONSUMERS = [
   {
@@ -149,6 +150,31 @@ const excludingActor = (
   actorId: UserId | null,
 ): readonly UserId[] => recipients.filter((recipientId) => recipientId !== actorId)
 
+/**
+ * Who this assignment is news to.
+ *
+ * The new assignee, unless they claimed it themselves. And, on a manual
+ * reassignment, whoever held it before: they were never told the item had
+ * moved on, so it stayed on their list (I15). An eligibility-loss release
+ * carries no new assignee and never reaches this route, so it stays silent.
+ */
+const assignmentRecipients = (
+  event: InboxItemAssigned,
+): ReadonlyArray<
+  Readonly<{ userId: UserId; type: 'inbox.assigned' | 'inbox.unassigned' }>
+> => {
+  const previous = event.previousAssignee ?? null
+  return [
+    // "Assign to me" is a claim: the person who clicked already knows.
+    ...(event.assignedTo === event.userId
+      ? []
+      : [{ userId: event.assignedTo, type: 'inbox.assigned' as const }]),
+    ...(previous !== null && previous !== event.userId && previous !== event.assignedTo
+      ? [{ userId: previous, type: 'inbox.unassigned' as const }]
+      : []),
+  ]
+}
+
 async function enqueueAssignmentNotification(
   deps: WorkflowNotificationDeliveryDeps,
   event: InboxItemAssigned,
@@ -156,31 +182,38 @@ async function enqueueAssignmentNotification(
   // The atomic bulk-completion fact owns grouped delivery. Per-item facts
   // remain activity/audit facts but must not also produce N notifications.
   if (event.bulkId) return
-  // "Assign to me" is a claim: the only recipient is the person who clicked.
-  if (event.assignedTo === event.userId) return
+  const recipients = assignmentRecipients(event)
+  if (recipients.length === 0) return
 
   const payload = await buildInboxItemPayload(deps, {
     inboxItemId: event.inboxItemId,
     orgId: event.organizationId,
     actorId: event.userId,
   })
-  await deps.queue.add(
-    INSERT_NOTIFICATION_JOB_NAME,
-    {
-      userId: event.assignedTo,
-      organizationId: event.organizationId,
-      propertyId: event.propertyId,
-      type: 'inbox.assigned',
-      resourceType: 'inbox_item',
-      resourceId: event.inboxItemId,
-      eventId: event.eventId,
-      payload,
-      audience: {
-        kind: 'inbox_assignee',
-        inboxItemId: event.inboxItemId,
-      },
-    },
-    { jobId: `${event.eventId}-${event.assignedTo}` },
+  await Promise.all(
+    recipients.map((recipient) =>
+      deps.queue.add(
+        INSERT_NOTIFICATION_JOB_NAME,
+        {
+          userId: recipient.userId,
+          organizationId: event.organizationId,
+          propertyId: event.propertyId,
+          type: recipient.type,
+          resourceType: 'inbox_item',
+          resourceId: event.inboxItemId,
+          eventId: event.eventId,
+          payload,
+          // The new assignee is admitted as the assignee; the previous one no
+          // longer is, so they are admitted as somebody who may still act on
+          // the Property.
+          audience:
+            recipient.type === 'inbox.assigned'
+              ? { kind: 'inbox_assignee', inboxItemId: event.inboxItemId }
+              : { kind: 'property_operator' },
+        },
+        { jobId: `${event.eventId}-${recipient.userId}` },
+      ),
+    ),
   )
 }
 
@@ -242,6 +275,51 @@ async function enqueueEscalationNotifications(
   )
 }
 
+/**
+ * Everyone already working on the item, and why each of them is (I15).
+ *
+ * A note used to reach the assignee alone, so a note written BY the assignee
+ * reached nobody and notes could not be used to ask for help. It now reaches
+ * the assignee, the item's responsible scope, and whoever has written on it
+ * before — each under the audience that admitted them, so the send rechecks
+ * the right thing.
+ */
+async function noteRecipients(
+  deps: WorkflowNotificationDeliveryDeps,
+  event: InboxNoteAdded,
+): Promise<ReadonlyArray<Readonly<{ userId: UserId; audience: NotificationAudience }>>> {
+  const facts = await deps.inboxItemLookup.findInboxItemFacts(
+    event.inboxItemId,
+    event.organizationId,
+  )
+  if (!facts) {
+    // The item is gone from under the note: only the AccountAdmins can be
+    // told, as they are for any item whose scope cannot be resolved.
+    const admins = await deps.userLookup.findByRole(event.organizationId, 'AccountAdmin')
+    return admins.map((userId) => ({ userId, audience: { kind: 'account_admin' } }))
+  }
+
+  const [responsible, authors] = await Promise.all([
+    resolveInboxResponsibleRecipients(deps, event.organizationId, facts),
+    deps.inboxItemLookup.findNoteAuthors(event.inboxItemId, event.organizationId),
+  ])
+  const scope = inboxNotificationAudience(facts)
+  const byUser = new Map<UserId, NotificationAudience>()
+  // Weakest first, so a recipient who is several of these keeps the audience
+  // that says the most about why they were admitted.
+  for (const author of authors) {
+    byUser.set(author, { kind: 'inbox_note_author', inboxItemId: event.inboxItemId })
+  }
+  for (const manager of responsible) byUser.set(manager, scope)
+  if (facts.assignedTo) {
+    byUser.set(facts.assignedTo, {
+      kind: 'inbox_assignee',
+      inboxItemId: event.inboxItemId,
+    })
+  }
+  return [...byUser].map(([userId, audience]) => ({ userId, audience }))
+}
+
 async function enqueueNoteNotifications(
   deps: WorkflowNotificationDeliveryDeps,
   event: InboxNoteAdded,
@@ -253,21 +331,8 @@ async function enqueueNoteNotifications(
     return
   }
 
-  const facts = await deps.inboxItemLookup.findInboxItemFacts(
-    event.inboxItemId,
-    event.organizationId,
-  )
-  const recipients = facts?.assignedTo
-    ? [facts.assignedTo]
-    : facts
-      ? await resolveInboxResponsibleRecipients(deps, event.organizationId, facts)
-      : await deps.userLookup.findByRole(event.organizationId, 'AccountAdmin')
-  const audience = facts?.assignedTo
-    ? ({ kind: 'inbox_assignee', inboxItemId: event.inboxItemId } as const)
-    : facts
-      ? inboxNotificationAudience(facts)
-      : ({ kind: 'account_admin' } as const)
-  const filtered = excludingActor(recipients, event.userId)
+  const candidates = await noteRecipients(deps, event)
+  const filtered = candidates.filter((candidate) => candidate.userId !== event.userId)
   if (filtered.length === 0) {
     deps.logger.warn(
       { correlationId: event.correlationId ?? undefined },
@@ -281,8 +346,8 @@ async function enqueueNoteNotifications(
     orgId: event.organizationId,
     actorId: event.userId,
   })
-  const jobs: InsertNotificationJobData[] = filtered.map((recipientId) => ({
-    userId: recipientId,
+  const jobs: InsertNotificationJobData[] = filtered.map((recipient) => ({
+    userId: recipient.userId,
     organizationId: event.organizationId,
     propertyId: event.propertyId,
     type: 'inbox_note.added',
@@ -290,7 +355,7 @@ async function enqueueNoteNotifications(
     resourceId: event.inboxItemId,
     eventId: event.eventId,
     payload,
-    audience,
+    audience: recipient.audience,
   }))
   await Promise.all(
     jobs.map((data) =>
@@ -686,6 +751,9 @@ function parseWorkflowEvent(event: ConsumerEvent): WorkflowEvent {
         propertyId: property,
         userId: userId(requiredString(parsed, 'userId')),
         assignedTo: userId(requiredString(parsed, 'assignedTo')),
+        previousAssignee: nullableString(parsed, 'previousAssignee')
+          ? userId(requiredString(parsed, 'previousAssignee'))
+          : null,
         ...(nullableString(parsed, 'bulkId')
           ? { bulkId: requiredString(parsed, 'bulkId') }
           : {}),

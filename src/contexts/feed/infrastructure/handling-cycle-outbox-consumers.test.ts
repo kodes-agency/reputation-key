@@ -34,6 +34,7 @@ const ACTOR = userId('actor-handling-cycle-notification')
 const MANAGER = userId('manager-handling-cycle-notification')
 const OWNER = userId('owner-handling-cycle-notification')
 const ADMIN = userId('admin-handling-cycle-notification')
+const ASSIGNEE = userId('assignee-handling-cycle-notification')
 const OCCURRED_AT = '2026-08-27T10:00:00.000Z'
 
 const event = (
@@ -121,6 +122,7 @@ const makeDeps = () => {
       })),
       findResponseTargetReminderNotificationFacts: vi.fn(async () => null),
       findWaitingSince: vi.fn(async (): Promise<Date | null> => null),
+      findNoteAuthors: vi.fn(async () => []),
     },
     clock: () => new Date('2026-08-27T11:00:00.000Z'),
     logger: {
@@ -606,6 +608,69 @@ describe('Handling Cycle notification durable consumers', () => {
       ON_INBOX_HANDLING_CYCLE_REOPENED_CONSUMER,
       'obsolete',
     )
+  })
+
+  // I15: a non-responsible PM drafting a reply was never told the review had
+  // changed or the follow-up had reopened, although `target_passed` already
+  // includes the eligible assignee for exactly that reason.
+  describe('the person actually working on the item', () => {
+    const assignedTo = (deps: ReturnType<typeof makeDeps>, assignee: string | null) =>
+      deps.inboxItemLookup.findHandlingCycleNotificationFacts.mockResolvedValue({
+        propertyId: PROPERTY,
+        portalId: null,
+        assignedTo: assignee as never,
+        propertyName: 'Riverside Hotel',
+        guestRating: null,
+        sourceType: 'review',
+        sourceId: SOURCE,
+        createdAt: new Date('2026-08-27T08:00:00.000Z'),
+        currentCycleNumber: 2,
+        currentSourceRevision: 2,
+        stateRevision: 3,
+        status: 'open',
+      })
+
+    it.each(['opened', 'reopened'] as const)(
+      'tells the eligible assignee about a %s cycle, beside the responsible scope',
+      async (kind) => {
+        const deps = makeDeps()
+        assignedTo(deps, ASSIGNEE)
+        deps.responsibleManagers.findForProperty.mockResolvedValue([MANAGER])
+
+        await handleNotificationHandlingCycle(deps, event(kind))
+
+        expect(
+          deps.jobs.map((job) => (job.data as { userId: string }).userId).sort(),
+        ).toEqual([ASSIGNEE, MANAGER].sort())
+      },
+    )
+
+    it('leaves out an assignee who is no longer eligible for the Property', async () => {
+      const deps = makeDeps()
+      assignedTo(deps, ASSIGNEE)
+      deps.responsibleManagers.findForProperty.mockResolvedValue([MANAGER])
+      deps.responsibleManagers.isEligibleForProperty.mockImplementation(
+        async (...args: unknown[]) => args[2] !== ASSIGNEE,
+      )
+
+      await handleNotificationHandlingCycle(deps, event('reopened'))
+
+      expect(deps.jobs.map((job) => (job.data as { userId: string }).userId)).toEqual([
+        MANAGER,
+      ])
+    })
+
+    it('never tells the assignee who reopened it themselves', async () => {
+      const deps = makeDeps()
+      assignedTo(deps, ACTOR)
+      deps.responsibleManagers.findForProperty.mockResolvedValue([MANAGER])
+
+      await handleNotificationHandlingCycle(deps, event('reopened'))
+
+      expect(deps.jobs.map((job) => (job.data as { userId: string }).userId)).toEqual([
+        MANAGER,
+      ])
+    })
   })
 
   it('falls back to current AccountAdmins only when no eligible scoped manager exists', async () => {

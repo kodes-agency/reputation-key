@@ -492,6 +492,18 @@ const renderInboxAssigned = (p: NotificationPayload): RenderedNotification => ({
   summary: factsAt(p, ratedNoun(p), 'assigned to you'),
 })
 
+/**
+ * The item moved to somebody else. This is news, not a task: it says the work
+ * is off the reader's list, and never names who has it now — that is another
+ * employee's data (ADR 0046 r.8).
+ */
+const renderInboxUnassigned = (p: NotificationPayload): RenderedNotification => ({
+  title: `No longer yours: ${inboxNoun(p)}${atProperty(p)}`,
+  body: `${byRole(p)} passed this on. Somebody else is handling it now.`,
+  actionLabel: 'View item',
+  summary: factsAt(p, ratedNoun(p), 'reassigned'),
+})
+
 const renderInboxBulkAssigned = (p: NotificationPayload): RenderedNotification =>
   renderInboxBulk(
     p,
@@ -760,6 +772,7 @@ const RENDERERS: Record<
   'inbox.response_target_halfway': renderResponseTargetHalfway,
   'inbox.response_target_passed': renderResponseTargetPassed,
   'inbox.assigned': renderInboxAssigned,
+  'inbox.unassigned': renderInboxUnassigned,
   'inbox.bulk_assigned': renderInboxBulkAssigned,
   'inbox.assignments_released': renderAssignmentsReleased,
   'inbox_note.added': renderNoteAdded,

@@ -311,6 +311,9 @@ const inboxItemAssignedSchema = z.object({
   inboxItemId: z.string(),
   organizationId: z.string(),
   assignedTo: z.string(),
+  // Who held the item before. Optional: facts recorded before a reassignment
+  // was news to the previous holder do not say.
+  previousAssignee: z.string().nullable().optional(),
   bulkId: z.string().optional(),
   propertyId: z.string().nullable().optional(),
   userId: z.string().optional(),

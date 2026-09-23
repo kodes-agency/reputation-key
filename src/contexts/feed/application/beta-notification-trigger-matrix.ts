@@ -145,11 +145,12 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ),
     eventCondition: 'reminderKind selects halfway or target-passed notification',
   },
+  // I15: the new assignee, and on a manual reassignment the previous one.
   route(
     'inbox.inbox_item.assigned',
     'notification.on-inbox-inbox_item-assigned',
-    ['inbox.assigned'],
-    ['inbox_assignee'],
+    ['inbox.assigned', 'inbox.unassigned'],
+    ['inbox_assignee', 'property_operator'],
   ),
   route(
     'inbox.inbox_items.bulk_assignment_completed',
@@ -178,11 +179,12 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['inbox.escalation_resolved'],
     ['escalation_resolution'],
   ),
+  // I15: everyone already working on the item, not the assignee alone.
   route(
     'inbox.inbox_note.added',
     'notification.on-inbox-inbox_note-added',
     ['inbox_note.added'],
-    ['inbox_assignee', 'responsible_scope', 'account_admin'],
+    ['inbox_assignee', 'inbox_note_author', 'responsible_scope', 'account_admin'],
   ),
   // I5.3: the responsible managers who hold reply.manage, admins as fallback.
   route(
@@ -338,6 +340,7 @@ const AUDIENCE_KINDS: ReadonlySet<string> = new Set<AudienceKind>([
   'reply_approver',
   'responsibility_gap',
   'inbox_assignee',
+  'inbox_note_author',
   'bulk_inbox_assignee',
   'escalation_resolution',
   'handling_cycle',

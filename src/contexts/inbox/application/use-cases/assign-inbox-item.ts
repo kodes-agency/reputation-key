@@ -94,6 +94,8 @@ export const assignInboxItem =
           propertyId: item.propertyId,
           userId: ctx.userId,
           assignedTo: input.assignedToUserId,
+          // A reassignment is news to whoever held it: they were never told.
+          previousAssignee: item.assignedTo,
           source: 'web',
           occurredAt: now,
         })

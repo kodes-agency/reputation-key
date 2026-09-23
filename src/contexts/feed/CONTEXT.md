@@ -221,6 +221,15 @@ self-assignment, an AccountAdmin's own escalation or submission, an author
 approving or rejecting their own reply — and keeps everyone else. Google's
 publication outcomes have no actor and always reach the author.
 
+A note reaches the assignee, the item's responsible scope and everyone who has
+written on it before, minus the actor, each under the audience that admitted
+them (`inbox_assignee`, the responsible scope, or `inbox_note_author`). A
+Review revision and a reopen reach the item's eligible assignee beside its
+responsible scope, as a passed Response Target already did. A manual
+reassignment tells the previous holder, as `inbox.unassigned`, without naming
+who has it now; a release caused by lost eligibility produces no assignment
+fact and stays silent.
+
 An approval request goes to the Property's responsible managers who hold
 `reply.manage` (the `reply_approver` audience), falling back to AccountAdmins
 only when none of them can act, and never to the submitter. Responsibility and

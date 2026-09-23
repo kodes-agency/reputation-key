@@ -108,6 +108,16 @@ export type InboxItemLookupPort = Readonly<{
   ): Promise<ResponseTargetReminderNotificationFacts | null>
 
   /**
+   * Everyone who has written a note on this item. Identifiers only — the note
+   * text never crosses this seam — so a later note can reach the people
+   * already talking about the item (I15).
+   */
+  findNoteAuthors(
+    inboxItemId: InboxItemId,
+    orgId: OrganizationId,
+  ): Promise<ReadonlyArray<UserId>>
+
+  /**
    * When the current wait began: the start of the current Handling Cycle's
    * measured Response Target. Null when nothing is waiting — the item is
    * closed, the target was met, or it is not measured.

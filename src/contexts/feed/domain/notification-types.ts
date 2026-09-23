@@ -51,6 +51,8 @@ export const NOTIFICATION_TYPES = [
   'inbox.bulk_assigned',
   // A departing or newly ineligible member's items now belong to nobody.
   'inbox.assignments_released',
+  /** The item moved to somebody else; the previous holder is told (I15). */
+  'inbox.unassigned',
   'inbox_note.added',
   // Portal operations
   'portal.responsibility_needed',

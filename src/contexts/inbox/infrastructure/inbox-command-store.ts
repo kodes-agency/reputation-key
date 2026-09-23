@@ -1553,6 +1553,7 @@ async function applyBulkAssignmentToItem(
         propertyId: item.propertyId,
         userId: actorId,
         assignedTo,
+        previousAssignee,
         bulkId,
         source: 'web',
         occurredAt,

@@ -74,6 +74,9 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   // point of the notice. Operational attention, but not worth quiet hours:
   // the items are where they always were and nothing is on a clock.
   'inbox.assignments_released': 'urgent_operational',
+  // Losing an item is collaboration news, never a call to act: the work has
+  // moved to somebody else.
+  'inbox.unassigned': 'workflow_collaboration',
   'inbox_note.added': 'workflow_collaboration',
   'portal.responsibility_needed': 'urgent_operational',
   'portal.health_attention': 'urgent_operational',

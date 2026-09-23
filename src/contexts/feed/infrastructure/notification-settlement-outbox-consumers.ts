@@ -239,16 +239,58 @@ export async function handleNotificationSettlementEvent(
   return { status: 'applied' }
 }
 
+/**
+ * Each route is registered by name rather than from the table above: the
+ * architecture guard reads these identifiers out of the source, and a
+ * registration it cannot read would be authorized under a module it never
+ * checked. A test pins the two lists against each other.
+ */
 export function registerNotificationSettlementConsumers(
   registry: ConsumerRegistry,
   deps: NotificationSettlementConsumerDeps,
 ): void {
-  for (const route of NOTIFICATION_SETTLEMENT_CONSUMERS) {
-    registry.registerConsumer({
-      eventType: route.eventType,
-      consumerName: route.consumerName,
-      module: 'notification.settlement-outbox-consumers',
-      handler: (event) => handleNotificationSettlementEvent(deps, event),
-    })
-  }
+  const { registerConsumer } = registry
+  const handler = (event: ConsumerEvent) => handleNotificationSettlementEvent(deps, event)
+  registerConsumer({
+    eventType: 'review.reply.approved',
+    consumerName: 'notification.settle-on-review-reply-approved',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'review.reply.rejected',
+    consumerName: 'notification.settle-on-review-reply-rejected',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'review.reply.published',
+    consumerName: 'notification.settle-on-review-reply-published',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'inbox.inbox_item.escalation_resolved',
+    consumerName: 'notification.settle-on-inbox-escalation-resolved',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'inbox.handling_cycle.closed',
+    consumerName: 'notification.settle-on-inbox-handling-cycle-closed',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'property.responsible_managers.updated',
+    consumerName: 'notification.settle-on-property-responsibility-restored',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'portal.responsible_managers.updated',
+    consumerName: 'notification.settle-on-portal-responsibility-restored',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
 }

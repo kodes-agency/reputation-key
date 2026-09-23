@@ -472,6 +472,30 @@ and never that it had been dealt with.
   never told is not told now, and one who is no longer an AccountAdmin is
   dropped.
 
+## Amended 2026-09-24 — notes and rework reach the people doing the work
+
+A note reached the assignee and nobody else, so a note written BY the assignee
+reached nobody and notes could not be used to ask for help. `review.updated`
+and `inbox.reopened` ignored the assignee, so a non-responsible manager
+drafting a reply was never told the review had changed. A previous assignee was
+never told the item had moved on.
+
+- `inbox_note.added` reaches the assignee, the item's responsible scope and
+  everyone who has written a note on it before, minus the actor. Each recipient
+  keeps the audience that admitted them — `inbox_assignee`, the responsible
+  scope, or the new `inbox_note_author` — so the send rechecks the right thing.
+  There are no @mentions: the note text never crosses the Feed seam.
+- `review.updated` and `inbox.reopened` (and a grouped reopen) include the
+  item's eligible assignee beside its responsible scope, the way a passed
+  Response Target already did. The delivery-time cycle check admits them on the
+  same rule.
+- A manual reassignment tells the previous holder, as the new
+  `inbox.unassigned` notice (`workflow_collaboration`, audience
+  `property_operator` — they are no longer the assignee but may still act on
+  the Property). It never names who holds it now. An eligibility-loss release
+  produces no assignment fact and therefore stays silent, and a claim tells
+  nobody, because the claimant is both actor and previous holder.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

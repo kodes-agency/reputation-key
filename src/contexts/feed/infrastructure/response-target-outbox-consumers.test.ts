@@ -114,6 +114,7 @@ const makeDeps = () => {
         async (): Promise<ResponseTargetReminderNotificationFacts | null> => facts,
       ),
       findWaitingSince: vi.fn(async (): Promise<Date | null> => TARGET_STARTED),
+      findNoteAuthors: vi.fn(async () => []),
     },
     clock: () => new Date('2026-08-28T11:00:00.000Z'),
     logger: {

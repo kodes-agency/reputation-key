@@ -16,7 +16,7 @@ import type { EscalationResolutionLookupPort } from './ports/escalation-resoluti
 import type { NotificationRepositoryPort } from './ports/notification-repository.port'
 import {
   goalSubjectScope,
-  inboxNotificationAudience,
+  resolveHandlingCycleRecipients,
   resolveResponsibleRecipients,
   type ResponsibleScope,
 } from './responsible-recipients'
@@ -66,6 +66,11 @@ export type NotificationAudience =
       scope: Exclude<ResponsibleScope, Readonly<{ kind: 'portal_group' }>>
     }>
   | Readonly<{ kind: 'inbox_assignee'; inboxItemId: InboxItemId }>
+  /**
+   * Somebody already talking about this Inbox item: they wrote a note on it,
+   * so a later note is addressed to them too (I15).
+   */
+  | Readonly<{ kind: 'inbox_note_author'; inboxItemId: InboxItemId }>
   | Readonly<{
       kind: 'bulk_inbox_assignee'
       inboxItemIds: ReadonlyArray<InboxItemId>
@@ -216,6 +221,11 @@ const parseReplyApprover: AudienceKindParser = (value) =>
 const parseInboxAssignee: AudienceKindParser = (value) =>
   isIdentifier(value.inboxItemId)
     ? { kind: 'inbox_assignee', inboxItemId: value.inboxItemId as InboxItemId }
+    : null
+
+const parseInboxNoteAuthor: AudienceKindParser = (value) =>
+  isIdentifier(value.inboxItemId)
+    ? { kind: 'inbox_note_author', inboxItemId: inboxItemId(value.inboxItemId) }
     : null
 
 const parseBulkInboxAssignee: AudienceKindParser = (value) => {
@@ -439,6 +449,7 @@ const AUDIENCE_KIND_PARSERS: ReadonlyMap<string, AudienceKindParser> = new Map<
   ['responsibility_gap', parseResponsibilityGap],
   ['property_operator', () => ({ kind: 'property_operator' })],
   ['inbox_assignee', parseInboxAssignee],
+  ['inbox_note_author', parseInboxNoteAuthor],
   ['bulk_inbox_assignee', parseBulkInboxAssignee],
   ['escalation_resolution', parseEscalationResolution],
   ['handling_cycle', parseHandlingCycle],
@@ -465,6 +476,7 @@ type Deps = Readonly<{
     | 'findInboxItemFacts'
     | 'findHandlingCycleNotificationFacts'
     | 'findResponseTargetReminderNotificationFacts'
+    | 'findNoteAuthors'
   >
   escalationResolutions: EscalationResolutionLookupPort
   replyApproval: ReplyApprovalAuthorityPort
@@ -567,6 +579,20 @@ const isStillInboxAssignee = async (
   return Boolean(facts && facts.propertyId === propertyId && facts.assignedTo === userId)
 }
 
+/** Still one of the people talking about the item, and still on its Property. */
+const isStillNoteAuthor = async (
+  deps: Deps,
+  { organizationId, propertyId }: PropertyScopedRequest,
+  userId: UserId,
+  itemId: InboxItemId,
+) => {
+  const facts = await deps.inboxItemLookup.findInboxItemFacts(itemId, organizationId)
+  if (!facts || facts.propertyId !== propertyId) return false
+  return (await deps.inboxItemLookup.findNoteAuthors(itemId, organizationId)).includes(
+    userId,
+  )
+}
+
 const isStillAssigneeOfEvery = async (
   deps: Deps,
   { organizationId, propertyId, userId }: PropertyScopedRequest,
@@ -633,11 +659,9 @@ const isCurrentCycleRecipient = async (
   ) {
     return false
   }
-  const currentAudience = inboxNotificationAudience(facts)
-  const recipients =
-    currentAudience.kind === 'responsible_scope'
-      ? await resolveResponsibleRecipients(deps, organizationId, currentAudience.scope)
-      : await deps.userLookup.findByRole(organizationId, 'AccountAdmin')
+  // The same rule the fan-out used: the item's responsible scope, plus the
+  // person actually working on it while they are still eligible (I15).
+  const recipients = await resolveHandlingCycleRecipients(deps, organizationId, facts)
   return recipients.includes(userId)
 }
 
@@ -873,6 +897,11 @@ export const createNotificationAudienceAuthorizer =
         return isGoalResultRevisionRecipient(deps, request, audience)
       case 'inbox_assignee':
         if (!(await isStillInboxAssignee(deps, request, audience.inboxItemId))) {
+          return false
+        }
+        break
+      case 'inbox_note_author':
+        if (!(await isStillNoteAuthor(deps, request, userId, audience.inboxItemId))) {
           return false
         }
         break

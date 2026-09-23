@@ -97,6 +97,7 @@ export const createNotificationConsumerDeps = (): FakeNotificationConsumerDeps =
     })),
     findResponseTargetReminderNotificationFacts: vi.fn(async () => null),
     findWaitingSince: vi.fn(async () => null),
+    findNoteAuthors: vi.fn(async () => []),
   } as unknown as MockedPort<InboxItemLookupPort>
 
   const displayNames = {

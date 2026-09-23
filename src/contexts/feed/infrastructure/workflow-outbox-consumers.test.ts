@@ -505,6 +505,191 @@ describe('durable workflow notification consumers', () => {
     })
   })
 
+  // I15: a previous assignee was never told the item had moved on, so they
+  // kept it on their list. An eligibility-loss release stays silent — it
+  // carries no new assignee, so it is not a reassignment.
+  describe('who hears that an item moved to somebody else', () => {
+    const reassigned = (previousAssignee: string | null) =>
+      event('inbox.inbox_item.assigned', {
+        inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+        assignedTo: unbrand(NOTIF_TEST_IDS.manager2),
+        previousAssignee,
+        userId: unbrand(NOTIF_TEST_IDS.submitter),
+        source: 'web',
+      })
+
+    it('tells the previous assignee, beside the new one', async () => {
+      const deps = makeDeps()
+
+      await handleWorkflowNotificationEvent(
+        deps,
+        reassigned(unbrand(NOTIF_TEST_IDS.manager1)),
+      )
+
+      const byUser = new Map(
+        deps.fakes.jobs.map((job) => {
+          const data = job.data as InsertNotificationJobData
+          return [data.userId as string, data.type]
+        }),
+      )
+      expect(byUser.get(NOTIF_TEST_IDS.manager2)).toBe('inbox.assigned')
+      expect(byUser.get(NOTIF_TEST_IDS.manager1)).toBe('inbox.unassigned')
+    })
+
+    it('tells nobody extra when the item had no previous assignee', async () => {
+      const deps = makeDeps()
+
+      await handleWorkflowNotificationEvent(deps, reassigned(null))
+
+      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.manager2])
+    })
+
+    it('never tells a previous assignee who reassigned it themselves', async () => {
+      const deps = makeDeps()
+
+      await handleWorkflowNotificationEvent(
+        deps,
+        event('inbox.inbox_item.assigned', {
+          inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+          assignedTo: unbrand(NOTIF_TEST_IDS.manager2),
+          previousAssignee: unbrand(NOTIF_TEST_IDS.manager1),
+          userId: unbrand(NOTIF_TEST_IDS.manager1),
+          source: 'web',
+        }),
+      )
+
+      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.manager2])
+    })
+
+    it('says nothing on a claim, where the previous assignee is the claimant', async () => {
+      const deps = makeDeps()
+
+      await handleWorkflowNotificationEvent(
+        deps,
+        event('inbox.inbox_item.assigned', {
+          inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+          assignedTo: unbrand(NOTIF_TEST_IDS.manager1),
+          previousAssignee: unbrand(NOTIF_TEST_IDS.manager1),
+          userId: unbrand(NOTIF_TEST_IDS.manager1),
+          source: 'web',
+        }),
+      )
+
+      expect(deps.fakes.jobs).toEqual([])
+    })
+  })
+
+  // I15: notes only ever reached the assignee, so a note written BY the
+  // assignee reached nobody and notes could not be used to ask for help.
+  describe('who hears about a note', () => {
+    const noteAdded = (actorId: string) =>
+      event('inbox.inbox_note.added', {
+        inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+        noteId: unbrand(NOTIF_TEST_IDS.noteId),
+        userId: actorId,
+        source: 'web',
+      })
+
+    const assignedTo = (deps: Deps, assignee: string | null) =>
+      deps.fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
+        propertyId: unbrand(NOTIF_TEST_IDS.propId),
+        portalId: null,
+        assignedTo: assignee,
+        propertyName: 'Riverside Hotel',
+        guestRating: null,
+        sourceType: 'review',
+        createdAt: NOTIF_TEST_IDS.now,
+      })
+
+    it('reaches the assignee, the responsible scope and the earlier note authors', async () => {
+      const deps = makeDeps()
+      assignedTo(deps, NOTIF_TEST_IDS.manager1)
+      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
+        NOTIF_TEST_IDS.manager2,
+      ])
+      deps.fakes.inboxItemLookup.findNoteAuthors.mockResolvedValue([
+        NOTIF_TEST_IDS.authorId,
+      ])
+
+      await handleWorkflowNotificationEvent(deps, noteAdded(NOTIF_TEST_IDS.submitter))
+
+      expect(recipientsOf(deps).sort()).toEqual(
+        [
+          NOTIF_TEST_IDS.manager1,
+          NOTIF_TEST_IDS.manager2,
+          NOTIF_TEST_IDS.authorId,
+        ].sort(),
+      )
+    })
+
+    it('reaches the responsible scope when the assignee wrote the note', async () => {
+      const deps = makeDeps()
+      assignedTo(deps, NOTIF_TEST_IDS.manager1)
+      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
+        NOTIF_TEST_IDS.manager2,
+      ])
+
+      await handleWorkflowNotificationEvent(deps, noteAdded(NOTIF_TEST_IDS.manager1))
+
+      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.manager2])
+    })
+
+    it('never tells the person who wrote the note', async () => {
+      const deps = makeDeps()
+      assignedTo(deps, NOTIF_TEST_IDS.manager1)
+      deps.fakes.inboxItemLookup.findNoteAuthors.mockResolvedValue([
+        NOTIF_TEST_IDS.submitter,
+        NOTIF_TEST_IDS.authorId,
+      ])
+
+      await handleWorkflowNotificationEvent(deps, noteAdded(NOTIF_TEST_IDS.submitter))
+
+      expect(recipientsOf(deps)).not.toContain(NOTIF_TEST_IDS.submitter)
+    })
+
+    it('names why each recipient was admitted, so the send can recheck it', async () => {
+      const deps = makeDeps()
+      assignedTo(deps, NOTIF_TEST_IDS.manager1)
+      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
+        NOTIF_TEST_IDS.manager2,
+      ])
+      deps.fakes.inboxItemLookup.findNoteAuthors.mockResolvedValue([
+        NOTIF_TEST_IDS.authorId,
+      ])
+
+      await handleWorkflowNotificationEvent(deps, noteAdded(NOTIF_TEST_IDS.submitter))
+
+      const audiences = new Map(
+        deps.fakes.jobs.map((job) => {
+          const data = job.data as InsertNotificationJobData
+          return [data.userId as string, data.audience]
+        }),
+      )
+      expect(audiences.get(NOTIF_TEST_IDS.manager1)).toEqual({
+        kind: 'inbox_assignee',
+        inboxItemId: NOTIF_TEST_IDS.inboxItemId,
+      })
+      expect(audiences.get(NOTIF_TEST_IDS.manager2)).toEqual({
+        kind: 'responsible_scope',
+        scope: { kind: 'property', propertyId: unbrand(NOTIF_TEST_IDS.propId) },
+      })
+      expect(audiences.get(NOTIF_TEST_IDS.authorId)).toEqual({
+        kind: 'inbox_note_author',
+        inboxItemId: NOTIF_TEST_IDS.inboxItemId,
+      })
+    })
+
+    it('falls back to the AccountAdmins when the item itself is gone', async () => {
+      const deps = makeDeps()
+      deps.fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue(null)
+      deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
+
+      await handleWorkflowNotificationEvent(deps, noteAdded(NOTIF_TEST_IDS.submitter))
+
+      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.admin1])
+    })
+  })
+
   it('names the role of whoever escalated, since escalation is always a manual call', async () => {
     const deps = makeDeps()
 

@@ -107,6 +107,11 @@ export type InboxItemAssigned = Readonly<{
   propertyId: PropertyId | null
   userId: UserId
   assignedTo: UserId
+  /**
+   * Who held the item before this assignment, when anybody did. A
+   * reassignment is news to them: they were never told the item had moved on.
+   */
+  previousAssignee?: UserId | null
   /** Present when this per-item fact belongs to one atomic bulk command. */
   bulkId?: string
   source: 'web' | 'import'
