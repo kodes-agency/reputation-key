@@ -32,12 +32,14 @@ const meta: Meta<typeof ResponseTargetSettingsCard> = {
           durationMinutes: 24 * 60,
           policySource: 'builtin_default',
           policyVersion: null,
+          lowRating: null,
         },
         privateFeedbackHandling: {
           targetKind: 'private_feedback_handling',
           durationMinutes: 36 * 60,
           policySource: 'organization_policy',
           policyVersion: 1,
+          lowRating: null,
         },
       },
       privateFeedbackPropertyOverride: {

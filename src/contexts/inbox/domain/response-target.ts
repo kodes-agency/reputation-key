@@ -22,6 +22,19 @@ export type ResponseTargetPolicy = Readonly<{
 type StoredPolicy = Readonly<{
   durationMinutes: number
   policyVersion: number
+  /**
+   * The shorter Google Review target an Organization may set for its own
+   * low-rated reviews: any rating at or below `lowRatingThreshold` is
+   * measured against `lowRatingDurationMinutes` instead. Both null (the
+   * default, and every row written before this existed) means one clock for
+   * every review, exactly as before.
+   *
+   * This is where a rating may change how soon somebody is prompted. The
+   * rating stays in Inbox, which already reads it for list filters; Feed
+   * neither stores nor reads a rating class (ADR 0046 r.8).
+   */
+  lowRatingThreshold?: number | null
+  lowRatingDurationMinutes?: number | null
 }>
 
 export type ResponseTargetReminderKind = 'halfway' | 'target_passed'
@@ -40,6 +53,34 @@ export type ResponseTargetSnapshot = Readonly<{
   ]
 }>
 
+const invalidPolicy = () =>
+  inboxError('invalid_input', 'Response Target policy is invalid')
+
+/**
+ * The low-rating pair is all-or-nothing: a threshold with no duration would
+ * describe reviews it cannot measure, and a duration with no threshold would
+ * name no reviews. It must also be SHORTER than the ordinary target — the
+ * point is an earlier prompt, and a longer one would quietly give a one-star
+ * review more time than a five-star one.
+ */
+const assertLowRatingPolicy = (policy: StoredPolicy): void => {
+  const threshold = policy.lowRatingThreshold ?? null
+  const duration = policy.lowRatingDurationMinutes ?? null
+  if (threshold === null && duration === null) return
+  if (
+    threshold === null ||
+    duration === null ||
+    !Number.isSafeInteger(threshold) ||
+    threshold < 1 ||
+    threshold > 5 ||
+    !Number.isSafeInteger(duration) ||
+    duration < 1 ||
+    duration > policy.durationMinutes
+  ) {
+    throw invalidPolicy()
+  }
+}
+
 const assertPolicy = (policy: StoredPolicy): void => {
   if (
     !Number.isSafeInteger(policy.durationMinutes) ||
@@ -48,10 +89,17 @@ const assertPolicy = (policy: StoredPolicy): void => {
     !Number.isSafeInteger(policy.policyVersion) ||
     policy.policyVersion < 1
   ) {
-    throw inboxError('invalid_input', 'Response Target policy is invalid')
+    throw invalidPolicy()
   }
+  assertLowRatingPolicy(policy)
 }
 
+/**
+ * Private feedback has one clock per scope. The low-rating pair is a Google
+ * Review policy only — the database refuses it on a private-feedback row —
+ * so nothing here reads it, and the resolved policy is built field by field
+ * rather than spread, so nothing can leak into the stored snapshot either.
+ */
 export function resolvePrivateFeedbackTargetPolicy(
   input: Readonly<{
     organizationPolicy: StoredPolicy | null
@@ -60,11 +108,19 @@ export function resolvePrivateFeedbackTargetPolicy(
 ): ResponseTargetPolicy {
   if (input.propertyOverride) {
     assertPolicy(input.propertyOverride)
-    return { ...input.propertyOverride, policySource: 'property_override' }
+    return {
+      durationMinutes: input.propertyOverride.durationMinutes,
+      policySource: 'property_override',
+      policyVersion: input.propertyOverride.policyVersion,
+    }
   }
   if (input.organizationPolicy) {
     assertPolicy(input.organizationPolicy)
-    return { ...input.organizationPolicy, policySource: 'organization_policy' }
+    return {
+      durationMinutes: input.organizationPolicy.durationMinutes,
+      policySource: 'organization_policy',
+      policyVersion: input.organizationPolicy.policyVersion,
+    }
   }
   return {
     durationMinutes: DEFAULT_RESPONSE_TARGET_MINUTES,
@@ -73,12 +129,31 @@ export function resolvePrivateFeedbackTargetPolicy(
   }
 }
 
+/**
+ * `rating` is the guest's star rating on the Material Review Revision this
+ * cycle measures, attested by Review with the rest of the target provenance.
+ * Null when the revision carries none, which resolves to the ordinary target.
+ */
 export function resolveGoogleReviewTargetPolicy(
   organizationPolicy: StoredPolicy | null,
+  rating: number | null = null,
 ): ResponseTargetPolicy {
   if (organizationPolicy) {
     assertPolicy(organizationPolicy)
-    return { ...organizationPolicy, policySource: 'organization_policy' }
+    const threshold = organizationPolicy.lowRatingThreshold ?? null
+    const lowRatingDuration = organizationPolicy.lowRatingDurationMinutes ?? null
+    const durationMinutes =
+      threshold !== null &&
+      lowRatingDuration !== null &&
+      rating !== null &&
+      rating <= threshold
+        ? lowRatingDuration
+        : organizationPolicy.durationMinutes
+    return {
+      durationMinutes,
+      policySource: 'organization_policy',
+      policyVersion: organizationPolicy.policyVersion,
+    }
   }
   return {
     durationMinutes: DEFAULT_RESPONSE_TARGET_MINUTES,

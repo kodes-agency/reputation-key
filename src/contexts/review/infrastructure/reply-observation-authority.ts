@@ -57,6 +57,7 @@ function selectCurrentObservationHead(
       observedAt: googleReplyObservations.observedAt,
       responseTargetEligibility: materialReviewRevisions.responseTargetEligibility,
       responseTargetStartAt: materialReviewRevisions.responseTargetStartAt,
+      rating: materialReviewRevisions.rating,
       materialNormalizationVersion: materialReviewRevisions.normalizationVersion,
       materialNormalizedDigest: materialReviewRevisions.normalizedDigest,
     })
@@ -252,6 +253,7 @@ export const createReviewReplyObservationAuthority = (
           responseTargetEligibility:
             current.responseTargetEligibility as ReviewCurrentReplyObservationPermit['responseTargetEligibility'],
           responseTargetStartAt: current.responseTargetStartAt,
+          rating: current.rating,
         }
         return { status: 'current' as const, value: await apply(permit) }
       }),

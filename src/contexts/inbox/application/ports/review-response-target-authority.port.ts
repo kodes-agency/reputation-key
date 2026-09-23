@@ -16,6 +16,12 @@ export type CurrentReviewResponseTargetPermit = Readonly<{
   materialReviewRevision: number
   eligibility: 'measured' | 'historical_onboarding' | 'legacy_unknown'
   responseTargetStartAt: Date | null
+  /**
+   * The guest's star rating on this Material Review Revision, attested by
+   * Review. Inbox measures a low-rated review against the shorter Response
+   * Target its Organization set for one; null when the revision carries none.
+   */
+  rating: number | null
 }>
 
 export type ReviewInboxProjectionExpectation = Readonly<{
@@ -36,6 +42,8 @@ export type ReviewInboxProjectionRevisionPermit = Readonly<{
   materialReviewRevision: number
   eligibility: 'measured' | 'historical_onboarding' | 'legacy_unknown'
   responseTargetStartAt: Date | null
+  /** The guest's star rating on this revision; null when it carries none. */
+  rating: number | null
   observedAt: Date
 }>
 

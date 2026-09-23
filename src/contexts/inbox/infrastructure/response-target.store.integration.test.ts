@@ -168,6 +168,7 @@ async function projectMeasuredReview(
         materialReviewRevision: 1,
         eligibility: 'measured',
         responseTargetStartAt: publishedAt,
+        rating: null,
         observedAt: OPENED_AT,
       },
       targetStart: { basis: 'review_provenance' },
@@ -263,6 +264,80 @@ beforeEach(async () => {
 })
 
 describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
+  it('gives a low-rated Google review the shorter target its Organization set', async () => {
+    await seedScope()
+    // Two days ordinarily; four hours at or below two stars.
+    await pool.query(
+      `INSERT INTO inbox_response_target_organization_policies (
+         organization_id, target_kind, duration_minutes, policy_version,
+         low_rating_threshold, low_rating_duration_minutes,
+         updated_by, created_at, updated_at
+       ) VALUES ($1, 'google_review_response', 2880, 1, 2, 240, $2, $3, $3)`,
+      [ORG, MANAGER, OPENED_AT],
+    )
+    await seedReviewSource(REVIEW, 'measured', OPENED_AT)
+    await seedReviewSource(HISTORICAL_REVIEW, 'measured', OPENED_AT)
+    const store = commandStore(db)
+    const openWithRating = (
+      item: ReturnType<typeof makeReviewItem>,
+      review: typeof REVIEW,
+      rating: number,
+    ) =>
+      store.createItem(item, null, {
+        sourceRevision: 1,
+        openedReason: 'review_observed',
+        actorType: 'provider',
+        triggerEventId: null,
+        openedAt: OPENED_AT,
+        responseTarget: {
+          reviewAuthority: {
+            authority: 'review.current-response-target.v1',
+            organizationId: ORG,
+            propertyId: PROPERTY,
+            reviewId: review,
+            sourceEpoch: 0,
+            materialReviewRevision: 1,
+            eligibility: 'measured',
+            responseTargetStartAt: OPENED_AT,
+            rating,
+          },
+          targetStart: { basis: 'review_provenance' },
+        },
+      })
+
+    await openWithRating(makeReviewItem(), REVIEW, 1)
+    await openWithRating(
+      makeReviewItem(HISTORICAL_ITEM, HISTORICAL_REVIEW),
+      HISTORICAL_REVIEW,
+      4,
+    )
+
+    const targets = createResponseTargetStore(db)
+    // The one-star review is due in four hours, so its halfway prompt lands
+    // two hours in rather than a day in.
+    await expect(
+      targets.getCycleTarget(REVIEW_ITEM, ORG, OPENED_AT),
+    ).resolves.toMatchObject({
+      durationMinutes: 240,
+      policySource: 'organization_policy',
+      dueAt: new Date('2026-08-28T12:00:00.000Z'),
+    })
+    // The four-star one keeps the ordinary two days.
+    await expect(
+      targets.getCycleTarget(HISTORICAL_ITEM, ORG, OPENED_AT),
+    ).resolves.toMatchObject({
+      durationMinutes: 2_880,
+      policySource: 'organization_policy',
+      dueAt: new Date('2026-08-30T08:00:00.000Z'),
+    })
+    const { rows } = await pool.query<{ scheduled_for: Date }>(
+      `SELECT scheduled_for FROM inbox_response_target_reminders
+        WHERE inbox_item_id = $1 AND reminder_kind = 'halfway'`,
+      [REVIEW_ITEM],
+    )
+    expect(rows[0]?.scheduled_for).toEqual(new Date('2026-08-28T10:00:00.000Z'))
+  })
+
   it('measures Google response time while explicitly excluding historical and unknown cycles', async () => {
     await seedScope()
     await pool.query(
@@ -292,6 +367,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
           materialReviewRevision: 1,
           eligibility: 'measured',
           responseTargetStartAt: OPENED_AT,
+          rating: null,
         },
         targetStart: { basis: 'review_provenance' },
       },
@@ -312,6 +388,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
           materialReviewRevision: 1,
           eligibility: 'historical_onboarding',
           responseTargetStartAt: null,
+          rating: null,
         },
         targetStart: { basis: 'review_provenance' },
       },
@@ -785,6 +862,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
           materialReviewRevision: 1,
           eligibility: 'measured',
           responseTargetStartAt: OPENED_AT,
+          rating: null,
         },
         targetStart: { basis: 'review_provenance' },
       },
@@ -815,6 +893,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
           materialReviewRevision: 2,
           eligibility: 'measured',
           responseTargetStartAt: providerUpdatedAt,
+          rating: null,
         },
         targetStart: { basis: 'review_provenance' },
       },
@@ -908,6 +987,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
           materialReviewRevision: 1,
           eligibility: 'historical_onboarding',
           responseTargetStartAt: null,
+          rating: null,
         },
         targetStart: { basis: 'review_provenance' },
       },
@@ -945,6 +1025,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
         reviewSourceContentState: 'active',
         responseTargetEligibility: 'historical_onboarding',
         responseTargetStartAt: null,
+        rating: null,
       },
       closeFact: inboxItemStatusChanged({
         inboxItemId: item.id,
@@ -994,6 +1075,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
           materialReviewRevision: 1,
           eligibility: 'historical_onboarding',
           responseTargetStartAt: null,
+          rating: null,
         },
         targetStart: { basis: 'operational_reopen', at: reopenedAt },
       },
@@ -1051,6 +1133,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
           materialReviewRevision: 1,
           eligibility: 'measured',
           responseTargetStartAt: providerStart,
+          rating: null,
         },
         targetStart: { basis: 'review_provenance' },
       },
@@ -1217,12 +1300,14 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
           durationMinutes: 2_880,
           policySource: 'builtin_default',
           policyVersion: null,
+          lowRating: null,
         },
         privateFeedbackHandling: {
           targetKind: 'private_feedback_handling',
           durationMinutes: 2_880,
           policySource: 'builtin_default',
           policyVersion: null,
+          lowRating: null,
         },
       },
       privateFeedbackPropertyOverride: {

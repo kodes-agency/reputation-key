@@ -360,6 +360,23 @@ unanswered review comes from its Inbox Response Target — the reminders at the
 halfway point and at the target time — which is where a rating may shorten it
 (next amendment). Feed neither stores nor reads a rating class (r.8).
 
+## Amended 2026-09-24 — a rating shortens the target, not the notification
+
+Urgency for an unanswered review comes from its Inbox Response Target. Feed
+still neither stores nor reads a rating class for a provider review (r.8), and
+`review.created` stays `workflow_collaboration`; what changes is how soon the
+target's reminders fall. The Google Review Organization policy may now carry a
+shorter duration for the Organization's own low-rated reviews — a star
+threshold and a shorter target on the same policy row — so a one-star review
+reaches the halfway prompt and the target time sooner than a five-star one,
+through the reminder route that already exists.
+
+It is off by default, and off is exactly today's behaviour. Shortening a target
+changes which cycles count as late, so no Organization's recorded performance
+moves until somebody chooses it. See
+`docs/operations/inbox-response-targets.md` and migration
+`0030_inbox_low_rating_response_target`.
+
 ## Amended 2026-09-24 — notices state the closed facts their events carry
 
 Four routes carried a governed fact and dropped it, so the copy could only

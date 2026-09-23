@@ -8,11 +8,15 @@ import { properties } from '#/shared/db/schema/property.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import type {
+  LowRatingResponseTarget,
   ResponseTargetPolicyStore,
   ResponseTargetPolicySettings,
   ResponseTargetPolicyWriteResult,
 } from '../application/ports/response-target-policy.store'
-import { DEFAULT_RESPONSE_TARGET_MINUTES } from '../domain/response-target'
+import {
+  DEFAULT_RESPONSE_TARGET_MINUTES,
+  type ResponseTargetKind,
+} from '../domain/response-target'
 import { inboxResponseTargetPolicyChanged } from '../domain/events'
 import { inboxError } from '../domain/errors'
 
@@ -37,6 +41,43 @@ const assertExpectedVersion = (version: number | null): void => {
   }
 }
 
+/**
+ * The low-rating target is a Google Review concept, and it must be SHORTER
+ * than the ordinary one: the point is an earlier prompt, and a longer one
+ * would quietly give a one-star review more time than a five-star one. The
+ * database CHECK says the same; this says it with a message a manager reads.
+ */
+const assertLowRating = (
+  targetKind: ResponseTargetKind,
+  durationMinutes: number,
+  lowRating: LowRatingResponseTarget | null | undefined,
+): void => {
+  if (lowRating === undefined || lowRating === null) return
+  if (targetKind !== 'google_review_response') {
+    throw inboxError(
+      'invalid_input',
+      'Only the Google Review target can be shortened for low ratings',
+    )
+  }
+  if (
+    !Number.isSafeInteger(lowRating.threshold) ||
+    lowRating.threshold < 1 ||
+    lowRating.threshold > 5
+  ) {
+    throw inboxError('invalid_input', 'The low-rating threshold must be 1–5 stars')
+  }
+  if (
+    !Number.isSafeInteger(lowRating.durationMinutes) ||
+    lowRating.durationMinutes < 1 ||
+    lowRating.durationMinutes > durationMinutes
+  ) {
+    throw inboxError(
+      'invalid_input',
+      'The low-rating target must be shorter than the ordinary target',
+    )
+  }
+}
+
 const versionConflict = (currentPolicyVersion: number | null) =>
   inboxError('revision_conflict', 'Response Target policy changed; reload', {
     currentPolicyVersion,
@@ -52,6 +93,9 @@ export const createResponseTargetPolicyStore = (
           targetKind: inboxResponseTargetOrganizationPolicies.targetKind,
           durationMinutes: inboxResponseTargetOrganizationPolicies.durationMinutes,
           policyVersion: inboxResponseTargetOrganizationPolicies.policyVersion,
+          lowRatingThreshold: inboxResponseTargetOrganizationPolicies.lowRatingThreshold,
+          lowRatingDurationMinutes:
+            inboxResponseTargetOrganizationPolicies.lowRatingDurationMinutes,
         })
         .from(inboxResponseTargetOrganizationPolicies)
         .where(eq(inboxResponseTargetOrganizationPolicies.organizationId, orgId))
@@ -66,12 +110,23 @@ export const createResponseTargetPolicyStore = (
               durationMinutes: stored.durationMinutes,
               policySource: 'organization_policy' as const,
               policyVersion: stored.policyVersion,
+              // The database keeps the pair all-or-nothing, so one column
+              // decides. Never present on a private-feedback row.
+              lowRating:
+                stored.lowRatingThreshold === null ||
+                stored.lowRatingDurationMinutes === null
+                  ? null
+                  : {
+                      threshold: stored.lowRatingThreshold,
+                      durationMinutes: stored.lowRatingDurationMinutes,
+                    },
             }
           : {
               targetKind,
               durationMinutes: DEFAULT_RESPONSE_TARGET_MINUTES,
               policySource: 'builtin_default' as const,
               policyVersion: null,
+              lowRating: null,
             }
       }
       const privateFeedbackHandling = organizationView('private_feedback_handling')
@@ -130,6 +185,7 @@ export const createResponseTargetPolicyStore = (
     trace('inbox.responseTargetPolicy.setOrganization', async () => {
       assertDuration(command.durationMinutes, false)
       assertExpectedVersion(command.expectedPolicyVersion)
+      assertLowRating(command.targetKind, command.durationMinutes, command.lowRating)
       const result = await db.transaction(async (tx) => {
         const policyLockKey = JSON.stringify([command.organizationId, command.targetKind])
         await tx.execute(
@@ -162,11 +218,20 @@ export const createResponseTargetPolicyStore = (
             'Response Target policy version exhausted',
           )
         }
+        // Omitted keeps the stored pair, `null` clears it, an object sets it.
+        const lowRatingColumns =
+          command.lowRating === undefined
+            ? {}
+            : {
+                lowRatingThreshold: command.lowRating?.threshold ?? null,
+                lowRatingDurationMinutes: command.lowRating?.durationMinutes ?? null,
+              }
         if (current) {
           const [saved] = await tx
             .update(inboxResponseTargetOrganizationPolicies)
             .set({
               durationMinutes: command.durationMinutes,
+              ...lowRatingColumns,
               policyVersion: nextVersion,
               updatedBy: command.actorUserId,
               updatedAt: command.at,
@@ -196,6 +261,7 @@ export const createResponseTargetPolicyStore = (
             organizationId: command.organizationId,
             targetKind: command.targetKind,
             durationMinutes: command.durationMinutes,
+            ...lowRatingColumns,
             policyVersion: nextVersion,
             updatedBy: command.actorUserId,
             createdAt: command.at,

@@ -223,6 +223,9 @@ export async function insertResponseTargetForHandlingCycle(
       .select({
         durationMinutes: inboxResponseTargetOrganizationPolicies.durationMinutes,
         policyVersion: inboxResponseTargetOrganizationPolicies.policyVersion,
+        lowRatingThreshold: inboxResponseTargetOrganizationPolicies.lowRatingThreshold,
+        lowRatingDurationMinutes:
+          inboxResponseTargetOrganizationPolicies.lowRatingDurationMinutes,
       })
       .from(inboxResponseTargetOrganizationPolicies)
       .where(
@@ -240,7 +243,13 @@ export async function insertResponseTargetForHandlingCycle(
       .limit(1)
     const snapshot = buildResponseTargetSnapshot({
       targetKind: 'google_review_response',
-      policy: resolveGoogleReviewTargetPolicy(organizationPolicy ?? null),
+      // The rating comes from Review's attested permit, the same fenced read
+      // that supplies the target's start instant, so the clock is chosen from
+      // the revision this cycle actually measures.
+      policy: resolveGoogleReviewTargetPolicy(
+        organizationPolicy ?? null,
+        targetAnchor?.reviewAuthority.rating ?? null,
+      ),
       startAt,
     })
     await tx.insert(inboxHandlingCycleResponseTargets).values({

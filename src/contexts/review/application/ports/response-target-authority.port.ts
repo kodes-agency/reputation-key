@@ -30,6 +30,15 @@ export type ReviewCurrentResponseTargetPermit = Readonly<{
   eligibility: ReviewResponseTargetEligibility
   /** Google's publication/revision instant; null for deliberately excluded facts. */
   responseTargetStartAt: Date | null
+  /**
+   * The guest's star rating on this Material Review Revision, or null when
+   * the revision carries none. Attested here with the rest of the target
+   * provenance so Inbox can measure a low-rated review against the shorter
+   * Response Target its Organization set, without reading Review's tables.
+   * It is a number on a revision, not review content; Feed never sees it
+   * (ADR 0046 r.8).
+   */
+  rating: number | null
 }>
 
 export type ReviewInboxProjectionEventKind = 'created' | 'updated'
@@ -60,6 +69,8 @@ export type ReviewInboxProjectionRevisionPermit = Readonly<{
   materialReviewRevision: number
   eligibility: ReviewResponseTargetEligibility
   responseTargetStartAt: Date | null
+  /** The guest's star rating on this revision; null when it carries none. */
+  rating: number | null
   /** Review's durable observation time for this material revision. */
   observedAt: Date
 }>

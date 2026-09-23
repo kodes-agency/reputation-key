@@ -218,6 +218,13 @@
       "when": 1791100000000,
       "tag": "0031_notification_personal_quiet_hours",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1791200000000,
+      "tag": "0032_inbox_low_rating_response_target",
+      "breakpoints": true
     }
   ]
 }

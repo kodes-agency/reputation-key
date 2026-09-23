@@ -37,19 +37,95 @@ type UpdatePolicyAction = Action<
 type OrganizationPolicy =
   ResponseTargetPolicySettings['organization']['googleReviewResponse']
 
-function TargetPolicyForm({
-  label,
-  description,
-  policy,
-  updatePolicy,
-}: Readonly<{
-  label: string
-  description: string
-  policy: OrganizationPolicy
-  updatePolicy: UpdatePolicyAction
-}>) {
-  const form = useForm({
-    defaultValues: { durationHours: policy.durationMinutes / 60 },
+/**
+ * Google reviews only. A low-rated review is the work that goes wrong fastest,
+ * so an Organization may give it a shorter target and therefore an earlier
+ * halfway and target-time reminder. Off leaves one clock for every review,
+ * which is what every Organization had before this control existed.
+ */
+function LowRatingTargetFields({
+  form,
+}: Readonly<{ form: ReturnType<typeof useLowRatingForm> }>) {
+  return (
+    <div className="sm:col-span-3">
+      <form.Field name="shortenForLowRatings">
+        {(field) => (
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="size-4 accent-primary"
+              checked={field.state.value === true}
+              onChange={(event) => field.handleChange(event.target.checked)}
+            />
+            Answer low-rated reviews sooner
+          </label>
+        )}
+      </form.Field>
+      <form.Subscribe selector={(state) => state.values.shortenForLowRatings === true}>
+        {(enabled) =>
+          enabled ? (
+            <div className="mt-3 grid gap-3 sm:grid-cols-[9rem_9rem] sm:items-end">
+              <form.Field name="lowRatingThreshold">
+                {(field) => (
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="low-rating-threshold">At or below (stars)</Label>
+                    <Input
+                      id="low-rating-threshold"
+                      type="number"
+                      min={1}
+                      max={5}
+                      value={Number.isNaN(field.state.value) ? '' : field.state.value}
+                      onBlur={field.handleBlur}
+                      onChange={(event) => field.handleChange(event.target.valueAsNumber)}
+                      aria-invalid={field.state.meta.errors.length > 0}
+                    />
+                    {field.state.meta.errors.length > 0 ? (
+                      <FieldError errors={field.state.meta.errors} />
+                    ) : null}
+                  </div>
+                )}
+              </form.Field>
+              <form.Field name="lowRatingHours">
+                {(field) => (
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="low-rating-hours">Within (hours)</Label>
+                    <Input
+                      id="low-rating-hours"
+                      type="number"
+                      min={1}
+                      max={720}
+                      value={Number.isNaN(field.state.value) ? '' : field.state.value}
+                      onBlur={field.handleBlur}
+                      onChange={(event) => field.handleChange(event.target.valueAsNumber)}
+                      aria-invalid={field.state.meta.errors.length > 0}
+                    />
+                    {field.state.meta.errors.length > 0 ? (
+                      <FieldError errors={field.state.meta.errors} />
+                    ) : null}
+                  </div>
+                )}
+              </form.Field>
+            </div>
+          ) : null
+        }
+      </form.Subscribe>
+    </div>
+  )
+}
+
+/** The form shape both target cards share; only Google fills the last three. */
+const useLowRatingForm = (
+  policy: OrganizationPolicy,
+  updatePolicy: UpdatePolicyAction,
+  offersLowRating: boolean,
+) =>
+  useForm({
+    defaultValues: {
+      durationHours: policy.durationMinutes / 60,
+      shortenForLowRatings: policy.lowRating !== null,
+      lowRatingThreshold: policy.lowRating?.threshold ?? 2,
+      lowRatingHours: (policy.lowRating?.durationMinutes ?? 240) / 60,
+    },
     validators: { onSubmit: organizationResponseTargetFormDto },
     onSubmit: async ({ value }) => {
       await updatePolicy({
@@ -58,10 +134,37 @@ function TargetPolicyForm({
           targetKind: policy.targetKind,
           durationMinutes: value.durationHours * 60,
           expectedPolicyVersion: policy.policyVersion,
+          // Only the Google card may say anything about low ratings; the
+          // private-feedback card leaves the stored value untouched.
+          ...(offersLowRating
+            ? {
+                lowRating: value.shortenForLowRatings
+                  ? {
+                      threshold: value.lowRatingThreshold,
+                      durationMinutes: value.lowRatingHours * 60,
+                    }
+                  : null,
+              }
+            : {}),
         },
       })
     },
   })
+
+function TargetPolicyForm({
+  label,
+  description,
+  policy,
+  updatePolicy,
+  offersLowRating = false,
+}: Readonly<{
+  label: string
+  description: string
+  policy: OrganizationPolicy
+  updatePolicy: UpdatePolicyAction
+  offersLowRating?: boolean
+}>) {
+  const form = useLowRatingForm(policy, updatePolicy, offersLowRating)
 
   return (
     <form
@@ -106,6 +209,7 @@ function TargetPolicyForm({
       <SubmitButton mutation={updatePolicy} form={form}>
         Save target
       </SubmitButton>
+      {offersLowRating ? <LowRatingTargetFields form={form} /> : null}
     </form>
   )
 }
@@ -138,6 +242,7 @@ export function ResponseTargetSettingsCard({
           description="Measured from the saved Google publication, meaningful review update, or reopen time; onboarding history is excluded."
           policy={settings.organization.googleReviewResponse}
           updatePolicy={updatePolicy}
+          offersLowRating
         />
         <div className="space-y-3 border-t pt-5">
           <div>

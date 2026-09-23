@@ -17,12 +17,14 @@ const policyStore = (): ResponseTargetPolicyStore => ({
         durationMinutes: 2_880,
         policySource: 'builtin_default' as const,
         policyVersion: null,
+        lowRating: null,
       },
       privateFeedbackHandling: {
         targetKind: 'private_feedback_handling' as const,
         durationMinutes: 2_880,
         policySource: 'builtin_default' as const,
         policyVersion: null,
+        lowRating: null,
       },
     },
     privateFeedbackPropertyOverride: null,
@@ -44,6 +46,45 @@ const policyStore = (): ResponseTargetPolicyStore => ({
 })
 
 describe('setResponseTargetPolicy', () => {
+  it('passes a low-rating target through, and leaves it alone when nothing was said', async () => {
+    const store = policyStore()
+    const execute = setResponseTargetPolicy({ store, clock: () => NOW })
+    const ctx = createScopedAuthContext({
+      organizationId: ORG,
+      userId: USER,
+      permissions: [['organization.update', 'organization']],
+    })
+
+    await execute(
+      {
+        scope: 'organization',
+        targetKind: 'google_review_response',
+        durationMinutes: 2_880,
+        lowRating: { threshold: 2, durationMinutes: 240 },
+        expectedPolicyVersion: 3,
+      },
+      ctx,
+    )
+    expect(store.setOrganizationPolicy).toHaveBeenCalledWith(
+      expect.objectContaining({ lowRating: { threshold: 2, durationMinutes: 240 } }),
+    )
+
+    // The private-feedback card never mentions low ratings, so its save must
+    // not silently clear the Google policy's — the field is simply absent.
+    await execute(
+      {
+        scope: 'organization',
+        targetKind: 'private_feedback_handling',
+        durationMinutes: 2_880,
+        expectedPolicyVersion: 3,
+      },
+      ctx,
+    )
+    expect(store.setOrganizationPolicy).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ lowRating: expect.anything() }),
+    )
+  })
+
   it('lets an Organization administrator set the private default and Property override', async () => {
     const store = policyStore()
     const execute = setResponseTargetPolicy({ store, clock: () => NOW })

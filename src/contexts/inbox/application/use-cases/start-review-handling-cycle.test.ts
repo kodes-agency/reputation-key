@@ -46,6 +46,7 @@ const responseTargetAuthority: ReviewResponseTargetAuthorityPort = {
       materialReviewRevision: 2,
       eligibility: 'measured',
       responseTargetStartAt: PROVIDER_TIME,
+      rating: null,
     }),
   }),
   withExactCurrentBatch: async () => ({ status: 'obsolete' }),
@@ -206,6 +207,7 @@ describe('startReviewHandlingCycle', () => {
           materialReviewRevision: 2,
           eligibility: 'measured',
           responseTargetStartAt: PROVIDER_TIME,
+          rating: null,
         },
         targetStart: { basis: 'review_provenance' },
       },
@@ -240,6 +242,7 @@ describe('startReviewHandlingCycle', () => {
         responseTarget: {
           reviewAuthority: expect.objectContaining({
             responseTargetStartAt: PROVIDER_TIME,
+            rating: null,
           }),
           targetStart: { basis: 'operational_reopen', at: NOW },
         },

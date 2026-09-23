@@ -43,6 +43,12 @@ export type CurrentReplyObservationPermit = Readonly<{
   reviewSourceContentState: 'active' | 'source_expired' | 'provider_deleted'
   responseTargetEligibility: 'measured' | 'historical_onboarding' | 'legacy_unknown'
   responseTargetStartAt: Date | null
+  /**
+   * The guest's star rating on this revision. A reopen after Google dropped
+   * the reply is new work on the same review, so it is measured against the
+   * same clock the original cycle was.
+   */
+  rating: number | null
 }>
 
 export type ReplyObservationAuthorityResult<T> =

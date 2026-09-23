@@ -122,6 +122,7 @@ const setup = (peopleApi: StaffPublicApi = defaultStaffApi) => {
           materialReviewRevision: 1,
           eligibility: 'measured',
           responseTargetStartAt: PROVIDER_TIME,
+          rating: null,
         })),
       ),
     }),
@@ -187,6 +188,7 @@ describe('bulkUpdateInboxStatus', () => {
         reviewAuthority: expect.objectContaining({
           eligibility: 'measured',
           responseTargetStartAt: PROVIDER_TIME,
+          rating: null,
         }),
         targetStart: { basis: 'operational_reopen', at: FIXED_TIME },
       }),
@@ -194,6 +196,7 @@ describe('bulkUpdateInboxStatus', () => {
         reviewAuthority: expect.objectContaining({
           eligibility: 'measured',
           responseTargetStartAt: PROVIDER_TIME,
+          rating: null,
         }),
         targetStart: { basis: 'operational_reopen', at: FIXED_TIME },
       }),

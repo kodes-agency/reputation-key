@@ -144,6 +144,76 @@ describe('Google Review Response Target', () => {
     })
   })
 
+  it('gives a low-rated review the shorter target the Organization set for it', () => {
+    const policy = {
+      durationMinutes: 2_880,
+      policyVersion: 4,
+      lowRatingThreshold: 2,
+      lowRatingDurationMinutes: 240,
+    }
+
+    // At or below the threshold: the shorter clock, and therefore an earlier
+    // halfway reminder and an earlier target time.
+    expect(resolveGoogleReviewTargetPolicy(policy, 1).durationMinutes).toBe(240)
+    expect(resolveGoogleReviewTargetPolicy(policy, 2).durationMinutes).toBe(240)
+    // Above it, and for a review whose rating never resolved, the ordinary one.
+    expect(resolveGoogleReviewTargetPolicy(policy, 3).durationMinutes).toBe(2_880)
+    expect(resolveGoogleReviewTargetPolicy(policy, null).durationMinutes).toBe(2_880)
+  })
+
+  it('records a rating-shortened target as the Organization policy it came from', () => {
+    expect(
+      resolveGoogleReviewTargetPolicy(
+        {
+          durationMinutes: 2_880,
+          policyVersion: 4,
+          lowRatingThreshold: 2,
+          lowRatingDurationMinutes: 240,
+        },
+        1,
+      ),
+    ).toEqual({
+      durationMinutes: 240,
+      policySource: 'organization_policy',
+      policyVersion: 4,
+    })
+  })
+
+  it('behaves exactly as before while no low-rating target is set', () => {
+    const unset = { durationMinutes: 2_880, policyVersion: 4 }
+
+    for (const rating of [1, 2, 3, 4, 5, null] as const) {
+      expect(resolveGoogleReviewTargetPolicy(unset, rating)).toEqual({
+        durationMinutes: 2_880,
+        policySource: 'organization_policy',
+        policyVersion: 4,
+      })
+      expect(resolveGoogleReviewTargetPolicy(null, rating)).toEqual({
+        durationMinutes: 2_880,
+        policySource: 'builtin_default',
+        policyVersion: 1,
+      })
+    }
+  })
+
+  it.each([
+    ['a low-rating threshold outside 1-5', 6, 240],
+    ['a zero low-rating duration', 2, 0],
+    ['a low-rating target longer than the ordinary one', 2, 4_000],
+  ] as const)('refuses %s', (_case, lowRatingThreshold, lowRatingDurationMinutes) => {
+    expect(() =>
+      resolveGoogleReviewTargetPolicy(
+        {
+          durationMinutes: 2_880,
+          policyVersion: 4,
+          lowRatingThreshold,
+          lowRatingDurationMinutes,
+        },
+        1,
+      ),
+    ).toThrow('Response Target policy is invalid')
+  })
+
   it.each([
     ['a zero duration', { durationMinutes: 0, policyVersion: 1 }],
     ['a fractional duration', { durationMinutes: 90.5, policyVersion: 1 }],

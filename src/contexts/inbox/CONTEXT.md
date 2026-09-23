@@ -39,6 +39,13 @@ release, prompts once, with target passed. Archiving a Property cancels its
 unreleased slots (`inbox.on-property-archived`), as Organization closing does,
 and Restore re-arms none of them: a cancelled slot is terminal.
 
+An Organization may give its own low-rated Google reviews a shorter target — a
+star threshold and a shorter duration on the same Google policy row — so their
+reminders fall sooner. This is where a review's rating changes how soon someone
+is prompted: the rating stays here, read from Review's attested target permit,
+and Feed never sees one (ADR 0046 r.8). It is off by default, because
+shortening a target changes which cycles count as late.
+
 ## Runtime
 
 Source lifecycle facts arrive through durable, apply-once consumers. Inbox-owned

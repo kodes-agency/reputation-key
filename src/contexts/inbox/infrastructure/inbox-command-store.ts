@@ -1235,6 +1235,7 @@ async function reopenCycleOnDeletedReply(
         materialReviewRevision: observation.materialReviewRevision,
         eligibility: observation.responseTargetEligibility,
         responseTargetStartAt: observation.responseTargetStartAt,
+        rating: observation.rating,
       },
       targetStart: { basis: 'operational_reopen', at: observation.observedAt },
     },

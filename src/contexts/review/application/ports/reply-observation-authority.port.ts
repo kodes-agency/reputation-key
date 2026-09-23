@@ -42,6 +42,8 @@ export type ReviewCurrentReplyObservationPermit = Readonly<{
   reviewSourceContentState: 'active' | 'source_expired' | 'provider_deleted'
   responseTargetEligibility: 'measured' | 'historical_onboarding' | 'legacy_unknown'
   responseTargetStartAt: Date | null
+  /** The guest's star rating on this revision; null when it carries none. */
+  rating: number | null
 }>
 
 export type ReviewReplyObservationAuthorityResult<T> =
