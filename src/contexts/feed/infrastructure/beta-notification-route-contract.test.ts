@@ -120,7 +120,7 @@ import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/
 import type { OutboxRepository } from '#/shared/outbox'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
 import type { Job } from 'bullmq'
-import { URGENT_EMAIL_JOB_NAME } from './jobs/urgent-email.job'
+import { MANDATORY_EMAIL_JOB_NAME, URGENT_EMAIL_JOB_NAME } from './jobs/urgent-email.job'
 
 const ORG = organizationId('org-route-contract')
 const PROPERTY = propertyId('4d1f0c1e-2b7a-4c55-9a51-000000000001')
@@ -479,6 +479,19 @@ function urgentEmailJob(scope: Readonly<{ propertyId?: string }>) {
   }
 }
 
+/** The same job for an Organization-scoped mandatory notice, which has its own gate. */
+function mandatoryEmailJob() {
+  return {
+    notificationEmailId: '4d1f0c1e-2b7a-4c55-9a51-000000000012',
+    ...createJobExecutionEnvelope({
+      organizationId: ORG,
+      capability: 'notification.send_mandatory_email',
+      initiator: { kind: 'system', id: 'notification:urgent-enqueue' },
+      correlationId: 'notification-email:4d1f0c1e-2b7a-4c55-9a51-000000000012',
+    }),
+  }
+}
+
 beforeAll(() => {
   registerAllEventSchemas()
 })
@@ -539,8 +552,8 @@ describe('every beta notification route passes the delayed execution gate', () =
 
   it('allows the immediate email of an Organization notice and of a Property one', async () => {
     const organizationNotice = await gateJob(
-      URGENT_EMAIL_JOB_NAME,
-      urgentEmailJob({}),
+      MANDATORY_EMAIL_JOB_NAME,
+      mandatoryEmailJob(),
       'worker:default',
       'worker',
     )
@@ -553,6 +566,56 @@ describe('every beta notification route passes the delayed execution gate', () =
 
     expect(organizationNotice.decision.reason).toBe('allowed')
     expect(propertyNotice.decision.reason).toBe('allowed')
+  })
+
+  it('sends a mandatory notice from an Organization the email allowlist does not admit', async () => {
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
+
+    const mandatoryNotice = await gateJob(
+      MANDATORY_EMAIL_JOB_NAME,
+      mandatoryEmailJob(),
+      'worker:default',
+      'worker',
+    )
+    const optionalNotice = await gateJob(
+      URGENT_EMAIL_JOB_NAME,
+      urgentEmailJob({ propertyId: PROPERTY }),
+      'worker:default',
+      'worker',
+    )
+
+    // A final deletion warning nobody receives is worse than an extra email;
+    // ordinary product mail still waits for the allowlist.
+    expect(mandatoryNotice.decision.reason).toBe('allowed')
+    expect(optionalNotice.decision.reason).toBe('org_not_allowlisted')
+  })
+
+  it('still stops mandatory mail for the environment stop and for a suspended tenant', async () => {
+    initCapabilityPolicyStore(
+      createEnvCapabilityPolicyStore({
+        BETA_ALLOWLIST_ORGS: ORG,
+        BETA_SUSPENDED_ORGS: ORG,
+      }),
+    )
+    const suspended = await gateJob(
+      MANDATORY_EMAIL_JOB_NAME,
+      mandatoryEmailJob(),
+      'worker:default',
+      'worker',
+    )
+
+    initCapabilityPolicyStore(
+      createEnvCapabilityPolicyStore({ BETA_CAPABILITIES_OFF: 'all' }),
+    )
+    const stopped = await gateJob(
+      MANDATORY_EMAIL_JOB_NAME,
+      mandatoryEmailJob(),
+      'worker:default',
+      'worker',
+    )
+
+    expect(suspended.decision.reason).toBe('org_suspended')
+    expect(stopped.decision.reason).toBe('capability_disabled')
   })
 })
 

@@ -189,6 +189,7 @@ function baseDeps(options: Options = {}) {
       async (_organizationId: string): Promise<'none' | 'optional' | 'all'> => 'none',
     ),
     authorizeScope: vi.fn(async (_org: string, _property?: string) => true),
+    authorizeMandatoryScope: vi.fn(async (_org: string) => true),
     isRecipientEligible: vi.fn(
       async (_input: { propertyId: string; audience: unknown }, _memo?: unknown) => true,
     ),
@@ -956,7 +957,7 @@ describe('immediate orphan sweep', () => {
 
     await runHandler(deps)
 
-    expect(deps.authorizeScope).toHaveBeenCalledWith(ORG)
+    expect(deps.authorizeMandatoryScope).toHaveBeenCalledWith(ORG)
     expect(deps.emailRepo.findDueByOrganization).toHaveBeenCalledWith(
       organizationId(ORG),
       NOW,
@@ -967,7 +968,7 @@ describe('immediate orphan sweep', () => {
     })
   })
 
-  it('leaves an Organization that fails the scope gate for a later sweep', async () => {
+  it('recovers a mandatory row in an Organization the digest capability refuses', async () => {
     const deps = baseDeps({
       organizationOrphans: [
         buildNotificationEmail({
@@ -978,9 +979,30 @@ describe('immediate orphan sweep', () => {
         }),
       ],
     })
-    deps.authorizeScope.mockImplementation(
-      async (_org: string, property?: string) => property !== undefined,
-    )
+    // Ordinary product mail is dark for this tenant; the final warning before
+    // an irreversible deletion is not ordinary product mail.
+    deps.authorizeScope.mockResolvedValue(false)
+
+    await runHandler(deps)
+
+    expect(deps.enqueueImmediate).toHaveBeenCalledWith({
+      notificationEmailId: 'mandatory-1',
+      organizationId: ORG,
+    })
+  })
+
+  it('leaves an Organization that fails the mandatory scope gate for a later sweep', async () => {
+    const deps = baseDeps({
+      organizationOrphans: [
+        buildNotificationEmail({
+          id: 'mandatory-1',
+          propertyId: null,
+          category: 'mandatory',
+          cadence: 'immediate',
+        }),
+      ],
+    })
+    deps.authorizeMandatoryScope.mockResolvedValue(false)
 
     await runHandler(deps)
 

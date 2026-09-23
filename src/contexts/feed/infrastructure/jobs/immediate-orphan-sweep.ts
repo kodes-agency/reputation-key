@@ -10,7 +10,8 @@
 // authorized per Property. Organization-scoped rows are the mandatory access
 // and purge notices ADR 0046 says must always go out; they have no Property,
 // so the Property walk never saw them, and they are authorized per
-// Organization instead.
+// Organization, under the mandatory action's own capability — the one the
+// beta email allowlist does not gate.
 //
 // A row past its freshness bound — typically queued while its scope was dark
 // for email — is suppressed as stale here rather than enqueued, so admitting
@@ -44,6 +45,13 @@ export type ImmediateOrphanSweepDeps = Readonly<{
     | 'markSuppressed'
   >
   authorizeScope: ScheduledScopeAuthorizer
+  /**
+   * Authorizes the Organization-scoped leg. Separate from `authorizeScope`
+   * because mandatory account/security mail travels under its own action and
+   * capability: the beta email allowlist gates ordinary product mail, and a
+   * final deletion warning it held back would never be recovered here either.
+   */
+  authorizeMandatoryScope: ScheduledScopeAuthorizer
   logger: LoggerPort
   enqueueImmediate: ImmediateEmailEnqueue
 }>
@@ -126,7 +134,7 @@ async function sweepOrganizationScoped(
 ): Promise<void> {
   const organizations = await deps.emailRepo.findDueOrganizationScopes(now)
   for (const orgId of organizations) {
-    if (!(await deps.authorizeScope(orgId as string))) continue
+    if (!(await deps.authorizeMandatoryScope(orgId as string))) continue
     try {
       const orphans = await deps.emailRepo.findDueByOrganization(orgId, now)
       await enqueueAll(deps, orphans, { organizationId: orgId as string }, now)

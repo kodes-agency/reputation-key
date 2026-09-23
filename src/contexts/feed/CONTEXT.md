@@ -210,6 +210,13 @@ delivery is never repaired, and never counts as a gap, and a delivery the
 original fan-out never queued is never queued by the repair.
 All queue, clock, logger, identifier, capability-policy, and upstream lookup
 dependencies are provided by composition; modules do not read ambient roots.
+Immediate mail for an Organization-scoped mandatory notice is a job of its
+own name (`mandatory-email`) under its own action and core capability, so the
+beta email allowlist, which gates every other message, cannot hold an
+account/security notice back (ADR 0046). It is the same processor: the stored
+row must still be mandatory, Organization-scoped and immediate. The digest
+run's orphan sweep authorizes its Organization leg under the same action.
+
 Delivery-lag evidence judges immediate email only in scopes where the injected
 `notification.send_email` decision allows sending: a capability-dark scope's
 rows are never attempted, so they are not late mail. Its bounded scan reads

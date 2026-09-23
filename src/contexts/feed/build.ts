@@ -80,7 +80,7 @@ import {
 } from './infrastructure/jobs/reconcile-missing-notifications.job'
 import { insertNotification } from './application/use-cases/insert-notification'
 import { muteNotificationCategory } from './application/use-cases/mute-notification-category'
-import { URGENT_EMAIL_JOB_NAME } from './infrastructure/jobs/urgent-email.job'
+import { immediateEmailDispatch } from './infrastructure/jobs/urgent-email.job'
 import { jobEnqueueOptions, withCatalogueJobOptions } from '#/shared/jobs/job-policy'
 import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
 import {
@@ -428,20 +428,21 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
         organizationId: string
         propertyId?: string
       }) => {
+        const dispatch = immediateEmailDispatch(data.propertyId)
         await input.queue!.add(
-          URGENT_EMAIL_JOB_NAME,
+          dispatch.jobName,
           {
             ...data,
             ...createJobExecutionEnvelope({
               organizationId: data.organizationId,
               ...(data.propertyId === undefined ? {} : { propertyId: data.propertyId }),
-              capability: 'notification.send_email',
+              capability: dispatch.capability,
               initiator: { kind: 'system', id: 'notification:urgent-enqueue' },
               correlationId: `notification-email:${data.notificationEmailId}`,
             }),
           },
           {
-            ...jobEnqueueOptions(URGENT_EMAIL_JOB_NAME),
+            ...jobEnqueueOptions(dispatch.jobName),
           },
         )
       }

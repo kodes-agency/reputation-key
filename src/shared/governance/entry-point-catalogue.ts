@@ -102,6 +102,7 @@ export type SystemAction =
   | 'system:notification.insert_portal'
   | 'system:notification.insert_property_responsibility'
   | 'system:notification.email_urgent'
+  | 'system:notification.email_mandatory'
   | 'system:notification.email_digest'
   | 'system:notification.delivery_event'
   | 'system:notification.reconcile'
@@ -305,6 +306,19 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'urgent-email',
     'system:notification.email_urgent',
     'notification.send_email',
+    'organization',
+    true,
+  ),
+  // A mandatory account/security notice is its own delayed action so that it
+  // can hold its own capability. `notification.send_email` is allowlisted per
+  // Organization for the beta, which held back the final warning before an
+  // irreversible deletion exactly where it mattered; the mandatory capability
+  // is core, so the environment stop and tenant suspension still refuse it and
+  // the tenant allowlist no longer does (ADR 0046).
+  job(
+    'mandatory-email',
+    'system:notification.email_mandatory',
+    'notification.send_mandatory_email',
     'organization',
     true,
   ),

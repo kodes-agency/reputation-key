@@ -51,9 +51,14 @@ export type ReadAndNotifyContextsInput = Readonly<{
 
 /**
  * Whether email may be delivered in a scope right now: the process policy
- * store's scoped `notification.send_email` posture — the allowlist, suspension
- * and kill switch that also gate the email jobs. Feed's delivery-lag evidence
- * reads it so a capability-dark scope's untouched rows are not late mail.
+ * store's scoped posture — the allowlist, suspension and kill switch that also
+ * gate the email jobs. Feed's delivery-lag evidence reads it so a
+ * capability-dark scope's untouched rows are not late mail.
+ *
+ * A scope with no Property is an Organization-scoped mandatory notice, which
+ * travels under its own core capability (ADR 0046, amended 2026-09-24). Asking
+ * the allowlisted capability for it would hide a stuck final deletion warning
+ * in exactly the Organizations the allowlist never named.
  */
 export function isEmailDeliveryAllowed(
   scope: Readonly<{ organizationId: string; propertyId: string | null }>,
@@ -63,7 +68,9 @@ export function isEmailDeliveryAllowed(
       organizationId: scope.organizationId,
       ...(scope.propertyId === null ? {} : { propertyId: scope.propertyId }),
     },
-    'notification.send_email',
+    scope.propertyId === null
+      ? 'notification.send_mandatory_email'
+      : 'notification.send_email',
   ).allowed
 }
 

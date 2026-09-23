@@ -38,16 +38,33 @@ describe('isEmailDeliveryAllowed', () => {
     ).toBe(false)
   })
 
+  it('judges an Organization-scoped mandatory row under the mandatory capability', () => {
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
+
+    // Mandatory mail leaves whatever the allowlist says, so a mandatory row
+    // stuck in a scope the allowlist never named IS late mail, not a dark one.
+    expect(isEmailDeliveryAllowed({ organizationId: 'org-dark', propertyId: null })).toBe(
+      true,
+    )
+    expect(
+      isEmailDeliveryAllowed({ organizationId: 'org-dark', propertyId: 'p-1' }),
+    ).toBe(false)
+  })
+
   it('denies every scope while the capability is killed', () => {
     initCapabilityPolicyStore(
       createEnvCapabilityPolicyStore({
         BETA_ALLOWLIST_ORGS: 'org-pilot',
-        BETA_CAPABILITIES_OFF: 'notification.send_email',
+        BETA_CAPABILITIES_OFF:
+          'notification.send_email,notification.send_mandatory_email',
       }),
     )
 
     expect(
       isEmailDeliveryAllowed({ organizationId: 'org-pilot', propertyId: 'p-1' }),
+    ).toBe(false)
+    expect(
+      isEmailDeliveryAllowed({ organizationId: 'org-pilot', propertyId: null }),
     ).toBe(false)
   })
 })

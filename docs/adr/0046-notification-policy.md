@@ -166,6 +166,34 @@ person at once. Settings shows the one cadence without a choice, the preference
 constructor refuses an immediate goal email row, and delivery sends a goal row
 saved as immediate before this amendment in the daily digest anyway.
 
+## Amended 2026-09-24 — mandatory mail is not held by the beta email allowlist
+
+`notification.send_email` is a controlled capability: an Organization must be
+allowlisted before any of its mail leaves. That is right for product mail and
+wrong for a mandatory account/security notice, whose whole purpose is to reach
+someone about their account — including the last warning before an Organization
+is permanently deleted, which for an Organization nobody ever allowlisted was
+queued, never sent, and finally retired as stale.
+
+Immediate mail for an Organization-scoped mandatory notice therefore travels
+under its own delayed action, `system:notification.email_mandatory`, gated by
+its own capability, `notification.send_mandatory_email`, whose fate is core: it
+needs no tenant allowlist. It is the same processor under a second job name,
+because the execution gate decides a capability per entry point. The digest
+run's recovery sweep authorizes its Organization-scoped leg under that action
+too, so a stranded mandatory row is re-enqueued in the same scopes.
+
+Nothing else is carved out. The environment stop (`BETA_CAPABILITIES_OFF`) and
+tenant suspension still refuse it; so do the Organization's irreversible
+lifecycle boundary, the address suppression list, the stale-row bound, the
+delivery-scope CHECK the stored row must satisfy, and the send-time recipient
+checks. Optional mail is unaffected, and an unsubscribe still never applies to
+a mandatory notice. A mandatory notice is emailed once per event either way.
+
+The cost is accepted deliberately: an Organization outside the beta cohort can
+now receive account/security mail. A final deletion warning nobody receives is
+worse than an extra email.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.
@@ -175,7 +203,10 @@ saved as immediate before this amendment in the daily digest anyway.
   event ids are not merged. Mandatory mail is never merged: a second role
   change or purge-pending notice is a second email.
 - Recognition email requires explicit opt-in and arrives in the daily digest.
-- Provider/capability admission remains the outbound activation authority.
+- Provider/capability admission remains the outbound activation authority for
+  every optional message. Mandatory account/security mail is admitted by the
+  core mandatory capability instead, so a tenant allowlist cannot silence it
+  (amended 2026-09-24).
 
 ## Rejected alternatives
 

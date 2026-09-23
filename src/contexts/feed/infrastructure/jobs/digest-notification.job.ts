@@ -116,6 +116,8 @@ export type DigestDeps = Readonly<{
     keyVersion: string,
   ) => string
   enqueueImmediate: ImmediateEmailEnqueue
+  /** Authorizes the sweep's Organization-scoped mandatory leg (see the sweep). */
+  authorizeMandatoryScope: ScheduledScopeAuthorizer
 }>
 
 const retryAt = (now: Date, retryCount: number): Date =>

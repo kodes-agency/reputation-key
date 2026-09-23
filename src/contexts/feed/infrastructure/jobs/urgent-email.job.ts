@@ -70,6 +70,36 @@ import { recipientTimezoneSource, resolveRecipientTimezone } from './recipient-t
 
 export const URGENT_EMAIL_JOB_NAME = 'urgent-email' as const
 
+/**
+ * The same processor under its own name and capability, for the immediate mail
+ * of an Organization-scoped mandatory notice.
+ *
+ * Two names rather than one, because the delayed execution gate decides a
+ * capability per job name: `notification.send_email` is allowlisted per
+ * Organization for the beta, and a final deletion warning held back by that
+ * allowlist is worse than an extra email (ADR 0046). Everything after the gate
+ * is identical — the stored row still has to be mandatory, Organization-scoped
+ * and immediate, or the handler suppresses it as an invalid delivery scope.
+ */
+export const MANDATORY_EMAIL_JOB_NAME = 'mandatory-email' as const
+
+/**
+ * The job name and capability one immediate email travels under, decided
+ * together so the envelope and the catalogue cannot drift apart (the gate
+ * refuses a mismatch as `capability_mismatch`).
+ *
+ * The absence of a Property IS the mandatory scope: `hasValidDeliveryScope`
+ * and the `notification_emails` scope CHECK both say so, and a row that
+ * disagrees is suppressed rather than sent.
+ */
+export const immediateEmailDispatch = (propertyId: string | undefined) =>
+  propertyId === undefined
+    ? ({
+        jobName: MANDATORY_EMAIL_JOB_NAME,
+        capability: 'notification.send_mandatory_email',
+      } as const)
+    : ({ jobName: URGENT_EMAIL_JOB_NAME, capability: 'notification.send_email' } as const)
+
 export type UrgentEmailJobData = JobExecutionEnvelope &
   Readonly<{ notificationEmailId: string }>
 

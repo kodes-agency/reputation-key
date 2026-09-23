@@ -10,6 +10,7 @@ export const CAPABILITIES = [
   'property.read_gbp_performance',
   'property.publish_reply',
   'notification.send_email',
+  'notification.send_mandatory_email',
   'notification.in_app',
   'portal.read',
   'portal.write',
@@ -109,6 +110,9 @@ export const CAPABILITY_FATE = Object.freeze({
   ),
   'notification.send_email': CONTROLLED(
     'Email delivery is active by notification class and tenant policy; mandatory classes cannot be opted out.',
+  ),
+  'notification.send_mandatory_email': CORE(
+    'Mandatory account/security notices are Organization policy, not a product feature a tenant is admitted to: the last warning before an irreversible deletion must reach an Organization the email allowlist has never named.',
   ),
   'notification.in_app': CORE('In-app notification delivery is a beta core function.'),
   'portal.read': CONTROLLED('Portal manager reads require controlled-beta policy.'),
