@@ -143,10 +143,17 @@ function baseDeps(options: Options = {}) {
       settleDigestBatch: vi.fn(async () => true),
     },
     preferenceRepo: {
-      findForDelivery: vi.fn(async () => ({
+      resolveForDelivery: vi.fn(async () => ({
         enabled: true,
+        cadence: 'daily' as const,
+      })),
+      // ADR 0046 r.4, amended 2026-09-23: ONE window for the whole digest,
+      // the person's own. The digest passes no Property, so no Property
+      // override can split it.
+      resolveDeliveryWindow: vi.fn(async () => ({
         quietHoursStart: null,
         quietHoursEnd: null,
+        urgentBypassEnabled: false,
       })),
       getUserSettings: vi.fn(async () =>
         options.userTimezone === undefined
@@ -642,10 +649,10 @@ describe('digest timing in the recipient timezone (ADR 0046 r.3)', () => {
 
   it('defers on quiet hours measured in the recipient timezone', async () => {
     const deps = baseDeps({ userTimezone: 'UTC' })
-    deps.preferenceRepo.findForDelivery.mockResolvedValue({
-      enabled: true,
+    deps.preferenceRepo.resolveDeliveryWindow.mockResolvedValue({
       quietHoursStart: '07:00',
       quietHoursEnd: '09:00',
+      urgentBypassEnabled: false,
     } as never)
 
     await runHandler(deps)
@@ -654,8 +661,49 @@ describe('digest timing in the recipient timezone (ADR 0046 r.3)', () => {
     expect(deps.emailSender.send).not.toHaveBeenCalled()
     expect(deps.logger.info).toHaveBeenCalledWith(
       expect.objectContaining({ reason: 'quiet_hours', timezone: 'UTC' }),
-      'Digest entry deferred',
+      'Digest deferred',
     )
+  })
+
+  // ADR 0046 r.4 — the defect this replaces: quiet hours lived on the
+  // (Property, category, channel) row, so a person who had set them on one of
+  // their two Properties had that Property's rows deferred and the other
+  // Property's mailed. One person, one window, one digest.
+  it('asks once for the whole digest, with no Property to override it', async () => {
+    const deps = baseDeps()
+
+    await runHandler(deps)
+
+    expect(deps.preferenceRepo.resolveDeliveryWindow).toHaveBeenCalledTimes(1)
+    expect(deps.preferenceRepo.resolveDeliveryWindow).toHaveBeenCalledWith(
+      USER,
+      ORG,
+      null,
+    )
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+    const payload = deps.emailSender.send.mock.calls[0]![0]
+    expect(payload.html).toContain('Riverside')
+    expect(payload.html).toContain('Hillcrest')
+  })
+
+  it('holds a multi-Property digest whole rather than sending half of it', async () => {
+    const deps = baseDeps({ userTimezone: 'UTC' })
+    deps.preferenceRepo.resolveDeliveryWindow.mockResolvedValue({
+      quietHoursStart: '07:00',
+      quietHoursEnd: '09:00',
+      urgentBypassEnabled: false,
+    } as never)
+
+    await runHandler(deps)
+
+    // Both Properties' rows wait for the same minute, so the next sweep still
+    // finds one digest instead of two halves of one.
+    const until = deps.emailRepo.markDelayed.mock.calls.map(
+      (call) => (call as readonly unknown[])[3],
+    )
+    expect(until).toHaveLength(2)
+    expect(until[1]).toEqual(until[0])
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
   })
 })
 
@@ -837,7 +885,10 @@ describe('digest suppression and failure visibility (ADR 0046 r.6)', () => {
 
   it('suppresses a preference-disabled row with a visible reason', async () => {
     const deps = baseDeps()
-    deps.preferenceRepo.findForDelivery.mockResolvedValue({ enabled: false } as never)
+    deps.preferenceRepo.resolveForDelivery.mockResolvedValue({
+      enabled: false,
+      cadence: 'daily',
+    } as never)
 
     await runHandler(deps)
 
@@ -853,11 +904,9 @@ describe('digest suppression and failure visibility (ADR 0046 r.6)', () => {
   // `enabled` decides at send time, so those rows still go out here.
   it('sends goal rows whose stored preference still says immediate', async () => {
     const deps = baseDeps()
-    deps.preferenceRepo.findForDelivery.mockResolvedValue({
+    deps.preferenceRepo.resolveForDelivery.mockResolvedValue({
       enabled: true,
       cadence: 'immediate',
-      quietHoursStart: null,
-      quietHoursEnd: null,
     } as never)
 
     await runHandler(deps)

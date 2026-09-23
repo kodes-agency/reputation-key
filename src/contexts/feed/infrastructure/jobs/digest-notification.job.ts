@@ -278,7 +278,11 @@ async function dispatch(
   }
 }
 
-/** ADR 0046 r.4: one digest, one recipient, the recipient's timezone. */
+/**
+ * ADR 0046 r.4: one digest, one recipient, the recipient's timezone — and the
+ * recipient's one quiet-hours window, resolved here so every row of the sweep
+ * is judged by the same one.
+ */
 async function resolveRecipientContext(
   deps: DigestDeps,
   recipientScope: NotificationEmailRecipient,
@@ -286,9 +290,12 @@ async function resolveRecipientContext(
   const now = deps.clock()
   const rawOrgId = recipientScope.organizationId as string
   const orgId = organizationId(rawOrgId)
-  const [settings, orgScope] = await Promise.all([
+  const [settings, orgScope, quietHours] = await Promise.all([
     deps.preferenceRepo.getUserSettings(recipientScope.userId, orgId),
     deps.resolveOrganizationScope(rawOrgId),
+    // No Property: a digest covers all of them, so it reads the person's own
+    // window and never a Property override of it (ADR 0046 r.4).
+    deps.preferenceRepo.resolveDeliveryWindow(recipientScope.userId, orgId, null),
   ])
   const sources = {
     userTimezone: settings?.timezone ?? null,
@@ -301,6 +308,7 @@ async function resolveRecipientContext(
     now,
     timezone: resolveRecipientTimezone(sources),
     timezoneSource: recipientTimezoneSource(sources),
+    quietHours,
   }
 }
 

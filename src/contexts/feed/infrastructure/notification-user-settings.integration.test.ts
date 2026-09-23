@@ -93,6 +93,35 @@ describe.sequential(
         locale: 'en',
         timezone: 'Europe/Sofia',
         timezoneSource: 'organization',
+        quietHoursStart: null,
+        quietHoursEnd: null,
+        urgentBypassEnabled: false,
+      })
+    })
+
+    // Quiet hours are the person's, saved once for every Property (ADR 0046,
+    // amended 2026-09-23), and they share the row the timezone lives in.
+    it('saves one quiet-hours window without disturbing the resolved timezone', async () => {
+      const feed = buildFeed(db)
+
+      await expect(
+        feed.publicApi.updateQuietHours(USER, ORG, {
+          quietHoursStart: '22:00',
+          quietHoursEnd: '07:00',
+          urgentBypassEnabled: true,
+        }),
+      ).resolves.toMatchObject({
+        timezone: 'Europe/Sofia',
+        quietHoursStart: '22:00',
+        quietHoursEnd: '07:00',
+        urgentBypassEnabled: true,
+      })
+
+      // And the reads that follow see it, whichever Property is asked about.
+      await expect(feed.publicApi.getUserSettings(USER, ORG)).resolves.toMatchObject({
+        quietHoursStart: '22:00',
+        quietHoursEnd: '07:00',
+        urgentBypassEnabled: true,
       })
     })
 

@@ -2,11 +2,14 @@ import { z } from 'zod/v4'
 import { isRegionTimezone } from '#/shared/domain/timezones'
 
 /**
- * The date and time formats the settings page offers: the product's two
- * languages, with English in both its US and UK conventions. `en` is the
- * column default and formats exactly like `en-US`.
+ * The date and time formats the settings page offers. Every word in the
+ * product is English (docs/BETA.md), so this control chooses a convention, not
+ * a language: it used to offer Bulgarian, which translated nothing and only
+ * moved the day in front of the month. `en` is the column default and formats
+ * exactly like `en-US`. A row storing a locale no longer offered is still
+ * honoured when a timestamp is formatted; it just cannot be saved again.
  */
-export const NOTIFICATION_LOCALES = ['en', 'en-GB', 'bg'] as const
+export const NOTIFICATION_LOCALES = ['en', 'en-GB'] as const
 
 export type NotificationLocale = (typeof NOTIFICATION_LOCALES)[number]
 

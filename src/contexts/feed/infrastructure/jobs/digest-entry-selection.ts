@@ -26,9 +26,11 @@ import {
   createRecipientStandingMemo,
   type NotificationRecipientStanding,
 } from '../../application/notification-recipient-standing'
-import type { NotificationEmail } from '../../domain/notification-types'
+import type {
+  NotificationEmail,
+  PersonalDeliveryWindow,
+} from '../../domain/notification-types'
 import { deliveryTiming } from '../../domain/notification-delivery-policy'
-import { getDefaultEnabled } from '../../domain/notification-policy'
 import { isStaleQueuedEmail, STALE_EMAIL_REASON } from '../../domain/email-freshness'
 import { emailCorrelationId } from '../delivery-correlation'
 import type { DigestItem } from './digest-assembly'
@@ -40,7 +42,7 @@ const NOTIFICATION_UNAVAILABLE_REASON = 'notification_unavailable'
 /** What the entry filters need; a subset of the digest job's dependencies. */
 export type DigestEntryDeps = Readonly<{
   emailRepo: Pick<NotificationEmailRepositoryPort, 'markSuppressed' | 'markDelayed'>
-  preferenceRepo: Pick<NotificationPreferenceRepositoryPort, 'findForDelivery'>
+  preferenceRepo: Pick<NotificationPreferenceRepositoryPort, 'resolveForDelivery'>
   notifRepo: Pick<NotificationRepositoryPort, 'findByIdsForProperty'>
   logger: LoggerPort
   /** Resolves only an active Property; `null` for any other lifecycle state. */
@@ -57,6 +59,14 @@ export type RecipientContext = Readonly<{
   now: Date
   timezone: string
   timezoneSource: string
+  /**
+   * ADR 0046 r.4: one digest per person, so ONE quiet-hours window — the
+   * person's own, resolved once for the whole sweep. It used to be read from
+   * each row's Property preference, which is how a window set on some
+   * Properties and not others split a digest in two: the quiet Properties'
+   * rows were deferred and the rest went out without them.
+   */
+  quietHours: PersonalDeliveryWindow
 }>
 
 /**
@@ -113,6 +123,51 @@ function recipientStandingFor(
 }
 
 /**
+ * The recipient's own quiet hours, asked once for the whole digest. Quiet
+ * means the digest waits as a whole: every row is deferred to the same minute,
+ * so tomorrow's sweep still finds one digest rather than two halves of one.
+ *
+ * Returns true when the digest was deferred and this sweep is finished for
+ * this recipient.
+ */
+async function deferForQuietHours(
+  deps: DigestEntryDeps,
+  ctx: RecipientContext,
+  entries: readonly NotificationEmail[],
+): Promise<boolean> {
+  const timing = deliveryTiming({
+    now: ctx.now,
+    timezone: ctx.timezone,
+    quietHoursStart: ctx.quietHours.quietHoursStart,
+    quietHoursEnd: ctx.quietHours.quietHoursEnd,
+    // A digest is never urgent, so the bypass has nothing to bypass.
+    urgent: false,
+    urgentBypassEnabled: false,
+  })
+  if (timing.kind !== 'defer') return false
+  for (const entry of entries) {
+    await deps.emailRepo.markDelayed(
+      notificationEmailId(entry.id as string),
+      ctx.orgId,
+      propertyId(entry.propertyId as string),
+      timing.until,
+      ctx.now,
+    )
+  }
+  deps.logger.info(
+    {
+      entries: entries.length,
+      timezone: ctx.timezone,
+      timezoneSource: ctx.timezoneSource,
+      until: timing.until.toISOString(),
+      reason: 'quiet_hours',
+    },
+    'Digest deferred',
+  )
+  return true
+}
+
+/**
  * Standing + preference + quiet-hours filter. Every terminal branch persists
  * AND logs: a suppression nobody can see is indistinguishable from a lost
  * email.
@@ -122,6 +177,7 @@ export async function partitionDeliverable(
   ctx: RecipientContext,
   entries: readonly NotificationEmail[],
 ): Promise<readonly NotificationEmail[]> {
+  if (await deferForQuietHours(deps, ctx, entries)) return []
   const deliverable: NotificationEmail[] = []
   const hasStanding = recipientStandingFor(deps, ctx)
   for (const entry of entries) {
@@ -141,14 +197,16 @@ export async function partitionDeliverable(
       )
       continue
     }
-    const preference = await deps.preferenceRepo.findForDelivery(
+    // Whether this Property's category is emailed at all stays per Property:
+    // the Property's own row, else the person's default for the category.
+    const preference = await deps.preferenceRepo.resolveForDelivery(
       ctx.userId,
       ctx.orgId,
       propId,
       entry.category,
       'email',
     )
-    if (!(preference?.enabled ?? getDefaultEnabled(entry.category, 'email'))) {
+    if (!preference.enabled) {
       await deps.emailRepo.markSuppressed(
         emailId,
         ctx.orgId,
@@ -159,29 +217,6 @@ export async function partitionDeliverable(
       deps.logger.info(
         { correlationId: emailCorrelationId(entry.id), reason: 'preference_disabled' },
         'Digest entry suppressed',
-      )
-      continue
-    }
-    // ADR 0046 r.3: quiet hours on the RECIPIENT's clock, not the property's.
-    const timing = deliveryTiming({
-      now: ctx.now,
-      timezone: ctx.timezone,
-      quietHoursStart: preference?.quietHoursStart ?? null,
-      quietHoursEnd: preference?.quietHoursEnd ?? null,
-      urgent: false,
-      urgentBypassEnabled: false,
-    })
-    if (timing.kind === 'defer') {
-      await deps.emailRepo.markDelayed(emailId, ctx.orgId, propId, timing.until, ctx.now)
-      deps.logger.info(
-        {
-          correlationId: emailCorrelationId(entry.id),
-          timezone: ctx.timezone,
-          timezoneSource: ctx.timezoneSource,
-          until: timing.until.toISOString(),
-          reason: 'quiet_hours',
-        },
-        'Digest entry deferred',
       )
       continue
     }

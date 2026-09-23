@@ -427,9 +427,6 @@ export const notificationPreferences = pgTable(
     channel: varchar('channel', { length: 16 }).notNull(),
     enabled: boolean('enabled').notNull().default(true),
     cadence: varchar('cadence', { length: 16 }).notNull().default('daily'),
-    urgentBypassEnabled: boolean('urgent_bypass_enabled').notNull().default(false),
-    quietHoursStart: time('quiet_hours_start'),
-    quietHoursEnd: time('quiet_hours_end'),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
@@ -455,10 +452,6 @@ export const notificationPreferences = pgTable(
       sql`${t.cadence} IN ('immediate', 'daily')`,
     ),
     check(
-      'notification_preferences_quiet_pair',
-      sql`(${t.quietHoursStart} IS NULL) = (${t.quietHoursEnd} IS NULL)`,
-    ),
-    check(
       'notification_preferences_required_enabled',
       sql`${t.enabled} OR (
         ${t.category} <> 'mandatory'
@@ -472,6 +465,17 @@ export const notificationPreferences = pgTable(
   ],
 )
 
+/**
+ * One person's notification settings in one Organization: how times are
+ * written, which clock they are written on, when email is held back, and
+ * whether urgent email may go out anyway.
+ *
+ * Quiet hours and the urgent bypass live here, next to the timezone that
+ * decides what they mean, rather than on every (Property, category, channel)
+ * preference row. A manager with 30 Properties needed about 60 saves to stop
+ * 03:00 email, and a window set on only some Properties split the one digest
+ * ADR 0046 r.4 promises (amended 2026-09-23).
+ */
 export const notificationUserSettings = pgTable(
   'notification_user_settings',
   {
@@ -480,10 +484,108 @@ export const notificationUserSettings = pgTable(
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     locale: varchar('locale', { length: 35 }).notNull().default('en'),
     timezone: varchar('timezone', { length: 64 }).notNull().default('UTC'),
+    quietHoursStart: time('quiet_hours_start'),
+    quietHoursEnd: time('quiet_hours_end'),
+    urgentBypassEnabled: boolean('urgent_bypass_enabled').notNull().default(false),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
   (t) => [
     uniqueIndex('notification_user_settings_scope_unique').on(t.userId, t.organizationId),
+    check(
+      'notification_user_settings_quiet_pair',
+      sql`(${t.quietHoursStart} IS NULL) = (${t.quietHoursEnd} IS NULL)`,
+    ),
+    check(
+      'notification_user_settings_quiet_distinct',
+      sql`${t.quietHoursStart} IS NULL OR ${t.quietHoursStart} <> ${t.quietHoursEnd}`,
+    ),
+  ],
+)
+
+/**
+ * One Property that is deliberately different from the person's own window.
+ * The row's EXISTENCE is the override, so a row with no times means "never
+ * hold email back at this Property" — an answer the person chose, not an
+ * absent one. Delivery replaces the personal window with this one whole.
+ */
+export const notificationPropertyDeliveryWindows = pgTable(
+  'notification_property_delivery_windows',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: varchar('user_id', { length: 255 }).notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    quietHoursStart: time('quiet_hours_start'),
+    quietHoursEnd: time('quiet_hours_end'),
+    urgentBypassEnabled: boolean('urgent_bypass_enabled').notNull().default(false),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    uniqueIndex('notification_property_delivery_windows_scope_unique').on(
+      t.userId,
+      t.organizationId,
+      t.propertyId,
+    ),
+    foreignKey({
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+      name: 'notification_property_delivery_windows_property_tenant_fk',
+    }).onDelete('cascade'),
+    check(
+      'notification_property_delivery_windows_quiet_pair',
+      sql`(${t.quietHoursStart} IS NULL) = (${t.quietHoursEnd} IS NULL)`,
+    ),
+    check(
+      'notification_property_delivery_windows_quiet_distinct',
+      sql`${t.quietHoursStart} IS NULL OR ${t.quietHoursStart} <> ${t.quietHoursEnd}`,
+    ),
+  ],
+)
+
+/**
+ * What a Property with no preference row of its own inherits: the person's
+ * answer for one (category, channel). Without it a Property added or
+ * reassigned after the person configured everything else fell through to the
+ * versioned defaults, which is how urgent email reached a brand-new Property
+ * at 03:00. Mandatory notices stay unconfigurable here as everywhere.
+ */
+export const notificationCategoryDefaults = pgTable(
+  'notification_category_defaults',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: varchar('user_id', { length: 255 }).notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    category: varchar('category', { length: 40 }).notNull(),
+    channel: varchar('channel', { length: 16 }).notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    cadence: varchar('cadence', { length: 16 }).notNull().default('daily'),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    uniqueIndex('notification_category_defaults_scope_unique').on(
+      t.userId,
+      t.organizationId,
+      t.category,
+      t.channel,
+    ),
+    check(
+      'notification_category_defaults_channel_valid',
+      sql`${t.channel} IN ('in_app', 'email')`,
+    ),
+    check(
+      'notification_category_defaults_cadence_valid',
+      sql`${t.cadence} IN ('immediate', 'daily')`,
+    ),
+    check(
+      'notification_category_defaults_configurable_category_check',
+      sql`${t.category} <> 'mandatory'`,
+    ),
+    check(
+      'notification_category_defaults_required_enabled',
+      sql`${t.enabled} OR NOT (${t.category} = 'urgent_operational' AND ${t.channel} = 'in_app')`,
+    ),
   ],
 )

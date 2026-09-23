@@ -28,13 +28,7 @@ describe('mute notification category', () => {
       },
     )
 
-    expect(result).toMatchObject({
-      enabled: false,
-      cadence: 'daily',
-      urgentBypassEnabled: false,
-      quietHoursStart: null,
-      quietHoursEnd: null,
-    })
+    expect(result).toMatchObject({ enabled: false, cadence: 'daily' })
     expect(upsertEnabled).toHaveBeenCalledWith(result)
   })
 

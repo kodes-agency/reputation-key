@@ -47,9 +47,6 @@ const preferenceBase = {
   channel: 'email' as const,
   enabled: true,
   cadence: 'immediate' as const,
-  urgentBypassEnabled: false,
-  quietHoursStart: null,
-  quietHoursEnd: null,
 }
 
 describe('notification constructors', () => {
@@ -314,7 +311,7 @@ describe('notification constructors', () => {
     expect(result.isErr()).toBe(true)
   })
 
-  it('validates category/channel/cadence and quiet hours preferences', () => {
+  it('validates category, channel and cadence on a preference row', () => {
     const result = createNotificationPreference(
       {
         id: notificationPreferenceId('preference-1'),
@@ -325,9 +322,6 @@ describe('notification constructors', () => {
         channel: 'email',
         enabled: true,
         cadence: 'immediate',
-        urgentBypassEnabled: true,
-        quietHoursStart: '22:00',
-        quietHoursEnd: '07:00',
       },
       () => NOW,
     )
@@ -345,9 +339,6 @@ describe('notification constructors', () => {
         channel: 'email',
         enabled: true,
         cadence: 'daily',
-        urgentBypassEnabled: false,
-        quietHoursStart: null,
-        quietHoursEnd: null,
       },
       () => NOW,
     )
@@ -371,9 +362,6 @@ describe('notification constructors', () => {
         channel: 'in_app',
         enabled: false,
         cadence: 'immediate',
-        urgentBypassEnabled: false,
-        quietHoursStart: null,
-        quietHoursEnd: null,
       },
       () => NOW,
     )
@@ -387,9 +375,6 @@ describe('notification constructors', () => {
         channel: 'email',
         enabled: false,
         cadence: 'daily',
-        urgentBypassEnabled: false,
-        quietHoursStart: '22:00',
-        quietHoursEnd: '07:00',
       },
       () => NOW,
     )
@@ -415,38 +400,6 @@ describe('notification constructors', () => {
       caseName: 'unknown cadence',
       input: { cadence: 'weekly' as typeof preferenceBase.cadence },
       message: 'Invalid notification cadence',
-      code: 'invalid_input',
-    },
-    {
-      caseName: 'missing quiet-hours end',
-      input: { quietHoursStart: '22:00' },
-      message: 'Quiet hours require a valid start and end',
-      code: 'invalid_input',
-    },
-    {
-      caseName: 'invalid quiet-hours start',
-      input: { quietHoursStart: '24:00', quietHoursEnd: '07:00' },
-      message: 'Quiet hours require a valid start and end',
-      code: 'invalid_input',
-    },
-    {
-      caseName: 'invalid quiet-hours end',
-      input: { quietHoursStart: '22:00', quietHoursEnd: '7:00' },
-      message: 'Quiet hours require a valid start and end',
-      code: 'invalid_input',
-    },
-    {
-      // `deliveryTiming` treats equal times as no quiet hours at all, so a user
-      // who saved 22:00-22:00 believing quiet hours were on got every email.
-      caseName: 'quiet hours that start and end at the same time',
-      input: { quietHoursStart: '22:00', quietHoursEnd: '22:00' },
-      message: 'Quiet hours must start and end at different times',
-      code: 'invalid_input',
-    },
-    {
-      caseName: 'in-app urgent bypass',
-      input: { channel: 'in_app' as const, urgentBypassEnabled: true },
-      message: 'Urgent bypass applies only to email',
       code: 'invalid_input',
     },
     {

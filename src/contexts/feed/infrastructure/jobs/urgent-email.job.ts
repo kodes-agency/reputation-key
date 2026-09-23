@@ -51,7 +51,6 @@ import {
   ORGANIZATION_CLOSING_REASON,
 } from '../../domain/organization-email-stop'
 import type { NotificationOrganizationEmailStopPort } from '../../application/ports/notification-organization-email-stop.port'
-import { getDefaultEnabled } from '../../domain/notification-policy'
 import {
   notificationLink,
   notificationReplyTo,
@@ -141,9 +140,6 @@ type StoredEmail = NonNullable<
 type StoredNotification = NonNullable<
   Awaited<ReturnType<NotificationRepositoryPort['findById']>>
 >
-type DeliveryPreference = Awaited<
-  ReturnType<NotificationPreferenceRepositoryPort['findForDelivery']>
->
 
 /**
  * An Organization-wide row is mandatory-only and immediate; a Property-scoped
@@ -156,11 +152,6 @@ const hasValidDeliveryScope = (entry: StoredEmail, mandatory: boolean): boolean 
       entry.propertyId === null &&
       entry.cadence === 'immediate'
     : entry.category !== 'mandatory'
-
-const isPreferenceEnabled = (
-  entry: StoredEmail,
-  preference: DeliveryPreference,
-): boolean => preference?.enabled ?? getDefaultEnabled(entry.category, 'email')
 
 const notificationMatchesEntry = (
   notification: StoredNotification,
@@ -305,11 +296,13 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
   }
 
   /**
-   * ADR 0046 r.3: quiet hours run on the RECIPIENT's clock. Property timezone
-   * is the last guess before UTC — an urgent email is scoped to exactly one
-   * property, so it is a better guess than UTC when the user never chose a
-   * zone. Mandatory Organization notices never reach here: they are immediate
-   * policy and deliberately bypass preference quiet hours.
+   * ADR 0046 r.3: quiet hours run on the RECIPIENT's clock, and (amended
+   * 2026-09-23) they are the recipient's own window, not the Property
+   * preference row's — unless this Property overrides it, which the resolver
+   * applies. Property timezone is the last guess before UTC: an urgent email
+   * is scoped to exactly one property, so it is a better guess than UTC when
+   * the user never chose a zone. Mandatory Organization notices never reach
+   * here: they are immediate policy and deliberately bypass quiet hours.
    *
    * Returns true when the send was deferred and the job is finished.
    */
@@ -322,11 +315,11 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       ids: EmailDeliveryIds
     }>,
     entry: StoredEmail,
-    preference: DeliveryPreference,
   ): Promise<boolean> => {
-    const [settings, orgScope] = await Promise.all([
+    const [settings, orgScope, window] = await Promise.all([
       deps.preferenceRepo.getUserSettings(entry.userId, scope.orgId),
       deps.resolveOrganizationScope(scope.ids.orgId),
+      deps.preferenceRepo.resolveDeliveryWindow(entry.userId, scope.orgId, scope.propId),
     ])
     const sources = {
       userTimezone: settings?.timezone ?? null,
@@ -337,10 +330,10 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     const timing = deliveryTiming({
       now: deps.clock(),
       timezone,
-      quietHoursStart: preference?.quietHoursStart ?? null,
-      quietHoursEnd: preference?.quietHoursEnd ?? null,
+      quietHoursStart: window.quietHoursStart,
+      quietHoursEnd: window.quietHoursEnd,
       urgent: entry.priority === 'urgent',
-      urgentBypassEnabled: preference?.urgentBypassEnabled ?? false,
+      urgentBypassEnabled: window.urgentBypassEnabled,
     })
     if (timing.kind !== 'defer') return false
     await deps.emailRepo.markDelayed(
@@ -478,21 +471,20 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       return
     }
 
-    const preference = mandatory
-      ? null
-      : await deps.preferenceRepo.findForDelivery(
-          entry.userId,
-          orgId,
-          propId,
-          entry.category,
-          'email',
-        )
-    if (!mandatory && !isPreferenceEnabled(entry, preference)) {
-      await suppress(ids, 'preference_disabled')
-      return
+    if (!mandatory) {
+      const preference = await deps.preferenceRepo.resolveForDelivery(
+        entry.userId,
+        orgId,
+        propId,
+        entry.category,
+        'email',
+      )
+      if (!preference.enabled) {
+        await suppress(ids, 'preference_disabled')
+        return
+      }
+      if (await deferForQuietHours(scope, entry)) return
     }
-
-    if (!mandatory && (await deferForQuietHours(scope, entry, preference))) return
 
     const notification = mandatory
       ? await deps.notifRepo.findById(notificationId(entry.notificationId), orgId)

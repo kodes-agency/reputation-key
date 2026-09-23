@@ -200,21 +200,60 @@ export type NotificationPreference = Readonly<{
   channel: NotificationChannel
   enabled: boolean
   cadence: NotificationCadence
-  urgentBypassEnabled: boolean
-  quietHoursStart: string | null
-  quietHoursEnd: string | null
   createdAt: Date
   updatedAt: Date
 }>
 
-export type NotificationUserSettings = Readonly<{
+/**
+ * When email is held back, and whether urgent mail may go anyway. A person's
+ * own setting (ADR 0046 amended 2026-09-23), or a Property override of it.
+ * Both times are `HH:mm`, both present or both absent.
+ */
+export type PersonalDeliveryWindow = Readonly<{
+  quietHoursStart: string | null
+  quietHoursEnd: string | null
+  urgentBypassEnabled: boolean
+}>
+
+/**
+ * One Property that is deliberately different from the person's own window.
+ * The row's existence IS the override, so a row with no times means "never
+ * hold email back here".
+ */
+export type NotificationPropertyDeliveryWindow = PersonalDeliveryWindow &
+  Readonly<{
+    userId: UserId
+    organizationId: OrganizationId
+    propertyId: PropertyId
+    createdAt: Date
+    updatedAt: Date
+  }>
+
+/**
+ * What a Property with no row of its own inherits for one (category, channel):
+ * the person's answer for every Property they have and every Property they are
+ * given next.
+ */
+export type NotificationCategoryDefault = Readonly<{
   userId: UserId
   organizationId: OrganizationId
-  locale: string
-  timezone: string
+  category: ConfigurableNotificationCategory
+  channel: NotificationChannel
+  enabled: boolean
+  cadence: NotificationCadence
   createdAt: Date
   updatedAt: Date
 }>
+
+export type NotificationUserSettings = PersonalDeliveryWindow &
+  Readonly<{
+    userId: UserId
+    organizationId: OrganizationId
+    locale: string
+    timezone: string
+    createdAt: Date
+    updatedAt: Date
+  }>
 
 /**
  * Where the notification clock's timezone comes from (ADR 0046 r.3): the
@@ -223,16 +262,17 @@ export type NotificationUserSettings = Readonly<{
 export type NotificationTimezoneSource = 'user' | 'organization' | 'default'
 
 /**
- * The language and IANA timezone notifications actually use for one
- * (user, Organization): quiet hours, the 08:00 digest, and every timestamp.
- * A user who never saved a timezone gets their Organization's, never a silent
- * UTC.
+ * What notifications actually use for one (user, Organization): the language
+ * and IANA timezone behind the 08:00 digest and every timestamp, and the
+ * person's own quiet hours and urgent bypass. A user who never saved a
+ * timezone gets their Organization's, never a silent UTC.
  */
-export type EffectiveNotificationSettings = Readonly<{
-  locale: string
-  timezone: string
-  timezoneSource: NotificationTimezoneSource
-}>
+export type EffectiveNotificationSettings = PersonalDeliveryWindow &
+  Readonly<{
+    locale: string
+    timezone: string
+    timezoneSource: NotificationTimezoneSource
+  }>
 
 // ── Urgent types (Q9 decision) ──────────────────────────────────────
 

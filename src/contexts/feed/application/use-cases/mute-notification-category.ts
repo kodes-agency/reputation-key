@@ -41,9 +41,6 @@ export async function muteNotificationCategory(
       channel: input.channel,
       enabled: false,
       cadence: getDefaultCadence(input.category),
-      urgentBypassEnabled: false,
-      quietHoursStart: null,
-      quietHoursEnd: null,
     },
     deps.clock,
   )

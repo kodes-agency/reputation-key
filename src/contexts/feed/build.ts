@@ -90,9 +90,13 @@ import {
   markNotificationUnread,
   dismissNotification,
 } from './domain/constructors-transitions'
-import { createNotificationPreference } from './domain/constructors-preference'
+import {
+  createNotificationCategoryDefault,
+  createNotificationPreference,
+} from './domain/constructors-preference'
 import { notificationError } from './domain/notification-errors'
 import type {
+  ConfigurableNotificationCategory,
   Notification,
   NotificationCadence,
   NotificationCategory,
@@ -131,6 +135,7 @@ import { createNotificationOrganizationExportContributor } from './infrastructur
 import { createNotificationOrganizationLifecycleContributor } from './infrastructure/adapters/notification-organization-lifecycle.adapter'
 import { createNotificationOrganizationScopeResolver } from './infrastructure/repositories/notification-organization-scope.repository'
 import { createNotificationUserSettings } from './infrastructure/notification-user-settings'
+import type { NotificationQuietHoursInput } from './application/dto/notification-preference.dto'
 import type { NotificationUserSettingsInput } from './application/dto/notification-user-settings.dto'
 
 import type { OutboxRepository } from '#/shared/outbox'
@@ -560,10 +565,14 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       if (now === null) return // invalid transition, skip
       await notificationRepo.updateStatus(id, userId, orgId, 'dismissed', now)
     },
-    getPreferences: (userId: string, orgId: string) => prefRepo.findByUser(userId, orgId),
+    getPreferences: async (userId: string, orgId: string) => ({
+      preferences: await prefRepo.findByUser(userId, orgId),
+      categoryDefaults: await prefRepo.findCategoryDefaults(userId, orgId),
+      propertyWindows: await prefRepo.findPropertyDeliveryWindows(userId, orgId),
+    }),
     getUserSettings: (userId: UserId, orgId: OrganizationId) =>
       userSettings.read(userId, orgId),
-    updatePreference: (
+    updatePreference: async (
       userId: string,
       orgId: string,
       propertyId: string,
@@ -571,9 +580,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       channel: NotificationChannel,
       enabled: boolean,
       cadence: NotificationCadence,
-      urgentBypassEnabled: boolean,
-      quietHoursStart: string | null,
-      quietHoursEnd: string | null,
+      applyToAllProperties: boolean,
     ) => {
       const now = input.clock()
       const result = createNotificationPreference(
@@ -586,15 +593,34 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
           channel,
           enabled,
           cadence,
-          urgentBypassEnabled,
-          quietHoursStart,
-          quietHoursEnd,
         },
         () => now,
       )
       if (result.isErr()) throw result.error
-      return prefRepo.upsert(result.value)
+      if (!applyToAllProperties) return prefRepo.upsert(result.value)
+      // "Apply to all my properties" is a statement about the person, not one
+      // Property: it becomes the default a Property with no row inherits, and
+      // the rows that would have overridden it go.
+      const categoryDefault = createNotificationCategoryDefault(
+        {
+          userId: userId as UserId,
+          organizationId: orgId as OrganizationId,
+          category: category as ConfigurableNotificationCategory,
+          channel,
+          enabled,
+          cadence,
+        },
+        () => now,
+      )
+      if (categoryDefault.isErr()) throw categoryDefault.error
+      await prefRepo.applyCategoryDefaultEverywhere(categoryDefault.value)
+      return result.value
     },
+    updateQuietHours: (
+      userId: UserId,
+      orgId: OrganizationId,
+      change: NotificationQuietHoursInput,
+    ) => userSettings.saveQuietHours(userId, orgId, change),
     mutePreferenceCategory: (
       userId: string,
       orgId: string,

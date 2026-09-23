@@ -30,10 +30,12 @@ import {
   type OrganizationLifecyclePhaseOutcome,
 } from '#/shared/db/lifecycle/organization-lifecycle-receipt-store'
 import {
+  notificationCategoryDefaults,
   notificationDigestBatchMembers,
   notificationDigestBatches,
   notificationEmailQueue,
   notificationPreferences,
+  notificationPropertyDeliveryWindows,
   notificationUnsubscribeScopes,
   notificationUserSettings,
   notifications,
@@ -370,8 +372,10 @@ const verifyPurgeReadiness = async (
  *     ids and acceptance timestamps.
  *   * `notifications` — the Bell feed, whose title/body/payload are the actual
  *     tenant content this phase exists to erase.
- *   * `notification_preferences` / `notification_user_settings` — the tenant's
- *     own delivery policy, locale and timezone.
+ *   * `notification_preferences`, `notification_category_defaults`,
+ *     `notification_property_delivery_windows` and
+ *     `notification_user_settings` — the tenant's own delivery policy, quiet
+ *     hours, locale and timezone.
  *   * `notification_unsubscribe_scopes` — what each delivered message's
  *     one-click unsubscribe link stands for.
  *
@@ -406,10 +410,24 @@ const purge = async (
     .where(eq(notifications.organizationId, organization))
     .returning({ id: notifications.id })
 
-  const preferences = await tx
+  // The tenant's delivery policy is three tables since ADR 0046's 2026-09-23
+  // amendment: the per-Property rows, the per-category defaults a new Property
+  // inherits, and the per-Property overrides of the person's quiet hours. They
+  // are counted together because they are one record class.
+  const preferenceRows = await tx
     .delete(notificationPreferences)
     .where(eq(notificationPreferences.organizationId, organization))
     .returning({ id: notificationPreferences.id })
+
+  const categoryDefaults = await tx
+    .delete(notificationCategoryDefaults)
+    .where(eq(notificationCategoryDefaults.organizationId, organization))
+    .returning({ id: notificationCategoryDefaults.id })
+
+  const propertyWindows = await tx
+    .delete(notificationPropertyDeliveryWindows)
+    .where(eq(notificationPropertyDeliveryWindows.organizationId, organization))
+    .returning({ id: notificationPropertyDeliveryWindows.id })
 
   const userSettings = await tx
     .delete(notificationUserSettings)
@@ -426,7 +444,7 @@ const purge = async (
     emails: emails.length,
     digestBatches: digestBatches.length,
     digestBatchMembers: digestBatchMembers.length,
-    preferences: preferences.length,
+    preferences: preferenceRows.length + categoryDefaults.length + propertyWindows.length,
     userSettings: userSettings.length,
     unsubscribeScopes: unsubscribeScopes.length,
   })

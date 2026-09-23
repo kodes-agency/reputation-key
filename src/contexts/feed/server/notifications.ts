@@ -21,6 +21,7 @@ import { createNotificationPage } from '../application/notification-page'
 import { notificationUserSettingsDto } from '../application/dto/notification-user-settings.dto'
 import {
   notificationPreferenceCategory,
+  notificationQuietHoursDto,
   updateNotificationPreferenceDto,
 } from '../application/dto/notification-preference.dto'
 import { markAllNotificationsReadDto } from '../application/dto/notification-mark-all-read.dto'
@@ -281,7 +282,8 @@ export const getNotificationPreferencesFn = createServerFn({ method: 'GET' }).ha
   tracedHandler(
     async () => {
       const ctx = await resolveOptionalTenantContext()
-      if (!ctx) return []
+      // No active Organization: nothing is configurable, and the page says so.
+      if (!ctx) return { preferences: [], categoryDefaults: [], propertyWindows: [] }
       await requireExecutionAllowed({ actor: ctx, action: 'notification.read' })
       try {
         const { feedPublicApi } = getContainer()
@@ -322,9 +324,7 @@ export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
             data.channel,
             data.enabled,
             data.cadence,
-            data.urgentBypassEnabled,
-            data.quietHoursStart,
-            data.quietHoursEnd,
+            data.applyToAllProperties === true,
           )
         } catch (error) {
           if (isNotificationError(error)) {
@@ -374,6 +374,45 @@ export const muteNotificationCategoryFn = createServerFn({ method: 'POST' })
       },
       'POST',
       'notification.muteCategory',
+    ),
+  )
+
+/**
+ * @public The person's quiet hours and urgent bypass, or one Property's
+ * override of them. Quiet hours are no longer a per-(Property, category,
+ * channel) setting, so this is one save instead of about sixty (ADR 0046,
+ * amended 2026-09-23).
+ *
+ * A Property override is authorized against that Property; the personal window
+ * covers every Property the person has, so it is authorized like any other
+ * account-level notification setting.
+ */
+export const updateNotificationQuietHoursFn = createServerFn({ method: 'POST' })
+  .validator(notificationQuietHoursDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'notification.update',
+          ...(data.propertyId === undefined ? {} : { propertyId: data.propertyId }),
+        })
+        try {
+          return await getContainer().feedPublicApi.updateQuietHours(
+            ctx.userId,
+            ctx.organizationId,
+            data,
+          )
+        } catch (error) {
+          if (isNotificationError(error)) {
+            throwContextError('NotificationError', error, 400)
+          }
+          throw catchUntagged(error)
+        }
+      },
+      'POST',
+      'notification.updateQuietHours',
     ),
   )
 

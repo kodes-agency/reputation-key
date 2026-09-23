@@ -211,18 +211,21 @@ const PREFERENCE_COLUMNS = [
   'channel',
   'enabled',
   'cadence',
-  'urgent_bypass_enabled',
-  'quiet_hours_start',
-  'quiet_hours_end',
   'created_at',
   'updated_at',
 ] as const
 
+// Quiet hours and the urgent bypass moved here from the preference row in ADR
+// 0046's 2026-09-23 amendment: they are the person's, one window for every
+// Property, so this is where the archive records them.
 const USER_SETTINGS_COLUMNS = [
   'id',
   'user_id',
   'locale',
   'timezone',
+  'quiet_hours_start',
+  'quiet_hours_end',
+  'urgent_bypass_enabled',
   'created_at',
   'updated_at',
 ] as const
@@ -318,9 +321,6 @@ async function readPayload(
               channel,
               enabled,
               cadence,
-              urgent_bypass_enabled,
-              quiet_hours_start::text AS quiet_hours_start,
-              quiet_hours_end::text AS quiet_hours_end,
               to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
               to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
             FROM notification_preferences
@@ -333,6 +333,9 @@ async function readPayload(
               user_id,
               locale,
               timezone,
+              quiet_hours_start::text AS quiet_hours_start,
+              quiet_hours_end::text AS quiet_hours_end,
+              urgent_bypass_enabled,
               to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
               to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
             FROM notification_user_settings

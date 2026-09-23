@@ -313,9 +313,9 @@ async function seedFixture(label: string): Promise<Fixture> {
   await lease.pool.query(
     `INSERT INTO notification_preferences (
        id, user_id, organization_id, property_id, category, channel, enabled, cadence,
-       urgent_bypass_enabled, created_at, updated_at
+       created_at, updated_at
      ) VALUES ($1, $2, $3, $4, 'workflow_collaboration', 'email', true, 'daily',
-               false, $5, $5)`,
+               $5, $5)`,
     [
       randomUUID(),
       fixture.userId,
