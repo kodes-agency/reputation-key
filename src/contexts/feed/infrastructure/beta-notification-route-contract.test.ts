@@ -82,8 +82,12 @@ import {
 import {
   portalHealthChanged,
   portalResponsibilityNeeded,
+  portalResponsibleManagersUpdated,
 } from '#/contexts/portal/domain/events'
-import { propertyResponsibilityNeeded } from '#/contexts/property/domain/events'
+import {
+  propertyResponsibilityNeeded,
+  propertyResponsibleManagersUpdated,
+} from '#/contexts/property/domain/events'
 import {
   integrationGoogleAccountDisconnected,
   integrationGoogleAccountReauthorizationRequired,
@@ -393,6 +397,22 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       propertyId: PROPERTY,
       occurredAt: OCCURRED_AT,
     }),
+  'property.responsible_managers.updated': () =>
+    propertyResponsibleManagersUpdated({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      assignmentCount: 1,
+      occurredAt: OCCURRED_AT,
+    }),
+  'portal.responsible_managers.updated': () =>
+    portalResponsibleManagersUpdated({
+      portalId: PORTAL,
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      assignmentCount: 1,
+      sourceAggregateVersion: OCCURRED_AT.toISOString(),
+      occurredAt: OCCURRED_AT,
+    }),
   'integration.google_account.reauthorization_required': () =>
     integrationGoogleAccountReauthorizationRequired({
       connectionId: CONNECTION,
@@ -691,6 +711,16 @@ const MANAGER = userId('user-manager')
 const ADMIN = userId('user-admin')
 const SETTLED_NOTIFICATION = notificationId('4d1f0c1e-2b7a-4c55-9a51-000000000013')
 
+/**
+ * What each settling route's notices point at. Reply and Inbox notices are
+ * filed against the Inbox item; a "choose a responsible manager" request
+ * against the scope that had the gap.
+ */
+const SETTLED_RESOURCE: Readonly<Record<string, string>> = {
+  'property.responsible_managers.updated': PROPERTY,
+  'portal.responsible_managers.updated': PORTAL,
+}
+
 /** Reads that find each route's subject still current, so every route has work. */
 function currentRouteDeps(): RouteDeps {
   const deps = inertRouteDeps()
@@ -872,6 +902,28 @@ const NO_NOTICE: Readonly<
       }),
     status: 'applied',
   },
+  'property.responsible_managers.updated': {
+    fact: () =>
+      propertyResponsibleManagersUpdated({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        assignmentCount: 0,
+        occurredAt: OCCURRED_AT,
+      }),
+    status: 'applied',
+  },
+  'portal.responsible_managers.updated': {
+    fact: () =>
+      portalResponsibleManagersUpdated({
+        portalId: PORTAL,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        assignmentCount: 0,
+        sourceAggregateVersion: OCCURRED_AT.toISOString(),
+        occurredAt: OCCURRED_AT,
+      }),
+    status: 'applied',
+  },
   'portal.health.changed': {
     fact: () =>
       portalHealthChanged({
@@ -952,7 +1004,7 @@ describe('every beta notification route queues its notice from its real producer
         expect.objectContaining({
           organizationId: envelope.organizationId,
           types: route.settles,
-          resourceId: ITEM,
+          resourceId: SETTLED_RESOURCE[route.eventType] ?? ITEM,
         }),
       )
       expect(deps.emails.cancelQueuedForNotifications).toHaveBeenCalledWith(

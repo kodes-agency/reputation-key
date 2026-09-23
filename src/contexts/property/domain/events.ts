@@ -202,6 +202,40 @@ export const propertyResponsibilityNeeded = (
   }
 }
 
+/**
+ * Identifier-only fact for a committed responsible-manager selection change.
+ * `assignmentCount` is what the Property is left with, so a downstream reader
+ * can tell a gap that just closed from one that just opened without loading
+ * the assignments. Mirrors `portal.responsible_managers.updated`.
+ */
+export type PropertyResponsibleManagersUpdated = Readonly<{
+  _tag: 'property.responsible_managers.updated'
+  eventId: string
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  assignmentCount: number
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const propertyResponsibleManagersUpdated = (
+  args: Omit<PropertyResponsibleManagersUpdated, '_tag' | 'eventId' | 'correlationId'> & {
+    correlationId?: string | null
+  },
+): PropertyResponsibleManagersUpdated => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(
+    Number.isInteger(args.assignmentCount) && args.assignmentCount >= 0,
+    'assignmentCount must be a non-negative integer',
+  )
+  return {
+    ...args,
+    _tag: 'property.responsible_managers.updated',
+    eventId: newEventId(),
+    correlationId: args.correlationId ?? null,
+  }
+}
+
 export type PropertyEvent =
   | PropertyCreated
   | PropertyUpdated
@@ -210,3 +244,4 @@ export type PropertyEvent =
   | PropertyRestored
   | PropertyGoogleBindingChanged
   | PropertyResponsibilityNeeded
+  | PropertyResponsibleManagersUpdated

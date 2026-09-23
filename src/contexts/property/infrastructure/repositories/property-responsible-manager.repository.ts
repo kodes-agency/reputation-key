@@ -6,7 +6,10 @@ import {
 } from '#/shared/db/schema/property.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { propertyError } from '../../domain/errors'
-import { propertyResponsibilityNeeded } from '../../domain/events'
+import {
+  propertyResponsibilityNeeded,
+  propertyResponsibleManagersUpdated,
+} from '../../domain/events'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { PropertyResponsibleManager } from '../../domain/property-responsible-manager'
 import type { PropertyResponsibleManagerRepository } from '../../application/ports/property-responsible-manager.repository'
@@ -200,6 +203,19 @@ export const createPropertyResponsibleManagerRepository = (
           ),
         )
         .orderBy(asc(propertyResponsibleManagers.userId))
+      // Committed with the change, and only when the selection really moved:
+      // a downstream reader needs to tell a gap that just closed from one that
+      // just opened, and `assignmentCount` says which without loading rows.
+      await insertOutboxRow(
+        tx,
+        propertyResponsibleManagersUpdated({
+          organizationId: organizationId(input.organizationId),
+          propertyId: propertyId(input.propertyId),
+          assignmentCount: activeRows.length,
+          occurredAt: input.at,
+        }),
+        { recordedAt: input.at },
+      )
       return {
         assignments: activeRows.map(fromRow),
         revision: revised.revision,

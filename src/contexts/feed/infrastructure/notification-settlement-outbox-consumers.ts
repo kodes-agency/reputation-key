@@ -17,6 +17,8 @@ import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
   inboxItemId,
   organizationId,
+  portalId,
+  propertyId,
   reviewId,
   type OrganizationId,
 } from '#/shared/domain/ids'
@@ -30,35 +32,70 @@ import {
   type SettlingFact,
 } from '../domain/notification-settlement'
 
+/**
+ * What the settled notices point at. Reply and Inbox notices are filed against
+ * their Inbox item (ADR 0046, merged ADR 0022); a "choose a responsible
+ * manager" request is filed against the Property or Portal that has the gap.
+ */
+type SettledResourceKind = 'inbox_item_by_review' | 'inbox_item' | 'property' | 'portal'
+
 /** Which settling fact each subscribed event carries, and under what name. */
 export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
   {
     eventType: 'review.reply.approved',
     consumerName: 'notification.settle-on-review-reply-approved',
     fact: 'reply.decided',
+    resource: 'inbox_item_by_review',
   },
   {
     eventType: 'review.reply.rejected',
     consumerName: 'notification.settle-on-review-reply-rejected',
     fact: 'reply.decided',
+    resource: 'inbox_item_by_review',
   },
   {
     eventType: 'review.reply.published',
     consumerName: 'notification.settle-on-review-reply-published',
     fact: 'reply.published',
+    resource: 'inbox_item_by_review',
   },
   {
     eventType: 'inbox.inbox_item.escalation_resolved',
     consumerName: 'notification.settle-on-inbox-escalation-resolved',
     fact: 'escalation.resolved',
+    resource: 'inbox_item',
   },
   {
     eventType: 'inbox.handling_cycle.closed',
     consumerName: 'notification.settle-on-inbox-handling-cycle-closed',
     fact: 'handling_cycle.closed',
+    resource: 'inbox_item',
+  },
+  // A selection change says what the scope is left with. Only one that leaves
+  // somebody responsible closes the gap; one that leaves nobody opens a new
+  // one, which the `responsibility_became_needed` routes announce.
+  {
+    eventType: 'property.responsible_managers.updated',
+    consumerName: 'notification.settle-on-property-responsibility-restored',
+    fact: 'property.responsibility_restored',
+    resource: 'property',
+    onlyWhenStaffed: true,
+  },
+  {
+    eventType: 'portal.responsible_managers.updated',
+    consumerName: 'notification.settle-on-portal-responsibility-restored',
+    fact: 'portal.responsibility_restored',
+    resource: 'portal',
+    onlyWhenStaffed: true,
   },
 ] as const satisfies ReadonlyArray<
-  Readonly<{ eventType: string; consumerName: string; fact: SettlingFact }>
+  Readonly<{
+    eventType: string
+    consumerName: string
+    fact: SettlingFact
+    resource: SettledResourceKind
+    onlyWhenStaffed?: boolean
+  }>
 >
 
 type SettlementRoute = (typeof NOTIFICATION_SETTLEMENT_CONSUMERS)[number]
@@ -116,24 +153,42 @@ function parsePayload(event: ConsumerEvent): Readonly<Record<string, unknown>> {
 }
 
 /**
- * The resource the settled notices point at. Every notice a settling fact can
- * retire is filed against its Inbox item (ADR 0046, merged ADR 0022), so a
- * reply fact resolves its review to that item first. `null` when the item is
- * gone: there is nothing left to settle, and nothing to repair either.
+ * Whether this fact finishes work at all. A selection change says what the
+ * scope is LEFT with: one that leaves nobody responsible opens a gap rather
+ * than closing one, and the `responsibility_became_needed` routes announce it.
+ */
+const finishesWork = (
+  route: SettlementRoute,
+  payload: Readonly<Record<string, unknown>>,
+): boolean => {
+  if (!('onlyWhenStaffed' in route && route.onlyWhenStaffed)) return true
+  const count = payload.assignmentCount
+  return typeof count === 'number' && count > 0
+}
+
+/**
+ * The resource the settled notices point at. `null` when it is gone: there is
+ * nothing left to settle, and nothing to repair either.
  */
 async function resolveResource(
   deps: NotificationSettlementConsumerDeps,
-  event: ConsumerEvent,
+  route: SettlementRoute,
   payload: Readonly<Record<string, unknown>>,
   orgId: OrganizationId,
 ): Promise<string | null> {
-  if (event.eventType.startsWith('review.reply.')) {
-    return deps.inboxItemLookup.findInboxItemByReviewId(
-      reviewId(requiredString(payload, 'reviewId')),
-      orgId,
-    )
+  switch (route.resource) {
+    case 'inbox_item_by_review':
+      return deps.inboxItemLookup.findInboxItemByReviewId(
+        reviewId(requiredString(payload, 'reviewId')),
+        orgId,
+      )
+    case 'inbox_item':
+      return inboxItemId(requiredString(payload, 'inboxItemId'))
+    case 'property':
+      return propertyId(requiredString(payload, 'propertyId'))
+    case 'portal':
+      return portalId(requiredString(payload, 'portalId'))
   }
-  return inboxItemId(requiredString(payload, 'inboxItemId'))
 }
 
 export async function handleNotificationSettlementEvent(
@@ -143,7 +198,13 @@ export async function handleNotificationSettlementEvent(
   const route = routeFor(event.eventType)
   const payload = parsePayload(event)
   const orgId = organizationId(requiredString(payload, 'organizationId'))
-  const resourceId = await resolveResource(deps, event, payload, orgId)
+  // Valid evidence that finishes nothing: the rule ran and decided, so the
+  // delivery is applied rather than obsolete.
+  if (!finishesWork(route, payload)) {
+    await deps.receipts.insertReceipt(event.eventId, route.consumerName, 'applied')
+    return { status: 'applied' }
+  }
+  const resourceId = await resolveResource(deps, route, payload, orgId)
   if (resourceId === null) {
     await deps.receipts.insertReceipt(event.eventId, route.consumerName, 'obsolete')
     return { status: 'obsolete' }

@@ -133,6 +133,8 @@ const NOTIFICATION_PORTAL_HEALTH_OUTBOX =
   'src/contexts/feed/infrastructure/portal-health-outbox-consumers.ts'
 const NOTIFICATION_PROPERTY_OUTBOX =
   'src/contexts/feed/infrastructure/property-outbox-consumers.ts'
+const NOTIFICATION_SETTLEMENT_OUTBOX =
+  'src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts'
 const NOTIFICATION_INTEGRATION_OUTBOX =
   'src/contexts/feed/infrastructure/integration-outbox-consumers.ts'
 const NOTIFICATION_ASSIGNMENT_RELEASE_OUTBOX =
@@ -193,6 +195,10 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('review.reply.approved', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-review-reply-approved', NOTIFICATION_WORKFLOW_OUTBOX),
+    durable(
+      'notification.settle-on-review-reply-approved',
+      NOTIFICATION_SETTLEMENT_OUTBOX,
+    ),
   ]),
   ev('review.reply.publication_requested', [
     durable('review.on-reply-publication-requested', REVIEW_OUTBOX),
@@ -200,11 +206,19 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('review.reply.rejected', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-review-reply-rejected', NOTIFICATION_WORKFLOW_OUTBOX),
+    durable(
+      'notification.settle-on-review-reply-rejected',
+      NOTIFICATION_SETTLEMENT_OUTBOX,
+    ),
   ]),
   ev('review.reply.published', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
     durable('notification.on-review-reply-published', NOTIFICATION_WORKFLOW_OUTBOX),
+    durable(
+      'notification.settle-on-review-reply-published',
+      NOTIFICATION_SETTLEMENT_OUTBOX,
+    ),
     durable('inbox.on-reply-published', INBOX_OUTBOX),
   ]),
   ev('review.reply.observed', [durable('inbox.on-reply-observed', INBOX_OUTBOX)]),
@@ -246,6 +260,10 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       'notification.on-inbox-escalation-resolved',
       NOTIFICATION_ESCALATION_RESOLUTION_OUTBOX,
     ),
+    durable(
+      'notification.settle-on-inbox-escalation-resolved',
+      NOTIFICATION_SETTLEMENT_OUTBOX,
+    ),
   ]),
   ev('inbox.inbox_note.added', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
@@ -272,7 +290,12 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       NOTIFICATION_HANDLING_CYCLE_OUTBOX,
     ),
   ]),
-  ev('inbox.handling_cycle.closed', []),
+  ev('inbox.handling_cycle.closed', [
+    durable(
+      'notification.settle-on-inbox-handling-cycle-closed',
+      NOTIFICATION_SETTLEMENT_OUTBOX,
+    ),
+  ]),
   ev('inbox.handling_cycle.reopened', [
     durable(
       'notification.on-inbox-handling-cycle-reopened',
@@ -377,6 +400,12 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
       NOTIFICATION_PROPERTY_OUTBOX,
     ),
   ]),
+  ev('property.responsible_managers.updated', [
+    durable(
+      'notification.settle-on-property-responsibility-restored',
+      NOTIFICATION_SETTLEMENT_OUTBOX,
+    ),
+  ]),
 ]
 
 const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
@@ -399,6 +428,10 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
   ]),
   ev('portal.responsible_managers.updated', [
     durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
+    durable(
+      'notification.settle-on-portal-responsibility-restored',
+      NOTIFICATION_SETTLEMENT_OUTBOX,
+    ),
   ]),
   ev('portal.health.changed', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),

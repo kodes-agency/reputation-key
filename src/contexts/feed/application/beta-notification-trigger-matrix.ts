@@ -302,6 +302,23 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
       'inbox.response_target_passed',
     ],
   ),
+  {
+    ...settles(
+      'property.responsible_managers.updated',
+      'notification.settle-on-property-responsibility-restored',
+      ['property.responsibility_needed'],
+    ),
+    // A selection that leaves nobody responsible opens a gap instead.
+    eventCondition: 'assignmentCount > 0',
+  },
+  {
+    ...settles(
+      'portal.responsible_managers.updated',
+      'notification.settle-on-portal-responsibility-restored',
+      ['portal.responsibility_needed'],
+    ),
+    eventCondition: 'assignmentCount > 0',
+  },
 ] as const satisfies ReadonlyArray<BetaNotificationTriggerMatrixRow>
 
 export const BETA_DARK_NOTIFICATION_TYPES =

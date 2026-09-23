@@ -634,6 +634,13 @@ const propertyResponsibilityNeededSchema = z.object({
   occurredAt: z.iso.datetime(),
 })
 
+const propertyResponsibleManagersUpdatedSchema = z.object({
+  propertyId: z.string(),
+  organizationId: z.string(),
+  assignmentCount: z.number().int().nonnegative(),
+  occurredAt: z.iso.datetime(),
+})
+
 const propertyGoogleBindingChangedSchema = z
   .object({
     _tag: z.literal('property.google_binding.changed').optional(),
@@ -1537,6 +1544,11 @@ export function registerAllEventSchemas(): void {
     type: 'property.google_binding.changed',
     version: EVENT_VERSION,
     schema: propertyGoogleBindingChangedSchema,
+  })
+  registerEventSchema({
+    type: 'property.responsible_managers.updated',
+    version: EVENT_VERSION,
+    schema: propertyResponsibleManagersUpdatedSchema,
   })
   registerEventSchema({
     type: 'property.responsibility_became_needed',
