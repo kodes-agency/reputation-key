@@ -77,6 +77,22 @@ export type NotificationRepositoryPort = Readonly<{
     query: NotificationFeedQuery & Readonly<{ before: NotificationFeedCursor | null }>,
   ): Promise<NotificationPage>
 
+  /**
+   * Stamp `resolvedAt` on every recipient's still-waiting notice of these
+   * types about one resource, and answer with the rows it settled so their
+   * queued email can be cancelled. Read is not resolved: the status is left
+   * alone, so nothing pretends the reader looked. A row already resolved is
+   * left as it stands, which makes a redelivered settling fact a no-op.
+   */
+  settleUnreadForResource(
+    input: Readonly<{
+      organizationId: OrganizationId
+      types: ReadonlyArray<NotificationType>
+      resourceId: string
+      resolvedAt: Date
+    }>,
+  ): Promise<ReadonlyArray<NotificationId>>
+
   markRead(
     id: NotificationId,
     userId: UserId,

@@ -47,6 +47,10 @@ import type { NotificationOrganizationScopeResolver } from '../repositories/noti
 import { deliveryTiming } from '../../domain/notification-delivery-policy'
 import { isStaleQueuedEmail, STALE_EMAIL_REASON } from '../../domain/email-freshness'
 import {
+  isStillActionable,
+  NOT_ACTIONABLE_EMAIL_REASON,
+} from '../../domain/notification-settlement'
+import {
   isEmailStopped,
   ORGANIZATION_CLOSING_REASON,
 } from '../../domain/organization-email-stop'
@@ -509,6 +513,13 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
         )
     if (!notification || !notificationMatchesEntry(notification, entry, propId)) {
       await suppress(ids, 'notification_unavailable')
+      return
+    }
+    // ADR 0046 (2026-09-24): standing is not freshness, and never was. A
+    // notice that asks for work is mailed only while the work is still
+    // waiting — unsettled, unread and undismissed.
+    if (!isStillActionable(notification)) {
+      await suppress(ids, NOT_ACTIONABLE_EMAIL_REASON)
       return
     }
     const recipient = await recheckRecipient(scope, entry)

@@ -100,6 +100,8 @@ export type NotificationOverrides = Partial<{
   payload: NotificationPayload
   title: string
   body: string | null
+  status: Notification['status']
+  resolvedAt: Date | null
 }>
 
 export function buildNotification(overrides: NotificationOverrides = {}): Notification {
@@ -112,7 +114,7 @@ export function buildNotification(overrides: NotificationOverrides = {}): Notifi
     type: overrides.type ?? 'review.created',
     category: overrides.category ?? 'urgent_operational',
     priority: overrides.priority ?? 'normal',
-    status: 'unread',
+    status: overrides.status ?? 'unread',
     resourceType: overrides.resourceType ?? 'inbox_item',
     resourceId: overrides.resourceId ?? 'inbox-1',
     eventId: 'event-1',
@@ -123,6 +125,7 @@ export function buildNotification(overrides: NotificationOverrides = {}): Notifi
     payload: overrides.payload ?? {},
     coalescedCount: 1,
     coalescedLatestAt: null,
+    resolvedAt: overrides.resolvedAt ?? null,
     readAt: null,
     createdAt: NOW,
     updatedAt: NOW,

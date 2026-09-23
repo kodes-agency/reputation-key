@@ -69,6 +69,7 @@ import { registerAssignmentReleaseNotificationConsumer } from './infrastructure/
 import { registerEscalationResolutionNotificationConsumer } from './infrastructure/escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './infrastructure/goal-outbox-consumers'
 import { registerHandlingCycleNotificationConsumers } from './infrastructure/handling-cycle-outbox-consumers'
+import { registerNotificationSettlementConsumers } from './infrastructure/notification-settlement-outbox-consumers'
 import { registerResponseTargetNotificationConsumer } from './infrastructure/response-target-outbox-consumers'
 import { createAccountAccessRemovalReader } from './infrastructure/repositories/account-access-removal.repository'
 import { createNotificationGapRepository } from './infrastructure/repositories/notification-gap.repository'
@@ -704,6 +705,16 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     registerHandlingCycleNotificationConsumers(consumerRegistry, {
       ...fanoutReads,
       queue,
+      receipts: input.outboxRepo,
+    })
+    // The counterpart of the routes above: the facts that finish the work
+    // they announced retire their notices and cancel the mail behind them.
+    registerNotificationSettlementConsumers(consumerRegistry, {
+      notifications: notificationRepo,
+      emails: emailRepo,
+      inboxItemLookup,
+      clock: input.clock,
+      logger: input.logger,
       receipts: input.outboxRepo,
     })
     registerResponseTargetNotificationConsumer(consumerRegistry, {

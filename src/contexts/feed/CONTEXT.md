@@ -221,6 +221,18 @@ self-assignment, an AccountAdmin's own escalation or submission, an author
 approving or rejecting their own reply — and keeps everyone else. Google's
 publication outcomes have no actor and always reach the author.
 
+A notice that asks its reader for work stops asking once the work is done.
+The actionable types are named in `domain/notification-settlement.ts`; the
+settlement consumer retires every recipient's still-waiting row for a
+(type, resource) when the finishing fact arrives and cancels the still-sendable
+mail behind them. It stamps `resolvedAt` and leaves `status` alone, because
+read is not resolved: a settled row leaves the unread count and the Unread tab,
+stays in the feed under a "Done" marker, and returns to asking if a repeat
+event lands on the same resource. Immediately before the provider effect, the
+immediate path and the digest both ask whether the row is still actionable —
+unsettled, unread, undismissed — and retire it as `work_no_longer_waiting`
+otherwise. A notice that reports an outcome is never held back that way.
+
 A request to choose a responsible manager is raised for AccountAdmins only
 while the Property or Portal still has no eligible manager, checked when the
 notice is inserted: a manager chosen before then retires it. Nothing rechecks
@@ -249,7 +261,10 @@ a token is valid.
 ## Runtime
 
 Durable outbox consumers project activity and enqueue deterministic notification
-jobs. A bulk Inbox command (assignment, reopen) notifies once per recipient per
+jobs. One consumer family does the opposite: the settlement consumers subscribe
+to the facts that finish work and write through the notification and email
+repositories directly, because settling is one bounded update per fact with no
+per-recipient decision to fan out. A bulk Inbox command (assignment, reopen) notifies once per recipient per
 Property from its completion fact; the per-item facts it covers stay history.
 An offboarding or eligibility release does the same: one notice per Property to
 the Property's responsible managers, less the departing member and less

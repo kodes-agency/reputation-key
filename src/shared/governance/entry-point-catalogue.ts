@@ -106,6 +106,7 @@ export type SystemAction =
   | 'system:notification.email_digest'
   | 'system:notification.delivery_event'
   | 'system:notification.reconcile'
+  | 'system:notification.settle'
   | 'system:inbox.update'
   | 'system:inbox.project_review'
   | 'system:inbox.project_guest_feedback'
@@ -414,6 +415,16 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   consumer(
     'notification.handling-cycle-outbox-consumers',
     'system:notification.insert',
+    'none',
+    'organization',
+  ),
+  // Settling touches only Feed's own rows for one resource, in the
+  // Organization the envelope names, and queues nothing: ungated like the
+  // other notification consumers, and Organization-scoped because the
+  // resource's notices may sit under any of that Organization's Properties.
+  consumer(
+    'notification.settlement-outbox-consumers',
+    'system:notification.settle',
     'none',
     'organization',
   ),

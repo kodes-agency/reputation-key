@@ -4,7 +4,7 @@
 import { and, eq, desc, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notifications } from '#/shared/db/schema/notification.schema'
-import { unbrand } from '#/shared/domain/ids'
+import { notificationId, unbrand, type NotificationId } from '#/shared/domain/ids'
 import type { Notification, NotificationStatus } from '../../domain/notification-types'
 import { notificationFromRow } from './notification-row.mapper'
 import { notificationError } from '../../domain/notification-errors'
@@ -65,13 +65,22 @@ const withinVisibleProperties = (
   )
 }
 
+// What "unread" means to the bell and to the Unread tab: still waiting on the
+// reader. A row whose work was settled upstream keeps its unread status — read
+// is not resolved — but stops asking, so it leaves the count and the tab and
+// stays in the feed under its "Done" marker.
+const stillWaiting: SQL = and(
+  eq(notifications.status, 'unread'),
+  isNull(notifications.resolvedAt),
+)!
+
 // What a feed filter adds to "the reader's notices": the unread status, the
 // urgent priority flag (any category), or one category. `all` adds nothing.
 // Shared by the feed read, its filter's unread count and the filter-scoped
 // "Mark all read", so the three can never disagree about a tab's rows.
 const feedFilterCondition = (filter: NotificationListFilter): SQL | undefined => {
   if (filter === 'all') return undefined
-  if (filter === 'unread') return eq(notifications.status, 'unread')
+  if (filter === 'unread') return stillWaiting
   if (filter === 'urgent') return eq(notifications.priority, 'urgent')
   return eq(notifications.category, filter)
 }
@@ -139,7 +148,7 @@ const countVisibleUnread = async (
       and(
         eq(notifications.userId, query.userId),
         eq(notifications.organizationId, query.organizationId),
-        eq(notifications.status, 'unread'),
+        stillWaiting,
         notOptedOutInApp,
         withinVisibleProperties(query.visiblePropertyIds),
       ),
@@ -203,6 +212,34 @@ export const createNotificationRepository = (db: Database) => ({
     if (!r)
       throw notificationError('insert_failed', 'No row returned from notification INSERT')
     return notificationFromRow(r)
+  },
+
+  // The work a notice asked for is done. Every recipient's still-waiting row
+  // about that resource is stamped, whatever their read state, and the ids
+  // come back so the caller can cancel the mail queued behind them. `status`
+  // is deliberately untouched: read is not resolved (docs/BETA.md). Rows
+  // already resolved are excluded, so a redelivered fact settles nothing
+  // twice and cancels no mail a later event queued.
+  settleUnreadForResource: async (input: {
+    organizationId: string
+    types: ReadonlyArray<string>
+    resourceId: string
+    resolvedAt: Date
+  }): Promise<readonly NotificationId[]> => {
+    if (input.types.length === 0) return []
+    const settled = await db
+      .update(notifications)
+      .set({ resolvedAt: input.resolvedAt, updatedAt: input.resolvedAt })
+      .where(
+        and(
+          eq(notifications.organizationId, input.organizationId),
+          eq(notifications.resourceId, input.resourceId),
+          inArray(notifications.type, [...input.types]),
+          stillWaiting,
+        ),
+      )
+      .returning({ id: notifications.id })
+    return settled.map((row) => notificationId(row.id))
   },
 
   markRead: async (

@@ -41,6 +41,7 @@ export type NotificationFixtureOverrides = Readonly<{
   payload?: NotificationPayload
   coalescedCount?: number
   coalescedLatestAt?: Date | null
+  resolvedAt?: Date | null
   createdAt?: Date
   readAt?: Date | null
 }>
@@ -70,6 +71,7 @@ export function makeNotification(
     payload: overrides.payload ?? {},
     coalescedCount: overrides.coalescedCount ?? 1,
     coalescedLatestAt: overrides.coalescedLatestAt ?? null,
+    resolvedAt: overrides.resolvedAt ?? null,
     readAt: overrides.readAt ?? (status === 'read' ? new Date(Date.now() - HOUR) : null),
     createdAt,
   }

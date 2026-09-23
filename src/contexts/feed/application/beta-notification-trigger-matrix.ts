@@ -4,6 +4,7 @@ import {
   type NotificationType,
 } from '../domain/notification-types'
 import { classifyNotification } from '../domain/notification-delivery-policy'
+import { isActionableNotificationType } from '../domain/notification-settlement'
 import type { NotificationAudience } from './notification-audience'
 
 export type RegisteredNotificationConsumer = Readonly<{
@@ -20,6 +21,12 @@ export type BetaNotificationTriggerMatrixRow = Readonly<{
   audienceKinds: ReadonlyArray<string>
   /** Identifier-only event predicate when only a subset may notify. */
   eventCondition?: string
+  /**
+   * Notice types this route RETIRES rather than announces: the fact finishes
+   * the work they asked for. A settling route announces nothing, so it maps no
+   * audience and does not count towards a type's one announcing trigger.
+   */
+  settles?: ReadonlyArray<string>
 }>
 
 const route = (
@@ -35,6 +42,19 @@ const route = (
     category: classifyNotification(type),
   })),
   audienceKinds,
+})
+
+/** A route that retires notices instead of raising them (ADR 0046, 2026-09-24). */
+const settles = (
+  eventType: string,
+  consumerName: string,
+  retired: ReadonlyArray<NotificationType>,
+): BetaNotificationTriggerMatrixRow => ({
+  eventType,
+  consumerName,
+  notifications: [],
+  audienceKinds: [],
+  settles: retired,
 })
 
 /**
@@ -256,6 +276,32 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ),
     eventCondition: 'outcomeChanged === true || availabilityChanged === true',
   },
+  // ── Routes that settle, rather than raise, a notice ────────────────
+  settles('review.reply.approved', 'notification.settle-on-review-reply-approved', [
+    'reply.pending_approval',
+  ]),
+  settles('review.reply.rejected', 'notification.settle-on-review-reply-rejected', [
+    'reply.pending_approval',
+  ]),
+  settles('review.reply.published', 'notification.settle-on-review-reply-published', [
+    'reply.pending_approval',
+    'reply.publish_failed',
+  ]),
+  settles(
+    'inbox.inbox_item.escalation_resolved',
+    'notification.settle-on-inbox-escalation-resolved',
+    ['inbox.escalated'],
+  ),
+  settles(
+    'inbox.handling_cycle.closed',
+    'notification.settle-on-inbox-handling-cycle-closed',
+    [
+      'inbox.reopened',
+      'inbox.bulk_reopened',
+      'inbox.response_target_halfway',
+      'inbox.response_target_passed',
+    ],
+  ),
 ] as const satisfies ReadonlyArray<BetaNotificationTriggerMatrixRow>
 
 export const BETA_DARK_NOTIFICATION_TYPES =
@@ -297,8 +343,24 @@ const matrixRowViolations = (
       `missing durable notification consumer ${row.consumerName} for ${row.eventType}`,
     )
   }
-  if (row.notifications.length === 0) {
+  const retired = row.settles ?? []
+  if (row.notifications.length === 0 && retired.length === 0) {
     violations.push(`notification trigger ${row.eventType} maps no notification type`)
+  }
+  for (const type of retired) {
+    if (!(NOTIFICATION_TYPES as readonly string[]).includes(type)) {
+      violations.push(
+        `notification trigger ${row.eventType} settles unknown type ${type}`,
+      )
+      continue
+    }
+    // Only a notice that asks for work can be finished by a fact. Settling an
+    // outcome notice would hide news the reader is owed.
+    if (!isActionableNotificationType(type as NotificationType)) {
+      violations.push(
+        `notification trigger ${row.eventType} settles ${type}, which asks its reader for nothing`,
+      )
+    }
   }
   for (const policy of row.notifications) {
     if (!(NOTIFICATION_TYPES as readonly string[]).includes(policy.type)) {

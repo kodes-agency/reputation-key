@@ -86,6 +86,64 @@ describe('executable beta notification trigger matrix', () => {
     )
   })
 
+  it('fails when a settling route is registered but absent from policy', () => {
+    expect(
+      betaNotificationTriggerMatrixViolations([
+        ...registered,
+        {
+          eventType: 'inbox.handling_cycle.closed',
+          consumerName: 'notification.settle-on-unmapped',
+        },
+      ]),
+    ).toContain(
+      'durable notification consumer notification.settle-on-unmapped for inbox.handling_cycle.closed is absent from the beta matrix',
+    )
+  })
+
+  it('fails when a route neither announces nor settles anything', () => {
+    const silent: BetaNotificationTriggerMatrixRow = {
+      eventType: 'inbox.nothing_happens',
+      consumerName: 'notification.on-nothing',
+      notifications: [],
+      audienceKinds: [],
+    }
+
+    expect(
+      betaNotificationTriggerMatrixViolations(
+        [
+          ...registered,
+          { eventType: silent.eventType, consumerName: silent.consumerName },
+        ],
+        [...BETA_NOTIFICATION_TRIGGER_MATRIX, silent],
+      ),
+    ).toContain('notification trigger inbox.nothing_happens maps no notification type')
+  })
+
+  it('refuses a settling route that claims to retire a notice nobody waits on', () => {
+    const wrong: BetaNotificationTriggerMatrixRow = {
+      eventType: 'review.reply.approved',
+      consumerName: 'notification.settle-on-review-reply-approved',
+      notifications: [],
+      audienceKinds: [],
+      settles: ['reply.approved'],
+    }
+    const matrix = BETA_NOTIFICATION_TRIGGER_MATRIX.map((row) =>
+      row.consumerName === wrong.consumerName ? wrong : row,
+    )
+
+    expect(betaNotificationTriggerMatrixViolations(registered, matrix)).toContain(
+      'notification trigger review.reply.approved settles reply.approved, which asks its reader for nothing',
+    )
+  })
+
+  it('does not let a settled type stand in for the trigger that announces it', () => {
+    const liveTypes = BETA_NOTIFICATION_TRIGGER_MATRIX.flatMap((row) =>
+      row.notifications.map((policy) => policy.type),
+    )
+
+    expect(liveTypes.filter((type) => type === 'reply.pending_approval')).toHaveLength(1)
+  })
+
   // The reverse of the policy's "every advertised category governs a type".
   // A live notice in a category with no control can be neither muted, nor
   // filtered to, nor opted in to email: that is how goal results sat under a

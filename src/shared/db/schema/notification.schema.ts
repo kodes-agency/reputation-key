@@ -60,6 +60,10 @@ export const notifications = pgTable(
     // (user, type, resource).
     coalescedCount: integer('coalesced_count').notNull().default(1),
     coalescedLatestAt: timestamp('coalesced_latest_at', { withTimezone: true }),
+    // When the work this notice asked for was finished upstream. Read is not
+    // resolved, so a settled row keeps its status and leaves the unread count
+    // on this column alone.
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
 
     readAt: timestamp('read_at', { withTimezone: true }),
     createdAt: createdAtColumn(),
@@ -92,6 +96,11 @@ export const notifications = pgTable(
     index('notifications_inbox_item_resource_idx')
       .on(t.resourceId)
       .where(sql`${t.resourceType} = 'inbox_item'`),
+    // Query: settle every recipient's still-waiting notice about one resource
+    // when the work is done. Keyed exactly as the settlement writes.
+    index('notifications_unresolved_resource_idx')
+      .on(t.organizationId, t.resourceId, t.type)
+      .where(sql`status = 'unread' AND resolved_at IS NULL`),
     // Query: the 90-day retention sweep selects expired rows oldest first.
     index('notifications_created_at_idx').on(t.createdAt),
     foreignKey({

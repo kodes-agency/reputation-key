@@ -38,6 +38,7 @@ import {
 import {
   googleConnectionId,
   inboxItemId,
+  notificationId,
   inboxNoteId,
   invitationId,
   organizationId,
@@ -46,6 +47,8 @@ import {
   replyId,
   reviewId,
   userId,
+  type NotificationId,
+  type OrganizationId,
 } from '#/shared/domain/ids'
 import {
   identityBetaFeedbackOutcomeReached,
@@ -58,6 +61,7 @@ import {
   inboxAssignmentsReleased,
   inboxBulkAssignmentCompleted,
   inboxBulkReopenCompleted,
+  inboxHandlingCycleClosed,
   inboxHandlingCycleOpened,
   inboxHandlingCycleReopened,
   inboxItemAssigned,
@@ -89,6 +93,7 @@ import {
   goalMonthlyResultRevised,
 } from '#/contexts/reporting/domain/goal-events'
 import { BETA_NOTIFICATION_TRIGGER_MATRIX } from '../application/beta-notification-trigger-matrix'
+import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
 import { notificationScopeForType } from '../domain/notification-delivery-policy'
 import type { NotificationType } from '../domain/notification-types'
 import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
@@ -102,6 +107,7 @@ import { registerAssignmentReleaseNotificationConsumer } from './assignment-rele
 import { registerEscalationResolutionNotificationConsumer } from './escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './goal-outbox-consumers'
 import { registerHandlingCycleNotificationConsumers } from './handling-cycle-outbox-consumers'
+import { registerNotificationSettlementConsumers } from './notification-settlement-outbox-consumers'
 import { registerResponseTargetNotificationConsumer } from './response-target-outbox-consumers'
 import { registerPortalHealthNotificationConsumer } from './portal-health-outbox-consumers'
 import {
@@ -237,6 +243,14 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       actorType: 'provider',
       userId: null,
       openReason: 'material_revision_changed',
+    }),
+  'inbox.handling_cycle.closed': () =>
+    inboxHandlingCycleClosed({
+      ...handlingCycleScope,
+      actorType: 'user',
+      userId: ACTOR,
+      closeReason: 'confirmed_on_google',
+      source: 'web',
     }),
   'inbox.handling_cycle.reopened': () =>
     inboxHandlingCycleReopened({
@@ -440,6 +454,27 @@ type RouteDeps = ReturnType<typeof createNotificationConsumerDeps> &
     escalationResolutions: EscalationResolutionLookupPort
     monthlyResultFacts: MonthlyResultNotificationFactsLookup
     googleConnectionProperties: GoogleConnectionPropertyLookup
+    notifications: {
+      settleUnreadForResource: ReturnType<
+        typeof vi.fn<
+          (
+            input: Parameters<NotificationRepositoryPort['settleUnreadForResource']>[0],
+          ) => Promise<ReadonlyArray<NotificationId>>
+        >
+      >
+    }
+    emails: {
+      cancelQueuedForNotifications: ReturnType<
+        typeof vi.fn<
+          (
+            ids: ReadonlyArray<NotificationId>,
+            orgId: OrganizationId,
+            reason: string,
+            at: Date,
+          ) => Promise<number>
+        >
+      >
+    }
   }>
 
 /** Reads that find nothing, for tests that never run a handler. */
@@ -457,6 +492,8 @@ function inertRouteDeps(): RouteDeps {
     googleConnectionProperties: {
       findGoogleNotificationAnchor: vi.fn(async () => null),
     },
+    notifications: { settleUnreadForResource: vi.fn(async () => []) },
+    emails: { cancelQueuedForNotifications: vi.fn(async () => 0) },
   }
 }
 
@@ -473,6 +510,7 @@ function registerNotificationRoutes(
   registerAssignmentReleaseNotificationConsumer(registry, deps)
   registerEscalationResolutionNotificationConsumer(registry, deps)
   registerHandlingCycleNotificationConsumers(registry, deps)
+  registerNotificationSettlementConsumers(registry, deps)
   registerResponseTargetNotificationConsumer(registry, deps)
   registerGoalNotificationConsumer(registry, deps)
   registerPortalNotificationConsumers(registry, deps)
@@ -651,6 +689,7 @@ describe('every beta notification route passes the delayed execution gate', () =
 
 const MANAGER = userId('user-manager')
 const ADMIN = userId('user-admin')
+const SETTLED_NOTIFICATION = notificationId('4d1f0c1e-2b7a-4c55-9a51-000000000013')
 
 /** Reads that find each route's subject still current, so every route has work. */
 function currentRouteDeps(): RouteDeps {
@@ -721,6 +760,10 @@ function currentRouteDeps(): RouteDeps {
     googleConnectionProperties: {
       findGoogleNotificationAnchor: vi.fn(async () => PROPERTY),
     },
+    notifications: {
+      settleUnreadForResource: vi.fn(async () => [SETTLED_NOTIFICATION]),
+    },
+    emails: { cancelQueuedForNotifications: vi.fn(async () => 1) },
   }
 }
 
@@ -890,7 +933,45 @@ describe('every beta notification route queues its notice from its real producer
     ).toEqual([])
   })
 
-  for (const route of BETA_NOTIFICATION_TRIGGER_MATRIX) {
+  for (const route of BETA_NOTIFICATION_TRIGGER_MATRIX.filter(
+    (candidate) => candidate.settles !== undefined,
+  )) {
+    it(`${route.eventType}: ${route.consumerName} retires its notices durably`, async () => {
+      const deps = currentRouteDeps()
+
+      const { envelope, receipts, gateDenials, queued } = await dispatch(
+        PRODUCED_FACTS[route.eventType]!(),
+        deps,
+      )
+
+      // A settling route announces nothing; it retires the notices that
+      // asked for the work, and cancels the mail queued behind them.
+      expect(gateDenials).toEqual([])
+      expect(queued.filter((job) => (route.settles ?? []).includes(job.type))).toEqual([])
+      expect(deps.notifications.settleUnreadForResource).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: envelope.organizationId,
+          types: route.settles,
+          resourceId: ITEM,
+        }),
+      )
+      expect(deps.emails.cancelQueuedForNotifications).toHaveBeenCalledWith(
+        [SETTLED_NOTIFICATION],
+        envelope.organizationId,
+        expect.any(String),
+        expect.any(Date),
+      )
+      expect(receipts).toContainEqual({
+        eventId: envelope.eventId,
+        consumerName: route.consumerName,
+        status: 'applied',
+      })
+    })
+  }
+
+  for (const route of BETA_NOTIFICATION_TRIGGER_MATRIX.filter(
+    (candidate) => candidate.settles === undefined,
+  )) {
     it(`${route.eventType}: ${route.consumerName} queues its notification durably`, async () => {
       const { envelope, receipts, gateDenials, queued } = await dispatch(
         PRODUCED_FACTS[route.eventType]!(),

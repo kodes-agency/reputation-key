@@ -681,6 +681,65 @@ describe('immediate notification email job', () => {
     expect(deps.emailSender.send).not.toHaveBeenCalled()
   })
 
+  // ── The work may already be done ──────────────────────────────────
+  //
+  // A reply approved at 23:00 still produced a 07:00 "Approve a reply" email:
+  // the send re-checked the recipient's scope, never the state of the work.
+
+  it('holds back an approval request whose reply was already decided', async () => {
+    deps.notifRepo.findByIdForProperty.mockResolvedValue(
+      buildNotification({
+        propertyId: PROPERTY as string,
+        type: 'reply.pending_approval',
+        category: 'urgent_operational',
+        priority: 'urgent',
+        resolvedAt: new Date('2026-01-15T14:00:00.000Z'),
+      }),
+    )
+
+    await run()
+
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      PROPERTY,
+      'work_no_longer_waiting',
+      NOW,
+    )
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  it('holds back an approval request the reader already read in the app', async () => {
+    deps.notifRepo.findByIdForProperty.mockResolvedValue(
+      buildNotification({
+        propertyId: PROPERTY as string,
+        type: 'reply.pending_approval',
+        category: 'urgent_operational',
+        priority: 'urgent',
+        status: 'read',
+      }),
+    )
+
+    await run()
+
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  it('still mails a failed publication nobody has settled', async () => {
+    deps.notifRepo.findByIdForProperty.mockResolvedValue(
+      buildNotification({
+        propertyId: PROPERTY as string,
+        type: 'reply.publish_failed',
+        category: 'urgent_operational',
+        priority: 'urgent',
+      }),
+    )
+
+    await run()
+
+    expect(deps.emailSender.send).toHaveBeenCalled()
+  })
+
   // ── No invisible failure ──────────────────────────────────────────
 
   it('logs every suppression with its reason and the shared correlation id', async () => {

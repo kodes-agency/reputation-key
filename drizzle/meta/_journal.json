@@ -225,6 +225,13 @@
       "when": 1791200000000,
       "tag": "0032_inbox_low_rating_response_target",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791300000000,
+      "tag": "0033_notification_resolved_at",
+      "breakpoints": true
     }
   ]
 }

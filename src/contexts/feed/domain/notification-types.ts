@@ -147,6 +147,13 @@ export type Notification = Readonly<{
   coalescedCount: number
   /** When the most recent absorbed event arrived. Null when never coalesced. */
   coalescedLatestAt: Date | null
+  /**
+   * When the work this notice asked for was finished upstream. Read is not
+   * resolved (docs/BETA.md): a resolved row keeps its status, leaves the
+   * unread count, and says so to its reader. Null on every notice that never
+   * asked for work, and on one whose work is still waiting.
+   */
+  resolvedAt: Date | null
   readAt: Date | null
   createdAt: Date
   updatedAt: Date

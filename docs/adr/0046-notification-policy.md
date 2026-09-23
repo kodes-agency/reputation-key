@@ -415,6 +415,39 @@ it is answered by the month, subject and direction above. Naming the
 individual Portal a result belongs to needs a Portal display-name lookup Feed
 does not have; that is the open follow-up.
 
+## Amended 2026-09-24 — a notice stops asking once its work is done
+
+"Approve a reply", "Escalated", "Follow-up reopened", "Response target
+passed" and "Choose a responsible manager" stayed unread, in the present
+tense, after somebody handled them, and a reply approved at 23:00 still
+produced a 07:00 "Approve a reply" email: delivery re-checked the recipient's
+standing, never the state of the work. Three rules close that:
+
+1. **Actionable types settle.** The types that ask their reader for work are
+   named in `domain/notification-settlement.ts`. A settling fact — a reply
+   approved, rejected or published, an escalation resolved, a Handling Cycle
+   closed, a responsible manager chosen again — retires every recipient's
+   still-waiting row for its (type, resource) and cancels the mail queued
+   behind them as `cancelled` / `work_settled`. Mail the provider may already
+   hold is left alone.
+2. **Resolved is not read.** Settling stamps `notifications.resolved_at` and
+   leaves `status`, because docs/BETA.md says read is not resolved. A settled
+   row leaves the unread count and the Unread tab, keeps its place in the
+   feed, and shows a "Done" marker. A repeat event on the resource clears the
+   marker: the work is being asked for again. The bell's count therefore means
+   "work still waiting for you".
+3. **Freshness is checked before the provider effect.** Immediate mail and the
+   digest both apply `isStillActionable` to the row they are about to render:
+   an actionable notice is mailed only while it is unsettled, unread and
+   undismissed, and is otherwise retired as `work_no_longer_waiting`. A notice
+   that reports an outcome is unaffected — that news is owed whether or not
+   the reader saw it in the app first.
+
+Settling routes are part of the executable trigger matrix, under `settles`
+rather than `notifications`: they announce nothing, carry no audience, and do
+not count as a type's one announcing trigger. A settling route may only retire
+an actionable type.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

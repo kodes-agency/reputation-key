@@ -32,6 +32,10 @@ import type {
 } from '../../domain/notification-types'
 import { deliveryTiming } from '../../domain/notification-delivery-policy'
 import { isStaleQueuedEmail, STALE_EMAIL_REASON } from '../../domain/email-freshness'
+import {
+  isStillActionable,
+  NOT_ACTIONABLE_EMAIL_REASON,
+} from '../../domain/notification-settlement'
 import { emailCorrelationId } from '../delivery-correlation'
 import type { DigestItem } from './digest-assembly'
 import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
@@ -327,5 +331,36 @@ export async function loadItems(
       'Digest entries suppressed because their notification is gone',
     )
   }
-  return items
+  return settledWork(deps, ctx, items)
+}
+
+/**
+ * A digest gathers up to a day of rows, so the work a line asks for may have
+ * been done in between: the reopen handled, the escalation resolved, the
+ * approval decided. Those lines are retired with a visible reason rather than
+ * carried into tomorrow's mail (ADR 0046, amended 2026-09-24).
+ */
+async function settledWork(
+  deps: DigestEntryDeps,
+  ctx: RecipientContext,
+  items: readonly DigestItem[],
+): Promise<readonly DigestItem[]> {
+  const settled = items.filter((item) => !isStillActionable(item.notification))
+  for (const item of settled) {
+    await deps.emailRepo.markSuppressed(
+      notificationEmailId(item.entry.id as string),
+      ctx.orgId,
+      propertyId(item.entry.propertyId as string),
+      NOT_ACTIONABLE_EMAIL_REASON,
+      ctx.now,
+    )
+    deps.logger.info(
+      {
+        correlationId: emailCorrelationId(item.entry.id),
+        reason: NOT_ACTIONABLE_EMAIL_REASON,
+      },
+      'Digest entry suppressed',
+    )
+  }
+  return items.filter((item) => isStillActionable(item.notification))
 }

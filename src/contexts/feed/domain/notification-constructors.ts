@@ -176,6 +176,7 @@ export const createNotification = (
     payload,
     coalescedCount: 1,
     coalescedLatestAt: null,
+    resolvedAt: null,
     readAt: null,
     createdAt: now,
     updatedAt: now,

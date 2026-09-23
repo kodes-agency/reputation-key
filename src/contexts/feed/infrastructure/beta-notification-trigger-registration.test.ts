@@ -15,6 +15,7 @@ import { registerAssignmentReleaseNotificationConsumer } from './assignment-rele
 import { registerEscalationResolutionNotificationConsumer } from './escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './goal-outbox-consumers'
 import { registerHandlingCycleNotificationConsumers } from './handling-cycle-outbox-consumers'
+import { registerNotificationSettlementConsumers } from './notification-settlement-outbox-consumers'
 import { registerResponseTargetNotificationConsumer } from './response-target-outbox-consumers'
 import { registerPortalHealthNotificationConsumer } from './portal-health-outbox-consumers'
 import {
@@ -76,6 +77,14 @@ describe('registered durable notification matrix', () => {
       receipts,
     })
     registerHandlingCycleNotificationConsumers(consumerRegistry, { ...fakes, receipts })
+    registerNotificationSettlementConsumers(consumerRegistry, {
+      notifications: { settleUnreadForResource: vi.fn(async () => []) },
+      emails: { cancelQueuedForNotifications: vi.fn(async () => 0) },
+      inboxItemLookup: fakes.inboxItemLookup,
+      clock: fakes.clock,
+      logger: fakes.logger,
+      receipts,
+    })
     registerResponseTargetNotificationConsumer(consumerRegistry, { ...fakes, receipts })
     registerGoalNotificationConsumer(consumerRegistry, {
       queue: fakes.queue,

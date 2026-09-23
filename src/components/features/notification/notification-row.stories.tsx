@@ -311,6 +311,30 @@ export const OutcomeShowsNoWait: Story = {
   },
 }
 
+/**
+ * The work an urgent notice asked for was done upstream. Read is not resolved,
+ * so the row is still unread — but it has stopped asking: no unread dot, no
+ * Urgent pill, and a "Done" marker in their place.
+ */
+export const SettledStopsAsking: Story = {
+  args: {
+    notification: makeNotification({
+      id: '20000000-0000-4000-8000-000000000004',
+      type: 'reply.pending_approval',
+      status: 'unread',
+      priority: 'urgent',
+      resolvedAt: new Date(Date.now() - 2 * 60 * 1000),
+      payload: { propertyName: 'Riverside Hotel', platform: 'google' },
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Done')).toBeInTheDocument()
+    expect(canvas.queryByText('Urgent')).not.toBeInTheDocument()
+    expect(canvas.queryByText('Unread.')).not.toBeInTheDocument()
+  },
+}
+
 export const HighRating: Story = {
   args: { notification: newFeedback },
   play: async ({ canvasElement }) => {

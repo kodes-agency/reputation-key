@@ -1361,6 +1361,46 @@ describe('an Organization that has asked to close', () => {
   })
 })
 
+describe('due rows whose work is no longer waiting', () => {
+  // A digest gathers a day of rows. "Follow-up reopened" handled at noon must
+  // not still be asking for attention in the next morning's digest.
+  const settledFor = (entry: NotificationEmail): Notification =>
+    buildNotification({
+      id: entry.notificationId as string,
+      userId: entry.userId as string,
+      organizationId: entry.organizationId as string,
+      propertyId: entry.propertyId as string,
+      type: 'inbox.reopened',
+      category: 'workflow_collaboration',
+      resourceType: 'inbox_item',
+      resourceId: `inbox-${entry.propertyId as string}`,
+      resolvedAt: new Date('2026-09-23T12:00:00.000Z'),
+    })
+
+  it('settles a reopen whose Handling Cycle has since closed', async () => {
+    const deps = baseDeps()
+    deps.notifRepo.findByIdsForProperty.mockImplementation(
+      async (ids: readonly NotificationId[], _org: unknown, property: PropertyId) =>
+        new Map(
+          ids.map((id) => [id as string, settledFor(entryFor(property as string))]),
+        ),
+    )
+
+    await runHandler(deps)
+
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    for (const property of [PROP_A, PROP_B]) {
+      expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+        entryFor(property).id,
+        organizationId(ORG),
+        property,
+        'work_no_longer_waiting',
+        NOW,
+      )
+    }
+  })
+})
+
 describe('due rows whose notification is gone', () => {
   const readableOnly = (deps: ReturnType<typeof baseDeps>, readable: readonly string[]) =>
     deps.notifRepo.findByIdsForProperty.mockImplementation(
