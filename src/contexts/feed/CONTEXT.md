@@ -185,6 +185,18 @@ current AccountAdmin except the one who disconnected, through the
 `organization_account_admin` audience — `account_admin` is Property-scoped and
 the delivery check refuses a Property-less notice under it.
 
+A notice states the governed fact its event carried, never a category of
+event: why an item was reopened, what is wrong with a Portal and whether
+guests can reach it, the target time a reminder is about, and which month a
+Goal result covers, whose goal it is and which way it went. Each crosses as a
+closed enum or a key; the sentence is written here (ADR 0046, amended
+2026-09-24). Two facts are read on the RECIPIENT's clock rather than stored as
+labels: a target time renders through an optional render context carrying only
+the reader's timezone, and a Goal month is a `YYYY-MM` key on the Property's
+own calendar. A surface with no timezone — the frozen snapshot written at
+insert time — leaves the target time out rather than guessing UTC, and every
+live surface re-renders.
+
 Each surface states a fact once. Titles name the Property; a locally
 collected rating and a waiting age sit beside the copy (the in-app strip,
 email's facts line) and never inside a sentence; a property-grouped digest

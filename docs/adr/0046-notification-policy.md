@@ -360,6 +360,44 @@ unanswered review comes from its Inbox Response Target — the reminders at the
 halfway point and at the target time — which is where a rating may shorten it
 (next amendment). Feed neither stores nor reads a rating class (r.8).
 
+## Amended 2026-09-24 — notices state the closed facts their events carry
+
+Four routes carried a governed fact and dropped it, so the copy could only
+describe the KIND of thing that happened. Each now passes the fact into the
+allowlisted payload; each stays a closed enum or a key, never prose, and r.8
+is unchanged.
+
+- `inbox.reopened` carries `reopenReason`. The manager's free-text
+  explanation beside it stays in Inbox.
+- `portal.health_attention` carries the health status and the closed reason.
+  It said "may need attention", which is true of every cause; it now says
+  whether guests can reach the portal at all and what to do.
+- The two Response Target reminders carry `targetDueAt`, the target instant
+  from the immutable snapshot the released slot belongs to. It is stored as an
+  instant, never a rendered label, because two managers responsible for one
+  item need not share a timezone: `renderNotification` takes an optional
+  render context carrying the READER's zone, and a surface that cannot know it
+  (the frozen snapshot written at insert time) leaves the clause out rather
+  than guessing UTC. The product term is **target time**; no notice says
+  "due".
+- The two Goal notices carry the month as a `YYYY-MM` key on the Property's
+  own calendar, the subject kind (Property, Portal Group or Portal) and the
+  outcome direction. A correction that leaves a month ineligible reports no
+  usable result, which is not a missed target.
+
+Copy stays English, produced only by `domain/notification-templates.ts` (r.5),
+so only the ZONE crosses into the render context, never a locale.
+
+**Considered and not done: one notification identity per monthly result.** A
+`goal.completed` and a later `goal.result_revised` for the same result remain
+two rows. Merging them would mean coalescing on `(user, resource)` rather than
+r.2's `(user, type, resource)`, and a row's `type` is what gives it its filter
+tab, its icon and its Mute action, so a merged row would have to pick one of
+two types to be filed under. The ten-identical-rows complaint that motivated
+it is answered by the month, subject and direction above. Naming the
+individual Portal a result belongs to needs a Portal display-name lookup Feed
+does not have; that is the open follow-up.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.
