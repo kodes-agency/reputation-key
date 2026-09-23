@@ -2,9 +2,12 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  dockerfileSecretMountIds,
   loadContainerImagePolicy,
+  validateBuildSecretMounts,
   validateCiContainerCoverage,
   validateContainerImagePolicy,
+  validateDockerfileBuildArguments,
   validateDockerfileContextAllowlist,
   validateDockerfileInventory,
 } from './check-container-image-policy'
@@ -119,6 +122,48 @@ describe('container image policy', () => {
     expect(aggregate).toContain('name: sbom-images-spdx')
     expect(aggregate).toContain(
       `run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 5`,
+    )
+  })
+
+  it('mounts the source-map upload token as a build secret, never as a build argument', () => {
+    const dockerfile = readFileSync(resolve(ROOT, 'Dockerfile'), 'utf8')
+    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
+
+    expect(dockerfileSecretMountIds(dockerfile)).toContain('sentry_auth_token')
+    expect(workflow).toContain('--secret "id=sentry_auth_token,env=SENTRY_AUTH_TOKEN"')
+    expect(workflow).not.toContain('--build-arg "SENTRY_AUTH_TOKEN=')
+    expect(validateDockerfileBuildArguments('Dockerfile', dockerfile)).toEqual([])
+  })
+
+  it('rejects a secret-shaped build argument in a Dockerfile', () => {
+    expect(
+      validateDockerfileBuildArguments(
+        'Dockerfile',
+        'FROM scratch\nARG SENTRY_AUTH_TOKEN\nARG SOURCE_REVISION\n',
+      ),
+    ).toEqual([
+      'Dockerfile declares secret-shaped build argument SENTRY_AUTH_TOKEN; mount it with --mount=type=secret instead',
+    ])
+  })
+
+  it('rejects a secret-shaped build argument passed by CI', () => {
+    const policy = loadContainerImagePolicy(ROOT)
+    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
+    const withTokenArgument = workflow.replace(
+      '                --build-arg "SENTRY_ORG=$SENTRY_ORG"',
+      '                --build-arg "SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN"\n                --build-arg "SENTRY_ORG=$SENTRY_ORG"',
+    )
+
+    expect(validateCiContainerCoverage(policy, withTokenArgument)).toContain(
+      'CI passes secret-shaped build argument SENTRY_AUTH_TOKEN; deliver it with --secret id=… instead',
+    )
+  })
+
+  it('rejects a build secret that no classified Dockerfile mounts', () => {
+    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
+
+    expect(validateBuildSecretMounts(['sentry_upload_token'], workflow)).toContain(
+      'CI passes build secret sentry_auth_token, which no classified Dockerfile mounts',
     )
   })
 

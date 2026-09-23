@@ -19,6 +19,11 @@ src/shared/ai-language-script-consistency.ts
 src/shared/ai-zh-orthography-verifier.ts
 src/shared/ai-review-language-catalogue.ts
 
+# Exported design-board sources. `.dc.html` files under docs/design are the
+# renderer's own output, kept beside the images they produced; their bytes are
+# an export artifact, not authored markup. The prose beside them IS checked.
+docs/design/**/*.dc.html
+
 # Lock files
 pnpm-lock.yaml
 

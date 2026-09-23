@@ -283,7 +283,79 @@ function ciBuildViolations(
       'CI image publish bindings',
     ),
     ...ciMatrixShapeViolations(matrixGroups),
+    ...ciBuildArgumentViolations(build),
   ]
+}
+
+/**
+ * A build argument is not a secret. BuildKit records its value in the image
+ * history, in build provenance, and in the exported layer cache, so a token
+ * handed to `--build-arg` is readable by anyone who can pull or inspect the
+ * image — the source-map upload token shipped this way until 2026-09-24.
+ * Secret material belongs in `--secret id=…`, which binds to a single RUN and
+ * is never written into a layer.
+ *
+ * The match is on the NAME, so the gate costs nothing at runtime and never
+ * needs the value. A legitimately non-secret name that trips it (some future
+ * `CACHE_KEY`) is an exception decision, not a reason to widen the pattern.
+ */
+const SECRET_SHAPED_BUILD_INPUT =
+  /(?:^|_)(?:TOKEN|SECRET|PASSWORD|PASSWD|PASSPHRASE|CREDENTIAL|CREDENTIALS|KEY|APIKEY)(?:_|$)/u
+
+export function secretShapedBuildInputs(names: readonly string[]): readonly string[] {
+  return names.filter((name) => SECRET_SHAPED_BUILD_INPUT.test(name.toUpperCase()))
+}
+
+function ciBuildArgumentViolations(build: WorkflowStep | undefined): readonly string[] {
+  if (!build) return []
+  const passed = [
+    ...build.content.matchAll(/--build-arg\s+"?([A-Za-z_][A-Za-z0-9_]*)=/gu),
+  ].map((match) => match[1]!)
+  return secretShapedBuildInputs(passed).map(
+    (name) =>
+      `CI passes secret-shaped build argument ${name}; deliver it with --secret id=… instead`,
+  )
+}
+
+/** Build-argument names a Dockerfile declares (`ARG NAME[=default]`). */
+export function dockerfileBuildArgumentNames(content: string): readonly string[] {
+  return [...content.matchAll(/^\s*ARG\s+([A-Za-z_][A-Za-z0-9_]*)/gimu)].map(
+    (match) => match[1]!,
+  )
+}
+
+/** Secret ids a Dockerfile mounts (`RUN --mount=type=secret,id=…`). */
+export function dockerfileSecretMountIds(content: string): readonly string[] {
+  return [...content.matchAll(/--mount=type=secret[^\s]*?\bid=([A-Za-z0-9_.-]+)/gu)].map(
+    (match) => match[1]!,
+  )
+}
+
+export function validateDockerfileBuildArguments(
+  dockerfile: string,
+  content: string,
+): readonly string[] {
+  return secretShapedBuildInputs(dockerfileBuildArgumentNames(content)).map(
+    (name) =>
+      `${dockerfile} declares secret-shaped build argument ${name}; mount it with --mount=type=secret instead`,
+  )
+}
+
+/** A `--secret` the workflow passes must be mounted by a classified Dockerfile,
+ * or a rename on one side turns the secret into a silent no-op — the build keeps
+ * passing while the upload it authenticates stops happening. */
+export function validateBuildSecretMounts(
+  mountedIds: readonly string[],
+  workflow: string,
+): readonly string[] {
+  const build = workflowSteps(workflow).find(
+    ({ name }) => name === 'Build grouped images',
+  )
+  if (!build) return []
+  return [...build.content.matchAll(/--secret\s+"?id=([A-Za-z0-9_.-]+)/gu)]
+    .map((match) => match[1]!)
+    .filter((id) => !mountedIds.includes(id))
+    .map((id) => `CI passes build secret ${id}, which no classified Dockerfile mounts`)
 }
 
 /** Bounded groups are what keep the job count inside the account's concurrent
@@ -514,12 +586,18 @@ export function validateDependabotContainerCoverage(
     .map((directory) => `Dependabot docker ecosystem is missing directory ${directory}`)
 }
 
+function classifiedDockerfiles(policy: ContainerImagePolicy): readonly string[] {
+  return [...new Set(policy.images.map(({ dockerfile }) => dockerfile))]
+}
+
 function validateDockerfileSupplyChain(
   root: string,
   policy: ContainerImagePolicy,
 ): readonly string[] {
   const violations: string[] = []
-  for (const { dockerfile } of policy.images) {
+  // One Dockerfile can back several rows (web and worker are the same build),
+  // so walk the distinct files — otherwise every finding is reported per row.
+  for (const dockerfile of classifiedDockerfiles(policy)) {
     const content = readFileSync(join(root, dockerfile), 'utf8')
     const stages = new Set<string>()
     for (const match of content.matchAll(/^FROM\s+(\S+)(?:\s+AS\s+(\S+))?/gimu)) {
@@ -534,8 +612,18 @@ function validateDockerfileSupplyChain(
     if (!content.includes('org.opencontainers.image.revision')) {
       violations.push(`${dockerfile} does not label its source revision`)
     }
+    violations.push(...validateDockerfileBuildArguments(dockerfile, content))
   }
   return violations
+}
+
+function classifiedSecretMountIds(
+  root: string,
+  policy: ContainerImagePolicy,
+): readonly string[] {
+  return classifiedDockerfiles(policy).flatMap((dockerfile) =>
+    dockerfileSecretMountIds(readFileSync(join(root, dockerfile), 'utf8')),
+  )
 }
 
 /** Validate one Dockerfile's plain COPY sources against a `**` allowlist. */
@@ -595,12 +683,11 @@ function validateDockerfileContextAllowlists(
 export function validateContainerImagePolicy(root: string): readonly string[] {
   try {
     const policy = loadContainerImagePolicy(root)
+    const workflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8')
     return [
       ...validateDockerfileInventory(policy, discoverDockerfiles(root)),
-      ...validateCiContainerCoverage(
-        policy,
-        readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8'),
-      ),
+      ...validateCiContainerCoverage(policy, workflow),
+      ...validateBuildSecretMounts(classifiedSecretMountIds(root, policy), workflow),
       ...validateDependabotContainerCoverage(
         policy,
         readFileSync(join(root, '.github/dependabot.yml'), 'utf8'),

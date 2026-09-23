@@ -1,0 +1,211 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-09-19T01:47:00+03:00"
+  },
+  "title": "Guest Portal Directions",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "A1-arrival.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "A1 · Arrival"
+    },
+    "A2-after-low.dc.html": {
+      "x": 470,
+      "y": 0,
+      "w": 390,
+      "h": 980,
+      "title": "A2 · After 2 stars · Google and private note"
+    },
+    "A3-after-high.dc.html": {
+      "x": 940,
+      "y": 0,
+      "w": 390,
+      "h": 1180,
+      "title": "A3 · After 5 stars · Google only"
+    },
+    "A4-done.dc.html": {
+      "x": 1410,
+      "y": 0,
+      "w": 390,
+      "h": 1190,
+      "title": "A4 · Done · your response open"
+    },
+    "A5-flex-bg-no-photo.dc.html": {
+      "x": 1880,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "A5 · Bulgarian · no photo · Сарива Спа"
+    },
+    "A6-google-unavailable.dc.html": {
+      "x": 2350,
+      "y": 0,
+      "w": 390,
+      "h": 870,
+      "title": "A6 · Google unavailable (degraded)"
+    },
+    "B1-arrival.dc.html": {
+      "x": 0,
+      "y": 1610,
+      "w": 390,
+      "h": 844,
+      "title": "B1 · Arrival"
+    },
+    "B2-after-low.dc.html": {
+      "x": 470,
+      "y": 1610,
+      "w": 390,
+      "h": 930,
+      "title": "B2 · After 2 stars · Google and private note"
+    },
+    "B3-after-high.dc.html": {
+      "x": 940,
+      "y": 1610,
+      "w": 390,
+      "h": 1400,
+      "title": "B3 · After 5 stars · full page"
+    },
+    "B4-done.dc.html": {
+      "x": 1410,
+      "y": 1610,
+      "w": 390,
+      "h": 1300,
+      "title": "B4 · Done · removing a response"
+    },
+    "B5-flex-bg-night.dc.html": {
+      "x": 1880,
+      "y": 1610,
+      "w": 390,
+      "h": 844,
+      "title": "B5 · Bulgarian · night edition · Винарна Велмира"
+    },
+    "B6-note-writing.dc.html": {
+      "x": 2350,
+      "y": 1610,
+      "w": 390,
+      "h": 1060,
+      "title": "B6 · Writing a private note"
+    },
+    "C1-arrival.dc.html": {
+      "x": 0,
+      "y": 3430,
+      "w": 390,
+      "h": 844,
+      "title": "C1 · Arrival"
+    },
+    "C2-after-low.dc.html": {
+      "x": 470,
+      "y": 3430,
+      "w": 390,
+      "h": 950,
+      "title": "C2 · After 2 stars · Google and private note"
+    },
+    "C3-after-high.dc.html": {
+      "x": 940,
+      "y": 3430,
+      "w": 390,
+      "h": 1200,
+      "title": "C3 · After 5 stars · full page"
+    },
+    "C4-done.dc.html": {
+      "x": 1410,
+      "y": 3430,
+      "w": 390,
+      "h": 1270,
+      "title": "C4 · Done · your response open"
+    },
+    "C5-flex-bg-city-hotel.dc.html": {
+      "x": 1880,
+      "y": 3430,
+      "w": 390,
+      "h": 844,
+      "title": "C5 · Bulgarian · city hotel · Хотел Вардела"
+    },
+    "C6-links-from-arrival-proposal.dc.html": {
+      "x": 2350,
+      "y": 3430,
+      "w": 390,
+      "h": 1190,
+      "title": "C6 · Proposal · useful links from arrival"
+    }
+  },
+  "order": [
+    "A1-arrival.dc.html",
+    "A2-after-low.dc.html",
+    "A3-after-high.dc.html",
+    "A4-done.dc.html",
+    "A5-flex-bg-no-photo.dc.html",
+    "A6-google-unavailable.dc.html",
+    "B1-arrival.dc.html",
+    "B2-after-low.dc.html",
+    "B3-after-high.dc.html",
+    "B4-done.dc.html",
+    "B5-flex-bg-night.dc.html",
+    "B6-note-writing.dc.html",
+    "C1-arrival.dc.html",
+    "C2-after-low.dc.html",
+    "C3-after-high.dc.html",
+    "C4-done.dc.html",
+    "C5-flex-bg-city-hotel.dc.html",
+    "C6-links-from-arrival-proposal.dc.html"
+  ],
+  "notes": {
+    "title-A": {
+      "x": 0,
+      "y": -300,
+      "text": "A · Carved Stillness",
+      "kind": "title1",
+      "maxW": 2740
+    },
+    "about-A": {
+      "x": -500,
+      "y": 0,
+      "w": 420,
+      "maxH": 560,
+      "size": "m",
+      "color": "gray",
+      "text": "The owner's Signature Stay, rebuilt so it does not depend on photography. It uses a dark tonal stage from the property's own colours, a carved Garamond, and one metal accent, and the private rating is the hero of the first screen.\n\nFor: Avela Resort · Cormorant Garamond + Ysabeau Office"
+    },
+    "title-B": {
+      "x": 0,
+      "y": 1310,
+      "text": "B · Folio",
+      "kind": "title1",
+      "maxW": 2740
+    },
+    "about-B": {
+      "x": -500,
+      "y": 1610,
+      "w": 420,
+      "maxH": 560,
+      "size": "m",
+      "color": "gray",
+      "text": "The portal as a page from the property's own stationery: warm paper, graphite ink, one masthead in a high-contrast serif, printer's rules and a numbered index of links. Premium through typesetting rather than atmosphere, with a night edition for evening venues.\n\nFor: The Harbor Hotel · Playfair: the 2023 'Playfair 2' family, listed as 'Playfair' on Google Fonts, NOT Playfair Display, which lacks Bulgarian forms + Sofia Sans"
+    },
+    "title-C": {
+      "x": 0,
+      "y": 3130,
+      "text": "C · Table Card",
+      "kind": "title1",
+      "maxW": 2740
+    },
+    "about-C": {
+      "x": -500,
+      "y": 3430,
+      "w": 420,
+      "maxH": 560,
+      "size": "m",
+      "color": "gray",
+      "text": "The page continues the printed card the guest just scanned. The property's colour fills a poster with its name set huge, and the rating sits on a light plate below a fold, like a table tent unfolded. It is bold and local, and recognisable in 200ms with no photo.\n\nFor: Forma Kitchen · Sofia Sans Extra Condensed 800, used only for the wordmark and the chosen-word caption + Sofia Sans"
+    }
+  },
+  "designSystems": []
+}

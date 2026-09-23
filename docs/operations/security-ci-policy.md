@@ -14,22 +14,39 @@ hides behind an unowned exception. Every gate below fails the job (non-zero
 exit / failed action) and therefore blocks the PR. There is no
 `continue-on-error` anywhere in `.github/workflows/`.
 
+## The AI review workflow is not a gate
+
+`.github/workflows/review.yml` (`security`, `control-vs-ceremony`) reports
+findings and is deliberately **not** in `main`'s required checks — a bot
+approving a bot's work protects nothing, so it exits non-zero and stays
+informational.
+
+Since 2026-09-22 both jobs fail on every branch, Dependabot's included, with
+`401 OAuth access token is invalid`: the repository's `CLAUDE_CODE_OAUTH_TOKEN`
+secret has expired. The workflow accepts either that token or
+`ANTHROPIC_API_KEY`, and the `credentials` job passes because the secret is
+present, not because it still works. To restore the review: re-run
+`/install-github-app`, or mint a token with `claude setup-token` and update the
+secret. Until then, treat those two red checks as a known, non-blocking failure
+and do not read them as a review verdict.
+
 ## Gate inventory
 
-| Gate                                     | Where (step / job)                                                 | Script / action                                                          | Threshold (fails on)                                                                                            | Artifact / output                                |
-| ---------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| Dependency vulnerability audit           | `check` job, step "Dependency vulnerability audit"                 | `pnpm check:dependency-audit` → `scripts/check-dependency-audit.mjs`     | prod tree: **high+critical**; full tree: **critical** (highs in dev tooling are printed every run, do not fail) | Step log (advisory ids, paths, patched versions) |
-| Secret scanning (history + diffs)        | `secrets` job, step "Gitleaks"                                     | `docker run zricethezav/gitleaks@<digest> git /repo` (fetch-depth: 0)    | **any** finding — PRs scan the PR range (`base..HEAD`); pushes/dispatch scan all refs (full history)            | Step log (redacted findings)                     |
-| Static security analysis — eslint        | `check` job, step "Lint"                                           | `eslint-plugin-security` recommended as **errors** in `eslint.config.js` | any recommended-rule finding on production code                                                                 | Step log                                         |
-| Static security analysis — CodeQL        | `codeql.yml` workflow (push/PR to main + weekly)                   | `github/codeql-action` init+analyze, `security-extended` queries         | analysis **failure** fails; findings become code-scanning alerts                                                | SARIF → Security tab (code scanning)             |
-| License policy                           | `check` job, step "License policy"                                 | `pnpm check:licenses` → `scripts/check-licenses.mjs`                     | any prod/dev dependency license not allow-listed or excepted                                                    | Step log (full inventory per tree)               |
-| Lockfile integrity                       | every job that installs                                            | `pnpm install --frozen-lockfile` (ci.yml, simulation.yml, Dockerfiles)   | install fails on lockfile/manifest drift                                                                        | —                                                |
-| Pinned actions/images                    | `check` job, step "Action/image pin policy"                        | `pnpm check:action-pins` → `scripts/check-action-pins.mjs`               | any `uses:` not full-SHA + `# v…` comment; any `image:` not digest-pinned                                       | Step log                                         |
-| SBOM — source                            | `check` job, steps "Generate SBOM" + "Upload SBOM"                 | `anchore/sbom-action` (SPDX-JSON, source scope) — BQC-7.1                | generation failure                                                                                              | `sbom-spdx` artifact, 30d                        |
-| SBOM — images                            | two-row `docker-images` matrix + `docker` aggregate                | pinned Syft CLI (`image:`, SPDX-JSON; one inventory/image)               | generation failure                                                                                              | merged `sbom-images-spdx` artifact, 30d          |
-| Container/image + artifact-content scan  | `docker-images` matrix, step "Vulnerability scan grouped images"   | pinned Grype CLI (`sbom:`, `.grype.yaml`, hard fail)                     | **high+critical** (`--fail-on high`)                                                                            | per-group SARIF files; step log table            |
-| Production dependency/prune verification | `docker-images` matrix, step "Smoke images"                        | per-image inline shell inside each bounded group                         | any runtime-contract failure or sentinel devDependency in `/app/node_modules`                                   | Step log                                         |
-| Migration artifact consistency           | `check` job, steps "Predeploy migration parity" + "Schema drift …" | `pnpm db:migrate-deploy` (BQC-7.1) + `pnpm check:schema-drift`           | parity divergence / model↔catalog drift                                                                         | Step log                                         |
+| Gate                                     | Where (step / job)                                                 | Script / action                                                              | Threshold (fails on)                                                                                              | Artifact / output                                |
+| ---------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Dependency vulnerability audit           | `check` job, step "Dependency vulnerability audit"                 | `pnpm check:dependency-audit` → `scripts/check-dependency-audit.mjs`         | prod tree: **high+critical**; full tree: **critical** (highs in dev tooling are printed every run, do not fail)   | Step log (advisory ids, paths, patched versions) |
+| Secret scanning (history + diffs)        | `secrets` job, step "Gitleaks"                                     | `docker run zricethezav/gitleaks@<digest> git /repo` (fetch-depth: 0)        | **any** finding — PRs scan the PR range (`base..HEAD`); pushes/dispatch scan all refs (full history)              | Step log (redacted findings)                     |
+| Static security analysis — eslint        | `check` job, step "Lint"                                           | `eslint-plugin-security` recommended as **errors** in `eslint.config.js`     | any recommended-rule finding on production code                                                                   | Step log                                         |
+| Static security analysis — CodeQL        | `codeql.yml` workflow (push/PR to main + weekly)                   | `github/codeql-action` init+analyze, `security-extended` queries             | analysis **failure** fails; findings become code-scanning alerts                                                  | SARIF → Security tab (code scanning)             |
+| License policy                           | `check` job, step "License policy"                                 | `pnpm check:licenses` → `scripts/check-licenses.mjs`                         | any prod/dev dependency license not allow-listed or excepted                                                      | Step log (full inventory per tree)               |
+| Lockfile integrity                       | every job that installs                                            | `pnpm install --frozen-lockfile` (ci.yml, simulation.yml, Dockerfiles)       | install fails on lockfile/manifest drift                                                                          | —                                                |
+| Pinned actions/images                    | `check` job, step "Action/image pin policy"                        | `pnpm check:action-pins` → `scripts/check-action-pins.mjs`                   | any `uses:` not full-SHA + `# v…` comment; any `image:` not digest-pinned                                         | Step log                                         |
+| Build-secret delivery                    | `check` job, step "Container image inventory and coverage policy"  | `pnpm check:container-images` → `scripts/ci/check-container-image-policy.ts` | any secret-shaped **name** declared as `ARG` or passed as `--build-arg`; any `--secret id=…` no Dockerfile mounts | Step log                                         |
+| SBOM — source                            | `check` job, steps "Generate SBOM" + "Upload SBOM"                 | `anchore/sbom-action` (SPDX-JSON, source scope) — BQC-7.1                    | generation failure                                                                                                | `sbom-spdx` artifact, 30d                        |
+| SBOM — images                            | two-row `docker-images` matrix + `docker` aggregate                | pinned Syft CLI (`image:`, SPDX-JSON; one inventory/image)                   | generation failure                                                                                                | merged `sbom-images-spdx` artifact, 30d          |
+| Container/image + artifact-content scan  | `docker-images` matrix, step "Vulnerability scan grouped images"   | pinned Grype CLI (`sbom:`, `.grype.yaml`, hard fail)                         | **high+critical** (`--fail-on high`)                                                                              | per-group SARIF files; step log table            |
+| Production dependency/prune verification | `docker-images` matrix, step "Smoke images"                        | per-image inline shell inside each bounded group                             | any runtime-contract failure or sentinel devDependency in `/app/node_modules`                                     | Step log                                         |
+| Migration artifact consistency           | `check` job, steps "Predeploy migration parity" + "Schema drift …" | `pnpm db:migrate-deploy` (BQC-7.1) + `pnpm check:schema-drift`               | parity divergence / model↔catalog drift                                                                           | Step log                                         |
 
 **Artifact-content scanning — interpretation:** each classified descriptor is
 an artifact that actually runs or supports acceptance. The promoted web and
@@ -147,6 +164,91 @@ base images (`node:22.23.2-trixie-slim@sha256:…`) are digest-pinned in the Doc
 `uses:` under a step's `with:` (e.g. the locally-built `repkey-web:ci` handed
 to the SBOM/scan actions) is not a registry reference and is out of scope —
 the actions consuming them are themselves SHA-pinned.
+
+### Build secrets (BuildKit secret mounts)
+
+**A Docker build argument is not a secret.** Docker documents `ARG` /
+`--build-arg` as unsafe for credentials because the VALUE is retained: in the
+history of the stage that declares it (`docker history`, `docker image
+inspect`), in SLSA provenance attestations, which record the build-argument set
+for the whole build, and in build-cache metadata — here a `type=gha` cache
+shared across every branch build. For this repository's GHCR packages, "anyone
+who can inspect the image" means anyone at all: the repository is public.
+
+`SENTRY_AUTH_TOKEN` was passed that way from the introduction of the Sentry
+source-map upload until **2026-09-24** (`Dockerfile` build stage `ARG
+SENTRY_AUTH_TOKEN`; ci.yml step "Build grouped images").
+
+**How bad it actually was — stated precisely, not dramatically.** The `ARG` sat
+in the intermediate `build` stage, not in the final `web` stage, and CI exports
+with `--load` + `docker push` (no `--push`, no `build-push-action`), so buildx
+attached no provenance attestation and the published manifests most likely never
+carried the value. That is a property of the current wiring, not a control:
+moving the `ARG` one stage down, or switching the export to `--push` or
+`docker/build-push-action` (which enables provenance by default), publishes it
+immediately, with nothing in CI objecting. The value was also handed to the
+BuildKit frontend on every branch build, including builds whose cache is shared.
+Treat it as an exposure that was one refactor from being real. Since 2026-09-24:
+
+- the Dockerfile mounts it for exactly one RUN —
+  `RUN --mount=type=secret,id=sentry_auth_token`, read from
+  `/run/secrets/sentry_auth_token` and exported only into the environment of
+  `pnpm build`. The mount is bound to that RUN, so it enters no layer, no
+  history, no provenance and no cache export;
+- CI passes `--secret "id=sentry_auth_token,env=SENTRY_AUTH_TOKEN"` and only
+  when the repository secret is non-empty;
+- `SENTRY_ORG` / `SENTRY_PROJECT` stay build arguments. They are repository
+  **variables**, they name the release rather than authenticate it, and they
+  are already visible in the uploaded release metadata.
+
+**A missing secret is a skip, not a failure.** Local builds and fork PRs have
+no token: the mount is then absent or empty, the Dockerfile never exports the
+variable, `vite.config.ts` logs `[sentry] SENTRY_AUTH_TOKEN is unset; skipping
+source-map upload`, and the image builds normally without an upload. Nothing
+echoes the value — the RUN text carries the path, not the token, and no wrapper
+script traces it.
+
+**Cache nuance:** because the token is no longer part of the build-argument set,
+it is no longer part of the layer cache key either. A cache hit on the build
+RUN therefore reuses a prior build's output and performs no upload. That is the
+correct trade (the alternative is publishing the token); when a release must
+carry fresh maps, bust the build stage rather than reintroducing the argument.
+
+**Railway builds:** `railway.json` declares `builder: DOCKERFILE`, and Railway
+passes service variables into a build as build arguments — so a Railway-built
+image would have baked the token the same way if the variable were set there.
+It now cannot: the Dockerfile reads only the secret mount, which Railway does
+not provide, so a Railway build simply skips the upload. Production is not
+affected — the release path connects the CI-built, scanned digest and never
+rebuilds a working tree.
+
+**Owner action, recommended:** rotate the Sentry auth token in the Sentry
+organization and update the `SENTRY_AUTH_TOKEN` repository secret. The audit
+above says the value probably never reached a published manifest, but "probably
+never published" is not a rotation argument: the token was distributed to every
+branch build for months, and a leak cannot be walked back once something has
+pulled it. The token's only capability is uploading source maps to one project,
+so rotation is cheap.
+
+**Why it stood for so long:**
+`docs/archive/2026-09-lean/operations/closed-beta-ci-image-delivery.md` records
+the image-secret audit that accepted it — "build-time arguments such as
+`SENTRY_AUTH_TOKEN` … are confined to discarded builder stages". That audit
+asked the right question of the wrong surface: it checked the final image's
+history, which is where a build argument is _least_ likely to appear in a
+multi-stage build, and read a clean result as a property of build arguments
+rather than of this particular stage layout. Its own closing instruction —
+"re-run that check whenever a Dockerfile starts consuming a new build
+argument" — is now an executable gate instead of a reminder.
+
+**The gate:** `check:container-images` fails on any `ARG` in a classified
+Dockerfile, and any `--build-arg` in the CI build step, whose NAME matches
+`TOKEN|SECRET|PASSWORD|PASSWD|PASSPHRASE|CREDENTIAL(S)|KEY|APIKEY` as a
+`_`-delimited word, and on any `--secret id=…` the workflow passes that no
+classified Dockerfile mounts (a rename on one side would otherwise silently
+disable the upload while CI stayed green). The gate matches on the name, never
+on a value. A genuinely non-secret name that trips it is an exception decision
+under the rules above — not a reason to widen the pattern.
 
 ### Dependabot (B0.4)
 

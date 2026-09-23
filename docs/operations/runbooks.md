@@ -830,3 +830,45 @@ decision—never review or reviewer content.
 **Escalation:** Bozhidar Denev.
 
 ---
+
+## 24. Notification Release Steps
+
+**When:** deploying the notification audit fixes (#597, #599) and the follow-up
+decisions, or any later change to notification routing, email or reminders.
+
+**Order: workers before web.** A reauthorization notice carries a cause an older
+worker's schema refuses. Refusing it is terminal for that dispatch, and the fact
+only returns through the published-event redelivery sweep, so the notice can be
+up to two hours late. Rolling workers first avoids that window; rolling web
+first is safe only if a late reconnect notice is acceptable.
+
+**Provider webhook subscriptions.** The Resend webhook must subscribe to
+`suppression.added` and `suppression.removed` alongside the delivery events.
+Without them a provider-side suppression never reaches the durable suppression
+store, and the address keeps being attempted until the provider refuses it.
+Check the subscription in the Resend dashboard after any webhook change.
+
+**Suppression key.** Durable suppression entries are keyed with a dedicated
+secret. Rotating it empties our list; the provider's own list is the backstop,
+so rotate deliberately and re-verify a known suppressed address afterwards.
+
+**Reminder rows recorded before the overdue-on-arrival rule.** Pending reminder
+rows that were already due when they were written are not cancelled
+retroactively. Count them before and after a deploy:
+
+```sql
+SELECT count(*) FROM inbox_response_target_reminders
+WHERE delivered_at IS NULL AND cancelled_at IS NULL AND scheduled_for <= created_at;
+```
+
+A non-zero count sends one `target passed` per row at the next release pass, and
+no `halfway`. Left alone it drains; it never grows under the current rule.
+
+**Verification after the deploy:** change a member's role and confirm both the
+bell row and its email; archive a Property and confirm its reminders stop;
+revoke access in Google and confirm the reconnect notice and the Settings
+prompt.
+
+**Escalation:** Bozhidar Denev.
+
+---

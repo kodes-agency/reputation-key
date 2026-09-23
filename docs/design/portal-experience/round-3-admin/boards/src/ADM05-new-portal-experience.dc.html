@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>New portal: Pool bar — Experience</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=Manrope:wght@400;500;700&family=JetBrains+Mono:wght@400&family=Cormorant+Garamond:wght@600&family=Ysabeau+Office:wght@400;600&display=swap">
+<style>
+@font-face{font-family:'Satoshi';src:url('/_blob/bc9aed933eebd2242e24e1a874f3e980') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Satoshi';src:url('/_blob/b4176652b3bb793da8608143a4c2d4d1') format('woff2');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:'Satoshi';src:url('/_blob/d97bb02bcf4b472111e2170c4170bd0c') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+body{margin:0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+a{color:#512da6}a:hover{color:#431096}
+:focus-visible{outline:2px solid #7b65d1;outline-offset:2px}
+button,input,select,textarea{font-family:inherit;font-size:inherit;line-height:inherit;color:inherit}
+.rk-primary{background:#512da6}.rk-primary:hover{background:#6242ae}
+.rk-outline{background:#f7f8fa}.rk-outline:hover{background:#e7e4ff}
+.rk-ghost{background:transparent}.rk-ghost:hover{background:#e7e4ff}
+.rk-destructive{background:#df202e}.rk-destructive:hover{background:#e23743}
+.rk-nav:hover{background:#e7e4ff}
+.rk-row:hover>td,.rk-row:hover>th{background:#f9fafb}
+.rk-sort:hover{color:#101115!important}
+.rk-name:hover{text-decoration:underline!important;text-underline-offset:4px}
+.rk-detail:hover>span{text-decoration-style:solid!important}
+.rk-cell{background:#feffff}.rk-cell-i:hover,.rk-cell-i.is-on{background:#f0f2f5}
+.rk-stretch::after{content:"";position:absolute;inset:0}
+.rk-stretch:focus-visible{outline:none}.rk-stretch:focus-visible::after{outline:2px solid #7b65d1;outline-offset:-3px}
+.rk-input::placeholder{color:#5b5d63;opacity:1}
+.rk-input:focus-visible{outline:none;border-color:#7b65d1!important;box-shadow:0 0 0 3px rgba(123,101,209,.5)!important}
+.rk-menuitem{background:transparent}.rk-menuitem:hover,.rk-menuitem:focus-visible{background:#e7e4ff;outline:none}
+.rk-check:focus-visible+span{outline:2px solid #7b65d1;outline-offset:2px}
+.rk-tile{background:transparent}.rk-tile:hover{background:#f4f5f8}
+.rk-rowbtn:focus-visible{outline-offset:-2px}
+.rk-hit{position:relative}.rk-hit::after{content:"";position:absolute;inset:-4px 0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1024px; box-sizing: border-box; overflow: hidden; position: relative; display: flex; background: #f7f8fa; color: #101115; font-family: 'Satoshi', 'Manrope', system-ui, sans-serif; font-size: 14px; line-height: 20px;">
+
+  <nav aria-label="Primary navigation" style="width: 49px; flex: none; height: 1024px; box-sizing: border-box; padding: 8px; display: flex; flex-direction: column; background: #f7f8fa; border-right: 1px solid #dcdee2;">
+    <button type="button" class="rk-ghost" aria-label="Avela Resort, switch property" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer;"><span aria-hidden="true" style="width: 32px; height: 32px; border-radius: 8px; background: #e7e4ff; color: #512da6; display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 16px; font-weight: 500;">AR</span></button>
+    <ul style="list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px;">
+      <li><a href="#" class="rk-nav" aria-label="Dashboard" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></a></li>
+      <li><a href="#" class="rk-nav" aria-label="Reviews, 3 new" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></svg></a></li>
+      <li><a href="#" class="rk-nav" aria-label="People" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg></a></li>
+      <li><a href="ADM01-portals-overview.dc.html" aria-current="page" aria-label="Portals" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; background: #e7e4ff; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></a></li>
+      <li><a href="#" class="rk-nav" aria-label="Goals" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></a></li>
+      <li><a href="#" class="rk-nav" aria-label="Property settings" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg></a></li>
+    </ul>
+    <a href="#" class="rk-nav" aria-label="Settings" style="margin-top: auto; width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></a>
+  </nav>
+
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: #f7f8fa;">
+    <header style="height: 52px; flex: none; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid #dcdee2; background: #f7f8fa;">
+      <span style="flex: 1;"></span>
+      <button type="button" class="rk-ghost" style="height: 32px; padding: 0 10px; display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M12 8v6"/><path d="M9 11h6"/></svg>Feedback</button>
+      <button type="button" class="rk-ghost" aria-label="Notifications, 2 unread" style="position: relative; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg><span aria-hidden="true" style="position: absolute; top: -2px; right: -2px; width: 16px; height: 16px; border-radius: 9999px; background: #512da6; color: #feffff; font-size: 9px; line-height: 16px; font-weight: 700; text-align: center;">2</span></button>
+      <button type="button" class="rk-ghost" aria-label="Account menu, Elena Petrova" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 9999px; display: flex; align-items: center; justify-content: center; cursor: pointer;"><span aria-hidden="true" style="width: 28px; height: 28px; border-radius: 9999px; background: #512da6; color: #feffff; font-size: 10px; line-height: 12px; font-weight: 500; display: flex; align-items: center; justify-content: center;">EP</span></button>
+    </header>
+
+    <main style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+
+      <header style="height: 56px; flex: none; box-sizing: border-box; padding: 0 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #dcdee2;">
+        <a href="ADM01-portals-overview.dc.html" class="rk-ghost" style="height: 32px; box-sizing: border-box; padding: 0 10px 0 8px; display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>Portals</a>
+        <span aria-hidden="true" style="width: 1px; height: 24px; flex: none; background: #dcdee2;"></span>
+        <div style="display: flex; flex-direction: column; min-width: 0;">
+          <h1 style="margin: 0; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115;">Pool bar</h1>
+          <p style="margin: 0; font-size: 12px; line-height: 16px; color: #5b5d63;">Avela Resort</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px; font-size: 13px; line-height: 20px;">
+          <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; line-height: 20px; color: #101115;"><span aria-hidden="true" style="width: 7px; height: 7px; flex: none; box-sizing: border-box; border-radius: 50%; border: 1.5px solid #b5b7bd;"></span>Draft · not published</span>
+        </div>
+        <span style="flex: 1;"></span>
+        <button type="button" class="rk-ghost" aria-label="Portal actions" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; color: #5b5d63; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+      </header>
+
+      <div style="height: 48px; flex: none; box-sizing: border-box; display: flex; border-bottom: 1px solid #dcdee2;">
+        <div style="width: 641px; flex: none; box-sizing: border-box; padding: 0 24px; display: flex; border-right: 1px solid #dcdee2;">
+          <ol aria-label="New portal steps" style="display: flex; align-items: stretch; gap: 24px; margin: 0; padding: 0; list-style: none; font-size: 13px; line-height: 20px; color: #5b5d63;">
+            <li style="display: flex; align-items: center; gap: 6px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M20 6 9 17l-5-5"/></svg><span>1 Place</span><span class="sr-only">, done</span></li>
+            <li aria-current="step" style="position: relative; display: flex; align-items: center; font-weight: 500; color: #101115;">2 Experience<span aria-hidden="true" style="position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: #101115;"></span></li>
+            <li style="display: flex; align-items: center;">3 Review</li>
+            <li style="display: flex; align-items: center;">4 Publish and share</li>
+          </ol>
+        </div>
+        <div style="flex: 1; min-width: 0; box-sizing: border-box; padding: 0 16px; display: flex; align-items: center; gap: 8px;">
+          <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; line-height: 20px; color: #101115;"><span aria-hidden="true" style="width: 7px; height: 7px; flex: none; box-sizing: border-box; border-radius: 50%; border: 1.5px solid #b5b7bd;"></span>Draft</span>
+          <button type="button" class="rk-outline" aria-haspopup="listbox" aria-expanded="false" style="height: 32px; box-sizing: border-box; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;"><span class="sr-only">Guest state: </span><sc-if value="{{ single }}" hint-placeholder-val="{{ true }}"><span>Arrival</span></sc-if><sc-if value="{{ pair }}" hint-placeholder-val="{{ false }}"><span>After rating · 1<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display: inline-block; vertical-align: -1px; margin-left: 1px;"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> star</span> and 5<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display: inline-block; vertical-align: -1px; margin-left: 1px;"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> stars</span></span></sc-if><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m6 9 6 6 6-6"/></svg></button>
+          <div role="radiogroup" aria-label="Preview language" style="display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 6px; background: #f0f2f5;">
+            <button type="button" role="radio" aria-checked="{{ tabEn.selected }}" tabindex="{{ tabEn.tab }}" onClick="{{ tabEn.pick }}" onKeyDown="{{ rove }}" style="height: 26px; padding: 0 10px; border: 0; border-radius: 4px; font-size: 13px; line-height: 20px; cursor: pointer; {{ tabEn.look }}">EN<span class="sr-only"> English</span></button>
+            <button type="button" role="radio" aria-checked="{{ tabBg.selected }}" tabindex="{{ tabBg.tab }}" onClick="{{ tabBg.pick }}" onKeyDown="{{ rove }}" lang="bg" style="height: 26px; padding: 0 10px; border: 0; border-radius: 4px; font-size: 13px; line-height: 20px; cursor: pointer; {{ tabBg.look }}">БГ<span class="sr-only"> Български</span></button>
+          </div>
+          <span style="flex: 1;"></span>
+          <button type="button" class="rk-outline" aria-haspopup="dialog" style="height: 32px; box-sizing: border-box; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>Try as guest</button>
+        </div>
+      </div>
+
+      <div style="flex: 1; min-height: 0; display: flex;">
+
+        <section aria-label="Experience editor" style="width: 641px; flex: none; box-sizing: border-box; display: flex; flex-direction: column; background: #f7f8fa; border-right: 1px solid #dcdee2;">
+          <div style="flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin;">
+
+            <h2 style="margin: 0; padding: 16px 24px 8px; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;">On the guest page</h2>
+
+            <div>
+              <h3 style="margin: 0;"><button type="button" id="sec-look-btn" class="{{ look.cls }}" aria-expanded="{{ look.open }}" aria-controls="sec-look" onClick="{{ look.toggle }}" style="width: 100%; height: 56px; box-sizing: border-box; padding: 0 24px; display: flex; align-items: center; gap: 12px; border: 0; border-bottom: 1px solid #dcdee2; text-align: left; color: #101115; cursor: pointer; {{ look.fill }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;color:#5b5d63"><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/></svg><span style="flex: 1; min-width: 0; display: flex; flex-direction: column;"><span style="font-size: 14px; line-height: 20px; font-weight: 500; color: #101115;">Look</span><span style="font-size: 13px; line-height: 18px; font-weight: 400; color: #5b5d63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Carved Stillness · Avela colours</span></span><span style="flex: none; font-size: 12px; line-height: 16px; font-weight: 400; color: #5b5d63;">Property-wide</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; transform: {{ look.turn }};"><path d="m6 9 6 6 6-6"/></svg></button></h3>
+              <sc-if value="{{ look.open }}" hint-placeholder-val="{{ false }}">
+                <div id="sec-look" role="region" aria-labelledby="sec-look-btn" style="padding: 16px 24px 24px; border-bottom: 1px solid #dcdee2; display: flex; flex-direction: column; gap: 16px;">
+                  <dl style="margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 20px;">
+                    <div style="display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: 12px;"><dt style="color: #5b5d63;">Composition</dt><dd style="margin: 0; color: #101115;">Carved Stillness<span style="color: #5b5d63;"> · dark stage, Cormorant Garamond with Ysabeau Office</span></dd></div>
+                    <div style="display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: 12px;"><dt style="color: #5b5d63;">Colours</dt><dd style="margin: 0; display: flex; align-items: center; gap: 16px; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; color: #101115;"><span style="display: inline-flex; align-items: center; gap: 6px;"><span aria-hidden="true" style="width: 16px; height: 16px; box-sizing: border-box; border-radius: 4px; border: 1px solid #dcdee2; background: #121614;"></span>#121614</span><span style="display: inline-flex; align-items: center; gap: 6px;"><span aria-hidden="true" style="width: 16px; height: 16px; box-sizing: border-box; border-radius: 4px; border: 1px solid #dcdee2; background: #F2ECE1;"></span>#F2ECE1</span><span style="display: inline-flex; align-items: center; gap: 6px;"><span aria-hidden="true" style="width: 16px; height: 16px; box-sizing: border-box; border-radius: 4px; border: 1px solid #dcdee2; background: #CDAE78;"></span>#CDAE78</span></dd></div>
+                    <div style="display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: 12px;"><dt style="color: #5b5d63;">Name on the page</dt><dd style="margin: 0; color: #101115;">Avela Resort</dd></div>
+                  </dl>
+                  <p style="margin: 0; font-size: 13px; line-height: 20px; color: #5b5d63;">All 5 portals at Avela Resort share this look. <a href="ADM08-property-look.dc.html" style="font-weight: 500; text-decoration: none;">Open Property look</a></p>
+                </div>
+              </sc-if>
+            </div>
+
+            <div>
+              <h3 style="margin: 0;"><button type="button" id="sec-welcome-btn" class="{{ welcome.cls }}" aria-expanded="{{ welcome.open }}" aria-controls="sec-welcome" onClick="{{ welcome.toggle }}" style="width: 100%; height: 56px; box-sizing: border-box; padding: 0 24px; display: flex; align-items: center; gap: 12px; border: 0; border-bottom: 1px solid #dcdee2; text-align: left; color: #101115; cursor: pointer; {{ welcome.fill }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M7 11h10"/><path d="M7 15h6"/><path d="M7 7h8"/></svg><span style="flex: 1; min-width: 0; display: flex; flex-direction: column;"><span style="font-size: 14px; line-height: 20px; font-weight: 500; color: #101115;">Welcome</span><span style="font-size: 13px; line-height: 18px; font-weight: 400; color: #5b5d63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ welcomeSummary }}</span></span><span style="flex: none; font-size: 12px; line-height: 16px; font-weight: 400; color: #5b5d63;">This portal</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; transform: {{ welcome.turn }};"><path d="m6 9 6 6 6-6"/></svg></button></h3>
+              <sc-if value="{{ welcome.open }}" hint-placeholder-val="{{ true }}">
+                <div id="sec-welcome" role="region" aria-labelledby="sec-welcome-btn" style="padding: 16px 24px 24px; border-bottom: 1px solid #dcdee2; display: flex; flex-direction: column; gap: 28px;">
+                  <sc-if value="{{ isEn }}" hint-placeholder-val="{{ true }}">
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                      <div style="height: 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                        <label for="welcome-line" style="font-size: 14px; line-height: 14px; font-weight: 500; color: #101115;">Welcome line</label>
+                        <button type="button" class="rk-outline rk-hit" style="height: 24px; box-sizing: border-box; padding: 0 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 12px; line-height: 16px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Use property wording<span class="sr-only"> for the English welcome line</span></button>
+                      </div>
+                      <input id="welcome-line" type="text" class="rk-input" maxlength="32" value="{{ welcomeEn }}" onChange="{{ onWelcomeInput }}" aria-describedby="welcome-line-help" style="height: 36px; box-sizing: border-box; padding: 4px 12px; border: 1px solid #85878d; border-radius: 6px; background: transparent; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; color: #101115;">
+                      <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+                        <p id="welcome-line-help" style="margin: 0; font-size: 14px; line-height: 20px; color: #5b5d63;">Guests see this just above the question. Name the place, never a person.<span class="sr-only"> Up to 32 characters.</span></p>
+                        <span aria-hidden="true" style="flex: none; font-size: 12px; line-height: 20px; color: #5b5d63; font-variant-numeric: tabular-nums;">{{ welcomeCount }}/32</span>
+                      </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                      <span style="font-size: 14px; line-height: 14px; font-weight: 500; color: #101115;">Short description</span>
+                      <span style="font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;">Using property wording</span>
+                      <p style="margin: 0; font-size: 14px; line-height: 20px; color: #5b5d63;">Stone, olive shade and water that keeps the last of the light. Thank you for spending part of your day with us.</p>
+                      <button type="button" class="rk-outline rk-hit" style="align-self: flex-start; height: 24px; box-sizing: border-box; padding: 0 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 12px; line-height: 16px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>Write for this portal<span class="sr-only">: short description in English</span></button>
+                    </div>
+                    <div style="margin-top: -12px; padding-top: 16px; border-top: 1px solid #dcdee2; display: flex; flex-direction: column; gap: 4px;">
+                      <p style="margin: 0; display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 20px; color: #101115;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-top:3px"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg><span>English is custom. Bulgarian guests see the property wording ‘<span lang="bg">Добре дошли в Avela Resort</span>’.</span></p>
+                      <div style="display: flex; align-items: center; gap: 8px; padding-left: 22px;">
+                        <span style="font-size: 12px; line-height: 16px; color: #5b5d63;">Suggested for a bar: <span lang="bg" style="font-weight: 500; color: #101115;">Бар на басейна</span></span>
+                        <button type="button" class="rk-outline rk-hit" style="height: 24px; box-sizing: border-box; padding: 0 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 12px; line-height: 16px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M20 6 9 17l-5-5"/></svg>Use suggestion<span class="sr-only"> for the Bulgarian welcome line</span></button>
+                      </div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ isBg }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                      <span style="font-size: 14px; line-height: 14px; font-weight: 500; color: #101115;">Welcome line</span>
+                      <span style="font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;">Using property wording</span>
+                      <p lang="bg" style="margin: 0; font-size: 14px; line-height: 20px; color: #5b5d63;">Добре дошли в Avela Resort</p>
+                      <button type="button" class="rk-outline rk-hit" style="align-self: flex-start; height: 24px; box-sizing: border-box; padding: 0 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 12px; line-height: 16px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>Write for this portal<span class="sr-only">: welcome line in Bulgarian</span></button>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                      <span style="font-size: 14px; line-height: 14px; font-weight: 500; color: #101115;">Short description</span>
+                      <span style="font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;">Using property wording</span>
+                      <p lang="bg" style="margin: 0; font-size: 14px; line-height: 20px; color: #5b5d63;">Камък, маслинова сянка и вода, която пази последната светлина. Благодарим ви, че прекарахте част от деня си при нас.</p>
+                      <button type="button" class="rk-outline rk-hit" style="align-self: flex-start; height: 24px; box-sizing: border-box; padding: 0 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 12px; line-height: 16px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>Write for this portal<span class="sr-only">: short description in Bulgarian</span></button>
+                    </div>
+                    <div style="margin-top: -12px; padding-top: 16px; border-top: 1px solid #dcdee2; display: flex; flex-direction: column; gap: 4px;">
+                      <p style="margin: 0; display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 20px; color: #101115;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-top:3px"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg><span>Bulgarian uses the property wording. English is custom: {{ welcomeQuoted }}.</span></p>
+                      <div style="display: flex; align-items: center; gap: 8px; padding-left: 22px;">
+                        <span style="font-size: 12px; line-height: 16px; color: #5b5d63;">Suggested for a bar: <span lang="bg" style="font-weight: 500; color: #101115;">Бар на басейна</span></span>
+                        <button type="button" class="rk-outline rk-hit" style="height: 24px; box-sizing: border-box; padding: 0 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 12px; line-height: 16px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M20 6 9 17l-5-5"/></svg>Use suggestion<span class="sr-only"> for the Bulgarian welcome line</span></button>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-if>
+            </div>
+
+            <div>
+              <h3 style="margin: 0;"><button type="button" id="sec-rating-btn" class="{{ rating.cls }}" aria-expanded="{{ rating.open }}" aria-controls="sec-rating" onClick="{{ rating.toggle }}" style="width: 100%; height: 56px; box-sizing: border-box; padding: 0 24px; display: flex; align-items: center; gap: 12px; border: 0; border-bottom: 1px solid #dcdee2; text-align: left; color: #101115; cursor: pointer; {{ rating.fill }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span style="flex: 1; min-width: 0; display: flex; flex-direction: column;"><span style="font-size: 14px; line-height: 20px; font-weight: 500; color: #101115;">Rating and Google</span><span style="font-size: 13px; line-height: 18px; font-weight: 400; color: #5b5d63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Private note at 3<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display: inline-block; vertical-align: -1px; margin-left: 1px;"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> stars</span> or below · Google for every guest</span></span><span style="flex: none; font-size: 12px; line-height: 16px; font-weight: 400; color: #5b5d63;">Always included</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; transform: {{ rating.turn }};"><path d="m6 9 6 6 6-6"/></svg></button></h3>
+              <sc-if value="{{ rating.open }}" hint-placeholder-val="{{ false }}">
+                <div id="sec-rating" role="region" aria-labelledby="sec-rating-btn" style="padding: 16px 24px 24px; border-bottom: 1px solid #dcdee2; display: flex; flex-direction: column; gap: 16px;">
+                  <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <span id="threshold-label" style="font-size: 14px; line-height: 14px; font-weight: 500; color: #101115;">Offer a private note at</span>
+                    <button type="button" id="threshold" class="rk-ghost" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="threshold-label threshold" aria-describedby="threshold-help" style="width: 240px; height: 36px; box-sizing: border-box; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #85878d; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; color: #101115; text-align: left; cursor: pointer;"><span>3<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display: inline-block; vertical-align: -1px; margin-left: 1px;"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> stars</span> or below</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;opacity:.5"><path d="m6 9 6 6 6-6"/></svg></button>
+                    <p id="threshold-help" style="margin: 0; font-size: 14px; line-height: 20px; color: #5b5d63;">Guests who rate at or below this can also write a private note for the team.</p>
+                  </div>
+                  <p style="margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 20px; color: #5b5d63;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></svg>Continue to Google opens Avela Resort’s Google profile · link verified</p>
+                </div>
+              </sc-if>
+            </div>
+
+            <div>
+              <h3 style="margin: 0;"><button type="button" id="sec-links-btn" class="{{ links.cls }}" aria-expanded="{{ links.open }}" aria-controls="sec-links" onClick="{{ links.toggle }}" style="width: 100%; height: 56px; box-sizing: border-box; padding: 0 24px; display: flex; align-items: center; gap: 12px; border: 0; border-bottom: 1px solid #dcdee2; text-align: left; color: #101115; cursor: pointer; {{ links.fill }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></svg><span style="flex: 1; min-width: 0; display: flex; flex-direction: column;"><span style="font-size: 14px; line-height: 20px; font-weight: 500; color: #101115;">Useful links</span><span style="font-size: 13px; line-height: 18px; font-weight: 400; color: #5b5d63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">No links yet · optional</span></span><span style="flex: none; font-size: 12px; line-height: 16px; font-weight: 400; color: #5b5d63;">This portal</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; transform: {{ links.turn }};"><path d="m6 9 6 6 6-6"/></svg></button></h3>
+              <sc-if value="{{ links.open }}" hint-placeholder-val="{{ false }}">
+                <div id="sec-links" role="region" aria-labelledby="sec-links-btn" style="padding: 16px 24px 24px; border-bottom: 1px solid #dcdee2; display: flex; flex-direction: column; align-items: flex-start; gap: 12px;">
+                  <p style="margin: 0; font-size: 14px; line-height: 20px; color: #5b5d63;">After rating, guests see up to 4 links, such as the bar menu or directions.</p>
+                  <button type="button" class="rk-outline" style="height: 32px; box-sizing: border-box; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Add link</button>
+                </div>
+              </sc-if>
+            </div>
+
+            <h2 style="margin: 0; padding: 16px 24px 8px; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;">Behind the page</h2>
+
+            <div>
+              <h3 style="margin: 0;"><button type="button" id="sec-languages-btn" class="{{ languages.cls }}" aria-expanded="{{ languages.open }}" aria-controls="sec-languages" onClick="{{ languages.toggle }}" style="width: 100%; height: 56px; box-sizing: border-box; padding: 0 24px; display: flex; align-items: center; gap: 12px; border: 0; border-bottom: 1px solid #dcdee2; text-align: left; color: #101115; cursor: pointer; {{ languages.fill }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg><span style="flex: 1; min-width: 0; display: flex; flex-direction: column;"><span style="font-size: 14px; line-height: 20px; font-weight: 500; color: #101115;">Languages</span><span style="font-size: 13px; line-height: 18px; font-weight: 400; color: #5b5d63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">English, <span lang="bg">Български</span></span></span><span style="flex: none; font-size: 12px; line-height: 16px; font-weight: 400; color: #5b5d63;">This portal</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; transform: {{ languages.turn }};"><path d="m6 9 6 6 6-6"/></svg></button></h3>
+              <sc-if value="{{ languages.open }}" hint-placeholder-val="{{ false }}">
+                <div id="sec-languages" role="region" aria-labelledby="sec-languages-btn" style="padding: 16px 24px 24px; border-bottom: 1px solid #dcdee2; display: flex; flex-direction: column; gap: 12px;">
+                  <span id="lang-group-label" style="font-size: 14px; line-height: 14px; font-weight: 500; color: #101115;">Guests can read this page in</span>
+                  <div role="group" aria-labelledby="lang-group-label" style="display: flex; flex-direction: column; gap: 12px;">
+                    <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;">
+                      <input type="checkbox" class="rk-check sr-only" checked>
+                      <span aria-hidden="true" style="width: 16px; height: 16px; margin-top: 2px; box-sizing: border-box; flex: none; border: 1px solid #512da6; border-radius: 4px; background: #512da6; box-shadow: 0 1px 2px rgba(0,0,0,.05); display: flex; align-items: center; justify-content: center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#feffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M20 6 9 17l-5-5"/></svg></span>
+                      <span style="display: flex; flex-direction: column; gap: 2px;"><span>English</span><span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5b5d63;">Welcome line written for this portal</span></span>
+                    </label>
+                    <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;">
+                      <input type="checkbox" class="rk-check sr-only" checked>
+                      <span aria-hidden="true" style="width: 16px; height: 16px; margin-top: 2px; box-sizing: border-box; flex: none; border: 1px solid #512da6; border-radius: 4px; background: #512da6; box-shadow: 0 1px 2px rgba(0,0,0,.05); display: flex; align-items: center; justify-content: center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#feffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M20 6 9 17l-5-5"/></svg></span>
+                      <span style="display: flex; flex-direction: column; gap: 2px;"><span lang="bg">Български</span><span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5b5d63;">Property wording</span></span>
+                    </label>
+                  </div>
+                  <p style="margin: 0; font-size: 14px; line-height: 20px; color: #5b5d63;">Guests switch at the top of the page. A field left empty in a language shows the property wording.</p>
+                </div>
+              </sc-if>
+            </div>
+
+            <div>
+              <h3 style="margin: 0;"><button type="button" id="sec-place-btn" class="{{ place.cls }}" aria-expanded="{{ place.open }}" aria-controls="sec-place" onClick="{{ place.toggle }}" style="width: 100%; height: 56px; box-sizing: border-box; padding: 0 24px; display: flex; align-items: center; gap: 12px; border: 0; {{ placeEdge }} text-align: left; color: #101115; cursor: pointer; {{ place.fill }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg><span style="flex: 1; min-width: 0; display: flex; flex-direction: column;"><span style="font-size: 14px; line-height: 20px; font-weight: 500; color: #101115;">Place and group</span><span style="font-size: 13px; line-height: 18px; font-weight: 400; color: #5b5d63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Restaurant or bar table · Dining</span></span><span style="flex: none; font-size: 12px; line-height: 16px; font-weight: 400; color: #5b5d63;">This portal</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; transform: {{ place.turn }};"><path d="m6 9 6 6 6-6"/></svg></button></h3>
+              <sc-if value="{{ place.open }}" hint-placeholder-val="{{ false }}">
+                <div id="sec-place" role="region" aria-labelledby="sec-place-btn" style="padding: 16px 24px 24px; display: flex; flex-direction: column; gap: 28px;">
+                  <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <label for="place-name" style="font-size: 14px; line-height: 14px; font-weight: 500; color: #101115;">Name</label>
+                    <input id="place-name" type="text" class="rk-input" value="Pool bar" aria-describedby="place-name-help" style="height: 36px; box-sizing: border-box; padding: 4px 12px; border: 1px solid #85878d; border-radius: 6px; background: transparent; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; color: #101115;">
+                    <p id="place-name-help" style="margin: 0; font-size: 14px; line-height: 20px; color: #5b5d63;">Only your team sees this name. Guests see the welcome line.</p>
+                  </div>
+                  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;">
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                      <span id="place-type-label" style="font-size: 14px; line-height: 14px; font-weight: 500; color: #101115;">Place type</span>
+                      <button type="button" id="place-type" class="rk-ghost" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="place-type-label place-type" style="width: 100%; height: 36px; box-sizing: border-box; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #85878d; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; color: #101115; text-align: left; cursor: pointer;"><span>Restaurant or bar table</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;opacity:.5"><path d="m6 9 6 6 6-6"/></svg></button>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                      <span id="place-group-label" style="font-size: 14px; line-height: 14px; font-weight: 500; color: #101115;">Group</span>
+                      <button type="button" id="place-group" class="rk-ghost" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="place-group-label place-group" style="width: 100%; height: 36px; box-sizing: border-box; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #85878d; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; color: #101115; text-align: left; cursor: pointer;"><span>Dining</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;opacity:.5"><path d="m6 9 6 6 6-6"/></svg></button>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+
+          </div>
+
+          <div role="region" aria-label="Draft" style="flex: none; box-sizing: border-box; padding: 12px 24px; border-top: 1px solid #dcdee2; background: #f7f8fa;">
+            <div style="box-sizing: border-box; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid #dcdee2; border-radius: 12px; background: #feffff;">
+              <span role="status" style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; line-height: 16px; font-weight: 500; color: #5b5d63;"><sc-if value="{{ isSaved }}" hint-placeholder-val="{{ true }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M20 6 9 17l-5-5"/></svg></sc-if>{{ saveLabel }}</span>
+              <a href="ADM07-review-and-publish.dc.html" class="rk-primary" style="height: 32px; box-sizing: border-box; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #feffff; text-decoration: none;">Review &amp; publish</a>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="preview-title" style="flex: 1; min-width: 0; box-sizing: border-box; padding-top: 24px; display: flex; flex-direction: column; align-items: center; gap: 12px; background: #f0f2f5; overflow: hidden;">
+          <h2 id="preview-title" class="sr-only">Guest preview</h2>
+          <sc-if value="{{ single }}" hint-placeholder-val="{{ true }}">
+          <p style="margin: 0; font-size: 13px; line-height: 20px; color: #5b5d63; text-align: center;">Draft · Arrival · <span lang="{{ langCode }}">{{ langName }}</span></p>
+          <div style="position: relative; flex: none; width: 353px; height: 761.6px;">
+            <div role="img" tabindex="0" aria-label="{{ previewLabel }}" style="position: relative; width: 351px; height: 759.6px; border: 1px solid #b5b7bd; border-radius: 28.8px; overflow: hidden; background: #121614;">
+
+              <sc-if value="{{ isEn }}" hint-placeholder-val="{{ true }}">
+                <div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 390px; height: 844px; overflow: hidden; transform: scale(0.9); transform-origin: top left; background: #121614; color: #F2ECE1; font-family: 'Ysabeau Office', system-ui, sans-serif; font-size: 16px; line-height: 24px;">
+                  <div style="position: absolute; left: 0; top: 0; width: 390px; height: 232px; overflow: hidden; background: radial-gradient(120% 90% at 50% 38%, #26302B 0%, #121614 72%);">
+                    <svg width="390" height="232" viewBox="0 0 390 232" style="position: absolute; left: 0; top: 0;"><text x="195" y="195" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="176" fill="#000000" fill-opacity=".55">A</text><text x="195" y="197" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="176" fill="#EEF1EE" fill-opacity=".08">A</text><text x="195" y="196" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="176" fill="#1E2622">A</text></svg>
+                    <svg style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .05; mix-blend-mode: overlay;"><filter id="gA5"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"></feTurbulence><feColorMatrix type="saturate" values="0"></feColorMatrix></filter><rect width="100%" height="100%" filter="url(#gA5)"/></svg>
+                  </div>
+                  <p style="position: absolute; left: 24px; top: 0; height: 56px; margin: 0; display: flex; align-items: center; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 14px; line-height: 20px; letter-spacing: .28em; text-transform: uppercase; color: #F2ECE1;">Avela Resort</p>
+                  <div style="position: absolute; right: 24px; top: 6px; height: 44px; display: flex; align-items: center; font-weight: 600; font-size: 14px; line-height: 20px;">
+                    <span style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #F2ECE1; text-decoration: underline; text-decoration-color: #CDAE78; text-decoration-thickness: 1px; text-underline-offset: 6px;">EN</span>
+                    <span style="width: 1px; height: 14px; background: rgba(214,207,195,.4);"></span>
+                    <span lang="bg" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #D6CFC3;">БГ</span>
+                  </div>
+                  <p style="position: absolute; left: 24px; top: 248px; width: 342px; margin: 0; text-align: center; font-weight: 600; font-size: 12px; line-height: 16px; letter-spacing: .18em; text-transform: uppercase; color: #D9BE8C; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ previewEn }}</p>
+                  <p style="position: absolute; left: 24px; top: 276px; width: 342px; margin: 0; text-align: center; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 32px; line-height: 38px; letter-spacing: -0.005em; color: #F2ECE1;">How was your experience?</p>
+                  <div style="position: absolute; left: 35px; top: 334px; display: flex; gap: 10px;">
+                    <span style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8D8C85" stroke-width="1.1" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg></span>
+                    <span style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8D8C85" stroke-width="1.1" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg></span>
+                    <span style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8D8C85" stroke-width="1.1" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg></span>
+                    <span style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8D8C85" stroke-width="1.1" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg></span>
+                    <span style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8D8C85" stroke-width="1.1" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg></span>
+                  </div>
+                  <span style="position: absolute; left: 35px; top: 396px; font-size: 13px; line-height: 18px; color: #9D968A;">Poor</span>
+                  <span style="position: absolute; right: 35px; top: 396px; font-size: 13px; line-height: 18px; color: #9D968A;">Excellent</span>
+                  <div style="position: absolute; left: 24px; top: 462px; width: 342px; height: 52px; border-radius: 4px; background: #D4B57E; color: #121614; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 17px; line-height: 20px;">Send privately</div>
+                  <p style="position: absolute; left: 24px; top: 526px; width: 342px; margin: 0; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; line-height: 20px; color: #B8B0A3;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#CDAE78" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Shared privately with Avela Resort.</p>
+                  <div style="position: absolute; left: 24px; top: 578px; width: 342px; height: 1px; background: #363835;"></div>
+                  <p style="position: absolute; left: 24px; top: 594px; width: 342px; margin: 0; text-wrap: balance; font-size: 13px; line-height: 19px; color: #9D968A;">This page counts visits for Avela Resort. No ads or third-party trackers.</p>
+                  <div style="position: absolute; left: 24px; top: 636px; width: 342px; height: 44px; display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 14px; line-height: 20px; color: #D9BE8C;"><span style="text-decoration: underline; text-underline-offset: 3px;">Privacy notice</span><span style="width: 72px; height: 44px; display: flex; align-items: center; justify-content: flex-end;">Got it</span></div>
+                  <p style="position: absolute; left: 24px; top: 704px; width: 342px; margin: 0; text-align: center; font-size: 17px; line-height: 26px; color: #D6CFC3;">Stone, olive shade and water that keeps the last of the light. Thank you for spending part of your day with us.</p>
+                  <div style="position: absolute; left: 24px; top: 800px; width: 342px; height: 1px; background: #363835;"></div>
+                  <div style="position: absolute; left: 24px; top: 800px; width: 342px; height: 44px; display: flex; align-items: center; justify-content: space-between;"><span style="font-weight: 600; font-size: 13px; line-height: 18px; color: #D9BE8C; text-decoration: underline; text-underline-offset: 3px;">Privacy notice</span><span style="font-size: 12px; line-height: 16px; color: #9D968A;">Made with Reputation Key</span></div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ isBg }}" hint-placeholder-val="{{ false }}">
+                <div aria-hidden="true" lang="bg" style="position: absolute; left: 0; top: 0; width: 390px; height: 844px; overflow: hidden; transform: scale(0.9); transform-origin: top left; background: #121614; color: #F2ECE1; font-family: 'Ysabeau Office', system-ui, sans-serif; font-size: 16px; line-height: 24px;">
+                  <div style="position: absolute; left: 0; top: 0; width: 390px; height: 232px; overflow: hidden; background: radial-gradient(120% 90% at 50% 38%, #26302B 0%, #121614 72%);">
+                    <svg width="390" height="232" viewBox="0 0 390 232" style="position: absolute; left: 0; top: 0;"><text x="195" y="195" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="176" fill="#000000" fill-opacity=".55">A</text><text x="195" y="197" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="176" fill="#EEF1EE" fill-opacity=".08">A</text><text x="195" y="196" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="176" fill="#1E2622">A</text></svg>
+                    <svg style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .05; mix-blend-mode: overlay;"><filter id="gA5b"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"></feTurbulence><feColorMatrix type="saturate" values="0"></feColorMatrix></filter><rect width="100%" height="100%" filter="url(#gA5b)"/></svg>
+                  </div>
+                  <p lang="en" style="position: absolute; left: 24px; top: 0; height: 56px; margin: 0; display: flex; align-items: center; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 14px; line-height: 20px; letter-spacing: .28em; text-transform: uppercase; color: #F2ECE1;">Avela Resort</p>
+                  <div style="position: absolute; right: 24px; top: 6px; height: 44px; display: flex; align-items: center; font-weight: 600; font-size: 14px; line-height: 20px;">
+                    <span lang="en" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #D6CFC3;">EN</span>
+                    <span style="width: 1px; height: 14px; background: rgba(214,207,195,.4);"></span>
+                    <span style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #F2ECE1; text-decoration: underline; text-decoration-color: #CDAE78; text-decoration-thickness: 1px; text-underline-offset: 6px;">БГ</span>
+                  </div>
+                  <p style="position: absolute; left: 24px; top: 248px; width: 342px; margin: 0; text-align: center; font-weight: 600; font-size: 12px; line-height: 16px; letter-spacing: .18em; text-transform: uppercase; color: #D9BE8C;">Добре дошли в Avela Resort</p>
+                  <p style="position: absolute; left: 24px; top: 276px; width: 342px; margin: 0; text-align: center; text-wrap: balance; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 32px; line-height: 38px; letter-spacing: -0.005em; color: #F2ECE1;">Как беше преживяването ви?</p>
+                  <div style="position: absolute; left: 35px; top: 372px; display: flex; gap: 10px;">
+                    <span style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8D8C85" stroke-width="1.1" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg></span>
+                    <span style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8D8C85" stroke-width="1.1" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg></span>
+                    <span style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8D8C85" stroke-width="1.1" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg></span>
+                    <span style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8D8C85" stroke-width="1.1" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg></span>
+                    <span style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8D8C85" stroke-width="1.1" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg></span>
+                  </div>
+                  <span style="position: absolute; left: 35px; top: 434px; font-size: 13px; line-height: 18px; color: #9D968A;">Слабо</span>
+                  <span style="position: absolute; right: 35px; top: 434px; font-size: 13px; line-height: 18px; color: #9D968A;">Отлично</span>
+                  <div style="position: absolute; left: 24px; top: 500px; width: 342px; height: 52px; border-radius: 4px; background: #D4B57E; color: #121614; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 17px; line-height: 20px;">Изпрати поверително</div>
+                  <p style="position: absolute; left: 24px; top: 564px; width: 342px; margin: 0; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; line-height: 20px; color: #B8B0A3;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#CDAE78" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Споделя се поверително с Avela Resort.</p>
+                  <div style="position: absolute; left: 24px; top: 616px; width: 342px; height: 1px; background: #363835;"></div>
+                  <p style="position: absolute; left: 24px; top: 632px; width: 342px; margin: 0; text-wrap: balance; font-size: 13px; line-height: 19px; color: #9D968A;">Тази страница отчита посещенията за Avela Resort. Без реклами и без проследяване от трети страни.</p>
+                  <div style="position: absolute; left: 24px; top: 674px; width: 342px; height: 44px; display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 14px; line-height: 20px; color: #D9BE8C;"><span style="text-decoration: underline; text-underline-offset: 3px;">Поверителност</span><span style="width: 72px; height: 44px; display: flex; align-items: center; justify-content: flex-end;">Разбрах</span></div>
+                  <p style="position: absolute; left: 24px; top: 742px; width: 342px; margin: 0; text-align: center; font-size: 17px; line-height: 26px; color: #D6CFC3;">Камък, маслинова сянка и вода, която пази последната светлина. Благодарим ви, че прекарахте част от деня си при нас.</p>
+                  <div style="position: absolute; left: 24px; top: 838px; width: 342px; height: 1px; background: #363835;"></div>
+                  <div style="position: absolute; left: 24px; top: 838px; width: 342px; height: 44px; display: flex; align-items: center; justify-content: space-between;"><span style="font-weight: 600; font-size: 13px; line-height: 18px; color: #D9BE8C; text-decoration: underline; text-underline-offset: 3px;">Поверителност</span><span lang="en" style="font-size: 12px; line-height: 16px; color: #9D968A;">Made with Reputation Key</span></div>
+                </div>
+              </sc-if>
+
+            </div>
+            <sc-if value="{{ sel.show }}" hint-placeholder-val="{{ true }}">
+              <div aria-hidden="true" style="position: absolute; left: {{ sel.left }}px; top: {{ sel.top }}px; width: {{ sel.width }}px; height: {{ sel.height }}px; box-sizing: border-box; border: 2px solid #7b65d1; border-radius: 4px; pointer-events: none;"></div>
+              <span aria-hidden="true" style="position: absolute; left: {{ sel.left }}px; top: {{ sel.tagTop }}px; padding: 2px 6px; border-radius: 4px; background: #512da6; color: #feffff; font-size: 12px; line-height: 16px; font-weight: 500; white-space: nowrap; pointer-events: none;">{{ sel.tag }}</span>
+            </sc-if>
+          </div>
+          </sc-if>
+          <sc-if value="{{ pair }}" hint-placeholder-val="{{ false }}">
+          <p style="margin: 0; font-size: 13px; line-height: 20px; color: #5b5d63; text-align: center;">Draft · After rating · 1<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display: inline-block; vertical-align: -1px; margin-left: 1px;"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> star</span> and 5<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display: inline-block; vertical-align: -1px; margin-left: 1px;"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> stars</span> · English</p>
+          <figure style="margin: 0; display: flex; flex-direction: column; align-items: center;">
+            <div style="width: 691px; display: flex; gap: 24px;">
+              <p style="margin: 0; width: 333.5px; flex: none; text-align: center; font-size: 13px; line-height: 20px; color: #101115;"><span style="font-weight: 500;">1<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display: inline-block; vertical-align: -1px; margin-left: 1px;"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> star,</span> Poor</span><span style="color: #5b5d63;"> · draft</span></p>
+              <p style="margin: 0; width: 333.5px; flex: none; text-align: center; font-size: 13px; line-height: 20px; color: #101115;"><span style="font-weight: 500;">5<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display: inline-block; vertical-align: -1px; margin-left: 1px;"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg><span class="sr-only"> stars,</span> Excellent</span><span style="color: #5b5d63;"> · draft</span></p>
+            </div>
+            <div style="margin-top: 8px;">
+              <div style="position: relative; width: 691px; display: flex; gap: 24px;">
+                <div style="position: relative; width: 333.5px; height: 719.4px; flex: none;">
+                  <div role="img" tabindex="0" aria-label="{{ pairLbl1 }}" style="position: relative; width: 331.5px; height: 717.4px; border: 1px solid #b5b7bd; border-radius: 27.2px; overflow: hidden; background: #121614;">
+                    <div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 390px; height: 844px; overflow: hidden; transform: scale(0.85); transform-origin: top left; background: #121614; color: #F2ECE1; font-family: 'Ysabeau Office', system-ui, sans-serif; font-size: 16px; line-height: 24px;">
+                      <div style="position: absolute; left: 0; top: 0; width: 390px; height: 232px; overflow: hidden; background: radial-gradient(120% 90% at 50% 38%, #26302B 0%, #121614 72%);">
+                        <svg width="390" height="232" viewBox="0 0 390 232" style="position: absolute; left: 0; top: 0;"><text x="195" y="195" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="176" fill="#000000" fill-opacity=".55">A</text><text x="195" y="197" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="176" fill="#EEF1EE" fill-opacity=".08">A</text><text x="195" y="196" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="176" fill="#1E2622">A</text></svg>
+                        <svg style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .05; mix-blend-mode: overlay;"><filter id="gA5L"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"></feTurbulence><feColorMatrix type="saturate" values="0"></feColorMatrix></filter><rect width="100%" height="100%" filter="url(#gA5L)"/></svg>
+                      </div>
+                      <p style="position: absolute; left: 24px; top: 0; height: 56px; margin: 0; display: flex; align-items: center; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 14px; line-height: 20px; letter-spacing: .28em; text-transform: uppercase; color: #F2ECE1;">Avela Resort</p>
+                      <div style="position: absolute; right: 24px; top: 6px; height: 44px; display: flex; align-items: center; font-weight: 600; font-size: 14px; line-height: 20px;">
+                        <span style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #F2ECE1; text-decoration: underline; text-decoration-color: #CDAE78; text-decoration-thickness: 1px; text-underline-offset: 6px;">EN</span>
+                        <span style="width: 1px; height: 14px; background: rgba(214,207,195,.4);"></span>
+                        <span lang="bg" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #D6CFC3;">БГ</span>
+                      </div>
+                      <p style="position: absolute; left: 24px; top: 248px; width: 342px; margin: 0; text-align: center; font-weight: 600; font-size: 12px; line-height: 16px; letter-spacing: .18em; text-transform: uppercase; color: #D9BE8C; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ previewEn }}</p>
+                      <p style="position: absolute; left: 24px; top: 276px; width: 342px; margin: 0; text-align: center; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 32px; line-height: 38px; color: #F2ECE1;">Thank you.</p>
+                      <div style="position: absolute; left: 24px; top: 326px; width: 342px; height: 44px; display: flex; align-items: center; justify-content: center; gap: 12px;">
+                        <span style="display: flex; gap: 3px;">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="#CDAE78" stroke="#CDAE78" stroke-width="1.4" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8D8C85" stroke-width="1.4" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8D8C85" stroke-width="1.4" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8D8C85" stroke-width="1.4" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8D8C85" stroke-width="1.4" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg>
+                        </span>
+                        <span style="font-size: 15px; line-height: 20px; color: #B8B0A3; white-space: nowrap;">Poor · sent privately</span>
+                        <span style="font-weight: 600; font-size: 15px; line-height: 20px; color: #D9BE8C; text-decoration: underline; text-underline-offset: 3px;">Change</span>
+                      </div>
+                      <div style="position: absolute; left: 24px; top: 394px; width: 342px; height: 264px; box-sizing: border-box; padding: 24px; background: #1A1F1C; border: 1px solid #363835; border-radius: 4px;">
+                        <p style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 24px; line-height: 30px; color: #F2ECE1;">Share your experience on Google</p>
+                        <p style="margin: 8px 0 0; font-size: 16px; line-height: 24px; color: #B8B0A3;">If you’d like, you can also leave a public review on Google.</p>
+                        <div style="margin-top: 20px; height: 52px; border-radius: 4px; background: #D4B57E; color: #121614; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size: 17px; line-height: 20px;">Continue to Google<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#121614" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></div>
+                        <p style="margin: 10px 0 0; text-align: center; font-size: 13px; line-height: 18px; color: #9D968A;">Opens Google · you may need to sign in</p>
+                      </div>
+                      <div style="position: absolute; left: 24px; top: 674px; width: 342px; height: 192px; box-sizing: border-box; padding: 24px; border: 1px solid #363835; border-radius: 4px;">
+                        <p style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 22px; line-height: 28px; color: #F2ECE1;">Add a private note for the team</p>
+                        <p style="margin: 8px 0 0; font-size: 15px; line-height: 22px; color: #B8B0A3;">Optional. Shared privately with Avela Resort.</p>
+                        <div style="margin-top: 16px; height: 48px; box-sizing: border-box; border: 1px solid #CDAE78; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size: 16px; line-height: 20px; color: #D9BE8C;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#CDAE78" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg>Write a private note</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div aria-hidden="true" style="position: absolute; left: 17.4px; top: 570px; width: 298.7px; height: 136px; box-sizing: border-box; border: 1px dashed #edcb85; border-bottom: 0; border-radius: 4px 4px 0 0; pointer-events: none;"></div>
+                  <span aria-hidden="true" style="position: absolute; top: 574px; right: 21.4px; padding: 2px 6px; border-radius: 4px; background: #fff6dd; color: #a45f00; font-size: 12px; line-height: 16px; font-weight: 500; white-space: nowrap; pointer-events: none;">Added at 3<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display: inline-block; vertical-align: -1px; margin-left: 1px;"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg> or below · this portal’s setting</span>
+                </div>
+                <div style="position: relative; width: 333.5px; height: 719.4px; flex: none;">
+                  <div role="img" tabindex="0" aria-label="{{ pairLbl5 }}" style="position: relative; width: 331.5px; height: 717.4px; border: 1px solid #b5b7bd; border-radius: 27.2px; overflow: hidden; background: #121614;">
+                    <div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 390px; height: 844px; overflow: hidden; transform: scale(0.85); transform-origin: top left; background: #121614; color: #F2ECE1; font-family: 'Ysabeau Office', system-ui, sans-serif; font-size: 16px; line-height: 24px;">
+                      <div style="position: absolute; left: 0; top: 0; width: 390px; height: 232px; overflow: hidden; background: radial-gradient(120% 90% at 50% 38%, #26302B 0%, #121614 72%);">
+                        <svg width="390" height="232" viewBox="0 0 390 232" style="position: absolute; left: 0; top: 0;"><text x="195" y="195" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="176" fill="#000000" fill-opacity=".55">A</text><text x="195" y="197" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="176" fill="#EEF1EE" fill-opacity=".08">A</text><text x="195" y="196" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-weight="600" font-size="176" fill="#1E2622">A</text></svg>
+                        <svg style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .05; mix-blend-mode: overlay;"><filter id="gA5R"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"></feTurbulence><feColorMatrix type="saturate" values="0"></feColorMatrix></filter><rect width="100%" height="100%" filter="url(#gA5R)"/></svg>
+                      </div>
+                      <p style="position: absolute; left: 24px; top: 0; height: 56px; margin: 0; display: flex; align-items: center; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 14px; line-height: 20px; letter-spacing: .28em; text-transform: uppercase; color: #F2ECE1;">Avela Resort</p>
+                      <div style="position: absolute; right: 24px; top: 6px; height: 44px; display: flex; align-items: center; font-weight: 600; font-size: 14px; line-height: 20px;">
+                        <span style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #F2ECE1; text-decoration: underline; text-decoration-color: #CDAE78; text-decoration-thickness: 1px; text-underline-offset: 6px;">EN</span>
+                        <span style="width: 1px; height: 14px; background: rgba(214,207,195,.4);"></span>
+                        <span lang="bg" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #D6CFC3;">БГ</span>
+                      </div>
+                      <p style="position: absolute; left: 24px; top: 248px; width: 342px; margin: 0; text-align: center; font-weight: 600; font-size: 12px; line-height: 16px; letter-spacing: .18em; text-transform: uppercase; color: #D9BE8C; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ previewEn }}</p>
+                      <p style="position: absolute; left: 24px; top: 276px; width: 342px; margin: 0; text-align: center; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 32px; line-height: 38px; color: #F2ECE1;">Thank you.</p>
+                      <div style="position: absolute; left: 24px; top: 326px; width: 342px; height: 44px; display: flex; align-items: center; justify-content: center; gap: 12px;">
+                        <span style="display: flex; gap: 3px;">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="#CDAE78" stroke="#CDAE78" stroke-width="1.4" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="#CDAE78" stroke="#CDAE78" stroke-width="1.4" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="#CDAE78" stroke="#CDAE78" stroke-width="1.4" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="#CDAE78" stroke="#CDAE78" stroke-width="1.4" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="#CDAE78" stroke="#CDAE78" stroke-width="1.4" stroke-linejoin="round"><path d="M12 2.6l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.5l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95z"/></svg>
+                        </span>
+                        <span style="font-size: 15px; line-height: 20px; color: #B8B0A3; white-space: nowrap;">Excellent · sent privately</span>
+                        <span style="font-weight: 600; font-size: 15px; line-height: 20px; color: #D9BE8C; text-decoration: underline; text-underline-offset: 3px;">Change</span>
+                      </div>
+                      <div style="position: absolute; left: 24px; top: 394px; width: 342px; height: 264px; box-sizing: border-box; padding: 24px; background: #1A1F1C; border: 1px solid #363835; border-radius: 4px;">
+                        <p style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 24px; line-height: 30px; color: #F2ECE1;">Share your experience on Google</p>
+                        <p style="margin: 8px 0 0; font-size: 16px; line-height: 24px; color: #B8B0A3;">If you’d like, you can also leave a public review on Google.</p>
+                        <div style="margin-top: 20px; height: 52px; border-radius: 4px; background: #D4B57E; color: #121614; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size: 17px; line-height: 20px;">Continue to Google<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#121614" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></div>
+                        <p style="margin: 10px 0 0; text-align: center; font-size: 13px; line-height: 18px; color: #9D968A;">Opens Google · you may need to sign in</p>
+                      </div>
+                      <div style="position: absolute; left: 24px; top: 682px; width: 342px; height: 56px; box-sizing: border-box; border-top: 1px solid #363835; border-bottom: 1px solid #363835; display: flex; align-items: center; justify-content: space-between;">
+                        <span style="display: flex; flex-direction: column;"><span style="font-weight: 600; font-size: 16px; line-height: 20px; color: #F2ECE1;">Your response</span><span style="font-size: 13px; line-height: 18px; color: #9D968A;">Change, remove or start over</span></span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#CDAE78" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                      </div>
+                      <p style="position: absolute; left: 24px; top: 770px; width: 342px; margin: 0; text-align: center; font-size: 17px; line-height: 26px; color: #D6CFC3;">Stone, olive shade and water that keeps the last of the light. Thank you for spending part of your day with us.</p>
+                    </div>
+                  </div>
+                </div>
+                <div aria-hidden="true" style="position: absolute; left: 0; right: 0; top: 336px; height: 0; border-top: 1px dashed #6a6b6f; pointer-events: none;"></div>
+              </div>
+            </div>
+            <figcaption style="margin-top: 14px; text-align: center; font-size: 14px; line-height: 20px; color: #5b5d63;">Same Google action for every rating.</figcaption>
+          </figure>
+          </sc-if>
+        </section>
+
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1024}}'>
+class Component extends DCLogic {
+  componentWillUnmount() {
+    if (this._saveTimer) clearTimeout(this._saveTimer);
+    if (this._previewTimer) clearTimeout(this._previewTimer);
+  }
+  currentOpen() {
+    var s = this.state || {};
+    return s.open !== undefined ? s.open : 'welcome';
+  }
+  toggleSection(id) {
+    this.setState({ open: this.currentOpen() === id ? '' : id });
+  }
+  typeWelcome(value) {
+    var self = this;
+    if (this._saveTimer) clearTimeout(this._saveTimer);
+    if (this._previewTimer) clearTimeout(this._previewTimer);
+    this.setState({ welcomeEn: value, saving: true });
+    this._previewTimer = setTimeout(function () { self.setState({ previewEn: value }); }, 300);
+    this._saveTimer = setTimeout(function () { self.setState({ saving: false }); }, 800);
+  }
+  rove(e) {
+    var key = e.key;
+    if (key !== 'ArrowRight' && key !== 'ArrowLeft' && key !== 'ArrowDown' && key !== 'ArrowUp') return;
+    e.preventDefault();
+    var items = Array.prototype.slice.call(e.currentTarget.parentNode.querySelectorAll('[role="radio"]'));
+    var step = key === 'ArrowRight' || key === 'ArrowDown' ? 1 : -1;
+    var next = items[(items.indexOf(e.currentTarget) + step + items.length) % items.length];
+    if (next) { next.focus(); next.click(); }
+  }
+  renderVals() {
+    var self = this;
+    var s = this.state || {};
+    var open = this.currentOpen();
+    var lang = s.lang || 'en';
+    var isEn = lang === 'en';
+    var welcomeEn = s.welcomeEn !== undefined ? s.welcomeEn : 'Pool bar';
+    var previewRaw = s.previewEn !== undefined ? s.previewEn : welcomeEn;
+    var typed = welcomeEn.trim();
+    var previewTyped = previewRaw.trim();
+    var PROPERTY_EN = 'Welcome';
+    var SCALE = 0.9;
+    var showPair = open === 'rating' && isEn;
+
+    function round(n) { return Math.round(n * 10) / 10; }
+    function section(id) {
+      var isOpen = open === id;
+      return {
+        open: isOpen,
+        cls: isOpen ? 'rk-rowbtn' : 'rk-tile rk-rowbtn',
+        fill: isOpen ? 'background: #e7e4ff;' : '',
+        turn: isOpen ? 'rotate(180deg)' : 'none',
+        toggle: function () { self.toggleSection(id); }
+      };
+    }
+    function region(gx, gy, gw, gh, tag, tagBelow) {
+      var left = 1 + gx * SCALE - 6;
+      var top = 1 + gy * SCALE - 6;
+      var width = gw * SCALE + 12;
+      var height = gh * SCALE + 12;
+      return {
+        show: true,
+        left: round(left),
+        top: round(top),
+        width: round(width),
+        height: round(height),
+        tagTop: round(tagBelow ? top + height + 2 : top - 22),
+        tag: tag
+      };
+    }
+    function tab(code) {
+      var on = lang === code;
+      return {
+        selected: on,
+        tab: on ? '0' : '-1',
+        look: on ? 'background: #feffff; box-shadow: 0 0 0 1px #85878d, 0 1px 2px rgba(0,0,0,.1); font-weight: 500; color: #101115;' : 'background: transparent; box-shadow: none; font-weight: 400; color: #5b5d63;',
+        pick: function () { self.setState({ lang: code }); }
+      };
+    }
+
+    // In English the Rating section shows the 1-star / 5-star pair instead of an outline;
+    // the Bulgarian arrival keeps the outline, with its tag below so it clears the h1.
+    var selections = {
+      welcome: region(24, 248, 342, 16, 'Welcome', false),
+      rating: region(24, 276, 342, 308, 'Rating and Google', true),
+      languages: region(277, 6, 89, 44, 'Languages', true)
+    };
+    var none = { show: false, left: 0, top: 0, width: 0, height: 0, tagTop: 0, tag: '' };
+    var sel = showPair ? none : (selections[open] || none);
+
+    return {
+      look: section('look'),
+      welcome: section('welcome'),
+      rating: section('rating'),
+      links: section('links'),
+      languages: section('languages'),
+      place: section('place'),
+      placeEdge: open === 'place' ? 'border-bottom: 1px solid #dcdee2;' : '',
+      isEn: isEn,
+      isBg: !isEn,
+      single: !showPair,
+      pair: showPair,
+      tabEn: tab('en'),
+      tabBg: tab('bg'),
+      rove: function (e) { self.rove(e); },
+      welcomeEn: welcomeEn,
+      welcomeCount: welcomeEn.length,
+      welcomeSummary: typed ? typed + ' · Bulgarian uses property wording' : 'Property wording in both languages',
+      welcomeQuoted: '‘' + (typed || PROPERTY_EN) + '’',
+      previewEn: previewTyped || PROPERTY_EN,
+      onWelcomeInput: function (e) { self.typeWelcome(e && e.target ? e.target.value : ''); },
+      isSaved: !s.saving,
+      saveLabel: s.saving ? 'Saving…' : 'Draft saved · just now',
+      langCode: isEn ? 'en' : 'bg',
+      langName: isEn ? 'English' : 'Български',
+      previewLabel: 'Guest preview: Pool bar, draft, arrival, ' + (isEn ? 'English' : 'Bulgarian') + (sel.show ? '. ' + sel.tag + ' is selected.' : ''),
+      pairLbl1: 'Guest preview: Pool bar, draft, after a 1-star rating, English. The Google card is the same as after 5 stars. The private-note card is added at 3 stars or below.',
+      pairLbl5: 'Guest preview: Pool bar, draft, after a 5-star rating, English. The Google card is the same as after 1 star.',
+      sel: sel
+    };
+  }
+}
+</script>
+</body>
+</html>
