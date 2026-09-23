@@ -128,7 +128,11 @@ describe('Portal Health notification durable consumer', () => {
           resourceType: 'portal',
           resourceId: IDS.portal,
           eventId: IDS.event,
-          payload: { propertyName: 'Riverside Hotel' },
+          payload: {
+            propertyName: 'Riverside Hotel',
+            portalHealthStatus: 'degraded',
+            portalHealthReason: 'google_destination_unavailable',
+          },
           audience: {
             kind: 'portal_health',
             portalId: IDS.portal,

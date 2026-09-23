@@ -105,7 +105,14 @@ export async function handleNotificationPortalHealthChanged(
           resourceType: 'portal' as const,
           resourceId: portal,
           eventId: event.eventId,
-          payload: where,
+          // Both facts are closed enums the event already carries. Without
+          // them the notice could only say a portal "may need attention",
+          // which is true of every cause and useful for none.
+          payload: {
+            ...where,
+            portalHealthStatus: payload.status,
+            portalHealthReason: payload.reason,
+          },
           audience: {
             kind: 'portal_health' as const,
             portalId: portal,

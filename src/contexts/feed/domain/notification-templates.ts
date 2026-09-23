@@ -27,6 +27,8 @@ import { SUPPORT_EMAIL } from '#/shared/domain/support-contact'
 import type {
   NotificationActorRole,
   NotificationPayload,
+  NotificationPortalHealthReason,
+  NotificationPortalHealthStatus,
   NotificationReopenReason,
 } from './notification-payload'
 import type { NotificationResourceType, NotificationType } from './notification-types'
@@ -467,12 +469,45 @@ const renderPortalResponsibilityNeeded = (
   summary: factsAt(p, 'responsible manager needed'),
 })
 
-const renderPortalHealthAttention = (p: NotificationPayload): RenderedNotification => ({
-  title: `A guest portal${atProperty(p)} may need attention`,
-  body: 'Open its settings to see what changed and what to do next.',
-  actionLabel: 'Review portal',
-  summary: factsAt(p, 'Portal may need attention'),
-})
+/**
+ * What is actually wrong, and the remedy. The notice used to say only that a
+ * portal "may need attention", so every cause read the same and the reader had
+ * to open the Portal to learn whether guests could reach it at all.
+ */
+const PORTAL_HEALTH_BODIES: Record<NotificationPortalHealthReason, string> = {
+  publication_snapshot_unavailable:
+    'Its published version is missing, so guests cannot load it. Publish it again.',
+  public_address_unavailable:
+    'Its web address no longer resolves, so guests cannot reach it. Check the address.',
+  google_destination_unavailable:
+    'Its Google review destination is gone, so the Google step is broken. Choose another.',
+}
+
+/** `unavailable` means guests cannot use it at all; `degraded` means partly. */
+const PORTAL_HEALTH_TITLES: Record<NotificationPortalHealthStatus, string> = {
+  unavailable: 'Guest portal is offline',
+  degraded: 'Guest portal needs attention',
+}
+
+const renderPortalHealthAttention = (p: NotificationPayload): RenderedNotification => {
+  const status = p.portalHealthStatus
+  const reason = p.portalHealthReason
+  return {
+    title:
+      status === undefined
+        ? `A guest portal${atProperty(p)} may need attention`
+        : `${PORTAL_HEALTH_TITLES[status]}${atProperty(p)}`,
+    body:
+      reason === undefined
+        ? 'Open its settings to see what changed and what to do next.'
+        : PORTAL_HEALTH_BODIES[reason],
+    actionLabel: 'Review portal',
+    summary: factsAt(
+      p,
+      status === undefined ? 'Portal may need attention' : PORTAL_HEALTH_TITLES[status],
+    ),
+  }
+}
 
 const renderPropertyResponsibilityNeeded = (
   p: NotificationPayload,

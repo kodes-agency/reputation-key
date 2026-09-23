@@ -115,10 +115,30 @@ export type NotificationPayload = Readonly<{
    * in Inbox.
    */
   reopenReason?: NotificationReopenReason
+  /**
+   * What is wrong with a Portal (`portal.health_attention` only): the derived
+   * health status and the closed reason that produced it. Both, because the
+   * status still shapes the title when a later reason has no sentence yet.
+   */
+  portalHealthStatus?: NotificationPortalHealthStatus
+  portalHealthReason?: NotificationPortalHealthReason
 }>
 
 export type NotificationPublicationCancellationCause =
   'disconnect' | 'policy' | 'source_changed' | 'provider_truth'
+
+/** A Portal health state that asks for attention; `healthy` never notifies. */
+export type NotificationPortalHealthStatus = 'degraded' | 'unavailable'
+
+/**
+ * The Portal health causes that raise a notice: the automatic states with a
+ * concrete recovery action. Intentional publication states and recovery are
+ * receipt-only and never reach a payload.
+ */
+export type NotificationPortalHealthReason =
+  | 'publication_snapshot_unavailable'
+  | 'public_address_unavailable'
+  | 'google_destination_unavailable'
 
 /**
  * The governed causes `inbox.handling_cycle.reopened` carries: five a manager
@@ -171,6 +191,17 @@ const PUBLICATION_CANCELLATION_CAUSES: Record<string, true> = {
   policy: true,
   source_changed: true,
   provider_truth: true,
+}
+
+const PORTAL_HEALTH_STATUSES: Record<string, true> = {
+  degraded: true,
+  unavailable: true,
+}
+
+const PORTAL_HEALTH_REASONS: Record<string, true> = {
+  publication_snapshot_unavailable: true,
+  public_address_unavailable: true,
+  google_destination_unavailable: true,
 }
 
 const REOPEN_REASONS: Record<string, true> = {
@@ -294,6 +325,20 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   set(
     'reopenReason',
     takeMember<NotificationReopenReason>(raw.reopenReason, REOPEN_REASONS),
+  )
+  set(
+    'portalHealthStatus',
+    takeMember<NotificationPortalHealthStatus>(
+      raw.portalHealthStatus,
+      PORTAL_HEALTH_STATUSES,
+    ),
+  )
+  set(
+    'portalHealthReason',
+    takeMember<NotificationPortalHealthReason>(
+      raw.portalHealthReason,
+      PORTAL_HEALTH_REASONS,
+    ),
   )
 
   return parsed as NotificationPayload

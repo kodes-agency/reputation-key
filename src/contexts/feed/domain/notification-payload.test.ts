@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest'
 import {
   isEmptyNotificationPayload,
   parseNotificationPayload,
+  type NotificationPayload,
 } from './notification-payload'
 
 describe('parseNotificationPayload', () => {
@@ -44,6 +45,66 @@ describe('parseNotificationPayload', () => {
     expect(
       parseNotificationPayload({ reopenReason: 'the guest phoned reception' }),
     ).toEqual({})
+  })
+
+  it('keeps the Portal health facts only for the states that raise a notice', () => {
+    expect(
+      parseNotificationPayload({
+        portalHealthStatus: 'unavailable',
+        portalHealthReason: 'public_address_unavailable',
+      }),
+    ).toEqual({
+      portalHealthStatus: 'unavailable',
+      portalHealthReason: 'public_address_unavailable',
+    })
+    // `healthy`/`operational` never notify, so they are not admitted either.
+    expect(
+      parseNotificationPayload({
+        portalHealthStatus: 'healthy',
+        portalHealthReason: 'operational',
+      }),
+    ).toEqual({})
+  })
+
+  /**
+   * Both directions of the allowlist in one fixture. `Required<…>` makes the
+   * compiler name any field added to the payload type, and the round trip
+   * proves the parser admits it: a field declared but never `set()` is
+   * dropped at the boundary and its copy silently degrades everywhere. That
+   * is exactly how `portalHealthStatus` shipped unparsed once.
+   */
+  it('parses every field the payload type declares', () => {
+    const everyField: Required<NotificationPayload> = {
+      propertyName: 'Riverside Hotel',
+      organizationName: 'Riverside Group',
+      guestRating: 2,
+      platform: 'portal',
+      waitingHours: 27,
+      waitingSince: '2026-09-20T08:00:00.000Z',
+      waitedHours: 4,
+      actorRole: 'property_manager',
+      moderationReason: 'Tone is too defensive.',
+      hasModerationReason: true,
+      publishOutcome: 'refused',
+      goalName: 'Lobby QR scans',
+      occurrences: 3,
+      itemCount: 4,
+      reportOutcome: 'accepted',
+      reauthorizationCause: 'provider_revoked',
+      publishFailureCause: 'google_reauthorization_required',
+      reopenReason: 'provider_reply_deleted',
+      portalHealthStatus: 'unavailable',
+      portalHealthReason: 'public_address_unavailable',
+    }
+
+    const parsed = parseNotificationPayload(everyField)
+
+    // `waitedHours` is projected at read time, never parsed from storage.
+    expect(Object.keys(parsed).sort()).toEqual(
+      Object.keys(everyField)
+        .filter((key) => key !== 'waitedHours')
+        .sort(),
+    )
   })
 
   // The whole point of the allowlist. If this test ever goes green with

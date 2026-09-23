@@ -234,6 +234,46 @@ describe('renderNotification — the copy that was broken', () => {
     ).toBe(body)
   })
 
+  it.each([
+    [
+      'publication_snapshot_unavailable',
+      'unavailable',
+      'Guest portal is offline at Riverside Hotel',
+      'Its published version is missing, so guests cannot load it.',
+    ],
+    [
+      'public_address_unavailable',
+      'unavailable',
+      'Guest portal is offline at Riverside Hotel',
+      'Its web address no longer resolves, so guests cannot reach it.',
+    ],
+    [
+      'google_destination_unavailable',
+      'degraded',
+      'Guest portal needs attention at Riverside Hotel',
+      'Its Google review destination is gone, so the Google step is broken.',
+    ],
+  ] as const)(
+    'says what is actually wrong with a portal (%s)',
+    (portalHealthReason, portalHealthStatus, title, opening) => {
+      const rendered = renderNotification('portal.health_attention', {
+        propertyName: 'Riverside Hotel',
+        portalHealthStatus,
+        portalHealthReason,
+      })
+
+      expect(rendered.title).toBe(title)
+      expect(rendered.body.startsWith(opening)).toBe(true)
+      expect(rendered.body).not.toContain('may need attention')
+    },
+  )
+
+  it('falls back to the vague portal notice only when the health fact is missing', () => {
+    expect(renderNotification('portal.health_attention', {}).title).toBe(
+      'A guest portal may need attention',
+    )
+  })
+
   it('still reads correctly when the reopen fact named no usable reason', () => {
     expect(
       renderNotification('inbox.reopened', {
