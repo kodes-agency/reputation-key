@@ -45,6 +45,7 @@ const makeDeps = (): Deps => {
     userLookup: fakes.userLookup,
     responsibleManagers: fakes.responsibleManagers,
     inboxItemLookup: fakes.inboxItemLookup,
+    replyApproval: fakes.replyApproval,
     clock: fakes.clock,
     logger: fakes.logger,
     receipts: { insertReceipt: vi.fn(async () => {}) },
@@ -75,6 +76,12 @@ const event = (
   correlationId: 'correlation-1',
   ...overrides,
 })
+
+const recipientsOf = (deps: Deps) =>
+  deps.fakes.jobs.map((job) => (job.data as { userId: string }).userId)
+
+const audienceOf = (deps: Deps) =>
+  (deps.fakes.jobs[0]!.data as InsertNotificationJobData).audience
 
 describe('durable workflow notification consumers', () => {
   beforeEach(() => {
@@ -268,9 +275,6 @@ describe('durable workflow notification consumers', () => {
   })
 
   describe('never tells a person about their own action', () => {
-    const recipientsOf = (deps: Deps) =>
-      deps.fakes.jobs.map((job) => (job.data as { userId: string }).userId)
-
     it('skips the notice when a manager assigns the item to themselves', async () => {
       const deps = makeDeps()
 
@@ -310,6 +314,9 @@ describe('durable workflow notification consumers', () => {
       'tells the other AccountAdmins, not the admin who acted, about $eventType',
       async ({ eventType, payload }) => {
         const deps = makeDeps()
+        // The AccountAdmin fallback: the Property has no responsible manager
+        // who could take either notice, so both fall through to the admins.
+        deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([])
         deps.fakes.userLookup.findByRole.mockResolvedValue([
           NOTIF_TEST_IDS.admin1,
           NOTIF_TEST_IDS.admin2,
@@ -349,6 +356,153 @@ describe('durable workflow notification consumers', () => {
         expect(deps.fakes.jobs).toEqual([])
       },
     )
+  })
+
+  // I5.3: an approval request used to go to every AccountAdmin in the
+  // Organization, while the Property's responsible managers — who hold
+  // reply.manage and could approve — were never asked.
+  describe('who is asked to approve a reply', () => {
+    const submitted = (submitterId: string) =>
+      event('review.reply.submitted', {
+        replyId: unbrand(NOTIF_TEST_IDS.replyId),
+        reviewId: unbrand(NOTIF_TEST_IDS.reviewId),
+        userId: submitterId,
+        source: 'web',
+      })
+
+    it('asks the responsible managers who may approve, not every admin', async () => {
+      const deps = makeDeps()
+      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
+        NOTIF_TEST_IDS.manager1,
+        NOTIF_TEST_IDS.manager2,
+      ])
+      deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
+
+      await handleWorkflowNotificationEvent(deps, submitted(NOTIF_TEST_IDS.submitter))
+
+      expect(recipientsOf(deps)).toEqual([
+        NOTIF_TEST_IDS.manager1,
+        NOTIF_TEST_IDS.manager2,
+      ])
+      expect(audienceOf(deps)).toEqual({
+        kind: 'reply_approver',
+        propertyId: unbrand(NOTIF_TEST_IDS.propId),
+      })
+    })
+
+    it('leaves out a responsible manager who may not approve replies', async () => {
+      const deps = makeDeps()
+      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
+        NOTIF_TEST_IDS.manager1,
+        NOTIF_TEST_IDS.manager2,
+      ])
+      deps.fakes.replyApproval.canApproveReplies.mockImplementation(
+        async (_org: string, _property: string, candidate: string) =>
+          candidate === NOTIF_TEST_IDS.manager2,
+      )
+
+      await handleWorkflowNotificationEvent(deps, submitted(NOTIF_TEST_IDS.submitter))
+
+      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.manager2])
+    })
+
+    it('falls back to the AccountAdmins when no responsible manager may approve', async () => {
+      const deps = makeDeps()
+      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
+        NOTIF_TEST_IDS.manager1,
+      ])
+      deps.fakes.replyApproval.canApproveReplies.mockResolvedValue(false)
+      deps.fakes.userLookup.findByRole.mockResolvedValue([
+        NOTIF_TEST_IDS.admin1,
+        NOTIF_TEST_IDS.admin2,
+      ])
+
+      await handleWorkflowNotificationEvent(deps, submitted(NOTIF_TEST_IDS.submitter))
+
+      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.admin1, NOTIF_TEST_IDS.admin2])
+      expect(audienceOf(deps)).toEqual({ kind: 'account_admin' })
+    })
+
+    it('never asks the submitter, even when they are the only approver', async () => {
+      const deps = makeDeps()
+      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
+        NOTIF_TEST_IDS.manager1,
+      ])
+      deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
+
+      await handleWorkflowNotificationEvent(deps, submitted(NOTIF_TEST_IDS.manager1))
+
+      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.admin1])
+    })
+  })
+
+  // The same rule for escalations: the Property's or Portal's responsible
+  // scope first, AccountAdmins only when it has nobody.
+  describe('who hears that an item was escalated', () => {
+    const escalated = (actorId: string) =>
+      event('inbox.inbox_item.escalated', {
+        inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+        userId: actorId,
+        source: 'web',
+      })
+
+    it('tells the Property responsible managers rather than every admin', async () => {
+      const deps = makeDeps()
+      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
+        NOTIF_TEST_IDS.manager1,
+      ])
+      deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
+
+      await handleWorkflowNotificationEvent(deps, escalated(NOTIF_TEST_IDS.submitter))
+
+      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.manager1])
+      expect(audienceOf(deps)).toEqual({
+        kind: 'responsible_scope',
+        scope: { kind: 'property', propertyId: unbrand(NOTIF_TEST_IDS.propId) },
+      })
+    })
+
+    it('tells the Portal responsible managers when the item is private feedback', async () => {
+      const deps = makeDeps()
+      deps.fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
+        propertyId: unbrand(NOTIF_TEST_IDS.propId),
+        portalId: 'portal-1',
+        assignedTo: null,
+        propertyName: 'Riverside Hotel',
+        guestRating: null,
+        sourceType: 'feedback',
+        createdAt: NOTIF_TEST_IDS.now,
+      })
+      deps.fakes.responsibleManagers.findForPortal.mockResolvedValue([
+        NOTIF_TEST_IDS.manager2,
+      ])
+
+      await handleWorkflowNotificationEvent(deps, escalated(NOTIF_TEST_IDS.submitter))
+
+      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.manager2])
+    })
+
+    it('falls back to the AccountAdmins when the scope has nobody', async () => {
+      const deps = makeDeps()
+      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([])
+      deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
+
+      await handleWorkflowNotificationEvent(deps, escalated(NOTIF_TEST_IDS.submitter))
+
+      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.admin1])
+    })
+
+    it('never tells whoever escalated it', async () => {
+      const deps = makeDeps()
+      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
+        NOTIF_TEST_IDS.manager1,
+        NOTIF_TEST_IDS.manager2,
+      ])
+
+      await handleWorkflowNotificationEvent(deps, escalated(NOTIF_TEST_IDS.manager1))
+
+      expect(recipientsOf(deps)).toEqual([NOTIF_TEST_IDS.manager2])
+    })
   })
 
   it('names the role of whoever escalated, since escalation is always a manual call', async () => {

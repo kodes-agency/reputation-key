@@ -66,7 +66,10 @@ describe('Identity public API', () => {
       'people',
       'requests',
     ])
-    expect(Object.keys(api.managerFacts)).toEqual(['listActiveManagers'])
+    expect(Object.keys(api.managerFacts)).toEqual([
+      'listActiveManagers',
+      'canApproveReplies',
+    ])
     expect(Object.keys(api.accountAdminAuthority)).toEqual(['isCurrentAccountAdmin'])
     expect(Object.keys(api.offboardingFacts)).toEqual(['listOutstanding'])
     expect(Object.keys(api.people).sort()).toEqual([

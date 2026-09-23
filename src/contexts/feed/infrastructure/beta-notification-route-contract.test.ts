@@ -49,6 +49,7 @@ import {
   userId,
   type NotificationId,
   type OrganizationId,
+  type UserId,
 } from '#/shared/domain/ids'
 import {
   identityBetaFeedbackOutcomeReached,
@@ -482,6 +483,9 @@ type RouteDeps = ReturnType<typeof createNotificationConsumerDeps> &
           ) => Promise<ReadonlyArray<NotificationId>>
         >
       >
+      findRecipientsOfNotice: ReturnType<
+        typeof vi.fn<() => Promise<ReadonlyArray<UserId>>>
+      >
     }
     emails: {
       cancelQueuedForNotifications: ReturnType<
@@ -512,7 +516,10 @@ function inertRouteDeps(): RouteDeps {
     googleConnectionProperties: {
       findGoogleNotificationAnchor: vi.fn(async () => null),
     },
-    notifications: { settleUnreadForResource: vi.fn(async () => []) },
+    notifications: {
+      settleUnreadForResource: vi.fn(async () => []),
+      findRecipientsOfNotice: vi.fn(async () => []),
+    },
     emails: { cancelQueuedForNotifications: vi.fn(async () => 0) },
   }
 }
@@ -792,6 +799,7 @@ function currentRouteDeps(): RouteDeps {
     },
     notifications: {
       settleUnreadForResource: vi.fn(async () => [SETTLED_NOTIFICATION]),
+      findRecipientsOfNotice: vi.fn(async () => []),
     },
     emails: { cancelQueuedForNotifications: vi.fn(async () => 1) },
   }

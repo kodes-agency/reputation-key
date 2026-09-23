@@ -78,6 +78,17 @@ export type NotificationRepositoryPort = Readonly<{
   ): Promise<NotificationPage>
 
   /**
+   * Everyone who holds a notice of this type about this resource, whatever
+   * its read state. The evidence of who was told something, so the notice
+   * that closes it can reach the same people (I5.3).
+   */
+  findRecipientsOfNotice(
+    orgId: OrganizationId,
+    type: NotificationType,
+    resourceId: string,
+  ): Promise<ReadonlyArray<UserId>>
+
+  /**
    * Stamp `resolvedAt` on every recipient's still-waiting notice of these
    * types about one resource, and answer with the rows it settled so their
    * queued email can be cancelled. Read is not resolved: the status is left

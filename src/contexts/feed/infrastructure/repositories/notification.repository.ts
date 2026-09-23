@@ -4,7 +4,13 @@
 import { and, eq, desc, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notifications } from '#/shared/db/schema/notification.schema'
-import { notificationId, unbrand, type NotificationId } from '#/shared/domain/ids'
+import {
+  notificationId,
+  unbrand,
+  userId,
+  type NotificationId,
+  type UserId,
+} from '#/shared/domain/ids'
 import type { Notification, NotificationStatus } from '../../domain/notification-types'
 import { notificationFromRow } from './notification-row.mapper'
 import { notificationError } from '../../domain/notification-errors'
@@ -212,6 +218,26 @@ export const createNotificationRepository = (db: Database) => ({
     if (!r)
       throw notificationError('insert_failed', 'No row returned from notification INSERT')
     return notificationFromRow(r)
+  },
+
+  // Who was told. Read state is irrelevant: somebody who read the escalation
+  // notice was still told about it, and a settled row still proves it.
+  findRecipientsOfNotice: async (
+    orgId: string,
+    type: string,
+    resourceId: string,
+  ): Promise<readonly UserId[]> => {
+    const rows = await db
+      .selectDistinct({ userId: notifications.userId })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.organizationId, orgId),
+          eq(notifications.type, type),
+          eq(notifications.resourceId, resourceId),
+        ),
+      )
+    return rows.map((row) => userId(row.userId))
   },
 
   // The work a notice asked for is done. Every recipient's still-waiting row

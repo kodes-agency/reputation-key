@@ -221,6 +221,16 @@ self-assignment, an AccountAdmin's own escalation or submission, an author
 approving or rejecting their own reply — and keeps everyone else. Google's
 publication outcomes have no actor and always reach the author.
 
+An approval request goes to the Property's responsible managers who hold
+`reply.manage` (the `reply_approver` audience), falling back to AccountAdmins
+only when none of them can act, and never to the submitter. Responsibility and
+that permission are separate authorities, so the audience check and the
+pre-send standing check ask both. An escalation follows the item's own
+responsible scope, Property or Portal, with the same admin fallback every
+responsible-scope route has. When it is resolved, the notice also reaches the
+AccountAdmins who were told it was raised — proved by Feed's own rows for
+(`inbox.escalated`, that item) — and nobody who was not.
+
 A notice that asks its reader for work stops asking once the work is done.
 The actionable types are named in `domain/notification-settlement.ts`; the
 settlement consumer retires every recipient's still-waiting row for a

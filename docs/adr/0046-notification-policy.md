@@ -448,6 +448,30 @@ rather than `notifications`: they announce nothing, carry no audience, and do
 not count as a type's one announcing trigger. A settling route may only retire
 an actionable type.
 
+## Amended 2026-09-24 — the responsible scope is asked first, admins are the fallback
+
+Approval requests and escalations went to every AccountAdmin in the
+Organization, however many Properties they look after, while the Property's
+responsible managers — who hold `reply.manage` and could approve in one click —
+were never asked at all. AccountAdmins were told an escalation had been raised
+and never that it had been dealt with.
+
+- `reply.pending_approval` goes to the Property's responsible managers who may
+  approve, under a new `reply_approver` audience; to the AccountAdmins only
+  when none of them can; and never to the submitter, who cannot approve their
+  own draft. The submitter is removed before the fallback is considered, so
+  "the only approver is the author" still reaches somebody who can decide.
+  Responsibility and `reply.manage` are separate authorities: the audience
+  check and the pre-send standing check ask both, because either can end alone.
+- `inbox.escalated` follows the item's own scope — the Property's responsible
+  managers for a review, the Portal's for private feedback — with AccountAdmins
+  as the fallback the responsible-recipient resolver already provides.
+- `inbox.escalation_resolved` additionally reaches the AccountAdmins who were
+  told it was raised, and only them: the evidence is Feed's own rows for
+  (`inbox.escalated`, that item), read whatever their state. An admin who was
+  never told is not told now, and one who is no longer an AccountAdmin is
+  dropped.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

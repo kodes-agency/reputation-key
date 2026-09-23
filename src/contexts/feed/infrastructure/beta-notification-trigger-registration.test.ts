@@ -74,6 +74,8 @@ describe('registered durable notification matrix', () => {
         findEscalationResolutionFacts: vi.fn(async () => null),
       },
       responsibleManagers: fakes.responsibleManagers,
+      userLookup: fakes.userLookup,
+      notifications: { findRecipientsOfNotice: vi.fn(async () => []) },
       receipts,
     })
     registerHandlingCycleNotificationConsumers(consumerRegistry, { ...fakes, receipts })

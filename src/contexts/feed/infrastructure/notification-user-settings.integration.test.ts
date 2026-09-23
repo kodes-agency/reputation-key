@@ -41,6 +41,7 @@ const buildFeed = (db: Database) => {
       propertyAccess: async () => null,
       emailAddressKey: 'feed-test-email-address-key',
       responsibleManagers: {} as never,
+      replyApproval: {} as never,
       feedbackPortalLookup: {} as never,
       googleConnectionProperties: {} as never,
       monthlyResultFacts: {} as never,

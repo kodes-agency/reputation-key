@@ -178,6 +178,7 @@ describe.sequential('missing-notification repair through the Feed build', () => 
           findForPortalGroup: async () => [MANAGER],
           isEligibleForProperty: async () => true,
         },
+        replyApproval: { canApproveReplies: async () => true },
         feedbackPortalLookup: { findPortalId: async () => PORTAL },
         googleConnectionProperties: { findGoogleNotificationAnchor: async () => null },
         monthlyResultFacts: {

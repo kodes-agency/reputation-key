@@ -42,6 +42,12 @@ const buildDeps = () => ({
   escalationResolutions: {
     findEscalationResolutionFacts: vi.fn().mockResolvedValue(null),
   },
+  replyApproval: {
+    canApproveReplies: vi.fn().mockResolvedValue(true),
+  },
+  notifications: {
+    findRecipientsOfNotice: vi.fn().mockResolvedValue([]),
+  },
   portalHealthLookup: {
     findPortalHealthNotificationFacts: vi.fn().mockResolvedValue(null),
   },
@@ -63,6 +69,59 @@ const authorize = (overrides: Partial<NotificationAudienceAuthorizationInput> = 
 })
 
 describe('notification audience authorization', () => {
+  // I5.3: an approval request is admitted by two authorities, and either can
+  // end on its own.
+  it('admits a responsible manager who may still approve replies', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ audience: { kind: 'reply_approver', propertyId: PROPERTY } }),
+      ),
+    ).resolves.toBe(true)
+  })
+
+  it('refuses an approver who lost the Property', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([])
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ audience: { kind: 'reply_approver', propertyId: PROPERTY } }),
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('refuses an approver whose role no longer carries reply.manage', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+    deps.replyApproval.canApproveReplies.mockResolvedValue(false)
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ audience: { kind: 'reply_approver', propertyId: PROPERTY } }),
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('refuses an approver admitted for a different Property', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({
+          audience: {
+            kind: 'reply_approver',
+            propertyId: '55555555-5555-4555-8555-555555555555',
+          },
+        }),
+      ),
+    ).resolves.toBe(false)
+  })
+
   it('parses and revalidates an exact affected Organization account recipient', async () => {
     const deps = buildDeps()
     deps.organizationAccountAuthority.isAffectedRecipient.mockResolvedValue(true)

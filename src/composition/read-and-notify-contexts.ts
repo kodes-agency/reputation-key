@@ -155,6 +155,11 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
             managerId,
           ),
       },
+      // Responsibility and permission are separate authorities: Identity owns
+      // whether a responsible manager may actually approve a reply (I5.3).
+      replyApproval: {
+        canApproveReplies: input.identity.publicApi.managerFacts.canApproveReplies,
+      },
       feedbackPortalLookup: {
         findPortalId: (orgId, sourceId) =>
           input.guest.publicApi.findPortalIdForFeedback(orgId, sourceId),

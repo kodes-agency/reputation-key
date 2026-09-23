@@ -49,6 +49,7 @@ import { createNotificationPreferenceRepository } from './infrastructure/reposit
 import { createOneClickUnsubscribeRepository } from './infrastructure/repositories/one-click-unsubscribe.repository'
 import { createNotificationDbUserLookupAdapter } from './infrastructure/adapters/notification-db-user-lookup.adapter'
 import type { ResponsibleManagerLookupPort } from './application/ports/responsible-manager-lookup.port'
+import type { ReplyApprovalAuthorityPort } from './application/ports/reply-approval-authority.port'
 import type { FeedbackPortalLookupPort } from './application/ports/feedback-portal-lookup.port'
 import { createNotificationAudienceAuthorizer } from './application/notification-audience'
 import { createNotificationRecipientStanding } from './application/notification-recipient-standing'
@@ -290,6 +291,8 @@ type NotificationBuildInput = Readonly<{
   logger: LoggerPort
   /** Current, eligibility-filtered Property/Portal notification authorities. */
   responsibleManagers: ResponsibleManagerLookupPort
+  /** Identity-owned `reply.manage` authority, for routing approval requests. */
+  replyApproval: ReplyApprovalAuthorityPort
   /** Guest-owned source attribution; Notification never reads Guest tables. */
   feedbackPortalLookup: FeedbackPortalLookupPort
   googleConnectionProperties: GoogleConnectionPropertyLookup
@@ -353,6 +356,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   const authorizeAudience = createNotificationAudienceAuthorizer({
     userLookup,
     responsibleManagers: input.responsibleManagers,
+    replyApproval: input.replyApproval,
+    notifications: notificationRepo,
     inboxItemLookup,
     escalationResolutions,
     portalHealthLookup: input.portalHealthLookup,
@@ -365,6 +370,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   const recipientStanding = createNotificationRecipientStanding({
     userLookup,
     responsibleManagers: input.responsibleManagers,
+    replyApproval: input.replyApproval,
   })
 
   /**
@@ -414,6 +420,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   const fanoutReads = {
     userLookup,
     responsibleManagers: input.responsibleManagers,
+    replyApproval: input.replyApproval,
     inboxItemLookup,
     clock: input.clock,
     logger: input.logger,
@@ -700,6 +707,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       queue,
       escalationResolutions,
       responsibleManagers: input.responsibleManagers,
+      userLookup,
+      notifications: notificationRepo,
       receipts: input.outboxRepo,
     })
     registerHandlingCycleNotificationConsumers(consumerRegistry, {

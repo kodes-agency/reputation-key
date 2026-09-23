@@ -47,6 +47,7 @@ export function buildFakeInsertNotificationDeps(): FakeInsertNotificationDeps {
       markAllRead: vi.fn(async () => {}),
       findUnreadByUserTypeResource: vi.fn(async () => null),
       settleUnreadForResource: vi.fn(async () => []),
+      findRecipientsOfNotice: vi.fn(async () => []),
       refreshUnread: vi.fn(async () => true),
       markUnread: vi.fn(async () => null),
       markAllDismissed: vi.fn(async () => {}),

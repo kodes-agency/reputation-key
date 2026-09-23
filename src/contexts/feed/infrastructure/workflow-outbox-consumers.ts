@@ -45,6 +45,8 @@ import {
   resolveInboxResponsibleRecipients,
   resolveResponsibleRecipients,
 } from '../application/responsible-recipients'
+import { resolveReplyApprovalRecipients } from '../application/reply-approval-recipients'
+import type { ReplyApprovalAuthorityPort } from '../application/ports/reply-approval-authority.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 
 export const WORKFLOW_NOTIFICATION_CONSUMERS = [
@@ -129,6 +131,8 @@ export type WorkflowNotificationConsumerDeps = Readonly<{
   userLookup: UserLookupPort
   responsibleManagers: ResponsibleManagerLookupPort
   inboxItemLookup: InboxItemLookupPort
+  /** Who may act on an approval request, asked at fan-out and again at send. */
+  replyApproval: ReplyApprovalAuthorityPort
   clock: () => Date
   logger: LoggerPort
   receipts: Pick<OutboxRepository, 'insertReceipt'>
@@ -180,19 +184,34 @@ async function enqueueAssignmentNotification(
   )
 }
 
+/**
+ * An escalation goes to the people who own the item's work — the Property's
+ * responsible managers for a review, the Portal's for private feedback — and
+ * to the AccountAdmins only when that scope has nobody (I5.3). It used to go
+ * to every AccountAdmin in the Organization regardless.
+ */
 async function enqueueEscalationNotifications(
   deps: WorkflowNotificationDeliveryDeps,
   event: InboxItemEscalated,
 ): Promise<void> {
-  const admins = await deps.userLookup.findByRole(event.organizationId, 'AccountAdmin')
-  if (admins.length === 0) {
+  const facts = await deps.inboxItemLookup.findInboxItemFacts(
+    event.inboxItemId,
+    event.organizationId,
+  )
+  const candidates = facts
+    ? await resolveInboxResponsibleRecipients(deps, event.organizationId, facts)
+    : await deps.userLookup.findByRole(event.organizationId, 'AccountAdmin')
+  const audience = facts
+    ? inboxNotificationAudience(facts)
+    : ({ kind: 'account_admin' } as const)
+  if (candidates.length === 0) {
     deps.logger.warn(
       { correlationId: event.correlationId ?? undefined },
       'notification escalation delivery: no recipients found, skipping',
     )
     return
   }
-  const recipients = excludingActor(admins, event.userId)
+  const recipients = excludingActor(candidates, event.userId)
   if (recipients.length === 0) return
 
   // Escalating is a person's judgement call; the notice names their role.
@@ -215,7 +234,7 @@ async function enqueueEscalationNotifications(
           resourceId: event.inboxItemId,
           eventId: event.eventId,
           payload,
-          audience: { kind: 'account_admin' },
+          audience,
         },
         { jobId: `${event.eventId}-${recipientId}` },
       ),
@@ -282,21 +301,28 @@ async function enqueueNoteNotifications(
   )
 }
 
+/**
+ * An approval request goes to the Property's responsible managers who hold
+ * `reply.manage`, and to the AccountAdmins only when none of them can act
+ * (I5.3). The submitter is never asked: they cannot approve their own draft,
+ * and an AccountAdmin who submits one needs no prompt either.
+ */
 async function enqueueSubmittedNotifications(
   deps: WorkflowNotificationDeliveryDeps,
   event: ReviewReplySubmitted,
 ): Promise<void> {
-  const admins = await deps.userLookup.findByRole(event.organizationId, 'AccountAdmin')
-  if (admins.length === 0) {
+  const { recipients, audience } = await resolveReplyApprovalRecipients(deps, {
+    organizationId: event.organizationId,
+    propertyId: event.propertyId,
+    submitterId: event.userId,
+  })
+  if (recipients.length === 0) {
     deps.logger.warn(
       { correlationId: event.correlationId ?? undefined },
       'notification reply-submitted delivery: no recipients found, skipping',
     )
     return
   }
-  // An AccountAdmin who submits still has to approve, but needs no prompt.
-  const recipients = excludingActor(admins, event.userId)
-  if (recipients.length === 0) return
 
   const inboxItem = await deps.inboxItemLookup.findInboxItemByReviewId(
     event.reviewId,
@@ -319,7 +345,7 @@ async function enqueueSubmittedNotifications(
     resourceId: inboxItem,
     eventId: event.eventId,
     payload,
-    audience: { kind: 'account_admin' },
+    audience,
   }))
   await Promise.all(
     jobs.map((data) =>

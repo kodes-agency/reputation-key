@@ -6,7 +6,7 @@ import {
 } from '#/shared/outbox/consumer-registry'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { inboxItemId, propertyId, userId } from '#/shared/domain/ids'
+import { inboxItemId, propertyId, userId, type UserId } from '#/shared/domain/ids'
 import {
   handleNotificationInboxEscalationResolved,
   ON_INBOX_ESCALATION_RESOLVED_CONSUMER,
@@ -23,6 +23,8 @@ const ORG = 'organization-resolution-notification'
 const RESOLVER = userId('resolver-resolution-notification')
 const ASSIGNEE = userId('assignee-resolution-notification')
 const MANAGER = userId('manager-resolution-notification')
+const ADMIN_TOLD = userId('admin-told-resolution-notification')
+const ADMIN_SILENT = userId('admin-silent-resolution-notification')
 const RESOLVED_AT = new Date('2026-08-27T08:00:00.000Z')
 
 const event = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent => ({
@@ -71,6 +73,12 @@ const makeDeps = () => {
       isEligibleForProperty: vi.fn(async (_org, _property, candidate) =>
         [ASSIGNEE, MANAGER].includes(candidate),
       ),
+    },
+    userLookup: {
+      findByRole: vi.fn(async (): Promise<readonly UserId[]> => []),
+    },
+    notifications: {
+      findRecipientsOfNotice: vi.fn(async (): Promise<readonly UserId[]> => []),
     },
     receipts: { insertReceipt: vi.fn(async () => undefined) },
     jobs,
@@ -143,6 +151,62 @@ describe('escalation-resolution notification consumer', () => {
     expect(deps.jobs.map((job) => (job.data as { userId: string }).userId)).toEqual([
       MANAGER,
     ])
+  })
+
+  // I5.3: AccountAdmins heard that something was escalated and never that it
+  // had been dealt with, so the notice sat unread for good.
+  it('also tells the AccountAdmins who were told it was raised', async () => {
+    const deps = makeDeps()
+    deps.notifications.findRecipientsOfNotice.mockResolvedValue([ADMIN_TOLD])
+    deps.userLookup.findByRole.mockResolvedValue([ADMIN_TOLD, ADMIN_SILENT])
+
+    await handleNotificationInboxEscalationResolved(deps, event())
+
+    expect(deps.notifications.findRecipientsOfNotice).toHaveBeenCalledWith(
+      ORG,
+      'inbox.escalated',
+      ITEM,
+    )
+    expect(deps.jobs.map((job) => (job.data as { userId: string }).userId)).toEqual([
+      ASSIGNEE,
+      ADMIN_TOLD,
+    ])
+  })
+
+  it('tells no AccountAdmin who was never told it was raised', async () => {
+    const deps = makeDeps()
+    deps.notifications.findRecipientsOfNotice.mockResolvedValue([])
+    deps.userLookup.findByRole.mockResolvedValue([ADMIN_TOLD, ADMIN_SILENT])
+
+    await handleNotificationInboxEscalationResolved(deps, event())
+
+    expect(deps.jobs.map((job) => (job.data as { userId: string }).userId)).toEqual([
+      ASSIGNEE,
+    ])
+  })
+
+  it('leaves out someone who was told but is no longer an AccountAdmin', async () => {
+    const deps = makeDeps()
+    deps.notifications.findRecipientsOfNotice.mockResolvedValue([ADMIN_TOLD])
+    deps.userLookup.findByRole.mockResolvedValue([ADMIN_SILENT])
+
+    await handleNotificationInboxEscalationResolved(deps, event())
+
+    expect(deps.jobs.map((job) => (job.data as { userId: string }).userId)).toEqual([
+      ASSIGNEE,
+    ])
+  })
+
+  it('never tells the admin who resolved it, however they were told', async () => {
+    const deps = makeDeps()
+    deps.notifications.findRecipientsOfNotice.mockResolvedValue([ADMIN_TOLD, RESOLVER])
+    deps.userLookup.findByRole.mockResolvedValue([ADMIN_TOLD, RESOLVER])
+
+    await handleNotificationInboxEscalationResolved(deps, event())
+
+    expect(deps.jobs.map((job) => (job.data as { userId: string }).userId)).not.toContain(
+      RESOLVER,
+    )
   })
 
   it('suppresses the resolving actor without broadening to the fallback tier', async () => {

@@ -165,11 +165,12 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['inbox.assignments_released'],
     ['responsible_scope'],
   ),
+  // I5.3: the scope that owns the item's work first, admins as the fallback.
   route(
     'inbox.inbox_item.escalated',
     'notification.on-inbox-inbox_item-escalated',
     ['inbox.escalated'],
-    ['account_admin'],
+    ['responsible_scope', 'account_admin'],
   ),
   route(
     'inbox.inbox_item.escalation_resolved',
@@ -183,11 +184,12 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['inbox_note.added'],
     ['inbox_assignee', 'responsible_scope', 'account_admin'],
   ),
+  // I5.3: the responsible managers who hold reply.manage, admins as fallback.
   route(
     'review.reply.submitted',
     'notification.on-review-reply-submitted',
     ['reply.pending_approval'],
-    ['account_admin'],
+    ['reply_approver', 'account_admin'],
   ),
   route(
     'review.reply.approved',
@@ -333,6 +335,7 @@ const AUDIENCE_KINDS: ReadonlySet<string> = new Set<AudienceKind>([
   'responsible_scope',
   'account_admin',
   'organization_account_admin',
+  'reply_approver',
   'responsibility_gap',
   'inbox_assignee',
   'bulk_inbox_assignee',
