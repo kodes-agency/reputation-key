@@ -65,6 +65,7 @@ import {
   type GoogleConnectionPropertyLookup,
 } from './infrastructure/integration-outbox-consumers'
 import { registerBulkAssignmentNotificationConsumer } from './infrastructure/bulk-assignment-outbox-consumers'
+import { registerAssignmentReleaseNotificationConsumer } from './infrastructure/assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './infrastructure/escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './infrastructure/goal-outbox-consumers'
 import { registerHandlingCycleNotificationConsumers } from './infrastructure/handling-cycle-outbox-consumers'
@@ -656,6 +657,14 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     registerBulkAssignmentNotificationConsumer(consumerRegistry, {
       queue,
       userLookup,
+      displayNames,
+      logger: input.logger,
+      receipts: input.outboxRepo,
+    })
+    registerAssignmentReleaseNotificationConsumer(consumerRegistry, {
+      queue,
+      userLookup,
+      responsibleManagers: input.responsibleManagers,
       displayNames,
       logger: input.logger,
       receipts: input.outboxRepo,

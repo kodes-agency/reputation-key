@@ -397,6 +397,14 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     'organization',
   ),
+  // The release fact spans Properties and carries none on its envelope, so
+  // this row is Organization-scoped like its siblings.
+  consumer(
+    'notification.assignment-release-outbox-consumers',
+    'system:notification.insert',
+    'none',
+    'organization',
+  ),
   consumer(
     'notification.escalation-resolution-outbox-consumers',
     'system:notification.insert',

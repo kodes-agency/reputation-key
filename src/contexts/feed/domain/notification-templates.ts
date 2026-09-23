@@ -416,6 +416,18 @@ const renderInboxBulkAssigned = (p: NotificationPayload): RenderedNotification =
     (items) => `${byRole(p)} assigned ${items} to you. Open the Inbox to see your work.`,
   )
 
+/**
+ * A member's items were released, all at once, at one Property. The copy never
+ * names them — ADR 0046 r.8 keeps other employees out of a payload — so it
+ * says what is true for the reader: this work is theirs to place now.
+ */
+const renderAssignmentsReleased = (p: NotificationPayload): RenderedNotification =>
+  renderInboxBulk(
+    p,
+    'left unassigned',
+    (items) => `${items} at this property lost their assignee. Give them a new one.`,
+  )
+
 const renderNoteAdded = (p: NotificationPayload): RenderedNotification => ({
   title: `New internal note on ${p.platform === 'portal' ? 'feedback' : 'a review'}${atProperty(p)}`,
   body: `${byRole(p)} left a note on this item. Open it to read the thread.`,
@@ -555,6 +567,7 @@ const RENDERERS: Record<
   'inbox.response_target_passed': renderResponseTargetPassed,
   'inbox.assigned': renderInboxAssigned,
   'inbox.bulk_assigned': renderInboxBulkAssigned,
+  'inbox.assignments_released': renderAssignmentsReleased,
   'inbox_note.added': renderNoteAdded,
   'portal.responsibility_needed': renderPortalResponsibilityNeeded,
   'portal.health_attention': renderPortalHealthAttention,
@@ -623,6 +636,8 @@ const propertyLink = (
 const GROUPED_INBOX_QUEUES: Partial<Record<NotificationType, string>> = {
   'inbox.bulk_assigned': 'mine',
   'inbox.bulk_reopened': 'open',
+  // Released items are nobody's, so the honest queue is every open item.
+  'inbox.assignments_released': 'open',
 }
 
 /**

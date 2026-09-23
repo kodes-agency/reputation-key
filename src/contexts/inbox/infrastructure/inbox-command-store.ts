@@ -48,6 +48,7 @@ import type {
 } from '../domain/types'
 import { inboxError } from '../domain/errors'
 import {
+  inboxAssignmentsReleased,
   inboxBulkAssignmentCompleted,
   inboxBulkReopenCompleted,
   inboxHandlingCycleClosed,
@@ -87,7 +88,11 @@ import type {
   ReviewCycleTargetAnchor,
   ReviewInboxProjectionRevisionPermit,
 } from '../application/ports/review-response-target-authority.port'
-import type { InboxItemBulkStatusChanged, InboxItemCreated } from '../domain/events'
+import type {
+  InboxAssignmentReleaseReason,
+  InboxItemBulkStatusChanged,
+  InboxItemCreated,
+} from '../domain/events'
 import {
   cancelPrivateFeedbackTarget,
   cancelResponseTargetForCycle,
@@ -1848,6 +1853,7 @@ export const createAtomicInboxCommandStore = (
     organizationId: OrganizationId
     userId: UserId
     actorId: UserId | null
+    releaseReason: InboxAssignmentReleaseReason
     at: Date
   }>
 
@@ -1909,6 +1915,7 @@ export const createAtomicInboxCommandStore = (
       .for('update')
 
     let released = 0
+    const releases: Array<{ inboxItemId: InboxItemId; propertyId: PropertyId }> = []
     for (const current of lockedRows) {
       const [row] = await tx
         .update(inboxItems)
@@ -1950,7 +1957,27 @@ export const createAtomicInboxCommandStore = (
         occurredAt: input.at,
       })
       await insertOutboxRow(tx, fact)
+      releases.push({
+        inboxItemId: inboxItemId(row.id),
+        propertyId: propertyId(row.propertyId),
+      })
       released += 1
+    }
+    // The grouped close fact: the per-item facts above stay history, and this
+    // one is what a notification is delivered from, once per Property, to the
+    // people who now own the gap. Same transaction as the rows it describes.
+    if (releases.length > 0) {
+      await insertOutboxRow(
+        tx,
+        inboxAssignmentsReleased({
+          organizationId: input.organizationId,
+          userId: input.actorId,
+          releasedFrom: input.userId,
+          releaseReason: input.releaseReason,
+          releases,
+          occurredAt: input.at,
+        }),
+      )
     }
     return released
   }
@@ -2004,7 +2031,7 @@ export const createAtomicInboxCommandStore = (
             .orderBy(inboxItems.id)
           return releaseAssignmentRows(
             tx,
-            input,
+            { ...input, releaseReason: 'member_offboarded' },
             candidates.map((candidate) => candidate.id),
           )
         })
@@ -2091,7 +2118,11 @@ export const createAtomicInboxCommandStore = (
               ),
             )
             .map((candidate) => candidate.id)
-          return releaseAssignmentRows(tx, input, candidateIds)
+          return releaseAssignmentRows(
+            tx,
+            { ...input, releaseReason: 'member_became_ineligible' },
+            candidateIds,
+          )
         })
         return { released }
       })

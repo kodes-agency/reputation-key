@@ -42,6 +42,8 @@ const REGISTER: Readonly<Record<string, string>> = {
   'InboxHandlingCycleOpened.openReason': 'closed HandlingCycleOpenReason enum fact',
   'InboxHandlingCycleClosed.closeReason': 'closed HandlingCycleCloseReason enum fact',
   'InboxHandlingCycleReopened.reopenReason': 'closed ManualReopenReason enum fact',
+  'InboxAssignmentsReleased.releaseReason':
+    'closed InboxAssignmentReleaseReason enum fact',
   // Monotonic numeric working-copy version, not the localized brand content.
   'PortalPropertyBrandContentUpdated.contentVersion': 'positive numeric version fact',
 }

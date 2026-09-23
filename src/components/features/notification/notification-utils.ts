@@ -140,6 +140,7 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
   'inbox.response_target_passed': Clock,
   'inbox.assigned': UserPlus,
   'inbox.bulk_assigned': UserPlus,
+  'inbox.assignments_released': UserMinus,
   'inbox_note.added': FileEdit,
   'portal.responsibility_needed': UserPlus,
   'portal.health_attention': AlertTriangle,

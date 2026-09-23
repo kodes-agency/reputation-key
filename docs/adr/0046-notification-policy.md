@@ -254,6 +254,30 @@ hears about a connection.
 The copy never names the admin who disconnected. Rule 8 excludes other
 employees' data, and the payload carries nothing at all.
 
+## Amended 2026-09-24 — an offboarding release tells whoever owns the gap
+
+Offboarding a member, or reconciling one who no longer qualifies for a
+Property, unassigns every Inbox item they held. Each item recorded an
+`inbox.inbox_item.unassigned` fact, all of them history, and nobody was told:
+the work simply stopped being anyone's while the queue still showed it open.
+
+The release now records one grouped close fact,
+`inbox.inbox_items.assignments_released`, in the same transaction as the rows
+it describes, and `inbox.assignments_released` is delivered from it — ONE
+notice per Property, never one per item, because a departing manager can leave
+dozens behind and the news is the gap, not each item. It goes to the
+Property's responsible managers (AccountAdmins when none is eligible), less
+the departing member, who no longer owns it, and less whoever released them,
+who already knows. The row opens the Property's open queue, as the other
+grouped Inbox notices open theirs.
+
+Category `urgent_operational`, and not in `URGENT_TYPES`: the items are where
+they always were and nothing is on a clock.
+
+The fact's closed reason is named `releaseReason`, not `reason`: the outbox
+adapter denylists `reason` as content, with one carve-out, and widening that
+denylist for an enum is the wrong trade.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

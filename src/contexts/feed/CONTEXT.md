@@ -211,6 +211,9 @@ a token is valid.
 Durable outbox consumers project activity and enqueue deterministic notification
 jobs. A bulk Inbox command (assignment, reopen) notifies once per recipient per
 Property from its completion fact; the per-item facts it covers stay history.
+An offboarding or eligibility release does the same: one notice per Property to
+the Property's responsible managers, less the departing member and less
+whoever released them.
 So a grouped reopen stands while any of its items is still the open head the
 recipient is responsible for, and says how many are when it is delivered.
 The activity worker also exposes bounded projection recovery. Notification

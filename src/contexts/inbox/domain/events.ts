@@ -388,6 +388,78 @@ export const inboxBulkAssignmentCompleted = (args: {
   }
 }
 
+export type InboxAssignmentRelease = Readonly<{
+  inboxItemId: InboxItemId
+  propertyId: PropertyId
+}>
+
+/**
+ * Why a member's assignments were cleared. Both are an authority removal, not
+ * a triage decision: one because the member left, one because they no longer
+ * qualify for the Property.
+ */
+export type InboxAssignmentReleaseReason =
+  'member_offboarded' | 'member_became_ineligible'
+
+/**
+ * Content-free close fact for one release of a member's Inbox assignments.
+ * The per-item unassigned facts remain the activity/audit feed; this envelope
+ * is what a durable consumer can deliver ONE grouped notice per Property from,
+ * to the people who now own the gap, without guessing whether every item fact
+ * of the release has arrived.
+ */
+export type InboxAssignmentsReleased = Readonly<{
+  _tag: 'inbox.inbox_items.assignments_released'
+  eventId: string
+  organizationId: OrganizationId
+  /** Whoever caused the release. Null for provider/lifecycle hooks. */
+  userId: UserId | null
+  /** The member whose assignments were cleared. */
+  releasedFrom: UserId
+  /**
+   * Named `releaseReason`, not `reason`: the outbox adapter denylists `reason`
+   * as content, and this closed enum has to survive into the fact.
+   */
+  releaseReason: InboxAssignmentReleaseReason
+  releases: ReadonlyArray<InboxAssignmentRelease>
+  count: number
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const inboxAssignmentsReleased = (args: {
+  organizationId: OrganizationId
+  userId: UserId | null
+  releasedFrom: UserId
+  releaseReason: InboxAssignmentReleaseReason
+  releases: ReadonlyArray<InboxAssignmentRelease>
+  occurredAt: Date
+  correlationId?: string | null
+}): InboxAssignmentsReleased => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.releases.length > 0, 'assignment releases required')
+  assert(
+    new Set(args.releases.map((release) => release.inboxItemId)).size ===
+      args.releases.length,
+    'assignment releases must be unique',
+  )
+  const releases = [...args.releases].sort((left, right) =>
+    left.inboxItemId.localeCompare(right.inboxItemId),
+  )
+  return {
+    _tag: 'inbox.inbox_items.assignments_released',
+    eventId: newEventId(),
+    organizationId: args.organizationId,
+    userId: args.userId,
+    releasedFrom: args.releasedFrom,
+    releaseReason: args.releaseReason,
+    releases,
+    count: releases.length,
+    occurredAt: args.occurredAt,
+    correlationId: args.correlationId ?? null,
+  }
+}
+
 type HandlingCycleFactScope = Readonly<{
   inboxItemId: InboxItemId
   cycleNumber: number
@@ -724,6 +796,7 @@ export type InboxEvent =
   | InboxNoteAdded
   | InboxItemBulkStatusChanged
   | InboxBulkAssignmentCompleted
+  | InboxAssignmentsReleased
   | InboxHandlingCycleOpened
   | InboxHandlingCycleClosed
   | InboxHandlingCycleReopened

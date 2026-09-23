@@ -365,12 +365,25 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
        WHERE organization_id = $1 ORDER BY created_at`,
       [ORG_A],
     )
+    // The per-item facts stay history; the grouped completion fact is what a
+    // notification can be delivered from without guessing whether every item
+    // fact of the release has arrived, and it commits in the same transaction.
     expect(facts.rows).toEqual([
       expect.objectContaining({ event_type: 'inbox.inbox_item.unassigned' }),
+      expect.objectContaining({
+        event_type: 'inbox.inbox_items.assignments_released',
+      }),
     ])
     expect(facts.rows[0].payload).toMatchObject({
       previousAssignee: USER_A,
       userId: USER_B,
+    })
+    expect(facts.rows[1].payload).toMatchObject({
+      releasedFrom: USER_A,
+      userId: USER_B,
+      releaseReason: 'member_offboarded',
+      count: 1,
+      releases: [{ inboxItemId: first.id, propertyId: PROP_A }],
     })
     const history = await pool.query(
       `SELECT reason, handling_cycle_number

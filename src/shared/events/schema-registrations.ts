@@ -343,6 +343,18 @@ const inboxItemBulkStatusChangedSchema = z.object({
   occurredAt: z.string().optional(),
 })
 
+// One release of a departing or newly ineligible member's assignments:
+// identifiers, a closed reason and a count. No item content of any kind.
+const inboxAssignmentsReleasedSchema = z.object({
+  organizationId: z.string(),
+  userId: z.string().nullable(),
+  releasedFrom: z.string(),
+  releaseReason: z.enum(['member_offboarded', 'member_became_ineligible']),
+  releases: z.array(z.object({ inboxItemId: z.string(), propertyId: z.string() })).min(1),
+  count: z.number().int().min(1),
+  occurredAt: z.string().optional(),
+})
+
 const inboxBulkAssignmentCompletedSchema = z.object({
   organizationId: z.string(),
   userId: z.string(),
@@ -1428,6 +1440,11 @@ export function registerAllEventSchemas(): void {
     type: 'inbox.inbox_items.bulk_assignment_completed',
     version: EVENT_VERSION,
     schema: inboxBulkAssignmentCompletedSchema,
+  })
+  registerEventSchema({
+    type: 'inbox.inbox_items.assignments_released',
+    version: EVENT_VERSION,
+    schema: inboxAssignmentsReleasedSchema,
   })
   registerEventSchema({
     type: 'inbox.inbox_items.bulk_reopen_completed',

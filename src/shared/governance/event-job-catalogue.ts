@@ -135,6 +135,8 @@ const NOTIFICATION_PROPERTY_OUTBOX =
   'src/contexts/feed/infrastructure/property-outbox-consumers.ts'
 const NOTIFICATION_INTEGRATION_OUTBOX =
   'src/contexts/feed/infrastructure/integration-outbox-consumers.ts'
+const NOTIFICATION_ASSIGNMENT_RELEASE_OUTBOX =
+  'src/contexts/feed/infrastructure/assignment-release-outbox-consumers.ts'
 const NOTIFICATION_BULK_ASSIGNMENT_OUTBOX =
   'src/contexts/feed/infrastructure/bulk-assignment-outbox-consumers.ts'
 const NOTIFICATION_ESCALATION_RESOLUTION_OUTBOX =
@@ -251,6 +253,12 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
   ]),
   ev('inbox.inbox_item.bulk_status_changed', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
+  ]),
+  ev('inbox.inbox_items.assignments_released', [
+    durable(
+      'notification.on-inbox-assignments-released',
+      NOTIFICATION_ASSIGNMENT_RELEASE_OUTBOX,
+    ),
   ]),
   ev('inbox.inbox_items.bulk_assignment_completed', [
     durable(

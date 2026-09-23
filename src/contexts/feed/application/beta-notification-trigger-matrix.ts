@@ -137,6 +137,14 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['inbox.bulk_assigned'],
     ['bulk_inbox_assignee'],
   ),
+  // One notice per Property, to the people who now own the gap; the per-item
+  // unassigned facts it covers stay history.
+  route(
+    'inbox.inbox_items.assignments_released',
+    'notification.on-inbox-assignments-released',
+    ['inbox.assignments_released'],
+    ['responsible_scope'],
+  ),
   route(
     'inbox.inbox_item.escalated',
     'notification.on-inbox-inbox_item-escalated',

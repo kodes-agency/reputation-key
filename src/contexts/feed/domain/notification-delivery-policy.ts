@@ -61,6 +61,10 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'inbox.response_target_passed': 'urgent_operational',
   'inbox.assigned': 'workflow_collaboration',
   'inbox.bulk_assigned': 'workflow_collaboration',
+  // Work that belonged to somebody now belongs to nobody, which is the whole
+  // point of the notice. Operational attention, but not worth quiet hours:
+  // the items are where they always were and nothing is on a clock.
+  'inbox.assignments_released': 'urgent_operational',
   'inbox_note.added': 'workflow_collaboration',
   'portal.responsibility_needed': 'urgent_operational',
   'portal.health_attention': 'urgent_operational',

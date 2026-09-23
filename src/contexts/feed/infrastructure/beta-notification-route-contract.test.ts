@@ -55,6 +55,7 @@ import {
   identityOrganizationLifecycleChanged,
 } from '#/contexts/identity/domain/events'
 import {
+  inboxAssignmentsReleased,
   inboxBulkAssignmentCompleted,
   inboxBulkReopenCompleted,
   inboxHandlingCycleOpened,
@@ -97,6 +98,7 @@ import { registerPortalNotificationConsumers } from './portal-outbox-consumers'
 import { registerPropertyNotificationConsumers } from './property-outbox-consumers'
 import { registerIntegrationNotificationConsumers } from './integration-outbox-consumers'
 import { registerBulkAssignmentNotificationConsumer } from './bulk-assignment-outbox-consumers'
+import { registerAssignmentReleaseNotificationConsumer } from './assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './goal-outbox-consumers'
 import { registerHandlingCycleNotificationConsumers } from './handling-cycle-outbox-consumers'
@@ -148,6 +150,7 @@ const GOAL = {
 } as const
 const ACTOR = userId('user-actor')
 const RECIPIENT = userId('user-recipient')
+const DEPARTING = userId('user-departing')
 const OCCURRED_AT = new Date('2026-09-02T09:00:00.000Z')
 const SCHEDULED_FOR = new Date('2026-09-02T08:00:00.000Z')
 
@@ -294,6 +297,15 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
           nextAssignee: RECIPIENT,
         },
       ],
+      occurredAt: OCCURRED_AT,
+    }),
+  'inbox.inbox_items.assignments_released': () =>
+    inboxAssignmentsReleased({
+      organizationId: ORG,
+      userId: ACTOR,
+      releasedFrom: DEPARTING,
+      releaseReason: 'member_offboarded',
+      releases: [{ inboxItemId: ITEM, propertyId: PROPERTY }],
       occurredAt: OCCURRED_AT,
     }),
   'inbox.inbox_item.escalated': () =>
@@ -458,6 +470,7 @@ function registerNotificationRoutes(
   registerNotificationConsumers(registry, deps)
   registerWorkflowNotificationConsumers(registry, deps)
   registerBulkAssignmentNotificationConsumer(registry, deps)
+  registerAssignmentReleaseNotificationConsumer(registry, deps)
   registerEscalationResolutionNotificationConsumer(registry, deps)
   registerHandlingCycleNotificationConsumers(registry, deps)
   registerResponseTargetNotificationConsumer(registry, deps)

@@ -49,6 +49,8 @@ export const NOTIFICATION_TYPES = [
   'inbox.response_target_passed',
   'inbox.assigned',
   'inbox.bulk_assigned',
+  // A departing or newly ineligible member's items now belong to nobody.
+  'inbox.assignments_released',
   'inbox_note.added',
   // Portal operations
   'portal.responsibility_needed',
