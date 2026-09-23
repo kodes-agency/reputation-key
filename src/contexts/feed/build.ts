@@ -69,6 +69,7 @@ import { registerEscalationResolutionNotificationConsumer } from './infrastructu
 import { registerGoalNotificationConsumer } from './infrastructure/goal-outbox-consumers'
 import { registerHandlingCycleNotificationConsumers } from './infrastructure/handling-cycle-outbox-consumers'
 import { registerResponseTargetNotificationConsumer } from './infrastructure/response-target-outbox-consumers'
+import { createAccountAccessRemovalReader } from './infrastructure/repositories/account-access-removal.repository'
 import { createNotificationGapRepository } from './infrastructure/repositories/notification-gap.repository'
 import { createNotificationDeliveryRepairRepository } from './infrastructure/repositories/notification-delivery-repair.repository'
 import { createResendEventHandler } from './infrastructure/handlers/resend-event-handler'
@@ -306,6 +307,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     repo: notificationRepo,
     propertyAccess: input.propertyAccess,
   })
+  const accessRemovalReader = createAccountAccessRemovalReader(input.db)
   const gapRepo = createNotificationGapRepository(input.db)
   const deliveryRepairRepo = createNotificationDeliveryRepairRepository(input.db)
   const deliveryLagRepo = createNotificationDeliveryLagRepository(
@@ -476,6 +478,15 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
 
   const publicApi = {
     insertNotification: useCases.insertNotification,
+
+    /**
+     * Why the caller has no workspace, when the answer is "it was taken away".
+     * The only user-scoped read in this context: the notice lives in an
+     * Organization the caller can no longer open, so nothing organization-
+     * scoped could ever show it to them. Its server function resolves the
+     * subject from the session, never from the request body.
+     */
+    readAccountAccessRemoval: accessRemovalReader.findLatestForUser,
 
     /**
      * Feeds the `notification.missing_for_inbox_item` gauge. Exposed here

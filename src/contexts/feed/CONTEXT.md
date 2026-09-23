@@ -229,7 +229,12 @@ timeout, so a stalled statement is cancelled rather than left running.
 
 1. Durable facts and queue payloads contain identifiers and governed facts, not
    review text, reply text, notes, reviewer identity, or provider snippets.
-2. Every read and mutation remains organization-scoped; notification mutations
+2. Every read and mutation remains organization-scoped, with one named
+   exception: the access-removal read behind `/unavailable` is scoped to the
+   caller's own user id, because the notice it looks for lives in an
+   Organization the caller can no longer open. It admits one notification type,
+   answers only with an instant, and takes its subject from the session. A
+   second user-scoped read needs its own decision here. Notification mutations
    additionally prove row ownership by the current user. The in-app feed and
    its unread badge also follow the reader's current Property access for
    `notification.read`, so a revoked or expired grant hides that Property's
