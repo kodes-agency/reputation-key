@@ -32,7 +32,8 @@ export type AccountAccessRemovalReader = Readonly<{
   findLatestForUser: (userId: UserId) => Promise<AccountAccessRemoval | null>
 }>
 
-export const ACCESS_REMOVED_NOTIFICATION_TYPE = 'account.organization_access_removed'
+/** The one type this read admits. */
+const ACCESS_REMOVED_NOTIFICATION_TYPE = 'account.organization_access_removed'
 
 export const createAccountAccessRemovalReader = (
   db: Database,
