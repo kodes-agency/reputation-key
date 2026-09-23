@@ -29,6 +29,16 @@ describe('isUrgent', () => {
     expect(isUrgent('integration.reauthorization_required')).toBe(true)
   })
 
+  it('returns true for the final notice before an irreversible deletion', () => {
+    expect(isUrgent('account.organization_purge_pending')).toBe(true)
+  })
+
+  it('leaves the ordinary account notices calm', () => {
+    expect(isUrgent('account.organization_access_granted')).toBe(false)
+    expect(isUrgent('account.organization_role_changed')).toBe(false)
+    expect(isUrgent('account.organization_access_removed')).toBe(false)
+  })
+
   it('returns false for review.created', () => {
     expect(isUrgent('review.created')).toBe(false)
   })
@@ -82,8 +92,8 @@ describe('isUrgent', () => {
     expect(isUrgent('portal.health_attention')).toBe(false)
   })
 
-  it('exactly 6 types are urgent', () => {
-    expect(URGENT_TYPES.size).toBe(6)
+  it('exactly 7 types are urgent', () => {
+    expect(URGENT_TYPES.size).toBe(7)
   })
 
   it('every urgent type returns true from isUrgent', () => {

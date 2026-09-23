@@ -237,6 +237,11 @@ export const URGENT_TYPES: ReadonlySet<NotificationType> = new Set([
   'portal.responsibility_needed',
   'property.responsibility_needed',
   'integration.reauthorization_required',
+  // The last chance anybody has to stop an irreversible erasure. The other
+  // account notices report something already done and stay calm; this one asks
+  // for an answer, so it carries the Urgent badge and appears under the Urgent
+  // filter. Mandatory mail never waits for quiet hours either way.
+  'account.organization_purge_pending',
 ])
 
 export const isUrgent = (type: NotificationType): boolean => URGENT_TYPES.has(type)

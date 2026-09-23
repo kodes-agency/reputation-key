@@ -23,6 +23,7 @@
 //   6. Degrade gracefully. Every field is optional; missing metadata must
 //      shorten the sentence, never produce "undefined" or an empty title.
 //
+import { SUPPORT_EMAIL } from '#/shared/domain/support-contact'
 import type { NotificationActorRole, NotificationPayload } from './notification-payload'
 import type { NotificationResourceType, NotificationType } from './notification-types'
 
@@ -36,6 +37,14 @@ export type RenderedNotification = Readonly<{
   actionLabel: string
   /** Extra context line for email only (digest rows and the urgent preheader). */
   summary: string
+  /**
+   * Email footer wording for a notice with no off switch, in this notice's own
+   * words. Mandatory mail has no preferences link, so the footer is the only
+   * place it can say why it arrived, and one generic sentence for every
+   * account notice told a reader nothing. Absent for optional mail, whose
+   * footer points at the preference it came from.
+   */
+  whyReceived?: string
 }>
 
 /** Deep-link target for a notification, resolved from resource + type. */
@@ -115,29 +124,37 @@ const ratedNoun = (p: NotificationPayload): string =>
  * make this module side-effectful and pull it into every chunk that imports
  * the Feed public API.
  */
-const accountNotice = (title: string, body: string): RenderedNotification => ({
+const accountNotice = (
+  title: string,
+  body: string,
+  whyReceived: string,
+): RenderedNotification => ({
   title,
   body,
   actionLabel: 'Review account',
   summary: title.toLowerCase(),
+  whyReceived,
 })
 
 const renderOrganizationAccessGranted = (): RenderedNotification =>
   accountNotice(
     'Organization access added',
     'Your account can now access this organization.',
+    'You received this because your account was given access to an organization on Reputation Key.',
   )
 
 const renderOrganizationRoleChanged = (): RenderedNotification =>
   accountNotice(
     'Organization role updated',
     'Your account permissions for this organization were updated.',
+    'You received this because what your account may do in an organization on Reputation Key changed.',
   )
 
 const renderOrganizationAccessRemoved = (): RenderedNotification =>
   accountNotice(
     'Organization access removed',
     'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
+    'You received this because your access to an organization on Reputation Key ended.',
   )
 
 /**
@@ -146,14 +163,21 @@ const renderOrganizationAccessRemoved = (): RenderedNotification =>
  * cancel it first. The subject leads with "deletion" so a 60-character clip
  * keeps it. No shipped page exposes pending-purge actions; the generic
  * Organization link still opens the profile, and the label says so.
+ *
+ * "Contact support" is only useful with a channel attached, so the body names
+ * the monitored address and the email sets it as its reply-to
+ * (`notificationReplyTo`). A reader in a mail client can then answer where
+ * they are standing.
  */
 const renderOrganizationPurgePending = (
   p: NotificationPayload,
 ): RenderedNotification => ({
   title: `Final notice: permanent deletion of ${p.organizationName ?? 'this organization'}`,
-  body: 'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only RepKey support can stop it, before it starts. Contact support now.',
+  body: `The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only Reputation Key support can stop it, before it starts. To stop it, answer this email or write to ${SUPPORT_EMAIL} now.`,
   actionLabel: 'Open profile',
   summary: facts(p.organizationName ?? '', 'permanent deletion pending'),
+  whyReceived:
+    'You received this because you administer an organization that is scheduled for permanent deletion. It cannot be turned off.',
 })
 
 const renderReviewCreated = (p: NotificationPayload): RenderedNotification => ({
@@ -611,3 +635,15 @@ export const notificationLink = (
       return { path: '/properties', search: {}, hash: BETA_FEEDBACK_REPORTS_ANCHOR }
   }
 }
+
+/**
+ * The address a reply to this notice should reach, or `null` to leave the
+ * message unanswerable and keep the sending identity's own.
+ *
+ * Only the final deletion notice sets one: it is the single notice whose copy
+ * asks the reader to contact a human, and in a mail client "reply" is the
+ * shortest path they have. Every other notice is about work that is answered
+ * in the product, where an inbound mailbox would only lose the thread.
+ */
+export const notificationReplyTo = (type: NotificationType): string | null =>
+  type === 'account.organization_purge_pending' ? SUPPORT_EMAIL : null

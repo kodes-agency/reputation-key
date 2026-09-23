@@ -114,13 +114,35 @@ describe('renderNotificationEmail — the final deletion notice', () => {
   it('keeps the decision in a subject clipped to 60 characters', () => {
     expect(email.subject.length).toBeLessThanOrEqual(60)
     expect(email.subject).toMatch(/^Final notice: permanent deletion of /)
+    expect(email.subject).toContain('deletion')
   })
 
   it('is mandatory mail that says so accurately and offers no way out', () => {
-    expect(email.html).toContain('You received this required notice')
+    expect(email.html).toContain(
+      'You received this because you administer an organization that is scheduled for permanent deletion.',
+    )
     expect(email.html).not.toContain('account access notice')
     expect(email.html).not.toContain(PREFERENCES_URL)
     expect(email.text).not.toContain(PREFERENCES_URL)
+  })
+
+  it('names a reachable support channel in both twins', () => {
+    expect(email.html).toContain('denev@kodes.agency')
+    expect(email.text).toContain('denev@kodes.agency')
+  })
+
+  it('states why each mandatory notice arrived in its own words', () => {
+    const removed = renderNotificationEmail({
+      rendered: renderNotification('account.organization_access_removed', {}),
+      actionUrl: 'https://app.test/settings/profile',
+      preferencesUrl: null,
+      priority: 'normal',
+    })
+
+    expect(removed.html).toContain(
+      'You received this because your access to an organization on Reputation Key ended.',
+    )
+    expect(removed.html).not.toContain('scheduled for permanent deletion')
   })
 })
 

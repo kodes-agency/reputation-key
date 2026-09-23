@@ -15,6 +15,7 @@ import type { NotificationPayload } from './notification-payload'
 import { parseNotificationPayload } from './notification-payload'
 import {
   notificationLink,
+  notificationReplyTo,
   renderNotification,
   waitingAge,
 } from './notification-templates'
@@ -489,18 +490,24 @@ describe('notificationLink', () => {
       body: 'Your account can now access this organization.',
       actionLabel: 'Review account',
       summary: 'organization access added',
+      whyReceived:
+        'You received this because your account was given access to an organization on Reputation Key.',
     })
     expect(renderNotification('account.organization_role_changed', {})).toEqual({
       title: 'Organization role updated',
       body: 'Your account permissions for this organization were updated.',
       actionLabel: 'Review account',
       summary: 'organization role updated',
+      whyReceived:
+        'You received this because what your account may do in an organization on Reputation Key changed.',
     })
     expect(renderNotification('account.organization_access_removed', {})).toEqual({
       title: 'Organization access removed',
       body: 'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
       actionLabel: 'Review account',
       summary: 'organization access removed',
+      whyReceived:
+        'You received this because your access to an organization on Reputation Key ended.',
     })
   })
 
@@ -511,13 +518,39 @@ describe('notificationLink', () => {
       }),
     ).toEqual({
       title: 'Final notice: permanent deletion of Riverside Group',
-      body: 'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only RepKey support can stop it, before it starts. Contact support now.',
+      body: 'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only Reputation Key support can stop it, before it starts. To stop it, answer this email or write to denev@kodes.agency now.',
       actionLabel: 'Open profile',
       summary: 'Riverside Group · permanent deletion pending',
+      whyReceived:
+        'You received this because you administer an organization that is scheduled for permanent deletion. It cannot be turned off.',
     })
     expect(renderNotification('account.organization_purge_pending', {}).title).toBe(
       'Final notice: permanent deletion of this organization',
     )
+  })
+
+  it('gives the final deletion notice a reachable reply-to and leaves every other type without one', () => {
+    expect(notificationReplyTo('account.organization_purge_pending')).toBe(
+      'denev@kodes.agency',
+    )
+    expect(notificationReplyTo('account.organization_access_removed')).toBeNull()
+    expect(notificationReplyTo('reply.pending_approval')).toBeNull()
+  })
+
+  it('gives every mandatory type its own footer wording and leaves optional types without one', () => {
+    const mandatory: ReadonlyArray<NotificationType> = [
+      'account.organization_access_granted',
+      'account.organization_role_changed',
+      'account.organization_access_removed',
+      'account.organization_purge_pending',
+    ]
+    const reasons = mandatory.map((type) => renderNotification(type, {}).whyReceived)
+
+    expect(reasons.filter((reason) => reason !== undefined)).toHaveLength(
+      mandatory.length,
+    )
+    expect(new Set(reasons).size).toBe(mandatory.length)
+    expect(renderNotification('reply.pending_approval', {}).whyReceived).toBeUndefined()
   })
 
   it('deep-links an inbox item through typed search params', () => {
