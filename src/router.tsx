@@ -6,6 +6,7 @@ import {
   Navigate,
   useRouter,
 } from '@tanstack/react-router'
+import type { ErrorComponentProps } from '@tanstack/react-router'
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
 import { routeTree } from './routeTree.gen'
 
@@ -38,7 +39,7 @@ function DefaultPendingComponent() {
  * failure. Expected refusals (4xx) are never reported; `beforeSend` drops
  * them too, this keeps the boundary honest about what it captures.
  */
-function DefaultErrorComponent({ error }: { error: Error }) {
+function DefaultErrorComponent({ error }: ErrorComponentProps) {
   const router = useRouter()
   const signedOut = httpStatus(error) === 401
 

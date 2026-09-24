@@ -16,7 +16,15 @@ export const GENERIC_CLIENT_ERROR_MESSAGE = 'Something went wrong loading this p
  * explicitly by the caller (router.tsx passes `import.meta.env.PROD`) so the
  * decision stays unit-testable.
  */
-export function publicErrorMessage(error: Error, isProduction: boolean): string {
+export function publicErrorMessage(error: unknown, isProduction: boolean): string {
   if (isProduction) return GENERIC_CLIENT_ERROR_MESSAGE
-  return error.message || GENERIC_CLIENT_ERROR_MESSAGE
+  return errorMessage(error) || GENERIC_CLIENT_ERROR_MESSAGE
+}
+
+/**
+ * The message a thrown value carries, if any. Router error components receive
+ * `unknown`: a route can throw a string, a plain object, or nothing useful.
+ */
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : typeof error === 'string' ? error : ''
 }
