@@ -216,6 +216,16 @@ export type GoogleImportV2RetryResult =
     }>
 
 export type GoogleImportV2Store = Readonly<{
+  /**
+   * Who asked for the import that produced this Property — the FIRST one, so a
+   * later relink does not take credit for the history the original brought in.
+   * Null when no import produced it, or when the request rows have aged out
+   * (they are purged 30 days after the import became terminal).
+   */
+  findPropertyImportInitiator(
+    organizationId: string,
+    propertyId: string,
+  ): Promise<string | null>
   findReplay(
     organizationId: string,
     requestId: string,

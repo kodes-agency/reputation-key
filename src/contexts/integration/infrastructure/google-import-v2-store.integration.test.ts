@@ -974,4 +974,53 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       },
     })
   })
+  describe('who asked for a Property to be imported', () => {
+    it('names the initiator of the import that produced the Property', async () => {
+      await resetIntent()
+
+      await expect(store.findPropertyImportInitiator(ORG_ID, PROPERTY_ID)).resolves.toBe(
+        USER_ID,
+      )
+    })
+
+    it('names nobody for a Property no import ever produced', async () => {
+      await resetIntent()
+
+      await expect(
+        store.findPropertyImportInitiator(ORG_ID, '10000000-0000-4000-8000-0000000000ff'),
+      ).resolves.toBeNull()
+    })
+
+    it('does not answer across organizations', async () => {
+      await resetIntent()
+
+      await expect(
+        store.findPropertyImportInitiator('another-organization', PROPERTY_ID),
+      ).resolves.toBeNull()
+    })
+
+    it('names the first initiator when the Property was imported more than once', async () => {
+      await resetIntent()
+      const laterRequestId = '10000000-0000-4000-8000-0000000000a1'
+      const laterItemId = '10000000-0000-4000-8000-0000000000a2'
+      const relinkedAt = new Date(NOW.getTime() + 60_000)
+      const later = intent(relinkedAt)
+      await expect(
+        store.commitIntent({
+          ...later,
+          id: laterRequestId,
+          requestId: laterRequestId,
+          initiatedBy: 'a-later-colleague',
+          wireReplay: { keyVersion: 'v1', digest: 'C'.repeat(43) },
+          semanticReplay: { keyVersion: 'v1', digest: 'D'.repeat(43) },
+          items: [{ ...later.items[0]!, id: laterItemId }],
+          outboxEventId: '10000000-0000-4000-8000-0000000000a3',
+        }),
+      ).resolves.toBe('committed')
+
+      await expect(store.findPropertyImportInitiator(ORG_ID, PROPERTY_ID)).resolves.toBe(
+        USER_ID,
+      )
+    })
+  })
 })

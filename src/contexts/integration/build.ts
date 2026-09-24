@@ -52,6 +52,7 @@ import {
 } from './application/use-cases'
 import { createGoogleConnectionRepository } from './infrastructure/repositories/google-connection.repository'
 import { createGoogleImportV2Store } from './infrastructure/google-import-v2-store'
+import type { GoogleImportV2Store } from './application/ports/google-import-v2-store.port'
 import { createAtomicIntegrationCommandStore } from './infrastructure/integration-command-store'
 import { createGoogleConnectorDepartureStore } from './infrastructure/google-connector-departure.store'
 import {
@@ -282,6 +283,8 @@ export type IntegrationContextApi = Readonly<{
     imports: Readonly<{
       discover: ReturnType<typeof createGoogleImportDiscovery> | null
       transact: ReturnType<typeof createGoogleImportTransaction> | null
+      /** Who asked for the import that produced a Property; null when nobody did. */
+      findInitiator: GoogleImportV2Store['findPropertyImportInitiator']
     }>
     performance: Readonly<{
       get: ReturnType<typeof createGetPropertyGooglePerformance> | null
@@ -1085,6 +1088,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     imports: Object.freeze({
       discover: useCases.googleImportDiscovery,
       transact: useCases.googleImportTransaction,
+      findInitiator: googleImportV2Store.findPropertyImportInitiator,
     }),
     performance: Object.freeze({
       get: useCases.getPropertyGooglePerformance,
