@@ -666,6 +666,78 @@ export const reviewGoogleReputationSnapshotVerified = (
   }
 }
 
+/**
+ * Why a Property's first Google history import could not finish, as a closed
+ * set the reader can act on. The snapshot run's own failure taxonomy has
+ * twenty codes and is execution vocabulary; this is the three answers that
+ * change what a person does next.
+ */
+export type ReviewHistoryImportFailureReason =
+  /** Google no longer accepts our access, or never granted it. Reconnect. */
+  | 'google_authorization'
+  /** The Property's Google location changed underneath the import. Re-link. */
+  | 'property_source_changed'
+  /** More history than one bounded snapshot run can take in. Ask support. */
+  | 'location_too_large'
+  /** Nothing to do: RepKey retries the import itself. */
+  | 'temporary'
+
+/**
+ * A Property's FIRST historical import sync reached a terminal state. Content-
+ * free: identifiers, how many reviews the run observed, and — on failure — the
+ * closed reason. It replaces the per-review "New review" flood that an import
+ * used to produce (ADR 0046, amended 2026-09-24).
+ */
+export type ReviewPropertyHistoryImportFinished = Readonly<{
+  _tag: 'review.property_history_import.finished'
+  eventId: string
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  sourceEpoch: number
+  runId: string
+  outcome: 'completed' | 'failed'
+  /** Unique provider reviews the run had listed when it became terminal. */
+  reviewsObserved: number
+  failureReason: ReviewHistoryImportFailureReason | null
+  sourceAggregateVersion: string
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const reviewPropertyHistoryImportFinished = (
+  args: Omit<
+    ReviewPropertyHistoryImportFinished,
+    '_tag' | 'eventId' | 'sourceAggregateVersion' | 'correlationId'
+  > & { correlationId?: string | null },
+): ReviewPropertyHistoryImportFinished => {
+  assert(DATABASE_UUID_PATTERN.test(args.runId), 'runId must be a UUID')
+  assert(
+    Number.isSafeInteger(args.sourceEpoch) && args.sourceEpoch >= 0,
+    'sourceEpoch must be a nonnegative safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.reviewsObserved) &&
+      args.reviewsObserved >= 0 &&
+      args.reviewsObserved <= 10_000,
+    'reviewsObserved must be a bounded nonnegative safe integer',
+  )
+  assert(
+    (args.outcome === 'failed') === (args.failureReason !== null),
+    'failureReason must accompany exactly a failed import',
+  )
+  assert(
+    args.occurredAt instanceof Date && Number.isFinite(args.occurredAt.getTime()),
+    'occurredAt must be a valid Date',
+  )
+  return {
+    ...args,
+    _tag: 'review.property_history_import.finished',
+    eventId: newEventId(),
+    sourceAggregateVersion: args.occurredAt.toISOString(),
+    correlationId: args.correlationId ?? null,
+  }
+}
+
 export type ReviewEvent =
   | ReviewCreated
   | ReviewUpdated
@@ -681,3 +753,4 @@ export type ReviewEvent =
   | ReviewReplyPublicationCancelled
   | ReviewReplyObserved
   | ReviewGoogleReputationSnapshotVerified
+  | ReviewPropertyHistoryImportFinished
