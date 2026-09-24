@@ -127,6 +127,25 @@ const refuseMandatory = (category: NotificationCategory): void => {
 }
 
 export const createNotificationPreferenceRepository = (db: Database) => {
+  /**
+   * The one settings row a person holds in an Organization. Two readers want
+   * different parts of it — the delivery window and the whole settings record —
+   * and both must agree on which row that is.
+   */
+  const userSettingsRow = async (userId: string, orgId: string) => {
+    const rows = await db
+      .select()
+      .from(notificationUserSettings)
+      .where(
+        and(
+          eq(notificationUserSettings.userId, userId),
+          eq(notificationUserSettings.organizationId, orgId),
+        ),
+      )
+      .limit(1)
+    return rows[0] ?? null
+  }
+
   const scopedPreference = async (
     userId: string,
     orgId: string,
@@ -179,17 +198,8 @@ export const createNotificationPreferenceRepository = (db: Database) => {
     userId: string,
     orgId: string,
   ): Promise<PersonalDeliveryWindow | null> => {
-    const rows = await db
-      .select()
-      .from(notificationUserSettings)
-      .where(
-        and(
-          eq(notificationUserSettings.userId, userId),
-          eq(notificationUserSettings.organizationId, orgId),
-        ),
-      )
-      .limit(1)
-    return rows[0] ? windowFromRow(rows[0]) : null
+    const row = await userSettingsRow(userId, orgId)
+    return row ? windowFromRow(row) : null
   }
 
   const propertyWindow = async (
@@ -462,17 +472,8 @@ export const createNotificationPreferenceRepository = (db: Database) => {
       userId: string,
       orgId: string,
     ): Promise<NotificationUserSettings | null> => {
-      const rows = await db
-        .select()
-        .from(notificationUserSettings)
-        .where(
-          and(
-            eq(notificationUserSettings.userId, userId),
-            eq(notificationUserSettings.organizationId, orgId),
-          ),
-        )
-        .limit(1)
-      return rows[0] ? userSettingsFromRow(rows[0]) : null
+      const row = await userSettingsRow(userId, orgId)
+      return row ? userSettingsFromRow(row) : null
     },
 
     upsertUserSettings: async (

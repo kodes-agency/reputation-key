@@ -279,32 +279,36 @@ const inboxItemStatusChangedSchema = z.object({
 // rows exist for these types. The two compatible inbox schemas
 // (inbox_item.created, inbox_item.status_changed) are unchanged.
 
-const inboxItemEscalatedSchema = z.object({
-  inboxItemId: z.string(),
-  organizationId: z.string(),
+/**
+ * Who acted, where, and when — the tail these corrected Inbox facts share,
+ * in the order they store it. Written once so they cannot be corrected apart
+ * from each other; it stays a shape rather than a schema so each event still
+ * declares its own identifiers first, and so none of them becomes `.strict()`
+ * (an unknown key is a producer ahead of this deploy, not a bad payload).
+ */
+const inboxActorShape = {
   userId: z.string().nullable().optional(),
   propertyId: z.string().nullable().optional(),
   source: z.string().optional(),
   occurredAt: z.string().optional(),
-})
+} as const
 
-const inboxItemEscalationResolvedSchema = z.object({
+/** One Inbox item, and nothing about it beyond the identifiers. */
+const inboxItemEventShape = {
   inboxItemId: z.string(),
   organizationId: z.string(),
-  userId: z.string().nullable().optional(),
-  propertyId: z.string().nullable().optional(),
-  source: z.string().optional(),
-  occurredAt: z.string().optional(),
-})
+  ...inboxActorShape,
+} as const
+
+const inboxItemEscalatedSchema = z.object(inboxItemEventShape)
+
+const inboxItemEscalationResolvedSchema = z.object(inboxItemEventShape)
 
 const inboxNoteAddedSchema = z.object({
   inboxItemId: z.string(),
   noteId: z.string(),
   organizationId: z.string(),
-  userId: z.string().nullable().optional(),
-  propertyId: z.string().nullable().optional(),
-  source: z.string().optional(),
-  occurredAt: z.string().optional(),
+  ...inboxActorShape,
 })
 
 const inboxItemAssignedSchema = z.object({
