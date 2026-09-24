@@ -43,6 +43,7 @@ async function readCurrentPermit(
       sourceContentState: reviews.sourceContentState,
       eligibility: materialReviewRevisions.responseTargetEligibility,
       responseTargetStartAt: materialReviewRevisions.responseTargetStartAt,
+      rating: materialReviewRevisions.rating,
     })
     .from(reviews)
     .innerJoin(
@@ -86,6 +87,7 @@ async function readCurrentPermit(
     materialReviewRevision: current.materialReviewRevision,
     eligibility,
     responseTargetStartAt: current.responseTargetStartAt,
+    rating: current.rating,
   }
 }
 
@@ -131,6 +133,7 @@ function selectMaterialRevisionRows(
       revision: materialReviewRevisions.revision,
       eligibility: materialReviewRevisions.responseTargetEligibility,
       responseTargetStartAt: materialReviewRevisions.responseTargetStartAt,
+      rating: materialReviewRevisions.rating,
       observedAt: materialReviewRevisions.createdAt,
     })
     .from(materialReviewRevisions)
@@ -212,6 +215,7 @@ function buildMaterialRevisionChain(
       materialReviewRevision: row.revision,
       eligibility,
       responseTargetStartAt: row.responseTargetStartAt,
+      rating: row.rating,
       observedAt: row.observedAt,
     })
     previousObservedAt = row.observedAt.getTime()

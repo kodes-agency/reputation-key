@@ -21,6 +21,7 @@ export type NotificationView = Pick<
   | 'payload'
   | 'coalescedCount'
   | 'coalescedLatestAt'
+  | 'resolvedAt'
   | 'readAt'
   | 'createdAt'
 >
@@ -39,6 +40,7 @@ export function toNotificationView(notification: Notification): NotificationView
     payload: notification.payload,
     coalescedCount: notification.coalescedCount,
     coalescedLatestAt: notification.coalescedLatestAt,
+    resolvedAt: notification.resolvedAt,
     readAt: notification.readAt,
     createdAt: notification.createdAt,
   }

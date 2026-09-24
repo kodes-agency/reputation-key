@@ -518,6 +518,38 @@ export const createNotificationEmailRepository = (
    * complaint, every still-sendable row this recipient has in the org is
    * suppressed rather than left to be attempted and rejected one by one.
    */
+  /**
+   * The work these notices asked for is done, so the mail behind them has
+   * nothing left to announce. `cancelled` is terminal (ADR 0046 r.6); only a
+   * still-sendable row is moved, so a row the provider may already have
+   * accepted is left exactly as it stands.
+   */
+  cancelQueuedForNotifications: async (
+    notificationIds: ReadonlyArray<string>,
+    orgId: string,
+    reason: string,
+    updatedAt: Date,
+  ): Promise<number> => {
+    if (notificationIds.length === 0) return 0
+    const rows = await db
+      .update(notificationEmailQueue)
+      .set({
+        status: 'cancelled',
+        suppressionReason: reason,
+        nextAttemptAt: null,
+        updatedAt,
+      })
+      .where(
+        and(
+          eq(notificationEmailQueue.organizationId, orgId),
+          inArray(notificationEmailQueue.notificationId, [...notificationIds]),
+          inArray(notificationEmailQueue.status, [...SENDABLE]),
+        ),
+      )
+      .returning({ id: notificationEmailQueue.id })
+    return rows.length
+  },
+
   suppressRecipient: async (
     userId: string,
     orgId: string,

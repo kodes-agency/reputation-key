@@ -58,9 +58,6 @@ export const createOneClickUnsubscribeRepository = (db: Database) => ({
         channel,
         enabled,
         cadence,
-        urgent_bypass_enabled,
-        quiet_hours_start,
-        quiet_hours_end,
         created_at,
         updated_at
       )
@@ -73,9 +70,6 @@ export const createOneClickUnsubscribeRepository = (db: Database) => ({
         'email',
         FALSE,
         CASE WHEN category = 'urgent_operational' THEN 'immediate' ELSE 'daily' END,
-        FALSE,
-        NULL,
-        NULL,
         ${now},
         ${now}
       FROM optional_scopes

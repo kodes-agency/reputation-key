@@ -331,6 +331,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
       connectionId: CONN_ID,
       organizationId: ORG_ID,
       occurredAt: NOW,
+      userId: null,
     })
 
     const result = await store.disconnectGoogleAccount({
@@ -370,6 +371,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
         connectionId: CONN_ID,
         organizationId: ORG_ID,
         occurredAt: NOW,
+        userId: null,
       }),
       _tag: 'integration.ghost',
     } as unknown as Parameters<typeof store.disconnectGoogleAccount>[0]['event']
@@ -404,6 +406,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
           connectionId: CONN_ID,
           organizationId: ORG_ID,
           occurredAt: NOW,
+          userId: null,
         }),
       }),
     ).rejects.toSatisfy(

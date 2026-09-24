@@ -49,6 +49,7 @@ import { createNotificationPreferenceRepository } from './infrastructure/reposit
 import { createOneClickUnsubscribeRepository } from './infrastructure/repositories/one-click-unsubscribe.repository'
 import { createNotificationDbUserLookupAdapter } from './infrastructure/adapters/notification-db-user-lookup.adapter'
 import type { ResponsibleManagerLookupPort } from './application/ports/responsible-manager-lookup.port'
+import type { ReplyApprovalAuthorityPort } from './application/ports/reply-approval-authority.port'
 import type { FeedbackPortalLookupPort } from './application/ports/feedback-portal-lookup.port'
 import { createNotificationAudienceAuthorizer } from './application/notification-audience'
 import { createNotificationRecipientStanding } from './application/notification-recipient-standing'
@@ -65,10 +66,13 @@ import {
   type GoogleConnectionPropertyLookup,
 } from './infrastructure/integration-outbox-consumers'
 import { registerBulkAssignmentNotificationConsumer } from './infrastructure/bulk-assignment-outbox-consumers'
+import { registerAssignmentReleaseNotificationConsumer } from './infrastructure/assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './infrastructure/escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './infrastructure/goal-outbox-consumers'
 import { registerHandlingCycleNotificationConsumers } from './infrastructure/handling-cycle-outbox-consumers'
+import { registerNotificationSettlementConsumers } from './infrastructure/notification-settlement-outbox-consumers'
 import { registerResponseTargetNotificationConsumer } from './infrastructure/response-target-outbox-consumers'
+import { createAccountAccessRemovalReader } from './infrastructure/repositories/account-access-removal.repository'
 import { createNotificationGapRepository } from './infrastructure/repositories/notification-gap.repository'
 import { createNotificationDeliveryRepairRepository } from './infrastructure/repositories/notification-delivery-repair.repository'
 import { createResendEventHandler } from './infrastructure/handlers/resend-event-handler'
@@ -80,7 +84,7 @@ import {
 } from './infrastructure/jobs/reconcile-missing-notifications.job'
 import { insertNotification } from './application/use-cases/insert-notification'
 import { muteNotificationCategory } from './application/use-cases/mute-notification-category'
-import { URGENT_EMAIL_JOB_NAME } from './infrastructure/jobs/urgent-email.job'
+import { immediateEmailDispatch } from './infrastructure/jobs/urgent-email.job'
 import { jobEnqueueOptions, withCatalogueJobOptions } from '#/shared/jobs/job-policy'
 import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
 import {
@@ -88,9 +92,13 @@ import {
   markNotificationUnread,
   dismissNotification,
 } from './domain/constructors-transitions'
-import { createNotificationPreference } from './domain/constructors-preference'
+import {
+  createNotificationCategoryDefault,
+  createNotificationPreference,
+} from './domain/constructors-preference'
 import { notificationError } from './domain/notification-errors'
 import type {
+  ConfigurableNotificationCategory,
   Notification,
   NotificationCadence,
   NotificationCategory,
@@ -129,6 +137,7 @@ import { createNotificationOrganizationExportContributor } from './infrastructur
 import { createNotificationOrganizationLifecycleContributor } from './infrastructure/adapters/notification-organization-lifecycle.adapter'
 import { createNotificationOrganizationScopeResolver } from './infrastructure/repositories/notification-organization-scope.repository'
 import { createNotificationUserSettings } from './infrastructure/notification-user-settings'
+import type { NotificationQuietHoursInput } from './application/dto/notification-preference.dto'
 import type { NotificationUserSettingsInput } from './application/dto/notification-user-settings.dto'
 
 import type { OutboxRepository } from '#/shared/outbox'
@@ -282,6 +291,8 @@ type NotificationBuildInput = Readonly<{
   logger: LoggerPort
   /** Current, eligibility-filtered Property/Portal notification authorities. */
   responsibleManagers: ResponsibleManagerLookupPort
+  /** Identity-owned `reply.manage` authority, for routing approval requests. */
+  replyApproval: ReplyApprovalAuthorityPort
   /** Guest-owned source attribution; Notification never reads Guest tables. */
   feedbackPortalLookup: FeedbackPortalLookupPort
   googleConnectionProperties: GoogleConnectionPropertyLookup
@@ -306,6 +317,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     repo: notificationRepo,
     propertyAccess: input.propertyAccess,
   })
+  const accessRemovalReader = createAccountAccessRemovalReader(input.db)
   const gapRepo = createNotificationGapRepository(input.db)
   const deliveryRepairRepo = createNotificationDeliveryRepairRepository(input.db)
   const deliveryLagRepo = createNotificationDeliveryLagRepository(
@@ -344,6 +356,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   const authorizeAudience = createNotificationAudienceAuthorizer({
     userLookup,
     responsibleManagers: input.responsibleManagers,
+    replyApproval: input.replyApproval,
+    notifications: notificationRepo,
     inboxItemLookup,
     escalationResolutions,
     portalHealthLookup: input.portalHealthLookup,
@@ -356,6 +370,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   const recipientStanding = createNotificationRecipientStanding({
     userLookup,
     responsibleManagers: input.responsibleManagers,
+    replyApproval: input.replyApproval,
   })
 
   /**
@@ -405,6 +420,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   const fanoutReads = {
     userLookup,
     responsibleManagers: input.responsibleManagers,
+    replyApproval: input.replyApproval,
     inboxItemLookup,
     clock: input.clock,
     logger: input.logger,
@@ -428,20 +444,21 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
         organizationId: string
         propertyId?: string
       }) => {
+        const dispatch = immediateEmailDispatch(data.propertyId)
         await input.queue!.add(
-          URGENT_EMAIL_JOB_NAME,
+          dispatch.jobName,
           {
             ...data,
             ...createJobExecutionEnvelope({
               organizationId: data.organizationId,
               ...(data.propertyId === undefined ? {} : { propertyId: data.propertyId }),
-              capability: 'notification.send_email',
+              capability: dispatch.capability,
               initiator: { kind: 'system', id: 'notification:urgent-enqueue' },
               correlationId: `notification-email:${data.notificationEmailId}`,
             }),
           },
           {
-            ...jobEnqueueOptions(URGENT_EMAIL_JOB_NAME),
+            ...jobEnqueueOptions(dispatch.jobName),
           },
         )
       }
@@ -475,6 +492,15 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
 
   const publicApi = {
     insertNotification: useCases.insertNotification,
+
+    /**
+     * Why the caller has no workspace, when the answer is "it was taken away".
+     * The only user-scoped read in this context: the notice lives in an
+     * Organization the caller can no longer open, so nothing organization-
+     * scoped could ever show it to them. Its server function resolves the
+     * subject from the session, never from the request body.
+     */
+    readAccountAccessRemoval: accessRemovalReader.findLatestForUser,
 
     /**
      * Feeds the `notification.missing_for_inbox_item` gauge. Exposed here
@@ -547,10 +573,14 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       if (now === null) return // invalid transition, skip
       await notificationRepo.updateStatus(id, userId, orgId, 'dismissed', now)
     },
-    getPreferences: (userId: string, orgId: string) => prefRepo.findByUser(userId, orgId),
+    getPreferences: async (userId: string, orgId: string) => ({
+      preferences: await prefRepo.findByUser(userId, orgId),
+      categoryDefaults: await prefRepo.findCategoryDefaults(userId, orgId),
+      propertyWindows: await prefRepo.findPropertyDeliveryWindows(userId, orgId),
+    }),
     getUserSettings: (userId: UserId, orgId: OrganizationId) =>
       userSettings.read(userId, orgId),
-    updatePreference: (
+    updatePreference: async (
       userId: string,
       orgId: string,
       propertyId: string,
@@ -558,9 +588,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       channel: NotificationChannel,
       enabled: boolean,
       cadence: NotificationCadence,
-      urgentBypassEnabled: boolean,
-      quietHoursStart: string | null,
-      quietHoursEnd: string | null,
+      applyToAllProperties: boolean,
     ) => {
       const now = input.clock()
       const result = createNotificationPreference(
@@ -573,15 +601,34 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
           channel,
           enabled,
           cadence,
-          urgentBypassEnabled,
-          quietHoursStart,
-          quietHoursEnd,
         },
         () => now,
       )
       if (result.isErr()) throw result.error
-      return prefRepo.upsert(result.value)
+      if (!applyToAllProperties) return prefRepo.upsert(result.value)
+      // "Apply to all my properties" is a statement about the person, not one
+      // Property: it becomes the default a Property with no row inherits, and
+      // the rows that would have overridden it go.
+      const categoryDefault = createNotificationCategoryDefault(
+        {
+          userId: userId as UserId,
+          organizationId: orgId as OrganizationId,
+          category: category as ConfigurableNotificationCategory,
+          channel,
+          enabled,
+          cadence,
+        },
+        () => now,
+      )
+      if (categoryDefault.isErr()) throw categoryDefault.error
+      await prefRepo.applyCategoryDefaultEverywhere(categoryDefault.value)
+      return result.value
     },
+    updateQuietHours: (
+      userId: UserId,
+      orgId: OrganizationId,
+      change: NotificationQuietHoursInput,
+    ) => userSettings.saveQuietHours(userId, orgId, change),
     mutePreferenceCategory: (
       userId: string,
       orgId: string,
@@ -648,15 +695,35 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       logger: input.logger,
       receipts: input.outboxRepo,
     })
+    registerAssignmentReleaseNotificationConsumer(consumerRegistry, {
+      queue,
+      userLookup,
+      responsibleManagers: input.responsibleManagers,
+      displayNames,
+      logger: input.logger,
+      receipts: input.outboxRepo,
+    })
     registerEscalationResolutionNotificationConsumer(consumerRegistry, {
       queue,
       escalationResolutions,
       responsibleManagers: input.responsibleManagers,
+      userLookup,
+      notifications: notificationRepo,
       receipts: input.outboxRepo,
     })
     registerHandlingCycleNotificationConsumers(consumerRegistry, {
       ...fanoutReads,
       queue,
+      receipts: input.outboxRepo,
+    })
+    // The counterpart of the routes above: the facts that finish the work
+    // they announced retire their notices and cancel the mail behind them.
+    registerNotificationSettlementConsumers(consumerRegistry, {
+      notifications: notificationRepo,
+      emails: emailRepo,
+      inboxItemLookup,
+      clock: input.clock,
+      logger: input.logger,
       receipts: input.outboxRepo,
     })
     registerResponseTargetNotificationConsumer(consumerRegistry, {

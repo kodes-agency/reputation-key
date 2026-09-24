@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import {
-  NOTIFICATION_SETTINGS_CATEGORIES,
-  type EffectiveNotificationSettings,
-  type NotificationPreference,
+import type {
+  EffectiveNotificationSettings,
+  NotificationPreference,
+  NotificationPropertyDeliveryWindow,
 } from '#/contexts/feed/application/public-api'
 import type { Action } from '#/components/hooks/use-action'
 import { NotificationsSettingsPage } from './notifications-settings-page'
@@ -27,9 +27,6 @@ const preference = (
     channel: 'email',
     enabled: true,
     cadence: 'daily',
-    urgentBypassEnabled: false,
-    quietHoursStart: null,
-    quietHoursEnd: null,
     createdAt: new Date('2026-08-01T00:00:00.000Z'),
     updatedAt: new Date('2026-08-01T00:00:00.000Z'),
     ...overrides,
@@ -41,10 +38,18 @@ const preferences: readonly NotificationPreference[] = [
   preference({ category: 'recognition', channel: 'email', cadence: 'daily' }),
 ]
 
+/** No quiet hours and no bypass: what a person who never chose either has. */
+const OPEN_WINDOW = {
+  quietHoursStart: null,
+  quietHoursEnd: null,
+  urgentBypassEnabled: false,
+} as const
+
 const userSettings: EffectiveNotificationSettings = {
-  locale: 'bg',
+  locale: 'en-GB',
   timezone: 'Europe/Sofia',
   timezoneSource: 'user',
+  ...OPEN_WINDOW,
 }
 
 /** A user who never saved anything: delivery runs on the Organization's zone. */
@@ -52,6 +57,7 @@ const organizationSettings: EffectiveNotificationSettings = {
   locale: 'en',
   timezone: 'Europe/Sofia',
   timezoneSource: 'organization',
+  ...OPEN_WINDOW,
 }
 
 type PreferenceInput = Readonly<{
@@ -61,9 +67,17 @@ type PreferenceInput = Readonly<{
     channel: NotificationPreference['channel']
     enabled: boolean
     cadence: NotificationPreference['cadence']
-    urgentBypassEnabled: boolean
-    quietHoursStart: string | null
-    quietHoursEnd: string | null
+    applyToAllProperties?: boolean
+  }>
+}>
+
+type QuietHoursInput = Readonly<{
+  data: Readonly<{
+    propertyId?: string
+    follow?: boolean
+    quietHoursStart?: string | null
+    quietHoursEnd?: string | null
+    urgentBypassEnabled?: boolean
   }>
 }>
 
@@ -82,8 +96,10 @@ const updatePreferenceMock = fn(async (input: PreferenceInput) =>
   preference({ category: input.data.category, channel: input.data.channel }),
 )
 const updateUserSettingsMock = fn(async () => userSettings)
+const updateQuietHoursMock = fn(async (_input: QuietHoursInput) => userSettings)
 const updatePreference = asAction(updatePreferenceMock)
 const updateUserSettings = asAction(updateUserSettingsMock)
+const updateQuietHours = asAction(updateQuietHoursMock)
 
 const setPropertyId = fn()
 const retryEmailAvailability = fn()
@@ -102,6 +118,8 @@ const meta = {
   args: {
     properties,
     preferences,
+    categoryDefaults: [],
+    propertyWindows: [],
     userSettings,
     propertyId: PROPERTY_ID,
     emailAvailability: 'allowed',
@@ -109,6 +127,7 @@ const meta = {
     setPropertyId,
     updatePreference,
     updateUserSettings,
+    updateQuietHours,
   },
 } satisfies Meta<typeof NotificationsSettingsPage>
 
@@ -259,9 +278,9 @@ export const ActionNeededKeepsInAppOn: Story = {
 export const EveryControlNamesItsCategory: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    // Both rows used to announce the same "In-app", "Email", "Cadence",
-    // "Quiet from" and "until", so a screen-reader user tabbing through could
-    // not tell which category they were changing.
+    // Both rows used to announce the same "In-app", "Email" and "Cadence", so
+    // a screen-reader user tabbing through could not tell which category they
+    // were changing.
     for (const category of ['Action needed', 'Workflow and collaboration']) {
       expect(canvas.getByRole('group', { name: category })).toBeInTheDocument()
       expect(
@@ -273,17 +292,14 @@ export const EveryControlNamesItsCategory: Story = {
       expect(
         canvas.getByRole('combobox', { name: `${category}: Cadence` }),
       ).toBeInTheDocument()
-      expect(canvas.getByLabelText(`${category}: Quiet from`)).toBeInTheDocument()
-      expect(canvas.getByLabelText(`${category}: quiet hours until`)).toBeInTheDocument()
       expect(
-        canvas.getByRole('button', { name: `Save quiet hours for ${category}` }),
+        canvas.getByRole('button', { name: `${category}: Apply to all my properties` }),
       ).toBeInTheDocument()
     }
-    expect(
-      canvas.getByRole('switch', {
-        name: 'Action needed: Allow urgent email to bypass quiet hours',
-      }),
-    ).toBeInTheDocument()
+    // Quiet hours are the person's one setting now, so they are named once,
+    // not once per category (ADR 0046, amended 2026-09-23).
+    expect(canvas.getAllByLabelText(/Quiet from/)).toHaveLength(1)
+    expect(canvas.queryByLabelText(/Action needed: Quiet from/)).toBeNull()
   },
 }
 
@@ -331,7 +347,7 @@ export const SeedsFormattingFromTheServer: Story = {
     // Render source is the query result, not a stale local mirror.
     expect(
       canvas.getByRole('combobox', { name: 'Date and time format' }),
-    ).toHaveTextContent('Bulgarian')
+    ).toHaveTextContent('English (UK)')
     expect(canvas.getByRole('combobox', { name: 'Timezone' })).toHaveTextContent(
       /Sofia \(UTC\+[23]\)/,
     )
@@ -350,10 +366,10 @@ export const NewUserSeesTheOrganizationTimezone: Story = {
     expect(canvas.getByTestId('timezone-source')).toHaveTextContent(
       "Your organization's timezone",
     )
-    // Every category row says it, Goals included.
+    // Said once, where quiet hours are set, instead of once per category row.
     expect(
-      canvas.getAllByText(/daily digest and quiet hours use your timezone, Sofia/),
-    ).toHaveLength(NOTIFICATION_SETTINGS_CATEGORIES.length)
+      canvas.getAllByText(/on your own clock \(Sofia/, { exact: false }),
+    ).toHaveLength(1)
     expect(canvas.queryByText(/property-local/)).toBeNull()
   },
 }
@@ -373,7 +389,12 @@ export const SavingTheLocaleKeepsTheOrganizationTimezone: Story = {
 
 export const KeepsALegacyTimezoneTheListNoLongerOffers: Story = {
   args: {
-    userSettings: { locale: 'de-DE', timezone: '+03:00', timezoneSource: 'user' },
+    userSettings: {
+      locale: 'de-DE',
+      timezone: '+03:00',
+      timezoneSource: 'user',
+      ...OPEN_WINDOW,
+    },
   },
   play: async ({ canvasElement }) => {
     updateUserSettingsMock.mockClear()
@@ -389,45 +410,165 @@ export const KeepsALegacyTimezoneTheListNoLongerOffers: Story = {
   },
 }
 
-export const QuietHoursCanBeCleared: Story = {
-  args: {
-    preferences: [
-      ...preferences.filter(
-        (item) =>
-          !(item.category === 'workflow_collaboration' && item.channel === 'email'),
-      ),
-      preference({
-        category: 'workflow_collaboration',
-        channel: 'email',
-        enabled: true,
-        quietHoursStart: '09:00',
-        quietHoursEnd: '17:00',
-      }),
-    ],
+/**
+ * One window, saved once, for every property. It used to live on every
+ * (property, category, channel) row: about sixty saves to stop 03:00 email for
+ * a manager with thirty properties, and a window set on some properties only
+ * split the one daily digest in two.
+ */
+export const PersonalQuietHoursCoverEveryProperty: Story = {
+  play: async ({ canvasElement }) => {
+    updateQuietHoursMock.mockClear()
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText('Your quiet hours: Quiet from'), '22:00')
+    await userEvent.type(
+      canvas.getByLabelText('Your quiet hours: quiet hours until'),
+      '07:00',
+    )
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Save quiet hours for Your quiet hours' }),
+    )
+
+    await waitFor(() => expect(updateQuietHoursMock).toHaveBeenCalledOnce())
+    // No propertyId: this is the person's answer everywhere.
+    expect(updateQuietHoursMock).toHaveBeenCalledWith({
+      data: {
+        quietHoursStart: '22:00',
+        quietHoursEnd: '07:00',
+        urgentBypassEnabled: false,
+      },
+    })
   },
+}
+
+export const QuietHoursNeedTwoDifferentTimes: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText('Your quiet hours: Quiet from'), '22:00')
+    await userEvent.type(
+      canvas.getByLabelText('Your quiet hours: quiet hours until'),
+      '22:00',
+    )
+    // Delivery reads equal times as no quiet hours at all.
+    expect(
+      canvas.getByRole('button', { name: 'Save quiet hours for Your quiet hours' }),
+    ).toBeDisabled()
+    expect(canvas.getByText('Choose different start and end times.')).toBeVisible()
+  },
+}
+
+const override: NotificationPropertyDeliveryWindow = {
+  propertyId: PROPERTY_ID,
+  userId: 'user-story',
+  organizationId: 'org-story',
+  quietHoursStart: '00:00',
+  quietHoursEnd: '06:00',
+  urgentBypassEnabled: false,
+  createdAt: new Date('2026-08-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-08-01T00:00:00.000Z'),
+} as unknown as NotificationPropertyDeliveryWindow
+
+export const OnePropertyCanOverrideTheWindow: Story = {
+  args: {
+    userSettings: { ...userSettings, quietHoursStart: '22:00', quietHoursEnd: '07:00' },
+    propertyWindows: [override],
+  },
+  play: async ({ canvasElement }) => {
+    updateQuietHoursMock.mockClear()
+    const canvas = within(canvasElement)
+    const property = properties[0]!.name
+    // The override is shown as this property's own answer, not as the
+    // person's window with a footnote.
+    expect(canvas.getByLabelText(`${property}: Quiet from`)).toHaveValue('00:00')
+
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Follow my quiet hours here' }),
+    )
+
+    await waitFor(() => expect(updateQuietHoursMock).toHaveBeenCalledOnce())
+    expect(updateQuietHoursMock).toHaveBeenCalledWith({
+      data: { propertyId: PROPERTY_ID, follow: true },
+    })
+  },
+}
+
+/**
+ * The gap this closes: a Property added or reassigned after the person
+ * configured everything else had no row at all and fell through to the
+ * versioned defaults — urgent email, immediately, at 03:00.
+ */
+export const AppliesACategoryToEveryProperty: Story = {
   play: async ({ canvasElement }) => {
     updatePreferenceMock.mockClear()
     const canvas = within(canvasElement)
-    const heading = canvas.getByRole('heading', {
-      name: 'Workflow and collaboration',
+    const button = canvas.getByRole('button', {
+      name: 'Workflow and collaboration: Apply to all my properties',
     })
-    const fieldset = heading.closest('fieldset')
-    if (!fieldset) throw new Error('workflow notification fieldset is missing')
-    const row = within(fieldset)
-    await userEvent.clear(row.getByLabelText(/quiet from/i))
-    await userEvent.clear(row.getByLabelText(/quiet hours until/i))
-    await userEvent.click(row.getByRole('button', { name: /save quiet hours/i }))
-
-    await waitFor(() =>
-      expect(updatePreferenceMock).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          category: 'workflow_collaboration',
-          channel: 'email',
-          quietHoursStart: null,
-          quietHoursEnd: null,
-        }),
-      }),
+    // The button says what every other property will get, so it is not a leap.
+    expect(button).toHaveAccessibleDescription(
+      'A new property gets in-app on, email off.',
     )
+
+    await userEvent.click(button)
+
+    await waitFor(() => expect(updatePreferenceMock).toHaveBeenCalledTimes(2))
+    expect(updatePreferenceMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        category: 'workflow_collaboration',
+        channel: 'email',
+        applyToAllProperties: true,
+      }),
+    })
+  },
+}
+
+/** A property with no row of its own shows what it inherits, not a blank. */
+export const InheritedDefaultIsWhatANewPropertyGets: Story = {
+  args: {
+    categoryDefaults: [
+      {
+        userId: 'user-story',
+        organizationId: 'org-story',
+        category: 'workflow_collaboration',
+        channel: 'email',
+        enabled: true,
+        cadence: 'daily',
+        createdAt: new Date('2026-08-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-01T00:00:00.000Z'),
+      },
+    ] as never,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByRole('button', {
+        name: 'Workflow and collaboration: Apply to all my properties',
+      }),
+    ).toHaveAccessibleDescription('A new property gets in-app on, email daily at 08:00.')
+  },
+}
+
+/**
+ * The card used to be called "Language and timezone" while every word in the
+ * product is English (docs/BETA.md); it only ever changed how a date is
+ * written.
+ */
+export const TimezoneCardIsNamedForWhatItDoes: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Timezone and date format')).toBeVisible()
+    expect(canvas.queryByText(/Language and timezone/)).toBeNull()
+
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Date and time format' }))
+    const portal = within(document.body)
+    const options = await portal.findAllByRole('option')
+    // English conventions only — a language nobody is offered is not a choice.
+    expect(options.map((option) => option.textContent)).toEqual([
+      'English (US)',
+      'English (UK)',
+    ])
+    // And the control says what it changes, which its names do not.
+    expect(canvas.getByTestId('format-sample')).toHaveTextContent('23/09/2026')
   },
 }
 
@@ -480,22 +621,6 @@ export const RapidChangesBuildOnEachOther: Story = {
   },
 }
 
-export const QuietHoursNeedTwoDifferentTimes: Story = {
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.type(canvas.getByLabelText('Action needed: Quiet from'), '22:00')
-    await userEvent.type(
-      canvas.getByLabelText('Action needed: quiet hours until'),
-      '22:00',
-    )
-    // Delivery reads equal times as no quiet hours at all.
-    expect(
-      canvas.getByRole('button', { name: 'Save quiet hours for Action needed' }),
-    ).toBeDisabled()
-    expect(canvas.getByText('Choose different start and end times.')).toBeVisible()
-  },
-}
-
 export const EmailTimingWaitsForEmail: Story = {
   // Held open so the row keeps showing the requested state, as it does in the
   // app until the refetch lands; the static fixture never reflects a save.
@@ -504,13 +629,12 @@ export const EmailTimingWaitsForEmail: Story = {
     slowUpdatePreferenceMock.mockClear()
     releaseSaves.length = 0
     const canvas = within(canvasElement)
-    // Workflow email is off: its cadence and quiet hours cannot take effect,
-    // so they are not offered as if they could.
+    // Workflow email is off: its cadence cannot take effect, so it is not
+    // offered as if it could.
     const cadence = canvas.getByRole('combobox', {
       name: 'Workflow and collaboration: Cadence',
     })
     expect(cadence).toBeDisabled()
-    expect(canvas.getByLabelText('Workflow and collaboration: Quiet from')).toBeDisabled()
     expect(
       within(canvas.getByRole('group', { name: 'Workflow and collaboration' })).getByText(
         'Turn on email to choose when it arrives.',

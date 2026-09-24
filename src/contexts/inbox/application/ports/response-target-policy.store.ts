@@ -1,12 +1,25 @@
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { ResponseTargetKind } from '../../domain/response-target'
 
+/**
+ * The shorter Google Review target an Organization may set for its own
+ * low-rated reviews: any rating at or below `threshold` is measured against
+ * `durationMinutes` instead, so its halfway and target-time reminders come
+ * sooner. Null everywhere is the default and is exactly today's behaviour.
+ */
+export type LowRatingResponseTarget = Readonly<{
+  threshold: number
+  durationMinutes: number
+}>
+
 export type OrganizationResponseTargetPolicyView = Readonly<{
   targetKind: ResponseTargetKind
   durationMinutes: number
   policySource: 'builtin_default' | 'organization_policy'
   /** Null means no stored row exists and the next write must expect creation. */
   policyVersion: number | null
+  /** Google Review policies only; always null for private feedback. */
+  lowRating: LowRatingResponseTarget | null
 }>
 
 export type ResponseTargetPolicySettings = Readonly<{
@@ -45,7 +58,15 @@ export type ResponseTargetPolicyStore = Readonly<{
     propertyId?: PropertyId,
   ): Promise<ResponseTargetPolicySettings>
   setOrganizationPolicy(
-    command: PolicyCommand & Readonly<{ targetKind: ResponseTargetKind }>,
+    command: PolicyCommand &
+      Readonly<{
+        targetKind: ResponseTargetKind
+        /**
+         * Omitted leaves the stored low-rating target as it is; `null` clears
+         * it; an object sets it. Only a Google Review policy may carry one.
+         */
+        lowRating?: LowRatingResponseTarget | null
+      }>,
   ): Promise<ResponseTargetPolicyWriteResult>
   setPrivateFeedbackPropertyOverride(
     command: Omit<PolicyCommand, 'durationMinutes'> &

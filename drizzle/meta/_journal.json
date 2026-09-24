@@ -204,6 +204,34 @@
       "when": 1790900000000,
       "tag": "0029_notification_unsubscribe_scopes",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791000000000,
+      "tag": "0030_google_disconnect_notification",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1791100000000,
+      "tag": "0031_notification_personal_quiet_hours",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1791200000000,
+      "tag": "0032_inbox_low_rating_response_target",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791300000000,
+      "tag": "0033_notification_resolved_at",
+      "breakpoints": true
     }
   ]
 }

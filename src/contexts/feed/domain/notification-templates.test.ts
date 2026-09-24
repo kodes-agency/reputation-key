@@ -15,6 +15,7 @@ import type { NotificationPayload } from './notification-payload'
 import { parseNotificationPayload } from './notification-payload'
 import {
   notificationLink,
+  notificationReplyTo,
   renderNotification,
   waitingAge,
 } from './notification-templates'
@@ -61,13 +62,14 @@ describe('renderNotification — invariants across every type', () => {
 
     const visibleCopy = [r.title, r.body, r.summary].join(' ')
     // Every Property-scoped notice names its Property: a reader with several
-    // cannot otherwise tell rows or urgent emails apart. Account notices and a
-    // beta report outcome are Organization-scoped (ADR 0059), and the Google
-    // connection belongs to the Organization: the Property its notice is
+    // cannot otherwise tell rows or urgent emails apart. Account notices, a
+    // beta report outcome (ADR 0059) and a Google disconnect (ADR 0046,
+    // amended 2026-09-24) are Organization-scoped, and the Google connection
+    // belongs to the Organization: the Property `reauthorization_required` is
     // filed under is only a delivery anchor, so naming it would mislead.
     if (
       type.startsWith('account.organization_') ||
-      type === 'integration.reauthorization_required' ||
+      type.startsWith('integration.') ||
       type === 'beta_feedback.outcome'
     ) {
       expect(visibleCopy).not.toContain('Riverside Hotel')
@@ -208,6 +210,114 @@ describe('renderNotification — the copy that was broken', () => {
       actionLabel: 'View item',
       summary: 'Riverside Hotel · 2-star feedback · reopened',
     })
+  })
+
+  it.each([
+    [
+      'provider_reply_deleted',
+      'The published reply was removed from Google. Open it to see where it stands.',
+    ],
+    [
+      'guest_follow_up_still_needed',
+      'The guest still needs a follow-up. Open it to see where it stands.',
+    ],
+    [
+      'correcting_handling_status',
+      'Its handling status was wrong. Open it to see where it stands.',
+    ],
+  ] as const)('says why an item was reopened (%s)', (reopenReason, body) => {
+    expect(
+      renderNotification('inbox.reopened', {
+        propertyName: 'Riverside Hotel',
+        reopenReason,
+      }).body,
+    ).toBe(body)
+  })
+
+  it.each([
+    [
+      'publication_snapshot_unavailable',
+      'unavailable',
+      'Guest portal is offline at Riverside Hotel',
+      'Its published version is missing, so guests cannot load it.',
+    ],
+    [
+      'public_address_unavailable',
+      'unavailable',
+      'Guest portal is offline at Riverside Hotel',
+      'Its web address no longer resolves, so guests cannot reach it.',
+    ],
+    [
+      'google_destination_unavailable',
+      'degraded',
+      'Guest portal needs attention at Riverside Hotel',
+      'Its Google review destination is gone, so the Google step is broken.',
+    ],
+  ] as const)(
+    'says what is actually wrong with a portal (%s)',
+    (portalHealthReason, portalHealthStatus, title, opening) => {
+      const rendered = renderNotification('portal.health_attention', {
+        propertyName: 'Riverside Hotel',
+        portalHealthStatus,
+        portalHealthReason,
+      })
+
+      expect(rendered.title).toBe(title)
+      expect(rendered.body.startsWith(opening)).toBe(true)
+      expect(rendered.body).not.toContain('may need attention')
+    },
+  )
+
+  it('states the target time of a reminder in the reader\u2019s own timezone', () => {
+    const payload = {
+      propertyName: 'Riverside Hotel',
+      targetDueAt: '2026-09-29T12:00:00.000Z',
+    }
+
+    const inNewYork = renderNotification('inbox.response_target_halfway', payload, {
+      timeZone: 'America/New_York',
+    })
+    const inSofia = renderNotification('inbox.response_target_halfway', payload, {
+      timeZone: 'Europe/Sofia',
+    })
+
+    expect(inNewYork.body).toContain('Target time Tue, Sep 29, 08:00')
+    expect(inSofia.body).toContain('Target time Tue, Sep 29, 15:00')
+    // The product term is "target time"; "due" is not a word this product uses.
+    expect(`${inNewYork.title} ${inNewYork.body}`).not.toMatch(/\bdue\b/i)
+  })
+
+  it('says a passed target time in the past tense', () => {
+    expect(
+      renderNotification(
+        'inbox.response_target_passed',
+        { targetDueAt: '2026-09-29T12:00:00.000Z' },
+        { timeZone: 'UTC' },
+      ).body,
+    ).toContain('The target time was Tue, Sep 29, 12:00.')
+  })
+
+  it('omits the target time when the reader\u2019s timezone is unknown', () => {
+    const rendered = renderNotification('inbox.response_target_halfway', {
+      targetDueAt: '2026-09-29T12:00:00.000Z',
+    })
+
+    expect(rendered.body).toBe('This item is still open.')
+  })
+
+  it('falls back to the vague portal notice only when the health fact is missing', () => {
+    expect(renderNotification('portal.health_attention', {}).title).toBe(
+      'A guest portal may need attention',
+    )
+  })
+
+  it('still reads correctly when the reopen fact named no usable reason', () => {
+    expect(
+      renderNotification('inbox.reopened', {
+        propertyName: 'Riverside Hotel',
+        reopenReason: 'other',
+      }).body,
+    ).toBe('This review needs another look. Open it to see where it stands.')
   })
 
   it.each([
@@ -489,18 +599,24 @@ describe('notificationLink', () => {
       body: 'Your account can now access this organization.',
       actionLabel: 'Review account',
       summary: 'organization access added',
+      whyReceived:
+        'You received this because your account was given access to an organization on Reputation Key.',
     })
     expect(renderNotification('account.organization_role_changed', {})).toEqual({
       title: 'Organization role updated',
       body: 'Your account permissions for this organization were updated.',
       actionLabel: 'Review account',
       summary: 'organization role updated',
+      whyReceived:
+        'You received this because what your account may do in an organization on Reputation Key changed.',
     })
     expect(renderNotification('account.organization_access_removed', {})).toEqual({
       title: 'Organization access removed',
       body: 'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
       actionLabel: 'Review account',
       summary: 'organization access removed',
+      whyReceived:
+        'You received this because your access to an organization on Reputation Key ended.',
     })
   })
 
@@ -511,13 +627,39 @@ describe('notificationLink', () => {
       }),
     ).toEqual({
       title: 'Final notice: permanent deletion of Riverside Group',
-      body: 'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only RepKey support can stop it, before it starts. Contact support now.',
+      body: 'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only Reputation Key support can stop it, before it starts. To stop it, answer this email or write to denev@kodes.agency now.',
       actionLabel: 'Open profile',
       summary: 'Riverside Group · permanent deletion pending',
+      whyReceived:
+        'You received this because you administer an organization that is scheduled for permanent deletion. It cannot be turned off.',
     })
     expect(renderNotification('account.organization_purge_pending', {}).title).toBe(
       'Final notice: permanent deletion of this organization',
     )
+  })
+
+  it('gives the final deletion notice a reachable reply-to and leaves every other type without one', () => {
+    expect(notificationReplyTo('account.organization_purge_pending')).toBe(
+      'denev@kodes.agency',
+    )
+    expect(notificationReplyTo('account.organization_access_removed')).toBeNull()
+    expect(notificationReplyTo('reply.pending_approval')).toBeNull()
+  })
+
+  it('gives every mandatory type its own footer wording and leaves optional types without one', () => {
+    const mandatory: ReadonlyArray<NotificationType> = [
+      'account.organization_access_granted',
+      'account.organization_role_changed',
+      'account.organization_access_removed',
+      'account.organization_purge_pending',
+    ]
+    const reasons = mandatory.map((type) => renderNotification(type, {}).whyReceived)
+
+    expect(reasons.filter((reason) => reason !== undefined)).toHaveLength(
+      mandatory.length,
+    )
+    expect(new Set(reasons).size).toBe(mandatory.length)
+    expect(renderNotification('reply.pending_approval', {}).whyReceived).toBeUndefined()
   })
 
   it('deep-links an inbox item through typed search params', () => {
@@ -698,9 +840,66 @@ describe('notificationLink', () => {
     })
   })
 
+  it.each([
+    ['a month key that never went through the allowlist', { goalMonth: 'last month' }],
+    ['a target time that is not an instant', { targetDueAt: 'tomorrow' }],
+  ] as const)('renders rather than throwing on %s', (_case, payload) => {
+    // Both facts are formatted, and both render in the bell's own paint: a
+    // payload that reached a template unparsed must shorten the copy, never
+    // take the feed down with a RangeError.
+    for (const type of NOTIFICATION_TYPES) {
+      const rendered = renderNotification(type, payload, { timeZone: 'UTC' })
+      expect(rendered.title).not.toBe('')
+      expect(rendered.title).not.toMatch(/undefined|NaN|Invalid/)
+      expect(rendered.body).not.toMatch(/undefined|NaN|Invalid/)
+    }
+  })
+
+  it('names the month, the subject and the direction of a goal result', () => {
+    expect(
+      renderNotification('goal.completed', {
+        goalName: 'Lobby QR scans',
+        propertyName: 'Riverside Hotel',
+        goalMonth: '2026-10',
+        goalSubjectKind: 'portal',
+      }),
+    ).toEqual({
+      title: 'October goal met: Lobby QR scans at Riverside Hotel',
+      body: 'This Portal goal hit its target. Open the goal to see the numbers.',
+      actionLabel: 'View progress',
+      summary: 'Riverside Hotel · Lobby QR scans · Portal',
+    })
+  })
+
+  it.each([
+    ['not_met', 'October goal no longer met: Lobby QR scans'],
+    ['met', 'October goal met: Lobby QR scans'],
+    ['unavailable', 'October goal result unavailable: Lobby QR scans'],
+  ] as const)('says which way a corrected result went (%s)', (goalOutcome, title) => {
+    expect(
+      renderNotification('goal.result_revised', {
+        goalName: 'Lobby QR scans',
+        goalMonth: '2026-10',
+        goalOutcome,
+      }).title,
+    ).toBe(title)
+  })
+
+  it('tells a Portal Group goal apart from a Portal one', () => {
+    expect(
+      renderNotification('goal.result_revised', {
+        goalName: 'Lobby QR scans',
+        goalSubjectKind: 'portal_group',
+        goalOutcome: 'not_met',
+      }).body,
+    ).toBe(
+      'This Portal Group goal no longer meets its target. Open the goal to see the current metrics.',
+    )
+  })
+
   it('goal.completed sends the reader to the goal', () => {
     expect(renderNotification('goal.completed', {}).body).toBe(
-      'It hit its target. Open the goal to see the numbers.',
+      'This goal hit its target. Open the goal to see the numbers.',
     )
   })
 

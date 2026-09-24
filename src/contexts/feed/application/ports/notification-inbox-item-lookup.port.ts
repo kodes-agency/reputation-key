@@ -54,6 +54,12 @@ export type ResponseTargetReminderNotificationFacts = HandlingCycleNotificationF
     targetKind: 'google_review_response' | 'private_feedback_handling'
     reminderKind: 'halfway' | 'target_passed'
     scheduledFor: Date
+    /**
+     * The target time itself — what the reminder is about. Read from the same
+     * immutable snapshot the slot belongs to, so it is the target the reader
+     * is being reminded of and not a later policy's.
+     */
+    dueAt: Date
   }>
 
 export type ResponseTargetReminderNotificationLookup = Readonly<{
@@ -100,6 +106,16 @@ export type InboxItemLookupPort = Readonly<{
   findResponseTargetReminderNotificationFacts(
     input: ResponseTargetReminderNotificationLookup,
   ): Promise<ResponseTargetReminderNotificationFacts | null>
+
+  /**
+   * Everyone who has written a note on this item. Identifiers only — the note
+   * text never crosses this seam — so a later note can reach the people
+   * already talking about the item (I15).
+   */
+  findNoteAuthors(
+    inboxItemId: InboxItemId,
+    orgId: OrganizationId,
+  ): Promise<ReadonlyArray<UserId>>
 
   /**
    * When the current wait began: the start of the current Handling Cycle's

@@ -7,6 +7,7 @@ import {
   getNotificationPreferencesFn,
   getNotificationUserSettingsFn,
   updateNotificationPreferenceFn,
+  updateNotificationQuietHoursFn,
   updateNotificationUserSettingsFn,
 } from '#/contexts/feed/server/notifications'
 import { NotificationsSettingsPage } from '#/components/features/settings'
@@ -126,13 +127,23 @@ function NotificationSettingsPropertyScope({
   const updateUserSettings = useActionMutation(updateNotificationUserSettingsFn, {
     invalidateKeys: [notificationKeys.userSettings(organizationId)],
   })
+  // A quiet-hours save writes the person's row or one Property override, so
+  // both reads are stale afterwards.
+  const updateQuietHours = useActionMutation(updateNotificationQuietHoursFn, {
+    invalidateKeys: [
+      notificationKeys.userSettings(organizationId),
+      notificationKeys.preferences(organizationId),
+    ],
+  })
 
   return (
     <div className="mt-6 min-w-0">
       {propertyId ? (
         <NotificationsSettingsPage
           properties={properties.properties}
-          preferences={preferences}
+          preferences={preferences.preferences}
+          categoryDefaults={preferences.categoryDefaults}
+          propertyWindows={preferences.propertyWindows}
           userSettings={userSettings}
           propertyId={propertyId}
           // Treating an in-flight or failed check as "allowed" is what rendered
@@ -142,6 +153,7 @@ function NotificationSettingsPropertyScope({
           setPropertyId={setPropertyId}
           updatePreference={updatePreference}
           updateUserSettings={updateUserSettings}
+          updateQuietHours={updateQuietHours}
         />
       ) : (
         <p className="text-sm text-muted-foreground">

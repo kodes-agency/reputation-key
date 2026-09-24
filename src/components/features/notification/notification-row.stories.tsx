@@ -10,6 +10,7 @@ import {
   longPropertyNameNotification,
   makeNotification,
   notificationFixtures,
+  type NotificationFixtureOverrides,
 } from './notification.stories.fixtures'
 import { NotificationRow } from './notification-row'
 import type { NotificationRowActions } from './types'
@@ -84,6 +85,110 @@ async function expectMenuSettled(canvasElement: HTMLElement) {
   })
 }
 
+/**
+ * The copy stories are all pinned the same way: the sentences the row now
+ * says, and — where the story exists because the old wording was wrong — the
+ * phrasing that must not survive anywhere in the row. Only the fixture and
+ * those facts differ, so the assertions are written once here. Every fixture
+ * is unread, the state this copy is written for and the factory's default.
+ */
+type RowCopySpec = Readonly<{
+  notification: NotificationFixtureOverrides
+  says: ReadonlyArray<RegExp | string>
+  neverSays?: RegExp
+}> &
+  Omit<NonNullable<Story['args']>, 'notification'>
+
+const rowSays = ({ notification, says, neverSays, ...args }: RowCopySpec): Story => ({
+  args: { ...args, notification: makeNotification(notification) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    for (const sentence of says) {
+      expect(canvas.getByText(sentence)).toBeInTheDocument()
+    }
+    if (neverSays) expect(canvasElement.textContent).not.toMatch(neverSays)
+  },
+})
+
+/**
+ * Why the item is open again. The reopen fact's closed reason replaces the
+ * generic "needs another look"; the manager's free-text explanation beside it
+ * never leaves Inbox.
+ */
+export const ReopenedSaysWhy: Story = rowSays({
+  notification: {
+    id: '20000000-0000-4000-8000-000000000031',
+    type: 'inbox.reopened',
+    payload: {
+      propertyName: 'Riverside Hotel',
+      platform: 'google',
+      reopenReason: 'provider_reply_deleted',
+    },
+  },
+  says: [/The published reply was removed from Google\./],
+  neverSays: /needs another look/,
+})
+
+/**
+ * A reminder says by when, on the READER's clock. Two managers responsible for
+ * one item need not share a timezone, so the row formats the stored instant
+ * with the format it already resolves rather than reading a frozen label.
+ */
+export const ResponseTargetSaysByWhen: Story = rowSays({
+  notification: {
+    id: '20000000-0000-4000-8000-000000000032',
+    type: 'inbox.response_target_halfway',
+    payload: {
+      propertyName: 'Riverside Hotel',
+      targetDueAt: '2026-09-29T12:00:00.000Z',
+    },
+  },
+  format: { locale: 'en-US', timeZone: 'America/New_York' },
+  says: [/Target time Tue, Sep 29, 08:00\./],
+  // The product's term is "target time"; "due" is not a word it uses.
+  neverSays: /\bdue\b/i,
+})
+
+/**
+ * A guest portal that guests cannot reach at all, and what to do about it.
+ * The notice used to say only that it "may need attention".
+ */
+export const PortalOffline: Story = rowSays({
+  notification: {
+    id: '20000000-0000-4000-8000-000000000033',
+    type: 'portal.health_attention',
+    payload: {
+      propertyName: 'Harbour Lodge',
+      portalHealthStatus: 'unavailable',
+      portalHealthReason: 'public_address_unavailable',
+    },
+  },
+  says: [/Guest portal is offline at Harbour Lodge/],
+  neverSays: /may need attention/,
+})
+
+/**
+ * Which month, whose goal, and which way it went — the three facts that tell
+ * one Portal's monthly result from its nine siblings'.
+ */
+export const GoalResultNamesItsMonth: Story = rowSays({
+  notification: {
+    id: '20000000-0000-4000-8000-000000000034',
+    type: 'goal.result_revised',
+    payload: {
+      propertyName: 'Harbour Lodge',
+      goalName: 'Lobby QR scans',
+      goalMonth: '2026-10',
+      goalSubjectKind: 'portal',
+      goalOutcome: 'not_met',
+    },
+  },
+  says: [
+    'October goal no longer met: Lobby QR scans at Harbour Lodge',
+    /This Portal goal no longer meets its target\./,
+  ],
+})
+
 /** Urgent + unread: pill, unread dot, rating glyphs, waiting age, accent CTA. */
 export const UrgentUnread: Story = {
   args: { notification: escalatedWaiting },
@@ -118,14 +223,18 @@ export const UrgentUnread: Story = {
 const groupedNotices = {
   'inbox.bulk_assigned': 'mine',
   'inbox.bulk_reopened': 'open',
+  'inbox.assignments_released': 'open',
+} as const
+
+const GROUPED_NOTICE_IDS = {
+  'inbox.bulk_assigned': '20000000-0000-4000-8000-0000000000c1',
+  'inbox.bulk_reopened': '20000000-0000-4000-8000-0000000000c2',
+  'inbox.assignments_released': '20000000-0000-4000-8000-0000000000c3',
 } as const
 
 const groupedNotice = (type: keyof typeof groupedNotices) =>
   makeNotification({
-    id:
-      type === 'inbox.bulk_assigned'
-        ? '20000000-0000-4000-8000-0000000000c1'
-        : '20000000-0000-4000-8000-0000000000c2',
+    id: GROUPED_NOTICE_IDS[type],
     type,
     status: 'unread',
     payload: {
@@ -152,6 +261,9 @@ const opensItsQueue = (type: keyof typeof groupedNotices): Story => {
 
 export const BulkAssignedOpensItsQueue: Story = opensItsQueue('inbox.bulk_assigned')
 export const BulkReopenedOpensItsQueue: Story = opensItsQueue('inbox.bulk_reopened')
+export const AssignmentsReleasedOpensItsQueue: Story = opensItsQueue(
+  'inbox.assignments_released',
+)
 
 /**
  * ADR 0046 r.2 coalescing: one unread row absorbing repeat events. A stored
@@ -192,6 +304,30 @@ export const OutcomeShowsNoWait: Story = {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/Your reply is live on Google/)).toBeInTheDocument()
     expect(canvas.queryByText(/Wait/)).not.toBeInTheDocument()
+  },
+}
+
+/**
+ * The work an urgent notice asked for was done upstream. Read is not resolved,
+ * so the row is still unread — but it has stopped asking: no unread dot, no
+ * Urgent pill, and a "Done" marker in their place.
+ */
+export const SettledStopsAsking: Story = {
+  args: {
+    notification: makeNotification({
+      id: '20000000-0000-4000-8000-000000000004',
+      type: 'reply.pending_approval',
+      status: 'unread',
+      priority: 'urgent',
+      resolvedAt: new Date(Date.now() - 2 * 60 * 1000),
+      payload: { propertyName: 'Riverside Hotel', platform: 'google' },
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Done')).toBeInTheDocument()
+    expect(canvas.queryByText('Urgent')).not.toBeInTheDocument()
+    expect(canvas.queryByText('Unread.')).not.toBeInTheDocument()
   },
 }
 

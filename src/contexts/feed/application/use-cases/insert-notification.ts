@@ -28,7 +28,6 @@ import {
   getDefaultCadence,
   getDefaultEnabled,
 } from '../../domain/notification-policy'
-import { effectiveEmailCadence } from '../../domain/notification-cadence'
 import type { NotificationAudience } from '../notification-audience'
 import type { NotificationOrganizationEmailStopPort } from '../ports/notification-organization-email-stop.port'
 import {
@@ -104,24 +103,30 @@ const resolveChannelPreferences = async (
   if (input.propertyId === null) {
     throw new TypeError('Property-scoped notification requires propertyId')
   }
-  const inApp = await deps.preferenceRepo.findForDelivery(
-    input.userId,
-    input.organizationId,
-    input.propertyId,
-    category,
-    'in_app',
-  )
-  const email = await deps.preferenceRepo.findForDelivery(
-    input.userId,
-    input.organizationId,
-    input.propertyId,
-    category,
-    'email',
-  )
+  // The Property's own row, else the person's default for the category, else
+  // ADR 0046 r.1's versioned defaults. A Property added or reassigned since
+  // the person last configured anything now inherits their default instead of
+  // falling through to "urgent email, immediately".
+  const [inApp, email] = await Promise.all([
+    deps.preferenceRepo.resolveForDelivery(
+      input.userId,
+      input.organizationId,
+      input.propertyId,
+      category,
+      'in_app',
+    ),
+    deps.preferenceRepo.resolveForDelivery(
+      input.userId,
+      input.organizationId,
+      input.propertyId,
+      category,
+      'email',
+    ),
+  ])
   return {
-    inAppEnabled: inApp?.enabled ?? getDefaultEnabled(category, 'in_app'),
-    emailEnabled: email?.enabled ?? getDefaultEnabled(category, 'email'),
-    emailCadence: effectiveEmailCadence(category, email?.cadence),
+    inAppEnabled: inApp.enabled,
+    emailEnabled: email.enabled,
+    emailCadence: email.cadence,
   }
 }
 

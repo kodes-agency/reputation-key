@@ -48,6 +48,7 @@ import type {
 } from '../domain/types'
 import { inboxError } from '../domain/errors'
 import {
+  inboxAssignmentsReleased,
   inboxBulkAssignmentCompleted,
   inboxBulkReopenCompleted,
   inboxHandlingCycleClosed,
@@ -87,7 +88,12 @@ import type {
   ReviewCycleTargetAnchor,
   ReviewInboxProjectionRevisionPermit,
 } from '../application/ports/review-response-target-authority.port'
-import type { InboxItemBulkStatusChanged, InboxItemCreated } from '../domain/events'
+import type {
+  InboxAssignmentRelease,
+  InboxAssignmentReleaseReason,
+  InboxItemBulkStatusChanged,
+  InboxItemCreated,
+} from '../domain/events'
 import {
   cancelPrivateFeedbackTarget,
   cancelResponseTargetForCycle,
@@ -1229,6 +1235,7 @@ async function reopenCycleOnDeletedReply(
         materialReviewRevision: observation.materialReviewRevision,
         eligibility: observation.responseTargetEligibility,
         responseTargetStartAt: observation.responseTargetStartAt,
+        rating: observation.rating,
       },
       targetStart: { basis: 'operational_reopen', at: observation.observedAt },
     },
@@ -1546,6 +1553,7 @@ async function applyBulkAssignmentToItem(
         propertyId: item.propertyId,
         userId: actorId,
         assignedTo,
+        previousAssignee,
         bulkId,
         source: 'web',
         occurredAt,
@@ -1848,6 +1856,7 @@ export const createAtomicInboxCommandStore = (
     organizationId: OrganizationId
     userId: UserId
     actorId: UserId | null
+    releaseReason: InboxAssignmentReleaseReason
     at: Date
   }>
 
@@ -1856,6 +1865,9 @@ export const createAtomicInboxCommandStore = (
    * before Inbox items to match Handling Cycle commands; Inbox rows are then
    * locked and updated by item ID. A racing release is an idempotent no-op.
    */
+  /** Accumulator shape for the release groups below. */
+  type Mutable<T> = { -readonly [K in keyof T]: T[K] }
+
   const releaseAssignmentRows = async (
     tx: Tx,
     input: ReleaseInput,
@@ -1909,6 +1921,7 @@ export const createAtomicInboxCommandStore = (
       .for('update')
 
     let released = 0
+    const releasedByProperty = new Map<string, Mutable<InboxAssignmentRelease>>()
     for (const current of lockedRows) {
       const [row] = await tx
         .update(inboxItems)
@@ -1950,7 +1963,37 @@ export const createAtomicInboxCommandStore = (
         occurredAt: input.at,
       })
       await insertOutboxRow(tx, fact)
+      // Grouped here, not in the fact's reader: a departing fleet manager can
+      // hold thousands of assignments, and one entry per item would put an
+      // unbounded array on the bus for a notice that is one per Property.
+      // `lockedRows` is ordered by item id, so the first row of a Property is
+      // its canonical anchor.
+      const group = releasedByProperty.get(row.propertyId)
+      if (group) group.count += 1
+      else {
+        releasedByProperty.set(row.propertyId, {
+          propertyId: propertyId(row.propertyId),
+          anchorInboxItemId: inboxItemId(row.id),
+          count: 1,
+        })
+      }
       released += 1
+    }
+    // The grouped close fact: the per-item facts above stay history, and this
+    // one is what a notification is delivered from, once per Property, to the
+    // people who now own the gap. Same transaction as the rows it describes.
+    if (releasedByProperty.size > 0) {
+      await insertOutboxRow(
+        tx,
+        inboxAssignmentsReleased({
+          organizationId: input.organizationId,
+          userId: input.actorId,
+          releasedFrom: input.userId,
+          releaseReason: input.releaseReason,
+          releases: [...releasedByProperty.values()],
+          occurredAt: input.at,
+        }),
+      )
     }
     return released
   }
@@ -2004,7 +2047,7 @@ export const createAtomicInboxCommandStore = (
             .orderBy(inboxItems.id)
           return releaseAssignmentRows(
             tx,
-            input,
+            { ...input, releaseReason: 'member_offboarded' },
             candidates.map((candidate) => candidate.id),
           )
         })
@@ -2091,7 +2134,11 @@ export const createAtomicInboxCommandStore = (
               ),
             )
             .map((candidate) => candidate.id)
-          return releaseAssignmentRows(tx, input, candidateIds)
+          return releaseAssignmentRows(
+            tx,
+            { ...input, releaseReason: 'member_became_ineligible' },
+            candidateIds,
+          )
         })
         return { released }
       })

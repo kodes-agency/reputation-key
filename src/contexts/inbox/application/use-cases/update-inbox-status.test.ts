@@ -147,6 +147,7 @@ const setup = (peopleApi: StaffPublicApi = staffApiAllAccess) => {
         materialReviewRevision: 1,
         eligibility: 'measured',
         responseTargetStartAt: PROVIDER_TIME,
+        rating: null,
       }),
     }),
     withInboxProjection: async () => ({ status: 'obsolete' }),
@@ -295,6 +296,7 @@ describe('updateInboxStatus', () => {
           reviewAuthority: expect.objectContaining({
             eligibility: 'measured',
             responseTargetStartAt: PROVIDER_TIME,
+            rating: null,
           }),
           targetStart: { basis: 'operational_reopen', at: FIXED_TIME },
         }),

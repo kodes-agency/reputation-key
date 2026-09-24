@@ -31,6 +31,7 @@ function buildWith(db: Database) {
       idGen: () => '00000000-0000-4000-8000-000000000996',
       logger,
       responsibleManagers: {} as never,
+      replyApproval: {} as never,
       feedbackPortalLookup: {} as never,
       googleConnectionProperties: {} as never,
       monthlyResultFacts: {} as never,

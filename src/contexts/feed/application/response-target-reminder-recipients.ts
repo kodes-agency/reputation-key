@@ -1,6 +1,7 @@
-import { propertyId, type OrganizationId, type UserId } from '#/shared/domain/ids'
+import type { OrganizationId, UserId } from '#/shared/domain/ids'
 import type { ResponseTargetReminderNotificationFacts } from './ports/notification-inbox-item-lookup.port'
 import {
+  currentEligibleAssignee,
   resolveInboxResponsibleRecipients,
   type ResponsibleRecipientDeps,
 } from './responsible-recipients'
@@ -8,21 +9,6 @@ import {
 const unique = (recipients: readonly UserId[]): readonly UserId[] => [
   ...new Set(recipients),
 ]
-
-async function currentEligibleAssignee(
-  deps: ResponsibleRecipientDeps,
-  organizationId: OrganizationId,
-  facts: ResponseTargetReminderNotificationFacts,
-): Promise<UserId | null> {
-  if (facts.assignedTo === null) return null
-  return (await deps.responsibleManagers.isEligibleForProperty(
-    organizationId,
-    propertyId(facts.propertyId),
-    facts.assignedTo,
-  ))
-    ? facts.assignedTo
-    : null
-}
 
 /**
  * Resolve one Response Target reminder from current assignment and current

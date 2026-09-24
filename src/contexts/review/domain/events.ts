@@ -446,6 +446,14 @@ export type ReviewReplyPublicationCancelled = Readonly<{
   reviewId: ReviewId
   organizationId: OrganizationId
   propertyId: PropertyId
+  /**
+   * Who wrote the reply this cancellation returned to draft. Identifier only:
+   * the cancellation is silent to everyone else, and the author was told the
+   * reply was queued to publish, so the notice has to find them again. Null
+   * when the reply has no known author, and on facts recorded before the
+   * field existed.
+   */
+  authorId: UserId | null
   cause: 'disconnect' | 'policy' | 'source_changed' | 'provider_truth'
   occurredAt: Date
   correlationId: string | null

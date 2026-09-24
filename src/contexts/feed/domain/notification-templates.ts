@@ -23,8 +23,26 @@
 //   6. Degrade gracefully. Every field is optional; missing metadata must
 //      shorten the sentence, never produce "undefined" or an empty title.
 //
-import type { NotificationActorRole, NotificationPayload } from './notification-payload'
+import { SUPPORT_EMAIL } from '#/shared/domain/support-contact'
+import type {
+  NotificationActorRole,
+  NotificationGoalOutcome,
+  NotificationGoalSubjectKind,
+  NotificationPayload,
+  NotificationPortalHealthReason,
+  NotificationPortalHealthStatus,
+  NotificationReopenReason,
+} from './notification-payload'
 import type { NotificationResourceType, NotificationType } from './notification-types'
+
+/**
+ * What the reader's own clock is, for the one fact that only means anything
+ * on it: a Response Target's target time. Copy stays English — this module is
+ * the only place copy exists — so only the zone crosses. Absent on a surface
+ * that cannot know it (the frozen snapshot written at insert time), and the
+ * clause is then left out rather than guessed in UTC.
+ */
+export type NotificationRenderContext = Readonly<{ timeZone: string }>
 
 /** What a rendered notification exposes to every channel. */
 export type RenderedNotification = Readonly<{
@@ -36,6 +54,14 @@ export type RenderedNotification = Readonly<{
   actionLabel: string
   /** Extra context line for email only (digest rows and the urgent preheader). */
   summary: string
+  /**
+   * Email footer wording for a notice with no off switch, in this notice's own
+   * words. Mandatory mail has no preferences link, so the footer is the only
+   * place it can say why it arrived, and one generic sentence for every
+   * account notice told a reader nothing. Absent for optional mail, whose
+   * footer points at the preference it came from.
+   */
+  whyReceived?: string
 }>
 
 /** Deep-link target for a notification, resolved from resource + type. */
@@ -115,29 +141,37 @@ const ratedNoun = (p: NotificationPayload): string =>
  * make this module side-effectful and pull it into every chunk that imports
  * the Feed public API.
  */
-const accountNotice = (title: string, body: string): RenderedNotification => ({
+const accountNotice = (
+  title: string,
+  body: string,
+  whyReceived: string,
+): RenderedNotification => ({
   title,
   body,
   actionLabel: 'Review account',
   summary: title.toLowerCase(),
+  whyReceived,
 })
 
 const renderOrganizationAccessGranted = (): RenderedNotification =>
   accountNotice(
     'Organization access added',
     'Your account can now access this organization.',
+    'You received this because your account was given access to an organization on Reputation Key.',
   )
 
 const renderOrganizationRoleChanged = (): RenderedNotification =>
   accountNotice(
     'Organization role updated',
     'Your account permissions for this organization were updated.',
+    'You received this because what your account may do in an organization on Reputation Key changed.',
   )
 
 const renderOrganizationAccessRemoved = (): RenderedNotification =>
   accountNotice(
     'Organization access removed',
     'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
+    'You received this because your access to an organization on Reputation Key ended.',
   )
 
 /**
@@ -146,14 +180,21 @@ const renderOrganizationAccessRemoved = (): RenderedNotification =>
  * cancel it first. The subject leads with "deletion" so a 60-character clip
  * keeps it. No shipped page exposes pending-purge actions; the generic
  * Organization link still opens the profile, and the label says so.
+ *
+ * "Contact support" is only useful with a channel attached, so the body names
+ * the monitored address and the email sets it as its reply-to
+ * (`notificationReplyTo`). A reader in a mail client can then answer where
+ * they are standing.
  */
 const renderOrganizationPurgePending = (
   p: NotificationPayload,
 ): RenderedNotification => ({
   title: `Final notice: permanent deletion of ${p.organizationName ?? 'this organization'}`,
-  body: 'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only RepKey support can stop it, before it starts. Contact support now.',
+  body: `The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only Reputation Key support can stop it, before it starts. To stop it, answer this email or write to ${SUPPORT_EMAIL} now.`,
   actionLabel: 'Open profile',
   summary: facts(p.organizationName ?? '', 'permanent deletion pending'),
+  whyReceived:
+    'You received this because you administer an organization that is scheduled for permanent deletion. It cannot be turned off.',
 })
 
 const renderReviewCreated = (p: NotificationPayload): RenderedNotification => ({
@@ -270,6 +311,38 @@ const renderReplyPublishFailed = (p: NotificationPayload): RenderedNotification 
   }
 }
 
+/**
+ * An approved reply that was cancelled before Google saw it. Each cause takes
+ * a different next step, so the cause decides the whole sentence: reconnect,
+ * nothing to do here, write a new reply, or just look. The title never says
+ * "your" — the same notice goes to the approvers who have to act on it.
+ */
+const PUBLICATION_CANCELLATION_BODIES = {
+  disconnect:
+    'The Google connection was disconnected before it went out. The draft is saved: reconnect Google, then approve it again.',
+  policy:
+    'This property can no longer publish to Google, so it was never sent. The draft is saved.',
+  source_changed:
+    'The guest changed their review, so the approved text was never sent. Open it to write a reply to the new review.',
+  provider_truth:
+    'A different reply is already live on Google, so this one was never sent. Open it to check.',
+} as const
+
+const renderReplyPublicationCancelled = (
+  p: NotificationPayload,
+): RenderedNotification => {
+  const cause = p.publicationCancellationCause
+  return {
+    title: `Reply returned to draft${atProperty(p)}`,
+    body:
+      cause === undefined
+        ? 'It was never sent to Google. Open it to see where it stands.'
+        : PUBLICATION_CANCELLATION_BODIES[cause],
+    actionLabel: cause === 'source_changed' ? 'Open review' : 'Open reply',
+    summary: factsAt(p, 'review', 'returned to draft'),
+  }
+}
+
 /** The shared close of a notice that asks the reader to look, not to act. */
 const SEE_WHERE = 'Open it to see where it stands.'
 
@@ -297,9 +370,28 @@ const renderInboxEscalationResolved = (p: NotificationPayload): RenderedNotifica
   summary: factsAt(p, 'escalation resolved'),
 })
 
+/**
+ * Why the item is open again, in the reader's terms. The fact is the event's
+ * own closed enum, never the free-text explanation beside it. `other` has no
+ * sentence of its own — the manager chose not to say — so it falls back to
+ * the generic clause, as does a row recorded before the reason was passed.
+ */
+const REOPEN_REASON_CLAUSES: Partial<Record<NotificationReopenReason, string>> = {
+  guest_follow_up_still_needed: 'The guest still needs a follow-up.',
+  internal_follow_up_still_needed: 'The team still needs a follow-up.',
+  new_information: 'New information came in.',
+  correcting_handling_status: 'Its handling status was wrong.',
+  provider_reply_deleted: 'The published reply was removed from Google.',
+  provider_reply_diverged: 'The reply on Google is no longer the one published.',
+}
+
 const renderInboxReopened = (p: NotificationPayload): RenderedNotification => ({
   title: `Reopened: ${inboxNoun(p)}${atProperty(p)}`,
-  body: `This ${inboxNoun(p)} needs another look. ${SEE_WHERE}`,
+  body: sentence(
+    (p.reopenReason === undefined ? undefined : REOPEN_REASON_CLAUSES[p.reopenReason]) ??
+      `This ${inboxNoun(p)} needs another look.`,
+    SEE_WHERE,
+  ),
   actionLabel: 'View item',
   summary: factsAt(p, ratedNoun(p), 'reopened'),
 })
@@ -332,19 +424,66 @@ const renderInboxBulkReopened = (p: NotificationPayload): RenderedNotification =
     (items) => `${byRole(p)} reopened ${items}. Open the Inbox to take a look.`,
   )
 
-const renderResponseTargetHalfway = (p: NotificationPayload): RenderedNotification => ({
-  title: `Halfway to the response target${atProperty(p)}`,
-  body: 'This item is still open.',
-  actionLabel: 'View item',
-  summary: factsAt(p, ratedNoun(p), 'target halfway'),
-})
+/** One formatter per timezone; the bell renders a page of rows at a time. */
+const targetTimeFormatters = new Map<string, Intl.DateTimeFormat>()
 
-const renderResponseTargetPassed = (p: NotificationPayload): RenderedNotification => ({
-  title: `Response target passed${atProperty(p)}`,
-  body: 'This item is still open. Review it and choose the next step when practical.',
-  actionLabel: 'View item',
-  summary: factsAt(p, ratedNoun(p), 'target passed'),
-})
+/**
+ * "Tue, Sep 29, 14:00" on the reader's clock. The weekday alone would be
+ * ambiguous: an Organization policy may set a target up to 30 days out. Copy
+ * is English everywhere in this module, so the label is formatted in en-GB
+ * rather than the reader's language, and only the ZONE follows them.
+ */
+const targetTime = (
+  p: NotificationPayload,
+  context: NotificationRenderContext | undefined,
+): string => {
+  if (p.targetDueAt === undefined || context === undefined) return ''
+  const at = Date.parse(p.targetDueAt)
+  if (!Number.isFinite(at)) return ''
+  let format = targetTimeFormatters.get(context.timeZone)
+  if (format === undefined) {
+    format = new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+      timeZone: context.timeZone,
+    })
+    targetTimeFormatters.set(context.timeZone, format)
+  }
+  return format.format(at)
+}
+
+const renderResponseTargetHalfway = (
+  p: NotificationPayload,
+  context?: NotificationRenderContext,
+): RenderedNotification => {
+  const at = targetTime(p, context)
+  return {
+    title: `Halfway to the response target${atProperty(p)}`,
+    body: sentence('This item is still open.', at === '' ? '' : `Target time ${at}.`),
+    actionLabel: 'View item',
+    summary: factsAt(p, ratedNoun(p), 'target halfway'),
+  }
+}
+
+const renderResponseTargetPassed = (
+  p: NotificationPayload,
+  context?: NotificationRenderContext,
+): RenderedNotification => {
+  const at = targetTime(p, context)
+  return {
+    title: `Response target passed${atProperty(p)}`,
+    body: sentence(
+      'This item is still open. Review it and choose the next step when practical.',
+      at === '' ? '' : `The target time was ${at}.`,
+    ),
+    actionLabel: 'View item',
+    summary: factsAt(p, ratedNoun(p), 'target passed'),
+  }
+}
 
 const renderInboxAssigned = (p: NotificationPayload): RenderedNotification => ({
   title: `Assigned to you: ${inboxNoun(p)}${atProperty(p)}`,
@@ -353,11 +492,35 @@ const renderInboxAssigned = (p: NotificationPayload): RenderedNotification => ({
   summary: factsAt(p, ratedNoun(p), 'assigned to you'),
 })
 
+/**
+ * The item moved to somebody else. This is news, not a task: it says the work
+ * is off the reader's list, and never names who has it now — that is another
+ * employee's data (ADR 0046 r.8).
+ */
+const renderInboxUnassigned = (p: NotificationPayload): RenderedNotification => ({
+  title: `No longer yours: ${inboxNoun(p)}${atProperty(p)}`,
+  body: `${byRole(p)} passed this on. Somebody else is handling it now.`,
+  actionLabel: 'View item',
+  summary: factsAt(p, ratedNoun(p), 'reassigned'),
+})
+
 const renderInboxBulkAssigned = (p: NotificationPayload): RenderedNotification =>
   renderInboxBulk(
     p,
     'assigned to you',
     (items) => `${byRole(p)} assigned ${items} to you. Open the Inbox to see your work.`,
+  )
+
+/**
+ * A member's items were released, all at once, at one Property. The copy never
+ * names them — ADR 0046 r.8 keeps other employees out of a payload — so it
+ * says what is true for the reader: this work is theirs to place now.
+ */
+const renderAssignmentsReleased = (p: NotificationPayload): RenderedNotification =>
+  renderInboxBulk(
+    p,
+    'left unassigned',
+    (items) => `${items} at this property lost their assignee. Give them a new one.`,
   )
 
 const renderNoteAdded = (p: NotificationPayload): RenderedNotification => ({
@@ -376,12 +539,45 @@ const renderPortalResponsibilityNeeded = (
   summary: factsAt(p, 'responsible manager needed'),
 })
 
-const renderPortalHealthAttention = (p: NotificationPayload): RenderedNotification => ({
-  title: `A guest portal${atProperty(p)} may need attention`,
-  body: 'Open its settings to see what changed and what to do next.',
-  actionLabel: 'Review portal',
-  summary: factsAt(p, 'Portal may need attention'),
-})
+/**
+ * What is actually wrong, and the remedy. The notice used to say only that a
+ * portal "may need attention", so every cause read the same and the reader had
+ * to open the Portal to learn whether guests could reach it at all.
+ */
+const PORTAL_HEALTH_BODIES: Record<NotificationPortalHealthReason, string> = {
+  publication_snapshot_unavailable:
+    'Its published version is missing, so guests cannot load it. Publish it again.',
+  public_address_unavailable:
+    'Its web address no longer resolves, so guests cannot reach it. Check the address.',
+  google_destination_unavailable:
+    'Its Google review destination is gone, so the Google step is broken. Choose another.',
+}
+
+/** `unavailable` means guests cannot use it at all; `degraded` means partly. */
+const PORTAL_HEALTH_TITLES: Record<NotificationPortalHealthStatus, string> = {
+  unavailable: 'Guest portal is offline',
+  degraded: 'Guest portal needs attention',
+}
+
+const renderPortalHealthAttention = (p: NotificationPayload): RenderedNotification => {
+  const status = p.portalHealthStatus
+  const reason = p.portalHealthReason
+  return {
+    title:
+      status === undefined
+        ? `A guest portal${atProperty(p)} may need attention`
+        : `${PORTAL_HEALTH_TITLES[status]}${atProperty(p)}`,
+    body:
+      reason === undefined
+        ? 'Open its settings to see what changed and what to do next.'
+        : PORTAL_HEALTH_BODIES[reason],
+    actionLabel: 'Review portal',
+    summary: factsAt(
+      p,
+      status === undefined ? 'Portal may need attention' : PORTAL_HEALTH_TITLES[status],
+    ),
+  }
+}
 
 const renderPropertyResponsibilityNeeded = (
   p: NotificationPayload,
@@ -417,23 +613,112 @@ const renderIntegrationReauthorizationRequired = (
         summary: 'Google connection needs attention',
       }
 
-/** "Goal completed: Reply within 24h at Riverside Hotel". */
+/**
+ * Somebody disconnected the Organization's Google account on purpose. The
+ * copy never names them — ADR 0046 r.8 keeps other employees out of a payload
+ * — so it says what stopped and where to look, and the reader's own feed is
+ * the record that it happened. No Property: the connection is the
+ * Organization's.
+ */
+const renderIntegrationGoogleDisconnected = (): RenderedNotification => ({
+  title: 'Google was disconnected',
+  body: 'Review updates and replies to Google have stopped for this organization. Reconnect it in Settings if that was not intended.',
+  actionLabel: 'Review connection',
+  summary: 'Google disconnected',
+})
+
+/** "October goal met: Lobby QR scans at Riverside Hotel". */
 const goalTitle = (lead: string, p: NotificationPayload): string =>
   `${lead}${p.goalName === undefined ? '' : `: ${p.goalName}`}${atProperty(p)}`
 
+/** One formatter for the month name; the key is already Property-local. */
+let monthFormat: Intl.DateTimeFormat | undefined
+
+/**
+ * "October" from the `YYYY-MM` key the Property's own calendar closed the
+ * month on. Formatted in UTC because the key is a calendar month, not an
+ * instant: reading it on any other clock could name the month before it.
+ */
+const goalMonth = (p: NotificationPayload): string => {
+  if (p.goalMonth === undefined) return ''
+  const [year, month] = p.goalMonth.split('-').map(Number)
+  // The allowlist admits only `YYYY-MM`, but a template must never throw on a
+  // payload that reached it unparsed: `Intl.format(NaN)` is a RangeError, and
+  // this renders in the bell's own paint.
+  if (!Number.isInteger(year) || !Number.isInteger(month)) return ''
+  monthFormat ??= new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' })
+  return monthFormat.format(Date.UTC(year!, month! - 1, 1))
+}
+
+/** The glossary's words, so a reader can tell ten sibling results apart. */
+const GOAL_SUBJECTS: Record<NotificationGoalSubjectKind, string> = {
+  property: 'Property',
+  portal_group: 'Portal Group',
+  portal: 'Portal',
+}
+
+/** "This Portal goal" / "This goal" when the subject did not resolve. */
+const thisGoal = (p: NotificationPayload): string =>
+  p.goalSubjectKind === undefined
+    ? 'This goal'
+    : `This ${GOAL_SUBJECTS[p.goalSubjectKind]} goal`
+
+/** "October goal met", or "Goal met" when the month did not resolve. */
+const goalOutcomeTitle = (p: NotificationPayload, outcome: string): string => {
+  const month = goalMonth(p)
+  return month === '' ? `Goal ${outcome}` : `${month} goal ${outcome}`
+}
+
 const renderGoalCompleted = (p: NotificationPayload): RenderedNotification => ({
-  title: goalTitle('Goal completed', p),
-  body: 'It hit its target. Open the goal to see the numbers.',
+  title: goalTitle(goalOutcomeTitle(p, 'met'), p),
+  body: sentence(`${thisGoal(p)} hit its target.`, 'Open the goal to see the numbers.'),
   actionLabel: 'View progress',
-  summary: factsAt(p, p.goalName ?? 'goal completed'),
+  summary: factsAt(
+    p,
+    p.goalName ?? 'goal met',
+    p.goalSubjectKind === undefined ? '' : GOAL_SUBJECTS[p.goalSubjectKind],
+  ),
 })
 
-const renderGoalResultRevised = (p: NotificationPayload): RenderedNotification => ({
-  title: goalTitle('Goal result updated', p),
-  body: 'A monthly result changed. Open the goal to see the current metrics.',
-  actionLabel: 'View result',
-  summary: factsAt(p, p.goalName ?? 'goal result updated'),
-})
+/**
+ * Which way the month went. A correction that leaves the result unusable is
+ * not a miss, so it says the result is gone rather than that the goal failed.
+ */
+const GOAL_OUTCOME_TITLES: Record<NotificationGoalOutcome, string> = {
+  met: 'met',
+  not_met: 'no longer met',
+  unavailable: 'result unavailable',
+}
+
+const GOAL_OUTCOME_CLAUSES: Record<NotificationGoalOutcome, string> = {
+  met: 'now meets its target',
+  not_met: 'no longer meets its target',
+  unavailable: 'has no usable result for the month',
+}
+
+const renderGoalResultRevised = (p: NotificationPayload): RenderedNotification => {
+  const outcome = p.goalOutcome
+  return {
+    title: goalTitle(
+      outcome === undefined
+        ? 'Goal result updated'
+        : goalOutcomeTitle(p, GOAL_OUTCOME_TITLES[outcome]),
+      p,
+    ),
+    body: sentence(
+      outcome === undefined
+        ? 'A monthly result changed.'
+        : `${thisGoal(p)} ${GOAL_OUTCOME_CLAUSES[outcome]}.`,
+      'Open the goal to see the current metrics.',
+    ),
+    actionLabel: 'View result',
+    summary: factsAt(
+      p,
+      p.goalName ?? 'goal result updated',
+      p.goalSubjectKind === undefined ? '' : GOAL_SUBJECTS[p.goalSubjectKind],
+    ),
+  }
+}
 
 /**
  * The recipient's own beta report reached an outcome. The copy never quotes
@@ -462,7 +747,10 @@ const renderBetaFeedbackOutcome = (p: NotificationPayload): RenderedNotification
 
 const RENDERERS: Record<
   NotificationType,
-  (payload: NotificationPayload) => RenderedNotification
+  (
+    payload: NotificationPayload,
+    context?: NotificationRenderContext,
+  ) => RenderedNotification
 > = {
   'account.organization_access_granted': renderOrganizationAccessGranted,
   'account.organization_role_changed': renderOrganizationRoleChanged,
@@ -476,6 +764,7 @@ const RENDERERS: Record<
   'reply.rejected': renderReplyRejected,
   'reply.published': renderReplyPublished,
   'reply.publish_failed': renderReplyPublishFailed,
+  'reply.publication_cancelled': renderReplyPublicationCancelled,
   'inbox.escalated': renderInboxEscalated,
   'inbox.escalation_resolved': renderInboxEscalationResolved,
   'inbox.reopened': renderInboxReopened,
@@ -483,12 +772,15 @@ const RENDERERS: Record<
   'inbox.response_target_halfway': renderResponseTargetHalfway,
   'inbox.response_target_passed': renderResponseTargetPassed,
   'inbox.assigned': renderInboxAssigned,
+  'inbox.unassigned': renderInboxUnassigned,
   'inbox.bulk_assigned': renderInboxBulkAssigned,
+  'inbox.assignments_released': renderAssignmentsReleased,
   'inbox_note.added': renderNoteAdded,
   'portal.responsibility_needed': renderPortalResponsibilityNeeded,
   'portal.health_attention': renderPortalHealthAttention,
   'property.responsibility_needed': renderPropertyResponsibilityNeeded,
   'integration.reauthorization_required': renderIntegrationReauthorizationRequired,
+  'integration.google_disconnected': renderIntegrationGoogleDisconnected,
   'goal.completed': renderGoalCompleted,
   'goal.result_revised': renderGoalResultRevised,
   'beta_feedback.outcome': renderBetaFeedbackOutcome,
@@ -517,8 +809,9 @@ const REPEATED: Partial<Record<NotificationType, string>> = {
 export const renderNotification = (
   type: NotificationType,
   payload: NotificationPayload,
+  context?: NotificationRenderContext,
 ): RenderedNotification => {
-  const rendered = RENDERERS[type](payload)
+  const rendered = RENDERERS[type](payload, context)
   const age = waitingAge(payload)
   const repeats = payload.occurrences ?? 1
   return {
@@ -551,6 +844,8 @@ const propertyLink = (
 const GROUPED_INBOX_QUEUES: Partial<Record<NotificationType, string>> = {
   'inbox.bulk_assigned': 'mine',
   'inbox.bulk_reopened': 'open',
+  // Released items are nobody's, so the honest queue is every open item.
+  'inbox.assignments_released': 'open',
 }
 
 /**
@@ -611,3 +906,15 @@ export const notificationLink = (
       return { path: '/properties', search: {}, hash: BETA_FEEDBACK_REPORTS_ANCHOR }
   }
 }
+
+/**
+ * The address a reply to this notice should reach, or `null` to leave the
+ * message unanswerable and keep the sending identity's own.
+ *
+ * Only the final deletion notice sets one: it is the single notice whose copy
+ * asks the reader to contact a human, and in a mail client "reply" is the
+ * shortest path they have. Every other notice is about work that is answered
+ * in the product, where an inbound mailbox would only lose the thread.
+ */
+export const notificationReplyTo = (type: NotificationType): string | null =>
+  type === 'account.organization_purge_pending' ? SUPPORT_EMAIL : null

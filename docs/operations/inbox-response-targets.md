@@ -2,7 +2,7 @@
 
 **Owner:** Inbox, with Review-owned Google timing authority and Notification-owned delivery  
 **Package:** IBX-01  
-**Migrations:** `0158_inbox_response_targets`, `0166_review_response_target_provenance`, `0167_inbox_response_target_terminal_outcomes`, `0023_review_import_history_cutoff`  
+**Migrations:** `0158_inbox_response_targets`, `0166_review_response_target_provenance`, `0167_inbox_response_target_terminal_outcomes`, `0023_review_import_history_cutoff`, `0030_inbox_low_rating_response_target`  
 **Time model:** elapsed minutes on UTC instants; Property timezone is display-only
 
 ## Repository contract
@@ -18,6 +18,25 @@ Both use a built-in default of 2,880 elapsed minutes (48 hours). An Organization
 policy can replace either default. Only the Private Feedback target supports an
 enabled Property override. There is no Portal override, and Google targets never
 use a Property override.
+
+### Low-rated Google reviews
+
+The Google Review policy may carry a second, shorter duration for the
+Organization's own low-rated reviews: `low_rating_threshold` (1–5 stars) and
+`low_rating_duration_minutes` on the same policy row, all-or-nothing, Google
+only, and never longer than the ordinary target. A revision whose rating is at
+or below the threshold is snapshotted against the shorter duration, so its
+halfway and target-passed reminders fall sooner. Both columns null is the
+default and every row written before migration `0030`: one clock for every
+review, exactly as before, and no Organization's recorded performance moves
+until somebody sets one.
+
+The rating comes from Review's attested target permit — the same fenced read
+that supplies the target's start instant — so Inbox never reads Review's
+tables and Feed never sees a rating at all (ADR 0046 r.8). The snapshot
+records the resolved duration, so analytics measure each cycle against the
+clock it was actually given. `policy_source` stays `organization_policy`: it
+is one policy, resolved two ways.
 
 Each measured Handling Cycle stores an immutable snapshot of duration, policy
 source/version, start/due instants, and one halfway plus one target-passed reminder

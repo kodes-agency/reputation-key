@@ -114,13 +114,11 @@ describe('insert-notification job', () => {
 
   it('queues the email with the audience the recipient was admitted under', async () => {
     const deps = buildDeps()
-    vi.mocked(deps.preferenceRepo.findForDelivery).mockImplementation(
+    vi.mocked(deps.preferenceRepo.resolveForDelivery).mockImplementation(
       async (_userId, _orgId, _propertyId, _category, channel) =>
         channel === 'email'
-          ? ({ enabled: true, cadence: 'immediate' } as Awaited<
-              ReturnType<typeof deps.preferenceRepo.findForDelivery>
-            >)
-          : null,
+          ? { enabled: true, cadence: 'immediate' }
+          : { enabled: true, cadence: 'daily' },
     )
     const handler = createInsertNotificationHandler(deps)
 

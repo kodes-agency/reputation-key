@@ -40,7 +40,12 @@ const UrgentNotificationEmail = ({
     documentTitle={rendered.title}
     whyReceived={
       preferencesUrl === undefined
-        ? 'You received this required notice because it applies to your account or organization.'
+        ? // Mandatory mail has no preferences link, so this footer is the only
+          // place it can say why it arrived; each notice brings its own
+          // wording, because "a required account notice" told a reader facing
+          // a permanent deletion nothing at all.
+          (rendered.whyReceived ??
+          'You received this required notice because it applies to your account or organization.')
         : priority === 'urgent'
           ? 'You received this because immediate email alerts are on for urgent notifications on your account.'
           : 'You received this because email alerts are on for this notification type.'

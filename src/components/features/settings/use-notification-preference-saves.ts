@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
 import type {
   ConfigurableNotificationCategory,
+  NotificationCategoryDefault,
   NotificationChannel,
   NotificationPreference,
 } from '#/contexts/feed/application/public-api'
@@ -20,6 +21,8 @@ export type PreferenceUpdate = Readonly<{
       propertyId: string
       category: ConfigurableNotificationCategory
       channel: NotificationChannel
+      /** Make this the answer for every property, now and next. */
+      applyToAllProperties?: boolean
     } & PreferenceValues
   >
 }>
@@ -27,6 +30,8 @@ export type PreferenceUpdate = Readonly<{
 type Options = Readonly<{
   propertyId: string
   preferences: readonly NotificationPreference[]
+  /** What a property with no row of its own inherits. */
+  categoryDefaults: readonly NotificationCategoryDefault[]
   updatePreference: Action<PreferenceUpdate, NotificationPreference>
 }>
 
@@ -43,6 +48,7 @@ type RequestedRows = ReadonlyMap<string, PreferenceValues>
 export function useNotificationPreferenceSaves({
   propertyId,
   preferences,
+  categoryDefaults,
   updatePreference,
 }: Options) {
   const [runner] = useState(createSerialRunner)
@@ -54,6 +60,11 @@ export function useNotificationPreferenceSaves({
     setRequested(next)
   }
 
+  /**
+   * This property's own row, else what it inherits from the person's default.
+   * Both answer the same question, so the controls show the inherited answer
+   * rather than a blank the reader has to guess at.
+   */
   const stored = (
     category: ConfigurableNotificationCategory,
     channel: NotificationChannel,
@@ -63,7 +74,8 @@ export function useNotificationPreferenceSaves({
         preference.propertyId === propertyId &&
         preference.category === category &&
         preference.channel === channel,
-    )
+    ) ??
+    categoryDefaults.find((row) => row.category === category && row.channel === channel)
 
   const preferenceFor = (
     category: ConfigurableNotificationCategory,
@@ -98,5 +110,40 @@ export function useNotificationPreferenceSaves({
     }
   }
 
-  return { preferenceFor, savePreference } as const
+  /**
+   * The same answer for every property the person has, and the default a
+   * property they are given next inherits. The server writes the default and
+   * clears the per-property rows that would have overridden it, so the reader
+   * does not have to visit thirty properties to be sure.
+   */
+  const applyToAll = async (category: ConfigurableNotificationCategory) => {
+    for (const channel of ['in_app', 'email'] as const) {
+      const key = preferenceRowKey(propertyId, category, channel)
+      const values = applyPreferencePatch(
+        category,
+        channel,
+        latest.current.get(key) ?? stored(category, channel),
+        {},
+      )
+      try {
+        await runner.run(key, () =>
+          updatePreference({
+            data: {
+              propertyId,
+              category,
+              channel,
+              applyToAllProperties: true,
+              ...values,
+            },
+          }),
+        )
+      } catch {
+        toast.error('Could not apply to every property')
+        return
+      }
+    }
+    toast.success('Applied to every property')
+  }
+
+  return { preferenceFor, savePreference, applyToAll } as const
 }

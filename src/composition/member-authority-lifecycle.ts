@@ -70,12 +70,14 @@ export function createMemberAuthorityLifecycle(
         userId: memberId,
         at,
         endReason: 'manager_offboarded',
+        actorId,
       }),
       deps.portalResponsibility.releaseForUser({
         organizationId: orgId,
         userId: memberId,
         at,
         endReason: 'manager_offboarded',
+        actorId,
       }),
       deps.inboxAssignments.releaseAssignmentsForUser({
         organizationId: organizationId(orgId),
@@ -134,6 +136,7 @@ export function createMemberAuthorityLifecycle(
         propertyIds: propertyIdsToRelease,
         at,
         endReason: 'manager_became_ineligible',
+        actorId,
       }),
       deps.portalResponsibility.releaseForUser({
         organizationId: orgId,
@@ -141,6 +144,7 @@ export function createMemberAuthorityLifecycle(
         portalIds: portalIdsToRelease,
         at,
         endReason: 'manager_became_ineligible',
+        actorId,
       }),
       // Assignment is operational metadata, never an authority. Inbox
       // re-proves each review/feedback requirement in its own transaction and

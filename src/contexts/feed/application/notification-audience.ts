@@ -11,10 +11,12 @@ import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { UserLookupPort } from './ports/notification-user-lookup.port'
 import type { ResponsibleManagerLookupPort } from './ports/responsible-manager-lookup.port'
 import type { InboxItemLookupPort } from './ports/notification-inbox-item-lookup.port'
+import type { ReplyApprovalAuthorityPort } from './ports/reply-approval-authority.port'
 import type { EscalationResolutionLookupPort } from './ports/escalation-resolution-lookup.port'
+import type { NotificationRepositoryPort } from './ports/notification-repository.port'
 import {
   goalSubjectScope,
-  inboxNotificationAudience,
+  resolveHandlingCycleRecipients,
   resolveResponsibleRecipients,
   type ResponsibleScope,
 } from './responsible-recipients'
@@ -54,11 +56,21 @@ export type NotificationAudience =
     }>
   | Readonly<{ kind: 'responsible_scope'; scope: ResponsibleScope }>
   | Readonly<{ kind: 'account_admin' }>
+  /**
+   * A responsible manager of this Property who may approve replies. Two
+   * authorities, so both are rechecked before delivery (I5.3).
+   */
+  | Readonly<{ kind: 'reply_approver'; propertyId: string }>
   | Readonly<{
       kind: 'responsibility_gap'
       scope: Exclude<ResponsibleScope, Readonly<{ kind: 'portal_group' }>>
     }>
   | Readonly<{ kind: 'inbox_assignee'; inboxItemId: InboxItemId }>
+  /**
+   * Somebody already talking about this Inbox item: they wrote a note on it,
+   * so a later note is addressed to them too (I15).
+   */
+  | Readonly<{ kind: 'inbox_note_author'; inboxItemId: InboxItemId }>
   | Readonly<{
       kind: 'bulk_inbox_assignee'
       inboxItemIds: ReadonlyArray<InboxItemId>
@@ -122,6 +134,13 @@ export type NotificationAudience =
       achieved: boolean | null
     }>
   | Readonly<{ kind: 'property_operator' }>
+  /**
+   * Every current AccountAdmin of the Organization, for a notice that belongs
+   * to no Property. `account_admin` cannot serve here: it is Property-scoped
+   * and the authorizer refuses a Property-less job under it, which is how the
+   * Purge Pending notice still reaches nobody.
+   */
+  | Readonly<{ kind: 'organization_account_admin' }>
 
 export type NotificationAudienceAuthorizationInput = Readonly<{
   userId: UserId
@@ -194,9 +213,19 @@ const parseAffectedOrganizationUser: AudienceKindParser = (value) => {
   }
 }
 
+const parseReplyApprover: AudienceKindParser = (value) =>
+  isIdentifier(value.propertyId)
+    ? { kind: 'reply_approver', propertyId: value.propertyId }
+    : null
+
 const parseInboxAssignee: AudienceKindParser = (value) =>
   isIdentifier(value.inboxItemId)
     ? { kind: 'inbox_assignee', inboxItemId: value.inboxItemId as InboxItemId }
+    : null
+
+const parseInboxNoteAuthor: AudienceKindParser = (value) =>
+  isIdentifier(value.inboxItemId)
+    ? { kind: 'inbox_note_author', inboxItemId: inboxItemId(value.inboxItemId) }
     : null
 
 const parseBulkInboxAssignee: AudienceKindParser = (value) => {
@@ -415,9 +444,12 @@ const AUDIENCE_KIND_PARSERS: ReadonlyMap<string, AudienceKindParser> = new Map<
 >([
   ['affected_organization_user', parseAffectedOrganizationUser],
   ['account_admin', () => ({ kind: 'account_admin' })],
+  ['organization_account_admin', () => ({ kind: 'organization_account_admin' })],
+  ['reply_approver', parseReplyApprover],
   ['responsibility_gap', parseResponsibilityGap],
   ['property_operator', () => ({ kind: 'property_operator' })],
   ['inbox_assignee', parseInboxAssignee],
+  ['inbox_note_author', parseInboxNoteAuthor],
   ['bulk_inbox_assignee', parseBulkInboxAssignee],
   ['escalation_resolution', parseEscalationResolution],
   ['handling_cycle', parseHandlingCycle],
@@ -444,8 +476,12 @@ type Deps = Readonly<{
     | 'findInboxItemFacts'
     | 'findHandlingCycleNotificationFacts'
     | 'findResponseTargetReminderNotificationFacts'
+    | 'findNoteAuthors'
   >
   escalationResolutions: EscalationResolutionLookupPort
+  replyApproval: ReplyApprovalAuthorityPort
+  /** The evidence of who was told an escalation was raised. */
+  notifications: Pick<NotificationRepositoryPort, 'findRecipientsOfNotice'>
   portalHealthLookup: Pick<PortalPublicApi, 'findPortalHealthNotificationFacts'>
   monthlyResultFacts: MonthlyResultNotificationFactsLookup
   organizationAccountAuthority: OrganizationAccountNotificationAuthorityPort
@@ -479,9 +515,35 @@ const isResponsibleScopeRecipient = async (
     userId,
   )
 
+/**
+ * Still responsible for the Property, and still allowed to approve. Either
+ * authority can end on its own: a manager relieved of the Property, or one
+ * whose role no longer carries `reply.manage`.
+ */
+const isReplyApproverRecipient = async (
+  deps: Deps,
+  { organizationId, propertyId, userId }: PropertyScopedRequest,
+  audience: AudienceOfKind<'reply_approver'>,
+) => {
+  if (audience.propertyId !== propertyId) return false
+  const responsible = await deps.responsibleManagers.findForProperty(
+    organizationId,
+    propertyId,
+  )
+  if (!includesRecipient(responsible, userId)) return false
+  return deps.replyApproval.canApproveReplies(organizationId, propertyId, userId)
+}
+
+/**
+ * Current AccountAdmins of the Organization. The role is held at the
+ * Organization, so this answer never needs a Property — which is what lets an
+ * Organization-scoped mandatory notice (the Purge Pending final warning) reach
+ * every admin, including in an Organization whose Properties are already gone.
+ */
 const isAccountAdminRecipient = async (
   deps: Deps,
-  { organizationId, userId }: PropertyScopedRequest,
+  organizationId: OrganizationId,
+  userId: UserId,
 ) =>
   includesRecipient(
     await deps.userLookup.findByRole(organizationId, 'AccountAdmin'),
@@ -515,6 +577,20 @@ const isStillInboxAssignee = async (
 ) => {
   const facts = await deps.inboxItemLookup.findInboxItemFacts(itemId, organizationId)
   return Boolean(facts && facts.propertyId === propertyId && facts.assignedTo === userId)
+}
+
+/** Still one of the people talking about the item, and still on its Property. */
+const isStillNoteAuthor = async (
+  deps: Deps,
+  { organizationId, propertyId }: PropertyScopedRequest,
+  userId: UserId,
+  itemId: InboxItemId,
+) => {
+  const facts = await deps.inboxItemLookup.findInboxItemFacts(itemId, organizationId)
+  if (!facts || facts.propertyId !== propertyId) return false
+  return (await deps.inboxItemLookup.findNoteAuthors(itemId, organizationId)).includes(
+    userId,
+  )
 }
 
 const isStillAssigneeOfEvery = async (
@@ -554,6 +630,7 @@ const isEscalationResolutionRecipient = async (
   const recipients = await resolveEscalationResolutionRecipients(deps, {
     organizationId,
     propertyId,
+    inboxItemId: audience.inboxItemId,
     assignedTo: facts.assignedTo,
     resolvedBy: facts.resolvedBy,
   })
@@ -582,11 +659,9 @@ const isCurrentCycleRecipient = async (
   ) {
     return false
   }
-  const currentAudience = inboxNotificationAudience(facts)
-  const recipients =
-    currentAudience.kind === 'responsible_scope'
-      ? await resolveResponsibleRecipients(deps, organizationId, currentAudience.scope)
-      : await deps.userLookup.findByRole(organizationId, 'AccountAdmin')
+  // The same rule the fan-out used: the item's responsible scope, plus the
+  // person actually working on it while they are still eligible (I15).
+  const recipients = await resolveHandlingCycleRecipients(deps, organizationId, facts)
   return recipients.includes(userId)
 }
 
@@ -761,6 +836,77 @@ const isGoalResultRevisionRecipient = async (
   )
 }
 
+/** Current responsibility for the Property the notice belongs to. */
+const isStillResponsibleForProperty = (
+  deps: Deps,
+  { organizationId, propertyId, userId }: PropertyScopedRequest,
+) => deps.responsibleManagers.isEligibleForProperty(organizationId, propertyId, userId)
+
+/** Every audience kind that a Property-less job may never satisfy. */
+type PropertyScopedAudienceKind = Exclude<
+  NotificationAudience['kind'],
+  'affected_organization_user' | 'account_admin' | 'organization_account_admin'
+>
+
+/**
+ * One resolver per Property-scoped kind. A plain record, not the `Map` the
+ * parse boundary uses: `kind` here has already been through
+ * `parseNotificationAudience`, so no attacker-supplied string reaches the
+ * lookup, and the mapped type makes a missing kind a compile error.
+ *
+ * The three item kinds and `property_operator` each state the standing they
+ * share — current responsibility for the Property — rather than reaching it
+ * through a fallthrough that read as if it applied to every kind above.
+ */
+const PROPERTY_SCOPED_RESOLVERS: {
+  readonly [Kind in PropertyScopedAudienceKind]: (
+    deps: Deps,
+    request: PropertyScopedRequest,
+    audience: AudienceOfKind<Kind>,
+  ) => Promise<NotificationAudienceDecision>
+} = {
+  responsible_scope: (deps, request, audience) =>
+    isResponsibleScopeRecipient(deps, request, audience.scope),
+  reply_approver: isReplyApproverRecipient,
+  responsibility_gap: (deps, request, audience) =>
+    isResponsibilityGapRecipient(deps, request, audience.scope),
+  escalation_resolution: isEscalationResolutionRecipient,
+  handling_cycle: isHandlingCycleRecipient,
+  bulk_handling_cycle: isBulkHandlingCycleRecipient,
+  response_target_reminder: isResponseTargetReminderRecipient,
+  portal_health: isPortalHealthRecipient,
+  goal_completion: isGoalCompletionRecipient,
+  goal_result_revision: isGoalResultRevisionRecipient,
+  inbox_assignee: async (deps, request, audience) =>
+    (await isStillInboxAssignee(deps, request, audience.inboxItemId)) &&
+    (await isStillResponsibleForProperty(deps, request)),
+  inbox_note_author: async (deps, request, audience) =>
+    (await isStillNoteAuthor(deps, request, request.userId, audience.inboxItemId)) &&
+    (await isStillResponsibleForProperty(deps, request)),
+  bulk_inbox_assignee: async (deps, request, audience) =>
+    (await isStillAssigneeOfEvery(deps, request, audience.inboxItemIds)) &&
+    (await isStillResponsibleForProperty(deps, request)),
+  property_operator: (deps, request) => isStillResponsibleForProperty(deps, request),
+}
+
+type PropertyScopedResolver = (
+  deps: Deps,
+  request: PropertyScopedRequest,
+  audience: AudienceOfKind<PropertyScopedAudienceKind>,
+) => Promise<NotificationAudienceDecision>
+
+const resolvePropertyScopedAudience = (
+  deps: Deps,
+  request: PropertyScopedRequest,
+  audience: AudienceOfKind<PropertyScopedAudienceKind>,
+): Promise<NotificationAudienceDecision> => {
+  // The table above is exhaustive over the kinds, so the entry exists and is
+  // the one for this `kind`. Indexing it with the union only yields a union of
+  // resolvers, which TypeScript cannot pair back with the narrowed audience.
+  const resolve = PROPERTY_SCOPED_RESOLVERS[audience.kind] as PropertyScopedResolver
+  return resolve(deps, request, audience)
+}
+
 /**
  * Re-check delivery authority at worker execution time. A queued recipient is
  * a candidate, never a durable permission: responsibility, membership, access,
@@ -778,49 +924,26 @@ export const createNotificationAudienceAuthorizer =
         userId,
       })
     }
+    // The AccountAdmin role is Organization-wide, so this audience is decided
+    // the same way with or without a Property. Mandatory Organization notices
+    // depend on it: the Purge Pending warning has no Property, and refusing it
+    // here dropped the last message before an irreversible deletion.
+    if (audience.kind === 'account_admin') {
+      return isAccountAdminRecipient(deps, organizationId, userId)
+    }
+    // An Organization-scoped notice about the Organization's own Google
+    // connection: no Property to scope to, and the standing that admitted the
+    // recipient is the AccountAdmin role itself.
+    if (audience.kind === 'organization_account_admin') {
+      if (propertyId !== null) return false
+      return includesRecipient(
+        await deps.userLookup.findByRole(organizationId, 'AccountAdmin'),
+        userId,
+      )
+    }
     // Every other active audience kind is Property-scoped. A malformed job
     // cannot use an Organization-null scope to bypass its current authority.
     if (propertyId === null) return false
     const request: PropertyScopedRequest = { organizationId, propertyId, userId }
-    switch (audience.kind) {
-      case 'responsible_scope':
-        return isResponsibleScopeRecipient(deps, request, audience.scope)
-      case 'account_admin':
-        return isAccountAdminRecipient(deps, request)
-      case 'responsibility_gap':
-        return isResponsibilityGapRecipient(deps, request, audience.scope)
-      case 'escalation_resolution':
-        return isEscalationResolutionRecipient(deps, request, audience)
-      case 'handling_cycle':
-        return isHandlingCycleRecipient(deps, request, audience)
-      case 'bulk_handling_cycle':
-        return isBulkHandlingCycleRecipient(deps, request, audience)
-      case 'response_target_reminder':
-        return isResponseTargetReminderRecipient(deps, request, audience)
-      case 'portal_health':
-        return isPortalHealthRecipient(deps, request, audience)
-      case 'goal_completion':
-        return isGoalCompletionRecipient(deps, request, audience)
-      case 'goal_result_revision':
-        return isGoalResultRevisionRecipient(deps, request, audience)
-      case 'inbox_assignee':
-        if (!(await isStillInboxAssignee(deps, request, audience.inboxItemId))) {
-          return false
-        }
-        break
-      case 'bulk_inbox_assignee':
-        if (!(await isStillAssigneeOfEvery(deps, request, audience.inboxItemIds))) {
-          return false
-        }
-        break
-      case 'property_operator':
-        break
-    }
-    // The assignee kinds and `property_operator` all additionally require
-    // current responsibility for the Property.
-    return deps.responsibleManagers.isEligibleForProperty(
-      organizationId,
-      propertyId,
-      userId,
-    )
+    return resolvePropertyScopedAudience(deps, request, audience)
   }

@@ -3,9 +3,7 @@ import type { Action } from '#/components/hooks/use-action'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
-import { FieldError } from '#/components/ui/field'
+import { FormNumberField } from '#/components/forms/form-number-field'
 import {
   Card,
   CardContent,
@@ -37,19 +35,77 @@ type UpdatePolicyAction = Action<
 type OrganizationPolicy =
   ResponseTargetPolicySettings['organization']['googleReviewResponse']
 
-function TargetPolicyForm({
-  label,
-  description,
-  policy,
-  updatePolicy,
-}: Readonly<{
-  label: string
-  description: string
-  policy: OrganizationPolicy
-  updatePolicy: UpdatePolicyAction
-}>) {
-  const form = useForm({
-    defaultValues: { durationHours: policy.durationMinutes / 60 },
+/**
+ * Google reviews only. A low-rated review is the work that goes wrong fastest,
+ * so an Organization may give it a shorter target and therefore an earlier
+ * halfway and target-time reminder. Off leaves one clock for every review,
+ * which is what every Organization had before this control existed.
+ */
+function LowRatingTargetFields({
+  form,
+}: Readonly<{ form: ReturnType<typeof useLowRatingForm> }>) {
+  return (
+    <div className="sm:col-span-3">
+      <form.Field name="shortenForLowRatings">
+        {(field) => (
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="size-4 accent-primary"
+              checked={field.state.value === true}
+              onChange={(event) => field.handleChange(event.target.checked)}
+            />
+            Answer low-rated reviews sooner
+          </label>
+        )}
+      </form.Field>
+      <form.Subscribe selector={(state) => state.values.shortenForLowRatings === true}>
+        {(enabled) =>
+          enabled ? (
+            <div className="mt-3 grid gap-3 sm:grid-cols-[9rem_9rem] sm:items-end">
+              <form.Field name="lowRatingThreshold">
+                {(field) => (
+                  <FormNumberField
+                    id="low-rating-threshold"
+                    label="At or below (stars)"
+                    min={1}
+                    max={5}
+                    field={field}
+                  />
+                )}
+              </form.Field>
+              <form.Field name="lowRatingHours">
+                {(field) => (
+                  <FormNumberField
+                    id="low-rating-hours"
+                    label="Within (hours)"
+                    min={1}
+                    max={720}
+                    field={field}
+                  />
+                )}
+              </form.Field>
+            </div>
+          ) : null
+        }
+      </form.Subscribe>
+    </div>
+  )
+}
+
+/** The form shape both target cards share; only Google fills the last three. */
+const useLowRatingForm = (
+  policy: OrganizationPolicy,
+  updatePolicy: UpdatePolicyAction,
+  offersLowRating: boolean,
+) =>
+  useForm({
+    defaultValues: {
+      durationHours: policy.durationMinutes / 60,
+      shortenForLowRatings: policy.lowRating !== null,
+      lowRatingThreshold: policy.lowRating?.threshold ?? 2,
+      lowRatingHours: (policy.lowRating?.durationMinutes ?? 240) / 60,
+    },
     validators: { onSubmit: organizationResponseTargetFormDto },
     onSubmit: async ({ value }) => {
       await updatePolicy({
@@ -58,10 +114,37 @@ function TargetPolicyForm({
           targetKind: policy.targetKind,
           durationMinutes: value.durationHours * 60,
           expectedPolicyVersion: policy.policyVersion,
+          // Only the Google card may say anything about low ratings; the
+          // private-feedback card leaves the stored value untouched.
+          ...(offersLowRating
+            ? {
+                lowRating: value.shortenForLowRatings
+                  ? {
+                      threshold: value.lowRatingThreshold,
+                      durationMinutes: value.lowRatingHours * 60,
+                    }
+                  : null,
+              }
+            : {}),
         },
       })
     },
   })
+
+function TargetPolicyForm({
+  label,
+  description,
+  policy,
+  updatePolicy,
+  offersLowRating = false,
+}: Readonly<{
+  label: string
+  description: string
+  policy: OrganizationPolicy
+  updatePolicy: UpdatePolicyAction
+  offersLowRating?: boolean
+}>) {
+  const form = useLowRatingForm(policy, updatePolicy, offersLowRating)
 
   return (
     <form
@@ -83,29 +166,19 @@ function TargetPolicyForm({
       </div>
       <form.Field name="durationHours">
         {(field) => (
-          <div className="grid gap-1.5">
-            <Label htmlFor={`${policy.targetKind}-hours`}>Hours</Label>
-            <Input
-              id={`${policy.targetKind}-hours`}
-              type="number"
-              min={1}
-              max={720}
-              // A cleared or non-numeric control reads as NaN; the schema
-              // names it, the input must not.
-              value={Number.isNaN(field.state.value) ? '' : field.state.value}
-              onBlur={field.handleBlur}
-              onChange={(event) => field.handleChange(event.target.valueAsNumber)}
-              aria-invalid={field.state.meta.errors.length > 0}
-            />
-            {field.state.meta.errors.length > 0 ? (
-              <FieldError errors={field.state.meta.errors} />
-            ) : null}
-          </div>
+          <FormNumberField
+            id={`${policy.targetKind}-hours`}
+            label="Hours"
+            min={1}
+            max={720}
+            field={field}
+          />
         )}
       </form.Field>
       <SubmitButton mutation={updatePolicy} form={form}>
         Save target
       </SubmitButton>
+      {offersLowRating ? <LowRatingTargetFields form={form} /> : null}
     </form>
   )
 }
@@ -138,6 +211,7 @@ export function ResponseTargetSettingsCard({
           description="Measured from the saved Google publication, meaningful review update, or reopen time; onboarding history is excluded."
           policy={settings.organization.googleReviewResponse}
           updatePolicy={updatePolicy}
+          offersLowRating
         />
         <div className="space-y-3 border-t pt-5">
           <div>

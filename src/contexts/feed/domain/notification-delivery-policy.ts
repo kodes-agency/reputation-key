@@ -33,7 +33,16 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'account.organization_access_removed': 'mandatory',
   'account.organization_purge_pending': 'mandatory',
   'review.created': 'workflow_collaboration',
-  'review.updated': 'urgent_operational',
+  // A guest revision that SUPERSEDES AN OPEN CYCLE — work nobody has handled
+  // yet. It was `urgent_operational`, so a guest fixing a comma sent an
+  // immediate email by default while the 1-star review it edits had only
+  // reached the bell (`review.created` is workflow). The edit adds no demand
+  // the open item did not already carry, so it now sits in the same category
+  // as the arrival it amends. A revision that reopens CLOSED work is
+  // `inbox.reopened` and stays urgent: somebody had considered that finished.
+  // Urgency for an unanswered review comes from its Response Target, which
+  // Inbox measures, not from Feed (ADR 0046, amended 2026-09-24).
+  'review.updated': 'workflow_collaboration',
   // Private feedback asks a manager to review and handle a guest concern. It
   // is Action Required even when it is not marked urgent enough to bypass
   // quiet hours.
@@ -43,6 +52,11 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'reply.rejected': 'workflow_collaboration',
   'reply.published': 'workflow_collaboration',
   'reply.publish_failed': 'urgent_operational',
+  // The author was told the reply was queued to publish and it silently went
+  // back to draft, so someone has to approve it again: operational attention.
+  // Deliberately absent from URGENT_TYPES — nothing is on Google, and no
+  // cancellation is worth breaking quiet hours for.
+  'reply.publication_cancelled': 'urgent_operational',
   'inbox.escalated': 'urgent_operational',
   'inbox.escalation_resolved': 'workflow_collaboration',
   'inbox.reopened': 'urgent_operational',
@@ -56,11 +70,22 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'inbox.response_target_passed': 'urgent_operational',
   'inbox.assigned': 'workflow_collaboration',
   'inbox.bulk_assigned': 'workflow_collaboration',
+  // Work that belonged to somebody now belongs to nobody, which is the whole
+  // point of the notice. Operational attention, but not worth quiet hours:
+  // the items are where they always were and nothing is on a clock.
+  'inbox.assignments_released': 'urgent_operational',
+  // Losing an item is collaboration news, never a call to act: the work has
+  // moved to somebody else.
+  'inbox.unassigned': 'workflow_collaboration',
   'inbox_note.added': 'workflow_collaboration',
   'portal.responsibility_needed': 'urgent_operational',
   'portal.health_attention': 'urgent_operational',
   'property.responsibility_needed': 'urgent_operational',
   'integration.reauthorization_required': 'urgent_operational',
+  // A deliberate disconnect is somebody's decision, not a fault to fix. The
+  // other AccountAdmins need to know their Google review sync and replies
+  // stopped: collaboration, in-app, never mailed.
+  'integration.google_disconnected': 'workflow_collaboration',
   // Recognition, NOT a digest: `digest_summary` defaulted to
   // {in_app:false, email:false}, so a goal completion classified as a digest
   // was DROPPED entirely for any tenant without preference rows — nothing was
@@ -90,6 +115,11 @@ export function classifyNotification(type: NotificationType): NotificationCatego
  */
 export const ORGANIZATION_INFORMATIONAL_TYPES: ReadonlySet<NotificationType> = new Set([
   'beta_feedback.outcome',
+  // The Google connection belongs to the Organization.
+  // `integration.reauthorization_required` still anchors itself on a Property
+  // because it is urgent_operational mail; this one is in-app only, so it can
+  // be scoped to what it is actually about.
+  'integration.google_disconnected',
 ])
 
 /**

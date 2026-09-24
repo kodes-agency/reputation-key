@@ -38,6 +38,7 @@ const responseTargetPermit = (materialReviewRevision: number) => ({
     materialReviewRevision,
     eligibility: 'legacy_unknown' as const,
     responseTargetStartAt: null,
+    rating: null,
   },
   targetStart: { basis: 'review_provenance' as const },
 })

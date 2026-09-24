@@ -36,6 +36,8 @@ export type PropertyResponsibleManagerRepository = Readonly<{
       propertyIds?: readonly string[]
       at: Date
       endReason: string
+      /** Who released them; never asked to fix the gap they just opened. */
+      actorId?: string | null
     }>,
   ) => Promise<
     Readonly<{

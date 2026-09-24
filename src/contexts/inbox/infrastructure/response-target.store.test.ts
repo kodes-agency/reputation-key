@@ -43,6 +43,7 @@ const anchor = (
     materialReviewRevision: 1,
     eligibility,
     responseTargetStartAt: eligibility === 'measured' ? SOURCE_AT : null,
+    rating: null,
   },
   targetStart,
 })

@@ -4,6 +4,7 @@ import {
   type NotificationType,
 } from '../domain/notification-types'
 import { classifyNotification } from '../domain/notification-delivery-policy'
+import { isActionableNotificationType } from '../domain/notification-settlement'
 import type { NotificationAudience } from './notification-audience'
 
 export type RegisteredNotificationConsumer = Readonly<{
@@ -20,6 +21,12 @@ export type BetaNotificationTriggerMatrixRow = Readonly<{
   audienceKinds: ReadonlyArray<string>
   /** Identifier-only event predicate when only a subset may notify. */
   eventCondition?: string
+  /**
+   * Notice types this route RETIRES rather than announces: the fact finishes
+   * the work they asked for. A settling route announces nothing, so it maps no
+   * audience and does not count towards a type's one announcing trigger.
+   */
+  settles?: ReadonlyArray<string>
 }>
 
 const route = (
@@ -35,6 +42,19 @@ const route = (
     category: classifyNotification(type),
   })),
   audienceKinds,
+})
+
+/** A route that retires notices instead of raising them (ADR 0046, 2026-09-24). */
+const settles = (
+  eventType: string,
+  consumerName: string,
+  retired: ReadonlyArray<NotificationType>,
+): BetaNotificationTriggerMatrixRow => ({
+  eventType,
+  consumerName,
+  notifications: [],
+  audienceKinds: [],
+  settles: retired,
 })
 
 /**
@@ -125,11 +145,12 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ),
     eventCondition: 'reminderKind selects halfway or target-passed notification',
   },
+  // I15: the new assignee, and on a manual reassignment the previous one.
   route(
     'inbox.inbox_item.assigned',
     'notification.on-inbox-inbox_item-assigned',
-    ['inbox.assigned'],
-    ['inbox_assignee'],
+    ['inbox.assigned', 'inbox.unassigned'],
+    ['inbox_assignee', 'property_operator'],
   ),
   route(
     'inbox.inbox_items.bulk_assignment_completed',
@@ -137,11 +158,20 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['inbox.bulk_assigned'],
     ['bulk_inbox_assignee'],
   ),
+  // One notice per Property, to the people who now own the gap; the per-item
+  // unassigned facts it covers stay history.
+  route(
+    'inbox.inbox_items.assignments_released',
+    'notification.on-inbox-assignments-released',
+    ['inbox.assignments_released'],
+    ['responsible_scope'],
+  ),
+  // I5.3: the scope that owns the item's work first, admins as the fallback.
   route(
     'inbox.inbox_item.escalated',
     'notification.on-inbox-inbox_item-escalated',
     ['inbox.escalated'],
-    ['account_admin'],
+    ['responsible_scope', 'account_admin'],
   ),
   route(
     'inbox.inbox_item.escalation_resolved',
@@ -149,17 +179,19 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['inbox.escalation_resolved'],
     ['escalation_resolution'],
   ),
+  // I15: everyone already working on the item, not the assignee alone.
   route(
     'inbox.inbox_note.added',
     'notification.on-inbox-inbox_note-added',
     ['inbox_note.added'],
-    ['inbox_assignee', 'responsible_scope', 'account_admin'],
+    ['inbox_assignee', 'inbox_note_author', 'responsible_scope', 'account_admin'],
   ),
+  // I5.3: the responsible managers who hold reply.manage, admins as fallback.
   route(
     'review.reply.submitted',
     'notification.on-review-reply-submitted',
     ['reply.pending_approval'],
-    ['account_admin'],
+    ['reply_approver', 'account_admin'],
   ),
   route(
     'review.reply.approved',
@@ -185,6 +217,15 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['reply.publish_failed'],
     // The author while eligible; otherwise the Property's responsible managers.
     ['property_operator', 'responsible_scope'],
+  ),
+  // The author was told the reply was queued to publish; the approvers are the
+  // ones who can send it again. A `policy` cancellation drops the approvers it
+  // took the Property authority from.
+  route(
+    'review.reply.publication_cancelled',
+    'notification.on-review-reply-publication_cancelled',
+    ['reply.publication_cancelled'],
+    ['property_operator', 'account_admin'],
   ),
   route(
     'portal.responsibility_became_needed',
@@ -213,6 +254,14 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['integration.reauthorization_required'],
     ['account_admin'],
   ),
+  // A deliberate disconnect. Organization-scoped: the connection is the
+  // Organization's, and the admin who did it is left out.
+  route(
+    'integration.google_account.disconnected',
+    'notification.on-google-account-disconnected',
+    ['integration.google_disconnected'],
+    ['organization_account_admin'],
+  ),
   {
     ...route(
       'goal.monthly_result.closed',
@@ -231,6 +280,44 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ),
     eventCondition: 'outcomeChanged === true || availabilityChanged === true',
   },
+  // ── Routes that settle, rather than raise, a notice ────────────────
+  settles('review.reply.approved', 'notification.settle-on-review-reply-approved', [
+    'reply.pending_approval',
+  ]),
+  settles('review.reply.rejected', 'notification.settle-on-review-reply-rejected', [
+    'reply.pending_approval',
+  ]),
+  settles('review.reply.published', 'notification.settle-on-review-reply-published', [
+    'reply.pending_approval',
+    'reply.publish_failed',
+  ]),
+  settles(
+    'inbox.inbox_item.escalation_resolved',
+    'notification.settle-on-inbox-escalation-resolved',
+    ['inbox.escalated'],
+  ),
+  settles(
+    'inbox.handling_cycle.closed',
+    'notification.settle-on-inbox-handling-cycle-closed',
+    ['inbox.reopened', 'inbox.response_target_halfway', 'inbox.response_target_passed'],
+  ),
+  {
+    ...settles(
+      'property.responsible_managers.updated',
+      'notification.settle-on-property-responsibility-restored',
+      ['property.responsibility_needed'],
+    ),
+    // A selection that leaves nobody responsible opens a gap instead.
+    eventCondition: 'assignmentCount > 0',
+  },
+  {
+    ...settles(
+      'portal.responsible_managers.updated',
+      'notification.settle-on-portal-responsibility-restored',
+      ['portal.responsibility_needed'],
+    ),
+    eventCondition: 'assignmentCount > 0',
+  },
 ] as const satisfies ReadonlyArray<BetaNotificationTriggerMatrixRow>
 
 export const BETA_DARK_NOTIFICATION_TYPES =
@@ -244,8 +331,11 @@ const AUDIENCE_KINDS: ReadonlySet<string> = new Set<AudienceKind>([
   'affected_organization_user',
   'responsible_scope',
   'account_admin',
+  'organization_account_admin',
+  'reply_approver',
   'responsibility_gap',
   'inbox_assignee',
+  'inbox_note_author',
   'bulk_inbox_assignee',
   'escalation_resolution',
   'handling_cycle',
@@ -271,8 +361,24 @@ const matrixRowViolations = (
       `missing durable notification consumer ${row.consumerName} for ${row.eventType}`,
     )
   }
-  if (row.notifications.length === 0) {
+  const retired = row.settles ?? []
+  if (row.notifications.length === 0 && retired.length === 0) {
     violations.push(`notification trigger ${row.eventType} maps no notification type`)
+  }
+  for (const type of retired) {
+    if (!(NOTIFICATION_TYPES as readonly string[]).includes(type)) {
+      violations.push(
+        `notification trigger ${row.eventType} settles unknown type ${type}`,
+      )
+      continue
+    }
+    // Only a notice that asks for work can be finished by a fact. Settling an
+    // outcome notice would hide news the reader is owed.
+    if (!isActionableNotificationType(type as NotificationType)) {
+      violations.push(
+        `notification trigger ${row.eventType} settles ${type}, which asks its reader for nothing`,
+      )
+    }
   }
   for (const policy of row.notifications) {
     if (!(NOTIFICATION_TYPES as readonly string[]).includes(policy.type)) {

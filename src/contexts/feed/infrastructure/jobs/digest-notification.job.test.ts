@@ -143,10 +143,17 @@ function baseDeps(options: Options = {}) {
       settleDigestBatch: vi.fn(async () => true),
     },
     preferenceRepo: {
-      findForDelivery: vi.fn(async () => ({
+      resolveForDelivery: vi.fn(async () => ({
         enabled: true,
+        cadence: 'daily' as const,
+      })),
+      // ADR 0046 r.4, amended 2026-09-23: ONE window for the whole digest,
+      // the person's own. The digest passes no Property, so no Property
+      // override can split it.
+      resolveDeliveryWindow: vi.fn(async () => ({
         quietHoursStart: null,
         quietHoursEnd: null,
+        urgentBypassEnabled: false,
       })),
       getUserSettings: vi.fn(async () =>
         options.userTimezone === undefined
@@ -189,6 +196,7 @@ function baseDeps(options: Options = {}) {
       async (_organizationId: string): Promise<'none' | 'optional' | 'all'> => 'none',
     ),
     authorizeScope: vi.fn(async (_org: string, _property?: string) => true),
+    authorizeMandatoryScope: vi.fn(async (_org: string) => true),
     isRecipientEligible: vi.fn(
       async (_input: { propertyId: string; audience: unknown }, _memo?: unknown) => true,
     ),
@@ -641,10 +649,10 @@ describe('digest timing in the recipient timezone (ADR 0046 r.3)', () => {
 
   it('defers on quiet hours measured in the recipient timezone', async () => {
     const deps = baseDeps({ userTimezone: 'UTC' })
-    deps.preferenceRepo.findForDelivery.mockResolvedValue({
-      enabled: true,
+    deps.preferenceRepo.resolveDeliveryWindow.mockResolvedValue({
       quietHoursStart: '07:00',
       quietHoursEnd: '09:00',
+      urgentBypassEnabled: false,
     } as never)
 
     await runHandler(deps)
@@ -653,8 +661,49 @@ describe('digest timing in the recipient timezone (ADR 0046 r.3)', () => {
     expect(deps.emailSender.send).not.toHaveBeenCalled()
     expect(deps.logger.info).toHaveBeenCalledWith(
       expect.objectContaining({ reason: 'quiet_hours', timezone: 'UTC' }),
-      'Digest entry deferred',
+      'Digest deferred',
     )
+  })
+
+  // ADR 0046 r.4 — the defect this replaces: quiet hours lived on the
+  // (Property, category, channel) row, so a person who had set them on one of
+  // their two Properties had that Property's rows deferred and the other
+  // Property's mailed. One person, one window, one digest.
+  it('asks once for the whole digest, with no Property to override it', async () => {
+    const deps = baseDeps()
+
+    await runHandler(deps)
+
+    expect(deps.preferenceRepo.resolveDeliveryWindow).toHaveBeenCalledTimes(1)
+    expect(deps.preferenceRepo.resolveDeliveryWindow).toHaveBeenCalledWith(
+      USER,
+      ORG,
+      null,
+    )
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
+    const payload = deps.emailSender.send.mock.calls[0]![0]
+    expect(payload.html).toContain('Riverside')
+    expect(payload.html).toContain('Hillcrest')
+  })
+
+  it('holds a multi-Property digest whole rather than sending half of it', async () => {
+    const deps = baseDeps({ userTimezone: 'UTC' })
+    deps.preferenceRepo.resolveDeliveryWindow.mockResolvedValue({
+      quietHoursStart: '07:00',
+      quietHoursEnd: '09:00',
+      urgentBypassEnabled: false,
+    } as never)
+
+    await runHandler(deps)
+
+    // Both Properties' rows wait for the same minute, so the next sweep still
+    // finds one digest instead of two halves of one.
+    const until = deps.emailRepo.markDelayed.mock.calls.map(
+      (call) => (call as readonly unknown[])[3],
+    )
+    expect(until).toHaveLength(2)
+    expect(until[1]).toEqual(until[0])
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
   })
 })
 
@@ -836,7 +885,10 @@ describe('digest suppression and failure visibility (ADR 0046 r.6)', () => {
 
   it('suppresses a preference-disabled row with a visible reason', async () => {
     const deps = baseDeps()
-    deps.preferenceRepo.findForDelivery.mockResolvedValue({ enabled: false } as never)
+    deps.preferenceRepo.resolveForDelivery.mockResolvedValue({
+      enabled: false,
+      cadence: 'daily',
+    } as never)
 
     await runHandler(deps)
 
@@ -852,11 +904,9 @@ describe('digest suppression and failure visibility (ADR 0046 r.6)', () => {
   // `enabled` decides at send time, so those rows still go out here.
   it('sends goal rows whose stored preference still says immediate', async () => {
     const deps = baseDeps()
-    deps.preferenceRepo.findForDelivery.mockResolvedValue({
+    deps.preferenceRepo.resolveForDelivery.mockResolvedValue({
       enabled: true,
       cadence: 'immediate',
-      quietHoursStart: null,
-      quietHoursEnd: null,
     } as never)
 
     await runHandler(deps)
@@ -956,7 +1006,7 @@ describe('immediate orphan sweep', () => {
 
     await runHandler(deps)
 
-    expect(deps.authorizeScope).toHaveBeenCalledWith(ORG)
+    expect(deps.authorizeMandatoryScope).toHaveBeenCalledWith(ORG)
     expect(deps.emailRepo.findDueByOrganization).toHaveBeenCalledWith(
       organizationId(ORG),
       NOW,
@@ -967,7 +1017,7 @@ describe('immediate orphan sweep', () => {
     })
   })
 
-  it('leaves an Organization that fails the scope gate for a later sweep', async () => {
+  it('recovers a mandatory row in an Organization the digest capability refuses', async () => {
     const deps = baseDeps({
       organizationOrphans: [
         buildNotificationEmail({
@@ -978,9 +1028,30 @@ describe('immediate orphan sweep', () => {
         }),
       ],
     })
-    deps.authorizeScope.mockImplementation(
-      async (_org: string, property?: string) => property !== undefined,
-    )
+    // Ordinary product mail is dark for this tenant; the final warning before
+    // an irreversible deletion is not ordinary product mail.
+    deps.authorizeScope.mockResolvedValue(false)
+
+    await runHandler(deps)
+
+    expect(deps.enqueueImmediate).toHaveBeenCalledWith({
+      notificationEmailId: 'mandatory-1',
+      organizationId: ORG,
+    })
+  })
+
+  it('leaves an Organization that fails the mandatory scope gate for a later sweep', async () => {
+    const deps = baseDeps({
+      organizationOrphans: [
+        buildNotificationEmail({
+          id: 'mandatory-1',
+          propertyId: null,
+          category: 'mandatory',
+          cadence: 'immediate',
+        }),
+      ],
+    })
+    deps.authorizeMandatoryScope.mockResolvedValue(false)
 
     await runHandler(deps)
 
@@ -1287,6 +1358,46 @@ describe('an Organization that has asked to close', () => {
         }),
       }),
     )
+  })
+})
+
+describe('due rows whose work is no longer waiting', () => {
+  // A digest gathers a day of rows. "Follow-up reopened" handled at noon must
+  // not still be asking for attention in the next morning's digest.
+  const settledFor = (entry: NotificationEmail): Notification =>
+    buildNotification({
+      id: entry.notificationId as string,
+      userId: entry.userId as string,
+      organizationId: entry.organizationId as string,
+      propertyId: entry.propertyId as string,
+      type: 'inbox.reopened',
+      category: 'workflow_collaboration',
+      resourceType: 'inbox_item',
+      resourceId: `inbox-${entry.propertyId as string}`,
+      resolvedAt: new Date('2026-09-23T12:00:00.000Z'),
+    })
+
+  it('settles a reopen whose Handling Cycle has since closed', async () => {
+    const deps = baseDeps()
+    deps.notifRepo.findByIdsForProperty.mockImplementation(
+      async (ids: readonly NotificationId[], _org: unknown, property: PropertyId) =>
+        new Map(
+          ids.map((id) => [id as string, settledFor(entryFor(property as string))]),
+        ),
+    )
+
+    await runHandler(deps)
+
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    for (const property of [PROP_A, PROP_B]) {
+      expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+        entryFor(property).id,
+        organizationId(ORG),
+        property,
+        'work_no_longer_waiting',
+        NOW,
+      )
+    }
   })
 })
 

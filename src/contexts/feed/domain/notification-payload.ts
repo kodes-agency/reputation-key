@@ -102,7 +102,82 @@ export type NotificationPayload = Readonly<{
   reauthorizationCause?: NotificationReauthorizationCause
   /** Why a reply could not be published when a retry alone cannot fix it. */
   publishFailureCause?: NotificationPublishFailureCause
+  /**
+   * Why an approved reply was returned to draft before it reached Google
+   * (`reply.publication_cancelled`). The event's own closed cause; it decides
+   * the whole sentence, because each cause asks for a different next step.
+   */
+  publicationCancellationCause?: NotificationPublicationCancellationCause
+  /**
+   * Why a Handling Cycle was reopened (`inbox.reopened` only). The event's
+   * own closed enum: a manager's governed reason, or what Google did to the
+   * published reply. Never the free-text explanation beside it, which stays
+   * in Inbox.
+   */
+  reopenReason?: NotificationReopenReason
+  /**
+   * What is wrong with a Portal (`portal.health_attention` only): the derived
+   * health status and the closed reason that produced it. Both, because the
+   * status still shapes the title when a later reason has no sentence yet.
+   */
+  portalHealthStatus?: NotificationPortalHealthStatus
+  portalHealthReason?: NotificationPortalHealthReason
+  /**
+   * The Response Target's target time (ISO instant), on the two reminder
+   * notices only. An instant, never a rendered label: the copy formats it in
+   * the READER's timezone, and two people on one item may not share one.
+   */
+  targetDueAt?: string
+  /**
+   * Which month's result a Goal notice reports, as `YYYY-MM` in the
+   * PROPERTY's own timezone, which is the calendar the month was closed on. A
+   * key, not a label: the template writes the month name, as it writes every
+   * other word.
+   */
+  goalMonth?: string
+  /** Whether the Goal is assigned to the Property, a Portal Group or a Portal. */
+  goalSubjectKind?: NotificationGoalSubjectKind
+  /** Which way the month's result stands now. */
+  goalOutcome?: NotificationGoalOutcome
 }>
+
+export type NotificationPublicationCancellationCause =
+  'disconnect' | 'policy' | 'source_changed' | 'provider_truth'
+
+export type NotificationGoalSubjectKind = 'property' | 'portal_group' | 'portal'
+
+/**
+ * The direction of a monthly result: it meets its target, it does not, or the
+ * month has no usable result at all (insufficient data, unavailable,
+ * quarantined). Never the numbers.
+ */
+export type NotificationGoalOutcome = 'met' | 'not_met' | 'unavailable'
+
+/** A Portal health state that asks for attention; `healthy` never notifies. */
+export type NotificationPortalHealthStatus = 'degraded' | 'unavailable'
+
+/**
+ * The Portal health causes that raise a notice: the automatic states with a
+ * concrete recovery action. Intentional publication states and recovery are
+ * receipt-only and never reach a payload.
+ */
+export type NotificationPortalHealthReason =
+  | 'publication_snapshot_unavailable'
+  | 'public_address_unavailable'
+  | 'google_destination_unavailable'
+
+/**
+ * The governed causes `inbox.handling_cycle.reopened` carries: five a manager
+ * chooses and two an exact provider observation raises.
+ */
+export type NotificationReopenReason =
+  | 'guest_follow_up_still_needed'
+  | 'internal_follow_up_still_needed'
+  | 'new_information'
+  | 'correcting_handling_status'
+  | 'other'
+  | 'provider_reply_deleted'
+  | 'provider_reply_diverged'
 
 export type NotificationReportOutcome = 'accepted' | 'declined' | 'resolved'
 
@@ -135,6 +210,46 @@ const REAUTHORIZATION_CAUSES: Record<string, true> = {
 
 const PUBLISH_FAILURE_CAUSES: Record<string, true> = {
   google_reauthorization_required: true,
+}
+
+const PUBLICATION_CANCELLATION_CAUSES: Record<string, true> = {
+  disconnect: true,
+  policy: true,
+  source_changed: true,
+  provider_truth: true,
+}
+
+const PORTAL_HEALTH_STATUSES: Record<string, true> = {
+  degraded: true,
+  unavailable: true,
+}
+
+const PORTAL_HEALTH_REASONS: Record<string, true> = {
+  publication_snapshot_unavailable: true,
+  public_address_unavailable: true,
+  google_destination_unavailable: true,
+}
+
+const GOAL_SUBJECT_KINDS: Record<string, true> = {
+  property: true,
+  portal_group: true,
+  portal: true,
+}
+
+const GOAL_OUTCOMES: Record<string, true> = {
+  met: true,
+  not_met: true,
+  unavailable: true,
+}
+
+const REOPEN_REASONS: Record<string, true> = {
+  guest_follow_up_still_needed: true,
+  internal_follow_up_still_needed: true,
+  new_information: true,
+  correcting_handling_status: true,
+  other: true,
+  provider_reply_deleted: true,
+  provider_reply_diverged: true,
 }
 
 const PUBLISH_OUTCOMES: Record<string, true> = {
@@ -179,6 +294,10 @@ const takeInstant = (value: unknown): string | undefined => {
   const time = Date.parse(value)
   return Number.isFinite(time) ? new Date(time).toISOString() : undefined
 }
+
+/** `YYYY-MM`, a real calendar month. Anything else is dropped. */
+const takeMonthKey = (value: unknown): string | undefined =>
+  typeof value === 'string' && /^\d{4}-(?:0[1-9]|1[0-2])$/.test(value) ? value : undefined
 
 /** A real boolean only; "true", 1 and null are not flags. */
 const takeFlag = (value: unknown): boolean | undefined =>
@@ -238,6 +357,38 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
       PUBLISH_FAILURE_CAUSES,
     ),
   )
+  set(
+    'publicationCancellationCause',
+    takeMember<NotificationPublicationCancellationCause>(
+      raw.publicationCancellationCause,
+      PUBLICATION_CANCELLATION_CAUSES,
+    ),
+  )
+  set(
+    'reopenReason',
+    takeMember<NotificationReopenReason>(raw.reopenReason, REOPEN_REASONS),
+  )
+  set(
+    'portalHealthStatus',
+    takeMember<NotificationPortalHealthStatus>(
+      raw.portalHealthStatus,
+      PORTAL_HEALTH_STATUSES,
+    ),
+  )
+  set(
+    'portalHealthReason',
+    takeMember<NotificationPortalHealthReason>(
+      raw.portalHealthReason,
+      PORTAL_HEALTH_REASONS,
+    ),
+  )
+  set('targetDueAt', takeInstant(raw.targetDueAt))
+  set('goalMonth', takeMonthKey(raw.goalMonth))
+  set(
+    'goalSubjectKind',
+    takeMember<NotificationGoalSubjectKind>(raw.goalSubjectKind, GOAL_SUBJECT_KINDS),
+  )
+  set('goalOutcome', takeMember<NotificationGoalOutcome>(raw.goalOutcome, GOAL_OUTCOMES))
 
   return parsed as NotificationPayload
 }

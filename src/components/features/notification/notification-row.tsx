@@ -45,15 +45,23 @@ export function NotificationRow({
   actions,
   format = DEFAULT_NOTIFICATION_FORMAT,
 }: Props) {
-  const rendered = renderNotification(notification.type, notification.payload)
+  // The reader's own zone, so a Response Target's target time reads on their
+  // clock; two people responsible for one item need not share one.
+  const rendered = renderNotification(notification.type, notification.payload, {
+    timeZone: format.timeZone,
+  })
   const link = notificationLink(
     notification.resourceType,
     notification.resourceId,
     notification.propertyId,
     notification.type,
   )
-  const isUnread = notification.status === 'unread'
-  const isUrgent = notification.priority === 'urgent'
+  // Read is not resolved, and neither implies the other: a settled row stays
+  // unread until its reader opens it, but it has stopped asking, so it drops
+  // the unread emphasis and says "Done" instead.
+  const isSettled = notification.resolvedAt !== null
+  const isUnread = notification.status === 'unread' && !isSettled
+  const isUrgent = notification.priority === 'urgent' && !isSettled
   const stamp = notification.coalescedLatestAt ?? notification.createdAt
 
   return (
@@ -96,6 +104,7 @@ export function NotificationRow({
               {rendered.title}
             </p>
             {isUrgent && <Badge variant="destructive">Urgent</Badge>}
+            {isSettled && <Badge variant="secondary">Done</Badge>}
             <time
               dateTime={stamp.toISOString()}
               title={formatAbsoluteTime(stamp, format)}

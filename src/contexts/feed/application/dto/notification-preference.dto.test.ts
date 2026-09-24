@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   notificationPreferenceCategory,
+  notificationQuietHoursDto,
   updateNotificationPreferenceDto,
 } from './notification-preference.dto'
 
@@ -24,26 +25,83 @@ describe('notification preference update contract', () => {
     channel: 'email',
     enabled: true,
     cadence: 'immediate',
-    urgentBypassEnabled: false,
   } as const
 
-  it('accepts a quiet-hours window that spans midnight', () => {
+  it('accepts one property row', () => {
+    expect(updateNotificationPreferenceDto.safeParse(update).success).toBe(true)
+  })
+
+  it('accepts the same answer for every property the person has', () => {
+    const parsed = updateNotificationPreferenceDto.safeParse({
+      ...update,
+      applyToAllProperties: true,
+    })
+
+    expect(parsed.success).toBe(true)
+    if (parsed.success) expect(parsed.data.applyToAllProperties).toBe(true)
+  })
+
+  it('no longer carries quiet hours, which belong to the person', () => {
+    const parsed = updateNotificationPreferenceDto.safeParse({
+      ...update,
+      quietHoursStart: '22:00',
+      quietHoursEnd: '07:00',
+    })
+
+    expect(parsed.success).toBe(true)
+    if (parsed.success) expect(parsed.data).not.toHaveProperty('quietHoursStart')
+  })
+})
+
+describe('quiet hours contract', () => {
+  const PROPERTY = '10000000-0000-4000-8000-000000000001'
+
+  it('accepts a personal window that spans midnight', () => {
     expect(
-      updateNotificationPreferenceDto.safeParse({
-        ...update,
+      notificationQuietHoursDto.safeParse({
         quietHoursStart: '22:00',
         quietHoursEnd: '07:00',
+        urgentBypassEnabled: true,
       }).success,
     ).toBe(true)
   })
 
-  it('refuses a quiet-hours window that starts and ends at the same time', () => {
+  it('refuses a window that starts and ends at the same time', () => {
     expect(
-      updateNotificationPreferenceDto.safeParse({
-        ...update,
+      notificationQuietHoursDto.safeParse({
         quietHoursStart: '22:00',
         quietHoursEnd: '22:00',
       }).success,
     ).toBe(false)
+  })
+
+  it('refuses half a window', () => {
+    expect(
+      notificationQuietHoursDto.safeParse({
+        quietHoursStart: '22:00',
+        quietHoursEnd: null,
+      }).success,
+    ).toBe(false)
+  })
+
+  it('accepts a property override that holds nothing back', () => {
+    expect(
+      notificationQuietHoursDto.safeParse({
+        propertyId: PROPERTY,
+        quietHoursStart: null,
+        quietHoursEnd: null,
+        urgentBypassEnabled: false,
+      }).success,
+    ).toBe(true)
+  })
+
+  it('lets a property follow the person again', () => {
+    expect(
+      notificationQuietHoursDto.safeParse({ propertyId: PROPERTY, follow: true }).success,
+    ).toBe(true)
+  })
+
+  it('refuses to make the person themselves follow something', () => {
+    expect(notificationQuietHoursDto.safeParse({ follow: true }).success).toBe(false)
   })
 })

@@ -4,7 +4,13 @@
 import { and, eq, desc, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notifications } from '#/shared/db/schema/notification.schema'
-import { unbrand } from '#/shared/domain/ids'
+import {
+  notificationId,
+  unbrand,
+  userId,
+  type NotificationId,
+  type UserId,
+} from '#/shared/domain/ids'
 import type { Notification, NotificationStatus } from '../../domain/notification-types'
 import { notificationFromRow } from './notification-row.mapper'
 import { notificationError } from '../../domain/notification-errors'
@@ -65,13 +71,22 @@ const withinVisibleProperties = (
   )
 }
 
+// What "unread" means to the bell and to the Unread tab: still waiting on the
+// reader. A row whose work was settled upstream keeps its unread status — read
+// is not resolved — but stops asking, so it leaves the count and the tab and
+// stays in the feed under its "Done" marker.
+const stillWaiting: SQL = and(
+  eq(notifications.status, 'unread'),
+  isNull(notifications.resolvedAt),
+)!
+
 // What a feed filter adds to "the reader's notices": the unread status, the
 // urgent priority flag (any category), or one category. `all` adds nothing.
 // Shared by the feed read, its filter's unread count and the filter-scoped
 // "Mark all read", so the three can never disagree about a tab's rows.
 const feedFilterCondition = (filter: NotificationListFilter): SQL | undefined => {
   if (filter === 'all') return undefined
-  if (filter === 'unread') return eq(notifications.status, 'unread')
+  if (filter === 'unread') return stillWaiting
   if (filter === 'urgent') return eq(notifications.priority, 'urgent')
   return eq(notifications.category, filter)
 }
@@ -139,7 +154,7 @@ const countVisibleUnread = async (
       and(
         eq(notifications.userId, query.userId),
         eq(notifications.organizationId, query.organizationId),
-        eq(notifications.status, 'unread'),
+        stillWaiting,
         notOptedOutInApp,
         withinVisibleProperties(query.visiblePropertyIds),
       ),
@@ -194,6 +209,9 @@ export const createNotificationRepository = (db: Database) => ({
           priority: notification.priority,
           coalescedCount: sql`${notifications.coalescedCount} + 1`,
           coalescedLatestAt: notification.updatedAt,
+          // The row is being asked for again, so any settled marker it carries
+          // is dropped: the work came back.
+          resolvedAt: null,
           updatedAt: notification.updatedAt,
         },
       })
@@ -203,6 +221,54 @@ export const createNotificationRepository = (db: Database) => ({
     if (!r)
       throw notificationError('insert_failed', 'No row returned from notification INSERT')
     return notificationFromRow(r)
+  },
+
+  // Who was told. Read state is irrelevant: somebody who read the escalation
+  // notice was still told about it, and a settled row still proves it.
+  findRecipientsOfNotice: async (
+    orgId: string,
+    type: string,
+    resourceId: string,
+  ): Promise<readonly UserId[]> => {
+    const rows = await db
+      .selectDistinct({ userId: notifications.userId })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.organizationId, orgId),
+          eq(notifications.type, type),
+          eq(notifications.resourceId, resourceId),
+        ),
+      )
+    return rows.map((row) => userId(row.userId))
+  },
+
+  // The work a notice asked for is done. Every recipient's still-waiting row
+  // about that resource is stamped, whatever their read state, and the ids
+  // come back so the caller can cancel the mail queued behind them. `status`
+  // is deliberately untouched: read is not resolved (docs/BETA.md). Rows
+  // already resolved are excluded, so a redelivered fact settles nothing
+  // twice and cancels no mail a later event queued.
+  settleUnreadForResource: async (input: {
+    organizationId: string
+    types: ReadonlyArray<string>
+    resourceId: string
+    resolvedAt: Date
+  }): Promise<readonly NotificationId[]> => {
+    if (input.types.length === 0) return []
+    const settled = await db
+      .update(notifications)
+      .set({ resolvedAt: input.resolvedAt, updatedAt: input.resolvedAt })
+      .where(
+        and(
+          eq(notifications.organizationId, input.organizationId),
+          eq(notifications.resourceId, input.resourceId),
+          inArray(notifications.type, [...input.types]),
+          stillWaiting,
+        ),
+      )
+      .returning({ id: notifications.id })
+    return settled.map((row) => notificationId(row.id))
   },
 
   markRead: async (
@@ -307,6 +373,8 @@ export const createNotificationRepository = (db: Database) => ({
         payload: notification.payload,
         coalescedCount: notification.coalescedCount,
         coalescedLatestAt: notification.coalescedLatestAt,
+        // `applyCoalescence` clears it: the repeat event is asking again.
+        resolvedAt: notification.resolvedAt,
         updatedAt: notification.updatedAt,
       })
       .where(

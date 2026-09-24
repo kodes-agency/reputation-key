@@ -147,6 +147,17 @@ function parseRevision(event: ConsumerEvent): ParsedRevision {
   }
 }
 
+/**
+ * A corrected month that is no longer eligible has no result to report, which
+ * is not the same as missing its target; the copy keeps them apart.
+ */
+const goalOutcomeOf = (
+  payload: Pick<ParsedRevision, 'evaluationState' | 'achieved'>,
+): 'met' | 'not_met' | 'unavailable' => {
+  if (payload.evaluationState !== 'eligible') return 'unavailable'
+  return payload.achieved === true ? 'met' : 'not_met'
+}
+
 type GoalConsumerStatus = Readonly<{ status: 'applied' | 'obsolete' }>
 
 /** Record this consumer's receipt for the delivery, and answer with it. */
@@ -172,9 +183,15 @@ async function enqueueGoalNotices(
   deps: GoalNotificationConsumerDeps,
   event: ConsumerEvent,
   result: Pick<Parsed, 'organizationId' | 'propertyId' | 'monthlyResultId'>,
-  facts: Readonly<{ subject: GoalSubject; programName: string }>,
+  facts: Readonly<{ subject: GoalSubject; programName: string; periodMonth: string }>,
   notice: Readonly<{
     type: 'goal.completed' | 'goal.result_revised'
+    /**
+     * Which way the month stands NOW. A completion is always `met`; a
+     * correction says whether the month still is, no longer is, or has no
+     * usable result at all.
+     */
+    outcome: 'met' | 'not_met' | 'unavailable'
     audience: NotificationAudience
     jobId: (recipient: UserId) => string
   }>,
@@ -198,7 +215,15 @@ async function enqueueGoalNotices(
           resourceType: 'goal' as const,
           resourceId: result.monthlyResultId,
           eventId: event.eventId,
-          payload: { goalName: facts.programName, ...where },
+          // Which month, whose goal, and which way it went. Ten sibling
+          // results of one Program used to render ten identical rows.
+          payload: {
+            goalName: facts.programName,
+            ...where,
+            goalMonth: facts.periodMonth,
+            goalSubjectKind: facts.subject.kind,
+            goalOutcome: notice.outcome,
+          },
           audience: notice.audience,
         },
         { jobId: notice.jobId(recipient) },
@@ -234,6 +259,8 @@ export async function handleNotificationGoalMonthlyResultClosed(
 
   await enqueueGoalNotices(deps, event, payload, facts, {
     type: 'goal.completed',
+    // The lookup returns nothing unless the month is achieved as it stands.
+    outcome: 'met',
     // Delivery rechecks that the month is STILL achieved: a correction
     // may un-achieve it before this job runs.
     audience: {
@@ -290,6 +317,7 @@ export async function handleNotificationGoalMonthlyResultRevised(
 
   await enqueueGoalNotices(deps, event, payload, facts, {
     type: 'goal.result_revised',
+    outcome: goalOutcomeOf(payload),
     audience: {
       kind: 'goal_result_revision',
       programId: payload.programId,

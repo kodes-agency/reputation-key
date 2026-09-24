@@ -120,9 +120,6 @@ describe.sequential('one-click unsubscribe repository (real PostgreSQL)', () => 
       channel: 'email',
       enabled: true,
       cadence: 'immediate',
-      urgentBypassEnabled: true,
-      quietHoursStart: '22:00',
-      quietHoursEnd: '07:00',
       createdAt: new Date('2026-08-20T10:00:00.000Z'),
       updatedAt: new Date('2026-08-20T10:00:00.000Z'),
     })
@@ -203,16 +200,12 @@ describe.sequential('one-click unsubscribe repository (real PostgreSQL)', () => 
           category: 'workflow_collaboration',
           enabled: false,
           cadence: 'immediate',
-          urgentBypassEnabled: true,
-          quietHoursStart: '22:00:00',
-          quietHoursEnd: '07:00:00',
         }),
         expect.objectContaining({
           propertyId: PROPERTY_B,
           category: 'recognition',
           enabled: false,
           cadence: 'daily',
-          urgentBypassEnabled: false,
         }),
       ]),
     )

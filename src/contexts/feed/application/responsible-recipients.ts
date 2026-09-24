@@ -85,6 +85,45 @@ export function resolveInboxResponsibleRecipients(
   return recoveryAdmins(deps, organizationId).then(unique)
 }
 
+/**
+ * The item's current assignee when they may still act on its Property.
+ * Assignment is operational metadata, never an authority, so it only ever
+ * ADDS a recipient to the responsible scope — and only while they are still
+ * eligible.
+ */
+export async function currentEligibleAssignee(
+  deps: ResponsibleRecipientDeps,
+  organizationId: OrganizationId,
+  facts: Pick<InboxItemFacts, 'assignedTo' | 'propertyId'>,
+): Promise<UserId | null> {
+  if (facts.assignedTo === null) return null
+  return (await deps.responsibleManagers.isEligibleForProperty(
+    organizationId,
+    propertyId(facts.propertyId),
+    facts.assignedTo,
+  ))
+    ? facts.assignedTo
+    : null
+}
+
+/**
+ * Who hears that one Handling Cycle moved — a Review revision, a reopen, a
+ * grouped reopen. The item's responsible scope, plus the person actually
+ * working on it: a non-responsible manager drafting a reply used to be told
+ * neither (I15), although a passed Response Target already reaches them.
+ */
+export async function resolveHandlingCycleRecipients(
+  deps: ResponsibleRecipientDeps,
+  organizationId: OrganizationId,
+  facts: InboxItemFacts,
+): Promise<readonly UserId[]> {
+  const [responsible, assignee] = await Promise.all([
+    resolveInboxResponsibleRecipients(deps, organizationId, facts),
+    currentEligibleAssignee(deps, organizationId, facts),
+  ])
+  return assignee === null ? responsible : unique([...responsible, assignee])
+}
+
 /** The durable reason for delivering a new-item or unassigned-note notice. */
 export function inboxNotificationAudience(facts: InboxItemFacts): NotificationAudience {
   if (facts.sourceType !== 'feedback') {

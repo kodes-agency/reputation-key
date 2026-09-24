@@ -1,7 +1,8 @@
-// How one Property/category/channel preference row is saved. A save writes the
-// whole row, so two quick edits of one row (Email on, then Immediate) must
-// neither be built from the same stale snapshot nor land out of order —
-// either way the second silently undoes the first.
+// How one Property/category/channel preference row is saved, and what a
+// Property with no row of its own inherits. A save writes the whole row, so
+// two quick edits of one row (Email on, then Immediate) must neither be built
+// from the same stale snapshot nor land out of order — either way the second
+// silently undoes the first.
 
 import {
   effectiveEmailCadence,
@@ -12,11 +13,12 @@ import {
   type NotificationPreference,
 } from '#/contexts/feed/application/public-api'
 
-/** The five values one preference row holds. */
-export type PreferenceValues = Pick<
-  NotificationPreference,
-  'enabled' | 'cadence' | 'urgentBypassEnabled' | 'quietHoursStart' | 'quietHoursEnd'
->
+/**
+ * The two values one preference row holds. Quiet hours and the urgent bypass
+ * left it in ADR 0046's 2026-09-23 amendment: they are the person's, saved
+ * once for every Property rather than once per (Property, category, channel).
+ */
+export type PreferenceValues = Pick<NotificationPreference, 'enabled' | 'cadence'>
 
 export type PreferencePatch = Partial<PreferenceValues>
 
@@ -31,8 +33,7 @@ export function preferenceRowKey(
 
 /**
  * The whole row a save writes: the patch over the current values, and the
- * category defaults for a row that was never saved. `null` quiet hours in the
- * patch clear them; an absent key keeps them.
+ * category defaults for a row that was never saved.
  */
 export function applyPreferencePatch(
   category: ConfigurableNotificationCategory,
@@ -49,16 +50,6 @@ export function applyPreferencePatch(
       channel === 'email'
         ? effectiveEmailCadence(category, patch.cadence ?? current?.cadence)
         : (patch.cadence ?? current?.cadence ?? getDefaultCadence(category)),
-    urgentBypassEnabled:
-      patch.urgentBypassEnabled ?? current?.urgentBypassEnabled ?? false,
-    quietHoursStart:
-      patch.quietHoursStart !== undefined
-        ? patch.quietHoursStart
-        : (current?.quietHoursStart ?? null),
-    quietHoursEnd:
-      patch.quietHoursEnd !== undefined
-        ? patch.quietHoursEnd
-        : (current?.quietHoursEnd ?? null),
   }
 }
 

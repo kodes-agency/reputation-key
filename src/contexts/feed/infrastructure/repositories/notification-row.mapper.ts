@@ -70,6 +70,7 @@ export const notificationFromRow = (row: NotificationRow): Notification => ({
   ),
   coalescedCount: row.coalescedCount,
   coalescedLatestAt: row.coalescedLatestAt,
+  resolvedAt: row.resolvedAt,
   readAt: row.readAt,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,

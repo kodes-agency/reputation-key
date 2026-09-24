@@ -16,7 +16,7 @@ import { GOOGLE_DISCONNECT_REVOKE_WINDOW_MS } from '../../application/google-dis
 import type { GoogleDisconnectRevokeAuthorization } from '../../application/google-provider-contract'
 import type { GoogleConnection } from '../../domain/types'
 import { integrationGoogleAccountDisconnected } from '../../domain/events'
-import { googleConnectionId, organizationId } from '#/shared/domain/ids'
+import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 
 const RECEIPT_SCOPE = 'google_disconnect_revoke'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
@@ -644,6 +644,8 @@ export const createGoogleDisconnectRevokeRepository = (
           const event = integrationGoogleAccountDisconnected({
             connectionId: googleConnectionId(attempt.connectionId),
             organizationId: organizationId(attempt.organizationId),
+            userId:
+              attempt.initiatorUserId === null ? null : userId(attempt.initiatorUserId),
             occurredAt: input.now,
           })
           await updateAttempt(tx, {

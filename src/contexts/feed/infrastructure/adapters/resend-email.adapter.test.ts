@@ -109,6 +109,25 @@ describe('resend email adapter', () => {
     expect(send.mock.calls[0]![0]).not.toHaveProperty('headers')
   })
 
+  it('routes a reply to the address the message asks for, leaving the sender alone', async () => {
+    const { client, send } = fakeClient()
+
+    await adapter(() => client).send({ ...request, replyTo: 'support@test.example' })
+
+    expect(send.mock.calls[0]![0].replyTo).toBe('support@test.example')
+    expect(send.mock.calls[0]![0].from).toBe(
+      'Reputation Key <notifications@test.example>',
+    )
+  })
+
+  it('omits the reply-to key entirely when the message names no one', async () => {
+    const { client, send } = fakeClient()
+
+    await adapter(() => client).send(request)
+
+    expect(send.mock.calls[0]![0]).not.toHaveProperty('replyTo')
+  })
+
   it('returns an accepted outcome carrying the provider message id', async () => {
     const { client } = fakeClient()
 

@@ -37,14 +37,25 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
       | Readonly<{ kind: 'portal_group'; id: string }>
       | Readonly<{ kind: 'portal'; id: string }>,
     achieved = true,
+    /**
+     * The Property's own calendar. A month is stored as the UTC instants of
+     * its LOCAL boundaries, so a Property ahead of UTC starts its month on
+     * the previous UTC day: reading the period in UTC would name the month
+     * before it.
+     */
+    period: Readonly<{ timezone: string; start: string; end: string }> = {
+      timezone: 'UTC',
+      start: '2026-07-01T00:00:00.000Z',
+      end: '2026-08-01T00:00:00.000Z',
+    },
   ) {
     const programId = randomUUID()
     const programVersionId = randomUUID()
     const assignmentId = randomUUID()
     const monthlyResultId = randomUUID()
     const programName = `Monthly result ${subject.kind} ${randomUUID()}`
-    const effectiveFrom = new Date('2026-07-01T00:00:00.000Z')
-    const periodEnd = new Date('2026-08-01T00:00:00.000Z')
+    const effectiveFrom = new Date(period.start)
+    const periodEnd = new Date(period.end)
     const closedAt = new Date('2026-08-02T12:00:00.000Z')
 
     await lease.pool.query(
@@ -61,7 +72,7 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
           metric_minimum_sample, target_value, property_timezone,
           effective_from, change_reason, created_by, created_at)
        VALUES ($1, $2, $3, $4, 1, $5, $6, 'portal_rating_count', 0, 10,
-               'UTC', $7, 'created', 'manager-1', $7)`,
+               $8, $7, 'created', 'manager-1', $7)`,
       [
         programVersionId,
         programId,
@@ -70,6 +81,7 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
         METRIC_DEFINITION_IDS.portalRatingCount,
         METRIC_VERSION_IDS.portalRatingCountGoal,
         effectiveFrom,
+        period.timezone,
       ],
     )
     await lease.pool.query(
@@ -99,7 +111,7 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
           evaluation_state, value, sample_count, achieved,
           source_complete_through, evaluation_watermark, closed_at,
           created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'UTC', 'closed', 'eligible',
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $11, 'closed', 'eligible',
                12, 12, $9, $8, $10, $10, $7, $10)`,
       [
         monthlyResultId,
@@ -112,11 +124,32 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
         periodEnd,
         achieved,
         closedAt,
+        period.timezone,
       ],
     )
 
     return { programId, programVersionId, assignmentId, monthlyResultId, programName }
   }
+
+  it('names the month on the Property\u2019s calendar, not on UTC', async () => {
+    // July in Auckland begins on 30 June in UTC. Reading the period on the
+    // server's clock would report a June goal for a July result.
+    const seeded = await seedClosedResult({ kind: 'property' }, true, {
+      timezone: 'Pacific/Auckland',
+      start: '2026-06-30T12:00:00.000Z',
+      end: '2026-07-31T12:00:00.000Z',
+    })
+    const lookup = createMonthlyResultNotificationFactsLookup(getDb())
+
+    await expect(
+      lookup.findMonthlyResultNotificationFacts({
+        organizationId,
+        propertyId,
+        assignmentId: seeded.assignmentId,
+        monthlyResultId: seeded.monthlyResultId,
+      }),
+    ).resolves.toMatchObject({ periodMonth: '2026-07' })
+  })
 
   it('returns exact joined facts for every Goal subject kind', async () => {
     const portalGroupId = randomUUID()
@@ -162,6 +195,7 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
         monthlyResultId: seeded.monthlyResultId,
         assignmentId: seeded.assignmentId,
         programName: seeded.programName,
+        periodMonth: '2026-07',
         subject,
       })
     }

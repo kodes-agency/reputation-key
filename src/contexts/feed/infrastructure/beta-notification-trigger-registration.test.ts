@@ -11,9 +11,11 @@ import { registerPortalNotificationConsumers } from './portal-outbox-consumers'
 import { registerPropertyNotificationConsumers } from './property-outbox-consumers'
 import { registerIntegrationNotificationConsumers } from './integration-outbox-consumers'
 import { registerBulkAssignmentNotificationConsumer } from './bulk-assignment-outbox-consumers'
+import { registerAssignmentReleaseNotificationConsumer } from './assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './goal-outbox-consumers'
 import { registerHandlingCycleNotificationConsumers } from './handling-cycle-outbox-consumers'
+import { registerNotificationSettlementConsumers } from './notification-settlement-outbox-consumers'
 import { registerResponseTargetNotificationConsumer } from './response-target-outbox-consumers'
 import { registerPortalHealthNotificationConsumer } from './portal-health-outbox-consumers'
 import {
@@ -58,15 +60,33 @@ describe('registered durable notification matrix', () => {
       logger: fakes.logger,
       receipts,
     })
+    registerAssignmentReleaseNotificationConsumer(consumerRegistry, {
+      queue: fakes.queue,
+      userLookup: fakes.userLookup,
+      responsibleManagers: fakes.responsibleManagers,
+      displayNames: fakes.displayNames,
+      logger: fakes.logger,
+      receipts,
+    })
     registerEscalationResolutionNotificationConsumer(consumerRegistry, {
       queue: fakes.queue,
       escalationResolutions: {
         findEscalationResolutionFacts: vi.fn(async () => null),
       },
       responsibleManagers: fakes.responsibleManagers,
+      userLookup: fakes.userLookup,
+      notifications: { findRecipientsOfNotice: vi.fn(async () => []) },
       receipts,
     })
     registerHandlingCycleNotificationConsumers(consumerRegistry, { ...fakes, receipts })
+    registerNotificationSettlementConsumers(consumerRegistry, {
+      notifications: { settleUnreadForResource: vi.fn(async () => []) },
+      emails: { cancelQueuedForNotifications: vi.fn(async () => 0) },
+      inboxItemLookup: fakes.inboxItemLookup,
+      clock: fakes.clock,
+      logger: fakes.logger,
+      receipts,
+    })
     registerResponseTargetNotificationConsumer(consumerRegistry, { ...fakes, receipts })
     registerGoalNotificationConsumer(consumerRegistry, {
       queue: fakes.queue,

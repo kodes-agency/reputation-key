@@ -189,6 +189,7 @@ const cancelledEvent = (id: typeof REPLY_A, cause: 'disconnect' | 'policy') =>
     reviewId: REVIEW_A,
     propertyId: PROP_A,
     organizationId: ORG_A,
+    authorId: null,
     cause,
     occurredAt: NOW,
   })

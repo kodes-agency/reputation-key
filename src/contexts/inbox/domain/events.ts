@@ -107,6 +107,11 @@ export type InboxItemAssigned = Readonly<{
   propertyId: PropertyId | null
   userId: UserId
   assignedTo: UserId
+  /**
+   * Who held the item before this assignment, when anybody did. A
+   * reassignment is news to them: they were never told the item had moved on.
+   */
+  previousAssignee?: UserId | null
   /** Present when this per-item fact belongs to one atomic bulk command. */
   bulkId?: string
   source: 'web' | 'import'
@@ -383,6 +388,92 @@ export const inboxBulkAssignmentCompleted = (args: {
     transitions,
     count: transitions.length,
     source: 'web',
+    occurredAt: args.occurredAt,
+    correlationId: args.correlationId ?? null,
+  }
+}
+
+/**
+ * One Property's share of a release. The fact groups by Property rather than
+ * listing every item: an offboarded manager's assignments are unbounded — a
+ * busy fleet manager can hold thousands — and the notice is one per Property
+ * anyway. `anchorInboxItemId` is the canonically first released item, which
+ * gives the row a stable resource identity; the row's link opens the
+ * Property's queue, not that item.
+ */
+export type InboxAssignmentRelease = Readonly<{
+  propertyId: PropertyId
+  anchorInboxItemId: InboxItemId
+  count: number
+}>
+
+/**
+ * Why a member's assignments were cleared. Both are an authority removal, not
+ * a triage decision: one because the member left, one because they no longer
+ * qualify for the Property.
+ */
+export type InboxAssignmentReleaseReason =
+  'member_offboarded' | 'member_became_ineligible'
+
+/**
+ * Content-free close fact for one release of a member's Inbox assignments.
+ * The per-item unassigned facts remain the activity/audit feed; this envelope
+ * is what a durable consumer can deliver ONE grouped notice per Property from,
+ * to the people who now own the gap, without guessing whether every item fact
+ * of the release has arrived.
+ */
+export type InboxAssignmentsReleased = Readonly<{
+  _tag: 'inbox.inbox_items.assignments_released'
+  eventId: string
+  organizationId: OrganizationId
+  /** Whoever caused the release. Null for provider/lifecycle hooks. */
+  userId: UserId | null
+  /** The member whose assignments were cleared. */
+  releasedFrom: UserId
+  /**
+   * Named `releaseReason`, not `reason`: the outbox adapter denylists `reason`
+   * as content, and this closed enum has to survive into the fact.
+   */
+  releaseReason: InboxAssignmentReleaseReason
+  releases: ReadonlyArray<InboxAssignmentRelease>
+  /** Items released across every group. */
+  count: number
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const inboxAssignmentsReleased = (args: {
+  organizationId: OrganizationId
+  userId: UserId | null
+  releasedFrom: UserId
+  releaseReason: InboxAssignmentReleaseReason
+  releases: ReadonlyArray<InboxAssignmentRelease>
+  occurredAt: Date
+  correlationId?: string | null
+}): InboxAssignmentsReleased => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.releases.length > 0, 'assignment releases required')
+  assert(
+    new Set(args.releases.map((release) => release.propertyId)).size ===
+      args.releases.length,
+    'assignment releases must name each Property once',
+  )
+  assert(
+    args.releases.every((release) => release.count > 0),
+    'an assignment release group must release something',
+  )
+  const releases = [...args.releases].sort((left, right) =>
+    left.propertyId.localeCompare(right.propertyId),
+  )
+  return {
+    _tag: 'inbox.inbox_items.assignments_released',
+    eventId: newEventId(),
+    organizationId: args.organizationId,
+    userId: args.userId,
+    releasedFrom: args.releasedFrom,
+    releaseReason: args.releaseReason,
+    releases,
+    count: releases.reduce((total, release) => total + release.count, 0),
     occurredAt: args.occurredAt,
     correlationId: args.correlationId ?? null,
   }
@@ -724,6 +815,7 @@ export type InboxEvent =
   | InboxNoteAdded
   | InboxItemBulkStatusChanged
   | InboxBulkAssignmentCompleted
+  | InboxAssignmentsReleased
   | InboxHandlingCycleOpened
   | InboxHandlingCycleClosed
   | InboxHandlingCycleReopened

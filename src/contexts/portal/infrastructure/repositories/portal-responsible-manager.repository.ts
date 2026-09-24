@@ -12,7 +12,7 @@ import {
   portalResponsibilityNeeded,
   portalResponsibleManagersUpdated,
 } from '../../domain/events'
-import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
+import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
 import { nextLockedPortalRevision } from '../portal-command-revision'
 
 const fromRow = (
@@ -428,6 +428,7 @@ export const createPortalResponsibleManagerRepository = (
             organizationId: organizationId(input.organizationId),
             propertyId: propertyId(row.propertyId),
             portalId: portalId(rawPortalId),
+            actorUserId: input.actorId ? userId(input.actorId) : null,
             sourceAggregateVersion: updated.updatedAt.toISOString(),
             occurredAt: input.at,
           })

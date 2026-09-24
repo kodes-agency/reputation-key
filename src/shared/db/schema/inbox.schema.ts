@@ -559,6 +559,19 @@ export const inboxFeedbackHandlingOutcomes = pgTable(
 )
 
 /**
+ * What every Response Target policy row records about its last write: the
+ * version an editor's expected-version check is answered from, and who wrote
+ * it. Both policy tables are edited through the same optimistic-concurrency
+ * step, so a table that stamped itself differently could not be edited by it.
+ */
+const policyStampColumns = () => ({
+  policyVersion: bigint('policy_version', { mode: 'number' }).notNull(),
+  updatedBy: varchar('updated_by', { length: 255 }).notNull(),
+  createdAt: createdAtColumn(),
+  updatedAt: updatedAtColumn(),
+})
+
+/**
  * Current Organization policy for each Inbox-owned Response Target family.
  * Earlier cycles never consult this row again: every cycle snapshots the
  * resolved duration/source/version in `inbox_handling_cycle_response_targets`.
@@ -569,10 +582,15 @@ export const inboxResponseTargetOrganizationPolicies = pgTable(
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     targetKind: varchar('target_kind', { length: 48 }).notNull(),
     durationMinutes: integer('duration_minutes').notNull(),
-    policyVersion: bigint('policy_version', { mode: 'number' }).notNull(),
-    updatedBy: varchar('updated_by', { length: 255 }).notNull(),
-    createdAt: createdAtColumn(),
-    updatedAt: updatedAtColumn(),
+    /**
+     * The shorter Google Review target for the Organization's own low-rated
+     * reviews: a rating at or below the threshold is measured against the
+     * low-rating duration instead. Both null — the default, and every row
+     * written before these columns — means one clock for every review.
+     */
+    lowRatingThreshold: integer('low_rating_threshold'),
+    lowRatingDurationMinutes: integer('low_rating_duration_minutes'),
+    ...policyStampColumns(),
   },
   (t) => [
     primaryKey({
@@ -584,6 +602,21 @@ export const inboxResponseTargetOrganizationPolicies = pgTable(
       sql`${t.targetKind} IN ('google_review_response', 'private_feedback_handling')
         AND ${t.durationMinutes} BETWEEN 1 AND 43200
         AND ${t.policyVersion} BETWEEN 1 AND '9007199254740991'::bigint`,
+    ),
+    // All or nothing, Google reviews only, and always SHORTER than the
+    // ordinary target: the point is an earlier prompt, and a longer one would
+    // quietly give a one-star review more time than a five-star one.
+    check(
+      'inbox_response_target_organization_policies_low_rating_valid',
+      sql`(${t.lowRatingThreshold} IS NULL) = (${t.lowRatingDurationMinutes} IS NULL)
+        AND (
+          ${t.lowRatingThreshold} IS NULL
+          OR (
+            ${t.targetKind} = 'google_review_response'
+            AND ${t.lowRatingThreshold} BETWEEN 1 AND 5
+            AND ${t.lowRatingDurationMinutes} BETWEEN 1 AND ${t.durationMinutes}
+          )
+        )`,
     ),
   ],
 )
@@ -599,10 +632,7 @@ export const inboxPrivateFeedbackTargetPropertyOverrides = pgTable(
     propertyId: uuid('property_id').notNull(),
     enabled: boolean('enabled').notNull(),
     durationMinutes: integer('duration_minutes'),
-    policyVersion: bigint('policy_version', { mode: 'number' }).notNull(),
-    updatedBy: varchar('updated_by', { length: 255 }).notNull(),
-    createdAt: createdAtColumn(),
-    updatedAt: updatedAtColumn(),
+    ...policyStampColumns(),
   },
   (t) => [
     primaryKey({

@@ -3,12 +3,21 @@ import type { PropertyId } from '#/shared/domain/ids'
 import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
 import type { ResponseTargetKind } from '../../domain/response-target'
 import { inboxError } from '../../domain/errors'
-import type { ResponseTargetPolicyStore } from '../ports/response-target-policy.store'
+import type {
+  LowRatingResponseTarget,
+  ResponseTargetPolicyStore,
+} from '../ports/response-target-policy.store'
 
 type OrganizationPolicyInput = Readonly<{
   scope: 'organization'
   targetKind: ResponseTargetKind
   durationMinutes: number
+  /**
+   * The shorter Google Review target for low-rated reviews. Omitted leaves
+   * the stored one alone; `null` clears it. The store refuses one on a
+   * private-feedback policy, and refuses one longer than the ordinary target.
+   */
+  lowRating?: LowRatingResponseTarget | null
   expectedPolicyVersion: number | null
 }>
 
@@ -65,6 +74,7 @@ export const setResponseTargetPolicy = (deps: SetResponseTargetPolicyDeps) => {
       ...shared,
       targetKind: input.targetKind,
       durationMinutes: input.durationMinutes,
+      ...(input.lowRating === undefined ? {} : { lowRating: input.lowRating }),
     })
   }
 }

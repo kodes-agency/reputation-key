@@ -135,6 +135,11 @@ export type PortalResponsibilityNeeded = Readonly<{
   portalId: PortalId
   organizationId: OrganizationId
   propertyId: PropertyId
+  /**
+   * Whose action left the Portal unstaffed, when a person's did. Nobody is
+   * asked to fix work they have just caused, and a system release names no one.
+   */
+  actorUserId?: UserId | null
   sourceAggregateVersion: string
   occurredAt: Date
   correlationId: string | null

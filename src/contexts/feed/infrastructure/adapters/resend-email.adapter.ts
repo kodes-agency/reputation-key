@@ -10,9 +10,10 @@
 //     is byte-identical to the pre-seam behavior.
 //  2. EMAIL_FROM (env.ts) replaces the hardcoded sender, so a deployment on a
 //     different verified domain does not need a code change.
-//  3. `text` and `headers` reach the provider. `headers` carries the ADR 0046
-//     r.7 List-Unsubscribe pair; dropping it silently would make the guard in
-//     the jobs decorative.
+//  3. `text`, `headers` and `replyTo` reach the provider. `headers` carries the
+//     ADR 0046 r.7 List-Unsubscribe pair; dropping it silently would make the
+//     guard in the jobs decorative. `replyTo` is how the final deletion notice
+//     keeps the promise its copy makes, that answering it reaches a person.
 //
 // The client is injectable so the adapter is unit-testable without network or a
 // live key. Production callers use the zero-arg form.
@@ -37,6 +38,8 @@ export type ResendSendPayload = Readonly<{
   html: string
   text: string
   headers?: Readonly<Record<string, string>>
+  /** Where an answer should go; the From address stays the sending identity. */
+  replyTo?: string
 }>
 
 /**
@@ -116,6 +119,7 @@ export const createResendEmailAdapter = (
           html: params.html,
           text: params.text,
           ...(params.headers ? { headers: params.headers } : {}),
+          ...(params.replyTo ? { replyTo: params.replyTo } : {}),
         },
         { idempotencyKey: params.idempotencyKey },
       )

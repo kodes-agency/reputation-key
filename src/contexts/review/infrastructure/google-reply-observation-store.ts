@@ -374,13 +374,14 @@ const cancelledReplySet = (observedAt: Date) => ({
 
 function providerTruthCancellationFact(
   input: RecordGoogleReplyObservation,
-  internalId: string,
+  internal: InternalReplyRow,
 ): DomainEvent {
   return reviewReplyPublicationCancelled({
-    replyId: replyId(internalId),
+    replyId: replyId(internal.id),
     reviewId: input.reviewId,
     propertyId: input.propertyId,
     organizationId: input.organizationId,
+    authorId: internal.createdBy === null ? null : userId(internal.createdBy),
     cause: 'provider_truth',
     occurredAt: input.observedAt,
   })
@@ -453,7 +454,7 @@ async function supersedeExternalCurrentAttempt(
       'Publication attempt changed while recording external provider truth',
     )
   }
-  return providerTruthCancellationFact(input, internal.id)
+  return providerTruthCancellationFact(input, internal)
 }
 
 /**
@@ -490,7 +491,7 @@ async function cancelZeroAttemptAuthorization(
       'Reply changed while superseding its zero-attempt authorization',
     )
   }
-  return providerTruthCancellationFact(input, internal.id)
+  return providerTruthCancellationFact(input, internal)
 }
 
 /**
@@ -524,7 +525,7 @@ async function settleLegacyUnattributedAttempt(
       'Legacy publication changed while recording provider truth',
     )
   }
-  return providerTruthCancellationFact(input, internal.id)
+  return providerTruthCancellationFact(input, internal)
 }
 
 /** The only path that may publish a local Reply: an exact, current provider

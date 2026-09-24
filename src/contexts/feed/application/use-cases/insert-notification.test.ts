@@ -6,10 +6,11 @@ import {
 } from './insert-notification'
 import { buildFakeInsertNotificationDeps } from './test-fixtures'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import type {
-  Notification,
-  NotificationPreference,
-} from '../../domain/notification-types'
+import type { Notification, NotificationCategory } from '../../domain/notification-types'
+import {
+  resolveCategoryPreference,
+  type CategoryPreferenceValues,
+} from '../../domain/notification-preference-resolution'
 
 const ORG_ID = organizationId('org-1')
 const PROPERTY_ID = propertyId('11111111-1111-4111-8111-111111111111')
@@ -27,25 +28,32 @@ const input = {
 }
 
 function preference(
-  channel: 'in_app' | 'email',
+  _channel: 'in_app' | 'email',
   enabled: boolean,
   cadence: 'immediate' | 'daily' = 'daily',
-): NotificationPreference {
-  return {
-    id: 'pref-1' as NotificationPreference['id'],
-    userId: USER_ID,
-    organizationId: ORG_ID,
-    propertyId: PROPERTY_ID,
-    category: 'workflow_collaboration',
-    channel,
-    enabled,
-    cadence,
-    urgentBypassEnabled: false,
-    quietHoursStart: null,
-    quietHoursEnd: null,
-    createdAt: NOW,
-    updatedAt: NOW,
-  }
+): CategoryPreferenceValues {
+  return { enabled, cadence }
+}
+
+/**
+ * What the repository answers with: the stored Property rows resolved through
+ * the real rules, so a category's clamps (a goal row saved as immediate) still
+ * apply here exactly as they do in delivery.
+ */
+function storedRows(rows: Partial<Record<'in_app' | 'email', CategoryPreferenceValues>>) {
+  return async (
+    _userId: unknown,
+    _orgId: unknown,
+    _propertyId: unknown,
+    category: NotificationCategory,
+    channel: 'in_app' | 'email',
+  ) =>
+    resolveCategoryPreference({
+      category,
+      channel,
+      property: rows[channel] ?? null,
+      personalDefault: null,
+    })
 }
 
 describe('insertNotification', () => {
@@ -80,7 +88,7 @@ describe('insertNotification', () => {
 
     const result = await insertNotification(deps)(mandatoryInput)
 
-    expect(deps.preferenceRepo.findForDelivery).not.toHaveBeenCalled()
+    expect(deps.preferenceRepo.resolveForDelivery).not.toHaveBeenCalled()
     expect(result).toMatchObject({
       propertyId: null,
       category: 'mandatory',
@@ -116,7 +124,7 @@ describe('insertNotification', () => {
 
     const result = await insertNotification(deps)(outcomeInput)
 
-    expect(deps.preferenceRepo.findForDelivery).not.toHaveBeenCalled()
+    expect(deps.preferenceRepo.resolveForDelivery).not.toHaveBeenCalled()
     expect(result).toMatchObject({
       propertyId: null,
       category: 'workflow_collaboration',
@@ -156,19 +164,18 @@ describe('insertNotification', () => {
     expect(JSON.stringify(result)).not.toContain('Jane')
   })
 
-  // The email-only preference arrange (findForDelivery answering per channel)
+  // The email-only preference arrange (resolveForDelivery answering per channel)
   // repeats in three tests because each asserts a different subject: the durable
   // email row plus immediate enqueue here, no second email on a coalesced repeat
   // (below), and a still-pending row when queue dispatch fails (further below).
   // Lifting it into a beforeEach would make "email is the only enabled channel"
   // non-local, and that premise is exactly what each of these tests is about.
-  // Revisit if findForDelivery's signature changes and all three need one edit.
+  // Revisit if resolveForDelivery's signature changes and all three need one edit.
   // fallow-ignore-next-line code-duplication
   it('creates a durable property-scoped email row when the email preference is enabled', async () => {
-    ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
-      async (_userId, _orgId, _propertyId, _category, channel) =>
-        channel === 'email' ? preference('email', true, 'immediate') : null,
-    )
+    ;(
+      deps.preferenceRepo.resolveForDelivery as ReturnType<typeof vi.fn>
+    ).mockImplementation(storedRows({ email: preference('email', true, 'immediate') }))
 
     await insertNotification(deps)(input)
 
@@ -195,10 +202,9 @@ describe('insertNotification', () => {
       kind: 'responsible_scope' as const,
       scope: { kind: 'property' as const, propertyId: PROPERTY_ID },
     }
-    ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
-      async (_userId, _orgId, _propertyId, _category, channel) =>
-        channel === 'email' ? preference('email', true, 'immediate') : null,
-    )
+    ;(
+      deps.preferenceRepo.resolveForDelivery as ReturnType<typeof vi.fn>
+    ).mockImplementation(storedRows({ email: preference('email', true, 'immediate') }))
 
     await insertNotification(deps)(input, audience)
 
@@ -208,9 +214,13 @@ describe('insertNotification', () => {
   })
 
   it('skips every channel when concrete property preferences disable both', async () => {
-    ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
-      async (_userId, _orgId, _propertyId, _category, channel) =>
-        preference(channel, false),
+    ;(
+      deps.preferenceRepo.resolveForDelivery as ReturnType<typeof vi.fn>
+    ).mockImplementation(
+      storedRows({
+        in_app: preference('in_app', false),
+        email: preference('email', false),
+      }),
     )
 
     await expect(insertNotification(deps)(input)).resolves.toBeNull()
@@ -319,10 +329,9 @@ describe('insertNotification', () => {
   // Revisit only together with the group above line 91.
   // fallow-ignore-next-line code-duplication
   it('bumps only the in-app row: a repeat sends no second email', async () => {
-    ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
-      async (_userId, _orgId, _propertyId, _category, channel) =>
-        channel === 'email' ? preference('email', true, 'immediate') : null,
-    )
+    ;(
+      deps.preferenceRepo.resolveForDelivery as ReturnType<typeof vi.fn>
+    ).mockImplementation(storedRows({ email: preference('email', true, 'immediate') }))
     ;(
       deps.notificationRepo.findUnreadByUserTypeResource as ReturnType<typeof vi.fn>
     ).mockResolvedValue(
@@ -447,11 +456,13 @@ describe('insertNotification', () => {
     // With in-app off the row is only the email's anchor. Stored unread (and
     // hidden), it held ADR 0046 r.2's unread (user, type, resource) key, the
     // database folded every later event into it, and no later email went out.
-    ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
-      async (_userId, _orgId, _propertyId, _category, channel) =>
-        channel === 'email'
-          ? preference('email', true, 'immediate')
-          : preference('in_app', false),
+    ;(
+      deps.preferenceRepo.resolveForDelivery as ReturnType<typeof vi.fn>
+    ).mockImplementation(
+      storedRows({
+        in_app: preference('in_app', false),
+        email: preference('email', true, 'immediate'),
+      }),
     )
 
     await expect(insertNotification(deps)(input)).resolves.toBeNull()
@@ -480,23 +491,20 @@ describe('insertNotification', () => {
       payload: { goalName: 'Weekend response time' },
     })
 
-    expect(deps.preferenceRepo.findForDelivery).toHaveBeenCalled()
+    expect(deps.preferenceRepo.resolveForDelivery).toHaveBeenCalled()
     expect(deps.notificationRepo.insert).toHaveBeenCalledOnce()
     expect(result).toMatchObject({
       category: 'recognition',
-      title: 'Goal completed: Weekend response time',
+      title: 'Goal met: Weekend response time',
     })
   })
 
   // Goal email is daily only (ADR 0046, amended 2026-09-22), but a row saved
   // before that may still say immediate. Delivery must not honour it.
   it('queues goal email for the daily digest even when a stored row says immediate', async () => {
-    ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
-      async (_userId, _orgId, _propertyId, _category, channel) =>
-        channel === 'email'
-          ? { ...preference('email', true, 'immediate'), category: 'recognition' }
-          : null,
-    )
+    ;(
+      deps.preferenceRepo.resolveForDelivery as ReturnType<typeof vi.fn>
+    ).mockImplementation(storedRows({ email: preference('email', true, 'immediate') }))
 
     await insertNotification(deps)({
       userId: USER_ID,
@@ -538,10 +546,9 @@ describe('insertNotification', () => {
   })
 
   it('keeps the durable email row pending when immediate queue dispatch is unavailable', async () => {
-    ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
-      async (_userId, _orgId, _propertyId, _category, channel) =>
-        channel === 'email' ? preference('email', true, 'immediate') : null,
-    )
+    ;(
+      deps.preferenceRepo.resolveForDelivery as ReturnType<typeof vi.fn>
+    ).mockImplementation(storedRows({ email: preference('email', true, 'immediate') }))
     ;(deps.enqueueImmediateEmail as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Error('queue unavailable'),
     )

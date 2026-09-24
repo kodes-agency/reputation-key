@@ -1,10 +1,11 @@
 // Intentional out-of-shell experience for dormant beta features and accounts
 // awaiting workspace access. Dark routes redirect here instead of rendering a
 // partially live shell; access recovery arrives before tenant loaders mount.
-import { createFileRoute, Link, useSearch } from '@tanstack/react-router'
+import { createFileRoute, Link, useLoaderData, useSearch } from '@tanstack/react-router'
 import { z } from 'zod/v4'
 import { AuthCard } from '#/components/layout/auth-layout'
 import { REFUSAL_COPY } from '#/shared/auth/capability-refusal-category'
+import { getAccountAccessRemovalFn } from '#/contexts/feed/server/notifications'
 
 const unavailableSearch = z.object({
   feature: z.string().optional(),
@@ -35,13 +36,35 @@ type UnavailablePageContent = Readonly<{
   link: UnavailableLink
 }>
 
-export function unavailablePageContent({
-  feature,
-  reason,
-  category,
-  propertyId,
-}: UnavailableSearch): UnavailablePageContent {
+/** What the page knows about the reader beyond the URL. */
+export type UnavailableAccountState = Readonly<{
+  /** Their access to a workspace was removed (I27); false while unknown. */
+  accessRemoved: boolean
+}>
+
+export function unavailablePageContent(
+  { feature, reason, category, propertyId }: UnavailableSearch,
+  account: UnavailableAccountState = { accessRemoved: false },
+): UnavailablePageContent {
   if (reason === 'workspace_access') {
+    // Two very different people reach this screen. One is waiting for a first
+    // invitation; the other was removed, and the notice that said so was
+    // written into a workspace they can no longer open, so until now the
+    // product told them their access "isn't ready" and left them waiting for
+    // something that is not coming.
+    if (account.accessRemoved) {
+      return {
+        title: 'Your workspace access was removed',
+        description:
+          'An account administrator removed your account from the workspace, so it is no longer available to you.',
+        guidance:
+          'If you think that was a mistake, ask an account administrator of that workspace to invite you again. Any new invitation will appear here.',
+        link: {
+          label: 'Review pending invitations',
+          to: '/accept-invitation',
+        },
+      }
+    }
     return {
       title: "Workspace access isn't ready",
       description:
@@ -86,8 +109,29 @@ export function unavailablePageContent({
   }
 }
 
+/**
+ * Only the workspace-access screen asks, and a failed read degrades to the
+ * waiting-for-an-invitation copy: this page is the recovery surface for an
+ * account with no workspace, so it has to render without a working read
+ * rather than fail into an error boundary.
+ */
+export async function resolveUnavailableAccountState(
+  reason: UnavailableSearch['reason'],
+  readAccessRemoval: () => Promise<Readonly<{ removedAt: string }> | null>,
+): Promise<UnavailableAccountState> {
+  if (reason !== 'workspace_access') return { accessRemoved: false }
+  try {
+    return { accessRemoved: (await readAccessRemoval()) !== null }
+  } catch {
+    return { accessRemoved: false }
+  }
+}
+
 export const Route = createFileRoute('/unavailable')({
   validateSearch: unavailableSearch,
+  loaderDeps: ({ search }) => ({ reason: search.reason }),
+  loader: ({ deps }) =>
+    resolveUnavailableAccountState(deps.reason, getAccountAccessRemovalFn),
   component: UnavailablePage,
 })
 
@@ -109,7 +153,10 @@ function UnavailablePageLink({ link }: Readonly<{ link: UnavailableLink }>) {
 }
 
 function UnavailablePage() {
-  const content = unavailablePageContent(useSearch({ from: '/unavailable' }))
+  const content = unavailablePageContent(
+    useSearch({ from: '/unavailable' }),
+    useLoaderData({ from: '/unavailable' }),
+  )
   return (
     <AuthCard title={content.title} description={content.description}>
       {content.guidance && (

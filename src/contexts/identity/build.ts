@@ -115,6 +115,7 @@ import {
 import {
   decideCurrentManagerPropertyAuthorities,
   decideCurrentManagerPropertyAuthority,
+  createMemberPropertyAuthorityLookup,
   decideCurrentMemberPropertyAuthority,
   decideMemberPropertyAuthority,
   resolveMemberPermissionPropertyScope,
@@ -922,6 +923,17 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   })
   const managerFacts = Object.freeze({
     listActiveManagers: managerMembershipRepo.listActiveManagers,
+    /**
+     * Whether a member may act on an approval request for one Property, under
+     * the same effective-permission model an interactive approval uses. Feed
+     * asks this to route "Approve a reply" to people who can actually approve
+     * (I5.3); it takes no locks and decides nothing, so it serves reads only.
+     */
+    canApproveReplies: createMemberPropertyAuthorityLookup(
+      deps.db,
+      'reply.manage',
+      deps.clock,
+    ),
   })
   const accountAdminAuthority = Object.freeze({
     isCurrentAccountAdmin: managerMembershipRepo.isCurrentAccountAdmin,

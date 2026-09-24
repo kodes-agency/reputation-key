@@ -22,6 +22,7 @@ import {
   UserMinus,
   Trash2,
   Clock,
+  Unplug,
   type LucideIcon,
 } from 'lucide-react'
 import type { NotificationType } from '#/contexts/feed/application/public-api'
@@ -130,6 +131,7 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
   'reply.rejected': XCircle,
   'reply.published': Send,
   'reply.publish_failed': AlertTriangle,
+  'reply.publication_cancelled': AlertTriangle,
   'inbox.escalated': AlertTriangle,
   'inbox.escalation_resolved': CheckCircle,
   'inbox.reopened': MessageSquare,
@@ -138,11 +140,15 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
   'inbox.response_target_passed': Clock,
   'inbox.assigned': UserPlus,
   'inbox.bulk_assigned': UserPlus,
+  'inbox.assignments_released': UserMinus,
+  // The mirror of an assignment: the work left this reader's list.
+  'inbox.unassigned': UserMinus,
   'inbox_note.added': FileEdit,
   'portal.responsibility_needed': UserPlus,
   'portal.health_attention': AlertTriangle,
   'property.responsibility_needed': UserPlus,
   'integration.reauthorization_required': AlertTriangle,
+  'integration.google_disconnected': Unplug,
   'goal.completed': Target,
   'goal.result_revised': Target,
   // The reporter's own beta report; the same speech bubble as the Feedback entry.

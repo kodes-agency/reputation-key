@@ -8,7 +8,6 @@ import {
 describe('notificationUserSettingsDto', () => {
   it.each([
     { locale: 'en', timezone: 'UTC' },
-    { locale: 'bg', timezone: 'Europe/Sofia' },
     { locale: 'en-GB', timezone: 'America/New_York' },
   ])('accepts offered formatting settings: $locale / $timezone', (value) => {
     expect(notificationUserSettingsDto.safeParse(value).success).toBe(true)
@@ -63,7 +62,9 @@ describe('notificationUserSettingsDto', () => {
     expect(notificationUserSettingsDto.safeParse({ timezone }).success).toBe(false)
   })
 
-  it.each(['', 'english', 'xx', 'de-DE'])(
+  // Every word in the product is English, so the control chooses between
+  // English conventions and nothing else (docs/BETA.md).
+  it.each(['', 'english', 'xx', 'de-DE', 'bg'])(
     'rejects a locale the settings page does not offer: %s',
     (locale) => {
       expect(notificationUserSettingsDto.safeParse({ locale }).success).toBe(false)

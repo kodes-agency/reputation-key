@@ -3,26 +3,18 @@
 // the list header's scope line below the desktop floor, where there is no rail.
 // Each option counts the queue in view, so where the backlog sits is one click
 // away.
-import { useId, useRef, useState, type ComponentProps } from 'react'
-import { Building2, CheckIcon, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { useRef, useState, type ComponentProps } from 'react'
+import { Building2, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '#/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
+import {
+  focusPropertyPicker,
+  PropertyPickerList,
+  type PropertyPickerOption,
+} from '#/components/property/property-picker'
 import type { InboxQueue } from '#/contexts/inbox/application/public-api'
 import { cn } from '#/lib/utils'
-import {
-  matchesScopeSearch,
-  offersScopeSearch,
-  scopeCount,
-  type InboxPropertyScope,
-} from './inbox-property-scope'
+import { scopeCount, type InboxPropertyScope } from './inbox-property-scope'
 import { queueLabel } from './inbox-queues'
 import type { InboxServerFns } from './types'
 import { useInboxPropertyCounts } from './use-inbox-property-scope'
@@ -40,47 +32,6 @@ type Props = Readonly<{
   placement: 'rail' | 'header'
   getInboxPropertyCounts: InboxServerFns['getInboxPropertyCounts']
 }>
-
-function PropertyOption({
-  value,
-  label,
-  count,
-  isCurrent,
-  withGlyph = false,
-  onSelect,
-}: Readonly<{
-  value: string
-  label: string
-  count: number | undefined
-  isCurrent: boolean
-  withGlyph?: boolean
-  onSelect: () => void
-}>) {
-  return (
-    <CommandItem
-      value={value}
-      keywords={[label]}
-      aria-current={isCurrent ? 'true' : undefined}
-      // A finger-sized row on phones, where this list opens from the header.
-      className="min-h-9 max-md:min-h-11"
-      onSelect={onSelect}
-    >
-      {withGlyph ? (
-        <Building2 aria-hidden="true" />
-      ) : (
-        <span className="size-4 shrink-0" aria-hidden="true" />
-      )}
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {count !== undefined && count > 0 && (
-        <span className="text-xs tabular-nums text-muted-foreground">{count}</span>
-      )}
-      <CheckIcon
-        aria-hidden="true"
-        className={cn('text-foreground', isCurrent ? 'opacity-100' : 'opacity-0')}
-      />
-    </CommandItem>
-  )
-}
 
 function Trigger({
   placement,
@@ -128,14 +79,32 @@ export function InboxPropertySelect({
   getInboxPropertyCounts,
 }: Props) {
   const [open, setOpen] = useState(false)
-  const headingId = useId()
-  const commandRef = useRef<HTMLDivElement>(null)
-  const searchRef = useRef<HTMLInputElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const counts = useInboxPropertyCounts(queue, open, getInboxPropertyCounts)
-  const choose = (propertyId: string | null) => {
+  const heading = `${queueLabel(queue)} by property`
+  const choose = (value: string) => {
     setOpen(false)
-    scope.onSelect(propertyId)
+    scope.onSelect(value === ALL_PROPERTIES ? null : value)
   }
+
+  const allProperties: PropertyPickerOption[] = scope.includeAll
+    ? [
+        {
+          value: ALL_PROPERTIES,
+          label: 'All properties',
+          count: scopeCount(counts, null),
+          glyph: <Building2 aria-hidden="true" />,
+        },
+      ]
+    : []
+  const groups = [
+    ...(allProperties.length > 0 ? [allProperties] : []),
+    scope.properties.map((property) => ({
+      value: property.id,
+      label: property.name,
+      count: scopeCount(counts, property.id),
+    })),
+  ]
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -150,73 +119,26 @@ export function InboxPropertySelect({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        aria-labelledby={headingId}
-        // Radix focuses the first tabbable element, and without a search field
-        // there is none: focus fell on the popover itself, outside cmdk's root,
-        // so arrow keys and Enter never reached the list. The field when there
-        // is one, otherwise the list's root.
+        // The popover is a dialog, so it needs a name of its own; the list's
+        // heading is that name (axe aria-dialog-name).
+        aria-label={heading}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
-          ;(searchRef.current ?? commandRef.current)?.focus()
+          focusPropertyPicker(contentRef.current)
         }}
         className={cn(
           'p-0',
           placement === 'rail' ? 'w-(--radix-popover-trigger-width) min-w-64' : 'w-64',
         )}
       >
-        <Command
-          ref={commandRef}
-          tabIndex={-1}
-          className="outline-none"
-          // The keyboard cursor starts on the scope in view, not the first row.
-          defaultValue={scope.activePropertyId ?? ALL_PROPERTIES}
-          filter={(_value, search, keywords) =>
-            keywords?.some((keyword) => matchesScopeSearch(keyword, search)) ? 1 : 0
-          }
-        >
-          {offersScopeSearch(scope.properties) && (
-            <CommandInput
-              ref={searchRef}
-              placeholder="Search properties"
-              aria-label="Search properties"
-            />
-          )}
-          <p
-            id={headingId}
-            className="px-3 pt-2.5 pb-1 text-xs font-medium text-muted-foreground"
-          >
-            {queueLabel(queue)} by property
-          </p>
-          <CommandList aria-labelledby={headingId}>
-            <CommandEmpty>No property matches</CommandEmpty>
-            {scope.includeAll && (
-              // A border, not a CommandSeparator: a separator is not an
-              // allowed child of a listbox (axe aria-required-children).
-              <CommandGroup className="border-b">
-                <PropertyOption
-                  value={ALL_PROPERTIES}
-                  label="All properties"
-                  count={scopeCount(counts, null)}
-                  isCurrent={scope.activePropertyId === null}
-                  withGlyph
-                  onSelect={() => choose(null)}
-                />
-              </CommandGroup>
-            )}
-            <CommandGroup>
-              {scope.properties.map((property) => (
-                <PropertyOption
-                  key={property.id}
-                  value={property.id}
-                  label={property.name}
-                  count={scopeCount(counts, property.id)}
-                  isCurrent={property.id === scope.activePropertyId}
-                  onSelect={() => choose(property.id)}
-                />
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
+        <div ref={contentRef}>
+          <PropertyPickerList
+            groups={groups}
+            activeValue={scope.activePropertyId ?? ALL_PROPERTIES}
+            heading={heading}
+            onSelect={choose}
+          />
+        </div>
       </PopoverContent>
     </Popover>
   )

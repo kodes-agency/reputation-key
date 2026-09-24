@@ -424,9 +424,17 @@ the fence that silenced everything else.
   `obsolete` receipt for every other state.
 - Recipients are the CURRENT AccountAdmins, not the original requester, who may
   have left. If none remains the consumer logs a content-free warning rather
-  than proceeding silently.
+  than proceeding silently. The audience is re-read at the Organization when
+  the notice is inserted, without a Property: the role is held at the
+  Organization, and by Purge Pending the Properties may already be gone.
 - The job id is `<eventId>-<recipient>`, so bus/outbox dual delivery and any
   retry converge on one notice per admin.
+- Its email is not held by the beta email allowlist. It travels under
+  `system:notification.email_mandatory` / `notification.send_mandatory_email`
+  (core), so it leaves for an Organization that was never allowlisted for
+  product mail (ADR 0046, amended 2026-09-24). `BETA_CAPABILITIES_OFF` and
+  tenant suspension still stop it, as do suppression, the stale-row bound and
+  the irreversible boundary.
 
 ## Read-only diagnostics
 

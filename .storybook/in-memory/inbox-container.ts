@@ -197,12 +197,14 @@ const emptyResponseTargetPolicyStore: ResponseTargetPolicyStore = {
         durationMinutes: 2_880,
         policySource: 'builtin_default',
         policyVersion: null,
+        lowRating: null,
       },
       privateFeedbackHandling: {
         targetKind: 'private_feedback_handling',
         durationMinutes: 2_880,
         policySource: 'builtin_default',
         policyVersion: null,
+        lowRating: null,
       },
     },
     privateFeedbackPropertyOverride: requestedPropertyId

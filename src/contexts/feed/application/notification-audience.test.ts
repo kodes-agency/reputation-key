@@ -36,11 +36,18 @@ const buildDeps = () => ({
   },
   inboxItemLookup: {
     findInboxItemFacts: vi.fn().mockResolvedValue(null),
+    findNoteAuthors: vi.fn().mockResolvedValue([]),
     findHandlingCycleNotificationFacts: vi.fn().mockResolvedValue(null),
     findResponseTargetReminderNotificationFacts: vi.fn().mockResolvedValue(null),
   },
   escalationResolutions: {
     findEscalationResolutionFacts: vi.fn().mockResolvedValue(null),
+  },
+  replyApproval: {
+    canApproveReplies: vi.fn().mockResolvedValue(true),
+  },
+  notifications: {
+    findRecipientsOfNotice: vi.fn().mockResolvedValue([]),
   },
   portalHealthLookup: {
     findPortalHealthNotificationFacts: vi.fn().mockResolvedValue(null),
@@ -63,6 +70,59 @@ const authorize = (overrides: Partial<NotificationAudienceAuthorizationInput> = 
 })
 
 describe('notification audience authorization', () => {
+  // I5.3: an approval request is admitted by two authorities, and either can
+  // end on its own.
+  it('admits a responsible manager who may still approve replies', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ audience: { kind: 'reply_approver', propertyId: PROPERTY } }),
+      ),
+    ).resolves.toBe(true)
+  })
+
+  it('refuses an approver who lost the Property', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([])
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ audience: { kind: 'reply_approver', propertyId: PROPERTY } }),
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('refuses an approver whose role no longer carries reply.manage', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+    deps.replyApproval.canApproveReplies.mockResolvedValue(false)
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ audience: { kind: 'reply_approver', propertyId: PROPERTY } }),
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('refuses an approver admitted for a different Property', async () => {
+    const deps = buildDeps()
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RECIPIENT])
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({
+          audience: {
+            kind: 'reply_approver',
+            propertyId: '55555555-5555-4555-8555-555555555555',
+          },
+        }),
+      ),
+    ).resolves.toBe(false)
+  })
+
   it('parses and revalidates an exact affected Organization account recipient', async () => {
     const deps = buildDeps()
     deps.organizationAccountAuthority.isAffectedRecipient.mockResolvedValue(true)
@@ -100,6 +160,36 @@ describe('notification audience authorization', () => {
         authorize({ audience: accountAudience }),
       ),
     ).resolves.toBe(false)
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({
+          propertyId: null,
+          audience: { kind: 'inbox_assignee', inboxItemId: INBOX_ITEM },
+        }),
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('admits every current AccountAdmin to an Organization notice that has no Property', async () => {
+    const deps = buildDeps()
+    deps.userLookup.findByRole.mockResolvedValue([RECIPIENT])
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ propertyId: null, audience: { kind: 'account_admin' } }),
+      ),
+    ).resolves.toBe(true)
+    expect(deps.userLookup.findByRole).toHaveBeenCalledWith(ORG, 'AccountAdmin')
+    // No Property is invented for it: the purge-pending notice belongs to the
+    // Organization, and an Organization with no active Property still has
+    // admins who must hear that it is about to be erased.
+    expect(deps.responsibleManagers.isEligibleForProperty).not.toHaveBeenCalled()
+  })
+
+  it('refuses an Organization notice for someone who is no longer an AccountAdmin', async () => {
+    const deps = buildDeps()
+    deps.userLookup.findByRole.mockResolvedValue([RESPONSIBLE_MANAGER])
+
     await expect(
       createNotificationAudienceAuthorizer(deps)(
         authorize({ propertyId: null, audience: { kind: 'account_admin' } }),
@@ -539,6 +629,73 @@ describe('notification audience authorization', () => {
       stateRevision: 8,
       status: 'open',
     })
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+  })
+
+  // I15: the eligible assignee is a recipient of a cycle notice, so the send
+  // must still admit them when they are not in the responsible scope.
+  it('admits the eligible assignee of a Handling Cycle who is not responsible', async () => {
+    const deps = buildDeps()
+    deps.inboxItemLookup.findHandlingCycleNotificationFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      portalId: null,
+      assignedTo: RECIPIENT,
+      propertyName: null,
+      guestRating: null,
+      sourceType: 'review',
+      sourceId: 'review-source-1',
+      createdAt: new Date('2026-08-27T08:00:00.000Z'),
+      currentCycleNumber: 2,
+      currentSourceRevision: 2,
+      stateRevision: 3,
+      status: 'open',
+    })
+    deps.responsibleManagers.findForProperty.mockResolvedValue([RESPONSIBLE_MANAGER])
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+    const audience = {
+      kind: 'handling_cycle' as const,
+      inboxItemId: INBOX_ITEM,
+      sourceType: 'review' as const,
+      sourceId: 'review-source-1',
+      cycleNumber: 2,
+      sourceRevision: 2,
+      stateRevision: 3,
+      actorUserId: null,
+    }
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(false)
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(false)
+  })
+
+  // I15: a note reaches whoever has written on the item before.
+  it("admits a recipient who is still one of the item's note authors", async () => {
+    const deps = buildDeps()
+    deps.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
+      propertyId: PROPERTY,
+      portalId: null,
+      assignedTo: null,
+      propertyName: null,
+      guestRating: null,
+      sourceType: 'review',
+      createdAt: new Date('2026-08-27T08:00:00.000Z'),
+    })
+    deps.inboxItemLookup.findNoteAuthors.mockResolvedValue([RECIPIENT])
+    deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
+    const audience = { kind: 'inbox_note_author' as const, inboxItemId: INBOX_ITEM }
+
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
+    ).resolves.toBe(true)
+
+    deps.inboxItemLookup.findNoteAuthors.mockResolvedValue([RESPONSIBLE_MANAGER])
     await expect(
       createNotificationAudienceAuthorizer(deps)(authorize({ audience })),
     ).resolves.toBe(false)

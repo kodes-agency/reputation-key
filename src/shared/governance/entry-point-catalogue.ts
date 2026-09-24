@@ -102,9 +102,11 @@ export type SystemAction =
   | 'system:notification.insert_portal'
   | 'system:notification.insert_property_responsibility'
   | 'system:notification.email_urgent'
+  | 'system:notification.email_mandatory'
   | 'system:notification.email_digest'
   | 'system:notification.delivery_event'
   | 'system:notification.reconcile'
+  | 'system:notification.settle'
   | 'system:inbox.update'
   | 'system:inbox.project_review'
   | 'system:inbox.project_guest_feedback'
@@ -308,6 +310,19 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'organization',
     true,
   ),
+  // A mandatory account/security notice is its own delayed action so that it
+  // can hold its own capability. `notification.send_email` is allowlisted per
+  // Organization for the beta, which held back the final warning before an
+  // irreversible deletion exactly where it mattered; the mandatory capability
+  // is core, so the environment stop and tenant suspension still refuse it and
+  // the tenant allowlist no longer does (ADR 0046).
+  job(
+    'mandatory-email',
+    'system:notification.email_mandatory',
+    'notification.send_mandatory_email',
+    'organization',
+    true,
+  ),
   job(
     'digest-notification',
     'system:notification.email_digest',
@@ -383,6 +398,14 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     'organization',
   ),
+  // The release fact spans Properties and carries none on its envelope, so
+  // this row is Organization-scoped like its siblings.
+  consumer(
+    'notification.assignment-release-outbox-consumers',
+    'system:notification.insert',
+    'none',
+    'organization',
+  ),
   consumer(
     'notification.escalation-resolution-outbox-consumers',
     'system:notification.insert',
@@ -392,6 +415,16 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   consumer(
     'notification.handling-cycle-outbox-consumers',
     'system:notification.insert',
+    'none',
+    'organization',
+  ),
+  // Settling touches only Feed's own rows for one resource, in the
+  // Organization the envelope names, and queues nothing: ungated like the
+  // other notification consumers, and Organization-scoped because the
+  // resource's notices may sit under any of that Organization's Properties.
+  consumer(
+    'notification.settlement-outbox-consumers',
+    'system:notification.settle',
     'none',
     'organization',
   ),
@@ -409,6 +442,15 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.on-google-reauthorization-required',
+    'system:notification.insert',
+    'none',
+    'organization',
+  ),
+  // The disconnect fact carries no Property — the connection is the
+  // Organization's — so this row must be Organization-scoped or the gate
+  // denies it `missing_scope` before the handler runs.
+  consumer(
+    'notification.on-google-account-disconnected',
     'system:notification.insert',
     'none',
     'organization',

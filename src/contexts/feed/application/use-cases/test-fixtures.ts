@@ -10,6 +10,10 @@ import type {
   NotificationPreference,
 } from '../../domain/notification-types'
 import { notificationId, notificationEmailId } from '#/shared/domain/ids'
+import {
+  NO_QUIET_HOURS,
+  resolveCategoryPreference,
+} from '../../domain/notification-preference-resolution'
 
 const NOTIF_ID = notificationId('notif-1')
 const EMAIL_ID = notificationEmailId('email-1')
@@ -42,6 +46,8 @@ export function buildFakeInsertNotificationDeps(): FakeInsertNotificationDeps {
       markRead: vi.fn(async () => {}),
       markAllRead: vi.fn(async () => {}),
       findUnreadByUserTypeResource: vi.fn(async () => null),
+      settleUnreadForResource: vi.fn(async () => []),
+      findRecipientsOfNotice: vi.fn(async () => []),
       refreshUnread: vi.fn(async () => true),
       markUnread: vi.fn(async () => null),
       markAllDismissed: vi.fn(async () => {}),
@@ -57,6 +63,7 @@ export function buildFakeInsertNotificationDeps(): FakeInsertNotificationDeps {
       findDueByOrganization: vi.fn(async () => []),
       markAttemptStarted: vi.fn(async () => {}),
       markAccepted: vi.fn(async () => {}),
+      cancelQueuedForNotifications: vi.fn(async () => 0),
       markDelayed: vi.fn(async () => {}),
       markFailed: vi.fn(async () => {}),
       markSuppressed: vi.fn(async () => {}),
@@ -78,9 +85,24 @@ export function buildFakeInsertNotificationDeps(): FakeInsertNotificationDeps {
       settleDigestBatch: vi.fn(async () => false),
     },
     preferenceRepo: {
-      findForDelivery: vi.fn(async () => null),
+      // No stored row and no personal default: ADR 0046 r.1's versioned
+      // defaults, which is what the resolver answers with.
+      resolveForDelivery: vi.fn(async (_userId, _orgId, _propertyId, category, channel) =>
+        resolveCategoryPreference({
+          category,
+          channel,
+          property: null,
+          personalDefault: null,
+        }),
+      ),
+      resolveDeliveryWindow: vi.fn(async () => NO_QUIET_HOURS),
       upsert: vi.fn(async () => ({}) as NotificationPreference),
+      applyCategoryDefaultEverywhere: vi.fn(async (categoryDefault) => categoryDefault),
       findByUser: vi.fn(async () => []),
+      findCategoryDefaults: vi.fn(async () => []),
+      findPropertyDeliveryWindows: vi.fn(async () => []),
+      upsertPropertyDeliveryWindow: vi.fn(async (window) => window),
+      clearPropertyDeliveryWindow: vi.fn(async () => {}),
       getUserSettings: vi.fn(async () => null),
       upsertUserSettings: vi.fn(async (settings) => settings),
     },

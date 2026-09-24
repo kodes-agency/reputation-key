@@ -6,6 +6,7 @@ import type { UserLookupPort } from '../application/ports/notification-user-look
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
+import type { ReplyApprovalAuthorityPort } from '../application/ports/reply-approval-authority.port'
 import type { DisplayNameLookupPort } from '../application/ports/notification-display-name-lookup.port'
 import {
   organizationId,
@@ -27,6 +28,7 @@ export type FakeNotificationConsumerDeps = Readonly<{
   jobs: FakeJob[]
   userLookup: MockedPort<UserLookupPort>
   responsibleManagers: MockedPort<ResponsibleManagerLookupPort>
+  replyApproval: MockedPort<ReplyApprovalAuthorityPort>
   inboxItemLookup: MockedPort<InboxItemLookupPort>
   displayNames: MockedPort<DisplayNameLookupPort>
   clock: () => Date
@@ -57,6 +59,9 @@ export const createNotificationConsumerDeps = (): FakeNotificationConsumerDeps =
     findForPortalGroup: vi.fn(async () => []),
     isEligibleForProperty: vi.fn(async () => false),
   } as unknown as MockedPort<ResponsibleManagerLookupPort>
+  const replyApproval = {
+    canApproveReplies: vi.fn(async () => true),
+  } as unknown as MockedPort<ReplyApprovalAuthorityPort>
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -92,6 +97,7 @@ export const createNotificationConsumerDeps = (): FakeNotificationConsumerDeps =
     })),
     findResponseTargetReminderNotificationFacts: vi.fn(async () => null),
     findWaitingSince: vi.fn(async () => null),
+    findNoteAuthors: vi.fn(async () => []),
   } as unknown as MockedPort<InboxItemLookupPort>
 
   const displayNames = {
@@ -103,6 +109,7 @@ export const createNotificationConsumerDeps = (): FakeNotificationConsumerDeps =
     ...createFakeQueue(),
     userLookup,
     responsibleManagers,
+    replyApproval,
     logger,
     inboxItemLookup,
     displayNames,

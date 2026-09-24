@@ -3,9 +3,8 @@ import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { Checkbox } from '#/components/ui/checkbox'
-import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
-import { FieldError } from '#/components/ui/field'
+import { FormNumberField } from '#/components/forms/form-number-field'
 import {
   Card,
   CardContent,
@@ -117,23 +116,15 @@ function PrivateFeedbackTargetFormCard({
             {(useOrganizationTarget) => (
               <form.Field name="durationHours">
                 {(field) => (
-                  <div className="grid max-w-40 gap-1.5">
-                    <Label htmlFor="property-feedback-target-hours">Property hours</Label>
-                    <Input
-                      id="property-feedback-target-hours"
-                      type="number"
-                      min={1}
-                      max={720}
-                      disabled={useOrganizationTarget}
-                      value={Number.isNaN(field.state.value) ? '' : field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(event) => field.handleChange(event.target.valueAsNumber)}
-                      aria-invalid={field.state.meta.errors.length > 0}
-                    />
-                    {field.state.meta.errors.length > 0 ? (
-                      <FieldError errors={field.state.meta.errors} />
-                    ) : null}
-                  </div>
+                  <FormNumberField
+                    id="property-feedback-target-hours"
+                    label="Property hours"
+                    min={1}
+                    max={720}
+                    disabled={useOrganizationTarget}
+                    field={field}
+                    className="grid max-w-40 gap-1.5"
+                  />
                 )}
               </form.Field>
             )}

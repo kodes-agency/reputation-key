@@ -68,10 +68,9 @@ async function seedFixture(): Promise<Fixture> {
   await lease.pool.query(
     `INSERT INTO notification_preferences (
        id, user_id, organization_id, property_id, category, channel, enabled,
-       cadence, urgent_bypass_enabled, quiet_hours_start, quiet_hours_end,
-       created_at, updated_at
+       cadence, created_at, updated_at
      ) VALUES ($1, $2, $3, $4, 'workflow_collaboration', 'email', false,
-               'daily', false, '09:00', '17:00', $5, $5)`,
+               'daily', $5, $5)`,
     [
       fixture.preferenceId,
       fixture.userId,
@@ -82,8 +81,10 @@ async function seedFixture(): Promise<Fixture> {
   )
   await lease.pool.query(
     `INSERT INTO notification_user_settings (
-       id, user_id, organization_id, locale, timezone, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'en', 'Europe/Sofia', $4, $4)`,
+       id, user_id, organization_id, locale, timezone,
+       quiet_hours_start, quiet_hours_end, urgent_bypass_enabled,
+       created_at, updated_at
+     ) VALUES ($1, $2, $3, 'en', 'Europe/Sofia', '22:00', '07:00', true, $4, $4)`,
     [fixture.userSettingsId, fixture.userId, fixture.organizationId, createdAt],
   )
 
@@ -225,13 +226,21 @@ describe.sequential('Notification Organization Export contributor', () => {
           channel: 'email',
           enabled: false,
           cadence: 'daily',
-          quiet_hours_start: '09:00:00',
         },
       ],
     })
+    // Quiet hours are the person's since ADR 0046's 2026-09-23 amendment, so
+    // the archive records them beside their timezone, not on every row.
     expect(read('notification/user-settings.json')).toMatchObject({
       userSettings: [
-        { id: fixture.userSettingsId, locale: 'en', timezone: 'Europe/Sofia' },
+        {
+          id: fixture.userSettingsId,
+          locale: 'en',
+          timezone: 'Europe/Sofia',
+          quiet_hours_start: '22:00:00',
+          quiet_hours_end: '07:00:00',
+          urgent_bypass_enabled: true,
+        },
       ],
     })
 

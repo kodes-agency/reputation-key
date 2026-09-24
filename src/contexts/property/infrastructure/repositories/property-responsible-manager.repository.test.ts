@@ -138,6 +138,132 @@ describe('Property responsible manager repository', () => {
     ])
   })
 
+  // I17: the admin who removed the manager was sent an urgent email per
+  // Property asking them to fix work they had just caused.
+  it('names the admin who released the last manager, so they are not asked to fix it', async () => {
+    const repo = createPropertyResponsibleManagerRepository(getDb())
+    await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      managerUserIds: ['manager-1'],
+      expectedRevision: 1,
+      actorId: 'admin-1',
+      at: CHANGE,
+      responsibilityNeededEvent: recoveryEvent(CHANGE),
+    })
+
+    await repo.releaseForUser({
+      organizationId: ORG,
+      userId: 'manager-1',
+      at: UNASSIGNED,
+      endReason: 'manager_offboarded',
+      actorId: 'admin-1',
+    })
+
+    const facts = await pool.query(
+      `SELECT payload->>'actorUserId' AS actor
+         FROM outbox_events
+        WHERE organization_id = $1
+          AND event_type = 'property.responsibility_became_needed'`,
+      [ORG],
+    )
+    expect(facts.rows.map((row) => row.actor)).toEqual(['admin-1'])
+  })
+
+  it('names nobody when a system reconcile released the last manager', async () => {
+    const repo = createPropertyResponsibleManagerRepository(getDb())
+    await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      managerUserIds: ['manager-1'],
+      expectedRevision: 1,
+      actorId: 'admin-1',
+      at: CHANGE,
+      responsibilityNeededEvent: recoveryEvent(CHANGE),
+    })
+
+    await repo.releaseForUser({
+      organizationId: ORG,
+      userId: 'manager-1',
+      at: UNASSIGNED,
+      endReason: 'manager_offboarded',
+    })
+
+    const facts = await pool.query(
+      `SELECT payload->>'actorUserId' AS actor
+         FROM outbox_events
+        WHERE organization_id = $1
+          AND event_type = 'property.responsibility_became_needed'`,
+      [ORG],
+    )
+    expect(facts.rows.map((row) => row.actor)).toEqual([null])
+  })
+
+  it('records the selection change, so a gap that closed can be told from one that opened', async () => {
+    const repo = createPropertyResponsibleManagerRepository(getDb())
+
+    await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      managerUserIds: ['admin-1'],
+      expectedRevision: 1,
+      actorId: 'admin-1',
+      at: CHANGE,
+      responsibilityNeededEvent: recoveryEvent(CHANGE),
+    })
+    await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      managerUserIds: [],
+      expectedRevision: 2,
+      actorId: 'admin-1',
+      at: UNASSIGNED,
+      responsibilityNeededEvent: recoveryEvent(UNASSIGNED),
+    })
+
+    const facts = await pool.query(
+      `SELECT payload->>'assignmentCount' AS count
+         FROM outbox_events
+        WHERE organization_id = $1
+          AND event_type = 'property.responsible_managers.updated'
+        ORDER BY payload->>'occurredAt', id`,
+      [ORG],
+    )
+    expect(facts.rows.map((row) => row.count)).toEqual(['1', '0'])
+  })
+
+  it('records no selection change when the chosen managers did not move', async () => {
+    const repo = createPropertyResponsibleManagerRepository(getDb())
+    await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      managerUserIds: ['admin-1'],
+      expectedRevision: 1,
+      actorId: 'admin-1',
+      at: CHANGE,
+      responsibilityNeededEvent: recoveryEvent(CHANGE),
+    })
+    await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
+
+    await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      managerUserIds: ['admin-1'],
+      expectedRevision: 2,
+      actorId: 'admin-1',
+      at: UNASSIGNED,
+      responsibilityNeededEvent: recoveryEvent(UNASSIGNED),
+    })
+
+    const facts = await pool.query(
+      `SELECT count(*)::int AS total FROM outbox_events
+        WHERE organization_id = $1
+          AND event_type = 'property.responsible_managers.updated'`,
+      [ORG],
+    )
+    expect(facts.rows[0].total).toBe(0)
+  })
+
   it('preserves unchanged intervals, fences stale edits, and records unowned recovery atomically', async () => {
     const repo = createPropertyResponsibleManagerRepository(getDb())
     const assigned = await repo.replace({
@@ -211,7 +337,9 @@ describe('Property responsible manager repository', () => {
     expect(new Date(propertyRow.rows[0].responsibility_needed_since)).toEqual(UNASSIGNED)
     const outbox = await pool.query(
       `SELECT event_type, organization_id, property_id, payload
-       FROM outbox_events WHERE organization_id = $1`,
+       FROM outbox_events
+       WHERE organization_id = $1
+         AND event_type = 'property.responsibility_became_needed'`,
       [ORG],
     )
     expect(outbox.rows).toEqual([
@@ -267,7 +395,9 @@ describe('Property responsible manager repository', () => {
       new Date(UNASSIGNED.getTime() + 1_000),
     )
     const outbox = await pool.query(
-      `SELECT event_type FROM outbox_events WHERE organization_id = $1`,
+      `SELECT event_type FROM outbox_events
+        WHERE organization_id = $1
+          AND event_type = 'property.responsibility_became_needed'`,
       [ORG],
     )
     expect(outbox.rows).toEqual([])
@@ -304,7 +434,9 @@ describe('Property responsible manager repository', () => {
     )
     expect(new Date(propertyRow.rows[0].responsibility_needed_since)).toEqual(UNASSIGNED)
     const outbox = await pool.query(
-      `SELECT event_type FROM outbox_events WHERE organization_id = $1`,
+      `SELECT event_type FROM outbox_events
+        WHERE organization_id = $1
+          AND event_type = 'property.responsibility_became_needed'`,
       [ORG],
     )
     expect(outbox.rows).toEqual([])

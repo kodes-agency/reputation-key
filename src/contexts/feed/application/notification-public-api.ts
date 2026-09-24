@@ -9,14 +9,17 @@ export type {
   Notification,
   NotificationCadence,
   NotificationCategory,
+  NotificationCategoryDefault,
   NotificationChannel,
   NotificationPreference,
+  NotificationPropertyDeliveryWindow,
   NotificationPriority,
   NotificationResourceType,
   NotificationStatus,
   NotificationTimezoneSource,
   NotificationType,
   NotificationUserSettings,
+  PersonalDeliveryWindow,
 } from '../domain/notification-types'
 
 export {
@@ -28,6 +31,10 @@ export {
   effectiveEmailCadence,
   offeredEmailCadences,
 } from '../domain/notification-cadence'
+export {
+  resolveCategoryPreference,
+  type CategoryPreferenceValues,
+} from '../domain/notification-preference-resolution'
 
 // ── Render layer (ADR 0046 r.8) ───────────────────────────────────────
 // The ONE source of user-facing notification copy. Every surface — the in-app
@@ -35,6 +42,7 @@ export {
 // so copy cannot drift between channels and fixing a sentence fixes it
 // everywhere, including rows already in the database.
 export type { NotificationPayload } from '../domain/notification-payload'
+export type { NotificationRenderContext } from '../domain/notification-templates'
 export {
   BETA_FEEDBACK_REPORTS_ANCHOR,
   notificationLink,

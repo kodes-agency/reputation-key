@@ -12,7 +12,8 @@ import { getContainer, type Container } from '#/composition'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
+import { requireAuth, resolveTenantContext } from '#/shared/auth/middleware'
+import { userId } from '#/shared/domain/ids'
 import { z } from 'zod/v4'
 import { isNotificationError } from '../domain/notification-errors'
 import { NOTIFICATION_LIST_FILTERS } from '../application/notification-list-filter'
@@ -20,6 +21,7 @@ import { createNotificationPage } from '../application/notification-page'
 import { notificationUserSettingsDto } from '../application/dto/notification-user-settings.dto'
 import {
   notificationPreferenceCategory,
+  notificationQuietHoursDto,
   updateNotificationPreferenceDto,
 } from '../application/dto/notification-preference.dto'
 import { markAllNotificationsReadDto } from '../application/dto/notification-mark-all-read.dto'
@@ -280,7 +282,8 @@ export const getNotificationPreferencesFn = createServerFn({ method: 'GET' }).ha
   tracedHandler(
     async () => {
       const ctx = await resolveOptionalTenantContext()
-      if (!ctx) return []
+      // No active Organization: nothing is configurable, and the page says so.
+      if (!ctx) return { preferences: [], categoryDefaults: [], propertyWindows: [] }
       await requireExecutionAllowed({ actor: ctx, action: 'notification.read' })
       try {
         const { feedPublicApi } = getContainer()
@@ -321,9 +324,7 @@ export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
             data.channel,
             data.enabled,
             data.cadence,
-            data.urgentBypassEnabled,
-            data.quietHoursStart,
-            data.quietHoursEnd,
+            data.applyToAllProperties === true,
           )
         } catch (error) {
           if (isNotificationError(error)) {
@@ -376,6 +377,45 @@ export const muteNotificationCategoryFn = createServerFn({ method: 'POST' })
     ),
   )
 
+/**
+ * @public The person's quiet hours and urgent bypass, or one Property's
+ * override of them. Quiet hours are no longer a per-(Property, category,
+ * channel) setting, so this is one save instead of about sixty (ADR 0046,
+ * amended 2026-09-23).
+ *
+ * A Property override is authorized against that Property; the personal window
+ * covers every Property the person has, so it is authorized like any other
+ * account-level notification setting.
+ */
+export const updateNotificationQuietHoursFn = createServerFn({ method: 'POST' })
+  .validator(notificationQuietHoursDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'notification.update',
+          ...(data.propertyId === undefined ? {} : { propertyId: data.propertyId }),
+        })
+        try {
+          return await getContainer().feedPublicApi.updateQuietHours(
+            ctx.userId,
+            ctx.organizationId,
+            data,
+          )
+        } catch (error) {
+          if (isNotificationError(error)) {
+            throwContextError('NotificationError', error, 400)
+          }
+          throw catchUntagged(error)
+        }
+      },
+      'POST',
+      'notification.updateQuietHours',
+    ),
+  )
+
 export const getNotificationUserSettingsFn = createServerFn({ method: 'GET' }).handler(
   tracedHandler(
     async () => {
@@ -417,3 +457,37 @@ export const updateNotificationUserSettingsFn = createServerFn({ method: 'POST' 
       'notification.updateUserSettings',
     ),
   )
+
+// ── getAccountAccessRemovalFn ─────────────────────────────────────
+
+/**
+ * Whether this account's access to a workspace was removed, and when.
+ *
+ * Read by `/unavailable`, which is reached by a signed-in account with no
+ * active Organization — so there is no tenant to resolve and nothing tenant-
+ * scoped to authorize. The subject is the session's own user, never a value
+ * from the request: the whole point of the read is that the caller can no
+ * longer open the Organization the notice lives in.
+ *
+ * It answers `null` for an account that was never removed (someone waiting on
+ * a first invitation), and an instant for one that was. Nothing else crosses:
+ * a removed member must not learn more about a workspace by being removed
+ * from it.
+ */
+export const getAccountAccessRemovalFn = createServerFn({ method: 'GET' }).handler(
+  tracedHandler(
+    async () => {
+      const user = await requireAuth(await headersFromContext())
+      try {
+        const removal = await getContainer().feedPublicApi.readAccountAccessRemoval(
+          userId(user.id),
+        )
+        return removal === null ? null : { removedAt: removal.removedAt.toISOString() }
+      } catch (error) {
+        throw catchUntagged(error)
+      }
+    },
+    'GET',
+    'notification.getAccountAccessRemoval',
+  ),
+)

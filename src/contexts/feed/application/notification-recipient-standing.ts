@@ -1,9 +1,19 @@
-import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
+import {
+  propertyId as toPropertyId,
+  type OrganizationId,
+  type PropertyId,
+  type UserId,
+} from '#/shared/domain/ids'
 import { parseNotificationAudience } from './notification-audience'
 import {
   resolveResponsibleRecipients,
   type ResponsibleRecipientDeps,
 } from './responsible-recipients'
+import type { ReplyApprovalAuthorityPort } from './ports/reply-approval-authority.port'
+
+/** Everything a standing check may have to ask about, resolved at send time. */
+export type NotificationRecipientStandingDeps = ResponsibleRecipientDeps &
+  Readonly<{ replyApproval: ReplyApprovalAuthorityPort }>
 
 export type NotificationRecipientStandingInput = Readonly<{
   organizationId: OrganizationId
@@ -64,7 +74,7 @@ const remembered = (
 
 /** Whether the recipient still holds the duty or role their audience names. */
 async function holdsAudience(
-  deps: ResponsibleRecipientDeps,
+  deps: NotificationRecipientStandingDeps,
   organizationId: OrganizationId,
   userId: UserId,
   stored: unknown,
@@ -87,6 +97,17 @@ async function holdsAudience(
       return (await deps.userLookup.findByRole(organizationId, 'AccountAdmin')).includes(
         userId,
       )
+    // Responsibility and permission are separate authorities and either can
+    // end on its own, so both are asked again (I5.3).
+    case 'reply_approver': {
+      const scope = toPropertyId(audience.propertyId)
+      const responsible = await deps.responsibleManagers.findForProperty(
+        organizationId,
+        scope,
+      )
+      if (!responsible.includes(userId)) return false
+      return deps.replyApproval.canApproveReplies(organizationId, scope, userId)
+    }
     default:
       // The other audiences follow a work item or a result, whose standing
       // is Property eligibility, checked before this.
@@ -95,7 +116,7 @@ async function holdsAudience(
 }
 
 export const createNotificationRecipientStanding =
-  (deps: ResponsibleRecipientDeps): NotificationRecipientStanding =>
+  (deps: NotificationRecipientStandingDeps): NotificationRecipientStanding =>
   async ({ organizationId, propertyId, userId, audience: stored }, memo) => {
     // Active manager membership, current Property access and participation.
     // Every Property-scoped audience admits only eligible managers.

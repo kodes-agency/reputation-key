@@ -12,6 +12,7 @@ import type {
 import type {
   NotificationDigestBatchId,
   NotificationEmailId,
+  NotificationId,
   OrganizationId,
   PropertyId,
   UserId,
@@ -174,6 +175,18 @@ export type NotificationEmailRepositoryPort = Readonly<{
     reason: string,
     updatedAt: Date,
   ): Promise<void>
+  /**
+   * Cancel the still-sendable mail behind notices whose work was settled
+   * upstream. `cancelled` is terminal (ADR 0046 r.6), so a row already
+   * attempted, accepted or suppressed is left alone. Returns how many rows
+   * were cancelled.
+   */
+  cancelQueuedForNotifications(
+    notificationIds: ReadonlyArray<NotificationId>,
+    orgId: OrganizationId,
+    reason: string,
+    updatedAt: Date,
+  ): Promise<number>
   /**
    * ADR 0046 r.4: the digest is one email per USER, so the sweep must start
    * from recipients rather than from properties.

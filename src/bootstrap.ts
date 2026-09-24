@@ -670,9 +670,9 @@ async function registerNotificationJobs(
     await import('#/shared/jobs/delayed-execution-gate')
   // The insert handler must be able to dispatch the immediate email itself:
   // the queue row alone is inert, so an urgent notification would sit pending
-  // until a digest sweep. `notification.send_email` is org-gated at execution,
-  // so enqueuing here is safe even when a tenant has email disabled.
-  const { URGENT_EMAIL_JOB_NAME: URGENT_EMAIL_JOB } =
+  // until a digest sweep. The capability is org-gated at execution, so
+  // enqueuing here is safe even when a tenant has email disabled.
+  const { immediateEmailDispatch: immediateDispatch } =
     await import('#/contexts/feed/infrastructure/jobs/urgent-email.job')
   const { jobEnqueueOptions: urgentEnqueueOptions } =
     await import('#/shared/jobs/job-policy')
@@ -689,19 +689,20 @@ async function registerNotificationJobs(
     organizationEmailStop: notificationOrganizationEmailStop,
     enqueueImmediateEmail: container.jobQueue
       ? async (data) => {
+          const dispatch = immediateDispatch(data.propertyId)
           await container.jobQueue!.add(
-            URGENT_EMAIL_JOB,
+            dispatch.jobName,
             {
               ...data,
               ...createJobExecutionEnvelope({
                 organizationId: data.organizationId,
                 propertyId: data.propertyId,
-                capability: 'notification.send_email',
+                capability: dispatch.capability,
                 initiator: { kind: 'system', id: 'notification:urgent-enqueue' },
                 correlationId: `notification-email:${data.notificationEmailId}`,
               }),
             },
-            { ...urgentEnqueueOptions(URGENT_EMAIL_JOB) },
+            { ...urgentEnqueueOptions(dispatch.jobName) },
           )
         }
       : undefined,
@@ -744,12 +745,13 @@ async function registerNotificationJobs(
     )
   }
 
-  // Outbound email is blocked (notification.send_email) for beta. The gated
-  // families retain no executable handler, so queued remnants cannot be
-  // acknowledged as delivered. The transport decision logged above is
-  // orthogonal: the gate decides whether the JOB may exist at runtime, while
-  // the transport decides where an admitted job's mail goes.
-  const { createUrgentEmailJobHandler, URGENT_EMAIL_JOB_NAME } =
+  // Outbound email is CONTROLLED, not blocked: the handler exists, and the
+  // delayed execution gate decides each send against current tenant policy.
+  // A family that were blocked would retain no executable handler, so queued
+  // remnants could not be acknowledged as delivered. The transport decision
+  // logged above is orthogonal: the gate decides whether the JOB may run,
+  // while the transport decides where an admitted job's mail goes.
+  const { createUrgentEmailJobHandler, MANDATORY_EMAIL_JOB_NAME, URGENT_EMAIL_JOB_NAME } =
     await import('#/contexts/feed/infrastructure/jobs/urgent-email.job')
   const urgentEmailHandler = createUrgentEmailJobHandler({
     emailRepo: container.notificationWorkerRuntime.emailRepo,
@@ -767,16 +769,25 @@ async function registerNotificationJobs(
     baseUrl: notifBaseUrl,
     oneClickUnsubscribeUrl: notificationUnsubscribeUrl,
   })
+  const runUrgentEmail = async (job: import('bullmq').Job) => {
+    await urgentEmailHandler(
+      job as import('bullmq').Job<
+        import('#/contexts/feed/infrastructure/jobs/urgent-email.job').UrgentEmailJobData
+      >,
+    )
+  }
   registerCapabilityGatedJob(
     URGENT_EMAIL_JOB_NAME,
     'notification.send_email',
-    async (job) => {
-      await urgentEmailHandler(
-        job as import('bullmq').Job<
-          import('#/contexts/feed/infrastructure/jobs/urgent-email.job').UrgentEmailJobData
-        >,
-      )
-    },
+    runUrgentEmail,
+  )
+  // One processor, two names: the mandatory name carries the core capability
+  // the beta allowlist does not gate, so an account/security notice leaves
+  // even for an Organization ordinary product mail is still dark for.
+  registerCapabilityGatedJob(
+    MANDATORY_EMAIL_JOB_NAME,
+    'notification.send_mandatory_email',
+    runUrgentEmail,
   )
 
   const { createDigestNotificationJobHandler, DIGEST_JOB_NAME } =
@@ -795,25 +806,31 @@ async function registerNotificationJobs(
     resolvePropertyScope: resolveNotificationProperty,
     organizationEmailStop: notificationOrganizationEmailStop,
     authorizeScope: createScheduledScopeAuthorizer('system:notification.email_digest'),
+    // The sweep's Organization leg recovers mandatory mail, which is gated by
+    // its own action rather than by the beta email allowlist.
+    authorizeMandatoryScope: createScheduledScopeAuthorizer(
+      'system:notification.email_mandatory',
+    ),
     isRecipientEligible: container.notificationWorkerRuntime.recipientStanding,
     baseUrl: notifBaseUrl,
     activeOneClickUnsubscribeKeyVersion: notificationUnsubscribeKeyVersion,
     oneClickUnsubscribeUrl: notificationUnsubscribeUrl,
     enqueueImmediate: async (data) => {
       if (!container.jobQueue) return
+      const dispatch = immediateDispatch(data.propertyId)
       await container.jobQueue.add(
-        URGENT_EMAIL_JOB_NAME,
+        dispatch.jobName,
         {
           notificationEmailId: data.notificationEmailId,
           ...createJobExecutionEnvelope({
             organizationId: data.organizationId,
             propertyId: data.propertyId,
-            capability: 'notification.send_email',
+            capability: dispatch.capability,
             initiator: { kind: 'system', id: 'notification:delivery-sweep' },
             correlationId: `notification-email:${data.notificationEmailId}`,
           }),
         },
-        jobEnqueueOptions(URGENT_EMAIL_JOB_NAME),
+        jobEnqueueOptions(dispatch.jobName),
       )
     },
   })

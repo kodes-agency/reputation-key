@@ -35,8 +35,11 @@ Rules:
    confirmation; see the Feed CONTEXT.md). A mandatory notice coalesces in-app
    too, but is still emailed once per event: the repeat's email is anchored
    on the unread row and keyed on its own event (amended 2026-09-22).
-3. Use the user IANA timezone with Organization fallback and test DST.
-4. A multi-Property user receives one digest in their chosen timezone.
+3. Use the user IANA timezone with Organization fallback and test DST. Quiet
+   hours and the urgent bypass are the user's too, with an optional
+   per-Property override (amended 2026-09-23).
+4. A multi-Property user receives one digest in their chosen timezone, judged
+   against their one quiet-hours window (amended 2026-09-23).
 5. Application idempotency outlives the provider's 24-hour dedupe window.
 6. Delivery moves through `pending → accepted →
 delivered|delayed|bounced|complained|failed|suppressed|cancelled`.
@@ -166,6 +169,360 @@ person at once. Settings shows the one cadence without a choice, the preference
 constructor refuses an immediate goal email row, and delivery sends a goal row
 saved as immediate before this amendment in the daily digest anyway.
 
+## Amended 2026-09-24 — mandatory mail is not held by the beta email allowlist
+
+`notification.send_email` is a controlled capability: an Organization must be
+allowlisted before any of its mail leaves. That is right for product mail and
+wrong for a mandatory account/security notice, whose whole purpose is to reach
+someone about their account — including the last warning before an Organization
+is permanently deleted, which for an Organization nobody ever allowlisted was
+queued, never sent, and finally retired as stale.
+
+Immediate mail for an Organization-scoped mandatory notice therefore travels
+under its own delayed action, `system:notification.email_mandatory`, gated by
+its own capability, `notification.send_mandatory_email`, whose fate is core: it
+needs no tenant allowlist. It is the same processor under a second job name,
+because the execution gate decides a capability per entry point. The digest
+run's recovery sweep authorizes its Organization-scoped leg under that action
+too, so a stranded mandatory row is re-enqueued in the same scopes.
+
+Nothing else is carved out. The environment stop (`BETA_CAPABILITIES_OFF`) and
+tenant suspension still refuse it; so do the Organization's irreversible
+lifecycle boundary, the address suppression list, the stale-row bound, the
+delivery-scope CHECK the stored row must satisfy, and the send-time recipient
+checks. Optional mail is unaffected, and an unsubscribe still never applies to
+a mandatory notice. A mandatory notice is emailed once per event either way.
+
+The cost is accepted deliberately: an Organization outside the beta cohort can
+now receive account/security mail. A final deletion warning nobody receives is
+worse than an extra email.
+
+## Amended 2026-09-24 — a cancelled publication tells the author and the approvers
+
+`review.reply.publication_cancelled` had no notification consumer. A reply that
+was approved, whose author was told "It is queued to publish to Google"
+(`reply.approved`), silently returned to draft on a Google disconnect, a
+Property Archive or a lost publishing authority (`policy`), a guest revising
+their review (`source_changed`), or a different reply already live on Google
+(`provider_truth`). No badge, no email, no row: the team went on believing the
+reply was on its way.
+
+`reply.publication_cancelled` is now a live type, category `urgent_operational`
+and deliberately NOT in `URGENT_TYPES` — nothing reached Google, so no
+cancellation is worth breaking quiet hours for. Its copy is chosen by the
+event's own closed cause, because each cause asks for a different next step:
+reconnect Google, nothing to do at this Property, write a reply to the new
+review, or look at what is already live. The notice never says "your": it goes
+to the reply's author AND to the AccountAdmins, who are the people who can
+approve it again — the same audience `reply.pending_approval` asks.
+
+For the `policy` cause only, an approver who is no longer eligible for the
+Property is left out at fan-out: a policy cancellation is exactly what taking
+that authority away looks like, and asking someone to re-approve what they can
+no longer touch is noise. The other three causes take nobody's authority, so
+every approver is kept. The author's own notice carries the `property_operator`
+audience, whose delivery check re-tests Property eligibility anyway.
+
+The fact carries `authorId` (identifier only, nullable) from this date. Facts
+recorded before it reach the approvers alone.
+
+## Amended 2026-09-24 — a deliberate Google disconnect tells the other admins
+
+Disconnecting the Organization's Google account stops review updates and every
+reply to Google, for every Property, and it said so nowhere: only somebody
+watching the Integrations page could tell. `integration.google_disconnected` is
+now a live type. It goes to every current AccountAdmin except the one who
+disconnected — nobody is notified about their own action — and a fact the
+recovery reconciler could not attribute excludes nobody rather than everybody.
+The fact carries that actor (`userId`, identifier only, nullable) from this
+date.
+
+The notice is **Organization-scoped and not mandatory**, the third shape this
+policy admits and the second type named in `notifications_mandatory_scope_check`
+(migration 0030): category `workflow_collaboration`, no Property, and the
+connection as its resource. It is in-app only — an Organization-scoped notice
+has no Property preference row that could opt it into email, and the email
+queue's own scope CHECK refuses it — which is exactly why it can be scoped
+honestly. `integration.reauthorization_required` still anchors itself on an
+arbitrary Property because it is urgent_operational and therefore mailed.
+
+That needed a new audience kind. `account_admin` is Property-scoped: the
+delivery authorizer refuses a Property-less job under it, which is why the
+mandatory Purge Pending notice still reaches nobody. `organization_account_admin`
+authorizes a Property-less notice against the AccountAdmin role itself. The
+Purge Pending audience stays an open product decision and is untouched: which
+audience a mandatory final notice should have is a different question from who
+hears about a connection.
+
+The copy never names the admin who disconnected. Rule 8 excludes other
+employees' data, and the payload carries nothing at all.
+
+## Amended 2026-09-24 — an offboarding release tells whoever owns the gap
+
+Offboarding a member, or reconciling one who no longer qualifies for a
+Property, unassigns every Inbox item they held. Each item recorded an
+`inbox.inbox_item.unassigned` fact, all of them history, and nobody was told:
+the work simply stopped being anyone's while the queue still showed it open.
+
+The release now records one grouped close fact,
+`inbox.inbox_items.assignments_released`, in the same transaction as the rows
+it describes, and `inbox.assignments_released` is delivered from it — ONE
+notice per Property, never one per item, because a departing manager can leave
+dozens behind and the news is the gap, not each item. It goes to the
+Property's responsible managers (AccountAdmins when none is eligible), less
+the departing member, who no longer owns it, and less whoever released them,
+who already knows. The row opens the Property's open queue, as the other
+grouped Inbox notices open theirs.
+
+Category `urgent_operational`, and not in `URGENT_TYPES`: the items are where
+they always were and nothing is on a clock.
+
+The fact groups by Property in the producer — an anchor item and a count, not
+one entry per released item. A departing fleet manager's assignments are
+unbounded, and the notice is one per Property either way, so listing every
+item would put an unbounded array on the bus for nothing.
+
+The fact's closed reason is named `releaseReason`, not `reason`: the outbox
+adapter denylists `reason` as content, with one carve-out, and widening that
+denylist for an enum is the wrong trade.
+
+## Amended 2026-09-23 — quiet hours are the person's, not the Property's
+
+Quiet hours and the urgent bypass were stored per (Property, category,
+channel). A manager with 30 Properties needed about 60 saves to stop 03:00
+email, and a window set on only some Properties broke r.4: the quiet
+Properties' digest rows were deferred while the rest went out, so one person
+got two digests of one day.
+
+They are now one setting per person, stored in `notification_user_settings`
+beside the timezone that decides what they mean, with an OPTIONAL per-Property
+override in `notification_property_delivery_windows`. The override's row is
+the override: a row with no times means "hold nothing back at this Property",
+and it replaces the personal window WHOLE, bypass included, because it is one
+deliberate answer rather than a patch of three fields.
+
+Delivery reads them like this:
+
+- Immediate mail is scoped to one Property, so it reads that Property's
+  override if there is one, else the person's window.
+- The daily digest covers every Property at once, so it reads the person's
+  window only — asked ONCE per recipient per sweep, before any row is
+  considered. Quiet means the whole digest waits to the same minute, so the
+  next sweep still finds one digest (r.4).
+
+Whether a category is delivered at all, and at which cadence, stays per
+Property: that is what a Property is for. What was missing is inheritance. A
+Property added or reassigned after the person configured everything else had
+no row and fell through to r.1's versioned defaults — urgent email,
+immediately, at 03:00, whatever they had chosen for every other Property.
+`notification_category_defaults` holds the person's answer per (category,
+channel), and resolution is now: the Property's own row, else that default,
+else r.1's versioned defaults. "Apply to all my properties" writes the default
+and clears the per-Property rows that would have overridden it.
+
+Mandatory notices stay unconfigurable on every one of these tables, by CHECK.
+Migration 0030 lifts a person's per-Property quiet hours into their personal
+window only where every row of theirs agrees, and drops the rest rather than
+inventing a merged window nobody chose; it seeds the category defaults the same
+way.
+
+## Amended 2026-09-23 — the notification locale is an English convention
+
+`notification_user_settings.locale` offered Bulgarian, which translated
+nothing: every word in the product is English (docs/BETA.md), and the setting
+only moves the day in front of the month. It now offers English (US) and
+English (UK), and the settings card is called "Timezone and date format"
+rather than "Language and timezone". A row storing a locale no longer offered
+is still honoured when a timestamp is formatted; it just cannot be saved again.
+
+## Amended 2026-09-24 — a guest edit of unhandled work is workflow, not urgent
+
+`review.updated` is now `workflow_collaboration`. It was `urgent_operational`,
+the only immediate-email-by-default route a guest could trigger, while
+`review.created` — a fresh one-star review — was workflow and waited for
+somebody to open the bell. A guest correcting a typo therefore outranked the
+review it corrected.
+
+The two guest-revision cases are deliberately kept apart, and only the first
+moves:
+
+- **An edit that supersedes an OPEN cycle** (`inbox.handling_cycle.opened`
+  with `openReason = material_revision_changed`) is `review.updated`. The work
+  was already unhandled and already announced; the edit adds no demand the
+  open item did not carry, so it now sits in the same category as the arrival
+  it amends.
+- **An edit that reopens a CLOSED cycle** (`inbox.handling_cycle.reopened`) is
+  `inbox.reopened` and stays `urgent_operational`. Somebody had considered
+  that item finished, so being told is the point.
+
+`review.created` is NOT raised to urgent in exchange. Urgency for an
+unanswered review comes from its Inbox Response Target — the reminders at the
+halfway point and at the target time — which is where a rating may shorten it
+(next amendment). Feed neither stores nor reads a rating class (r.8).
+
+## Amended 2026-09-24 — a rating shortens the target, not the notification
+
+Urgency for an unanswered review comes from its Inbox Response Target. Feed
+still neither stores nor reads a rating class for a provider review (r.8), and
+`review.created` stays `workflow_collaboration`; what changes is how soon the
+target's reminders fall. The Google Review Organization policy may now carry a
+shorter duration for the Organization's own low-rated reviews — a star
+threshold and a shorter target on the same policy row — so a one-star review
+reaches the halfway prompt and the target time sooner than a five-star one,
+through the reminder route that already exists.
+
+It is off by default, and off is exactly today's behaviour. Shortening a target
+changes which cycles count as late, so no Organization's recorded performance
+moves until somebody chooses it. See
+`docs/operations/inbox-response-targets.md` and migration
+`0030_inbox_low_rating_response_target`.
+
+## Amended 2026-09-24 — notices state the closed facts their events carry
+
+Four routes carried a governed fact and dropped it, so the copy could only
+describe the KIND of thing that happened. Each now passes the fact into the
+allowlisted payload; each stays a closed enum or a key, never prose, and r.8
+is unchanged.
+
+- `inbox.reopened` carries `reopenReason`. The manager's free-text
+  explanation beside it stays in Inbox.
+- `portal.health_attention` carries the health status and the closed reason.
+  It said "may need attention", which is true of every cause; it now says
+  whether guests can reach the portal at all and what to do.
+- The two Response Target reminders carry `targetDueAt`, the target instant
+  from the immutable snapshot the released slot belongs to. It is stored as an
+  instant, never a rendered label, because two managers responsible for one
+  item need not share a timezone: `renderNotification` takes an optional
+  render context carrying the READER's zone, and a surface that cannot know it
+  (the frozen snapshot written at insert time) leaves the clause out rather
+  than guessing UTC. The product term is **target time**; no notice says
+  "due".
+- The two Goal notices carry the month as a `YYYY-MM` key on the Property's
+  own calendar, the subject kind (Property, Portal Group or Portal) and the
+  outcome direction. A correction that leaves a month ineligible reports no
+  usable result, which is not a missed target.
+
+Copy stays English, produced only by `domain/notification-templates.ts` (r.5),
+so only the ZONE crosses into the render context, never a locale.
+
+**Considered and not done: one notification identity per monthly result.** A
+`goal.completed` and a later `goal.result_revised` for the same result remain
+two rows. Merging them would mean coalescing on `(user, resource)` rather than
+r.2's `(user, type, resource)`, and a row's `type` is what gives it its filter
+tab, its icon and its Mute action, so a merged row would have to pick one of
+two types to be filed under. The ten-identical-rows complaint that motivated
+it is answered by the month, subject and direction above. Naming the
+individual Portal a result belongs to needs a Portal display-name lookup Feed
+does not have; that is the open follow-up.
+
+## Amended 2026-09-24 — a notice stops asking once its work is done
+
+"Approve a reply", "Escalated", "Follow-up reopened", "Response target
+passed" and "Choose a responsible manager" stayed unread, in the present
+tense, after somebody handled them, and a reply approved at 23:00 still
+produced a 07:00 "Approve a reply" email: delivery re-checked the recipient's
+standing, never the state of the work. Three rules close that:
+
+1. **Actionable types settle.** The types that ask their reader for work are
+   named in `domain/notification-settlement.ts`. A settling fact — a reply
+   approved, rejected or published, an escalation resolved, a Handling Cycle
+   closed, a responsible manager chosen again — retires every recipient's
+   still-waiting row for its (type, resource) and cancels the mail queued
+   behind them as `cancelled` / `work_settled`. Mail the provider may already
+   hold is left alone. A grouped reopen is the one actionable type no fact
+   settles: it stands for many items and is filed under the first of them, so
+   one closed cycle would retire a notice the rest are still waiting behind.
+   Its own audience already re-counts the items that still stand.
+2. **Resolved is not read.** Settling stamps `notifications.resolved_at` and
+   leaves `status`, because docs/BETA.md says read is not resolved. A settled
+   row leaves the unread count and the Unread tab, keeps its place in the
+   feed, and shows a "Done" marker. A repeat event on the resource clears the
+   marker: the work is being asked for again. The bell's count therefore means
+   "work still waiting for you".
+3. **Freshness is checked before the provider effect.** Immediate mail and the
+   digest both apply `isStillActionable` to the row they are about to render:
+   an actionable notice is mailed only while it is unsettled, unread and
+   undismissed, and is otherwise retired as `work_no_longer_waiting`. A notice
+   that reports an outcome is unaffected — that news is owed whether or not
+   the reader saw it in the app first.
+
+Settling routes are part of the executable trigger matrix, under `settles`
+rather than `notifications`: they announce nothing, carry no audience, and do
+not count as a type's one announcing trigger. A settling route may only retire
+an actionable type.
+
+## Amended 2026-09-24 — the responsible scope is asked first, admins are the fallback
+
+Approval requests and escalations went to every AccountAdmin in the
+Organization, however many Properties they look after, while the Property's
+responsible managers — who hold `reply.manage` and could approve in one click —
+were never asked at all. AccountAdmins were told an escalation had been raised
+and never that it had been dealt with.
+
+- `reply.pending_approval` goes to the Property's responsible managers who may
+  approve, under a new `reply_approver` audience; to the AccountAdmins only
+  when none of them can; and never to the submitter, who cannot approve their
+  own draft. The submitter is removed before the fallback is considered, so
+  "the only approver is the author" still reaches somebody who can decide.
+  Responsibility and `reply.manage` are separate authorities: the audience
+  check and the pre-send standing check ask both, because either can end alone.
+- `inbox.escalated` follows the item's own scope — the Property's responsible
+  managers for a review, the Portal's for private feedback — with AccountAdmins
+  as the fallback the responsible-recipient resolver already provides.
+- `inbox.escalation_resolved` additionally reaches the AccountAdmins who were
+  told it was raised, and only them: the evidence is Feed's own rows for
+  (`inbox.escalated`, that item), read whatever their state. An admin who was
+  never told is not told now, and one who is no longer an AccountAdmin is
+  dropped.
+
+## Amended 2026-09-24 — notes and rework reach the people doing the work
+
+A note reached the assignee and nobody else, so a note written BY the assignee
+reached nobody and notes could not be used to ask for help. `review.updated`
+and `inbox.reopened` ignored the assignee, so a non-responsible manager
+drafting a reply was never told the review had changed. A previous assignee was
+never told the item had moved on.
+
+- `inbox_note.added` reaches the assignee, the item's responsible scope and
+  everyone who has written a note on it before, minus the actor. Each recipient
+  keeps the audience that admitted them — `inbox_assignee`, the responsible
+  scope, or the new `inbox_note_author` — so the send rechecks the right thing.
+  There are no @mentions: the note text never crosses the Feed seam.
+- `review.updated` and `inbox.reopened` (and a grouped reopen) include the
+  item's eligible assignee beside its responsible scope, the way a passed
+  Response Target already did. The delivery-time cycle check admits them on the
+  same rule.
+- A manual reassignment tells the previous holder, as the new
+  `inbox.unassigned` notice (`workflow_collaboration`, audience
+  `property_operator` — they are no longer the assignee but may still act on
+  the Property). It never names who holds it now. An eligibility-loss release
+  produces no assignment fact and therefore stays silent, and a claim tells
+  nobody, because the claimant is both actor and previous holder.
+
+## Amended 2026-09-24 — nobody is asked to fix the gap they just opened
+
+Removing a manager who owned ten Properties sent every AccountAdmin ten urgent
+"choose a responsible manager" emails — the removing admin included.
+
+`property.responsibility_became_needed` and `portal.responsibility_became_needed`
+now name the actor whose release opened the gap, threaded from the
+member-authority seam through both release paths. The fan-out drops that
+person, exactly as every other route drops its own actor. A system reconcile
+names nobody, so every AccountAdmin is still asked.
+
+The `responsibility_gap` audience already re-checks the gap at delivery: a
+manager chosen in between retires the notice, and the settlement route above
+retires its in-app row. A failed publication whose author can no longer act on
+the Property already falls back to the Property's responsible managers, and to
+the AccountAdmins when none is eligible.
+
+Still open (I17): grouping one offboarding's fallout into a single notice per
+recipient that names the affected Properties and Portals. That notice belongs
+to the Organization, not to any one Property, and invariant 6 of the Feed
+CONTEXT admits exactly one non-mandatory Organization-scoped type — a second
+one needs its own ADR and a CHECK change, plus a grouped upstream fact that
+spans the Property and Portal release paths.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.
@@ -175,7 +532,10 @@ saved as immediate before this amendment in the daily digest anyway.
   event ids are not merged. Mandatory mail is never merged: a second role
   change or purge-pending notice is a second email.
 - Recognition email requires explicit opt-in and arrives in the daily digest.
-- Provider/capability admission remains the outbound activation authority.
+- Provider/capability admission remains the outbound activation authority for
+  every optional message. Mandatory account/security mail is admitted by the
+  core mandatory capability instead, so a tenant allowlist cannot silence it
+  (amended 2026-09-24).
 
 ## Rejected alternatives
 

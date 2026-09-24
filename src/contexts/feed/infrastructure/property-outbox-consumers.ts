@@ -1,7 +1,7 @@
 import type { PropertyResponsibilityNeeded } from '#/contexts/property/application/public-api'
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { organizationId, propertyId } from '#/shared/domain/ids'
+import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
@@ -22,6 +22,7 @@ export type PropertyNotificationConsumerDeps = PropertyPayloadDeps &
 type Payload = Readonly<{
   organizationId: string
   propertyId: string
+  actorUserId?: string | null
   occurredAt: string
 }>
 
@@ -52,6 +53,7 @@ export async function handleNotificationPropertyResponsibilityNeeded(
     correlationId: event.correlationId ?? null,
     organizationId: organizationId(payload.organizationId),
     propertyId: propertyId(payload.propertyId),
+    actorUserId: payload.actorUserId ? userId(payload.actorUserId) : null,
     occurredAt: new Date(payload.occurredAt),
   }
   await enqueueResponsibilityGapNotification(deps, needed, {

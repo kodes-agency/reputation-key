@@ -165,6 +165,10 @@ export function applyCoalescence(
     payload,
     coalescedCount,
     coalescedLatestAt: now,
+    // A repeat event asks for the work again — a second reply submitted on a
+    // resource whose first was approved. The row is waiting once more, so the
+    // settled marker it may carry is dropped rather than silencing it.
+    resolvedAt: null,
     updatedAt: now,
   }
 }

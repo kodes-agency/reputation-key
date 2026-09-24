@@ -262,6 +262,7 @@ function registerRoutes(
         assignmentId: '88000000-0000-4000-8000-000000000031',
         monthlyResultId: '88000000-0000-4000-8000-000000000032',
         programName: 'Monthly rating goal',
+        periodMonth: '2026-10',
         subject: { kind: 'property' as const, propertyId: PROPERTY },
       })),
       findMonthlyResultRevisionNotificationFacts: vi.fn(async () => null),

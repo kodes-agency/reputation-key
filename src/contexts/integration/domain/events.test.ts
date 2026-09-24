@@ -70,6 +70,7 @@ describe('integrationGoogleAccountDisconnected', () => {
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       occurredAt: now,
+      userId: null,
     })
     expect(event._tag).toBe('integration.google_account.disconnected')
   })
@@ -79,6 +80,7 @@ describe('integrationGoogleAccountDisconnected', () => {
       connectionId: googleConnectionId('conn-2'),
       organizationId: organizationId('org-2'),
       occurredAt: now,
+      userId: null,
     })
     expect(event.connectionId).toBe(googleConnectionId('conn-2'))
     expect(event.organizationId).toBe(organizationId('org-2'))
@@ -89,6 +91,7 @@ describe('integrationGoogleAccountDisconnected', () => {
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       occurredAt: now,
+      userId: null,
     })
     expect(event.occurredAt).toBeInstanceOf(Date)
     expect(event.occurredAt).toBe(now)
@@ -194,6 +197,7 @@ describe('correlation', () => {
         organizationId: organization,
         occurredAt: now,
         correlationId,
+        userId: null,
       }),
       integrationGoogleAccountReauthorizationRequired({
         connectionId,

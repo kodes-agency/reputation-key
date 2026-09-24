@@ -1,4 +1,5 @@
-// ADR 0059 — the one Organization-scoped notice that is not mandatory.
+// ADR 0059 — the first Organization-scoped notice that is not mandatory, and
+// the shape every later one (ADR 0046, amended 2026-09-24) has to fit.
 
 import { describe, expect, it } from 'vitest'
 import { notificationId, organizationId, propertyId, userId } from '#/shared/domain/ids'
@@ -39,16 +40,22 @@ describe('report outcome scope and policy', () => {
     expect(notificationScopeForType('beta_feedback.outcome')).toBe('organization')
   })
 
-  it('is the only non-mandatory type the Organization scope admits', () => {
+  it('is one of the named few the Organization scope admits', () => {
     // Widening this list is an ADR decision; the database CHECK names the same
-    // single type, so the two cannot drift apart silently.
+    // types, one branch each, so the two cannot drift apart silently.
     const organizationScopedNonMandatory = NOTIFICATION_TYPES.filter(
       (type) =>
         notificationScopeForType(type) === 'organization' &&
         classifyNotification(type) !== 'mandatory',
     )
-    expect(organizationScopedNonMandatory).toEqual(['beta_feedback.outcome'])
-    expect([...ORGANIZATION_INFORMATIONAL_TYPES]).toEqual(['beta_feedback.outcome'])
+    expect(organizationScopedNonMandatory).toEqual([
+      'integration.google_disconnected',
+      'beta_feedback.outcome',
+    ])
+    expect([...ORGANIZATION_INFORMATIONAL_TYPES]).toEqual([
+      'beta_feedback.outcome',
+      'integration.google_disconnected',
+    ])
   })
 
   it('leaves every other workflow notice Property-scoped', () => {
@@ -80,7 +87,7 @@ describe('report outcome construction', () => {
     )
 
     expect(result.isErr() && result.error.message).toBe(
-      'Report-outcome notifications are Organization-scoped and cannot name a Property',
+      'beta_feedback.outcome notifications are Organization-scoped and cannot name a Property',
     )
   })
 
@@ -91,7 +98,7 @@ describe('report outcome construction', () => {
     )
 
     expect(result.isErr() && result.error.message).toBe(
-      'Report-outcome notifications must point at the report',
+      'beta_feedback.outcome notifications must point at beta_feedback_report',
     )
   })
 

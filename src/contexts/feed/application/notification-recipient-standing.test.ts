@@ -23,6 +23,9 @@ const makeDeps = () => ({
   userLookup: {
     findByRole: vi.fn(async () => [ADMIN]),
   },
+  replyApproval: {
+    canApproveReplies: vi.fn(async () => true),
+  },
 })
 
 const standingOf = (
@@ -38,6 +41,22 @@ const standingOf = (
   })
 
 describe('notification recipient standing at send time', () => {
+  // I5.3: an approval request stands on two authorities, and the send must
+  // recheck both — hours can pass before the mail leaves.
+  it('requires both responsibility and reply.manage when the audience was an approver', async () => {
+    const deps = makeDeps()
+    const audience = { kind: 'reply_approver', propertyId: PROPERTY as string }
+
+    await expect(standingOf(deps, audience)).resolves.toBe(true)
+
+    deps.replyApproval.canApproveReplies.mockResolvedValue(false)
+    await expect(standingOf(deps, audience)).resolves.toBe(false)
+
+    deps.replyApproval.canApproveReplies.mockResolvedValue(true)
+    deps.responsibleManagers.findForProperty.mockResolvedValue([])
+    await expect(standingOf(deps, audience)).resolves.toBe(false)
+  })
+
   it('refuses a recipient who left the Organization or lost access to the Property', async () => {
     const deps = makeDeps()
     deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(false)

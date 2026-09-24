@@ -243,6 +243,17 @@ export const setResponseTargetPolicyDto = z.discriminatedUnion('scope', [
     scope: z.literal('organization'),
     targetKind: z.enum(['google_review_response', 'private_feedback_handling']),
     durationMinutes: responseTargetDurationMinutesSchema,
+    /**
+     * The shorter Google Review target for the Organization's own low-rated
+     * reviews. Omitted leaves the stored one alone, `null` clears it.
+     */
+    lowRating: z
+      .object({
+        threshold: z.number().int().min(1).max(5),
+        durationMinutes: responseTargetDurationMinutesSchema,
+      })
+      .nullable()
+      .optional(),
     expectedPolicyVersion: z.number().int().positive().nullable(),
   }),
   z.object({
@@ -261,9 +272,25 @@ const responseTargetHours = z
   .min(1, 'The target must be at least 1 hour')
   .max(720, 'The target must be at most 720 hours (30 days)')
 
-export const organizationResponseTargetFormDto = z.object({
-  durationHours: responseTargetHours,
-})
+export const organizationResponseTargetFormDto = z
+  .object({
+    durationHours: responseTargetHours,
+    /**
+     * Google Review card only. The private-feedback card carries the same
+     * three fields and never sends them, so both cards share one schema and
+     * one form shape.
+     */
+    shortenForLowRatings: z.boolean(),
+    lowRatingThreshold: z.number().int().min(1).max(5),
+    lowRatingHours: responseTargetHours,
+  })
+  .refine(
+    (value) => !value.shortenForLowRatings || value.lowRatingHours <= value.durationHours,
+    {
+      path: ['lowRatingHours'],
+      error: 'The low-rating target must not be longer than the ordinary target',
+    },
+  )
 
 export const privateFeedbackPropertyTargetFormDto = z
   .object({

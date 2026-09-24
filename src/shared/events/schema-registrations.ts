@@ -154,12 +154,15 @@ const primaryStaffAttributionSchema = z
   })
 
 // BQC-3.8: publication cancellation — identifier-only (reply/review/property/
-// org + cause). No reply text, no actor content.
+// org + cause). No reply text, no actor content. `authorId` is the one person
+// who was told the reply was queued to publish, so the notice can reach them;
+// optional because rows recorded before it existed carry no author.
 const replyPublicationCancelledSchema = z.object({
   replyId: databaseUuidSchema,
   reviewId: databaseUuidSchema,
   organizationId: z.string().trim().min(1),
   propertyId: databaseUuidSchema,
+  authorId: z.string().nullable().optional(),
   cause: z.enum(['disconnect', 'policy', 'source_changed', 'provider_truth']),
   occurredAt: z.iso.datetime(),
 })
@@ -276,38 +279,45 @@ const inboxItemStatusChangedSchema = z.object({
 // rows exist for these types. The two compatible inbox schemas
 // (inbox_item.created, inbox_item.status_changed) are unchanged.
 
-const inboxItemEscalatedSchema = z.object({
-  inboxItemId: z.string(),
-  organizationId: z.string(),
+/**
+ * Who acted, where, and when — the tail these corrected Inbox facts share,
+ * in the order they store it. Written once so they cannot be corrected apart
+ * from each other; it stays a shape rather than a schema so each event still
+ * declares its own identifiers first, and so none of them becomes `.strict()`
+ * (an unknown key is a producer ahead of this deploy, not a bad payload).
+ */
+const inboxActorShape = {
   userId: z.string().nullable().optional(),
   propertyId: z.string().nullable().optional(),
   source: z.string().optional(),
   occurredAt: z.string().optional(),
-})
+} as const
 
-const inboxItemEscalationResolvedSchema = z.object({
+/** One Inbox item, and nothing about it beyond the identifiers. */
+const inboxItemEventShape = {
   inboxItemId: z.string(),
   organizationId: z.string(),
-  userId: z.string().nullable().optional(),
-  propertyId: z.string().nullable().optional(),
-  source: z.string().optional(),
-  occurredAt: z.string().optional(),
-})
+  ...inboxActorShape,
+} as const
+
+const inboxItemEscalatedSchema = z.object(inboxItemEventShape)
+
+const inboxItemEscalationResolvedSchema = z.object(inboxItemEventShape)
 
 const inboxNoteAddedSchema = z.object({
   inboxItemId: z.string(),
   noteId: z.string(),
   organizationId: z.string(),
-  userId: z.string().nullable().optional(),
-  propertyId: z.string().nullable().optional(),
-  source: z.string().optional(),
-  occurredAt: z.string().optional(),
+  ...inboxActorShape,
 })
 
 const inboxItemAssignedSchema = z.object({
   inboxItemId: z.string(),
   organizationId: z.string(),
   assignedTo: z.string(),
+  // Who held the item before. Optional: facts recorded before a reassignment
+  // was news to the previous holder do not say.
+  previousAssignee: z.string().nullable().optional(),
   bulkId: z.string().optional(),
   propertyId: z.string().nullable().optional(),
   userId: z.string().optional(),
@@ -337,6 +347,26 @@ const inboxItemBulkStatusChangedSchema = z.object({
   userId: z.string().nullable().optional(),
   propertyId: z.string().nullable().optional(),
   source: z.string().optional(),
+  occurredAt: z.string().optional(),
+})
+
+// One release of a departing or newly ineligible member's assignments:
+// identifiers, a closed reason and a count. No item content of any kind.
+const inboxAssignmentsReleasedSchema = z.object({
+  organizationId: z.string(),
+  userId: z.string().nullable(),
+  releasedFrom: z.string(),
+  releaseReason: z.enum(['member_offboarded', 'member_became_ineligible']),
+  releases: z
+    .array(
+      z.object({
+        propertyId: z.string(),
+        anchorInboxItemId: z.string(),
+        count: z.number().int().min(1),
+      }),
+    )
+    .min(1),
+  count: z.number().int().min(1),
   occurredAt: z.string().optional(),
 })
 
@@ -608,6 +638,16 @@ const propertyRestoredSchema = propertyLifecycleSchema.extend({
 const propertyResponsibilityNeededSchema = z.object({
   propertyId: z.string(),
   organizationId: z.string(),
+  // Whose action opened the gap. Optional: facts recorded before the actor
+  // was excluded from the recipients do not say.
+  actorUserId: z.string().nullable().optional(),
+  occurredAt: z.iso.datetime(),
+})
+
+const propertyResponsibleManagersUpdatedSchema = z.object({
+  propertyId: z.string(),
+  organizationId: z.string(),
+  assignmentCount: z.number().int().nonnegative(),
   occurredAt: z.iso.datetime(),
 })
 
@@ -1022,9 +1062,12 @@ const googleAccountConnectedV3Schema = z.object({
   userId: z.string(),
 })
 
+// `userId` is the admin who disconnected — identifier only, and optional
+// because the recovery reconciler and pre-2026-09-24 rows name no actor.
 const googleAccountDisconnectedSchema = z.object({
   connectionId: z.string(),
   organizationId: z.string(),
+  userId: z.string().nullable().optional(),
 })
 
 // `provider_revoked` is additive: rows written with the two departure causes
@@ -1118,7 +1161,10 @@ const portalResponsibilityNeededV1Schema = z.object({
   occurredAt: z.iso.datetime(),
 })
 
-const portalResponsibilityNeededV2Schema = portalLifecycleFactSchema
+const portalResponsibilityNeededV2Schema = portalLifecycleFactSchema.extend({
+  // Whose action opened the gap; see the Property fact.
+  actorUserId: z.string().nullable().optional(),
+})
 
 const portalResponsibleManagersUpdatedSchema = portalLifecycleFactSchema.extend({
   assignmentCount: z.number().int().nonnegative(),
@@ -1424,6 +1470,11 @@ export function registerAllEventSchemas(): void {
     schema: inboxBulkAssignmentCompletedSchema,
   })
   registerEventSchema({
+    type: 'inbox.inbox_items.assignments_released',
+    version: EVENT_VERSION,
+    schema: inboxAssignmentsReleasedSchema,
+  })
+  registerEventSchema({
     type: 'inbox.inbox_items.bulk_reopen_completed',
     version: EVENT_VERSION,
     schema: inboxBulkReopenCompletedSchema,
@@ -1506,6 +1557,11 @@ export function registerAllEventSchemas(): void {
     type: 'property.google_binding.changed',
     version: EVENT_VERSION,
     schema: propertyGoogleBindingChangedSchema,
+  })
+  registerEventSchema({
+    type: 'property.responsible_managers.updated',
+    version: EVENT_VERSION,
+    schema: propertyResponsibleManagersUpdatedSchema,
   })
   registerEventSchema({
     type: 'property.responsibility_became_needed',

@@ -39,6 +39,13 @@ release, prompts once, with target passed. Archiving a Property cancels its
 unreleased slots (`inbox.on-property-archived`), as Organization closing does,
 and Restore re-arms none of them: a cancelled slot is terminal.
 
+An Organization may give its own low-rated Google reviews a shorter target — a
+star threshold and a shorter duration on the same Google policy row — so their
+reminders fall sooner. This is where a review's rating changes how soon someone
+is prompted: the rating stays here, read from Review's attested target permit,
+and Feed never sees one (ADR 0046 r.8). It is off by default, because
+shortening a target changes which cycles count as late.
+
 ## Runtime
 
 Source lifecycle facts arrive through durable, apply-once consumers. Inbox-owned
@@ -63,19 +70,26 @@ state.
 3. Human mutations compare-and-swap the observed item revision; adding a note
    advances the same fence atomically with its identifier-only fact.
 4. Bulk Close is unavailable. Bulk Reopen accepts at most 100 distinct item/revision pairs, preauthorizes the complete candidate set once, applies compare-and-swap writes in stable Inbox-item-ID order, and reconstructs privacy-safe results in caller order. It commits one identifier-only `inbox.inbox_items.bulk_reopen_completed` fact naming each cycle it opened and stamps its per-item `inbox.handling_cycle.reopened` facts with the bulkId, so notification follows the one command rather than each item, as for bulk assignment.
-5. Generic status commands never close work. Review closure is provider/source-authoritative; a manager closes an open private-feedback cycle only through `markFeedbackHandled` with exactly one controlled outcome.
-6. Outcome corrections append a directly superseding fact under exact item/cycle/source/state/outcome revision fences. They preserve the first completion instant and deadline result, leave the cycle closed, and never alter the source rating.
-7. A source-epoch carry of unchanged Review material advances the head fence in
+5. An offboarding or eligibility release clears a member's assignments, records
+   one identifier-only `inbox.inbox_item.unassigned` fact per item, and commits
+   one grouped `inbox.inbox_items.assignments_released` close fact in the same
+   transaction. That fact groups by Property — an anchor item, a count — never
+   one entry per item: a departing fleet manager's assignments are unbounded. Notification follows the one release, not each item, as for
+   bulk assignment and bulk reopen. Its closed cause is `releaseReason`,
+   because the outbox adapter denylists `reason` as content.
+6. Generic status commands never close work. Review closure is provider/source-authoritative; a manager closes an open private-feedback cycle only through `markFeedbackHandled` with exactly one controlled outcome.
+7. Outcome corrections append a directly superseding fact under exact item/cycle/source/state/outcome revision fences. They preserve the first completion instant and deadline result, leave the cycle closed, and never alter the source rating.
+8. A source-epoch carry of unchanged Review material advances the head fence in
    place; it does not open or reopen a Handling Cycle, change status, or manufacture work.
-8. Provider write acknowledgement and the internal `review.reply.published` lifecycle fact are not Google truth and cannot mutate Inbox status.
-9. A stale/replayed observation cannot close or reopen work twice. An orphan or
-   mismatched compatibility row is repair-visible but never actionable.
-10. List cursors are canonical bounded base64 JSON; malformed values are discarded
+9. Provider write acknowledgement and the internal `review.reply.published` lifecycle fact are not Google truth and cannot mutate Inbox status.
+10. A stale/replayed observation cannot close or reopen work twice. An orphan or
+    mismatched compatibility row is repair-visible but never actionable.
+11. List cursors are canonical bounded base64 JSON; malformed values are discarded
     before SQL and never echoed into logs. Seen watermarks advance monotonically
     only after a successful first page.
-11. Only an exact current live Google observation completes a Review target. Both `confirmed_on_google` and `external_current_live` count as observed-live completion; provider acknowledgement and `review.reply.published` do not.
-12. Analytics never mix Review and feedback targets. Reminders never auto-escalate.
-13. Inbox notes, private feedback, Review or Reply text, contact details, credentials, and raw network values must never enter the Activity projection or replay fact.
+12. Only an exact current live Google observation completes a Review target. Both `confirmed_on_google` and `external_current_live` count as observed-live completion; provider acknowledgement and `review.reply.published` do not.
+13. Analytics never mix Review and feedback targets. Reminders never auto-escalate.
+14. Inbox notes, private feedback, Review or Reply text, contact details, credentials, and raw network values must never enter the Activity projection or replay fact.
 
 ## Verification
 

@@ -38,6 +38,7 @@ import {
 import {
   googleConnectionId,
   inboxItemId,
+  notificationId,
   inboxNoteId,
   invitationId,
   organizationId,
@@ -46,6 +47,9 @@ import {
   replyId,
   reviewId,
   userId,
+  type NotificationId,
+  type OrganizationId,
+  type UserId,
 } from '#/shared/domain/ids'
 import {
   identityBetaFeedbackOutcomeReached,
@@ -55,8 +59,10 @@ import {
   identityOrganizationLifecycleChanged,
 } from '#/contexts/identity/domain/events'
 import {
+  inboxAssignmentsReleased,
   inboxBulkAssignmentCompleted,
   inboxBulkReopenCompleted,
+  inboxHandlingCycleClosed,
   inboxHandlingCycleOpened,
   inboxHandlingCycleReopened,
   inboxItemAssigned,
@@ -68,6 +74,7 @@ import {
 } from '#/contexts/inbox/domain/events'
 import {
   reviewReplyApproved,
+  reviewReplyPublicationCancelled,
   reviewReplyPublished,
   reviewReplyPublishFailed,
   reviewReplyRejected,
@@ -76,14 +83,22 @@ import {
 import {
   portalHealthChanged,
   portalResponsibilityNeeded,
+  portalResponsibleManagersUpdated,
 } from '#/contexts/portal/domain/events'
-import { propertyResponsibilityNeeded } from '#/contexts/property/domain/events'
-import { integrationGoogleAccountReauthorizationRequired } from '#/contexts/integration/domain/events'
+import {
+  propertyResponsibilityNeeded,
+  propertyResponsibleManagersUpdated,
+} from '#/contexts/property/domain/events'
+import {
+  integrationGoogleAccountDisconnected,
+  integrationGoogleAccountReauthorizationRequired,
+} from '#/contexts/integration/domain/events'
 import {
   goalMonthlyResultClosed,
   goalMonthlyResultRevised,
 } from '#/contexts/reporting/domain/goal-events'
 import { BETA_NOTIFICATION_TRIGGER_MATRIX } from '../application/beta-notification-trigger-matrix'
+import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
 import { notificationScopeForType } from '../domain/notification-delivery-policy'
 import type { NotificationType } from '../domain/notification-types'
 import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
@@ -93,9 +108,11 @@ import { registerPortalNotificationConsumers } from './portal-outbox-consumers'
 import { registerPropertyNotificationConsumers } from './property-outbox-consumers'
 import { registerIntegrationNotificationConsumers } from './integration-outbox-consumers'
 import { registerBulkAssignmentNotificationConsumer } from './bulk-assignment-outbox-consumers'
+import { registerAssignmentReleaseNotificationConsumer } from './assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './goal-outbox-consumers'
 import { registerHandlingCycleNotificationConsumers } from './handling-cycle-outbox-consumers'
+import { registerNotificationSettlementConsumers } from './notification-settlement-outbox-consumers'
 import { registerResponseTargetNotificationConsumer } from './response-target-outbox-consumers'
 import { registerPortalHealthNotificationConsumer } from './portal-health-outbox-consumers'
 import {
@@ -120,7 +137,7 @@ import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/
 import type { OutboxRepository } from '#/shared/outbox'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
 import type { Job } from 'bullmq'
-import { URGENT_EMAIL_JOB_NAME } from './jobs/urgent-email.job'
+import { MANDATORY_EMAIL_JOB_NAME, URGENT_EMAIL_JOB_NAME } from './jobs/urgent-email.job'
 
 const ORG = organizationId('org-route-contract')
 const PROPERTY = propertyId('4d1f0c1e-2b7a-4c55-9a51-000000000001')
@@ -144,6 +161,7 @@ const GOAL = {
 } as const
 const ACTOR = userId('user-actor')
 const RECIPIENT = userId('user-recipient')
+const DEPARTING = userId('user-departing')
 const OCCURRED_AT = new Date('2026-09-02T09:00:00.000Z')
 const SCHEDULED_FOR = new Date('2026-09-02T08:00:00.000Z')
 
@@ -231,6 +249,14 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       userId: null,
       openReason: 'material_revision_changed',
     }),
+  'inbox.handling_cycle.closed': () =>
+    inboxHandlingCycleClosed({
+      ...handlingCycleScope,
+      actorType: 'user',
+      userId: ACTOR,
+      closeReason: 'confirmed_on_google',
+      source: 'web',
+    }),
   'inbox.handling_cycle.reopened': () =>
     inboxHandlingCycleReopened({
       ...handlingCycleScope,
@@ -292,6 +318,15 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       ],
       occurredAt: OCCURRED_AT,
     }),
+  'inbox.inbox_items.assignments_released': () =>
+    inboxAssignmentsReleased({
+      organizationId: ORG,
+      userId: ACTOR,
+      releasedFrom: DEPARTING,
+      releaseReason: 'member_offboarded',
+      releases: [{ propertyId: PROPERTY, anchorInboxItemId: ITEM, count: 1 }],
+      occurredAt: OCCURRED_AT,
+    }),
   'inbox.inbox_item.escalated': () =>
     inboxItemEscalated({
       inboxItemId: ITEM,
@@ -331,6 +366,12 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
     reviewReplyPublished({ ...replyFact, userId: ACTOR, authorId: RECIPIENT }),
   'review.reply.publish_failed': () =>
     reviewReplyPublishFailed({ ...replyFact, authorId: RECIPIENT, outcome: 'not_sent' }),
+  'review.reply.publication_cancelled': () =>
+    reviewReplyPublicationCancelled({
+      ...replyFact,
+      authorId: RECIPIENT,
+      cause: 'disconnect',
+    }),
   'portal.responsibility_became_needed': () =>
     portalResponsibilityNeeded({
       portalId: PORTAL,
@@ -357,11 +398,34 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       propertyId: PROPERTY,
       occurredAt: OCCURRED_AT,
     }),
+  'property.responsible_managers.updated': () =>
+    propertyResponsibleManagersUpdated({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      assignmentCount: 1,
+      occurredAt: OCCURRED_AT,
+    }),
+  'portal.responsible_managers.updated': () =>
+    portalResponsibleManagersUpdated({
+      portalId: PORTAL,
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      assignmentCount: 1,
+      sourceAggregateVersion: OCCURRED_AT.toISOString(),
+      occurredAt: OCCURRED_AT,
+    }),
   'integration.google_account.reauthorization_required': () =>
     integrationGoogleAccountReauthorizationRequired({
       connectionId: CONNECTION,
       organizationId: ORG,
       cause: 'member_removed',
+      occurredAt: OCCURRED_AT,
+    }),
+  'integration.google_account.disconnected': () =>
+    integrationGoogleAccountDisconnected({
+      connectionId: CONNECTION,
+      organizationId: ORG,
+      userId: ACTOR,
       occurredAt: OCCURRED_AT,
     }),
   'goal.monthly_result.closed': () =>
@@ -411,6 +475,30 @@ type RouteDeps = ReturnType<typeof createNotificationConsumerDeps> &
     escalationResolutions: EscalationResolutionLookupPort
     monthlyResultFacts: MonthlyResultNotificationFactsLookup
     googleConnectionProperties: GoogleConnectionPropertyLookup
+    notifications: {
+      settleUnreadForResource: ReturnType<
+        typeof vi.fn<
+          (
+            input: Parameters<NotificationRepositoryPort['settleUnreadForResource']>[0],
+          ) => Promise<ReadonlyArray<NotificationId>>
+        >
+      >
+      findRecipientsOfNotice: ReturnType<
+        typeof vi.fn<() => Promise<ReadonlyArray<UserId>>>
+      >
+    }
+    emails: {
+      cancelQueuedForNotifications: ReturnType<
+        typeof vi.fn<
+          (
+            ids: ReadonlyArray<NotificationId>,
+            orgId: OrganizationId,
+            reason: string,
+            at: Date,
+          ) => Promise<number>
+        >
+      >
+    }
   }>
 
 /** Reads that find nothing, for tests that never run a handler. */
@@ -428,6 +516,11 @@ function inertRouteDeps(): RouteDeps {
     googleConnectionProperties: {
       findGoogleNotificationAnchor: vi.fn(async () => null),
     },
+    notifications: {
+      settleUnreadForResource: vi.fn(async () => []),
+      findRecipientsOfNotice: vi.fn(async () => []),
+    },
+    emails: { cancelQueuedForNotifications: vi.fn(async () => 0) },
   }
 }
 
@@ -441,8 +534,10 @@ function registerNotificationRoutes(
   registerNotificationConsumers(registry, deps)
   registerWorkflowNotificationConsumers(registry, deps)
   registerBulkAssignmentNotificationConsumer(registry, deps)
+  registerAssignmentReleaseNotificationConsumer(registry, deps)
   registerEscalationResolutionNotificationConsumer(registry, deps)
   registerHandlingCycleNotificationConsumers(registry, deps)
+  registerNotificationSettlementConsumers(registry, deps)
   registerResponseTargetNotificationConsumer(registry, deps)
   registerGoalNotificationConsumer(registry, deps)
   registerPortalNotificationConsumers(registry, deps)
@@ -473,6 +568,19 @@ function urgentEmailJob(scope: Readonly<{ propertyId?: string }>) {
       organizationId: ORG,
       ...scope,
       capability: 'notification.send_email',
+      initiator: { kind: 'system', id: 'notification:urgent-enqueue' },
+      correlationId: 'notification-email:4d1f0c1e-2b7a-4c55-9a51-000000000012',
+    }),
+  }
+}
+
+/** The same job for an Organization-scoped mandatory notice, which has its own gate. */
+function mandatoryEmailJob() {
+  return {
+    notificationEmailId: '4d1f0c1e-2b7a-4c55-9a51-000000000012',
+    ...createJobExecutionEnvelope({
+      organizationId: ORG,
+      capability: 'notification.send_mandatory_email',
       initiator: { kind: 'system', id: 'notification:urgent-enqueue' },
       correlationId: 'notification-email:4d1f0c1e-2b7a-4c55-9a51-000000000012',
     }),
@@ -539,8 +647,8 @@ describe('every beta notification route passes the delayed execution gate', () =
 
   it('allows the immediate email of an Organization notice and of a Property one', async () => {
     const organizationNotice = await gateJob(
-      URGENT_EMAIL_JOB_NAME,
-      urgentEmailJob({}),
+      MANDATORY_EMAIL_JOB_NAME,
+      mandatoryEmailJob(),
       'worker:default',
       'worker',
     )
@@ -554,10 +662,71 @@ describe('every beta notification route passes the delayed execution gate', () =
     expect(organizationNotice.decision.reason).toBe('allowed')
     expect(propertyNotice.decision.reason).toBe('allowed')
   })
+
+  it('sends a mandatory notice from an Organization the email allowlist does not admit', async () => {
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
+
+    const mandatoryNotice = await gateJob(
+      MANDATORY_EMAIL_JOB_NAME,
+      mandatoryEmailJob(),
+      'worker:default',
+      'worker',
+    )
+    const optionalNotice = await gateJob(
+      URGENT_EMAIL_JOB_NAME,
+      urgentEmailJob({ propertyId: PROPERTY }),
+      'worker:default',
+      'worker',
+    )
+
+    // A final deletion warning nobody receives is worse than an extra email;
+    // ordinary product mail still waits for the allowlist.
+    expect(mandatoryNotice.decision.reason).toBe('allowed')
+    expect(optionalNotice.decision.reason).toBe('org_not_allowlisted')
+  })
+
+  it('still stops mandatory mail for the environment stop and for a suspended tenant', async () => {
+    initCapabilityPolicyStore(
+      createEnvCapabilityPolicyStore({
+        BETA_ALLOWLIST_ORGS: ORG,
+        BETA_SUSPENDED_ORGS: ORG,
+      }),
+    )
+    const suspended = await gateJob(
+      MANDATORY_EMAIL_JOB_NAME,
+      mandatoryEmailJob(),
+      'worker:default',
+      'worker',
+    )
+
+    initCapabilityPolicyStore(
+      createEnvCapabilityPolicyStore({ BETA_CAPABILITIES_OFF: 'all' }),
+    )
+    const stopped = await gateJob(
+      MANDATORY_EMAIL_JOB_NAME,
+      mandatoryEmailJob(),
+      'worker:default',
+      'worker',
+    )
+
+    expect(suspended.decision.reason).toBe('org_suspended')
+    expect(stopped.decision.reason).toBe('capability_disabled')
+  })
 })
 
 const MANAGER = userId('user-manager')
 const ADMIN = userId('user-admin')
+const SETTLED_NOTIFICATION = notificationId('4d1f0c1e-2b7a-4c55-9a51-000000000013')
+
+/**
+ * What each settling route's notices point at. Reply and Inbox notices are
+ * filed against the Inbox item; a "choose a responsible manager" request
+ * against the scope that had the gap.
+ */
+const SETTLED_RESOURCE: Readonly<Record<string, string>> = {
+  'property.responsible_managers.updated': PROPERTY,
+  'portal.responsible_managers.updated': PORTAL,
+}
 
 /** Reads that find each route's subject still current, so every route has work. */
 function currentRouteDeps(): RouteDeps {
@@ -584,6 +753,7 @@ function currentRouteDeps(): RouteDeps {
     assignmentId: GOAL.assignmentId,
     monthlyResultId: GOAL.monthlyResultId,
     programName: 'Monthly rating goal',
+    periodMonth: '2026-10',
     subject: { kind: 'property', propertyId: PROPERTY },
   } as const
   deps.userLookup.findByRole.mockResolvedValue([ADMIN])
@@ -599,6 +769,7 @@ function currentRouteDeps(): RouteDeps {
     targetKind: 'google_review_response',
     reminderKind: 'target_passed',
     scheduledFor: SCHEDULED_FOR,
+    dueAt: SCHEDULED_FOR,
   })
   return {
     ...deps,
@@ -626,6 +797,11 @@ function currentRouteDeps(): RouteDeps {
     googleConnectionProperties: {
       findGoogleNotificationAnchor: vi.fn(async () => PROPERTY),
     },
+    notifications: {
+      settleUnreadForResource: vi.fn(async () => [SETTLED_NOTIFICATION]),
+      findRecipientsOfNotice: vi.fn(async () => []),
+    },
+    emails: { cancelQueuedForNotifications: vi.fn(async () => 1) },
   }
 }
 
@@ -734,6 +910,28 @@ const NO_NOTICE: Readonly<
       }),
     status: 'applied',
   },
+  'property.responsible_managers.updated': {
+    fact: () =>
+      propertyResponsibleManagersUpdated({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        assignmentCount: 0,
+        occurredAt: OCCURRED_AT,
+      }),
+    status: 'applied',
+  },
+  'portal.responsible_managers.updated': {
+    fact: () =>
+      portalResponsibleManagersUpdated({
+        portalId: PORTAL,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        assignmentCount: 0,
+        sourceAggregateVersion: OCCURRED_AT.toISOString(),
+        occurredAt: OCCURRED_AT,
+      }),
+    status: 'applied',
+  },
   'portal.health.changed': {
     fact: () =>
       portalHealthChanged({
@@ -795,7 +993,45 @@ describe('every beta notification route queues its notice from its real producer
     ).toEqual([])
   })
 
-  for (const route of BETA_NOTIFICATION_TRIGGER_MATRIX) {
+  for (const route of BETA_NOTIFICATION_TRIGGER_MATRIX.filter(
+    (candidate) => candidate.settles !== undefined,
+  )) {
+    it(`${route.eventType}: ${route.consumerName} retires its notices durably`, async () => {
+      const deps = currentRouteDeps()
+
+      const { envelope, receipts, gateDenials, queued } = await dispatch(
+        PRODUCED_FACTS[route.eventType]!(),
+        deps,
+      )
+
+      // A settling route announces nothing; it retires the notices that
+      // asked for the work, and cancels the mail queued behind them.
+      expect(gateDenials).toEqual([])
+      expect(queued.filter((job) => (route.settles ?? []).includes(job.type))).toEqual([])
+      expect(deps.notifications.settleUnreadForResource).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: envelope.organizationId,
+          types: route.settles,
+          resourceId: SETTLED_RESOURCE[route.eventType] ?? ITEM,
+        }),
+      )
+      expect(deps.emails.cancelQueuedForNotifications).toHaveBeenCalledWith(
+        [SETTLED_NOTIFICATION],
+        envelope.organizationId,
+        expect.any(String),
+        expect.any(Date),
+      )
+      expect(receipts).toContainEqual({
+        eventId: envelope.eventId,
+        consumerName: route.consumerName,
+        status: 'applied',
+      })
+    })
+  }
+
+  for (const route of BETA_NOTIFICATION_TRIGGER_MATRIX.filter(
+    (candidate) => candidate.settles === undefined,
+  )) {
     it(`${route.eventType}: ${route.consumerName} queues its notification durably`, async () => {
       const { envelope, receipts, gateDenials, queued } = await dispatch(
         PRODUCED_FACTS[route.eventType]!(),
@@ -856,36 +1092,56 @@ describe('every beta notification route queues its notice from its real producer
 })
 
 /**
- * The gate admits Purge Pending and the bridge queues its notice durably, but
- * the delivery-time recipient check still refuses it: the notice goes to every
- * AccountAdmin with no Property, and the check admits a Property-less notice
- * only for an affected Organization user. Which audience the mandatory final
- * notice should have is an open product decision; its producer schedule is
- * quarantined meanwhile. Deciding it makes this test fail — then the route
- * joins the ones above.
+ * The last warning before an irreversible deletion has no Property, and the
+ * delivery-time check used to admit a Property-less notice only for an
+ * affected Organization user — so this route reached nobody. The AccountAdmin
+ * role is held at the Organization, so it is now re-read there.
  */
-describe('a route whose notice the recipient check still refuses', () => {
-  it('identity.organization_lifecycle.changed: Purge Pending reaches no AccountAdmin', async () => {
-    const deps = currentRouteDeps()
-    const { queued } = await dispatch(
-      PRODUCED_FACTS['identity.organization_lifecycle.changed']!(),
-      deps,
-    )
-    const authorize = createNotificationAudienceAuthorizer({
+describe('the Purge Pending final notice reaches its AccountAdmins', () => {
+  const authorizerFor = (deps: RouteDeps) =>
+    createNotificationAudienceAuthorizer({
       ...deps,
       portalHealthLookup: {
         findPortalHealthNotificationFacts: vi.fn(async () => null),
       },
       organizationAccountAuthority: {
-        isAffectedRecipient: vi.fn(async () => true),
+        isAffectedRecipient: vi.fn(async () => false),
       },
     })
+
+  it('identity.organization_lifecycle.changed: every queued admin still passes the check', async () => {
+    const deps = currentRouteDeps()
+    const { queued } = await dispatch(
+      PRODUCED_FACTS['identity.organization_lifecycle.changed']!(),
+      deps,
+    )
+    const authorize = authorizerFor(deps)
 
     // Every queued recipient is a current AccountAdmin.
     expect(queued.map((job) => job.userId)).toEqual([ADMIN])
     for (const job of queued) {
       await expect(
         authorize({
+          userId: job.userId,
+          organizationId: job.organizationId,
+          propertyId: job.propertyId,
+          audience: parseNotificationAudience(job.audience)!,
+        }),
+      ).resolves.toBe(true)
+    }
+  })
+
+  it('refuses the notice for someone who has lost the role since it was queued', async () => {
+    const deps = currentRouteDeps()
+    const { queued } = await dispatch(
+      PRODUCED_FACTS['identity.organization_lifecycle.changed']!(),
+      deps,
+    )
+    deps.userLookup.findByRole.mockResolvedValue([])
+
+    for (const job of queued) {
+      await expect(
+        authorizerFor(deps)({
           userId: job.userId,
           organizationId: job.organizationId,
           propertyId: job.propertyId,

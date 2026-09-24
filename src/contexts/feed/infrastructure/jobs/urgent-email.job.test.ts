@@ -67,7 +67,17 @@ function fakeDeps() {
       isAddressSuppressed: vi.fn(async (_address: string) => false),
     },
     preferenceRepo: {
-      findForDelivery: vi.fn(async () => null),
+      resolveForDelivery: vi.fn(async () => ({
+        enabled: true,
+        cadence: 'immediate' as const,
+      })),
+      // Quiet hours are the person's, with a Property override applied by the
+      // resolver (ADR 0046, amended 2026-09-23).
+      resolveDeliveryWindow: vi.fn(async () => ({
+        quietHoursStart: null,
+        quietHoursEnd: null,
+        urgentBypassEnabled: false,
+      })),
       getUserSettings: vi.fn(async () => null),
     },
     notifRepo: {
@@ -222,7 +232,10 @@ describe('immediate notification email job', () => {
   })
 
   it('suppresses delivery when the current property preference is disabled', async () => {
-    deps.preferenceRepo.findForDelivery.mockResolvedValue({ enabled: false } as never)
+    deps.preferenceRepo.resolveForDelivery.mockResolvedValue({
+      enabled: false,
+      cadence: 'immediate',
+    } as never)
     await run()
     expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
       entry.id,
@@ -462,7 +475,8 @@ describe('immediate notification email job', () => {
     // `organization_access_removed` is addressed to someone no longer a member.
     expect(deps.isRecipientEligible).not.toHaveBeenCalled()
     expect(deps.emailRepo.recordEmailUnsubscribeScope).not.toHaveBeenCalled()
-    expect(deps.preferenceRepo.findForDelivery).not.toHaveBeenCalled()
+    expect(deps.preferenceRepo.resolveForDelivery).not.toHaveBeenCalled()
+    expect(deps.preferenceRepo.resolveDeliveryWindow).not.toHaveBeenCalled()
     expect(deps.preferenceRepo.getUserSettings).not.toHaveBeenCalled()
     expect(deps.emailRepo.markAccepted).toHaveBeenCalledWith(
       mandatoryEntry.id,
@@ -474,6 +488,46 @@ describe('immediate notification email job', () => {
     expect(sentPayload().headers).toEqual({})
     expect(sentPayload().html).not.toContain('/settings/notifications')
     expect(sentPayload().text).not.toContain('/settings/notifications')
+    // Nothing about an access-removed notice is answerable by mail.
+    expect(sentPayload().replyTo).toBeUndefined()
+  })
+
+  it('makes the final deletion notice answerable by replying to it', async () => {
+    const mandatoryEntry = buildNotificationEmail({
+      id: 'email-1',
+      propertyId: null,
+      category: 'mandatory',
+      cadence: 'immediate',
+      priority: 'urgent',
+    })
+    deps.emailRepo.findById.mockResolvedValue(mandatoryEntry)
+    deps.notifRepo.findById.mockResolvedValue(
+      buildNotification({
+        propertyId: null,
+        type: 'account.organization_purge_pending',
+        category: 'mandatory',
+        priority: 'urgent',
+        resourceType: 'organization',
+        resourceId: ORG,
+      }),
+    )
+
+    await createUrgentEmailJobHandler(
+      deps as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+    )({
+      data: {
+        notificationEmailId: mandatoryEntry.id as string,
+        organizationId: ORG as string,
+        capability: 'notification.send_email',
+        policyVersionAtEnqueue: 'test',
+        initiator: { kind: 'system', id: 'test' },
+      } as unknown as UrgentEmailJobData,
+    })
+
+    // The copy tells the reader to answer this email; the header has to make
+    // that land somewhere a person reads.
+    expect(sentPayload().replyTo).toBe('denev@kodes.agency')
+    expect(sentPayload().text).toContain('denev@kodes.agency')
   })
 
   it('lets a mandatory notice through a closing Organization until it is purged', async () => {
@@ -530,8 +584,7 @@ describe('immediate notification email job', () => {
     deps.preferenceRepo.getUserSettings.mockResolvedValue({
       timezone: 'Europe/Sofia',
     } as never)
-    deps.preferenceRepo.findForDelivery.mockResolvedValue({
-      enabled: true,
+    deps.preferenceRepo.resolveDeliveryWindow.mockResolvedValue({
       quietHoursStart: '16:00',
       quietHoursEnd: '08:00',
       urgentBypassEnabled: false,
@@ -550,8 +603,7 @@ describe('immediate notification email job', () => {
   it('falls back to the organization timezone when the user never chose one', async () => {
     // 15:00Z is 15:00 in London. Quiet hours 14:00-08:00 defer there but not
     // in New York (10:00), so the deferral proves which clock was used.
-    deps.preferenceRepo.findForDelivery.mockResolvedValue({
-      enabled: true,
+    deps.preferenceRepo.resolveDeliveryWindow.mockResolvedValue({
       quietHoursStart: '14:00',
       quietHoursEnd: '08:00',
       urgentBypassEnabled: false,
@@ -567,6 +619,47 @@ describe('immediate notification email job', () => {
       }),
       'Urgent notification email deferred',
     )
+  })
+
+  // ── ADR 0046 amended 2026-09-23: the person's own window ──────────
+
+  it("holds the mail in the person's own window, asked for THIS property", async () => {
+    // The window is one setting for every property, so one save silences
+    // 03:00 email everywhere. It used to be read from the (property, category,
+    // channel) preference row, which needed about sixty saves to say the same.
+    deps.preferenceRepo.resolveDeliveryWindow.mockResolvedValue({
+      quietHoursStart: '16:00',
+      quietHoursEnd: '08:00',
+      urgentBypassEnabled: false,
+    } as never)
+    deps.preferenceRepo.getUserSettings.mockResolvedValue({
+      timezone: 'Europe/Sofia',
+    } as never)
+
+    await run()
+
+    expect(deps.preferenceRepo.resolveDeliveryWindow).toHaveBeenCalledWith(
+      entry.userId,
+      ORG,
+      PROPERTY,
+    )
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  it('sends inside quiet hours when the person allows urgent mail through', async () => {
+    deps.preferenceRepo.getUserSettings.mockResolvedValue({
+      timezone: 'Europe/Sofia',
+    } as never)
+    deps.preferenceRepo.resolveDeliveryWindow.mockResolvedValue({
+      quietHoursStart: '16:00',
+      quietHoursEnd: '08:00',
+      urgentBypassEnabled: true,
+    } as never)
+
+    await run()
+
+    expect(deps.emailRepo.markDelayed).not.toHaveBeenCalled()
+    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
   })
 
   // ── ADR 0046 r.6: bounced recipients ──────────────────────────────
@@ -586,6 +679,65 @@ describe('immediate notification email job', () => {
       NOW,
     )
     expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  // ── The work may already be done ──────────────────────────────────
+  //
+  // A reply approved at 23:00 still produced a 07:00 "Approve a reply" email:
+  // the send re-checked the recipient's scope, never the state of the work.
+
+  it('holds back an approval request whose reply was already decided', async () => {
+    deps.notifRepo.findByIdForProperty.mockResolvedValue(
+      buildNotification({
+        propertyId: PROPERTY as string,
+        type: 'reply.pending_approval',
+        category: 'urgent_operational',
+        priority: 'urgent',
+        resolvedAt: new Date('2026-01-15T14:00:00.000Z'),
+      }),
+    )
+
+    await run()
+
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      PROPERTY,
+      'work_no_longer_waiting',
+      NOW,
+    )
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  it('holds back an approval request the reader already read in the app', async () => {
+    deps.notifRepo.findByIdForProperty.mockResolvedValue(
+      buildNotification({
+        propertyId: PROPERTY as string,
+        type: 'reply.pending_approval',
+        category: 'urgent_operational',
+        priority: 'urgent',
+        status: 'read',
+      }),
+    )
+
+    await run()
+
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  it('still mails a failed publication nobody has settled', async () => {
+    deps.notifRepo.findByIdForProperty.mockResolvedValue(
+      buildNotification({
+        propertyId: PROPERTY as string,
+        type: 'reply.publish_failed',
+        category: 'urgent_operational',
+        priority: 'urgent',
+      }),
+    )
+
+    await run()
+
+    expect(deps.emailSender.send).toHaveBeenCalled()
   })
 
   // ── No invisible failure ──────────────────────────────────────────

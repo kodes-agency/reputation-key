@@ -38,6 +38,8 @@ export const NOTIFICATION_TYPES = [
   'reply.rejected',
   'reply.published',
   'reply.publish_failed',
+  // An approved reply was returned to draft before Google ever saw it.
+  'reply.publication_cancelled',
   // Inbox triage
   'inbox.escalated',
   'inbox.escalation_resolved',
@@ -47,12 +49,18 @@ export const NOTIFICATION_TYPES = [
   'inbox.response_target_passed',
   'inbox.assigned',
   'inbox.bulk_assigned',
+  // A departing or newly ineligible member's items now belong to nobody.
+  'inbox.assignments_released',
+  /** The item moved to somebody else; the previous holder is told (I15). */
+  'inbox.unassigned',
   'inbox_note.added',
   // Portal operations
   'portal.responsibility_needed',
   'portal.health_attention',
   'property.responsibility_needed',
   'integration.reauthorization_required',
+  // Somebody deliberately disconnected the Organization's Google account.
+  'integration.google_disconnected',
   // Goal events
   'goal.completed',
   'goal.result_revised',
@@ -141,6 +149,13 @@ export type Notification = Readonly<{
   coalescedCount: number
   /** When the most recent absorbed event arrived. Null when never coalesced. */
   coalescedLatestAt: Date | null
+  /**
+   * When the work this notice asked for was finished upstream. Read is not
+   * resolved (docs/BETA.md): a resolved row keeps its status, leaves the
+   * unread count, and says so to its reader. Null on every notice that never
+   * asked for work, and on one whose work is still waiting.
+   */
+  resolvedAt: Date | null
   readAt: Date | null
   createdAt: Date
   updatedAt: Date
@@ -194,21 +209,60 @@ export type NotificationPreference = Readonly<{
   channel: NotificationChannel
   enabled: boolean
   cadence: NotificationCadence
-  urgentBypassEnabled: boolean
-  quietHoursStart: string | null
-  quietHoursEnd: string | null
   createdAt: Date
   updatedAt: Date
 }>
 
-export type NotificationUserSettings = Readonly<{
+/**
+ * When email is held back, and whether urgent mail may go anyway. A person's
+ * own setting (ADR 0046 amended 2026-09-23), or a Property override of it.
+ * Both times are `HH:mm`, both present or both absent.
+ */
+export type PersonalDeliveryWindow = Readonly<{
+  quietHoursStart: string | null
+  quietHoursEnd: string | null
+  urgentBypassEnabled: boolean
+}>
+
+/**
+ * One Property that is deliberately different from the person's own window.
+ * The row's existence IS the override, so a row with no times means "never
+ * hold email back here".
+ */
+export type NotificationPropertyDeliveryWindow = PersonalDeliveryWindow &
+  Readonly<{
+    userId: UserId
+    organizationId: OrganizationId
+    propertyId: PropertyId
+    createdAt: Date
+    updatedAt: Date
+  }>
+
+/**
+ * What a Property with no row of its own inherits for one (category, channel):
+ * the person's answer for every Property they have and every Property they are
+ * given next.
+ */
+export type NotificationCategoryDefault = Readonly<{
   userId: UserId
   organizationId: OrganizationId
-  locale: string
-  timezone: string
+  category: ConfigurableNotificationCategory
+  channel: NotificationChannel
+  enabled: boolean
+  cadence: NotificationCadence
   createdAt: Date
   updatedAt: Date
 }>
+
+export type NotificationUserSettings = PersonalDeliveryWindow &
+  Readonly<{
+    userId: UserId
+    organizationId: OrganizationId
+    locale: string
+    timezone: string
+    createdAt: Date
+    updatedAt: Date
+  }>
 
 /**
  * Where the notification clock's timezone comes from (ADR 0046 r.3): the
@@ -217,16 +271,17 @@ export type NotificationUserSettings = Readonly<{
 export type NotificationTimezoneSource = 'user' | 'organization' | 'default'
 
 /**
- * The language and IANA timezone notifications actually use for one
- * (user, Organization): quiet hours, the 08:00 digest, and every timestamp.
- * A user who never saved a timezone gets their Organization's, never a silent
- * UTC.
+ * What notifications actually use for one (user, Organization): the language
+ * and IANA timezone behind the 08:00 digest and every timestamp, and the
+ * person's own quiet hours and urgent bypass. A user who never saved a
+ * timezone gets their Organization's, never a silent UTC.
  */
-export type EffectiveNotificationSettings = Readonly<{
-  locale: string
-  timezone: string
-  timezoneSource: NotificationTimezoneSource
-}>
+export type EffectiveNotificationSettings = PersonalDeliveryWindow &
+  Readonly<{
+    locale: string
+    timezone: string
+    timezoneSource: NotificationTimezoneSource
+  }>
 
 // ── Urgent types (Q9 decision) ──────────────────────────────────────
 
@@ -237,6 +292,11 @@ export const URGENT_TYPES: ReadonlySet<NotificationType> = new Set([
   'portal.responsibility_needed',
   'property.responsibility_needed',
   'integration.reauthorization_required',
+  // The last chance anybody has to stop an irreversible erasure. The other
+  // account notices report something already done and stay calm; this one asks
+  // for an answer, so it carries the Urgent badge and appears under the Urgent
+  // filter. Mandatory mail never waits for quiet hours either way.
+  'account.organization_purge_pending',
 ])
 
 export const isUrgent = (type: NotificationType): boolean => URGENT_TYPES.has(type)

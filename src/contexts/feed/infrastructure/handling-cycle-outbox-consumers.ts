@@ -28,7 +28,7 @@ import type {
   NotificationAudience,
 } from '../application/notification-audience'
 import type { HandlingCycleNotificationFacts } from '../application/ports/notification-inbox-item-lookup.port'
-import { resolveInboxResponsibleRecipients } from '../application/responsible-recipients'
+import { resolveHandlingCycleRecipients } from '../application/responsible-recipients'
 import type { InboxFanoutDeps } from './inbox-notification-fanout'
 import { buildInboxItemPayload } from './notification-payload-facts'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
@@ -176,13 +176,17 @@ export async function handleNotificationHandlingCycle(
   }
 
   const actorUserId: UserId | null = payload.userId ? userId(payload.userId) : null
-  const recipients = (await resolveInboxResponsibleRecipients(deps, orgId, facts)).filter(
+  const recipients = (await resolveHandlingCycleRecipients(deps, orgId, facts)).filter(
     (recipient) => recipient !== actorUserId,
   )
   const notificationPayload = await buildInboxItemPayload(deps, {
     inboxItemId: itemId,
     orgId,
     actorId: actorUserId,
+    // Why it is open again, in the event's own closed enum. The free-text
+    // explanation beside it stays in Inbox and never crosses (ADR 0046 r.8).
+    reopenReason:
+      notificationType === 'inbox.reopened' ? payload.reopenReason : undefined,
   })
   const audience: NotificationAudience = {
     kind: 'handling_cycle',
@@ -296,7 +300,7 @@ async function groupByRecipientAndProperty(
   current: ReadonlyArray<CurrentBulkCycle>,
 ): Promise<ReadonlyArray<RecipientGroup>> {
   const recipientsPerItem = await Promise.all(
-    current.map(({ facts }) => resolveInboxResponsibleRecipients(deps, orgId, facts)),
+    current.map(({ facts }) => resolveHandlingCycleRecipients(deps, orgId, facts)),
   )
   const groups = new Map<string, RecipientGroup>()
   current.forEach(({ cycle, facts }, index) => {
