@@ -138,6 +138,67 @@ describe('Property responsible manager repository', () => {
     ])
   })
 
+  // I17: the admin who removed the manager was sent an urgent email per
+  // Property asking them to fix work they had just caused.
+  it('names the admin who released the last manager, so they are not asked to fix it', async () => {
+    const repo = createPropertyResponsibleManagerRepository(getDb())
+    await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      managerUserIds: ['manager-1'],
+      expectedRevision: 1,
+      actorId: 'admin-1',
+      at: CHANGE,
+      responsibilityNeededEvent: recoveryEvent(CHANGE),
+    })
+
+    await repo.releaseForUser({
+      organizationId: ORG,
+      userId: 'manager-1',
+      at: UNASSIGNED,
+      endReason: 'manager_offboarded',
+      actorId: 'admin-1',
+    })
+
+    const facts = await pool.query(
+      `SELECT payload->>'actorUserId' AS actor
+         FROM outbox_events
+        WHERE organization_id = $1
+          AND event_type = 'property.responsibility_became_needed'`,
+      [ORG],
+    )
+    expect(facts.rows.map((row) => row.actor)).toEqual(['admin-1'])
+  })
+
+  it('names nobody when a system reconcile released the last manager', async () => {
+    const repo = createPropertyResponsibleManagerRepository(getDb())
+    await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      managerUserIds: ['manager-1'],
+      expectedRevision: 1,
+      actorId: 'admin-1',
+      at: CHANGE,
+      responsibilityNeededEvent: recoveryEvent(CHANGE),
+    })
+
+    await repo.releaseForUser({
+      organizationId: ORG,
+      userId: 'manager-1',
+      at: UNASSIGNED,
+      endReason: 'manager_offboarded',
+    })
+
+    const facts = await pool.query(
+      `SELECT payload->>'actorUserId' AS actor
+         FROM outbox_events
+        WHERE organization_id = $1
+          AND event_type = 'property.responsibility_became_needed'`,
+      [ORG],
+    )
+    expect(facts.rows.map((row) => row.actor)).toEqual([null])
+  })
+
   it('records the selection change, so a gap that closed can be told from one that opened', async () => {
     const repo = createPropertyResponsibleManagerRepository(getDb())
 

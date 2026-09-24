@@ -49,6 +49,11 @@ import { resolveReplyApprovalRecipients } from '../application/reply-approval-re
 import type { ReplyApprovalAuthorityPort } from '../application/ports/reply-approval-authority.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 import type { NotificationAudience } from '../application/notification-audience'
+import {
+  isRecordPayload,
+  nullableString as nullablePayloadString,
+  requiredString as requiredPayloadString,
+} from './outbox-payload-fields'
 
 export const WORKFLOW_NOTIFICATION_CONSUMERS = [
   {
@@ -529,6 +534,8 @@ async function enqueuePublishFailedNotification(
   )
 }
 
+/** Named in every malformed-payload failure these routes raise. */
+const SUBJECT = 'workflow notification'
 /**
  * A publication that was cancelled after approval is silent everywhere else:
  * the reply is back in draft, and the author was last told it was queued to
@@ -610,31 +617,11 @@ async function enqueuePublicationCancelledNotifications(
   )
 }
 
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
+const requiredString = (payload: Readonly<Record<string, unknown>>, key: string) =>
+  requiredPayloadString(payload, key, SUBJECT)
 
-const requiredString = (
-  payload: Readonly<Record<string, unknown>>,
-  key: string,
-): string => {
-  const value = payload[key]
-  if (typeof value !== 'string' || value.length === 0) {
-    throw new Error(`workflow notification payload is missing ${key}`)
-  }
-  return value
-}
-
-const nullableString = (
-  payload: Readonly<Record<string, unknown>>,
-  key: string,
-): string | null => {
-  const value = payload[key]
-  if (value === null || value === undefined) return null
-  if (typeof value !== 'string' || value.length === 0) {
-    throw new Error(`workflow notification payload has invalid ${key}`)
-  }
-  return value
-}
+const nullableString = (payload: Readonly<Record<string, unknown>>, key: string) =>
+  nullablePayloadString(payload, key, SUBJECT)
 
 const occurredAt = (
   event: ConsumerEvent,
@@ -730,7 +717,7 @@ const parseReplyDecision = (
 
 function parseWorkflowEvent(event: ConsumerEvent): WorkflowEvent {
   const parsed = validateEventPayload(event.eventType, event.eventVersion, event.payload)
-  if (!isRecord(parsed)) {
+  if (!isRecordPayload(parsed)) {
     throw new Error('workflow notification payload must be an object')
   }
   validateAttribution(event, parsed)

@@ -243,6 +243,45 @@ describe('portal responsible manager repository', () => {
     )
   })
 
+  // I17: the admin who removed the manager was sent an urgent email per
+  // Portal asking them to fix work they had just caused.
+  it('names the admin who released the last manager of a Portal', async () => {
+    const db = getDb()
+    await createPostgresPortalFixtureStore(db).insert(
+      organizationId(ORG),
+      portal(),
+      userId('admin-1'),
+    )
+    const repo = createPortalResponsibleManagerRepository(db)
+    await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      managerUserIds: ['manager-1'],
+      expectedRevision: 1,
+      actorId: 'admin-1',
+      at: CHANGE,
+    })
+
+    await repo.releaseForUser({
+      organizationId: ORG,
+      userId: 'manager-1',
+      at: UNASSIGNED,
+      endReason: 'manager_offboarded',
+      actorId: 'admin-1',
+    })
+
+    const facts = await pool.query(
+      `SELECT payload->>'actorUserId' AS actor
+         FROM outbox_events
+        WHERE organization_id = $1
+          AND event_type = 'portal.responsibility_became_needed'
+          AND payload->>'occurredAt' = $2`,
+      [ORG, UNASSIGNED.toISOString()],
+    )
+    expect(facts.rows.map((row) => row.actor)).toEqual(['admin-1'])
+  })
+
   it('records one resulting-count fact per Portal when a multi-Portal release leaves a manager', async () => {
     const db = getDb()
     const fixtureStore = createPostgresPortalFixtureStore(db)

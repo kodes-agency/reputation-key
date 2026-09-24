@@ -634,6 +634,9 @@ const propertyRestoredSchema = propertyLifecycleSchema.extend({
 const propertyResponsibilityNeededSchema = z.object({
   propertyId: z.string(),
   organizationId: z.string(),
+  // Whose action opened the gap. Optional: facts recorded before the actor
+  // was excluded from the recipients do not say.
+  actorUserId: z.string().nullable().optional(),
   occurredAt: z.iso.datetime(),
 })
 
@@ -1154,7 +1157,10 @@ const portalResponsibilityNeededV1Schema = z.object({
   occurredAt: z.iso.datetime(),
 })
 
-const portalResponsibilityNeededV2Schema = portalLifecycleFactSchema
+const portalResponsibilityNeededV2Schema = portalLifecycleFactSchema.extend({
+  // Whose action opened the gap; see the Property fact.
+  actorUserId: z.string().nullable().optional(),
+})
 
 const portalResponsibleManagersUpdatedSchema = portalLifecycleFactSchema.extend({
   assignmentCount: z.number().int().nonnegative(),

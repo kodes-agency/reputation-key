@@ -496,6 +496,30 @@ never told the item had moved on.
   produces no assignment fact and therefore stays silent, and a claim tells
   nobody, because the claimant is both actor and previous holder.
 
+## Amended 2026-09-24 — nobody is asked to fix the gap they just opened
+
+Removing a manager who owned ten Properties sent every AccountAdmin ten urgent
+"choose a responsible manager" emails — the removing admin included.
+
+`property.responsibility_became_needed` and `portal.responsibility_became_needed`
+now name the actor whose release opened the gap, threaded from the
+member-authority seam through both release paths. The fan-out drops that
+person, exactly as every other route drops its own actor. A system reconcile
+names nobody, so every AccountAdmin is still asked.
+
+The `responsibility_gap` audience already re-checks the gap at delivery: a
+manager chosen in between retires the notice, and the settlement route above
+retires its in-app row. A failed publication whose author can no longer act on
+the Property already falls back to the Property's responsible managers, and to
+the AccountAdmins when none is eligible.
+
+Still open (I17): grouping one offboarding's fallout into a single notice per
+recipient that names the affected Properties and Portals. That notice belongs
+to the Organization, not to any one Property, and invariant 6 of the Feed
+CONTEXT admits exactly one non-mandatory Organization-scoped type — a second
+one needs its own ADR and a CHECK change, plus a grouped upstream fact that
+spans the Property and Portal release paths.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

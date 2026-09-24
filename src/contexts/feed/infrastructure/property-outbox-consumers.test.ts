@@ -107,6 +107,46 @@ describe('Property notification durable consumer', () => {
     )
   })
 
+  // I17: removing a manager who owned ten Properties sent the removing admin
+  // ten identical urgent emails about work they had just caused.
+  it('never asks the admin whose own action opened the gap', async () => {
+    const deps = makeDeps()
+    deps.fakes.userLookup.findByRole.mockResolvedValue([
+      NOTIF_TEST_IDS.admin1,
+      NOTIF_TEST_IDS.admin2,
+    ])
+
+    await handleNotificationPropertyResponsibilityNeeded(
+      deps,
+      event({
+        payload: {
+          organizationId: unbrand(NOTIF_TEST_IDS.orgId),
+          propertyId: unbrand(NOTIF_TEST_IDS.propId),
+          actorUserId: unbrand(NOTIF_TEST_IDS.admin1),
+          occurredAt: NOTIF_TEST_IDS.now.toISOString(),
+        },
+      }),
+    )
+
+    expect(deps.fakes.jobs.map((job) => (job.data as { userId: string }).userId)).toEqual(
+      [NOTIF_TEST_IDS.admin2],
+    )
+  })
+
+  it('asks every admin when nobody is named as the actor', async () => {
+    const deps = makeDeps()
+    deps.fakes.userLookup.findByRole.mockResolvedValue([
+      NOTIF_TEST_IDS.admin1,
+      NOTIF_TEST_IDS.admin2,
+    ])
+
+    await handleNotificationPropertyResponsibilityNeeded(deps, event())
+
+    expect(deps.fakes.jobs.map((job) => (job.data as { userId: string }).userId)).toEqual(
+      [NOTIF_TEST_IDS.admin1, NOTIF_TEST_IDS.admin2],
+    )
+  })
+
   it('still asks when the Property name cannot be read', async () => {
     const deps = makeDeps()
     deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])

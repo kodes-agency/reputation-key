@@ -252,11 +252,13 @@ immediate path and the digest both ask whether the row is still actionable —
 unsettled, unread, undismissed — and retire it as `work_no_longer_waiting`
 otherwise. A notice that reports an outcome is never held back that way.
 
-A request to choose a responsible manager is raised for AccountAdmins only
-while the Property or Portal still has no eligible manager, checked when the
-notice is inserted: a manager chosen before then retires it. Nothing rechecks
-the gap afterwards, so the in-app row stays and an email already queued for it
-(one held for quiet hours or a digest) is still sent. A failed publication goes
+A request to choose a responsible manager is raised for AccountAdmins other
+than whoever opened the gap — the fact names them — and only while the Property
+or Portal still has no eligible manager, rechecked at delivery by the
+`responsibility_gap` audience. One offboarding still raises one notice per
+affected Property and Portal; grouping them into a single Organization-scoped
+notice is open, because invariant 6 admits exactly one non-mandatory
+Organization-scoped type. A failed publication goes
 to its author while they can still act on the Property, otherwise to the
 Property's responsible managers (AccountAdmins when none is eligible), so it
 always reaches someone who can retry it.

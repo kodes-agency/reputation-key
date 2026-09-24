@@ -10,7 +10,7 @@ import {
   propertyResponsibilityNeeded,
   propertyResponsibleManagersUpdated,
 } from '../../domain/events'
-import { organizationId, propertyId } from '#/shared/domain/ids'
+import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { PropertyResponsibleManager } from '../../domain/property-responsible-manager'
 import type { PropertyResponsibleManagerRepository } from '../../application/ports/property-responsible-manager.repository'
 
@@ -315,6 +315,7 @@ export const createPropertyResponsibleManagerRepository = (
           const event = propertyResponsibilityNeeded({
             organizationId: organizationId(input.organizationId),
             propertyId: propertyId(rawPropertyId),
+            actorUserId: input.actorId ? userId(input.actorId) : null,
             occurredAt: input.at,
           })
           await insertOutboxRow(tx, event, { recordedAt: input.at })

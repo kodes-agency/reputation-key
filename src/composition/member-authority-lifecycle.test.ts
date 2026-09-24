@@ -112,11 +112,14 @@ describe('member authority lifecycle seam', () => {
     await lifecycle.releaseMemberAuthorities(ORG, MEMBER, ACTOR)
 
     expect(fakes.propertyResponsibility.releaseForUser).toHaveBeenCalledTimes(1)
+    // I17: the release names the admin who caused it, so the gap notices it
+    // raises never go back to them.
     expect(fakes.propertyResponsibility.releaseForUser).toHaveBeenCalledWith({
       organizationId: ORG,
       userId: MEMBER,
       at: AT,
       endReason: 'manager_offboarded',
+      actorId: ACTOR,
     })
     expect(fakes.portalResponsibility.releaseForUser).toHaveBeenCalledTimes(1)
     expect(fakes.inboxAssignments.releaseAssignmentsForUser).toHaveBeenCalledTimes(1)
@@ -193,6 +196,7 @@ describe('member authority lifecycle seam', () => {
       propertyIds: ['prop-drop'],
       at: AT,
       endReason: 'manager_became_ineligible',
+      actorId: ACTOR,
     })
     expect(fakes.portalResponsibility.releaseForUser).toHaveBeenCalledWith({
       organizationId: ORG,
@@ -200,6 +204,7 @@ describe('member authority lifecycle seam', () => {
       portalIds: ['portal-drop'],
       at: AT,
       endReason: 'manager_became_ineligible',
+      actorId: ACTOR,
     })
     expect(
       fakes.inboxAssignments.releaseIneligibleAssignmentsForUser,

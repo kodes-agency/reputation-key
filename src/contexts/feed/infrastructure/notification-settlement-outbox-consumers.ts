@@ -23,6 +23,7 @@ import {
   type OrganizationId,
 } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import { isRecordPayload, requiredString } from './outbox-payload-fields'
 import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
 import type { NotificationEmailRepositoryPort } from '../application/ports/notification-email-repository.port'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
@@ -109,19 +110,11 @@ export type NotificationSettlementConsumerDeps = Readonly<{
   receipts: Pick<OutboxRepository, 'insertReceipt'>
 }>
 
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
+/** Named in every malformed-payload failure this route raises. */
+const SUBJECT = 'notification settlement'
 
-const requiredString = (
-  payload: Readonly<Record<string, unknown>>,
-  key: string,
-): string => {
-  const value = payload[key]
-  if (typeof value !== 'string' || value.length === 0) {
-    throw new Error(`notification settlement payload is missing ${key}`)
-  }
-  return value
-}
+const field = (payload: Readonly<Record<string, unknown>>, key: string): string =>
+  requiredString(payload, key, SUBJECT)
 
 const routeFor = (eventType: string): SettlementRoute => {
   const route = NOTIFICATION_SETTLEMENT_CONSUMERS.find(
@@ -140,7 +133,7 @@ const routeFor = (eventType: string): SettlementRoute => {
  */
 function parsePayload(event: ConsumerEvent): Readonly<Record<string, unknown>> {
   const parsed = validateEventPayload(event.eventType, event.eventVersion, event.payload)
-  if (!isRecord(parsed)) {
+  if (!isRecordPayload(parsed)) {
     throw new Error('notification settlement payload must be an object')
   }
   if (parsed.organizationId !== event.organizationId) {
@@ -179,15 +172,15 @@ async function resolveResource(
   switch (route.resource) {
     case 'inbox_item_by_review':
       return deps.inboxItemLookup.findInboxItemByReviewId(
-        reviewId(requiredString(payload, 'reviewId')),
+        reviewId(field(payload, 'reviewId')),
         orgId,
       )
     case 'inbox_item':
-      return inboxItemId(requiredString(payload, 'inboxItemId'))
+      return inboxItemId(field(payload, 'inboxItemId'))
     case 'property':
-      return propertyId(requiredString(payload, 'propertyId'))
+      return propertyId(field(payload, 'propertyId'))
     case 'portal':
-      return portalId(requiredString(payload, 'portalId'))
+      return portalId(field(payload, 'portalId'))
   }
 }
 
@@ -197,7 +190,7 @@ export async function handleNotificationSettlementEvent(
 ): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
   const route = routeFor(event.eventType)
   const payload = parsePayload(event)
-  const orgId = organizationId(requiredString(payload, 'organizationId'))
+  const orgId = organizationId(field(payload, 'organizationId'))
   // Valid evidence that finishes nothing: the rule ran and decided, so the
   // delivery is applied rather than obsolete.
   if (!finishesWork(route, payload)) {

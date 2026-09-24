@@ -4,7 +4,7 @@
 // but the AccountAdmins, who can choose one. The notice names the gap it is
 // about, so delivery rechecks it: a manager chosen meanwhile retires it.
 
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
@@ -27,6 +27,8 @@ type ResponsibilityGapFact = Readonly<{
   correlationId: string | null
   organizationId: OrganizationId
   propertyId: PropertyId
+  /** Whose action opened it, when a person's did. */
+  actorUserId?: UserId | null
 }>
 
 type ResponsibilityGapScope =
@@ -51,7 +53,12 @@ export async function enqueueResponsibilityGapNotification(
   scope: ResponsibilityGapScope,
 ): Promise<void> {
   const notice = GAP_NOTICES[scope.kind]
-  const recipients = await deps.userLookup.findByRole(fact.organizationId, 'AccountAdmin')
+  const admins = await deps.userLookup.findByRole(fact.organizationId, 'AccountAdmin')
+  // Removing a manager who owned ten Properties sent the removing admin ten
+  // identical urgent emails about work they had just caused (I17).
+  const recipients = admins.filter(
+    (recipient) => recipient !== (fact.actorUserId ?? null),
+  )
   if (recipients.length === 0) {
     deps.logger.warn(
       { correlationId: fact.correlationId ?? undefined },

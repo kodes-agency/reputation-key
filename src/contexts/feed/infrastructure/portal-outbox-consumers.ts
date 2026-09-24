@@ -1,7 +1,7 @@
 import type { PortalResponsibilityNeeded } from '#/contexts/portal/application/public-api'
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
+import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
@@ -23,6 +23,7 @@ type Payload = Readonly<{
   portalId: string
   organizationId: string
   propertyId: string
+  actorUserId?: string | null
   sourceAggregateVersion?: string
   occurredAt: string
 }>
@@ -63,6 +64,7 @@ export async function handleNotificationPortalResponsibilityNeeded(
     portalId: portalId(payload.portalId),
     organizationId: organizationId(payload.organizationId),
     propertyId: propertyId(payload.propertyId),
+    actorUserId: payload.actorUserId ? userId(payload.actorUserId) : null,
     sourceAggregateVersion: payload.sourceAggregateVersion,
     occurredAt: new Date(payload.occurredAt),
   }
