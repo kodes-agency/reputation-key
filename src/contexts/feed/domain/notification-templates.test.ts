@@ -213,6 +213,37 @@ describe('renderNotification — the copy that was broken', () => {
   })
 
   it.each([
+    [
+      'provider_reply_deleted',
+      'The published reply was removed from Google. Open it to see where it stands.',
+    ],
+    [
+      'guest_follow_up_still_needed',
+      'The guest still needs a follow-up. Open it to see where it stands.',
+    ],
+    [
+      'correcting_handling_status',
+      'Its handling status was wrong. Open it to see where it stands.',
+    ],
+  ] as const)('says why an item was reopened (%s)', (reopenReason, body) => {
+    expect(
+      renderNotification('inbox.reopened', {
+        propertyName: 'Riverside Hotel',
+        reopenReason,
+      }).body,
+    ).toBe(body)
+  })
+
+  it('still reads correctly when the reopen fact named no usable reason', () => {
+    expect(
+      renderNotification('inbox.reopened', {
+        propertyName: 'Riverside Hotel',
+        reopenReason: 'other',
+      }).body,
+    ).toBe('This review needs another look. Open it to see where it stands.')
+  })
+
+  it.each([
     ['google', 'New internal note on a review at Riverside Hotel'],
     ['portal', 'New internal note on feedback at Riverside Hotel'],
   ] as const)('names a %s Internal Note the way the Inbox does', (platform, title) => {

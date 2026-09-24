@@ -37,6 +37,15 @@ describe('parseNotificationPayload', () => {
     })
   })
 
+  it('keeps a reopen reason only while it is one of the governed causes', () => {
+    expect(parseNotificationPayload({ reopenReason: 'provider_reply_deleted' })).toEqual({
+      reopenReason: 'provider_reply_deleted',
+    })
+    expect(
+      parseNotificationPayload({ reopenReason: 'the guest phoned reception' }),
+    ).toEqual({})
+  })
+
   // The whole point of the allowlist. If this test ever goes green with
   // reviewText present, source content is reaching email.
   it('drops forbidden source-content fields', () => {

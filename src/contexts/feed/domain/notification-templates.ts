@@ -24,7 +24,11 @@
 //      shorten the sentence, never produce "undefined" or an empty title.
 //
 import { SUPPORT_EMAIL } from '#/shared/domain/support-contact'
-import type { NotificationActorRole, NotificationPayload } from './notification-payload'
+import type {
+  NotificationActorRole,
+  NotificationPayload,
+  NotificationReopenReason,
+} from './notification-payload'
 import type { NotificationResourceType, NotificationType } from './notification-types'
 
 /** What a rendered notification exposes to every channel. */
@@ -353,9 +357,28 @@ const renderInboxEscalationResolved = (p: NotificationPayload): RenderedNotifica
   summary: factsAt(p, 'escalation resolved'),
 })
 
+/**
+ * Why the item is open again, in the reader's terms. The fact is the event's
+ * own closed enum, never the free-text explanation beside it. `other` has no
+ * sentence of its own — the manager chose not to say — so it falls back to
+ * the generic clause, as does a row recorded before the reason was passed.
+ */
+const REOPEN_REASON_CLAUSES: Partial<Record<NotificationReopenReason, string>> = {
+  guest_follow_up_still_needed: 'The guest still needs a follow-up.',
+  internal_follow_up_still_needed: 'The team still needs a follow-up.',
+  new_information: 'New information came in.',
+  correcting_handling_status: 'Its handling status was wrong.',
+  provider_reply_deleted: 'The published reply was removed from Google.',
+  provider_reply_diverged: 'The reply on Google is no longer the one published.',
+}
+
 const renderInboxReopened = (p: NotificationPayload): RenderedNotification => ({
   title: `Reopened: ${inboxNoun(p)}${atProperty(p)}`,
-  body: `This ${inboxNoun(p)} needs another look. ${SEE_WHERE}`,
+  body: sentence(
+    (p.reopenReason === undefined ? undefined : REOPEN_REASON_CLAUSES[p.reopenReason]) ??
+      `This ${inboxNoun(p)} needs another look.`,
+    SEE_WHERE,
+  ),
   actionLabel: 'View item',
   summary: factsAt(p, ratedNoun(p), 'reopened'),
 })

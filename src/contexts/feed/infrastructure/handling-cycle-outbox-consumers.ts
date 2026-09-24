@@ -183,6 +183,10 @@ export async function handleNotificationHandlingCycle(
     inboxItemId: itemId,
     orgId,
     actorId: actorUserId,
+    // Why it is open again, in the event's own closed enum. The free-text
+    // explanation beside it stays in Inbox and never crosses (ADR 0046 r.8).
+    reopenReason:
+      notificationType === 'inbox.reopened' ? payload.reopenReason : undefined,
   })
   const audience: NotificationAudience = {
     kind: 'handling_cycle',

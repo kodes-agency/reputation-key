@@ -108,10 +108,30 @@ export type NotificationPayload = Readonly<{
    * the whole sentence, because each cause asks for a different next step.
    */
   publicationCancellationCause?: NotificationPublicationCancellationCause
+  /**
+   * Why a Handling Cycle was reopened (`inbox.reopened` only). The event's
+   * own closed enum: a manager's governed reason, or what Google did to the
+   * published reply. Never the free-text explanation beside it, which stays
+   * in Inbox.
+   */
+  reopenReason?: NotificationReopenReason
 }>
 
 export type NotificationPublicationCancellationCause =
   'disconnect' | 'policy' | 'source_changed' | 'provider_truth'
+
+/**
+ * The governed causes `inbox.handling_cycle.reopened` carries: five a manager
+ * chooses and two an exact provider observation raises.
+ */
+export type NotificationReopenReason =
+  | 'guest_follow_up_still_needed'
+  | 'internal_follow_up_still_needed'
+  | 'new_information'
+  | 'correcting_handling_status'
+  | 'other'
+  | 'provider_reply_deleted'
+  | 'provider_reply_diverged'
 
 export type NotificationReportOutcome = 'accepted' | 'declined' | 'resolved'
 
@@ -151,6 +171,16 @@ const PUBLICATION_CANCELLATION_CAUSES: Record<string, true> = {
   policy: true,
   source_changed: true,
   provider_truth: true,
+}
+
+const REOPEN_REASONS: Record<string, true> = {
+  guest_follow_up_still_needed: true,
+  internal_follow_up_still_needed: true,
+  new_information: true,
+  correcting_handling_status: true,
+  other: true,
+  provider_reply_deleted: true,
+  provider_reply_diverged: true,
 }
 
 const PUBLISH_OUTCOMES: Record<string, true> = {
@@ -260,6 +290,10 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
       raw.publicationCancellationCause,
       PUBLICATION_CANCELLATION_CAUSES,
     ),
+  )
+  set(
+    'reopenReason',
+    takeMember<NotificationReopenReason>(raw.reopenReason, REOPEN_REASONS),
   )
 
   return parsed as NotificationPayload

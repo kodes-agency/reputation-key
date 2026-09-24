@@ -75,6 +75,11 @@ export type InboxPayloadInput = Readonly<{
    */
   publicationCancellationCause?: NotificationPublicationCancellationCause | null
   /**
+   * Why a Handling Cycle was reopened (inbox.reopened only). The event's
+   * closed enum; an unrecognised value is dropped by the payload allowlist.
+   */
+  reopenReason?: string | null
+  /**
    * Stamp when the current wait began, for a notice about something still
    * waiting on the reader (approval, escalation, a Response Target reminder).
    * Notices about work already done carry no wait.
@@ -133,6 +138,7 @@ export const buildInboxItemPayload = async (
   if (input.publicationCancellationCause) {
     payload.publicationCancellationCause = input.publicationCancellationCause
   }
+  if (input.reopenReason) payload.reopenReason = input.reopenReason
   return payload as NotificationPayload
 }
 

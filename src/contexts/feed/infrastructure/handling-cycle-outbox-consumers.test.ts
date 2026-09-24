@@ -410,6 +410,39 @@ describe('Handling Cycle notification durable consumers', () => {
     })
   })
 
+  it('carries the reopen cause into the notice, and never its free-text explanation', async () => {
+    const deps = makeDeps()
+
+    await expect(
+      handleNotificationHandlingCycle(
+        deps,
+        event('reopened', {
+          reopenReason: 'provider_reply_deleted',
+          manualReopenExplanation: 'Google dropped our reply again, see thread',
+        }),
+      ),
+    ).resolves.toEqual({ status: 'applied' })
+
+    const payloads = deps.jobs.map((job) => (job.data as { payload: unknown }).payload)
+    expect(payloads.length).toBeGreaterThan(0)
+    for (const payload of payloads) {
+      expect(payload).toMatchObject({ reopenReason: 'provider_reply_deleted' })
+    }
+    expect(JSON.stringify(deps.jobs)).not.toContain('Google dropped our reply again')
+  })
+
+  it('leaves a reopen cause off a notice that is not about a reopen', async () => {
+    const deps = makeDeps()
+
+    await handleNotificationHandlingCycle(deps, event('opened'))
+
+    for (const job of deps.jobs) {
+      expect(
+        (job.data as { payload: Record<string, unknown> }).payload,
+      ).not.toHaveProperty('reopenReason')
+    }
+  })
+
   it('notifies current Property Responsible Managers about an exact material revision and suppresses the actor', async () => {
     const deps = makeDeps()
 
