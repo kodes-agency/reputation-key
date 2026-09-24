@@ -139,7 +139,23 @@ export type NotificationPayload = Readonly<{
   goalSubjectKind?: NotificationGoalSubjectKind
   /** Which way the month's result stands now. */
   goalOutcome?: NotificationGoalOutcome
+  /**
+   * How a Property's first Google review import ended
+   * (`property.review_import_finished`). Absent degrades to the neutral copy.
+   */
+  importOutcome?: NotificationImportOutcome
+  /** Reviews that import took in. A count, never anything they contain. */
+  importedCount?: number
+  /** How many of the Property's Inbox items were still open when it finished. */
+  unansweredCount?: number
+  /** The import's closed failure reason; absent unless it failed. */
+  importFailureReason?: NotificationImportFailureReason
 }>
+
+export type NotificationImportOutcome = 'completed' | 'failed'
+
+export type NotificationImportFailureReason =
+  'google_authorization' | 'property_source_changed' | 'location_too_large' | 'temporary'
 
 export type NotificationPublicationCancellationCause =
   'disconnect' | 'policy' | 'source_changed' | 'provider_truth'
@@ -250,6 +266,15 @@ const REOPEN_REASONS: Record<string, true> = {
   other: true,
   provider_reply_deleted: true,
   provider_reply_diverged: true,
+}
+
+const IMPORT_OUTCOMES: Record<string, true> = { completed: true, failed: true }
+
+const IMPORT_FAILURE_REASONS: Record<string, true> = {
+  google_authorization: true,
+  property_source_changed: true,
+  location_too_large: true,
+  temporary: true,
 }
 
 const PUBLISH_OUTCOMES: Record<string, true> = {
@@ -389,6 +414,24 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
     takeMember<NotificationGoalSubjectKind>(raw.goalSubjectKind, GOAL_SUBJECT_KINDS),
   )
   set('goalOutcome', takeMember<NotificationGoalOutcome>(raw.goalOutcome, GOAL_OUTCOMES))
+  const importOutcome = takeMember<NotificationImportOutcome>(
+    raw.importOutcome,
+    IMPORT_OUTCOMES,
+  )
+  set('importOutcome', importOutcome)
+  set('importedCount', takeCount(raw.importedCount))
+  set('unansweredCount', takeCount(raw.unansweredCount))
+  // A reason belongs to a failure. Keeping one on a completed import would
+  // render "the import stopped" copy over a successful one.
+  if (importOutcome === 'failed') {
+    set(
+      'importFailureReason',
+      takeMember<NotificationImportFailureReason>(
+        raw.importFailureReason,
+        IMPORT_FAILURE_REASONS,
+      ),
+    )
+  }
 
   return parsed as NotificationPayload
 }

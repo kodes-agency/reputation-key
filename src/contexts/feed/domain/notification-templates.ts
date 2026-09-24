@@ -627,6 +627,53 @@ const renderIntegrationGoogleDisconnected = (): RenderedNotification => ({
   summary: 'Google disconnected',
 })
 
+/**
+ * A Property's Google review history has been imported. This one notice stands
+ * in for every review it brought in — the flood PR #597 suppressed — so it
+ * leads with the two numbers that decide whether anyone has work to do, and
+ * sends the reader to the Property's open Inbox queue.
+ *
+ * A stopped import says what to do instead. `temporary` never reaches a
+ * reader (RepKey retries it), but it renders honestly if one ever sees it.
+ */
+const IMPORT_STOPPED_COPY: Record<
+  NonNullable<NotificationPayload['importFailureReason']>,
+  string
+> = {
+  google_authorization: 'Reconnect Google, then import the history again.',
+  property_source_changed:
+    'This property\u2019s Google location changed. Link it again, then import the history.',
+  location_too_large:
+    'This location has more reviews than one import can take in. Contact RepKey support.',
+  temporary: 'Nothing to do \u2014 RepKey is trying again.',
+}
+
+const importedBody = (p: NotificationPayload): string => {
+  if (p.importedCount === undefined) return 'Open the inbox to see what came in.'
+  const imported = `We imported ${p.importedCount} reviews`
+  return p.unansweredCount === undefined || p.unansweredCount === 0
+    ? `${imported}. Nothing is waiting for a reply.`
+    : `${imported}; ${p.unansweredCount} still need a reply.`
+}
+
+const renderReviewImportFinished = (p: NotificationPayload): RenderedNotification =>
+  p.importOutcome === 'failed'
+    ? {
+        title: `Review history import stopped${atProperty(p)}`,
+        body:
+          p.importFailureReason === undefined
+            ? 'Open the property to start the import again.'
+            : IMPORT_STOPPED_COPY[p.importFailureReason],
+        actionLabel: 'Open inbox',
+        summary: factsAt(p, 'review import stopped'),
+      }
+    : {
+        title: `Review history imported${atProperty(p)}`,
+        body: importedBody(p),
+        actionLabel: 'Open inbox',
+        summary: factsAt(p, 'review history imported'),
+      }
+
 /** "October goal met: Lobby QR scans at Riverside Hotel". */
 const goalTitle = (lead: string, p: NotificationPayload): string =>
   `${lead}${p.goalName === undefined ? '' : `: ${p.goalName}`}${atProperty(p)}`
@@ -779,6 +826,7 @@ const RENDERERS: Record<
   'portal.responsibility_needed': renderPortalResponsibilityNeeded,
   'portal.health_attention': renderPortalHealthAttention,
   'property.responsibility_needed': renderPropertyResponsibilityNeeded,
+  'property.review_import_finished': renderReviewImportFinished,
   'integration.reauthorization_required': renderIntegrationReauthorizationRequired,
   'integration.google_disconnected': renderIntegrationGoogleDisconnected,
   'goal.completed': renderGoalCompleted,
@@ -894,8 +942,16 @@ export const notificationLink = (
     case 'portal':
       return propertyLink(propertyId, `/portals/${resourceId}`, { tab: 'settings' })
     case 'property':
-      // The only Property notice asks for a manager, and the picker is here.
-      return propertyLink(propertyId, '/settings/people')
+      // An imported history is a queue of reviews to answer, so its notice
+      // opens the Property's open Inbox queue rather than the Property page.
+      // The other Property notice asks for a manager, and the picker is here.
+      return type === 'property.review_import_finished'
+        ? {
+            path: '/inbox',
+            search:
+              propertyId === null ? { queue: 'open' } : { queue: 'open', propertyId },
+          }
+        : propertyLink(propertyId, '/settings/people')
     case 'integration':
       return { path: '/settings/integrations', search: {} }
     case 'beta_feedback_report':

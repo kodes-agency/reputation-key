@@ -58,6 +58,9 @@ export const NOTIFICATION_TYPES = [
   'portal.responsibility_needed',
   'portal.health_attention',
   'property.responsibility_needed',
+  // One summary when a Property's Google review history has been imported,
+  // in place of the per-review flood #597 suppressed (ADR 0046, 2026-09-24).
+  'property.review_import_finished',
   'integration.reauthorization_required',
   // Somebody deliberately disconnected the Organization's Google account.
   'integration.google_disconnected',
