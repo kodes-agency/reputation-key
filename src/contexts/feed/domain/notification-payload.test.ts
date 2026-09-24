@@ -100,6 +100,13 @@ describe('parseNotificationPayload', () => {
       goalMonth: '2026-10',
       goalSubjectKind: 'portal',
       goalOutcome: 'met',
+      // `failed`, because a reason is only admitted on a failed import: a
+      // completed one carrying a stale reason would render "the import
+      // stopped" over a success.
+      importOutcome: 'failed',
+      importedCount: 260,
+      unansweredCount: 254,
+      importFailureReason: 'google_authorization',
     }
 
     const parsed = parseNotificationPayload(everyField)

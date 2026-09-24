@@ -81,6 +81,9 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'portal.responsibility_needed': 'urgent_operational',
   'portal.health_attention': 'urgent_operational',
   'property.responsibility_needed': 'urgent_operational',
+  // An import that finished is work to pick up, not an emergency: it respects
+  // quiet hours and never bypasses them, even when it failed.
+  'property.review_import_finished': 'workflow_collaboration',
   'integration.reauthorization_required': 'urgent_operational',
   // A deliberate disconnect is somebody's decision, not a fault to fix. The
   // other AccountAdmins need to know their Google review sync and replies

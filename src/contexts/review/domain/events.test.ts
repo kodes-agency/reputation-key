@@ -10,6 +10,7 @@ import {
   reviewCreated,
   reviewExpired,
   reviewGoogleReputationSnapshotVerified,
+  reviewPropertyHistoryImportFinished,
   reviewReplyApproved,
   reviewReplyPublicationRequested,
   reviewReplyPublicationCancelled,
@@ -163,6 +164,80 @@ describe('review domain events', () => {
         occurredAt: new Date(occurredAt.getTime() + 1),
       }),
     ).toThrow('occurredAt must equal evaluatedAt')
+  })
+
+  it('records a completed first history import with the reviews it observed', () => {
+    const event = reviewPropertyHistoryImportFinished({
+      organizationId: organizationId('organization-1'),
+      propertyId: OBSERVED_PROPERTY_ID,
+      sourceEpoch: 3,
+      runId: '44444444-4444-4444-8444-444444444444',
+      outcome: 'completed',
+      reviewsObserved: 260,
+      failureReason: null,
+      occurredAt,
+    })
+
+    expect(event).toMatchObject({
+      _tag: 'review.property_history_import.finished',
+      outcome: 'completed',
+      reviewsObserved: 260,
+      failureReason: null,
+      sourceAggregateVersion: occurredAt.toISOString(),
+    })
+    expectEnvelope(event)
+    expect(JSON.stringify(event)).not.toMatch(/reviewText|reviewerName|replyText/u)
+  })
+
+  it('records a failed first history import with its closed reason', () => {
+    const event = reviewPropertyHistoryImportFinished({
+      organizationId: organizationId('organization-1'),
+      propertyId: OBSERVED_PROPERTY_ID,
+      sourceEpoch: 3,
+      runId: '44444444-4444-4444-8444-444444444444',
+      outcome: 'failed',
+      reviewsObserved: 12,
+      failureReason: 'google_authorization',
+      occurredAt,
+    })
+
+    expect(event).toMatchObject({
+      outcome: 'failed',
+      reviewsObserved: 12,
+      failureReason: 'google_authorization',
+    })
+  })
+
+  it.each([
+    { outcome: 'completed' as const, failureReason: 'temporary' as const },
+    { outcome: 'failed' as const, failureReason: null },
+  ])('rejects an import outcome its reason contradicts: %o', (settlement) => {
+    expect(() =>
+      reviewPropertyHistoryImportFinished({
+        organizationId: organizationId('organization-1'),
+        propertyId: OBSERVED_PROPERTY_ID,
+        sourceEpoch: 3,
+        runId: '44444444-4444-4444-8444-444444444444',
+        reviewsObserved: 1,
+        occurredAt,
+        ...settlement,
+      }),
+    ).toThrow('failureReason must accompany exactly a failed import')
+  })
+
+  it('rejects an observed count outside the provider snapshot cap', () => {
+    expect(() =>
+      reviewPropertyHistoryImportFinished({
+        organizationId: organizationId('organization-1'),
+        propertyId: OBSERVED_PROPERTY_ID,
+        sourceEpoch: 3,
+        runId: '44444444-4444-4444-8444-444444444444',
+        outcome: 'completed',
+        reviewsObserved: 10_001,
+        failureReason: null,
+        occurredAt,
+      }),
+    ).toThrow('reviewsObserved must be a bounded nonnegative safe integer')
   })
 
   it('builds every reply lifecycle envelope with explicit and default sources', () => {

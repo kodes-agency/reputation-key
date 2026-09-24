@@ -185,6 +185,7 @@ function memoryStore() {
   )
   const getProgress = vi.fn<GoogleImportV2Store['getProgress']>(async () => null)
   const store: GoogleImportV2Store = {
+    findPropertyImportInitiator: vi.fn(async () => null),
     findReplay,
     commitSaga,
     commitIntent,

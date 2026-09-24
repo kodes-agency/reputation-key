@@ -147,6 +147,9 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
   'portal.responsibility_needed': UserPlus,
   'portal.health_attention': AlertTriangle,
   'property.responsibility_needed': UserPlus,
+  // Reviews arriving, so the same speech bubble as the rest of the review
+  // family — a dedicated glyph would cost first-paint bytes for one row type.
+  'property.review_import_finished': MessageSquare,
   'integration.reauthorization_required': AlertTriangle,
   'integration.google_disconnected': Unplug,
   'goal.completed': Target,

@@ -23,8 +23,10 @@ import type {
 } from '../../application/ports/review-provider-snapshot.repository'
 import {
   reviewGoogleReputationSnapshotVerified,
+  reviewPropertyHistoryImportFinished,
   reviewSourceTransitioned,
 } from '../../domain/events'
+import { historyImportFailureReason } from '../../application/historical-import-outcome'
 import { domainError } from '#/shared/domain/errors'
 import { eraseReviewSourceContent } from '../review-source-content-store'
 import { lockReviewSourceMutationScope } from '../review-source-mutation-serialization'
@@ -102,12 +104,113 @@ const providerAggregateIsValid = (
     averageRating >= 0 &&
     averageRating <= 5)
 
+/**
+ * "A completed run has listed this epoch's history": the verified reputation
+ * fact of a run that evaluated at or after the epoch's cutoff.
+ *
+ * The cutoff is written by `transaction_timestamp()` and keeps PostgreSQL's
+ * microseconds. `evaluated_at` does NOT: `recordVerifiedSnapshotFact` reads
+ * that instant into a JavaScript Date, which is milliseconds, and writes it
+ * back truncated. Two instants inside the same millisecond therefore compare
+ * BACKWARDS — a cutoff at .06308 and a completion at .063080 stored as .063.
+ * An import admitted and completed in the same millisecond then looked
+ * unlisted forever, so its Inbox items stayed history and, with the import
+ * summary, every later completed poll re-announced it. Comparing at the
+ * precision both values actually carry is the honest fix.
+ */
+const historyListedSince = sql`EXISTS (
+  SELECT 1
+  FROM review_google_reputation_snapshot_facts listing
+  WHERE listing.organization_id = epoch.organization_id
+    AND listing.property_id = epoch.property_id
+    AND listing.source_epoch = epoch.source_epoch
+    AND listing.evaluated_at >= date_trunc('milliseconds', epoch.cutoff_at)
+)`
+
+/**
+ * Whether this terminal run ends the Property's FIRST Google history import,
+ * the one moment the summary notice is about (ADR 0046, amended 2026-09-24).
+ *
+ * Three conditions, all read inside the terminal transaction:
+ *
+ *  - the run's epoch has a history cutoff, so an import was admitted in it;
+ *  - no earlier epoch of this Property has one, so this is the first import
+ *    rather than a relink's;
+ *  - no completed run has listed that history yet — the verified reputation
+ *    fact each completed run writes is the durable proof, and this one has not
+ *    been written yet, so a later poll that completes announces nothing.
+ *
+ * A failure additionally requires the run to be carrying the import itself. An
+ * ordinary poll failing on an imported Property is not the import failing.
+ */
+async function endsFirstHistoryImport(
+  tx: Tx,
+  run: RunRow,
+  outcome: 'completed' | 'failed',
+): Promise<boolean> {
+  if (outcome === 'failed' && run.observationOrigin !== 'historical_onboarding') {
+    return false
+  }
+  const rows = await tx.execute(sql`
+    SELECT
+      NOT EXISTS (
+        SELECT 1
+        FROM review_provider_history_cutoffs earlier
+        WHERE earlier.organization_id = epoch.organization_id
+          AND earlier.property_id = epoch.property_id
+          AND earlier.source_epoch < epoch.source_epoch
+      ) AS first_import,
+      NOT ${historyListedSince} AS history_unlisted
+    FROM review_provider_history_cutoffs epoch
+    WHERE epoch.organization_id = ${run.organizationId}
+      AND epoch.property_id = ${run.propertyId}
+      AND epoch.source_epoch = ${run.sourceEpoch}
+  `)
+  const row = rows.rows[0] as
+    { first_import: unknown; history_unlisted: unknown } | undefined
+  return row?.first_import === true && row.history_unlisted === true
+}
+
+/**
+ * Write the import's own terminal fact, in the transaction that makes the run
+ * terminal. Counts and identifiers only: what the run had listed, and the
+ * closed reason a failure leaves a reader to act on.
+ */
+async function recordHistoryImportFinished(
+  tx: Tx,
+  run: RunRow,
+  settlement:
+    | Readonly<{ outcome: 'completed' }>
+    | Readonly<{ outcome: 'failed'; code: ReviewProviderSnapshotFailureCode }>,
+): Promise<void> {
+  const rows = await tx.execute(sql`SELECT transaction_timestamp() AS finished_at`)
+  const value = (rows.rows[0] as { finished_at: Date | string }).finished_at
+  const finishedAt = value instanceof Date ? value : new Date(value)
+  const finished = reviewPropertyHistoryImportFinished({
+    organizationId: organizationId(run.organizationId),
+    propertyId: propertyId(run.propertyId),
+    sourceEpoch: run.sourceEpoch,
+    runId: run.id,
+    outcome: settlement.outcome,
+    reviewsObserved: run.mainUniqueCount,
+    failureReason:
+      settlement.outcome === 'failed'
+        ? historyImportFailureReason(settlement.code)
+        : null,
+    occurredAt: finishedAt,
+  })
+  await insertOutboxRow(tx, finished, { recordedAt: finishedAt })
+}
+
 async function failLockedRun(
   tx: Tx,
   row: RunRow,
   code: ReviewProviderSnapshotFailureCode,
 ): Promise<RunRow> {
   if (row.state === 'completed' || row.state === 'failed') return row
+  if (await endsFirstHistoryImport(tx, row, 'failed')) {
+    await recordHistoryImportFinished(tx, row, { outcome: 'failed', code })
+  }
   const terminal = await tx
     .update(reviewProviderSnapshotRuns)
     .set({
@@ -199,14 +302,7 @@ async function readHistoryCutoffRow(
         ORDER BY first_import.source_epoch
         LIMIT 1
       ) AS first_import_cutoff_at,
-      EXISTS (
-        SELECT 1
-        FROM review_google_reputation_snapshot_facts listing
-        WHERE listing.organization_id = epoch.organization_id
-          AND listing.property_id = epoch.property_id
-          AND listing.source_epoch = epoch.source_epoch
-          AND listing.evaluated_at >= epoch.cutoff_at
-      ) AS history_listed
+      ${historyListedSince} AS history_listed
     FROM review_provider_history_cutoffs epoch
     WHERE epoch.organization_id = ${scope.organizationId}
       AND epoch.property_id = ${scope.propertyId}
@@ -386,6 +482,21 @@ async function recordVerifiedSnapshotFact(tx: Tx, run: RunRow): Promise<void> {
     evaluatedAt,
   })
   await insertOutboxRow(tx, verified, { recordedAt: evaluatedAt })
+}
+
+/**
+ * Everything the transaction that completes a run records: the verified
+ * provider aggregate, and — when this run is the one that ends the Property's
+ * first history import — that import's own terminal fact.
+ *
+ * The import question is asked BEFORE the verified fact is written, because
+ * that fact is the very proof `endsFirstHistoryImport` reads to decide the
+ * history is already listed.
+ */
+async function recordCompletionFacts(tx: Tx, run: RunRow): Promise<void> {
+  const endsImport = await endsFirstHistoryImport(tx, run, 'completed')
+  await recordVerifiedSnapshotFact(tx, run)
+  if (endsImport) await recordHistoryImportFinished(tx, run, { outcome: 'completed' })
 }
 
 /**
@@ -1360,7 +1471,7 @@ export const createReviewProviderSnapshotRepository = (
               .limit(1)
           : []
       const done = more.length === 0
-      if (done) await recordVerifiedSnapshotFact(tx, run)
+      if (done) await recordCompletionFacts(tx, run)
       const updated = await tx
         .update(reviewProviderSnapshotRuns)
         .set(

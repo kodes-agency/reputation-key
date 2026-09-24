@@ -80,6 +80,23 @@ history: an item whose first Handling Cycle was observed as
 announced. The fan-out and the missing-notification gauge share one predicate,
 so such an item is never a gap either (ADR 0046).
 
+What an import brought in is announced ONCE instead, per Property:
+`property.review_import_finished` (`workflow_collaboration`), from the Review
+context's `review.property_history_import.finished` fact — what the import
+listed, and how much of it still needs a reply (ADR 0046, amended 2026-09-24).
+Its second number is counted HERE, when the notice is built, through
+`InboxItemLookupPort.countOpenReviewItemsForProperty`, NOT in the import's
+terminal transaction: an Inbox item is projected asynchronously from
+`review.created`, so at that instant the items the notice is about may not
+exist yet. The copy is present-tense to match, and a count that cannot be read
+costs the sentence its second number, never the notice. The count is open
+Handling Cycle heads, not measured Response Targets: imported history is
+exactly the performance eligibility that would exclude. A failure the
+discovery ladder retries by itself (`temporary`) is recorded obsolete and
+reaches nobody. Recipients: whoever asked for the import (Integration's public
+API answers it), then the Property's responsible managers, then the
+AccountAdmins.
+
 ADR 0046 r.2's one-unread-row coalescing is an in-app rule. A recipient with
 in-app off and email on gets an email-only anchor row stored already read, so
 it never holds the unread `(user, type, resource)` key: every event on a

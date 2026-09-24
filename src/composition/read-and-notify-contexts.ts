@@ -25,6 +25,7 @@ import type { buildGuestContext } from '#/contexts/guest/build'
 import type { buildReviewContext } from '#/contexts/review/build'
 import type { buildIdentityContext } from '#/contexts/identity/build'
 import type { InboxContextApi } from '#/contexts/inbox/build'
+import type { IntegrationContextApi } from '#/contexts/integration/build'
 
 export type ReadAndNotifyContextsInput = Readonly<{
   db: Database
@@ -38,6 +39,7 @@ export type ReadAndNotifyContextsInput = Readonly<{
   guest: ReturnType<typeof buildGuestContext>
   review: ReturnType<typeof buildReviewContext>
   identity: ReturnType<typeof buildIdentityContext>
+  integration: IntegrationContextApi
   inbox: InboxContextApi
   /** Review-owned governed serving reads, forwarded to Reporting's dashboard. */
   reviewServingStats: ReturnType<typeof buildReviewContext>['lookups']['servingStats']
@@ -167,6 +169,10 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
       googleConnectionProperties: {
         findGoogleNotificationAnchor: (connectionIdValue, orgId) =>
           input.property.publicApi.findGoogleNotificationAnchor(connectionIdValue, orgId),
+      },
+      propertyImportInitiators: {
+        findPropertyImportInitiator: (orgId, pid) =>
+          input.integration.publicApi.imports.findInitiator(orgId, pid),
       },
       monthlyResultFacts: {
         findMonthlyResultNotificationFacts:

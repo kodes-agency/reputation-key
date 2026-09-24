@@ -123,4 +123,21 @@ export type InboxItemLookupPort = Readonly<{
    * closed, the target was met, or it is not measured.
    */
   findWaitingSince(inboxItemId: InboxItemId, orgId: OrganizationId): Promise<Date | null>
+
+  /**
+   * How many of a Property's Google review items are open right now — still
+   * owed a reply. It is the second number the import summary carries (ADR
+   * 0046, amended 2026-09-24), and it counts the history an import brought in
+   * as well as live reviews, because both are work waiting on the reader.
+   *
+   * Deliberately NOT restricted to `measured` targets: performance
+   * eligibility decides what the analytics measure, not what somebody owes an
+   * answer to. Counted when the notice is built, not when the import ended,
+   * because an Inbox item is projected asynchronously from `review.created` —
+   * see the adapter and CONTEXT.md.
+   */
+  countOpenReviewItemsForProperty(
+    propertyId: string,
+    orgId: OrganizationId,
+  ): Promise<number>
 }>

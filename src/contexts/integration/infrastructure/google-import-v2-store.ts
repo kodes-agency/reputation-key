@@ -618,6 +618,29 @@ export const createGoogleImportV2Store = (
   clock: Clock,
 ): GoogleImportV2Store => {
   return Object.freeze({
+    findPropertyImportInitiator: async (organizationId, propertyId) => {
+      // Ordered by the item's own creation, not the request's: a Property is
+      // announced for the history its FIRST import took over.
+      const [item] = await db
+        .select({ initiatedBy: gbpImportRequests.initiatedBy })
+        .from(gbpImportRequestItems)
+        .innerJoin(
+          gbpImportRequests,
+          and(
+            eq(gbpImportRequests.organizationId, gbpImportRequestItems.organizationId),
+            eq(gbpImportRequests.id, gbpImportRequestItems.importJobId),
+          ),
+        )
+        .where(
+          and(
+            eq(gbpImportRequestItems.organizationId, organizationId),
+            eq(gbpImportRequestItems.destinationPropertyId, propertyId),
+          ),
+        )
+        .orderBy(asc(gbpImportRequestItems.createdAt), asc(gbpImportRequestItems.id))
+        .limit(1)
+      return item?.initiatedBy ?? null
+    },
     findReplay: async (organizationId, requestId) => {
       const [saga] = await db
         .select({

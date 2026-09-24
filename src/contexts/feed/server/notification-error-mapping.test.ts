@@ -89,6 +89,7 @@ function buildFeedPublicApi() {
       replyApproval: {} as never,
       feedbackPortalLookup: {} as never,
       googleConnectionProperties: {} as never,
+      propertyImportInitiators: {} as never,
       monthlyResultFacts: {} as never,
       portalHealthLookup: {} as never,
       isEmailDeliveryAllowed: () => true,

@@ -625,6 +625,7 @@ function buildContainer(
     guest,
     review,
     identity,
+    integration,
     inbox,
     reviewServingStats: review.lookups.servingStats,
     // Parsed key material, like identityRequestSecurity's pseudonym secrets:

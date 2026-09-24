@@ -248,6 +248,19 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['property.responsibility_needed'],
     ['responsibility_gap'],
   ),
+  {
+    ...route(
+      'review.property_history_import.finished',
+      'notification.on-review-history-import-finished',
+      ['property.review_import_finished'],
+      // Whoever asked for the import while still eligible; otherwise the
+      // Property's responsible managers; otherwise the AccountAdmins.
+      ['property_operator', 'responsible_scope', 'account_admin'],
+    ),
+    // A failure RepKey retries by itself is not news: only a completed import,
+    // or one whose closed reason needs a person, reaches anybody.
+    eventCondition: 'outcome === completed || failureReason !== temporary',
+  },
   route(
     'integration.google_account.reauthorization_required',
     'notification.on-google-reauthorization-required',

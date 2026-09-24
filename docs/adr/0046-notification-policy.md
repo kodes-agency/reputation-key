@@ -523,6 +523,67 @@ CONTEXT admits exactly one non-mandatory Organization-scoped type — a second
 one needs its own ADR and a CHECK change, plus a grouped upstream fact that
 spans the Property and Portal release paths.
 
+## Amended 2026-09-24 — one summary when a Property's review history is imported
+
+The 2026-09-21 amendment above stopped announcing imported Google history
+review by review. It left nothing in its place: an import finished and nobody
+was told. This amendment replaces those suppressed per-review notices with one
+summary per Property, `property.review_import_finished`, category
+`workflow_collaboration`. An import that finished is work to pick up, not an
+emergency: it respects quiet hours and never bypasses them, including when it
+failed.
+
+**Where the numbers come from.** The Property import itself cannot produce
+them. `gbp_import_sagas` carries no review counts; the import only _enqueues_ a
+review sync into the Review context, which runs later. The counts exist at the
+end of that sync, so the durable fact is written there —
+`review.property_history_import.finished`, emitted by the transaction that
+makes a snapshot run terminal (`failLockedRun`, and the completion branch of
+`applyDeletionBatch`). It carries identifiers, the unique reviews the run had
+listed, and, on failure, a closed reason.
+
+It is a new fact, not an extension of
+`review.google_reputation_snapshot.verified`: that one fires on every completed
+run including ordinary polls, has no failure counterpart at all, and its
+`reviewCount` is the provider aggregate rather than what a run observed.
+
+**Which run ends the import** is decided from state that already exists, with no
+new column: the run's epoch has a history cutoff, no earlier epoch of the
+Property has one (so this is the first import, not a relink's), and no completed
+run has listed that history yet — the verified reputation fact each completed
+run writes is that proof, and it is read before this run writes its own. So the
+import announces itself exactly once and every later poll that completes says
+nothing. A failure additionally requires the run to be carrying the import: an
+ordinary poll failing on an imported Property is not the import failing.
+
+**A failure RepKey retries by itself reaches nobody.** The snapshot run's
+twenty failure codes collapse to four reasons a reader can act on —
+`google_authorization`, `property_source_changed`, `location_too_large`, and
+`temporary` for everything the discovery ladder retries on its own. Only the
+first three notify. Notifying on every transient provider blip would be the
+flood this amendment exists to replace, in a different costume.
+
+**The unanswered count is measured when the notice is built, not when the
+import ended.** An Inbox item is projected asynchronously from `review.created`,
+so at the instant the snapshot run becomes terminal the items the notice is
+about may not exist yet; a count taken there would say "0 still need a reply"
+about 260 that do. Feed reads it through `InboxItemLookupPort` at fan-out time
+and the copy is present-tense to match. It counts open Handling Cycle heads
+rather than measured Response Targets, because performance eligibility decides
+what the analytics measure and imported history is exactly what that excludes.
+The count remains a best-effort detail: a read that fails costs the sentence its
+second number, never the notice.
+
+**Recipients**, in order: whoever asked for the import
+(`gbp_import_requests.initiated_by`, answered by the Integration context's
+public API), then the Property's responsible managers, then the AccountAdmins.
+Each carries the audience that re-decides it at delivery, so somebody who has
+since lost the Property hears nothing. The initiator is a normal `null`: those
+request rows are purged 30 days after the import becomes terminal.
+
+The notice opens the Inbox at that Property's open queue, because that is the
+work it is about.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

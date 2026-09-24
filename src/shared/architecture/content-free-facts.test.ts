@@ -38,6 +38,8 @@ const REGISTER: Readonly<Record<string, string>> = {
   // Closed Portal Health vocabulary — enum codes, never operator/guest prose.
   'PortalHealthChanged.previousReason': 'closed PortalHealthReason enum fact',
   'PortalHealthChanged.reason': 'closed PortalHealthReason enum fact',
+  'ReviewPropertyHistoryImportFinished.failureReason':
+    'closed ReviewHistoryImportFailureReason enum fact',
   // Closed Inbox handling-cycle vocabularies — lifecycle facts, never prose.
   'InboxHandlingCycleOpened.openReason': 'closed HandlingCycleOpenReason enum fact',
   'InboxHandlingCycleClosed.closeReason': 'closed HandlingCycleCloseReason enum fact',

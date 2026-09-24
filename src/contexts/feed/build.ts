@@ -62,6 +62,10 @@ import { registerWorkflowNotificationConsumers } from './infrastructure/workflow
 import { registerPortalNotificationConsumers } from './infrastructure/portal-outbox-consumers'
 import { registerPropertyNotificationConsumers } from './infrastructure/property-outbox-consumers'
 import {
+  registerReviewImportNotificationConsumers,
+  type PropertyImportInitiatorLookup,
+} from './infrastructure/review-import-outbox-consumers'
+import {
   registerIntegrationNotificationConsumers,
   type GoogleConnectionPropertyLookup,
 } from './infrastructure/integration-outbox-consumers'
@@ -296,6 +300,8 @@ type NotificationBuildInput = Readonly<{
   /** Guest-owned source attribution; Notification never reads Guest tables. */
   feedbackPortalLookup: FeedbackPortalLookupPort
   googleConnectionProperties: GoogleConnectionPropertyLookup
+  /** Integration-owned answer to who asked for a Property's Google import. */
+  propertyImportInitiators: PropertyImportInitiatorLookup
   /** Goal-owned exact closed-and-achieved result lookup. */
   monthlyResultFacts: MonthlyResultNotificationFactsLookup
   /** Portal-owned exact current Health state fence for delayed delivery. */
@@ -766,6 +772,16 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       queue,
       userLookup,
       googleConnectionProperties: input.googleConnectionProperties,
+      logger: input.logger,
+      receipts: input.outboxRepo,
+    })
+    registerReviewImportNotificationConsumers(consumerRegistry, {
+      queue,
+      userLookup,
+      responsibleManagers: input.responsibleManagers,
+      inboxItemLookup,
+      importInitiators: input.propertyImportInitiators,
+      displayNames,
       logger: input.logger,
       receipts: input.outboxRepo,
     })

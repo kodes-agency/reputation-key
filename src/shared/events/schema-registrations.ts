@@ -59,12 +59,17 @@ const databaseUuidSchema = z
   .string()
   .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu)
 
+/** The Property source-epoch scope both provider-snapshot run facts are keyed by. */
+const reviewSnapshotRunScope = {
+  organizationId: z.string().trim().min(1).max(255),
+  propertyId: databaseUuidSchema,
+  sourceEpoch: z.number().int().safe().nonnegative(),
+  runId: databaseUuidSchema,
+} as const
+
 const reviewGoogleReputationSnapshotVerifiedSchema = z
   .object({
-    organizationId: z.string().trim().min(1).max(255),
-    propertyId: databaseUuidSchema,
-    sourceEpoch: z.number().int().safe().nonnegative(),
-    runId: databaseUuidSchema,
+    ...reviewSnapshotRunScope,
     reviewCount: z.number().int().safe().min(0).max(10_000),
     averageRating: z.number().finite().min(0).max(5).nullable(),
     evaluatedAt: z.iso.datetime(),
@@ -90,6 +95,44 @@ const reviewGoogleReputationSnapshotVerifiedSchema = z
         code: 'custom',
         path: ['sourceAggregateVersion'],
         message: 'The source aggregate version must equal evaluatedAt',
+      })
+    }
+  })
+
+/**
+ * A Property's first Google history import reaching a terminal state.
+ * Identifiers, one count, and a closed reason — never review content. Never
+ * `.strict()`: an older relay must tolerate a field a newer producer adds.
+ */
+const reviewPropertyHistoryImportFinishedSchema = z
+  .object({
+    ...reviewSnapshotRunScope,
+    outcome: z.enum(['completed', 'failed']),
+    reviewsObserved: z.number().int().safe().min(0).max(10_000),
+    failureReason: z
+      .enum([
+        'google_authorization',
+        'property_source_changed',
+        'location_too_large',
+        'temporary',
+      ])
+      .nullable(),
+    occurredAt: z.iso.datetime(),
+    sourceAggregateVersion: z.iso.datetime(),
+  })
+  .superRefine((value, context) => {
+    if ((value.outcome === 'failed') !== (value.failureReason !== null)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['failureReason'],
+        message: 'A closed reason accompanies exactly a failed import',
+      })
+    }
+    if (value.sourceAggregateVersion !== value.occurredAt) {
+      context.addIssue({
+        code: 'custom',
+        path: ['sourceAggregateVersion'],
+        message: 'The source aggregate version must equal occurredAt',
       })
     }
   })
@@ -1371,6 +1414,11 @@ export function registerAllEventSchemas(): void {
     type: 'review.google_reputation_snapshot.verified',
     version: EVENT_VERSION,
     schema: reviewGoogleReputationSnapshotVerifiedSchema,
+  })
+  registerEventSchema({
+    type: 'review.property_history_import.finished',
+    version: EVENT_VERSION,
+    schema: reviewPropertyHistoryImportFinishedSchema,
   })
   registerEventSchema({
     type: 'review.reply.submitted',

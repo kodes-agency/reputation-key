@@ -6,7 +6,7 @@
 // already reads `properties` from this context. Whether an item arrived as
 // Google history is the predicate the missing-notification gauge also reads.
 import type { Database } from '#/shared/db'
-import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, count, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import {
   inboxHandlingCycleHeads,
   inboxHandlingCycleResponseTargets,
@@ -236,6 +236,28 @@ export const createInboxItemLookupAdapter = (
 
   findNoteAuthors(id: InboxItemId, orgId: OrganizationId) {
     return findNoteAuthors(db, id, orgId)
+  },
+
+  async countOpenReviewItemsForProperty(
+    property: string,
+    orgId: OrganizationId,
+  ): Promise<number> {
+    // The Handling Cycle head is the Inbox's own answer to "is this still
+    // open": it closes when the reply is live. Counting targets instead would
+    // have to choose a performance eligibility, and imported history is
+    // exactly the eligibility that choice excludes.
+    const rows = await db
+      .select({ open: count() })
+      .from(inboxHandlingCycleHeads)
+      .where(
+        and(
+          eq(inboxHandlingCycleHeads.organizationId, unbrand(orgId)),
+          eq(inboxHandlingCycleHeads.propertyId, property),
+          eq(inboxHandlingCycleHeads.sourceType, 'review'),
+          eq(inboxHandlingCycleHeads.status, 'open'),
+        ),
+      )
+    return rows[0]?.open ?? 0
   },
 
   async findResponseTargetReminderNotificationFacts(

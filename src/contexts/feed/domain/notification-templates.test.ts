@@ -131,6 +131,74 @@ describe('renderNotification — facts beside the copy, not inside it', () => {
   })
 })
 
+describe('renderNotification — the import summary that replaced a flood', () => {
+  it('says what was imported and how much of it is still waiting', () => {
+    const r = renderNotification('property.review_import_finished', {
+      propertyName: 'Riverside Hotel',
+      importOutcome: 'completed',
+      importedCount: 260,
+      unansweredCount: 254,
+    })
+
+    expect(r.body).toContain('260')
+    expect(r.body).toContain('254')
+    expect(r.title).toContain('Riverside Hotel')
+  })
+
+  it('does not ask for a reply when nothing is waiting', () => {
+    const r = renderNotification('property.review_import_finished', {
+      propertyName: 'Riverside Hotel',
+      importOutcome: 'completed',
+      importedCount: 12,
+      unansweredCount: 0,
+    })
+
+    expect(r.body).toContain('12')
+    expect(r.body).not.toMatch(/still need/u)
+  })
+
+  it('keeps a sentence a reader can act on when the counts never arrived', () => {
+    const r = renderNotification('property.review_import_finished', {
+      propertyName: 'Riverside Hotel',
+      importOutcome: 'completed',
+    })
+
+    expect(r.body.trim()).not.toBe('')
+    expect(r.body).not.toMatch(/undefined|NaN/u)
+  })
+
+  it('tells a stopped import what to do next, per closed reason', () => {
+    const reconnect = renderNotification('property.review_import_finished', {
+      propertyName: 'Riverside Hotel',
+      importOutcome: 'failed',
+      importFailureReason: 'google_authorization',
+    })
+    const relink = renderNotification('property.review_import_finished', {
+      propertyName: 'Riverside Hotel',
+      importOutcome: 'failed',
+      importFailureReason: 'property_source_changed',
+    })
+    const tooLarge = renderNotification('property.review_import_finished', {
+      propertyName: 'Riverside Hotel',
+      importOutcome: 'failed',
+      importFailureReason: 'location_too_large',
+    })
+
+    expect(reconnect.body).toMatch(/Reconnect Google/u)
+    expect(relink.body).toMatch(/link/iu)
+    expect(tooLarge.body).toMatch(/support/iu)
+    for (const r of [reconnect, relink, tooLarge]) {
+      expect(r.title).not.toMatch(/imported/iu)
+    }
+  })
+
+  it('opens the Inbox at the Property whose history was imported', () => {
+    expect(
+      notificationLink('property', UUID, UUID, 'property.review_import_finished'),
+    ).toEqual({ path: '/inbox', search: { queue: 'open', propertyId: UUID } })
+  })
+})
+
 describe('renderNotification — the copy that was broken', () => {
   it('inbox.escalated names the property instead of the item id', () => {
     const r = renderNotification('inbox.escalated', {

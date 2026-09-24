@@ -287,6 +287,60 @@ describe('createInboxItemLookupAdapter.isHistoricalOnboardingItem', () => {
   })
 })
 
+describe('createInboxItemLookupAdapter.countOpenReviewItemsForProperty', () => {
+  const adapter = () =>
+    createInboxItemLookupAdapter(drizzle(getPool()) as unknown as Database, {
+      findPortalId: vi.fn().mockResolvedValue(null),
+    })
+  /** The open head the Inbox projection commits beside a Review's first cycle. */
+  const seedOpenReviewHead = (item: string, review: string, status: 'open' | 'closed') =>
+    getPool().query(
+      `INSERT INTO inbox_handling_cycle_heads
+         (inbox_item_id, organization_id, property_id, source_type, source_id,
+          current_source_revision, current_cycle_number, state_revision, status)
+       VALUES ($1, $2, $3, 'review', $4, 1, 1, 1, $5)`,
+      [item, ORG_A, PROPERTY_A, review, status],
+    )
+
+  it('counts the imported reviews a Property still owes a reply', async () => {
+    await seedPropertyAndPortal(ORG_A, PROPERTY_A, PORTAL_A)
+    await seedReviewItem(HISTORY_ITEM, HISTORY_REVIEW, 'historical_onboarding')
+    await seedReviewItem(LIVE_ITEM, LIVE_REVIEW, 'measured')
+    await seedOpenReviewHead(HISTORY_ITEM, HISTORY_REVIEW, 'open')
+    await seedOpenReviewHead(LIVE_ITEM, LIVE_REVIEW, 'open')
+
+    await expect(
+      adapter().countOpenReviewItemsForProperty(PROPERTY_A, ORG_A),
+    ).resolves.toBe(2)
+  })
+
+  it('stops counting an item once its handling cycle is closed', async () => {
+    await seedPropertyAndPortal(ORG_A, PROPERTY_A, PORTAL_A)
+    await seedReviewItem(HISTORY_ITEM, HISTORY_REVIEW, 'historical_onboarding')
+    await seedReviewItem(LIVE_ITEM, LIVE_REVIEW, 'measured')
+    await seedOpenReviewHead(HISTORY_ITEM, HISTORY_REVIEW, 'closed')
+    await seedOpenReviewHead(LIVE_ITEM, LIVE_REVIEW, 'open')
+
+    await expect(
+      adapter().countOpenReviewItemsForProperty(PROPERTY_A, ORG_A),
+    ).resolves.toBe(1)
+  })
+
+  it('counts nothing for another Organization, or a Property with no reviews', async () => {
+    await seedPropertyAndPortal(ORG_A, PROPERTY_A, PORTAL_A)
+    await seedPropertyAndPortal(ORG_B, PROPERTY_B, PORTAL_B)
+    await seedReviewItem(HISTORY_ITEM, HISTORY_REVIEW, 'historical_onboarding')
+    await seedOpenReviewHead(HISTORY_ITEM, HISTORY_REVIEW, 'open')
+
+    await expect(
+      adapter().countOpenReviewItemsForProperty(PROPERTY_A, ORG_B),
+    ).resolves.toBe(0)
+    await expect(
+      adapter().countOpenReviewItemsForProperty(PROPERTY_B, ORG_B),
+    ).resolves.toBe(0)
+  })
+})
+
 describe('createInboxItemLookupAdapter.findResponseTargetReminderNotificationFacts', () => {
   const OPENED = new Date('2026-09-16T08:00:00.000Z')
   const HALFWAY = new Date('2026-09-16T10:00:00.000Z')
