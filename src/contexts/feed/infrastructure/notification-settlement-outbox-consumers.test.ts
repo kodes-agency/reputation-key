@@ -161,7 +161,6 @@ describe('a settling fact retires the notices that asked for the work', () => {
     expect(deps.notifications.settleUnreadForResource.mock.calls[0]?.[0]).toMatchObject({
       types: [
         'inbox.reopened',
-        'inbox.bulk_reopened',
         'inbox.response_target_halfway',
         'inbox.response_target_passed',
       ],

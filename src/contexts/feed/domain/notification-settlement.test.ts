@@ -38,11 +38,16 @@ describe('which notices a settling fact retires', () => {
 
   it('retires every waiting-cycle notice when the Handling Cycle closes', () => {
     expect([...settledNotificationTypes('handling_cycle.closed')].sort()).toEqual([
-      'inbox.bulk_reopened',
       'inbox.reopened',
       'inbox.response_target_halfway',
       'inbox.response_target_passed',
     ])
+  })
+
+  it('leaves a grouped reopen standing, because one closed item is not all of them', () => {
+    expect(settledNotificationTypes('handling_cycle.closed')).not.toContain(
+      'inbox.bulk_reopened',
+    )
   })
 
   it('retires only the Property request when a Property gets a manager back', () => {

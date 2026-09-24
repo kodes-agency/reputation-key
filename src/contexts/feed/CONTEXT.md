@@ -244,7 +244,9 @@ A notice that asks its reader for work stops asking once the work is done.
 The actionable types are named in `domain/notification-settlement.ts`; the
 settlement consumer retires every recipient's still-waiting row for a
 (type, resource) when the finishing fact arrives and cancels the still-sendable
-mail behind them. It stamps `resolvedAt` and leaves `status` alone, because
+mail behind them. A grouped reopen is the one actionable type nothing settles:
+it stands for many items under the first of them, and its audience already
+re-counts the ones that still stand. It stamps `resolvedAt` and leaves `status` alone, because
 read is not resolved: a settled row leaves the unread count and the Unread tab,
 stays in the feed under a "Done" marker, and returns to asking if a repeat
 event lands on the same resource. Immediately before the provider effect, the

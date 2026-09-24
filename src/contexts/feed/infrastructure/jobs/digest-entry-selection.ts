@@ -345,8 +345,12 @@ async function settledWork(
   ctx: RecipientContext,
   items: readonly DigestItem[],
 ): Promise<readonly DigestItem[]> {
-  const settled = items.filter((item) => !isStillActionable(item.notification))
-  for (const item of settled) {
+  const waiting: DigestItem[] = []
+  for (const item of items) {
+    if (isStillActionable(item.notification)) {
+      waiting.push(item)
+      continue
+    }
     await deps.emailRepo.markSuppressed(
       notificationEmailId(item.entry.id as string),
       ctx.orgId,
@@ -362,5 +366,5 @@ async function settledWork(
       'Digest entry suppressed',
     )
   }
-  return items.filter((item) => isStillActionable(item.notification))
+  return waiting
 }

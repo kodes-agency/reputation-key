@@ -209,6 +209,9 @@ export const createNotificationRepository = (db: Database) => ({
           priority: notification.priority,
           coalescedCount: sql`${notifications.coalescedCount} + 1`,
           coalescedLatestAt: notification.updatedAt,
+          // The row is being asked for again, so any settled marker it carries
+          // is dropped: the work came back.
+          resolvedAt: null,
           updatedAt: notification.updatedAt,
         },
       })
@@ -370,6 +373,8 @@ export const createNotificationRepository = (db: Database) => ({
         payload: notification.payload,
         coalescedCount: notification.coalescedCount,
         coalescedLatestAt: notification.coalescedLatestAt,
+        // `applyCoalescence` clears it: the repeat event is asking again.
+        resolvedAt: notification.resolvedAt,
         updatedAt: notification.updatedAt,
       })
       .where(

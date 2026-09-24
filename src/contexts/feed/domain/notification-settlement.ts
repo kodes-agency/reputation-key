@@ -57,10 +57,13 @@ const SETTLED_BY: Readonly<Record<SettlingFact, ReadonlyArray<NotificationType>>
   'reply.published': ['reply.pending_approval', 'reply.publish_failed'],
   'escalation.resolved': ['inbox.escalated'],
   // A closed cycle is a handled item: the reopen that asked for it and every
-  // Response Target reminder about it are answered.
+  // Response Target reminder about it are answered. `inbox.bulk_reopened` is
+  // deliberately absent — one grouped notice stands for many items and is
+  // filed under the first of them, so closing that one item would retire a
+  // notice the rest are still waiting behind. Its own audience already
+  // re-counts the items that still stand, at delivery.
   'handling_cycle.closed': [
     'inbox.reopened',
-    'inbox.bulk_reopened',
     'inbox.response_target_halfway',
     'inbox.response_target_passed',
   ],

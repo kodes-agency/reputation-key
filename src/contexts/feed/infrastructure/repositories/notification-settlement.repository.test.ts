@@ -20,6 +20,7 @@ import {
 } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createNotification } from '../../domain/notification-constructors'
+import { applyCoalescence } from '../../domain/notification-policy'
 import { SETTLED_EMAIL_REASON } from '../../domain/notification-settlement'
 import type { NotificationType } from '../../domain/notification-types'
 import { createNotificationRepository } from './notification.repository'
@@ -209,6 +210,53 @@ describe.sequential('settling a notice whose work is done (real PostgreSQL)', ()
 
     expect(settled).toEqual([])
     expect((await feedHead(APPROVER)).unreadCount).toBe(2)
+  })
+
+  it('starts asking again when a repeat event lands on the settled row', async () => {
+    const repo = createNotificationRepository(db)
+    const waiting = notice('86000000-0000-4000-8000-00000000001a', APPROVER)
+    await repo.insert(waiting)
+    await repo.settleUnreadForResource({
+      organizationId: ORG,
+      types: ['reply.pending_approval'],
+      resourceId: ITEM,
+      resolvedAt: SETTLED_AT,
+    })
+
+    // A second reply submitted on the same item: the row is waiting once more.
+    const repeat = await repo.findUnreadByUserTypeResource(
+      APPROVER,
+      ORG,
+      PROPERTY,
+      'reply.pending_approval',
+      ITEM,
+    )
+    await repo.refreshUnread(
+      applyCoalescence(repeat!, { propertyName: 'Settled Hotel' }, SETTLED_AT),
+    )
+
+    expect((await repo.findById(waiting.id, ORG))?.resolvedAt).toBeNull()
+    expect((await feedHead(APPROVER)).unreadCount).toBe(1)
+  })
+
+  it('starts asking again when a racing repeat lands through the upsert', async () => {
+    const repo = createNotificationRepository(db)
+    const first = notice('86000000-0000-4000-8000-00000000001b', APPROVER)
+    await repo.insert(first)
+    await repo.settleUnreadForResource({
+      organizationId: ORG,
+      types: ['reply.pending_approval'],
+      resourceId: ITEM,
+      resolvedAt: SETTLED_AT,
+    })
+
+    const stored = await repo.insert(
+      notice('86000000-0000-4000-8000-00000000001c', APPROVER),
+    )
+
+    expect(stored.id).toBe(first.id)
+    expect(stored.resolvedAt).toBeNull()
+    expect((await feedHead(APPROVER)).unreadCount).toBe(1)
   })
 
   it('settles nothing a second time, so a redelivered fact is a no-op', async () => {

@@ -299,12 +299,7 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
   settles(
     'inbox.handling_cycle.closed',
     'notification.settle-on-inbox-handling-cycle-closed',
-    [
-      'inbox.reopened',
-      'inbox.bulk_reopened',
-      'inbox.response_target_halfway',
-      'inbox.response_target_passed',
-    ],
+    ['inbox.reopened', 'inbox.response_target_halfway', 'inbox.response_target_passed'],
   ),
   {
     ...settles(

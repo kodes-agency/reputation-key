@@ -429,7 +429,10 @@ standing, never the state of the work. Three rules close that:
    closed, a responsible manager chosen again — retires every recipient's
    still-waiting row for its (type, resource) and cancels the mail queued
    behind them as `cancelled` / `work_settled`. Mail the provider may already
-   hold is left alone.
+   hold is left alone. A grouped reopen is the one actionable type no fact
+   settles: it stands for many items and is filed under the first of them, so
+   one closed cycle would retire a notice the rest are still waiting behind.
+   Its own audience already re-counts the items that still stand.
 2. **Resolved is not read.** Settling stamps `notifications.resolved_at` and
    leaves `status`, because docs/BETA.md says read is not resolved. A settled
    row leaves the unread count and the Unread tab, keeps its place in the
