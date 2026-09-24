@@ -669,6 +669,211 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
     ])
   })
 
+  describe("the end of a Property's first history import", () => {
+    const IMPORT_RUN_ID = '72000000-0000-4000-8000-000000000009'
+    const scope = {
+      organizationId: organizationId(ORGANIZATION_ID),
+      propertyId: propertyId(PROPERTY_ID),
+      sourceEpoch: 0,
+    }
+    const importRepository = createReviewProviderSnapshotRepository(
+      db,
+      () => IMPORT_RUN_ID,
+    )
+    const resetScope = async () => {
+      await db
+        .delete(reviewProviderSnapshotRuns)
+        .where(eq(reviewProviderSnapshotRuns.propertyId, PROPERTY_ID))
+      await db.execute(sql`
+        DELETE FROM review_provider_history_cutoffs WHERE property_id = ${PROPERTY_ID}
+      `)
+      await db.execute(sql`
+        DELETE FROM review_google_reputation_snapshot_facts WHERE property_id = ${PROPERTY_ID}
+      `)
+      await db.execute(sql`
+        DELETE FROM outbox_events WHERE organization_id = ${ORGANIZATION_ID}
+      `)
+    }
+    const importFinishedPayloads = async () => {
+      const rows = await db.execute(sql`
+        SELECT payload, source_aggregate_id, property_id
+        FROM outbox_events
+        WHERE event_type = 'review.property_history_import.finished'
+          AND organization_id = ${ORGANIZATION_ID}
+        ORDER BY created_at
+      `)
+      return rows.rows
+    }
+    /** A run parked in `deleting` with nothing left to apply, so one batch completes it. */
+    const seedApplyReadyRun = async (
+      runId: string,
+      overrides: Readonly<{ sourceEpoch?: number; observed?: number }> = {},
+    ) => {
+      await db.insert(reviewProviderSnapshotRuns).values({
+        id: runId,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        sourceEpoch: overrides.sourceEpoch ?? 0,
+        observationOrigin: 'historical_onboarding',
+        state: 'deleting',
+        phase: 'apply',
+        expectedTotal: overrides.observed ?? 260,
+        expectedAverageRating: 4.5,
+        mainUniqueCount: overrides.observed ?? 260,
+        startedAt: STARTED_AT,
+        expiresAt: EXPIRES_AT,
+      })
+    }
+
+    it('records what the import took in when its first listing completes', async () => {
+      await resetScope()
+      await importRepository.fixImportHistoryCutoff(scope)
+      await seedApplyReadyRun(IMPORT_RUN_ID)
+
+      await expect(
+        importRepository.applyDeletionBatch({ runId: IMPORT_RUN_ID, limit: 100 }),
+      ).resolves.toMatchObject({ done: true })
+
+      const finished = await importFinishedPayloads()
+      expect(finished).toHaveLength(1)
+      expect(finished[0]).toMatchObject({
+        source_aggregate_id: IMPORT_RUN_ID,
+        property_id: PROPERTY_ID,
+      })
+      expect(finished[0]?.payload).toMatchObject({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        sourceEpoch: 0,
+        runId: IMPORT_RUN_ID,
+        outcome: 'completed',
+        reviewsObserved: 260,
+        failureReason: null,
+      })
+      await resetScope()
+    })
+
+    it('announces the import once, not on every later poll that completes', async () => {
+      await resetScope()
+      await importRepository.fixImportHistoryCutoff(scope)
+      await seedApplyReadyRun(IMPORT_RUN_ID)
+      await importRepository.applyDeletionBatch({ runId: IMPORT_RUN_ID, limit: 100 })
+
+      await seedApplyReadyRun(OTHER_RUN_ID, { observed: 261 })
+      await expect(
+        importRepository.applyDeletionBatch({ runId: OTHER_RUN_ID, limit: 100 }),
+      ).resolves.toMatchObject({ done: true })
+
+      const finished = await importFinishedPayloads()
+      expect(finished).toHaveLength(1)
+      expect(finished[0]?.payload).toMatchObject({ runId: IMPORT_RUN_ID })
+      await resetScope()
+    })
+
+    it('says nothing about a poll of a Property no import ever covered', async () => {
+      await resetScope()
+      await seedApplyReadyRun(IMPORT_RUN_ID)
+
+      await expect(
+        importRepository.applyDeletionBatch({ runId: IMPORT_RUN_ID, limit: 100 }),
+      ).resolves.toMatchObject({ done: true })
+
+      await expect(importFinishedPayloads()).resolves.toEqual([])
+      await resetScope()
+    })
+
+    it("stays silent for a relinked epoch, which is not the Property's first import", async () => {
+      await resetScope()
+      await db.execute(sql`
+        INSERT INTO review_provider_history_cutoffs
+          (organization_id, property_id, source_epoch, cutoff_at)
+        VALUES (${ORGANIZATION_ID}, ${PROPERTY_ID}, 0, ${STARTED_AT})
+      `)
+      await importRepository.fixImportHistoryCutoff({ ...scope, sourceEpoch: 2 })
+      await db
+        .update(properties)
+        .set({ sourceEpoch: 2 })
+        .where(eq(properties.id, PROPERTY_ID))
+      await seedApplyReadyRun(IMPORT_RUN_ID, { sourceEpoch: 2 })
+
+      await importRepository.applyDeletionBatch({ runId: IMPORT_RUN_ID, limit: 100 })
+
+      await expect(importFinishedPayloads()).resolves.toEqual([])
+      await db
+        .update(properties)
+        .set({ sourceEpoch: 0 })
+        .where(eq(properties.id, PROPERTY_ID))
+      await resetScope()
+    })
+
+    it('reports a failed import with the closed reason and what it had listed', async () => {
+      await resetScope()
+      await importRepository.fixImportHistoryCutoff(scope)
+      const run = await importRepository.startOrResume({
+        ...scope,
+        observationOrigin: 'historical_onboarding',
+      })
+      await db
+        .update(reviewProviderSnapshotRuns)
+        .set({ mainUniqueCount: 12 })
+        .where(eq(reviewProviderSnapshotRuns.id, run.id))
+
+      await importRepository.failRun({
+        runId: run.id,
+        organizationId: scope.organizationId,
+        code: 'authorization_denied',
+      })
+
+      const finished = await importFinishedPayloads()
+      expect(finished).toHaveLength(1)
+      expect(finished[0]?.payload).toMatchObject({
+        runId: run.id,
+        outcome: 'failed',
+        reviewsObserved: 12,
+        failureReason: 'google_authorization',
+      })
+      await resetScope()
+    })
+
+    it('records the failure once, however often the run is failed again', async () => {
+      await resetScope()
+      await importRepository.fixImportHistoryCutoff(scope)
+      const run = await importRepository.startOrResume({
+        ...scope,
+        observationOrigin: 'historical_onboarding',
+      })
+      const fail = () =>
+        importRepository.failRun({
+          runId: run.id,
+          organizationId: scope.organizationId,
+          code: 'provider_failure',
+        })
+
+      await fail()
+      await fail()
+
+      await expect(importFinishedPayloads()).resolves.toHaveLength(1)
+      await resetScope()
+    })
+
+    it('says nothing when an ordinary poll run fails on an imported Property', async () => {
+      await resetScope()
+      await importRepository.fixImportHistoryCutoff(scope)
+      const run = await importRepository.startOrResume({
+        ...scope,
+        observationOrigin: 'ongoing',
+      })
+
+      await importRepository.failRun({
+        runId: run.id,
+        organizationId: scope.organizationId,
+        code: 'provider_failure',
+      })
+
+      await expect(importFinishedPayloads()).resolves.toEqual([])
+      await resetScope()
+    })
+  })
+
   describe('initial import history cutoff', () => {
     const scope = {
       organizationId: organizationId(ORGANIZATION_ID),
