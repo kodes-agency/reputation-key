@@ -105,6 +105,29 @@ const providerAggregateIsValid = (
     averageRating <= 5)
 
 /**
+ * "A completed run has listed this epoch's history": the verified reputation
+ * fact of a run that evaluated at or after the epoch's cutoff.
+ *
+ * The cutoff is written by `transaction_timestamp()` and keeps PostgreSQL's
+ * microseconds. `evaluated_at` does NOT: `recordVerifiedSnapshotFact` reads
+ * that instant into a JavaScript Date, which is milliseconds, and writes it
+ * back truncated. Two instants inside the same millisecond therefore compare
+ * BACKWARDS — a cutoff at .06308 and a completion at .063080 stored as .063.
+ * An import admitted and completed in the same millisecond then looked
+ * unlisted forever, so its Inbox items stayed history and, with the import
+ * summary, every later completed poll re-announced it. Comparing at the
+ * precision both values actually carry is the honest fix.
+ */
+const historyListedSince = sql`EXISTS (
+  SELECT 1
+  FROM review_google_reputation_snapshot_facts listing
+  WHERE listing.organization_id = epoch.organization_id
+    AND listing.property_id = epoch.property_id
+    AND listing.source_epoch = epoch.source_epoch
+    AND listing.evaluated_at >= date_trunc('milliseconds', epoch.cutoff_at)
+)`
+
+/**
  * Whether this terminal run ends the Property's FIRST Google history import,
  * the one moment the summary notice is about (ADR 0046, amended 2026-09-24).
  *
@@ -137,14 +160,7 @@ async function endsFirstHistoryImport(
           AND earlier.property_id = epoch.property_id
           AND earlier.source_epoch < epoch.source_epoch
       ) AS first_import,
-      NOT EXISTS (
-        SELECT 1
-        FROM review_google_reputation_snapshot_facts listing
-        WHERE listing.organization_id = epoch.organization_id
-          AND listing.property_id = epoch.property_id
-          AND listing.source_epoch = epoch.source_epoch
-          AND listing.evaluated_at >= epoch.cutoff_at
-      ) AS history_unlisted
+      NOT ${historyListedSince} AS history_unlisted
     FROM review_provider_history_cutoffs epoch
     WHERE epoch.organization_id = ${run.organizationId}
       AND epoch.property_id = ${run.propertyId}
@@ -286,14 +302,7 @@ async function readHistoryCutoffRow(
         ORDER BY first_import.source_epoch
         LIMIT 1
       ) AS first_import_cutoff_at,
-      EXISTS (
-        SELECT 1
-        FROM review_google_reputation_snapshot_facts listing
-        WHERE listing.organization_id = epoch.organization_id
-          AND listing.property_id = epoch.property_id
-          AND listing.source_epoch = epoch.source_epoch
-          AND listing.evaluated_at >= epoch.cutoff_at
-      ) AS history_listed
+      ${historyListedSince} AS history_listed
     FROM review_provider_history_cutoffs epoch
     WHERE epoch.organization_id = ${scope.organizationId}
       AND epoch.property_id = ${scope.propertyId}

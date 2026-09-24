@@ -769,6 +769,37 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       await resetScope()
     })
 
+    // `evaluated_at` is written through a JavaScript Date and loses the
+    // cutoff's microseconds. A completion inside the cutoff's own millisecond
+    // is stored BEFORE it, and the history then looked unlisted forever: this
+    // test failed roughly one run in three before the comparison was taken to
+    // the precision both values carry.
+    it('treats a completion inside the cutoff\u2019s own millisecond as listed', async () => {
+      await resetScope()
+      await importRepository.fixImportHistoryCutoff(scope)
+      await seedApplyReadyRun(IMPORT_RUN_ID)
+      await importRepository.applyDeletionBatch({ runId: IMPORT_RUN_ID, limit: 100 })
+      // Force the exact collision instead of waiting for it to happen.
+      await db.execute(sql`
+        UPDATE review_google_reputation_snapshot_facts
+        SET evaluated_at = date_trunc(
+          'milliseconds',
+          (SELECT cutoff_at FROM review_provider_history_cutoffs
+            WHERE property_id = ${PROPERTY_ID} AND source_epoch = 0)
+        )
+        WHERE run_id = ${IMPORT_RUN_ID}
+      `)
+
+      await expect(importRepository.readHistoryCutoff(scope)).resolves.toMatchObject({
+        historyListed: true,
+      })
+      await seedApplyReadyRun(OTHER_RUN_ID, { observed: 261 })
+      await importRepository.applyDeletionBatch({ runId: OTHER_RUN_ID, limit: 100 })
+
+      await expect(importFinishedPayloads()).resolves.toHaveLength(1)
+      await resetScope()
+    })
+
     it('says nothing about a poll of a Property no import ever covered', async () => {
       await resetScope()
       await seedApplyReadyRun(IMPORT_RUN_ID)
